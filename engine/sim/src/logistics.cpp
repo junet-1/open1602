@@ -2,8 +2,12 @@
 #include "o1602/sim/logistics.hpp"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <unordered_map>
+
+#include "o1602/assets/savegame.hpp"
+#include "o1602/sim/growth.hpp"
 
 namespace o1602::sim {
 
@@ -26,6 +30,19 @@ constexpr std::int32_t kLastSourceKind = 8;
 constexpr std::int32_t kHauptKind = 30;
 /// Statistics value of a market is at most this (u16 in the original).
 constexpr std::uint32_t kMaxU16 = std::numeric_limits<std::uint16_t>::max();
+
+/// Deposits (0x0046BFF0): small veins serve every mine, big ones every mine down to 120 t.
+constexpr std::uint8_t kSmallVein = 1;
+constexpr std::uint32_t kBigVeinShared = 0xF00;
+/// Below 40 t computer players stop exhausting small veins.
+constexpr std::uint32_t kComputerKeeps = 0x500;
+constexpr std::uint8_t kGold = 3;
+using assets::kStockUnitsPerTon;
+
+std::uint64_t tile_key(std::uint16_t island, TilePos t) noexcept {
+    return (std::uint64_t{island} << 32) | (std::uint64_t{static_cast<std::uint16_t>(t.y)} << 16) |
+           static_cast<std::uint16_t>(t.x);
+}
 
 bool is_storehouse(std::int32_t prod_kind) noexcept {
     return prod_kind == static_cast<std::int32_t>(ProductionKind::Markt) ||
@@ -173,7 +190,7 @@ void Logistics::update_storage() {
 }
 
 void Logistics::handle(const ProductionEvent& event) {
-    if (event.kind != ProductionEvent::Kind::NeedsRawGoods || event.ware == 0) {
+    if (event.kind != ProductionEvent::Kind::NeedsRawGoods) {
         return;
     }
     const auto b = building_of(event.production);
@@ -181,6 +198,14 @@ void Logistics::handle(const ProductionEvent& event) {
         return;
     }
     const assets::BuildingType& type = *b->type;
+    const bool second = event.ware != 0 && event.ware == type.raw2_ware && event.ware != type.raw_ware;
+    if (type.prod_kind == static_cast<std::int32_t>(ProductionKind::Bergwerk) && !second) {
+        mine_ore(event.production);
+        return;
+    }
+    if (event.ware == 0) {
+        return;
+    }
     if (event.ware == kAllWares) {
         if (is_storehouse(type.prod_kind)) {
             send_cart(event.production);
@@ -188,14 +213,28 @@ void Logistics::handle(const ProductionEvent& event) {
         return;
     }
     const bool workshop = type.prod_kind == static_cast<std::int32_t>(ProductionKind::Handwerk);
-    const bool second = event.ware == type.raw2_ware && event.ware != type.raw_ware;
     if (second) {
         // The second raw material always comes by carrier (0x0047E22C).
         send_carrier(event.production, event.ware, workshop ? type.worker_figure : kCarrierFigure);
-    } else if (workshop) {
-        send_carrier(event.production, event.ware, type.worker_figure);
+        return;
     }
-    // Farms, mines, cattle farms and fishers fetch their raw material themselves: next stage.
+    switch (static_cast<ProductionKind>(type.prod_kind)) {
+        case ProductionKind::Handwerk:
+            send_carrier(event.production, event.ware, type.worker_figure);
+            break;
+        case ProductionKind::Plantage:
+            send_worker(event.production, event.ware, WalkerKind::Harvester);
+            break;
+        case ProductionKind::Weidetier:
+            send_worker(event.production, event.ware, WalkerKind::Grazer);
+            break;
+        case ProductionKind::Fischerei:
+            send_worker(event.production, event.ware, WalkerKind::Fisher);
+            break;
+        default:
+            // Hunters are called by the deer (0x0047D0E0), not by the production cycle.
+            break;
+    }
 }
 
 std::uint16_t Logistics::reserve(const BuildingAt& at, std::uint16_t island, std::uint8_t ware, std::uint16_t min,
@@ -239,7 +278,7 @@ void Logistics::mark_goals(const IslandMap& map, std::uint8_t city, std::int32_t
     for (std::uint32_t j = 0; j < m_finder.window_height(); ++j) {
         for (std::uint32_t i = 0; i < m_finder.window_width(); ++i) {
             const TilePos t{corner.x + static_cast<std::int32_t>(i), corner.y + static_cast<std::int32_t>(j)};
-            if (!m_finder.inside(t)) {
+            if (!m_finder.inside(t) || !map.contains(t.x, t.y)) {
                 continue;
             }
             const MapCell& cell = map.top(static_cast<std::uint32_t>(t.x), static_cast<std::uint32_t>(t.y));
@@ -431,6 +470,11 @@ void Logistics::begin_step(Walker& w) {
             ws = b->walk_speed[fig != nullptr ? fig->speed_type : 0];
         }
     }
+    if (harvests(w.kind)) {
+        // Kept from the original (S-026): farm workers, cattle and boats never take the pace of
+        // the ground; the search still weighs it.
+        ws = 32;
+    }
     w.walk_speed = ws;
     w.speed = fig != nullptr ? step_speed(*fig, ws) : 1;
 }
@@ -438,12 +482,24 @@ void Logistics::begin_step(Walker& w) {
 void Logistics::tick() {
     m_walkers.for_each([&](Handle h, Walker& w) {
         std::uint64_t budget = kTimeUnits;
+        if (w.working()) {
+            const std::uint32_t spent = std::min(w.work_ms, kTickMs);
+            w.work_ms -= spent;
+            if (w.working()) {
+                return;
+            }
+            finish_work(h, w);
+            if (!m_walkers.contains(h)) {
+                return;
+            }
+            budget = kTimeUnits * (kTickMs - spent) / kTickMs;
+        }
         // A tick moves at most a few tiles; the bound only protects against a broken path.
         for (int guard = 0; budget > 0 && guard < 64; ++guard) {
             if (!w.moving()) {
                 if (w.step >= w.path.size()) {
                     arrive(h, w);
-                    if (!m_walkers.contains(h) || w.step >= w.path.size()) {
+                    if (!m_walkers.contains(h) || w.working() || w.step >= w.path.size()) {
                         return;
                     }
                 }
@@ -466,15 +522,24 @@ void Logistics::tick() {
 }
 
 void Logistics::arrive(Handle h, Walker& w) {
-    if (!w.returning) {
-        pick_up(w);
-        if (plan_home(w)) {
+    if (w.returning) {
+        deliver(w);
+        finish(h, w);
+        return;
+    }
+    if (harvests(w.kind)) {
+        if (w.field && w.tile == *w.field) {
+            const assets::FigureType* fig = m_figures->get(w.figure);
+            w.work_ms = std::max<std::uint32_t>(fig != nullptr ? fig->work_time_ms : 0, 1);
+            w.animation = w.kind == WalkerKind::Harvester ? 2 : 1;
             return;
         }
     } else {
-        deliver(w);
+        pick_up(w);
     }
-    finish(h, w);
+    if (!plan_home(w)) {
+        finish(h, w);
+    }
 }
 
 void Logistics::pick_up(Walker& w) {
@@ -530,25 +595,205 @@ bool Logistics::plan_home(Walker& w) {
         return false;
     }
     w.returning = true;
+    w.animation = 0;
     w.path.clear();
     w.step = 0;
     if (w.tile == w.home_tile) {
         return true;  // delivers at once
     }
-    const IslandMap& map = m_world->islands()[w.island].map;
-    m_finder.begin(map, *m_buildings, catchment_of(*hb->type, hb->rotation, hb->origin),
-                   w.kind == WalkerKind::Cart ? WalkClass::Roads : WalkClass::Land, fig->speed_type);
-    if (const auto here = building_at(*m_world, *m_buildings, w.island, w.tile)) {
-        if (here->type->kind != building_kind::kRoad) {
-            m_finder.open_footprint(here->origin, here->width, here->height);
+    prepare_area(w, *hb, *fig, false);
+    if (!harvests(w.kind)) {
+        // Leave the building it fetched from.
+        if (const auto here = building_at(*m_world, *m_buildings, w.island, w.tile)) {
+            if (here->type->kind != building_kind::kRoad) {
+                m_finder.open_footprint(here->origin, here->width, here->height);
+            }
         }
     }
-    m_finder.open_footprint(hb->origin, hb->width, hb->height);
     m_finder.set(w.home_tile, PathFinder::Cell::Goal);
     const TilePos target = w.home_tile;
     const auto hit = m_finder.search(
         w.tile, [&](TilePos t) { return t == target ? PathFinder::Answer::Accept : PathFinder::Answer::Reject; });
     return hit && m_finder.path_to(*hit, w.path);
+}
+
+void Logistics::prepare_area(const Walker& w, const BuildingAt& hb, const assets::FigureType& fig, bool targets) {
+    const IslandMap& map = m_world->islands()[w.island].map;
+    const Catchment area = catchment_of(*hb.type, hb.rotation, hb.origin);
+    const std::uint8_t type = std::min<std::uint8_t>(fig.speed_type, 3);
+    WalkClass walk = WalkClass::Land;
+    if (w.kind == WalkerKind::Cart) {
+        walk = WalkClass::Roads;
+    } else if (w.kind == WalkerKind::Fisher) {
+        walk = WalkClass::Water;
+    }
+    m_finder.begin(map, *m_buildings, area, walk, fig.speed_type);
+    if (harvests(w.kind)) {
+        const std::uint8_t hut_rotation =
+            map.contains(w.home_tile.x, w.home_tile.y)
+                ? map.top(static_cast<std::uint32_t>(w.home_tile.x), static_cast<std::uint32_t>(w.home_tile.y)).rotation
+                : 0;
+        const TilePos corner = m_finder.window_min();
+        for (std::uint32_t j = 0; j < m_finder.window_height(); ++j) {
+            for (std::uint32_t i = 0; i < m_finder.window_width(); ++i) {
+                const TilePos t{corner.x + static_cast<std::int32_t>(i), corner.y + static_cast<std::int32_t>(j)};
+                if (!m_finder.inside(t) || !map.contains(t.x, t.y)) {
+                    continue;
+                }
+                const MapCell& cell = map.top(static_cast<std::uint32_t>(t.x), static_cast<std::uint32_t>(t.y));
+                const assets::BuildingType* b = cell.empty() ? nullptr : m_buildings->by_sprite(cell.sprite);
+                if (b == nullptr) {
+                    continue;
+                }
+                const bool target = targets && b->prod_kind == kProdKindRipe && b->ware == w.ware &&
+                                    !m_reserved_tiles.contains(tile_key(w.island, t));
+                if (w.kind == WalkerKind::Fisher) {
+                    // 0x0046FB50: shoals of any owner; surf and river mouths facing the hut's
+                    // side are closed.
+                    if ((b->kind == building_kind::kSurf || b->kind == building_kind::kRiverMouth) &&
+                        cell.rotation == ((hut_rotation + 1) & 3U)) {
+                        m_finder.set(t, PathFinder::Cell::Blocked);
+                    } else if (target && b->kind == building_kind::kSea) {
+                        m_finder.set(t, PathFinder::Cell::Goal, 32);
+                    }
+                    continue;
+                }
+                // 0x0046F920: the worker's own crop is walkable in its city, ripe tiles are goals.
+                if (cell.city == w.city && crop_ware(*m_buildings, *b) == w.ware) {
+                    m_finder.set(t, target ? PathFinder::Cell::Goal : PathFinder::Cell::Walkable, b->walk_speed[type]);
+                }
+            }
+        }
+        if (w.kind == WalkerKind::Fisher) {
+            // The tile in front of the hut leads to the water.
+            static constexpr std::array<TilePos, 4> kFront = {{{0, 1}, {-1, 0}, {0, -1}, {1, 0}}};
+            const TilePos front{w.home_tile.x + kFront[hut_rotation & 3U].x,
+                                w.home_tile.y + kFront[hut_rotation & 3U].y};
+            if (const auto at = building_at(*m_world, *m_buildings, w.island, front)) {
+                m_finder.open_footprint(at->origin, at->width, at->height);
+            }
+        }
+    }
+    m_finder.open_footprint(hb.origin, hb.width, hb.height);
+}
+
+bool Logistics::find_crop(Walker& w, const BuildingAt& hb, const assets::FigureType& fig) {
+    prepare_area(w, hb, fig, true);
+    const auto hit = m_finder.search(w.tile, [](TilePos) { return PathFinder::Answer::Accept; });
+    if (!hit || !m_finder.path_to(*hit, w.path)) {
+        return false;
+    }
+    w.step = 0;
+    w.field = *hit;
+    w.returning = false;
+    m_reserved_tiles.insert(tile_key(w.island, *hit));
+    return true;
+}
+
+void Logistics::send_worker(std::uint32_t home, std::uint8_t ware, WalkerKind kind) {
+    const auto hb = building_of(home);
+    if (!hb) {
+        return;
+    }
+    // One worker per farm or fishing hut (Figuranz ignored, 0x00443080); cattle farms keep up
+    // to Figuranz animals out (0x0044AF10).
+    const std::uint8_t limit = kind == WalkerKind::Grazer ? std::max<std::uint8_t>(hb->type->worker_count, 1) : 1;
+    if (jobs(home) >= limit) {
+        return;
+    }
+    const assets::FigureType* fig = m_figures->get(hb->type->worker_figure);
+    if (fig == nullptr || fig->speed == 0) {
+        return;
+    }
+    Walker w;
+    w.kind = kind;
+    w.island = m_world->productions()[home].island;
+    w.figure = hb->type->worker_figure;
+    w.city = hb->city;
+    w.home = home;
+    w.home_tile = centre_tile(*hb);
+    w.tile = w.home_tile;
+    w.ware = ware;
+    w.animation = kind == WalkerKind::Harvester ? 1 : 0;
+    if (!find_crop(w, *hb, *fig)) {
+        return;  // nothing ripe: the building asks again
+    }
+    ++m_stats.worker_trips;
+    launch(std::move(w));
+}
+
+void Logistics::finish_work(Handle h, Walker& w) {
+    bool harvested = false;
+    if (w.field) {
+        m_reserved_tiles.erase(tile_key(w.island, *w.field));
+        harvested = harvest_tile(*m_world, *m_buildings, w.island, to_u16(w.field->x), to_u16(w.field->y), w.ware);
+        w.field.reset();
+    }
+    // The original books a ton even if the field was gone meanwhile; Open1602 only what was
+    // harvested (S-025).
+    if (harvested) {
+        w.load = clamp_u16(std::uint32_t{w.load} + kStockUnitsPerTon);
+        m_stats.harvested += kStockUnitsPerTon;
+    }
+    const auto hb = building_of(w.home);
+    const assets::FigureType* fig = m_figures->get(w.figure);
+    if (hb && fig != nullptr && w.kind != WalkerKind::Harvester && w.load < fig->max_carry &&
+        m_world->productions()[w.home].enabled) {
+        // Cattle and boats go on to the next ripe tile until they are full.
+        w.animation = 0;
+        if (find_crop(w, *hb, *fig)) {
+            return;
+        }
+    }
+    if (!plan_home(w)) {
+        finish(h, w);
+    }
+}
+
+void Logistics::mine_ore(std::uint32_t home) {
+    const auto hb = building_of(home);
+    if (!hb) {
+        return;
+    }
+    Production& p = m_world->productions()[home];
+    const assets::BuildingType& mine = *hb->type;
+    // 0x0046C010: the mountain lies one tile from the mine's origin, on the side its rotation
+    // faces.
+    static constexpr std::array<TilePos, 4> kSide = {{{-1, 0}, {0, -1}, {1, 0}, {0, 1}}};
+    const TilePos side{hb->origin.x + kSide[hb->rotation & 3U].x, hb->origin.y + kSide[hb->rotation & 3U].y};
+    const auto mountain = building_at(*m_world, *m_buildings, p.island, side);
+    if (!mountain) {
+        return;
+    }
+    auto& deposits = m_world->island(p.island).header.deposits;
+    auto it = std::find_if(deposits.begin(), deposits.end(), [&](const assets::IslandHeader::Deposit& d) {
+        return d.x == mountain->origin.x && d.y == mountain->origin.y && d.ware == mine.ware;
+    });
+    const std::uint32_t amount = mine.raw_amount;
+    if (it == deposits.end() || amount == 0 || it->amount < amount) {
+        return;  // exhausted: the mine idles and reports it after Maxnorohst cycles
+    }
+    const bool any_mine = it->kind == kSmallVein || it->amount >= kBigVeinShared;
+    if (!any_mine && mine.ore_mountain != 0) {
+        return;  // only the deep mine digs on in a big vein below 120 t
+    }
+    p.raw = clamp_u16(std::uint32_t{p.raw} + amount);
+    m_stats.ore_mined += amount;
+    if (any_mine) {
+        if (mine.ware == kGold) {
+            return;  // gold never runs out
+        }
+        // Computer players do not exhaust small veins (below 40 t nothing is taken).
+        const City* city = m_world->city(p.island, hb->city);
+        const Player* owner = city != nullptr ? m_world->player(city->owner) : nullptr;
+        if (it->amount < kComputerKeeps && owner != nullptr && owner->role != PlayerRole::Human) {
+            return;
+        }
+    }
+    it->amount = static_cast<std::uint16_t>(it->amount - amount);
+    if (it->amount < kStockUnitsPerTon) {
+        deposits.erase(it);  // 0x0046BDD0
+    }
 }
 
 void Logistics::deliver(Walker& w) {
@@ -586,6 +831,10 @@ void Logistics::deliver(Walker& w) {
 }
 
 void Logistics::finish(Handle h, Walker& w) {
+    if (w.field) {
+        m_reserved_tiles.erase(tile_key(w.island, *w.field));
+        w.field.reset();
+    }
     // Fix S-022: whatever the figure still holds reserved goes back, however its trip ends.
     if (w.reserved != 0) {
         if (w.from_warehouse) {

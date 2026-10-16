@@ -61,20 +61,25 @@ struct Catchment {
 
 /// What figures walk on besides the buildings they enter (grid builders 0x004706E0, 0x004704D0):
 /// - Roads: roads, squares, bridges, piers and the centre of gates (market carts);
-/// - Land: also open ground and ruins (carriers, farmers), at their slower Wegspeed.
-enum class WalkClass : std::uint8_t { Roads, Land };
+/// - Land: also open ground and ruins (carriers, farmers), at their slower Wegspeed;
+/// - Water: the sea, surf and river mouths (fishing boats, 0x0046FB50), also beyond the island.
+enum class WalkClass : std::uint8_t { Roads, Land, Water };
 
 /// HAUS Kind values (record +0x04) that matter for walking.
 namespace building_kind {
-inline constexpr std::int32_t kRoad = 1;        // STRASSE
-inline constexpr std::int32_t kGate = 3;        // TOR
-inline constexpr std::int32_t kForest = 10;     // WALD
-inline constexpr std::int32_t kGround = 11;     // BODEN
-inline constexpr std::int32_t kRuin = 12;       // RUINE
-inline constexpr std::int32_t kSquare = 13;     // PLATZ
-inline constexpr std::int32_t kBridge = 18;     // BRUECKE
-inline constexpr std::int32_t kBeachRuin = 29;  // STRANDRUINE
-inline constexpr std::int32_t kPier = 30;       // PIER
+inline constexpr std::int32_t kRoad = 1;         // STRASSE
+inline constexpr std::int32_t kGate = 3;         // TOR
+inline constexpr std::int32_t kForest = 10;      // WALD
+inline constexpr std::int32_t kGround = 11;      // BODEN
+inline constexpr std::int32_t kRuin = 12;        // RUINE
+inline constexpr std::int32_t kSquare = 13;      // PLATZ
+inline constexpr std::int32_t kBridge = 18;      // BRUECKE
+inline constexpr std::int32_t kSea = 19;         // MEER
+inline constexpr std::int32_t kSurf = 20;        // BRANDUNG
+inline constexpr std::int32_t kSurfCorner = 21;  // BRANDECK
+inline constexpr std::int32_t kRiverMouth = 22;  // MUENDUNG
+inline constexpr std::int32_t kBeachRuin = 29;   // STRANDRUINE
+inline constexpr std::int32_t kPier = 30;        // PIER
 }  // namespace building_kind
 
 /// Whether a figure of `walk` class may walk on this tile (without a building it enters).

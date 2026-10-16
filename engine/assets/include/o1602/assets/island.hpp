@@ -29,6 +29,19 @@ struct IslandHeader {
     std::uint8_t climate = 0;                     ///< 0 Nord, 1 Sued
     bool stored_complete = false;                 ///< all tiles are stored, no template needed
 
+    /// Ore and gold deposits (INSEL5 +0x1C, 8 bytes each, count at +0x1A; island record +0x20).
+    struct Deposit {
+        std::uint8_t ware = 0;  ///< 2 iron ore, 3 gold
+        std::uint8_t x = 0;     ///< origin tile of the mountain it lies in
+        std::uint8_t y = 0;
+        std::uint8_t mask = 0;     ///< byte 3, meaning open (probably: discovered by players)
+        std::uint8_t kind = 0;     ///< 0 big vein, 1 small vein
+        std::uint16_t amount = 0;  ///< left, 1/32 t
+    };
+    std::vector<Deposit> deposits;
+    /// INSEL5 +0x5C: bit (ware - 45) set = the island is fertile for that crop or resource.
+    std::uint32_t fertility = 0;
+
     std::vector<std::uint8_t> raw;  ///< complete chunk payload for not yet decoded fields
 
     /// Template file relative to the game directory, e.g. "Sued/big06.scp", or empty if the island

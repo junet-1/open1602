@@ -92,6 +92,10 @@ Catchment catchment_of(const assets::BuildingType& building, std::uint8_t rotati
 
 bool walkable(const assets::BuildingType& building, const MapCell& cell, WalkClass walk) noexcept {
     using namespace building_kind;
+    if (walk == WalkClass::Water) {
+        return building.kind == kSea || building.kind == kSurf || building.kind == kSurfCorner ||
+               building.kind == kRiverMouth;
+    }
     switch (building.kind) {
         case kRoad:
         case kSquare:
@@ -137,7 +141,9 @@ void PathFinder::begin(const IslandMap& map, const assets::BuildingTable& buildi
     const std::uint8_t type = std::min<std::uint8_t>(speed_type, 3);
     for (std::uint32_t j = 0; j < m_height; ++j) {
         const std::int32_t y = m_y0 + static_cast<std::int32_t>(j);
-        if (y < 0 || static_cast<std::uint32_t>(y) >= map.height()) {
+        // Beyond the island is open sea: only boats go there.
+        const bool on_rows = y >= 0 && static_cast<std::uint32_t>(y) < map.height();
+        if (!on_rows && walk != WalkClass::Water) {
             continue;
         }
         // Row offset from the centre; an even depth doubles the centre row.
@@ -151,7 +157,8 @@ void PathFinder::begin(const IslandMap& map, const assets::BuildingTable& buildi
         const std::int32_t hw = half[static_cast<std::size_t>(std::abs(dy))];
         for (std::uint32_t i = 0; i < m_width; ++i) {
             const std::int32_t x = m_x0 + static_cast<std::int32_t>(i);
-            if (x < 0 || static_cast<std::uint32_t>(x) >= map.width()) {
+            const bool on_map = x >= 0 && static_cast<std::uint32_t>(x) < map.width() && on_rows;
+            if (!on_map && walk != WalkClass::Water) {
                 continue;
             }
             std::int32_t dx = x - area.centre.x;
@@ -163,6 +170,10 @@ void PathFinder::begin(const IslandMap& map, const assets::BuildingTable& buildi
             }
             const std::size_t k = std::size_t{j} * m_width + i;
             m_circle[k] = true;
+            if (!on_map) {
+                m_cells[k] = Cell::Walkable;
+                continue;
+            }
             const MapCell& cell = map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
             const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
             if (b == nullptr || !walkable(*b, cell, walk)) {

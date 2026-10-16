@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -91,6 +92,25 @@ struct Animal {
     std::uint16_t figure = 0;  ///< FIGUR number (HIRSCH, ANTILOPE)
 };
 
+/// A growing field, tree, meadow or fish shoal (ROHWACHS2 in the original). One growth stage of
+/// class c lasts 40 s + 7 s * c; at AnimAnz stages the tile turns into its ripe record.
+struct GrowthEntry {
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint16_t x = 0;       ///< island tile
+    std::uint16_t y = 0;
+    std::uint8_t growth_class = 0;  ///< 0..31
+    std::uint8_t seen = 0;          ///< class counter when it last grew
+    std::uint8_t stage = 0;
+};
+
+/// All growth of a world: one clock per growth class (TIMERS) and the growing tiles.
+struct GrowthState {
+    static constexpr std::size_t kClasses = 32;
+    std::array<std::uint32_t, kClasses> time_ms{};  ///< game ms since the class last ticked
+    std::array<std::uint8_t, kClasses> counter{};   ///< ticks of the class, counts 0..7
+    std::vector<GrowthEntry> entries;
+};
+
 /// A land unit (SOLDAT3 in the original). The position is continuous in world tiles; the original
 /// saves it in half tiles.
 struct Soldier {
@@ -143,6 +163,8 @@ public:
         return m_cells[std::size_t{y} * m_width + x];
     }
     [[nodiscard]] const std::vector<WorldIsland>& islands() const noexcept { return m_islands; }
+    /// Mutable island for the simulation (fields growing, deposits running out).
+    [[nodiscard]] WorldIsland& island(std::size_t index) { return m_islands[index]; }
 
     /// Adds an island at its header position. Fails if it leaves the world or overlaps another one.
     core::Status add_island(WorldIsland island);
@@ -168,6 +190,9 @@ public:
 
     [[nodiscard]] const std::vector<Soldier>& soldiers() const noexcept { return m_soldiers; }
     void add_soldier(const Soldier& soldier) { m_soldiers.push_back(soldier); }
+
+    [[nodiscard]] const GrowthState& growth() const noexcept { return m_growth; }
+    [[nodiscard]] GrowthState& growth() noexcept { return m_growth; }
 
     [[nodiscard]] const std::vector<Production>& productions() const noexcept { return m_productions; }
     /// Mutable for the simulation; entries keep their index (other entries may refer to it).
@@ -195,6 +220,7 @@ private:
     std::vector<Animal> m_animals;
     std::vector<Soldier> m_soldiers;
     std::vector<Production> m_productions;
+    GrowthState m_growth;
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x
     std::vector<Cell> m_cells;
 };

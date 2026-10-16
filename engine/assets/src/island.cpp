@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/assets/island.hpp"
 
+#include <algorithm>
 #include <cstdio>
 
 #include "o1602/core/byte_reader.hpp"
@@ -33,6 +34,23 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
         h.template_size = static_cast<std::uint16_t>(data[0x62] | (data[0x63] << 8));
         h.climate = data[0x64];
         h.stored_complete = data[0x65] != 0;
+        // Deposits: count at +0x1A (at most 2 in the original), entries at +0x1C.
+        const std::size_t deposits = std::min<std::size_t>(data[0x1A], 2);
+        for (std::size_t i = 0; i < deposits; ++i) {
+            const std::size_t o = 0x1C + 8 * i;
+            IslandHeader::Deposit d;
+            d.ware = data[o];
+            d.x = data[o + 1];
+            d.y = data[o + 2];
+            d.mask = data[o + 3];
+            d.kind = data[o + 4];
+            d.amount = static_cast<std::uint16_t>(data[o + 6] | (data[o + 7] << 8));
+            if (d.ware != 0) {
+                h.deposits.push_back(d);
+            }
+        }
+        h.fertility = static_cast<std::uint32_t>(data[0x5C]) | (static_cast<std::uint32_t>(data[0x5D]) << 8) |
+                      (static_cast<std::uint32_t>(data[0x5E]) << 16) | (static_cast<std::uint32_t>(data[0x5F]) << 24);
     }
     h.raw.assign(data.begin(), data.end());
     return h;

@@ -45,6 +45,16 @@ public:
     [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
     [[nodiscard]] const MapCell& top(std::uint32_t x, std::uint32_t y) const { return m_top[index(x, y)]; }
     [[nodiscard]] const MapCell& ground(std::uint32_t x, std::uint32_t y) const { return m_ground[index(x, y)]; }
+    [[nodiscard]] bool contains(std::int32_t x, std::int32_t y) const noexcept {
+        return x >= 0 && y >= 0 && static_cast<std::uint32_t>(x) < m_width && static_cast<std::uint32_t>(y) < m_height;
+    }
+
+    /// Changes the picture of a tile in place (a field ripening or harvested: the original swaps
+    /// the sprite bits of the grid word, 0x0047CA80 / 0x0047C830).
+    void set_sprite(std::uint32_t x, std::uint32_t y, std::uint16_t sprite) { m_top[index(x, y)].sprite = sprite; }
+    void set_anim_phase(std::uint32_t x, std::uint32_t y, std::uint8_t phase) {
+        m_top[index(x, y)].anim_phase = static_cast<std::uint8_t>(phase & 0x0FU);
+    }
 
     /// Places a building with its top-left footprint corner at (x, y), exactly like the original
     /// placement routine (0x00463B10): sub-tiles receive gfx, gfx+1, ... in a rotation dependent

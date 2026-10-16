@@ -17,6 +17,7 @@ class GameDirectory;
 /// see docs/re/haus-record.md. Only fields with known meaning are exposed.
 struct BuildingType {
     std::uint32_t id = 0;        ///< Id (20000..23500); island tiles store id - 20000
+    std::uint32_t record = 0;    ///< Nummer: position in haeuser.cod (the original's table index)
     std::int32_t kind = 0;       ///< Kind (BODEN=11, MEER=19, GEBAEUDE=14, ...)
     std::int32_t prod_kind = 0;  ///< Kind of the nested HAUS_PRODTYP block (selects animation logic)
     std::uint32_t gfx = 0;       ///< first sprite index in STADTFLD.BSH
@@ -77,6 +78,15 @@ struct BuildingType {
     /// HAUS_PRODTYP/Anicontflg (record +0x47 bit 0): when the building stops, its animation stays
     /// at the current frame instead of jumping back to the first (grain mill, 0x004638C0).
     bool continuous_animation = false;
+    /// HAUS_PRODTYP/Doerrflg (record +0x47 bit 3): the withered state of a field or plantation.
+    bool withered = false;
+    /// HAUS_PRODTYP/Erzbergnr (record +0x3F): 0 deep mine (ERZBERG_GROSS), 1 small mine
+    /// (ERZBERG_KLEIN). Only mines with 0 dig on in a big vein below 120 t.
+    std::uint8_t ore_mountain = 0;
+    /// Growing records (HAUS_PRODTYP Kind ROHSTWACHS): growth class 0..31. One growth stage lasts
+    /// 40 s + 7 s * class; the original converts Interval / AnimAnz into the class after loading
+    /// (0x00462F1D).
+    std::uint8_t growth_class = 0;
 
     /// Number of base sprites (one per covered tile).
     [[nodiscard]] std::uint32_t tile_count() const noexcept { return size_x * size_y; }
@@ -97,6 +107,9 @@ public:
     [[nodiscard]] const BuildingType* by_id(std::uint32_t id) const noexcept;
     /// Building whose base sprite range [gfx, gfx + tile_count) contains `sprite`.
     [[nodiscard]] const BuildingType* by_sprite(std::uint32_t sprite) const noexcept;
+    /// Building by its Nummer in haeuser.cod. Crops are three records in a row: growing, ripe
+    /// and withered (docs/re/growth.md).
+    [[nodiscard]] const BuildingType* by_record(std::uint32_t record) const noexcept;
 
     /// Record drawn for open sea: the first record with Kind MEER (19) and production kind 9,
     /// as chosen by the original after loading (0x00462D50 -> g_seaHaus). Id 21201 in the original data.
@@ -113,6 +126,7 @@ private:
     std::vector<BuildingType> m_types;
     std::vector<std::int32_t> m_by_id;      ///< index by (id - kIdOffset), -1 = none
     std::vector<std::int32_t> m_by_sprite;  ///< index by sprite, -1 = none
+    std::vector<std::int32_t> m_by_record;  ///< index by Nummer, -1 = none
     std::int32_t m_open_sea = -1;           ///< index (not a pointer, so copies of the table stay valid)
 };
 

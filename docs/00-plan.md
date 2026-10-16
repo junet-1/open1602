@@ -209,8 +209,9 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: Soldaten aus dem Spielstand (`SOLDAT3`), in jeder Bannerfarbe (Originalbilder für die vier Originalfarben, sonst eingefärbte Vorlage) | ✅ `docs/re/figures.md` |
 | M3: Simulation in festen Ticks (`sim::Simulation`), Produktionszyklus wie im Original (Rohstoff, Rate, Intervall, Lager, Leerlauf, Statistik, Nachschubanforderungen), Viewer lässt die Zeit laufen | ✅ `docs/re/production.md` |
 | M3: Logistik, Stufe 1: Lager der Stadt (Bestand, Reservierung, Lagerraum), Wegesuche im Einzugskreis, Träger und Marktkarren mit Bewegung und Animation; Originalfehler S-022–S-025 behoben | ✅ `docs/re/logistics.md` |
-| M3: Logistik, Stufe 2: Wachstum der Felder, Bauern, Fischer, Viehhirten, Jäger, Lagerstätten der Minen | ⬜ als Nächstes |
-| M3: Verbrauch der Einwohner aus dem Lager (Stadttakt `0x0047F8A0`, `MARKT2`) | ⬜ |
+| M3: Logistik, Stufe 2: Wachstum der Felder (Klassenuhren, `ROHWACHS2`), Bauern, Viehherden, Fischerboote, Lagerstätten der Minen | ✅ `docs/re/growth.md`, `docs/re/logistics.md` |
+| M3: Jäger und Hirsche (Tier-KI, Inselereignisse: Dürre, Fruchtbarkeit) | ⬜ |
+| M3: Verbrauch der Einwohner aus dem Lager (Stadttakt `0x0047F8A0`, `MARKT2`) | ⬜ als Nächstes |
 | M2: Gaukler (Einwohnerzahlen), Träger (Wirtschaft) | ⬜ mit der Wirtschaftssimulation |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |

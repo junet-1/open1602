@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include "o1602/sim/growth.hpp"
+
 namespace o1602::sim {
 
 namespace {
@@ -37,6 +39,8 @@ void Simulation::advance(std::uint32_t real_ms) {
 
 void Simulation::tick() {
     m_time_ms += kTickMs;
+    // Growth first, as in the original (0x0047CA80 is the first subsystem of 0x00489670).
+    advance_growth(*m_world, *m_buildings, kTickMs);
     m_production_ms += kTickMs;
     if (m_production_ms >= kProductionPeriodMs) {
         m_production_ms -= kProductionPeriodMs;

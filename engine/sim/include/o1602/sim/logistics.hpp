@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <unordered_set>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -49,9 +50,17 @@ struct BuildingAt {
 [[nodiscard]] TilePos centre_tile(const BuildingAt& building) noexcept;
 
 enum class WalkerKind : std::uint8_t {
-    Carrier,  ///< fetches raw material for a workshop (figure kind 8)
-    Cart,     ///< brings goods of producers to the warehouse (figure kind 0x0B)
+    Carrier,    ///< fetches raw material for a workshop (figure kind 8)
+    Cart,       ///< brings goods of producers to the warehouse (figure kind 0x0B)
+    Harvester,  ///< farm worker: harvests one ripe field, tree or quarry tile (kind 0x0C)
+    Grazer,     ///< cattle or sheep: grazes ripe meadow tiles until full (kind 0x10)
+    Fisher,     ///< fishing boat: fishes ripe shoals until full (kind 0x0D)
 };
+
+/// Workers that harvest tiles themselves instead of fetching from buildings.
+[[nodiscard]] constexpr bool harvests(WalkerKind kind) noexcept {
+    return kind == WalkerKind::Harvester || kind == WalkerKind::Grazer || kind == WalkerKind::Fisher;
+}
 
 /// A figure on its way.
 struct Walker {
@@ -69,6 +78,11 @@ struct Walker {
     std::uint16_t load = 0;      ///< carried, 1/32 t
     std::uint16_t expected = 0;  ///< carts: room reserved in the warehouse (City::incoming)
     bool returning = false;
+    std::optional<TilePos> field;  ///< workers: the ripe tile they reserved
+    std::uint32_t work_ms = 0;     ///< workers: game time left at the field
+    /// ANIM of the figure: carriers and carts 1 empty, 0 loaded; farm workers 1 out, 2 working,
+    /// 0 home; cattle and fishing boats 0 moving, 1 working.
+    std::uint8_t animation = 1;
 
     // Movement: the figure walks from `tile` towards path[step]; `progress` of `length` (units of
     // 1/65536 tile) is done, at `speed` units per tick.
@@ -82,8 +96,8 @@ struct Walker {
     std::uint8_t walk_speed = 32;  ///< Wegspeed of the tile the step started on (animation pace)
 
     [[nodiscard]] bool moving() const noexcept { return length != 0; }
-    /// ANIM of the figure: 1 walking empty, 0 carrying (TRAEGER, KARREN).
-    [[nodiscard]] std::uint8_t anim() const noexcept { return load != 0 || returning ? 0 : 1; }
+    [[nodiscard]] bool working() const noexcept { return work_ms != 0; }
+    [[nodiscard]] std::uint8_t anim() const noexcept { return animation; }
 };
 
 /// Island-tile position of a walker including the part of its step (tile centre = x + 0.5).
@@ -98,6 +112,9 @@ struct LogisticsStats {
     std::uint64_t cart_trips = 0;       ///< carts sent out
     std::uint64_t raw_delivered = 0;    ///< raw material brought to workshops, 1/32 t
     std::uint64_t goods_collected = 0;  ///< goods brought to warehouses, 1/32 t
+    std::uint64_t worker_trips = 0;     ///< farm workers, cattle and fishing boats sent out
+    std::uint64_t harvested = 0;        ///< raw material harvested from tiles, 1/32 t
+    std::uint64_t ore_mined = 0;        ///< raw material mines took from deposits, 1/32 t
 };
 
 class Logistics {
@@ -131,6 +148,17 @@ public:
 private:
     void send_carrier(std::uint32_t home, std::uint8_t ware, std::uint16_t figure);
     void send_cart(std::uint32_t home);
+    /// Farm worker, cattle or fishing boat for `ware` (0x0044B7E0, 0x0044BB40, 0x0044B9A0).
+    void send_worker(std::uint32_t home, std::uint8_t ware, WalkerKind kind);
+    /// A mine takes ore straight from its deposit (0x0047DFD7; mines have no figures).
+    void mine_ore(std::uint32_t home);
+    /// Prepares the search area of a walker's trip: the catchment of its home with what its kind
+    /// walks on, its home opened; with `targets` the ripe tiles it may harvest are goals.
+    void prepare_area(const Walker& walker, const BuildingAt& home, const assets::FigureType& figure, bool targets);
+    /// Finds and reserves the next ripe tile for a worker and plans the way there.
+    bool find_crop(Walker& walker, const BuildingAt& home, const assets::FigureType& figure);
+    /// A worker is done at its field: harvest, then the next tile or home.
+    void finish_work(Handle handle, Walker& walker);
     /// Marks the tiles of the city's buildings with HAUS_PRODTYP kind 1..last_kind as goals
     /// (inside the current search area).
     void mark_goals(const IslandMap& map, std::uint8_t city, std::int32_t last_kind, std::uint8_t speed_type);
@@ -158,6 +186,8 @@ private:
     std::vector<std::uint8_t> m_jobs;  ///< walkers out per production building
     PathFinder m_finder;
     LogisticsStats m_stats;
+    /// Ripe tiles a worker is on its way to (the original's grid bit 29), key: island, y, x.
+    std::unordered_set<std::uint64_t> m_reserved_tiles;
 };
 
 }  // namespace o1602::sim

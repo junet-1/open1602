@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -94,12 +95,30 @@ struct SoldierRecord {
 };
 
 /// Everything above, read from one file. Files without a chunk give empty lists.
+/// ROHWACHS2 record (8 bytes, writer 0x00485C20): a growing field, tree, meadow or fish shoal.
+struct GrowthRecord {
+    std::uint8_t island = 0;  ///< island number
+    std::uint8_t x = 0;       ///< island tile
+    std::uint8_t y = 0;
+    std::uint8_t growth_class = 0;  ///< 0..31: one stage lasts 40 s + 7 s * class
+    std::uint8_t seen = 0;          ///< class counter (0..7) when the entry last grew
+    std::uint8_t stage = 0;         ///< growth stage, 0..AnimAnz of the growing record
+};
+
+/// The growth clocks of TIMERS (0x00485D10): one per growth class.
+struct GrowthClocks {
+    std::array<std::uint8_t, 32> counter{};   ///< +0x64: class counter, counts 0..7
+    std::array<std::uint32_t, 32> time_ms{};  ///< +0x218: game ms since the class last ticked
+};
+
 struct GameState {
     std::vector<CityRecord> cities;
     std::vector<WarehouseRecord> warehouses;
     std::vector<ProductionRecord> production;
     std::vector<AnimalRecord> animals;
     std::vector<SoldierRecord> soldiers;
+    std::vector<GrowthRecord> growth;
+    std::optional<GrowthClocks> growth_clocks;  ///< nothing without a TIMERS chunk
 };
 
 core::Result<GameState> load_game_state(const ChunkFile& file);

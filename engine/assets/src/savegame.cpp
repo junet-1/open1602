@@ -19,6 +19,9 @@ constexpr std::uint8_t kFirstWare = 2;
 constexpr std::size_t kProductionSize = 0x18;
 constexpr std::size_t kAnimalSize = 8;
 constexpr std::size_t kSoldierSize = 0x44;
+constexpr std::size_t kGrowthSize = 8;
+constexpr std::size_t kTimersCounters = 0x64;
+constexpr std::size_t kTimersGrowthMs = 0x218;
 
 std::uint32_t u32(std::span<const std::uint8_t> d, std::size_t o) {
     return static_cast<std::uint32_t>(d[o]) | (static_cast<std::uint32_t>(d[o + 1]) << 8) |
@@ -125,6 +128,25 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
     });
     if (!status) {
         return status.error();
+    }
+    status = for_each_record(file, "ROHWACHS2", kGrowthSize, [&](std::span<const std::uint8_t> r) {
+        if (r[0] != 0xFF) {
+            state.growth.push_back(GrowthRecord{r[0], r[1], r[2], r[3], r[4], r[5]});
+        }
+    });
+    if (!status) {
+        return status.error();
+    }
+    if (const Chunk* timers = file.find("TIMERS")) {
+        const auto data = file.payload(*timers);
+        if (data.size() >= kTimersGrowthMs + 32 * 4) {
+            GrowthClocks clocks;
+            for (std::size_t i = 0; i < 32; ++i) {
+                clocks.counter[i] = static_cast<std::uint8_t>(data[kTimersCounters + i] & 7U);
+                clocks.time_ms[i] = u32(data, kTimersGrowthMs + 4 * i);
+            }
+            state.growth_clocks = clocks;
+        }
     }
     return state;
 }

@@ -6,6 +6,7 @@
 
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/savegame.hpp"
+#include "o1602/sim/growth.hpp"
 
 namespace o1602::sim {
 
@@ -253,6 +254,31 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         const bool south = (world.islands()[*island].header.climate & 1U) != 0;
         world.add_animal(Animal{*island, a.x, a.y, south ? kFigureAntilope : kFigureHirsch});
     }
+    // Growth: the clocks of TIMERS and the entries of ROHWACHS2; growing tiles the file lists no
+    // entry for get one (add_missing_growth).
+    GrowthState& growth = world.growth();
+    if (state->growth_clocks) {
+        growth.counter = state->growth_clocks->counter;
+        for (std::size_t c = 0; c < GrowthState::kClasses; ++c) {
+            growth.time_ms[c] = state->growth_clocks->time_ms[c] % growth_period_ms(static_cast<std::uint32_t>(c));
+        }
+    }
+    for (const auto& r : state->growth) {
+        const auto island = world.island_index(r.island);
+        if (!island || !world.islands()[*island].map.contains(r.x, r.y)) {
+            warn("growing tile outside its island " + std::to_string(r.island));
+            continue;
+        }
+        GrowthEntry e;
+        e.island = *island;
+        e.x = r.x;
+        e.y = r.y;
+        e.growth_class = static_cast<std::uint8_t>(std::min<std::uint8_t>(r.growth_class, 31));
+        e.seen = static_cast<std::uint8_t>(r.seen & 7U);
+        e.stage = r.stage;
+        growth.entries.push_back(e);
+    }
+    add_missing_growth(world, buildings);
     return world;
 }
 

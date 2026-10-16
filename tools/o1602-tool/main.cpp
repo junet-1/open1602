@@ -671,13 +671,18 @@ int cmd_render_world(const Args& args) {
             static_cast<unsigned long long>(ls.cart_trips),
             static_cast<double>(ls.goods_collected) / assets::kStockUnitsPerTon,
             simulation->logistics().walkers().size());
+        std::printf("raw producers: %llu worker trips, %.2f t harvested, %.2f t ore mined, %zu growing tiles\n",
+                    static_cast<unsigned long long>(ls.worker_trips),
+                    static_cast<double>(ls.harvested) / assets::kStockUnitsPerTon,
+                    static_cast<double>(ls.ore_mined) / assets::kStockUnitsPerTon, world->growth().entries.size());
         if (args.flag("--walkers")) {
             simulation->logistics().walkers().for_each([&](sim::Handle, const sim::Walker& w) {
                 const sim::WorldIsland& island = world->islands()[w.island];
                 const sim::WalkerPosition pos = sim::walker_position(w);
-                std::printf("  %s figure %u at %.2f,%.2f (island %u), ware %u, %s %.2f t\n",
-                            w.kind == sim::WalkerKind::Cart ? "cart   " : "carrier", w.figure, island.x + pos.x,
-                            island.y + pos.y, w.island, w.ware, w.returning ? "carrying" : "reserved",
+                static constexpr const char* kKinds[] = {"carrier", "cart", "harvester", "grazer", "fisher"};
+                std::printf("  %-9s figure %u at %.2f,%.2f (island %u), ware %u, %s %.2f t\n",
+                            kKinds[static_cast<int>(w.kind)], w.figure, island.x + pos.x, island.y + pos.y, w.island,
+                            w.ware, w.returning ? "carrying" : "reserved",
                             static_cast<double>(w.returning ? w.load : w.reserved) / assets::kStockUnitsPerTon);
             });
         }

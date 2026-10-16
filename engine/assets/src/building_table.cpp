@@ -16,8 +16,9 @@ using core::make_error;
 
 namespace {
 
-constexpr std::uint32_t kMaxId = 23500;       // Haus_GetById (0x004630F0) accepts 20000..23500
-constexpr std::uint32_t kMaxSprite = 0x2000;  // 13 bits in the island grid
+constexpr std::uint32_t kMaxId = 23500;        // Haus_GetById (0x004630F0) accepts 20000..23500
+constexpr std::uint32_t kMaxSprite = 0x2000;   // 13 bits in the island grid
+constexpr std::int32_t kProdKindGrowing = 10;  // HAUS_PRODTYP Kind ROHSTWACHS
 
 std::uint32_t non_negative(std::int32_t v) {
     return v < 0 ? 0U : static_cast<std::uint32_t>(v);
@@ -46,6 +47,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         }
         BuildingType b;
         b.id = static_cast<std::uint32_t>(id);
+        b.record = static_cast<std::uint32_t>(std::max(0, nummer));
         b.kind = r.integer("Kind");
         b.gfx = non_negative(r.integer("Gfx"));
         b.size_x = std::max(1U, non_negative(r.integer("Size", 0, 1)));
@@ -98,6 +100,19 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.max_idle_cycles = non_negative(prodtyp.integer("Maxnorohst"));
             b.stock_animation = (prodtyp.integer("LagAniFlg") & 1) != 0;
             b.continuous_animation = (prodtyp.integer("Anicontflg") & 1) != 0;
+            b.withered = (prodtyp.integer("Doerrflg") & 1) != 0;
+            b.ore_mountain = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Erzbergnr")));
+        }
+
+        if (b.prod_kind == kProdKindGrowing && b.anim_count > 0) {
+            // 0x00462F1D: the number of k in 1..32 with 40 s + 7 s * k <= Interval / AnimAnz,
+            // clamped to 31 when an entry is added (0x0047C760).
+            const std::uint64_t stage_ms = std::uint64_t{b.interval} * 1000U / b.anim_count;
+            std::uint32_t cls = 0;
+            for (std::uint32_t k = 1; k <= 32; ++k) {
+                cls += 40000U + 7000U * k <= stage_ms ? 1U : 0U;
+            }
+            b.growth_class = static_cast<std::uint8_t>(std::min(cls, 31U));
         }
 
         // Duplicate ids exist in the original (three ruins); the first record wins, as in the
@@ -113,6 +128,10 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
                 table.m_by_sprite[b.gfx + k] = index;
             }
         }
+        if (b.record >= table.m_by_record.size()) {
+            table.m_by_record.resize(std::size_t{b.record} + 1, -1);
+        }
+        table.m_by_record[b.record] = index;
         table.m_types.push_back(b);
     }
 
@@ -132,6 +151,14 @@ const BuildingType* BuildingTable::by_id(std::uint32_t id) const noexcept {
         return nullptr;
     }
     const std::int32_t index = m_by_id[id - kIdOffset];
+    return index < 0 ? nullptr : &m_types[static_cast<std::size_t>(index)];
+}
+
+const BuildingType* BuildingTable::by_record(std::uint32_t record) const noexcept {
+    if (record >= m_by_record.size()) {
+        return nullptr;
+    }
+    const std::int32_t index = m_by_record[record];
     return index < 0 ? nullptr : &m_types[static_cast<std::size_t>(index)];
 }
 

@@ -32,6 +32,7 @@
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/growth.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -721,4 +722,92 @@ TEST_CASE("data: logistics of a savegame keep their books balanced") {
     CHECK(stats.cart_trips > 0);
     CHECK(stats.raw_delivered > 0);
     CHECK(stats.goods_collected > 0);
+}
+
+TEST_CASE("data: growth classes, growing tiles and deposits of a savegame") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    // Classes from Interval / AnimAnz (0x00462F1D): wheat 0, sugar cane 2, the other plantations 3,
+    // fish shoals 5, forest 20, meadows 31.
+    std::set<std::uint32_t> classes;
+    for (const auto& b : buildings->types()) {
+        if (b.prod_kind == sim::kProdKindGrowing && !b.withered) {
+            classes.insert(b.growth_class);
+            CHECK(sim::ripe_record(*buildings, b) != nullptr);
+        }
+    }
+    CHECK(classes.contains(0));
+    CHECK(classes.contains(2));
+    CHECK(classes.contains(3));
+    CHECK(classes.contains(5));
+    CHECK(classes.contains(20));
+    CHECK(classes.contains(31));
+
+    const auto dat = game.resolve("Game.dat");
+    if (!dat) {
+        SKIP("no Game.dat (game never started)");
+    }
+    auto bytes = core::read_file(*dat);
+    REQUIRE(bytes.ok());
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    std::optional<std::filesystem::path> path;
+    for (const auto& slot : assets::parse_savegame_slots(text)) {
+        if (!path) {
+            path = game.resolve(slot.file);
+        }
+    }
+    if (!path) {
+        SKIP("no savegame");
+    }
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto state = assets::load_game_state(*file);
+    REQUIRE(state.ok());
+    REQUIRE(state->growth_clocks.has_value());
+    auto world = sim::load_world(*file, *buildings, game);
+    REQUIRE(world.ok());
+    // Entries on growing tiles have the class of their record plus 0..2 (the random part a newly
+    // planted tile gets). The original also keeps orphan entries on tiles that are ripe again
+    // (it never frees them); Open1602 drops those.
+    std::size_t checked = 0;
+    for (const auto& r : state->growth) {
+        const auto island = world->island_index(r.island);
+        REQUIRE(island.has_value());
+        const sim::MapCell& cell = world->islands()[*island].map.top(r.x, r.y);
+        const assets::BuildingType* b = buildings->by_sprite(cell.sprite);
+        REQUIRE(b != nullptr);
+        CHECK((b->prod_kind == sim::kProdKindGrowing || b->prod_kind == sim::kProdKindRipe));
+        if (b->prod_kind != sim::kProdKindGrowing) {
+            continue;
+        }
+        CHECK(r.growth_class >= b->growth_class);
+        CHECK(r.growth_class <= b->growth_class + 2);
+        ++checked;
+    }
+    CHECK(checked > 0);
+    // Every growing tile grows.
+    std::size_t growing = 0;
+    for (const auto& island : world->islands()) {
+        for (std::uint32_t y = 0; y < island.map.height(); ++y) {
+            for (std::uint32_t x = 0; x < island.map.width(); ++x) {
+                const assets::BuildingType* b =
+                    island.map.top(x, y).empty() ? nullptr : buildings->by_sprite(island.map.top(x, y).sprite);
+                growing += b != nullptr && b->prod_kind == sim::kProdKindGrowing && !b->withered ? 1U : 0U;
+            }
+        }
+    }
+    CHECK(world->growth().entries.size() >= growing);
+    // Deposits: iron veins in mountains, amounts in 1/32 t.
+    std::size_t deposits = 0;
+    for (const auto& island : world->islands()) {
+        for (const auto& d : island.header.deposits) {
+            CHECK((d.ware == 2 || d.ware == 3));
+            CHECK(d.amount <= 240 * assets::kStockUnitsPerTon);
+            const sim::MapCell& cell = island.map.top(d.x, d.y);
+            CHECK(!cell.empty());
+            ++deposits;
+        }
+    }
+    CHECK(deposits > 0);
 }

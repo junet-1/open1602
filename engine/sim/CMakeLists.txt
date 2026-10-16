@@ -2,6 +2,7 @@
 # Deterministic simulation. Must not depend on platform, render, audio or ui (ADR 0004, 0005).
 
 add_library(o1602_sim
+    src/growth.cpp
     src/island_map.cpp
     src/logistics.cpp
     src/pathfinding.cpp
