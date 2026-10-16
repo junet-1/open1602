@@ -42,6 +42,20 @@ struct Animal {
     std::uint16_t figure = 0;  ///< FIGUR number (HIRSCH, ANTILOPE)
 };
 
+/// A land unit (SOLDAT3 in the original). The position is continuous in world tiles; the original
+/// saves it in half tiles.
+struct Soldier {
+    double x = 0.0;
+    double y = 0.0;
+    /// FIGUR number of the unit type. For units drawn per player colour this is the first figure
+    /// of the family (SOLDAT1, KAVALERIE1, ...): the colour follows the owner's banner, so any number
+    /// of players works (ADR 0007).
+    std::uint16_t figure = 0;
+    PlayerId owner = kNoPlayer;
+    std::uint8_t direction = 0;  ///< 0..7
+    std::uint8_t anim = 0;       ///< ANIM index when saved
+};
+
 /// A ship on the world map. Position in whole tiles for now; the movement simulation will use
 /// fixed point coordinates (ADR 0004).
 struct Ship {
@@ -101,6 +115,9 @@ public:
     [[nodiscard]] const std::vector<Animal>& animals() const noexcept { return m_animals; }
     void add_animal(Animal animal) { m_animals.push_back(animal); }
 
+    [[nodiscard]] const std::vector<Soldier>& soldiers() const noexcept { return m_soldiers; }
+    void add_soldier(const Soldier& soldier) { m_soldiers.push_back(soldier); }
+
     [[nodiscard]] const std::vector<Production>& productions() const noexcept { return m_productions; }
     /// Production state of the building whose origin tile is (x, y) on island `island` (index into
     /// islands()), nullptr if it has none. Constant time: the renderer asks for every visible
@@ -120,6 +137,7 @@ private:
     std::vector<Ship> m_ships;
     std::vector<City> m_cities;
     std::vector<Animal> m_animals;
+    std::vector<Soldier> m_soldiers;
     std::vector<Production> m_productions;
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x
     std::vector<Cell> m_cells;

@@ -481,6 +481,32 @@ TEST_CASE("data: warehouse, market and tower flags of a scenario") {
     CHECK(per_owner[6] == 0);
 }
 
+TEST_CASE("data: units tinted for banners without drawn variants") {
+    const auto game = require_game();
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(figures.ok());
+    auto palette = assets::Palette::load(*game.resolve(render::kTerrainPalettePath));
+    REQUIRE(palette.ok());
+    auto banners = render::BannerTable::original(&*figures);
+    const sim::BannerId green = banners.add_color("test:green", render::BannerTable::kDefaultColors[4]);
+    auto g = render::load_world_graphics(game, *palette, render::Zoom::Medium, render::kWorldFigureSheets, {}, &banners,
+                                         &*figures);
+    REQUIRE(g.ok());
+    REQUIRE(g->sheet_base(assets::FigureSheet::Soldat).has_value());
+    // Four families: swordsmen 280, riders 304, gunners 216, musketeers 136 images per colour.
+    REQUIRE(g->unit_tint.groups.size() == 4);
+    CHECK(g->unit_tint.block_size == 280U + 304U + 216U + 136U);
+    REQUIRE(g->unit_tint.banner_base.size() == banners.size());
+    CHECK(!g->unit_tint.banner_base[0].has_value());  // red: drawn images
+    REQUIRE(g->unit_tint.banner_base[green].has_value());
+    // A tinted swordsman has the size of the white one.
+    const auto white = *g->sheet_base(assets::FigureSheet::Soldat) + 840;
+    const auto tinted = g->unit_tint.sprite(green, 0);
+    REQUIRE(tinted.has_value());
+    CHECK(g->atlas.rect(*tinted).width == g->atlas.rect(white).width);
+    CHECK(g->atlas.rect(*tinted).height == g->atlas.rect(white).height);
+}
+
 TEST_CASE("data: figure animations and sheets of all zoom levels") {
     const auto game = require_game();
     auto figures = assets::FigureTable::load(game);
@@ -578,6 +604,13 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
             REQUIRE(sub.building != nullptr);
             CHECK(sub.building->prod_kind == 8);  // HAUS_PRODTYP Kind KONTOR
             CHECK(map.top(w.x, w.y).city == w.city);
+        }
+        // Soldiers stand on land (SOLDAT3 positions in half tiles).
+        CHECK(world->soldiers().size() == state->soldiers.size());
+        for (const auto& soldier : world->soldiers()) {
+            const auto& cell =
+                world->cell(static_cast<std::uint32_t>(soldier.x), static_cast<std::uint32_t>(soldier.y));
+            CHECK(cell.island != sim::World::kSea);
         }
         // PRODLIST2 names buildings by their origin tile (the lookup of 0x0047CBF0): every entry
         // is the origin of a building with a HAUS_PRODTYP.

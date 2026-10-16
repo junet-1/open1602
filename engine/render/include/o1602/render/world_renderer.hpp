@@ -18,6 +18,7 @@
 #include "o1602/render/banner.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/unit_tint.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::render {
@@ -98,8 +99,8 @@ struct BuildingFigure {
                                                                    const assets::BuildingTable& buildings,
                                                                    const assets::FigureTable& figures);
 
-/// A figure standing or walking on land (animals now; carriers and soldiers later) as the
-/// simulation or the viewer hands it to the renderer.
+/// A figure standing or walking on land (animals, soldiers; carriers later) as the simulation or
+/// the viewer hands it to the renderer.
 struct FigureInstance {
     double x = 0.0;  ///< world position in tiles (continuous; tile centre = x + 0.5)
     double y = 0.0;
@@ -107,6 +108,12 @@ struct FigureInstance {
     std::uint8_t anim = 0;     ///< ANIM index and frame (AnimState)
     std::uint8_t frame = 0;
     std::uint8_t direction = 0;  ///< 0..7
+    /// Owner: units drawn per colour (FigureTable::unit_variant) take the colour of the owner's
+    /// banner - the drawn variant or the tinted template.
+    sim::PlayerId owner = sim::kNoPlayer;
+    /// Sheet of the images. The original picks it by the figure's draw kind (soldiers: SOLDAT.BSH),
+    /// not by Blocknr, which many figures lack; nothing = Blocknr.
+    std::optional<assets::FigureSheet> sheet;
 };
 
 /// Opacity of figure shadows (the original dithers every second pixel).
@@ -133,10 +140,13 @@ struct WorldLayers {
     const std::vector<BuildingFigure>* building_figures = nullptr;
     /// Player whose buildings show status icons (the original: the local player). kNoPlayer: none.
     sim::PlayerId local_player = sim::kNoPlayer;
-    /// Figures on land with their shadows. Needs `figures` and the atlas bases of their sheets
-    /// (`sheet_base`, e.g. from WorldGraphics::base); figures whose sheet is missing are skipped.
-    const std::vector<FigureInstance>* land_figures = nullptr;
+    /// Sets of figures on land (animals, soldiers, ...) with their shadows. Needs `figures` and the
+    /// atlas bases of their sheets (`sheet_base`, e.g. from WorldGraphics::base); figures whose sheet
+    /// is missing are skipped.
+    std::vector<const std::vector<FigureInstance>*> land_figures;
     std::array<std::optional<std::uint32_t>, assets::kFigureSheetCount> sheet_base{};
+    /// Tinted units for banners without drawn variants (WorldGraphics::unit_tint).
+    const UnitTint* unit_tint = nullptr;
 };
 
 /// Up to two draw commands of one figure (shadow + body, hull + flag) and the tile row after

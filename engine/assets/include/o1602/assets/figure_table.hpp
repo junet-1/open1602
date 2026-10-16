@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "o1602/assets/cod_parser.hpp"
@@ -86,8 +87,20 @@ struct FigureType {
 [[nodiscard]] std::uint32_t figure_sprite(const FigureType& type, std::size_t anim, std::uint32_t frame,
                                           std::uint8_t direction, std::uint8_t view_rotation) noexcept;
 
+/// A unit drawn once per player colour: the original keeps four consecutive figures, one each for
+/// red, blue, yellow and white (SOLDAT1..4, KAVALERIE1..4, MUSKETIER1..4, KANONIER1..4).
+struct UnitVariant {
+    std::uint32_t family = 0;  ///< figure of variant 0 (red)
+    std::uint8_t index = 0;    ///< variant of this figure, = original player colour 0..3
+    std::uint8_t count = 0;    ///< variants of the family
+};
+
 class FigureTable {
 public:
+    /// First figures of the unit families of the original (figure numbers 1..16, 4 colours each).
+    static constexpr std::array<std::uint32_t, 4> kUnitFamilies = {1, 5, 9, 13};
+    static constexpr std::uint8_t kUnitVariants = 4;
+
     /// Ship flags by player colour (table at 0x00498F2C): FAHNE1..4, FAHNEPIRAT.
     static constexpr std::array<std::uint32_t, 5> kFlagFigures = {106, 107, 108, 109, 110};
 
@@ -100,6 +113,16 @@ public:
     /// Flag figure of a player colour, or nullptr for colours without flag (natives, trader).
     [[nodiscard]] const FigureType* flag_for_color(std::uint8_t color) const noexcept {
         return color < kFlagFigures.size() ? get(kFlagFigures[color]) : nullptr;
+    }
+    /// Colour variant of a unit figure, nothing for figures drawn the same for everyone (e.g. the
+    /// natives' spearmen SPEER1).
+    [[nodiscard]] static std::optional<UnitVariant> unit_variant(std::uint32_t figure) noexcept {
+        for (const std::uint32_t family : kUnitFamilies) {
+            if (figure >= family && figure < family + kUnitVariants) {
+                return UnitVariant{family, static_cast<std::uint8_t>(figure - family), kUnitVariants};
+            }
+        }
+        return std::nullopt;
     }
 
 private:

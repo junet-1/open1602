@@ -24,7 +24,7 @@ BannerTable BannerTable::original(const assets::FigureTable* figures, const Bann
     BannerTable table;
     const char* kPlayers[] = {"anno1602:red", "anno1602:blue", "anno1602:yellow", "anno1602:white"};
     for (std::uint8_t c = 0; c < 4; ++c) {
-        Banner b{kPlayers[c], kDefaultColors[c], FlagStyle::Tinted, 0, 8};
+        Banner b{kPlayers[c], kDefaultColors[c], FlagStyle::Tinted, 0, 8, c};
         const assets::FigureType* flag = figures != nullptr ? figures->flag_for_color(c) : nullptr;
         if (options.original_player_flags && flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
             b.flag = FlagStyle::Sprites;
@@ -32,15 +32,15 @@ BannerTable BannerTable::original(const assets::FigureTable* figures, const Bann
         }
         table.add(std::move(b));
     }
-    Banner pirates{"anno1602:pirates", {40, 40, 40, 255}, FlagStyle::None, 0, 8};
+    Banner pirates{"anno1602:pirates", {40, 40, 40, 255}, FlagStyle::None, 0, 8, std::nullopt};
     if (const assets::FigureType* flag = figures != nullptr ? figures->flag_for_color(4) : nullptr;
         flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
         pirates.flag = FlagStyle::Sprites;
         pirates.flag_gfx = flag->gfx;
     }
     table.add(std::move(pirates));
-    table.add(Banner{"anno1602:natives", {160, 104, 48, 255}, FlagStyle::None, 0, 8});
-    table.add(Banner{"anno1602:trader", {48, 160, 96, 255}, FlagStyle::None, 0, 8});
+    table.add(Banner{"anno1602:natives", {160, 104, 48, 255}, FlagStyle::None, 0, 8, std::nullopt});
+    table.add(Banner{"anno1602:trader", {48, 160, 96, 255}, FlagStyle::None, 0, 8, std::nullopt});
     // Generic flag: the white flag FAHNE4.
     if (const assets::FigureType* white = figures != nullptr ? figures->flag_for_color(3) : nullptr;
         white != nullptr && white->sheet == assets::FigureSheet::Ship) {
@@ -55,7 +55,7 @@ sim::BannerId BannerTable::add(Banner banner) {
 }
 
 sim::BannerId BannerTable::add_color(std::string id, assets::Rgba color) {
-    return add(Banner{std::move(id), color, FlagStyle::Tinted, 0, 8});
+    return add(Banner{std::move(id), color, FlagStyle::Tinted, 0, 8, std::nullopt});
 }
 
 }  // namespace o1602::render

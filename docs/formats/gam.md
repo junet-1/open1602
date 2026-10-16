@@ -160,7 +160,7 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `PLAYER4` | 0x430 | `0x00478363` | – | Spieler (oben) |
 | `SHIP4` | 0x1B4 | `0x004600C0` | `0x004CF358`, 150 × 0x218 | Schiffe (oben, 14) |
 | `HANDLER` | 0x25C | `0x004600C0` | `0x004A0DC8`, 30 × 0xD0 | Händlerdaten: 25 Waren (Id − 20000 + 2 u32) (7) |
-| `SOLDAT3` | 0x44 | `0x004600C0` | `0x0051C678`, 400 × 0x1B0 | Soldaten: Position (vermutlich halbe Felder), Figur, Besitzer, Richtung +0x1B (9) |
+| `SOLDAT3` | 0x44 | `0x004600C0` | `0x0051C678`, 400 × 0x1B0 | Soldaten: Position in halben Feldern, Figur, Besitzer, Animation, Richtung ([figures.md](../re/figures.md#soldaten-im-spielstand), 9) |
 | `TURM` | 0x24 | `0x004600C0` | `0x004EDE60`, 350 × 0x118 | Türme als Figuren: Weltfeld x/y, Figur (40), Besitzer +0x18 (61, alle Piratentürme) |
 | `STADT4` | 0xA8 | `0x00485020` | Städte `0x005DBAE0`, 75 × 0x258 | Städte (unten, 20) |
 | `KONTOR2` | 0x3EC | `0x00485020` | dieselbe Städtetabelle | Warenlager einer Stadt (unten, 20) |

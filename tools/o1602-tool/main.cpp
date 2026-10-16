@@ -45,9 +45,9 @@
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/core/text.hpp"
-#include "o1602/render/animal_figures.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
+#include "o1602/render/land_figures.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
@@ -661,8 +661,8 @@ int cmd_render_world(const Args& args) {
                                            static_cast<std::uint8_t>(rgb), 255});
         world->set_players(std::move(players));
     }
-    auto graphics =
-        render::load_world_graphics(*game, *palette, view.zoom, render::kWorldFigureSheets, graphics_options, &banners);
+    auto graphics = render::load_world_graphics(*game, *palette, view.zoom, render::kWorldFigureSheets,
+                                                graphics_options, &banners, &*figures);
     if (!graphics) {
         return fail(graphics.error());
     }
@@ -705,7 +705,11 @@ int cmd_render_world(const Args& args) {
     render::AnimalFigures animals;
     animals.reset(*world, *figures);
     animals.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)), *figures);
-    layers.land_figures = &animals.instances();
+    render::SoldierFigures soldiers;
+    soldiers.reset(*world, *figures);
+    soldiers.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)), *figures);
+    layers.land_figures = {&animals.instances(), &soldiers.instances()};
+    layers.unit_tint = &graphics->unit_tint;
     std::vector<render::DrawCommand> commands;
     render::build_world_draw_list(*world, *buildings, clock, view, viewport, layers, commands);
     render::RgbaImage image;

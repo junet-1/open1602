@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <map>
 
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/savegame.hpp"
 
 namespace o1602::sim {
@@ -180,6 +181,17 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         }
         world.set_production(
             Production{*island, p.x, p.y, p.enabled, p.working, p.anim_phase, p.idle_cycles, p.stock, p.progress});
+    }
+    for (const auto& r : state->soldiers) {
+        Soldier soldier{r.x2 / 2.0, r.y2 / 2.0, r.figure, player_from_original(r.owner), r.direction, r.anim};
+        if (!world.contains(static_cast<std::uint32_t>(soldier.x), static_cast<std::uint32_t>(soldier.y))) {
+            warn("soldier outside the world map");
+            continue;
+        }
+        if (const auto variant = assets::FigureTable::unit_variant(r.figure)) {
+            soldier.figure = static_cast<std::uint16_t>(variant->family);
+        }
+        world.add_soldier(soldier);
     }
     // HIRSCH2 stores only position and timer; the kind follows the island's climate: deer
     // (HIRSCH) in the north, antelopes (ANTILOPE) in the south (confirmed in the running game).

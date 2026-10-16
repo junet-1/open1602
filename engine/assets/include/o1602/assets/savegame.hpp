@@ -75,12 +75,26 @@ struct AnimalRecord {
     std::uint32_t timer = 0;  ///< milliseconds, probably until the next action
 };
 
+/// SOLDAT3 record (0x44 bytes, written by 0x004600C0 from the soldier table 0x0051C678,
+/// 400 x 0x1B0, with the soldier's figure): one land unit. Positions are stored in half tiles
+/// (the figure's float position doubled and rounded).
+struct SoldierRecord {
+    std::uint16_t x2 = 0;                  ///< world position in half tiles (+0x00, figure +0x28 * 2)
+    std::uint16_t y2 = 0;                  ///< (+0x02, figure +0x2C * 2)
+    std::uint16_t figure = 0;              ///< FIGUR number (+0x06): SOLDAT1..4, KAVALERIE1..4, ..., SPEER1
+    std::uint8_t owner = 7;                ///< original owner slot (+0x18), 7 = nobody
+    std::uint8_t anim = 0;                 ///< ANIM index of the figure (+0x19)
+    std::uint8_t direction = 0;            ///< 0..7 (+0x1B)
+    std::array<std::uint8_t, 0x44> raw{};  ///< the whole record; the remaining fields are still open
+};
+
 /// Everything above, read from one file. Files without a chunk give empty lists.
 struct GameState {
     std::vector<CityRecord> cities;
     std::vector<WarehouseRecord> warehouses;
     std::vector<ProductionRecord> production;
     std::vector<AnimalRecord> animals;
+    std::vector<SoldierRecord> soldiers;
 };
 
 core::Result<GameState> load_game_state(const ChunkFile& file);

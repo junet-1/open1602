@@ -9,6 +9,7 @@ add_executable(o1602_tests
     unit/test_players_ships.cpp
     unit/test_figures.cpp
     unit/test_production.cpp
+    unit/test_units.cpp
     data/test_original_data.cpp
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render)

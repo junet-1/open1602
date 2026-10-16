@@ -343,7 +343,8 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     // Banners with flags at 0, 8, 16 of the ship sheet (as the original red, blue, yellow).
     render::BannerTable banners;
     for (std::uint32_t c = 0; c < 3; ++c) {
-        banners.add(render::Banner{"test:" + std::to_string(c), {}, render::FlagStyle::Sprites, 8U * c, 8});
+        banners.add(
+            render::Banner{"test:" + std::to_string(c), {}, render::FlagStyle::Sprites, 8U * c, 8, std::nullopt});
     }
     render::WorldLayers layers;
     layers.figures = &*figures;
@@ -365,7 +366,7 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     CHECK(s.row == (232 + 40 - 1) / 16);  // sorted by y + Posoffs[1]
 
     // A banner without flag sprites (like the free trader) or an unknown banner shows no flag.
-    banners.add(render::Banner{"test:noflag", {}, render::FlagStyle::None, 0, 8});
+    banners.add(render::Banner{"test:noflag", {}, render::FlagStyle::None, 0, 8, std::nullopt});
     world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 3, 0, ""}});
     CHECK(!render::building_figure_sprites(flag, world, *buildings, view, layers, 0, s));
     world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 99, 0, ""}});

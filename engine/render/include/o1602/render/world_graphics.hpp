@@ -16,6 +16,7 @@
 #include "o1602/core/result.hpp"
 #include "o1602/render/banner.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/unit_tint.hpp"
 
 namespace o1602::render {
 
@@ -39,6 +40,8 @@ struct WorldGraphics {
     /// Per banner (BannerTable index): atlas index of the first image of its tinted flag, nothing
     /// for banners without a tinted flag.
     std::vector<std::optional<std::uint32_t>> banner_flags;
+    /// Units in banner colours without drawn variants (needs the soldier sheet and the figures).
+    UnitTint unit_tint;
 
     [[nodiscard]] std::optional<std::uint32_t> sheet_base(assets::FigureSheet sheet) const noexcept {
         return base[static_cast<std::size_t>(sheet)];
@@ -48,14 +51,18 @@ struct WorldGraphics {
 /// Terrain (STADTFLD) is required; every sheet in `figure_sheets` is optional and simply missing
 /// from WorldGraphics::base if neither it nor (with derive_missing_sheets) its larger version exists.
 /// With `banners`, the generic flag is tinted once per banner with FlagStyle::Tinted (needs the
-/// ship sheet).
+/// ship sheet). With `banners` and `figures`, the units drawn per colour (FigureTable::kUnitFamilies)
+/// are tinted once per banner without unit_variant (needs the soldier sheet).
 core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& game, const assets::Palette& palette,
                                                 Zoom zoom, std::span<const assets::FigureSheet> figure_sheets,
                                                 const GraphicsOptions& options = {},
-                                                const BannerTable* banners = nullptr);
+                                                const BannerTable* banners = nullptr,
+                                                const assets::FigureTable* figures = nullptr);
 
-/// The sheets the world renderer uses: ships, animals, shadows and effects (smoke, status icons).
-inline constexpr std::array<assets::FigureSheet, 4> kWorldFigureSheets = {
-    assets::FigureSheet::Ship, assets::FigureSheet::Tiere, assets::FigureSheet::Schatten, assets::FigureSheet::Effekte};
+/// The sheets the world renderer uses: ships, animals, shadows, effects (smoke, status icons) and
+/// soldiers.
+inline constexpr std::array<assets::FigureSheet, 5> kWorldFigureSheets = {
+    assets::FigureSheet::Ship, assets::FigureSheet::Tiere, assets::FigureSheet::Schatten, assets::FigureSheet::Effekte,
+    assets::FigureSheet::Soldat};
 
 }  // namespace o1602::render

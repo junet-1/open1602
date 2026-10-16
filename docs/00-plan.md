@@ -206,7 +206,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | Spielerflaggen als eingefärbte Einheitsflagge (beliebige Farben, 12 Vorgaben, Modder-Anleitung) | ✅ `docs/modding/flags.md` |
 | M2: Produktionszustand aus dem Spielstand: Gebäudeanimationen nach Zustand (Mühlen, Füllstand, Marktstände), Rauch, Statussymbole; Figuren am Bezugspunkt Y wie im Original; Abgleich mit dem Bildschirmfoto jetzt 0,967 | ✅ `docs/re/production.md` |
 | Prüfung: Soldaten in beliebigen Spielerfarben (Vorlage aus den vier Fassungen, Originalbilder für die vier Originalfarben) | ✅ `docs/re/figures.md` |
-| M2: Soldaten (`SOLDAT3`-Positionen), Gaukler (Einwohnerzahlen), Träger (Wirtschaft) | ⬜ |
+| M2: Soldaten aus dem Spielstand (`SOLDAT3`), in jeder Bannerfarbe (Originalbilder für die vier Originalfarben, sonst eingefärbte Vorlage) | ✅ `docs/re/figures.md` |
+| M2: Gaukler (Einwohnerzahlen), Träger (Wirtschaft) | ⬜ mit der Wirtschaftssimulation |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |

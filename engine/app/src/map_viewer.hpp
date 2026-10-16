@@ -18,9 +18,9 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/platform/window.hpp"
-#include "o1602/render/animal_figures.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/camera.hpp"
+#include "o1602/render/land_figures.hpp"
 #include "o1602/render/sdl_sprite_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_graphics.hpp"
@@ -86,6 +86,7 @@ private:
     std::vector<render::BuildingFigure> m_building_figures;
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::AnimalFigures m_animals;                ///< the islands' animals, grazing
+    render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     ViewerOptions m_options;
 
     std::unique_ptr<platform::SdlSystem> m_sdl;

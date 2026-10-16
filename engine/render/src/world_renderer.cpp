@@ -433,9 +433,26 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
     if (type == nullptr) {
         return false;
     }
-    const auto base = layers.sheet_base[static_cast<std::size_t>(type->sheet)];
+    const auto base = layers.sheet_base[static_cast<std::size_t>(figure.sheet.value_or(type->sheet))];
     if (!base) {
         return false;  // no graphics for this figure at this zoom level
+    }
+    // Units drawn per player colour: the variant of the owner's banner, or its tinted template.
+    const assets::FigureType* body_type = type;
+    std::optional<std::uint32_t> tinted_body;
+    if (const auto variant = assets::FigureTable::unit_variant(figure.figure)) {
+        const sim::Player* owner = world.player(figure.owner);
+        const Banner* banner =
+            owner != nullptr && layers.banners != nullptr ? layers.banners->get(owner->banner) : nullptr;
+        if (banner != nullptr && banner->unit_variant && *banner->unit_variant < variant->count) {
+            if (const assets::FigureType* v = layers.figures->get(variant->family + *banner->unit_variant)) {
+                body_type = v;
+            }
+        } else if (banner != nullptr && layers.unit_tint != nullptr) {
+            tinted_body = layers.unit_tint->sprite(
+                owner->banner,
+                assets::figure_sprite(*type, figure.anim, figure.frame, figure.direction, view_in.rotation));
+        }
     }
     const WorldView view = fit_view(view_in, world);
     const std::int32_t tw = tile_width(view.zoom);
@@ -465,7 +482,9 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
     }
     DrawCommand& body = out.parts[out.count];
     body = DrawCommand{};
-    body.sprite = *base + assets::figure_sprite(*type, figure.anim, figure.frame, figure.direction, view.rotation);
+    body.sprite = tinted_body ? *tinted_body
+                              : *base + assets::figure_sprite(*body_type, figure.anim, figure.frame, figure.direction,
+                                                              view.rotation);
     const AtlasRect& r = layers.atlas->rect(body.sprite);
     if (r.empty()) {
         out.count = 0;
@@ -541,8 +560,8 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 }
             }
         }
-        if (layers.land_figures != nullptr) {
-            for (const FigureInstance& instance : *layers.land_figures) {
+        for (const std::vector<FigureInstance>* set : layers.land_figures) {
+            for (const FigureInstance& instance : *set) {
                 FigureSprites f;
                 if (land_figure_sprites(instance, world, view, layers, f)) {
                     add_figure(f);

@@ -87,6 +87,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         render::collect_building_figures(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_local_player = sim::first_human_player(viewer->m_world);
     viewer->m_animals.reset(viewer->m_world, viewer->m_figures);
+    viewer->m_soldiers.reset(viewer->m_world, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
     if (!sdl) {
@@ -154,8 +155,8 @@ core::Status MapViewer::ensure_graphics(render::Zoom zoom) {
     options.page_size = max_texture >= 4096 ? 4096U : 2048U;
     options.derive_missing_sheets = m_options.derive_small_figures;
     const std::uint64_t start = platform::ticks_ms();
-    auto graphics =
-        render::load_world_graphics(m_game, m_palette, zoom, render::kWorldFigureSheets, options, &m_banners);
+    auto graphics = render::load_world_graphics(m_game, m_palette, zoom, render::kWorldFigureSheets, options,
+                                                &m_banners, &m_figures);
     if (!graphics) {
         return graphics.error();
     }
@@ -355,6 +356,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
     if (!m_paused) {
         m_clock.advance(delta_ms);
         m_animals.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
+        m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
     }
 }
 
@@ -372,7 +374,8 @@ void MapViewer::render() {
         layers.atlas = &atlas;
         layers.ship_base = graphics->graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
         layers.sheet_base = graphics->graphics.base;
-        layers.land_figures = &m_animals.instances();
+        layers.land_figures = {&m_animals.instances(), &m_soldiers.instances()};
+        layers.unit_tint = &graphics->graphics.unit_tint;
         layers.banners = &m_banners;
         layers.banner_flags = &graphics->graphics.banner_flags;
         layers.owner_tint = m_show_owners;

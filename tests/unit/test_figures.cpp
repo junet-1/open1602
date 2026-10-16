@@ -8,9 +8,9 @@
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/assets/figure_table.hpp"
-#include "o1602/render/animal_figures.hpp"
 #include "o1602/render/figure_animation.hpp"
 #include "o1602/render/flag_tint.hpp"
+#include "o1602/render/land_figures.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/world.hpp"
@@ -137,7 +137,7 @@ TEST_CASE("figures: land figure with shadow, position and depth") {
     layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Schatten)] = atlas->sheet_base(2);
 
     sim::World world;
-    const render::FigureInstance deer{10.5, 20.5, 89, 1, 2, 3};
+    const render::FigureInstance deer{10.5, 20.5, 89, 1, 2, 3, sim::kNoPlayer, std::nullopt};
     render::FigureSprites f;
     REQUIRE(render::land_figure_sprites(deer, world, render::WorldView{render::Zoom::Large, 0}, layers, f));
     REQUIRE(f.count == 2);

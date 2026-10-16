@@ -32,6 +32,9 @@ struct Banner {
     FlagStyle flag = FlagStyle::Tinted;
     std::uint32_t flag_gfx = 0;  ///< FlagStyle::Sprites: first image in the ship sheet
     std::uint32_t flag_frames = 8;
+    /// Units drawn per colour (soldiers, riders, ...) use the original images of this colour
+    /// (0 red, 1 blue, 2 yellow, 3 white); without it they are tinted in `color` (unit_tint.hpp).
+    std::optional<std::uint8_t> unit_variant;
 };
 
 /// Opacity of the ownership overlay diamonds.

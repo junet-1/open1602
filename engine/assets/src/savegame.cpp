@@ -18,6 +18,7 @@ constexpr std::size_t kWareSlotsOffset = 0x2C;
 constexpr std::uint8_t kFirstWare = 2;
 constexpr std::size_t kProductionSize = 0x18;
 constexpr std::size_t kAnimalSize = 8;
+constexpr std::size_t kSoldierSize = 0x44;
 
 std::uint32_t u32(std::span<const std::uint8_t> d, std::size_t o) {
     return static_cast<std::uint32_t>(d[o]) | (static_cast<std::uint32_t>(d[o + 1]) << 8) |
@@ -101,6 +102,20 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
     }
     status = for_each_record(file, "HIRSCH2", kAnimalSize, [&](std::span<const std::uint8_t> r) {
         state.animals.push_back(AnimalRecord{r[0], r[1], r[2], u32(r, 4)});
+    });
+    if (!status) {
+        return status.error();
+    }
+    status = for_each_record(file, "SOLDAT3", kSoldierSize, [&](std::span<const std::uint8_t> r) {
+        SoldierRecord s;
+        s.x2 = static_cast<std::uint16_t>(r[0] | (r[1] << 8));
+        s.y2 = static_cast<std::uint16_t>(r[2] | (r[3] << 8));
+        s.figure = static_cast<std::uint16_t>(r[6] | (r[7] << 8));
+        s.owner = r[0x18];
+        s.anim = r[0x19];
+        s.direction = static_cast<std::uint8_t>(r[0x1B] & 7U);
+        std::copy(r.begin(), r.end(), s.raw.begin());
+        state.soldiers.push_back(s);
     });
     if (!status) {
         return status.error();
