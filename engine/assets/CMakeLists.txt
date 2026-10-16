@@ -2,6 +2,7 @@
 # Loaders for the original Anno 1602 data formats. No platform or rendering dependencies.
 
 add_library(o1602_assets
+    src/building_table.cpp
     src/chunk_file.cpp
     src/cod.cpp
     src/cod_parser.cpp

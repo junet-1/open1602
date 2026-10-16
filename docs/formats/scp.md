@@ -29,9 +29,23 @@ ist noch nicht entschlüsselt und wird roh mitgeführt (`IslandHeader::raw`).
 struct IslandTile {
     uint16_t id;      // + 20000 = "Id" eines HAUS-Datensatzes in haeuser.cod (verifiziert)
     uint8_t  x, y;    // Position auf der Insel
-    uint32_t bits;    // gepackte Attribute, noch nicht entschlüsselt
+    uint32_t bits;    // gepackte Attribute, siehe unten
 };
 ```
+
+| Bits | Inhalt | Beleg |
+|---|---|---|
+| 0–1 | Rotation 0–3 | `Build_PlaceBuildings` `0x004084D0`, `Haus_GetRotatedSize` `0x00463830` |
+| 2–5 | Animationsphase (→ Bits 15–18 im Inselraster) | Übergabe an `0x004653A0` |
+| 6–13 | Inselnummer | stimmt mit dem Inselkopf überein (z. B. 19 in `NORD/big.scp`) |
+| 14–16 | Stadt (7 = keine) | `0x004084D0` setzt bei fehlender Stadt `0x1C000` |
+| 17–21 | Zufallswert | Übergabe an `0x00481450` |
+| 22–25 | Spieler | Index in die Spielertabelle (`0x005B7680`, Abstand `0x280`) |
+| 26–31 | unbekannt | |
+
+**Ein Eintrag pro Gebäude**: Mehrfeldrige Gebäude stehen nur einmal an ihrer Ursprungsposition;
+beim Laden werden sie mit dem Platzierungsalgorithmus aus [rendering.md](../re/rendering.md) auf alle
+Felder verteilt.
 
 **`id + 20000` = `Id` in `haeuser.cod` – verifiziert:** Alle 23 verschiedenen IDs aus `NORD/big.scp`
 existieren als `Id` eines `HAUS`-Datensatzes (Test `data: island tile ids ...`). Zeichnet man jedes
@@ -41,8 +55,6 @@ Feld mit dem `Gfx`-Index dieses Datensatzes aus `GFX/STADTFLD.BSH` isometrisch (
 Kuriosum: `NORD/big.scp` (ohne Nummer) hat Lücken in Form von „???“ – dort fehlen schlicht Einträge.
 Die Datei ist offenbar eine Platzhalter-Vorlage; die echten Inseln heißen `big00`–`big66`.
 
-Für `bits` vermutet die Community (u. a. MDCII) Felder wie Rotation, Animationsschritt, Insel-,
-Stadt- und Spielernummer – **ungeprüft**, daher noch nicht implementiert.
 
 ## Szenarien und Spielstände
 
@@ -50,9 +62,12 @@ Stadt- und Spielernummer – **ungeprüft**, daher noch nicht implementiert.
 Pro Insel folgt ein Satz `INSEL5, INSELHAUS, HIRSCH2, PRODLIST2, WERFT, MILITAR, SIEDLER, ROHWACHS2,
 STADT4, KONTOR2, MARKT2`, dazu globale Chunks (siehe [chunks.md](chunks.md)).
 
-Beobachtung: In Szenarien enthalten manche `INSELHAUS`-Chunks 0 Einträge oder deutlich weniger als
-Breite × Höhe. Vermutlich wird das Grundgelände aus der Vorlage (`.SCP`) geladen und nur
-Abweichungen/Gebäude gespeichert. **Offen** – Klärung über den Lade-Code.
+In Szenarien enthalten die `INSELHAUS`-Chunks weniger Einträge als Breite × Höhe, weil (a) jedes
+Gebäude nur einmal gespeichert ist und (b) **offenes Meer nicht gespeichert wird** – der Renderer
+zeichnet es aus der Weltkarte. Die Insel 0 von „Das Atoll“ (70 × 60) ergibt so 1488 Einträge bzw.
+1613 belegte Felder und wird mit `o1602-tool render-island` vollständig mit Städten dargestellt.
+Inseln mit 0 Einträgen sind vermutlich ungenutzte Plätze. `NORDNAT/`/`SUEDNAT/` enthalten nur
+wenige Einträge pro Insel (Eingeborenendörfer zum Einblenden in Vorlagen).
 
 ## Werkzeuge
 

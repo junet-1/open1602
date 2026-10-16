@@ -30,10 +30,20 @@ struct IslandTile {
     std::uint16_t id = 0;
     std::uint8_t x = 0;
     std::uint8_t y = 0;
-    std::uint32_t bits = 0;  ///< Packed attributes (rotation, animation, owner, ...), not decoded yet.
+    /// Packed attributes, decoded by the accessors below (layout from the build routine
+    /// 1602.exe @ 0x004084D0, see docs/formats/scp.md).
+    std::uint32_t bits = 0;
 
     static constexpr std::uint32_t kCodIdOffset = 20000;
+    static constexpr std::uint8_t kNoCity = 7;
+
     [[nodiscard]] std::uint32_t cod_id() const noexcept { return std::uint32_t{id} + kCodIdOffset; }
+    [[nodiscard]] std::uint8_t rotation() const noexcept { return static_cast<std::uint8_t>(bits & 3U); }
+    [[nodiscard]] std::uint8_t anim_phase() const noexcept { return static_cast<std::uint8_t>((bits >> 2) & 0xFU); }
+    [[nodiscard]] std::uint8_t island_number() const noexcept { return static_cast<std::uint8_t>((bits >> 6) & 0xFFU); }
+    [[nodiscard]] std::uint8_t city() const noexcept { return static_cast<std::uint8_t>((bits >> 14) & 7U); }
+    [[nodiscard]] std::uint8_t random() const noexcept { return static_cast<std::uint8_t>((bits >> 17) & 0x1FU); }
+    [[nodiscard]] std::uint8_t player() const noexcept { return static_cast<std::uint8_t>((bits >> 22) & 0xFU); }
 };
 
 struct Island {

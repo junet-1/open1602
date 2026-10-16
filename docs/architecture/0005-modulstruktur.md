@@ -21,5 +21,5 @@ Regeln:
   öffentlicher Schnittstelle; Interna liegen in `src/`.
 - Namensraum `o1602::<modul>`.
 
-Bereits umgesetzt: `core`, `assets`. Die übrigen Module sind in `engine/<modul>/README.md` beschrieben
+Bereits umgesetzt: `core`, `assets`, `sim` (Inselraster), `render` (Software-Renderer). Die übrigen Module sind in `engine/<modul>/README.md` beschrieben
 und werden mit ihren Meilensteinen angelegt.

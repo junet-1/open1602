@@ -6,7 +6,7 @@ Originalfehlern, stabilem Multiplayer und Raum für neue Features, Komfortfunkti
 
 *Open1602 is an open-source reimplementation of the Anno 1602 engine. It requires the original game data.*
 
-> **Status:** frühe Phase – Reverse Engineering und Dateiformate (Meilenstein M1).
+> **Status:** frühe Phase – Dateiformate, `.cod`-Interpreter und Insel-Renderer stehen (M1/M2).
 > Noch nicht spielbar.
 
 ## Originaldaten
@@ -38,13 +38,15 @@ o1602-tool chunks     <datei>                        # Chunk-Struktur jeder Bin�
 o1602-tool cod        haeuser.cod haeuser.txt         # .cod-Skript entschlüsseln
 o1602-tool bsh-export GFX/SHIP.BSH out/ --sheet       # Sprites als PNG
 o1602-tool islands    NORD/big.scp                    # Inseldaten
+o1602-tool cod-dump   haeuser.cod --type HAUS         # .cod interpretieren
+o1602-tool render-island NORD/lar01.SCP insel.png     # Insel isometrisch zeichnen
 ```
 
 ## Projektstruktur
 
 | Ordner | Inhalt |
 |---|---|
-| `engine/` | Engine-Module (`core`, `assets`, später `sim`, `render`, `audio`, `ui`, `net`, `app`) |
+| `engine/` | Engine-Module (`core`, `assets`, `sim`, `render`; später `audio`, `ui`, `net`, `app`) |
 | `tools/` | `o1602-tool` (C++) und Python-Prototypen |
 | `tests/` | Unit-Tests und Tests gegen Originaldaten |
 | `docs/` | [Plan](docs/00-plan.md), [Dateiformate](docs/formats/README.md), [Reverse Engineering](docs/re/README.md), [Architektur](docs/architecture/README.md) |

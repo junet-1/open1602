@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "o1602/sim/island_map.hpp"
+
+namespace o1602::sim {
+
+using core::ErrorCode;
+using core::make_error;
+
+IslandMap::IslandMap(std::uint32_t width, std::uint32_t height)
+    : m_width(width), m_height(height), m_top(std::size_t{width} * height), m_ground(std::size_t{width} * height) {}
+
+core::Status IslandMap::place(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                              std::uint8_t anim_phase) {
+    rotation &= 3U;
+    std::uint32_t fw = 0;
+    std::uint32_t fh = 0;
+    rotated_size(b, rotation, fw, fh);
+    if (x < 0 || y < 0 || static_cast<std::uint32_t>(x) + fw > m_width ||
+        static_cast<std::uint32_t>(y) + fh > m_height) {
+        return make_error(ErrorCode::OutOfRange, "building " + std::to_string(b.id) + " does not fit at " +
+                                                     std::to_string(x) + "," + std::to_string(y));
+    }
+
+    const auto w = static_cast<std::int32_t>(b.size_x);
+    const auto h = static_cast<std::int32_t>(b.size_y);
+    std::uint32_t sprite = b.gfx;
+    const auto put = [&](std::int32_t tx, std::int32_t ty) {
+        const std::size_t i = index(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
+        if (!m_top[i].empty()) {
+            m_ground[i] = m_top[i];
+        }
+        m_top[i] = MapCell{static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation,
+                           static_cast<std::uint8_t>(anim_phase & 0xFU)};
+        ++sprite;
+    };
+
+    // Traversal order per rotation as in the original placement routine (0x00463B10).
+    switch (rotation) {
+        case 0:
+            for (std::int32_t j = 0; j < h; ++j) {
+                for (std::int32_t i = 0; i < w; ++i) {
+                    put(x + i, y + j);
+                }
+            }
+            break;
+        case 1:
+            for (std::int32_t j = h - 1; j >= 0; --j) {
+                for (std::int32_t i = 0; i < w; ++i) {
+                    put(x + j, y + i);
+                }
+            }
+            break;
+        case 2:
+            for (std::int32_t j = h - 1; j >= 0; --j) {
+                for (std::int32_t i = w - 1; i >= 0; --i) {
+                    put(x + i, y + j);
+                }
+            }
+            break;
+        default:
+            for (std::int32_t j = 0; j < h; ++j) {
+                for (std::int32_t i = w - 1; i >= 0; --i) {
+                    put(x + j, y + i);
+                }
+            }
+            break;
+    }
+    return core::Ok{};
+}
+
+SubTile IslandMap::sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const {
+    SubTile result;
+    const MapCell& cell = top(x, y);
+    if (cell.empty()) {
+        return result;
+    }
+    result.building = buildings.by_sprite(cell.sprite);
+    if (result.building == nullptr) {
+        return result;
+    }
+    const auto d = static_cast<std::int32_t>(cell.sprite - result.building->gfx);
+    const auto w = static_cast<std::int32_t>(result.building->size_x);
+    const auto h = static_cast<std::int32_t>(result.building->size_y);
+    const std::int32_t row = d / w;
+    const std::int32_t col = d % w;
+    const auto px = static_cast<std::int32_t>(x);
+    const auto py = static_cast<std::int32_t>(y);
+    switch (cell.rotation & 3U) {  // original 0x00463250
+        case 0:
+            result.origin_x = px - col;
+            result.origin_y = py - row;
+            break;
+        case 1:
+            result.origin_x = px + 1 + row - h;
+            result.origin_y = py - col;
+            break;
+        case 2:
+            result.origin_x = px + 1 + col - w;
+            result.origin_y = py + 1 + row - h;
+            break;
+        default:
+            result.origin_x = px - row;
+            result.origin_y = py + 1 + col - w;
+            break;
+    }
+    return result;
+}
+
+IslandMap IslandMap::from_island(const assets::Island& island, const assets::BuildingTable& buildings,
+                                 std::vector<std::string>* warnings) {
+    IslandMap map(island.header.width, island.header.height);
+    const auto warn = [&](std::string message) {
+        if (warnings != nullptr) {
+            warnings->push_back(std::move(message));
+        }
+    };
+    for (const auto& layer : island.layers) {
+        for (const auto& tile : layer) {
+            const assets::BuildingType* b = buildings.by_id(tile.cod_id());
+            if (b == nullptr) {
+                warn("unknown building id " + std::to_string(tile.cod_id()) + " at " + std::to_string(tile.x) + "," +
+                     std::to_string(tile.y));
+                continue;
+            }
+            if (auto status = map.place(*b, tile.x, tile.y, tile.rotation(), tile.anim_phase()); !status) {
+                warn(status.error().message);
+            }
+        }
+    }
+    return map;
+}
+
+}  // namespace o1602::sim

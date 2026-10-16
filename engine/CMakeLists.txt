@@ -11,6 +11,8 @@
 
 add_subdirectory(core)
 add_subdirectory(assets)
+add_subdirectory(sim)
+add_subdirectory(render)
 
 # Modules below are planned (see docs/00-plan.md) and get added as they are implemented:
-#   sim, net, platform, render, audio, ui, script, app
+#   net, platform, audio, ui, script, app

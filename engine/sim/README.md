@@ -1,5 +1,10 @@
 # engine/sim
 
-Deterministische Spielsimulation: Welt (500×350), Inseln, Gebäude, Produktionsketten, Bevölkerung, Handel, Figuren, Schiffe, KI, Militär, Szenarien. Keine Abhängigkeit von Plattform/Grafik/Audio, kein Gleitkomma im Zustand (ADR 0004). **Meilenstein:** M3.
+Deterministische Spielsimulation (ADR 0004). Keine Abhängigkeit von Plattform, Grafik oder Audio,
+kein Gleitkomma im Zustand.
 
-Noch nicht angelegt – siehe [docs/00-plan.md](../../docs/00-plan.md) und [ADR 0005](../../docs/architecture/0005-modulstruktur.md).
+| Header | Inhalt |
+|---|---|
+| `island_map.hpp` | Feldraster einer Insel (Gebäude + Boden), Platzierung nach dem Originalalgorithmus |
+
+Geplant: Welt (500 × 350), Städte, Produktion, Bevölkerung, Handel, Figuren, Schiffe, KI, Militär.

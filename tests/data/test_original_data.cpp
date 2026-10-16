@@ -11,6 +11,7 @@
 
 #include "../test_framework.hpp"
 
+#include "o1602/assets/building_table.hpp"
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_parser.hpp"
@@ -19,6 +20,8 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
+#include "o1602/render/island_renderer.hpp"
+#include "o1602/sim/island_map.hpp"
 
 using namespace o1602;
 
@@ -187,4 +190,82 @@ TEST_CASE("data: figuren.cod interprets with the predefined symbols") {
         }
     }
     CHECK(soldat_lines == 4);  // Schwert, Kavalerie, Musketier, Kanonier
+}
+
+// ---------------------------------------------------------------------------------------------
+// Building table, island maps and rendering against the original data
+
+namespace {
+
+assets::BuildingTable original_buildings(const assets::GameDirectory& game) {
+    const auto doc = parse_original_cod(game, "haeuser.cod", assets::cod_predefined_haeuser());
+    auto table = assets::BuildingTable::from_cod(doc);
+    REQUIRE(table.ok());
+    return std::move(table).value();
+}
+
+}  // namespace
+
+TEST_CASE("data: building table from haeuser.cod") {
+    const auto game = require_game();
+    const auto table = original_buildings(game);
+    CHECK(table.types().size() == 495);  // distinct non-zero ids; 3 ids occur twice in the original
+    const auto* meer = table.by_id(21201);
+    REQUIRE(meer != nullptr);
+    CHECK(meer->gfx == 758);
+    CHECK(meer->anim_count == 6);
+    CHECK(table.by_sprite(758) == meer);
+    const auto* baeckerei = table.by_id(20503);
+    REQUIRE(baeckerei != nullptr);
+    CHECK(baeckerei->rotate == baeckerei->tile_count());  // 2x2 building: 4 sprites per rotation
+    CHECK(table.by_sprite(baeckerei->gfx + 3) == baeckerei);
+}
+
+TEST_CASE("data: islands of a scenario build complete maps and render without missing sprites") {
+    const auto game = require_game();
+    const auto table = original_buildings(game);
+    auto sheet = assets::SpriteSheet::load(*game.resolve("gfx/stadtfld.bsh"));
+    REQUIRE(sheet.ok());
+    auto palette = assets::Palette::load(*game.resolve("toolgfx/stadtfld.col"));
+    REQUIRE(palette.ok());
+
+    auto file = assets::ChunkFile::load(*game.resolve("szenes/Das Atoll.szs"));
+    REQUIRE(file.ok());
+    auto islands = assets::load_islands(*file);
+    REQUIRE(islands.ok());
+    REQUIRE(islands->size() == 34);
+
+    std::size_t warnings_total = 0;
+    std::size_t sub_tile_errors = 0;
+    for (const auto& island : *islands) {
+        std::vector<std::string> warnings;
+        const auto map = sim::IslandMap::from_island(island, table, &warnings);
+        warnings_total += warnings.size();
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                if (map.top(x, y).empty()) {
+                    continue;
+                }
+                const auto sub = map.sub_tile(table, x, y);
+                if (sub.building == nullptr || sub.origin_x < 0 || sub.origin_y < 0 ||
+                    table.by_sprite(
+                        map.top(static_cast<std::uint32_t>(sub.origin_x), static_cast<std::uint32_t>(sub.origin_y))
+                            .sprite) != sub.building) {
+                    ++sub_tile_errors;
+                }
+            }
+        }
+    }
+    CHECK(warnings_total == 0);
+    CHECK(sub_tile_errors == 0);
+
+    // Render the first island at full zoom.
+    const auto map = sim::IslandMap::from_island((*islands)[0], table);
+    const auto commands = render::build_draw_list(map, table, render::RenderOptions{});
+    std::size_t missing = 0;
+    const auto image = render::rasterize(commands, *sheet, *palette, {}, &missing);
+    CHECK(missing == 0);
+    CHECK(commands.size() == 1613);
+    CHECK(image.width > 0);
+    CHECK(image.height > 0);
 }

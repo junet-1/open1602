@@ -173,5 +173,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M1: Chunk-Container, `.cod`, Palette, BSH-Sprites | ✅ dokumentiert, implementiert, gegen Originaldaten getestet |
 | M1: Inseln (`.SCP`) | 🟡 Kopf (Größe, Position) und Feldliste; Attribut-Bits offen |
 | M1: `.cod`-Interpreter (Grammatik aus der Exe, 685 Vordefinitionen, Parser + Tests) | ✅ `docs/formats/cod.md` |
-| M1: ZEI-Schriften, GAD, Szenario-Chunks, Feldbedeutungen in `haeuser.cod` | ⬜ als Nächstes |
+| M1: Gebäudedatensatz (`haeuser.cod` → `g_haeuser`), Inselattribute, Platzierungsalgorithmus | ✅ `docs/re/haus-record.md` |
+| M2: Renderer-Grundlage: Sprite-Formel, Maleralgorithmus, Software-Renderer, `render-island` | ✅ `docs/re/rendering.md` |
+| M2: Weltkarte (500 × 350, offenes Meer), SDL3-Fenster mit Scrollen/Zoom | ⬜ als Nächstes |
+| M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |

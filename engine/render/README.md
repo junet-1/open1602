@@ -1,5 +1,10 @@
 # engine/render
 
-Isometrischer 2D-Renderer: Sprite-Atlanten aus BSH-Dateien, Batching über die SDL3-GPU-API, drei Zoomstufen (später stufenlos), beliebige Auflösungen. Liest den Simulationszustand nur. **Meilenstein:** M2.
+Isometrische Darstellung nach dem Originalverfahren ([docs/re/rendering.md](../../docs/re/rendering.md)).
 
-Noch nicht angelegt – siehe [docs/00-plan.md](../../docs/00-plan.md) und [ADR 0005](../../docs/architecture/0005-modulstruktur.md).
+| Header | Inhalt |
+|---|---|
+| `island_renderer.hpp` | Zeichenliste (Sprite, Position, Maleralgorithmus) + Software-Rasterizer |
+
+Geplant: GPU-Backend über SDL3 (Sprite-Atlanten, Batching), stufenloser Zoom, beliebige Auflösungen.
+Liest den Simulationszustand nur.

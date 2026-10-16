@@ -9,6 +9,8 @@
 //   o1602-tool bsh-info   <file.bsh|.zei>                list sprites
 //   o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]
 //   o1602-tool islands    <file.scp|.szs|.szm|.gam>      list islands and tile statistics
+//   o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2]
+//                            [--rotation 0-3] [--anim N]   render an island (needs ANNO1602_DIR)
 //
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 
@@ -23,6 +25,7 @@
 #include <string_view>
 #include <vector>
 
+#include "o1602/assets/building_table.hpp"
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_parser.hpp"
@@ -32,6 +35,8 @@
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
+#include "o1602/render/island_renderer.hpp"
+#include "o1602/sim/island_map.hpp"
 
 namespace fs = std::filesystem;
 using namespace o1602;
@@ -51,7 +56,9 @@ int usage() {
         "  o1602-tool cod-dump   <file.cod> [--predefined haeuser|figuren|none] [--type NAME]\n"
         "  o1602-tool bsh-info   <file.bsh|.zei>\n"
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
-        "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n",
+        "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
+        "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
+        "                           [--anim N]\n",
         stderr);
     return 2;
 }
@@ -347,6 +354,78 @@ int cmd_islands(const Args& args) {
     return 0;
 }
 
+int cmd_render_island(const Args& args) {
+    if (args.positional.size() != 2) {
+        return usage();
+    }
+    auto game = assets::GameDirectory::from_environment();
+    if (!game) {
+        return fail(game.error());
+    }
+
+    // Building data from haeuser.cod
+    auto cod_bytes = core::read_file(*game->resolve("haeuser.cod"));
+    if (!cod_bytes) {
+        return fail(cod_bytes.error());
+    }
+    const auto haeuser = assets::cod::parse(assets::decode_cod(*cod_bytes), assets::cod_predefined_haeuser());
+    auto buildings = assets::BuildingTable::from_cod(haeuser);
+    if (!buildings) {
+        return fail(buildings.error());
+    }
+
+    // Island
+    auto file = assets::ChunkFile::load(fs::path(args.positional[0]));
+    if (!file) {
+        return fail(file.error());
+    }
+    auto islands = assets::load_islands(*file);
+    if (!islands) {
+        return fail(islands.error());
+    }
+    const std::size_t island_index = args.number("--island").value_or(0);
+    if (island_index >= islands->size()) {
+        return fail(core::make_error(core::ErrorCode::OutOfRange,
+                                     "file has " + std::to_string(islands->size()) + " island(s)"));
+    }
+    std::vector<std::string> warnings;
+    const auto map = sim::IslandMap::from_island((*islands)[island_index], *buildings, &warnings);
+
+    // Graphics
+    render::RenderOptions options;
+    const std::size_t zoom = std::min<std::size_t>(args.number("--zoom").value_or(0), 2);
+    options.zoom = static_cast<render::Zoom>(zoom);
+    options.view_rotation = static_cast<std::uint8_t>(args.number("--rotation").value_or(0) & 3U);
+    options.anim_step = static_cast<std::uint32_t>(args.number("--anim").value_or(0));
+    constexpr const char* kSheets[] = {"gfx/stadtfld.bsh", "mgfx/stadtfld.bsh", "sgfx/stadtfld.bsh"};
+    auto sheet = assets::SpriteSheet::load(*game->resolve(kSheets[zoom]));
+    if (!sheet) {
+        return fail(sheet.error());
+    }
+    auto palette = assets::Palette::load(*game->resolve("toolgfx/stadtfld.col"));
+    if (!palette) {
+        return fail(palette.error());
+    }
+
+    const auto commands = render::build_draw_list(map, *buildings, options);
+    std::size_t missing = 0;
+    const auto image = render::rasterize(commands, *sheet, *palette, assets::Rgba{24, 40, 72, 255}, &missing);
+    if (image.width == 0) {
+        return fail(core::make_error(core::ErrorCode::InvalidFormat, "nothing to draw"));
+    }
+    if (auto status = core::write_png_rgba(fs::path(args.positional[1]), image.width, image.height, image.pixels);
+        !status) {
+        return fail(status.error());
+    }
+    std::printf("island %zu: %ux%u tiles, %zu sprites drawn, %zu missing -> %s (%ux%u)\n", island_index, map.width(),
+                map.height(), commands.size() - missing, missing, std::string(args.positional[1]).c_str(), image.width,
+                image.height);
+    for (const auto& w : warnings) {
+        std::fprintf(stderr, "warning: %s\n", w.c_str());
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -369,6 +448,9 @@ int main(int argc, char** argv) {
     }
     if (command == "bsh-export") {
         return cmd_bsh_export(args);
+    }
+    if (command == "render-island") {
+        return cmd_render_island(args);
     }
     if (command == "islands") {
         return cmd_islands(args);
