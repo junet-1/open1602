@@ -52,14 +52,17 @@ inline constexpr std::uint8_t kNoOwner = 7;
 /// Only the file format is limited to this; the engine is not (ADR 0007).
 inline constexpr std::uint8_t kOriginalPlayerSlots = 7;
 
-/// One ship (SHIP4 record, 0x1B4 bytes; written by 0x004600C0).
+/// One ship (SHIP4 record, 0x1B4 bytes; written by 0x004600C0 from the ship table at 0x004CF358,
+/// 150 x 0x218). Position = the display figure's floating point position, truncated.
 struct ShipRecord {
     std::string name;
     std::uint16_t x = 0;  ///< world tile
     std::uint16_t y = 0;
     std::uint16_t figure = 0;  ///< FIGUR number in figuren.cod (HANDEL1 = 21, PIRAT = 31, ...)
     std::uint8_t owner = kNoOwner;
-    std::uint8_t direction = 0;  ///< 0..7 in 45 degree steps; 0xFF = not set (treated as 0)
+    std::uint8_t direction = 0;  ///< +0x50: byte 3 of the display figure, 0..7 in 45 degree steps
+    /// +0x4D: island at the ship's position (0x0046A570, e.g. lying at a warehouse), 0xFF = open sea.
+    std::uint8_t island = 0xFF;
 };
 
 /// PLAYER4 chunk. Files without it (older formats PLAYER2/PLAYER3) yield an empty list.

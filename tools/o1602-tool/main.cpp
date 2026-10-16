@@ -38,6 +38,7 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
+#include "o1602/assets/savegame.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
@@ -70,6 +71,7 @@ int usage() {
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
         "  o1602-tool savegames                               (names from Game.dat, needs ANNO1602_DIR)\n"
+        "  o1602-tool state      <file.gam|.szs> [--wares]    (players, cities, warehouses, ships, deer)\n"
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
@@ -394,6 +396,59 @@ int cmd_savegames(const Args& args) {
     return 0;
 }
 
+int cmd_state(const Args& args) {
+    if (args.positional.size() != 1) {
+        return usage();
+    }
+    auto file = assets::ChunkFile::load(fs::path(args.positional[0]));
+    if (!file) {
+        return fail(file.error());
+    }
+    auto players = assets::load_players(*file);
+    auto ships = assets::load_ships(*file);
+    auto state = assets::load_game_state(*file);
+    if (!players || !ships || !state) {
+        return fail(!players ? players.error() : !ships ? ships.error() : state.error());
+    }
+    for (const auto& p : *players) {
+        std::printf("player %u: kind 0x%02X, colour %u, money %d %s\n", p.slot, static_cast<unsigned>(p.kind),
+                    static_cast<unsigned>(p.color), p.money, p.name.c_str());
+    }
+    for (const auto& c : state->cities) {
+        std::printf("city: island %u #%u, owner %u, \"%s\"\n", c.island, c.index, c.owner, c.name.c_str());
+    }
+    for (const auto& w : state->warehouses) {
+        std::size_t used = 0;
+        for (const auto& s : w.wares) {
+            used += (s.raw[0] | s.raw[1] | s.raw[2] | (s.raw[3] & 0xFFFFU)) != 0 ? 1U : 0U;
+        }
+        std::printf("warehouse: island %u #%u at %u,%u, %zu goods with data\n", w.island, w.city, w.x, w.y, used);
+        if (args.flag("--wares")) {
+            for (const auto& s : w.wares) {
+                std::printf("  ware %2u (producer %u): %08X %08X %08X %08X\n", s.ware, s.producer_id, s.raw[0],
+                            s.raw[1], s.raw[2], s.raw[3]);
+            }
+        }
+    }
+    std::map<unsigned, std::size_t> production;
+    for (const auto& p : state->production) {
+        ++production[p.island];
+    }
+    for (const auto& [island, n] : production) {
+        std::printf("production: island %u, %zu buildings\n", island, n);
+    }
+    std::map<unsigned, std::size_t> deer;
+    for (const auto& a : state->animals) {
+        ++deer[a.island];
+    }
+    std::printf("deer: %zu on %zu islands\n", state->animals.size(), deer.size());
+    for (const auto& s : *ships) {
+        std::printf("ship \"%s\": figure %u, owner %u, at %u,%u, direction %u, island %s\n", s.name.c_str(), s.figure,
+                    s.owner, s.x, s.y, s.direction, s.island == 0xFF ? "-" : std::to_string(s.island).c_str());
+    }
+    return 0;
+}
+
 int cmd_islands(const Args& args) {
     if (args.positional.size() != 1) {
         return usage();
@@ -676,6 +731,9 @@ int main(int argc, char** argv) {
     }
     if (command == "islands") {
         return cmd_islands(args);
+    }
+    if (command == "state") {
+        return cmd_state(args);
     }
     return usage();
 }

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/sim/world.hpp"
 
+#include <algorithm>
 #include <map>
+
+#include "o1602/assets/savegame.hpp"
 
 namespace o1602::sim {
 
@@ -38,6 +41,15 @@ core::Status World::add_island(WorldIsland island) {
     }
     m_islands.push_back(std::move(island));
     return core::Ok{};
+}
+
+const City* World::city(std::uint16_t island, std::uint8_t index) const noexcept {
+    for (const City& c : m_cities) {
+        if (c.island == island && c.index == index) {
+            return &c;
+        }
+    }
+    return nullptr;
 }
 
 core::Result<World> load_world(const assets::ChunkFile& file, const assets::BuildingTable& buildings,
@@ -102,8 +114,24 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             warn("ship '" + s.name + "' outside the world map");
             continue;
         }
-        const auto direction = static_cast<std::uint8_t>(s.direction == 0xFF ? 0U : s.direction & 7U);
+        const auto direction = static_cast<std::uint8_t>(s.direction & 7U);
         world.add_ship(Ship{s.name, s.x, s.y, s.figure, player_from_original(s.owner), direction});
+    }
+    auto state = assets::load_game_state(file);
+    if (!state) {
+        return state.error();
+    }
+    for (const auto& c : state->cities) {
+        // STADT4 names the island by its number; find its index in the world.
+        const auto& placed = world.islands();
+        const auto it = std::find_if(placed.begin(), placed.end(),
+                                     [&](const WorldIsland& wi) { return wi.header.number == c.island; });
+        if (it == placed.end()) {
+            warn("city '" + c.name + "' on unknown island " + std::to_string(c.island));
+            continue;
+        }
+        world.add_city(
+            City{static_cast<std::uint16_t>(it - placed.begin()), c.index, player_from_original(c.owner), c.name});
     }
     return world;
 }

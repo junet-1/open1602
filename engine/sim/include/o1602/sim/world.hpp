@@ -23,6 +23,14 @@ struct WorldIsland {
     std::uint32_t y = 0;
 };
 
+/// A city: the settlement of one player on one island (STADT4 in the original).
+struct City {
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint8_t index = 0;    ///< city number on the island (MapCell::city)
+    PlayerId owner = kNoPlayer;
+    std::string name;  ///< Windows-1252
+};
+
 /// A ship on the world map. Position in whole tiles for now; the movement simulation will use
 /// fixed point coordinates (ADR 0004).
 struct Ship {
@@ -74,12 +82,18 @@ public:
     void set_players(std::vector<Player> players) { m_players = std::move(players); }
     void add_ship(Ship ship) { m_ships.push_back(std::move(ship)); }
 
+    [[nodiscard]] const std::vector<City>& cities() const noexcept { return m_cities; }
+    /// City `index` on island `island` (index into islands()), nullptr if there is none.
+    [[nodiscard]] const City* city(std::uint16_t island, std::uint8_t index) const noexcept;
+    void add_city(City city) { m_cities.push_back(std::move(city)); }
+
 private:
     std::uint32_t m_width;
     std::uint32_t m_height;
     std::vector<WorldIsland> m_islands;
     std::vector<Player> m_players;
     std::vector<Ship> m_ships;
+    std::vector<City> m_cities;
     std::vector<Cell> m_cells;
 };
 

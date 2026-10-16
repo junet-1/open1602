@@ -6,6 +6,7 @@
 //
 // Expected values were taken from the GOG "Koenigsedition" (German).
 
+#include <algorithm>
 #include <set>
 #include <string>
 
@@ -19,6 +20,7 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
+#include "o1602/assets/savegame.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
@@ -478,6 +480,28 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
         REQUIRE(world->players().size() == 7);
         CHECK(world->players()[0].role == sim::PlayerRole::Human);
         CHECK(!world->players()[0].name.empty());  // savegames store the human player's name
+
+        // Cities and warehouses: every city of a settler player has a warehouse whose position
+        // is a warehouse building on that island.
+        auto state = assets::load_game_state(*file);
+        REQUIRE(state.ok());
+        CHECK(!world->cities().empty());
+        for (const auto& w : state->warehouses) {
+            const auto it = std::find_if(world->cities().begin(), world->cities().end(), [&](const sim::City& c) {
+                return world->islands()[c.island].header.number == w.island && c.index == w.city;
+            });
+            REQUIRE(it != world->cities().end());
+            if (it->owner >= 4) {
+                continue;  // natives, pirates and the trader have no regular warehouse
+            }
+            const auto& map = world->islands()[it->island].map;
+            REQUIRE(w.x < map.width());
+            REQUIRE(w.y < map.height());
+            const sim::SubTile sub = map.sub_tile(*buildings, w.x, w.y);
+            REQUIRE(sub.building != nullptr);
+            CHECK(sub.building->prod_kind == 8);  // HAUS_PRODTYP Kind KONTOR
+            CHECK(map.top(w.x, w.y).city == w.city);
+        }
         ++loaded;
     }
     if (loaded == 0) {

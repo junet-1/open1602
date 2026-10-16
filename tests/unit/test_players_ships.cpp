@@ -10,6 +10,7 @@
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/palette.hpp"
+#include "o1602/assets/savegame.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/render/animation_clock.hpp"
@@ -122,7 +123,8 @@ TEST_CASE("scenario: PLAYER4 and SHIP4 records") {
     put_u16(ships, 0x1E, 156);
     put_u16(ships, 0x48, 21);
     ships[0x4B] = 0;
-    ships[0x4D] = 3;
+    ships[0x4D] = 0xFF;  // at sea
+    ships[0x50] = 3;
 
     std::vector<std::uint8_t> file;
     put_chunk(file, "PLAYER4", players);
@@ -151,6 +153,7 @@ TEST_CASE("scenario: PLAYER4 and SHIP4 records") {
     CHECK((*s)[0].figure == 21);
     CHECK((*s)[0].owner == 0);
     CHECK((*s)[0].direction == 3);
+    CHECK((*s)[0].island == 0xFF);
 
     // Truncated records are an error, missing chunks just mean "none".
     std::vector<std::uint8_t> bad;
@@ -406,6 +409,84 @@ TEST_CASE("players: more than the original seven slots and extra banners (ADR 00
     });
     REQUIRE(it != commands.end());
     CHECK(it->tint == (assets::Rgba{0, 160, 160, render::kOverlayAlpha}));
+}
+
+TEST_CASE("savegame: cities, warehouse goods, production list and deer") {
+    std::vector<std::uint8_t> city(0xA8, 0);
+    city[0] = 1;  // island number
+    city[1] = 1;  // second city on the island
+    city[2] = 0;  // owner
+    std::memcpy(&city[0x87], "Lemonhall", 9);
+
+    std::vector<std::uint8_t> kontor(0x3EC, 0);
+    kontor[0] = 1;                              // island
+    kontor[1] = 13;                             // x
+    kontor[2] = 38;                             // y
+    kontor[3] = 1;                              // city
+    const std::size_t ziegel = 0x2C + 22 * 20;  // slot 22 = ware 24
+    put_u16(kontor, ziegel + 12, 800);
+    put_u16(kontor, ziegel + 16, 513);  // producer 20513
+
+    std::vector<std::uint8_t> prod(0x18, 0);
+    prod[0] = 1;
+    prod[1] = 20;
+    prod[2] = 21;
+    prod[3] = 0x5A;
+
+    std::vector<std::uint8_t> deer(16, 0);
+    deer[0] = 1;
+    deer[1] = 10;
+    deer[2] = 19;
+    put_u16(deer, 4, 899);
+    deer[8] = 2;
+
+    std::vector<std::uint8_t> file;
+    put_chunk(file, "STADT4", city);
+    put_chunk(file, "KONTOR2", kontor);
+    put_chunk(file, "PRODLIST2", prod);
+    put_chunk(file, "HIRSCH2", deer);
+    auto chunks = assets::ChunkFile::from_bytes(file);
+    REQUIRE(chunks.ok());
+    auto state = assets::load_game_state(*chunks);
+    REQUIRE(state.ok());
+
+    REQUIRE(state->cities.size() == 1);
+    CHECK(state->cities[0].island == 1);
+    CHECK(state->cities[0].index == 1);
+    CHECK(state->cities[0].owner == 0);
+    CHECK(state->cities[0].name == "Lemonhall");
+
+    REQUIRE(state->warehouses.size() == 1);
+    const auto& w = state->warehouses[0];
+    CHECK(w.island == 1);
+    CHECK(w.x == 13);
+    CHECK(w.y == 38);
+    CHECK(w.city == 1);
+    REQUIRE(w.wares.size() == 23);
+    CHECK(w.wares[0].ware == 2);
+    CHECK(w.wares[22].ware == 24);
+    CHECK(w.wares[22].producer_id == 20513);
+    CHECK((w.wares[22].raw[3] & 0xFFFFU) == 800);
+    CHECK(w.wares[0].producer_id == 0);
+
+    REQUIRE(state->production.size() == 1);
+    CHECK(state->production[0].x == 20);
+    CHECK(state->production[0].y == 21);
+    CHECK(state->production[0].raw[0] == 0x5A);
+
+    REQUIRE(state->animals.size() == 2);
+    CHECK(state->animals[0].island == 1);
+    CHECK(state->animals[0].x == 10);
+    CHECK(state->animals[0].y == 19);
+    CHECK(state->animals[0].timer == 899);
+    CHECK(state->animals[1].island == 2);
+
+    // A chunk with a broken size is an error, not a partial read.
+    std::vector<std::uint8_t> broken;
+    put_chunk(broken, "STADT4", std::vector<std::uint8_t>(0xA0, 0));
+    auto broken_chunks = assets::ChunkFile::from_bytes(broken);
+    REQUIRE(broken_chunks.ok());
+    CHECK(!assets::load_game_state(*broken_chunks).ok());
 }
 
 TEST_CASE("scenario: savegame names from Game.dat") {

@@ -11,6 +11,7 @@ add_library(o1602_assets
     src/game_directory.cpp
     src/island.cpp
     src/palette.cpp
+    src/savegame.cpp
     src/scenario.cpp
     src/sprite_sheet.cpp
 )

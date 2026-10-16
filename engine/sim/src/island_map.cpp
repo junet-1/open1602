@@ -11,8 +11,17 @@ using core::make_error;
 IslandMap::IslandMap(std::uint32_t width, std::uint32_t height)
     : m_width(width), m_height(height), m_top(std::size_t{width} * height), m_ground(std::size_t{width} * height) {}
 
+namespace {
+
+/// City of an island tile: only tiles with an owner belong to one.
+std::uint8_t city_of(const assets::IslandTile& tile) {
+    return player_from_original(tile.player()) == kNoPlayer ? MapCell::kNoCity : tile.city();
+}
+
+}  // namespace
+
 core::Status IslandMap::place(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                              std::uint8_t anim_phase, PlayerId owner) {
+                              std::uint8_t anim_phase, PlayerId owner, std::uint8_t city) {
     rotation &= 3U;
     std::uint32_t fw = 0;
     std::uint32_t fh = 0;
@@ -32,7 +41,7 @@ core::Status IslandMap::place(const assets::BuildingType& b, std::int32_t x, std
             m_ground[i] = m_top[i];
         }
         m_top[i] = MapCell{static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation,
-                           static_cast<std::uint8_t>(anim_phase & 0xFU), owner};
+                           static_cast<std::uint8_t>(anim_phase & 0xFU), owner, city};
         ++sprite;
     };
 
@@ -139,7 +148,7 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
                 continue;
             }
             if (auto status = map.place(*b, tile.x, tile.y, tile.rotation(), tile.anim_phase(),
-                                        player_from_original(tile.player()));
+                                        player_from_original(tile.player()), city_of(tile));
                 !status) {
                 warn(status.error().message);
             }

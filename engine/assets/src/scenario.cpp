@@ -74,7 +74,8 @@ core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file) {
         s.y = read_u16(data, o + 0x1E);
         s.figure = read_u16(data, o + 0x48);
         s.owner = data[o + 0x4B];
-        s.direction = data[o + 0x4D];
+        s.island = data[o + 0x4D];
+        s.direction = data[o + 0x50];
         ships.push_back(std::move(s));
     }
     return ships;

@@ -402,9 +402,12 @@ void MapViewer::update_title(double fps) {
         if (cell.island != sim::World::kSea) {
             title += " (island " + std::to_string(cell.island);
             const auto& island = m_world.islands()[cell.island];
-            const sim::PlayerId owner = island.map.top(cell.local_x, cell.local_y).owner;
-            if (const sim::Player* p = m_world.player(owner)) {
-                title += ", " + player_label(*p, owner, m_banners);
+            const sim::MapCell& top = island.map.top(cell.local_x, cell.local_y);
+            if (const sim::City* city = m_world.city(cell.island, top.city)) {
+                title += ", " + city->name;  // Windows-1252; the UI will convert it
+            }
+            if (const sim::Player* p = m_world.player(top.owner)) {
+                title += ", " + player_label(*p, top.owner, m_banners);
             }
             title += ")";
         }
