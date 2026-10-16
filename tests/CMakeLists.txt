@@ -11,6 +11,7 @@ add_executable(o1602_tests
     unit/test_production.cpp
     unit/test_logistics.cpp
     unit/test_raw_producers.cpp
+    unit/test_consumption.cpp
     unit/test_units.cpp
     data/test_original_data.cpp
 )

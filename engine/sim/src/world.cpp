@@ -191,6 +191,13 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         city.index = c.index;
         city.owner = player_from_original(c.owner);
         city.name = c.name;
+        city.inhabitants.assign(c.inhabitants.begin(), c.inhabitants.end());
+        city.satisfaction.assign(c.satisfaction.begin(), c.satisfaction.end());
+        // A tax rate of 0 is not possible (the original loads it as 128).
+        for (const std::uint8_t t : c.tax) {
+            city.tax_rate.push_back(t == 0 ? std::uint8_t{128} : t);
+        }
+        city.food_ratio = c.food_ratio;
         world.add_city(std::move(city));
     }
     for (const auto& w : state->warehouses) {
@@ -205,6 +212,28 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         for (const auto& slot : w.wares) {
             city->ensure_ware(slot.ware);
             city->goods[slot.ware] = slot.stock();
+        }
+    }
+    for (const auto& m : state->consumption) {
+        const auto island = world.island_index(m.island);
+        City* city = island ? world.city(*island, m.city) : nullptr;
+        if (city == nullptr) {
+            warn("consumption of unknown city " + std::to_string(m.island) + "/" + std::to_string(m.city));
+            continue;
+        }
+        for (const auto& g : m.goods) {
+            const assets::BuildingType* producer = buildings.by_id(g.producer_id);
+            if (producer == nullptr || producer->ware == 0) {
+                continue;
+            }
+            city->ensure_ware(producer->ware);
+            if (city->supply.size() < city->goods.size()) {
+                city->supply.resize(city->goods.size());
+            }
+            City::Supply& s = city->supply[producer->ware];
+            s.demand = g.demand;
+            s.supplied = g.supplied;
+            s.ratio = g.ratio;
         }
     }
     for (const auto& p : state->production) {

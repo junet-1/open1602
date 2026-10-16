@@ -414,6 +414,19 @@ void MapViewer::apply_production_events() {
                                                       e.kind == sim::ProductionEvent::Kind::Started);
         }
     }
+    // Messages for the local player until there is an interface for them.
+    for (const sim::CityEvent& e : m_simulation.take_city_events()) {
+        if (e.owner != m_local_player) {
+            continue;
+        }
+        const sim::City* city = m_world.city(e.island, e.city);
+        const std::string name = city != nullptr ? city->name : std::string("?");
+        if (e.kind == sim::CityEvent::Kind::Hunger) {
+            std::fprintf(stderr, "%s: the people are starving\n", name.c_str());
+        } else {
+            std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
+        }
+    }
 }
 
 void MapViewer::update_title(double fps) {

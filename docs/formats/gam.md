@@ -164,7 +164,7 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `TURM` | 0x24 | `0x004600C0` | `0x004EDE60`, 350 × 0x118 | Türme als Figuren: Weltfeld x/y, Figur (40), Besitzer +0x18 (61, alle Piratentürme) |
 | `STADT4` | 0xA8 | `0x00485020` | Städte `0x005DBAE0`, 75 × 0x258 | Städte (unten, 20) |
 | `KONTOR2` | 0x3EC | `0x00485020` | dieselbe Städtetabelle | Warenlager einer Stadt (unten, 20) |
-| `MARKT2` | 0x104 | `0x00485020` | dieselbe Städtetabelle | Markt: Insel, Stadt; 11 Einträge à 16 Byte (2 u32, Ware als Id − 20000, Byte) (20) |
+| `MARKT2` | 0x104 | `0x00485020` | dieselbe Städtetabelle | Verbrauch einer Stadt: Insel, Stadt; 11 Einträge à 16 Byte: Bedarf A, Versorgung B (u32, 1/8192 t), Ware als Id − 20000, Versorgungsgrad C ([consumption.md](../re/consumption.md)) (20) |
 | `PRODLIST2` | 0x18 | `0x00485530` | `0x0054A3B8`, 4144 × 0x14 | Produktionsbetriebe und Kontore am Ursprungsfeld: Zustand, Lager, Fortschritt (unten, 126) |
 | `WERFT` | 0x18 | `0x00485530` | `0x005A6C18`, 160 × 0x12 | Werften: Insel, x, y, Bauauftrag (1) |
 | `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | Militärgebäude: Insel, x, y, 9 Plätze (3) |
@@ -190,10 +190,15 @@ ebenfalls Städte.
 | 0x01 | u8 | Stadtnummer auf der Insel (= Attributbits 14–16 der Inselfelder) |
 | 0x02 | u8 | Besitzer |
 | 0x04 | Bit 0 | Stadt + 0x257 Bit 0 |
-| 0x08, 0x0C, 0x10 | u32 | Stadt + 0x1F0, + 0x1F4, + 0x1FE (Bedeutung offen) |
+| 0x05 | u8 | Stadtrang (Stadt + 0x253) |
+| 0x08, 0x0C | u32 | Stadt + 0x1F0, + 0x1F4: geglättete Geldstatistik |
+| 0x10 | u32 | Stadt + 0x1FE: laufende Katastrophen (vermutet), sperrt Wachstum |
 | 0x18 | 7 × u32 | Stadt + 0x206 … (Eingeborene: 49 je Wert, Spieler: 0) |
 | 0x58 | u32 | Stadt + 0x1D4 |
-| 0x5C … 0x86 | | je 5 Werte aus Stadt + 0x220/0x248/0x24D |
+| 0x5C | 5 × u32 | **Einwohner** je Klasse (Stadt + 0x220) |
+| 0x78 | 5 × u8 | **Zufriedenheit** je Klasse, 128 = zufrieden (Stadt + 0x248) |
+| 0x7F | 5 × u8 | **Steuersatz** je Klasse, 128 = normal (Stadt + 0x24D) |
+| 0x86 | u8 | **Versorgungsgrad Nahrung** (Stadt + 0x255) ([consumption.md](../re/consumption.md)) |
 | 0x87 | char[] | **Name** der Stadt (z. B. „Lemonhall“, „Nova Semlja“) |
 
 ### KONTOR2 – Warenlager einer Stadt (0x3EC Byte)

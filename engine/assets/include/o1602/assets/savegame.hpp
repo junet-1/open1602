@@ -22,9 +22,27 @@ struct CityRecord {
     std::uint8_t island = 0;  ///< island number (INSEL5 header)
     std::uint8_t index = 0;   ///< city index on the island (island tile attribute bits 14-16)
     std::uint8_t owner = kNoCityOwner;
-    std::string name;  ///< +0x87, Windows-1252, e.g. "Lemonhall"
+    std::string name;                            ///< +0x87, Windows-1252, e.g. "Lemonhall"
+    std::array<std::uint32_t, 5> inhabitants{};  ///< +0x5C: per class (pioneers .. aristocrats)
+    std::array<std::uint8_t, 5> satisfaction{};  ///< +0x78: per class, 128 = content
+    std::array<std::uint8_t, 5> tax{};           ///< +0x7F: tax rate per class, 128 = normal
+    std::uint8_t food_ratio = 0;                 ///< +0x86: supply of food, 128 = full
 
     static constexpr std::uint8_t kNoCityOwner = 7;
+};
+
+/// MARKT2 record (0x104 bytes, writer 0x00485020): the consumption accounting of one city
+/// (docs/re/consumption.md).
+struct ConsumptionRecord {
+    std::uint8_t island = 0;
+    std::uint8_t city = 0;
+    struct Good {
+        std::uint16_t producer_id = 0;  ///< the good, as the Id of its first producer
+        std::uint32_t demand = 0;       ///< A, 1/8192 t
+        std::uint32_t supplied = 0;     ///< B, 1/8192 t
+        std::uint8_t ratio = 0;         ///< C, 0..128
+    };
+    std::vector<Good> goods;
 };
 
 /// Warehouse stock is stored in 1/32 t (confirmed in the running game: 800 = 25 t).
@@ -118,6 +136,7 @@ struct GameState {
     std::vector<AnimalRecord> animals;
     std::vector<SoldierRecord> soldiers;
     std::vector<GrowthRecord> growth;
+    std::vector<ConsumptionRecord> consumption;
     std::optional<GrowthClocks> growth_clocks;  ///< nothing without a TIMERS chunk
 };
 

@@ -32,6 +32,7 @@
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/consumption.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/simulation.hpp"
@@ -810,4 +811,77 @@ TEST_CASE("data: growth classes, growing tiles and deposits of a savegame") {
         }
     }
     CHECK(deposits > 0);
+}
+
+TEST_CASE("data: consumption of a savegame matches the original's numbers") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    // haeuser.cod converted like the original: Nahrung 1.3 -> 17, Stoffe 0.6 -> 8, ...
+    CHECK(buildings->food_need() == 17);
+    CHECK(buildings->food_ware() == 14);
+    REQUIRE(buildings->resident_classes().size() == 5);
+    CHECK(buildings->resident_classes()[1].share == 60);
+    CHECK(buildings->resident_classes()[4].share == 107);
+    CHECK(buildings->resident_classes()[4].needs.size() == 6);
+    CHECK(sim::tax_curve(128) == 128);
+    CHECK(sim::tax_curve(64) == 86);
+    CHECK(sim::tax_curve(160) == 197);
+    CHECK(sim::tax_curve(192) == 352);
+
+    const auto dat = game.resolve("Game.dat");
+    if (!dat) {
+        SKIP("no Game.dat (game never started)");
+    }
+    auto bytes = core::read_file(*dat);
+    REQUIRE(bytes.ok());
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    std::optional<std::filesystem::path> path;
+    for (const auto& slot : assets::parse_savegame_slots(text)) {
+        if (!path) {
+            path = game.resolve(slot.file);
+        }
+    }
+    if (!path) {
+        SKIP("no savegame");
+    }
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto world = sim::load_world(*file, *buildings, game);
+    REQUIRE(world.ok());
+    // The saved satisfaction follows from the saved supply levels (MARKT2) and tax rates.
+    std::size_t checked = 0;
+    for (const sim::City& c : world->cities()) {
+        const sim::Player* owner = world->player(c.owner);
+        if (owner == nullptr || (owner->role != sim::PlayerRole::Human && owner->role != sim::PlayerRole::Computer)) {
+            continue;
+        }
+        for (std::size_t k = 1; k < 5; ++k) {
+            if (c.satisfaction[k] == 0) {
+                continue;  // never computed
+            }
+            CHECK(sim::satisfaction_of(c, buildings->resident_classes()[k], c.tax_rate[k]) == c.satisfaction[k]);
+            ++checked;
+        }
+    }
+    CHECK(checked > 0);
+    // A few minutes of game time: food leaves the warehouses, the cities stay fed or report it.
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(figures.ok());
+    std::uint64_t food_before = 0;
+    for (const sim::City& c : world->cities()) {
+        food_before += c.stock(14);
+    }
+    sim::Simulation simulation(*world, *buildings, *figures);
+    for (int s = 0; s < 120; ++s) {
+        simulation.advance(1000);
+    }
+    std::uint64_t food_after = 0;
+    for (const sim::City& c : world->cities()) {
+        food_after += c.stock(14);
+        for (std::size_t w = 0; w < c.supply.size(); ++w) {
+            CHECK(c.supply[w].ratio <= 128);
+        }
+    }
+    CHECK(food_after != food_before);
 }

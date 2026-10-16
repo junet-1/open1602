@@ -1,0 +1,202 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "o1602/sim/consumption.hpp"
+
+#include <algorithm>
+#include <array>
+
+namespace o1602::sim {
+
+namespace {
+
+constexpr std::uint8_t kFull = 128;         // supply level / satisfaction of a fully provided good
+constexpr std::uint64_t kSupplyUnit = 256;  // A and B count 1/256 of a stock unit (1/32 t)
+constexpr std::uint8_t kHungerLevel = 76;   // "Euer Volk hungert" at or below
+constexpr std::uint32_t kNativeKeep = 96;   // natives keep 96/128 of their store
+constexpr std::uint32_t kStockUnitsPerTon = 32;
+// Natives' few needs (0x0047EB30): one unit of cloth, alcohol and jewellery per tick.
+constexpr std::array<std::uint8_t, 3> kNativeGoods = {19, 18, 21};
+constexpr std::uint8_t kFirstWare = 2;
+constexpr std::uint8_t kLastWare = 24;
+
+struct Knot {
+    std::int32_t x;
+    std::int32_t y;
+};
+// Knots of the tax curve (0x00478630).
+constexpr std::array<Knot, 10> kTaxKnots = {{{0, 76},
+                                             {76, 89},
+                                             {102, 102},
+                                             {115, 108},
+                                             {128, 128},
+                                             {140, 147},
+                                             {166, 213},
+                                             {179, 256},
+                                             {192, 352},
+                                             {254, 640}}};
+
+std::array<std::uint32_t, 256> build_tax_curve() {
+    std::array<std::uint32_t, 256> t{};
+    for (std::size_t k = 0; k + 1 < kTaxKnots.size(); ++k) {
+        const Knot a = kTaxKnots[k];
+        const Knot b = kTaxKnots[k + 1];
+        // 0x004033D0: fixed point with 8 fractional bits.
+        const std::int32_t step = ((b.y - a.y) << 8) / (b.x - a.x);
+        for (std::int32_t x = a.x; x < b.x; ++x) {
+            t[static_cast<std::size_t>(x)] = static_cast<std::uint32_t>(((a.y << 8) + (x - a.x) * step) >> 8);
+        }
+        t[static_cast<std::size_t>(b.x)] = static_cast<std::uint32_t>(b.y);
+    }
+    // The original never writes t[255] (0, which would mean "no demand"); the UI never gets there.
+    t[255] = t[254];
+    return t;
+}
+
+std::uint32_t available(const City& c, std::uint8_t ware) {
+    return c.available(ware);
+}
+
+void take(City& c, std::uint8_t ware, std::uint32_t amount) {
+    c.ensure_ware(ware);
+    c.goods[ware] -= std::min(amount, c.goods[ware]);
+}
+
+}  // namespace
+
+std::uint32_t tax_curve(std::uint32_t index) noexcept {
+    static const std::array<std::uint32_t, 256> kCurve = build_tax_curve();
+    return kCurve[std::min<std::uint32_t>(index, 255)];
+}
+
+std::vector<std::uint8_t> consumer_goods(const assets::BuildingTable& buildings) {
+    std::vector<std::uint8_t> goods{buildings.food_ware()};
+    for (const assets::ResidentClass& c : buildings.resident_classes()) {
+        for (const assets::ResidentClass::Need& n : c.needs) {
+            goods.push_back(n.ware);
+        }
+    }
+    std::sort(goods.begin(), goods.end());
+    goods.erase(std::unique(goods.begin(), goods.end()), goods.end());
+    return goods;
+}
+
+std::uint8_t satisfaction_of(const City& city, const assets::ResidentClass& rc, std::uint8_t tax_rate) {
+    std::uint64_t sum = 0;
+    for (const assets::ResidentClass::Need& n : rc.needs) {
+        sum += n.ware < city.supply.size() ? city.supply[n.ware].ratio : kFull;
+    }
+    // 0x0047F3B0: curve[tax] * Prozent * goods / 128 (the satisfaction bonus city + 0x200 is not
+    // simulated yet).
+    const std::uint64_t asked = std::uint64_t{tax_curve(tax_rate)} * rc.share * rc.needs.size() / kFull;
+    return asked == 0 ? kFull : static_cast<std::uint8_t>(std::min<std::uint64_t>(kFull, sum * kFull / asked));
+}
+
+void consume(City& city, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
+    const auto& classes = buildings.resident_classes();
+    const std::vector<std::uint8_t> goods = consumer_goods(buildings);
+    for (const std::uint8_t w : goods) {
+        city.ensure_ware(w);
+    }
+    if (city.supply.size() < city.goods.size()) {
+        city.supply.resize(city.goods.size());
+    }
+    city.inhabitants.resize(std::max(city.inhabitants.size(), classes.size()), 0);
+    city.satisfaction.resize(std::max(city.satisfaction.size(), classes.size()), kFull);
+    city.tax_rate.resize(std::max(city.tax_rate.size(), classes.size()), kFull);
+
+    // 1. Take what the demand is ahead of the supply; supply levels; falling supply.
+    std::uint8_t worst = 0;
+    std::uint8_t worst_ratio = 0xFF;
+    for (const std::uint8_t w : goods) {
+        City::Supply& s = city.supply[w];
+        if (s.demand > s.supplied) {
+            // The original always asks for one unit more than missing (kept: it is part of the
+            // balance, docs/re/consumption.md).
+            const std::uint64_t want = (s.demand - s.supplied) / kSupplyUnit + 1;
+            const auto got = static_cast<std::uint32_t>(std::min<std::uint64_t>(want, available(city, w)));
+            if (got != 0) {
+                take(city, w, got);
+                s.supplied += std::uint64_t{got} * kSupplyUnit;
+            }
+        }
+        s.history = {s.ratio, s.history[0], s.history[1]};
+        // Fix S-027: 64 bits, the original overflows from about 66,000 inhabitants.
+        s.ratio = s.demand == 0
+                      ? kFull
+                      : static_cast<std::uint8_t>(std::min<std::uint64_t>(kFull, s.supplied * kFull / s.demand));
+        if (s.ratio < s.history[0] && s.history[0] < s.history[1]) {
+            if (events != nullptr) {
+                if (s.history[2] >= kFull) {
+                    events->push_back(CityEvent{CityEvent::Kind::Shortage, city.island, city.index, city.owner, w});
+                } else if (w == buildings.food_ware() && s.ratio <= kHungerLevel) {
+                    events->push_back(CityEvent{CityEvent::Kind::Hunger, city.island, city.index, city.owner, w});
+                }
+            }
+            if (s.ratio < worst_ratio) {
+                worst_ratio = s.ratio;
+                worst = w;
+            }
+        }
+    }
+    city.food_ratio = city.supply[buildings.food_ware()].ratio;
+    city.worst_good = worst;
+
+    // 2. Per class (highest first, like the original; the order does not matter): satisfaction
+    //    from the supply of the goods it wants, then its demand.
+    for (std::size_t c = classes.size(); c-- > 0;) {
+        const assets::ResidentClass& rc = classes[c];
+        city.satisfaction[c] = satisfaction_of(city, rc, city.tax_rate[c]);
+        const std::uint32_t n = city.inhabitants[c];
+        if (n == 0) {
+            city.tax_rate[c] = kFull;  // an empty class goes back to the normal rate
+            continue;
+        }
+        for (const assets::ResidentClass::Need& need : rc.needs) {
+            city.supply[need.ware].demand += std::uint64_t{need.amount} * n;
+        }
+        city.supply[buildings.food_ware()].demand += std::uint64_t{buildings.food_need()} * n;
+    }
+
+    // 3. Decay.
+    for (const std::uint8_t w : goods) {
+        City::Supply& s = city.supply[w];
+        s.demand = s.demand * 15 / 16;
+        s.supplied = s.supplied * 15 / 16;
+    }
+}
+
+void consume_natives(City& city) {
+    const std::uint32_t keep = city.capacity * kNativeKeep / kFull;
+    for (std::uint8_t w = kFirstWare; w <= kLastWare && w < city.goods.size(); ++w) {
+        if (city.goods[w] >= keep && city.goods[w] >= kStockUnitsPerTon) {
+            take(city, w, std::min(city.goods[w], keep / 4));
+        }
+    }
+    for (const std::uint8_t w : kNativeGoods) {
+        take(city, w, std::min<std::uint32_t>(available(city, w), 1));
+    }
+}
+
+void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
+    for (const City& c : world.cities()) {
+        City* city = world.city(c.island, c.index);
+        const Player* owner = world.player(city->owner);
+        if (owner == nullptr) {
+            continue;
+        }
+        switch (owner->role) {
+            case PlayerRole::Human:
+            case PlayerRole::Computer:
+                consume(*city, buildings, events);
+                break;
+            case PlayerRole::Natives:
+                consume_natives(*city);
+                break;
+            default:
+                // Pirates take random goods (0x0047EEF0), the free trader nothing: with the
+                // pirates' AI.
+                break;
+        }
+    }
+}
+
+}  // namespace o1602::sim

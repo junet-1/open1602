@@ -11,6 +11,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/sim/consumption.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
@@ -46,6 +47,8 @@ public:
 
     /// Production events since the last call (floating texts, animation phases, later logistics).
     [[nodiscard]] std::vector<ProductionEvent> take_production_events();
+    /// Shortages and hunger since the last call (messages for the player).
+    [[nodiscard]] std::vector<CityEvent> take_city_events();
 
 private:
     World* m_world;
@@ -55,7 +58,9 @@ private:
     std::uint64_t m_time_ms = 0;
     std::uint32_t m_pending_ms = 0;     ///< game time not yet run as a tick
     std::uint32_t m_production_ms = 0;  ///< game time since the last production second
+    std::uint32_t m_city_ms = 0;        ///< game time since the cities last consumed
     std::vector<ProductionEvent> m_production_events;
+    std::vector<CityEvent> m_city_events;
     Logistics m_logistics;
 };
 

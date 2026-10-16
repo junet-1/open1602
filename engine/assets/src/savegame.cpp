@@ -20,6 +20,8 @@ constexpr std::size_t kProductionSize = 0x18;
 constexpr std::size_t kAnimalSize = 8;
 constexpr std::size_t kSoldierSize = 0x44;
 constexpr std::size_t kGrowthSize = 8;
+constexpr std::size_t kConsumptionSize = 0x104;
+constexpr std::size_t kConsumptionGoods = 16;
 constexpr std::size_t kTimersCounters = 0x64;
 constexpr std::size_t kTimersGrowthMs = 0x218;
 
@@ -58,6 +60,12 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         c.owner = r[2];
         const auto name = r.subspan(0x87);
         c.name.assign(name.begin(), std::find(name.begin(), name.end(), std::uint8_t{0}));
+        for (std::size_t k = 0; k < 5; ++k) {
+            c.inhabitants[k] = u32(r, 0x5C + 4 * k);
+            c.satisfaction[k] = r[0x78 + k];
+            c.tax[k] = r[0x7F + k];
+        }
+        c.food_ratio = r[0x86];
         state.cities.push_back(std::move(c));
     });
     if (!status) {
@@ -125,6 +133,29 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         s.direction = static_cast<std::uint8_t>(r[0x1B] & 7U);
         std::copy(r.begin(), r.end(), s.raw.begin());
         state.soldiers.push_back(s);
+    });
+    if (!status) {
+        return status.error();
+    }
+    status = for_each_record(file, "MARKT2", kConsumptionSize, [&](std::span<const std::uint8_t> r) {
+        ConsumptionRecord c;
+        const std::uint32_t head = u32(r, 0);
+        c.island = static_cast<std::uint8_t>(head);
+        c.city = static_cast<std::uint8_t>((head >> 8) & 0xFU);
+        for (std::size_t e = 0; e < kConsumptionGoods; ++e) {
+            const std::size_t o = 4 + 16 * e;
+            ConsumptionRecord::Good g;
+            const auto id = static_cast<std::uint16_t>(r[o + 0xC] | (r[o + 0xD] << 8));
+            if (id == 0) {
+                continue;
+            }
+            g.producer_id = static_cast<std::uint16_t>(id + 20000);
+            g.demand = u32(r, o);
+            g.supplied = u32(r, o + 4);
+            g.ratio = r[o + 0xE];
+            c.goods.push_back(g);
+        }
+        state.consumption.push_back(std::move(c));
     });
     if (!status) {
         return status.error();

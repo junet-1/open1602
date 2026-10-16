@@ -49,6 +49,21 @@ struct City {
     /// for every further market or warehouse of the city (0x0047AB00). Computed by the logistics.
     std::uint32_t capacity = 0;
 
+    /// Consumption accounting of one good (city + 0x150 + 12 * e, MARKT2): what the inhabitants
+    /// asked for and what they got, both decaying by 15/16 every 10 s, in 1/8192 t.
+    struct Supply {
+        std::uint64_t demand = 0;               ///< A (the original keeps 32 bits and overflows, see consumption.md)
+        std::uint64_t supplied = 0;             ///< B
+        std::uint8_t ratio = 128;               ///< C = B * 128 / A, at most 128
+        std::array<std::uint8_t, 3> history{};  ///< C 10, 20 and 30 s ago
+    };
+    std::vector<std::uint32_t> inhabitants;  ///< per class of inhabitants (BuildingTable::resident_classes)
+    std::vector<std::uint8_t> satisfaction;  ///< per class, 128 = content
+    std::vector<std::uint8_t> tax_rate;      ///< per class, 128 = normal (64..192)
+    std::vector<Supply> supply;              ///< per ware
+    std::uint8_t food_ratio = 128;           ///< supply of food (city + 0x255)
+    std::uint8_t worst_good = 0;             ///< the scarcest good whose supply keeps falling, 0 = none
+
     [[nodiscard]] std::uint32_t stock(std::uint8_t ware) const noexcept {
         return ware < goods.size() ? goods[ware] : 0;
     }

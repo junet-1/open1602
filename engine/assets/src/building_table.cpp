@@ -135,6 +135,55 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         table.m_types.push_back(b);
     }
 
+    // Classes of inhabitants and their needs (0x00460750: k = trunc(v * 8192) / 600).
+    const auto per_tick = [](double v) -> std::uint32_t {
+        return v > 0.0 ? static_cast<std::uint32_t>(static_cast<std::int64_t>(v * 8192.0) / 600) : 0U;
+    };
+    if (const cod::Field* food = haeuser.root.field("Nahrung"); food != nullptr && !food->values.empty()) {
+        table.m_food_need = per_tick(food->values[0].real);
+    }
+    if (const cod::Symbol* nahrung = haeuser.symbols.find("NAHRUNG"); nahrung != nullptr && nahrung->defined) {
+        table.m_food_ware = static_cast<std::uint8_t>(nahrung->values[0].integer);
+    }
+    if (const auto* groups = haeuser.root.records("BGRUPPE")) {
+        for (const auto& [nummer, g] : *groups) {
+            if (nummer < 0 || nummer > 255) {
+                continue;
+            }
+            if (static_cast<std::size_t>(nummer) >= table.m_classes.size()) {
+                table.m_classes.resize(static_cast<std::size_t>(nummer) + 1);
+            }
+            ResidentClass& c = table.m_classes[static_cast<std::size_t>(nummer)];
+            c.share = non_negative(g.integer("Prozent")) * 128U / 100U;
+            c.max_per_house = non_negative(g.integer("Maxwohn"));
+            if (const cod::Field* tax = g.field("Steuer"); tax != nullptr && !tax->values.empty()) {
+                c.tax = tax->values[0].real > 0.0 ? static_cast<std::uint32_t>(tax->values[0].real * 16.0 / 3.0) : 0U;
+            }
+            c.hiscore = non_negative(g.integer("Hiscore"));
+            if (const auto* wares = g.records("BGRUPPE_WARE")) {
+                for (const auto& [n, list] : *wares) {
+                    for (const auto& [name, values] : list.history) {
+                        if (name != "Ware" || values.size() < 2) {
+                            continue;
+                        }
+                        const auto ware = static_cast<std::uint8_t>(std::max(0, values[0].integer));
+                        const std::uint32_t amount = per_tick(values[1].real);
+                        if (ware == 0 || amount == 0) {
+                            continue;
+                        }
+                        auto it = std::find_if(c.needs.begin(), c.needs.end(),
+                                               [&](const ResidentClass::Need& need) { return need.ware == ware; });
+                        if (it != c.needs.end()) {
+                            it->amount = amount;  // a later line replaces an earlier one
+                        } else {
+                            c.needs.push_back(ResidentClass::Need{ware, amount});
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     constexpr std::int32_t kKindMeer = 19;
     constexpr std::int32_t kProdKindOpenSea = 9;
     for (std::size_t i = 0; i < table.m_types.size(); ++i) {

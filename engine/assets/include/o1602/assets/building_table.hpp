@@ -92,6 +92,23 @@ struct BuildingType {
     [[nodiscard]] std::uint32_t tile_count() const noexcept { return size_x * size_y; }
 };
 
+/// A class of inhabitants (BGRUPPE in haeuser.cod: pioneers, settlers, citizens, merchants,
+/// aristocrats; any number, ADR 0007). Values are converted like the original (0x00460750) so that
+/// the economy keeps its balance (docs/re/consumption.md).
+struct ResidentClass {
+    /// What the class consumes per inhabitant and 10 s, in 1/8192 t:
+    /// trunc(value * 8192) / 600 of `Ware: W, value` (value = t per 100 inhabitants and minute).
+    struct Need {
+        std::uint8_t ware = 0;
+        std::uint32_t amount = 0;
+    };
+    std::uint32_t share = 0;          ///< Prozent * 128 / 100: supply the class asks for
+    std::uint32_t max_per_house = 0;  ///< Maxwohn
+    std::uint32_t tax = 0;            ///< trunc(Steuer * 16 / 3)
+    std::uint32_t hiscore = 0;        ///< Hiscore
+    std::vector<Need> needs;          ///< besides food, in file order
+};
+
 /// All building types of haeuser.cod with lookups by id and by sprite index
 /// (the original keeps the latter in a table at 0x00619B60).
 class BuildingTable {
@@ -117,6 +134,13 @@ public:
         return m_open_sea < 0 ? nullptr : &m_types[static_cast<std::size_t>(m_open_sea)];
     }
 
+    /// Classes of inhabitants by BGRUPPE Nummer.
+    [[nodiscard]] const std::vector<ResidentClass>& resident_classes() const noexcept { return m_classes; }
+    /// Food every inhabitant eats per 10 s in 1/8192 t (global `Nahrung`: trunc(1.3 * 8192) / 600 =
+    /// 17) and its ware (NAHRUNG, 14).
+    [[nodiscard]] std::uint32_t food_need() const noexcept { return m_food_need; }
+    [[nodiscard]] std::uint8_t food_ware() const noexcept { return m_food_ware; }
+
     /// Index of a type in types() (stable; used for per-type state such as animation clocks).
     [[nodiscard]] std::size_t index_of(const BuildingType& type) const noexcept {
         return static_cast<std::size_t>(&type - m_types.data());
@@ -127,7 +151,10 @@ private:
     std::vector<std::int32_t> m_by_id;      ///< index by (id - kIdOffset), -1 = none
     std::vector<std::int32_t> m_by_sprite;  ///< index by sprite, -1 = none
     std::vector<std::int32_t> m_by_record;  ///< index by Nummer, -1 = none
-    std::int32_t m_open_sea = -1;           ///< index (not a pointer, so copies of the table stay valid)
+    std::int32_t m_open_sea = -1;
+    std::vector<ResidentClass> m_classes;
+    std::uint32_t m_food_need = 0;
+    std::uint8_t m_food_ware = 14;  ///< index (not a pointer, so copies of the table stay valid)
 };
 
 }  // namespace o1602::assets

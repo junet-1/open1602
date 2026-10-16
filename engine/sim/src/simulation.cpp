@@ -54,8 +54,24 @@ void Simulation::tick() {
                                       m_production_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
     }
+    // The cities consume every 10 s (0x0047F8A0 comes after the production in the original).
+    m_city_ms += kTickMs;
+    if (m_city_ms >= kCityTickMs) {
+        m_city_ms -= kCityTickMs;
+        advance_cities(*m_world, *m_buildings, &m_city_events);
+        if (m_city_events.size() > kMaxPendingEvents) {
+            m_city_events.erase(m_city_events.begin(),
+                                m_city_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+        }
+    }
     // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670).
     m_logistics.tick();
+}
+
+std::vector<CityEvent> Simulation::take_city_events() {
+    std::vector<CityEvent> events;
+    events.swap(m_city_events);
+    return events;
 }
 
 std::vector<ProductionEvent> Simulation::take_production_events() {

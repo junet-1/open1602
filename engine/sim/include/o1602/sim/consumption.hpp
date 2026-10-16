@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// What the inhabitants of a city consume (docs/re/consumption.md).
+//
+// Every 10 s each city takes goods straight from its warehouse; there is no market stock and no
+// supply per house (0x0047F8A0). Per consumer good the city keeps a demand A and a supply B, both
+// decaying by 15/16 per tick: the city takes what A is ahead of B, and the supply level C =
+// B * 128 / A (128 = fully supplied) tells how well the good is provided. Each class of
+// inhabitants adds its needs to A, and its satisfaction follows the supply levels of the goods it
+// wants measured against its Prozent and the tax rate.
+#pragma once
+
+#include <cstdint>
+#include <vector>
+
+#include "o1602/assets/building_table.hpp"
+#include "o1602/sim/world.hpp"
+
+namespace o1602::sim {
+
+/// Game time between two ticks of a city (the original's 10-s epochs).
+inline constexpr std::uint32_t kCityTickMs = 10'000;
+
+struct CityEvent {
+    enum class Kind : std::uint8_t {
+        Shortage,  ///< the supply of `ware` fell twice in a row after it was complete ("Es fehlt an ...")
+        Hunger,    ///< the food supply fell twice in a row and is at most 76 ("Euer Volk hungert")
+    };
+    Kind kind = Kind::Shortage;
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint8_t city = 0;     ///< city on the island
+    PlayerId owner = kNoPlayer;
+    std::uint8_t ware = 0;
+};
+
+/// The tax curve (0x0055E780): how much supply a class asks for at a tax rate (128 = normal ->
+/// 128; lower taxes ask for less, higher ones for more).
+[[nodiscard]] std::uint32_t tax_curve(std::uint32_t index) noexcept;
+
+/// Food and every good some class needs, in ware order (the original: wares 14..21).
+[[nodiscard]] std::vector<std::uint8_t> consumer_goods(const assets::BuildingTable& buildings);
+
+/// Satisfaction of a class (0..128) from the supply levels of the goods it wants: their sum
+/// against curve[tax] * Prozent * number of goods / 128. 128 for classes that want nothing.
+[[nodiscard]] std::uint8_t satisfaction_of(const City& city, const assets::ResidentClass& resident_class,
+                                           std::uint8_t tax_rate);
+
+/// One tick of a city of settlers (human or computer player): consumption, supply levels,
+/// satisfaction, new demand, decay.
+void consume(City& city, const assets::BuildingTable& buildings, std::vector<CityEvent>* events);
+
+/// One tick of a natives' village (0x0047EB30): they dump what fills their store beyond 75 % and
+/// use a little cloth, alcohol and jewellery.
+void consume_natives(City& city);
+
+/// Ticks every city of `world` by the role of its owner.
+void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events);
+
+}  // namespace o1602::sim
