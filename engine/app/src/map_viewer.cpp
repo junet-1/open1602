@@ -29,33 +29,13 @@ const char* zoom_name(render::Zoom zoom) {
     }
 }
 
-const char* color_name(assets::PlayerColor color) {
-    switch (color) {
-        case assets::PlayerColor::Red:
-            return "red";
-        case assets::PlayerColor::Blue:
-            return "blue";
-        case assets::PlayerColor::Yellow:
-            return "yellow";
-        case assets::PlayerColor::White:
-            return "white";
-        case assets::PlayerColor::Pirate:
-            return "pirates";
-        case assets::PlayerColor::Natives:
-            return "natives";
-        default:
-            return "trader";
+std::string player_label(const sim::Player& p, sim::PlayerId slot, const render::BannerTable& banners) {
+    std::string label = "player " + std::to_string(slot);
+    if (const render::Banner* b = banners.get(p.banner)) {
+        const auto colon = b->id.find(':');
+        label += " " + (colon == std::string::npos ? b->id : b->id.substr(colon + 1));
     }
-}
-
-std::string player_label(const sim::Player& p, std::uint8_t slot) {
-    std::string label = "player " + std::to_string(slot) + " " + color_name(p.color);
-    if (p.kind == assets::PlayerKind::Human) {
-        label += " (human)";
-    } else if (p.kind == assets::PlayerKind::Computer) {
-        label += " (computer)";
-    }
-    return label;
+    return label + " (" + sim::role_name(p.role) + ")";
 }
 
 }  // namespace
@@ -78,9 +58,11 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }
+    const auto banners = render::BannerTable::original();
     for (std::size_t i = 0; i < world->players().size(); ++i) {
         const auto& p = world->players()[i];
-        std::fprintf(stderr, "%s, money %d\n", player_label(p, static_cast<std::uint8_t>(i)).c_str(), p.money);
+        std::fprintf(stderr, "%s, money %d\n", player_label(p, static_cast<sim::PlayerId>(i), banners).c_str(),
+                     p.money);
     }
     std::fprintf(stderr, "%zu islands, %zu ships\n", world->islands().size(), world->ships().size());
     const auto palette_path = game.resolve(render::kTerrainPalettePath);
@@ -99,6 +81,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
                                                     std::move(palette).value(), options));
     viewer->m_figures = std::move(figures).value();
+    viewer->m_banners = render::BannerTable::original(&viewer->m_figures);
     viewer->m_building_flags = render::collect_building_flags(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
@@ -122,6 +105,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     std::int32_t h = 0;
     viewer->m_window->output_size(w, h);
     const auto scale = static_cast<std::int32_t>(std::lround(viewer->m_window->pixel_density()));
+    viewer->m_camera.set_world_size(viewer->m_world.width(), viewer->m_world.height());
     viewer->m_camera.set_screen(w, h, std::clamp(scale, 1, kMaxPixelScale));
     viewer->m_camera.set_zoom(options.zoom, w / 2.0, h / 2.0);
     // Start over the first island (or the map centre).
@@ -130,7 +114,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         viewer->m_camera.center_on(
             render::TilePos{island.x + island.map.width() / 2, island.y + island.map.height() / 2});
     } else {
-        viewer->m_camera.center_on(render::TilePos{sim::World::kWidth / 2, sim::World::kHeight / 2});
+        viewer->m_camera.center_on(render::TilePos{viewer->m_world.width() / 2, viewer->m_world.height() / 2});
     }
     if (auto status = viewer->ensure_graphics(viewer->m_camera.view().zoom); !status) {
         return status.error();
@@ -395,6 +379,7 @@ void MapViewer::render() {
         layers.figures = &m_figures;
         layers.atlas = &graphics->atlas;
         layers.ship_base = graphics->atlas.sheet_base(1);
+        layers.banners = &m_banners;
         layers.owner_tint = m_show_owners;
         layers.building_flags = &m_building_flags;
         render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), layers,
@@ -417,9 +402,9 @@ void MapViewer::update_title(double fps) {
         if (cell.island != sim::World::kSea) {
             title += " (island " + std::to_string(cell.island);
             const auto& island = m_world.islands()[cell.island];
-            const std::uint8_t owner = island.map.top(cell.local_x, cell.local_y).owner;
+            const sim::PlayerId owner = island.map.top(cell.local_x, cell.local_y).owner;
             if (const sim::Player* p = m_world.player(owner)) {
-                title += ", " + player_label(*p, owner);
+                title += ", " + player_label(*p, owner, m_banners);
             }
             title += ")";
         }

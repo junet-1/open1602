@@ -409,6 +409,16 @@ TEST_CASE("data: players, colours and ships of scenarios") {
     }
     CHECK(figures->flag_for_color(5) == nullptr);
     CHECK(figures->flag_for_color(6) == nullptr);
+
+    // The base game's banners carry exactly these flags.
+    const auto banners = render::BannerTable::original(&*figures);
+    REQUIRE(banners.size() == 7);
+    for (sim::BannerId b = 0; b < 5; ++b) {
+        REQUIRE(banners.get(b)->flag_gfx.has_value());
+        CHECK(*banners.get(b)->flag_gfx == 192U + 8U * b);
+    }
+    CHECK(!banners.get(5)->flag_gfx.has_value());
+    CHECK(!banners.get(6)->flag_gfx.has_value());
 }
 
 TEST_CASE("data: warehouse, market and tower flags of a scenario") {
@@ -466,7 +476,7 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
         CHECK(warnings.empty());
         CHECK(!world->islands().empty());
         REQUIRE(world->players().size() == 7);
-        CHECK(world->players()[0].kind == assets::PlayerKind::Human);
+        CHECK(world->players()[0].role == sim::PlayerRole::Human);
         CHECK(!world->players()[0].name.empty());  // savegames store the human player's name
         ++loaded;
     }

@@ -3,6 +3,7 @@
 
 add_library(o1602_sim
     src/island_map.cpp
+    src/player.cpp
     src/world.cpp
 )
 add_library(o1602::sim ALIAS o1602_sim)

@@ -378,16 +378,42 @@ TEST_CASE("rules: defaults fix the original, original() restores it (ADR 0006)")
     CHECK(!(open == orig));
 }
 
-TEST_CASE("world: at most 255 islands, the 256th is rejected (L-003)") {
+TEST_CASE("world: more than 255 islands (the original's limit, L-003)") {
     sim::World world;
     std::uint32_t added = 0;
-    for (std::uint32_t y = 0; y + 2 <= sim::World::kHeight && added < 256; y += 2) {
-        for (std::uint32_t x = 0; x + 2 <= sim::World::kWidth && added < 256; x += 2) {
+    for (std::uint32_t y = 0; y + 2 <= world.height() && added < 300; y += 2) {
+        for (std::uint32_t x = 0; x + 2 <= world.width() && added < 300; x += 2) {
             if (world.add_island(make_island(x, y, 2, 2)).ok()) {
                 ++added;
             }
         }
     }
-    CHECK(added == 255);
-    CHECK(world.islands().size() == 255);
+    CHECK(added == 300);
+    CHECK(world.cell(1, 2).island == 250);  // second row of islands
+}
+
+TEST_CASE("world: the size is a property of the map (ADR 0007)") {
+    sim::World big(1200, 900);
+    CHECK(big.width() == 1200);
+    CHECK(big.height() == 900);
+    CHECK(big.add_island(make_island(1100, 850, 4, 3)).ok());  // outside the original 500 x 350
+    CHECK(!big.add_island(make_island(1198, 0, 4, 3)).ok());   // leaves the map
+    CHECK(big.cell(1103, 852).island == 0);
+
+    // Views take the size from the world; the camera from set_world_size.
+    const render::WorldView view = render::fit_view(render::WorldView{render::Zoom::Small, 0}, big);
+    std::int32_t w = 0;
+    std::int32_t h = 0;
+    render::world_pixel_size(view, w, h);
+    CHECK(w == (1200 + 900) * 8);
+    CHECK(h == (1200 + 900) * 4);
+    const auto tile = render::world_tile_at(view, 0.0, 0.0);
+    CHECK(!tile.has_value());
+    std::int32_t px = 0;
+    std::int32_t py = 0;
+    render::world_tile_center(view, 1103, 852, px, py);
+    const auto back = render::world_tile_at(view, px, py);
+    REQUIRE(back.has_value());
+    CHECK(back->x == 1103);
+    CHECK(back->y == 852);
 }

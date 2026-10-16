@@ -3,8 +3,6 @@
 
 #include <SDL3/SDL.h>
 
-#include "o1602/render/player_colors.hpp"
-
 namespace o1602::render {
 
 SdlSpriteRenderer::SdlSpriteRenderer(SDL_Renderer* renderer) : m_renderer(renderer) {}
@@ -76,8 +74,8 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
                 flush(current);
                 current = kUntextured;
             }
-            const assets::Rgba rgb = player_rgb(static_cast<assets::PlayerColor>(c.tint));
-            const SDL_FColor color{rgb.r / 255.0F, rgb.g / 255.0F, rgb.b / 255.0F, kOverlayAlpha / 255.0F};
+            const assets::Rgba rgb = c.tint;
+            const SDL_FColor color{rgb.r / 255.0F, rgb.g / 255.0F, rgb.b / 255.0F, rgb.a / 255.0F};
             const float w = static_cast<float>(c.tint_size) * s;
             const float left = static_cast<float>(c.x * scale - origin_x);
             const float bottom = static_cast<float>(c.y * scale - origin_y);

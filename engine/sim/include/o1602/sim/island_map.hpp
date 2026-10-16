@@ -8,20 +8,20 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/core/result.hpp"
+#include "o1602/sim/player.hpp"
 
 namespace o1602::sim {
 
 /// One tile of an island. Mirrors the original grid word (island + 0xAF4, 32 bit per tile):
-/// bits 0-12 base sprite, 13-14 rotation, 15-18 animation phase; plus the owner from the
-/// INSELHAUS attribute bits 22-25.
+/// bits 0-12 base sprite, 13-14 rotation, 15-18 animation phase; plus the owner (the original's
+/// INSELHAUS attribute bits 22-25, translated to a PlayerId when loading).
 struct MapCell {
     static constexpr std::uint16_t kEmpty = 0xFFFF;
-    static constexpr std::uint8_t kNoOwner = 7;
 
     std::uint16_t sprite = kEmpty;  ///< base sprite = building gfx + index of the sub-tile
     std::uint8_t rotation = 0;      ///< 0..3
     std::uint8_t anim_phase = 0;    ///< 0..15, per-tile animation offset
-    std::uint8_t owner = kNoOwner;  ///< player slot (index into World::players()), 7 = nobody
+    PlayerId owner = kNoPlayer;     ///< index into World::players()
 
     [[nodiscard]] bool empty() const noexcept { return sprite == kEmpty; }
 };
@@ -50,7 +50,7 @@ public:
     /// it from there, so former river tiles stay water - S-009).
     /// Fails (without changes) if the rotated footprint leaves the island.
     core::Status place(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                       std::uint8_t anim_phase, std::uint8_t owner = MapCell::kNoOwner);
+                       std::uint8_t anim_phase, PlayerId owner = kNoPlayer);
 
     /// Inverse of place() for one tile (original 0x00463250): building and placement origin.
     [[nodiscard]] SubTile sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const;

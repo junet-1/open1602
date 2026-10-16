@@ -9,6 +9,21 @@ läuft (Ansatz wie OpenRCT2, OpenTTD, Julius/Augustus, OpenMW). Es werden keine 
 Die Engine soll originalgetreu spielbar sein, bekannte Originalbugs beheben und eine saubere Basis für
 neue Features, QoL und Mods bieten.
 
+### Anforderungen an Erweiterbarkeit und Modding
+
+Festgelegt am 16.10.2026, verbindlich für jeden neuen Code. Die Architektur dazu steht in
+[ADR 0007](architecture/0007-erweiterbarkeit-und-modding.md).
+
+- Neue **Gebäude, Farben, Produktionsketten, Inseln, Landschaften, Fraktionen, Animationen,
+  Grafiken, Musik und Sounds** lassen sich hinzufügen.
+- Eigene **Kampagnen und Szenarien** lassen sich schreiben.
+- Neue **Inseltypen und Inselgrößen** sind möglich, auch riesige Inseln.
+- Der **Inselgenerator** ist flexibler und abwechslungsreicher als im Original.
+- Die **Spielerzahl** ist nicht auf 4 (+ Händler, Piraten, Eingeborene) festgelegt. Man kann zum
+  Beispiel auch zu fünft im Mehrspielermodus spielen, und neutrale Parteien wie Piraten und fahrende
+  Händler skalieren mit.
+- **Farben und Flaggen** sind erweiterbar, mit einem Flaggenauswahlmenü wie in Anno 1503.
+
 ## 2. Bestandsaufnahme (erste Analyse des Spielordners)
 
 | Datei / Ordner | Befund | Bedeutung |
@@ -99,6 +114,9 @@ Besitzzeiger, Sanitizer in CI).
 - **Desync-Erkennung**: Zustands-Hash pro Tick im Multiplayer.
 - **Speicher**: Pools/Arenen für Entitäten, keine Allokationen im Tick-Hotpath → stabil bei langen Sitzungen.
 - **Datengetrieben**: Gebäude/Waren/Einheiten aus `.cod`-Daten, nicht hart codiert.
+- **Keine festen Grenzen des Originals im Engine-Modell** (ADR 0007): Spielerzahl, Banner (Farben und
+  Flaggen), Weltgröße, Inselgröße und Inselanzahl sind offen. Die Werte des Originals gelten nur beim
+  Laden und Speichern der Originalformate.
 
 ## 5. Projektstruktur (`Projekt Anno/`)
 
@@ -145,9 +163,10 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 | M2 | Karten-Renderer | Szenario/Savegame laden und statisch isometrisch darstellen (3 Zoomstufen) |
 | M3 | Kern-Simulation | Bauen, Produktion, Bevölkerung, Lager, Steuern – Paritätstests gegen Original |
 | M4 | Spielbares Endlosspiel | Schiffe, Handel, Figuren, UI, Speichern/Laden (kompatibel zu `.GAM`) |
-| M5 | Vollständiges Spiel | KI, Militär, Piraten, Ereignisse, Szenarien/Missionsziele |
-| M6 | Multiplayer | Lockstep, Lobby, Desync-Erkennung, Reconnect |
-| M7 | Verbesserungen | Bugfixes, beliebige Auflösungen, freier Zoom, Hotkeys, UI-Skalierung, Modding, Editor |
+| M5 | Vollständiges Spiel | KI, Militär, Piraten, Ereignisse, Szenarien/Missionsziele (bereits im erweiterbaren Modell: Fraktionen und Skalierung mit der Spielerzahl, ADR 0007) |
+| M6 | Multiplayer | Lockstep, Lobby mit beliebiger Spielerzahl und Flaggenwahl, Desync-Erkennung, Reconnect |
+| M7 | Verbesserungen | Bugfixes, beliebige Auflösungen, freier Zoom, Hotkeys, UI-Skalierung, Editor |
+| M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, neuer Inselgenerator (ADR 0007) |
 
 ## 7. Nächste Schritte
 
@@ -181,6 +200,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: echter Spielstand geprüft (Merlin01): zwei Inselebenen, globale Chunks, Namen aus `Game.dat`, Flaggenwahl bestätigt | ✅ `docs/formats/gam.md` |
 | M2: Flaggen auf Kontor, Markt und Turm in Besitzerfarbe | ✅ `docs/re/rendering.md` §6 |
 | M2: Abgleich mit einem Bildschirmfoto des Originals (Merlin01, SGFX): Korrelation 0,955 | ✅ `docs/re/rendering.md` §8 |
+| Anforderungen an Erweiterbarkeit und Modding (ADR 0007); Engine-Modell ohne feste Spielerzahl, Banner statt fester Farben, Weltgröße pro Karte | ✅ `docs/architecture/0007-erweiterbarkeit-und-modding.md` |
 | M2: übrige Figuren (Träger, Soldaten, Tiere), Rauch, Gaukler | ⬜ als Nächstes |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |

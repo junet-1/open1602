@@ -4,6 +4,7 @@
 
 add_library(o1602_render
     src/animation_clock.cpp
+    src/banner.cpp
     src/camera.cpp
     src/island_renderer.cpp
     src/sprite_atlas.cpp

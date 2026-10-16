@@ -74,6 +74,7 @@ private:
     sim::World m_world;
     assets::Palette m_palette;
     assets::FigureTable m_figures;
+    render::BannerTable m_banners;                       ///< colours and flags of the players (ADR 0007)
     std::vector<render::BuildingFlag> m_building_flags;  ///< buildings do not move: collected once at load
     ViewerOptions m_options;
 

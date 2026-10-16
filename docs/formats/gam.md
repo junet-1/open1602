@@ -87,6 +87,11 @@ nicht durch eine Umfärbung der Palette. Die Flagge eines Schiffs wählt das Spi
 | 5 | Eingeborene | – (keine Flagge) | |
 | 6 | freier Händler | – (keine Flagge) | |
 
+**In Open1602** werden Platz, Steuerung und Farbe beim Laden übersetzt (`sim::load_world`): Plätze
+0–6 werden zu `sim::PlayerId`, Besitzer 7 zu `sim::kNoPlayer`, die Steuerung zu `sim::PlayerRole`
+und die Farbe zum gleichnamigen Banner des Basisspiels (`render::BannerTable::original`). Spielerzahl
+und Bannerliste sind im Engine-Modell offen ([ADR 0007](../architecture/0007-erweiterbarkeit-und-modding.md)).
+
 `FAHNEWEISS` (111, Sprites 232–239) ist die weiße Fahne und keine Spielerfarbe. Die acht Sprites
 je Farbe sind die Animationsphasen des Wehens. Ebenso gibt es eigene Varianten für die Gebäudeflaggen
 (`FAHNEMARKT`, `ANIM` 0–5 je 8 Bilder, dieselben Sprites; siehe [rendering.md](../re/rendering.md#6-gebäudeflaggen-anzeigefiguren)) und vermutlich für die Soldaten (`SOLDAT.BSH`, noch nicht untersucht).

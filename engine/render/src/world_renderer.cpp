@@ -18,15 +18,20 @@ struct RotatedWorld {
     std::uint32_t height;
     std::uint8_t rotation;
 
-    explicit RotatedWorld(std::uint8_t r)
-        : width((r & 1U) != 0 ? sim::World::kHeight : sim::World::kWidth),
-          height((r & 1U) != 0 ? sim::World::kWidth : sim::World::kHeight),
-          rotation(static_cast<std::uint8_t>(r & 3U)) {}
+    std::uint32_t world_width;  ///< size in world space
+    std::uint32_t world_height;
+
+    explicit RotatedWorld(const WorldView& view)
+        : width((view.rotation & 1U) != 0 ? view.world_height : view.world_width),
+          height((view.rotation & 1U) != 0 ? view.world_width : view.world_height),
+          rotation(static_cast<std::uint8_t>(view.rotation & 3U)),
+          world_width(view.world_width),
+          world_height(view.world_height) {}
 
     /// View space -> world coordinates (same convention as the island renderer).
     void to_world(std::uint32_t vx, std::uint32_t vy, std::uint32_t& wx, std::uint32_t& wy) const {
-        constexpr std::uint32_t W = sim::World::kWidth;
-        constexpr std::uint32_t H = sim::World::kHeight;
+        const std::uint32_t W = world_width;
+        const std::uint32_t H = world_height;
         switch (rotation) {
             case 0:
                 wx = vx;
@@ -48,8 +53,8 @@ struct RotatedWorld {
     }
 
     void to_view(std::uint32_t wx, std::uint32_t wy, std::uint32_t& vx, std::uint32_t& vy) const {
-        constexpr std::uint32_t W = sim::World::kWidth;
-        constexpr std::uint32_t H = sim::World::kHeight;
+        const std::uint32_t W = world_width;
+        const std::uint32_t H = world_height;
         switch (rotation) {
             case 0:
                 vx = wx;
@@ -74,9 +79,9 @@ struct RotatedWorld {
 /// World point (continuous tile coordinates) -> world pixel position of the current view
 /// (0x0044D940: x = (fx - fy) * w/2, y = (fx + fy) * (h+1)/2 after the view rotation).
 void project_point(const WorldView& view, double wx, double wy, double& sx, double& sy) {
-    const RotatedWorld rw(view.rotation);
-    constexpr double W = sim::World::kWidth;
-    constexpr double H = sim::World::kHeight;
+    const RotatedWorld rw(view);
+    const double W = rw.world_width;
+    const double H = rw.world_height;
     double fx = wx;
     double fy = wy;
     switch (rw.rotation) {
@@ -104,14 +109,14 @@ constexpr std::uint64_t kFlagFrameMs = 90;  // AnimSpeed of the flag figures
 }  // namespace
 
 void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& height) {
-    const RotatedWorld rw(view.rotation);
+    const RotatedWorld rw(view);
     const auto diag = static_cast<std::int32_t>(rw.width + rw.height);
     width = diag * (tile_width(view.zoom) / 2);
     height = diag * (tile_height(view.zoom) / 2);
 }
 
 void world_tile_center(const WorldView& view, std::uint32_t x, std::uint32_t y, std::int32_t& px, std::int32_t& py) {
-    const RotatedWorld rw(view.rotation);
+    const RotatedWorld rw(view);
     std::uint32_t vx = 0;
     std::uint32_t vy = 0;
     rw.to_view(x, y, vx, vy);
@@ -147,8 +152,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     build_world_draw_list(world, buildings, clock, view, viewport, layers, commands);
 }
 
-bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view, const WorldLayers& layers,
+bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view_in, const WorldLayers& layers,
                   std::uint64_t time_ms, ShipSprites& out) {
+    const WorldView view = fit_view(view_in, world);
     if (layers.figures == nullptr || layers.atlas == nullptr) {
         return false;
     }
@@ -156,7 +162,7 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     if (fig == nullptr || fig->sheet != assets::FigureSheet::Ship) {
         return false;
     }
-    const RotatedWorld rw(view.rotation);
+    const RotatedWorld rw(view);
     const double tw = tile_width(view.zoom);
     const double hw = tw / 2.0;
     const double hh = tile_height(view.zoom) / 2.0;
@@ -179,14 +185,16 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     // cover the hull while land and buildings in front still do.
     out.row = floor_div(out.hull.y - 1, static_cast<std::int32_t>(hh));
 
-    // Flag in the owner's colour (table 0x00498F2C). Offset: Fahnoffs[1] along the ship axis,
-    // rotated by (direction + 2) * 45 degrees (0x00443180), projected; lifted by Fahnoffs[2] * w/2.
+    // Flag of the owner's banner (original: figure from table 0x00498F2C). Offset: Fahnoffs[1]
+    // along the ship axis, rotated by (direction + 2) * 45 degrees (0x00443180), projected; lifted
+    // by Fahnoffs[2] * w/2 and hanging down from there. (The original also adds the flag figure's
+    // Posoffs[0], which is 0 for all flags.)
     out.has_flag = false;
     const sim::Player* owner = world.player(ship.owner);
-    const assets::FigureType* flag =
-        owner != nullptr ? layers.figures->flag_for_color(static_cast<std::uint8_t>(owner->color)) : nullptr;
-    if (flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
-        out.flag.sprite = layers.ship_base + flag->gfx + static_cast<std::uint32_t>((time_ms / kFlagFrameMs) % 8);
+    const Banner* banner = owner != nullptr && layers.banners != nullptr ? layers.banners->get(owner->banner) : nullptr;
+    if (banner != nullptr && banner->flag_gfx) {
+        const auto frame = static_cast<std::uint32_t>((time_ms / kFlagFrameMs) % banner->flag_frames);
+        out.flag.sprite = layers.ship_base + *banner->flag_gfx + frame;
         const AtlasRect& fr = layers.atlas->rect(out.flag.sprite);
         const double angle = static_cast<double>((dir + 2U) & 7U) * std::numbers::pi / 4.0;
         const double ox = fig->fahnoffs[1] * std::sin(angle);
@@ -194,7 +202,7 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
         const double px = (ox - oy) * hw;
         const double py = (ox + oy) * hh;
         out.flag.x = static_cast<std::int32_t>(std::lround(screen_x + px)) - fr.width / 2;
-        const double top = screen_y + flag->posoffs[0] * tw / 64.0 - py - fig->fahnoffs[2] * hw;
+        const double top = screen_y - py - fig->fahnoffs[2] * hw;
         out.flag.y = static_cast<std::int32_t>(std::lround(top)) + fr.height;
         out.has_flag = true;
     }
@@ -212,7 +220,7 @@ std::vector<BuildingFlag> collect_building_flags(const sim::World& world, const 
         for (std::uint32_t y = 0; y < map.height(); ++y) {
             for (std::uint32_t x = 0; x < map.width(); ++x) {
                 const sim::MapCell& cell = map.top(x, y);
-                if (cell.empty() || cell.owner == sim::MapCell::kNoOwner) {
+                if (cell.empty() || cell.owner == sim::kNoPlayer) {
                     continue;  // the original only spawns flags for buildings inside a city
                 }
                 const sim::SubTile sub = map.sub_tile(buildings, x, y);
@@ -265,8 +273,9 @@ std::vector<BuildingFlag> collect_building_flags(const sim::World& world, const 
     return flags;
 }
 
-bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, const WorldView& view,
+bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, const WorldView& view_in,
                           const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out) {
+    const WorldView view = fit_view(view_in, world);
     if (layers.figures == nullptr || layers.atlas == nullptr) {
         return false;
     }
@@ -275,15 +284,15 @@ bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, con
     if (fig == nullptr || owner == nullptr || fig->sheet != assets::FigureSheet::Ship) {
         return false;
     }
-    // Flag figures have one 8-frame ANIM per colour (FAHNEMARKT: AnimOffs 0, 8, ... 40);
-    // the free trader (colour 6) has none.
-    const auto color = static_cast<std::uint32_t>(owner->color);
-    if (color > 5) {
+    // Flag figures have one 8-frame ANIM per original colour (FAHNEMARKT: AnimOffs 0, 8, ... 40 =
+    // the same sprites as the ship flags), so the banner's flag images are used directly.
+    const Banner* banner = layers.banners != nullptr ? layers.banners->get(owner->banner) : nullptr;
+    if (banner == nullptr || !banner->flag_gfx) {
         return false;
     }
-    const auto frame = static_cast<std::uint32_t>((time_ms / kFlagFrameMs + flag.phase) % 8);
-    out.hull.sprite = layers.ship_base + fig->gfx + 8U * color + frame;
-    out.hull.tint = DrawCommand::kNoTint;
+    const auto frame = static_cast<std::uint32_t>((time_ms / kFlagFrameMs + flag.phase) % banner->flag_frames);
+    out.hull.sprite = layers.ship_base + *banner->flag_gfx + frame;
+    out.hull.tint = {};
     out.has_flag = false;
     const AtlasRect& r = layers.atlas->rect(out.hull.sprite);
     double sx = 0.0;
@@ -304,14 +313,15 @@ bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, con
 }
 
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
-                           const WorldView& view, const Viewport& viewport, const WorldLayers& layers,
+                           const WorldView& view_in, const Viewport& viewport, const WorldLayers& layers,
                            std::vector<DrawCommand>& commands) {
+    const WorldView view = fit_view(view_in, world);
     const SpriteExtent& extent = layers.extent;
     commands.clear();
     if (viewport.width <= 0 || viewport.height <= 0) {
         return;
     }
-    const RotatedWorld rw(view.rotation);
+    const RotatedWorld rw(view);
     const std::int32_t tw = tile_width(view.zoom);
     const std::int32_t th = tile_height(view.zoom);
     const std::int32_t half_w = tw / 2;
@@ -363,13 +373,15 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     std::vector<DrawCommand> overlays;
     const auto add_overlay = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom) {
         const sim::Player* p = world.player(cell.owner);
-        if (!layers.owner_tint || p == nullptr) {
+        const Banner* banner = p != nullptr && layers.banners != nullptr ? layers.banners->get(p->banner) : nullptr;
+        if (!layers.owner_tint || banner == nullptr) {
             return;
         }
         const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
         const std::int32_t elevation = b != nullptr ? b->posoffs * tw / 64 : 0;
-        overlays.push_back(DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation,
-                                       static_cast<std::uint8_t>(p->color), static_cast<std::uint8_t>(tw)});
+        const assets::Rgba tint{banner->color.r, banner->color.g, banner->color.b, kOverlayAlpha};
+        overlays.push_back(
+            DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation, tint, static_cast<std::uint8_t>(tw)});
     };
     const auto emit = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom) {
         const assets::BuildingType* b = buildings.by_sprite(cell.sprite);

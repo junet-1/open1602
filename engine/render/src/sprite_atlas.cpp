@@ -3,8 +3,6 @@
 
 #include <algorithm>
 
-#include "o1602/render/player_colors.hpp"
-
 namespace o1602::render {
 
 using core::ErrorCode;
@@ -154,8 +152,7 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
     const std::uint32_t ps = atlas.page_size();
     for (const DrawCommand& c : commands) {
         if (c.sprite == DrawCommand::kOverlayDiamond) {
-            fill_diamond(target, c.x - origin_x, c.y - origin_y, c.tint_size,
-                         player_rgb(static_cast<assets::PlayerColor>(c.tint)), kOverlayAlpha);
+            fill_diamond(target, c.x - origin_x, c.y - origin_y, c.tint_size, c.tint, c.tint.a);
             continue;
         }
         const AtlasRect& r = atlas.rect(c.sprite);

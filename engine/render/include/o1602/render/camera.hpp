@@ -27,6 +27,9 @@ class Camera {
 public:
     Camera() = default;
 
+    /// Size of the world in tiles (default: the original 500 x 350).
+    void set_world_size(std::uint32_t width, std::uint32_t height);
+
     /// Screen size in physical pixels and integer pixel scale (1 = one sprite pixel per screen pixel).
     void set_screen(std::int32_t width, std::int32_t height, std::int32_t pixel_scale);
 

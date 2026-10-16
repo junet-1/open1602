@@ -48,6 +48,9 @@ struct PlayerRecord {
 
 /// Owner value meaning "nobody" (island tile attribute bits 22..25, ship byte +0x4B).
 inline constexpr std::uint8_t kNoOwner = 7;
+/// Number of PLAYER4 records in the original files (4 players, free trader, pirates, natives).
+/// Only the file format is limited to this; the engine is not (ADR 0007).
+inline constexpr std::uint8_t kOriginalPlayerSlots = 7;
 
 /// One ship (SHIP4 record, 0x1B4 bytes; written by 0x004600C0).
 struct ShipRecord {

@@ -8,31 +8,32 @@ namespace o1602::sim {
 using core::ErrorCode;
 using core::make_error;
 
-World::World() : m_cells(std::size_t{kWidth} * kHeight) {}
+World::World(std::uint32_t width, std::uint32_t height)
+    : m_width(width), m_height(height), m_cells(std::size_t{width} * height) {}
 
 core::Status World::add_island(WorldIsland island) {
     const std::uint32_t w = island.map.width();
     const std::uint32_t h = island.map.height();
-    if (island.x + w > kWidth || island.y + h > kHeight) {
+    if (island.x + w > m_width || island.y + h > m_height || w > kSea || h > kSea) {
         return make_error(ErrorCode::OutOfRange,
                           "island " + std::to_string(island.header.number) + " leaves the world map");
     }
-    if (m_islands.size() >= kSea) {  // L-003
-        return make_error(ErrorCode::OutOfRange, "too many islands");
+    if (m_islands.size() >= kSea) {  // named limit instead of the original's 255 (L-003)
+        return make_error(ErrorCode::OutOfRange, "too many islands (65535)");
     }
     for (std::uint32_t ly = 0; ly < h; ++ly) {
         for (std::uint32_t lx = 0; lx < w; ++lx) {
-            if (m_cells[std::size_t{island.y + ly} * kWidth + island.x + lx].island != kSea) {
+            if (m_cells[std::size_t{island.y + ly} * m_width + island.x + lx].island != kSea) {
                 return make_error(ErrorCode::InvalidFormat,
                                   "island " + std::to_string(island.header.number) + " overlaps another island");
             }
         }
     }
-    const auto index = static_cast<std::uint8_t>(m_islands.size());
+    const auto index = static_cast<std::uint16_t>(m_islands.size());
     for (std::uint32_t ly = 0; ly < h; ++ly) {
         for (std::uint32_t lx = 0; lx < w; ++lx) {
-            m_cells[std::size_t{island.y + ly} * kWidth + island.x + lx] =
-                Cell{index, static_cast<std::uint8_t>(lx), static_cast<std::uint8_t>(ly)};
+            m_cells[std::size_t{island.y + ly} * m_width + island.x + lx] =
+                Cell{index, static_cast<std::uint16_t>(lx), static_cast<std::uint16_t>(ly)};
         }
     }
     m_islands.push_back(std::move(island));
@@ -52,7 +53,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     };
 
     std::map<std::string, std::vector<assets::Island>> templates;  // cache: many islands share one
-    World world;
+    World world(World::kOriginalWidth, World::kOriginalHeight);    // the original map size
     for (const auto& island : *islands) {
         const assets::Island* base = nullptr;
         if (const std::string path = island.header.template_path(); !path.empty()) {
@@ -88,7 +89,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     }
     std::vector<Player> slots;
     for (const auto& p : *players) {
-        slots.push_back(Player{p.kind, p.color, p.money, p.name});
+        slots.push_back(Player{role_from_original(p.kind), banner_from_original(p.color), p.money, p.name});
     }
     world.set_players(std::move(slots));
 
@@ -97,12 +98,12 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         return ships.error();
     }
     for (const auto& s : *ships) {
-        if (s.x >= World::kWidth || s.y >= World::kHeight) {
+        if (!world.contains(s.x, s.y)) {
             warn("ship '" + s.name + "' outside the world map");
             continue;
         }
         const auto direction = static_cast<std::uint8_t>(s.direction == 0xFF ? 0U : s.direction & 7U);
-        world.add_ship(Ship{s.name, s.x, s.y, s.figure, s.owner, direction});
+        world.add_ship(Ship{s.name, s.x, s.y, s.figure, player_from_original(s.owner), direction});
     }
     return world;
 }

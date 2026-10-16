@@ -13,6 +13,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/render/animation_clock.hpp"
+#include "o1602/render/banner.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/sim/world.hpp"
@@ -29,7 +30,18 @@ struct Viewport {
 struct WorldView {
     Zoom zoom = Zoom::Large;
     std::uint8_t rotation = 0;  ///< 0..3
+    /// Size of the world in tiles (a property of the map, ADR 0007). Functions that receive the
+    /// world as well take its size from there.
+    std::uint32_t world_width = sim::World::kOriginalWidth;
+    std::uint32_t world_height = sim::World::kOriginalHeight;
 };
+
+/// `view` with the size of `world`.
+[[nodiscard]] inline WorldView fit_view(WorldView view, const sim::World& world) noexcept {
+    view.world_width = world.width();
+    view.world_height = world.height();
+    return view;
+}
 
 /// Size of the whole world in world pixels (without the overhang of tall sprites above row 0).
 void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& height);
@@ -64,8 +76,8 @@ struct BuildingFlag {
     double y = 0.0;
     double z = 0.0;            ///< height: Fahnoffs[2] in half tile widths
     std::uint16_t figure = 0;  ///< flag figure (FAHNEMARKT, FAHNEKONTOR1..4)
-    std::uint8_t owner = 7;    ///< player slot
-    std::uint8_t phase = 0;    ///< animation offset so neighbouring flags do not wave in lockstep
+    sim::PlayerId owner = sim::kNoPlayer;
+    std::uint8_t phase = 0;  ///< animation offset so neighbouring flags do not wave in lockstep
 };
 
 [[nodiscard]] std::vector<BuildingFlag> collect_building_flags(const sim::World& world,
@@ -80,7 +92,9 @@ struct WorldLayers {
     const assets::FigureTable* figures = nullptr;
     const SpriteAtlas* atlas = nullptr;
     std::uint32_t ship_base = 0;
-    /// Ownership view: tiles owned by a player get DrawCommand::tint = the owner's colour.
+    /// Colours and flags of the players' banners. Without it there are no flags and no ownership view.
+    const BannerTable* banners = nullptr;
+    /// Ownership view: tiles owned by a player get a diamond in the colour of the owner's banner.
     bool owner_tint = false;
     /// Warehouse, market and tower flags (collect_building_flags); drawn like ships (same sheet).
     const std::vector<BuildingFlag>* building_flags = nullptr;

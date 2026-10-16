@@ -607,6 +607,8 @@ int cmd_render_world(const Args& args) {
     layers.figures = &*figures;
     layers.atlas = &*atlas;
     layers.ship_base = atlas->sheet_base(1);
+    const auto banners = render::BannerTable::original(&*figures);
+    layers.banners = &banners;
     layers.owner_tint = args.flag("--owners");
     const auto flags = render::collect_building_flags(*world, *buildings, *figures);
     layers.building_flags = &flags;
@@ -625,8 +627,9 @@ int cmd_render_world(const Args& args) {
         return fail(status.error());
     }
     for (const auto& p : world->players()) {
-        std::printf("player: kind %u, colour %u, money %d\n", static_cast<unsigned>(p.kind),
-                    static_cast<unsigned>(p.color), p.money);
+        const render::Banner* b = banners.get(p.banner);
+        std::printf("player: %s, banner %s, money %d\n", sim::role_name(p.role), b != nullptr ? b->id.c_str() : "?",
+                    p.money);
     }
     std::printf("%zu building flags\n", flags.size());
 

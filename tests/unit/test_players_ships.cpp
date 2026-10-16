@@ -202,14 +202,15 @@ TEST_CASE("world renderer: ship hull, owner flag and row") {
     const auto figures = make_figures();
 
     sim::World world;
-    world.set_players({sim::Player{assets::PlayerKind::Human, assets::PlayerColor::Red, 0, ""},
-                       sim::Player{assets::PlayerKind::Natives, assets::PlayerColor::Natives, 0, ""}});
+    world.set_players({sim::Player{sim::PlayerRole::Human, 0, 0, ""}, sim::Player{sim::PlayerRole::Natives, 5, 0, ""}});
     const sim::Ship ship{"Patria", 10, 20, 21, 0, 3};
 
+    const auto banners = render::BannerTable::original(&figures);
     render::WorldLayers layers;
     layers.figures = &figures;
     layers.atlas = &*atlas;
     layers.ship_base = atlas->sheet_base(1);
+    layers.banners = &banners;
     const render::WorldView view{render::Zoom::Large, 0};
 
     render::ShipSprites s;
@@ -247,15 +248,17 @@ TEST_CASE("world renderer: ownership view adds diamonds in the owner's colour") 
     REQUIRE(buildings.ok());
 
     sim::World world;
-    world.set_players({sim::Player{}, sim::Player{assets::PlayerKind::Computer, assets::PlayerColor::Yellow, 0, ""}});
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Computer, 2, 0, ""}});
     sim::WorldIsland island{assets::IslandHeader{}, sim::IslandMap(2, 1), 5, 5};
     REQUIRE(island.map.place(*buildings->by_id(20100), 0, 0, 0, 0, 1).ok());  // owned by slot 1
     REQUIRE(island.map.place(*buildings->by_id(20100), 1, 0, 0, 0).ok());     // nobody
     REQUIRE(world.add_island(std::move(island)).ok());
 
     const render::AnimationClock clock(*buildings);
+    const auto banners = render::BannerTable::original();
     render::WorldLayers layers;
     layers.extent = render::SpriteExtent{16, 8};
+    layers.banners = &banners;
     layers.owner_tint = true;
     const render::WorldView view{render::Zoom::Small, 0};
     render::Viewport all;
@@ -270,7 +273,7 @@ TEST_CASE("world renderer: ownership view adds diamonds in the owner's colour") 
         return c.sprite == render::DrawCommand::kOverlayDiamond;
     });
     REQUIRE(it != commands.end());
-    CHECK(it->tint == static_cast<std::uint8_t>(assets::PlayerColor::Yellow));
+    CHECK(it->tint == (assets::Rgba{232, 192, 24, render::kOverlayAlpha}));  // yellow banner
     CHECK(it->tint_size == 16);
 
     layers.owner_tint = false;
@@ -306,7 +309,7 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     REQUIRE(figures.ok());
 
     sim::World world;
-    world.set_players({sim::Player{}, sim::Player{assets::PlayerKind::Computer, assets::PlayerColor::Yellow, 0, ""}});
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Computer, 2, 0, ""}});
     sim::WorldIsland island{assets::IslandHeader{}, sim::IslandMap(8, 8), 5, 5};
     REQUIRE(island.map.place(kontor, 1, 1, 0, 0, 1).ok());                    // owned, rotation 0
     REQUIRE(island.map.place(kontor, 0, 4, 1, 0, 1).ok());                    // owned, rotation 1 (3x2)
@@ -332,15 +335,21 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     const assets::SpriteSheet* sheets[] = {&terrain, &ship_sheet};
     auto atlas = render::SpriteAtlas::build(sheets, palette, 256);
     REQUIRE(atlas.ok());
+    // Banners with flags at 0, 8, 16 of the ship sheet (as the original red, blue, yellow).
+    render::BannerTable banners;
+    for (std::uint32_t c = 0; c < 3; ++c) {
+        banners.add(render::Banner{"test:" + std::to_string(c), {}, 8U * c, 8});
+    }
     render::WorldLayers layers;
     layers.figures = &*figures;
     layers.atlas = &*atlas;
     layers.ship_base = atlas->sheet_base(1);
+    layers.banners = &banners;
     render::BuildingFlag flag = flags[0];
     flag.phase = 0;
     render::ShipSprites s;
     REQUIRE(render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 200, s));
-    // Yellow (colour 2) = third ANIM, frame 200 / 90 = 2.
+    // Yellow (banner 2), frame 200 / 90 = 2.
     CHECK(s.hull.sprite == layers.ship_base + 16 + 2);
     // Point: x = (7.5 - 7.0 + 350) * 32, y = 14.5 * 16 = 232; centred, bottom 2.0 * 32 higher.
     CHECK(s.hull.x == 11216 - 4);
@@ -348,9 +357,55 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     CHECK(!s.has_flag);
     CHECK(s.row == (232 + 40 - 1) / 16);  // sorted by y + Posoffs[1]
 
-    // The free trader (colour 6) has no flag sprites.
-    world.set_players({sim::Player{}, sim::Player{assets::PlayerKind::Trader, assets::PlayerColor::Trader, 0, ""}});
+    // A banner without flag sprites (like the free trader) or an unknown banner shows no flag.
+    banners.add(render::Banner{"test:noflag", {}, std::nullopt, 8});
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 3, 0, ""}});
     CHECK(!render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 0, s));
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 99, 0, ""}});
+    CHECK(!render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 0, s));
+}
+
+TEST_CASE("players: more than the original seven slots and extra banners (ADR 0007)") {
+    // Original owner numbers: 0..6 are players, 7 is nobody.
+    CHECK(sim::player_from_original(0) == 0);
+    CHECK(sim::player_from_original(6) == 6);
+    CHECK(sim::player_from_original(7) == sim::kNoPlayer);
+    CHECK(sim::role_from_original(assets::PlayerKind::Pirate) == sim::PlayerRole::Pirates);
+
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const auto doc = assets::cod::parse("Objekt: HAUS\n@Nummer: 0\nId: 20100\nGfx: 0\nSize: 1, 1\nEndObj\n", types);
+    auto buildings = assets::BuildingTable::from_cod(doc);
+    REQUIRE(buildings.ok());
+
+    // Twelve players; player 10 uses a banner that the original does not have.
+    auto banners = render::BannerTable::original();
+    const sim::BannerId teal = banners.add(render::Banner{"meinmod:tuerkis", {0, 160, 160, 255}, std::nullopt, 8});
+    CHECK(teal == 7);
+    std::vector<sim::Player> players(12);
+    players[10] = sim::Player{sim::PlayerRole::Human, teal, 0, "Fünfter"};
+    sim::World world;
+    world.set_players(players);
+    sim::WorldIsland island{assets::IslandHeader{}, sim::IslandMap(1, 1), 5, 5};
+    REQUIRE(island.map.place(*buildings->by_id(20100), 0, 0, 0, 0, 10).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    REQUIRE(world.player(10) != nullptr);
+    CHECK(world.player(sim::kNoPlayer) == nullptr);
+
+    const render::AnimationClock clock(*buildings);
+    render::WorldLayers layers;
+    layers.extent = render::SpriteExtent{16, 8};
+    layers.banners = &banners;
+    layers.owner_tint = true;
+    const render::WorldView view{render::Zoom::Small, 0};
+    render::Viewport all;
+    render::world_pixel_size(view, all.width, all.height);
+    std::vector<render::DrawCommand> commands;
+    render::build_world_draw_list(world, *buildings, clock, view, all, layers, commands);
+    const auto it = std::find_if(commands.begin(), commands.end(), [](const render::DrawCommand& c) {
+        return c.sprite == render::DrawCommand::kOverlayDiamond;
+    });
+    REQUIRE(it != commands.end());
+    CHECK(it->tint == (assets::Rgba{0, 160, 160, render::kOverlayAlpha}));
 }
 
 TEST_CASE("scenario: savegame names from Game.dat") {

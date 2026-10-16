@@ -12,7 +12,7 @@ IslandMap::IslandMap(std::uint32_t width, std::uint32_t height)
     : m_width(width), m_height(height), m_top(std::size_t{width} * height), m_ground(std::size_t{width} * height) {}
 
 core::Status IslandMap::place(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                              std::uint8_t anim_phase, std::uint8_t owner) {
+                              std::uint8_t anim_phase, PlayerId owner) {
     rotation &= 3U;
     std::uint32_t fw = 0;
     std::uint32_t fh = 0;
@@ -139,7 +139,7 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
                 continue;
             }
             if (auto status = map.place(*b, tile.x, tile.y, tile.rotation(), tile.anim_phase(),
-                                        std::min<std::uint8_t>(tile.player(), MapCell::kNoOwner));
+                                        player_from_original(tile.player()));
                 !status) {
                 warn(status.error().message);
             }

@@ -4,23 +4,21 @@
 #include <algorithm>
 #include <cmath>
 
-#include "o1602/sim/world.hpp"
-
 namespace o1602::render {
 
 namespace {
 
 /// Size of the world in view space (rotations 1 and 3 swap width and height).
-void view_size(std::uint8_t rotation, std::int32_t& w, std::int32_t& h) {
-    const bool swapped = (rotation & 1U) != 0;
-    w = static_cast<std::int32_t>(swapped ? sim::World::kHeight : sim::World::kWidth);
-    h = static_cast<std::int32_t>(swapped ? sim::World::kWidth : sim::World::kHeight);
+void view_size(const WorldView& view, std::int32_t& w, std::int32_t& h) {
+    const bool swapped = (view.rotation & 1U) != 0;
+    w = static_cast<std::int32_t>(swapped ? view.world_height : view.world_width);
+    h = static_cast<std::int32_t>(swapped ? view.world_width : view.world_height);
 }
 
-TilePos view_to_world(std::uint8_t rotation, std::int32_t vx, std::int32_t vy) {
-    constexpr auto W = static_cast<std::int32_t>(sim::World::kWidth);
-    constexpr auto H = static_cast<std::int32_t>(sim::World::kHeight);
-    switch (rotation & 3U) {
+TilePos view_to_world(const WorldView& view, std::int32_t vx, std::int32_t vy) {
+    const auto W = static_cast<std::int32_t>(view.world_width);
+    const auto H = static_cast<std::int32_t>(view.world_height);
+    switch (view.rotation & 3U) {
         case 0:
             return {static_cast<std::uint32_t>(vx), static_cast<std::uint32_t>(vy)};
         case 1:
@@ -37,7 +35,7 @@ TilePos view_to_world(std::uint8_t rotation, std::int32_t vx, std::int32_t vy) {
 std::optional<TilePos> world_tile_at(const WorldView& view, double px, double py) {
     std::int32_t vw = 0;
     std::int32_t vh = 0;
-    view_size(view.rotation, vw, vh);
+    view_size(view, vw, vh);
     const double half_w = tile_width(view.zoom) / 2.0;
     const double half_h = tile_height(view.zoom) / 2.0;
     // Offset from the centre of view tile (0, 0) at (vh * half_w, half_h), in half tiles:
@@ -49,7 +47,13 @@ std::optional<TilePos> world_tile_at(const WorldView& view, double px, double py
     if (vx < 0 || vy < 0 || vx >= vw || vy >= vh) {
         return std::nullopt;
     }
-    return view_to_world(view.rotation, vx, vy);
+    return view_to_world(view, vx, vy);
+}
+
+void Camera::set_world_size(std::uint32_t width, std::uint32_t height) {
+    m_view.world_width = std::max<std::uint32_t>(1, width);
+    m_view.world_height = std::max<std::uint32_t>(1, height);
+    clamp();
 }
 
 void Camera::set_screen(std::int32_t width, std::int32_t height, std::int32_t pixel_scale) {
