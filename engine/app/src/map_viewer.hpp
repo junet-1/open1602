@@ -74,6 +74,7 @@ private:
     sim::World m_world;
     assets::Palette m_palette;
     assets::FigureTable m_figures;
+    std::vector<render::BuildingFlag> m_building_flags;  ///< buildings do not move: collected once at load
     ViewerOptions m_options;
 
     std::unique_ptr<platform::SdlSystem> m_sdl;

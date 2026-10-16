@@ -99,6 +99,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
                                                     std::move(palette).value(), options));
     viewer->m_figures = std::move(figures).value();
+    viewer->m_building_flags = render::collect_building_flags(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
     if (!sdl) {
@@ -395,6 +396,7 @@ void MapViewer::render() {
         layers.atlas = &graphics->atlas;
         layers.ship_base = graphics->atlas.sheet_base(1);
         layers.owner_tint = m_show_owners;
+        layers.building_flags = &m_building_flags;
         render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), layers,
                                       m_commands);
         std::int32_t ox = 0;

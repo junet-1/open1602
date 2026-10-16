@@ -88,8 +88,8 @@ nicht durch eine Umfärbung der Palette. Die Flagge eines Schiffs wählt das Spi
 | 6 | freier Händler | – (keine Flagge) | |
 
 `FAHNEWEISS` (111, Sprites 232–239) ist die weiße Fahne und keine Spielerfarbe. Die acht Sprites
-je Farbe sind die Animationsphasen des Wehens. Ebenso gibt es eigene Varianten für Marktflaggen
-(`FAHNEMARKT`, `ANIM` 0–5 je 8 Bilder) und vermutlich für die Soldaten (`SOLDAT.BSH`, noch nicht untersucht).
+je Farbe sind die Animationsphasen des Wehens. Ebenso gibt es eigene Varianten für die Gebäudeflaggen
+(`FAHNEMARKT`, `ANIM` 0–5 je 8 Bilder, dieselben Sprites; siehe [rendering.md](../re/rendering.md#6-gebäudeflaggen-anzeigefiguren)) und vermutlich für die Soldaten (`SOLDAT.BSH`, noch nicht untersucht).
 
 > Korrektur: Eine frühere Fassung von [rendering.md](../re/rendering.md) vermutete hinter den
 > 256-Byte-Tabellen ab `0x005B6360` Spielerfarben. Es sind **Helligkeits- und Farbstich-Tabellen**,

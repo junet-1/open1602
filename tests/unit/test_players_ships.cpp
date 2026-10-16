@@ -279,6 +279,80 @@ TEST_CASE("world renderer: ownership view adds diamonds in the owner's colour") 
                        [](const render::DrawCommand& c) { return c.sprite == render::DrawCommand::kOverlayDiamond; }));
 }
 
+TEST_CASE("world renderer: warehouse flags in the owner's colour") {
+    const assets::CodPredefinedSymbol haus_types[] = {{"HAUS", 1}};
+    const auto haeuser = assets::cod::parse(
+        "Objekt: HAUS\n"
+        "  @Nummer: 0\n  Id: 22101\n  Gfx: 0\n  Size: 2, 3\n  Rotate: 6\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Rauchfignr: 60\n  EndObj\n"
+        "  @Nummer: +1\n  Id: 22102\n  Gfx: 24\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n  EndObj\n"
+        "EndObj\n",
+        haus_types);
+    auto buildings = assets::BuildingTable::from_cod(haeuser);
+    REQUIRE(buildings.ok());
+    const assets::BuildingType& kontor = *buildings->by_id(22101);
+    CHECK(kontor.prod_kind == 8);
+    CHECK(kontor.attached_figures[0] == 60);
+    CHECK(buildings->by_id(22102)->attached_figures[0] == 0);
+
+    const assets::CodPredefinedSymbol fig_types[] = {{"FIGUR", 1}};
+    const auto figuren = assets::cod::parse(
+        "Objekt: FIGUR\n"
+        "  Nummer: 60\n  Gfx: 0\n  Blocknr: 2\n  Rotate: 0\n  Posoffs: -40, 40\n  Fahnoffs: 0.5, -0.5, 2.0\n"
+        "EndObj\n",
+        fig_types);
+    auto figures = assets::FigureTable::from_cod(figuren);
+    REQUIRE(figures.ok());
+
+    sim::World world;
+    world.set_players({sim::Player{}, sim::Player{assets::PlayerKind::Computer, assets::PlayerColor::Yellow, 0, ""}});
+    sim::WorldIsland island{assets::IslandHeader{}, sim::IslandMap(8, 8), 5, 5};
+    REQUIRE(island.map.place(kontor, 1, 1, 0, 0, 1).ok());                    // owned, rotation 0
+    REQUIRE(island.map.place(kontor, 0, 4, 1, 0, 1).ok());                    // owned, rotation 1 (3x2)
+    REQUIRE(island.map.place(kontor, 4, 0, 0, 0).ok());                       // no city: no flag
+    REQUIRE(island.map.place(*buildings->by_id(22102), 7, 7, 0, 0, 1).ok());  // no Rauchfignr
+    REQUIRE(world.add_island(std::move(island)).ok());
+
+    const auto flags = render::collect_building_flags(world, *buildings, *figures);
+    REQUIRE(flags.size() == 2);
+    // Centre of the footprint plus Fahnoffs turned with the building (0x004466A0).
+    CHECK(flags[0].x == 7.5);  // 5 + 1 + 2/2 + 0.5
+    CHECK(flags[0].y == 7.0);  // 5 + 1 + 3/2 - 0.5
+    CHECK(flags[0].z == 2.0);
+    CHECK(flags[0].figure == 60);
+    CHECK(flags[0].owner == 1);
+    CHECK(flags[1].x == 7.0);   // 5 + 0 + 3/2 - (-0.5)
+    CHECK(flags[1].y == 10.5);  // 5 + 4 + 2/2 + 0.5
+
+    // Ship sheet: 6 colours x 8 frames.
+    const auto terrain = make_sheet({{4, 2}});
+    const auto ship_sheet = make_sheet(std::vector<std::pair<std::uint32_t, std::uint32_t>>(48, {8, 4}));
+    const auto palette = make_palette();
+    const assets::SpriteSheet* sheets[] = {&terrain, &ship_sheet};
+    auto atlas = render::SpriteAtlas::build(sheets, palette, 256);
+    REQUIRE(atlas.ok());
+    render::WorldLayers layers;
+    layers.figures = &*figures;
+    layers.atlas = &*atlas;
+    layers.ship_base = atlas->sheet_base(1);
+    render::BuildingFlag flag = flags[0];
+    flag.phase = 0;
+    render::ShipSprites s;
+    REQUIRE(render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 200, s));
+    // Yellow (colour 2) = third ANIM, frame 200 / 90 = 2.
+    CHECK(s.hull.sprite == layers.ship_base + 16 + 2);
+    // Point: x = (7.5 - 7.0 + 350) * 32, y = 14.5 * 16 = 232; centred, bottom 2.0 * 32 higher.
+    CHECK(s.hull.x == 11216 - 4);
+    CHECK(s.hull.y == 232 - 64);
+    CHECK(!s.has_flag);
+    CHECK(s.row == (232 + 40 - 1) / 16);  // sorted by y + Posoffs[1]
+
+    // The free trader (colour 6) has no flag sprites.
+    world.set_players({sim::Player{}, sim::Player{assets::PlayerKind::Trader, assets::PlayerColor::Trader, 0, ""}});
+    CHECK(!render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 0, s));
+}
+
 TEST_CASE("scenario: savegame names from Game.dat") {
     const char* game_dat =
         "  Lastfile: \"X:\\Games\\Anno 1602\\Savegame\\lastgame.gam\"\n"

@@ -71,6 +71,36 @@ struct RotatedWorld {
     }
 };
 
+/// World point (continuous tile coordinates) -> world pixel position of the current view
+/// (0x0044D940: x = (fx - fy) * w/2, y = (fx + fy) * (h+1)/2 after the view rotation).
+void project_point(const WorldView& view, double wx, double wy, double& sx, double& sy) {
+    const RotatedWorld rw(view.rotation);
+    constexpr double W = sim::World::kWidth;
+    constexpr double H = sim::World::kHeight;
+    double fx = wx;
+    double fy = wy;
+    switch (rw.rotation) {
+        case 1:
+            fx = H - wy;
+            fy = wx;
+            break;
+        case 2:
+            fx = W - wx;
+            fy = H - wy;
+            break;
+        case 3:
+            fx = wy;
+            fy = W - wx;
+            break;
+        default:
+            break;
+    }
+    sx = (fx - fy + static_cast<double>(rw.height)) * (tile_width(view.zoom) / 2.0);
+    sy = (fx + fy) * (tile_height(view.zoom) / 2.0);
+}
+
+constexpr std::uint64_t kFlagFrameMs = 90;  // AnimSpeed of the flag figures
+
 }  // namespace
 
 void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& height) {
@@ -131,32 +161,10 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     const double hw = tw / 2.0;
     const double hh = tile_height(view.zoom) / 2.0;
 
-    // Figure position in continuous view coordinates (tile centre), then the same projection as the
-    // tiles (0x0044D940: x = (fx - fy) * w/2, y = (fx + fy) * (h+1)/2).
-    constexpr double W = sim::World::kWidth;
-    constexpr double H = sim::World::kHeight;
-    const double wx = ship.x + 0.5;
-    const double wy = ship.y + 0.5;
-    double fx = wx;
-    double fy = wy;
-    switch (rw.rotation) {
-        case 1:
-            fx = H - wy;
-            fy = wx;
-            break;
-        case 2:
-            fx = W - wx;
-            fy = H - wy;
-            break;
-        case 3:
-            fx = wy;
-            fy = W - wx;
-            break;
-        default:
-            break;
-    }
-    const double screen_x = (fx - fy + static_cast<double>(rw.height)) * hw;
-    const double screen_y = (fx + fy) * hh;
+    // Figure position: tile centre, projected like the tiles.
+    double screen_x = 0.0;
+    double screen_y = 0.0;
+    project_point(view, ship.x + 0.5, ship.y + 0.5, screen_x, screen_y);
 
     // Hull: sprite = Gfx + ((direction + 2 * view rotation) & 7) * Rotate (0x0044FA60), centred,
     // bottom at y + Posoffs[0] * w / 64 (field +0x0C of the figure record).
@@ -178,7 +186,6 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     const assets::FigureType* flag =
         owner != nullptr ? layers.figures->flag_for_color(static_cast<std::uint8_t>(owner->color)) : nullptr;
     if (flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
-        constexpr std::uint64_t kFlagFrameMs = 90;  // AnimSpeed of the flag figures
         out.flag.sprite = layers.ship_base + flag->gfx + static_cast<std::uint32_t>((time_ms / kFlagFrameMs) % 8);
         const AtlasRect& fr = layers.atlas->rect(out.flag.sprite);
         const double angle = static_cast<double>((dir + 2U) & 7U) * std::numbers::pi / 4.0;
@@ -191,6 +198,109 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
         out.flag.y = static_cast<std::int32_t>(std::lround(top)) + fr.height;
         out.has_flag = true;
     }
+    return true;
+}
+
+std::vector<BuildingFlag> collect_building_flags(const sim::World& world, const assets::BuildingTable& buildings,
+                                                 const assets::FigureTable& figures) {
+    constexpr std::int32_t kProdMarkt = 7;      // HAUS_PRODTYP Kind MARKT
+    constexpr std::int32_t kProdKontor = 8;     // KONTOR
+    constexpr std::int32_t kProdWachturm = 16;  // WACHTURM: same branch in 0x00486DA0
+    std::vector<BuildingFlag> flags;
+    for (const sim::WorldIsland& island : world.islands()) {
+        const sim::IslandMap& map = island.map;
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                const sim::MapCell& cell = map.top(x, y);
+                if (cell.empty() || cell.owner == sim::MapCell::kNoOwner) {
+                    continue;  // the original only spawns flags for buildings inside a city
+                }
+                const sim::SubTile sub = map.sub_tile(buildings, x, y);
+                if (sub.building == nullptr || sub.origin_x != static_cast<std::int32_t>(x) ||
+                    sub.origin_y != static_cast<std::int32_t>(y)) {
+                    continue;  // one flag per building, at its origin tile
+                }
+                const assets::BuildingType& b = *sub.building;
+                if (b.prod_kind != kProdMarkt && b.prod_kind != kProdKontor && b.prod_kind != kProdWachturm) {
+                    continue;
+                }
+                // Figure 0 is a real definition in figuren.cod, but 0 here means "none" (the pirate
+                // warehouse names an undefined FAHNEKONTOR and gets no flag).
+                const assets::FigureType* fig =
+                    b.attached_figures[0] == 0 ? nullptr : figures.get(b.attached_figures[0]);
+                if (fig == nullptr) {
+                    continue;
+                }
+                // Building centre (0x00463A70) plus Fahnoffs rotated with the building (0x004466A0).
+                std::uint32_t w = 0;
+                std::uint32_t h = 0;
+                sim::rotated_size(b, cell.rotation, w, h);
+                double cx = island.x + x + w * 0.5;
+                double cy = island.y + y + h * 0.5;
+                const double f0 = fig->fahnoffs[0];
+                const double f1 = fig->fahnoffs[1];
+                switch (cell.rotation & 3U) {
+                    case 0:
+                        cx += f0;
+                        cy += f1;
+                        break;
+                    case 1:
+                        cx -= f1;
+                        cy += f0;
+                        break;
+                    case 2:
+                        cx -= f0;
+                        cy -= f1;
+                        break;
+                    default:
+                        cx += f1;
+                        cy -= f0;
+                        break;
+                }
+                flags.push_back(BuildingFlag{cx, cy, fig->fahnoffs[2], static_cast<std::uint16_t>(fig->number),
+                                             cell.owner, static_cast<std::uint8_t>((island.x + x + island.y + y) % 8)});
+            }
+        }
+    }
+    return flags;
+}
+
+bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, const WorldView& view,
+                          const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out) {
+    if (layers.figures == nullptr || layers.atlas == nullptr) {
+        return false;
+    }
+    const assets::FigureType* fig = layers.figures->get(flag.figure);
+    const sim::Player* owner = world.player(flag.owner);
+    if (fig == nullptr || owner == nullptr || fig->sheet != assets::FigureSheet::Ship) {
+        return false;
+    }
+    // Flag figures have one 8-frame ANIM per colour (FAHNEMARKT: AnimOffs 0, 8, ... 40);
+    // the free trader (colour 6) has none.
+    const auto color = static_cast<std::uint32_t>(owner->color);
+    if (color > 5) {
+        return false;
+    }
+    const auto frame = static_cast<std::uint32_t>((time_ms / kFlagFrameMs + flag.phase) % 8);
+    out.hull.sprite = layers.ship_base + fig->gfx + 8U * color + frame;
+    out.hull.tint = DrawCommand::kNoTint;
+    out.has_flag = false;
+    const AtlasRect& r = layers.atlas->rect(out.hull.sprite);
+    double sx = 0.0;
+    double sy = 0.0;
+    project_point(view, flag.x, flag.y, sx, sy);
+    const double tw = tile_width(view.zoom);
+    // Drawn like a standing figure (0x0044FA90, kind 0x1D): centred, bottom at y - height.
+    // The routine also adds Posoffs[0] * w/64 (-40 for the flag figures), but then every flag
+    // hangs exactly 40 px (full zoom) above its pole; without it the cloth meets the pole tip on
+    // towers and warehouses alike. Open until checked against the original (docs/re/rendering.md).
+    out.hull.x = static_cast<std::int32_t>(std::lround(sx)) - r.width / 2;
+    out.hull.y = static_cast<std::int32_t>(std::lround(sy - flag.z * tw / 2.0));
+    // Depth: the original sorts display figures by y + Posoffs[1] * w/64 (0x00451F74; +40 for the
+    // flags), i.e. behind the rows of the building they belong to - otherwise the market hall
+    // would cover its own flag.
+    const auto key = static_cast<std::int32_t>(std::lround(sy + fig->posoffs[1] * tw / 64.0));
+    out.row = floor_div(key - 1, tile_height(view.zoom) / 2);
     return true;
 }
 
@@ -234,6 +344,15 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             ShipSprites s;
             if (ship_sprites(ship, world, view, layers, clock.elapsed_ms(), s) && s.row >= d_begin && s.row <= d_end) {
                 ships.push_back(s);
+            }
+        }
+        if (layers.building_flags != nullptr) {
+            for (const BuildingFlag& flag : *layers.building_flags) {
+                ShipSprites f;
+                if (building_flag_sprite(flag, world, view, layers, clock.elapsed_ms(), f) && f.row >= d_begin &&
+                    f.row <= d_end) {
+                    ships.push_back(f);
+                }
             }
         }
         std::stable_sort(ships.begin(), ships.end(),

@@ -62,7 +62,11 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         b.rand_count = static_cast<std::uint16_t>(r.integer("RandAnz"));
         b.rand_add = static_cast<std::uint16_t>(r.integer("RandAdd"));
         if (const auto* prod = r.records("HAUS_PRODTYP"); prod != nullptr && !prod->empty()) {
-            b.prod_kind = prod->begin()->second.integer("Kind");
+            const auto& prodtyp = prod->begin()->second;
+            b.prod_kind = prodtyp.integer("Kind");
+            for (std::size_t i = 0; i < b.attached_figures.size(); ++i) {
+                b.attached_figures[i] = static_cast<std::uint16_t>(std::max(0, prodtyp.integer("Rauchfignr", i)));
+            }
         }
 
         // Duplicate ids exist in the original (three ruins); the first record wins, as in the

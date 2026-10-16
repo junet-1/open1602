@@ -608,6 +608,8 @@ int cmd_render_world(const Args& args) {
     layers.atlas = &*atlas;
     layers.ship_base = atlas->sheet_base(1);
     layers.owner_tint = args.flag("--owners");
+    const auto flags = render::collect_building_flags(*world, *buildings, *figures);
+    layers.building_flags = &flags;
     std::vector<render::DrawCommand> commands;
     render::build_world_draw_list(*world, *buildings, clock, view, viewport, layers, commands);
     render::RgbaImage image;
@@ -626,6 +628,8 @@ int cmd_render_world(const Args& args) {
         std::printf("player: kind %u, colour %u, money %d\n", static_cast<unsigned>(p.kind),
                     static_cast<unsigned>(p.color), p.money);
     }
+    std::printf("%zu building flags\n", flags.size());
+
     std::printf("%zu ships, %zu islands, %zu sprites, atlas %zu page(s) -> %s (%ux%u)\n", world->ships().size(),
                 world->islands().size(), commands.size(), atlas->pages().size(),
                 std::string(args.positional[1]).c_str(), image.width, image.height);

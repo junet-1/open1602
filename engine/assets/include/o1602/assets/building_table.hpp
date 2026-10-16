@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -33,6 +34,9 @@ struct BuildingType {
     std::int32_t kreuz_base = 0;   ///< KreuzBase: related base record (e.g. road crossings)
     std::uint16_t rand_count = 0;  ///< RandAnz: number of random variants
     std::uint16_t rand_add = 0;    ///< RandAdd: sprite distance between variants
+    /// HAUS_PRODTYP/Rauchfignr: figures shown on the building (record +0x41): smoke of workshops,
+    /// flags of warehouses (KONTOR) and markets (MARKT), the market jugglers. 0 = none.
+    std::array<std::uint16_t, 2> attached_figures{};
 
     /// Number of base sprites (one per covered tile).
     [[nodiscard]] std::uint32_t tile_count() const noexcept { return size_x * size_y; }

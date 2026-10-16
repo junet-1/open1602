@@ -55,6 +55,23 @@ struct SpriteExtent {
                                                              const AnimationClock& clock, const WorldView& view,
                                                              const Viewport& viewport, const SpriteExtent& extent);
 
+/// Flag on a warehouse (HAUS_PRODTYP Kind KONTOR), market (MARKT) or tower (WACHTURM) in the colour
+/// of its owner.
+/// The original spawns these as display figures for visible buildings every frame (0x00486DA0 ->
+/// 0x004466A0, kind 0x1D); buildings do not move, so Open1602 collects them once per world.
+struct BuildingFlag {
+    double x = 0.0;  ///< world position in tiles (continuous): building centre + rotated Fahnoffs
+    double y = 0.0;
+    double z = 0.0;            ///< height: Fahnoffs[2] in half tile widths
+    std::uint16_t figure = 0;  ///< flag figure (FAHNEMARKT, FAHNEKONTOR1..4)
+    std::uint8_t owner = 7;    ///< player slot
+    std::uint8_t phase = 0;    ///< animation offset so neighbouring flags do not wave in lockstep
+};
+
+[[nodiscard]] std::vector<BuildingFlag> collect_building_flags(const sim::World& world,
+                                                               const assets::BuildingTable& buildings,
+                                                               const assets::FigureTable& figures);
+
 /// Everything besides the tiles that goes into the world draw list.
 struct WorldLayers {
     SpriteExtent extent;
@@ -65,6 +82,8 @@ struct WorldLayers {
     std::uint32_t ship_base = 0;
     /// Ownership view: tiles owned by a player get DrawCommand::tint = the owner's colour.
     bool owner_tint = false;
+    /// Warehouse, market and tower flags (collect_building_flags); drawn like ships (same sheet).
+    const std::vector<BuildingFlag>* building_flags = nullptr;
 };
 
 /// Draw list including ships (drawn after the flat pass of their tile row, like the figures in
@@ -82,6 +101,10 @@ struct ShipSprites {
 };
 [[nodiscard]] bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view,
                                 const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out);
+
+/// Sprite and row of a building flag (exposed for tests); the flag is returned in `out.hull`.
+[[nodiscard]] bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, const WorldView& view,
+                                        const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out);
 
 /// Same, but fills `out` (cleared first) so a per-frame caller can reuse its allocation.
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,

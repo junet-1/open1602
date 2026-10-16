@@ -411,6 +411,36 @@ TEST_CASE("data: players, colours and ships of scenarios") {
     CHECK(figures->flag_for_color(6) == nullptr);
 }
 
+TEST_CASE("data: warehouse, market and tower flags of a scenario") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(figures.ok());
+    auto file = assets::ChunkFile::load(*game.resolve("szenes/das atoll.szs"));
+    REQUIRE(file.ok());
+    auto world = sim::load_world(*file, *buildings, game, nullptr);
+    REQUIRE(world.ok());
+
+    const auto flags = render::collect_building_flags(*world, *buildings, *figures);
+    // "Das Atoll": the three computer players start with warehouses and markets, the pirates
+    // with a fortress full of towers; the natives' buildings and the pirate warehouse fly none.
+    std::size_t per_owner[8] = {};
+    for (const auto& f : flags) {
+        const auto* fig = figures->get(f.figure);
+        REQUIRE(fig != nullptr);
+        CHECK(fig->sheet == assets::FigureSheet::Ship);
+        CHECK(fig->gfx == 192U);  // FAHNEMARKT and its copies: one 8-frame ANIM per colour
+        ++per_owner[f.owner & 7U];
+    }
+    CHECK(per_owner[0] == 0);
+    CHECK(per_owner[1] == 8);
+    CHECK(per_owner[2] == 7);
+    CHECK(per_owner[3] == 7);
+    CHECK(per_owner[5] == 61);
+    CHECK(per_owner[6] == 0);
+}
+
 TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
     const auto game = require_game();
     const auto dat = game.resolve("Game.dat");
