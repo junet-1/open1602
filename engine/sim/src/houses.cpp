@@ -499,7 +499,7 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
     std::vector<Source> sources;
     const IslandMap& map = world.islands()[island].map;
     for (const Production& p : world.productions()) {
-        if (p.island != island) {
+        if (!p.used || p.island != island) {
             continue;
         }
         const MapCell& cell = map.top(p.x, p.y);

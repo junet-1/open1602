@@ -37,6 +37,7 @@ void Simulation::set_speed(std::uint32_t speed) noexcept {
 
 void Simulation::advance(std::uint32_t real_ms) {
     if (m_speed == 0) {
+        apply_commands();
         return;
     }
     std::uint64_t game_ms = std::uint64_t{real_ms} * m_speed;
@@ -50,7 +51,88 @@ void Simulation::advance(std::uint32_t real_ms) {
     }
 }
 
+std::uint64_t Simulation::submit(Command command) {
+    const std::uint64_t sequence = m_next_command++;
+    m_commands.emplace_back(sequence, std::move(command));
+    return sequence;
+}
+
+void Simulation::apply_commands() {
+    while (!m_commands.empty()) {
+        auto [sequence, command] = std::move(m_commands.front());
+        m_commands.pop_front();
+        CommandResult result;
+        result.sequence = sequence;
+        const std::size_t first = m_construction_events.size();
+        if (const auto* build = std::get_if<BuildOrder>(&command)) {
+            result.build = execute_build(*m_world, *m_buildings, *build, m_city_names, &m_construction_events);
+        } else if (const auto* demolish = std::get_if<DemolishOrder>(&command)) {
+            result.demolished = execute_demolish(*m_world, *m_buildings, *demolish, &m_construction_events);
+        }
+        handle(m_construction_events, first);
+        m_command_results.push_back(std::move(result));
+    }
+    if (m_construction_events.size() > kMaxPendingEvents) {
+        m_construction_events.erase(m_construction_events.begin(),
+                                    m_construction_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+    }
+    if (m_command_results.size() > kMaxPendingEvents) {
+        m_command_results.erase(m_command_results.begin(),
+                                m_command_results.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+    }
+}
+
+void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_t first) {
+    bool storage = false;
+    for (std::size_t i = first; i < events.size(); ++i) {
+        const ConstructionEvent& e = events[i];
+        switch (e.kind) {
+            case ConstructionEvent::Kind::Removed:
+                if (e.production) {
+                    // S-002: figures of a building that is gone end their trip; what they carry
+                    // is lost and what they reserved is released.
+                    m_logistics.building_removed(*e.production);
+                }
+                break;
+            case ConstructionEvent::Kind::StorageChanged:
+            case ConstructionEvent::Kind::CityFounded:
+            case ConstructionEvent::Kind::CityDissolved:
+                storage = true;
+                break;
+            case ConstructionEvent::Kind::Placed:
+                break;
+        }
+    }
+    if (storage) {
+        m_logistics.update_storage();
+        // A smaller warehouse loses what does not fit (0x00482120).
+        for (std::size_t i = first; i < events.size(); ++i) {
+            if (events[i].kind != ConstructionEvent::Kind::StorageChanged) {
+                continue;
+            }
+            if (City* c = m_world->city(events[i].island, events[i].city)) {
+                for (std::uint32_t& g : c->goods) {
+                    g = std::min(g, c->capacity);
+                }
+            }
+        }
+    }
+}
+
+std::vector<CommandResult> Simulation::take_command_results() {
+    std::vector<CommandResult> results;
+    results.swap(m_command_results);
+    return results;
+}
+
+std::vector<ConstructionEvent> Simulation::take_construction_events() {
+    std::vector<ConstructionEvent> events;
+    events.swap(m_construction_events);
+    return events;
+}
+
 void Simulation::tick() {
+    apply_commands();
     m_time_ms += kTickMs;
     m_world->set_time_ms(m_time_ms);
     // Growth first, as in the original (0x0047CA80 is the first subsystem of 0x00489670).

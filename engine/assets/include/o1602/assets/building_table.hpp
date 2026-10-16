@@ -41,6 +41,23 @@ struct BuildingType {
     /// Speedtyp: 0 carriers, 1 soldiers, 2 carts and riders, 3 other). Stored like the original as
     /// value * 32 / 100 (32 = 100 % = full speed, larger is slower), at most 126 (0x00462834).
     std::array<std::uint8_t, 4> walk_speed{32, 32, 32, 32};
+    /// PlaceFlg (record +0x6A bit 2): may stand outside every city (the Kontor that founds one;
+    /// terrain such as meadows).
+    bool place_outside = false;
+    /// Strandflg (record +0x6A bit 5): stands at the coast with its long side to the beach (Kontor).
+    bool coastal = false;
+    /// Ausbauflg (record +0x6A bit 6): replaces a building of the same KreuzBase family in place
+    /// (Kontor I to IV, deep mine, Weberei, stone walls).
+    bool upgrade = false;
+    /// Destroyflg (record +0x6A bit 7): a destroyed building (destroyed Kontor or market).
+    bool destroyed = false;
+    /// Strandoff, Mundoff (record +0x67, +0x68): records to the beach variant and, on a river
+    /// mouth, further on to its variant.
+    std::uint8_t beach_offset = 0;
+    std::uint8_t mouth_offset = 0;
+    /// Randwachs (record +0x40, value * 128 / 100): how well crops grow on this ground, 128 =
+    /// the island's full fertility (0x004684A0); the default 100 gives 128.
+    std::uint8_t edge_growth = 128;
     std::uint32_t build_gfx = 0;   ///< Baugfx: icon in the build menu
     std::int32_t kreuz_base = 0;   ///< KreuzBase: related base record (e.g. road crossings)
     std::uint16_t rand_count = 0;  ///< RandAnz: number of random variants
@@ -86,6 +103,11 @@ struct BuildingType {
     /// HAUS_PRODTYP/BGruppe (record +0x2E): class of inhabitants of a house (WOHNUNG), index into
     /// BuildingTable::resident_classes().
     std::uint8_t resident_class = 0;
+    /// HAUS_PRODTYP/Bauinfra (record +0x2F): unlock level a player needs to build it (INFRA_*
+    /// number, BuildingTable::infra_levels()); 0 = always.
+    std::uint8_t infra = 0;
+    /// HAUS_PRODTYP/Arbeiter (record +0x34): workers (city statistics).
+    std::uint16_t workers = 0;
     /// HAUS_BAUKOST: what building costs (goods in 1/32 t, record +0x4C..+0x54).
     struct BuildCost {
         std::uint32_t tools = 0;    ///< Werkzeug
@@ -127,6 +149,13 @@ struct ResidentClass {
     std::vector<Need> needs;          ///< besides food, in file order
 };
 
+/// An unlock level (BAUINFRA in haeuser.cod): a city reaches it when it has `min_inhabitants`
+/// inhabitants of class `resident_class` or higher (0x0047F8A0).
+struct InfraLevel {
+    std::uint8_t resident_class = 0;
+    std::uint32_t min_inhabitants = 0;
+};
+
 /// All building types of haeuser.cod with lookups by id and by sprite index
 /// (the original keeps the latter in a table at 0x00619B60).
 class BuildingTable {
@@ -166,6 +195,9 @@ public:
         std::uint8_t cannons = 13;
     };
     [[nodiscard]] const Materials& materials() const noexcept { return m_materials; }
+    /// Unlock levels by INFRA number (index 0 unused, levels without a BAUINFRA entry are {0, 0}:
+    /// reached at once).
+    [[nodiscard]] const std::vector<InfraLevel>& infra_levels() const noexcept { return m_infra; }
     /// First house record of a class of inhabitants (table order; 0x00462D50), nullptr if none.
     [[nodiscard]] const BuildingType* first_house(std::size_t resident_class) const noexcept;
     /// Ruin record for Ruinenr `ruin` (table 0x00619B20), the beach variant on beach ground;
@@ -184,6 +216,7 @@ private:
     std::vector<std::int32_t> m_by_record;  ///< index by Nummer, -1 = none
     std::int32_t m_open_sea = -1;
     std::vector<ResidentClass> m_classes;
+    std::vector<InfraLevel> m_infra;
     std::uint32_t m_food_need = 0;
     std::uint8_t m_food_ware = 14;
     Materials m_materials;  ///< index (not a pointer, so copies of the table stay valid)

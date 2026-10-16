@@ -56,10 +56,11 @@ private:
 
 /// One generator per subsystem.
 enum class RandomStream : std::uint8_t {
-    Houses,   ///< house variants on upgrades
-    Events,   ///< fires, plague, robbers
-    Animals,  ///< deer
-    Pirates,  ///< what pirates take
+    Houses,        ///< house variants on upgrades
+    Events,        ///< fires, plague, robbers
+    Animals,       ///< deer
+    Pirates,       ///< what pirates take
+    Construction,  ///< random bits of new buildings (house timer group, growth class), ruins
     Count,
 };
 

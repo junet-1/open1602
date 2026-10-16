@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "build_tool.hpp"
+
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
@@ -77,6 +79,10 @@ private:
     core::Status save_screenshot(const std::filesystem::path& path);
 
     void zoom_by(int steps, double sx, double sy);
+    /// Island tile under the mouse, nullopt over the sea.
+    [[nodiscard]] std::optional<BuildTool::Spot> spot_at_mouse() const;
+    /// Results of building and demolishing (messages, flags of new buildings).
+    void apply_construction();
     /// Animation phases of buildings that started or stopped work (presentation only).
     void apply_production_events();
 
@@ -109,6 +115,8 @@ private:
     double m_mouse_x = 0.0;  ///< in output pixels
     double m_mouse_y = 0.0;
     std::size_t m_sprites_drawn = 0;
+    BuildTool m_tool;
+    std::string m_tool_status;  ///< what the build tool would do at the mouse
 };
 
 }  // namespace o1602::app

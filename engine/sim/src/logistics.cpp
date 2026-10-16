@@ -160,7 +160,7 @@ std::uint8_t& Logistics::jobs(std::uint32_t production) {
 }
 
 std::optional<BuildingAt> Logistics::building_of(std::uint32_t production) const {
-    if (production >= m_world->productions().size()) {
+    if (production >= m_world->productions().size() || !m_world->productions()[production].used) {
         return std::nullopt;
     }
     const Production& p = m_world->productions()[production];
@@ -883,6 +883,24 @@ void Logistics::deliver(Walker& w) {
         m_stats.raw_delivered += w.load;
     }
     w.load = 0;
+}
+
+void Logistics::building_removed(std::uint32_t production) {
+    std::vector<Handle> gone;
+    m_walkers.for_each([&](Handle h, const Walker& w) {
+        if (w.home == production || (w.source && *w.source == production)) {
+            gone.push_back(h);
+        }
+    });
+    for (const Handle h : gone) {
+        if (Walker* w = m_walkers.get(h)) {
+            w->load = 0;
+            finish(h, *w);
+        }
+    }
+    if (production < m_jobs.size()) {
+        m_jobs[production] = 0;
+    }
 }
 
 void Logistics::finish(Handle h, Walker& w) {

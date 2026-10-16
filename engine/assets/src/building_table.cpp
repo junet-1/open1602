@@ -74,6 +74,14 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             const std::int32_t percent = r.integer("Wegspeed", i, 100);
             b.walk_speed[i] = static_cast<std::uint8_t>(std::clamp(percent * 32 / 100, 1, 126));
         }
+        b.place_outside = (r.integer("PlaceFlg") & 1) != 0;
+        b.coastal = (r.integer("Strandflg") & 1) != 0;
+        b.upgrade = (r.integer("Ausbauflg") & 1) != 0;
+        b.destroyed = (r.integer("Destroyflg") & 1) != 0;
+        b.beach_offset = static_cast<std::uint8_t>(std::clamp(r.integer("Strandoff"), 0, 255));
+        b.mouth_offset = static_cast<std::uint8_t>(std::clamp(r.integer("Mundoff"), 0, 255));
+        // Stored as value * 128 / 100 (record +0x40).
+        b.edge_growth = static_cast<std::uint8_t>(std::clamp(r.integer("Randwachs", 0, 100) * 128 / 100, 0, 255));
         b.build_gfx = non_negative(r.integer("Baugfx"));
         b.kreuz_base = r.integer("KreuzBase");
         b.rand_count = static_cast<std::uint16_t>(r.integer("RandAnz"));
@@ -106,6 +114,8 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.continuous_animation = (prodtyp.integer("Anicontflg") & 1) != 0;
             b.withered = (prodtyp.integer("Doerrflg") & 1) != 0;
             b.resident_class = static_cast<std::uint8_t>(non_negative(prodtyp.integer("BGruppe")));
+            b.infra = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Bauinfra"))));
+            b.workers = static_cast<std::uint16_t>(std::min(65535U, non_negative(prodtyp.integer("Arbeiter"))));
             if (const cod::Field* kosten = prodtyp.field("Kosten"); kosten != nullptr) {
                 b.running_cost = non_negative(kosten->integer(0));
                 b.idle_cost = non_negative(kosten->integer(1));
@@ -212,6 +222,26 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             }
         }
     }
+
+    // Unlock levels (BAUINFRA, table 0x0061FBC0: {BGruppe, Minwohn} by INFRA number).
+    if (const auto* infra = haeuser.root.records("BAUINFRA")) {
+        for (const auto& [nummer, level] : *infra) {
+            if (nummer < 0 || nummer > 255) {
+                continue;
+            }
+            if (static_cast<std::size_t>(nummer) >= table.m_infra.size()) {
+                table.m_infra.resize(static_cast<std::size_t>(nummer) + 1);
+            }
+            table.m_infra[static_cast<std::size_t>(nummer)] =
+                InfraLevel{static_cast<std::uint8_t>(non_negative(level.integer("BGruppe"))),
+                           non_negative(level.integer("Minwohn"))};
+        }
+    }
+    std::size_t max_infra = table.m_infra.size();
+    for (const BuildingType& b : table.m_types) {
+        max_infra = std::max<std::size_t>(max_infra, std::size_t{b.infra} + 1);
+    }
+    table.m_infra.resize(max_infra);
 
     constexpr std::int32_t kKindMeer = 19;
     constexpr std::int32_t kProdKindOpenSea = 9;

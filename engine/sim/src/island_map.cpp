@@ -22,16 +22,21 @@ std::uint8_t city_of(const assets::IslandTile& tile) {
 
 core::Status IslandMap::place(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                               std::uint8_t anim_phase, PlayerId owner, std::uint8_t city) {
-    return write(b, x, y, rotation, anim_phase, owner, city, false);
+    return write(b, x, y, rotation, anim_phase, owner, city, Mode::Place);
+}
+
+core::Status IslandMap::build(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                              std::uint8_t anim_phase, PlayerId owner, std::uint8_t city) {
+    return write(b, x, y, rotation, anim_phase, owner, city, Mode::Build);
 }
 
 core::Status IslandMap::replace(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                                 std::uint8_t anim_phase) {
-    return write(b, x, y, rotation, anim_phase, kNoPlayer, MapCell::kNoCity, true);
+    return write(b, x, y, rotation, anim_phase, kNoPlayer, MapCell::kNoCity, Mode::Replace);
 }
 
 core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                              std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool keep) {
+                              std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode) {
     rotation &= 3U;
     std::uint32_t fw = 0;
     std::uint32_t fh = 0;
@@ -49,10 +54,10 @@ core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std
         const std::size_t i = index(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
         PlayerId o = owner;
         std::uint8_t c = city;
-        if (keep) {
+        if (mode == Mode::Replace) {
             o = m_top[i].owner;  // a house changing class keeps its owner and city
             c = m_top[i].city;
-        } else if (!m_top[i].empty()) {
+        } else if (mode == Mode::Place && !m_top[i].empty()) {
             m_ground[i] = m_top[i];
         }
         m_top[i] = MapCell{static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation,
@@ -154,7 +159,14 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
     for (const auto& layer : island.layers) {
         layers.push_back(&layer);
     }
+    // The template (or, without one, the island's first layer) is the original terrain: it fills
+    // the ground layer of every tile, the later layers lie on top.
+    const std::size_t base_layers = base != nullptr ? base->layers.size() : std::min<std::size_t>(1, layers.size());
+    std::size_t layer_index = 0;
     for (const auto* layer : layers) {
+        if (layer_index++ == base_layers) {
+            map.capture_ground();
+        }
         for (const auto& tile : *layer) {
             const assets::BuildingType* b = buildings.by_id(tile.cod_id());
             if (b == nullptr) {
@@ -168,6 +180,9 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
                 warn(status.error().message);
             }
         }
+    }
+    if (layer_index <= base_layers) {
+        map.capture_ground();
     }
     return map;
 }

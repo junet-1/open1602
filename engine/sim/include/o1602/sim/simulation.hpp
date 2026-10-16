@@ -7,10 +7,15 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
+#include <optional>
+#include <string>
+#include <variant>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/sim/construction.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/logistics.hpp"
@@ -19,6 +24,16 @@
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
+
+/// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
+using Command = std::variant<BuildOrder, DemolishOrder>;
+
+/// What became of a command.
+struct CommandResult {
+    std::uint64_t sequence = 0;      ///< as returned by Simulation::submit()
+    std::optional<BuildPlan> build;  ///< build orders: what was built and why the rest was not
+    std::size_t demolished = 0;      ///< demolish orders: buildings removed
+};
 
 class Simulation {
 public:
@@ -32,7 +47,19 @@ public:
                Rules rules = Rules::open1602());
 
     /// Advances by `real_ms` of real time at the current speed; runs whole ticks and keeps the rest.
+    /// Commands are applied even while the game is paused (the player may build then).
     void advance(std::uint32_t real_ms);
+
+    /// Queues a command for the start of the next tick; returns its sequence number.
+    std::uint64_t submit(Command command);
+    /// Applies the queued commands now (the start of a tick does this).
+    void apply_commands();
+    /// Results of the applied commands since the last call.
+    [[nodiscard]] std::vector<CommandResult> take_command_results();
+    /// What building and demolishing changed since the last call.
+    [[nodiscard]] std::vector<ConstructionEvent> take_construction_events();
+    /// Names for new cities (Text.cod [STAEDTE]).
+    void set_city_names(std::vector<std::string> names) { m_city_names = std::move(names); }
     /// One tick of game time.
     void tick();
 
@@ -55,6 +82,7 @@ public:
 
 private:
     void pay_upkeep();
+    void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 
     World* m_world;
     const assets::BuildingTable* m_buildings;
@@ -71,6 +99,11 @@ private:
     std::uint32_t m_upkeep_ms = 0;  ///< game time since the military upkeep was last paid
     std::uint32_t m_island_ms = 0;  ///< game time since the last island epoch
     Logistics m_logistics;
+    std::deque<std::pair<std::uint64_t, Command>> m_commands;
+    std::uint64_t m_next_command = 1;
+    std::vector<CommandResult> m_command_results;
+    std::vector<ConstructionEvent> m_construction_events;
+    std::vector<std::string> m_city_names;
 };
 
 }  // namespace o1602::sim

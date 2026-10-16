@@ -52,6 +52,9 @@ public:
     /// Changes the picture of a tile in place (a field ripening or harvested: the original swaps
     /// the sprite bits of the grid word, 0x0047CA80 / 0x0047C830).
     void set_sprite(std::uint32_t x, std::uint32_t y, std::uint16_t sprite) { m_top[index(x, y)].sprite = sprite; }
+    void set_rotation(std::uint32_t x, std::uint32_t y, std::uint8_t rotation) {
+        m_top[index(x, y)].rotation = static_cast<std::uint8_t>(rotation & 3U);
+    }
     void set_anim_phase(std::uint32_t x, std::uint32_t y, std::uint8_t phase) {
         m_top[index(x, y)].anim_phase = static_cast<std::uint8_t>(phase & 0x0FU);
     }
@@ -63,6 +66,30 @@ public:
     /// Fails (without changes) if the rotated footprint leaves the island.
     core::Status place(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                        std::uint8_t anim_phase, PlayerId owner = kNoPlayer, std::uint8_t city = MapCell::kNoCity);
+
+    /// A building the player builds (0x00463B10): like place(), but the ground layer stays as it is
+    /// (it keeps the island's original terrain, which demolishing restores).
+    core::Status build(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                       std::uint8_t anim_phase, PlayerId owner, std::uint8_t city);
+
+    /// Takes the current picture as the original terrain of every tile (the ground layer the
+    /// original keeps at island + 0xAFC).
+    void capture_ground() { m_ground = m_top; }
+
+    /// Demolishing: the tile shows its ground again (sprite, rotation, phase); city and owner stay.
+    void restore_ground(std::uint32_t x, std::uint32_t y) {
+        MapCell& t = m_top[index(x, y)];
+        const MapCell& g = m_ground[index(x, y)];
+        t.sprite = g.sprite;
+        t.rotation = g.rotation;
+        t.anim_phase = g.anim_phase;
+    }
+
+    /// Territory: the city (and its owner) a tile belongs to.
+    void set_city(std::uint32_t x, std::uint32_t y, std::uint8_t city, PlayerId owner) {
+        m_top[index(x, y)].city = city;
+        m_top[index(x, y)].owner = owner;
+    }
 
     /// Replaces the building whose footprint lies at (x, y) by another one of the same size in
     /// place (a house changing class, ruins): owner, city and the ground below stay (0x00463EF0).
@@ -80,8 +107,9 @@ public:
                                  std::vector<std::string>* warnings = nullptr, const assets::Island* base = nullptr);
 
 private:
+    enum class Mode : std::uint8_t { Place, Replace, Build };
     core::Status write(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                       std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool keep);
+                       std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode);
     [[nodiscard]] std::size_t index(std::uint32_t x, std::uint32_t y) const { return std::size_t{y} * m_width + x; }
 
     std::uint32_t m_width;

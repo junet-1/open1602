@@ -60,6 +60,11 @@ Eingeborenen. Die Nummer des Platzes ist zugleich die **Besitzernummer** in den 
 | 0x006 | u8 | immer 1 (Bedeutung offen) |
 | 0x007 | u8 | **Spielerfarbe** (siehe unten) |
 | 0x00D | u8 | im Netzwerkspiel ausgewertet (`0x00473C50`) |
+| 0x00E | u8 | Schlösser gebaut (Laufzeit +0x87, höchstens eines) |
+| 0x00F | u8 | Kathedralen gebaut (+0x88) |
+| 0x010, 0x012 | u16, u16 | Triumphbögen: Zuteilungen, gebaut (+0x8E, +0x90) |
+| 0x034 | u32 | **erreichte Baustufen**: Bit n − 1 = INFRA-Stufe n (Laufzeit +0x6C, [construction.md](../re/construction.md#freischaltung)) |
+| 0x038, 0x03A | u16, u16 | Denkmäler: Zuteilungen, gebaut (+0x8A, +0x8C) |
 | 0x3C0 | char[64] | Name des Spielers (in Szenarien leer, im Spielstand der Name des Menschen) |
 | 0x400 | char[64] | zweiter Name (Netzwerk) |
 
@@ -119,7 +124,8 @@ bei Schiff + 4), die Position, Richtung und Figurnummer trägt.
 | 0x04C | u8 | Schiff + 0x1A3 (bei den Händlerschiffen 0, 1, 2 … – Platz im Verband?) |
 | 0x04D | u8 | **Insel an der Schiffsposition** (`0x0046A570`, z. B. am Kontor), 0xFF = offenes Meer |
 | 0x050 | u8 | **Richtung 0–7** (Byte 3 der Anzeigefigur, 45°-Schritte) |
-| 0x052… | | vier Gruppen à 0x24 Byte (Handelsroute?) und ab 0x174 acht Ladeplätze (Ware als Id − 20000, Menge) |
+| 0x052… | | vier Gruppen à 0x24 Byte (Handelsroute?) |
+| 0x174 | 8 × 8 Byte | **Ladung**: u16 Ware als Id des Erzeugers − 20000 (wie `KONTOR2`), u16 Menge in 1/32 t, 4 Byte frei; leerer Platz = 0 |
 
 > Korrektur: Eine frühere Fassung hielt Byte 0x04D für die Richtung. Es ist die Insel, an der das
 > Schiff liegt. Die Richtung steht in 0x050. Aufgefallen ist das am weitergespielten Spielstand, in dem
@@ -170,7 +176,7 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | Militärgebäude: Insel, x, y, 9 Plätze (3) |
 | `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | Wohnhäuser: Insel, x, y, Epochen, Klasse, Marktentfernung, Einwohner · 64, Zeitgruppe, Markt- und Dienstbits ([houses.md](../re/houses.md)) (132) |
 | `ROHWACHS2` | 8 | `0x00485C20` | `0x00562DC8`, 32860 × 8 | Wachstum von Feldern, Bäumen, Plantagen, Fischgründen: Insel, x, y, Klasse, gesehener Zählerstand, Stufe, 2 Byte 0 ([growth.md](../re/growth.md)) |
-| `TIMERS` | 0x298 | `0x00485D10` | verstreute Zähler (`0x005A77E0`, `0x005DBAB0`, …) | globale Zähler und Zeitgeber; +0x64: 32 Zähler der Wachstumsklassen (0–7), +0x218: 32 Klassenuhren in ms, +0x44: 16 Epochen der Hauszeitgruppen, +0x198: 16 Hauszeitgeber in ms, +0xA8: Spieleinstellungen (`0x005B706C`) |
+| `TIMERS` | 0x298 | `0x00485D10` | verstreute Zähler (`0x005A77E0`, `0x005DBAB0`, …) | globale Zähler und Zeitgeber; +0x64: 32 Zähler der Wachstumsklassen (0–7), +0x218: 32 Klassenuhren in ms, +0x44: 16 Epochen der Hauszeitgruppen, +0x198: 16 Hauszeitgeber in ms, +0xA0: Spielzeit in 1/10 s, +0xA8: Spieleinstellungen (`0x005B706C`), +0xB0: nächster Stadtname aus `[STAEDTE]` (`0x005B3168`) |
 | `AUFTRAG4` | – | `0x00478558` | – | Aufträge/Ziele des Szenarios (2244 Byte, noch nicht untersucht) |
 | `WIFF` | 4 | `0x00485EE0` | u32 `0x005B3160` | Bedeutung offen |
 

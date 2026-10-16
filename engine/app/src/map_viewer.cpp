@@ -8,6 +8,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
+#include "o1602/assets/text_table.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/render/world_renderer.hpp"
 
@@ -85,6 +86,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_building_figures =
         render::collect_building_figures(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_local_player = sim::first_human_player(viewer->m_world);
+    if (auto texts = assets::TextTable::load(game)) {
+        viewer->m_simulation.set_city_names(texts->section("STAEDTE"));
+    }
     viewer->m_soldiers.reset(viewer->m_world, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
@@ -134,7 +138,8 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_figures(std::move(figures)),
       m_options(std::move(options)),
       m_simulation(m_world, m_buildings, m_figures),
-      m_clock(m_buildings) {}
+      m_clock(m_buildings),
+      m_tool(m_buildings) {}
 
 MapViewer::~MapViewer() {
     // GPU resources must go before the renderer/window, which go before SDL_Quit.
@@ -247,11 +252,24 @@ void MapViewer::handle_event(const SDL_Event& original) {
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = true;
+            } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.active()) {
+                if (const auto spot = spot_at_mouse()) {
+                    m_tool.press(*spot);
+                }
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = false;
+            } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
+                if (const auto spot = spot_at_mouse()) {
+                    if (auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
+                        m_simulation.submit(std::move(*order));
+                    } else if (auto demolish = m_tool.demolish_order(m_local_player, *spot)) {
+                        m_simulation.submit(*demolish);
+                    }
+                }
+                m_tool.release();
             }
             break;
         case SDL_EVENT_MOUSE_WHEEL: {  // U-001: the original has no wheel zoom
@@ -288,8 +306,30 @@ void MapViewer::handle_key(int key, bool shift) {
     const double cy = h / 2.0;
     switch (key) {
         case SDLK_ESCAPE:
+            if (m_tool.active()) {
+                m_tool.set_mode(BuildTool::Mode::Off);
+            } else {
+                m_running = false;
+            }
+            break;
         case SDLK_Q:
             m_running = false;
+            break;
+        case SDLK_B:
+            m_tool.set_mode(m_tool.mode() == BuildTool::Mode::Build ? BuildTool::Mode::Off : BuildTool::Mode::Build);
+            break;
+        case SDLK_X:
+            m_tool.set_mode(m_tool.mode() == BuildTool::Mode::Demolish ? BuildTool::Mode::Off
+                                                                       : BuildTool::Mode::Demolish);
+            break;
+        case SDLK_TAB:
+            m_tool.cycle(shift ? -1 : 1);
+            break;
+        case SDLK_COMMA:
+            m_tool.rotate(-1);
+            break;
+        case SDLK_PERIOD:
+            m_tool.rotate(1);
             break;
         case SDLK_1:
         case SDLK_2:
@@ -359,13 +399,60 @@ void MapViewer::update(std::uint32_t delta_ms) {
         const double distance = kScrollSpeed * (fast ? 3.0 : 1.0) * delta_ms / 1000.0;
         m_camera.scroll(dx * distance, dy * distance);
     }
-    if (!m_paused) {
+    if (m_paused) {
+        m_simulation.apply_commands();  // building is possible while paused
+    } else {
         m_simulation.advance(delta_ms);
         apply_production_events();
         m_clock.advance(delta_ms);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_walkers.update(m_simulation.logistics(), m_world, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_simulation.speed());
+    }
+    apply_construction();
+}
+
+std::optional<BuildTool::Spot> MapViewer::spot_at_mouse() const {
+    const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y);
+    if (!tile) {
+        return std::nullopt;
+    }
+    const auto& cell = m_world.cell(tile->x, tile->y);
+    if (cell.island == sim::World::kSea) {
+        return std::nullopt;
+    }
+    return BuildTool::Spot{cell.island, cell.local_x, cell.local_y};
+}
+
+void MapViewer::apply_construction() {
+    for (const sim::CommandResult& r : m_simulation.take_command_results()) {
+        if (!r.build) {
+            if (r.demolished != 0) {
+                std::fprintf(stderr, "demolished %zu\n", r.demolished);
+            }
+            continue;
+        }
+        std::fprintf(stderr, "built %zu of %zu", r.build->placed, r.build->items.size());
+        for (const sim::PlannedBuild& item : r.build->items) {
+            if (!item.ok()) {
+                std::fprintf(stderr, " - %s", sim::refusal_name(item.refusal));
+                break;
+            }
+        }
+        std::fprintf(stderr, "\n");
+    }
+    bool changed = false;
+    for (const sim::ConstructionEvent& e : m_simulation.take_construction_events()) {
+        changed = true;
+        if (e.kind == sim::ConstructionEvent::Kind::CityFounded) {
+            if (const sim::City* c = m_world.city(e.island, e.city)) {
+                std::fprintf(stderr, "a new city was founded: %s\n", c->name.c_str());
+            }
+        }
+    }
+    if (changed) {
+        // Flags, smoke and status icons of the new buildings.
+        m_building_figures = render::collect_building_figures(m_world, m_buildings, m_figures);
     }
 }
 
@@ -391,8 +478,56 @@ void MapViewer::render() {
         layers.owner_tint = m_show_owners;
         layers.building_figures = &m_building_figures;
         layers.local_player = m_local_player;
+        // The building the tool would place, drawn into the map for this frame only.
+        struct Saved {
+            std::uint16_t island;
+            std::uint32_t x;
+            std::uint32_t y;
+            sim::MapCell cell;
+        };
+        std::vector<Saved> saved;
+        m_tool_status.clear();
+        if (m_tool.mode() == BuildTool::Mode::Build) {
+            if (const auto spot = spot_at_mouse()) {
+                if (const auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
+                    const sim::BuildPlan plan = sim::plan_build(m_world, m_buildings, *order);
+                    sim::IslandMap& map = m_world.island(order->island).map;
+                    for (const sim::PlannedBuild& item : plan.items) {
+                        if (!item.ok()) {
+                            if (m_tool_status.empty()) {
+                                m_tool_status = sim::refusal_name(item.refusal);
+                            }
+                            continue;
+                        }
+                        std::uint32_t w = 1;
+                        std::uint32_t h = 1;
+                        sim::rotated_size(*item.type, item.rotation, w, h);
+                        for (std::uint32_t j = 0; j < h; ++j) {
+                            for (std::uint32_t i = 0; i < w; ++i) {
+                                const auto tx = static_cast<std::uint32_t>(item.x) + i;
+                                const auto ty = static_cast<std::uint32_t>(item.y) + j;
+                                saved.push_back(Saved{order->island, tx, ty, map.top(tx, ty)});
+                            }
+                        }
+                        const sim::MapCell& at =
+                            map.top(static_cast<std::uint32_t>(item.x), static_cast<std::uint32_t>(item.y));
+                        (void)map.build(*item.type, item.x, item.y, item.rotation, 0, at.owner, at.city);
+                    }
+                    if (m_tool_status.empty()) {
+                        m_tool_status = std::to_string(plan.bill.money) + " gold";
+                    }
+                }
+            }
+        }
         render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), layers,
                                       m_commands);
+        for (auto it = saved.rbegin(); it != saved.rend(); ++it) {
+            sim::IslandMap& map = m_world.island(it->island).map;
+            map.set_sprite(it->x, it->y, it->cell.sprite);
+            map.set_city(it->x, it->y, it->cell.city, it->cell.owner);
+            map.set_anim_phase(it->x, it->y, it->cell.anim_phase);
+            map.set_rotation(it->x, it->y, it->cell.rotation);
+        }
         std::int32_t ox = 0;
         std::int32_t oy = 0;
         m_camera.screen_origin(ox, oy);
@@ -422,6 +557,8 @@ void MapViewer::apply_production_events() {
         const std::string name = city != nullptr ? city->name : std::string("?");
         if (e.kind == sim::CityEvent::Kind::Hunger) {
             std::fprintf(stderr, "%s: the people are starving\n", name.c_str());
+        } else if (e.kind == sim::CityEvent::Kind::Unlocked) {
+            std::fprintf(stderr, "%s: build level %u reached\n", name.c_str(), e.infra);
         } else {
             std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
         }
@@ -446,6 +583,12 @@ void MapViewer::update_title(double fps) {
                 title += ", " + player_label(*p, top.owner, m_banners);
             }
             title += ")";
+        }
+    }
+    if (m_tool.active()) {
+        title += " | " + m_tool.describe();
+        if (!m_tool_status.empty()) {
+            title += ": " + m_tool_status;
         }
     }
     char perf[64];

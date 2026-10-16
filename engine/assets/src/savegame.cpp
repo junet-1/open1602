@@ -241,6 +241,10 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         if (data.size() >= kTimersGameTime + 4) {
             state.game_time = u32(data, kTimersGameTime);
         }
+        constexpr std::size_t kTimersCityName = 0xB0;
+        if (data.size() >= kTimersCityName + 4) {
+            state.city_name_index = u32(data, kTimersCityName);
+        }
     }
     return state;
 }

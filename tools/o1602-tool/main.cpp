@@ -42,6 +42,7 @@
 #include "o1602/assets/savegame.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
+#include "o1602/assets/text_table.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/core/text.hpp"
@@ -52,6 +53,7 @@
 #include "o1602/render/walker_figures.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/construction.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -83,6 +85,7 @@ int usage() {
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
         "                          [--tile X,Y] [--size WxH] [--owners] [--original-sheets] [--original-flags]\n"
         "                          [--banner P:RRGGBB] [--simulate SECONDS] [--walkers]\n"
+        "                          [--build \"ID@X,Y[,R];...\"]  (world tiles, for the first human player)\n"
         "                          (default: whole world at zoom 2; --simulate: run the economy first; "
         "--original-sheets: no figures where the\n"
         "                          original has no graphics for them; --original-flags: the original flag\n"
@@ -643,6 +646,40 @@ int cmd_render_world(const Args& args) {
     auto figures = assets::FigureTable::load(*game);
     if (!figures) {
         return fail(figures.error());
+    }
+    // --build "ID@X,Y[,R];..." places buildings for the first human player (world tiles).
+    if (const auto it = args.options.find("--build"); it != args.options.end()) {
+        std::vector<std::string> names;
+        if (auto texts = assets::TextTable::load(*game)) {
+            names = texts->section("STAEDTE");
+        }
+        std::string spec(it->second);
+        std::size_t pos = 0;
+        while (pos < spec.size()) {
+            const std::size_t end = std::min(spec.find(';', pos), spec.size());
+            const std::string item = spec.substr(pos, end - pos);
+            pos = end + 1;
+            unsigned id = 0;
+            unsigned x = 0;
+            unsigned y = 0;
+            unsigned r = 0;
+            if (std::sscanf(item.c_str(), "%u@%u,%u,%u", &id, &x, &y, &r) < 3 || !world->contains(x, y)) {
+                std::fprintf(stderr, "bad --build item '%s'\n", item.c_str());
+                continue;
+            }
+            const auto& cell = world->cell(x, y);
+            if (cell.island == sim::World::kSea) {
+                std::fprintf(stderr, "--build %s: open sea\n", item.c_str());
+                continue;
+            }
+            sim::BuildOrder order;
+            order.player = sim::first_human_player(*world);
+            order.island = cell.island;
+            order.items = {{id, cell.local_x, cell.local_y, static_cast<std::uint8_t>(r & 3U), 0}};
+            const sim::BuildPlan plan = sim::execute_build(*world, *buildings, order, names, nullptr);
+            std::printf("build %s: %s\n", item.c_str(),
+                        plan.placed == 1 ? "ok" : sim::refusal_name(plan.items[0].refusal));
+        }
     }
     std::optional<sim::Simulation> simulation;
     if (const auto seconds = args.number("--simulate")) {

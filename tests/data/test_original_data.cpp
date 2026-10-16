@@ -35,6 +35,7 @@
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/construction.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
@@ -1236,4 +1237,167 @@ TEST_CASE("data: a hunting lodge set into a savegame hunts with the original dat
     CHECK(simulation.logistics().stats().deer_hunted >= 3);
     const sim::Production& p = world->productions()[lodge_index];
     CHECK(p.produced > 0);
+}
+
+TEST_CASE("data: unlocked build levels of the players follow the BAUINFRA table") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    const auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    CHECK(buildings->infra_levels().size() >= 33);
+    CHECK(buildings->infra_levels()[4].min_inhabitants == 50);  // INFRA_WIRT: 50 settlers
+    std::size_t checked = 0;
+    for (const auto& save : saves) {
+        // Whatever a city of a player has reached now is unlocked (levels are never locked again).
+        for (const sim::City& c : save.world.cities()) {
+            const sim::Player* owner = save.world.player(c.owner);
+            if (owner == nullptr ||
+                (owner->role != sim::PlayerRole::Human && owner->role != sim::PlayerRole::Computer)) {
+                continue;
+            }
+            sim::World copy = save.world;
+            sim::Player* p = copy.player(c.owner);
+            const std::uint32_t before = p->infra_mask;
+            sim::unlock_levels(copy, *buildings, c, nullptr);
+            CHECK(p->infra_mask == before);
+            ++checked;
+        }
+    }
+    CHECK(checked > 0);
+}
+
+TEST_CASE("data: crops of the players stand on fertile tiles (0x004684A0)") {
+    // The original plants a crop withered where the tile is not fertile; living crops of the
+    // players (not the natives' plantations of the scenario) therefore lie on fertile tiles.
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    const auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    const sim::World& world = saves.front().world;
+    std::size_t fields = 0;
+    std::size_t fertile = 0;
+    for (std::uint16_t i = 0; i < world.islands().size(); ++i) {
+        const sim::IslandMap& map = world.islands()[i].map;
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                const sim::MapCell& cell = map.top(x, y);
+                const assets::BuildingType* b = cell.empty() ? nullptr : buildings->by_sprite(cell.sprite);
+                if (b == nullptr || b->withered || (b->prod_kind != 9 && b->prod_kind != 10)) {
+                    continue;
+                }
+                const std::uint8_t crop = sim::crop_ware(*buildings, *b);
+                if (crop < 45 || crop > 51) {
+                    continue;  // only field crops
+                }
+                const sim::Player* owner = world.player(cell.owner);
+                if (owner == nullptr || owner->role == sim::PlayerRole::Natives) {
+                    continue;
+                }
+                ++fields;
+                fertile += sim::tile_fertile(world, *buildings, i, crop, static_cast<std::int32_t>(x),
+                                             static_cast<std::int32_t>(y))
+                               ? 1U
+                               : 0U;
+            }
+        }
+    }
+    CHECK(fields > 50);
+    CHECK(fertile * 100 >= fields * 98);
+}
+
+TEST_CASE("data: the human player builds and demolishes a house in a savegame") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.front().world;
+    const sim::PlayerId human = sim::first_human_player(world);
+    const sim::City* city = nullptr;
+    for (const sim::City& c : world.cities()) {
+        if (c.owner == human && c.warehouse_x) {
+            city = &c;
+            break;
+        }
+    }
+    if (city == nullptr) {
+        SKIP("the human player has no city");
+    }
+    const std::uint16_t island = city->island;
+    const std::uint8_t index = city->index;
+    const assets::BuildingType* house = buildings->first_house(0);
+    REQUIRE(house != nullptr);
+    // A free 2 x 2 spot of open ground in the city.
+    const sim::IslandMap& map = world.islands()[island].map;
+    std::optional<sim::TilePos> spot;
+    for (std::uint32_t y = 0; y + 1 < map.height() && !spot; ++y) {
+        for (std::uint32_t x = 0; x + 1 < map.width() && !spot; ++x) {
+            bool free = true;
+            for (std::uint32_t j = 0; j < 2; ++j) {
+                for (std::uint32_t i = 0; i < 2; ++i) {
+                    const sim::MapCell& c = map.top(x + i, y + j);
+                    const assets::BuildingType* b = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+                    free = free && b != nullptr && b->kind == 11 && c.city == index;
+                }
+            }
+            if (free) {
+                spot = sim::TilePos{static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)};
+            }
+        }
+    }
+    REQUIRE(spot.has_value());
+    // Enough building material and gold whatever the savegame holds.
+    {
+        sim::City* c = world.city(island, index);
+        for (const std::uint8_t ware : {buildings->materials().tools, buildings->materials().wood}) {
+            c->ensure_ware(ware);
+            c->goods[ware] = std::max<std::uint32_t>(c->goods[ware], 20 * 32);
+        }
+        world.player(human)->money = std::max(world.players()[human].money, 1000);
+    }
+    sim::Simulation simulation(world, *buildings, *figures);
+    const std::int32_t money = world.players()[human].money;
+    const std::uint32_t pioneers = world.city(island, index)->inhabitants[0];
+    sim::BuildOrder order;
+    order.player = human;
+    order.island = island;
+    order.items = {{house->id, spot->x, spot->y, 0, 0}};
+    simulation.submit(order);
+    simulation.tick();
+    const auto results = simulation.take_command_results();
+    REQUIRE(results.size() == 1);
+    REQUIRE(results[0].build.has_value());
+    if (results[0].build->placed != 1) {
+        std::printf("refused: %s\n", sim::refusal_name(results[0].build->items[0].refusal));
+    }
+    REQUIRE(results[0].build->placed == 1);
+    const sim::House* h = world.house(island, static_cast<std::uint16_t>(spot->x), static_cast<std::uint16_t>(spot->y));
+    REQUIRE(h != nullptr);
+    CHECK(world.city(island, index)->inhabitants[0] == pioneers + 1);
+    CHECK(world.players()[human].money <= money - house->build_cost.money + 50);  // money moved on in the tick
+    // A minute of game time with the new house.
+    for (int t = 0; t < 20 * 60; ++t) {
+        simulation.tick();
+    }
+    CHECK(world.house(island, static_cast<std::uint16_t>(spot->x), static_cast<std::uint16_t>(spot->y)) != nullptr);
+    // Demolished: the ground comes back, the inhabitants are gone.
+    simulation.submit(sim::DemolishOrder{human, island, *spot, *spot});
+    simulation.tick();
+    CHECK(world.house(island, static_cast<std::uint16_t>(spot->x), static_cast<std::uint16_t>(spot->y)) == nullptr);
+    const sim::MapCell& after =
+        world.islands()[island].map.top(static_cast<std::uint32_t>(spot->x), static_cast<std::uint32_t>(spot->y));
+    const assets::BuildingType* ground = buildings->by_sprite(after.sprite);
+    REQUIRE(ground != nullptr);
+    CHECK((ground->kind == 11 || ground->kind == 10));
+    CHECK(after.city == index);
 }

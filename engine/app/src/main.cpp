@@ -38,7 +38,10 @@ int usage() {
         "  Space          pause the game              Home                     first island\n"
         "  PageUp/PageDn  game speed x2 / /2\n"
         "  O              ownership view              F12                      screenshot\n"
-        "  Esc / Q        quit\n",
+        "  B              build tool                  X                        demolish tool\n"
+        "  Tab / Shift+Tab next / previous building   , / .                    turn the building\n"
+        "  left mouse     build or demolish (drag: roads, walls, fields, areas)\n"
+        "  Esc            leave the tool, else quit   Q                        quit\n",
         stderr);
     return 2;
 }

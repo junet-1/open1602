@@ -25,13 +25,20 @@ struct CityEvent {
     enum class Kind : std::uint8_t {
         Shortage,  ///< the supply of `ware` fell twice in a row after it was complete ("Es fehlt an ...")
         Hunger,    ///< the food supply fell twice in a row and is at most 76 ("Euer Volk hungert")
+        Unlocked,  ///< the city reached build level `infra` for its owner ("Das Volk wünscht ...")
     };
     Kind kind = Kind::Shortage;
     std::uint16_t island = 0;  ///< index into World::islands()
     std::uint8_t city = 0;     ///< city on the island
     PlayerId owner = kNoPlayer;
     std::uint8_t ware = 0;
+    std::uint8_t infra = 0;  ///< Unlocked: INFRA number
 };
+
+/// Unlocks the build levels a city reached for its owner (0x0047F8A0): level n once the city has
+/// at least Minwohn inhabitants of class BGruppe or higher. Levels stay unlocked.
+void unlock_levels(World& world, const assets::BuildingTable& buildings, const City& city,
+                   std::vector<CityEvent>* events);
 
 /// The tax curve (0x0055E780): how much supply a class asks for at a tax rate (128 = normal ->
 /// 128; lower taxes ask for less, higher ones for more).

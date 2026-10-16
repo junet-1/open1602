@@ -163,6 +163,10 @@ public:
     /// One tick of game time: every figure walks; at the end of its path it picks up or delivers.
     void tick();
 
+    /// A building with production entry `production` is gone: its figures end their trip (their
+    /// load is lost, their reservations are released) - S-002.
+    void building_removed(std::uint32_t production);
+
     /// Every used deer spot gets its deer (the original does this when it loads a game).
     void spawn_deer_at_spots();
     /// One island epoch (30 s, 0x0046B3E0): expired spots get their deer back or are given up, and

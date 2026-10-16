@@ -178,6 +178,8 @@ struct GameState {
     std::vector<HouseRecord> houses;
     std::optional<HouseClocks> house_clocks;
     std::optional<std::uint32_t> game_time;  ///< TIMERS +0xA0: game time in 1/10 s
+    /// TIMERS +0xB0: next name of the [STAEDTE] list of Text.cod a new city gets (0x005B3168).
+    std::optional<std::uint32_t> city_name_index;
     std::vector<CostRecord> shipyards;
     std::vector<CostRecord> castles;
     std::optional<GrowthClocks> growth_clocks;  ///< nothing without a TIMERS chunk

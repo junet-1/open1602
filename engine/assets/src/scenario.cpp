@@ -26,6 +26,10 @@ std::uint16_t read_u16(std::span<const std::uint8_t> d, std::size_t o) {
     return static_cast<std::uint16_t>(d[o] | (d[o + 1] << 8));
 }
 
+std::uint32_t read_u32(std::span<const std::uint8_t> d, std::size_t o) {
+    return static_cast<std::uint32_t>(read_i32(d, o));
+}
+
 /// Zero terminated string inside a fixed field (Windows-1252, kept as raw bytes).
 std::string read_string(std::span<const std::uint8_t> d, std::size_t o, std::size_t max) {
     const auto field = d.subspan(o, max);
@@ -52,6 +56,14 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file) {
         p.slot = data[o + 5];
         p.color = static_cast<PlayerColor>(std::min<std::uint8_t>(data[o + 7], kPlayerColorCount - 1));
         p.name = read_string(data, o + 0x3C0, 0x40);
+        // Saver 0x00478160: the build unlocks and limits of the player record.
+        p.infra_mask = read_u32(data, o + 0x34);
+        p.castles_built = data[o + 0x0E];
+        p.cathedrals_built = data[o + 0x0F];
+        p.arches_allowed = read_u16(data, o + 0x10);
+        p.arches_built = read_u16(data, o + 0x12);
+        p.monuments_allowed = read_u16(data, o + 0x38);
+        p.monuments_built = read_u16(data, o + 0x3A);
         players.push_back(std::move(p));
     }
     return players;
@@ -76,6 +88,13 @@ core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file) {
         s.owner = data[o + 0x4B];
         s.island = data[o + 0x4D];
         s.direction = data[o + 0x50];
+        for (std::size_t c = 0; c < s.cargo.size(); ++c) {
+            const std::size_t at = o + 0x174 + 8 * c;
+            const std::uint16_t producer = read_u16(data, at);
+            if (producer != 0) {
+                s.cargo[c] = ShipRecord::Cargo{std::uint32_t{producer} + 20000U, read_u16(data, at + 2)};
+            }
+        }
         ships.push_back(std::move(s));
     }
     return ships;

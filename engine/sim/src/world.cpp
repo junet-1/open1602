@@ -117,13 +117,44 @@ std::optional<std::uint32_t> World::production_index(std::uint16_t island, std::
 }
 
 void World::set_production(const Production& p) {
-    const auto [it, inserted] = m_production_index.try_emplace(production_key(p.island, p.x, p.y),
-                                                               static_cast<std::uint32_t>(m_productions.size()));
-    if (inserted) {
-        m_productions.push_back(p);
-    } else {
+    const auto key = production_key(p.island, p.x, p.y);
+    if (const auto it = m_production_index.find(key); it != m_production_index.end()) {
         m_productions[it->second] = p;
+        m_productions[it->second].used = true;
+        return;
     }
+    std::uint32_t index = static_cast<std::uint32_t>(m_productions.size());
+    if (!m_free_productions.empty()) {
+        index = m_free_productions.back();
+        m_free_productions.pop_back();
+        m_productions[index] = p;
+    } else {
+        m_productions.push_back(p);
+    }
+    m_productions[index].used = true;
+    m_production_index.emplace(key, index);
+}
+
+std::optional<std::uint32_t> World::remove_production(std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+    const auto it = m_production_index.find(production_key(island, x, y));
+    if (it == m_production_index.end()) {
+        return std::nullopt;
+    }
+    const std::uint32_t index = it->second;
+    m_production_index.erase(it);
+    Production free;
+    free.island = island;
+    free.x = x;
+    free.y = y;
+    free.used = false;
+    free.enabled = false;
+    m_productions[index] = free;
+    m_free_productions.push_back(index);
+    return index;
+}
+
+void World::remove_city(std::uint16_t island, std::uint8_t index) {
+    std::erase_if(m_cities, [&](const City& c) { return c.island == island && c.index == index; });
 }
 
 std::optional<std::uint16_t> World::island_index(std::uint32_t number) const noexcept {
@@ -194,7 +225,15 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     }
     std::vector<Player> slots;
     for (const auto& p : *players) {
-        slots.push_back(Player{role_from_original(p.kind), banner_from_original(p.color), p.money, p.name});
+        Player player{role_from_original(p.kind), banner_from_original(p.color), p.money, p.name};
+        player.infra_mask = p.infra_mask;
+        player.castles_built = p.castles_built;
+        player.cathedrals_built = p.cathedrals_built;
+        player.arches_allowed = p.arches_allowed;
+        player.arches_built = p.arches_built;
+        player.monuments_allowed = p.monuments_allowed;
+        player.monuments_built = p.monuments_built;
+        slots.push_back(std::move(player));
     }
     world.set_players(std::move(slots));
 
@@ -208,7 +247,15 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             continue;
         }
         const auto direction = static_cast<std::uint8_t>(s.direction & 7U);
-        world.add_ship(Ship{s.name, s.x, s.y, s.figure, player_from_original(s.owner), direction});
+        Ship ship{s.name, s.x, s.y, s.figure, player_from_original(s.owner), direction, {}};
+        for (const auto& c : s.cargo) {
+            // Cargo names the good by its producer, like the warehouse chunk KONTOR2.
+            const assets::BuildingType* producer = c.producer != 0 ? buildings.by_id(c.producer) : nullptr;
+            if (producer != nullptr && producer->ware != 0 && c.amount != 0) {
+                ship.cargo.push_back(Ship::Cargo{producer->ware, c.amount});
+            }
+        }
+        world.add_ship(std::move(ship));
     }
     auto state = assets::load_game_state(file);
     if (!state) {
@@ -282,6 +329,9 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     }
     if (state->game_time) {
         world.set_time_ms(std::uint64_t{*state->game_time} * 100);
+    }
+    if (state->city_name_index) {
+        world.set_city_name_index(*state->city_name_index);
     }
     for (std::size_t i = 0; i < world.islands().size(); ++i) {
         world.island(i).deer_phase = world.islands()[i].header.deer_phase;

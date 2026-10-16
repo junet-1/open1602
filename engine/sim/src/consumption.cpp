@@ -230,6 +230,9 @@ std::vector<std::int32_t> running_costs(const World& world, const assets::Buildi
         return cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
     };
     for (const Production& p : world.productions()) {
+        if (!p.used) {
+            continue;
+        }
         const auto i = city_at(p.island, p.x, p.y);
         const assets::BuildingType* b = i ? type_at(p.island, p.x, p.y) : nullptr;
         if (b != nullptr) {
@@ -254,6 +257,41 @@ std::vector<std::int32_t> running_costs(const World& world, const assets::Buildi
     return costs;
 }
 
+void unlock_levels(World& world, const assets::BuildingTable& buildings, const City& city,
+                   std::vector<CityEvent>* events) {
+    Player* owner = world.player(city.owner);
+    if (owner == nullptr) {
+        return;
+    }
+    const auto& levels = buildings.infra_levels();
+    for (std::size_t n = 1; n < levels.size() && n <= 32; ++n) {
+        const std::uint32_t bit = 1U << (n - 1);
+        if ((owner->infra_mask & bit) != 0) {
+            continue;
+        }
+        // Inhabitants of the class and all higher ones, of this one city.
+        std::uint32_t inhabitants = 0;
+        for (std::size_t c = levels[n].resident_class; c < city.inhabitants.size(); ++c) {
+            inhabitants += city.inhabitants[c];
+        }
+        if (inhabitants < levels[n].min_inhabitants) {
+            continue;
+        }
+        // The original posts the whole mask as a value, so two cities unlocking in the same tick
+        // could undo each other for a while (M-009); Open1602 only adds the bit.
+        owner->infra_mask |= bit;
+        if (events != nullptr) {
+            CityEvent e;
+            e.kind = CityEvent::Kind::Unlocked;
+            e.island = city.island;
+            e.city = city.index;
+            e.owner = city.owner;
+            e.infra = static_cast<std::uint8_t>(n);
+            events->push_back(e);
+        }
+    }
+}
+
 void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
     const std::vector<std::int32_t> costs = running_costs(world, buildings);
     for (std::size_t i = 0; i < world.cities().size(); ++i) {
@@ -270,6 +308,7 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
                 // Money (0x0047F8A0): a sixth of the balance per minute, truncated towards zero
                 // every 10 s (kept: small balances cost nothing, as in the original).
                 owner->money += (tax_income(*city, buildings) - costs[i]) / 6;
+                unlock_levels(world, buildings, *city, events);
                 break;
             case PlayerRole::Natives:
                 consume_natives(*city);

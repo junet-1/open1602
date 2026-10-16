@@ -34,6 +34,21 @@ struct Player {
     BannerId banner = 0;
     std::int32_t money = 0;
     std::string name;
+    /// Unlocked build levels: bit n - 1 = INFRA number n (BuildingTable::infra_levels()). A level
+    /// stays unlocked once one city of the player reached it (0x0047F8A0).
+    std::uint32_t infra_mask = 0;
+    /// Buildings the player may build only once or by allowance (record Bauinfra SCHLOSS,
+    /// KATHETRALE, TRIUMPH, DENKMAL).
+    std::uint8_t castles_built = 0;
+    std::uint8_t cathedrals_built = 0;
+    std::uint16_t arches_allowed = 0;
+    std::uint16_t arches_built = 0;
+    std::uint16_t monuments_allowed = 0;
+    std::uint16_t monuments_built = 0;
+
+    [[nodiscard]] bool unlocked(std::uint32_t infra) const noexcept {
+        return infra == 0 || (infra <= 32 && (infra_mask >> (infra - 1) & 1U) != 0);
+    }
 };
 
 /// Owner number of the original files (island tile attribute, SHIP4, PLAYER4 slot): 0..6 are the

@@ -207,6 +207,20 @@ struct Ship {
     std::uint16_t figure = 0;  ///< FIGUR number (figuren.cod)
     PlayerId owner = kNoPlayer;
     std::uint8_t direction = 0;  ///< 0..7
+    /// Goods on board (eight slots in the original), in 1/32 t by ware number.
+    struct Cargo {
+        std::uint8_t ware = 0;
+        std::uint32_t amount = 0;
+    };
+    std::vector<Cargo> cargo;
+    /// Goods of a ware on board.
+    [[nodiscard]] std::uint32_t load(std::uint8_t ware) const noexcept {
+        std::uint32_t n = 0;
+        for (const Cargo& c : cargo) {
+            n += c.ware == ware ? c.amount : 0U;
+        }
+        return n;
+    }
 };
 
 /// The world map: open sea with islands placed on it (the original keeps one 4-byte cell per
@@ -244,6 +258,7 @@ public:
 
     [[nodiscard]] const std::vector<Player>& players() const noexcept { return m_players; }
     [[nodiscard]] const std::vector<Ship>& ships() const noexcept { return m_ships; }
+    [[nodiscard]] std::vector<Ship>& ships() noexcept { return m_ships; }
     /// Player of an owner number, nullptr for "nobody" or unknown slots.
     [[nodiscard]] const Player* player(PlayerId owner) const noexcept {
         return owner < m_players.size() ? &m_players[owner] : nullptr;
@@ -258,6 +273,8 @@ public:
     /// City `index` on island `island` (index into islands()), nullptr if there is none.
     [[nodiscard]] const City* city(std::uint16_t island, std::uint8_t index) const noexcept;
     void add_city(City city) { m_cities.push_back(std::move(city)); }
+    /// Removes a city (it was dissolved); pointers to cities become invalid.
+    void remove_city(std::uint16_t island, std::uint8_t index);
     /// Mutable lookup for the simulation.
     [[nodiscard]] City* city(std::uint16_t island, std::uint8_t index) noexcept;
 
@@ -277,6 +294,10 @@ public:
     /// Removes the house at (x, y); the order of the others may change.
     void remove_house(std::uint16_t island, std::uint16_t x, std::uint16_t y);
 
+    /// Next name of the city name list a new city gets (TIMERS +0xB0, round robin).
+    [[nodiscard]] std::uint32_t city_name_index() const noexcept { return m_city_name_index; }
+    void set_city_name_index(std::uint32_t i) noexcept { m_city_name_index = i; }
+
     /// Game time since the start of the game (TIMERS +0xA0 of a savegame).
     [[nodiscard]] std::uint64_t time_ms() const noexcept { return m_time_ms; }
     void set_time_ms(std::uint64_t t) noexcept { m_time_ms = t; }
@@ -284,6 +305,7 @@ public:
     [[nodiscard]] const HouseClocks& house_clocks() const noexcept { return m_house_clocks; }
     [[nodiscard]] HouseClocks& house_clocks() noexcept { return m_house_clocks; }
     [[nodiscard]] const std::vector<CostBuilding>& cost_buildings() const noexcept { return m_cost_buildings; }
+    [[nodiscard]] std::vector<CostBuilding>& cost_buildings() noexcept { return m_cost_buildings; }
     void add_cost_building(const CostBuilding& b) { m_cost_buildings.push_back(b); }
 
     /// Random generators of the simulation, one per subsystem (random.hpp).
@@ -303,8 +325,11 @@ public:
     /// Index into productions() of that building.
     [[nodiscard]] std::optional<std::uint32_t> production_index(std::uint16_t island, std::uint16_t x,
                                                                 std::uint16_t y) const;
-    /// Adds or replaces the state of the building at (p.island, p.x, p.y).
+    /// Adds or replaces the state of the building at (p.island, p.x, p.y). A new entry takes a
+    /// free slot if there is one.
     void set_production(const Production& p);
+    /// Frees the entry of the building at (x, y); returns its index.
+    std::optional<std::uint32_t> remove_production(std::uint16_t island, std::uint16_t x, std::uint16_t y);
 
     /// Index into islands() of the island with this number (INSEL5 header), if it is placed.
     [[nodiscard]] std::optional<std::uint16_t> island_index(std::uint32_t number) const noexcept;
@@ -324,9 +349,11 @@ private:
     std::vector<House> m_houses;
     HouseClocks m_house_clocks;
     std::uint64_t m_time_ms = 0;
+    std::uint32_t m_city_name_index = 0;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x
+    std::vector<std::uint32_t> m_free_productions;                        ///< free slots, reused last first
     std::vector<Cell> m_cells;
 };
 

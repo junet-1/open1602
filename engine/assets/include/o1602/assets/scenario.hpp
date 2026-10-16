@@ -4,6 +4,7 @@
 // chunk set (one chunk name table in 1602.exe at 0x00498244); see docs/formats/gam.md.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -44,6 +45,15 @@ struct PlayerRecord {
     std::uint8_t slot = 0;  ///< index of the record, also used as owner number on tiles and ships
     PlayerColor color = PlayerColor::Red;
     std::string name;  ///< +0x3C0, Windows-1252; empty in scenarios, the human's name in savegames
+    /// Unlocked build levels: bit n - 1 = INFRA number n (+0x34; runtime player +0x6C, set by the
+    /// city tick 0x0047F8A0 and never cleared).
+    std::uint32_t infra_mask = 0;
+    std::uint8_t castles_built = 0;       ///< +0x0E (runtime +0x87): Schloss built, at most one
+    std::uint8_t cathedrals_built = 0;    ///< +0x0F (+0x88): Kathedrale built, at most one
+    std::uint16_t monuments_allowed = 0;  ///< +0x38 (+0x8A): Denkmal allowances
+    std::uint16_t monuments_built = 0;    ///< +0x3A (+0x8C)
+    std::uint16_t arches_allowed = 0;     ///< +0x10 (+0x8E): Triumphbogen allowances
+    std::uint16_t arches_built = 0;       ///< +0x12 (+0x90)
 };
 
 /// Owner value meaning "nobody" (island tile attribute bits 22..25, ship byte +0x4B).
@@ -63,6 +73,13 @@ struct ShipRecord {
     std::uint8_t direction = 0;  ///< +0x50: byte 3 of the display figure, 0..7 in 45 degree steps
     /// +0x4D: island at the ship's position (0x0046A570, e.g. lying at a warehouse), 0xFF = open sea.
     std::uint8_t island = 0xFF;
+    /// +0x174: eight cargo slots of 8 bytes: the good as the Id of the building that produces it
+    /// (like KONTOR2) and the amount in 1/32 t. Empty slots have producer 0.
+    struct Cargo {
+        std::uint32_t producer = 0;  ///< haeuser.cod Id (20000 + stored value), 0 = empty
+        std::uint16_t amount = 0;
+    };
+    std::array<Cargo, 8> cargo{};
 };
 
 /// PLAYER4 chunk. Files without it (older formats PLAYER2/PLAYER3) yield an empty list.

@@ -38,6 +38,9 @@ struct Production {
     std::uint16_t island = 0;  ///< index into World::islands()
     std::uint16_t x = 0;       ///< origin tile of the building on the island
     std::uint16_t y = 0;
+    /// False for a free slot: the building is gone and the slot waits for a new one (entries keep
+    /// their index, so figures and events can refer to them).
+    bool used = true;
     bool enabled = true;           ///< switched on by the player
     std::uint8_t rate = 0;         ///< working rate of the running cycle, kFullRate = full speed, 0 = idle
     std::uint8_t anim_phase = 0;   ///< animation offset of the building (0..15, presentation only)
