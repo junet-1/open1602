@@ -44,9 +44,11 @@
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/core/text.hpp"
+#include "o1602/render/animal_figures.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/world.hpp"
@@ -75,7 +77,9 @@ int usage() {
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
-        "                          [--tile X,Y] [--size WxH] [--owners]   (default: whole world at zoom 2)\n",
+        "                          [--tile X,Y] [--size WxH] [--owners] [--original-sheets]\n"
+        "                          (default: whole world at zoom 2; --original-sheets: no figures where the\n"
+        "                          original has no graphics for them)\n",
         stderr);
     return 2;
 }
@@ -425,8 +429,9 @@ int cmd_state(const Args& args) {
         std::printf("warehouse: island %u #%u at %u,%u, %zu goods with data\n", w.island, w.city, w.x, w.y, used);
         if (args.flag("--wares")) {
             for (const auto& s : w.wares) {
-                std::printf("  ware %2u (producer %u): %08X %08X %08X %08X\n", s.ware, s.producer_id, s.raw[0],
-                            s.raw[1], s.raw[2], s.raw[3]);
+                std::printf("  ware %2u (producer %u): %6.2f t   raw %08X %08X %08X %08X\n", s.ware, s.producer_id,
+                            s.stock() / static_cast<double>(assets::kStockUnitsPerTon), s.raw[0], s.raw[1], s.raw[2],
+                            s.raw[3]);
             }
         }
     }
@@ -604,36 +609,26 @@ int cmd_render_world(const Args& args) {
     view.zoom = static_cast<render::Zoom>(std::min<std::size_t>(args.number("--zoom").value_or(2), 2));
     view.rotation = static_cast<std::uint8_t>(args.number("--rotation").value_or(0) & 3U);
 
-    const auto sheet_path = game->resolve(render::terrain_sheet_path(view.zoom));
     const auto palette_path = game->resolve(render::kTerrainPalettePath);
-    if (!sheet_path || !palette_path) {
-        return fail(core::make_error(core::ErrorCode::NotFound, "stadtfld.bsh/.col not found"));
-    }
-    auto sheet = assets::SpriteSheet::load(*sheet_path);
-    if (!sheet) {
-        return fail(sheet.error());
+    if (!palette_path) {
+        return fail(core::make_error(core::ErrorCode::NotFound, "stadtfld.col not found"));
     }
     auto palette = assets::Palette::load(*palette_path);
     if (!palette) {
         return fail(palette.error());
     }
-    const auto ship_path = game->resolve(render::ship_sheet_path(view.zoom));
-    if (!ship_path) {
-        return fail(core::make_error(core::ErrorCode::NotFound, "ship.bsh not found"));
-    }
-    auto ship_sheet = assets::SpriteSheet::load(*ship_path);
-    if (!ship_sheet) {
-        return fail(ship_sheet.error());
-    }
     auto figures = assets::FigureTable::load(*game);
     if (!figures) {
         return fail(figures.error());
     }
-    const assets::SpriteSheet* sheets[] = {&*sheet, &*ship_sheet};
-    auto atlas = render::SpriteAtlas::build(sheets, *palette);
-    if (!atlas) {
-        return fail(atlas.error());
+    render::GraphicsOptions graphics_options;
+    graphics_options.derive_missing_sheets = !args.flag("--original-sheets");
+    auto graphics =
+        render::load_world_graphics(*game, *palette, view.zoom, render::kWorldFigureSheets, graphics_options);
+    if (!graphics) {
+        return fail(graphics.error());
     }
+    const render::SpriteAtlas* atlas = &graphics->atlas;
 
     render::AnimationClock clock(*buildings);
     clock.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)));
@@ -660,13 +655,18 @@ int cmd_render_world(const Args& args) {
     render::WorldLayers layers;
     layers.extent = render::SpriteExtent{atlas->max_sprite_width(), atlas->max_sprite_height()};
     layers.figures = &*figures;
-    layers.atlas = &*atlas;
-    layers.ship_base = atlas->sheet_base(1);
+    layers.atlas = atlas;
+    layers.ship_base = graphics->sheet_base(assets::FigureSheet::Ship).value_or(0);
+    layers.sheet_base = graphics->base;
     const auto banners = render::BannerTable::original(&*figures);
     layers.banners = &banners;
     layers.owner_tint = args.flag("--owners");
     const auto flags = render::collect_building_flags(*world, *buildings, *figures);
     layers.building_flags = &flags;
+    render::AnimalFigures animals;
+    animals.reset(*world, *figures);
+    animals.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)), *figures);
+    layers.land_figures = &animals.instances();
     std::vector<render::DrawCommand> commands;
     render::build_world_draw_list(*world, *buildings, clock, view, viewport, layers, commands);
     render::RgbaImage image;

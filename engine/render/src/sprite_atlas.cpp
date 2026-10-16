@@ -16,6 +16,19 @@ core::Result<SpriteAtlas> SpriteAtlas::build(const assets::SpriteSheet& sheet, c
 
 core::Result<SpriteAtlas> SpriteAtlas::build(std::span<const assets::SpriteSheet* const> sheets,
                                              const assets::Palette& palette, std::uint32_t page_size) {
+    std::vector<SheetSource> sources;
+    sources.reserve(sheets.size());
+    for (const assets::SpriteSheet* sheet : sheets) {
+        sources.emplace_back(*sheet, palette);
+    }
+    std::vector<const SpriteSource*> pointers;
+    for (const SheetSource& s : sources) {
+        pointers.push_back(&s);
+    }
+    return build(std::span<const SpriteSource* const>(pointers), page_size);
+}
+
+core::Result<SpriteAtlas> SpriteAtlas::build(std::span<const SpriteSource* const> sources, std::uint32_t page_size) {
     constexpr std::uint32_t kPad = 1;
     if (page_size == 0 || page_size > 0xFFFF) {
         return make_error(ErrorCode::OutOfRange, "invalid atlas page size");
@@ -25,25 +38,28 @@ core::Result<SpriteAtlas> SpriteAtlas::build(std::span<const assets::SpriteSheet
 
     struct Entry {
         std::uint32_t index;  ///< global sprite index
-        const assets::SpriteSheet* sheet;
+        const SpriteSource* source;
         std::uint32_t local;
+        std::uint32_t width;
+        std::uint32_t height;
     };
     std::vector<Entry> entries;
     std::uint32_t total = 0;
-    for (const assets::SpriteSheet* sheet : sheets) {
+    for (const SpriteSource* source : sources) {
         atlas.m_sheet_bases.push_back(total);
-        for (std::uint32_t i = 0; i < sheet->size(); ++i) {
-            entries.push_back(Entry{total + i, sheet, i});
+        const std::uint32_t n = source->count();
+        for (std::uint32_t i = 0; i < n; ++i) {
+            Entry e{total + i, source, i, 0, 0};
+            source->size(i, e.width, e.height);
+            entries.push_back(e);
         }
-        total += static_cast<std::uint32_t>(sheet->size());
+        total += n;
     }
     atlas.m_rects.resize(total);
 
     // Tallest first gives dense shelves; ties by width and index keep the order deterministic.
     std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
-        const auto& ia = a.sheet->info(a.local);
-        const auto& ib = b.sheet->info(b.local);
-        return ia.height != ib.height ? ia.height > ib.height : ia.width > ib.width;
+        return a.height != b.height ? a.height > b.height : a.width > b.width;
     });
 
     std::uint32_t shelf_x = 0;
@@ -58,53 +74,43 @@ core::Result<SpriteAtlas> SpriteAtlas::build(std::span<const assets::SpriteSheet
         shelf_x = shelf_y = shelf_h = 0;
     };
 
+    std::vector<std::uint8_t> rgba;
     for (const Entry& e : entries) {
-        const auto& info = e.sheet->info(e.local);
-        if (info.width == 0 || info.height == 0) {
+        if (e.width == 0 || e.height == 0) {
             continue;
         }
-        if (info.width + kPad > page_size || info.height + kPad > page_size) {
+        if (e.width + kPad > page_size || e.height + kPad > page_size) {
             return make_error(ErrorCode::OutOfRange,
                               "sprite " + std::to_string(e.index) + " does not fit into an atlas page");
         }
-        auto image = e.sheet->decode(e.local);
-        if (!image) {
+        if (!e.source->pixels(e.local, rgba) || rgba.size() < std::size_t{e.width} * e.height * 4) {
             continue;  // corrupt sprite: drawn as missing
         }
         if (atlas.m_pages.empty()) {
             new_page();
         }
-        if (shelf_x + info.width + kPad > page_size) {  // next shelf
+        if (shelf_x + e.width + kPad > page_size) {  // next shelf
             shelf_y += shelf_h;
             shelf_x = 0;
             shelf_h = 0;
         }
-        if (shelf_y + info.height + kPad > page_size) {
+        if (shelf_y + e.height + kPad > page_size) {
             new_page();
         }
         RgbaImage& page = atlas.m_pages.back();
-        for (std::uint32_t y = 0; y < image->height; ++y) {
-            for (std::uint32_t x = 0; x < image->width; ++x) {
-                const std::size_t src = std::size_t{y} * image->width + x;
-                if (image->opaque[src] == 0) {
-                    continue;
-                }
-                const assets::Rgba& c = palette[image->indices[src]];
-                const std::size_t dst = ((std::size_t{shelf_y} + y) * page_size + shelf_x + x) * 4;
-                page.pixels[dst] = c.r;
-                page.pixels[dst + 1] = c.g;
-                page.pixels[dst + 2] = c.b;
-                page.pixels[dst + 3] = 255;
-            }
+        for (std::uint32_t y = 0; y < e.height; ++y) {
+            const std::size_t src = std::size_t{y} * e.width * 4;
+            const std::size_t dst = ((std::size_t{shelf_y} + y) * page_size + shelf_x) * 4;
+            std::copy_n(rgba.begin() + static_cast<std::ptrdiff_t>(src), std::size_t{e.width} * 4,
+                        page.pixels.begin() + static_cast<std::ptrdiff_t>(dst));
         }
-        atlas.m_rects[e.index] =
-            AtlasRect{static_cast<std::uint16_t>(atlas.m_pages.size() - 1), static_cast<std::uint16_t>(shelf_x),
-                      static_cast<std::uint16_t>(shelf_y), static_cast<std::uint16_t>(info.width),
-                      static_cast<std::uint16_t>(info.height)};
-        atlas.m_max_width = std::max(atlas.m_max_width, static_cast<std::int32_t>(info.width));
-        atlas.m_max_height = std::max(atlas.m_max_height, static_cast<std::int32_t>(info.height));
-        shelf_x += info.width + kPad;
-        shelf_h = std::max(shelf_h, info.height + kPad);
+        atlas.m_rects[e.index] = AtlasRect{static_cast<std::uint16_t>(atlas.m_pages.size() - 1),
+                                           static_cast<std::uint16_t>(shelf_x), static_cast<std::uint16_t>(shelf_y),
+                                           static_cast<std::uint16_t>(e.width), static_cast<std::uint16_t>(e.height)};
+        atlas.m_max_width = std::max(atlas.m_max_width, static_cast<std::int32_t>(e.width));
+        atlas.m_max_height = std::max(atlas.m_max_height, static_cast<std::int32_t>(e.height));
+        shelf_x += e.width + kPad;
+        shelf_h = std::max(shelf_h, e.height + kPad);
     }
     return atlas;
 }
@@ -169,6 +175,8 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
         if (page.empty()) {
             continue;  // pixels were dropped
         }
+        const bool shadow = c.mode == DrawCommand::Mode::Shadow;
+        const std::uint32_t alpha = c.tint.a;
         for (std::int32_t y = y0; y < y1; ++y) {
             const std::uint8_t* src = &page[((std::size_t{r.y} + static_cast<std::size_t>(y)) * ps + r.x) * 4];
             std::uint8_t* dst = &target.pixels[(static_cast<std::size_t>(top + y) * target.width) * 4];
@@ -177,7 +185,14 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
                 if (s[3] == 0) {
                     continue;
                 }
-                std::copy_n(s, 4, dst + static_cast<std::size_t>(left + x) * 4);
+                std::uint8_t* d = dst + static_cast<std::size_t>(left + x) * 4;
+                if (shadow) {
+                    d[0] = static_cast<std::uint8_t>((d[0] * (255 - alpha) + c.tint.r * alpha) / 255);
+                    d[1] = static_cast<std::uint8_t>((d[1] * (255 - alpha) + c.tint.g * alpha) / 255);
+                    d[2] = static_cast<std::uint8_t>((d[2] * (255 - alpha) + c.tint.b * alpha) / 255);
+                } else {
+                    std::copy_n(s, 4, d);
+                }
             }
         }
     }

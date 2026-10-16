@@ -83,6 +83,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_figures = std::move(figures).value();
     viewer->m_banners = render::BannerTable::original(&viewer->m_figures);
     viewer->m_building_flags = render::collect_building_flags(viewer->m_world, viewer->m_buildings, viewer->m_figures);
+    viewer->m_animals.reset(viewer->m_world, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
     if (!sdl) {
@@ -145,40 +146,25 @@ core::Status MapViewer::ensure_graphics(render::Zoom zoom) {
     if (slot) {
         return core::Ok{};
     }
-    const auto path = m_game.resolve(render::terrain_sheet_path(zoom));
-    if (!path) {
-        return core::make_error(core::ErrorCode::NotFound,
-                                std::string(render::terrain_sheet_path(zoom)) + " not found");
-    }
-    auto sheet = assets::SpriteSheet::load(*path);
-    if (!sheet) {
-        return sheet.error();
-    }
-    const auto ship_path = m_game.resolve(render::ship_sheet_path(zoom));
-    if (!ship_path) {
-        return core::make_error(core::ErrorCode::NotFound, std::string(render::ship_sheet_path(zoom)) + " not found");
-    }
-    auto ship_sheet = assets::SpriteSheet::load(*ship_path);
-    if (!ship_sheet) {
-        return ship_sheet.error();
-    }
-    const assets::SpriteSheet* sheets[] = {&*sheet, &*ship_sheet};
     const std::int32_t max_texture = m_window->max_texture_size();
-    const std::uint32_t page_size = max_texture >= 4096 ? 4096U : 2048U;
+    render::GraphicsOptions options;
+    options.page_size = max_texture >= 4096 ? 4096U : 2048U;
+    options.derive_missing_sheets = m_options.derive_small_figures;
     const std::uint64_t start = platform::ticks_ms();
-    auto atlas = render::SpriteAtlas::build(sheets, m_palette, page_size);
-    if (!atlas) {
-        return atlas.error();
+    auto graphics = render::load_world_graphics(m_game, m_palette, zoom, render::kWorldFigureSheets, options);
+    if (!graphics) {
+        return graphics.error();
     }
-    slot.emplace(ZoomGraphics{std::move(atlas).value(), nullptr});
+    const std::uint32_t page_size = options.page_size;
+    slot.emplace(ZoomGraphics{std::move(graphics).value(), nullptr});
     slot->renderer = std::make_unique<render::SdlSpriteRenderer>(m_window->sdl_renderer());
-    if (auto status = slot->renderer->upload(slot->atlas); !status) {
+    if (auto status = slot->renderer->upload(slot->graphics.atlas); !status) {
         slot.reset();
         return status;
     }
-    slot->atlas.drop_pixels();
+    slot->graphics.atlas.drop_pixels();
     std::fprintf(stderr, "%s: %zu sprites in %zu page(s) of %u px, %llu ms\n", zoom_name(zoom),
-                 slot->atlas.sprite_count(), slot->atlas.pages().size(), page_size,
+                 slot->graphics.atlas.sprite_count(), slot->graphics.atlas.pages().size(), page_size,
                  static_cast<unsigned long long>(platform::ticks_ms() - start));
     return core::Ok{};
 }
@@ -364,6 +350,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
     }
     if (!m_paused) {
         m_clock.advance(delta_ms);
+        m_animals.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
     }
 }
 
@@ -375,10 +362,13 @@ void MapViewer::render() {
     auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
     if (graphics) {
         render::WorldLayers layers;
-        layers.extent = render::SpriteExtent{graphics->atlas.max_sprite_width(), graphics->atlas.max_sprite_height()};
+        const render::SpriteAtlas& atlas = graphics->graphics.atlas;
+        layers.extent = render::SpriteExtent{atlas.max_sprite_width(), atlas.max_sprite_height()};
         layers.figures = &m_figures;
-        layers.atlas = &graphics->atlas;
-        layers.ship_base = graphics->atlas.sheet_base(1);
+        layers.atlas = &atlas;
+        layers.ship_base = graphics->graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
+        layers.sheet_base = graphics->graphics.base;
+        layers.land_figures = &m_animals.instances();
         layers.banners = &m_banners;
         layers.owner_tint = m_show_owners;
         layers.building_flags = &m_building_flags;

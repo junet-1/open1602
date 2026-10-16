@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Loads the sprite sheets of one zoom level into a single atlas: terrain plus the figure sheets
+// (ships, animals, shadows, ...). Shared by the tools and the viewer.
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <optional>
+#include <span>
+#include <string>
+
+#include "o1602/assets/figure_table.hpp"
+#include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/palette.hpp"
+#include "o1602/core/result.hpp"
+#include "o1602/render/sprite_atlas.hpp"
+
+namespace o1602::render {
+
+/// Path of a sheet of a zoom level, e.g. "mgfx/tiere.bsh".
+[[nodiscard]] std::string sheet_path(assets::FigureSheet sheet, Zoom zoom);
+
+struct GraphicsOptions {
+    /// The original has no animals, carriers or soldiers at the smallest zoom level (SGFX has no
+    /// TIERE.BSH, TRAEGER.BSH, SOLDAT.BSH, ...). If set, such sheets are made from the next larger
+    /// level at half size, so these figures stay visible when zoomed out.
+    bool derive_missing_sheets = true;
+    std::uint32_t page_size = 2048;
+};
+
+struct WorldGraphics {
+    SpriteAtlas atlas;
+    /// First atlas index of each sheet, nothing if the sheet is not available at this zoom level.
+    std::array<std::optional<std::uint32_t>, assets::kFigureSheetCount> base{};
+    /// Sheets made from the next larger zoom level.
+    std::array<bool, assets::kFigureSheetCount> derived{};
+
+    [[nodiscard]] std::optional<std::uint32_t> sheet_base(assets::FigureSheet sheet) const noexcept {
+        return base[static_cast<std::size_t>(sheet)];
+    }
+};
+
+/// Terrain (STADTFLD) is required; every sheet in `figure_sheets` is optional and simply missing
+/// from WorldGraphics::base if neither it nor (with derive_missing_sheets) its larger version exists.
+core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& game, const assets::Palette& palette,
+                                                Zoom zoom, std::span<const assets::FigureSheet> figure_sheets,
+                                                const GraphicsOptions& options = {});
+
+/// The sheets the world renderer uses: ships, animals and shadows.
+inline constexpr std::array<assets::FigureSheet, 3> kWorldFigureSheets = {
+    assets::FigureSheet::Ship, assets::FigureSheet::Tiere, assets::FigureSheet::Schatten};
+
+}  // namespace o1602::render

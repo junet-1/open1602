@@ -18,10 +18,12 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/platform/window.hpp"
+#include "o1602/render/animal_figures.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/camera.hpp"
 #include "o1602/render/sdl_sprite_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/world_graphics.hpp"
 #include "o1602/sim/world.hpp"
 
 union SDL_Event;
@@ -34,6 +36,9 @@ struct ViewerOptions {
     std::filesystem::path screenshot;  ///< write the last frame as PNG before exiting
     render::Zoom zoom = render::Zoom::Large;
     bool show_owners = false;  ///< start with the ownership view
+    /// Show figures at the smallest zoom level from half-size graphics of the middle level (the
+    /// original shows none there). Off: only the sheets the original has.
+    bool derive_small_figures = true;
     std::int32_t width = 1280;
     std::int32_t height = 800;
 };
@@ -55,7 +60,7 @@ private:
 
     /// Sprites of one zoom level: atlas (CPU side only rects remain) and its GPU textures.
     struct ZoomGraphics {
-        render::SpriteAtlas atlas;
+        render::WorldGraphics graphics;
         std::unique_ptr<render::SdlSpriteRenderer> renderer;
     };
     core::Status ensure_graphics(render::Zoom zoom);
@@ -76,6 +81,7 @@ private:
     assets::FigureTable m_figures;
     render::BannerTable m_banners;                       ///< colours and flags of the players (ADR 0007)
     std::vector<render::BuildingFlag> m_building_flags;  ///< buildings do not move: collected once at load
+    render::AnimalFigures m_animals;                     ///< the islands' animals, grazing
     ViewerOptions m_options;
 
     std::unique_ptr<platform::SdlSystem> m_sdl;

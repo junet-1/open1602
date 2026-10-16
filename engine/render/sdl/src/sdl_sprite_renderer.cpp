@@ -104,11 +104,15 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
         const float v0 = static_cast<float>(r.y) * inv_page;
         const float u1 = static_cast<float>(r.x + r.width) * inv_page;
         const float v1 = static_cast<float>(r.y + r.height) * inv_page;
+        // Shadows: the texture colour multiplied by the (black, translucent) vertex colour.
+        const SDL_FColor color = c.mode == DrawCommand::Mode::Shadow ? SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F,
+                                                                                  c.tint.b / 255.0F, c.tint.a / 255.0F}
+                                                                     : white;
         const int base = static_cast<int>(m_vertices.size());
-        m_vertices.push_back(SDL_Vertex{{x0, y0}, white, {u0, v0}});
-        m_vertices.push_back(SDL_Vertex{{x1, y0}, white, {u1, v0}});
-        m_vertices.push_back(SDL_Vertex{{x1, y1}, white, {u1, v1}});
-        m_vertices.push_back(SDL_Vertex{{x0, y1}, white, {u0, v1}});
+        m_vertices.push_back(SDL_Vertex{{x0, y0}, color, {u0, v0}});
+        m_vertices.push_back(SDL_Vertex{{x1, y0}, color, {u1, v0}});
+        m_vertices.push_back(SDL_Vertex{{x1, y1}, color, {u1, v1}});
+        m_vertices.push_back(SDL_Vertex{{x0, y1}, color, {u0, v1}});
         m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
         ++drawn;
     }

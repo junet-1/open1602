@@ -208,10 +208,11 @@ Ein Warenplatz (20 Byte):
 | +0x00 | u32 Bitfeld: Bits 0–9, 10–19, Bit 20, Bit 21 (Verkauf/Ankauf? Bei Eingeborenen gesetzt) |
 | +0x04 | u16 (Stadt + 0x24 + 12 · i) |
 | +0x08 | u16, u16 (Stadt + 0x26/0x28; z. B. 320 = 10 t?) |
-| +0x0C | u16 **Bestand**, vermutlich in 1/32 t: Lemonhall 817 Nahrung (25,5 t), 400 Stoffe (12,5 t), 32 Werkzeug (1 t), 800 Ziegel (25 t) |
+| +0x0C | u16 **Bestand in 1/32 t**: Lemonhall 817 Nahrung (25,5 t), 400 Stoffe (12,5 t), 32 Werkzeug (1 t), 800 Ziegel (25 t), Holz 0 – im laufenden Spiel bestätigt (25 t, 12 t, 1 t, 25 t, kein Holz; das Kontor zeigt ganze Tonnen) |
 | +0x10 | u16 Ware als Id des ersten Erzeugers − 20000 (z. B. 513 → 20513 Ziegelei); daran erkennt das Spiel die Ware wieder |
 
 Belegt ist die Position: Bei allen Siedlerstädten liegt an (x, y) ein Gebäude mit
 `HAUS_PRODTYP Kind` = `KONTOR`, und dessen Feld gehört zur Stadt (Datentest). Die Einheit der
-Bestände bestätigt ein Blick ins Kontor im laufenden Spiel.
+Bestände hat der Blick ins Kontor im laufenden Spiel bestätigt. Open1602 rechnet intern ebenfalls
+in 1/32 t (`assets::kStockUnitsPerTon`), also ganzzahlig und deterministisch.
 

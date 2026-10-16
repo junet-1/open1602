@@ -3,11 +3,15 @@
 # and tests; the SDL3/GPU backend will be added as a separate target.
 
 add_library(o1602_render
+    src/animal_figures.cpp
     src/animation_clock.cpp
     src/banner.cpp
     src/camera.cpp
+    src/figure_animation.cpp
     src/island_renderer.cpp
     src/sprite_atlas.cpp
+    src/sprite_source.cpp
+    src/world_graphics.cpp
     src/world_renderer.cpp
 )
 add_library(o1602::render ALIAS o1602_render)

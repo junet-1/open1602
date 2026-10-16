@@ -7,7 +7,9 @@
 // where (vx, vy) are world coordinates after view rotation.
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -84,6 +86,20 @@ struct BuildingFlag {
                                                                const assets::BuildingTable& buildings,
                                                                const assets::FigureTable& figures);
 
+/// A figure standing or walking on land (animals now; carriers and soldiers later) as the
+/// simulation or the viewer hands it to the renderer.
+struct FigureInstance {
+    double x = 0.0;  ///< world position in tiles (continuous; tile centre = x + 0.5)
+    double y = 0.0;
+    std::uint16_t figure = 0;  ///< FIGUR number
+    std::uint8_t anim = 0;     ///< ANIM index and frame (AnimState)
+    std::uint8_t frame = 0;
+    std::uint8_t direction = 0;  ///< 0..7
+};
+
+/// Opacity of figure shadows (the original dithers every second pixel).
+inline constexpr std::uint8_t kShadowAlpha = 128;
+
 /// Everything besides the tiles that goes into the world draw list.
 struct WorldLayers {
     SpriteExtent extent;
@@ -98,7 +114,25 @@ struct WorldLayers {
     bool owner_tint = false;
     /// Warehouse, market and tower flags (collect_building_flags); drawn like ships (same sheet).
     const std::vector<BuildingFlag>* building_flags = nullptr;
+    /// Figures on land with their shadows. Needs `figures` and the atlas bases of their sheets
+    /// (`sheet_base`, e.g. from WorldGraphics::base); figures whose sheet is missing are skipped.
+    const std::vector<FigureInstance>* land_figures = nullptr;
+    std::array<std::optional<std::uint32_t>, assets::kFigureSheetCount> sheet_base{};
 };
+
+/// Up to two draw commands of one figure (shadow + body, hull + flag) and the tile row after
+/// whose flat pass they are drawn.
+struct FigureSprites {
+    std::int32_t row = 0;
+    std::array<DrawCommand, 2> parts{};
+    std::uint8_t count = 0;
+};
+
+/// Shadow and body of a land figure (exposed for tests). Body: Gfx + animation (0x0044F8F0),
+/// centred, bottom at y + Posoffs[0] * w/64; shadow: figure `Schatten` from SCHATTEN.BSH, centred
+/// on y - Posoffs[1] * w/64 (cases 0x0C-0x0E of 0x0044FA90).
+[[nodiscard]] bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, const WorldView& view,
+                                       const WorldLayers& layers, FigureSprites& out);
 
 /// Draw list including ships (drawn after the flat pass of their tile row, like the figures in
 /// the original, 0x0044FA90) and the ownership tint.

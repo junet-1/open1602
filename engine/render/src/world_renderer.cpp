@@ -312,6 +312,60 @@ bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, con
     return true;
 }
 
+bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, const WorldView& view_in,
+                         const WorldLayers& layers, FigureSprites& out) {
+    out.count = 0;
+    if (layers.figures == nullptr || layers.atlas == nullptr) {
+        return false;
+    }
+    const assets::FigureType* type = layers.figures->get(figure.figure);
+    if (type == nullptr) {
+        return false;
+    }
+    const auto base = layers.sheet_base[static_cast<std::size_t>(type->sheet)];
+    if (!base) {
+        return false;  // no graphics for this figure at this zoom level
+    }
+    const WorldView view = fit_view(view_in, world);
+    const std::int32_t tw = tile_width(view.zoom);
+    double fx = 0.0;
+    double fy = 0.0;
+    project_point(view, figure.x, figure.y, fx, fy);
+    const auto px = static_cast<std::int32_t>(std::lround(fx));
+    const auto py = static_cast<std::int32_t>(std::lround(fy));
+
+    // Shadow first (drawn below the body).
+    const assets::FigureType* shadow = layers.figures->get(type->shadow);
+    const auto shadow_base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Schatten)];
+    if (type->shadow != 0 && shadow != nullptr && shadow_base) {
+        DrawCommand& c = out.parts[out.count];
+        c.sprite =
+            *shadow_base + assets::figure_sprite(*shadow, figure.anim, figure.frame, figure.direction, view.rotation);
+        const AtlasRect& r = layers.atlas->rect(c.sprite);
+        if (!r.empty()) {
+            c.x = px - r.width / 2;
+            c.y = py - type->posoffs[1] * tw / 64 - r.height / 2 + r.height;
+            c.mode = DrawCommand::Mode::Shadow;
+            c.tint = assets::Rgba{0, 0, 0, kShadowAlpha};
+            ++out.count;
+        }
+    }
+    DrawCommand& body = out.parts[out.count];
+    body = DrawCommand{};
+    body.sprite = *base + assets::figure_sprite(*type, figure.anim, figure.frame, figure.direction, view.rotation);
+    const AtlasRect& r = layers.atlas->rect(body.sprite);
+    if (r.empty()) {
+        out.count = 0;
+        return false;
+    }
+    body.x = px - r.width / 2;
+    body.y = py + type->posoffs[0] * tw / 64;
+    ++out.count;
+    // Depth like the display figures: y + Posoffs[1] * w/64.
+    out.row = floor_div(py + type->posoffs[1] * tw / 64 - 1, tile_height(view.zoom) / 2);
+    return true;
+}
+
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
                            const WorldView& view_in, const Viewport& viewport, const WorldLayers& layers,
                            std::vector<DrawCommand>& commands) {
@@ -346,28 +400,50 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     const std::uint32_t sea_frame = sea != nullptr ? clock.frame(*sea) : 0;
     const std::int32_t sea_elevation = sea != nullptr ? sea->posoffs * tw / 64 : 0;
 
-    // Ships of the visible rows, sorted by row (stable: file order within a row).
-    std::vector<ShipSprites> ships;
+    // Figures of the visible rows (ships, building flags, land figures), sorted by row
+    // (stable: within a row in this order).
+    std::vector<FigureSprites> figures;
+    const auto add_figure = [&](const FigureSprites& f) {
+        if (f.row >= d_begin && f.row <= d_end) {
+            figures.push_back(f);
+        }
+    };
     if (layers.figures != nullptr && layers.atlas != nullptr) {
         for (const sim::Ship& ship : world.ships()) {
             ShipSprites s;
-            if (ship_sprites(ship, world, view, layers, clock.elapsed_ms(), s) && s.row >= d_begin && s.row <= d_end) {
-                ships.push_back(s);
+            if (ship_sprites(ship, world, view, layers, clock.elapsed_ms(), s)) {
+                FigureSprites f;
+                f.row = s.row;
+                f.parts[f.count++] = s.hull;
+                if (s.has_flag) {
+                    f.parts[f.count++] = s.flag;
+                }
+                add_figure(f);
             }
         }
         if (layers.building_flags != nullptr) {
             for (const BuildingFlag& flag : *layers.building_flags) {
-                ShipSprites f;
-                if (building_flag_sprite(flag, world, view, layers, clock.elapsed_ms(), f) && f.row >= d_begin &&
-                    f.row <= d_end) {
-                    ships.push_back(f);
+                ShipSprites s;
+                if (building_flag_sprite(flag, world, view, layers, clock.elapsed_ms(), s)) {
+                    FigureSprites f;
+                    f.row = s.row;
+                    f.parts[f.count++] = s.hull;
+                    add_figure(f);
                 }
             }
         }
-        std::stable_sort(ships.begin(), ships.end(),
-                         [](const ShipSprites& a, const ShipSprites& b) { return a.row < b.row; });
+        if (layers.land_figures != nullptr) {
+            for (const FigureInstance& instance : *layers.land_figures) {
+                FigureSprites f;
+                if (land_figure_sprites(instance, world, view, layers, f)) {
+                    add_figure(f);
+                }
+            }
+        }
+        std::stable_sort(figures.begin(), figures.end(),
+                         [](const FigureSprites& a, const FigureSprites& b) { return a.row < b.row; });
     }
-    std::size_t next_ship = 0;
+    std::size_t next_figure = 0;
 
     // Ownership view: a translucent diamond on the tile surface, after the flat pass of the row.
     std::vector<DrawCommand> overlays;
@@ -443,11 +519,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 overlays.clear();
             }
             if (!high_pass) {  // figures of this row between the two passes
-                for (; next_ship < ships.size() && ships[next_ship].row <= d; ++next_ship) {
-                    commands.push_back(ships[next_ship].hull);
-                    if (ships[next_ship].has_flag) {
-                        commands.push_back(ships[next_ship].flag);
-                    }
+                for (; next_figure < figures.size() && figures[next_figure].row <= d; ++next_figure) {
+                    const FigureSprites& f = figures[next_figure];
+                    commands.insert(commands.end(), f.parts.begin(), f.parts.begin() + f.count);
                 }
             }
         }

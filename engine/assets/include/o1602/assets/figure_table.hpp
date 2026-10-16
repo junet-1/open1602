@@ -15,7 +15,8 @@ namespace o1602::assets {
 
 class GameDirectory;
 
-/// Sprite sheet of a figure (Blocknr). Order of the sheets loaded at startup (0x00494870).
+/// Sprite sheets of a zoom level in the order the original loads them (file names at 0x0049C4C0 ..
+/// 0x0049C6F4). Values 0..6 are the figure Blocknr; shadows always come from SCHATTEN.BSH.
 enum class FigureSheet : std::uint8_t {
     Stadtfld = 0,
     Soldat = 1,
@@ -24,6 +25,40 @@ enum class FigureSheet : std::uint8_t {
     Maeher = 4,
     Tiere = 5,
     Effekte = 6,
+    Numbers = 7,
+    Schatten = 8,
+    Fische = 9,
+    Gaukler = 10,
+};
+inline constexpr std::size_t kFigureSheetCount = 11;
+
+/// File name of a sheet (lower case; GameDirectory resolves case-insensitively).
+[[nodiscard]] constexpr const char* figure_sheet_file(FigureSheet sheet) noexcept {
+    constexpr const char* kFiles[kFigureSheetCount] = {"stadtfld.bsh", "soldat.bsh", "ship.bsh",    "traeger.bsh",
+                                                       "maeher.bsh",   "tiere.bsh",  "effekte.bsh", "numbers.bsh",
+                                                       "schatten.bsh", "fische.bsh", "gaukler.bsh"};
+    return kFiles[static_cast<std::size_t>(sheet) % kFigureSheetCount];
+}
+
+/// Kind of an animation (ANIM Kind): what happens after it ran AnimRept times (0x0045D0B0).
+enum class AnimKind : std::uint8_t {
+    None = 0,
+    Endless = 1,  ///< start over
+    Random = 2,   ///< continue with a random entry of `next`
+    JumpTo = 3,   ///< continue with next[0]
+};
+
+/// One ANIM object of a figure (0x1E bytes per animation in the original, figure record + 0x60).
+struct FigureAnim {
+    AnimKind kind = AnimKind::None;
+    std::uint32_t offset = 0;        ///< AnimOffs: first sprite relative to the figure's Gfx
+    std::uint32_t add = 1;           ///< AnimAdd: sprite step per frame
+    std::uint32_t count = 1;         ///< AnimAnz: frames
+    std::uint32_t repeat = 1;        ///< AnimRept: runs before `kind` applies
+    std::uint32_t speed_ms = 100;    ///< AnimSpeed: duration of one frame
+    std::uint32_t rotate = 0;        ///< sprite step per direction (Rotate, default: the figure's)
+    std::vector<std::uint8_t> next;  ///< AnimNr
+    bool defined = false;
 };
 
 struct FigureType {
@@ -36,8 +71,20 @@ struct FigureType {
     /// Fahnoffs: flag position on ships/buildings. [1] distance along the ship axis and [2] height,
     /// both in tile units (height in half tile widths). Presentation only, so floating point.
     std::array<double, 3> fahnoffs{};
+    std::uint32_t shadow = 0;       ///< Schatten: figure number of the shadow, 0 = none
+    std::vector<FigureAnim> anims;  ///< indexed by ANIM Nummer
     bool defined = false;
+
+    [[nodiscard]] const FigureAnim* anim(std::size_t index) const noexcept {
+        return index < anims.size() && anims[index].defined ? &anims[index] : nullptr;
+    }
 };
+
+/// Sprite of a figure within its sheet, as 0x0044F8F0 computes it:
+/// Gfx + AnimOffs + AnimAdd * frame + ((direction + 2 * view rotation) & 7) * Rotate. Without the
+/// animation (or for an undefined one) only Gfx + direction * the figure's Rotate.
+[[nodiscard]] std::uint32_t figure_sprite(const FigureType& type, std::size_t anim, std::uint32_t frame,
+                                          std::uint8_t direction, std::uint8_t view_rotation) noexcept;
 
 class FigureTable {
 public:

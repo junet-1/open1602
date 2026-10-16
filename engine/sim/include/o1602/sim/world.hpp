@@ -31,6 +31,14 @@ struct City {
     std::string name;  ///< Windows-1252
 };
 
+/// A wild animal standing on an island (HIRSCH2 in the original: up to 8 per island).
+struct Animal {
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint16_t x = 0;       ///< island tile
+    std::uint16_t y = 0;
+    std::uint16_t figure = 0;  ///< FIGUR number (HIRSCH, ANTILOPE)
+};
+
 /// A ship on the world map. Position in whole tiles for now; the movement simulation will use
 /// fixed point coordinates (ADR 0004).
 struct Ship {
@@ -87,6 +95,9 @@ public:
     [[nodiscard]] const City* city(std::uint16_t island, std::uint8_t index) const noexcept;
     void add_city(City city) { m_cities.push_back(std::move(city)); }
 
+    [[nodiscard]] const std::vector<Animal>& animals() const noexcept { return m_animals; }
+    void add_animal(Animal animal) { m_animals.push_back(animal); }
+
 private:
     std::uint32_t m_width;
     std::uint32_t m_height;
@@ -94,6 +105,7 @@ private:
     std::vector<Player> m_players;
     std::vector<Ship> m_ships;
     std::vector<City> m_cities;
+    std::vector<Animal> m_animals;
     std::vector<Cell> m_cells;
 };
 

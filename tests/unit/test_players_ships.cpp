@@ -466,7 +466,8 @@ TEST_CASE("savegame: cities, warehouse goods, production list and deer") {
     CHECK(w.wares[0].ware == 2);
     CHECK(w.wares[22].ware == 24);
     CHECK(w.wares[22].producer_id == 20513);
-    CHECK((w.wares[22].raw[3] & 0xFFFFU) == 800);
+    CHECK(w.wares[22].stock() == 800);
+    CHECK(w.wares[22].stock() / assets::kStockUnitsPerTon == 25);  // 25 t Ziegel
     CHECK(w.wares[0].producer_id == 0);
 
     REQUIRE(state->production.size() == 1);

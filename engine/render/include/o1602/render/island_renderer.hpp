@@ -61,11 +61,21 @@ struct DrawCommand {
     /// left / bottom corner box.
     static constexpr std::uint32_t kOverlayDiamond = 0xFFFFFFFF;
 
+    /// How a sprite is drawn.
+    enum class Mode : std::uint8_t {
+        Normal,
+        /// Only the sprite's shape, filled with `tint` (alpha = opacity): figure shadows. The
+        /// original dithers them (every second pixel black, 0x00401D10); a translucent fill
+        /// looks the same on today's displays.
+        Shadow,
+    };
+
     std::uint32_t sprite = 0;
     std::int32_t x = 0;
     std::int32_t y = 0;
-    assets::Rgba tint{0, 0, 0, 0};  ///< colour of an overlay diamond
+    assets::Rgba tint{0, 0, 0, 0};  ///< colour of an overlay diamond or shadow
     std::uint8_t tint_size = 0;     ///< tile width of an overlay diamond (64 / 32 / 16)
+    Mode mode = Mode::Normal;
 };
 
 /// Sprite index for a map cell with an explicit global animation frame of its building type

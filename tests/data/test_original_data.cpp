@@ -27,6 +27,7 @@
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/world.hpp"
@@ -453,6 +454,49 @@ TEST_CASE("data: warehouse, market and tower flags of a scenario") {
     CHECK(per_owner[6] == 0);
 }
 
+TEST_CASE("data: figure animations and sheets of all zoom levels") {
+    const auto game = require_game();
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(figures.ok());
+    // HIRSCH (89) and ANTILOPE (91): same animations, grazing = ANIM 1 (RANDOM -> 1, 1, 3, 1).
+    for (const std::uint32_t number : {89U, 91U}) {
+        const auto* deer = figures->get(number);
+        REQUIRE(deer != nullptr);
+        CHECK(deer->sheet == assets::FigureSheet::Tiere);
+        CHECK(deer->shadow == 117);  // SCHATTENLANG
+        REQUIRE(deer->anim(1) != nullptr);
+        CHECK(deer->anim(1)->offset == 112);
+        CHECK(deer->anim(1)->count == 6);
+        CHECK(deer->anim(1)->rotate == 6);
+        CHECK(deer->anim(1)->kind == assets::AnimKind::Random);
+        CHECK(deer->anim(0)->rotate == 8);
+    }
+    CHECK(figures->get(91)->gfx == figures->get(89)->gfx + 208);  // GFXANTILOPE = GFXHIRSCH + 208
+
+    auto palette = assets::Palette::load(*game.resolve(render::kTerrainPalettePath));
+    REQUIRE(palette.ok());
+    for (int z = 0; z < 3; ++z) {
+        const auto zoom = static_cast<render::Zoom>(z);
+        if (!game.resolve(render::sheet_path(assets::FigureSheet::Tiere,
+                                             zoom == render::Zoom::Small ? render::Zoom::Medium : zoom))) {
+            SKIP("animal sheets not available");
+        }
+        auto g = render::load_world_graphics(game, *palette, zoom, render::kWorldFigureSheets);
+        REQUIRE(g.ok());
+        CHECK(g->sheet_base(assets::FigureSheet::Ship).has_value());
+        CHECK(g->sheet_base(assets::FigureSheet::Tiere).has_value());
+        // The original has no animals at the smallest zoom level; they come from MGFX at half size.
+        CHECK(g->derived[static_cast<std::size_t>(assets::FigureSheet::Tiere)] == (zoom == render::Zoom::Small));
+        CHECK(!g->derived[static_cast<std::size_t>(assets::FigureSheet::Ship)]);
+    }
+    render::GraphicsOptions original;
+    original.derive_missing_sheets = false;
+    auto small = render::load_world_graphics(game, *palette, render::Zoom::Small, render::kWorldFigureSheets, original);
+    REQUIRE(small.ok());
+    CHECK(!small->sheet_base(assets::FigureSheet::Tiere).has_value());
+    CHECK(small->sheet_base(assets::FigureSheet::Ship).has_value());
+}
+
 TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
     const auto game = require_game();
     const auto dat = game.resolve("Game.dat");
@@ -486,6 +530,12 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
         auto state = assets::load_game_state(*file);
         REQUIRE(state.ok());
         CHECK(!world->cities().empty());
+        // Every animal of HIRSCH2 stands on its island.
+        CHECK(world->animals().size() == state->animals.size());
+        for (const auto& a : world->animals()) {
+            CHECK(a.x < world->islands()[a.island].map.width());
+            CHECK((a.figure == 89 || a.figure == 91));
+        }
         for (const auto& w : state->warehouses) {
             const auto it = std::find_if(world->cities().begin(), world->cities().end(), [&](const sim::City& c) {
                 return world->islands()[c.island].header.number == w.island && c.index == w.city;

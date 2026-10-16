@@ -26,12 +26,18 @@ struct CityRecord {
     static constexpr std::uint8_t kNoCityOwner = 7;
 };
 
+/// Warehouse stock is stored in 1/32 t (confirmed in the running game: 800 = 25 t).
+inline constexpr std::uint32_t kStockUnitsPerTon = 32;
+
 /// One good in a warehouse. The original identifies goods by the first building that produces
 /// them (table 0x00609160), stored as Id - 20000.
 struct WareSlot {
     std::uint8_t ware = 0;               ///< ware number of haeuser.cod (2..24)
     std::uint16_t producer_id = 0;       ///< Id of the producing building (e.g. 20513), 0 = unknown
-    std::array<std::uint32_t, 4> raw{};  ///< stock, prices and flags; meaning still open
+    std::array<std::uint32_t, 4> raw{};  ///< the slot's fields; raw[3] low 16 bits = stock
+
+    /// Stock in 1/32 t (kStockUnitsPerTon); fixed point keeps the simulation exact (ADR 0004).
+    [[nodiscard]] std::uint32_t stock() const noexcept { return raw[3] & 0xFFFFU; }
 };
 
 /// KONTOR2 record (0x3EC bytes, same writer): the goods of one city's warehouses.

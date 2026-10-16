@@ -13,6 +13,7 @@
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/render/island_renderer.hpp"
+#include "o1602/render/sprite_source.hpp"
 
 namespace o1602::render {
 
@@ -37,6 +38,10 @@ public:
     /// be drawn in one batch. Sprite i of sheet k has the index sheet_base(k) + i.
     static core::Result<SpriteAtlas> build(std::span<const assets::SpriteSheet* const> sheets,
                                            const assets::Palette& palette, std::uint32_t page_size = 2048);
+
+    /// General form: sprites from any sources (original sheets, reduced sheets, mod images).
+    static core::Result<SpriteAtlas> build(std::span<const SpriteSource* const> sources,
+                                           std::uint32_t page_size = 2048);
 
     /// First sprite index of a sheet given to build().
     [[nodiscard]] std::uint32_t sheet_base(std::size_t sheet) const noexcept {

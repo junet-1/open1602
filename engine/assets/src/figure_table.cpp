@@ -32,6 +32,7 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
         f.kind = r.integer("Kind");
         f.gfx = static_cast<std::uint32_t>(std::max(0, r.integer("Gfx")));
         f.sheet = static_cast<FigureSheet>(std::clamp(r.integer("Blocknr"), 0, 6));
+        f.shadow = static_cast<std::uint32_t>(std::max(0, r.integer("Schatten")));
         f.rotate = static_cast<std::uint32_t>(std::max(0, r.integer("Rotate")));
         f.posoffs = {r.integer("Posoffs", 0), r.integer("Posoffs", 1)};
         if (const cod::Field* fahn = r.field("Fahnoffs")) {
@@ -39,10 +40,46 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
                 f.fahnoffs[i] = fahn->values[i].real;
             }
         }
+        if (const auto* anims = r.records("ANIM")) {
+            for (const auto& [index, a] : *anims) {
+                if (index < 0 || index >= 64) {
+                    continue;  // the original reserves room for a few dozen per figure
+                }
+                if (static_cast<std::size_t>(index) >= f.anims.size()) {
+                    f.anims.resize(static_cast<std::size_t>(index) + 1);
+                }
+                FigureAnim anim;
+                anim.kind = static_cast<AnimKind>(std::clamp(a.integer("Kind"), 0, 3));
+                anim.offset = static_cast<std::uint32_t>(std::max(0, a.integer("AnimOffs")));
+                anim.add = static_cast<std::uint32_t>(std::max(0, a.integer("AnimAdd", 0, 1)));
+                anim.count = static_cast<std::uint32_t>(std::max(1, a.integer("AnimAnz", 0, 1)));
+                anim.repeat = static_cast<std::uint32_t>(std::max(1, a.integer("AnimRept", 0, 1)));
+                anim.speed_ms = static_cast<std::uint32_t>(std::max(1, a.integer("AnimSpeed", 0, 100)));
+                anim.rotate = a.field("Rotate") != nullptr
+                                  ? static_cast<std::uint32_t>(std::max(0, a.integer("Rotate")))
+                                  : f.rotate;
+                if (const cod::Field* next = a.field("AnimNr")) {
+                    for (const cod::Value& v : next->values) {
+                        anim.next.push_back(static_cast<std::uint8_t>(std::clamp(v.integer, 0, 255)));
+                    }
+                }
+                anim.defined = true;
+                f.anims[static_cast<std::size_t>(index)] = std::move(anim);
+            }
+        }
         f.defined = true;
-        table.m_types[static_cast<std::size_t>(nummer)] = f;
+        table.m_types[static_cast<std::size_t>(nummer)] = std::move(f);
     }
     return table;
+}
+
+std::uint32_t figure_sprite(const FigureType& type, std::size_t anim, std::uint32_t frame, std::uint8_t direction,
+                            std::uint8_t view_rotation) noexcept {
+    const std::uint32_t dir = (direction + 2U * view_rotation) & 7U;
+    if (const FigureAnim* a = type.anim(anim)) {
+        return type.gfx + a->offset + a->add * frame + dir * a->rotate;
+    }
+    return type.gfx + dir * type.rotate;
 }
 
 core::Result<FigureTable> FigureTable::load(const GameDirectory& game) {

@@ -133,6 +133,23 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         world.add_city(
             City{static_cast<std::uint16_t>(it - placed.begin()), c.index, player_from_original(c.owner), c.name});
     }
+    // HIRSCH2 stores only position and timer. Assumption (to be checked in the running game):
+    // northern islands have deer (HIRSCH), southern ones antelopes (ANTILOPE), as figuren.cod
+    // defines both with the same animations.
+    constexpr std::uint16_t kFigureHirsch = 89;
+    constexpr std::uint16_t kFigureAntilope = 91;
+    for (const auto& a : state->animals) {
+        const auto& placed = world.islands();
+        const auto it = std::find_if(placed.begin(), placed.end(),
+                                     [&](const WorldIsland& wi) { return wi.header.number == a.island; });
+        if (it == placed.end() || a.x >= it->map.width() || a.y >= it->map.height()) {
+            warn("animal outside its island " + std::to_string(a.island));
+            continue;
+        }
+        const bool south = (it->header.climate & 1U) != 0;
+        world.add_animal(
+            Animal{static_cast<std::uint16_t>(it - placed.begin()), a.x, a.y, south ? kFigureAntilope : kFigureHirsch});
+    }
     return world;
 }
 

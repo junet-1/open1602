@@ -202,7 +202,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: Abgleich mit einem Bildschirmfoto des Originals (Merlin01, SGFX): Korrelation 0,955 | ✅ `docs/re/rendering.md` §8 |
 | Anforderungen an Erweiterbarkeit und Modding (ADR 0007); Engine-Modell ohne feste Spielerzahl, Banner statt fester Farben, Weltgröße pro Karte | ✅ `docs/architecture/0007-erweiterbarkeit-und-modding.md` |
 | Spielstand-Analyse (Merlin01 weitergespielt): alle Chunks mit Schreibroutine und Laufzeittabelle; Städte mit Namen, Kontorbestände, Produktionsliste, Hirsche geladen; SHIP4-Richtung korrigiert | ✅ `docs/formats/gam.md` |
-| M2: Figuren-Animationssystem (ANIM-Zustände), Tiere, Träger, Soldaten, Rauch, Gaukler | ⬜ als Nächstes |
+| M2: Figuren-Animationssystem (ANIM), Tiere mit Schatten, Figuren-Sheets je Zoomstufe, Figuren in SGFX (abschaltbar) | ✅ `docs/re/figures.md` |
+| M2: Träger, Soldaten, Rauch, Gaukler, Produktionsanimationen | ⬜ als Nächstes |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
