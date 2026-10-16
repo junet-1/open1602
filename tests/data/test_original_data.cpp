@@ -410,3 +410,37 @@ TEST_CASE("data: players, colours and ships of scenarios") {
     CHECK(figures->flag_for_color(5) == nullptr);
     CHECK(figures->flag_for_color(6) == nullptr);
 }
+
+TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
+    const auto game = require_game();
+    const auto dat = game.resolve("Game.dat");
+    if (!dat) {
+        SKIP("no Game.dat (game never started)");
+    }
+    auto bytes = core::read_file(*dat);
+    REQUIRE(bytes.ok());
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    std::size_t loaded = 0;
+    for (const auto& slot : assets::parse_savegame_slots(text)) {
+        const auto path = game.resolve(slot.file);
+        if (!path) {
+            continue;
+        }
+        auto file = assets::ChunkFile::load(*path);
+        REQUIRE(file.ok());
+        std::vector<std::string> warnings;
+        auto world = sim::load_world(*file, *buildings, game, &warnings);
+        REQUIRE(world.ok());
+        CHECK(warnings.empty());
+        CHECK(!world->islands().empty());
+        REQUIRE(world->players().size() == 7);
+        CHECK(world->players()[0].kind == assets::PlayerKind::Human);
+        CHECK(!world->players()[0].name.empty());  // savegames store the human player's name
+        ++loaded;
+    }
+    if (loaded == 0) {
+        SKIP("no savegames");
+    }
+}

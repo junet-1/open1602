@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "o1602/assets/chunk_file.hpp"
@@ -42,7 +43,7 @@ struct PlayerRecord {
     PlayerKind kind = PlayerKind::Human;
     std::uint8_t slot = 0;  ///< index of the record, also used as owner number on tiles and ships
     PlayerColor color = PlayerColor::Red;
-    std::string name;  ///< empty in scenarios
+    std::string name;  ///< +0x3C0, Windows-1252; empty in scenarios, the human's name in savegames
 };
 
 /// Owner value meaning "nobody" (island tile attribute bits 22..25, ship byte +0x4B).
@@ -63,5 +64,17 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file);
 
 /// SHIP4 chunk. Files without it yield an empty list.
 core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file);
+
+/// A savegame slot as listed in Game.dat ("Objekt: SPIELNAME", "Name: slot, \"text\", flag").
+/// Slot n is stored as SAVEGAME/gameNN.gam.
+struct SavegameSlot {
+    std::uint32_t slot = 0;
+    std::string name;  ///< Windows-1252
+    std::string file;  ///< relative path, e.g. "Savegame/game00.gam"
+};
+
+/// Savegame names from the text file Game.dat (settings and savegame names of the original).
+/// Unused slots carry names like "Leer01" and are returned as well.
+std::vector<SavegameSlot> parse_savegame_slots(std::string_view game_dat);
 
 }  // namespace o1602::assets

@@ -6,8 +6,9 @@
 //            [--owners] [--frames N] [--screenshot out.png]
 //
 // The game directory defaults to $ANNO1602_DIR, the scenario to "Szenes/Das Atoll.szs".
-// A relative scenario path is looked up in the game directory first. --savegame NAME opens
-// SAVEGAME/NAME.gam of the installation (scenarios and savegames share one format).
+// A relative scenario path is looked up in the game directory first. --savegame NAME opens a
+// savegame by the name shown in the game (looked up in Game.dat, e.g. "Merlin01" ->
+// SAVEGAME/game00.gam) or by file name. Scenarios and savegames share one format.
 
 #include <SDL3/SDL_main.h>
 #include <charconv>
@@ -15,6 +16,10 @@
 #include <string_view>
 
 #include "map_viewer.hpp"
+
+#include "o1602/assets/scenario.hpp"
+#include "o1602/core/file.hpp"
+#include "o1602/core/text.hpp"
 
 using namespace o1602;
 
@@ -91,9 +96,22 @@ int main(int argc, char** argv) {
     }
     std::string savegame_path;
     if (!savegame.empty()) {
-        savegame_path = "Savegame/" + std::string(savegame);
-        if (!savegame_path.ends_with(".gam") && !savegame_path.ends_with(".GAM")) {
-            savegame_path += ".gam";
+        // The name shown in the game (Game.dat, "SPIELNAME") or a file name in SAVEGAME/.
+        if (const auto dat = game->resolve("Game.dat")) {
+            if (auto bytes = core::read_file(*dat)) {
+                const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+                for (const auto& slot : assets::parse_savegame_slots(text)) {
+                    if (core::equals_ignore_case(slot.name, savegame)) {
+                        savegame_path = slot.file;
+                    }
+                }
+            }
+        }
+        if (savegame_path.empty()) {
+            savegame_path = "Savegame/" + std::string(savegame);
+            if (!savegame_path.ends_with(".gam") && !savegame_path.ends_with(".GAM")) {
+                savegame_path += ".gam";
+            }
         }
         scenario = savegame_path;
     }

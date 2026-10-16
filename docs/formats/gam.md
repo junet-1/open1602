@@ -15,8 +15,36 @@ Namen in Klammern sind ältere Versionen, die nur noch geladen werden. Die Insel
 [scp.md](scp.md) beschrieben. Open1602 lädt Spielstände und Szenarien deshalb mit demselben Code
 (`sim::load_world`). Der Betrachter öffnet Spielstände mit `open1602 --savegame NAME`.
 
-> In der GOG-Installation des Autors gibt es noch keine Spielstände. Geprüft ist das Format bisher
-> an allen Szenarien. Ein Test mit einer echten `.GAM`-Datei steht noch aus.
+## Unterschiede eines Spielstands zum Szenario
+
+Geprüft an einem Spielstand, der direkt nach dem Start von „Das Atoll“ gespeichert wurde
+(`SAVEGAME/game00.gam`, 153 Chunks statt 387):
+
+- **Zwei `INSELHAUS` je Insel.** Die erste enthält die vollständige Grundinsel (die Einträge der
+  Vorlage, mit bereinigten Attributen: Inselnummer gesetzt, Besitzer 7, Zufallsbits gelöscht), die
+  zweite die Änderungen – bei diesem Spielstand genau die Einträge des Szenarios. Vorlagennummer
+  und Flag `0x65` = 0 bleiben wie im Szenario; das Original lädt die Vorlage also auch hier, die erste
+  Ebene überdeckt sie vollständig. Die Darstellung ist pixelgleich mit dem Szenario.
+- **Inselbezogene Chunks nur einmal:** `PRODLIST2`, `WERFT`, `MILITAR`, `SIEDLER`, `ROHWACHS2`,
+  `STADT4`, `KONTOR2`, `MARKT2` stehen einmal für alle Inseln (im Szenario je Insel).
+- **`NAME`**: Name des Szenarios („Das Atoll“). **`WIFF`** (4 Byte): Bedeutung offen.
+- Kein `SZENE`, `RANDTAB` und keine `SZENE_*`-Chunks.
+
+## Namen der Spielstände (Game.dat)
+
+Die Datei heißt immer `SAVEGAME/gameNN.gam` (NN = Platz 00–…). Den Namen, den man beim Speichern
+eingibt, schreibt das Spiel in die Textdatei `Game.dat` im Spielordner:
+
+```
+  Objekt:   SPIELNAME
+    Name:      0, "Merlin01", 1
+    Name:      1, "Leer01", 1
+```
+
+`Game.dat` enthält außerdem Einstellungen (Musik, Lautstärke, Videos) und den zuletzt gespeicherten
+Pfad (`Lastfile`, `lastgame.gam`). Das Spiel schreibt also in seinen Installationsordner (auch
+`Szenes/*.hss`, vermutlich Bestenlisten) – siehe Fehler T-005. Open1602 liest `Game.dat` nur, um
+Spielstände über ihren Namen zu finden (`open1602 --savegame Merlin01`, `o1602-tool savegames`).
 
 ## PLAYER4 – Spieler (7 × 0x430 Byte)
 
@@ -31,13 +59,17 @@ Eingeborenen. Die Nummer des Platzes ist zugleich die **Besitzernummer** in den 
 | 0x005 | u8 | Platznummer (0–6) |
 | 0x006 | u8 | immer 1 (Bedeutung offen) |
 | 0x007 | u8 | **Spielerfarbe** (siehe unten) |
-| 0x009 | u8 | im Netzwerkspiel ausgewertet (`0x00473C50`) |
-| 0x3BC | char[64] | Name (in Szenarien leer) |
-| 0x3FC | char[64] | zweiter Name (Netzwerk) |
+| 0x00D | u8 | im Netzwerkspiel ausgewertet (`0x00473C50`) |
+| 0x3C0 | char[64] | Name des Spielers (in Szenarien leer, im Spielstand der Name des Menschen) |
+| 0x400 | char[64] | zweiter Name (Netzwerk) |
 
-Belegt durch die Mehrspieler-Listenfunktion `0x00473C50` (Datensatzgröße 0x430) und alle Szenarien.
-Beispiel „Das Atoll“: Farben 0, 1, 2, 3, 6, 4, 5 für die Plätze 0–6. Im „Endlosspiel00“ hat der Mensch
-die blaue und der erste Computergegner die rote Flagge: Die Farbe gehört also nicht fest zu einem Platz.
+Belegt durch die Mehrspieler-Listenfunktion `0x00473C50` (Datensatzgröße 0x430; sie liest ab
+Datensatz + 4) und alle Szenarien. Beispiel „Das Atoll“: Farben 0, 1, 2, 3, 6, 4, 5 für die Plätze 0–6.
+
+**Bestätigt am Spielstand:** Wählt der Spieler zu Beginn die gelbe Flagge, steht im Spielstand bei
+Platz 0 Farbe 2, und die Computergegner rücken nach (Platz 1 rot, Platz 2 blau, Platz 3 weiß). Die
+Farbe gehört also nicht fest zu einem Platz; die Besitzernummern auf Inseln und Schiffen bleiben die
+Plätze.
 
 ## Spielerfarben
 
@@ -77,7 +109,7 @@ Geschrieben von `0x004600C0`, das auch `HANDLER`, `SOLDAT3` und `TURM` speichert
 | 0x048 | u16 | Figurnummer (HANDEL1 = 21, HANDEL2 = 23, KRIEG1 = 25, KRIEG2 = 27, HANDLER = 29, PIRAT = 31) |
 | 0x04A | u8 | Figurart aus der Figurdefinition (1 Handelsschiff, 3 Pirat, …) |
 | 0x04B | u8 | Besitzer (Platz in PLAYER4, 7 = niemand) |
-| 0x04D | u8 | Richtung 0–7 (45°-Schritte; 0xFF = nicht gesetzt) |
+| 0x04D | u8 | Richtung 0–7 (45°-Schritte; 0xFF bei Schiffen, die gerade fahren – Richtung dann aus der Bewegung, noch offen) |
 | 0x052… | | Ladung, Kanonen, Handelsroute (noch nicht entschlüsselt) |
 
 ## Darstellung der Schiffe

@@ -36,7 +36,8 @@ cmake --build --preset release
 export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
 ./build/release/engine/app/open1602                                  # „Das Atoll“
 ./build/release/engine/app/open1602 --scenario "Szenes/Endlosspiel00.szs" --zoom 1
-./build/release/engine/app/open1602 --savegame meinspiel          # SAVEGAME/meinspiel.gam
+./build/release/engine/app/open1602 --savegame Merlin01           # Name aus dem Spiel (Game.dat)
+./build/release/tools/o1602-tool/o1602-tool savegames               # alle Spielstände mit Namen
 ```
 
 Steuerung: Pfeiltasten/WASD (mit Umschalt schneller) oder rechte/mittlere Maustaste ziehen zum

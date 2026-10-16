@@ -9,6 +9,7 @@
 //   o1602-tool bsh-info   <file.bsh|.zei>                list sprites
 //   o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]
 //   o1602-tool islands    <file.scp|.szs|.szm|.gam>      list islands and tile statistics
+//   o1602-tool savegames                                 list savegames (names from Game.dat)
 //   o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2]
 //                            [--rotation 0-3] [--anim N] [--no-template] [--base FILE.scp]
 //                                                        render an island (needs ANNO1602_DIR)
@@ -37,9 +38,11 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
+#include "o1602/assets/scenario.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
+#include "o1602/core/text.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
@@ -66,6 +69,7 @@ int usage() {
         "  o1602-tool bsh-info   <file.bsh|.zei>\n"
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
+        "  o1602-tool savegames                               (names from Game.dat, needs ANNO1602_DIR)\n"
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
@@ -348,6 +352,48 @@ int cmd_bsh_export(const Args& args) {
     return 0;
 }
 
+int cmd_savegames(const Args& args) {
+    if (!args.positional.empty()) {
+        return usage();
+    }
+    auto game = assets::GameDirectory::from_environment();
+    if (!game) {
+        return fail(game.error());
+    }
+    const auto dat = game->resolve("Game.dat");
+    if (!dat) {
+        return fail(core::make_error(core::ErrorCode::NotFound, "Game.dat not found (the game was never started?)"));
+    }
+    auto bytes = core::read_file(*dat);
+    if (!bytes) {
+        return fail(bytes.error());
+    }
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    for (const auto& slot : assets::parse_savegame_slots(text)) {
+        const auto path = game->resolve(slot.file);
+        std::printf("%2u  %-24s %s", slot.slot, core::cp1252_to_utf8(slot.name).c_str(), slot.file.c_str());
+        if (!path) {
+            std::printf("  (missing)\n");
+            continue;
+        }
+        auto file = assets::ChunkFile::load(*path);
+        std::string scenario;
+        std::string player;
+        if (file) {
+            if (const auto* name = file->find("NAME")) {
+                const auto p = file->payload(*name);
+                scenario.assign(p.begin(), std::find(p.begin(), p.end(), std::uint8_t{0}));
+            }
+            if (auto players = assets::load_players(*file); players && !players->empty()) {
+                player = players->front().name;
+            }
+        }
+        std::printf("  scenario \"%s\", player \"%s\"\n", core::cp1252_to_utf8(scenario).c_str(),
+                    core::cp1252_to_utf8(player).c_str());
+    }
+    return 0;
+}
+
 int cmd_islands(const Args& args) {
     if (args.positional.size() != 1) {
         return usage();
@@ -617,6 +663,9 @@ int main(int argc, char** argv) {
     }
     if (command == "render-world") {
         return cmd_render_world(args);
+    }
+    if (command == "savegames") {
+        return cmd_savegames(args);
     }
     if (command == "islands") {
         return cmd_islands(args);

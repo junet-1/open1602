@@ -51,7 +51,7 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file) {
         p.kind = static_cast<PlayerKind>(data[o + 4]);
         p.slot = data[o + 5];
         p.color = static_cast<PlayerColor>(std::min<std::uint8_t>(data[o + 7], kPlayerColorCount - 1));
-        p.name = read_string(data, o + 0x3BC, 0x40);
+        p.name = read_string(data, o + 0x3C0, 0x40);
         players.push_back(std::move(p));
     }
     return players;
@@ -78,6 +78,61 @@ core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file) {
         ships.push_back(std::move(s));
     }
     return ships;
+}
+
+std::vector<SavegameSlot> parse_savegame_slots(std::string_view text) {
+    std::vector<SavegameSlot> slots;
+    bool in_names = false;
+    std::size_t pos = 0;
+    while (pos < text.size()) {
+        std::size_t end = text.find('\n', pos);
+        if (end == std::string_view::npos) {
+            end = text.size();
+        }
+        std::string_view line = text.substr(pos, end - pos);
+        pos = end + 1;
+        const auto first = line.find_first_not_of(" \t\r");
+        if (first == std::string_view::npos) {
+            continue;
+        }
+        line.remove_prefix(first);
+        if (line.starts_with("Objekt:")) {
+            in_names = line.find("SPIELNAME") != std::string_view::npos;
+            continue;
+        }
+        if (line.starts_with("EndObj")) {
+            in_names = false;
+            continue;
+        }
+        if (!in_names || !line.starts_with("Name:")) {
+            continue;
+        }
+        // Name: <slot>, "<text>", <flag>
+        line.remove_prefix(5);
+        const auto comma = line.find(',');
+        const auto q1 = line.find('"');
+        const auto q2 = q1 == std::string_view::npos ? q1 : line.find('"', q1 + 1);
+        if (comma == std::string_view::npos || q2 == std::string_view::npos) {
+            continue;
+        }
+        std::uint32_t slot = 0;
+        bool digits = false;
+        for (char c : line.substr(0, comma)) {
+            if (c >= '0' && c <= '9') {
+                slot = slot * 10 + static_cast<std::uint32_t>(c - '0');
+                digits = true;
+            }
+        }
+        if (!digits || slot > 99) {
+            continue;
+        }
+        SavegameSlot s;
+        s.slot = slot;
+        s.name = std::string(line.substr(q1 + 1, q2 - q1 - 1));
+        s.file = "Savegame/game" + std::string(slot < 10 ? "0" : "") + std::to_string(slot) + ".gam";
+        slots.push_back(std::move(s));
+    }
+    return slots;
 }
 
 }  // namespace o1602::assets

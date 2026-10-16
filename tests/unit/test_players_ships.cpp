@@ -109,7 +109,7 @@ TEST_CASE("scenario: PLAYER4 and SHIP4 records") {
     players[5] = 0;
     players[6] = 1;
     players[7] = 1;  // blue
-    std::memcpy(&players[0x3BC], "Anna", 4);
+    std::memcpy(&players[0x3C0], "Anna", 4);
     players[0x430 + 0] = 0x50;  // 50000 = 0xC350
     players[0x430 + 1] = 0xC3;
     players[0x430 + 4] = 0x0E;  // pirate
@@ -277,4 +277,25 @@ TEST_CASE("world renderer: ownership view adds diamonds in the owner's colour") 
     render::build_world_draw_list(world, *buildings, clock, view, all, layers, commands);
     CHECK(std::none_of(commands.begin(), commands.end(),
                        [](const render::DrawCommand& c) { return c.sprite == render::DrawCommand::kOverlayDiamond; }));
+}
+
+TEST_CASE("scenario: savegame names from Game.dat") {
+    const char* game_dat =
+        "  Lastfile: \"X:\\Games\\Anno 1602\\Savegame\\lastgame.gam\"\n"
+        "  Objekt:   SPIELNAME\n"
+        "\n"
+        "    Name:      0, \"Merlin01\", 1\n"
+        "    Name:      1, \"Leer01\", 1\n"
+        "    Name:      12, \"Insel mit \xfc\", 0\n"
+        "  EndObj;\n"
+        "  Name: 5, \"not a slot\", 1\n";
+    const auto slots = assets::parse_savegame_slots(game_dat);
+    REQUIRE(slots.size() == 3);
+    CHECK(slots[0].slot == 0);
+    CHECK(slots[0].name == "Merlin01");
+    CHECK(slots[0].file == "Savegame/game00.gam");
+    CHECK(slots[1].name == "Leer01");
+    CHECK(slots[2].slot == 12);
+    CHECK(slots[2].file == "Savegame/game12.gam");
+    CHECK(slots[2].name == "Insel mit \xfc");
 }
