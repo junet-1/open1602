@@ -38,18 +38,17 @@ constexpr std::uint32_t kBigVeinShared = 0xF00;
 constexpr std::uint32_t kComputerKeeps = 0x500;
 constexpr std::uint8_t kGold = 3;
 // Deer and hunters (docs/re/deer.md).
-constexpr std::uint8_t kWareGrass = 52;               // GRAS
-constexpr std::uint8_t kWareTree = 53;                // BAUM
-constexpr std::uint16_t kFigureDeer = 89;             // HIRSCH
-constexpr std::uint16_t kFigureAntelope = 91;         // ANTILOPE (southern islands)
-constexpr std::uint8_t kDeerRange = 6;                // 13 x 13 square around the spot
-constexpr std::uint32_t kDeerPreferredCost = 4 * 64;  // a place about 4 steps away
-constexpr std::uint32_t kDeerFallMs = 5'000;          // falls when it finds no way
-constexpr std::uint32_t kDeerShotMs = 10'000;         // lies after the shot
-constexpr std::uint32_t kDeerRespawnMs = 60'000;      // a spot waits a minute for its next deer
-constexpr std::uint32_t kShotSteps = 3;               // the hunter shoots from 3 tiles
-constexpr std::int32_t kHuntReach = 8;                // lodges within 8 tiles answer
-constexpr std::uint8_t kGrassStops = 2;               // grass, grass, then a tree
+constexpr std::uint8_t kWareGrass = 52;           // GRAS
+constexpr std::uint8_t kWareTree = 53;            // BAUM
+constexpr std::uint16_t kFigureDeer = 89;         // HIRSCH
+constexpr std::uint16_t kFigureAntelope = 91;     // ANTILOPE (southern islands)
+constexpr std::uint8_t kDeerRange = 6;            // 13 x 13 square around the spot
+constexpr std::uint32_t kDeerFallMs = 5'000;      // falls when it finds no way
+constexpr std::uint32_t kDeerShotMs = 10'000;     // lies after the shot
+constexpr std::uint32_t kDeerRespawnMs = 60'000;  // a spot waits a minute for its next deer
+constexpr std::uint32_t kShotSteps = 3;           // the hunter shoots from 3 tiles
+constexpr std::int32_t kHuntReach = 8;            // lodges within 8 tiles answer
+constexpr std::uint8_t kGrassStops = 2;           // grass, grass, then a tree
 using assets::kStockUnitsPerTon;
 
 std::uint64_t tile_key(std::uint16_t island, TilePos t) noexcept {
@@ -456,7 +455,7 @@ void Logistics::send_cart(std::uint32_t home) {
 }
 
 Handle Logistics::launch(Walker walker) {
-    if (walker.path.empty()) {
+    if (walker.path.empty() && !walker.working()) {
         Handle none;
         finish(none, walker);
         return none;
@@ -558,9 +557,7 @@ void Logistics::arrive(Handle h, Walker& w) {
                 m_hunt_calls.push_back(h);
             }
         } else if (!plan_deer(w)) {
-            w.dying = true;
-            w.work_ms = kDeerFallMs;
-            w.animation = 2;
+            fall(w);
         }
         return;
     }
@@ -877,7 +874,11 @@ void Logistics::deliver(Walker& w) {
         std::uint16_t& slot = second ? home.raw2 : home.raw;
         slot = clamp_u16(std::uint32_t{slot} + w.load);
         if (home.rate == 0) {
-            home.countdown = 0;  // an idle building starts in the next second (0x0047D940)
+            // 0x0047D940: an idle building starts in the next second; the statistics window drops
+            // the part of the wait that is left.
+            home.elapsed =
+                static_cast<std::uint16_t>(home.elapsed > home.countdown ? home.elapsed - home.countdown : 0);
+            home.countdown = 0;
         }
         m_stats.raw_delivered += w.load;
     }
@@ -946,14 +947,48 @@ const assets::BuildingType* record_at(const World& world, const assets::Building
 
 }  // namespace
 
-bool Logistics::spawn_deer(std::uint16_t island, std::uint8_t spot) {
-    const DeerSpot& s = m_world->islands()[island].deer_spots[spot];
-    // One deer per spot (the original finds the job of the spot).
+bool Logistics::deer_at(std::uint16_t island, TilePos spot) const {
+    // 0x0044BD00 finds the job of the spot: a deer, living or falling, keeps it until it is gone.
     bool taken = false;
-    m_walkers.for_each(
-        [&](Handle, const Walker& w) { taken |= w.kind == WalkerKind::Deer && w.island == island && w.spot == spot; });
-    if (taken) {
-        return false;
+    m_walkers.for_each([&](Handle, const Walker& w) {
+        taken |= w.kind == WalkerKind::Deer && w.island == island && w.home_tile == spot;
+    });
+    return taken;
+}
+
+void Logistics::touch_spot(std::uint16_t island, TilePos spot) {
+    // 0x0046B2A0: the first slot of the place waits a minute for its next deer. A slot given up
+    // meanwhile is not found: its deer does not come back.
+    for (DeerSpot& s : m_world->island(island).deer_spots) {
+        if (s.used && s.x == spot.x && s.y == spot.y) {
+            s.respawn_ms = m_world->time_ms() + kDeerRespawnMs;
+            return;
+        }
+    }
+}
+
+void Logistics::remove_spot(std::uint16_t island, TilePos spot) {
+    // 0x0046B310: the slot is freed and the last used slot behind it moves into the hole.
+    auto& slots = m_world->island(island).deer_spots;
+    for (std::size_t i = 0; i < slots.size(); ++i) {
+        if (!slots[i].used || slots[i].x != spot.x || slots[i].y != spot.y) {
+            continue;
+        }
+        slots[i].used = false;
+        for (std::size_t j = slots.size() - 1; j > i; --j) {
+            if (slots[j].used) {
+                slots[i] = slots[j];
+                slots[j].used = false;
+                break;
+            }
+        }
+        return;
+    }
+}
+
+bool Logistics::spawn_deer(std::uint16_t island, TilePos spot) {
+    if (deer_at(island, spot)) {
+        return false;  // one deer per place
     }
     const bool south = (m_world->islands()[island].header.climate & 1U) != 0;
     Walker w;
@@ -962,16 +997,29 @@ bool Logistics::spawn_deer(std::uint16_t island, std::uint8_t spot) {
     w.figure = south ? kFigureAntelope : kFigureDeer;
     w.city = MapCell::kNoCity;
     w.home = kNoHome;
-    w.spot = spot;
-    w.home_tile = {s.x, s.y};
-    w.tile = w.home_tile;
+    w.home_tile = spot;
+    w.tile = spot;
     w.ware = kWareGrass;
     w.animation = 0;
-    if (m_figures->get(w.figure) == nullptr || !plan_deer(w)) {
+    if (m_figures->get(w.figure) == nullptr) {
         return false;
+    }
+    if (!plan_deer(w)) {
+        fall(w);  // nothing to eat around: it appears, falls and the place is given up
     }
     ++m_stats.deer_spawned;
     return launch(std::move(w)).valid();
+}
+
+void Logistics::fall(Walker& w) {
+    // 0x0045BFC0: no way to a place of its ware in the square. The deer falls for 5 s; its slot
+    // is given up at once.
+    w.path.clear();
+    w.step = 0;
+    w.dying = true;
+    w.work_ms = kDeerFallMs;
+    w.animation = 2;
+    remove_spot(w.island, w.home_tile);
 }
 
 bool Logistics::plan_deer(Walker& w) {
@@ -979,52 +1027,169 @@ bool Logistics::plan_deer(Walker& w) {
         m_reserved_tiles.erase(tile_key(w.island, *w.field));
         w.field.reset();
     }
+    // 0x004702B0: the 13 x 13 square around the spot, clipped to the island; open land, roads,
+    // ruins and ripe trees, all at the same cost; goals are ripe tiles of the ware nobody reserved,
+    // of any owner.
     const IslandMap& map = m_world->islands()[w.island].map;
     Catchment area;
     area.centre = w.home_tile;
     area.radius = kDeerRange;
     m_finder.begin(map, *m_buildings, area, WalkClass::Land, 0, false);
-    // 0x004702B0: open land, roads, ruins and ripe trees, all at the same cost; goals are ripe
-    // tiles of the ware nobody reserved, of any owner.
     const TilePos corner = m_finder.window_min();
-    for (std::uint32_t j = 0; j < m_finder.window_height(); ++j) {
-        for (std::uint32_t i = 0; i < m_finder.window_width(); ++i) {
-            const TilePos t{corner.x + static_cast<std::int32_t>(i), corner.y + static_cast<std::int32_t>(j)};
+    const auto width = static_cast<std::int32_t>(m_finder.window_width());
+    const auto height = static_cast<std::int32_t>(m_finder.window_height());
+    if (width <= 0 || height <= 0 || w.tile.x < corner.x || w.tile.y < corner.y || w.tile.x >= corner.x + width ||
+        w.tile.y >= corner.y + height) {
+        return false;
+    }
+    // The original's wavefront (0x00471C50 with extra 0xC0) decides where the deer goes, so it
+    // goes where the original's deer goes: cells are claimed by the first neighbour that reaches
+    // them, the frontier is worked from its end, in rounds of 64 (one straight step). The first
+    // goal from round 5 on (cost above 192, about 4 steps) is taken at once; else the last goal of
+    // the rounds before; else the first one further away.
+    constexpr std::uint8_t kFree = 0;
+    constexpr std::uint8_t kBlocked = 0x0C;
+    constexpr std::uint8_t kStart = 0x0B;
+    const auto n = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    std::vector<std::uint8_t>& state = m_deer_state;
+    std::vector<std::uint8_t>& goal = m_deer_goal;
+    state.assign(n, kBlocked);
+    goal.assign(n, 0);
+    auto at = [&](std::int32_t x, std::int32_t y) { return static_cast<std::size_t>(y * width + x); };
+    for (std::int32_t j = 0; j < height; ++j) {
+        for (std::int32_t i = 0; i < width; ++i) {
+            const TilePos t{corner.x + i, corner.y + j};
             const assets::BuildingType* b = record_at(*m_world, *m_buildings, w.island, t.x, t.y);
             if (b == nullptr) {
                 continue;
             }
             const bool ripe_tree = b->prod_kind == kProdKindRipe && b->ware == kWareTree;
-            if (b->prod_kind == kProdKindRipe && b->ware == w.ware &&
-                !m_reserved_tiles.contains(tile_key(w.island, t))) {
-                m_finder.set(t, PathFinder::Cell::Goal, 32);
-            } else if (ripe_tree || m_finder.cell(t) == PathFinder::Cell::Walkable) {
-                m_finder.set(t, PathFinder::Cell::Walkable, 32);
+            if (ripe_tree || m_finder.cell(t) == PathFinder::Cell::Walkable) {
+                state[at(i, j)] = kFree;
+                goal[at(i, j)] = b->prod_kind == kProdKindRipe && b->ware == w.ware &&
+                                 !m_reserved_tiles.contains(tile_key(w.island, t));
             }
         }
     }
-    // The original's search keeps the goals of the first rounds and ends at the first one from
-    // round 4 on: the deer prefers a place about 4 steps away, else the farthest nearer one.
-    std::optional<TilePos> chosen;
-    std::optional<TilePos> last;
-    m_finder.search(w.tile, [&](TilePos t) {
-        const auto c = m_finder.cost(t);
-        if (c && *c >= kDeerPreferredCost) {
-            chosen = t;
-            return PathFinder::Answer::Accept;
+    struct Entry {
+        std::int32_t x;
+        std::int32_t y;
+        std::int32_t wait;
+    };
+    constexpr std::int32_t kRound = 64;
+    constexpr std::int32_t kOrth = 64;     // ORTH[32]
+    constexpr std::int32_t kDiag = 91;     // DIAG[32]
+    constexpr std::int32_t kExtra = 0xC0;  // the deer planner's extra rounds
+    const std::int32_t sx = w.tile.x - corner.x;
+    const std::int32_t sy = w.tile.y - corner.y;
+    state[at(sx, sy)] = kStart;
+    goal[at(sx, sy)] = 0;
+    std::vector<Entry> front{{sx, sy, kRound}};
+    std::vector<Entry> next;
+    std::optional<TilePos> found;
+    std::int32_t elapsed = 0;
+    for (bool done = false; !done;) {
+        next.clear();
+        for (auto e = front.rbegin(); e != front.rend(); ++e) {
+            const std::int32_t carry = e->wait - kRound;
+            if (carry >= 1) {
+                next.push_back({e->x, e->y, carry});  // still walking this step
+                continue;
+            }
+            const std::int32_t x = e->x;
+            const std::int32_t y = e->y;
+            if (goal[at(x, y)] != 0) {
+                found = TilePos{x, y};
+                if (kExtra + kRound <= elapsed) {
+                    done = true;
+                    break;
+                }
+            }
+            // Neighbours; at the window edge the neighbour is the cell itself, which is taken.
+            const std::int32_t left = x == 0 ? x : x - 1;
+            const std::int32_t right = x < width - 1 ? x + 1 : x;
+            const std::int32_t up = y == 0 ? y : y - 1;
+            const std::int32_t down = y < height - 1 ? y + 1 : y;
+            auto claim = [&](std::int32_t cx, std::int32_t cy, std::uint8_t code, std::int32_t cost) {
+                state[at(cx, cy)] = code;
+                next.push_back({cx, cy, cost + carry});
+            };
+            auto open = [&](std::int32_t cx, std::int32_t cy) { return state[at(cx, cy)] == kFree; };
+            // Diagonals only past two unvisited cells: corners are never cut.
+            if (open(left, up) && open(x, up) && open(left, y)) {
+                claim(left, up, 8, kDiag);
+            }
+            if (open(right, up) && open(x, up) && open(right, y)) {
+                claim(right, up, 2, kDiag);
+            }
+            if (open(left, down) && open(x, down) && open(left, y)) {
+                claim(left, down, 6, kDiag);
+            }
+            if (open(right, down) && open(x, down) && open(right, y)) {
+                claim(right, down, 4, kDiag);
+            }
+            if (open(x, up)) {
+                claim(x, up, 1, kOrth);
+            }
+            if (open(x, down)) {
+                claim(x, down, 5, kOrth);
+            }
+            if (open(left, y)) {
+                claim(left, y, 7, kOrth);
+            }
+            if (open(right, y)) {
+                claim(right, y, 3, kOrth);
+            }
         }
-        last = t;
-        return PathFinder::Answer::Remember;
-    });
-    if (!chosen) {
-        chosen = last;
+        elapsed += kRound;
+        if (next.empty() || (found && kExtra + kRound < elapsed)) {
+            done = true;
+        }
+        front.swap(next);
     }
-    if (!chosen || !m_finder.path_to(*chosen, w.path)) {
+    if (!found) {
         return false;
     }
+    // The way back along the codes (0x00472B60 builds the path from them).
+    w.path.clear();
+    TilePos p = *found;
+    while (state[at(p.x, p.y)] != kStart) {
+        w.path.push_back({corner.x + p.x, corner.y + p.y});
+        switch (state[at(p.x, p.y)]) {
+            case 8:
+                p = {p.x + 1, p.y + 1};
+                break;
+            case 2:
+                p = {p.x - 1, p.y + 1};
+                break;
+            case 6:
+                p = {p.x + 1, p.y - 1};
+                break;
+            case 4:
+                p = {p.x - 1, p.y - 1};
+                break;
+            case 1:
+                p = {p.x, p.y + 1};
+                break;
+            case 5:
+                p = {p.x, p.y - 1};
+                break;
+            case 7:
+                p = {p.x + 1, p.y};
+                break;
+            case 3:
+                p = {p.x - 1, p.y};
+                break;
+            default:
+                w.path.clear();
+                return false;
+        }
+    }
+    std::reverse(w.path.begin(), w.path.end());
+    const TilePos target{corner.x + found->x, corner.y + found->y};
     w.step = 0;
-    w.field = *chosen;
-    m_reserved_tiles.insert(tile_key(w.island, *chosen));
+    w.field = target;
+    m_reserved_tiles.insert(tile_key(w.island, target));
     w.animation = 0;
     if (w.ware == kWareGrass) {
         ++w.grazes;
@@ -1034,9 +1199,8 @@ bool Logistics::plan_deer(Walker& w) {
 
 void Logistics::deer_done(Handle h, Walker& w) {
     if (w.dying) {
-        // Shot and lying for 10 s, or fallen for want of a way: the deer is gone. A shot deer's
-        // spot gets a new deer after a minute; one that found no way gives its spot up.
-        remove_deer(h, w, w.shot);
+        // Shot and lying for 10 s, or fallen for want of a way: the deer is gone.
+        remove_deer(h, w);
         return;
     }
     // Done grazing: the grass is eaten (the deer competes with the cattle), on to the next place.
@@ -1048,22 +1212,15 @@ void Logistics::deer_done(Handle h, Walker& w) {
         w.ware = kWareGrass;
     }
     if (!plan_deer(w)) {
-        w.dying = true;
-        w.work_ms = kDeerFallMs;
-        w.animation = 2;
+        fall(w);
     }
 }
 
-void Logistics::remove_deer(Handle h, Walker& w, bool keep_spot) {
+void Logistics::remove_deer(Handle h, Walker& w) {
+    // 0x0045BFC0 state 2: the grass under it is eaten, its place waits a minute for the next
+    // deer (if the place still has a slot), the figure is freed.
     harvest_tile(*m_world, *m_buildings, w.island, to_u16(w.tile.x), to_u16(w.tile.y), kWareGrass);
-    if (w.spot < 8) {
-        DeerSpot& spot = m_world->island(w.island).deer_spots[w.spot];
-        if (keep_spot) {
-            spot.respawn_ms = m_world->time_ms() + kDeerRespawnMs;
-        } else {
-            spot.used = false;
-        }
-    }
+    touch_spot(w.island, w.home_tile);
     finish(h, w);
 }
 
@@ -1174,7 +1331,7 @@ void Logistics::hunter_arrive(Handle h, Walker& w) {
             // deer that was shot or stands next to the hunter.
             harvest_tile(*m_world, *m_buildings, w.island, to_u16(w.tile.x), to_u16(w.tile.y), kWareGrass);
             const Handle dh = w.partner;
-            remove_deer(dh, *deer, true);
+            remove_deer(dh, *deer);
             w.load = kStockUnitsPerTon;
             ++m_stats.deer_hunted;
         } else if (!w.retargeted) {
@@ -1207,10 +1364,12 @@ void Logistics::hunter_arrive(Handle h, Walker& w) {
 }
 
 void Logistics::spawn_deer_at_spots() {
+    // 0x0046A100: every saved slot gets its deer at once, without looking at the trees.
     for (std::uint16_t i = 0; i < m_world->islands().size(); ++i) {
-        for (std::uint8_t s = 0; s < 8; ++s) {
-            if (m_world->islands()[i].deer_spots[s].used) {
-                spawn_deer(i, s);
+        const auto slots = m_world->islands()[i].deer_spots;
+        for (const DeerSpot& s : slots) {
+            if (s.used) {
+                spawn_deer(i, TilePos{s.x, s.y});
             }
         }
     }
@@ -1220,10 +1379,11 @@ void Logistics::advance_islands() {
     const std::uint64_t now = m_world->time_ms();
     for (std::uint16_t i = 0; i < m_world->islands().size(); ++i) {
         WorldIsland& island = m_world->island(i);
-        // Expired spots: a deer comes back if the spot is still forest (a ripe tree in the middle
-        // and trees on at least two sides), otherwise the spot is given up.
-        for (std::uint8_t s = 0; s < 8; ++s) {
-            DeerSpot& spot = island.deer_spots[s];
+        // Expired slots: a deer comes back if the place is still forest (a ripe tree in the
+        // middle and trees on at least two sides) and its last deer is gone; otherwise the slot is
+        // given up (a deer still living there walks on without one). The wait is not renewed,
+        // so the slot is looked at every epoch.
+        for (DeerSpot& spot : island.deer_spots) {
             if (!spot.used || spot.respawn_ms > now) {
                 continue;
             }
@@ -1236,15 +1396,9 @@ void Logistics::advance_islands() {
                               static_cast<int>(tree_tile(*m_world, *m_buildings, i, x, y + 1));
             const bool forest = centre != nullptr && centre->prod_kind == kProdKindRipe && centre->ware == kWareTree;
             if (forest && sides >= 2) {
-                spawn_deer(i, s);
+                spawn_deer(i, TilePos{x, y});
             } else {
-                bool alive = false;
-                m_walkers.for_each([&](Handle, const Walker& w) {
-                    alive |= w.kind == WalkerKind::Deer && w.island == i && w.spot == s;
-                });
-                if (!alive) {
-                    spot.used = false;
-                }
+                spot.used = false;
             }
         }
         if (++island.deer_phase >= 4) {
@@ -1281,6 +1435,9 @@ std::uint32_t deer_allowed(std::size_t spots) noexcept {
 }
 
 void Logistics::census(std::uint16_t island) {
+    // 0x0046B920: `allowed` draws among the forest places. A place already held by one of the
+    // first `allowed` slots is skipped; otherwise it takes the highest free slot below `allowed`
+    // and waits a minute, and a deer appears at once unless the middle is a young tree.
     const std::vector<TilePos> spots = deer_census_spots(*m_world, *m_buildings, island);
     const auto n = static_cast<std::uint32_t>(spots.size());
     const std::uint32_t allowed = deer_allowed(n);
@@ -1288,22 +1445,21 @@ void Logistics::census(std::uint16_t island) {
     Random& random = m_world->random(RandomStream::Animals);
     for (std::uint32_t k = 0; k < allowed; ++k) {
         const TilePos pick = spots[random.below(n)];
-        const bool known = std::any_of(slots.begin(), slots.end(),
-                                       [&](const DeerSpot& s) { return s.used && s.x == pick.x && s.y == pick.y; });
-        if (known) {
+        const auto first = slots.begin();
+        const auto last = slots.begin() + allowed;
+        if (std::any_of(first, last, [&](const DeerSpot& s) { return s.used && s.x == pick.x && s.y == pick.y; })) {
             continue;
         }
-        // The forest feeds at most `allowed` deer (the original uses only that many slots).
-        const auto used = std::count_if(slots.begin(), slots.end(), [](const DeerSpot& s) { return s.used; });
-        const auto free = std::find_if(slots.begin(), slots.end(), [](const DeerSpot& s) { return !s.used; });
-        if (free == slots.end() || static_cast<std::uint32_t>(used) >= allowed) {
+        auto free = std::find_if(std::make_reverse_iterator(last), std::make_reverse_iterator(first),
+                                 [](const DeerSpot& s) { return !s.used; });
+        if (free == std::make_reverse_iterator(first)) {
             continue;
         }
         *free = DeerSpot{true, static_cast<std::uint8_t>(pick.x), static_cast<std::uint8_t>(pick.y),
                          m_world->time_ms() + kDeerRespawnMs};
         const assets::BuildingType* centre = record_at(*m_world, *m_buildings, island, pick.x, pick.y);
         if (centre != nullptr && centre->prod_kind != kProdKindGrowing) {
-            spawn_deer(island, static_cast<std::uint8_t>(free - slots.begin()));
+            spawn_deer(island, pick);
         }
     }
 }

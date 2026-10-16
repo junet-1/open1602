@@ -79,11 +79,11 @@ enum class WalkerKind : std::uint8_t {
 /// A figure on its way.
 struct Walker {
     WalkerKind kind = WalkerKind::Carrier;
-    std::uint16_t island = 0;             ///< index into World::islands()
-    std::uint16_t figure = 0;             ///< FIGUR number (TRAEGER, KARREN, ...)
-    std::uint8_t city = 0;                ///< city on the island
-    std::uint32_t home = 0;               ///< index into World::productions()
-    TilePos home_tile;                    ///< where it delivers: the door (carriers) or the centre (carts)
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint16_t figure = 0;  ///< FIGUR number (TRAEGER, KARREN, ...)
+    std::uint8_t city = 0;     ///< city on the island
+    std::uint32_t home = 0;    ///< index into World::productions()
+    TilePos home_tile;         ///< where it delivers: the door (carriers) or the centre (carts); deer: its place
     std::optional<std::uint32_t> source;  ///< producer it fetches from (index into productions)
     TilePos source_origin;                ///< origin of the building it fetches from (producer or warehouse)
     bool from_warehouse = false;          ///< fetches from a market or warehouse (city stock)
@@ -98,12 +98,11 @@ struct Walker {
     /// 0 home; cattle and fishing boats 0 moving, 1 working.
     std::uint8_t animation = 1;
     // Deer and hunters.
-    std::uint8_t spot = 0xFF;  ///< deer: index of its spot on the island
-    std::uint8_t grazes = 0;   ///< deer: grass stops since the last tree
-    bool dying = false;        ///< deer: falls (shot, or no way left)
-    bool shot = false;         ///< deer: hit by a hunter
-    bool retargeted = false;   ///< hunter: followed the deer once
-    Handle partner;            ///< the deer a hunter hunts, the hunter after a deer
+    std::uint8_t grazes = 0;  ///< deer: grass stops since the last tree
+    bool dying = false;       ///< deer: falls (shot, or no way left)
+    bool shot = false;        ///< deer: hit by a hunter
+    bool retargeted = false;  ///< hunter: followed the deer once
+    Handle partner;           ///< the deer a hunter hunts, the hunter after a deer
 
     // Movement: the figure walks from `tile` towards path[step]; `progress` of `length` (units of
     // 1/65536 tile) is done, at `speed` units per tick.
@@ -193,12 +192,21 @@ private:
     /// A worker is done at its field: harvest, then the next tile or home.
     void finish_work(Handle handle, Walker& walker);
 
-    bool spawn_deer(std::uint16_t island, std::uint8_t spot);
+    /// A deer at forest place `spot` (0x0044BD00), unless one lives there; with nothing to eat it
+    /// falls at once.
+    bool spawn_deer(std::uint16_t island, TilePos spot);
+    [[nodiscard]] bool deer_at(std::uint16_t island, TilePos spot) const;
+    /// The slot of `spot` waits a minute (0x0046B2A0).
+    void touch_spot(std::uint16_t island, TilePos spot);
+    /// The slot of `spot` is given up, the last slot moves into the hole (0x0046B310).
+    void remove_spot(std::uint16_t island, TilePos spot);
+    /// A deer that found no way falls for 5 s and gives its slot up.
+    void fall(Walker& deer);
     /// Next grazing place of a deer: a ripe tile of its ware in the 13 x 13 square around its
-    /// spot, preferably about 4 steps away (0x0045C270).
+    /// spot, preferably about 4 steps away, chosen and reached like the original (0x0045C270).
     bool plan_deer(Walker& deer);
     void deer_done(Handle handle, Walker& deer);
-    void remove_deer(Handle handle, Walker& deer, bool keep_spot);
+    void remove_deer(Handle handle, Walker& deer);
     void call_hunter(Handle deer);
     void hunter_arrive(Handle handle, Walker& hunter);
     /// A hunter close to its grazing deer shoots (0x0045C450).
@@ -235,6 +243,9 @@ private:
     std::unordered_set<std::uint64_t> m_reserved_tiles;
     /// Deer that started grazing and call a hunter (handled after the figures moved).
     std::vector<Handle> m_hunt_calls;
+    /// Scratch grids of the deer planner (cell state and goal flag of the 13 x 13 square).
+    std::vector<std::uint8_t> m_deer_state;
+    std::vector<std::uint8_t> m_deer_goal;
 };
 
 }  // namespace o1602::sim

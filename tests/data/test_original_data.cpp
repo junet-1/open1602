@@ -7,6 +7,9 @@
 // Expected values were taken from the GOG "Koenigsedition" (German).
 
 #include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
 #include <map>
 #include <optional>
 #include <set>
@@ -941,40 +944,172 @@ TEST_CASE("data: houses of a savegame add up to the cities' inhabitants") {
     }
 }
 
-TEST_CASE("data: money of the next city tick matches the original (game00 -> lastgame)") {
-    const auto game = require_game();
-    const auto first = game.resolve("SAVEGAME/game00.gam");
-    const auto next = game.resolve("SAVEGAME/lastgame.gam");
-    if (!first || !next) {
-        SKIP("needs SAVEGAME/game00.gam and lastgame.gam");
+namespace {
+
+/// A loaded savegame of the installation.
+struct LoadedSave {
+    std::string name;
+    sim::World world;
+};
+
+/// All savegames in SAVEGAME/ that load, oldest game time first.
+std::vector<LoadedSave> load_savegames(const assets::GameDirectory& game, const assets::BuildingTable& buildings) {
+    std::vector<LoadedSave> saves;
+    const auto dir = game.resolve("SAVEGAME");
+    if (!dir || !std::filesystem::is_directory(*dir)) {
+        return saves;
     }
+    std::vector<std::filesystem::path> files;
+    for (const auto& entry : std::filesystem::directory_iterator(*dir)) {
+        std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (entry.is_regular_file() && ext == ".gam") {
+            files.push_back(entry.path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    for (const auto& f : files) {
+        auto file = assets::ChunkFile::load(f);
+        if (!file.ok()) {
+            continue;
+        }
+        auto world = sim::load_world(*file, buildings, game);
+        if (world.ok()) {
+            saves.push_back(LoadedSave{f.filename().string(), std::move(world).value()});
+        }
+    }
+    std::stable_sort(saves.begin(), saves.end(),
+                     [](const LoadedSave& x, const LoadedSave& y) { return x.world.time_ms() < y.world.time_ms(); });
+    return saves;
+}
+
+/// Whether two saves belong to the same game (same islands and cities).
+bool same_game(const sim::World& a, const sim::World& b) {
+    if (a.islands().size() != b.islands().size() || a.cities().size() != b.cities().size() ||
+        a.players().size() != b.players().size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.cities().size(); ++i) {
+        if (a.cities()[i].name != b.cities()[i].name) {
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+TEST_CASE("data: money of the next city tick matches the original (pairs of savegames)") {
+    const auto game = require_game();
     auto buildings = assets::BuildingTable::load(game);
     REQUIRE(buildings.ok());
+    const auto saves = load_savegames(game, *buildings);
+    // Saves less than one city tick (10 s) apart whose money differs: every city ticked once
+    // in between (the original works through all cities within a few frames).
+    std::size_t pairs = 0;
+    for (std::size_t i = 0; i + 1 < saves.size(); ++i) {
+        const sim::World& world = saves[i].world;
+        const sim::World& later = saves[i + 1].world;
+        const std::uint64_t dt = later.time_ms() - world.time_ms();
+        if (!same_game(world, later) || dt == 0 || dt >= 10'000 || world.players().size() < 4 ||
+            later.players()[0].money == world.players()[0].money) {
+            continue;
+        }
+        ++pairs;
+        const std::vector<std::int32_t> costs = sim::running_costs(world, *buildings);
+        std::vector<std::int32_t> delta(world.players().size(), 0);
+        for (std::size_t c = 0; c < world.cities().size(); ++c) {
+            const sim::City& city = world.cities()[c];
+            const sim::Player* owner = world.player(city.owner);
+            if (owner == nullptr ||
+                (owner->role != sim::PlayerRole::Human && owner->role != sim::PlayerRole::Computer)) {
+                continue;
+            }
+            delta[city.owner] += (sim::tax_income(city, *buildings) - costs[c]) / 6;
+        }
+        for (std::size_t p = 0; p < 4; ++p) {
+            CHECK(world.players()[p].money + delta[p] == later.players()[p].money);
+        }
+    }
+    if (pairs == 0) {
+        SKIP("no two savegames one city tick apart");
+    }
+}
+
+TEST_CASE("data: a savegame played on in the original replays tile for tile (O1602_REPLAY)") {
+    // O1602_REPLAY=SAVEGAME/a.gam,SAVEGAME/b.gam: b was saved after loading a and playing on
+    // (the original sets every deer back to its place when it loads). Open1602 plays a for the
+    // same game time and must end up with the same deer slots and production states as b.
+    const char* env = std::getenv("O1602_REPLAY");
+    if (env == nullptr) {
+        SKIP("set O1602_REPLAY=earlier.gam,later.gam");
+    }
+    const std::string spec(env);
+    const auto comma = spec.find(',');
+    REQUIRE(comma != std::string::npos);
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    const auto first = game.resolve(spec.substr(0, comma));
+    const auto second = game.resolve(spec.substr(comma + 1));
+    REQUIRE(first.has_value());
+    REQUIRE(second.has_value());
     auto file = assets::ChunkFile::load(*first);
-    auto file2 = assets::ChunkFile::load(*next);
+    auto file2 = assets::ChunkFile::load(*second);
     REQUIRE(file.ok());
     REQUIRE(file2.ok());
     auto world = sim::load_world(*file, *buildings, game);
     auto later = sim::load_world(*file2, *buildings, game);
     REQUIRE(world.ok());
     REQUIRE(later.ok());
-    if (later->players().size() != world->players().size() || later->players()[0].money == world->players()[0].money) {
-        SKIP("lastgame.gam is not the next city tick of game00.gam");
+    REQUIRE(later->time_ms() > world->time_ms());
+    sim::Simulation simulation(*world, *buildings, *figures);
+    const std::uint64_t ticks = (later->time_ms() - world->time_ms() + 25) / 50;
+    for (std::uint64_t t = 0; t < ticks; ++t) {
+        simulation.advance(50);
     }
-    // Between the two saves (5.1 s) every city ticked exactly once.
-    const std::vector<std::int32_t> costs = sim::running_costs(*world, *buildings);
-    std::vector<std::int32_t> delta(world->players().size(), 0);
-    for (std::size_t i = 0; i < world->cities().size(); ++i) {
-        const sim::City& c = world->cities()[i];
-        const sim::Player* owner = world->player(c.owner);
-        if (owner == nullptr || (owner->role != sim::PlayerRole::Human && owner->role != sim::PlayerRole::Computer)) {
+    // Deer slots: same places in the same order; a wait set in between agrees within a second
+    // (the original's clock has 1/10 s steps and frame-sized sub-steps).
+    for (std::size_t i = 0; i < world->islands().size(); ++i) {
+        const auto& ours = world->islands()[i].deer_spots;
+        const auto& theirs = later->islands()[i].deer_spots;
+        for (std::size_t s = 0; s < ours.size(); ++s) {
+            CHECK(ours[s].used == theirs[s].used);
+            if (!ours[s].used || !theirs[s].used) {
+                continue;
+            }
+            CHECK(ours[s].x == theirs[s].x);
+            CHECK(ours[s].y == theirs[s].y);
+            const auto d =
+                static_cast<std::int64_t>(ours[s].respawn_ms) - static_cast<std::int64_t>(theirs[s].respawn_ms);
+            CHECK(std::abs(d) <= 1000);
+        }
+    }
+    // Hunting lodges: raw material, cycle, statistics.
+    std::size_t lodges = 0;
+    for (const sim::Production& p : later->productions()) {
+        const auto& cell = later->islands()[p.island].map.top(p.x, p.y);
+        const assets::BuildingType* b = buildings->by_sprite(cell.sprite);
+        if (b == nullptr || b->prod_kind != 5) {
             continue;
         }
-        delta[c.owner] += (sim::tax_income(c, *buildings) - costs[i]) / 6;
+        const auto idx = world->production_index(p.island, p.x, p.y);
+        REQUIRE(idx.has_value());
+        const sim::Production& q = world->productions()[*idx];
+        ++lodges;
+        CHECK(q.raw == p.raw);
+        CHECK(q.stock == p.stock);
+        CHECK(q.rate == p.rate);
+        // The original's production second is not saved: its phase after loading may differ by
+        // up to one second.
+        CHECK(std::abs(static_cast<int>(q.countdown) - static_cast<int>(p.countdown)) <= 1);
+        CHECK(q.idle_cycles == p.idle_cycles);
+        CHECK(q.produced == p.produced);
+        CHECK(q.elapsed == p.elapsed);
     }
-    for (std::size_t p = 0; p < 4; ++p) {
-        CHECK(world->players()[p].money + delta[p] == later->players()[p].money);
-    }
+    CHECK(lodges > 0);
 }
 
 namespace {

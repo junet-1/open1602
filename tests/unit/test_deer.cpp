@@ -116,8 +116,12 @@ TEST_CASE("deer: graze on the meadow, rest under trees, eat the grass") {
     logistics.walkers().for_each([&](sim::Handle, const sim::Walker& w) { deer = w; });
     REQUIRE(deer.field.has_value());
     CHECK(deer.ware == 52);  // grass first
-    // The place is about 4 steps away and within 6 tiles of the spot.
-    CHECK(std::abs(deer.field->x - 9) <= 6);
+    // The place is about 4 steps away: the original's wavefront takes the first goal from round 5
+    // on, here 2 diagonal and 1 straight step (cost 246; an independent model of 0x00471C50
+    // gives the same tile).
+    CHECK(*deer.field == (sim::TilePos{12, 5}));
+    CHECK(deer.path.size() == 3);
+    CHECK(deer.path.back() == (sim::TilePos{12, 5}));
     CHECK(deer.figure == 89);
     // Two grass stops, then a tree; each lasts 12 s, grass is eaten.
     forest.tick(logistics, 20 * 120);
@@ -177,4 +181,41 @@ TEST_CASE("deer: the census settles deer in dense forest") {
     CHECK(used >= 1);
     CHECK(used <= 2);  // min(8, (n + 5) / 8) with n = 12 spots
     CHECK(forest.deer(logistics) == used);
+    // New places take the highest free slot below the allowed number.
+    CHECK(forest.world.islands()[0].deer_spots[1].used);
+}
+
+TEST_CASE("deer: without anything to eat a deer falls and its slot is closed up") {
+    Forest forest(false);
+    auto& slots = forest.world.island(0).deer_spots;
+    slots[0] = sim::DeerSpot{true, 25, 25, 0};  // open ground, no grass within 6 tiles
+    slots[1] = sim::DeerSpot{true, 9, 7, 0};
+    slots[2] = sim::DeerSpot{true, 9, 9, 0};
+    sim::Logistics logistics(forest.world, forest.buildings, forest.figures);
+    logistics.spawn_deer_at_spots();
+    CHECK(forest.deer(logistics) == 3);
+    // 0x0046B310: the slot goes at once, the last used slot moves into the hole.
+    CHECK(slots[0].used);
+    CHECK(slots[0].x == 9);
+    CHECK(slots[0].y == 9);
+    CHECK(slots[1].x == 9);
+    CHECK(slots[1].y == 7);
+    CHECK(!slots[2].used);
+    forest.tick(logistics, 20 * 6);  // falls for 5 s
+    CHECK(forest.deer(logistics) == 2);
+}
+
+TEST_CASE("deer: a cleared spot is given up, its deer lives on without it") {
+    Forest forest(false);
+    auto& slots = forest.world.island(0).deer_spots;
+    slots[0] = sim::DeerSpot{true, 9, 7, 0};
+    sim::Logistics logistics(forest.world, forest.buildings, forest.figures);
+    logistics.spawn_deer_at_spots();
+    REQUIRE(forest.deer(logistics) == 1);
+    // The middle tree is felled; when the expired slot is looked at, it is given up.
+    REQUIRE(forest.world.island(0).map.replace(*forest.buildings.by_id(kGround), 9, 7, 0, 0).ok());
+    forest.world.set_time_ms(1000);
+    logistics.advance_islands();
+    CHECK(!slots[0].used);
+    CHECK(forest.deer(logistics) == 1);
 }
