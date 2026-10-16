@@ -10,7 +10,8 @@
 # but does not explicitly mention 32-bit PE targets. This script checks exactly that and
 # compares the result with addresses already verified via objdump (see re/symbols/functions.csv).
 #
-# Output is written to re/notes/rea-smoke-test-<date>.log - please commit it or share it.
+# Output is written to re/notes/rea-smoke-test-<date>.log. The log contains decompiled code of the
+# original and is therefore git-ignored; record the conclusions in re/notes/rea-smoke-test-result.md.
 
 set -uo pipefail
 

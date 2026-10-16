@@ -51,3 +51,6 @@ __pycache__/
 *.i64
 *.idb
 *.hop
+
+# Analysis logs may contain decompiled code of the original (ADR 0003)
+re/notes/*.log

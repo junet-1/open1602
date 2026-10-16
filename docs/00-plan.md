@@ -169,7 +169,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | Schritt | Stand |
 |---|---|
 | M0: Git-Repository, CMake-Presets, CI (Linux/Windows/macOS, ASan), ADRs | ✅ erledigt |
-| M0: rea + Ghidra Machbarkeitstest | ⏳ Skript `re/scripts/rea-smoke-test.sh` bereit – auf dem eigenen Rechner ausführen |
+| M0: rea + Ghidra Machbarkeitstest | ✅ bestanden (rea 6.5.0, Ghidra 12.1.2) – `re/notes/rea-smoke-test-result.md` |
 | M1: Chunk-Container, `.cod`, Palette, BSH-Sprites | ✅ dokumentiert, implementiert, gegen Originaldaten getestet |
 | M1: Inseln (`.SCP`) | 🟡 Kopf (Größe, Position) und Feldliste; Attribut-Bits offen |
 | M1: ZEI-Schriften, GAD, Szenario-Chunks, `.cod`-Grammatik | ⬜ als Nächstes |
