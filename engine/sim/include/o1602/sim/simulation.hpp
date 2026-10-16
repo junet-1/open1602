@@ -10,6 +10,8 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/assets/figure_table.hpp"
+#include "o1602/sim/logistics.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/world.hpp"
@@ -24,7 +26,8 @@ public:
     /// 3 s count as 50 ms, so a stalled computer does not fast-forward the game).
     static constexpr std::uint32_t kMaxCatchUpMs = 3000;
 
-    Simulation(World& world, const assets::BuildingTable& buildings, Rules rules = Rules::open1602());
+    Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+               Rules rules = Rules::open1602());
 
     /// Advances by `real_ms` of real time at the current speed; runs whole ticks and keeps the rest.
     void advance(std::uint32_t real_ms);
@@ -38,6 +41,8 @@ public:
     [[nodiscard]] std::uint64_t game_time_ms() const noexcept { return m_time_ms; }
     [[nodiscard]] const World& world() const noexcept { return *m_world; }
     [[nodiscard]] const Rules& rules() const noexcept { return m_rules; }
+    /// Carriers and carts on their way.
+    [[nodiscard]] const Logistics& logistics() const noexcept { return m_logistics; }
 
     /// Production events since the last call (floating texts, animation phases, later logistics).
     [[nodiscard]] std::vector<ProductionEvent> take_production_events();
@@ -51,6 +56,7 @@ private:
     std::uint32_t m_pending_ms = 0;     ///< game time not yet run as a tick
     std::uint32_t m_production_ms = 0;  ///< game time since the last production second
     std::vector<ProductionEvent> m_production_events;
+    Logistics m_logistics;
 };
 
 }  // namespace o1602::sim

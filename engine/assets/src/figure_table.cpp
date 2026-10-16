@@ -6,6 +6,7 @@
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_predefined.hpp"
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/savegame.hpp"
 #include "o1602/core/file.hpp"
 
 namespace o1602::assets {
@@ -35,6 +36,12 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
         f.shadow = static_cast<std::uint32_t>(std::max(0, r.integer("Schatten")));
         f.rotate = static_cast<std::uint32_t>(std::max(0, r.integer("Rotate")));
         f.posoffs = {r.integer("Posoffs", 0), r.integer("Posoffs", 1)};
+        f.speed = static_cast<std::uint32_t>(std::max(0, r.integer("Speed")));
+        f.speed_type = static_cast<std::uint8_t>(std::clamp(r.integer("Speedtyp"), 0, 3));
+        f.max_carry = static_cast<std::uint32_t>(std::max(0, r.integer("Maxtrag"))) * kStockUnitsPerTon;
+        if (const cod::Field* work = r.field("Worktime"); work != nullptr && !work->values.empty()) {
+            f.work_time_ms = static_cast<std::uint32_t>(std::max(0.0, work->values[0].real * 1000.0 + 0.5));
+        }
         if (const cod::Field* fahn = r.field("Fahnoffs")) {
             for (std::size_t i = 0; i < f.fahnoffs.size() && i < fahn->values.size(); ++i) {
                 f.fahnoffs[i] = fahn->values[i].real;

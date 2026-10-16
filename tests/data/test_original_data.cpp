@@ -7,8 +7,11 @@
 // Expected values were taken from the GOG "Koenigsedition" (German).
 
 #include <algorithm>
+#include <map>
+#include <optional>
 #include <set>
 #include <string>
+#include <tuple>
 
 #include "../test_framework.hpp"
 
@@ -30,6 +33,7 @@
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -614,6 +618,13 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
             REQUIRE(sub.building != nullptr);
             CHECK(sub.building->prod_kind == 8);  // HAUS_PRODTYP Kind KONTOR
             CHECK(map.top(w.x, w.y).city == w.city);
+            // The world books the goods at the city (ware number = index).
+            const sim::City* city = world->city(it->island, it->index);
+            REQUIRE(city != nullptr);
+            CHECK(city->warehouse_x == std::optional<std::uint16_t>(w.x));
+            for (const auto& ware_slot : w.wares) {
+                CHECK(city->stock(ware_slot.ware) == ware_slot.stock());
+            }
         }
         // Soldiers stand on land (SOLDAT3 positions in half tiles).
         CHECK(world->soldiers().size() == state->soldiers.size());
@@ -639,4 +650,75 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
     if (loaded == 0) {
         SKIP("no savegames");
     }
+}
+
+TEST_CASE("data: logistics of a savegame keep their books balanced") {
+    const auto game = require_game();
+    const auto dat = game.resolve("Game.dat");
+    if (!dat) {
+        SKIP("no Game.dat (game never started)");
+    }
+    auto bytes = core::read_file(*dat);
+    REQUIRE(bytes.ok());
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    const auto slots = assets::parse_savegame_slots(text);
+    std::optional<std::filesystem::path> path;
+    for (const auto& slot : slots) {
+        if (!path) {
+            path = game.resolve(slot.file);
+        }
+    }
+    if (!path) {
+        SKIP("no savegame");
+    }
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto world = sim::load_world(*file, *buildings, game);
+    REQUIRE(world.ok());
+    sim::Simulation simulation(*world, *buildings, *figures);
+
+    // Every city with a warehouse has room: the Kontor's Maxlager plus 10 t per further market.
+    for (const sim::City& c : world->cities()) {
+        if (c.warehouse_x) {
+            CHECK(c.capacity >= 30 * assets::kStockUnitsPerTon);
+        }
+    }
+    for (int second = 0; second < 180; ++second) {
+        simulation.advance(1000);
+        if (second % 30 != 29) {
+            continue;
+        }
+        // What the figures on their way have reserved is exactly what producers and warehouses
+        // keep reserved; what carts bring is what the warehouses expect.
+        std::vector<std::uint32_t> reserved(world->productions().size(), 0);
+        std::map<std::tuple<std::uint16_t, std::uint8_t, std::uint8_t>, std::uint32_t> city_reserved;
+        std::map<std::tuple<std::uint16_t, std::uint8_t, std::uint8_t>, std::uint32_t> city_incoming;
+        simulation.logistics().walkers().for_each([&](sim::Handle, const sim::Walker& w) {
+            if (w.from_warehouse) {
+                city_reserved[{w.island, w.city, w.ware}] += w.reserved;
+            } else if (w.source) {
+                reserved[*w.source] += w.reserved;
+            }
+            city_incoming[{w.island, w.city, w.ware}] += w.expected;
+        });
+        for (std::size_t i = 0; i < reserved.size(); ++i) {
+            CHECK(world->productions()[i].reserved == reserved[i]);
+        }
+        for (const sim::City& c : world->cities()) {
+            for (std::size_t ware = 0; ware < c.goods.size(); ++ware) {
+                const auto key = std::make_tuple(c.island, c.index, static_cast<std::uint8_t>(ware));
+                CHECK(c.reserved_of(static_cast<std::uint8_t>(ware)) == city_reserved[key]);
+                CHECK(c.incoming_of(static_cast<std::uint8_t>(ware)) == city_incoming[key]);
+            }
+        }
+    }
+    const sim::LogisticsStats& stats = simulation.logistics().stats();
+    CHECK(stats.carrier_trips > 0);
+    CHECK(stats.cart_trips > 0);
+    CHECK(stats.raw_delivered > 0);
+    CHECK(stats.goods_collected > 0);
 }

@@ -49,6 +49,7 @@
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/land_figures.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/walker_figures.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/island_map.hpp"
@@ -81,7 +82,7 @@ int usage() {
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
         "                          [--tile X,Y] [--size WxH] [--owners] [--original-sheets] [--original-flags]\n"
-        "                          [--banner P:RRGGBB] [--simulate SECONDS]\n"
+        "                          [--banner P:RRGGBB] [--simulate SECONDS] [--walkers]\n"
         "                          (default: whole world at zoom 2; --simulate: run the economy first; "
         "--original-sheets: no figures where the\n"
         "                          original has no graphics for them; --original-flags: the original flag\n"
@@ -627,25 +628,6 @@ int cmd_render_world(const Args& args) {
     if (!world) {
         return fail(world.error());
     }
-    if (const auto seconds = args.number("--simulate")) {
-        sim::Simulation simulation(*world, *buildings);
-        std::size_t produced = 0;
-        std::size_t stopped = 0;
-        for (std::uint64_t s = 0; s < static_cast<std::uint64_t>(*seconds); ++s) {
-            simulation.advance(1000);
-            for (const auto& e : simulation.take_production_events()) {
-                produced += e.kind == sim::ProductionEvent::Kind::Produced ? 1U : 0U;
-                stopped += e.kind == sim::ProductionEvent::Kind::Stopped ? 1U : 0U;
-            }
-        }
-        std::size_t working = 0;
-        for (const auto& p : world->productions()) {
-            working += p.enabled && p.working() ? 1U : 0U;
-        }
-        std::printf("simulated %lld s: %zu tons produced, %zu buildings stopped, %zu working\n",
-                    static_cast<long long>(*seconds), produced, stopped, working);
-    }
-
     render::WorldView view;
     view.zoom = static_cast<render::Zoom>(std::min<std::size_t>(args.number("--zoom").value_or(2), 2));
     view.rotation = static_cast<std::uint8_t>(args.number("--rotation").value_or(0) & 3U);
@@ -661,6 +643,44 @@ int cmd_render_world(const Args& args) {
     auto figures = assets::FigureTable::load(*game);
     if (!figures) {
         return fail(figures.error());
+    }
+    std::optional<sim::Simulation> simulation;
+    if (const auto seconds = args.number("--simulate")) {
+        simulation.emplace(*world, *buildings, *figures);
+        std::size_t produced = 0;
+        std::size_t stopped = 0;
+        for (std::uint64_t s = 0; s < static_cast<std::uint64_t>(*seconds); ++s) {
+            simulation->advance(1000);
+            for (const auto& e : simulation->take_production_events()) {
+                produced += e.kind == sim::ProductionEvent::Kind::Produced ? 1U : 0U;
+                stopped += e.kind == sim::ProductionEvent::Kind::Stopped ? 1U : 0U;
+            }
+        }
+        std::size_t working = 0;
+        for (const auto& p : world->productions()) {
+            working += p.enabled && p.working() ? 1U : 0U;
+        }
+        const sim::LogisticsStats& ls = simulation->logistics().stats();
+        std::printf("simulated %lld s: %zu tons produced, %zu buildings stopped, %zu working\n",
+                    static_cast<long long>(*seconds), produced, stopped, working);
+        std::printf(
+            "logistics: %llu carrier trips (%.2f t raw material delivered), %llu cart trips (%.2f t "
+            "collected), %zu figures on their way\n",
+            static_cast<unsigned long long>(ls.carrier_trips),
+            static_cast<double>(ls.raw_delivered) / assets::kStockUnitsPerTon,
+            static_cast<unsigned long long>(ls.cart_trips),
+            static_cast<double>(ls.goods_collected) / assets::kStockUnitsPerTon,
+            simulation->logistics().walkers().size());
+        if (args.flag("--walkers")) {
+            simulation->logistics().walkers().for_each([&](sim::Handle, const sim::Walker& w) {
+                const sim::WorldIsland& island = world->islands()[w.island];
+                const sim::WalkerPosition pos = sim::walker_position(w);
+                std::printf("  %s figure %u at %.2f,%.2f (island %u), ware %u, %s %.2f t\n",
+                            w.kind == sim::WalkerKind::Cart ? "cart   " : "carrier", w.figure, island.x + pos.x,
+                            island.y + pos.y, w.island, w.ware, w.returning ? "carrying" : "reserved",
+                            static_cast<double>(w.returning ? w.load : w.reserved) / assets::kStockUnitsPerTon);
+            });
+        }
     }
     render::GraphicsOptions graphics_options;
     graphics_options.derive_missing_sheets = !args.flag("--original-sheets");
@@ -731,7 +751,11 @@ int cmd_render_world(const Args& args) {
     render::SoldierFigures soldiers;
     soldiers.reset(*world, *figures);
     soldiers.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)), *figures);
-    layers.land_figures = {&animals.instances(), &soldiers.instances()};
+    render::WalkerFigures walkers;
+    if (simulation) {
+        walkers.update(simulation->logistics(), *world, *figures, 0);
+    }
+    layers.land_figures = {&animals.instances(), &soldiers.instances(), &walkers.instances()};
     layers.unit_tint = &graphics->unit_tint;
     std::vector<render::DrawCommand> commands;
     render::build_world_draw_list(*world, *buildings, clock, view, viewport, layers, commands);

@@ -10,8 +10,8 @@
 // cycle lasts Interval * rate / 128 seconds. Without raw material the building waits 11 seconds
 // and counts an idle cycle (the "no raw material" icon appears after Maxnorohst of them).
 //
-// Raw material is brought by carriers, farmers, miners ...; those are not simulated yet, so
-// buildings only use what is in them. The cycle reports what it would ask for (NeedsRawGoods).
+// Raw material is brought by carriers, farmers, miners ...: the cycle reports what a building asks
+// for (NeedsRawGoods) and the logistics (logistics.hpp) sends the figures.
 #pragma once
 
 #include <cstdint>

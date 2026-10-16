@@ -12,8 +12,9 @@ constexpr std::size_t kMaxPendingEvents = 8192;      // events nobody takes are 
 
 }  // namespace
 
-Simulation::Simulation(World& world, const assets::BuildingTable& buildings, Rules rules)
-    : m_world(&world), m_buildings(&buildings), m_rules(rules) {}
+Simulation::Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+                       Rules rules)
+    : m_world(&world), m_buildings(&buildings), m_rules(rules), m_logistics(world, buildings, figures) {}
 
 void Simulation::set_speed(std::uint32_t speed) noexcept {
     m_speed = std::min(speed, m_rules.max_game_speed);
@@ -39,12 +40,18 @@ void Simulation::tick() {
     m_production_ms += kTickMs;
     if (m_production_ms >= kProductionPeriodMs) {
         m_production_ms -= kProductionPeriodMs;
+        const std::size_t first = m_production_events.size();
         advance_production(*m_world, *m_buildings, &m_production_events);
+        for (std::size_t i = first; i < m_production_events.size(); ++i) {
+            m_logistics.handle(m_production_events[i]);
+        }
         if (m_production_events.size() > kMaxPendingEvents) {
             m_production_events.erase(m_production_events.begin(),
                                       m_production_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
     }
+    // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670).
+    m_logistics.tick();
 }
 
 std::vector<ProductionEvent> Simulation::take_production_events() {

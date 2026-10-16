@@ -23,6 +23,7 @@
 #include "o1602/render/land_figures.hpp"
 #include "o1602/render/sdl_sprite_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/walker_figures.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -59,7 +60,7 @@ public:
 
 private:
     MapViewer(assets::GameDirectory game, assets::BuildingTable buildings, sim::World world, assets::Palette palette,
-              ViewerOptions options);
+              assets::FigureTable figures, ViewerOptions options);
 
     /// Sprites of one zoom level: atlas (CPU side only rects remain) and its GPU textures.
     struct ZoomGraphics {
@@ -90,8 +91,9 @@ private:
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::AnimalFigures m_animals;                ///< the islands' animals, grazing
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
+    render::WalkerFigures m_walkers;                ///< carriers and carts of the logistics
     ViewerOptions m_options;
-    sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world and m_buildings)
+    sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
     std::unique_ptr<platform::Window> m_window;

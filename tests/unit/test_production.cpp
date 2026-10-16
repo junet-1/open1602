@@ -10,6 +10,7 @@
 #include "o1602/assets/savegame.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/pool.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -343,7 +344,8 @@ TEST_CASE("simulation: fixed ticks, production once per game second, speed and p
     p.countdown = 3;
     world.set_production(p);
 
-    sim::Simulation simulation(world, buildings);
+    const assets::FigureTable no_figures;
+    sim::Simulation simulation(world, buildings, no_figures);
     simulation.advance(999);
     CHECK(world.productions()[0].countdown == 3);  // not a second yet
     CHECK(simulation.game_time_ms() == 950);       // whole ticks only
@@ -370,4 +372,27 @@ TEST_CASE("simulation: fixed ticks, production once per game second, speed and p
     CHECK(simulation.game_time_ms() == before + sim::Simulation::kTickMs);
     simulation.set_speed(100);
     CHECK(simulation.speed() == sim::Rules{}.max_game_speed);
+}
+
+TEST_CASE("sim: pool with stable handles") {
+    sim::Pool<int> pool;
+    const sim::Handle a = pool.add(1);
+    const sim::Handle b = pool.add(2);
+    const sim::Handle c = pool.add(3);
+    CHECK(pool.size() == 3);
+    pool.remove(b);
+    CHECK(!pool.contains(b));
+    CHECK(pool.get(b) == nullptr);
+    const sim::Handle d = pool.add(4);  // reuses b's slot with a new generation
+    CHECK(d.index == b.index);
+    CHECK(!(d == b));
+    CHECK(pool.get(b) == nullptr);
+    CHECK(*pool.get(d) == 4);
+    std::vector<int> order;
+    pool.for_each([&](sim::Handle, int v) { order.push_back(v); });
+    CHECK((order == std::vector<int>{1, 4, 3}));
+    pool.remove(a);
+    pool.remove(c);
+    CHECK(pool.add(5).index == a.index);  // lowest free slot first
+    CHECK(pool.size() == 2);
 }

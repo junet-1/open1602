@@ -32,6 +32,55 @@ struct City {
     std::uint8_t index = 0;    ///< city number on the island (MapCell::city)
     PlayerId owner = kNoPlayer;
     std::string name;  ///< Windows-1252
+    /// Goods in the city's warehouses in 1/32 t, indexed by ware number (haeuser.cod); the list
+    /// grows with the wares a game knows (ADR 0007). KONTOR2 in the original.
+    std::vector<std::uint32_t> goods;
+    /// Warehouse the goods are booked at (KONTOR2 position; the original keeps one per city).
+    std::optional<std::uint16_t> warehouse_x;
+    std::optional<std::uint16_t> warehouse_y;
+    /// Goods promised to carriers on their way to a market or warehouse, per ware (city ware
+    /// entry +0; not saved, so 0 after loading).
+    std::vector<std::uint32_t> reserved;
+    /// Goods market carts are bringing, per ware. The original has no such counter and loses what
+    /// does not fit when a cart unloads (S-024); Open1602 lets a cart load only what will fit.
+    std::vector<std::uint32_t> incoming;
+    /// Room per ware in 1/32 t, the same for every ware: the Maxlager of the warehouse plus 10 t
+    /// for every further market or warehouse of the city (0x0047AB00). Computed by the logistics.
+    std::uint32_t capacity = 0;
+
+    [[nodiscard]] std::uint32_t stock(std::uint8_t ware) const noexcept {
+        return ware < goods.size() ? goods[ware] : 0;
+    }
+    [[nodiscard]] std::uint32_t reserved_of(std::uint8_t ware) const noexcept {
+        return ware < reserved.size() ? reserved[ware] : 0;
+    }
+    [[nodiscard]] std::uint32_t incoming_of(std::uint8_t ware) const noexcept {
+        return ware < incoming.size() ? incoming[ware] : 0;
+    }
+    /// Stock nobody has reserved.
+    [[nodiscard]] std::uint32_t available(std::uint8_t ware) const noexcept {
+        const std::uint32_t s = stock(ware);
+        const std::uint32_t r = reserved_of(ware);
+        return s > r ? s - r : 0;
+    }
+    /// Room left for a ware; less than a ton counts as none (0x0047AA00).
+    [[nodiscard]] std::uint32_t free_space(std::uint8_t ware) const noexcept {
+        const std::uint32_t s = stock(ware);
+        const std::uint32_t room = capacity > s ? capacity - s : 0;
+        return room < 32 ? 0 : room;
+    }
+    /// Makes sure the per-ware lists cover `ware`.
+    void ensure_ware(std::uint8_t ware) {
+        if (ware >= goods.size()) {
+            goods.resize(std::size_t{ware} + 1, 0);
+        }
+        if (ware >= reserved.size()) {
+            reserved.resize(goods.size(), 0);
+        }
+        if (ware >= incoming.size()) {
+            incoming.resize(goods.size(), 0);
+        }
+    }
 };
 
 /// A wild animal standing on an island (HIRSCH2 in the original: up to 8 per island).
@@ -111,6 +160,8 @@ public:
     /// City `index` on island `island` (index into islands()), nullptr if there is none.
     [[nodiscard]] const City* city(std::uint16_t island, std::uint8_t index) const noexcept;
     void add_city(City city) { m_cities.push_back(std::move(city)); }
+    /// Mutable lookup for the simulation.
+    [[nodiscard]] City* city(std::uint16_t island, std::uint8_t index) noexcept;
 
     [[nodiscard]] const std::vector<Animal>& animals() const noexcept { return m_animals; }
     void add_animal(Animal animal) { m_animals.push_back(animal); }
@@ -125,6 +176,9 @@ public:
     /// islands()), nullptr if it has none. Constant time: the renderer asks for every visible
     /// production building in every frame.
     [[nodiscard]] const Production* production(std::uint16_t island, std::uint16_t x, std::uint16_t y) const;
+    /// Index into productions() of that building.
+    [[nodiscard]] std::optional<std::uint32_t> production_index(std::uint16_t island, std::uint16_t x,
+                                                                std::uint16_t y) const;
     /// Adds or replaces the state of the building at (p.island, p.x, p.y).
     void set_production(const Production& p);
 

@@ -61,6 +61,13 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         }
         b.high = (r.integer("Highflg") & 1) != 0;
         b.draw_ground = (r.integer("Grundflg") & 1) != 0;
+        b.door_on_edge = (r.integer("Tuerflg") & 1) != 0;
+        for (std::size_t i = 0; i < b.walk_speed.size(); ++i) {
+            // 0x00462834: trunc(value * 32 / 100), at most 126. Zero would mean infinite speed
+            // (a division by zero in the original); Open1602 keeps at least 1.
+            const std::int32_t percent = r.integer("Wegspeed", i, 100);
+            b.walk_speed[i] = static_cast<std::uint8_t>(std::clamp(percent * 32 / 100, 1, 126));
+        }
         b.build_gfx = non_negative(r.integer("Baugfx"));
         b.kreuz_base = r.integer("KreuzBase");
         b.rand_count = static_cast<std::uint16_t>(r.integer("RandAnz"));
@@ -86,6 +93,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.interval = non_negative(prodtyp.integer("Interval"));
             b.worker_figure = static_cast<std::uint16_t>(non_negative(prodtyp.integer("Figurnr")));
             b.worker_count = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Figuranz")));
+            b.radius = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Radius"))));
             b.max_stock = non_negative(prodtyp.integer("Maxlager")) * kStockUnitsPerTon;
             b.max_idle_cycles = non_negative(prodtyp.integer("Maxnorohst"));
             b.stock_animation = (prodtyp.integer("LagAniFlg") & 1) != 0;

@@ -20,7 +20,11 @@ enum class ProductionKind : std::int32_t {
     Jagdhaus = 5,   ///< hunters
     Fischerei = 6,  ///< fishers
     Markt = 7,      ///< market place
+    Kontor = 8,     ///< warehouse (Kontor)
 };
+
+/// Ware number of markets and warehouses (ALLWARE): they hold every good.
+inline constexpr std::uint8_t kAllWares = 1;
 
 /// Workshops, farms, mines, hunters and fishers: kinds 1..6. These have smoke and status icons.
 [[nodiscard]] constexpr bool is_producer(const assets::BuildingType& b) noexcept {
@@ -47,11 +51,21 @@ struct Production {
     /// the productivity the building window shows. Both are halved when the window exceeds 239 s.
     std::uint16_t produced = 0;
     std::uint16_t elapsed = 0;  ///< length of the statistics window
+    /// Part of `stock` promised to carriers and carts on their way (entry +0x06, not saved: 0
+    /// after loading).
+    std::uint16_t reserved = 0;
 
     static constexpr std::uint8_t kFullRate = 128;
+    /// `flags` bit: the player forbids market carts to collect here (+0x0F bit 4, 0x0047CD60).
+    static constexpr std::uint8_t kNoPickupFlag = 0x10;
     static constexpr std::uint16_t kProgressDone = 512;  ///< market: `produced` of a full cycle
 
     [[nodiscard]] constexpr bool working() const noexcept { return rate != 0; }
+    [[nodiscard]] constexpr bool no_pickup() const noexcept { return (flags & kNoPickupFlag) != 0; }
+    /// Stock nobody has reserved.
+    [[nodiscard]] constexpr std::uint16_t available() const noexcept {
+        return stock > reserved ? static_cast<std::uint16_t>(stock - reserved) : 0;
+    }
 };
 
 /// What the icon above a building of the local player shows (0x0047CDD0).

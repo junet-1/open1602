@@ -79,8 +79,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
 
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
-                                                    std::move(palette).value(), options));
-    viewer->m_figures = std::move(figures).value();
+                                                    std::move(palette).value(), std::move(figures).value(), options));
     viewer->m_banners =
         render::BannerTable::original(&viewer->m_figures, render::BannerOptions{options.original_flags});
     viewer->m_building_figures =
@@ -128,13 +127,14 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
 }
 
 MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings, sim::World world,
-                     assets::Palette palette, ViewerOptions options)
+                     assets::Palette palette, assets::FigureTable figures, ViewerOptions options)
     : m_game(std::move(game)),
       m_buildings(std::move(buildings)),
       m_world(std::move(world)),
       m_palette(std::move(palette)),
+      m_figures(std::move(figures)),
       m_options(std::move(options)),
-      m_simulation(m_world, m_buildings),
+      m_simulation(m_world, m_buildings, m_figures),
       m_clock(m_buildings) {}
 
 MapViewer::~MapViewer() {
@@ -366,6 +366,8 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_clock.advance(delta_ms);
         m_animals.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
+        m_walkers.update(m_simulation.logistics(), m_world, m_figures,
+                         static_cast<std::uint32_t>(delta_ms) * m_simulation.speed());
     }
 }
 
@@ -383,7 +385,7 @@ void MapViewer::render() {
         layers.atlas = &atlas;
         layers.ship_base = graphics->graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
         layers.sheet_base = graphics->graphics.base;
-        layers.land_figures = {&m_animals.instances(), &m_soldiers.instances()};
+        layers.land_figures = {&m_animals.instances(), &m_soldiers.instances(), &m_walkers.instances()};
         layers.unit_tint = &graphics->graphics.unit_tint;
         layers.banners = &m_banners;
         layers.banner_flags = &graphics->graphics.banner_flags;

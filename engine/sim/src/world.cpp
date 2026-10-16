@@ -44,6 +44,15 @@ core::Status World::add_island(WorldIsland island) {
     return core::Ok{};
 }
 
+City* World::city(std::uint16_t island, std::uint8_t index) noexcept {
+    for (City& c : m_cities) {
+        if (c.island == island && c.index == index) {
+            return &c;
+        }
+    }
+    return nullptr;
+}
+
 const City* World::city(std::uint16_t island, std::uint8_t index) const noexcept {
     for (const City& c : m_cities) {
         if (c.island == island && c.index == index) {
@@ -64,6 +73,11 @@ constexpr std::uint64_t production_key(std::uint16_t island, std::uint16_t x, st
 const Production* World::production(std::uint16_t island, std::uint16_t x, std::uint16_t y) const {
     const auto it = m_production_index.find(production_key(island, x, y));
     return it == m_production_index.end() ? nullptr : &m_productions[it->second];
+}
+
+std::optional<std::uint32_t> World::production_index(std::uint16_t island, std::uint16_t x, std::uint16_t y) const {
+    const auto it = m_production_index.find(production_key(island, x, y));
+    return it == m_production_index.end() ? std::nullopt : std::optional<std::uint32_t>(it->second);
 }
 
 void World::set_production(const Production& p) {
@@ -171,7 +185,26 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             warn("city '" + c.name + "' on unknown island " + std::to_string(c.island));
             continue;
         }
-        world.add_city(City{*island, c.index, player_from_original(c.owner), c.name});
+        City city;
+        city.island = *island;
+        city.index = c.index;
+        city.owner = player_from_original(c.owner);
+        city.name = c.name;
+        world.add_city(std::move(city));
+    }
+    for (const auto& w : state->warehouses) {
+        const auto island = world.island_index(w.island);
+        City* city = island ? world.city(*island, w.city) : nullptr;
+        if (city == nullptr) {
+            warn("warehouse of unknown city " + std::to_string(w.island) + "/" + std::to_string(w.city));
+            continue;
+        }
+        city->warehouse_x = w.x;
+        city->warehouse_y = w.y;
+        for (const auto& slot : w.wares) {
+            city->ensure_ware(slot.ware);
+            city->goods[slot.ware] = slot.stock();
+        }
     }
     for (const auto& p : state->production) {
         const auto island = world.island_index(p.island);

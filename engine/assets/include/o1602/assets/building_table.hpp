@@ -31,8 +31,15 @@ struct BuildingType {
     /// Einhoffs (record +0x18, float): height of the building in half tile widths. Status icons and
     /// other symbols hover at this height above the building's centre (0x00446776).
     double icon_height = 0.0;
-    bool high = false;             ///< Highflg: drawn in the second (high) pass of a row
-    bool draw_ground = false;      ///< Grundflg: draw the ground tile below first
+    bool high = false;         ///< Highflg: drawn in the second (high) pass of a row
+    bool draw_ground = false;  ///< Grundflg: draw the ground tile below first
+    /// Tuerflg (record +0x6A bit 0): the door is the middle tile of one edge instead of the centre
+    /// tile (0x004634C0); figures leave and enter there.
+    bool door_on_edge = false;
+    /// Wegspeed (record +0x58): how fast figures walk on this tile, per figure speed type (FIGUR
+    /// Speedtyp: 0 carriers, 1 soldiers, 2 carts and riders, 3 other). Stored like the original as
+    /// value * 32 / 100 (32 = 100 % = full speed, larger is slower), at most 126 (0x00462834).
+    std::array<std::uint8_t, 4> walk_speed{32, 32, 32, 32};
     std::uint32_t build_gfx = 0;   ///< Baugfx: icon in the build menu
     std::int32_t kreuz_base = 0;   ///< KreuzBase: related base record (e.g. road crossings)
     std::uint16_t rand_count = 0;  ///< RandAnz: number of random variants
@@ -58,6 +65,9 @@ struct BuildingType {
     /// HAUS_PRODTYP/Figurnr, Figuranz: carriers or workers of the building (record +0x3C, +0x3E).
     std::uint16_t worker_figure = 0;
     std::uint8_t worker_count = 0;
+    /// HAUS_PRODTYP/Radius (record +0x20): catchment radius in tiles. Carriers, carts and workers
+    /// never leave this circle around the building.
+    std::uint8_t radius = 0;
     /// HAUS_PRODTYP/Maxnorohst: cycles without raw material before the building reports a shortage
     /// (record +0x36).
     std::uint32_t max_idle_cycles = 0;
