@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "open1602",
+  "version": "0.1.0",
+  "description": "Open-source engine reimplementation for Anno 1602",
+  "license": "GPL-3.0-or-later",
+  "dependencies": [
+    "zlib"
+  ],
+  "features": {
+    "game": {
+      "description": "Game executable (rendering, audio, input)",
+      "dependencies": [ "sdl3" ]
+    }
+  }
+}

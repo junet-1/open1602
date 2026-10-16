@@ -1,0 +1,53 @@
+# Build
+/build/
+/out/
+/cmake-build-*/
+CMakeUserPresets.json
+compile_commands.json
+.cache/
+
+# IDEs
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Original game data - never commit (see docs/architecture/0002-lizenz-und-originaldaten.md)
+*.bsh
+*.BSH
+*.zei
+*.ZEI
+*.col
+*.COL
+*.scp
+*.SCP
+*.szs
+*.SZS
+*.szm
+*.SZM
+*.gam
+*.GAM
+*.cod
+*.smk
+*.SMK
+*.wav
+*.exe
+*.dll
+*.DLL
+/gamedata/
+/export/
+/exports/
+
+# Reverse engineering databases (rebuild from re/symbols)
+*.gpr
+*.rep/
+*.gzf
+*.i64
+*.idb
+*.hop

@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux GCC,   os: ubuntu-24.04, cxx: g++,     preset: ci }
+          - { name: Linux Clang, os: ubuntu-24.04, cxx: clang++, preset: ci }
+          - { name: Linux ASan,  os: ubuntu-24.04, cxx: clang++, preset: asan }
+          - { name: Windows MSVC, os: windows-2022, cxx: cl,     preset: ci }
+          - { name: macOS Clang, os: macos-14,     cxx: clang++, preset: ci }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build zlib1g-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Set up MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check formatting
+        run: |
+          find engine tools tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror

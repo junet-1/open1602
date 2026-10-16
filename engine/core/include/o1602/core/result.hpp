@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+
+#include <cassert>
+#include <string>
+#include <utility>
+#include <variant>
+
+namespace o1602::core {
+
+enum class ErrorCode {
+    IoError,        ///< File could not be opened / read / written.
+    NotFound,       ///< File or entry does not exist.
+    InvalidFormat,  ///< Data does not match the expected format.
+    OutOfRange,     ///< Index or offset outside of valid range.
+    Unsupported,    ///< Valid data, but a variant we do not handle (yet).
+};
+
+struct Error {
+    ErrorCode code;
+    std::string message;
+};
+
+/// Minimal result type (stand-in for C++23 std::expected).
+/// Parsing original game data must never crash on malformed input, so all loaders return Result.
+template <typename T>
+class [[nodiscard]] Result {
+public:
+    Result(T value) : m_data(std::move(value)) {}      // NOLINT(google-explicit-constructor)
+    Result(Error error) : m_data(std::move(error)) {}  // NOLINT(google-explicit-constructor)
+
+    [[nodiscard]] bool ok() const noexcept { return std::holds_alternative<T>(m_data); }
+    explicit operator bool() const noexcept { return ok(); }
+
+    [[nodiscard]] T& value() & {
+        assert(ok());
+        return std::get<T>(m_data);
+    }
+    [[nodiscard]] const T& value() const& {
+        assert(ok());
+        return std::get<T>(m_data);
+    }
+    [[nodiscard]] T&& value() && {
+        assert(ok());
+        return std::get<T>(std::move(m_data));
+    }
+
+    [[nodiscard]] const Error& error() const& {
+        assert(!ok());
+        return std::get<Error>(m_data);
+    }
+
+    T* operator->() { return &value(); }
+    const T* operator->() const { return &value(); }
+    T& operator*() & { return value(); }
+    const T& operator*() const& { return value(); }
+
+private:
+    std::variant<T, Error> m_data;
+};
+
+/// Result without a value.
+struct Ok {};
+using Status = Result<Ok>;
+
+inline Error make_error(ErrorCode code, std::string message) {
+    return Error{code, std::move(message)};
+}
+
+}  // namespace o1602::core
