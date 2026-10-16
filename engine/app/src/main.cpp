@@ -28,8 +28,9 @@ namespace {
 int usage() {
     std::fputs(
         "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]\n"
-        "                [--owners] [--original-sheets] [--frames N] [--screenshot out.png]\n"
+        "                [--owners] [--original-sheets] [--original-flags] [--frames N] [--screenshot out.png]\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
+        "  --original-flags   original flag images instead of the tinted generic flag\n"
         "\n"
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
@@ -65,6 +66,8 @@ int main(int argc, char** argv) {
             options.show_owners = true;
         } else if (arg == "--original-sheets") {
             options.derive_small_figures = false;
+        } else if (arg == "--original-flags") {
+            options.original_flags = true;
         } else if (arg == "--frames" && has_value) {
             std::int32_t frames = 0;
             if (!parse_number(argv[++i], frames) || frames < 0) {

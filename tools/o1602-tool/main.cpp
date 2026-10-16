@@ -23,6 +23,7 @@
 #include <cctype>
 #include <charconv>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -77,9 +78,11 @@ int usage() {
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
-        "                          [--tile X,Y] [--size WxH] [--owners] [--original-sheets]\n"
+        "                          [--tile X,Y] [--size WxH] [--owners] [--original-sheets] [--original-flags]\n"
+        "                          [--banner P:RRGGBB]\n"
         "                          (default: whole world at zoom 2; --original-sheets: no figures where the\n"
-        "                          original has no graphics for them)\n",
+        "                          original has no graphics for them; --original-flags: the original flag\n"
+        "                          images instead of the tinted generic flag)\n",
         stderr);
     return 2;
 }
@@ -623,8 +626,28 @@ int cmd_render_world(const Args& args) {
     }
     render::GraphicsOptions graphics_options;
     graphics_options.derive_missing_sheets = !args.flag("--original-sheets");
+    auto banners = render::BannerTable::original(&*figures, render::BannerOptions{args.flag("--original-flags")});
+    // --banner P:RRGGBB gives player P a new banner in any colour (tinted generic flag).
+    if (const auto it = args.options.find("--banner"); it != args.options.end()) {
+        const std::string spec(it->second);
+        const auto colon = spec.find(':');
+        if (colon == std::string::npos || spec.size() - colon - 1 != 6) {
+            return usage();
+        }
+        const auto slot = static_cast<std::size_t>(std::strtoul(spec.substr(0, colon).c_str(), nullptr, 10));
+        const auto rgb = static_cast<std::uint32_t>(std::strtoul(spec.substr(colon + 1).c_str(), nullptr, 16));
+        auto players = world->players();
+        if (slot >= players.size()) {
+            return fail(core::make_error(core::ErrorCode::OutOfRange, "no player " + std::to_string(slot)));
+        }
+        players[slot].banner =
+            banners.add_color("custom:" + spec.substr(colon + 1),
+                              assets::Rgba{static_cast<std::uint8_t>(rgb >> 16), static_cast<std::uint8_t>(rgb >> 8),
+                                           static_cast<std::uint8_t>(rgb), 255});
+        world->set_players(std::move(players));
+    }
     auto graphics =
-        render::load_world_graphics(*game, *palette, view.zoom, render::kWorldFigureSheets, graphics_options);
+        render::load_world_graphics(*game, *palette, view.zoom, render::kWorldFigureSheets, graphics_options, &banners);
     if (!graphics) {
         return fail(graphics.error());
     }
@@ -658,8 +681,8 @@ int cmd_render_world(const Args& args) {
     layers.atlas = atlas;
     layers.ship_base = graphics->sheet_base(assets::FigureSheet::Ship).value_or(0);
     layers.sheet_base = graphics->base;
-    const auto banners = render::BannerTable::original(&*figures);
     layers.banners = &banners;
+    layers.banner_flags = &graphics->banner_flags;
     layers.owner_tint = args.flag("--owners");
     const auto flags = render::collect_building_flags(*world, *buildings, *figures);
     layers.building_flags = &flags;

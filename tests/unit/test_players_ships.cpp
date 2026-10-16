@@ -208,7 +208,8 @@ TEST_CASE("world renderer: ship hull, owner flag and row") {
     world.set_players({sim::Player{sim::PlayerRole::Human, 0, 0, ""}, sim::Player{sim::PlayerRole::Natives, 5, 0, ""}});
     const sim::Ship ship{"Patria", 10, 20, 21, 0, 3};
 
-    const auto banners = render::BannerTable::original(&figures);
+    // Original flag images for this test (the tinted generic flag is covered in test_figures).
+    const auto banners = render::BannerTable::original(&figures, render::BannerOptions{true});
     render::WorldLayers layers;
     layers.figures = &figures;
     layers.atlas = &*atlas;
@@ -276,7 +277,7 @@ TEST_CASE("world renderer: ownership view adds diamonds in the owner's colour") 
         return c.sprite == render::DrawCommand::kOverlayDiamond;
     });
     REQUIRE(it != commands.end());
-    CHECK(it->tint == (assets::Rgba{232, 192, 24, render::kOverlayAlpha}));  // yellow banner
+    CHECK(it->tint == (assets::Rgba{255, 219, 57, render::kOverlayAlpha}));  // yellow banner
     CHECK(it->tint_size == 16);
 
     layers.owner_tint = false;
@@ -341,7 +342,7 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     // Banners with flags at 0, 8, 16 of the ship sheet (as the original red, blue, yellow).
     render::BannerTable banners;
     for (std::uint32_t c = 0; c < 3; ++c) {
-        banners.add(render::Banner{"test:" + std::to_string(c), {}, 8U * c, 8});
+        banners.add(render::Banner{"test:" + std::to_string(c), {}, render::FlagStyle::Sprites, 8U * c, 8});
     }
     render::WorldLayers layers;
     layers.figures = &*figures;
@@ -361,7 +362,7 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     CHECK(s.row == (232 + 40 - 1) / 16);  // sorted by y + Posoffs[1]
 
     // A banner without flag sprites (like the free trader) or an unknown banner shows no flag.
-    banners.add(render::Banner{"test:noflag", {}, std::nullopt, 8});
+    banners.add(render::Banner{"test:noflag", {}, render::FlagStyle::None, 0, 8});
     world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 3, 0, ""}});
     CHECK(!render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 0, s));
     world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 99, 0, ""}});
@@ -382,7 +383,7 @@ TEST_CASE("players: more than the original seven slots and extra banners (ADR 00
 
     // Twelve players; player 10 uses a banner that the original does not have.
     auto banners = render::BannerTable::original();
-    const sim::BannerId teal = banners.add(render::Banner{"meinmod:tuerkis", {0, 160, 160, 255}, std::nullopt, 8});
+    const sim::BannerId teal = banners.add_color("meinmod:tuerkis", {0, 160, 160, 255});
     CHECK(teal == 7);
     std::vector<sim::Player> players(12);
     players[10] = sim::Player{sim::PlayerRole::Human, teal, 0, "Fünfter"};

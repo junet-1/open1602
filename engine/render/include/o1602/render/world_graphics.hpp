@@ -14,6 +14,7 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
+#include "o1602/render/banner.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 
 namespace o1602::render {
@@ -35,6 +36,9 @@ struct WorldGraphics {
     std::array<std::optional<std::uint32_t>, assets::kFigureSheetCount> base{};
     /// Sheets made from the next larger zoom level.
     std::array<bool, assets::kFigureSheetCount> derived{};
+    /// Per banner (BannerTable index): atlas index of the first image of its tinted flag, nothing
+    /// for banners without a tinted flag.
+    std::vector<std::optional<std::uint32_t>> banner_flags;
 
     [[nodiscard]] std::optional<std::uint32_t> sheet_base(assets::FigureSheet sheet) const noexcept {
         return base[static_cast<std::size_t>(sheet)];
@@ -43,9 +47,12 @@ struct WorldGraphics {
 
 /// Terrain (STADTFLD) is required; every sheet in `figure_sheets` is optional and simply missing
 /// from WorldGraphics::base if neither it nor (with derive_missing_sheets) its larger version exists.
+/// With `banners`, the generic flag is tinted once per banner with FlagStyle::Tinted (needs the
+/// ship sheet).
 core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& game, const assets::Palette& palette,
                                                 Zoom zoom, std::span<const assets::FigureSheet> figure_sheets,
-                                                const GraphicsOptions& options = {});
+                                                const GraphicsOptions& options = {},
+                                                const BannerTable* banners = nullptr);
 
 /// The sheets the world renderer uses: ships, animals and shadows.
 inline constexpr std::array<assets::FigureSheet, 3> kWorldFigureSheets = {

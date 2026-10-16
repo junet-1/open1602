@@ -2,9 +2,13 @@
 //
 // Banners: how a player is recognised on screen - display colour (ownership view, minimap, UI)
 // and the waving flag on ships and buildings. Players refer to a banner by sim::BannerId; the
-// table is open-ended so mods can add colours and flags (ADR 0007, section 4).
+// table is open-ended (ADR 0007, section 4).
+//
+// Player flags are one generic flag tinted in the banner colour (flag_tint.hpp), so any colour
+// works without new graphics. Banners with their own motif (the pirates' skull) keep sprites.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -16,33 +20,64 @@
 
 namespace o1602::render {
 
+enum class FlagStyle : std::uint8_t {
+    None,     ///< no flag (natives, free trader)
+    Tinted,   ///< the generic flag in `color`
+    Sprites,  ///< own images (`flag_gfx` in the ship sheet), e.g. the pirates' skull
+};
+
 struct Banner {
-    std::string id;  ///< stable name, e.g. "anno1602:red"
-    assets::Rgba color;
-    /// First of `flag_frames` flag images in the ship sheet (ships and buildings share them, as in
-    /// the original); nothing for banners without a flag (natives, free trader). Banners from mods
-    /// will name their own sheet here.
-    std::optional<std::uint32_t> flag_gfx;
+    std::string id;      ///< stable name, e.g. "anno1602:red"
+    assets::Rgba color;  ///< display colour and flag tint
+    FlagStyle flag = FlagStyle::Tinted;
+    std::uint32_t flag_gfx = 0;  ///< FlagStyle::Sprites: first image in the ship sheet
     std::uint32_t flag_frames = 8;
 };
 
 /// Opacity of the ownership overlay diamonds.
 inline constexpr std::uint8_t kOverlayAlpha = 110;
 
+/// The generic flag: `frames` images in the ship sheet starting at `gfx`. The base game takes the
+/// white flag (FAHNE4) and turns it into a tint template (flag_tint.hpp).
+struct FlagTemplate {
+    std::uint32_t gfx = 0;
+    std::uint32_t frames = 8;
+    bool from_original = true;  ///< convert an original coloured flag (false: already a template)
+};
+
+struct BannerOptions {
+    /// Use the original red, blue, yellow and white flag images instead of the tinted generic
+    /// flag (pixel-faithful to the original, including its 256-colour dithering).
+    bool original_player_flags = false;
+};
+
 class BannerTable {
 public:
-    /// The seven colours of the original. With `figures`, the flags are taken from the flag
-    /// figures (table 0x00498F2C: FAHNE1-4, FAHNEPIRAT -> SHIP.BSH 192 + 8 * colour).
-    [[nodiscard]] static BannerTable original(const assets::FigureTable* figures = nullptr);
+    /// The seven banners of the original. Red, blue, yellow and white use the tinted generic flag
+    /// in the colours measured from the original flags; pirates keep FAHNEPIRAT; natives and the
+    /// free trader have none. `figures` supplies the flag images (table 0x00498F2C).
+    [[nodiscard]] static BannerTable original(const assets::FigureTable* figures = nullptr,
+                                              const BannerOptions& options = {});
+
+    /// Colours offered for new banners: the four of the original and eight more that stay
+    /// distinguishable on land, water and the minimap (the menu also allows any RGB colour).
+    static const std::array<assets::Rgba, 12> kDefaultColors;
 
     [[nodiscard]] const Banner* get(sim::BannerId id) const noexcept {
         return id < m_banners.size() ? &m_banners[id] : nullptr;
     }
     [[nodiscard]] std::size_t size() const noexcept { return m_banners.size(); }
+    [[nodiscard]] const std::vector<Banner>& banners() const noexcept { return m_banners; }
     sim::BannerId add(Banner banner);
+    /// A banner with the generic flag in `color`.
+    sim::BannerId add_color(std::string id, assets::Rgba color);
+
+    [[nodiscard]] const std::optional<FlagTemplate>& flag_template() const noexcept { return m_template; }
+    void set_flag_template(FlagTemplate t) { m_template = t; }
 
 private:
     std::vector<Banner> m_banners;
+    std::optional<FlagTemplate> m_template;
 };
 
 }  // namespace o1602::render

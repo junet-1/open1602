@@ -72,16 +72,22 @@ eine klare Meldung.
 
 ### 4. Banner: Farben und Flaggen
 
-- Ein **Banner** fasst die Erkennungsmerkmale eines Spielers zusammen: Anzeigefarbe (Minikarte,
-  Besitzansicht, Oberfläche), Flaggensprites für Schiffe und Gebäude, Farbvarianten für Soldaten und
-  ein Wappen für das Auswahlmenü. Spieler verweisen auf ein Banner (`sim::BannerId`), nicht auf eine
-  feste Farbnummer.
-- Das Basisspiel liefert die sieben Banner des Originals. Rot, Blau, Gelb, Weiß und Piraten haben
-  Flaggen in `SHIP.BSH`, Eingeborene und Händler haben keine (`render::BannerTable::original`).
-- Mods fügen Banner mit eigenen Sprites hinzu. Die Flaggenwahl zeigt alle Banner wie in Anno 1503.
-  In einer Partie ist jedes Banner höchstens einmal vergeben.
-- Fehlen einem Banner Sprites für eine Figur, etwa Soldaten, wird aus der Anzeigefarbe eine
-  Variante erzeugt (Palettentausch). Fehlende Sprites führen nie zu einem Absturz oder zu leeren Figuren.
+- Ein **Banner** fasst die Erkennungsmerkmale eines Spielers zusammen: Farbe (Flagge, Minikarte,
+  Besitzansicht, Oberfläche), Flaggenart und später die Farbvarianten der Soldaten. Spieler verweisen
+  auf ein Banner (`sim::BannerId`), nicht auf eine feste Farbnummer.
+- **Spielerflaggen sind eine einzige Flagge, die eingefärbt wird** (Vorschlag des Projektinhabers,
+  16.10.2026). Im Flaggenmenü wählt man eine von zwölf Vorgabefarben oder eine beliebige RGB-Farbe wie
+  in OpenRA; die Engine färbt die Flagge beim Laden der Grafik ein (`render::TintedFlagSource`, ein Satz
+  aus 8 Bildern je Banner und Zoomstufe). Neue Spieler brauchen keine neuen Bilder.
+- Die Vorlage folgt einer einfachen Regel: Reines Grau (R = G = B) ist Tuch, Grau 128 ist genau die
+  Spielerfarbe, dunklere und hellere Grautöne schattieren. Alles andere bleibt, wie es ist
+  (Anleitung für Modder: [docs/modding/flags.md](../modding/flags.md)).
+- Das Basisspiel macht die Vorlage aus der weißen Originalflagge. Rot, Blau, Gelb und Weiß werden in
+  den aus den Originalbildern ermittelten Farben eingefärbt; wer die Originalbilder möchte, schaltet
+  sie ein (`BannerOptions::original_player_flags`, `--original-flags`).
+- Banner mit eigenem Motiv behalten fertige Bilder (`FlagStyle::Sprites`, z. B. der Totenkopf der
+  Piraten); Eingeborene und Händler haben keine Flagge (`FlagStyle::None`).
+- In einer Partie ist jedes Banner höchstens einmal vergeben. Das Menü warnt vor zu ähnlichen Farben.
 
 ### 5. Welt, Inseln und Inselgenerator
 
@@ -127,7 +133,7 @@ eine klare Meldung.
 |---|---|---|
 | `sim::MapCell::owner`, `sim::Ship::owner` | Besitzer 0–6, 7 = niemand | ✅ `sim::PlayerId`, `kNoPlayer`; Übersetzung beim Laden |
 | `sim::Player` | Farbe als `assets::PlayerColor` (0–6), Art als `assets::PlayerKind` | ✅ `BannerId` und `PlayerRole` |
-| `render::player_rgb`, `FigureTable::flag_for_color` im Renderer | 7 feste Farben, 5 Flaggen | ✅ `render::BannerTable` (Original-Banner aus den Daten, erweiterbar) |
+| `render::player_rgb`, `FigureTable::flag_for_color` im Renderer | 7 feste Farben, 5 Flaggen | ✅ `render::BannerTable` mit eingefärbter Einheitsflagge, beliebige Farben |
 | Überlagerungsfarbe `DrawCommand::tint` | Index in die 7 Farben | ✅ RGBA direkt im Befehl |
 | `sim::World::kWidth/kHeight`, `Cell` mit 8-Bit-Inselnummer und Koordinaten | 500 × 350, 255 Inseln, Inseln bis 255 × 255 | ✅ Größe pro Welt, 16 Bit |
 | Gebäude, Figuren | `.cod`-Nummern als Index | ⬜ Inhaltsregister mit Kennungen (mit den ersten eigenen Inhalten) |

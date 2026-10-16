@@ -413,15 +413,39 @@ TEST_CASE("data: players, colours and ships of scenarios") {
     CHECK(figures->flag_for_color(5) == nullptr);
     CHECK(figures->flag_for_color(6) == nullptr);
 
-    // The base game's banners carry exactly these flags.
+    // The base game's banners: players tinted from the white flag, pirates with their skull,
+    // natives and trader without flag; optionally the original images for the players.
     const auto banners = render::BannerTable::original(&*figures);
     REQUIRE(banners.size() == 7);
-    for (sim::BannerId b = 0; b < 5; ++b) {
-        REQUIRE(banners.get(b)->flag_gfx.has_value());
-        CHECK(*banners.get(b)->flag_gfx == 192U + 8U * b);
+    for (sim::BannerId b = 0; b < 4; ++b) {
+        CHECK(banners.get(b)->flag == render::FlagStyle::Tinted);
     }
-    CHECK(!banners.get(5)->flag_gfx.has_value());
-    CHECK(!banners.get(6)->flag_gfx.has_value());
+    CHECK(banners.get(4)->flag == render::FlagStyle::Sprites);
+    CHECK(banners.get(4)->flag_gfx == 224U);
+    CHECK(banners.get(5)->flag == render::FlagStyle::None);
+    CHECK(banners.get(6)->flag == render::FlagStyle::None);
+    REQUIRE(banners.flag_template().has_value());
+    CHECK(banners.flag_template()->gfx == 216U);  // FAHNE4
+    const auto original = render::BannerTable::original(&*figures, render::BannerOptions{true});
+    for (sim::BannerId b = 0; b < 5; ++b) {
+        CHECK(original.get(b)->flag == render::FlagStyle::Sprites);
+        CHECK(original.get(b)->flag_gfx == 192U + 8U * b);
+    }
+
+    // Tinted flags in the atlas: one block of 8 images per tinted banner, close to the originals.
+    auto palette = assets::Palette::load(*game.resolve(render::kTerrainPalettePath));
+    REQUIRE(palette.ok());
+    auto g = render::load_world_graphics(game, *palette, render::Zoom::Large, render::kWorldFigureSheets, {}, &banners);
+    REQUIRE(g.ok());
+    REQUIRE(g->banner_flags.size() == 7);
+    REQUIRE(g->banner_flags[0].has_value());
+    REQUIRE(g->banner_flags[3].has_value());
+    CHECK(*g->banner_flags[1] == *g->banner_flags[0] + 8);
+    CHECK(!g->banner_flags[4].has_value());  // pirates use their own images
+    const auto& red = g->atlas.rect(*g->banner_flags[0]);
+    const auto& original_red = g->atlas.rect(*g->sheet_base(assets::FigureSheet::Ship) + 192);
+    CHECK(red.width == original_red.width);
+    CHECK(red.height == original_red.height);
 }
 
 TEST_CASE("data: warehouse, market and tower flags of a scenario") {

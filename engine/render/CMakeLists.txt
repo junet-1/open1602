@@ -8,6 +8,7 @@ add_library(o1602_render
     src/banner.cpp
     src/camera.cpp
     src/figure_animation.cpp
+    src/flag_tint.cpp
     src/island_renderer.cpp
     src/sprite_atlas.cpp
     src/sprite_source.cpp

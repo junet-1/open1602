@@ -110,6 +110,8 @@ struct WorldLayers {
     std::uint32_t ship_base = 0;
     /// Colours and flags of the players' banners. Without it there are no flags and no ownership view.
     const BannerTable* banners = nullptr;
+    /// Atlas index of each banner's tinted flag (WorldGraphics::banner_flags).
+    const std::vector<std::optional<std::uint32_t>>* banner_flags = nullptr;
     /// Ownership view: tiles owned by a player get a diamond in the colour of the owner's banner.
     bool owner_tint = false;
     /// Warehouse, market and tower flags (collect_building_flags); drawn like ships (same sheet).

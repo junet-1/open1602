@@ -106,6 +106,23 @@ void project_point(const WorldView& view, double wx, double wy, double& sx, doub
 
 constexpr std::uint64_t kFlagFrameMs = 90;  // AnimSpeed of the flag figures
 
+/// Image `frame` of a banner's flag: the tinted generic flag or the banner's own sprites.
+std::optional<std::uint32_t> flag_sprite(const WorldLayers& layers, sim::BannerId id, std::uint64_t frame) {
+    const Banner* banner = layers.banners != nullptr ? layers.banners->get(id) : nullptr;
+    if (banner == nullptr || banner->flag_frames == 0) {
+        return std::nullopt;
+    }
+    const auto f = static_cast<std::uint32_t>(frame % banner->flag_frames);
+    if (banner->flag == FlagStyle::Tinted && layers.banner_flags != nullptr && id < layers.banner_flags->size() &&
+        (*layers.banner_flags)[id]) {
+        return *(*layers.banner_flags)[id] + f;
+    }
+    if (banner->flag == FlagStyle::Sprites) {
+        return layers.ship_base + banner->flag_gfx + f;
+    }
+    return std::nullopt;
+}
+
 }  // namespace
 
 void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& height) {
@@ -191,10 +208,9 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     // Posoffs[0], which is 0 for all flags.)
     out.has_flag = false;
     const sim::Player* owner = world.player(ship.owner);
-    const Banner* banner = owner != nullptr && layers.banners != nullptr ? layers.banners->get(owner->banner) : nullptr;
-    if (banner != nullptr && banner->flag_gfx) {
-        const auto frame = static_cast<std::uint32_t>((time_ms / kFlagFrameMs) % banner->flag_frames);
-        out.flag.sprite = layers.ship_base + *banner->flag_gfx + frame;
+    const auto flag = owner != nullptr ? flag_sprite(layers, owner->banner, time_ms / kFlagFrameMs) : std::nullopt;
+    if (flag) {
+        out.flag.sprite = *flag;
         const AtlasRect& fr = layers.atlas->rect(out.flag.sprite);
         const double angle = static_cast<double>((dir + 2U) & 7U) * std::numbers::pi / 4.0;
         const double ox = fig->fahnoffs[1] * std::sin(angle);
@@ -286,12 +302,11 @@ bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, con
     }
     // Flag figures have one 8-frame ANIM per original colour (FAHNEMARKT: AnimOffs 0, 8, ... 40 =
     // the same sprites as the ship flags), so the banner's flag images are used directly.
-    const Banner* banner = layers.banners != nullptr ? layers.banners->get(owner->banner) : nullptr;
-    if (banner == nullptr || !banner->flag_gfx) {
+    const auto sprite = flag_sprite(layers, owner->banner, time_ms / kFlagFrameMs + flag.phase);
+    if (!sprite) {
         return false;
     }
-    const auto frame = static_cast<std::uint32_t>((time_ms / kFlagFrameMs + flag.phase) % banner->flag_frames);
-    out.hull.sprite = layers.ship_base + *banner->flag_gfx + frame;
+    out.hull.sprite = *sprite;
     out.hull.tint = {};
     out.has_flag = false;
     const AtlasRect& r = layers.atlas->rect(out.hull.sprite);

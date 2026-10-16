@@ -81,7 +81,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
                                                     std::move(palette).value(), options));
     viewer->m_figures = std::move(figures).value();
-    viewer->m_banners = render::BannerTable::original(&viewer->m_figures);
+    viewer->m_banners =
+        render::BannerTable::original(&viewer->m_figures, render::BannerOptions{options.original_flags});
     viewer->m_building_flags = render::collect_building_flags(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_animals.reset(viewer->m_world, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
@@ -151,7 +152,8 @@ core::Status MapViewer::ensure_graphics(render::Zoom zoom) {
     options.page_size = max_texture >= 4096 ? 4096U : 2048U;
     options.derive_missing_sheets = m_options.derive_small_figures;
     const std::uint64_t start = platform::ticks_ms();
-    auto graphics = render::load_world_graphics(m_game, m_palette, zoom, render::kWorldFigureSheets, options);
+    auto graphics =
+        render::load_world_graphics(m_game, m_palette, zoom, render::kWorldFigureSheets, options, &m_banners);
     if (!graphics) {
         return graphics.error();
     }
@@ -370,6 +372,7 @@ void MapViewer::render() {
         layers.sheet_base = graphics->graphics.base;
         layers.land_figures = &m_animals.instances();
         layers.banners = &m_banners;
+        layers.banner_flags = &graphics->graphics.banner_flags;
         layers.owner_tint = m_show_owners;
         layers.building_flags = &m_building_flags;
         render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), layers,

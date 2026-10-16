@@ -10,6 +10,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/render/animal_figures.hpp"
 #include "o1602/render/figure_animation.hpp"
+#include "o1602/render/flag_tint.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/world.hpp"
@@ -213,4 +214,88 @@ TEST_CASE("figures: shadows are drawn as translucent black shapes") {
     CHECK(target.pixels[0] == 100 * 127 / 255);  // darkened, not the sprite colour
     CHECK(target.pixels[1] == 100 * 127 / 255);
     CHECK(target.pixels[8] == 200);  // normal sprite
+}
+
+TEST_CASE("flags: generic flag tinted in any colour") {
+    using render::tint_shade;
+    const assets::Rgba teal{0, 160, 160, 255};
+    CHECK(tint_shade(128, teal) == (assets::Rgba{0, 160, 160, 255}));  // neutral grey = the colour
+    CHECK(tint_shade(64, teal) == (assets::Rgba{0, 80, 80, 255}));     // darker
+    CHECK(tint_shade(0, teal) == (assets::Rgba{0, 0, 0, 255}));
+    CHECK(tint_shade(255, teal) == (assets::Rgba{255, 255, 255, 255}));  // lighter, up to white
+
+    // Only grey pixels are cloth; coloured pixels (pole, emblem) and transparent ones stay.
+    std::vector<std::uint8_t> rgba = {128, 128, 128, 255,  // cloth
+                                      90,  60,  30,  255,  // brown pole
+                                      128, 128, 128, 0};   // transparent
+    render::tint_rgba(rgba, teal);
+    CHECK(rgba[0] == 0);
+    CHECK(rgba[1] == 160);
+    CHECK(rgba[4] == 90);
+    CHECK(rgba[8] == 128);
+
+    // Original flags become templates: every opaque pixel grey.
+    std::vector<std::uint8_t> white = {255, 255, 255, 255, 100, 100, 100, 255, 0, 0, 0, 0};
+    render::original_flag_to_template(white);
+    CHECK(white[0] == 127);  // 0.48 * 255 + 5
+    CHECK(white[1] == 127);
+    CHECK(white[4] == 53);
+    CHECK(white[11] == 0);
+}
+
+TEST_CASE("flags: one tinted block per banner in the atlas and in the draw list") {
+    // Ship sheet: 4 flag images 6x4 (palette index 255 = white-ish red channel 255 in the test palette).
+    const auto ships = test::make_sheet(std::vector<std::pair<std::uint32_t, std::uint32_t>>(4, {6, 4}), 255);
+    const auto palette = test::make_palette();
+    const render::SheetSource ship_source(ships, palette);
+    const render::TintedFlagSource flags(ship_source, 0, 4, {{255, 0, 0, 255}, {0, 0, 255, 255}}, true);
+    CHECK(flags.count() == 8);
+    std::uint32_t w = 0;
+    std::uint32_t h = 0;
+    flags.size(5, w, h);
+    CHECK(w == 6);
+    CHECK(h == 4);
+    std::vector<std::uint8_t> px;
+    REQUIRE(flags.pixels(5, px));  // second banner (blue), frame 1
+    CHECK(px[0] == 0);
+    CHECK(px[2] > 0);  // blue channel set
+    CHECK(px[3] == 255);
+
+    // Renderer: a ship of a banner with a tinted flag uses the banner's block.
+    const assets::CodPredefinedSymbol types[] = {{"FIGUR", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: FIGUR\n  Nummer: 21\n  Gfx: 0\n  Blocknr: 2\n  Rotate: 1\n  Posoffs: -19, 34\n"
+        "  Fahnoffs: 0, 0, 2.0\nEndObj\n",
+        types);
+    auto figures = assets::FigureTable::from_cod(doc);
+    REQUIRE(figures.ok());
+    const auto hulls = test::make_sheet(std::vector<std::pair<std::uint32_t, std::uint32_t>>(8, {20, 10}));
+    const render::SheetSource hull_source(hulls, palette);
+    const render::SpriteSource* sources[] = {&hull_source, &flags};
+    auto atlas = render::SpriteAtlas::build(std::span<const render::SpriteSource* const>(sources), 256);
+    REQUIRE(atlas.ok());
+
+    render::BannerTable banners;
+    banners.add_color("test:red", {255, 0, 0, 255});
+    banners.add_color("test:blue", {0, 0, 255, 255});
+    const std::vector<std::optional<std::uint32_t>> banner_flags = {atlas->sheet_base(1), atlas->sheet_base(1) + 4};
+    render::WorldLayers layers;
+    layers.figures = &*figures;
+    layers.atlas = &*atlas;
+    layers.ship_base = atlas->sheet_base(0);
+    layers.banners = &banners;
+    layers.banner_flags = &banner_flags;
+    sim::World world;
+    world.set_players(
+        {sim::Player{sim::PlayerRole::Human, 0, 0, ""}, sim::Player{sim::PlayerRole::Computer, 1, 0, ""}});
+    render::ShipSprites s;
+    REQUIRE(render::ship_sprites(sim::Ship{"A", 10, 20, 21, 1, 0}, world, render::WorldView{}, layers, 0, s));
+    REQUIRE(s.has_flag);
+    CHECK(s.flag.sprite == atlas->sheet_base(1) + 4);
+    REQUIRE(render::ship_sprites(sim::Ship{"A", 10, 20, 21, 1, 0}, world, render::WorldView{}, layers, 200, s));
+    CHECK(s.flag.sprite == atlas->sheet_base(1) + 4 + 2);  // frame 200 / 90 = 2 (of 8, wraps at the block)
+    // Without the atlas block (e.g. graphics loaded without banners) there is no flag.
+    layers.banner_flags = nullptr;
+    REQUIRE(render::ship_sprites(sim::Ship{"A", 10, 20, 21, 1, 0}, world, render::WorldView{}, layers, 0, s));
+    CHECK(!s.has_flag);
 }

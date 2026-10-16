@@ -39,6 +39,8 @@ struct ViewerOptions {
     /// Show figures at the smallest zoom level from half-size graphics of the middle level (the
     /// original shows none there). Off: only the sheets the original has.
     bool derive_small_figures = true;
+    /// The original red/blue/yellow/white flag images instead of the tinted generic flag.
+    bool original_flags = false;
     std::int32_t width = 1280;
     std::int32_t height = 800;
 };

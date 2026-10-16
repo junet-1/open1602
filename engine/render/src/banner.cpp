@@ -1,34 +1,50 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/render/banner.hpp"
 
-#include <array>
-
 namespace o1602::render {
 
-BannerTable BannerTable::original(const assets::FigureTable* figures) {
-    struct Entry {
-        const char* id;
-        assets::Rgba color;  // taken from the flag sprites
-    };
-    constexpr std::array<Entry, assets::kPlayerColorCount> kOriginal = {{
-        {"anno1602:red", {200, 32, 24, 255}},
-        {"anno1602:blue", {32, 56, 216, 255}},
-        {"anno1602:yellow", {232, 192, 24, 255}},
-        {"anno1602:white", {232, 232, 232, 255}},
-        {"anno1602:pirates", {40, 40, 40, 255}},
-        {"anno1602:natives", {160, 104, 48, 255}},
-        {"anno1602:trader", {48, 160, 96, 255}},
-    }};
+// Fitted to the original flag images (red, blue, yellow) for the tint of flag_tint.hpp; white is
+// the template itself.
+const std::array<assets::Rgba, 12> BannerTable::kDefaultColors = {{
+    {216, 51, 8, 255},     // red (original)
+    {0, 0, 241, 255},      // blue (original)
+    {255, 219, 57, 255},   // yellow (original)
+    {255, 255, 255, 255},  // white (original)
+    {30, 170, 40, 255},    // green
+    {255, 128, 0, 255},    // orange
+    {130, 40, 190, 255},   // purple
+    {0, 190, 190, 255},    // teal
+    {255, 110, 180, 255},  // pink
+    {90, 170, 255, 255},   // light blue
+    {120, 70, 30, 255},    // brown
+    {170, 230, 60, 255},   // lime (no black: the pirates fly a black flag)
+}};
+
+BannerTable BannerTable::original(const assets::FigureTable* figures, const BannerOptions& options) {
     BannerTable table;
-    for (std::size_t c = 0; c < kOriginal.size(); ++c) {
-        Banner b{kOriginal[c].id, kOriginal[c].color, std::nullopt, 8};
-        if (figures != nullptr) {
-            const assets::FigureType* flag = figures->flag_for_color(static_cast<std::uint8_t>(c));
-            if (flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
-                b.flag_gfx = flag->gfx;
-            }
+    const char* kPlayers[] = {"anno1602:red", "anno1602:blue", "anno1602:yellow", "anno1602:white"};
+    for (std::uint8_t c = 0; c < 4; ++c) {
+        Banner b{kPlayers[c], kDefaultColors[c], FlagStyle::Tinted, 0, 8};
+        const assets::FigureType* flag = figures != nullptr ? figures->flag_for_color(c) : nullptr;
+        if (options.original_player_flags && flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
+            b.flag = FlagStyle::Sprites;
+            b.flag_gfx = flag->gfx;
         }
         table.add(std::move(b));
+    }
+    Banner pirates{"anno1602:pirates", {40, 40, 40, 255}, FlagStyle::None, 0, 8};
+    if (const assets::FigureType* flag = figures != nullptr ? figures->flag_for_color(4) : nullptr;
+        flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
+        pirates.flag = FlagStyle::Sprites;
+        pirates.flag_gfx = flag->gfx;
+    }
+    table.add(std::move(pirates));
+    table.add(Banner{"anno1602:natives", {160, 104, 48, 255}, FlagStyle::None, 0, 8});
+    table.add(Banner{"anno1602:trader", {48, 160, 96, 255}, FlagStyle::None, 0, 8});
+    // Generic flag: the white flag FAHNE4.
+    if (const assets::FigureType* white = figures != nullptr ? figures->flag_for_color(3) : nullptr;
+        white != nullptr && white->sheet == assets::FigureSheet::Ship) {
+        table.set_flag_template(FlagTemplate{white->gfx, 8, true});
     }
     return table;
 }
@@ -36,6 +52,10 @@ BannerTable BannerTable::original(const assets::FigureTable* figures) {
 sim::BannerId BannerTable::add(Banner banner) {
     m_banners.push_back(std::move(banner));
     return static_cast<sim::BannerId>(m_banners.size() - 1);
+}
+
+sim::BannerId BannerTable::add_color(std::string id, assets::Rgba color) {
+    return add(Banner{std::move(id), color, FlagStyle::Tinted, 0, 8});
 }
 
 }  // namespace o1602::render

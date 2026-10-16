@@ -4,6 +4,8 @@
 #include <memory>
 #include <vector>
 
+#include "o1602/render/flag_tint.hpp"
+
 namespace o1602::render {
 
 std::string sheet_path(assets::FigureSheet sheet, Zoom zoom) {
@@ -13,7 +15,7 @@ std::string sheet_path(assets::FigureSheet sheet, Zoom zoom) {
 
 core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& game, const assets::Palette& palette,
                                                 Zoom zoom, std::span<const assets::FigureSheet> figure_sheets,
-                                                const GraphicsOptions& options) {
+                                                const GraphicsOptions& options, const BannerTable* banners) {
     struct Loaded {
         assets::FigureSheet id;
         assets::SpriteSheet sheet;
@@ -63,15 +65,47 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
         }
         pointers.push_back(sources.back().get());
     }
+    // Tinted player flags after all sheets: one block of frames per banner with a tinted flag.
+    std::vector<std::optional<std::uint32_t>> flag_slot;  // block index per banner
+    std::size_t flag_source = pointers.size();
+    if (banners != nullptr && banners->flag_template()) {
+        const SpriteSource* ship = nullptr;
+        for (std::size_t i = 0; i < loaded.size(); ++i) {
+            if (loaded[i].id == assets::FigureSheet::Ship) {
+                ship = sources[i].get();
+            }
+        }
+        std::vector<assets::Rgba> colors;
+        for (const Banner& b : banners->banners()) {
+            if (b.flag == FlagStyle::Tinted && ship != nullptr) {
+                flag_slot.emplace_back(static_cast<std::uint32_t>(colors.size()));
+                colors.push_back(b.color);
+            } else {
+                flag_slot.emplace_back(std::nullopt);
+            }
+        }
+        if (!colors.empty()) {
+            const FlagTemplate& t = *banners->flag_template();
+            sources.push_back(std::make_unique<TintedFlagSource>(*ship, t.gfx, t.frames, colors, t.from_original));
+            pointers.push_back(sources.back().get());
+        }
+    }
     auto atlas = SpriteAtlas::build(std::span<const SpriteSource* const>(pointers), options.page_size);
     if (!atlas) {
         return atlas.error();
     }
-    WorldGraphics g{std::move(atlas).value(), {}, {}};
+    WorldGraphics g{std::move(atlas).value(), {}, {}, {}};
     for (std::size_t i = 0; i < loaded.size(); ++i) {
         const auto k = static_cast<std::size_t>(loaded[i].id);
         g.base[k] = g.atlas.sheet_base(i);
         g.derived[k] = loaded[i].derived;
+    }
+    if (flag_source < pointers.size()) {
+        const std::uint32_t base = g.atlas.sheet_base(flag_source);
+        const std::uint32_t frames = banners->flag_template()->frames;
+        for (const auto& slot : flag_slot) {
+            g.banner_flags.push_back(slot ? std::optional<std::uint32_t>(base + *slot * frames) : std::nullopt);
+        }
     }
     return g;
 }
