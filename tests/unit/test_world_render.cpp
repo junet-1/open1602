@@ -15,6 +15,7 @@
 #include "o1602/render/camera.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/rules.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -364,4 +365,29 @@ TEST_CASE("camera: scrolling is clamped to the map") {
     render::world_pixel_size(camera.view(), w, h);
     CHECK(camera.viewport().left == w - 400);
     CHECK(camera.viewport().top == h - 300);
+}
+
+TEST_CASE("rules: defaults fix the original, original() restores it (ADR 0006)") {
+    constexpr auto open = sim::Rules::open1602();
+    constexpr auto orig = sim::Rules::original();
+    CHECK(open.max_ships_per_player == 0);  // L-001: unlimited
+    CHECK(orig.max_ships_per_player == 33);
+    CHECK(open.guarantee_resources);  // S-019
+    CHECK(!orig.guarantee_resources);
+    CHECK(orig.max_game_speed == 4);  // L-004
+    CHECK(!(open == orig));
+}
+
+TEST_CASE("world: at most 255 islands, the 256th is rejected (L-003)") {
+    sim::World world;
+    std::uint32_t added = 0;
+    for (std::uint32_t y = 0; y + 2 <= sim::World::kHeight && added < 256; y += 2) {
+        for (std::uint32_t x = 0; x + 2 <= sim::World::kWidth && added < 256; x += 2) {
+            if (world.add_island(make_island(x, y, 2, 2)).ok()) {
+                ++added;
+            }
+        }
+    }
+    CHECK(added == 255);
+    CHECK(world.islands().size() == 255);
 }

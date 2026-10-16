@@ -17,7 +17,7 @@ core::Status World::add_island(WorldIsland island) {
         return make_error(ErrorCode::OutOfRange,
                           "island " + std::to_string(island.header.number) + " leaves the world map");
     }
-    if (m_islands.size() >= kSea) {
+    if (m_islands.size() >= kSea) {  // L-003
         return make_error(ErrorCode::OutOfRange, "too many islands");
     }
     for (std::uint32_t ly = 0; ly < h; ++ly) {

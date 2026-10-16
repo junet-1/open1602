@@ -229,7 +229,7 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 m_dragging = false;
             }
             break;
-        case SDL_EVENT_MOUSE_WHEEL: {
+        case SDL_EVENT_MOUSE_WHEEL: {  // U-001: the original has no wheel zoom
             const float y = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event.wheel.y : event.wheel.y;
             if (y != 0.0F) {
                 zoom_by(y > 0.0F ? -1 : 1, event.wheel.mouse_x, event.wheel.mouse_y);
@@ -293,7 +293,7 @@ void MapViewer::handle_key(int key, bool shift) {
                     render::TilePos{island.x + island.map.width() / 2, island.y + island.map.height() / 2});
             }
             break;
-        case SDLK_F12: {
+        case SDLK_F12: {  // U-002: the original's screenshot key does not work
             const auto status = save_screenshot("open1602-screenshot.png");
             std::fprintf(stderr, "%s\n",
                          status ? "screenshot saved: open1602-screenshot.png" : status.error().message.c_str());

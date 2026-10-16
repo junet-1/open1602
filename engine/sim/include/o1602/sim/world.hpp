@@ -27,7 +27,7 @@ class World {
 public:
     static constexpr std::uint32_t kWidth = 500;
     static constexpr std::uint32_t kHeight = 350;
-    static constexpr std::uint8_t kSea = 0xFF;
+    static constexpr std::uint8_t kSea = 0xFF;  ///< also limits original maps to 255 islands (L-003)
 
     World();
 

@@ -101,3 +101,5 @@ jobs:
       - name: Check formatting
         run: |
           find engine tools tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror
+      - name: Check bug catalog references (ADR 0006)
+        run: python3 re/scripts/check_bug_refs.py

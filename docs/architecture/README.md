@@ -10,3 +10,4 @@ Kurze, datierte Entscheidungen mit Begründung. Neue Entscheidung = neue Datei
 | [0003](0003-neuimplementierung.md) | Neuimplementierung statt Dekompilat | angenommen |
 | [0004](0004-deterministische-simulation.md) | Deterministische, befehlsbasierte Simulation | angenommen |
 | [0005](0005-modulstruktur.md) | Modulstruktur und Abhängigkeitsregeln | angenommen |
+| [0006](0006-umgang-mit-originalfehlern.md) | Umgang mit Fehlern des Originals, `sim::Rules` | angenommen |

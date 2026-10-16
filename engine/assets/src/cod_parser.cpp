@@ -318,6 +318,7 @@ private:
         }
 
         Symbol& sym = m_doc.symbols.get_or_create(name);
+        // D-001..D-004: the original silently defines unknown names as 0; we do the same but report them.
         if (!sym.defined && m_reported_undefined.insert(name).second) {
             diag(st.line, "undefined symbol '" + name + "' (treated as 0)");
         }

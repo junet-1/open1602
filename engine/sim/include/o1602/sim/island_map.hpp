@@ -43,7 +43,8 @@ public:
 
     /// Places a building with its top-left footprint corner at (x, y), exactly like the original
     /// placement routine (0x00463B10): sub-tiles receive gfx, gfx+1, ... in a rotation dependent
-    /// order. Previous content of the covered tiles moves to the ground layer.
+    /// order. Previous content of the covered tiles moves to the ground layer (demolishing restores
+    /// it from there, so former river tiles stay water - S-009).
     /// Fails (without changes) if the rotated footprint leaves the island.
     core::Status place(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                        std::uint8_t anim_phase);
