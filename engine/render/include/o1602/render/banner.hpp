@@ -35,6 +35,10 @@ struct Banner {
     /// Units drawn per colour (soldiers, riders, ...) use the original images of this colour
     /// (0 red, 1 blue, 2 yellow, 3 white); without it they are tinted in `color` (unit_tint.hpp).
     std::optional<std::uint8_t> unit_variant;
+    /// Without unit_variant: which of four horses (0 brown, 1 grey, 2 dark brown, 3 white,
+    /// UnitTintColor::mount) the riders get. add_color picks it from the banner's id, so it stays the same in
+    /// every session and on every computer of a multiplayer game.
+    std::uint8_t unit_mount = 3;
 };
 
 /// Opacity of the ownership overlay diamonds.
@@ -72,7 +76,7 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return m_banners.size(); }
     [[nodiscard]] const std::vector<Banner>& banners() const noexcept { return m_banners; }
     sim::BannerId add(Banner banner);
-    /// A banner with the generic flag in `color`.
+    /// A banner with the generic flag in `color`; its riders get a horse picked from `id`.
     sim::BannerId add_color(std::string id, assets::Rgba color);
 
     [[nodiscard]] const std::optional<FlagTemplate>& flag_template() const noexcept { return m_template; }

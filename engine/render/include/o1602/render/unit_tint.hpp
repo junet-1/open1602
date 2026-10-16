@@ -22,8 +22,11 @@ struct UnitImageGroup {
     std::uint32_t first = 0;    ///< image 0 of variant 0
     std::uint32_t stride = 0;   ///< images per variant
     std::uint8_t variants = 0;  ///< 4 in the original
-    std::uint8_t base = 0;      ///< variant the template is made from (3 = white in the original)
+    std::uint8_t base = 0;      ///< variant the cloth shading comes from (3 = white in the original)
     std::uint32_t offset = 0;   ///< position of the family in a tinted block
+    /// Riders: the horse is taken from one of the drawn variants (UnitTintColor::mount), the rest
+    /// from the template.
+    bool mounted = false;
 };
 
 /// Where the tinted units of each banner are in an atlas.
@@ -46,20 +49,42 @@ struct RgbaView {
     std::uint32_t height = 0;
 };
 
-/// Builds the tint template of one unit image from its colour variants (`out`: size of
-/// variants[base]). Among the variants of the same size, a pixel *differs* if at least three
-/// different colours occur there and the base variant's colour only once. A variant whose player
-/// colour has a hue (`colors[v]`, not white) *shows its colour* at a pixel if the pixel's hue is
-/// within 60 degrees of it and closer to it than to the other variants' colours. A differing pixel
-/// where every such variant shows its colour is a seed; cloth is every seed plus every differing
-/// pixel connected to one where at least one variant shows its colour. So sashes, trousers and
-/// plumes become cloth; boots, weapons and skin stay, and so do the horses, which the original
-/// also draws in different colours per variant, but not in the player colour (a grey horse under
-/// the blue rider). Cloth gets the grey 0.48 * luminance + 5 as the flags;
-/// other pure grey pixels are moved by one step in blue so that the tint leaves them alone
-/// (template convention, docs/modding/flags.md).
-void unit_template(std::span<const RgbaView> variants, std::span<const assets::Rgba> colors, std::size_t base,
-                   std::vector<std::uint8_t>& out);
+struct UnitTemplateOptions {
+    std::size_t base = 3;  ///< variant the cloth shading comes from (white)
+    /// Variant the image is built on: its size, and for riders its horse. Variants are aligned at
+    /// their bottom centre, the anchor the original draws figures at.
+    std::size_t body = 3;
+    bool mounted = false;
+    /// Factor for the brightness of the horse (1 = as drawn).
+    double mount_brightness = 1.0;
+};
+
+/// Builds the tint template of one unit image from its colour variants (`out`, `width` x `height`
+/// = size of variants[options.body]). `colors[v]` is the player colour of variant v.
+///
+/// A variant *shows its colour* at a pixel if the pixel differs from the base variant and its hue
+/// is within 60 degrees of the variant's player colour and closer to it than to the other
+/// variants' colours (brown lies between red and yellow and counts for neither). Cloth is
+/// - every pixel where at least two variants show their colour, and
+/// - every pixel connected to those where one variant shows its colour and the base variant is
+///   white or light grey (the plumes, which the variants draw in different shapes).
+/// Cloth gets the grey 0.48 * luminance + 5 of the base variant. For riders, the horse (light and
+/// neutral in the white variant, grey in the blue one, brown or dark in red and yellow) is taken
+/// from the body variant. All other pure grey pixels are moved by one step in blue so that the tint
+/// leaves them alone (template convention, docs/modding/flags.md).
+void unit_template(std::span<const RgbaView> variants, std::span<const assets::Rgba> colors,
+                   const UnitTemplateOptions& options, std::vector<std::uint8_t>& out, std::uint32_t& width,
+                   std::uint32_t& height);
+
+/// Colour of one tinted block.
+struct UnitTintColor {
+    assets::Rgba color;
+    /// Horse of the riders: 0 brown, 1 grey (the blue riders'), 2 dark brown (the yellow riders'),
+    /// 3 white (the white riders'). The red riders' brown horse cannot be used: 112 of the 304
+    /// red images are drawn differently (other size and pose), so brown is the dark brown horse
+    /// made lighter.
+    std::uint8_t mount = 3;
+};
 
 /// The unit images of all groups, tinted once per colour: colours.size() blocks of block_size
 /// images, in group order.
@@ -67,7 +92,7 @@ class TintedUnitSource final : public SpriteSource {
 public:
     /// `variant_colors`: player colour of each variant (the original: red, blue, yellow, white).
     TintedUnitSource(const SpriteSource& sheet, std::vector<UnitImageGroup> groups,
-                     std::vector<assets::Rgba> variant_colors, std::vector<assets::Rgba> colors);
+                     std::vector<assets::Rgba> variant_colors, std::vector<UnitTintColor> colors);
     [[nodiscard]] std::uint32_t count() const override;
     void size(std::uint32_t i, std::uint32_t& width, std::uint32_t& height) const override;
     bool pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) const override;
@@ -75,11 +100,12 @@ public:
 private:
     /// Group and image k of image i of a block.
     [[nodiscard]] const UnitImageGroup* locate(std::uint32_t i, std::uint32_t& k) const noexcept;
+    [[nodiscard]] std::size_t body(const UnitImageGroup& g, std::uint32_t i) const noexcept;
 
     const SpriteSource& m_sheet;
     std::vector<UnitImageGroup> m_groups;
     std::vector<assets::Rgba> m_variant_colors;
-    std::vector<assets::Rgba> m_colors;
+    std::vector<UnitTintColor> m_colors;
     std::uint32_t m_block = 0;
 };
 

@@ -109,18 +109,20 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
             if (first == nullptr || second == nullptr || second->gfx <= first->gfx) {
                 continue;
             }
+            constexpr std::int32_t kFigtypKavalerie = 2;  // figuren.cod Kind FIGTYP_KAVALERIE
             UnitImageGroup g;
             g.first = first->gfx;
             g.stride = second->gfx - first->gfx;
             g.variants = assets::FigureTable::kUnitVariants;
             g.base = assets::FigureTable::kUnitVariants - 1;  // white
+            g.mounted = first->kind == kFigtypKavalerie;
             unit_groups.push_back(g);
         }
-        std::vector<assets::Rgba> colors;
+        std::vector<UnitTintColor> colors;
         for (const Banner& b : banners->banners()) {
             if (soldat != nullptr && !unit_groups.empty() && !b.unit_variant && b.flag == FlagStyle::Tinted) {
                 unit_slot.emplace_back(static_cast<std::uint32_t>(colors.size()));
-                colors.push_back(b.color);
+                colors.push_back(UnitTintColor{b.color, b.unit_mount});
             } else {
                 unit_slot.emplace_back(std::nullopt);
             }

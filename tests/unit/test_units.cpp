@@ -61,36 +61,99 @@ TEST_CASE("units: colour variants of the original unit families") {
 }
 
 TEST_CASE("units: tint template from four drawn variants") {
-    // Pixels: sash, boots (black only for yellow), horse (not in the player colours), steel grey.
-    const std::uint8_t red[] = {200, 40, 10, 255, 137, 86, 13, 255, 137, 86, 13, 255, 128, 128, 128, 255};
-    const std::uint8_t blue[] = {0, 0, 200, 255, 137, 86, 13, 255, 120, 120, 120, 255, 128, 128, 128, 255};
-    const std::uint8_t yellow[] = {230, 200, 40, 255, 0, 4, 4, 255, 89, 42, 20, 255, 128, 128, 128, 255};
-    const std::uint8_t white[] = {230, 230, 230, 255, 137, 86, 13, 255, 220, 220, 220, 255, 128, 128, 128, 255};
-    const render::RgbaView views[] = {{red, 4, 1}, {blue, 4, 1}, {yellow, 4, 1}, {white, 4, 1}};
+    // 6 x 1 pixels: sash, plume (white variant white, red orange, blue grey helmet, yellow black),
+    // boots (black only for yellow), grey steel (same everywhere), the plume colours again but away
+    // from any cloth, transparent.
+    const std::uint8_t red[] = {200, 40,  10,  255, 233, 113, 2, 255, 137, 86, 13, 255,
+                                128, 128, 128, 255, 233, 113, 2, 255, 0,   0,  0,  0};
+    const std::uint8_t blue[] = {0,   0,   200, 255, 128, 128, 128, 255, 137, 86, 13, 255,
+                                 128, 128, 128, 255, 128, 128, 128, 255, 0,   0,  0,  0};
+    const std::uint8_t yellow[] = {230, 200, 40,  255, 0, 4, 4, 255, 0, 4, 4, 255,
+                                   128, 128, 128, 255, 0, 4, 4, 255, 0, 0, 0, 0};
+    const std::uint8_t white[] = {230, 230, 230, 255, 250, 250, 250, 255, 137, 86, 13, 255,
+                                  128, 128, 128, 255, 250, 250, 250, 255, 0,   0,  0,  0};
+    const std::uint8_t* images[] = {red, blue, yellow, white};
+    std::vector<render::RgbaView> views;
+    for (const std::uint8_t* image : images) {
+        views.push_back(render::RgbaView{image, 6, 1});
+    }
     const std::vector<assets::Rgba> colors(render::BannerTable::kDefaultColors.begin(),
                                            render::BannerTable::kDefaultColors.begin() + 4);
     std::vector<std::uint8_t> out;
-    render::unit_template(views, colors, 3, out);
-    REQUIRE(out.size() == 16);
-    // Sash: cloth, grey 0.48 * 230 + 5 = 115.
+    std::uint32_t w = 0;
+    std::uint32_t h = 0;
+    render::unit_template(views, colors, render::UnitTemplateOptions{}, out, w, h);
+    REQUIRE(w == 6);
+    REQUIRE(h == 1);
+    // Sash: three variants show their colour -> cloth, grey 0.48 * 230 + 5 = 115.
     CHECK(out[0] == 115);
     CHECK(out[1] == 115);
     CHECK(out[2] == 115);
-    // Boots: two colours only -> as in the white variant.
-    CHECK(out[4] == 137);
-    CHECK(out[6] == 13);
-    // Horse: differs between the variants, but the blue rider's horse is grey -> not cloth; as a
-    // pure grey it is moved out of the tint.
-    CHECK(out[8] == 220);
-    CHECK(out[10] == 221);
-    // Steel: same everywhere, pure grey -> moved by one in blue.
+    // Plume: only red shows its colour, but the white variant is white there and the pixel touches
+    // the sash -> cloth (0.48 * 250 + 5 = 125).
+    CHECK(out[4] == 125);
+    CHECK(out[6] == 125);
+    // Boots: as in the white variant.
+    CHECK(out[8] == 137);
+    CHECK(out[10] == 13);
+    // Steel: pure grey, moved by one in blue.
     CHECK(out[12] == 128);
     CHECK(out[14] == 129);
+    // The same plume colours without contact to other cloth: not cloth.
+    CHECK(out[16] == 250);
+    CHECK(out[18] == 251);
+    CHECK(out[23] == 0);
 
     // Tinted green, the sash takes the colour, the rest stays.
     render::tint_rgba(out, assets::Rgba{30, 170, 40, 255});
     CHECK(out[1] > out[0]);
-    CHECK(out[4] == 137);
+    CHECK(out[8] == 137);
+}
+
+TEST_CASE("units: riders keep one of the drawn horses") {
+    // 3 x 3: top row the rider's sash (all variants show their colour), below the horse: brown for
+    // red, grey for blue, dark brown for yellow, white for white.
+    const auto image = [](const std::uint8_t rider[3], const std::uint8_t horse[3]) {
+        std::vector<std::uint8_t> v;
+        for (int p = 0; p < 9; ++p) {
+            const std::uint8_t* c = p < 3 ? rider : horse;
+            v.insert(v.end(), {c[0], c[1], c[2], 255});
+        }
+        return v;
+    };
+    const std::uint8_t sash[4][3] = {{200, 40, 10}, {0, 0, 200}, {230, 200, 40}, {230, 230, 230}};
+    const std::uint8_t horse[4][3] = {{137, 86, 13}, {120, 120, 124}, {89, 42, 20}, {220, 220, 220}};
+    std::vector<std::vector<std::uint8_t>> images;
+    std::vector<render::RgbaView> views;
+    for (int v = 0; v < 4; ++v) {
+        images.push_back(image(sash[v], horse[v]));
+    }
+    for (const auto& i : images) {
+        views.push_back(render::RgbaView{i.data(), 3, 3});
+    }
+    const std::vector<assets::Rgba> colors(render::BannerTable::kDefaultColors.begin(),
+                                           render::BannerTable::kDefaultColors.begin() + 4);
+    render::UnitTemplateOptions options;
+    options.mounted = true;
+    for (std::size_t body = 0; body < 4; ++body) {
+        options.body = body;
+        std::vector<std::uint8_t> out;
+        std::uint32_t w = 0;
+        std::uint32_t h = 0;
+        render::unit_template(views, colors, options, out, w, h);
+        REQUIRE(out.size() == 36);
+        CHECK(out[0] == 115);  // the rider's sash is cloth for every horse
+        CHECK(out[1] == 115);
+        CHECK(out[16] == horse[body][0]);  // the horse comes from the chosen variant
+        CHECK(out[17] == horse[body][1]);
+    }
+
+    // Banners get a horse from their id, the same every time.
+    render::BannerTable banners;
+    const auto a = banners.add_color("mod:green", {30, 170, 40, 255});
+    const auto b = banners.add_color("mod:green", {30, 170, 40, 255});
+    CHECK(banners.get(a)->unit_mount == banners.get(b)->unit_mount);
+    CHECK(banners.get(a)->unit_mount < 4);
 }
 
 TEST_CASE("units: soldiers in the colour of their owner's banner") {

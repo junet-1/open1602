@@ -55,7 +55,15 @@ sim::BannerId BannerTable::add(Banner banner) {
 }
 
 sim::BannerId BannerTable::add_color(std::string id, assets::Rgba color) {
-    return add(Banner{std::move(id), color, FlagStyle::Tinted, 0, 8, std::nullopt});
+    // FNV-1a of the id: a stable "random" horse per banner (not std::hash, which differs between
+    // standard libraries and would break multiplayer games across platforms).
+    std::uint32_t hash = 2166136261U;
+    for (const char c : id) {
+        hash = (hash ^ static_cast<std::uint8_t>(c)) * 16777619U;
+    }
+    Banner b{std::move(id), color, FlagStyle::Tinted, 0, 8, std::nullopt};
+    b.unit_mount = static_cast<std::uint8_t>(hash % 4U);
+    return add(std::move(b));
 }
 
 }  // namespace o1602::render
