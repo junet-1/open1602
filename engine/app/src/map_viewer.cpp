@@ -85,7 +85,6 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_building_figures =
         render::collect_building_figures(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_local_player = sim::first_human_player(viewer->m_world);
-    viewer->m_animals.reset(viewer->m_world, viewer->m_figures);
     viewer->m_soldiers.reset(viewer->m_world, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
@@ -364,7 +363,6 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_simulation.advance(delta_ms);
         apply_production_events();
         m_clock.advance(delta_ms);
-        m_animals.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_walkers.update(m_simulation.logistics(), m_world, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_simulation.speed());
@@ -385,7 +383,8 @@ void MapViewer::render() {
         layers.atlas = &atlas;
         layers.ship_base = graphics->graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
         layers.sheet_base = graphics->graphics.base;
-        layers.land_figures = {&m_animals.instances(), &m_soldiers.instances(), &m_walkers.instances()};
+        // The deer walk as figures of the simulation (m_walkers).
+        layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances()};
         layers.unit_tint = &graphics->graphics.unit_tint;
         layers.banners = &m_banners;
         layers.banner_flags = &graphics->graphics.banner_flags;

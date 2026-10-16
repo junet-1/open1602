@@ -55,11 +55,18 @@ enum class WalkerKind : std::uint8_t {
     Harvester,  ///< farm worker: harvests one ripe field, tree or quarry tile (kind 0x0C)
     Grazer,     ///< cattle or sheep: grazes ripe meadow tiles until full (kind 0x10)
     Fisher,     ///< fishing boat: fishes ripe shoals until full (kind 0x0D)
+    Deer,       ///< deer or antelope: grazes around its spot in the forest (kind 0x11)
+    Hunter,     ///< hunter of a hunting lodge, called by a grazing deer (kind 0x0E)
 };
 
 /// Workers that harvest tiles themselves instead of fetching from buildings.
 [[nodiscard]] constexpr bool harvests(WalkerKind kind) noexcept {
     return kind == WalkerKind::Harvester || kind == WalkerKind::Grazer || kind == WalkerKind::Fisher;
+}
+
+/// Figures that walk at full speed on every ground, as in the original (S-026).
+[[nodiscard]] constexpr bool full_speed(WalkerKind kind) noexcept {
+    return harvests(kind) || kind == WalkerKind::Deer || kind == WalkerKind::Hunter;
 }
 
 /// A figure on its way.
@@ -83,6 +90,13 @@ struct Walker {
     /// ANIM of the figure: carriers and carts 1 empty, 0 loaded; farm workers 1 out, 2 working,
     /// 0 home; cattle and fishing boats 0 moving, 1 working.
     std::uint8_t animation = 1;
+    // Deer and hunters.
+    std::uint8_t spot = 0xFF;  ///< deer: index of its spot on the island
+    std::uint8_t grazes = 0;   ///< deer: grass stops since the last tree
+    bool dying = false;        ///< deer: falls (shot, or no way left)
+    bool shot = false;         ///< deer: hit by a hunter
+    bool retargeted = false;   ///< hunter: followed the deer once
+    Handle partner;            ///< the deer a hunter hunts, the hunter after a deer
 
     // Movement: the figure walks from `tile` towards path[step]; `progress` of `length` (units of
     // 1/65536 tile) is done, at `speed` units per tick.
@@ -115,6 +129,8 @@ struct LogisticsStats {
     std::uint64_t worker_trips = 0;     ///< farm workers, cattle and fishing boats sent out
     std::uint64_t harvested = 0;        ///< raw material harvested from tiles, 1/32 t
     std::uint64_t ore_mined = 0;        ///< raw material mines took from deposits, 1/32 t
+    std::uint64_t deer_spawned = 0;     ///< deer that appeared at their spots
+    std::uint64_t deer_hunted = 0;      ///< deer brought home by hunters
 };
 
 class Logistics {
@@ -127,6 +143,8 @@ public:
     static constexpr std::uint32_t kTickMs = 50;
     /// The original's carrier (TRAEGER), sent for the second raw material of non-workshops.
     static constexpr std::uint16_t kCarrierFigure = 80;
+    /// Walker::home of figures without a home building (deer).
+    static constexpr std::uint32_t kNoHome = 0xFFFFFFFFU;
 
     Logistics(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
 
@@ -138,6 +156,14 @@ public:
 
     /// One tick of game time: every figure walks; at the end of its path it picks up or delivers.
     void tick();
+
+    /// Every used deer spot gets its deer (the original does this when it loads a game).
+    void spawn_deer_at_spots();
+    /// One island epoch (30 s, 0x0046B3E0): expired spots get their deer back or are given up, and
+    /// every fourth epoch the island counts its forest spots and may settle new deer.
+    void advance_islands();
+    /// Game time per island epoch.
+    static constexpr std::uint32_t kIslandEpochMs = 30'000;
 
     [[nodiscard]] const Pool<Walker>& walkers() const noexcept { return m_walkers; }
     [[nodiscard]] const LogisticsStats& stats() const noexcept { return m_stats; }
@@ -159,11 +185,23 @@ private:
     bool find_crop(Walker& walker, const BuildingAt& home, const assets::FigureType& figure);
     /// A worker is done at its field: harvest, then the next tile or home.
     void finish_work(Handle handle, Walker& walker);
+
+    bool spawn_deer(std::uint16_t island, std::uint8_t spot);
+    /// Next grazing place of a deer: a ripe tile of its ware in the 13 x 13 square around its
+    /// spot, preferably about 4 steps away (0x0045C270).
+    bool plan_deer(Walker& deer);
+    void deer_done(Handle handle, Walker& deer);
+    void remove_deer(Handle handle, Walker& deer, bool keep_spot);
+    void call_hunter(Handle deer);
+    void hunter_arrive(Handle handle, Walker& hunter);
+    /// A hunter close to its grazing deer shoots (0x0045C450).
+    void check_shot(Walker& hunter);
+    void census(std::uint16_t island);
     /// Marks the tiles of the city's buildings with HAUS_PRODTYP kind 1..last_kind as goals
     /// (inside the current search area).
     void mark_goals(const IslandMap& map, std::uint8_t city, std::int32_t last_kind, std::uint8_t speed_type);
-    /// Starts the walker if `path` is not empty; false if there is nothing to walk.
-    bool launch(Walker walker);
+    /// Starts the walker if `path` is not empty; an invalid handle if there is nothing to walk.
+    Handle launch(Walker walker);
     void arrive(Handle handle, Walker& walker);
     void pick_up(Walker& walker);
     void deliver(Walker& walker);
@@ -188,6 +226,8 @@ private:
     LogisticsStats m_stats;
     /// Ripe tiles a worker is on its way to (the original's grid bit 29), key: island, y, x.
     std::unordered_set<std::uint64_t> m_reserved_tiles;
+    /// Deer that started grazing and call a hunter (handled after the figures moved).
+    std::vector<Handle> m_hunt_calls;
 };
 
 }  // namespace o1602::sim

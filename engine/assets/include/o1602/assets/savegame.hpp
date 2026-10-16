@@ -117,7 +117,9 @@ struct AnimalRecord {
     std::uint8_t island = 0;
     std::uint8_t x = 0;  ///< island tile
     std::uint8_t y = 0;
-    std::uint32_t timer = 0;  ///< milliseconds, probably until the next action
+    /// Game time (1/10 s, the clock of TIMERS +0xA0) before which the spot gets no new deer
+    /// (docs/re/deer.md).
+    std::uint32_t timer = 0;
 };
 
 /// SOLDAT3 record (0x44 bytes, written by 0x004600C0 from the soldier table 0x0051C678,
@@ -175,6 +177,7 @@ struct GameState {
     std::vector<ConsumptionRecord> consumption;
     std::vector<HouseRecord> houses;
     std::optional<HouseClocks> house_clocks;
+    std::optional<std::uint32_t> game_time;  ///< TIMERS +0xA0: game time in 1/10 s
     std::vector<CostRecord> shipyards;
     std::vector<CostRecord> castles;
     std::optional<GrowthClocks> growth_clocks;  ///< nothing without a TIMERS chunk

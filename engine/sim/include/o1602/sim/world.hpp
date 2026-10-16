@@ -21,11 +21,21 @@
 
 namespace o1602::sim {
 
+/// A spot in a forest where deer live (island + 0x6C, HIRSCH2): the island keeps up to 8.
+struct DeerSpot {
+    bool used = false;
+    std::uint8_t x = 0;  ///< island tile
+    std::uint8_t y = 0;
+    std::uint64_t respawn_ms = 0;  ///< game time before which no new deer comes
+};
+
 struct WorldIsland {
     assets::IslandHeader header;
     IslandMap map;
     std::uint32_t x = 0;  ///< position of the island's tile (0,0) on the world map
     std::uint32_t y = 0;
+    std::array<DeerSpot, 8> deer_spots{};
+    std::uint8_t deer_phase = 0;  ///< island epochs (30 s) since the last deer census, 0..3
 };
 
 /// A city: the settlement of one player on one island (STADT4 in the original).
@@ -267,6 +277,10 @@ public:
     /// Removes the house at (x, y); the order of the others may change.
     void remove_house(std::uint16_t island, std::uint16_t x, std::uint16_t y);
 
+    /// Game time since the start of the game (TIMERS +0xA0 of a savegame).
+    [[nodiscard]] std::uint64_t time_ms() const noexcept { return m_time_ms; }
+    void set_time_ms(std::uint64_t t) noexcept { m_time_ms = t; }
+
     [[nodiscard]] const HouseClocks& house_clocks() const noexcept { return m_house_clocks; }
     [[nodiscard]] HouseClocks& house_clocks() noexcept { return m_house_clocks; }
     [[nodiscard]] const std::vector<CostBuilding>& cost_buildings() const noexcept { return m_cost_buildings; }
@@ -309,6 +323,7 @@ private:
     RandomStreams m_random;
     std::vector<House> m_houses;
     HouseClocks m_house_clocks;
+    std::uint64_t m_time_ms = 0;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x

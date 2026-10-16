@@ -89,9 +89,8 @@ private:
     /// Flags, smoke and icons: buildings do not move, so they are collected once at load.
     std::vector<render::BuildingFigure> m_building_figures;
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
-    render::AnimalFigures m_animals;                ///< the islands' animals, grazing
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
-    render::WalkerFigures m_walkers;                ///< carriers and carts of the logistics
+    render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters
     ViewerOptions m_options;
     sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
 

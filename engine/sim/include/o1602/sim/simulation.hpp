@@ -69,6 +69,7 @@ private:
     std::vector<HouseEvent> m_house_events;
     const assets::FigureTable* m_figures;
     std::uint32_t m_upkeep_ms = 0;  ///< game time since the military upkeep was last paid
+    std::uint32_t m_island_ms = 0;  ///< game time since the last island epoch
     Logistics m_logistics;
 };
 

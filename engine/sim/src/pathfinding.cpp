@@ -297,6 +297,14 @@ void PathFinder::expand(std::uint32_t index) {
     }
 }
 
+std::optional<std::uint32_t> PathFinder::cost(TilePos target) const noexcept {
+    const auto k = index_of(target);
+    if (!k || m_dist[*k] == kUnreached) {
+        return std::nullopt;
+    }
+    return m_dist[*k];
+}
+
 bool PathFinder::reached(TilePos target) const noexcept {
     const auto k = index_of(target);
     return k && m_dist[*k] != kUnreached;

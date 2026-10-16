@@ -39,6 +39,8 @@ struct IslandHeader {
         std::uint16_t amount = 0;  ///< left, 1/32 t
     };
     std::vector<Deposit> deposits;
+    /// INSEL5 +0x08: island epochs (of 30 s) until the next deer census, 0..3 (island +0x68).
+    std::uint8_t deer_phase = 0;
     /// INSEL5 +0x5C: bit (ware - 45) set = the island is fertile for that crop or resource.
     std::uint32_t fertility = 0;
 

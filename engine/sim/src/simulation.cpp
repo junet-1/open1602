@@ -22,6 +22,10 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_rules(rules),
       m_figures(&figures),
       m_logistics(world, buildings, figures) {
+    m_time_ms = world.time_ms();
+    m_island_ms = static_cast<std::uint32_t>(m_time_ms % Logistics::kIslandEpochMs);
+    // As when the original loads a game: every deer spot gets its deer.
+    m_logistics.spawn_deer_at_spots();
     // The original takes the saved coverage of the houses; Open1602 recomputes it once, which
     // also restores what the savegame does not keep (gallows, fountains).
     update_services(world, buildings);
@@ -48,6 +52,7 @@ void Simulation::advance(std::uint32_t real_ms) {
 
 void Simulation::tick() {
     m_time_ms += kTickMs;
+    m_world->set_time_ms(m_time_ms);
     // Growth first, as in the original (0x0047CA80 is the first subsystem of 0x00489670).
     advance_growth(*m_world, *m_buildings, kTickMs);
     m_production_ms += kTickMs;
@@ -84,6 +89,12 @@ void Simulation::tick() {
     if (m_upkeep_ms >= kUpkeepPeriodMs) {
         m_upkeep_ms -= kUpkeepPeriodMs;
         pay_upkeep();
+    }
+    // Island epochs of 30 s (0x0046B3E0): deer come back and settle.
+    m_island_ms += kTickMs;
+    if (m_island_ms >= Logistics::kIslandEpochMs) {
+        m_island_ms -= Logistics::kIslandEpochMs;
+        m_logistics.advance_islands();
     }
     // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670).
     m_logistics.tick();

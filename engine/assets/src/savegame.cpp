@@ -26,6 +26,7 @@ constexpr std::size_t kShipyardSize = 0x18;
 constexpr std::size_t kCastleSize = 0x70;
 constexpr std::size_t kTimersHouseEpochs = 0x44;
 constexpr std::size_t kTimersHouseMs = 0x198;
+constexpr std::size_t kTimersGameTime = 0xA0;
 constexpr std::size_t kConsumptionGoods = 16;
 constexpr std::size_t kTimersCounters = 0x64;
 constexpr std::size_t kTimersGrowthMs = 0x218;
@@ -236,6 +237,9 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
                 clocks.time_ms[i] = u32(data, kTimersHouseMs + 4 * i);
             }
             state.house_clocks = clocks;
+        }
+        if (data.size() >= kTimersGameTime + 4) {
+            state.game_time = u32(data, kTimersGameTime);
         }
     }
     return state;

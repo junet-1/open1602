@@ -150,6 +150,10 @@ public:
         return std::nullopt;
     }
 
+    /// Cost of the best route to `target` found by the last search (64 = one road tile), nothing if
+    /// it was not reached.
+    [[nodiscard]] std::optional<std::uint32_t> cost(TilePos target) const noexcept;
+
     /// Whether the last search reached `target`.
     [[nodiscard]] bool reached(TilePos target) const noexcept;
 

@@ -280,6 +280,12 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         h.services = r.services;
         world.add_house(h);
     }
+    if (state->game_time) {
+        world.set_time_ms(std::uint64_t{*state->game_time} * 100);
+    }
+    for (std::size_t i = 0; i < world.islands().size(); ++i) {
+        world.island(i).deer_phase = world.islands()[i].header.deer_phase;
+    }
     if (state->house_clocks) {
         HouseClocks& clocks = world.house_clocks();
         for (std::size_t g = 0; g < HouseClocks::kGroups; ++g) {
@@ -366,6 +372,12 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         }
         const bool south = (world.islands()[*island].header.climate & 1U) != 0;
         world.add_animal(Animal{*island, a.x, a.y, south ? kFigureAntilope : kFigureHirsch});
+        for (DeerSpot& spot : world.island(*island).deer_spots) {
+            if (!spot.used) {
+                spot = DeerSpot{true, a.x, a.y, std::uint64_t{a.timer} * 100};
+                break;
+            }
+        }
     }
     // Growth: the clocks of TIMERS and the entries of ROHWACHS2; growing tiles the file lists no
     // entry for get one (add_missing_growth).

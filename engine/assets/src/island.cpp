@@ -49,6 +49,7 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
                 h.deposits.push_back(d);
             }
         }
+        h.deer_phase = static_cast<std::uint8_t>(data[0x08] & 3U);
         h.fertility = static_cast<std::uint32_t>(data[0x5C]) | (static_cast<std::uint32_t>(data[0x5D]) << 8) |
                       (static_cast<std::uint32_t>(data[0x5E]) << 16) | (static_cast<std::uint32_t>(data[0x5F]) << 24);
     }
