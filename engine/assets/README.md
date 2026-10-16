@@ -6,6 +6,8 @@ Loader für die Originalformate (Spezifikation in [docs/formats](../../docs/form
 |---|---|
 | `chunk_file.hpp` | Chunk-Container (Basis fast aller Binärdateien) |
 | `cod.hpp` | `.cod`-Skripte entschlüsseln |
+| `cod_parser.hpp` | `.cod`-Interpreter (Symbole, Ausdrücke, Objekte, `ObjFill`) |
+| `cod_predefined.hpp` | von der Exe vordefinierte Konstanten (generiert) |
 | `palette.hpp` | `.COL`-Palette |
 | `sprite_sheet.hpp` | `.BSH`/`.ZEI`-Sprites (RLE) |
 | `island.hpp` | Inseln aus `.SCP`/`.SZS`/`.SZM`/`.GAM` |

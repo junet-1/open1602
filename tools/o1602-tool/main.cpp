@@ -4,6 +4,8 @@
 //
 //   o1602-tool chunks     <file>                         list chunks of any chunk container
 //   o1602-tool cod        <file.cod> [out.txt]           decode a .cod script to UTF-8 text
+//   o1602-tool cod-dump   <file.cod> [--predefined haeuser|figuren|none] [--type NAME]
+//                                                        interpret a .cod script and print its records
 //   o1602-tool bsh-info   <file.bsh|.zei>                list sprites
 //   o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]
 //   o1602-tool islands    <file.scp|.szs|.szm|.gam>      list islands and tile statistics
@@ -11,6 +13,7 @@
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <cstdio>
 #include <filesystem>
@@ -22,6 +25,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cod.hpp"
+#include "o1602/assets/cod_parser.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
@@ -44,6 +48,7 @@ int usage() {
         "usage:\n"
         "  o1602-tool chunks     <file>\n"
         "  o1602-tool cod        <file.cod> [out.txt]\n"
+        "  o1602-tool cod-dump   <file.cod> [--predefined haeuser|figuren|none] [--type NAME]\n"
         "  o1602-tool bsh-info   <file.bsh|.zei>\n"
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n",
@@ -115,6 +120,81 @@ int cmd_cod(const Args& args) {
         }
     } else {
         std::fwrite(text->data(), 1, text->size(), stdout);
+    }
+    return 0;
+}
+
+std::string format_value(const assets::cod::Value& v) {
+    if (v.type == assets::cod::ValueType::String) {
+        return "\"" + v.text + "\"";
+    }
+    if (v.real != static_cast<double>(v.integer)) {
+        char buf[48];
+        std::snprintf(buf, sizeof(buf), "%g", v.real);
+        return buf;
+    }
+    return std::to_string(v.integer);
+}
+
+void print_object(const assets::cod::Object& obj, int indent, const std::string& only_type) {
+    const std::string pad(static_cast<std::size_t>(indent) * 2, ' ');
+    for (const auto& [name, field] : obj.fields) {
+        if (field.assigned_with_equals) {
+            continue;  // constants (NAME = value) are not record properties
+        }
+        std::string line = pad + name + ":";
+        for (std::size_t i = 0; i < field.values.size(); ++i) {
+            line += (i == 0 ? " " : ", ") + format_value(field.values[i]);
+        }
+        std::printf("%s\n", line.c_str());
+    }
+    for (const auto& [type, records] : obj.children) {
+        if (indent == 0 && !only_type.empty() && type != only_type) {
+            continue;
+        }
+        for (const auto& [nummer, record] : records) {
+            std::printf("%s[%s #%d]\n", pad.c_str(), type.c_str(), nummer);
+            print_object(record, indent + 1, only_type);
+        }
+    }
+}
+
+int cmd_cod_dump(const Args& args) {
+    if (args.positional.size() != 1) {
+        return usage();
+    }
+    const fs::path path(args.positional[0]);
+    auto bytes = core::read_file(path);
+    if (!bytes) {
+        return fail(bytes.error());
+    }
+    std::string predefined = "auto";
+    if (const auto it = args.options.find("--predefined"); it != args.options.end()) {
+        predefined = std::string(it->second);
+    }
+    if (predefined == "auto") {
+        std::string stem = path.stem().string();
+        std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c) { return std::tolower(c); });
+        predefined = stem == "haeuser" || stem == "figuren" ? stem : "none";
+    }
+    std::span<const assets::CodPredefinedSymbol> symbols;
+    if (predefined == "haeuser") {
+        symbols = assets::cod_predefined_haeuser();
+    } else if (predefined == "figuren") {
+        symbols = assets::cod_predefined_figuren();
+    }
+
+    const auto doc = assets::cod::parse(assets::decode_cod(*bytes), symbols);
+    std::string only_type;
+    if (const auto it = args.options.find("--type"); it != args.options.end()) {
+        only_type = std::string(it->second);
+    }
+    print_object(doc.root, 0, only_type);
+
+    std::fprintf(stderr, "-- %zu symbols, %zu diagnostics (predefined: %s)\n", doc.symbols.size(),
+                 doc.diagnostics.size(), predefined.c_str());
+    for (const auto& d : doc.diagnostics) {
+        std::fprintf(stderr, "   line %u: %s\n", d.line, d.message.c_str());
     }
     return 0;
 }
@@ -280,6 +360,9 @@ int main(int argc, char** argv) {
     }
     if (command == "cod") {
         return cmd_cod(args);
+    }
+    if (command == "cod-dump") {
+        return cmd_cod_dump(args);
     }
     if (command == "bsh-info") {
         return cmd_bsh_info(args);

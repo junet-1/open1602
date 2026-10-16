@@ -26,7 +26,7 @@ struct IslandHeader {
 /// One entry of an INSELHAUS chunk (8 bytes).
 struct IslandTile {
     /// Building / terrain id. Matches the "Id" values in haeuser.cod minus 20000
-    /// (e.g. 1201 -> IDMEER+0 = 21201). Hypothesis, see docs/formats/scp.md.
+    /// (e.g. 1201 -> IDMEER+0 = 21201). Verified for all ids of NORD/big.scp, see docs/formats/scp.md.
     std::uint16_t id = 0;
     std::uint8_t x = 0;
     std::uint8_t y = 0;

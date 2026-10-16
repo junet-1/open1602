@@ -27,16 +27,19 @@ ist noch nicht entschlüsselt und wird roh mitgeführt (`IslandHeader::raw`).
 
 ```c
 struct IslandTile {
-    uint16_t id;      // + 20000 = "Id" in haeuser.cod (Hypothese, s. u.)
+    uint16_t id;      // + 20000 = "Id" eines HAUS-Datensatzes in haeuser.cod (verifiziert)
     uint8_t  x, y;    // Position auf der Insel
     uint32_t bits;    // gepackte Attribute, noch nicht entschlüsselt
 };
 ```
 
-**Hypothese `id + 20000`:** In `NORD/big.scp` sind die häufigsten IDs 2722, 1201, 1204, 1203 –
-das entspricht `IDWEIDE+21`, `IDMEER+0`, `IDMEER+3`, `IDMEER+2` aus `haeuser.cod` (`IDMEER = 21201`).
-Eine Insel aus überwiegend Grasland mit Flachwasser-Rand ist plausibel. Bestätigung über den
-Lader im Binary steht aus.
+**`id + 20000` = `Id` in `haeuser.cod` – verifiziert:** Alle 23 verschiedenen IDs aus `NORD/big.scp`
+existieren als `Id` eines `HAUS`-Datensatzes (Test `data: island tile ids ...`). Zeichnet man jedes
+Feld mit dem `Gfx`-Index dieses Datensatzes aus `GFX/STADTFLD.BSH` isometrisch (64 × 31, Versatz
+`Posoffs`), entsteht eine stimmige Insel aus Grasland, Wald, Küste und Wasser.
+
+Kuriosum: `NORD/big.scp` (ohne Nummer) hat Lücken in Form von „???“ – dort fehlen schlicht Einträge.
+Die Datei ist offenbar eine Platzhalter-Vorlage; die echten Inseln heißen `big00`–`big66`.
 
 Für `bits` vermutet die Community (u. a. MDCII) Felder wie Rotation, Animationsschritt, Insel-,
 Stadt- und Spielernummer – **ungeprüft**, daher noch nicht implementiert.

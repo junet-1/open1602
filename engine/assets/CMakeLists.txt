@@ -4,6 +4,8 @@
 add_library(o1602_assets
     src/chunk_file.cpp
     src/cod.cpp
+    src/cod_parser.cpp
+    src/cod_predefined.cpp
     src/game_directory.cpp
     src/island.cpp
     src/palette.cpp

@@ -5,7 +5,8 @@ Status-Legende: ✅ verifiziert (Code + Test gegen Originaldaten) · 🟡 teilwe
 | Format | Dateien | Status | Doku | Implementierung |
 |---|---|---|---|---|
 | Chunk-Container | `.BSH .ZEI .COL .SCP .SZS .SZM .GAM` | ✅ | [chunks.md](chunks.md) | `engine/assets/chunk_file.*` |
-| COD-Skripte | `haeuser.cod figuren.cod Text.cod Editor.cod` | ✅ Kodierung / ⬜ Grammatik | [cod.md](cod.md) | `engine/assets/cod.*` |
+| COD-Skripte | `haeuser.cod figuren.cod` | ✅ Kodierung, Grammatik, Objekte | [cod.md](cod.md) | `engine/assets/cod.*`, `cod_parser.*` |
+| Texte | `Text.cod Editor.cod` | 🟡 Kodierung, Abschnitte | [cod.md](cod.md#7-textcod--editorcod) | – |
 | Palette | `TOOLGFX/STADTFLD.COL` | ✅ | [col.md](col.md) | `engine/assets/palette.*` |
 | Sprites | `GFX/ MGFX/ SGFX/ TOOLGFX/ *.BSH` | ✅ | [bsh.md](bsh.md) | `engine/assets/sprite_sheet.*` |
 | Schriften | `TOOLGFX/*.ZEI` | 🟡 | [bsh.md](bsh.md#zei-schriften) | `engine/assets/sprite_sheet.*` |

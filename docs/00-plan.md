@@ -172,5 +172,6 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M0: rea + Ghidra Machbarkeitstest | ✅ bestanden (rea 6.5.0, Ghidra 12.1.2) – `re/notes/rea-smoke-test-result.md` |
 | M1: Chunk-Container, `.cod`, Palette, BSH-Sprites | ✅ dokumentiert, implementiert, gegen Originaldaten getestet |
 | M1: Inseln (`.SCP`) | 🟡 Kopf (Größe, Position) und Feldliste; Attribut-Bits offen |
-| M1: ZEI-Schriften, GAD, Szenario-Chunks, `.cod`-Grammatik | ⬜ als Nächstes |
+| M1: `.cod`-Interpreter (Grammatik aus der Exe, 685 Vordefinitionen, Parser + Tests) | ✅ `docs/formats/cod.md` |
+| M1: ZEI-Schriften, GAD, Szenario-Chunks, Feldbedeutungen in `haeuser.cod` | ⬜ als Nächstes |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
