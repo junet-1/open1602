@@ -293,8 +293,15 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
                     }
                     BuildingFigure f;
                     f.role = role;
-                    attach_point(island, b, x, y, cell.rotation, *fig, f.x, f.y);
-                    f.z = fig->fahnoffs[2];
+                    if (role == BuildingFigureRole::Status) {
+                        // Symbols (kinds 0x16, 0x19-0x1B) stand on the building centre at the
+                        // building's Einhoffs height, not at the figure's Fahnoffs (0x00446776).
+                        attach_point(island, b, x, y, cell.rotation, assets::FigureType{}, f.x, f.y);
+                        f.z = b.icon_height;
+                    } else {
+                        attach_point(island, b, x, y, cell.rotation, *fig, f.x, f.y);
+                        f.z = fig->fahnoffs[2];
+                    }
                     f.figure = number;
                     f.owner = cell.owner;
                     f.phase = static_cast<std::uint8_t>((island.x + x) * 7 + (island.y + y) * 13);

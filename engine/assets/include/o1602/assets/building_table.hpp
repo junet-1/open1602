@@ -28,6 +28,9 @@ struct BuildingType {
     std::int32_t anim_time = 0;    ///< AnimTime: frame duration (TIMENEVER = 0 = static)
     std::uint32_t anim_frame = 0;  ///< AnimFrame: initial global frame
     std::int32_t posoffs = 0;      ///< Posoffs: elevation in pixels at full zoom (land 20, sea 0)
+    /// Einhoffs (record +0x18, float): height of the building in half tile widths. Status icons and
+    /// other symbols hover at this height above the building's centre (0x00446776).
+    double icon_height = 0.0;
     bool high = false;             ///< Highflg: drawn in the second (high) pass of a row
     bool draw_ground = false;      ///< Grundflg: draw the ground tile below first
     std::uint32_t build_gfx = 0;   ///< Baugfx: icon in the build menu

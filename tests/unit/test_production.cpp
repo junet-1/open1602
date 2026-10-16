@@ -22,6 +22,7 @@ assets::BuildingTable make_buildings() {
     const auto doc = assets::cod::parse(
         "Objekt: HAUS\n"
         "  @Nummer: 0\n  Id: 20503\n  Gfx: 0\n  Size: 2, 2\n  AnimAnz: 8\n  AnimAdd: 4\n  AnimTime: 100\n"
+        "  Einhoffs: 2.5\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Rauchfignr: 48\n    Maxlager: 4\n    Maxnorohst: 5\n  EndObj\n"
         "  @Nummer: +1\n  Id: 22201\n  Gfx: 40\n  Size: 1, 1\n  AnimAnz: 4\n  AnimAdd: 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Maxlager: 10\n    LagAniFlg: 1\n  EndObj\n"
@@ -62,6 +63,7 @@ TEST_CASE("production: HAUS_PRODTYP fields for the production state") {
     const assets::BuildingType& bakery = *buildings.by_id(20503);
     CHECK(bakery.max_stock == 4 * assets::kStockUnitsPerTon);
     CHECK(bakery.max_idle_cycles == 5);
+    CHECK(bakery.icon_height == 2.5);
     CHECK(!bakery.stock_animation);
     CHECK(sim::is_producer(bakery));
     CHECK(buildings.by_id(22201)->stock_animation);
@@ -153,8 +155,9 @@ TEST_CASE("production: smoke and status icons on buildings") {
     REQUIRE(all.size() == 4);
     CHECK(all[0].role == render::BuildingFigureRole::Status);
     CHECK(all[0].figure == 46);
-    CHECK(all[0].x == 7.0);  // centre of the 2x2 footprint, NOAKTIV has no Fahnoffs
+    CHECK(all[0].x == 7.0);  // centre of the 2x2 footprint
     CHECK(all[0].y == 7.0);
+    CHECK(all[0].z == 2.5);  // hovers at the bakery's Einhoffs height
     CHECK(all[1].role == render::BuildingFigureRole::Smoke);
     CHECK(all[1].x == 6.5);   // 5 + 1 + 1 - 0.5
     CHECK(all[1].y == 7.25);  // 5 + 1 + 1 + 0.25
@@ -207,6 +210,9 @@ TEST_CASE("production: smoke and status icons on buildings") {
     REQUIRE(render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
     CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10);
     CHECK(s.parts[0].mode == render::DrawCommand::Mode::Normal);
+    // Point: x = (7 - 7 + 350) * 32 = 11200, y = 14 * 16 = 224; bottom 2.5 * 32 above it.
+    CHECK(s.parts[0].x == 11200 - 3);
+    CHECK(s.parts[0].y == 224 - 80);
     world.set_production(sim::Production{0, 1, 1, true, false, 0, 7, 0, 0});
     REQUIRE(render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
     CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10 + 4);

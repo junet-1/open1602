@@ -56,6 +56,9 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         b.anim_time = r.integer("AnimTime");
         b.anim_frame = non_negative(r.integer("AnimFrame"));
         b.posoffs = r.integer("Posoffs");
+        if (const cod::Field* einhoffs = r.field("Einhoffs"); einhoffs != nullptr && !einhoffs->values.empty()) {
+            b.icon_height = einhoffs->values[0].real;
+        }
         b.high = (r.integer("Highflg") & 1) != 0;
         b.draw_ground = (r.integer("Grundflg") & 1) != 0;
         b.build_gfx = non_negative(r.integer("Baugfx"));
