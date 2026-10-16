@@ -1,5 +1,8 @@
 # engine/platform
 
-Plattformschicht auf SDL3: Fenster, Eingabe, Zeitgeber, Dateidialoge. Einzige Stelle mit Betriebssystem-Abhängigkeiten. **Meilenstein:** M2.
+Plattformschicht auf SDL3: Fenster, Renderer, Zeitgeber; später Eingabe-Abbildung und Dateidialoge.
+Einzige Stelle mit Betriebssystem-Abhängigkeiten ([ADR 0005](../../docs/architecture/0005-modulstruktur.md)).
+Alles ist RAII; SDL-Typen gelangen nie nach `sim` oder `assets`.
 
-Noch nicht angelegt – siehe [docs/00-plan.md](../../docs/00-plan.md) und [ADR 0005](../../docs/architecture/0005-modulstruktur.md).
+Das SDL3-Zeichen-Backend liegt in `engine/render/sdl` (eigenes Ziel `o1602::render_sdl`), damit
+Werkzeuge und Tests ohne SDL auskommen.

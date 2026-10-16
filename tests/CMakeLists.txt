@@ -5,6 +5,7 @@ add_executable(o1602_tests
     unit/test_assets.cpp
     unit/test_cod_parser.cpp
     unit/test_island_render.cpp
+    unit/test_world_render.cpp
     data/test_original_data.cpp
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render)

@@ -29,6 +29,15 @@ enum class Zoom : std::uint8_t { Large = 0, Medium = 1, Small = 2 };
     return tile_width(zoom) / 2;
 }
 
+/// Terrain/building sprite sheet of a zoom level, relative to the game directory.
+[[nodiscard]] constexpr const char* terrain_sheet_path(Zoom zoom) noexcept {
+    constexpr const char* kSheets[] = {"gfx/stadtfld.bsh", "mgfx/stadtfld.bsh", "sgfx/stadtfld.bsh"};
+    return kSheets[static_cast<int>(zoom) % 3];
+}
+
+/// Palette of the terrain sheets, relative to the game directory.
+inline constexpr const char* kTerrainPalettePath = "toolgfx/stadtfld.col";
+
 struct RenderOptions {
     Zoom zoom = Zoom::Large;
     /// Global animation step added to every animated tile (the original advances a frame counter
@@ -46,7 +55,12 @@ struct DrawCommand {
     std::int32_t y = 0;
 };
 
-/// Sprite index for a map cell (base sprite + animation frame + rotation step).
+/// Sprite index for a map cell with an explicit global animation frame of its building type
+/// (base sprite + animation frame + rotation step). `building` may be null (sprite unchanged).
+[[nodiscard]] std::uint32_t animated_sprite(const sim::MapCell& cell, const assets::BuildingType* building,
+                                            std::uint32_t global_frame, std::uint8_t view_rotation);
+
+/// Sprite index for a map cell, global frame = AnimFrame + options.anim_step.
 [[nodiscard]] std::uint32_t sprite_for_cell(const sim::MapCell& cell, const assets::BuildingType* building,
                                             const RenderOptions& options);
 

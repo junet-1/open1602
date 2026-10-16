@@ -14,6 +14,7 @@ enum class ErrorCode {
     InvalidFormat,  ///< Data does not match the expected format.
     OutOfRange,     ///< Index or offset outside of valid range.
     Unsupported,    ///< Valid data, but a variant we do not handle (yet).
+    PlatformError,  ///< Operating system or SDL call failed (window, renderer, ...).
 };
 
 struct Error {

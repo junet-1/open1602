@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Draws DrawCommands with an SDL_Renderer: atlas pages become textures, sprites are batched into
+// one SDL_RenderGeometry call per run of consecutive sprites on the same page (painter's order
+// is preserved). Nearest filtering keeps the pixel art sharp at integer pixel scales.
+#pragma once
+
+#include <cstdint>
+#include <vector>
+
+#include "o1602/core/result.hpp"
+#include "o1602/render/island_renderer.hpp"
+#include "o1602/render/sprite_atlas.hpp"
+
+struct SDL_Renderer;
+struct SDL_Texture;
+struct SDL_Vertex;
+
+namespace o1602::render {
+
+class SdlSpriteRenderer {
+public:
+    explicit SdlSpriteRenderer(SDL_Renderer* renderer);
+    ~SdlSpriteRenderer();
+    SdlSpriteRenderer(const SdlSpriteRenderer&) = delete;
+    SdlSpriteRenderer& operator=(const SdlSpriteRenderer&) = delete;
+
+    /// Uploads the atlas pages (replacing previous ones). The atlas must outlive draw calls.
+    core::Status upload(const SpriteAtlas& atlas);
+
+    /// Draws at screen = (x, y) * scale - origin; returns the number of sprites drawn.
+    std::size_t draw(const std::vector<DrawCommand>& commands, std::int32_t origin_x, std::int32_t origin_y,
+                     std::int32_t scale);
+
+private:
+    void release();
+    void flush(std::uint16_t page);
+
+    SDL_Renderer* m_renderer;
+    const SpriteAtlas* m_atlas = nullptr;
+    std::vector<SDL_Texture*> m_pages;
+    std::vector<SDL_Vertex> m_vertices;
+    std::vector<int> m_indices;
+};
+
+}  // namespace o1602::render

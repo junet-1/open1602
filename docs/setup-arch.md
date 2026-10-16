@@ -26,6 +26,25 @@ ctest --preset debug
 
 Weitere Presets: `release`, `asan` (AddressSanitizer + UBSan), `ci` (Warnungen als Fehler).
 
+### Kartenbetrachter `open1602` (SDL3)
+
+Das Programm wird nur mit `-DO1602_BUILD_GAME=ON` gebaut und braucht das Paket `sdl3` (siehe oben):
+
+```sh
+cmake --preset release -DO1602_BUILD_GAME=ON
+cmake --build --preset release
+export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
+./build/release/engine/app/open1602                                  # „Das Atoll“
+./build/release/engine/app/open1602 --scenario "Szenes/Endlosspiel00.szs" --zoom 1
+```
+
+Steuerung: Pfeiltasten/WASD (mit Umschalt schneller) oder rechte/mittlere Maustaste ziehen zum
+Scrollen · Mausrad zoomt an der Mausposition · 1/2/3 Zoomstufe · R / Umschalt+R drehen ·
++/− Pixelvergrößerung · Leertaste hält Animationen an · Pos1 springt zur ersten Insel ·
+F12 Bildschirmfoto · Esc/Q beenden. Die Titelleiste zeigt Feld unter der Maus, Bildrate und
+Sprite-Anzahl. Mit `--frames N --screenshot bild.png` läuft das Programm N Bilder lang, speichert das
+letzte und meldet die Bildrate (für Tests ohne Bedienung).
+
 ## 2. Reverse-Engineering-Werkzeuge
 
 ### Node.js + rea

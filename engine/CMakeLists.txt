@@ -14,5 +14,11 @@ add_subdirectory(assets)
 add_subdirectory(sim)
 add_subdirectory(render)
 
+if(O1602_BUILD_GAME)
+    add_subdirectory(platform)
+    add_subdirectory(render/sdl)
+    add_subdirectory(app)
+endif()
+
 # Modules below are planned (see docs/00-plan.md) and get added as they are implemented:
-#   net, platform, audio, ui, script, app
+#   net, audio, ui, script

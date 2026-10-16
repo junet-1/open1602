@@ -43,6 +43,57 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+  game:
+    name: Game (SDL3, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+    env:
+      SDL_VERSION: 3.2.24
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: >
+          sudo apt-get update && sudo apt-get install -y ninja-build zlib1g-dev libx11-dev libxext-dev
+          libxrandr-dev libxcursor-dev libxi-dev libxss-dev libwayland-dev libxkbcommon-dev wayland-protocols
+          libegl1-mesa-dev libgl1-mesa-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Set up MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Cache SDL3
+        id: sdl-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/sdl3
+          key: sdl3-${{ env.SDL_VERSION }}-${{ matrix.os }}
+
+      - name: Build SDL3
+        if: steps.sdl-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          git clone --depth 1 --branch "release-$SDL_VERSION" https://github.com/libsdl-org/SDL sdl-src
+          cmake -S sdl-src -B sdl-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
+                -DCMAKE_INSTALL_PREFIX="${{ runner.temp }}/sdl3"
+          cmake --build sdl-build
+          cmake --install sdl-build
+
+      - name: Configure
+        run: >
+          cmake --preset ci -DO1602_BUILD_GAME=ON -DCMAKE_PREFIX_PATH="${{ runner.temp }}/sdl3"
+
+      - name: Build
+        run: cmake --build --preset ci
+
   format:
     runs-on: ubuntu-24.04
     steps:

@@ -85,9 +85,14 @@ Inseln mit 0 Einträgen sind unveränderte Vorlagen.
 > Korrektur: Eine frühere Fassung dieses Dokuments meinte, Szenarien enthielten das vollständige
 > Gelände außer dem Meer. Das war falsch – die Darstellung zeigte abgeschnittene Inselteile.
 
+Die Weltkarte (500 × 350) entsteht, indem jede so aufgebaute Insel an `pos_x/pos_y` ihres Kopfs
+gelegt wird (`sim::load_world`, Vorlagen werden zwischengespeichert, da sich viele Inseln eine teilen).
+Alles außerhalb der Inseln ist offenes Meer, siehe [rendering.md](../re/rendering.md#5-weltkarte-offenes-meer-und-animationstakt).
+
 ## Werkzeuge
 
 ```sh
 o1602-tool islands NORD/big.scp
 o1602-tool islands "Szenes/Das Atoll.szs"
+o1602-tool render-world "Szenes/Das Atoll.szs" welt.png
 ```

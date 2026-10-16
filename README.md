@@ -40,13 +40,17 @@ o1602-tool bsh-export GFX/SHIP.BSH out/ --sheet       # Sprites als PNG
 o1602-tool islands    NORD/big.scp                    # Inseldaten
 o1602-tool cod-dump   haeuser.cod --type HAUS         # .cod interpretieren
 o1602-tool render-island NORD/lar01.SCP insel.png     # Insel isometrisch zeichnen
+o1602-tool render-world "Szenes/Das Atoll.szs" w.png  # ganze Weltkarte zeichnen
 ```
+
+Kartenbetrachter (braucht SDL3, `-DO1602_BUILD_GAME=ON`): `open1602 --scenario "Szenes/Das Atoll.szs"`,
+Steuerung siehe [docs/setup-arch.md](docs/setup-arch.md#kartenbetrachter-open1602-sdl3).
 
 ## Projektstruktur
 
 | Ordner | Inhalt |
 |---|---|
-| `engine/` | Engine-Module (`core`, `assets`, `sim`, `render`; später `audio`, `ui`, `net`, `app`) |
+| `engine/` | Engine-Module (`core`, `assets`, `sim`, `render`, `platform`, `app`; später `audio`, `ui`, `net`) |
 | `tools/` | `o1602-tool` (C++) und Python-Prototypen |
 | `tests/` | Unit-Tests und Tests gegen Originaldaten |
 | `docs/` | [Plan](docs/00-plan.md), [Dateiformate](docs/formats/README.md), [Reverse Engineering](docs/re/README.md), [Architektur](docs/architecture/README.md) |

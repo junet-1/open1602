@@ -20,8 +20,12 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
+#include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
+#include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/world.hpp"
 
 using namespace o1602;
 
@@ -304,5 +308,50 @@ TEST_CASE("data: all island header variants (INSEL3/4/5) load") {
         auto islands = assets::load_islands(*file);
         REQUIRE(islands.ok());
         CHECK(islands->size() == 1);
+    }
+}
+
+TEST_CASE("data: world of a scenario loads and draws without missing sprites") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(buildings->open_sea() != nullptr);
+    CHECK(buildings->open_sea()->id == 21201);
+
+    const auto scenario = game.resolve("szenes/das atoll.szs");
+    REQUIRE(scenario.has_value());
+    auto file = assets::ChunkFile::load(*scenario);
+    REQUIRE(file.ok());
+    std::vector<std::string> warnings;
+    auto world = sim::load_world(*file, *buildings, game, &warnings);
+    REQUIRE(world.ok());
+    CHECK(warnings.empty());
+    CHECK(world->islands().size() == 34);
+
+    // Whole world at the smallest zoom, all four view rotations: every sprite exists in the atlas.
+    auto sheet = assets::SpriteSheet::load(*game.resolve(render::terrain_sheet_path(render::Zoom::Small)));
+    REQUIRE(sheet.ok());
+    auto palette = assets::Palette::load(*game.resolve(render::kTerrainPalettePath));
+    REQUIRE(palette.ok());
+    auto atlas = render::SpriteAtlas::build(*sheet, *palette);
+    REQUIRE(atlas.ok());
+    const render::AnimationClock clock(*buildings);
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        render::WorldView view;
+        view.zoom = render::Zoom::Small;
+        view.rotation = rotation;
+        render::Viewport all;
+        render::world_pixel_size(view, all.width, all.height);
+        const auto commands =
+            render::build_world_draw_list(*world, *buildings, clock, view, all,
+                                          render::SpriteExtent{atlas->max_sprite_width(), atlas->max_sprite_height()});
+        CHECK(commands.size() >= std::size_t{500} * 350);
+        std::size_t missing = 0;
+        for (const auto& c : commands) {
+            if (atlas->rect(c.sprite).empty()) {
+                ++missing;
+            }
+        }
+        CHECK(missing == 0);
     }
 }

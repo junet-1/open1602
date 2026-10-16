@@ -175,6 +175,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M1: `.cod`-Interpreter (Grammatik aus der Exe, 685 Vordefinitionen, Parser + Tests) | ✅ `docs/formats/cod.md` |
 | M1: Gebäudedatensatz (`haeuser.cod` → `g_haeuser`), Inselattribute, Platzierungsalgorithmus | ✅ `docs/re/haus-record.md` |
 | M2: Renderer-Grundlage: Sprite-Formel, Maleralgorithmus, Software-Renderer, `render-island` | ✅ `docs/re/rendering.md` |
-| M2: Weltkarte (500 × 350, offenes Meer), SDL3-Fenster mit Scrollen/Zoom | ⬜ als Nächstes |
+| M2: Weltkarte (500 × 350, offenes Meer, Animationstakt), Sprite-Atlas, Kamera, `render-world` | ✅ `docs/re/rendering.md` §5 |
+| M2: SDL3-Kartenbetrachter `open1602` (Scrollen, Zoom an der Maus, Drehen, HiDPI) | ✅ `docs/setup-arch.md` |
+| M2: Spielerfarben, Figuren/Schiffe auf der Karte, Spielstände (`.GAM`) im Betrachter | ⬜ als Nächstes |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |

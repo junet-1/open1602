@@ -12,6 +12,9 @@
 //   o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2]
 //                            [--rotation 0-3] [--anim N] [--no-template] [--base FILE.scp]
 //                                                        render an island (needs ANNO1602_DIR)
+//   o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]
+//                           [--tile X,Y] [--size WxH]
+//                                                        render the world map or a part of it
 //
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 
@@ -36,8 +39,12 @@
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
+#include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
+#include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/world.hpp"
 
 namespace fs = std::filesystem;
 using namespace o1602;
@@ -59,7 +66,9 @@ int usage() {
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
-        "                           [--anim N] [--no-template] [--base FILE.scp]\n",
+        "                           [--anim N] [--no-template] [--base FILE.scp]\n"
+        "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
+        "                          [--tile X,Y] [--size WxH]   (default: whole world at zoom 2)\n",
         stderr);
     return 2;
 }
@@ -94,6 +103,27 @@ struct Args {
             return std::nullopt;
         }
         return value;
+    }
+
+    /// "--name A<sep>B" as two numbers, e.g. "--tile 120,80" or "--size 1920x1080".
+    [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> pair(std::string_view name,
+                                                                            char separator) const {
+        const auto it = options.find(name);
+        if (it == options.end()) {
+            return std::nullopt;
+        }
+        const std::string_view v = it->second;
+        const auto sep = v.find(separator);
+        if (sep == std::string_view::npos) {
+            return std::nullopt;
+        }
+        std::int32_t a = 0;
+        std::int32_t b = 0;
+        if (std::from_chars(v.data(), v.data() + sep, a).ec != std::errc{} ||
+            std::from_chars(v.data() + sep + 1, v.data() + v.size(), b).ec != std::errc{}) {
+            return std::nullopt;
+        }
+        return std::pair{a, b};
     }
 };
 
@@ -364,13 +394,7 @@ int cmd_render_island(const Args& args) {
         return fail(game.error());
     }
 
-    // Building data from haeuser.cod
-    auto cod_bytes = core::read_file(*game->resolve("haeuser.cod"));
-    if (!cod_bytes) {
-        return fail(cod_bytes.error());
-    }
-    const auto haeuser = assets::cod::parse(assets::decode_cod(*cod_bytes), assets::cod_predefined_haeuser());
-    auto buildings = assets::BuildingTable::from_cod(haeuser);
+    auto buildings = assets::BuildingTable::load(*game);
     if (!buildings) {
         return fail(buildings.error());
     }
@@ -424,12 +448,11 @@ int cmd_render_island(const Args& args) {
     options.zoom = static_cast<render::Zoom>(zoom);
     options.view_rotation = static_cast<std::uint8_t>(args.number("--rotation").value_or(0) & 3U);
     options.anim_step = static_cast<std::uint32_t>(args.number("--anim").value_or(0));
-    constexpr const char* kSheets[] = {"gfx/stadtfld.bsh", "mgfx/stadtfld.bsh", "sgfx/stadtfld.bsh"};
-    auto sheet = assets::SpriteSheet::load(*game->resolve(kSheets[zoom]));
+    auto sheet = assets::SpriteSheet::load(*game->resolve(render::terrain_sheet_path(options.zoom)));
     if (!sheet) {
         return fail(sheet.error());
     }
-    auto palette = assets::Palette::load(*game->resolve("toolgfx/stadtfld.col"));
+    auto palette = assets::Palette::load(*game->resolve(render::kTerrainPalettePath));
     if (!palette) {
         return fail(palette.error());
     }
@@ -447,6 +470,94 @@ int cmd_render_island(const Args& args) {
     std::printf("island %zu: %ux%u tiles, %zu sprites drawn, %zu missing -> %s (%ux%u)\n", island_index, map.width(),
                 map.height(), commands.size() - missing, missing, std::string(args.positional[1]).c_str(), image.width,
                 image.height);
+    for (const auto& w : warnings) {
+        std::fprintf(stderr, "warning: %s\n", w.c_str());
+    }
+    return 0;
+}
+
+int cmd_render_world(const Args& args) {
+    if (args.positional.size() != 2) {
+        return usage();
+    }
+    auto game = assets::GameDirectory::from_environment();
+    if (!game) {
+        return fail(game.error());
+    }
+    auto buildings = assets::BuildingTable::load(*game);
+    if (!buildings) {
+        return fail(buildings.error());
+    }
+    auto file = assets::ChunkFile::load(fs::path(args.positional[0]));
+    if (!file) {
+        return fail(file.error());
+    }
+    std::vector<std::string> warnings;
+    auto world = sim::load_world(*file, *buildings, *game, &warnings);
+    if (!world) {
+        return fail(world.error());
+    }
+
+    render::WorldView view;
+    view.zoom = static_cast<render::Zoom>(std::min<std::size_t>(args.number("--zoom").value_or(2), 2));
+    view.rotation = static_cast<std::uint8_t>(args.number("--rotation").value_or(0) & 3U);
+
+    const auto sheet_path = game->resolve(render::terrain_sheet_path(view.zoom));
+    const auto palette_path = game->resolve(render::kTerrainPalettePath);
+    if (!sheet_path || !palette_path) {
+        return fail(core::make_error(core::ErrorCode::NotFound, "stadtfld.bsh/.col not found"));
+    }
+    auto sheet = assets::SpriteSheet::load(*sheet_path);
+    if (!sheet) {
+        return fail(sheet.error());
+    }
+    auto palette = assets::Palette::load(*palette_path);
+    if (!palette) {
+        return fail(palette.error());
+    }
+    auto atlas = render::SpriteAtlas::build(*sheet, *palette);
+    if (!atlas) {
+        return fail(atlas.error());
+    }
+
+    render::AnimationClock clock(*buildings);
+    clock.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)));
+
+    render::Viewport viewport;
+    world_pixel_size(view, viewport.width, viewport.height);
+    if (const auto size = args.pair("--size", 'x')) {
+        viewport.width = std::max(1, size->first);
+        viewport.height = std::max(1, size->second);
+    }
+    if (const auto tile = args.pair("--tile", ',')) {
+        std::int32_t cx = 0;
+        std::int32_t cy = 0;
+        render::world_tile_center(view, static_cast<std::uint32_t>(std::clamp(tile->first, 0, 499)),
+                                  static_cast<std::uint32_t>(std::clamp(tile->second, 0, 349)), cx, cy);
+        viewport.left = cx - viewport.width / 2;
+        viewport.top = cy - viewport.height / 2;
+    }
+    if (std::int64_t{viewport.width} * viewport.height > 200'000'000) {
+        return fail(core::make_error(core::ErrorCode::OutOfRange,
+                                     "image too large; use --zoom 2 or --size/--tile for a part of the world"));
+    }
+
+    const render::SpriteExtent extent{atlas->max_sprite_width(), atlas->max_sprite_height()};
+    const auto commands = render::build_world_draw_list(*world, *buildings, clock, view, viewport, extent);
+    render::RgbaImage image;
+    image.width = static_cast<std::uint32_t>(viewport.width);
+    image.height = static_cast<std::uint32_t>(viewport.height);
+    image.pixels.assign(std::size_t{image.width} * image.height * 4, 0);
+    for (std::size_t i = 3; i < image.pixels.size(); i += 4) {
+        image.pixels[i] = 255;  // black outside the map, as in the original
+    }
+    render::blit_draw_list(commands, *atlas, image, viewport.left, viewport.top);
+    if (auto status = core::write_png_rgba(fs::path(args.positional[1]), image.width, image.height, image.pixels);
+        !status) {
+        return fail(status.error());
+    }
+    std::printf("%zu islands, %zu sprites, atlas %zu page(s) -> %s (%ux%u)\n", world->islands().size(), commands.size(),
+                atlas->pages().size(), std::string(args.positional[1]).c_str(), image.width, image.height);
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }
@@ -478,6 +589,9 @@ int main(int argc, char** argv) {
     }
     if (command == "render-island") {
         return cmd_render_island(args);
+    }
+    if (command == "render-world") {
+        return cmd_render_world(args);
     }
     if (command == "islands") {
         return cmd_islands(args);

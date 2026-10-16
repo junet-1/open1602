@@ -3,6 +3,11 @@
 
 #include <algorithm>
 
+#include "o1602/assets/cod.hpp"
+#include "o1602/assets/cod_predefined.hpp"
+#include "o1602/assets/game_directory.hpp"
+#include "o1602/core/file.hpp"
+
 namespace o1602::assets {
 
 using core::ErrorCode;
@@ -75,6 +80,15 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         }
         table.m_types.push_back(b);
     }
+
+    constexpr std::int32_t kKindMeer = 19;
+    constexpr std::int32_t kProdKindOpenSea = 9;
+    for (std::size_t i = 0; i < table.m_types.size(); ++i) {
+        if (table.m_types[i].kind == kKindMeer && table.m_types[i].prod_kind == kProdKindOpenSea) {
+            table.m_open_sea = static_cast<std::int32_t>(i);
+            break;
+        }
+    }
     return table;
 }
 
@@ -92,6 +106,18 @@ const BuildingType* BuildingTable::by_sprite(std::uint32_t sprite) const noexcep
     }
     const std::int32_t index = m_by_sprite[sprite];
     return index < 0 ? nullptr : &m_types[static_cast<std::size_t>(index)];
+}
+
+core::Result<BuildingTable> BuildingTable::load(const GameDirectory& game) {
+    const auto path = game.resolve("haeuser.cod");
+    if (!path) {
+        return make_error(ErrorCode::NotFound, "haeuser.cod not found in the game directory");
+    }
+    auto bytes = core::read_file(*path);
+    if (!bytes) {
+        return bytes.error();
+    }
+    return from_cod(cod::parse(decode_cod(*bytes), cod_predefined_haeuser()));
 }
 
 }  // namespace o1602::assets

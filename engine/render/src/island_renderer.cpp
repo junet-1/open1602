@@ -7,8 +7,8 @@
 
 namespace o1602::render {
 
-std::uint32_t sprite_for_cell(const sim::MapCell& cell, const assets::BuildingType* building,
-                              const RenderOptions& options) {
+std::uint32_t animated_sprite(const sim::MapCell& cell, const assets::BuildingType* building,
+                              std::uint32_t global_frame, std::uint8_t view_rotation) {
     std::uint32_t sprite = cell.sprite;
     if (building == nullptr) {
         return sprite;
@@ -17,11 +17,16 @@ std::uint32_t sprite_for_cell(const sim::MapCell& cell, const assets::BuildingTy
     // Production buildings (HAUS_PRODTYP Kind 1..7) choose frames from their production state in
     // the original; that needs the economy simulation and falls back to the default here.
     if (building->anim_count > 1) {
-        const std::uint32_t frame = (cell.anim_phase + building->anim_frame + options.anim_step) % building->anim_count;
-        sprite += building->anim_add * frame;
+        sprite += building->anim_add * ((cell.anim_phase + global_frame) % building->anim_count);
     }
-    sprite += ((static_cast<std::uint32_t>(cell.rotation) + options.view_rotation) & 3U) * building->rotate;
+    sprite += ((static_cast<std::uint32_t>(cell.rotation) + view_rotation) & 3U) * building->rotate;
     return sprite;
+}
+
+std::uint32_t sprite_for_cell(const sim::MapCell& cell, const assets::BuildingType* building,
+                              const RenderOptions& options) {
+    const std::uint32_t frame = building == nullptr ? 0 : building->anim_frame + options.anim_step;
+    return animated_sprite(cell, building, frame, options.view_rotation);
 }
 
 namespace {
