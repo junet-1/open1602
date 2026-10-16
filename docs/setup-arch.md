@@ -41,8 +41,10 @@ source ~/.bashrc
 
 npm install --global rea-agents
 rea --help
-npx rea-agents setup        # registriert den MCP-Server bei Claude Code u. a.
 ```
+
+`rea setup` erst **nach** der Ghidra-Installation (nächster Abschnitt) ausführen, damit es
+`GHIDRA_INSTALL_DIR` und das JDK in die MCP-Registrierung übernimmt.
 
 ### Ghidra 12.1.x + JDK
 
@@ -63,7 +65,20 @@ export GHIDRA_INSTALL_DIR=/opt/ghidra   # bzw. ~/opt/ghidra_12.1.x_PUBLIC
 echo "export GHIDRA_INSTALL_DIR=$GHIDRA_INSTALL_DIR" >> ~/.bashrc
 ```
 
-Den Ghidra-Pfad fragt `rea` bei der Einrichtung bzw. beim ersten Ghidra-Aufruf ab (siehe `rea --help`).
+Ghidra-Version prüfen (muss 12.1.x sein): `grep application.version "$GHIDRA_INSTALL_DIR/Ghidra/application.properties"`.
+Das JDK muss vollständig sein (`javac` vorhanden) – `jdk21-openjdk`, nicht nur `jre21-openjdk`.
+
+### rea einrichten
+
+Claude Desktop vorher **komplett beenden** (nicht nur das Fenster schließen), sonst überschreibt es die Konfiguration.
+
+```sh
+source ~/.bashrc                  # GHIDRA_INSTALL_DIR muss in dieser Shell gesetzt sein
+npx rea-agents setup              # Frage "Install Hopper?" mit **No** beantworten
+npx rea-agents doctor             # prüft Ghidra-Version, analyzeHeadless, Java/javac
+```
+
+Hopper wird nicht gebraucht (wir nutzen Ghidra). Sein Arch-Paket kollidiert zudem mit `zlib-ng-compat`.
 
 ### Machbarkeitstest
 
