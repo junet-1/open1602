@@ -4,9 +4,9 @@
 `NOKLIMA/`. Dateinamen: `lit` (little), `mit` (middle), `med` (medium), `big`, `lar` (large) plus
 laufende Nummer – vom Spiel per `%s%s%s%02d.SCP` zusammengesetzt (String @ `0x0049AE1C`).
 
-Chunks: `INSEL3` oder `INSEL5` (Kopf), danach `INSELHAUS` (Felder), teils `HIRSCH2`.
+Chunks: `INSEL3`, `INSEL4` oder `INSEL5` (Kopf; 73 / 66 / 538 der Vorlagen), danach `INSELHAUS` (Felder), teils `HIRSCH2`.
 
-## Insel-Kopf (INSEL3: 40 Byte, INSEL5: 116 Byte)
+## Insel-Kopf (INSEL3: 40 Byte, INSEL4/INSEL5: 116 Byte)
 
 Gesicherte Felder (gemeinsam für beide Versionen):
 
@@ -18,6 +18,15 @@ Gesicherte Felder (gemeinsam für beide Versionen):
 | 3 | u8 | Flags? | bisher immer 0 |
 | 4 | u16 | Position x auf der Weltkarte | Werte < 500 |
 | 6 | u16 | Position y auf der Weltkarte | Werte < 350 |
+
+Zusätzlich bei `INSEL4`/`INSEL5` (116 Byte) – der Verweis auf die Inselvorlage:
+
+| Offset | Typ | Feld | Beleg |
+|---|---|---|---|
+| `0x60` | u16 | Vorlagennummer (`0xFFFF` = keine) | Lader bei `0x00469BCA`, Pfadbau `0x00469690` |
+| `0x62` | u16 | Größenklasse: 0 `lit`, 1 `mit`, 2 `med`, 3 `big`, 4 `lar` | Tabelle `0x0049A890` |
+| `0x64` | u8 | Klima: 0 `Nord`, 1 `Sued` | Tabelle `0x0049A8A4` |
+| `0x65` | u8 | ≠ 0: Insel ist vollständig gespeichert, keine Vorlage laden | Sprung bei `0x00469BB0` |
 
 Die Weltkarte ist **500 × 350** Felder groß: `Game_Init` übergibt `0x1F4, 0x15E` an eine
 Initialisierungsfunktion (`0x004860C0`). Der Rest des Kopfes (Rohstoffe, Fruchtbarkeit, Besitzer …)
@@ -62,12 +71,19 @@ Die Datei ist offenbar eine Platzhalter-Vorlage; die echten Inseln heißen `big0
 Pro Insel folgt ein Satz `INSEL5, INSELHAUS, HIRSCH2, PRODLIST2, WERFT, MILITAR, SIEDLER, ROHWACHS2,
 STADT4, KONTOR2, MARKT2`, dazu globale Chunks (siehe [chunks.md](chunks.md)).
 
-In Szenarien enthalten die `INSELHAUS`-Chunks weniger Einträge als Breite × Höhe, weil (a) jedes
-Gebäude nur einmal gespeichert ist und (b) **offenes Meer nicht gespeichert wird** – der Renderer
-zeichnet es aus der Weltkarte. Die Insel 0 von „Das Atoll“ (70 × 60) ergibt so 1488 Einträge bzw.
-1613 belegte Felder und wird mit `o1602-tool render-island` vollständig mit Städten dargestellt.
-Inseln mit 0 Einträgen sind vermutlich ungenutzte Plätze. `NORDNAT/`/`SUEDNAT/` enthalten nur
-wenige Einträge pro Insel (Eingeborenendörfer zum Einblenden in Vorlagen).
+**Inseln in Szenarien und Spielständen speichern nur ihre Abweichungen von einer Inselvorlage.**
+Ist im Kopf eine Vorlagennummer gesetzt und das Flag `0x65` = 0, lädt das Original zuerst
+`INSELHAUS` aus `<Klima>\<Größe><Nummer:02>.SCP` (z. B. `Nord\big12.SCP`) und legt danach die
+Einträge des Szenarios darüber. Beispiel „Das Atoll“, Insel 0: 1488 eigene Einträge auf der Vorlage
+`NORD/big12.scp` (4200 Felder). Alle 34 Inseln von `Das Atoll.szs` und alle 31 von `.szm` lassen
+sich so lückenlos aufbauen (Test `data: islands of a scenario ...`).
+
+Auch die Dateien in `NORDNAT/`/`SUEDNAT/` nutzen das: Sie enthalten nur ein Eingeborenendorf und
+verweisen auf die passende Basisinsel (z. B. `NORDNAT/BIG01.SCP` → `NORD/big01.scp`).
+Inseln mit 0 Einträgen sind unveränderte Vorlagen.
+
+> Korrektur: Eine frühere Fassung dieses Dokuments meinte, Szenarien enthielten das vollständige
+> Gelände außer dem Meer. Das war falsch – die Darstellung zeigte abgeschnittene Inselteile.
 
 ## Werkzeuge
 

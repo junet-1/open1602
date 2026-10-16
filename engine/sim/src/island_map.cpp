@@ -107,15 +107,29 @@ SubTile IslandMap::sub_tile(const assets::BuildingTable& buildings, std::uint32_
 }
 
 IslandMap IslandMap::from_island(const assets::Island& island, const assets::BuildingTable& buildings,
-                                 std::vector<std::string>* warnings) {
+                                 std::vector<std::string>* warnings, const assets::Island* base) {
     IslandMap map(island.header.width, island.header.height);
     const auto warn = [&](std::string message) {
         if (warnings != nullptr) {
             warnings->push_back(std::move(message));
         }
     };
+    if (base != nullptr && (base->header.width != island.header.width || base->header.height != island.header.height)) {
+        warn("template size " + std::to_string(base->header.width) + "x" + std::to_string(base->header.height) +
+             " does not match island size (template ignored)");
+        base = nullptr;
+    }
+    std::vector<const std::vector<assets::IslandTile>*> layers;
+    if (base != nullptr) {
+        for (const auto& layer : base->layers) {
+            layers.push_back(&layer);
+        }
+    }
     for (const auto& layer : island.layers) {
-        for (const auto& tile : layer) {
+        layers.push_back(&layer);
+    }
+    for (const auto* layer : layers) {
+        for (const auto& tile : *layer) {
             const assets::BuildingType* b = buildings.by_id(tile.cod_id());
             if (b == nullptr) {
                 warn("unknown building id " + std::to_string(tile.cod_id()) + " at " + std::to_string(tile.x) + "," +

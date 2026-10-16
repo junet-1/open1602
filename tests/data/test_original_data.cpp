@@ -235,15 +235,38 @@ TEST_CASE("data: islands of a scenario build complete maps and render without mi
     REQUIRE(islands.ok());
     REQUIRE(islands->size() == 34);
 
+    CHECK((*islands)[0].header.template_path() == "Nord/big12.scp");
+    CHECK((*islands)[2].header.template_path() == "Sued/big06.scp");
+
+    // Islands store only deviations from their template; load it like the original loader.
+    const auto load_template = [&](const assets::Island& island) -> std::vector<assets::Island> {
+        if (island.header.template_path().empty()) {
+            return {};
+        }
+        const auto path = game.resolve(island.header.template_path());
+        REQUIRE(path.has_value());
+        auto tfile = assets::ChunkFile::load(*path);
+        REQUIRE(tfile.ok());
+        auto tislands = assets::load_islands(*tfile);
+        REQUIRE(tislands.ok());
+        REQUIRE(!tislands->empty());
+        return std::move(tislands).value();
+    };
+
     std::size_t warnings_total = 0;
     std::size_t sub_tile_errors = 0;
+    std::size_t empty_cells = 0;
     for (const auto& island : *islands) {
+        const auto base = load_template(island);
         std::vector<std::string> warnings;
-        const auto map = sim::IslandMap::from_island(island, table, &warnings);
+        const auto map = sim::IslandMap::from_island(island, table, &warnings, base.empty() ? nullptr : &base[0]);
         warnings_total += warnings.size();
         for (std::uint32_t y = 0; y < map.height(); ++y) {
             for (std::uint32_t x = 0; x < map.width(); ++x) {
                 if (map.top(x, y).empty()) {
+                    if (!base.empty()) {
+                        ++empty_cells;  // templates are complete (incl. sea), so no gaps allowed
+                    }
                     continue;
                 }
                 const auto sub = map.sub_tile(table, x, y);
@@ -258,14 +281,28 @@ TEST_CASE("data: islands of a scenario build complete maps and render without mi
     }
     CHECK(warnings_total == 0);
     CHECK(sub_tile_errors == 0);
+    CHECK(empty_cells == 0);
 
     // Render the first island at full zoom.
-    const auto map = sim::IslandMap::from_island((*islands)[0], table);
+    const auto base0 = load_template((*islands)[0]);
+    REQUIRE(!base0.empty());
+    const auto map = sim::IslandMap::from_island((*islands)[0], table, nullptr, &base0[0]);
     const auto commands = render::build_draw_list(map, table, render::RenderOptions{});
     std::size_t missing = 0;
     const auto image = render::rasterize(commands, *sheet, *palette, {}, &missing);
     CHECK(missing == 0);
-    CHECK(commands.size() == 1613);
+    CHECK(commands.size() == 4200);  // 70 x 60, complete with template
     CHECK(image.width > 0);
     CHECK(image.height > 0);
+}
+
+TEST_CASE("data: all island header variants (INSEL3/4/5) load") {
+    const auto game = require_game();
+    for (const char* f : {"nord/big03.scp", "sued/big11.scp", "sued/big04.scp"}) {
+        auto file = assets::ChunkFile::load(*game.resolve(f));
+        REQUIRE(file.ok());
+        auto islands = assets::load_islands(*file);
+        REQUIRE(islands.ok());
+        CHECK(islands->size() == 1);
+    }
 }

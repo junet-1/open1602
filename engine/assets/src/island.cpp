@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/assets/island.hpp"
 
+#include <cstdio>
+
 #include "o1602/core/byte_reader.hpp"
 
 namespace o1602::assets {
@@ -26,6 +28,12 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
     h.flags = *r.u8();
     h.pos_x = *r.u16();
     h.pos_y = *r.u16();
+    if (data.size() >= 0x66) {
+        h.template_number = static_cast<std::uint16_t>(data[0x60] | (data[0x61] << 8));
+        h.template_size = static_cast<std::uint16_t>(data[0x62] | (data[0x63] << 8));
+        h.climate = data[0x64];
+        h.stored_complete = data[0x65] != 0;
+    }
     h.raw.assign(data.begin(), data.end());
     return h;
 }
@@ -50,10 +58,23 @@ core::Result<std::vector<IslandTile>> parse_tiles(std::span<const std::uint8_t> 
 
 }  // namespace
 
+std::string IslandHeader::template_path() const {
+    // Name tables of the original: 0x0049A8A4 (climate directories) and 0x0049A890 (size prefixes).
+    static constexpr const char* kClimate[] = {"Nord", "Sued", "Nord", "Sued"};
+    static constexpr const char* kSize[] = {"lit", "mit", "med", "big", "lar"};
+    if (template_number == kNoTemplate || stored_complete || climate > 3 || template_size > 4) {
+        return {};
+    }
+    char name[32];
+    std::snprintf(name, sizeof(name), "%s/%s%02u.scp", kClimate[climate], kSize[template_size],
+                  static_cast<unsigned>(template_number));
+    return name;
+}
+
 core::Result<std::vector<Island>> load_islands(const ChunkFile& file) {
     std::vector<Island> islands;
     for (const Chunk& chunk : file.chunks()) {
-        if (chunk.name == "INSEL3" || chunk.name == "INSEL5") {
+        if (chunk.name == "INSEL3" || chunk.name == "INSEL4" || chunk.name == "INSEL5") {
             auto header = parse_header(chunk, file.payload(chunk));
             if (!header) {
                 return header.error();

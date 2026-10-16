@@ -127,3 +127,53 @@ TEST_CASE("render: sprite index = base + animation frame + rotation step") {
     o.view_rotation = 3;  // (1 + 3) & 3 = 0
     CHECK(render::sprite_for_cell(cell, &b, o) == 101);
 }
+
+TEST_CASE("island header: template path from number, size and climate") {
+    assets::IslandHeader h;
+    CHECK(h.template_path().empty());  // default: no template
+    h.template_number = 12;
+    h.template_size = 3;
+    h.climate = 0;
+    CHECK(h.template_path() == "Nord/big12.scp");
+    h.template_number = 7;
+    h.template_size = 0;
+    h.climate = 1;
+    CHECK(h.template_path() == "Sued/lit07.scp");
+    h.stored_complete = true;
+    CHECK(h.template_path().empty());
+    h.stored_complete = false;
+    h.template_number = assets::IslandHeader::kNoTemplate;
+    CHECK(h.template_path().empty());
+}
+
+TEST_CASE("island map: template is placed below the island's own entries") {
+    assets::Island base;
+    base.header.width = 4;
+    base.header.height = 4;
+    assets::Island island = base;
+    // template: grass everywhere; island: one house
+    base.layers.emplace_back();
+    for (std::uint8_t y = 0; y < 4; ++y) {
+        for (std::uint8_t x = 0; x < 4; ++x) {
+            base.layers[0].push_back(assets::IslandTile{0, x, y, 0});
+        }
+    }
+    island.layers.push_back({assets::IslandTile{1, 1, 1, 0}});
+    // minimal table with ids 20000 (grass) and 20001 (house)
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: HAUS\n@Nummer: 0\nId: 20000\nGfx: 10\nSize: 1, 1\n"
+        "@Nummer: +1\nId: 20001\nGfx: 100\nSize: 2, 2\nEndObj\n",
+        types);
+    auto table = assets::BuildingTable::from_cod(doc);
+    REQUIRE(table.ok());
+    std::vector<std::string> warnings;
+    const auto map = sim::IslandMap::from_island(island, *table, &warnings, &base);
+    CHECK(warnings.empty());
+    CHECK(map.top(0, 0).sprite == 10);
+    CHECK(map.top(1, 1).sprite == 100);
+    CHECK(map.top(2, 2).sprite == 103);
+    CHECK(map.ground(2, 2).sprite == 10);  // template tile kept as ground
+    const auto without = sim::IslandMap::from_island(island, *table);
+    CHECK(without.top(0, 0).empty());
+}

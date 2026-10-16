@@ -10,7 +10,8 @@
 //   o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]
 //   o1602-tool islands    <file.scp|.szs|.szm|.gam>      list islands and tile statistics
 //   o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2]
-//                            [--rotation 0-3] [--anim N]   render an island (needs ANNO1602_DIR)
+//                            [--rotation 0-3] [--anim N] [--no-template] [--base FILE.scp]
+//                                                        render an island (needs ANNO1602_DIR)
 //
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 
@@ -58,7 +59,7 @@ int usage() {
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
-        "                           [--anim N]\n",
+        "                           [--anim N] [--no-template] [--base FILE.scp]\n",
         stderr);
     return 2;
 }
@@ -388,8 +389,34 @@ int cmd_render_island(const Args& args) {
         return fail(core::make_error(core::ErrorCode::OutOfRange,
                                      "file has " + std::to_string(islands->size()) + " island(s)"));
     }
+    // Base terrain: islands in scenarios/savegames only store deviations from a template .SCP.
+    const assets::Island& island = (*islands)[island_index];
+    std::vector<assets::Island> base;
+    std::string base_path;
+    if (const auto it = args.options.find("--base"); it != args.options.end()) {
+        base_path = std::string(it->second);
+    } else if (!args.flag("--no-template") && !island.header.template_path().empty()) {
+        const auto resolved = game->resolve(island.header.template_path());
+        if (!resolved) {
+            return fail(core::make_error(core::ErrorCode::NotFound,
+                                         "island template not found: " + island.header.template_path()));
+        }
+        base_path = resolved->string();
+    }
+    if (!base_path.empty()) {
+        auto base_file = assets::ChunkFile::load(fs::path(base_path));
+        if (!base_file) {
+            return fail(base_file.error());
+        }
+        auto loaded = assets::load_islands(*base_file);
+        if (!loaded || loaded->empty()) {
+            return fail(core::make_error(core::ErrorCode::InvalidFormat, base_path + " has no island"));
+        }
+        base = std::move(loaded).value();
+        std::printf("template: %s\n", base_path.c_str());
+    }
     std::vector<std::string> warnings;
-    const auto map = sim::IslandMap::from_island((*islands)[island_index], *buildings, &warnings);
+    const auto map = sim::IslandMap::from_island(island, *buildings, &warnings, base.empty() ? nullptr : &base[0]);
 
     // Graphics
     render::RenderOptions options;

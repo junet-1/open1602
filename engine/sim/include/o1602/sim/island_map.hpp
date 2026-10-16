@@ -52,9 +52,11 @@ public:
     [[nodiscard]] SubTile sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const;
 
     /// Builds the map from INSELHAUS entries (one entry per building at its origin).
+    /// If `base` is given (the island template, see IslandHeader::template_path()), its tiles are
+    /// placed first and the island's own entries on top - as the original loader does.
     /// Unknown ids and entries outside the island are skipped and reported in `warnings`.
     static IslandMap from_island(const assets::Island& island, const assets::BuildingTable& buildings,
-                                 std::vector<std::string>* warnings = nullptr);
+                                 std::vector<std::string>* warnings = nullptr, const assets::Island* base = nullptr);
 
 private:
     [[nodiscard]] std::size_t index(std::uint32_t x, std::uint32_t y) const { return std::size_t{y} * m_width + x; }
