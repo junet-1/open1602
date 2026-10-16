@@ -12,6 +12,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/consumption.hpp"
+#include "o1602/sim/houses.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
@@ -49,8 +50,12 @@ public:
     [[nodiscard]] std::vector<ProductionEvent> take_production_events();
     /// Shortages and hunger since the last call (messages for the player).
     [[nodiscard]] std::vector<CityEvent> take_city_events();
+    /// Houses that rose, fell back or were abandoned since the last call.
+    [[nodiscard]] std::vector<HouseEvent> take_house_events();
 
 private:
+    void pay_upkeep();
+
     World* m_world;
     const assets::BuildingTable* m_buildings;
     Rules m_rules;
@@ -61,6 +66,9 @@ private:
     std::uint32_t m_city_ms = 0;        ///< game time since the cities last consumed
     std::vector<ProductionEvent> m_production_events;
     std::vector<CityEvent> m_city_events;
+    std::vector<HouseEvent> m_house_events;
+    const assets::FigureTable* m_figures;
+    std::uint32_t m_upkeep_ms = 0;  ///< game time since the military upkeep was last paid
     Logistics m_logistics;
 };
 

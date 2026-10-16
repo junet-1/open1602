@@ -22,6 +22,16 @@ std::uint8_t city_of(const assets::IslandTile& tile) {
 
 core::Status IslandMap::place(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                               std::uint8_t anim_phase, PlayerId owner, std::uint8_t city) {
+    return write(b, x, y, rotation, anim_phase, owner, city, false);
+}
+
+core::Status IslandMap::replace(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                                std::uint8_t anim_phase) {
+    return write(b, x, y, rotation, anim_phase, kNoPlayer, MapCell::kNoCity, true);
+}
+
+core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                              std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool keep) {
     rotation &= 3U;
     std::uint32_t fw = 0;
     std::uint32_t fh = 0;
@@ -37,11 +47,16 @@ core::Status IslandMap::place(const assets::BuildingType& b, std::int32_t x, std
     std::uint32_t sprite = b.gfx;
     const auto put = [&](std::int32_t tx, std::int32_t ty) {
         const std::size_t i = index(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
-        if (!m_top[i].empty()) {
+        PlayerId o = owner;
+        std::uint8_t c = city;
+        if (keep) {
+            o = m_top[i].owner;  // a house changing class keeps its owner and city
+            c = m_top[i].city;
+        } else if (!m_top[i].empty()) {
             m_ground[i] = m_top[i];
         }
         m_top[i] = MapCell{static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation,
-                           static_cast<std::uint8_t>(anim_phase & 0xFU), owner, city};
+                           static_cast<std::uint8_t>(anim_phase & 0xFU), o, c};
         ++sprite;
     };
 

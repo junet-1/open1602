@@ -97,8 +97,9 @@ public:
     /// Prepares a search in `area` of `map`: every tile inside the circle that `walk` allows
     /// becomes walkable with the Wegspeed of its building for `speed_type`, everything else
     /// blocked. Goals are added with set().
+    /// Without `circle` the whole square window is used (the house neighbourhood search).
     void begin(const IslandMap& map, const assets::BuildingTable& buildings, const Catchment& area, WalkClass walk,
-               std::uint8_t speed_type);
+               std::uint8_t speed_type, bool circle = true);
 
     /// Makes the footprint of a building walkable (the one a figure stands in, or the one it
     /// returns to), as 0x004710B0 does: cost class 40 (125 %).
@@ -120,6 +121,7 @@ public:
         Reject,    ///< not this one, go on
         Accept,    ///< take it, stop
         Remember,  ///< a candidate; go on (the caller keeps the best)
+        Cross,     ///< not the end, but walk on through it (houses in the neighbourhood search)
     };
 
     /// Searches from `start` (made walkable if it is not); `goal(TilePos)` is asked once per goal
@@ -138,7 +140,10 @@ public:
                 if (a == Answer::Accept) {
                     return p;
                 }
-                continue;  // goal tiles are not crossed
+                if (a == Answer::Cross) {
+                    expand(index);
+                }
+                continue;  // goal tiles are not crossed otherwise
             }
             expand(index);
         }

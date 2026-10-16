@@ -2,6 +2,7 @@
 #include "o1602/assets/building_table.hpp"
 
 #include <algorithm>
+#include <array>
 
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_predefined.hpp"
@@ -64,6 +65,9 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         b.high = (r.integer("Highflg") & 1) != 0;
         b.draw_ground = (r.integer("Grundflg") & 1) != 0;
         b.door_on_edge = (r.integer("Tuerflg") & 1) != 0;
+        if (const cod::Field* ruin = r.field("Ruinenr"); ruin != nullptr && !ruin->values.empty()) {
+            b.ruin = static_cast<std::uint8_t>(ruin->values[0].integer);
+        }
         for (std::size_t i = 0; i < b.walk_speed.size(); ++i) {
             // 0x00462834: trunc(value * 32 / 100), at most 126. Zero would mean infinite speed
             // (a division by zero in the original); Open1602 keeps at least 1.
@@ -101,9 +105,27 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.stock_animation = (prodtyp.integer("LagAniFlg") & 1) != 0;
             b.continuous_animation = (prodtyp.integer("Anicontflg") & 1) != 0;
             b.withered = (prodtyp.integer("Doerrflg") & 1) != 0;
+            b.resident_class = static_cast<std::uint8_t>(non_negative(prodtyp.integer("BGruppe")));
+            if (const cod::Field* kosten = prodtyp.field("Kosten"); kosten != nullptr) {
+                b.running_cost = non_negative(kosten->integer(0));
+                b.idle_cost = non_negative(kosten->integer(1));
+            }
             b.ore_mountain = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Erzbergnr")));
         }
 
+        if (const auto* cost = r.records("HAUS_BAUKOST"); cost != nullptr && !cost->empty()) {
+            const auto& c = cost->begin()->second;
+            const auto goods = [&](const char* name) {
+                const cod::Field* f = c.field(name);
+                const double v = f != nullptr && !f->values.empty() ? f->values[0].real : 0.0;
+                return v > 0.0 ? static_cast<std::uint32_t>(v * kStockUnitsPerTon) : 0U;
+            };
+            b.build_cost.tools = goods("Werkzeug");
+            b.build_cost.wood = goods("Holz");
+            b.build_cost.bricks = goods("Ziegel");
+            b.build_cost.cannons = goods("Kanon");
+            b.build_cost.money = c.integer("Money");
+        }
         if (b.prod_kind == kProdKindGrowing && b.anim_count > 0) {
             // 0x00462F1D: the number of k in 1..32 with 40 s + 7 s * k <= Interval / AnimAnz,
             // clamped to 31 when an entry is added (0x0047C760).
@@ -142,9 +164,16 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
     if (const cod::Field* food = haeuser.root.field("Nahrung"); food != nullptr && !food->values.empty()) {
         table.m_food_need = per_tick(food->values[0].real);
     }
-    if (const cod::Symbol* nahrung = haeuser.symbols.find("NAHRUNG"); nahrung != nullptr && nahrung->defined) {
-        table.m_food_ware = static_cast<std::uint8_t>(nahrung->values[0].integer);
-    }
+    const auto ware_symbol = [&](const char* name, std::uint8_t& out) {
+        if (const cod::Symbol* sym = haeuser.symbols.find(name); sym != nullptr && sym->defined) {
+            out = static_cast<std::uint8_t>(sym->values[0].integer);
+        }
+    };
+    ware_symbol("NAHRUNG", table.m_food_ware);
+    ware_symbol("WERKZEUG", table.m_materials.tools);
+    ware_symbol("HOLZ", table.m_materials.wood);
+    ware_symbol("ZIEGEL", table.m_materials.bricks);
+    ware_symbol("KANONEN", table.m_materials.cannons);
     if (const auto* groups = haeuser.root.records("BGRUPPE")) {
         for (const auto& [nummer, g] : *groups) {
             if (nummer < 0 || nummer > 255) {
@@ -201,6 +230,28 @@ const BuildingType* BuildingTable::by_id(std::uint32_t id) const noexcept {
     }
     const std::int32_t index = m_by_id[id - kIdOffset];
     return index < 0 ? nullptr : &m_types[static_cast<std::size_t>(index)];
+}
+
+const BuildingType* BuildingTable::first_house(std::size_t resident_class) const noexcept {
+    constexpr std::int32_t kProdKindHouse = 13;  // WOHNUNG
+    for (const BuildingType& b : m_types) {
+        if (b.prod_kind == kProdKindHouse && b.resident_class == resident_class) {
+            return &b;
+        }
+    }
+    return nullptr;
+}
+
+const BuildingType* BuildingTable::ruin_record(std::uint8_t ruin, bool beach) const noexcept {
+    // 0x00462F6A: land and beach ruins of wooden houses, brick houses, plantations, field paths,
+    // roads and mines (IDRUINE = 22601 + offset). The Kontor and market ruins follow (not used yet).
+    constexpr std::uint32_t kIdRuine = 22601;
+    constexpr std::array<std::uint32_t, 8> kRuins = {0, 9, 10, 19, 20, 30, 35, 40};
+    std::size_t slot = ruin;
+    if (beach && (slot == 0 || slot == 2)) {
+        ++slot;
+    }
+    return slot < kRuins.size() ? by_id(kIdRuine + kRuins[slot]) : nullptr;
 }
 
 const BuildingType* BuildingTable::by_record(std::uint32_t record) const noexcept {

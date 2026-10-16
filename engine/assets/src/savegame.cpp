@@ -21,6 +21,11 @@ constexpr std::size_t kAnimalSize = 8;
 constexpr std::size_t kSoldierSize = 0x44;
 constexpr std::size_t kGrowthSize = 8;
 constexpr std::size_t kConsumptionSize = 0x104;
+constexpr std::size_t kHouseSize = 16;
+constexpr std::size_t kShipyardSize = 0x18;
+constexpr std::size_t kCastleSize = 0x70;
+constexpr std::size_t kTimersHouseEpochs = 0x44;
+constexpr std::size_t kTimersHouseMs = 0x198;
 constexpr std::size_t kConsumptionGoods = 16;
 constexpr std::size_t kTimersCounters = 0x64;
 constexpr std::size_t kTimersGrowthMs = 0x218;
@@ -66,6 +71,7 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
             c.tax[k] = r[0x7F + k];
         }
         c.food_ratio = r[0x86];
+        c.material_lock = (r[4] & 1U) != 0;
         state.cities.push_back(std::move(c));
     });
     if (!status) {
@@ -160,6 +166,51 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
     if (!status) {
         return status.error();
     }
+    status = for_each_record(file, "SIEDLER", kHouseSize, [&](std::span<const std::uint8_t> r) {
+        const std::uint32_t d0 = u32(r, 0);
+        const std::uint32_t d1 = u32(r, 4);
+        const std::uint32_t d2 = u32(r, 8);
+        HouseRecord h;
+        h.island = static_cast<std::uint8_t>(d0);
+        h.x = static_cast<std::uint8_t>(d0 >> 8);
+        h.y = static_cast<std::uint8_t>(d0 >> 16);
+        h.epoch = static_cast<std::uint8_t>((d0 >> 24) & 7U);
+        h.queue_epoch = static_cast<std::uint8_t>(d1 & 7U);
+        h.resident_class = static_cast<std::uint8_t>(d1 >> 8);
+        h.market_distance = static_cast<std::uint8_t>((d1 >> 16) & 0xFU);
+        h.inhabitants64 = static_cast<std::uint16_t>(d2);
+        h.timer_group = static_cast<std::uint8_t>((d2 >> 16) & 0xFU);
+        h.services_complete = ((d2 >> 21) & 1U) != 0;
+        h.market = ((d2 >> 22) & 1U) != 0;
+        // dword2 bits 30, 23, 24, 28, 25, 26, 29, 31, 27 -> runtime word bits 2..10.
+        constexpr std::array<std::uint8_t, 9> kServiceBits = {30, 23, 24, 28, 25, 26, 29, 31, 27};
+        for (std::size_t i = 0; i < kServiceBits.size(); ++i) {
+            if (((d2 >> kServiceBits[i]) & 1U) != 0) {
+                h.services = static_cast<std::uint16_t>(h.services | (1U << (i + 2)));
+            }
+        }
+        std::copy(r.begin(), r.end(), h.raw.begin());
+        state.houses.push_back(h);
+    });
+    if (!status) {
+        return status.error();
+    }
+    status = for_each_record(file, "WERFT", kShipyardSize, [&](std::span<const std::uint8_t> r) {
+        if (r[0] != 0xFF) {
+            state.shipyards.push_back(CostRecord{r[0], r[1], r[2], ((u32(r, 0) >> 27) & 1U) != 0});
+        }
+    });
+    if (!status) {
+        return status.error();
+    }
+    status = for_each_record(file, "MILITAR", kCastleSize, [&](std::span<const std::uint8_t> r) {
+        if (r[0] != 0xFF) {
+            state.castles.push_back(CostRecord{r[0], r[1], r[2], true});
+        }
+    });
+    if (!status) {
+        return status.error();
+    }
     status = for_each_record(file, "ROHWACHS2", kGrowthSize, [&](std::span<const std::uint8_t> r) {
         if (r[0] != 0xFF) {
             state.growth.push_back(GrowthRecord{r[0], r[1], r[2], r[3], r[4], r[5]});
@@ -177,6 +228,14 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
                 clocks.time_ms[i] = u32(data, kTimersGrowthMs + 4 * i);
             }
             state.growth_clocks = clocks;
+        }
+        if (data.size() >= kTimersHouseMs + 16 * 4) {
+            HouseClocks clocks;
+            for (std::size_t i = 0; i < 16; ++i) {
+                clocks.epoch[i] = static_cast<std::uint8_t>(data[kTimersHouseEpochs + i] & 7U);
+                clocks.time_ms[i] = u32(data, kTimersHouseMs + 4 * i);
+            }
+            state.house_clocks = clocks;
         }
     }
     return state;

@@ -131,3 +131,26 @@ TEST_CASE("consumption: natives dump what fills their store beyond 75 %") {
     CHECK(village.goods[6] == 20 * 32);
     CHECK(village.goods[kCloth] == 9);
 }
+
+TEST_CASE("consumption: pirates take random goods") {
+    sim::City nest;
+    nest.ensure_ware(24);
+    for (std::uint8_t w = 2; w <= 24; ++w) {
+        nest.goods[w] = 20 * 32;
+    }
+    sim::Random random(3, 4);
+    std::uint32_t before = 0;
+    for (const std::uint32_t g : nest.goods) {
+        before += g;
+    }
+    for (int i = 0; i < 10; ++i) {
+        sim::consume_pirates(nest, random);
+    }
+    std::uint32_t after = 0;
+    for (const std::uint32_t g : nest.goods) {
+        after += g;
+    }
+    CHECK(after < before);
+    CHECK((before - after) % (3 * 32) == 0);  // always 3 t from a ware with at least 10 t
+    CHECK(before - after <= 20 * 3 * 32);
+}

@@ -177,7 +177,7 @@ TEST_CASE("logistics: walking fields of HAUS and FIGUR records") {
 TEST_CASE("pathfinding: catchment circle like the original's table") {
     CHECK((sim::circle_half_widths(10) == std::vector<std::uint8_t>{10, 10, 10, 10, 9, 9, 8, 7, 6, 5, 3}));
     CHECK((sim::circle_half_widths(0) == std::vector<std::uint8_t>{0}));
-    CHECK((sim::circle_half_widths(1) == std::vector<std::uint8_t>{1, 0}));  // not used: radius 1 is square
+    CHECK((sim::circle_half_widths(1) == std::vector<std::uint8_t>{1, 1}));
     const auto buildings = make_buildings();
     // A 2 x 2 building has no centre tile: centre = origin, one more column and row.
     const sim::Catchment c = sim::catchment_of(*buildings.by_id(kBakery), 0, {4, 4});

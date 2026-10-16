@@ -83,6 +83,24 @@ struct BuildingType {
     /// HAUS_PRODTYP/Erzbergnr (record +0x3F): 0 deep mine (ERZBERG_GROSS), 1 small mine
     /// (ERZBERG_KLEIN). Only mines with 0 dig on in a big vein below 120 t.
     std::uint8_t ore_mountain = 0;
+    /// HAUS_PRODTYP/BGruppe (record +0x2E): class of inhabitants of a house (WOHNUNG), index into
+    /// BuildingTable::resident_classes().
+    std::uint8_t resident_class = 0;
+    /// HAUS_BAUKOST: what building costs (goods in 1/32 t, record +0x4C..+0x54).
+    struct BuildCost {
+        std::uint32_t tools = 0;    ///< Werkzeug
+        std::uint32_t wood = 0;     ///< Holz
+        std::uint32_t bricks = 0;   ///< Ziegel
+        std::uint32_t cannons = 0;  ///< Kanon
+        std::int32_t money = 0;     ///< Money
+    };
+    BuildCost build_cost;
+    /// HAUS_PRODTYP/Kosten: running costs in gold per minute while switched on (first value,
+    /// record +0x2C) and switched off (second value, +0x2A).
+    std::uint32_t running_cost = 0;
+    std::uint32_t idle_cost = 0;
+    /// Ruinenr (record +0x66): what remains when the building is destroyed (RUINE_*, 0xFF = nothing).
+    std::uint8_t ruin = 0xFF;
     /// Growing records (HAUS_PRODTYP Kind ROHSTWACHS): growth class 0..31. One growth stage lasts
     /// 40 s + 7 s * class; the original converts Interval / AnimAnz into the class after loading
     /// (0x00462F1D).
@@ -140,6 +158,19 @@ public:
     /// 17) and its ware (NAHRUNG, 14).
     [[nodiscard]] std::uint32_t food_need() const noexcept { return m_food_need; }
     [[nodiscard]] std::uint8_t food_ware() const noexcept { return m_food_ware; }
+    /// Building materials (WERKZEUG, HOLZ, ZIEGEL, KANONEN of haeuser.cod).
+    struct Materials {
+        std::uint8_t tools = 22;
+        std::uint8_t wood = 23;
+        std::uint8_t bricks = 24;
+        std::uint8_t cannons = 13;
+    };
+    [[nodiscard]] const Materials& materials() const noexcept { return m_materials; }
+    /// First house record of a class of inhabitants (table order; 0x00462D50), nullptr if none.
+    [[nodiscard]] const BuildingType* first_house(std::size_t resident_class) const noexcept;
+    /// Ruin record for Ruinenr `ruin` (table 0x00619B20), the beach variant on beach ground;
+    /// nullptr if the original has no record for it.
+    [[nodiscard]] const BuildingType* ruin_record(std::uint8_t ruin, bool beach) const noexcept;
 
     /// Index of a type in types() (stable; used for per-type state such as animation clocks).
     [[nodiscard]] std::size_t index_of(const BuildingType& type) const noexcept {
@@ -154,7 +185,8 @@ private:
     std::int32_t m_open_sea = -1;
     std::vector<ResidentClass> m_classes;
     std::uint32_t m_food_need = 0;
-    std::uint8_t m_food_ware = 14;  ///< index (not a pointer, so copies of the table stay valid)
+    std::uint8_t m_food_ware = 14;
+    Materials m_materials;  ///< index (not a pointer, so copies of the table stay valid)
 };
 
 }  // namespace o1602::assets

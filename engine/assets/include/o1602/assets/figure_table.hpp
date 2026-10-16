@@ -116,6 +116,15 @@ public:
     static core::Result<FigureTable> from_cod(const cod::Document& figuren);
     static core::Result<FigureTable> load(const GameDirectory& game);
 
+    /// Upkeep of soldiers per unit type (FIGTYP 1..4: swordsman, rider, musketeer, gunner) and of
+    /// a cannon tower, gold per minute (`Soldat:` / `Turm:` lines of figuren.cod).
+    [[nodiscard]] std::uint32_t unit_upkeep(std::int32_t unit_type) const noexcept {
+        return unit_type >= 0 && static_cast<std::size_t>(unit_type) < m_unit_upkeep.size()
+                   ? m_unit_upkeep[static_cast<std::size_t>(unit_type)]
+                   : 0;
+    }
+    [[nodiscard]] std::uint32_t tower_upkeep() const noexcept { return m_tower_upkeep; }
+
     [[nodiscard]] const FigureType* get(std::uint32_t number) const noexcept {
         return number < m_types.size() && m_types[number].defined ? &m_types[number] : nullptr;
     }
@@ -136,6 +145,8 @@ public:
 
 private:
     std::vector<FigureType> m_types;
+    std::array<std::uint32_t, 8> m_unit_upkeep{};
+    std::uint32_t m_tower_upkeep = 0;
 };
 
 }  // namespace o1602::assets

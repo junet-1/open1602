@@ -168,9 +168,9 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `PRODLIST2` | 0x18 | `0x00485530` | `0x0054A3B8`, 4144 × 0x14 | Produktionsbetriebe und Kontore am Ursprungsfeld: Zustand, Lager, Fortschritt (unten, 126) |
 | `WERFT` | 0x18 | `0x00485530` | `0x005A6C18`, 160 × 0x12 | Werften: Insel, x, y, Bauauftrag (1) |
 | `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | Militärgebäude: Insel, x, y, 9 Plätze (3) |
-| `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | Wohnhäuser: Insel, x, y, Bewohner und Bedarfsbits (132) |
+| `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | Wohnhäuser: Insel, x, y, Epochen, Klasse, Marktentfernung, Einwohner · 64, Zeitgruppe, Markt- und Dienstbits ([houses.md](../re/houses.md)) (132) |
 | `ROHWACHS2` | 8 | `0x00485C20` | `0x00562DC8`, 32860 × 8 | Wachstum von Feldern, Bäumen, Plantagen, Fischgründen: Insel, x, y, Klasse, gesehener Zählerstand, Stufe, 2 Byte 0 ([growth.md](../re/growth.md)) |
-| `TIMERS` | 0x298 | `0x00485D10` | verstreute Zähler (`0x005A77E0`, `0x005DBAB0`, …) | globale Zähler und Zeitgeber; +0x64: 32 Zähler der Wachstumsklassen (0–7), +0x218: 32 Klassenuhren in ms, +0xA8: Spieleinstellungen (`0x005B706C`) |
+| `TIMERS` | 0x298 | `0x00485D10` | verstreute Zähler (`0x005A77E0`, `0x005DBAB0`, …) | globale Zähler und Zeitgeber; +0x64: 32 Zähler der Wachstumsklassen (0–7), +0x218: 32 Klassenuhren in ms, +0x44: 16 Epochen der Hauszeitgruppen, +0x198: 16 Hauszeitgeber in ms, +0xA8: Spieleinstellungen (`0x005B706C`) |
 | `AUFTRAG4` | – | `0x00478558` | – | Aufträge/Ziele des Szenarios (2244 Byte, noch nicht untersucht) |
 | `WIFF` | 4 | `0x00485EE0` | u32 `0x005B3160` | Bedeutung offen |
 

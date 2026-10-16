@@ -17,6 +17,7 @@
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/player.hpp"
 #include "o1602/sim/production.hpp"
+#include "o1602/sim/random.hpp"
 
 namespace o1602::sim {
 
@@ -62,7 +63,18 @@ struct City {
     std::vector<std::uint8_t> tax_rate;      ///< per class, 128 = normal (64..192)
     std::vector<Supply> supply;              ///< per ware
     std::uint8_t food_ratio = 128;           ///< supply of food (city + 0x255)
-    std::uint8_t worst_good = 0;             ///< the scarcest good whose supply keeps falling, 0 = none
+    /// One house per target class may try out the next class (city + 0x234): its inhabitants
+    /// count for that class in the demand for one tick, then it upgrades or gives up.
+    struct UpgradeSlot {
+        std::uint32_t inhabitants = 0;  ///< 0 = free
+        std::uint16_t x = 0xFFFF;       ///< origin of the queued house
+        std::uint16_t y = 0xFFFF;
+    };
+    std::vector<UpgradeSlot> upgrade_queue;  ///< by target class
+    std::uint8_t epoch = 0;                  ///< counts the city's 10-s ticks, 0..7
+    /// The player keeps building material from the people (city window): no house upgrades.
+    bool material_lock = false;
+    std::uint8_t worst_good = 0;  ///< the scarcest good whose supply keeps falling, 0 = none
 
     [[nodiscard]] std::uint32_t stock(std::uint8_t ware) const noexcept {
         return ware < goods.size() ? goods[ware] : 0;
@@ -105,6 +117,42 @@ struct Animal {
     std::uint16_t x = 0;       ///< island tile
     std::uint16_t y = 0;
     std::uint16_t figure = 0;  ///< FIGUR number (HIRSCH, ANTILOPE)
+};
+
+/// A house and its inhabitants (the original's house list at 0x005A77E8, SIEDLER).
+struct House {
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint16_t x = 0;       ///< origin tile of the building
+    std::uint16_t y = 0;
+    std::uint8_t city = MapCell::kNoCity;
+    std::uint8_t resident_class = 0;   ///< BGruppe of the building
+    std::uint32_t inhabitants64 = 0;   ///< inhabitants * 64 (the fraction grows over time)
+    std::uint8_t timer_group = 0;      ///< 0..15: when the house is ticked
+    std::uint8_t epoch = 0;            ///< house tick epoch it was last ticked in
+    std::uint8_t queue_epoch = 0;      ///< city epoch when it queued for the next class
+    std::uint8_t market_distance = 6;  ///< distance class to the nearest market, 6 = none
+    bool market = false;               ///< a market is in range
+    bool services_complete = false;    ///< has the public buildings its class needs
+    std::uint16_t services = 0;        ///< public buildings in range (bits as the original)
+
+    [[nodiscard]] std::uint32_t inhabitants() const noexcept { return inhabitants64 >> 6; }
+};
+
+/// The 16 house timer groups: group g ticks every 15 s + 64 ms * g (docs/re/houses.md).
+struct HouseClocks {
+    static constexpr std::size_t kGroups = 16;
+    std::array<std::uint32_t, kGroups> time_ms{};
+    std::array<std::uint8_t, kGroups> epoch{};
+};
+
+/// A building with running costs that has no production state: shipyards (on/off) and castles.
+struct CostBuilding {
+    enum class Kind : std::uint8_t { Shipyard, Castle };
+    Kind kind = Kind::Shipyard;
+    std::uint16_t island = 0;
+    std::uint16_t x = 0;
+    std::uint16_t y = 0;
+    bool enabled = true;
 };
 
 /// A growing field, tree, meadow or fish shoal (ROHWACHS2 in the original). One growth stage of
@@ -190,6 +238,9 @@ public:
     [[nodiscard]] const Player* player(PlayerId owner) const noexcept {
         return owner < m_players.size() ? &m_players[owner] : nullptr;
     }
+    [[nodiscard]] Player* player(PlayerId owner) noexcept {
+        return owner < m_players.size() ? &m_players[owner] : nullptr;
+    }
     void set_players(std::vector<Player> players) { m_players = std::move(players); }
     void add_ship(Ship ship) { m_ships.push_back(std::move(ship)); }
 
@@ -205,6 +256,25 @@ public:
 
     [[nodiscard]] const std::vector<Soldier>& soldiers() const noexcept { return m_soldiers; }
     void add_soldier(const Soldier& soldier) { m_soldiers.push_back(soldier); }
+
+    [[nodiscard]] const std::vector<House>& houses() const noexcept { return m_houses; }
+    [[nodiscard]] std::vector<House>& houses() noexcept { return m_houses; }
+    /// House whose building has its origin at (x, y), nullptr if none.
+    [[nodiscard]] const House* house(std::uint16_t island, std::uint16_t x, std::uint16_t y) const;
+    [[nodiscard]] House* house(std::uint16_t island, std::uint16_t x, std::uint16_t y);
+    /// Adds a house (or replaces the one at its position).
+    void add_house(const House& house);
+    /// Removes the house at (x, y); the order of the others may change.
+    void remove_house(std::uint16_t island, std::uint16_t x, std::uint16_t y);
+
+    [[nodiscard]] const HouseClocks& house_clocks() const noexcept { return m_house_clocks; }
+    [[nodiscard]] HouseClocks& house_clocks() noexcept { return m_house_clocks; }
+    [[nodiscard]] const std::vector<CostBuilding>& cost_buildings() const noexcept { return m_cost_buildings; }
+    void add_cost_building(const CostBuilding& b) { m_cost_buildings.push_back(b); }
+
+    /// Random generators of the simulation, one per subsystem (random.hpp).
+    [[nodiscard]] Random& random(RandomStream stream) noexcept { return m_random[stream]; }
+    void reseed(std::uint64_t seed) noexcept { m_random.reseed(seed); }
 
     [[nodiscard]] const GrowthState& growth() const noexcept { return m_growth; }
     [[nodiscard]] GrowthState& growth() noexcept { return m_growth; }
@@ -236,6 +306,11 @@ private:
     std::vector<Soldier> m_soldiers;
     std::vector<Production> m_productions;
     GrowthState m_growth;
+    RandomStreams m_random;
+    std::vector<House> m_houses;
+    HouseClocks m_house_clocks;
+    std::vector<CostBuilding> m_cost_buildings;
+    std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x
     std::vector<Cell> m_cells;
 };

@@ -64,6 +64,11 @@ public:
     core::Status place(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                        std::uint8_t anim_phase, PlayerId owner = kNoPlayer, std::uint8_t city = MapCell::kNoCity);
 
+    /// Replaces the building whose footprint lies at (x, y) by another one of the same size in
+    /// place (a house changing class, ruins): owner, city and the ground below stay (0x00463EF0).
+    core::Status replace(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                         std::uint8_t anim_phase);
+
     /// Inverse of place() for one tile (original 0x00463250): building and placement origin.
     [[nodiscard]] SubTile sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const;
 
@@ -75,6 +80,8 @@ public:
                                  std::vector<std::string>* warnings = nullptr, const assets::Island* base = nullptr);
 
 private:
+    core::Status write(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                       std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool keep);
     [[nodiscard]] std::size_t index(std::uint32_t x, std::uint32_t y) const { return std::size_t{y} * m_width + x; }
 
     std::uint32_t m_width;

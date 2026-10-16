@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 
 namespace o1602::sim {
 
@@ -17,6 +18,9 @@ constexpr std::uint32_t kStockUnitsPerTon = 32;
 constexpr std::array<std::uint8_t, 3> kNativeGoods = {19, 18, 21};
 constexpr std::uint8_t kFirstWare = 2;
 constexpr std::uint8_t kLastWare = 24;
+// Pirates (0x0047EEF0): twice per tick, up to 3 t of a random ware with at least 10 t.
+constexpr std::uint32_t kPirateMin = 10 * 32;
+constexpr std::uint32_t kPirateTake = 3 * 32;
 
 struct Knot {
     std::int32_t x;
@@ -145,11 +149,20 @@ void consume(City& city, const assets::BuildingTable& buildings, std::vector<Cit
     for (std::size_t c = classes.size(); c-- > 0;) {
         const assets::ResidentClass& rc = classes[c];
         city.satisfaction[c] = satisfaction_of(city, rc, city.tax_rate[c]);
-        const std::uint32_t n = city.inhabitants[c];
-        if (n == 0) {
+        if (city.inhabitants[c] == 0) {
             city.tax_rate[c] = kFull;  // an empty class goes back to the normal rate
+        }
+        // The house queued to rise into class c already counts for it, and no longer for the class
+        // below (n_eff of 0x0047F8A0).
+        const auto queued = [&](std::size_t k) -> std::uint64_t {
+            return k < city.upgrade_queue.size() ? city.upgrade_queue[k].inhabitants : 0;
+        };
+        const std::int64_t n_eff = std::int64_t{city.inhabitants[c]} + static_cast<std::int64_t>(queued(c)) -
+                                   static_cast<std::int64_t>(queued(c + 1));
+        if (n_eff <= 0) {
             continue;
         }
+        const auto n = static_cast<std::uint64_t>(n_eff);
         for (const assets::ResidentClass::Need& need : rc.needs) {
             city.supply[need.ware].demand += std::uint64_t{need.amount} * n;
         }
@@ -176,10 +189,77 @@ void consume_natives(City& city) {
     }
 }
 
+void consume_pirates(City& city, Random& random) {
+    for (int i = 0; i < 2; ++i) {
+        const auto w = static_cast<std::uint8_t>(random.below(kLastWare + 1));
+        if (w >= kFirstWare && city.stock(w) >= kPirateMin) {
+            take(city, w, std::min(city.stock(w), kPirateTake));
+        }
+    }
+}
+
+std::int32_t tax_income(const City& city, const assets::BuildingTable& buildings) {
+    const auto& classes = buildings.resident_classes();
+    std::int64_t total = 0;
+    for (std::size_t c = 0; c < classes.size() && c < city.inhabitants.size(); ++c) {
+        const std::int64_t per_minute = std::int64_t{classes[c].tax} * city.inhabitants[c] * 6 / 32;
+        const std::int64_t rate = c < city.tax_rate.size() ? city.tax_rate[c] : kFull;
+        total += per_minute * rate / kFull;
+    }
+    return static_cast<std::int32_t>(total);
+}
+
+std::vector<std::int32_t> running_costs(const World& world, const assets::BuildingTable& buildings) {
+    const auto& cities = world.cities();
+    std::vector<std::int32_t> costs(cities.size(), 0);
+    const auto city_at = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) -> std::optional<std::size_t> {
+        const IslandMap& map = world.islands()[island].map;
+        if (!map.contains(x, y)) {
+            return std::nullopt;
+        }
+        const std::uint8_t index = map.top(x, y).city;
+        for (std::size_t i = 0; i < cities.size(); ++i) {
+            if (cities[i].island == island && cities[i].index == index) {
+                return i;
+            }
+        }
+        return std::nullopt;
+    };
+    const auto type_at = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) -> const assets::BuildingType* {
+        const MapCell& cell = world.islands()[island].map.top(x, y);
+        return cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
+    };
+    for (const Production& p : world.productions()) {
+        const auto i = city_at(p.island, p.x, p.y);
+        const assets::BuildingType* b = i ? type_at(p.island, p.x, p.y) : nullptr;
+        if (b != nullptr) {
+            costs[*i] += static_cast<std::int32_t>(p.enabled ? b->running_cost : b->idle_cost);
+        }
+    }
+    for (const CostBuilding& c : world.cost_buildings()) {
+        const auto i = city_at(c.island, c.x, c.y);
+        const assets::BuildingType* b = i ? type_at(c.island, c.x, c.y) : nullptr;
+        if (b == nullptr) {
+            continue;
+        }
+        if (c.kind == CostBuilding::Kind::Castle) {
+            const Player* owner = world.player(cities[*i].owner);
+            if (owner != nullptr && owner->role == PlayerRole::Human) {
+                costs[*i] += static_cast<std::int32_t>(b->running_cost);
+            }
+        } else {
+            costs[*i] += static_cast<std::int32_t>(c.enabled ? b->running_cost : b->idle_cost);
+        }
+    }
+    return costs;
+}
+
 void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
-    for (const City& c : world.cities()) {
+    const std::vector<std::int32_t> costs = running_costs(world, buildings);
+    for (std::size_t i = 0; i < world.cities().size(); ++i) {
+        const City& c = world.cities()[i];
         City* city = world.city(c.island, c.index);
-        const Player* owner = world.player(city->owner);
+        Player* owner = world.player(city->owner);
         if (owner == nullptr) {
             continue;
         }
@@ -187,15 +267,20 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
             case PlayerRole::Human:
             case PlayerRole::Computer:
                 consume(*city, buildings, events);
+                // Money (0x0047F8A0): a sixth of the balance per minute, truncated towards zero
+                // every 10 s (kept: small balances cost nothing, as in the original).
+                owner->money += (tax_income(*city, buildings) - costs[i]) / 6;
                 break;
             case PlayerRole::Natives:
                 consume_natives(*city);
                 break;
-            default:
-                // Pirates take random goods (0x0047EEF0), the free trader nothing: with the
-                // pirates' AI.
+            case PlayerRole::Pirates:
+                consume_pirates(*city, world.random(RandomStream::Pirates));
                 break;
+            default:
+                break;  // the free trader consumes nothing
         }
+        city->epoch = static_cast<std::uint8_t>((city->epoch + 1) & 7U);
     }
 }
 

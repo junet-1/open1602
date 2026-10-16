@@ -27,8 +27,29 @@ struct CityRecord {
     std::array<std::uint8_t, 5> satisfaction{};  ///< +0x78: per class, 128 = content
     std::array<std::uint8_t, 5> tax{};           ///< +0x7F: tax rate per class, 128 = normal
     std::uint8_t food_ratio = 0;                 ///< +0x86: supply of food, 128 = full
+    bool material_lock = false;                  ///< +0x04 bit 0: no building material for houses
 
     static constexpr std::uint8_t kNoCityOwner = 7;
+};
+
+/// SIEDLER record (16 bytes, writer 0x00485530, reader 0x00483EE0): one house and its inhabitants
+/// (docs/re/houses.md).
+struct HouseRecord {
+    std::uint8_t island = 0;  ///< island number
+    std::uint8_t x = 0;       ///< origin tile
+    std::uint8_t y = 0;
+    std::uint8_t epoch = 0;            ///< house tick epoch (3 bits)
+    std::uint8_t queue_epoch = 0;      ///< city epoch when it queued for the next class (3 bits)
+    std::uint8_t resident_class = 0;   ///< saved class (the loader takes the class of the building)
+    std::uint8_t market_distance = 6;  ///< distance class to the nearest market, 6 = none
+    std::uint16_t inhabitants64 = 0;   ///< inhabitants * 64
+    std::uint8_t timer_group = 0;      ///< 0..15
+    bool services_complete = false;    ///< has the public buildings its class needs
+    bool market = false;               ///< a market is in range
+    /// Public buildings in range, bit 2.. of the runtime word: Kapelle, Kirche, Wirtshaus, Schule,
+    /// Badehaus, Theater, Hochschule, Klinik, Kontor (bits 2..10).
+    std::uint16_t services = 0;
+    std::array<std::uint8_t, 16> raw{};
 };
 
 /// MARKT2 record (0x104 bytes, writer 0x00485020): the consumption accounting of one city
@@ -129,6 +150,21 @@ struct GrowthClocks {
     std::array<std::uint32_t, 32> time_ms{};  ///< +0x218: game ms since the class last ticked
 };
 
+/// The house clocks of TIMERS: 16 timer groups (docs/re/houses.md).
+struct HouseClocks {
+    std::array<std::uint8_t, 16> epoch{};     ///< +0x44: epoch of each group (3 bits)
+    std::array<std::uint32_t, 16> time_ms{};  ///< +0x198: game ms since the group last ticked
+};
+
+/// A building with running costs outside the production list: shipyards (WERFT, 0x18 bytes, on
+/// = dword0 bit 27) and castles (MILITAR, 0x70 bytes).
+struct CostRecord {
+    std::uint8_t island = 0;
+    std::uint8_t x = 0;
+    std::uint8_t y = 0;
+    bool enabled = true;
+};
+
 struct GameState {
     std::vector<CityRecord> cities;
     std::vector<WarehouseRecord> warehouses;
@@ -137,6 +173,10 @@ struct GameState {
     std::vector<SoldierRecord> soldiers;
     std::vector<GrowthRecord> growth;
     std::vector<ConsumptionRecord> consumption;
+    std::vector<HouseRecord> houses;
+    std::optional<HouseClocks> house_clocks;
+    std::vector<CostRecord> shipyards;
+    std::vector<CostRecord> castles;
     std::optional<GrowthClocks> growth_clocks;  ///< nothing without a TIMERS chunk
 };
 

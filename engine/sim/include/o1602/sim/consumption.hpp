@@ -53,7 +53,21 @@ void consume(City& city, const assets::BuildingTable& buildings, std::vector<Cit
 /// use a little cloth, alcohol and jewellery.
 void consume_natives(City& city);
 
-/// Ticks every city of `world` by the role of its owner.
+/// One tick of a pirates' nest (0x0047EEF0): twice, a random ware with at least 10 t loses up to
+/// 3 t.
+void consume_pirates(City& city, Random& random);
+
+/// Taxes of a city in gold per minute (0x0047F740): per class trunc(trunc(K * n * 6 / 32) * tax
+/// / 128) with K = trunc(Steuer * 16 / 3).
+[[nodiscard]] std::int32_t tax_income(const City& city, const assets::BuildingTable& buildings);
+
+/// Running costs per minute of every city (index into World::cities()), as the original keeps them
+/// in city + 0x1D8 / + 0x1DC: production buildings and shipyards with their switched-on or -off
+/// costs; castles only for human players (computer players never pay them).
+[[nodiscard]] std::vector<std::int32_t> running_costs(const World& world, const assets::BuildingTable& buildings);
+
+/// Ticks every city of `world` by the role of its owner, including the money: every 10 s the
+/// owner gets (taxes - running costs) / 6, truncated like the original.
 void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events);
 
 }  // namespace o1602::sim

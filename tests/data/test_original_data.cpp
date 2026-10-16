@@ -34,6 +34,7 @@
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/growth.hpp"
+#include "o1602/sim/houses.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -884,4 +885,94 @@ TEST_CASE("data: consumption of a savegame matches the original's numbers") {
         }
     }
     CHECK(food_after != food_before);
+}
+
+TEST_CASE("data: houses of a savegame add up to the cities' inhabitants") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    const auto dat = game.resolve("Game.dat");
+    if (!dat) {
+        SKIP("no Game.dat (game never started)");
+    }
+    auto bytes = core::read_file(*dat);
+    REQUIRE(bytes.ok());
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    std::optional<std::filesystem::path> path;
+    for (const auto& slot : assets::parse_savegame_slots(text)) {
+        if (!path) {
+            path = game.resolve(slot.file);
+        }
+    }
+    if (!path) {
+        SKIP("no savegame");
+    }
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto state = assets::load_game_state(*file);
+    REQUIRE(state.ok());
+    auto world = sim::load_world(*file, *buildings, game);
+    REQUIRE(world.ok());
+    CHECK(!world->houses().empty());
+    CHECK(world->houses().size() == state->houses.size());
+    std::map<std::tuple<std::uint16_t, std::uint8_t, std::uint8_t>, std::uint32_t> sums;
+    for (const sim::House& h : world->houses()) {
+        CHECK(h.resident_class < buildings->resident_classes().size());
+        CHECK(h.inhabitants() <= buildings->resident_classes()[h.resident_class].max_per_house);
+        sums[{h.island, h.city, h.resident_class}] += h.inhabitants();
+    }
+    for (const sim::City& c : world->cities()) {
+        for (std::uint8_t k = 0; k < 5 && k < c.inhabitants.size(); ++k) {
+            const auto key = std::make_tuple(c.island, c.index, k);
+            CHECK(sums[key] == c.inhabitants[k]);
+        }
+    }
+    // The coverage by markets, Kontors and public buildings recomputed like 0x00482120 equals
+    // what the original saved (bits 2..10, market, distance class, services complete).
+    const std::vector<sim::House> saved = world->houses();
+    sim::update_services(*world, *buildings);
+    for (std::size_t i = 0; i < saved.size(); ++i) {
+        const sim::House& a = saved[i];
+        const sim::House& b = world->houses()[i];
+        CHECK((a.services & 0x7FCU) == (b.services & 0x7FCU));
+        CHECK(a.market == b.market);
+        CHECK(a.market_distance == b.market_distance);
+        CHECK(a.services_complete == b.services_complete);
+    }
+}
+
+TEST_CASE("data: money of the next city tick matches the original (game00 -> lastgame)") {
+    const auto game = require_game();
+    const auto first = game.resolve("SAVEGAME/game00.gam");
+    const auto next = game.resolve("SAVEGAME/lastgame.gam");
+    if (!first || !next) {
+        SKIP("needs SAVEGAME/game00.gam and lastgame.gam");
+    }
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto file = assets::ChunkFile::load(*first);
+    auto file2 = assets::ChunkFile::load(*next);
+    REQUIRE(file.ok());
+    REQUIRE(file2.ok());
+    auto world = sim::load_world(*file, *buildings, game);
+    auto later = sim::load_world(*file2, *buildings, game);
+    REQUIRE(world.ok());
+    REQUIRE(later.ok());
+    if (later->players().size() != world->players().size() || later->players()[0].money == world->players()[0].money) {
+        SKIP("lastgame.gam is not the next city tick of game00.gam");
+    }
+    // Between the two saves (5.1 s) every city ticked exactly once.
+    const std::vector<std::int32_t> costs = sim::running_costs(*world, *buildings);
+    std::vector<std::int32_t> delta(world->players().size(), 0);
+    for (std::size_t i = 0; i < world->cities().size(); ++i) {
+        const sim::City& c = world->cities()[i];
+        const sim::Player* owner = world->player(c.owner);
+        if (owner == nullptr || (owner->role != sim::PlayerRole::Human && owner->role != sim::PlayerRole::Computer)) {
+            continue;
+        }
+        delta[c.owner] += (sim::tax_income(c, *buildings) - costs[i]) / 6;
+    }
+    for (std::size_t p = 0; p < 4; ++p) {
+        CHECK(world->players()[p].money + delta[p] == later->players()[p].money);
+    }
 }

@@ -76,6 +76,41 @@ const Production* World::production(std::uint16_t island, std::uint16_t x, std::
     return it == m_production_index.end() ? nullptr : &m_productions[it->second];
 }
 
+const House* World::house(std::uint16_t island, std::uint16_t x, std::uint16_t y) const {
+    const auto it = m_house_index.find(production_key(island, x, y));
+    return it == m_house_index.end() ? nullptr : &m_houses[it->second];
+}
+
+House* World::house(std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+    const auto it = m_house_index.find(production_key(island, x, y));
+    return it == m_house_index.end() ? nullptr : &m_houses[it->second];
+}
+
+void World::add_house(const House& house) {
+    const auto [it, inserted] = m_house_index.try_emplace(production_key(house.island, house.x, house.y),
+                                                          static_cast<std::uint32_t>(m_houses.size()));
+    if (inserted) {
+        m_houses.push_back(house);
+    } else {
+        m_houses[it->second] = house;
+    }
+}
+
+void World::remove_house(std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+    const auto it = m_house_index.find(production_key(island, x, y));
+    if (it == m_house_index.end()) {
+        return;
+    }
+    const std::uint32_t index = it->second;
+    m_house_index.erase(it);
+    if (index + 1 != m_houses.size()) {
+        m_houses[index] = m_houses.back();
+        const House& moved = m_houses[index];
+        m_house_index[production_key(moved.island, moved.x, moved.y)] = index;
+    }
+    m_houses.pop_back();
+}
+
 std::optional<std::uint32_t> World::production_index(std::uint16_t island, std::uint16_t x, std::uint16_t y) const {
     const auto it = m_production_index.find(production_key(island, x, y));
     return it == m_production_index.end() ? std::nullopt : std::optional<std::uint32_t>(it->second);
@@ -198,6 +233,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             city.tax_rate.push_back(t == 0 ? std::uint8_t{128} : t);
         }
         city.food_ratio = c.food_ratio;
+        city.material_lock = c.material_lock;
         world.add_city(std::move(city));
     }
     for (const auto& w : state->warehouses) {
@@ -214,6 +250,54 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             city->goods[slot.ware] = slot.stock();
         }
     }
+    // Houses: only on a dwelling (HAUS_PRODTYP Kind WOHNUNG); the class is the building's, as in
+    // the loader of the original (0x00483EE0).
+    constexpr std::int32_t kProdKindHouse = 13;
+    for (const auto& r : state->houses) {
+        const auto island = world.island_index(r.island);
+        if (!island || !world.islands()[*island].map.contains(r.x, r.y)) {
+            warn("house outside its island " + std::to_string(r.island));
+            continue;
+        }
+        const MapCell& cell = world.islands()[*island].map.top(r.x, r.y);
+        const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
+        if (b == nullptr || b->prod_kind != kProdKindHouse) {
+            continue;
+        }
+        House h;
+        h.island = *island;
+        h.x = r.x;
+        h.y = r.y;
+        h.city = cell.city;
+        h.resident_class = b->resident_class;
+        h.inhabitants64 = r.inhabitants64;
+        h.timer_group = r.timer_group;
+        h.epoch = r.epoch;
+        h.queue_epoch = r.queue_epoch;
+        h.market_distance = r.market_distance;
+        h.market = r.market;
+        h.services_complete = r.services_complete;
+        h.services = r.services;
+        world.add_house(h);
+    }
+    if (state->house_clocks) {
+        HouseClocks& clocks = world.house_clocks();
+        for (std::size_t g = 0; g < HouseClocks::kGroups; ++g) {
+            clocks.epoch[g] = state->house_clocks->epoch[g];
+            clocks.time_ms[g] = state->house_clocks->time_ms[g] % (15'000U + 64U * static_cast<std::uint32_t>(g));
+        }
+    }
+    const auto add_costs = [&](const std::vector<assets::CostRecord>& records, CostBuilding::Kind kind) {
+        for (const auto& r : records) {
+            const auto island = world.island_index(r.island);
+            if (!island || !world.islands()[*island].map.contains(r.x, r.y)) {
+                continue;
+            }
+            world.add_cost_building(CostBuilding{kind, *island, r.x, r.y, r.enabled});
+        }
+    };
+    add_costs(state->shipyards, CostBuilding::Kind::Shipyard);
+    add_costs(state->castles, CostBuilding::Kind::Castle);
     for (const auto& m : state->consumption) {
         const auto island = world.island_index(m.island);
         City* city = island ? world.city(*island, m.city) : nullptr;

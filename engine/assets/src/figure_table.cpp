@@ -77,6 +77,16 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
         f.defined = true;
         table.m_types[static_cast<std::size_t>(nummer)] = std::move(f);
     }
+    // `Soldat: FIGTYP, upkeep, price` and `Turm: KANONTURM, upkeep` (0x004424xx).
+    for (const auto& [name, values] : figuren.root.history) {
+        if (name == "Soldat" && values.size() >= 2 && values[0].integer >= 0 &&
+            static_cast<std::size_t>(values[0].integer) < table.m_unit_upkeep.size()) {
+            table.m_unit_upkeep[static_cast<std::size_t>(values[0].integer)] =
+                static_cast<std::uint32_t>(std::max(0, values[1].integer));
+        } else if (name == "Turm" && values.size() >= 2) {
+            table.m_tower_upkeep = static_cast<std::uint32_t>(std::max(0, values[1].integer));
+        }
+    }
     return table;
 }
 

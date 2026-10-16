@@ -75,6 +75,9 @@ std::vector<std::uint8_t> circle_half_widths(std::uint32_t radius) {
         }
         ++x;
     }
+    if (radius == 1) {
+        half[1] = 1;  // the original's table (0x00404D70) has the corners at radius 1
+    }
     return half;
 }
 
@@ -115,7 +118,7 @@ bool walkable(const assets::BuildingType& building, const MapCell& cell, WalkCla
 }
 
 void PathFinder::begin(const IslandMap& map, const assets::BuildingTable& buildings, const Catchment& area,
-                       WalkClass walk, std::uint8_t speed_type) {
+                       WalkClass walk, std::uint8_t speed_type, bool circle) {
     const TilePos min = area.min();
     m_x0 = min.x;
     m_y0 = min.y;
@@ -135,7 +138,7 @@ void PathFinder::begin(const IslandMap& map, const assets::BuildingTable& buildi
     // The original clips to the circle only from radius 2 on (0x00471280); below the window is
     // a square.
     std::vector<std::uint8_t> half = circle_half_widths(area.radius);
-    if (area.radius <= 1) {
+    if (area.radius <= 1 || !circle) {
         std::fill(half.begin(), half.end(), area.radius);
     }
     const std::uint8_t type = std::min<std::uint8_t>(speed_type, 3);
