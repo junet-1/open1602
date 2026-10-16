@@ -10,6 +10,7 @@
 #include "o1602/assets/savegame.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -23,7 +24,8 @@ assets::BuildingTable make_buildings() {
         "Objekt: HAUS\n"
         "  @Nummer: 0\n  Id: 20503\n  Gfx: 0\n  Size: 2, 2\n  AnimAnz: 8\n  AnimAdd: 4\n  AnimTime: 100\n"
         "  Einhoffs: 2.5\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Rauchfignr: 48\n    Maxlager: 4\n    Maxnorohst: 5\n  EndObj\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Rauchfignr: 48\n    Maxlager: 4\n    Maxnorohst: 5\n"
+        "    Ware: 10\n    Rohstoff: 5\n    Rohmenge: 1\n    Prodmenge: 1\n    Interval: 20\n  EndObj\n"
         "  @Nummer: +1\n  Id: 22201\n  Gfx: 40\n  Size: 1, 1\n  AnimAnz: 4\n  AnimAdd: 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Maxlager: 10\n    LagAniFlg: 1\n  EndObj\n"
         "  @Nummer: +1\n  Id: 20809\n  Gfx: 50\n  Size: 1, 1\n  AnimAnz: 3\n  AnimAdd: 1\n"
@@ -56,6 +58,19 @@ assets::FigureTable make_figures() {
     return std::move(table).value();
 }
 
+sim::Production make(std::uint16_t island, std::uint16_t x, std::uint16_t y, bool enabled, std::uint8_t rate,
+                     std::uint8_t idle, std::uint16_t stock) {
+    sim::Production p;
+    p.island = island;
+    p.x = x;
+    p.y = y;
+    p.enabled = enabled;
+    p.rate = rate;
+    p.idle_cycles = idle;
+    p.stock = stock;
+    return p;
+}
+
 }  // namespace
 
 TEST_CASE("production: HAUS_PRODTYP fields for the production state") {
@@ -64,6 +79,11 @@ TEST_CASE("production: HAUS_PRODTYP fields for the production state") {
     CHECK(bakery.max_stock == 4 * assets::kStockUnitsPerTon);
     CHECK(bakery.max_idle_cycles == 5);
     CHECK(bakery.icon_height == 2.5);
+    CHECK(bakery.ware == 10);
+    CHECK(bakery.raw_ware == 5);
+    CHECK(bakery.raw_amount == 32);
+    CHECK(bakery.produce_amount == 32);
+    CHECK(bakery.interval == 20);
     CHECK(!bakery.stock_animation);
     CHECK(sim::is_producer(bakery));
     CHECK(buildings.by_id(22201)->stock_animation);
@@ -77,11 +97,11 @@ TEST_CASE("production: animation frames follow the building's state (0x00489C90)
     sim::Production p;
     p.anim_phase = 3;
     // Working: runs from its phase with the global frame; idle or switched off: stands still.
-    p.working = true;
+    p.rate = sim::Production::kFullRate;
     CHECK(render::production_frame(bakery, 10, &p) == (3 + 10) % 8);
-    p.working = false;
+    p.rate = 0;
     CHECK(render::production_frame(bakery, 10, &p) == 3);
-    p.working = true;
+    p.rate = sim::Production::kFullRate;
     p.enabled = false;
     CHECK(render::production_frame(bakery, 10, &p) == 3);
     // Without state the original uses the global frame alone.
@@ -102,11 +122,11 @@ TEST_CASE("production: animation frames follow the building's state (0x00489C90)
 
     // Market: the stalls fill with the progress of the cycle, (AnimAnz - 1) * progress / 512.
     const assets::BuildingType& market = *buildings.by_id(20809);
-    p.progress = 0;
+    p.produced = 0;
     CHECK(render::production_frame(market, 1, &p) == 0);
-    p.progress = 256;
+    p.produced = 256;
     CHECK(render::production_frame(market, 1, &p) == 1);
-    p.progress = 514;  // seen in a savegame
+    p.produced = 514;  // seen in a savegame
     CHECK(render::production_frame(market, 1, &p) == 2);
 }
 
@@ -122,19 +142,19 @@ TEST_CASE("production: status of a building and smoke") {
     CHECK(!sim::smoke_visible(p));
     p.enabled = true;
     CHECK(!sim::smoke_visible(p));
-    p.working = true;
+    p.rate = sim::Production::kFullRate;
     CHECK(sim::smoke_visible(p));
 }
 
 TEST_CASE("production: world lookup by island and origin tile") {
     sim::World world;
-    world.set_production(sim::Production{2, 10, 11, true, true, 0, 0, 32, 100});
-    world.set_production(sim::Production{2, 11, 10, true, false, 0, 0, 0, 0});
+    world.set_production(make(2, 10, 11, true, 128, 0, 32));
+    world.set_production(make(2, 11, 10, true, 0, 0, 0));
     REQUIRE(world.production(2, 10, 11) != nullptr);
     CHECK(world.production(2, 10, 11)->stock == 32);
-    CHECK(!world.production(2, 11, 10)->working);
+    CHECK(!world.production(2, 11, 10)->working());
     CHECK(world.production(1, 10, 11) == nullptr);
-    world.set_production(sim::Production{2, 10, 11, false, false, 0, 0, 0, 0});  // replaces
+    world.set_production(make(2, 10, 11, false, 0, 0, 0));  // replaces
     CHECK(world.productions().size() == 2);
     CHECK(!world.production(2, 10, 11)->enabled);
 }
@@ -183,13 +203,13 @@ TEST_CASE("production: smoke and status icons on buildings") {
 
     // Without production state nothing is shown.
     CHECK(!render::building_figure_sprites(all[1], world, buildings, view, layers, 0, s));
-    world.set_production(sim::Production{0, 1, 1, true, false, 0, 0, 0, 0});
-    world.set_production(sim::Production{0, 4, 4, true, false, 0, 5, 0, 0});
+    world.set_production(make(0, 1, 1, true, 0, 0, 0));
+    world.set_production(make(0, 4, 4, true, 0, 5, 0));
     // Idle bakery: no smoke; status OK: no icon.
     CHECK(!render::building_figure_sprites(all[1], world, buildings, view, layers, 0, s));
     CHECK(!render::building_figure_sprites(all[0], world, buildings, view, layers, 0, s));
 
-    world.set_production(sim::Production{0, 1, 1, true, true, 0, 0, 0, 0});
+    world.set_production(make(0, 1, 1, true, 128, 0, 0));
     render::BuildingFigure smoke = all[1];
     smoke.phase = 0;
     REQUIRE(render::building_figure_sprites(smoke, world, buildings, view, layers, 170, s));
@@ -204,7 +224,7 @@ TEST_CASE("production: smoke and status icons on buildings") {
     CHECK(s.row == (220 + 20 - 1) / 16);
 
     // Status icon: only for the local player's buildings; anim 0 off, 1 short of raw material.
-    world.set_production(sim::Production{0, 1, 1, false, false, 0, 0, 0, 0});
+    world.set_production(make(0, 1, 1, false, 0, 0, 0));
     render::BuildingFigure icon = all[0];
     icon.phase = 0;
     REQUIRE(render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
@@ -213,11 +233,141 @@ TEST_CASE("production: smoke and status icons on buildings") {
     // Point: x = (7 - 7 + 350) * 32 = 11200, y = 14 * 16 = 224; bottom 2.5 * 32 above it.
     CHECK(s.parts[0].x == 11200 - 3);
     CHECK(s.parts[0].y == 224 - 80);
-    world.set_production(sim::Production{0, 1, 1, true, false, 0, 7, 0, 0});
+    world.set_production(make(0, 1, 1, true, 0, 7, 0));
     REQUIRE(render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
     CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10 + 4);
     // Player 1's bakery is short of raw material too, but player 1 is not at this computer.
     CHECK(!render::building_figure_sprites(all[2], world, buildings, view, layers, 0, s));
     layers.local_player = sim::kNoPlayer;
     CHECK(!render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
+}
+
+namespace {
+
+/// A workshop: 1 t raw material per cycle, 1 t product, 20 s, store 4 t, kind HANDWERK.
+assets::BuildingType workshop() {
+    assets::BuildingType b;
+    b.prod_kind = 1;
+    b.ware = 10;
+    b.raw_ware = 5;
+    b.raw_amount = 32;
+    b.produce_amount = 32;
+    b.interval = 20;
+    b.max_stock = 4 * 32;
+    b.max_idle_cycles = 5;
+    return b;
+}
+
+std::size_t count(const std::vector<sim::ProductionEvent>& events, sim::ProductionEvent::Kind kind) {
+    return static_cast<std::size_t>(
+        std::count_if(events.begin(), events.end(), [&](const sim::ProductionEvent& e) { return e.kind == kind; }));
+}
+
+}  // namespace
+
+TEST_CASE("production cycle: raw material in, goods out (0x0047DAF0)") {
+    const assets::BuildingType b = workshop();
+    sim::Production p;
+    p.raw = 64;  // 2 t
+    std::vector<sim::ProductionEvent> events;
+
+    // Start: enough raw material for a full cycle -> rate 128, 20 s.
+    sim::finish_cycle(p, b, 7, &events);
+    CHECK(p.rate == 128);
+    CHECK(p.countdown == 20);
+    CHECK(p.produced == 32);
+    CHECK(p.elapsed == 20);
+    CHECK(p.raw == 64);  // taken when the cycle ends
+    CHECK(count(events, sim::ProductionEvent::Kind::Started) == 1);
+    CHECK(events[0].production == 7);
+    // The original asks for more while there is raw material for at most two cycles.
+    CHECK(count(events, sim::ProductionEvent::Kind::NeedsRawGoods) == 1);
+
+    // End of cycle 1: 1 t used, 1 t made; the next cycle starts with the last ton and asks for more.
+    events.clear();
+    sim::finish_cycle(p, b, 7, &events);
+    CHECK(p.raw == 32);
+    CHECK(p.stock == 32);
+    CHECK(p.rate == 128);
+    CHECK(count(events, sim::ProductionEvent::Kind::Produced) == 1);
+    REQUIRE(count(events, sim::ProductionEvent::Kind::NeedsRawGoods) == 1);
+    CHECK(events.back().ware == 5);
+
+    // End of cycle 2: no raw material left -> idle 11 s.
+    events.clear();
+    sim::finish_cycle(p, b, 7, &events);
+    CHECK(p.raw == 0);
+    CHECK(p.stock == 64);
+    CHECK(p.rate == 0);
+    CHECK(p.countdown == sim::kIdleWaitSeconds);
+    CHECK(p.idle_cycles == 1);
+    CHECK(count(events, sim::ProductionEvent::Kind::Stopped) == 1);
+
+    // Half the raw material of a cycle still works at half rate; less does not.
+    p.raw = 16;
+    sim::finish_cycle(p, b, 7, &events);
+    CHECK(p.rate == 64);
+    CHECK(p.countdown == 10);
+    CHECK(p.idle_cycles == 0);
+    p.raw = 15;
+    p.rate = 0;
+    sim::finish_cycle(p, b, 7, &events);
+    CHECK(p.rate == 0);
+    CHECK(p.idle_cycles == 1);
+
+    // Full store: no new cycle.
+    p.raw = 64;
+    p.stock = 4 * 32;
+    events.clear();
+    sim::finish_cycle(p, b, 7, &events);
+    CHECK(p.rate == 0);
+    CHECK(count(events, sim::ProductionEvent::Kind::StoreFull) == 1);
+    CHECK(p.idle_cycles == 1);  // a full store is no shortage
+
+    // The statistics window is halved beyond 239 s.
+    p.stock = 0;
+    p.elapsed = 230;
+    p.produced = 100;
+    sim::finish_cycle(p, b, 7, &events);
+    CHECK(p.elapsed == (230 + 20) / 2);
+    CHECK(p.produced == (100 + 32) / 2);
+}
+
+TEST_CASE("simulation: fixed ticks, production once per game second, speed and pause") {
+    const auto buildings = make_buildings();
+    sim::World world;
+    sim::WorldIsland island{assets::IslandHeader{}, sim::IslandMap(8, 8), 5, 5};
+    REQUIRE(island.map.place(*buildings.by_id(20503), 1, 1, 0, 0, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    sim::Production p = make(0, 1, 1, true, 0, 0, 0);
+    p.countdown = 3;
+    world.set_production(p);
+
+    sim::Simulation simulation(world, buildings);
+    simulation.advance(999);
+    CHECK(world.productions()[0].countdown == 3);  // not a second yet
+    CHECK(simulation.game_time_ms() == 950);       // whole ticks only
+    simulation.advance(51);
+    CHECK(world.productions()[0].countdown == 2);
+    simulation.set_speed(2);
+    simulation.advance(500);  // one game second at double speed
+    CHECK(world.productions()[0].countdown == 1);
+    simulation.set_speed(0);  // paused
+    simulation.advance(10'000);
+    CHECK(world.productions()[0].countdown == 1);
+    simulation.set_speed(1);
+    simulation.advance(1000);
+    // Countdown over, no raw material: the bakery idles 11 s and asks for flour.
+    CHECK(world.productions()[0].countdown == sim::kIdleWaitSeconds);
+    CHECK(world.productions()[0].idle_cycles == 1);
+    const auto events = simulation.take_production_events();
+    CHECK(count(events, sim::ProductionEvent::Kind::NeedsRawGoods) == 1);
+    CHECK(simulation.take_production_events().empty());
+
+    // A stalled computer does not fast-forward the game.
+    const auto before = simulation.game_time_ms();
+    simulation.advance(60'000);
+    CHECK(simulation.game_time_ms() == before + sim::Simulation::kTickMs);
+    simulation.set_speed(100);
+    CHECK(simulation.speed() == sim::Rules{}.max_game_speed);
 }

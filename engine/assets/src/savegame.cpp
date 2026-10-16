@@ -88,13 +88,19 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         p.island = r[0];
         p.x = r[1];
         p.y = r[2];
+        const auto u16 = [&](std::size_t o) { return static_cast<std::uint16_t>(r[o] | (r[o + 1] << 8)); };
         p.enabled = (r[0x14] & 0x01U) != 0;
-        p.working = r[0x0F] != 0;
         p.anim_phase = static_cast<std::uint8_t>((r[0x14] >> 2) & 0x0FU);
+        p.stock = u16(5);
+        p.countdown = u16(8);
+        p.raw2 = u16(0x0A);
+        p.raw = u16(0x0C);
+        p.rate = r[0x0F];
+        p.produced = u16(0x10);
+        p.elapsed = u16(0x12);
         p.idle_cycles = static_cast<std::uint8_t>(r[0x15] & 0x0FU);
-        p.stock = static_cast<std::uint16_t>(r[5] | (r[6] << 8));
-        p.progress = static_cast<std::uint16_t>(r[0x10] | (r[0x11] << 8));
-        std::copy(r.begin() + 3, r.end(), p.raw.begin());
+        p.flags = static_cast<std::uint8_t>((((r[0x14] >> 6) & 1U) << 4) | (((r[0x14] >> 1) & 1U) << 6));
+        std::copy(r.begin() + 3, r.end(), p.raw_bytes.begin());
         state.production.push_back(p);
     });
     if (!status) {

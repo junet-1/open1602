@@ -179,8 +179,22 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             warn("production building outside its island " + std::to_string(p.island));
             continue;
         }
-        world.set_production(
-            Production{*island, p.x, p.y, p.enabled, p.working, p.anim_phase, p.idle_cycles, p.stock, p.progress});
+        Production q;
+        q.island = *island;
+        q.x = p.x;
+        q.y = p.y;
+        q.enabled = p.enabled;
+        q.rate = p.rate;
+        q.anim_phase = p.anim_phase;
+        q.idle_cycles = p.idle_cycles;
+        q.flags = p.flags;
+        q.countdown = p.countdown;
+        q.raw = p.raw;
+        q.raw2 = p.raw2;
+        q.stock = p.stock;
+        q.produced = p.produced;
+        q.elapsed = p.elapsed;
+        world.set_production(q);
     }
     for (const auto& r : state->soldiers) {
         Soldier soldier{r.x2 / 2.0, r.y2 / 2.0, r.figure, player_from_original(r.owner), r.direction, r.anim};

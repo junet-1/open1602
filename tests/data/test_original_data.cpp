@@ -228,6 +228,16 @@ TEST_CASE("data: building table from haeuser.cod") {
     REQUIRE(baeckerei != nullptr);
     CHECK(baeckerei->rotate == baeckerei->tile_count());  // 2x2 building: 4 sprites per rotation
     CHECK(table.by_sprite(baeckerei->gfx + 3) == baeckerei);
+    // Production of the bakery: 2 t flour -> 1 t food (Prodmenge from the defaults) in 19 s.
+    CHECK(baeckerei->prod_kind == 1);
+    CHECK(baeckerei->raw_amount == 2 * assets::kStockUnitsPerTon);
+    CHECK(baeckerei->produce_amount == assets::kStockUnitsPerTon);
+    CHECK(baeckerei->raw2_amount == 0);
+    CHECK(baeckerei->interval == 19);
+    CHECK(baeckerei->max_stock == 4 * assets::kStockUnitsPerTon);
+    CHECK(baeckerei->worker_count == 1);
+    CHECK(baeckerei->ware != 0);
+    CHECK(baeckerei->raw_ware != 0);
 }
 
 TEST_CASE("data: islands of a scenario build complete maps and render without missing sprites") {

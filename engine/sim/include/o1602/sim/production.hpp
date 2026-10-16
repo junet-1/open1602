@@ -28,18 +28,30 @@ enum class ProductionKind : std::int32_t {
            b.prod_kind <= static_cast<std::int32_t>(ProductionKind::Fischerei);
 }
 
+/// State of one production building (the original's PRODLIST entry, 20 bytes at 0x0054A3B8).
+/// Goods are counted in 1/32 t (assets::kStockUnitsPerTon), times in game seconds.
 struct Production {
     std::uint16_t island = 0;  ///< index into World::islands()
     std::uint16_t x = 0;       ///< origin tile of the building on the island
     std::uint16_t y = 0;
     bool enabled = true;           ///< switched on by the player
-    bool working = false;          ///< has raw material and is producing
-    std::uint8_t anim_phase = 0;   ///< animation offset of the building (0..15)
+    std::uint8_t rate = 0;         ///< working rate of the running cycle, kFullRate = full speed, 0 = idle
+    std::uint8_t anim_phase = 0;   ///< animation offset of the building (0..15, presentation only)
     std::uint8_t idle_cycles = 0;  ///< cycles without raw material (0..15)
-    std::uint16_t stock = 0;       ///< produced goods waiting for a carrier, 1/32 t
-    std::uint16_t progress = 0;    ///< progress of the current cycle, kProgressDone = finished
+    std::uint8_t flags = 0;        ///< further bits of the original (+0x0F bits 4..7), meaning open
+    std::uint16_t countdown = 0;   ///< game seconds until the running cycle ends
+    std::uint16_t raw = 0;         ///< raw material in the building (Rohstoff)
+    std::uint16_t raw2 = 0;        ///< second raw material (Workstoff)
+    std::uint16_t stock = 0;       ///< produced goods waiting for a carrier
+    /// Goods produced in the statistics window (markets: goods delivered); with `elapsed` it gives
+    /// the productivity the building window shows. Both are halved when the window exceeds 239 s.
+    std::uint16_t produced = 0;
+    std::uint16_t elapsed = 0;  ///< length of the statistics window
 
-    static constexpr std::uint16_t kProgressDone = 512;
+    static constexpr std::uint8_t kFullRate = 128;
+    static constexpr std::uint16_t kProgressDone = 512;  ///< market: `produced` of a full cycle
+
+    [[nodiscard]] constexpr bool working() const noexcept { return rate != 0; }
 };
 
 /// What the icon above a building of the local player shows (0x0047CDD0).
@@ -59,7 +71,7 @@ enum class ProductionStatus : std::uint8_t {
 
 /// Smoke rises from the chimney while the building works (0x0047CF30).
 [[nodiscard]] constexpr bool smoke_visible(const Production& p) noexcept {
-    return p.enabled && p.working;
+    return p.enabled && p.working();
 }
 
 }  // namespace o1602::sim

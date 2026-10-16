@@ -71,9 +71,25 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             for (std::size_t i = 0; i < b.attached_figures.size(); ++i) {
                 b.attached_figures[i] = static_cast<std::uint16_t>(std::max(0, prodtyp.integer("Rauchfignr", i)));
             }
+            const auto tons = [&](const char* name) {
+                const cod::Field* f = prodtyp.field(name);
+                const double v = f != nullptr && !f->values.empty() ? f->values[0].real : 0.0;
+                // The original truncates (_ftol); the values in haeuser.cod are exact multiples of 1/32.
+                return v > 0.0 ? static_cast<std::uint32_t>(v * kStockUnitsPerTon) : 0U;
+            };
+            b.ware = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Ware")));
+            b.raw_ware = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Rohstoff")));
+            b.raw2_ware = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Workstoff")));
+            b.produce_amount = tons("Prodmenge");
+            b.raw_amount = tons("Rohmenge");
+            b.raw2_amount = tons("Workmenge");
+            b.interval = non_negative(prodtyp.integer("Interval"));
+            b.worker_figure = static_cast<std::uint16_t>(non_negative(prodtyp.integer("Figurnr")));
+            b.worker_count = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Figuranz")));
             b.max_stock = non_negative(prodtyp.integer("Maxlager")) * kStockUnitsPerTon;
             b.max_idle_cycles = non_negative(prodtyp.integer("Maxnorohst"));
             b.stock_animation = (prodtyp.integer("LagAniFlg") & 1) != 0;
+            b.continuous_animation = (prodtyp.integer("Anicontflg") & 1) != 0;
         }
 
         // Duplicate ids exist in the original (three ruins); the first record wins, as in the

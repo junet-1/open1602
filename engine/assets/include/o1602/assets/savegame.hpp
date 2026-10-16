@@ -57,13 +57,18 @@ struct ProductionRecord {
     std::uint8_t island = 0;  ///< island number (INSEL5 header)
     std::uint8_t x = 0;       ///< origin tile of the building on the island
     std::uint8_t y = 0;
-    bool enabled = true;                 ///< switched on by the player (+0x14 bit 0; runtime +3 bit 3)
-    bool working = false;                ///< has raw material and is producing (+0x0F, 0x80; runtime +0x0E)
-    std::uint8_t anim_phase = 0;         ///< animation offset (+0x14 bits 2-5; runtime +3 bits 4-7)
-    std::uint8_t idle_cycles = 0;        ///< cycles without raw material, saturates at 15 (+0x15 bits 0-3)
-    std::uint16_t stock = 0;             ///< goods produced and not yet collected, 1/32 t (+0x05)
-    std::uint16_t progress = 0;          ///< progress of the current cycle, 512 = done (+0x10)
-    std::array<std::uint8_t, 21> raw{};  ///< bytes 3..23 as stored; the remaining fields are still open
+    bool enabled = true;                       ///< switched on by the player (+0x14 bit 0; runtime +3 bit 3)
+    std::uint8_t anim_phase = 0;               ///< animation offset (+0x14 bits 2-5; runtime +3 bits 4-7)
+    std::uint16_t stock = 0;                   ///< produced goods waiting for a carrier, 1/32 t (+0x05; runtime +0x0C)
+    std::uint16_t countdown = 0;               ///< game seconds until the next cycle (+0x08; runtime +0x04)
+    std::uint16_t raw2 = 0;                    ///< second raw material (Workstoff), 1/32 t (+0x0A; runtime +0x08)
+    std::uint16_t raw = 0;                     ///< raw material (Rohstoff), 1/32 t (+0x0C; runtime +0x0A)
+    std::uint8_t rate = 0;                     ///< working rate of the current cycle, 128 = full (+0x0F; runtime +0x0E)
+    std::uint16_t produced = 0;                ///< goods produced in the statistics window, 1/32 t (+0x10)
+    std::uint16_t elapsed = 0;                 ///< length of the statistics window, game seconds (+0x12)
+    std::uint8_t idle_cycles = 0;              ///< cycles without raw material, saturates at 15 (+0x15 bits 0-3)
+    std::uint8_t flags = 0;                    ///< runtime +0x0F bits 4 and 6 (+0x14 bits 6 and 1), meaning open
+    std::array<std::uint8_t, 21> raw_bytes{};  ///< bytes 3..23 as stored
 };
 
 /// HIRSCH2 entry (8 bytes, up to 8 per island, island + 0x6C; written by the island saver

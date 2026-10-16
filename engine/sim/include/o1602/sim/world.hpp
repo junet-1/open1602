@@ -119,6 +119,8 @@ public:
     void add_soldier(const Soldier& soldier) { m_soldiers.push_back(soldier); }
 
     [[nodiscard]] const std::vector<Production>& productions() const noexcept { return m_productions; }
+    /// Mutable for the simulation; entries keep their index (other entries may refer to it).
+    [[nodiscard]] std::vector<Production>& productions() noexcept { return m_productions; }
     /// Production state of the building whose origin tile is (x, y) on island `island` (index into
     /// islands()), nullptr if it has none. Constant time: the renderer asks for every visible
     /// production building in every frame.

@@ -106,6 +106,12 @@ struct DrawCommand {
 [[nodiscard]] std::uint32_t production_frame(const assets::BuildingType& building, std::uint32_t global_frame,
                                              const sim::Production* production);
 
+/// New animation phase of a production building whose work starts or stops (0x004638C0), so the
+/// picture continues smoothly: starting keeps the current frame ((phase + frame) = old phase);
+/// stopping freezes the current frame with Anicontflg, otherwise the animation returns to frame 0.
+[[nodiscard]] std::uint8_t phase_after_change(const assets::BuildingType& building, std::uint8_t phase,
+                                              std::uint32_t global_frame, bool working);
+
 /// Sprite index for a map cell with an explicit global animation frame of its building type
 /// (default_frame). `building` may be null (sprite unchanged).
 [[nodiscard]] std::uint32_t animated_sprite(const sim::MapCell& cell, const assets::BuildingType* building,

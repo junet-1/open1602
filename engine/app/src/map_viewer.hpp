@@ -24,6 +24,7 @@
 #include "o1602/render/sdl_sprite_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/world_graphics.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
 union SDL_Event;
@@ -75,6 +76,8 @@ private:
     core::Status save_screenshot(const std::filesystem::path& path);
 
     void zoom_by(int steps, double sx, double sy);
+    /// Animation phases of buildings that started or stopped work (presentation only).
+    void apply_production_events();
 
     assets::GameDirectory m_game;
     assets::BuildingTable m_buildings;
@@ -88,6 +91,7 @@ private:
     render::AnimalFigures m_animals;                ///< the islands' animals, grazing
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     ViewerOptions m_options;
+    sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world and m_buildings)
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
     std::unique_ptr<platform::Window> m_window;

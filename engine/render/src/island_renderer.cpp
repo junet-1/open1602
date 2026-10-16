@@ -38,7 +38,7 @@ std::uint32_t production_frame(const assets::BuildingType& building, std::uint32
         return 0;
     }
     if (building.prod_kind == static_cast<std::int32_t>(sim::ProductionKind::Markt)) {  // 0x0047CCD0
-        const std::uint32_t progress = production != nullptr ? production->progress : 0;
+        const std::uint32_t progress = production != nullptr ? production->produced : 0;
         return std::min(((count - 1) * progress + sim::Production::kProgressDone / 2) / sim::Production::kProgressDone,
                         count - 1);
     }
@@ -53,9 +53,20 @@ std::uint32_t production_frame(const assets::BuildingType& building, std::uint32
     }
     std::uint32_t frame = global_frame;  // 0x0047CD10: no state -> the global frame alone
     if (production != nullptr) {
-        frame = production->anim_phase + (production->enabled && production->working ? global_frame : 0);
+        frame = production->anim_phase + (production->enabled && production->working() ? global_frame : 0);
     }
     return frame % count;
+}
+
+std::uint8_t phase_after_change(const assets::BuildingType& building, std::uint8_t phase, std::uint32_t global_frame,
+                                bool working) {
+    if (building.anim_count < 2) {
+        return 0;
+    }
+    if (working) {
+        return static_cast<std::uint8_t>((phase - global_frame) & 0x0FU);
+    }
+    return building.continuous_animation ? static_cast<std::uint8_t>((global_frame + phase) & 0x0FU) : 0;
 }
 
 std::uint32_t animated_sprite(const sim::MapCell& cell, const assets::BuildingType* building,

@@ -52,6 +52,7 @@
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace fs = std::filesystem;
@@ -80,8 +81,9 @@ int usage() {
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
         "                          [--tile X,Y] [--size WxH] [--owners] [--original-sheets] [--original-flags]\n"
-        "                          [--banner P:RRGGBB]\n"
-        "                          (default: whole world at zoom 2; --original-sheets: no figures where the\n"
+        "                          [--banner P:RRGGBB] [--simulate SECONDS]\n"
+        "                          (default: whole world at zoom 2; --simulate: run the economy first; "
+        "--original-sheets: no figures where the\n"
         "                          original has no graphics for them; --original-flags: the original flag\n"
         "                          images instead of the tinted generic flag)\n",
         stderr);
@@ -448,12 +450,15 @@ int cmd_state(const Args& args) {
     for (const auto& p : state->production) {
         Counts& c = production[p.island];
         ++c.buildings;
-        c.working += p.enabled && p.working ? 1U : 0U;
+        c.working += p.enabled && p.rate != 0 ? 1U : 0U;
         c.disabled += p.enabled ? 0U : 1U;
         if (args.flag("--production")) {
-            std::printf("  production %u: %2u,%2u %-8s %-7s idle %2u, stock %5.2f t, progress %3u/512\n", p.island, p.x,
-                        p.y, p.enabled ? "on" : "off", p.working ? "working" : "-", p.idle_cycles,
-                        p.stock / static_cast<double>(assets::kStockUnitsPerTon), p.progress);
+            constexpr double kTon = assets::kStockUnitsPerTon;
+            std::printf(
+                "  production %u: %2u,%2u %-3s rate %3u, next %3u s, raw %5.2f/%5.2f t, stock %5.2f t, idle %2u, "
+                "produced %5.2f t in %3u s\n",
+                p.island, p.x, p.y, p.enabled ? "on" : "off", p.rate, p.countdown, p.raw / kTon, p.raw2 / kTon,
+                p.stock / kTon, p.idle_cycles, p.produced / kTon, p.elapsed);
         }
     }
     for (const auto& [island, c] : production) {
@@ -621,6 +626,24 @@ int cmd_render_world(const Args& args) {
     auto world = sim::load_world(*file, *buildings, *game, &warnings);
     if (!world) {
         return fail(world.error());
+    }
+    if (const auto seconds = args.number("--simulate")) {
+        sim::Simulation simulation(*world, *buildings);
+        std::size_t produced = 0;
+        std::size_t stopped = 0;
+        for (std::uint64_t s = 0; s < static_cast<std::uint64_t>(*seconds); ++s) {
+            simulation.advance(1000);
+            for (const auto& e : simulation.take_production_events()) {
+                produced += e.kind == sim::ProductionEvent::Kind::Produced ? 1U : 0U;
+                stopped += e.kind == sim::ProductionEvent::Kind::Stopped ? 1U : 0U;
+            }
+        }
+        std::size_t working = 0;
+        for (const auto& p : world->productions()) {
+            working += p.enabled && p.working() ? 1U : 0U;
+        }
+        std::printf("simulated %lld s: %zu tons produced, %zu buildings stopped, %zu working\n",
+                    static_cast<long long>(*seconds), produced, stopped, working);
     }
 
     render::WorldView view;

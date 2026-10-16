@@ -43,12 +43,30 @@ struct BuildingType {
     /// HAUS_PRODTYP/Maxlager: goods the building holds until a carrier collects them, in 1/32 t
     /// (the original multiplies the cod value by 32 when loading, record +0x30).
     std::uint32_t max_stock = 0;
+    /// HAUS_PRODTYP/Ware, Rohstoff, Workstoff: goods produced and consumed (ware numbers of
+    /// haeuser.cod, record +0x21..+0x23; 0 = none).
+    std::uint8_t ware = 0;
+    std::uint8_t raw_ware = 0;
+    std::uint8_t raw2_ware = 0;
+    /// HAUS_PRODTYP/Prodmenge, Rohmenge, Workmenge: goods per cycle in 1/32 t (record +0x24,
+    /// +0x26, +0x28; the original multiplies by 32 when loading).
+    std::uint32_t produce_amount = 0;
+    std::uint32_t raw_amount = 0;
+    std::uint32_t raw2_amount = 0;
+    /// HAUS_PRODTYP/Interval: game seconds per cycle at full rate (record +0x3A).
+    std::uint32_t interval = 0;
+    /// HAUS_PRODTYP/Figurnr, Figuranz: carriers or workers of the building (record +0x3C, +0x3E).
+    std::uint16_t worker_figure = 0;
+    std::uint8_t worker_count = 0;
     /// HAUS_PRODTYP/Maxnorohst: cycles without raw material before the building reports a shortage
     /// (record +0x36).
     std::uint32_t max_idle_cycles = 0;
     /// HAUS_PRODTYP/LagAniFlg (record +0x47 bit 2): the animation frame shows how full the
     /// building's store is instead of running (forester, stonemason).
     bool stock_animation = false;
+    /// HAUS_PRODTYP/Anicontflg (record +0x47 bit 0): when the building stops, its animation stays
+    /// at the current frame instead of jumping back to the first (grain mill, 0x004638C0).
+    bool continuous_animation = false;
 
     /// Number of base sprites (one per covered tile).
     [[nodiscard]] std::uint32_t tile_count() const noexcept { return size_x * size_y; }

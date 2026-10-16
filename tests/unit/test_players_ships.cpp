@@ -483,13 +483,13 @@ TEST_CASE("savegame: cities, warehouse goods, production list and deer") {
     REQUIRE(state->production.size() == 1);
     CHECK(state->production[0].x == 20);
     CHECK(state->production[0].y == 21);
-    CHECK(state->production[0].raw[0] == 0x5A);
+    CHECK(state->production[0].raw_bytes[0] == 0x5A);
     CHECK(state->production[0].enabled);
-    CHECK(state->production[0].working);
+    CHECK(state->production[0].rate == 0x80);
     CHECK(state->production[0].anim_phase == 5);
     CHECK(state->production[0].idle_cycles == 3);
     CHECK(state->production[0].stock == 32);
-    CHECK(state->production[0].progress == 196);
+    CHECK(state->production[0].produced == 196);
 
     REQUIRE(state->animals.size() == 2);
     CHECK(state->animals[0].island == 1);

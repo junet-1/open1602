@@ -134,6 +134,7 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_world(std::move(world)),
       m_palette(std::move(palette)),
       m_options(std::move(options)),
+      m_simulation(m_world, m_buildings),
       m_clock(m_buildings) {}
 
 MapViewer::~MapViewer() {
@@ -314,6 +315,12 @@ void MapViewer::handle_key(int key, bool shift) {
         case SDLK_SPACE:
             m_paused = !m_paused;
             break;
+        case SDLK_PAGEUP:  // game speed
+            m_simulation.set_speed(m_simulation.speed() * 2);
+            break;
+        case SDLK_PAGEDOWN:
+            m_simulation.set_speed(std::max(1U, m_simulation.speed() / 2));
+            break;
         case SDLK_HOME:
             if (!m_world.islands().empty()) {
                 const auto& island = m_world.islands().front();
@@ -354,6 +361,8 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_camera.scroll(dx * distance, dy * distance);
     }
     if (!m_paused) {
+        m_simulation.advance(delta_ms);
+        apply_production_events();
         m_clock.advance(delta_ms);
         m_animals.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
@@ -391,6 +400,20 @@ void MapViewer::render() {
     SDL_RenderPresent(r);
 }
 
+void MapViewer::apply_production_events() {
+    for (const sim::ProductionEvent& e : m_simulation.take_production_events()) {
+        if (e.kind != sim::ProductionEvent::Kind::Started && e.kind != sim::ProductionEvent::Kind::Stopped) {
+            continue;
+        }
+        sim::Production& p = m_world.productions()[e.production];
+        const sim::MapCell& cell = m_world.islands()[p.island].map.top(p.x, p.y);
+        if (const assets::BuildingType* b = m_buildings.by_sprite(cell.sprite)) {
+            p.anim_phase = render::phase_after_change(*b, p.anim_phase, m_clock.frame(*b),
+                                                      e.kind == sim::ProductionEvent::Kind::Started);
+        }
+    }
+}
+
 void MapViewer::update_title(double fps) {
     const auto& view = m_camera.view();
     std::string title = "Open1602 - " + m_options.scenario.stem().string() + " | " + zoom_name(view.zoom) + " x" +
@@ -416,7 +439,14 @@ void MapViewer::update_title(double fps) {
     title += perf;
     if (m_paused) {
         title += " | paused";
+    } else if (m_simulation.speed() != 1) {
+        title += " | speed x" + std::to_string(m_simulation.speed());
     }
+    const std::uint64_t seconds = m_simulation.game_time_ms() / 1000;
+    char clock[32];
+    std::snprintf(clock, sizeof clock, " | %02llu:%02llu:%02llu", static_cast<unsigned long long>(seconds / 3600),
+                  static_cast<unsigned long long>(seconds / 60 % 60), static_cast<unsigned long long>(seconds % 60));
+    title += clock;
     m_window->set_title(title);
 }
 
