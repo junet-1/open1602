@@ -83,7 +83,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_figures = std::move(figures).value();
     viewer->m_banners =
         render::BannerTable::original(&viewer->m_figures, render::BannerOptions{options.original_flags});
-    viewer->m_building_flags = render::collect_building_flags(viewer->m_world, viewer->m_buildings, viewer->m_figures);
+    viewer->m_building_figures =
+        render::collect_building_figures(viewer->m_world, viewer->m_buildings, viewer->m_figures);
+    viewer->m_local_player = sim::first_human_player(viewer->m_world);
     viewer->m_animals.reset(viewer->m_world, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
@@ -374,7 +376,8 @@ void MapViewer::render() {
         layers.banners = &m_banners;
         layers.banner_flags = &graphics->graphics.banner_flags;
         layers.owner_tint = m_show_owners;
-        layers.building_flags = &m_building_flags;
+        layers.building_figures = &m_building_figures;
+        layers.local_player = m_local_player;
         render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), layers,
                                       m_commands);
         std::int32_t ox = 0;

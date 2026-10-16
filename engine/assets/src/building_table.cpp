@@ -6,6 +6,7 @@
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_predefined.hpp"
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/savegame.hpp"
 #include "o1602/core/file.hpp"
 
 namespace o1602::assets {
@@ -67,6 +68,9 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             for (std::size_t i = 0; i < b.attached_figures.size(); ++i) {
                 b.attached_figures[i] = static_cast<std::uint16_t>(std::max(0, prodtyp.integer("Rauchfignr", i)));
             }
+            b.max_stock = non_negative(prodtyp.integer("Maxlager")) * kStockUnitsPerTon;
+            b.max_idle_cycles = non_negative(prodtyp.integer("Maxnorohst"));
+            b.stock_animation = (prodtyp.integer("LagAniFlg") & 1) != 0;
         }
 
         // Duplicate ids exist in the original (three ruins); the first record wins, as in the

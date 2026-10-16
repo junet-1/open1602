@@ -141,18 +141,19 @@ TEST_CASE("figures: land figure with shadow, position and depth") {
     render::FigureSprites f;
     REQUIRE(render::land_figure_sprites(deer, world, render::WorldView{render::Zoom::Large, 0}, layers, f));
     REQUIRE(f.count == 2);
-    // Point: x = (10.5 - 20.5 + 350) * 32 = 10880, y = 31 * 16 = 496.
+    // Point: x = (10.5 - 20.5 + 350) * 32 = 10880, y = 31 * 16 = 496; the original keeps the figure
+    // at Y = y + Posoffs[1] = 505 (0x00451CC5).
     const render::DrawCommand& shadow = f.parts[0];
     CHECK(shadow.mode == render::DrawCommand::Mode::Shadow);
     CHECK(shadow.tint.a == render::kShadowAlpha);
     CHECK(shadow.sprite == atlas->sheet_base(2) + 8 + 3 * 8);  // no ANIM 1: direction only
     CHECK(shadow.x == 10880 - 7);
-    CHECK(shadow.y == 496 - 9 - 3 + 6);  // centred 9 px (Posoffs[1]) above the point
+    CHECK(shadow.y == 496 - 3 + 6);  // centred on Y - Posoffs[1], the ground point
     const render::DrawCommand& body = f.parts[1];
     CHECK(body.mode == render::DrawCommand::Mode::Normal);
     CHECK(body.sprite == atlas->sheet_base(1) + 4 + 112 + 2 + 3 * 6);
     CHECK(body.x == 10880 - 5);
-    CHECK(body.y == 496 + 3);  // bottom 3 px (Posoffs[0]) below the point
+    CHECK(body.y == 505 + 3);  // bottom at Y + Posoffs[0]
     CHECK(f.row == (496 + 9 - 1) / 16);
 
     // Without its sheet (e.g. SGFX without derived graphics) the figure is not drawn.

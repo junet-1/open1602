@@ -459,11 +459,14 @@ TEST_CASE("data: warehouse, market and tower flags of a scenario") {
     auto world = sim::load_world(*file, *buildings, game, nullptr);
     REQUIRE(world.ok());
 
-    const auto flags = render::collect_building_flags(*world, *buildings, *figures);
+    const auto figures_on_buildings = render::collect_building_figures(*world, *buildings, *figures);
     // "Das Atoll": the three computer players start with warehouses and markets, the pirates
     // with a fortress full of towers; the natives' buildings and the pirate warehouse fly none.
     std::size_t per_owner[8] = {};
-    for (const auto& f : flags) {
+    for (const auto& f : figures_on_buildings) {
+        if (f.role != render::BuildingFigureRole::Flag) {
+            continue;
+        }
         const auto* fig = figures->get(f.figure);
         REQUIRE(fig != nullptr);
         CHECK(fig->sheet == assets::FigureSheet::Ship);
@@ -575,6 +578,18 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
             REQUIRE(sub.building != nullptr);
             CHECK(sub.building->prod_kind == 8);  // HAUS_PRODTYP Kind KONTOR
             CHECK(map.top(w.x, w.y).city == w.city);
+        }
+        // PRODLIST2 names buildings by their origin tile (the lookup of 0x0047CBF0): every entry
+        // is the origin of a building with a HAUS_PRODTYP.
+        CHECK(world->productions().size() == state->production.size());
+        for (const auto& p : world->productions()) {
+            const auto& map = world->islands()[p.island].map;
+            const sim::SubTile sub = map.sub_tile(*buildings, p.x, p.y);
+            REQUIRE(sub.building != nullptr);
+            CHECK(sub.origin_x == p.x);
+            CHECK(sub.origin_y == p.y);
+            CHECK(sub.building->prod_kind > 0);
+            CHECK(p.idle_cycles <= 15);
         }
         ++loaded;
     }

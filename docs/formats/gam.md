@@ -131,17 +131,19 @@ Nach der Figurenzeichenroutine `0x0044FA90` (Fall 1–3 = Schiffe):
 
 - **Sprite** = `Gfx + ((Richtung + 2 · Ansichtsrotation) & 7) · Rotate` (`0x0044FA60`; Schiffe haben `Rotate: 1`).
 - **Position:** Figurpunkt → Bildschirm wie bei den Feldern (`0x0044D940`:
-  x = (fx − fy) · Breite/2, y = (fx + fy) · (Höhe+1)/2). Das Sprite wird waagrecht zentriert, seine
-  Unterkante liegt bei y + `Posoffs[0]` · Breite/64 (Feld +0x0C der Figurdefinition).
+  x = (fx − fy) · Breite/2, y = (fx + fy) · (Höhe+1)/2). Wie jede Figur liegt das Schiff bei
+  Y = y + `Posoffs[1]` · Breite/64 (`0x00451CC5`, [figures.md](../re/figures.md#zeichnen)). Das Sprite
+  wird waagrecht zentriert, seine Unterkante liegt bei Y + `Posoffs[0]` · Breite/64 (Feld +0x0C der
+  Figurdefinition); bei Handelsschiffen (−19, 34) also 15 Pixel unter dem Figurpunkt.
 - **Flagge:** Figur aus der Farbtabelle, Bild `Gfx + Animationsphase (0–7)`. Ihr Abstand vom
   Figurpunkt ist `Fahnoffs[1]` entlang der Schiffsachse, gedreht um (Richtung + 2) · 45°
-  (`0x00443180`), projiziert wie oben. Gehoben wird sie um `Fahnoffs[2]` · Breite/2 (`0x00451220`).
+  (`0x00443180`), projiziert wie oben, ausgehend von Y. Gehoben wird sie um `Fahnoffs[2]` · Breite/2 (`0x00451220`).
   Die Flagge hängt von diesem Punkt nach unten.
 - **Reihenfolge:** Figuren werden zwischen den beiden Durchgängen einer Bildschirmzeile gezeichnet
-  (`0x00489A60`), sortiert nach Bildschirm-y. Open1602 ordnet ein Schiff der letzten Feldzeile zu,
-  deren Raute oberhalb der Rumpfunterkante beginnt. So überdecken flache Meeresfelder den Rumpf nie.
+  (`0x00489A60`), sortiert nach Y. Weil die Rumpfunterkante darüber liegt, überdecken flache
+  Meeresfelder den Rumpf nie.
 
-Offene Punkte: genaue Bezugshöhe beim Einsortieren, Animationsphase der Flagge (Byte +0x0B der
+Offene Punkte: Animationsphase der Flagge (Byte +0x0B der
 Laufzeitfigur; Open1602 nimmt 90 ms je Bild wie `FAHNEMARKT`), Bugwellen (`BUGH`). Der Spielstand
 speichert nur ganze Felder; die Nachkommastellen fahrender Schiffe gehen beim Speichern verloren.
 
@@ -163,7 +165,7 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `STADT4` | 0xA8 | `0x00485020` | Städte `0x005DBAE0`, 75 × 0x258 | Städte (unten, 20) |
 | `KONTOR2` | 0x3EC | `0x00485020` | dieselbe Städtetabelle | Warenlager einer Stadt (unten, 20) |
 | `MARKT2` | 0x104 | `0x00485020` | dieselbe Städtetabelle | Markt: Insel, Stadt; 11 Einträge à 16 Byte (2 u32, Ware als Id − 20000, Byte) (20) |
-| `PRODLIST2` | 0x18 | `0x00485530` | `0x0054A3B8`, 4144 × 0x14 | Produktionsbetriebe: Insel, x, y, Zustand (126) |
+| `PRODLIST2` | 0x18 | `0x00485530` | `0x0054A3B8`, 4144 × 0x14 | Produktionsbetriebe und Kontore am Ursprungsfeld: Zustand, Lager, Fortschritt (unten, 126) |
 | `WERFT` | 0x18 | `0x00485530` | `0x005A6C18`, 160 × 0x12 | Werften: Insel, x, y, Bauauftrag (1) |
 | `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | Militärgebäude: Insel, x, y, 9 Plätze (3) |
 | `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | Wohnhäuser: Insel, x, y, Bewohner und Bedarfsbits (132) |
@@ -215,4 +217,27 @@ Belegt ist die Position: Bei allen Siedlerstädten liegt an (x, y) ein Gebäude 
 `HAUS_PRODTYP Kind` = `KONTOR`, und dessen Feld gehört zur Stadt (Datentest). Die Einheit der
 Bestände hat der Blick ins Kontor im laufenden Spiel bestätigt. Open1602 rechnet intern ebenfalls
 in 1/32 t (`assets::kStockUnitsPerTon`), also ganzzahlig und deterministisch.
+
+### PRODLIST2 – Produktionszustand (0x18 Byte)
+
+Ein Eintrag je Gebäude mit `HAUS_PRODTYP` (Werkstätten, Farmen, Minen, Jäger, Fischer, Markt, Kontor
+…), immer am **Ursprungsfeld** des Gebäudes (Datentest: alle Einträge aller Spielstände). Die
+Schreibroutine packt den 20-Byte-Laufzeiteintrag; die Zuordnung:
+
+| Offset | Inhalt | Laufzeit (`0x0054A3B8` + 20 · i) |
+|---|---|---|
+| 0x00, 0x01, 0x02 | Inselnummer, x, y | +0, +1, +2 |
+| 0x05 | u16 **Lager** in 1/32 t: fertige Ware, die auf den Träger wartet (Vergleich mit `Maxlager`) | +0x0C |
+| 0x08 | u16 | +0x04 (Zähler, wird pro Takt heruntergezählt) |
+| 0x0A, 0x0C | u16, u16 | +0x08, +0x0A |
+| 0x0F | u8 **arbeitet** (0x80) – hat Rohstoff und produziert | +0x0E |
+| 0x10 | u16 **Fortschritt** des laufenden Zyklus, 512 = fertig | +0x10 |
+| 0x12 | u16 | +0x12 |
+| 0x14 | Bit 0 **eingeschaltet**; Bit 1 → +0x0F Bit 6; Bits 2–5 **Animationsphase**; Bit 6 → +0x0F Bit 4 | +3 Bit 3, +3 Bits 4–7 |
+| 0x15 | Bits 0–3 **Zyklen ohne Rohstoff** (bleibt bei 15 stehen; Vergleich mit `Maxnorohst`) | +0x0F Bits 0–3 |
+
+Nicht gespeichert wird Bit 7 von +0x0F (Sonderzustand, Statussymbol ANIM 2). Merlin01: 6 von 18
+Betrieben auf Insel 0 arbeiten, Lager in ganzen Tonnen, Fortschritt 0–514. Szenarien beginnen mit
+lauter ruhenden Betrieben. Was der Zustand für die Darstellung bedeutet:
+[production.md](../re/production.md).
 

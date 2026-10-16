@@ -85,6 +85,10 @@ eine klare Meldung.
 - Das Basisspiel macht die Vorlage aus der weißen Originalflagge. Rot, Blau, Gelb und Weiß werden in
   den aus den Originalbildern ermittelten Farben eingefärbt; wer die Originalbilder möchte, schaltet
   sie ein (`BannerOptions::original_player_flags`, `--original-flags`).
+- **Einheiten in Spielerfarbe** (Soldaten, Reiter, Kanoniere) folgen derselben Regel. Weil die vier
+  Originalfassungen einzeln gezeichnet und keine Umfärbungen sind (Messung in
+  [figures.md](../re/figures.md#soldaten-und-spielerfarben)), behalten Rot, Blau, Gelb und Weiß die
+  Originalbilder; jede weitere Farbe färbt eine beim Laden erzeugte Vorlage ein.
 - Banner mit eigenem Motiv behalten fertige Bilder (`FlagStyle::Sprites`, z. B. der Totenkopf der
   Piraten); Eingeborene und Händler haben keine Flagge (`FlagStyle::None`).
 - In einer Partie ist jedes Banner höchstens einmal vergeben. Das Menü warnt vor zu ähnlichen Farben.

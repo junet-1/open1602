@@ -69,22 +69,34 @@ struct SpriteExtent {
                                                              const AnimationClock& clock, const WorldView& view,
                                                              const Viewport& viewport, const SpriteExtent& extent);
 
-/// Flag on a warehouse (HAUS_PRODTYP Kind KONTOR), market (MARKT) or tower (WACHTURM) in the colour
-/// of its owner.
-/// The original spawns these as display figures for visible buildings every frame (0x00486DA0 ->
-/// 0x004466A0, kind 0x1D); buildings do not move, so Open1602 collects them once per world.
-struct BuildingFlag {
-    double x = 0.0;  ///< world position in tiles (continuous): building centre + rotated Fahnoffs
-    double y = 0.0;
-    double z = 0.0;            ///< height: Fahnoffs[2] in half tile widths
-    std::uint16_t figure = 0;  ///< flag figure (FAHNEMARKT, FAHNEKONTOR1..4)
-    sim::PlayerId owner = sim::kNoPlayer;
-    std::uint8_t phase = 0;  ///< animation offset so neighbouring flags do not wave in lockstep
+/// Figures the original spawns on buildings every frame (Buildings_SpawnDisplayFigures, 0x00486B60
+/// -> 0x004466A0). Buildings do not move, so Open1602 collects them once per world; what depends on
+/// the building's state (smoke, status icons) is decided when drawing.
+enum class BuildingFigureRole : std::uint8_t {
+    Flag,    ///< warehouse, market, tower (kind 0x1D): flag in the colour of the owner's banner
+    Smoke,   ///< chimney of a workshop (kind 0x17): rises while the building works, translucent
+    Status,  ///< icon above a production building of the local player (kind 0x16, NOAKTIV):
+             ///< switched off or short of raw material
 };
 
-[[nodiscard]] std::vector<BuildingFlag> collect_building_flags(const sim::World& world,
-                                                               const assets::BuildingTable& buildings,
-                                                               const assets::FigureTable& figures);
+struct BuildingFigure {
+    BuildingFigureRole role = BuildingFigureRole::Flag;
+    double x = 0.0;  ///< world position in tiles (continuous): building centre + rotated Fahnoffs
+    double y = 0.0;
+    double z = 0.0;                        ///< height: Fahnoffs[2] in half tile widths
+    std::uint16_t figure = 0;              ///< FIGUR number (FAHNEMARKT, RAUCHBAECK, NOAKTIV, ...)
+    sim::PlayerId owner = sim::kNoPlayer;  ///< owner of the city the building belongs to
+    std::uint8_t phase = 0;                ///< animation offset so neighbouring figures do not move in lockstep
+    std::uint16_t island = 0;              ///< the building (index into World::islands(), origin tile) for its state
+    std::uint16_t origin_x = 0;
+    std::uint16_t origin_y = 0;
+};
+
+/// Flags (HAUS_PRODTYP Kind KONTOR, MARKT, WACHTURM), smoke (workshops with Rauchfignr) and status
+/// icons (all production buildings, kinds 1..6) of buildings inside a city.
+[[nodiscard]] std::vector<BuildingFigure> collect_building_figures(const sim::World& world,
+                                                                   const assets::BuildingTable& buildings,
+                                                                   const assets::FigureTable& figures);
 
 /// A figure standing or walking on land (animals now; carriers and soldiers later) as the
 /// simulation or the viewer hands it to the renderer.
@@ -99,6 +111,8 @@ struct FigureInstance {
 
 /// Opacity of figure shadows (the original dithers every second pixel).
 inline constexpr std::uint8_t kShadowAlpha = 128;
+/// Opacity of chimney smoke (the original draws every second pixel, 0x004048E0).
+inline constexpr std::uint8_t kSmokeAlpha = 128;
 
 /// Everything besides the tiles that goes into the world draw list.
 struct WorldLayers {
@@ -114,8 +128,11 @@ struct WorldLayers {
     const std::vector<std::optional<std::uint32_t>>* banner_flags = nullptr;
     /// Ownership view: tiles owned by a player get a diamond in the colour of the owner's banner.
     bool owner_tint = false;
-    /// Warehouse, market and tower flags (collect_building_flags); drawn like ships (same sheet).
-    const std::vector<BuildingFlag>* building_flags = nullptr;
+    /// Flags, smoke and status icons of buildings (collect_building_figures). Smoke and icons need
+    /// the atlas bases of their sheets (`sheet_base`) and follow the buildings' production state.
+    const std::vector<BuildingFigure>* building_figures = nullptr;
+    /// Player whose buildings show status icons (the original: the local player). kNoPlayer: none.
+    sim::PlayerId local_player = sim::kNoPlayer;
     /// Figures on land with their shadows. Needs `figures` and the atlas bases of their sheets
     /// (`sheet_base`, e.g. from WorldGraphics::base); figures whose sheet is missing are skipped.
     const std::vector<FigureInstance>* land_figures = nullptr;
@@ -130,9 +147,10 @@ struct FigureSprites {
     std::uint8_t count = 0;
 };
 
-/// Shadow and body of a land figure (exposed for tests). Body: Gfx + animation (0x0044F8F0),
-/// centred, bottom at y + Posoffs[0] * w/64; shadow: figure `Schatten` from SCHATTEN.BSH, centred
-/// on y - Posoffs[1] * w/64 (cases 0x0C-0x0E of 0x0044FA90).
+/// Shadow and body of a land figure (exposed for tests). The original keeps every figure at
+/// Y = y + Posoffs[1] * w/64 (0x00451CC5), which is also its depth. Body: Gfx + animation
+/// (0x0044F8F0), centred, bottom at Y + Posoffs[0] * w/64; shadow: figure `Schatten` from
+/// SCHATTEN.BSH, centred on Y - Posoffs[1] * w/64 = y (cases 0x0C-0x0E of 0x0044FA90).
 [[nodiscard]] bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, const WorldView& view,
                                        const WorldLayers& layers, FigureSprites& out);
 
@@ -152,9 +170,11 @@ struct ShipSprites {
 [[nodiscard]] bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view,
                                 const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out);
 
-/// Sprite and row of a building flag (exposed for tests); the flag is returned in `out.hull`.
-[[nodiscard]] bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, const WorldView& view,
-                                        const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out);
+/// Sprites and row of a building figure at time `time_ms` (exposed for tests). False if it is not
+/// shown: no graphics, no banner flag, smoke of an idle building, status OK, not the local player.
+[[nodiscard]] bool building_figure_sprites(const BuildingFigure& figure, const sim::World& world,
+                                           const assets::BuildingTable& buildings, const WorldView& view,
+                                           const WorldLayers& layers, std::uint64_t time_ms, FigureSprites& out);
 
 /// Same, but fills `out` (cleared first) so a per-frame caller can reuse its allocation.
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,

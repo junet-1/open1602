@@ -176,6 +176,7 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
             continue;  // pixels were dropped
         }
         const bool shadow = c.mode == DrawCommand::Mode::Shadow;
+        const bool translucent = c.mode == DrawCommand::Mode::Translucent;
         const std::uint32_t alpha = c.tint.a;
         for (std::int32_t y = y0; y < y1; ++y) {
             const std::uint8_t* src = &page[((std::size_t{r.y} + static_cast<std::size_t>(y)) * ps + r.x) * 4];
@@ -190,6 +191,10 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
                     d[0] = static_cast<std::uint8_t>((d[0] * (255 - alpha) + c.tint.r * alpha) / 255);
                     d[1] = static_cast<std::uint8_t>((d[1] * (255 - alpha) + c.tint.g * alpha) / 255);
                     d[2] = static_cast<std::uint8_t>((d[2] * (255 - alpha) + c.tint.b * alpha) / 255);
+                } else if (translucent) {
+                    for (int k = 0; k < 3; ++k) {
+                        d[k] = static_cast<std::uint8_t>((d[k] * (255 - alpha) + s[k] * alpha) / 255);
+                    }
                 } else {
                     std::copy_n(s, 4, d);
                 }

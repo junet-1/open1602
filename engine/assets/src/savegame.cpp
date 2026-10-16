@@ -87,6 +87,12 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         p.island = r[0];
         p.x = r[1];
         p.y = r[2];
+        p.enabled = (r[0x14] & 0x01U) != 0;
+        p.working = r[0x0F] != 0;
+        p.anim_phase = static_cast<std::uint8_t>((r[0x14] >> 2) & 0x0FU);
+        p.idle_cycles = static_cast<std::uint8_t>(r[0x15] & 0x0FU);
+        p.stock = static_cast<std::uint16_t>(r[5] | (r[6] << 8));
+        p.progress = static_cast<std::uint16_t>(r[0x10] | (r[0x11] << 8));
         std::copy(r.begin() + 3, r.end(), p.raw.begin());
         state.production.push_back(p);
     });

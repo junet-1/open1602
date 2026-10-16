@@ -54,8 +54,8 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
                                                 const GraphicsOptions& options = {},
                                                 const BannerTable* banners = nullptr);
 
-/// The sheets the world renderer uses: ships, animals and shadows.
-inline constexpr std::array<assets::FigureSheet, 3> kWorldFigureSheets = {
-    assets::FigureSheet::Ship, assets::FigureSheet::Tiere, assets::FigureSheet::Schatten};
+/// The sheets the world renderer uses: ships, animals, shadows and effects (smoke, status icons).
+inline constexpr std::array<assets::FigureSheet, 4> kWorldFigureSheets = {
+    assets::FigureSheet::Ship, assets::FigureSheet::Tiere, assets::FigureSheet::Schatten, assets::FigureSheet::Effekte};
 
 }  // namespace o1602::render

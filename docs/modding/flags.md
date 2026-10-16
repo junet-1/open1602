@@ -39,6 +39,10 @@ Wappen oder Schrift in festen Farben zeichnen.
 Ein Mod kann außerdem für einzelne Banner eigene, fertig gefärbte Bilder liefern (`FlagStyle::Sprites`),
 wenn ein Motiv nicht einfärbbar sein soll – so behalten die Piraten ihren Totenkopf.
 
+Dieselben Regeln gelten später für Einheiten in Spielerfarbe (Soldaten, Reiter, Kanoniere): Tuch in
+reinem Grau, alles andere mit mindestens einem Wert Abweichung. Für die Originaleinheiten erzeugt
+Open1602 die Vorlage selbst ([figures.md](../re/figures.md#soldaten-und-spielerfarben)).
+
 ## Die Originalflaggen
 
 Das Original hat für Rot, Blau, Gelb und Weiß je eigene, von Hand gerasterte Bilder (`ship.bsh`

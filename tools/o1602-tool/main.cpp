@@ -74,7 +74,8 @@ int usage() {
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
         "  o1602-tool savegames                               (names from Game.dat, needs ANNO1602_DIR)\n"
-        "  o1602-tool state      <file.gam|.szs> [--wares]    (players, cities, warehouses, ships, deer)\n"
+        "  o1602-tool state      <file.gam|.szs> [--wares] [--production]\n"
+        "                        (players, cities, warehouses, production, ships, deer)\n"
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
@@ -438,12 +439,26 @@ int cmd_state(const Args& args) {
             }
         }
     }
-    std::map<unsigned, std::size_t> production;
+    struct Counts {
+        std::size_t buildings = 0;
+        std::size_t working = 0;
+        std::size_t disabled = 0;
+    };
+    std::map<unsigned, Counts> production;
     for (const auto& p : state->production) {
-        ++production[p.island];
+        Counts& c = production[p.island];
+        ++c.buildings;
+        c.working += p.enabled && p.working ? 1U : 0U;
+        c.disabled += p.enabled ? 0U : 1U;
+        if (args.flag("--production")) {
+            std::printf("  production %u: %2u,%2u %-8s %-7s idle %2u, stock %5.2f t, progress %3u/512\n", p.island, p.x,
+                        p.y, p.enabled ? "on" : "off", p.working ? "working" : "-", p.idle_cycles,
+                        p.stock / static_cast<double>(assets::kStockUnitsPerTon), p.progress);
+        }
     }
-    for (const auto& [island, n] : production) {
-        std::printf("production: island %u, %zu buildings\n", island, n);
+    for (const auto& [island, c] : production) {
+        std::printf("production: island %u, %zu buildings, %zu working, %zu switched off\n", island, c.buildings,
+                    c.working, c.disabled);
     }
     std::map<unsigned, std::size_t> deer;
     for (const auto& a : state->animals) {
@@ -684,8 +699,9 @@ int cmd_render_world(const Args& args) {
     layers.banners = &banners;
     layers.banner_flags = &graphics->banner_flags;
     layers.owner_tint = args.flag("--owners");
-    const auto flags = render::collect_building_flags(*world, *buildings, *figures);
-    layers.building_flags = &flags;
+    const auto building_figures = render::collect_building_figures(*world, *buildings, *figures);
+    layers.building_figures = &building_figures;
+    layers.local_player = sim::first_human_player(*world);
     render::AnimalFigures animals;
     animals.reset(*world, *figures);
     animals.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)), *figures);
@@ -709,7 +725,7 @@ int cmd_render_world(const Args& args) {
         std::printf("player: %s, banner %s, money %d\n", sim::role_name(p.role), b != nullptr ? b->id.c_str() : "?",
                     p.money);
     }
-    std::printf("%zu building flags\n", flags.size());
+    std::printf("%zu building figures (flags, smoke, status icons)\n", building_figures.size());
 
     std::printf("%zu ships, %zu islands, %zu sprites, atlas %zu page(s) -> %s (%ux%u)\n", world->ships().size(),
                 world->islands().size(), commands.size(), atlas->pages().size(),

@@ -50,12 +50,20 @@ struct WarehouseRecord {
 };
 
 /// PRODLIST2 record (0x18 bytes, written by 0x00485530 from the list at 0x0054A3B8, 4144 x 0x14):
-/// one production building.
+/// the state of one production building, at the origin tile of the building. The saver packs the
+/// 20-byte runtime entry into these bytes; the decoded fields follow that packing
+/// (docs/formats/gam.md, docs/re/production.md).
 struct ProductionRecord {
-    std::uint8_t island = 0;
-    std::uint8_t x = 0;
+    std::uint8_t island = 0;  ///< island number (INSEL5 header)
+    std::uint8_t x = 0;       ///< origin tile of the building on the island
     std::uint8_t y = 0;
-    std::array<std::uint8_t, 21> raw{};  ///< timers, stock and state flags; meaning still open
+    bool enabled = true;                 ///< switched on by the player (+0x14 bit 0; runtime +3 bit 3)
+    bool working = false;                ///< has raw material and is producing (+0x0F, 0x80; runtime +0x0E)
+    std::uint8_t anim_phase = 0;         ///< animation offset (+0x14 bits 2-5; runtime +3 bits 4-7)
+    std::uint8_t idle_cycles = 0;        ///< cycles without raw material, saturates at 15 (+0x15 bits 0-3)
+    std::uint16_t stock = 0;             ///< goods produced and not yet collected, 1/32 t (+0x05)
+    std::uint16_t progress = 0;          ///< progress of the current cycle, 512 = done (+0x10)
+    std::array<std::uint8_t, 21> raw{};  ///< bytes 3..23 as stored; the remaining fields are still open
 };
 
 /// HIRSCH2 entry (8 bytes, up to 8 per island, island + 0x6C; written by the island saver

@@ -16,6 +16,7 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/production.hpp"
 
 namespace o1602::render {
 
@@ -68,6 +69,9 @@ struct DrawCommand {
         /// original dithers them (every second pixel black, 0x00401D10); a translucent fill
         /// looks the same on today's displays.
         Shadow,
+        /// The sprite with opacity `tint.a`: chimney smoke. The original dithers it like the
+        /// shadows (0x004048E0).
+        Translucent,
     };
 
     std::uint32_t sprite = 0;
@@ -78,8 +82,32 @@ struct DrawCommand {
     Mode mode = Mode::Normal;
 };
 
+/// Sprite of a building tile showing animation frame `frame`: base sprite + frame * AnimAdd +
+/// rotation step (0x00489C90).
+[[nodiscard]] std::uint32_t building_sprite(const sim::MapCell& cell, const assets::BuildingType& building,
+                                            std::uint32_t frame, std::uint8_t view_rotation);
+
+/// Animation frame of a tile without production state: (tile phase + global frame) % AnimAnz
+/// (default case of 0x00489C90).
+[[nodiscard]] std::uint32_t default_frame(const sim::MapCell& cell, const assets::BuildingType& building,
+                                          std::uint32_t global_frame);
+
+/// Whether the original chooses the frames of this building from its production state
+/// (HAUS_PRODTYP Kind 1..7 with at least two frames).
+[[nodiscard]] bool has_production_animation(const assets::BuildingType& building);
+
+/// Animation frame of a production building (0x00489C90 with 0x0047CC80, 0x0047CCD0, 0x0047CD10).
+/// `production` is the state of the building, nullptr if it has none (the original then treats
+/// the stock and progress as 0 and the phase as the global frame):
+/// - LagAniFlg: the frame shows how full the store is, (AnimAnz - 1) * stock / Maxlager, rounded.
+/// - Market: the frame follows the progress of the current cycle, (AnimAnz - 1) * progress / 512.
+/// - otherwise: a working building runs, (phase + global frame) % AnimAnz; an idle or disabled one
+///   stands still at its phase.
+[[nodiscard]] std::uint32_t production_frame(const assets::BuildingType& building, std::uint32_t global_frame,
+                                             const sim::Production* production);
+
 /// Sprite index for a map cell with an explicit global animation frame of its building type
-/// (base sprite + animation frame + rotation step). `building` may be null (sprite unchanged).
+/// (default_frame). `building` may be null (sprite unchanged).
 [[nodiscard]] std::uint32_t animated_sprite(const sim::MapCell& cell, const assets::BuildingType* building,
                                             std::uint32_t global_frame, std::uint8_t view_rotation);
 

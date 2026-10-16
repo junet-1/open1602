@@ -219,17 +219,18 @@ TEST_CASE("world renderer: ship hull, owner flag and row") {
 
     render::ShipSprites s;
     REQUIRE(render::ship_sprites(ship, world, view, layers, 0, s));
-    // Tile centre: x = (10.5 - 20.5 + 350) * 32, y = 31 * 16. Hull: sprite Gfx + direction,
-    // centred, bottom at y + Posoffs[0].
+    // Tile centre: x = (10.5 - 20.5 + 350) * 32, y = 31 * 16 = 496; the figure is kept at
+    // Y = y + Posoffs[1] = 530 (also its depth). Hull: sprite Gfx + direction, centred, bottom at
+    // Y + Posoffs[0].
     CHECK(s.hull.sprite == layers.ship_base + 3);
     CHECK(s.hull.x == 340 * 32 - 10);
-    CHECK(s.hull.y == 496 - 19);
-    CHECK(s.row == (496 - 19 - 1) / 16);
-    // Flag: FAHNE1 (red), frame 0, Fahnoffs height 2.0 * 32 above the figure point.
+    CHECK(s.hull.y == 530 - 19);
+    CHECK(s.row == (530 - 1) / 16);
+    // Flag: FAHNE1 (red), frame 0, Fahnoffs height 2.0 * 32 above Y, hanging down from there.
     REQUIRE(s.has_flag);
     CHECK(s.flag.sprite == layers.ship_base + 8);
     CHECK(s.flag.x == 340 * 32 - 3);
-    CHECK(s.flag.y == 496 - 64 + 4);
+    CHECK(s.flag.y == 530 - 64 + 4);
     REQUIRE(render::ship_sprites(ship, world, view, layers, 200, s));
     CHECK(s.flag.sprite == layers.ship_base + 10);  // 90 ms per flag frame
 
@@ -321,7 +322,7 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     REQUIRE(island.map.place(*buildings->by_id(22102), 7, 7, 0, 0, 1).ok());  // no Rauchfignr
     REQUIRE(world.add_island(std::move(island)).ok());
 
-    const auto flags = render::collect_building_flags(world, *buildings, *figures);
+    const auto flags = render::collect_building_figures(world, *buildings, *figures);
     REQUIRE(flags.size() == 2);
     // Centre of the footprint plus Fahnoffs turned with the building (0x004466A0).
     CHECK(flags[0].x == 7.5);  // 5 + 1 + 2/2 + 0.5
@@ -349,24 +350,26 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     layers.atlas = &*atlas;
     layers.ship_base = atlas->sheet_base(1);
     layers.banners = &banners;
-    render::BuildingFlag flag = flags[0];
+    render::BuildingFigure flag = flags[0];
     flag.phase = 0;
-    render::ShipSprites s;
-    REQUIRE(render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 200, s));
+    render::FigureSprites s;
+    const render::WorldView view{render::Zoom::Large, 0};
+    REQUIRE(render::building_figure_sprites(flag, world, *buildings, view, layers, 200, s));
+    REQUIRE(s.count == 1);
     // Yellow (banner 2), frame 200 / 90 = 2.
-    CHECK(s.hull.sprite == layers.ship_base + 16 + 2);
-    // Point: x = (7.5 - 7.0 + 350) * 32, y = 14.5 * 16 = 232; centred, bottom 2.0 * 32 higher.
-    CHECK(s.hull.x == 11216 - 4);
-    CHECK(s.hull.y == 232 - 64);
-    CHECK(!s.has_flag);
+    CHECK(s.parts[0].sprite == layers.ship_base + 16 + 2);
+    // Point: x = (7.5 - 7.0 + 350) * 32, y = 14.5 * 16 = 232; centred; bottom at
+    // y + Posoffs[1] + Posoffs[0] - 2.0 * 32 = y - 64 (the offsets cancel out).
+    CHECK(s.parts[0].x == 11216 - 4);
+    CHECK(s.parts[0].y == 232 - 64);
     CHECK(s.row == (232 + 40 - 1) / 16);  // sorted by y + Posoffs[1]
 
     // A banner without flag sprites (like the free trader) or an unknown banner shows no flag.
     banners.add(render::Banner{"test:noflag", {}, render::FlagStyle::None, 0, 8});
     world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 3, 0, ""}});
-    CHECK(!render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 0, s));
+    CHECK(!render::building_figure_sprites(flag, world, *buildings, view, layers, 0, s));
     world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 99, 0, ""}});
-    CHECK(!render::building_flag_sprite(flag, world, render::WorldView{render::Zoom::Large, 0}, layers, 0, s));
+    CHECK(!render::building_figure_sprites(flag, world, *buildings, view, layers, 0, s));
 }
 
 TEST_CASE("players: more than the original seven slots and extra banners (ADR 0007)") {
@@ -433,6 +436,11 @@ TEST_CASE("savegame: cities, warehouse goods, production list and deer") {
     prod[1] = 20;
     prod[2] = 21;
     prod[3] = 0x5A;
+    prod[5] = 0x20;     // stock: 32 = 1 t
+    prod[0x0F] = 0x80;  // working
+    put_u16(prod, 0x10, 196);
+    prod[0x14] = 0x01 | (5 << 2);  // enabled, animation phase 5
+    prod[0x15] = 0x03;             // three cycles without raw material
 
     std::vector<std::uint8_t> deer(16, 0);
     deer[0] = 1;
@@ -475,6 +483,12 @@ TEST_CASE("savegame: cities, warehouse goods, production list and deer") {
     CHECK(state->production[0].x == 20);
     CHECK(state->production[0].y == 21);
     CHECK(state->production[0].raw[0] == 0x5A);
+    CHECK(state->production[0].enabled);
+    CHECK(state->production[0].working);
+    CHECK(state->production[0].anim_phase == 5);
+    CHECK(state->production[0].idle_cycles == 3);
+    CHECK(state->production[0].stock == 32);
+    CHECK(state->production[0].progress == 196);
 
     REQUIRE(state->animals.size() == 2);
     CHECK(state->animals[0].island == 1);

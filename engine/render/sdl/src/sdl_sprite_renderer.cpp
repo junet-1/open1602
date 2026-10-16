@@ -104,10 +104,14 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
         const float v0 = static_cast<float>(r.y) * inv_page;
         const float u1 = static_cast<float>(r.x + r.width) * inv_page;
         const float v1 = static_cast<float>(r.y + r.height) * inv_page;
-        // Shadows: the texture colour multiplied by the (black, translucent) vertex colour.
-        const SDL_FColor color = c.mode == DrawCommand::Mode::Shadow ? SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F,
-                                                                                  c.tint.b / 255.0F, c.tint.a / 255.0F}
-                                                                     : white;
+        // Shadows: the texture colour multiplied by the (black, translucent) vertex colour;
+        // translucent sprites: white with the opacity as alpha.
+        SDL_FColor color = white;
+        if (c.mode == DrawCommand::Mode::Shadow) {
+            color = SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, c.tint.a / 255.0F};
+        } else if (c.mode == DrawCommand::Mode::Translucent) {
+            color.a = c.tint.a / 255.0F;
+        }
         const int base = static_cast<int>(m_vertices.size());
         m_vertices.push_back(SDL_Vertex{{x0, y0}, color, {u0, v0}});
         m_vertices.push_back(SDL_Vertex{{x1, y0}, color, {u1, v0}});

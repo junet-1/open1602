@@ -7,20 +7,63 @@
 
 namespace o1602::render {
 
+std::uint32_t building_sprite(const sim::MapCell& cell, const assets::BuildingType& building, std::uint32_t frame,
+                              std::uint8_t view_rotation) {
+    std::uint32_t sprite = cell.sprite;
+    if (building.anim_count > 1) {
+        sprite += building.anim_add * frame;
+    }
+    return sprite + ((static_cast<std::uint32_t>(cell.rotation) + view_rotation) & 3U) * building.rotate;
+}
+
+std::uint32_t default_frame(const sim::MapCell& cell, const assets::BuildingType& building,
+                            std::uint32_t global_frame) {
+    if (building.anim_count < 2) {
+        return 0;
+    }
+    // HAUS_PRODTYP Kind ROHSTWACHS (10) without AnimTime keeps the tile phase; with AnimTime == 0
+    // the global frame never advances, so the general formula gives the same picture.
+    return (cell.anim_phase + global_frame) % building.anim_count;
+}
+
+bool has_production_animation(const assets::BuildingType& building) {
+    return building.anim_count >= 2 && building.prod_kind >= static_cast<std::int32_t>(sim::ProductionKind::Handwerk) &&
+           building.prod_kind <= static_cast<std::int32_t>(sim::ProductionKind::Markt);
+}
+
+std::uint32_t production_frame(const assets::BuildingType& building, std::uint32_t global_frame,
+                               const sim::Production* production) {
+    const std::uint32_t count = building.anim_count;
+    if (count < 2) {
+        return 0;
+    }
+    if (building.prod_kind == static_cast<std::int32_t>(sim::ProductionKind::Markt)) {  // 0x0047CCD0
+        const std::uint32_t progress = production != nullptr ? production->progress : 0;
+        return std::min(((count - 1) * progress + sim::Production::kProgressDone / 2) / sim::Production::kProgressDone,
+                        count - 1);
+    }
+    if (building.stock_animation) {  // 0x0047CC80
+        if (production == nullptr || building.max_stock == 0) {
+            return 0;
+        }
+        // The original does not clamp; a store above Maxlager (not seen in savegames) would pick a
+        // sprite of the next building type. Open1602 stays on the last frame.
+        const std::uint32_t frame = ((count - 1) * production->stock + building.max_stock / 2) / building.max_stock;
+        return std::min(frame, count - 1);
+    }
+    std::uint32_t frame = global_frame;  // 0x0047CD10: no state -> the global frame alone
+    if (production != nullptr) {
+        frame = production->anim_phase + (production->enabled && production->working ? global_frame : 0);
+    }
+    return frame % count;
+}
+
 std::uint32_t animated_sprite(const sim::MapCell& cell, const assets::BuildingType* building,
                               std::uint32_t global_frame, std::uint8_t view_rotation) {
-    std::uint32_t sprite = cell.sprite;
     if (building == nullptr) {
-        return sprite;
+        return cell.sprite;
     }
-    // Animation (0x00489C90, default case): frame = (tile phase + global frame) % AnimAnz.
-    // Production buildings (HAUS_PRODTYP Kind 1..7) choose frames from their production state in
-    // the original; that needs the economy simulation and falls back to the default here.
-    if (building->anim_count > 1) {
-        sprite += building->anim_add * ((cell.anim_phase + global_frame) % building->anim_count);
-    }
-    sprite += ((static_cast<std::uint32_t>(cell.rotation) + view_rotation) & 3U) * building->rotate;
-    return sprite;
+    return building_sprite(cell, *building, default_frame(cell, *building, global_frame), view_rotation);
 }
 
 std::uint32_t sprite_for_cell(const sim::MapCell& cell, const assets::BuildingType* building,

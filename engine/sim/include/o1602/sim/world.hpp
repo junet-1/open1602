@@ -2,7 +2,9 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -13,6 +15,7 @@
 #include "o1602/core/result.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/player.hpp"
+#include "o1602/sim/production.hpp"
 
 namespace o1602::sim {
 
@@ -98,6 +101,17 @@ public:
     [[nodiscard]] const std::vector<Animal>& animals() const noexcept { return m_animals; }
     void add_animal(Animal animal) { m_animals.push_back(animal); }
 
+    [[nodiscard]] const std::vector<Production>& productions() const noexcept { return m_productions; }
+    /// Production state of the building whose origin tile is (x, y) on island `island` (index into
+    /// islands()), nullptr if it has none. Constant time: the renderer asks for every visible
+    /// production building in every frame.
+    [[nodiscard]] const Production* production(std::uint16_t island, std::uint16_t x, std::uint16_t y) const;
+    /// Adds or replaces the state of the building at (p.island, p.x, p.y).
+    void set_production(const Production& p);
+
+    /// Index into islands() of the island with this number (INSEL5 header), if it is placed.
+    [[nodiscard]] std::optional<std::uint16_t> island_index(std::uint32_t number) const noexcept;
+
 private:
     std::uint32_t m_width;
     std::uint32_t m_height;
@@ -106,8 +120,13 @@ private:
     std::vector<Ship> m_ships;
     std::vector<City> m_cities;
     std::vector<Animal> m_animals;
+    std::vector<Production> m_productions;
+    std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x
     std::vector<Cell> m_cells;
 };
+
+/// The player at this computer until there is a lobby: the first human player, kNoPlayer if none.
+[[nodiscard]] PlayerId first_human_player(const World& world) noexcept;
 
 /// Loads a scenario (.SZS/.SZM) or savegame (.GAM): all islands, each on its island template and
 /// placed on the world map, the players and the ships. Problems are collected in `warnings`; islands that cannot be

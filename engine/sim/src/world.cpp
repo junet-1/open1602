@@ -52,6 +52,48 @@ const City* World::city(std::uint16_t island, std::uint8_t index) const noexcept
     return nullptr;
 }
 
+namespace {
+
+constexpr std::uint64_t production_key(std::uint16_t island, std::uint16_t x, std::uint16_t y) noexcept {
+    return (std::uint64_t{island} << 32) | (std::uint64_t{y} << 16) | x;
+}
+
+}  // namespace
+
+const Production* World::production(std::uint16_t island, std::uint16_t x, std::uint16_t y) const {
+    const auto it = m_production_index.find(production_key(island, x, y));
+    return it == m_production_index.end() ? nullptr : &m_productions[it->second];
+}
+
+void World::set_production(const Production& p) {
+    const auto [it, inserted] = m_production_index.try_emplace(production_key(p.island, p.x, p.y),
+                                                               static_cast<std::uint32_t>(m_productions.size()));
+    if (inserted) {
+        m_productions.push_back(p);
+    } else {
+        m_productions[it->second] = p;
+    }
+}
+
+std::optional<std::uint16_t> World::island_index(std::uint32_t number) const noexcept {
+    for (std::size_t i = 0; i < m_islands.size(); ++i) {
+        if (m_islands[i].header.number == number) {
+            return static_cast<std::uint16_t>(i);
+        }
+    }
+    return std::nullopt;
+}
+
+PlayerId first_human_player(const World& world) noexcept {
+    const auto& players = world.players();
+    for (std::size_t i = 0; i < players.size() && i < kNoPlayer; ++i) {
+        if (players[i].role == PlayerRole::Human) {
+            return static_cast<PlayerId>(i);
+        }
+    }
+    return kNoPlayer;
+}
+
 core::Result<World> load_world(const assets::ChunkFile& file, const assets::BuildingTable& buildings,
                                const assets::GameDirectory& game, std::vector<std::string>* warnings) {
     auto islands = assets::load_islands(file);
@@ -123,31 +165,34 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     }
     for (const auto& c : state->cities) {
         // STADT4 names the island by its number; find its index in the world.
-        const auto& placed = world.islands();
-        const auto it = std::find_if(placed.begin(), placed.end(),
-                                     [&](const WorldIsland& wi) { return wi.header.number == c.island; });
-        if (it == placed.end()) {
+        const auto island = world.island_index(c.island);
+        if (!island) {
             warn("city '" + c.name + "' on unknown island " + std::to_string(c.island));
             continue;
         }
-        world.add_city(
-            City{static_cast<std::uint16_t>(it - placed.begin()), c.index, player_from_original(c.owner), c.name});
+        world.add_city(City{*island, c.index, player_from_original(c.owner), c.name});
+    }
+    for (const auto& p : state->production) {
+        const auto island = world.island_index(p.island);
+        if (!island || p.x >= world.islands()[*island].map.width() || p.y >= world.islands()[*island].map.height()) {
+            warn("production building outside its island " + std::to_string(p.island));
+            continue;
+        }
+        world.set_production(
+            Production{*island, p.x, p.y, p.enabled, p.working, p.anim_phase, p.idle_cycles, p.stock, p.progress});
     }
     // HIRSCH2 stores only position and timer; the kind follows the island's climate: deer
     // (HIRSCH) in the north, antelopes (ANTILOPE) in the south (confirmed in the running game).
     constexpr std::uint16_t kFigureHirsch = 89;
     constexpr std::uint16_t kFigureAntilope = 91;
     for (const auto& a : state->animals) {
-        const auto& placed = world.islands();
-        const auto it = std::find_if(placed.begin(), placed.end(),
-                                     [&](const WorldIsland& wi) { return wi.header.number == a.island; });
-        if (it == placed.end() || a.x >= it->map.width() || a.y >= it->map.height()) {
+        const auto island = world.island_index(a.island);
+        if (!island || a.x >= world.islands()[*island].map.width() || a.y >= world.islands()[*island].map.height()) {
             warn("animal outside its island " + std::to_string(a.island));
             continue;
         }
-        const bool south = (it->header.climate & 1U) != 0;
-        world.add_animal(
-            Animal{static_cast<std::uint16_t>(it - placed.begin()), a.x, a.y, south ? kFigureAntilope : kFigureHirsch});
+        const bool south = (world.islands()[*island].header.climate & 1U) != 0;
+        world.add_animal(Animal{*island, a.x, a.y, south ? kFigureAntilope : kFigureHirsch});
     }
     return world;
 }

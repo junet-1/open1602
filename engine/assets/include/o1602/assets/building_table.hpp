@@ -37,6 +37,15 @@ struct BuildingType {
     /// HAUS_PRODTYP/Rauchfignr: figures shown on the building (record +0x41): smoke of workshops,
     /// flags of warehouses (KONTOR) and markets (MARKT), the market jugglers. 0 = none.
     std::array<std::uint16_t, 2> attached_figures{};
+    /// HAUS_PRODTYP/Maxlager: goods the building holds until a carrier collects them, in 1/32 t
+    /// (the original multiplies the cod value by 32 when loading, record +0x30).
+    std::uint32_t max_stock = 0;
+    /// HAUS_PRODTYP/Maxnorohst: cycles without raw material before the building reports a shortage
+    /// (record +0x36).
+    std::uint32_t max_idle_cycles = 0;
+    /// HAUS_PRODTYP/LagAniFlg (record +0x47 bit 2): the animation frame shows how full the
+    /// building's store is instead of running (forester, stonemason).
+    bool stock_animation = false;
 
     /// Number of base sprites (one per covered tile).
     [[nodiscard]] std::uint32_t tile_count() const noexcept { return size_x * size_y; }

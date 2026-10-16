@@ -81,9 +81,11 @@ private:
     sim::World m_world;
     assets::Palette m_palette;
     assets::FigureTable m_figures;
-    render::BannerTable m_banners;                       ///< colours and flags of the players (ADR 0007)
-    std::vector<render::BuildingFlag> m_building_flags;  ///< buildings do not move: collected once at load
-    render::AnimalFigures m_animals;                     ///< the islands' animals, grazing
+    render::BannerTable m_banners;  ///< colours and flags of the players (ADR 0007)
+    /// Flags, smoke and icons: buildings do not move, so they are collected once at load.
+    std::vector<render::BuildingFigure> m_building_figures;
+    sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
+    render::AnimalFigures m_animals;                ///< the islands' animals, grazing
     ViewerOptions m_options;
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
