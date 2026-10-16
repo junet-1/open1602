@@ -54,6 +54,9 @@ run "${REA_CMD[@]}" --help
 #   0x0049C4A4  string "haeuser.cod"
 P=(--provider ghidra --format json)
 
+step "0) Generic analysis (as suggested by 'rea setup')"
+run "${REA_CMD[@]}" analyze "$EXE"
+
 step "1) Function lookup: WinMain @ 0x4081d0"
 run "${REA_CMD[@]}" function "$EXE" --procedure=0x4081d0 "${P[@]}"
 
