@@ -21,9 +21,16 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
         }
         Slot& slot = m_slots[h.index];
         const std::uint8_t anim = type->anim(w.anim()) != nullptr ? w.anim() : 0;
-        if (!slot.active || slot.generation != h.generation || slot.state.anim != anim) {
+        if (!slot.active || slot.generation != h.generation || slot.requested != anim) {
+            const bool change = slot.active && slot.generation == h.generation;
             slot.generation = h.generation;
+            slot.requested = anim;
             slot.state = start_animation(*type, anim, h.index * 2654435761U + h.generation);
+            if (change) {
+                // A new animation starts from its first frame (0x00446D90): a shot deer falls.
+                slot.state.frame = 0;
+                slot.state.elapsed_ms = 0;
+            }
         } else if (w.moving()) {
             // A frame lasts AnimSpeed * Wegspeed / 32 ms while walking.
             advance_animation(slot.state, *type, dt_ms * 32U / std::max<std::uint32_t>(w.walk_speed, 1));

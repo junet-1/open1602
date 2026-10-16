@@ -1082,8 +1082,9 @@ void Logistics::call_hunter(Handle deer_handle) {
         return;  // only on the territory of a city
     }
     // 0x0047D0E0: the nearest switched-on hunting lodge within 8 tiles. Open1602 asks only the
-    // lodges of the city the deer stands in, skips busy or full ones and lodges whose circle the
-    // deer is outside of, and then tries the next one (S-031).
+    // lodges of the city the deer stands in, skips busy ones and lodges whose circle the deer is
+    // outside of, and then tries the next one (S-031). Like the original, a full lodge hunts on:
+    // the meat waits as raw material (0x0047D940 checks no room).
     struct Candidate {
         std::uint32_t production;
         std::int32_t distance;
@@ -1101,7 +1102,7 @@ void Logistics::call_hunter(Handle deer_handle) {
         }
         const auto b = building_of(i);
         if (!b || b->type->prod_kind != static_cast<std::int32_t>(ProductionKind::Jagdhaus) || b->city != city ||
-            jobs(i) != 0 || p.stock >= b->type->max_stock) {
+            jobs(i) != 0) {
             continue;
         }
         candidates.push_back(Candidate{i, dx * dx + dy * dy});
@@ -1253,26 +1254,36 @@ void Logistics::advance_islands() {
     }
 }
 
-void Logistics::census(std::uint16_t island) {
+std::vector<TilePos> deer_census_spots(const World& world, const assets::BuildingTable& buildings,
+                                       std::uint16_t island) {
     // 0x0046B920: spots where at least 4 of a tile and its 4 neighbours carry trees, scanned in
     // rows y = 1, 3, ... and from the right. The original stops at 500 spots, so big islands only
     // got deer in the north (S-031); Open1602 takes all.
-    const IslandMap& map = m_world->islands()[island].map;
+    const IslandMap& map = world.islands()[island].map;
     std::vector<TilePos> spots;
     for (std::int32_t y = 1; y < static_cast<std::int32_t>(map.height()) - 1; y += 2) {
         for (std::int32_t x = static_cast<std::int32_t>(map.width()) - 2; x >= 1; x -= 2) {
-            const int trees = static_cast<int>(tree_tile(*m_world, *m_buildings, island, x, y)) +
-                              static_cast<int>(tree_tile(*m_world, *m_buildings, island, x - 1, y)) +
-                              static_cast<int>(tree_tile(*m_world, *m_buildings, island, x + 1, y)) +
-                              static_cast<int>(tree_tile(*m_world, *m_buildings, island, x, y - 1)) +
-                              static_cast<int>(tree_tile(*m_world, *m_buildings, island, x, y + 1));
+            const int trees = static_cast<int>(tree_tile(world, buildings, island, x, y)) +
+                              static_cast<int>(tree_tile(world, buildings, island, x - 1, y)) +
+                              static_cast<int>(tree_tile(world, buildings, island, x + 1, y)) +
+                              static_cast<int>(tree_tile(world, buildings, island, x, y - 1)) +
+                              static_cast<int>(tree_tile(world, buildings, island, x, y + 1));
             if (trees >= 4) {
                 spots.push_back({x, y});
             }
         }
     }
+    return spots;
+}
+
+std::uint32_t deer_allowed(std::size_t spots) noexcept {
+    return static_cast<std::uint32_t>(std::min<std::size_t>(8, (spots + 5) / 8));
+}
+
+void Logistics::census(std::uint16_t island) {
+    const std::vector<TilePos> spots = deer_census_spots(*m_world, *m_buildings, island);
     const auto n = static_cast<std::uint32_t>(spots.size());
-    const std::uint32_t allowed = std::min<std::uint32_t>(8, (n + 5) / 8);
+    const std::uint32_t allowed = deer_allowed(n);
     auto& slots = m_world->island(island).deer_spots;
     Random& random = m_world->random(RandomStream::Animals);
     for (std::uint32_t k = 0; k < allowed; ++k) {

@@ -29,6 +29,9 @@ private:
         std::uint32_t generation = 0;
         bool used = false;    ///< seen in this update
         bool active = false;  ///< `state` belongs to the walker in this slot
+        /// Animation the walker asked for; `state` may have moved on to a successor (RANDOM and
+        /// JUMPTO animations: grazing deer look up, a shot deer falls and lies).
+        std::uint8_t requested = 0;
         AnimState state;
     };
     std::vector<Slot> m_slots;  ///< by walker handle index

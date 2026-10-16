@@ -976,3 +976,129 @@ TEST_CASE("data: money of the next city tick matches the original (game00 -> las
         CHECK(world->players()[p].money + delta[p] == later->players()[p].money);
     }
 }
+
+namespace {
+
+/// The first savegame named in Game.dat, if the installation has one.
+std::optional<std::filesystem::path> first_savegame(const assets::GameDirectory& game) {
+    const auto dat = game.resolve("Game.dat");
+    if (!dat) {
+        return std::nullopt;
+    }
+    auto bytes = core::read_file(*dat);
+    if (!bytes) {
+        return std::nullopt;
+    }
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    for (const auto& slot : assets::parse_savegame_slots(text)) {
+        if (auto path = game.resolve(slot.file)) {
+            return path;
+        }
+    }
+    return std::nullopt;
+}
+
+}  // namespace
+
+TEST_CASE("data: deer spots of a savegame follow the census rule") {
+    const auto game = require_game();
+    const auto path = first_savegame(game);
+    if (!path) {
+        SKIP("no savegame");
+    }
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto world = sim::load_world(*file, *buildings, game);
+    REQUIRE(world.ok());
+    // Every island holds at most min(8, (n + 5) / 8) deer for its n forest spots, and almost all
+    // hold exactly that many (the census draws that often; double picks leave a slot empty).
+    std::size_t islands = 0;
+    std::size_t exact = 0;
+    for (std::uint16_t i = 0; i < world->islands().size(); ++i) {
+        std::size_t used = 0;
+        for (const auto& s : world->islands()[i].deer_spots) {
+            used += s.used ? 1U : 0U;
+        }
+        if (used == 0) {
+            continue;
+        }
+        const std::uint32_t allowed = sim::deer_allowed(sim::deer_census_spots(*world, *buildings, i).size());
+        CHECK(used <= allowed);
+        ++islands;
+        exact += used == allowed ? 1U : 0U;
+    }
+    CHECK(islands > 0);
+    CHECK(exact * 10 >= islands * 9);
+}
+
+TEST_CASE("data: a hunting lodge set into a savegame hunts with the original data") {
+    const auto game = require_game();
+    const auto path = first_savegame(game);
+    if (!path) {
+        SKIP("no savegame");
+    }
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto world = sim::load_world(*file, *buildings, game);
+    REQUIRE(world.ok());
+    const assets::BuildingType* lodge = nullptr;
+    for (const auto& b : buildings->types()) {
+        if (b.prod_kind == 5) {  // JAGDHAUS
+            lodge = &b;
+            break;
+        }
+    }
+    REQUIRE(lodge != nullptr);
+    // A deer spot on the territory of a city and an open ground tile of that city next to it.
+    bool placed = false;
+    std::uint32_t lodge_index = 0;
+    for (std::uint16_t i = 0; i < world->islands().size() && !placed; ++i) {
+        sim::IslandMap& map = world->island(i).map;
+        for (const auto& spot : world->islands()[i].deer_spots) {
+            if (!spot.used || map.top(spot.x, spot.y).city == sim::MapCell::kNoCity || placed) {
+                continue;
+            }
+            const sim::MapCell centre = map.top(spot.x, spot.y);
+            for (std::int32_t r = 2; r <= 5 && !placed; ++r) {
+                for (std::int32_t dy = -r; dy <= r && !placed; ++dy) {
+                    for (std::int32_t dx = -r; dx <= r && !placed; ++dx) {
+                        const std::int32_t x = spot.x + dx;
+                        const std::int32_t y = spot.y + dy;
+                        if (!map.contains(x, y)) {
+                            continue;
+                        }
+                        const sim::MapCell& c = map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
+                        const assets::BuildingType* t = buildings->by_sprite(c.sprite);
+                        if (t == nullptr || t->kind != 11 || t->prod_kind == sim::kProdKindGrowing ||
+                            c.city != centre.city) {
+                            continue;
+                        }
+                        REQUIRE(map.place(*lodge, x, y, 0, 0, centre.owner, centre.city).ok());
+                        sim::Production p;
+                        p.island = i;
+                        p.x = static_cast<std::uint16_t>(x);
+                        p.y = static_cast<std::uint16_t>(y);
+                        world->set_production(p);
+                        lodge_index = *world->production_index(i, p.x, p.y);
+                        placed = true;
+                    }
+                }
+            }
+        }
+    }
+    REQUIRE(placed);
+    sim::Simulation simulation(*world, *buildings, *figures);
+    for (int s = 0; s < 900; ++s) {
+        simulation.advance(1000);
+    }
+    // In 15 minutes the hunter brought several deer; the lodge made food from them.
+    CHECK(simulation.logistics().stats().deer_hunted >= 3);
+    const sim::Production& p = world->productions()[lodge_index];
+    CHECK(p.produced > 0);
+}

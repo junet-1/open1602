@@ -49,6 +49,13 @@ struct BuildingAt {
 /// Centre tile: origin + (size - 1) / 2.
 [[nodiscard]] TilePos centre_tile(const BuildingAt& building) noexcept;
 
+/// Forest spots where deer may settle (0x0046B920): tiles of odd rows and the island's column
+/// parity where at least 4 of the tile and its 4 neighbours carry trees.
+[[nodiscard]] std::vector<TilePos> deer_census_spots(const World& world, const assets::BuildingTable& buildings,
+                                                     std::uint16_t island);
+/// How many deer a forest with `spots` such spots feeds: min(8, (spots + 5) / 8).
+[[nodiscard]] std::uint32_t deer_allowed(std::size_t spots) noexcept;
+
 enum class WalkerKind : std::uint8_t {
     Carrier,    ///< fetches raw material for a workshop (figure kind 8)
     Cart,       ///< brings goods of producers to the warehouse (figure kind 0x0B)
