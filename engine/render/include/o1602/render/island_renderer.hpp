@@ -35,6 +35,12 @@ enum class Zoom : std::uint8_t { Large = 0, Medium = 1, Small = 2 };
     return kSheets[static_cast<int>(zoom) % 3];
 }
 
+/// Ship sheet (figures with Blocknr 2: ships, flags, bow waves) of a zoom level.
+[[nodiscard]] constexpr const char* ship_sheet_path(Zoom zoom) noexcept {
+    constexpr const char* kSheets[] = {"gfx/ship.bsh", "mgfx/ship.bsh", "sgfx/ship.bsh"};
+    return kSheets[static_cast<int>(zoom) % 3];
+}
+
 /// Palette of the terrain sheets, relative to the game directory.
 inline constexpr const char* kTerrainPalettePath = "toolgfx/stadtfld.col";
 
@@ -50,9 +56,16 @@ struct RenderOptions {
 /// One sprite to draw. (x, y) is the left/bottom anchor of the sprite, as in the original blit
 /// routine (0x0048A140), relative to the island's top tile corner.
 struct DrawCommand {
+    static constexpr std::uint8_t kNoTint = 0xFF;
+    /// Not a sprite but a translucent tile diamond (tile width x tile height, given by `tint_size`)
+    /// in the colour `tint`, e.g. for the ownership view. (x, y) is its left / bottom corner box.
+    static constexpr std::uint32_t kOverlayDiamond = 0xFFFFFFFF;
+
     std::uint32_t sprite = 0;
     std::int32_t x = 0;
     std::int32_t y = 0;
+    std::uint8_t tint = kNoTint;  ///< colour of an overlay diamond (assets::PlayerColor)
+    std::uint8_t tint_size = 0;   ///< tile width of an overlay diamond (64 / 32 / 16)
 };
 
 /// Sprite index for a map cell with an explicit global animation frame of its building type

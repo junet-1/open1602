@@ -7,9 +7,11 @@ add_library(o1602_assets
     src/cod.cpp
     src/cod_parser.cpp
     src/cod_predefined.cpp
+    src/figure_table.cpp
     src/game_directory.cpp
     src/island.cpp
     src/palette.cpp
+    src/scenario.cpp
     src/sprite_sheet.cpp
 )
 add_library(o1602::assets ALIAS o1602_assets)

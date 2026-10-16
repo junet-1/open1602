@@ -3,6 +3,8 @@
 
 #include <SDL3/SDL.h>
 
+#include "o1602/render/player_colors.hpp"
+
 namespace o1602::render {
 
 SdlSpriteRenderer::SdlSpriteRenderer(SDL_Renderer* renderer) : m_renderer(renderer) {}
@@ -46,8 +48,12 @@ void SdlSpriteRenderer::flush(std::uint16_t page) {
     if (m_indices.empty()) {
         return;
     }
-    SDL_RenderGeometry(m_renderer, m_pages[page], m_vertices.data(), static_cast<int>(m_vertices.size()),
-                       m_indices.data(), static_cast<int>(m_indices.size()));
+    SDL_Texture* texture = page == kUntextured ? nullptr : m_pages[page];
+    if (texture == nullptr) {
+        SDL_SetRenderDrawBlendMode(m_renderer, SDL_BLENDMODE_BLEND);  // untextured geometry uses it
+    }
+    SDL_RenderGeometry(m_renderer, texture, m_vertices.data(), static_cast<int>(m_vertices.size()), m_indices.data(),
+                       static_cast<int>(m_indices.size()));
     m_vertices.clear();
     m_indices.clear();
 }
@@ -65,6 +71,25 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
     m_vertices.clear();
     m_indices.clear();
     for (const DrawCommand& c : commands) {
+        if (c.sprite == DrawCommand::kOverlayDiamond) {  // untextured translucent tile diamond
+            if (current != kUntextured) {
+                flush(current);
+                current = kUntextured;
+            }
+            const assets::Rgba rgb = player_rgb(static_cast<assets::PlayerColor>(c.tint));
+            const SDL_FColor color{rgb.r / 255.0F, rgb.g / 255.0F, rgb.b / 255.0F, kOverlayAlpha / 255.0F};
+            const float w = static_cast<float>(c.tint_size) * s;
+            const float left = static_cast<float>(c.x * scale - origin_x);
+            const float bottom = static_cast<float>(c.y * scale - origin_y);
+            const float cy = bottom - w / 4.0F;
+            const int base = static_cast<int>(m_vertices.size());
+            m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom - w / 2.0F}, color, {0, 0}});
+            m_vertices.push_back(SDL_Vertex{{left + w, cy}, color, {0, 0}});
+            m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom}, color, {0, 0}});
+            m_vertices.push_back(SDL_Vertex{{left, cy}, color, {0, 0}});
+            m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+            continue;
+        }
         const AtlasRect& r = m_atlas->rect(c.sprite);
         if (r.empty()) {
             continue;

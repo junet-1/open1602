@@ -11,8 +11,10 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
+#include "o1602/render/sprite_atlas.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::render {
@@ -52,6 +54,34 @@ struct SpriteExtent {
                                                              const assets::BuildingTable& buildings,
                                                              const AnimationClock& clock, const WorldView& view,
                                                              const Viewport& viewport, const SpriteExtent& extent);
+
+/// Everything besides the tiles that goes into the world draw list.
+struct WorldLayers {
+    SpriteExtent extent;
+    /// Ships with their player flags. Needs the figure table and an atlas containing SHIP.BSH of the
+    /// current zoom level at `ship_base` (sizes are taken from it, figures are centred).
+    const assets::FigureTable* figures = nullptr;
+    const SpriteAtlas* atlas = nullptr;
+    std::uint32_t ship_base = 0;
+    /// Ownership view: tiles owned by a player get DrawCommand::tint = the owner's colour.
+    bool owner_tint = false;
+};
+
+/// Draw list including ships (drawn after the flat pass of their tile row, like the figures in
+/// the original, 0x0044FA90) and the ownership tint.
+void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
+                           const WorldView& view, const Viewport& viewport, const WorldLayers& layers,
+                           std::vector<DrawCommand>& out);
+
+/// Sprite, position and flag of one ship (exposed for tests).
+struct ShipSprites {
+    std::int32_t row = 0;  ///< tile row (view space) after whose flat pass the ship is drawn
+    DrawCommand hull;
+    DrawCommand flag;
+    bool has_flag = false;
+};
+[[nodiscard]] bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view,
+                                const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out);
 
 /// Same, but fills `out` (cleared first) so a per-frame caller can reuse its allocation.
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,

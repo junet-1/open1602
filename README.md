@@ -43,7 +43,8 @@ o1602-tool render-island NORD/lar01.SCP insel.png     # Insel isometrisch zeichn
 o1602-tool render-world "Szenes/Das Atoll.szs" w.png  # ganze Weltkarte zeichnen
 ```
 
-Kartenbetrachter (braucht SDL3, `-DO1602_BUILD_GAME=ON`): `open1602 --scenario "Szenes/Das Atoll.szs"`,
+Kartenbetrachter (braucht SDL3, `-DO1602_BUILD_GAME=ON`): `open1602 --scenario "Szenes/Das Atoll.szs"`
+oder `open1602 --savegame NAME`,
 Steuerung siehe [docs/setup-arch.md](docs/setup-arch.md#kartenbetrachter-open1602-sdl3).
 
 ## Projektstruktur

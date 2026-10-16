@@ -29,6 +29,35 @@ const char* zoom_name(render::Zoom zoom) {
     }
 }
 
+const char* color_name(assets::PlayerColor color) {
+    switch (color) {
+        case assets::PlayerColor::Red:
+            return "red";
+        case assets::PlayerColor::Blue:
+            return "blue";
+        case assets::PlayerColor::Yellow:
+            return "yellow";
+        case assets::PlayerColor::White:
+            return "white";
+        case assets::PlayerColor::Pirate:
+            return "pirates";
+        case assets::PlayerColor::Natives:
+            return "natives";
+        default:
+            return "trader";
+    }
+}
+
+std::string player_label(const sim::Player& p, std::uint8_t slot) {
+    std::string label = "player " + std::to_string(slot) + " " + color_name(p.color);
+    if (p.kind == assets::PlayerKind::Human) {
+        label += " (human)";
+    } else if (p.kind == assets::PlayerKind::Computer) {
+        label += " (computer)";
+    }
+    return label;
+}
+
 }  // namespace
 
 core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDirectory& game,
@@ -49,6 +78,11 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }
+    for (std::size_t i = 0; i < world->players().size(); ++i) {
+        const auto& p = world->players()[i];
+        std::fprintf(stderr, "%s, money %d\n", player_label(p, static_cast<std::uint8_t>(i)).c_str(), p.money);
+    }
+    std::fprintf(stderr, "%zu islands, %zu ships\n", world->islands().size(), world->ships().size());
     const auto palette_path = game.resolve(render::kTerrainPalettePath);
     if (!palette_path) {
         return core::make_error(core::ErrorCode::NotFound, "toolgfx/stadtfld.col not found");
@@ -57,9 +91,15 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (!palette) {
         return palette.error();
     }
+    auto figures = assets::FigureTable::load(game);
+    if (!figures) {
+        return figures.error();
+    }
 
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
                                                     std::move(palette).value(), options));
+    viewer->m_figures = std::move(figures).value();
+    viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
     if (!sdl) {
         return sdl.error();
@@ -129,10 +169,19 @@ core::Status MapViewer::ensure_graphics(render::Zoom zoom) {
     if (!sheet) {
         return sheet.error();
     }
+    const auto ship_path = m_game.resolve(render::ship_sheet_path(zoom));
+    if (!ship_path) {
+        return core::make_error(core::ErrorCode::NotFound, std::string(render::ship_sheet_path(zoom)) + " not found");
+    }
+    auto ship_sheet = assets::SpriteSheet::load(*ship_path);
+    if (!ship_sheet) {
+        return ship_sheet.error();
+    }
+    const assets::SpriteSheet* sheets[] = {&*sheet, &*ship_sheet};
     const std::int32_t max_texture = m_window->max_texture_size();
     const std::uint32_t page_size = max_texture >= 4096 ? 4096U : 2048U;
     const std::uint64_t start = platform::ticks_ms();
-    auto atlas = render::SpriteAtlas::build(*sheet, m_palette, page_size);
+    auto atlas = render::SpriteAtlas::build(sheets, m_palette, page_size);
     if (!atlas) {
         return atlas.error();
     }
@@ -283,6 +332,9 @@ void MapViewer::handle_key(int key, bool shift) {
         case SDLK_KP_MINUS:
             m_camera.set_pixel_scale(std::max(m_camera.pixel_scale() - 1, 1), cx, cy);
             break;
+        case SDLK_O:
+            m_show_owners = !m_show_owners;
+            break;
         case SDLK_SPACE:
             m_paused = !m_paused;
             break;
@@ -337,8 +389,13 @@ void MapViewer::render() {
 
     auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
     if (graphics) {
-        const render::SpriteExtent extent{graphics->atlas.max_sprite_width(), graphics->atlas.max_sprite_height()};
-        render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), extent,
+        render::WorldLayers layers;
+        layers.extent = render::SpriteExtent{graphics->atlas.max_sprite_width(), graphics->atlas.max_sprite_height()};
+        layers.figures = &m_figures;
+        layers.atlas = &graphics->atlas;
+        layers.ship_base = graphics->atlas.sheet_base(1);
+        layers.owner_tint = m_show_owners;
+        render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), layers,
                                       m_commands);
         std::int32_t ox = 0;
         std::int32_t oy = 0;
@@ -356,7 +413,13 @@ void MapViewer::update_title(double fps) {
         title += " | tile " + std::to_string(tile->x) + "," + std::to_string(tile->y);
         const auto& cell = m_world.cell(tile->x, tile->y);
         if (cell.island != sim::World::kSea) {
-            title += " (island " + std::to_string(cell.island) + ")";
+            title += " (island " + std::to_string(cell.island);
+            const auto& island = m_world.islands()[cell.island];
+            const std::uint8_t owner = island.map.top(cell.local_x, cell.local_y).owner;
+            if (const sim::Player* p = m_world.player(owner)) {
+                title += ", " + player_label(*p, owner);
+            }
+            title += ")";
         }
     }
     char perf[64];

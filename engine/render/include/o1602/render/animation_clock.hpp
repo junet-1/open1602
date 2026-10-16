@@ -22,10 +22,14 @@ public:
     /// Current global frame of a type (to be taken modulo AnimAnz by the caller).
     [[nodiscard]] std::uint32_t frame(const assets::BuildingType& type) const;
 
+    /// Real time advanced so far (figure animations such as flags run on it directly).
+    [[nodiscard]] std::uint64_t elapsed_ms() const noexcept { return m_elapsed; }
+
 private:
     const assets::BuildingTable* m_buildings;
     std::vector<std::uint32_t> m_frame;
     std::vector<std::uint32_t> m_accumulator;
+    std::uint64_t m_elapsed = 0;
 };
 
 }  // namespace o1602::render

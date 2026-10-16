@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
@@ -28,10 +29,11 @@ union SDL_Event;
 namespace o1602::app {
 
 struct ViewerOptions {
-    std::filesystem::path scenario;    ///< .szs / .szm / .gam
+    std::filesystem::path scenario;    ///< scenario (.szs / .szm) or savegame (.gam)
     std::uint32_t max_frames = 0;      ///< stop after N frames (0 = run until closed); for smoke tests
     std::filesystem::path screenshot;  ///< write the last frame as PNG before exiting
     render::Zoom zoom = render::Zoom::Large;
+    bool show_owners = false;  ///< start with the ownership view
     std::int32_t width = 1280;
     std::int32_t height = 800;
 };
@@ -71,6 +73,7 @@ private:
     assets::BuildingTable m_buildings;
     sim::World m_world;
     assets::Palette m_palette;
+    assets::FigureTable m_figures;
     ViewerOptions m_options;
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
@@ -83,6 +86,7 @@ private:
 
     bool m_running = true;
     bool m_paused = false;
+    bool m_show_owners = false;  ///< ownership overlay (key O)
     bool m_dragging = false;
     double m_mouse_x = 0.0;  ///< in output pixels
     double m_mouse_y = 0.0;

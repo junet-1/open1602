@@ -2,11 +2,12 @@
 //
 // open1602 - map viewer (milestone M2). Usage:
 //
-//   open1602 [--game-dir DIR] [--scenario FILE] [--size WxH] [--zoom 0|1|2] [--frames N]
-//            [--screenshot out.png]
+//   open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]
+//            [--owners] [--frames N] [--screenshot out.png]
 //
 // The game directory defaults to $ANNO1602_DIR, the scenario to "Szenes/Das Atoll.szs".
-// A relative scenario path is looked up in the game directory first.
+// A relative scenario path is looked up in the game directory first. --savegame NAME opens
+// SAVEGAME/NAME.gam of the installation (scenarios and savegames share one format).
 
 #include <SDL3/SDL_main.h>
 #include <charconv>
@@ -21,14 +22,15 @@ namespace {
 
 int usage() {
     std::fputs(
-        "usage: open1602 [--game-dir DIR] [--scenario FILE] [--size WxH] [--zoom 0|1|2]\n"
-        "                [--frames N] [--screenshot out.png]\n"
+        "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]\n"
+        "                [--owners] [--frames N] [--screenshot out.png]\n"
         "\n"
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
         "  R / Shift+R    rotate view                 + / -                    pixel scale\n"
         "  Space          pause animations            Home                     first island\n"
-        "  F12            screenshot                  Esc / Q                  quit\n",
+        "  O              ownership view              F12                      screenshot\n"
+        "  Esc / Q        quit\n",
         stderr);
     return 2;
 }
@@ -42,6 +44,7 @@ bool parse_number(std::string_view text, std::int32_t& value) {
 int main(int argc, char** argv) {
     std::string_view game_dir;
     std::string_view scenario = "Szenes/Das Atoll.szs";
+    std::string_view savegame;
     app::ViewerOptions options;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
@@ -50,6 +53,10 @@ int main(int argc, char** argv) {
             game_dir = argv[++i];
         } else if (arg == "--scenario" && has_value) {
             scenario = argv[++i];
+        } else if (arg == "--savegame" && has_value) {
+            savegame = argv[++i];
+        } else if (arg == "--owners") {
+            options.show_owners = true;
         } else if (arg == "--frames" && has_value) {
             std::int32_t frames = 0;
             if (!parse_number(argv[++i], frames) || frames < 0) {
@@ -81,6 +88,14 @@ int main(int argc, char** argv) {
     if (!game) {
         std::fprintf(stderr, "error: %s\n(set ANNO1602_DIR or pass --game-dir)\n", game.error().message.c_str());
         return 1;
+    }
+    std::string savegame_path;
+    if (!savegame.empty()) {
+        savegame_path = "Savegame/" + std::string(savegame);
+        if (!savegame_path.ends_with(".gam") && !savegame_path.ends_with(".GAM")) {
+            savegame_path += ".gam";
+        }
+        scenario = savegame_path;
     }
     if (const auto resolved = game->resolve(scenario)) {
         options.scenario = *resolved;

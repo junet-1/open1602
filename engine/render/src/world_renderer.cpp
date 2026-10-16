@@ -2,6 +2,8 @@
 #include "o1602/render/world_renderer.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <numbers>
 
 namespace o1602::render {
 
@@ -110,6 +112,92 @@ std::vector<DrawCommand> build_world_draw_list(const sim::World& world, const as
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
                            const WorldView& view, const Viewport& viewport, const SpriteExtent& extent,
                            std::vector<DrawCommand>& commands) {
+    WorldLayers layers;
+    layers.extent = extent;
+    build_world_draw_list(world, buildings, clock, view, viewport, layers, commands);
+}
+
+bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view, const WorldLayers& layers,
+                  std::uint64_t time_ms, ShipSprites& out) {
+    if (layers.figures == nullptr || layers.atlas == nullptr) {
+        return false;
+    }
+    const assets::FigureType* fig = layers.figures->get(ship.figure);
+    if (fig == nullptr || fig->sheet != assets::FigureSheet::Ship) {
+        return false;
+    }
+    const RotatedWorld rw(view.rotation);
+    const double tw = tile_width(view.zoom);
+    const double hw = tw / 2.0;
+    const double hh = tile_height(view.zoom) / 2.0;
+
+    // Figure position in continuous view coordinates (tile centre), then the same projection as the
+    // tiles (0x0044D940: x = (fx - fy) * w/2, y = (fx + fy) * (h+1)/2).
+    constexpr double W = sim::World::kWidth;
+    constexpr double H = sim::World::kHeight;
+    const double wx = ship.x + 0.5;
+    const double wy = ship.y + 0.5;
+    double fx = wx;
+    double fy = wy;
+    switch (rw.rotation) {
+        case 1:
+            fx = H - wy;
+            fy = wx;
+            break;
+        case 2:
+            fx = W - wx;
+            fy = H - wy;
+            break;
+        case 3:
+            fx = wy;
+            fy = W - wx;
+            break;
+        default:
+            break;
+    }
+    const double screen_x = (fx - fy + static_cast<double>(rw.height)) * hw;
+    const double screen_y = (fx + fy) * hh;
+
+    // Hull: sprite = Gfx + ((direction + 2 * view rotation) & 7) * Rotate (0x0044FA60), centred,
+    // bottom at y + Posoffs[0] * w / 64 (field +0x0C of the figure record).
+    const std::uint32_t dir = (ship.direction + 2U * rw.rotation) & 7U;
+    out.hull.sprite = layers.ship_base + fig->gfx + dir * fig->rotate;
+    const AtlasRect& hull = layers.atlas->rect(out.hull.sprite);
+    out.hull.x = static_cast<std::int32_t>(std::lround(screen_x)) - hull.width / 2;
+    out.hull.y =
+        static_cast<std::int32_t>(std::lround(screen_y)) + fig->posoffs[0] * static_cast<std::int32_t>(tw) / 64;
+    // The original sorts figures by screen y into the row loop (0x00489A60). Here the ship follows
+    // the last tile row whose diamond starts above the hull's bottom edge, so flat sea tiles never
+    // cover the hull while land and buildings in front still do.
+    out.row = floor_div(out.hull.y - 1, static_cast<std::int32_t>(hh));
+
+    // Flag in the owner's colour (table 0x00498F2C). Offset: Fahnoffs[1] along the ship axis,
+    // rotated by (direction + 2) * 45 degrees (0x00443180), projected; lifted by Fahnoffs[2] * w/2.
+    out.has_flag = false;
+    const sim::Player* owner = world.player(ship.owner);
+    const assets::FigureType* flag =
+        owner != nullptr ? layers.figures->flag_for_color(static_cast<std::uint8_t>(owner->color)) : nullptr;
+    if (flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
+        constexpr std::uint64_t kFlagFrameMs = 90;  // AnimSpeed of the flag figures
+        out.flag.sprite = layers.ship_base + flag->gfx + static_cast<std::uint32_t>((time_ms / kFlagFrameMs) % 8);
+        const AtlasRect& fr = layers.atlas->rect(out.flag.sprite);
+        const double angle = static_cast<double>((dir + 2U) & 7U) * std::numbers::pi / 4.0;
+        const double ox = fig->fahnoffs[1] * std::sin(angle);
+        const double oy = fig->fahnoffs[1] * std::cos(angle);
+        const double px = (ox - oy) * hw;
+        const double py = (ox + oy) * hh;
+        out.flag.x = static_cast<std::int32_t>(std::lround(screen_x + px)) - fr.width / 2;
+        const double top = screen_y + flag->posoffs[0] * tw / 64.0 - py - fig->fahnoffs[2] * hw;
+        out.flag.y = static_cast<std::int32_t>(std::lround(top)) + fr.height;
+        out.has_flag = true;
+    }
+    return true;
+}
+
+void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
+                           const WorldView& view, const Viewport& viewport, const WorldLayers& layers,
+                           std::vector<DrawCommand>& commands) {
+    const SpriteExtent& extent = layers.extent;
     commands.clear();
     if (viewport.width <= 0 || viewport.height <= 0) {
         return;
@@ -139,6 +227,32 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     const std::uint32_t sea_frame = sea != nullptr ? clock.frame(*sea) : 0;
     const std::int32_t sea_elevation = sea != nullptr ? sea->posoffs * tw / 64 : 0;
 
+    // Ships of the visible rows, sorted by row (stable: file order within a row).
+    std::vector<ShipSprites> ships;
+    if (layers.figures != nullptr && layers.atlas != nullptr) {
+        for (const sim::Ship& ship : world.ships()) {
+            ShipSprites s;
+            if (ship_sprites(ship, world, view, layers, clock.elapsed_ms(), s) && s.row >= d_begin && s.row <= d_end) {
+                ships.push_back(s);
+            }
+        }
+        std::stable_sort(ships.begin(), ships.end(),
+                         [](const ShipSprites& a, const ShipSprites& b) { return a.row < b.row; });
+    }
+    std::size_t next_ship = 0;
+
+    // Ownership view: a translucent diamond on the tile surface, after the flat pass of the row.
+    std::vector<DrawCommand> overlays;
+    const auto add_overlay = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom) {
+        const sim::Player* p = world.player(cell.owner);
+        if (!layers.owner_tint || p == nullptr) {
+            return;
+        }
+        const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
+        const std::int32_t elevation = b != nullptr ? b->posoffs * tw / 64 : 0;
+        overlays.push_back(DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation,
+                                       static_cast<std::uint8_t>(p->color), static_cast<std::uint8_t>(tw)});
+    };
     const auto emit = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom) {
         const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
         if (b == nullptr) {
@@ -179,6 +293,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     }
                     continue;
                 }
+                if (!high_pass) {
+                    add_overlay(*cell, sx, row_bottom);
+                }
                 const assets::BuildingType* b = buildings.by_sprite(cell->sprite);
                 if ((b != nullptr && b->high) != high_pass) {
                     continue;
@@ -190,6 +307,18 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     }
                 }
                 emit(*cell, sx, row_bottom);
+            }
+            if (!high_pass) {
+                commands.insert(commands.end(), overlays.begin(), overlays.end());
+                overlays.clear();
+            }
+            if (!high_pass) {  // figures of this row between the two passes
+                for (; next_ship < ships.size() && ships[next_ship].row <= d; ++next_ship) {
+                    commands.push_back(ships[next_ship].hull);
+                    if (ships[next_ship].has_flag) {
+                        commands.push_back(ships[next_ship].flag);
+                    }
+                }
             }
         }
     }

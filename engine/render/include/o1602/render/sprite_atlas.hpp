@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <vector>
 
 #include "o1602/assets/palette.hpp"
@@ -32,6 +33,16 @@ public:
     static core::Result<SpriteAtlas> build(const assets::SpriteSheet& sheet, const assets::Palette& palette,
                                            std::uint32_t page_size = 2048);
 
+    /// Several sheets in one atlas (e.g. STADTFLD.BSH and SHIP.BSH), so sprites of all of them can
+    /// be drawn in one batch. Sprite i of sheet k has the index sheet_base(k) + i.
+    static core::Result<SpriteAtlas> build(std::span<const assets::SpriteSheet* const> sheets,
+                                           const assets::Palette& palette, std::uint32_t page_size = 2048);
+
+    /// First sprite index of a sheet given to build().
+    [[nodiscard]] std::uint32_t sheet_base(std::size_t sheet) const noexcept {
+        return sheet < m_sheet_bases.size() ? m_sheet_bases[sheet] : 0;
+    }
+
     [[nodiscard]] std::size_t sprite_count() const noexcept { return m_rects.size(); }
     [[nodiscard]] const AtlasRect& rect(std::uint32_t sprite) const noexcept {
         return sprite < m_rects.size() ? m_rects[sprite] : m_missing;
@@ -47,6 +58,7 @@ public:
 private:
     std::vector<AtlasRect> m_rects;
     std::vector<RgbaImage> m_pages;
+    std::vector<std::uint32_t> m_sheet_bases;
     AtlasRect m_missing{};
     std::uint32_t m_page_size = 0;
     std::int32_t m_max_width = 0;

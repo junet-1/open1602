@@ -11,6 +11,7 @@ AnimationClock::AnimationClock(const assets::BuildingTable& buildings)
 }
 
 void AnimationClock::advance(std::uint32_t delta_ms) {
+    m_elapsed += delta_ms;
     const auto& types = m_buildings->types();
     for (std::size_t i = 0; i < types.size(); ++i) {
         if (types[i].anim_time <= 0) {

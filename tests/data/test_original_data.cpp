@@ -15,9 +15,11 @@
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
+#include "o1602/assets/scenario.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/render/animation_clock.hpp"
@@ -354,4 +356,57 @@ TEST_CASE("data: world of a scenario loads and draws without missing sprites") {
         }
         CHECK(missing == 0);
     }
+}
+
+TEST_CASE("data: players, colours and ships of scenarios") {
+    const auto game = require_game();
+    auto atoll = assets::ChunkFile::load(*game.resolve("szenes/das atoll.szs"));
+    REQUIRE(atoll.ok());
+    auto players = assets::load_players(*atoll);
+    REQUIRE(players.ok());
+    REQUIRE(players->size() == 7);
+    using K = assets::PlayerKind;
+    using C = assets::PlayerColor;
+    const K kinds[] = {K::Human, K::Computer, K::Computer, K::Computer, K::Trader, K::Pirate, K::Natives};
+    const C colors[] = {C::Red, C::Blue, C::Yellow, C::White, C::Trader, C::Pirate, C::Natives};
+    for (std::size_t i = 0; i < 7; ++i) {
+        CHECK((*players)[i].slot == i);
+        CHECK((*players)[i].kind == kinds[i]);
+        CHECK((*players)[i].color == colors[i]);
+    }
+    CHECK((*players)[0].money == 10000);
+
+    auto ships = assets::load_ships(*atoll);
+    REQUIRE(ships.ok());
+    REQUIRE(ships->size() == 8);
+    CHECK((*ships)[7].name == "Patria");
+    CHECK((*ships)[7].x == 249);
+    CHECK((*ships)[7].y == 156);
+    CHECK((*ships)[7].owner == 0);
+    CHECK((*ships)[0].owner == 5);    // pirate ships
+    CHECK((*ships)[0].figure == 31);  // PIRAT
+
+    // Endlosspiel00: the human player has the blue flag, the first computer player the red one.
+    auto endless = assets::ChunkFile::load(*game.resolve("szenes/endlosspiel00.szs"));
+    REQUIRE(endless.ok());
+    auto endless_players = assets::load_players(*endless);
+    REQUIRE(endless_players.ok());
+    CHECK((*endless_players)[0].color == C::Blue);
+    CHECK((*endless_players)[1].color == C::Red);
+
+    // Every ship refers to a ship figure; every flag colour has its sprites in SHIP.BSH.
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(figures.ok());
+    for (const auto& ship : *ships) {
+        const auto* f = figures->get(ship.figure);
+        REQUIRE(f != nullptr);
+        CHECK(f->sheet == assets::FigureSheet::Ship);
+    }
+    for (std::uint8_t c = 0; c < 5; ++c) {
+        const auto* flag = figures->flag_for_color(c);
+        REQUIRE(flag != nullptr);
+        CHECK(flag->gfx == 192U + 8U * c);
+    }
+    CHECK(figures->flag_for_color(5) == nullptr);
+    CHECK(figures->flag_for_color(6) == nullptr);
 }

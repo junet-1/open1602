@@ -13,7 +13,7 @@
 //                            [--rotation 0-3] [--anim N] [--no-template] [--base FILE.scp]
 //                                                        render an island (needs ANNO1602_DIR)
 //   o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]
-//                           [--tile X,Y] [--size WxH]
+//                           [--tile X,Y] [--size WxH] [--owners]
 //                                                        render the world map or a part of it
 //
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
@@ -33,6 +33,7 @@
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
@@ -68,7 +69,7 @@ int usage() {
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
-        "                          [--tile X,Y] [--size WxH]   (default: whole world at zoom 2)\n",
+        "                          [--tile X,Y] [--size WxH] [--owners]   (default: whole world at zoom 2)\n",
         stderr);
     return 2;
 }
@@ -515,7 +516,20 @@ int cmd_render_world(const Args& args) {
     if (!palette) {
         return fail(palette.error());
     }
-    auto atlas = render::SpriteAtlas::build(*sheet, *palette);
+    const auto ship_path = game->resolve(render::ship_sheet_path(view.zoom));
+    if (!ship_path) {
+        return fail(core::make_error(core::ErrorCode::NotFound, "ship.bsh not found"));
+    }
+    auto ship_sheet = assets::SpriteSheet::load(*ship_path);
+    if (!ship_sheet) {
+        return fail(ship_sheet.error());
+    }
+    auto figures = assets::FigureTable::load(*game);
+    if (!figures) {
+        return fail(figures.error());
+    }
+    const assets::SpriteSheet* sheets[] = {&*sheet, &*ship_sheet};
+    auto atlas = render::SpriteAtlas::build(sheets, *palette);
     if (!atlas) {
         return fail(atlas.error());
     }
@@ -542,8 +556,14 @@ int cmd_render_world(const Args& args) {
                                      "image too large; use --zoom 2 or --size/--tile for a part of the world"));
     }
 
-    const render::SpriteExtent extent{atlas->max_sprite_width(), atlas->max_sprite_height()};
-    const auto commands = render::build_world_draw_list(*world, *buildings, clock, view, viewport, extent);
+    render::WorldLayers layers;
+    layers.extent = render::SpriteExtent{atlas->max_sprite_width(), atlas->max_sprite_height()};
+    layers.figures = &*figures;
+    layers.atlas = &*atlas;
+    layers.ship_base = atlas->sheet_base(1);
+    layers.owner_tint = args.flag("--owners");
+    std::vector<render::DrawCommand> commands;
+    render::build_world_draw_list(*world, *buildings, clock, view, viewport, layers, commands);
     render::RgbaImage image;
     image.width = static_cast<std::uint32_t>(viewport.width);
     image.height = static_cast<std::uint32_t>(viewport.height);
@@ -556,8 +576,13 @@ int cmd_render_world(const Args& args) {
         !status) {
         return fail(status.error());
     }
-    std::printf("%zu islands, %zu sprites, atlas %zu page(s) -> %s (%ux%u)\n", world->islands().size(), commands.size(),
-                atlas->pages().size(), std::string(args.positional[1]).c_str(), image.width, image.height);
+    for (const auto& p : world->players()) {
+        std::printf("player: kind %u, colour %u, money %d\n", static_cast<unsigned>(p.kind),
+                    static_cast<unsigned>(p.color), p.money);
+    }
+    std::printf("%zu ships, %zu islands, %zu sprites, atlas %zu page(s) -> %s (%ux%u)\n", world->ships().size(),
+                world->islands().size(), commands.size(), atlas->pages().size(),
+                std::string(args.positional[1]).c_str(), image.width, image.height);
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }

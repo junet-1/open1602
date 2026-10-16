@@ -177,7 +177,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: Renderer-Grundlage: Sprite-Formel, Maleralgorithmus, Software-Renderer, `render-island` | ✅ `docs/re/rendering.md` |
 | M2: Weltkarte (500 × 350, offenes Meer, Animationstakt), Sprite-Atlas, Kamera, `render-world` | ✅ `docs/re/rendering.md` §5 |
 | M2: SDL3-Kartenbetrachter `open1602` (Scrollen, Zoom an der Maus, Drehen, HiDPI) | ✅ `docs/setup-arch.md` |
-| M2: Spielerfarben, Figuren/Schiffe auf der Karte, Spielstände (`.GAM`) im Betrachter | ⬜ als Nächstes |
+| M2: Spielstände (`.GAM`) im Betrachter, Spieler (PLAYER4), Spielerfarben, Schiffe mit Flaggen, Besitzansicht | ✅ `docs/formats/gam.md` |
+| M2: übrige Figuren (Träger, Soldaten, Tiere), Markt-/Kontorflaggen, Test mit echtem Spielstand | ⬜ als Nächstes |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |

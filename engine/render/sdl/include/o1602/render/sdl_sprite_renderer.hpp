@@ -33,6 +33,8 @@ public:
                      std::int32_t scale);
 
 private:
+    static constexpr std::uint16_t kUntextured = 0xFFFF;  ///< batch of overlay diamonds
+
     void release();
     void flush(std::uint16_t page);
 

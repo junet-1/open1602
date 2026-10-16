@@ -81,6 +81,29 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             warn(status.error().message);
         }
     }
+
+    auto players = assets::load_players(file);
+    if (!players) {
+        return players.error();
+    }
+    std::vector<Player> slots;
+    for (const auto& p : *players) {
+        slots.push_back(Player{p.kind, p.color, p.money, p.name});
+    }
+    world.set_players(std::move(slots));
+
+    auto ships = assets::load_ships(file);
+    if (!ships) {
+        return ships.error();
+    }
+    for (const auto& s : *ships) {
+        if (s.x >= World::kWidth || s.y >= World::kHeight) {
+            warn("ship '" + s.name + "' outside the world map");
+            continue;
+        }
+        const auto direction = static_cast<std::uint8_t>(s.direction == 0xFF ? 0U : s.direction & 7U);
+        world.add_ship(Ship{s.name, s.x, s.y, s.figure, s.owner, direction});
+    }
     return world;
 }
 

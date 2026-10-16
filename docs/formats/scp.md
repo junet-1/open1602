@@ -85,6 +85,9 @@ Inseln mit 0 Einträgen sind unveränderte Vorlagen.
 > Korrektur: Eine frühere Fassung dieses Dokuments meinte, Szenarien enthielten das vollständige
 > Gelände außer dem Meer. Das war falsch – die Darstellung zeigte abgeschnittene Inselteile.
 
+Spielstände (`.GAM`) haben dasselbe Format wie Szenarien; Spieler und Schiffe stehen in
+[gam.md](gam.md).
+
 Die Weltkarte (500 × 350) entsteht, indem jede so aufgebaute Insel an `pos_x/pos_y` ihres Kopfs
 gelegt wird (`sim::load_world`, Vorlagen werden zwischengespeichert, da sich viele Inseln eine teilen).
 Alles außerhalb der Inseln ist offenes Meer, siehe [rendering.md](../re/rendering.md#5-weltkarte-offenes-meer-und-animationstakt).
