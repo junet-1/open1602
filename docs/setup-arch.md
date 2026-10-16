@@ -3,8 +3,12 @@
 ## 1. Build-Werkzeuge (Engine)
 
 ```sh
-sudo pacman -Syu --needed base-devel git cmake ninja gcc clang gdb zlib sdl3 python python-pillow
+sudo pacman -Syu --needed base-devel git cmake ninja gcc clang gdb sdl3 python python-pillow
 ```
+
+zlib wird absichtlich nicht explizit installiert: Auf Systemen mit `zlib-ng-compat` (z. B. CachyOS,
+oder wenn Heroic es mitbringt) stellt dieses Paket `zlib.h` und `libz.so` bereit und kollidiert mit `zlib`.
+CMake findet beide Varianten. Prüfen: `pacman -Qo /usr/include/zlib.h`.
 
 Bauen und testen:
 
