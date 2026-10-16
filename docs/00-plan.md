@@ -179,7 +179,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: SDL3-Kartenbetrachter `open1602` (Scrollen, Zoom an der Maus, Drehen, HiDPI) | ✅ `docs/setup-arch.md` |
 | M2: Spielstände (`.GAM`) im Betrachter, Spieler (PLAYER4), Spielerfarben, Schiffe mit Flaggen, Besitzansicht | ✅ `docs/formats/gam.md` |
 | M2: echter Spielstand geprüft (Merlin01): zwei Inselebenen, globale Chunks, Namen aus `Game.dat`, Flaggenwahl bestätigt | ✅ `docs/formats/gam.md` |
-| M2: Flaggen auf Kontor, Markt und Turm in Besitzerfarbe | 🟡 umgesetzt; Höhe gegen Original-Screenshot prüfen (`docs/re/rendering.md` §6) |
+| M2: Flaggen auf Kontor, Markt und Turm in Besitzerfarbe | ✅ `docs/re/rendering.md` §6 |
+| M2: Abgleich mit einem Bildschirmfoto des Originals (Merlin01, SGFX): Korrelation 0,955 | ✅ `docs/re/rendering.md` §8 |
 | M2: übrige Figuren (Träger, Soldaten, Tiere), Rauch, Gaukler | ⬜ als Nächstes |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |

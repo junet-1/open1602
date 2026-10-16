@@ -291,9 +291,8 @@ bool building_flag_sprite(const BuildingFlag& flag, const sim::World& world, con
     project_point(view, flag.x, flag.y, sx, sy);
     const double tw = tile_width(view.zoom);
     // Drawn like a standing figure (0x0044FA90, kind 0x1D): centred, bottom at y - height.
-    // The routine also adds Posoffs[0] * w/64 (-40 for the flag figures), but then every flag
-    // hangs exactly 40 px (full zoom) above its pole; without it the cloth meets the pole tip on
-    // towers and warehouses alike. Open until checked against the original (docs/re/rendering.md).
+    // The disassembly also adds Posoffs[0] * w/64 (-40 for the flag figures), but a screenshot of
+    // the original matches pixel for pixel without it (docs/re/rendering.md section 6).
     out.hull.x = static_cast<std::int32_t>(std::lround(sx)) - r.width / 2;
     out.hull.y = static_cast<std::int32_t>(std::lround(sy - flag.z * tw / 2.0));
     // Depth: the original sorts display figures by y + Posoffs[1] * w/64 (0x00451F74; +40 for the
