@@ -24,6 +24,7 @@ namespace {
 
 // Limits of the original (docs/re/savegame-writer.md, section 7).
 constexpr std::size_t kMaxIslands = 50;
+constexpr std::size_t kMaxOwnIslands = 255;  // island numbers are one byte
 constexpr std::size_t kMaxCities = 75;
 constexpr std::size_t kMaxShips = 150;
 constexpr std::size_t kMaxSoldiers = 400;
@@ -174,18 +175,22 @@ private:
     void add(std::string name, core::Bytes data) { m_out.push_back(SavedChunk{std::move(name), std::move(data)}); }
 
     core::Status check() const {
-        if (m_world.islands().size() > kMaxIslands) {
-            return make_error(ErrorCode::OutOfRange, "more than 50 islands");
+        // A world of the original's size keeps the original's limits, so that the original can
+        // load the file; a larger one is Open1602's own (O1602MAP) and only bound by the format.
+        const bool original = m_world.width() == World::kOriginalWidth && m_world.height() == World::kOriginalHeight;
+        const std::size_t max_islands = original ? kMaxIslands : kMaxOwnIslands;
+        if (m_world.islands().size() > max_islands) {
+            return make_error(ErrorCode::OutOfRange, "more than " + std::to_string(max_islands) + " islands");
         }
         for (const WorldIsland& i : m_world.islands()) {
-            if (i.header.number >= kMaxIslands) {
+            if (i.header.number >= max_islands) {
                 return make_error(ErrorCode::OutOfRange, "island number " + std::to_string(i.header.number));
             }
         }
-        if (m_world.width() != World::kOriginalWidth || m_world.height() != World::kOriginalHeight) {
-            return make_error(ErrorCode::OutOfRange, "the world is not 500 x 350");
+        if (m_world.width() > 0xFFFF || m_world.height() > 0xFFFF) {
+            return make_error(ErrorCode::OutOfRange, "the world is too large for the file format");
         }
-        if (m_world.cities().size() > kMaxCities) {
+        if (original && m_world.cities().size() > kMaxCities) {
             return make_error(ErrorCode::OutOfRange, "more than 75 cities");
         }
         if (m_world.players().size() > assets::kOriginalPlayerSlots) {
@@ -1146,6 +1151,9 @@ core::Result<core::Bytes> write_savegame(const World& world, const assets::Build
         out.add(c.name, c.data);
     }
     out.add_checksum();
+    if (world.width() != World::kOriginalWidth || world.height() != World::kOriginalHeight) {
+        out.add(kMapChunk, encode_map_size(world.width(), world.height()));  // after WIFF: Open1602 only
+    }
     const core::Bytes extension = encode_extension(world, buildings, simulation, out.bytes());
     out.add(kExtensionChunk, extension);
     return out.take();

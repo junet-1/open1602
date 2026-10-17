@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include "o1602/assets/chunk_writer.hpp"
+#include "o1602/sim/savegame_extension.hpp"
 
 namespace o1602::sim {
 
@@ -185,7 +186,65 @@ core::Result<World> start_new_game(const assets::GameDirectory& game, const asse
     if (!scenario) {
         return scenario.error();
     }
-    return load_world(*scenario, buildings, game, warnings, options.world);
+    if (!options.custom) {
+        return load_world(*scenario, buildings, game, warnings, options.world);
+    }
+    // An own world: plan it, put the players' ships at their starts, make the islands.
+    WorldSettings settings = *options.custom;
+    if (settings.players > kOriginalColours) {
+        return core::make_error(core::ErrorCode::OutOfRange, "more than four players come with the multiplayer");
+    }
+    settings.difficulty = options.difficulty;
+    settings.seed = options.world.seed;
+    const std::vector<TemplateInfo> templates = island_templates(game, buildings);
+    auto plan = plan_world(settings, templates, warnings);
+    if (!plan) {
+        return plan.error();
+    }
+    auto own = own_world_scenario(*scenario, *plan, settings.players);
+    if (!own) {
+        return own.error();
+    }
+    WorldStart start = options.world;
+    start.draws = WorldStart::Draws::Seeded;
+    auto generated = generate_islands(*own, *plan, game, buildings, start, warnings);
+    if (!generated) {
+        return generated.error();
+    }
+    return load_world(generated->file, buildings, game, warnings, start);
+}
+
+core::Result<assets::ChunkFile> own_world_scenario(const assets::ChunkFile& scenario, const WorldPlan& plan,
+                                                   std::uint8_t players) {
+    assets::ChunkWriter out;
+    for (const assets::Chunk& c : scenario.chunks()) {
+        const auto data = scenario.payload(c);
+        if (c.name == "SHIP4") {
+            // The ship of each player at his start; players without a start get none.
+            std::vector<std::uint8_t> ships;
+            for (std::size_t o = 0; o + kShipSize <= data.size(); o += kShipSize) {
+                const std::uint8_t owner = data[o + 0x4B];
+                if (owner >= players || owner >= plan.starts.size()) {
+                    continue;
+                }
+                std::vector<std::uint8_t> r(data.begin() + static_cast<std::ptrdiff_t>(o),
+                                            data.begin() + static_cast<std::ptrdiff_t>(o + kShipSize));
+                const StartArea& s = plan.starts[owner];
+                r[0x1C] = static_cast<std::uint8_t>(s.x);
+                r[0x1D] = static_cast<std::uint8_t>(s.x >> 8);
+                r[0x1E] = static_cast<std::uint8_t>(s.y);
+                r[0x1F] = static_cast<std::uint8_t>(s.y >> 8);
+                ships.insert(ships.end(), r.begin(), r.end());
+            }
+            out.add(c.name, ships);
+        } else if (c.name != std::string_view(kMapChunk)) {
+            out.add(c.name, data);
+        }
+    }
+    if (plan.width != World::kOriginalWidth || plan.height != World::kOriginalHeight) {
+        out.add(kMapChunk, encode_map_size(plan.width, plan.height));
+    }
+    return assets::ChunkFile::from_bytes(out.take());
 }
 
 }  // namespace o1602::sim

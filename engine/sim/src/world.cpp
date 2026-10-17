@@ -432,7 +432,9 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     };
 
     std::map<std::string, std::vector<assets::Island>> templates;  // cache: many islands share one
-    World world(World::kOriginalWidth, World::kOriginalHeight);    // the original map size
+    // The original's map is always 500 x 350; Open1602's own worlds name their size.
+    const auto size = map_size(file);
+    World world(size ? size->first : World::kOriginalWidth, size ? size->second : World::kOriginalHeight);
     for (const auto& island : *islands) {
         const assets::Island* base = nullptr;
         if (const std::string path = island.header.template_path(); !path.empty()) {

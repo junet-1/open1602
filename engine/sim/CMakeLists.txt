@@ -23,6 +23,7 @@ add_library(o1602_sim
     src/savegame_extension.cpp
     src/savegame_writer.cpp
     src/world_generator.cpp
+    src/world_plan.cpp
     src/new_game.cpp
     src/sea_paths.cpp
     src/ships.cpp

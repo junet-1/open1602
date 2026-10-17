@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 
@@ -160,8 +161,13 @@ std::shared_ptr<assets::ChunkFile> open(const assets::GameDirectory& game, const
 class Generator {
 public:
     Generator(ScenarioPlan plan, const assets::GameDirectory& game, const assets::BuildingTable& buildings,
-              PlanRandom& random, std::vector<std::string>* warnings)
-        : m_plan(std::move(plan)), m_game(game), m_buildings(buildings), m_random(random), m_warnings(warnings) {}
+              PlanRandom& random, std::vector<std::string>* warnings, std::vector<StartArea> starts = {})
+        : m_plan(std::move(plan)),
+          m_game(game),
+          m_buildings(buildings),
+          m_random(random),
+          m_warnings(warnings),
+          m_starts(std::move(starts)) {}
 
     core::Result<GeneratedWorld> run(const assets::ChunkFile& scenario, bool guarantee);
 
@@ -178,6 +184,10 @@ private:
     void place_ores();
     void place_treasures();
     void guarantee();
+    void reserve_home_iron();
+    [[nodiscard]] bool village_fits(const ScenarioPlan::Island& e) const;
+    void fair_starts();
+    [[nodiscard]] std::vector<Slot*> in_reach(const StartArea& start) const;
 
     [[nodiscard]] std::vector<Mountain> mountains(const Slot& slot, int type, bool free_only) const;
     [[nodiscard]] std::vector<Slot*> crop_candidates(std::uint8_t ware, std::uint8_t min_size, std::uint8_t max_size,
@@ -206,8 +216,9 @@ private:
     const assets::BuildingTable& m_buildings;
     PlanRandom& m_random;
     std::vector<std::string>* m_warnings;
-    std::vector<Slot> m_slots;       ///< in the order of the plan
-    std::vector<Slot*> m_by_number;  ///< in the order of the island table (island number)
+    std::vector<StartArea> m_starts;  ///< own worlds (world_plan.hpp): the players' start areas
+    std::vector<Slot> m_slots;        ///< in the order of the plan
+    std::vector<Slot*> m_by_number;   ///< in the order of the island table (island number)
     std::uint32_t m_max_crops = 2;
     std::uint32_t m_lost = 0;
     std::uint32_t m_guaranteed = 0;
@@ -255,14 +266,33 @@ void Generator::choose_templates() {
     }
 }
 
+bool Generator::village_fits(const ScenarioPlan::Island& e) const {
+    // SuedNat/big15 is 30 x 30 on a 70 x 60 island (D-010); own worlds leave such villages out.
+    const auto header_of = [&](bool natives) -> std::optional<std::pair<std::uint32_t, std::uint32_t>> {
+        const auto file = open(m_game, template_path(e.climate, e.size, e.template_number, natives));
+        if (!file) {
+            return std::nullopt;
+        }
+        auto islands = assets::load_islands(*file);
+        if (!islands || islands->empty()) {
+            return std::nullopt;
+        }
+        return std::pair{std::uint32_t{islands->front().header.width}, std::uint32_t{islands->front().header.height}};
+    };
+    const auto base = header_of(false);
+    const auto village = header_of(true);
+    return base && village && *base == *village;
+}
+
 void Generator::choose_natives() {
     // Loop B: villages on islands whose template has a native version, north then south.
     for (std::uint8_t climate = 0; climate < 2; ++climate) {
         std::vector<std::size_t> candidates;
         for (std::size_t i = 0; i < m_plan.islands.size(); ++i) {
             const ScenarioPlan::Island& e = m_plan.islands[i];
-            if (e.climate == climate &&
-                m_game.resolve(template_path(e.climate, e.size, e.template_number, true)).has_value()) {
+            if (e.climate == climate && (e.flags & kPlanNoVillage) == 0 &&
+                m_game.resolve(template_path(e.climate, e.size, e.template_number, true)).has_value() &&
+                (m_starts.empty() || village_fits(e))) {
                 candidates.push_back(i);
             }
         }
@@ -705,6 +735,178 @@ void Generator::guarantee() {
     }
 }
 
+std::vector<Slot*> Generator::in_reach(const StartArea& start) const {
+    std::vector<Slot*> out;
+    const std::int64_t r2 = std::int64_t{start.reach} * start.reach;
+    for (Slot* s : m_by_number) {
+        const std::int64_t dx = std::int64_t{s->plan.x} + s->map->width() / 2 - start.x;
+        const std::int64_t dy = std::int64_t{s->plan.y} + s->map->height() / 2 - start.y;
+        if (dx * dx + dy * dy <= r2 || s->plan.number == start.home_island) {
+            out.push_back(s);
+        }
+    }
+    return out;
+}
+
+void Generator::reserve_home_iron() {
+    // Own worlds: every home island gets an iron vein before the main passes, a big one where it
+    // has a big mountain; it counts against the plan's iron, so the world has as much as planned.
+    for (const StartArea& start : m_starts) {
+        Slot* home = nullptr;
+        for (Slot* s : m_by_number) {
+            home = s->plan.number == start.home_island ? s : home;
+        }
+        if (home == nullptr) {
+            continue;
+        }
+        bool big = true;
+        std::vector<Mountain> free = mountains(*home, 0, true);
+        if (free.empty()) {
+            big = false;
+            free = mountains(*home, 2, true);
+        }
+        if (free.empty()) {
+            warn("home island " + std::to_string(home->plan.number) + " has no ore mountain");
+            continue;
+        }
+        const Mountain& m = free[m_random.below(static_cast<std::uint32_t>(free.size()))];
+        if (!home->deposits.place(kIron, m.x, m.y, big ? 0 : 1, big ? kBigIron : kSmallIron)) {
+            continue;
+        }
+        for (ScenarioPlan::Resource& r : m_plan.ores) {
+            if (r.building != 0 && ware_of(r.building) == kIron && r.type == (big ? 0U : 1U) && r.count > 0) {
+                --r.count;
+                break;
+            }
+        }
+    }
+}
+
+void Generator::fair_starts() {
+    // Own worlds: every start has the six crops and a gold vein within reach. What the main
+    // passes did not put there goes to an island near the start.
+    for (const StartArea& start : m_starts) {
+        const std::vector<Slot*> near = in_reach(start);
+        const auto reachable = [&](const Slot* s) { return std::find(near.begin(), near.end(), s) != near.end(); };
+        for (std::uint8_t ware = kTobacco; ware <= kCocoa; ++ware) {
+            const std::uint32_t bit = 1U << (ware - kFirstCrop);
+            if (std::any_of(near.begin(), near.end(), [&](const Slot* s) { return (s->fertility & bit) != 0; })) {
+                continue;
+            }
+            std::vector<Slot*> candidates;
+            for (const std::uint32_t max_crops : {m_max_crops, 3U, 255U}) {
+                for (Slot* s : crop_candidates(ware, 0, 4, max_crops)) {
+                    if (reachable(s)) {
+                        candidates.push_back(s);
+                    }
+                }
+                if (!candidates.empty()) {
+                    break;
+                }
+            }
+            if (candidates.empty() && (ware == kSugar || ware == kWine)) {
+                // Sugar and wine never share an island: one of two islands with the other one
+                // grows this one instead.
+                const std::uint8_t other = ware == kSugar ? kWine : kSugar;
+                const std::uint32_t other_bit = 1U << (other - kFirstCrop);
+                std::vector<Slot*> with_other;
+                for (Slot* s : near) {
+                    if ((s->fertility & other_bit) != 0) {
+                        with_other.push_back(s);
+                    }
+                }
+                if (with_other.size() >= 2) {
+                    Slot* s = with_other.back();
+                    s->fertility = (s->fertility & ~other_bit) | bit;
+                    ++m_guaranteed;
+                    continue;
+                }
+                // Only one northern island near: in an own world it may grow both.
+                Slot* best = nullptr;
+                for (Slot* s : near) {
+                    if (s->plan.climate == 0 && (s->fertility & bit) == 0 &&
+                        (best == nullptr || s->crops < best->crops)) {
+                        best = s;
+                    }
+                }
+                if (best != nullptr) {
+                    give_crop(*best, ware);
+                    ++m_guaranteed;
+                    continue;
+                }
+            }
+            if (candidates.empty()) {
+                warn("no island near start (" + std::to_string(start.x) + ", " + std::to_string(start.y) +
+                     ") can grow crop " + std::to_string(ware));
+                continue;
+            }
+            // The island with the fewest crops, the larger one on a tie.
+            Slot* best = candidates.front();
+            for (Slot* s : candidates) {
+                if (s->crops < best->crops || (s->crops == best->crops && s->plan.size > best->plan.size)) {
+                    best = s;
+                }
+            }
+            give_crop(*best, ware);
+            ++m_guaranteed;
+        }
+        const auto has_gold = std::any_of(near.begin(), near.end(), [](const Slot* s) {
+            for (std::size_t i = 0; i < s->deposits.count; ++i) {
+                if (s->deposits.ware(i) == kGold) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        if (has_gold) {
+            continue;
+        }
+        std::vector<std::pair<Slot*, Mountain>> spots;
+        for (const bool little : {false, true}) {
+            for (Slot* s : near) {
+                if (s->deposits.count >= 2 || (s->plan.size == 0) != little) {
+                    continue;
+                }
+                for (const Mountain& m : mountains(*s, 2, true)) {
+                    spots.emplace_back(s, m);
+                }
+            }
+            if (!spots.empty()) {
+                break;
+            }
+        }
+        if (spots.empty()) {
+            // The second iron vein of a near island makes room.
+            for (Slot* s : near) {
+                if (s->deposits.count == 2 && s->deposits.ware(0) == kIron && s->deposits.ware(1) == kIron) {
+                    spots.emplace_back(s, Mountain{s->deposits.x(1), s->deposits.y(1)});
+                }
+            }
+        }
+        if (spots.empty()) {
+            // Nothing near: the nearest island with a free mountain and a free slot.
+            std::int64_t best = std::numeric_limits<std::int64_t>::max();
+            for (Slot* s : m_by_number) {
+                const std::int64_t dx = std::int64_t{s->plan.x} + s->map->width() / 2 - start.x;
+                const std::int64_t dy = std::int64_t{s->plan.y} + s->map->height() / 2 - start.y;
+                const std::vector<Mountain> free = mountains(*s, 2, true);
+                if (s->deposits.count < 2 && !free.empty() && dx * dx + dy * dy < best) {
+                    best = dx * dx + dy * dy;
+                    spots.assign(1, {s, free.front()});
+                }
+            }
+        }
+        if (spots.empty()) {
+            warn("no mountain for gold near start (" + std::to_string(start.x) + ", " + std::to_string(start.y) + ")");
+            continue;
+        }
+        const auto& [s, m] = spots[m_random.below(static_cast<std::uint32_t>(spots.size()))];
+        if (s->deposits.place(kGold, m.x, m.y, 1, kGoldAmount)) {
+            ++m_guaranteed;
+        }
+    }
+}
+
 std::vector<std::uint8_t> Generator::header(const Slot& slot, const std::vector<Crater>& craters,
                                             const std::array<std::uint8_t, 8>& city_owners) const {
     // INSEL5 as the original saves a generated island (0x00468740 on a zeroed buffer): the plan's
@@ -952,9 +1154,15 @@ core::Result<GeneratedWorld> Generator::run(const assets::ChunkFile& scenario, b
     }
     std::stable_sort(m_by_number.begin(), m_by_number.end(),
                      [](const Slot* a, const Slot* b) { return a->plan.number < b->plan.number; });
+    if (!m_starts.empty()) {
+        reserve_home_iron();
+    }
     hand_out_crops();
     place_ores();
     place_treasures();
+    if (!m_starts.empty()) {
+        fair_starts();
+    }
     if (guarantee_wanted) {
         guarantee();
     }
@@ -1056,6 +1264,15 @@ bool plans_islands(const assets::ChunkFile& file) {
     }
     const auto plan = assets::load_scenario_plan(file);
     return plan && plan->has_value() && !(*plan)->islands.empty();
+}
+
+core::Result<GeneratedWorld> generate_islands(const assets::ChunkFile& scenario, const WorldPlan& plan,
+                                              const assets::GameDirectory& game, const assets::BuildingTable& buildings,
+                                              const WorldStart& start, std::vector<std::string>* warnings) {
+    PlanRandom random(start.seed);
+    Generator generator(plan.plan, game, buildings, random, warnings,
+                        plan.shared_start ? std::vector<StartArea>{} : plan.starts);
+    return generator.run(scenario, start.guarantee_resources);
 }
 
 core::Result<GeneratedWorld> generate_islands(const assets::ChunkFile& scenario, const assets::GameDirectory& game,

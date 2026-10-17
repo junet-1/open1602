@@ -20,6 +20,7 @@
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <charconv>
 #include <cstdio>
@@ -55,6 +56,8 @@
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/new_game.hpp"
+#include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -78,6 +81,10 @@ int usage() {
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
         "  o1602-tool savegames                               (names from Game.dat, needs ANNO1602_DIR)\n"
+        "  o1602-tool new-world <out.gam> [--level 0-3] [--seed N] [--world WxH] [--players N]\n"
+        "                       [--island-count C] [--villages C] [--volcano-islands C] [--island-sizes S]\n"
+        "                       [--together]   (an own world as a new game; C none|few|normal|many,\n"
+        "                                       S small|mixed|large; written as a savegame)\n"
         "  o1602-tool state      <file.gam|.szs> [--wares] [--production]\n"
         "                        (players, cities, warehouses, production, ships, deer)\n"
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
@@ -633,6 +640,8 @@ int cmd_render_world(const Args& args) {
     }
     render::WorldView view;
     view.zoom = static_cast<render::Zoom>(std::min<std::size_t>(args.number("--zoom").value_or(2), 2));
+    view.world_width = world->width();
+    view.world_height = world->height();
     view.rotation = static_cast<std::uint8_t>(args.number("--rotation").value_or(0) & 3U);
 
     const auto palette_path = game->resolve(render::kTerrainPalettePath);
@@ -836,6 +845,93 @@ int cmd_render_world(const Args& args) {
     return 0;
 }
 
+/// "none|few|normal|many" of the world options.
+std::optional<sim::WorldSettings::Amount> amount(const Args& args, std::string_view name) {
+    const auto it = args.options.find(name);
+    if (it == args.options.end()) {
+        return sim::WorldSettings::Amount::Normal;
+    }
+    static constexpr std::array<std::string_view, 4> kNames = {"none", "few", "normal", "many"};
+    for (std::size_t i = 0; i < kNames.size(); ++i) {
+        if (it->second == kNames[i]) {
+            return static_cast<sim::WorldSettings::Amount>(i);
+        }
+    }
+    return std::nullopt;
+}
+
+int cmd_new_world(const Args& args) {
+    if (args.positional.size() != 1) {
+        return usage();
+    }
+    auto game = assets::GameDirectory::from_environment();
+    if (!game) {
+        return fail(game.error());
+    }
+    auto buildings = assets::BuildingTable::load(*game);
+    if (!buildings) {
+        return fail(buildings.error());
+    }
+    auto texts = assets::TextTable::load(*game);
+    if (!texts) {
+        return fail(texts.error());
+    }
+    sim::NewGameOptions options;
+    options.name = "Spieler";
+    options.difficulty = static_cast<std::uint8_t>(std::min<std::size_t>(args.number("--level").value_or(0), 3));
+    options.world.seed = args.number("--seed").value_or(1);
+    options.world.guarantee_resources = true;
+    sim::WorldSettings w;
+    if (const auto size = args.pair("--world", 'x')) {
+        w.width = static_cast<std::uint32_t>(std::max(0, size->first));
+        w.height = static_cast<std::uint32_t>(std::max(0, size->second));
+    }
+    w.players = static_cast<std::uint8_t>(std::clamp<std::size_t>(args.number("--players").value_or(4), 1, 16));
+    const auto islands = amount(args, "--island-count");
+    const auto villages = amount(args, "--villages");
+    const auto volcanoes = amount(args, "--volcano-islands");
+    if (!islands || !villages || !volcanoes) {
+        return usage();
+    }
+    w.islands = *islands;
+    w.natives = *villages;
+    w.volcanoes = *volcanoes;
+    if (const auto it = args.options.find("--island-sizes"); it != args.options.end()) {
+        w.sizes = it->second == "small"   ? sim::WorldSettings::Sizes::Small
+                  : it->second == "large" ? sim::WorldSettings::Sizes::Large
+                                          : sim::WorldSettings::Sizes::Mixed;
+    }
+    if (args.flag("--together")) {
+        w.starts = sim::WorldSettings::Starts::Together;
+    }
+    options.custom = w;
+    std::vector<std::string> warnings;
+    auto world = sim::start_new_game(*game, *buildings, *texts, options, &warnings);
+    if (!world) {
+        return fail(world.error());
+    }
+    for (const auto& text : warnings) {
+        std::fprintf(stderr, "warning: %s\n", text.c_str());
+    }
+    std::printf("world %ux%u, %zu islands, %zu ships\n", world->width(), world->height(), world->islands().size(),
+                world->ships().size());
+    std::size_t villages_made = 0;
+    for (const sim::City& c : world->cities()) {
+        const sim::Player* p = world->player(c.owner);
+        villages_made += p != nullptr && p->role == sim::PlayerRole::Natives ? 1U : 0U;
+    }
+    std::printf("native villages %zu\n", villages_made);
+    auto bytes = sim::write_savegame(*world, *buildings);
+    if (!bytes) {
+        return fail(bytes.error());
+    }
+    if (auto status = core::write_file(std::filesystem::path(args.positional[0]), *bytes); !status) {
+        return fail(status.error());
+    }
+    std::printf("-> %s\n", std::string(args.positional[0]).c_str());
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -873,6 +969,9 @@ int main(int argc, char** argv) {
     }
     if (command == "state") {
         return cmd_state(args);
+    }
+    if (command == "new-world") {
+        return cmd_new_world(args);
     }
     return usage();
 }

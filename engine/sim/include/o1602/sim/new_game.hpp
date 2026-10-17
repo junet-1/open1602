@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,7 @@
 #include "o1602/core/result.hpp"
 #include "o1602/sim/world.hpp"
 #include "o1602/sim/world_generator.hpp"
+#include "o1602/sim/world_plan.hpp"
 
 namespace o1602::sim {
 
@@ -36,6 +38,10 @@ struct NewGameOptions {
     std::uint32_t game_id = 0;
     /// How the islands are drawn; the original takes the RANDTAB from index rand() % 512.
     WorldStart world;
+    /// An own world instead of the endless file's plan (world_plan.hpp): its size, islands and
+    /// start areas, drawn from `world.seed`. Players, money and ships come from the level's file;
+    /// `layout` does not matter then. At most four players until the multiplayer.
+    std::optional<WorldSettings> custom;
 };
 
 /// The original's game id (0x00469410): year % 8, month, day, hour, minute and 8 random bits.
@@ -51,6 +57,11 @@ struct NewGameOptions {
 [[nodiscard]] core::Result<assets::ChunkFile> new_game_scenario(const assets::ChunkFile& endless,
                                                                 const assets::TextTable& text,
                                                                 const NewGameOptions& options);
+
+/// The scenario of an own world: the players' ships at the plan's starts (none for players beyond
+/// `players`), the map size if it is not the original's. The islands are still to be made.
+[[nodiscard]] core::Result<assets::ChunkFile> own_world_scenario(const assets::ChunkFile& scenario,
+                                                                 const WorldPlan& plan, std::uint8_t players);
 
 /// Starts a new endless game: the scenario of new_game_scenario() with its islands made.
 [[nodiscard]] core::Result<World> start_new_game(const assets::GameDirectory& game,

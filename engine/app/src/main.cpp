@@ -35,10 +35,15 @@ int usage() {
         "                [--volcanoes MODE] [--frames N]\n"
         "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
         "                [--islands original|seed]\n"
+        "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
+        "                [--volcano-islands C] [--starts spread|together]\n"
         "                [--screenshot out.png]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
+        "  --world WxH ...    an own world for the new game (any of these options): size in tiles (200-2000),\n"
+        "                     players with a start, island count, villages and volcano islands none|few|normal|\n"
+        "                     many, island sizes small|mixed|large, starts spread (default) or together\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
         "  --original-flags   original flag images instead of the tinted generic flag\n"
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
@@ -77,6 +82,8 @@ int main(int argc, char** argv) {
     new_game_options.name = "Spieler";
     std::optional<std::uint8_t> layout_given;
     std::optional<std::uint64_t> seed_given;
+    sim::WorldSettings custom;
+    bool custom_world = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool has_value = i + 1 < argc;
@@ -196,6 +203,68 @@ int main(int argc, char** argv) {
             } else {
                 return usage();
             }
+        } else if ((arg == "--island-count" || arg == "--villages" || arg == "--volcano-islands") && has_value) {
+            const std::string_view mode = argv[++i];
+            sim::WorldSettings::Amount amount = sim::WorldSettings::Amount::Normal;
+            if (mode == "none") {
+                amount = sim::WorldSettings::Amount::None;
+            } else if (mode == "few") {
+                amount = sim::WorldSettings::Amount::Few;
+            } else if (mode == "normal") {
+                amount = sim::WorldSettings::Amount::Normal;
+            } else if (mode == "many") {
+                amount = sim::WorldSettings::Amount::Many;
+            } else {
+                return usage();
+            }
+            (arg == "--island-count" ? custom.islands
+             : arg == "--villages"   ? custom.natives
+                                     : custom.volcanoes) = amount;
+            custom_world = true;
+        } else if (arg == "--island-sizes" && has_value) {
+            const std::string_view mode = argv[++i];
+            if (mode == "small") {
+                custom.sizes = sim::WorldSettings::Sizes::Small;
+            } else if (mode == "mixed") {
+                custom.sizes = sim::WorldSettings::Sizes::Mixed;
+            } else if (mode == "large") {
+                custom.sizes = sim::WorldSettings::Sizes::Large;
+            } else {
+                return usage();
+            }
+            custom_world = true;
+        } else if (arg == "--starts" && has_value) {
+            const std::string_view mode = argv[++i];
+            if (mode == "spread") {
+                custom.starts = sim::WorldSettings::Starts::Spread;
+            } else if (mode == "together") {
+                custom.starts = sim::WorldSettings::Starts::Together;
+            } else {
+                return usage();
+            }
+            custom_world = true;
+        } else if (arg == "--players" && has_value) {
+            std::int32_t players = 0;
+            if (!parse_number(argv[++i], players) || players < 1 || players > 4) {
+                return usage();
+            }
+            custom.players = static_cast<std::uint8_t>(players);
+            custom_world = true;
+        } else if (arg == "--world" && has_value) {
+            const std::string_view size = argv[++i];
+            const auto x = size.find('x');
+            std::int32_t w = 0;
+            std::int32_t h = 0;
+            if (x == std::string_view::npos || !parse_number(size.substr(0, x), w) ||
+                !parse_number(size.substr(x + 1), h) || w < static_cast<std::int32_t>(sim::WorldSettings::kMinSide) ||
+                h < static_cast<std::int32_t>(sim::WorldSettings::kMinSide) ||
+                w > static_cast<std::int32_t>(sim::WorldSettings::kMaxSide) ||
+                h > static_cast<std::int32_t>(sim::WorldSettings::kMaxSide)) {
+                return usage();
+            }
+            custom.width = static_cast<std::uint32_t>(w);
+            custom.height = static_cast<std::uint32_t>(h);
+            custom_world = true;
         } else if (arg == "--size" && has_value) {
             const std::string_view size = argv[++i];
             const auto x = size.find('x');
@@ -259,10 +328,20 @@ int main(int argc, char** argv) {
                                                           static_cast<std::uint32_t>(local->tm_min), device())
                                        : device();
         new_game_options.world = options.world;
+        if (custom_world) {
+            new_game_options.custom = custom;
+            std::fprintf(stderr, "new endless game: own world %ux%u, %u players, level %u, seed %llu\n", custom.width,
+                         custom.height, static_cast<unsigned>(custom.players),
+                         static_cast<unsigned>(new_game_options.difficulty),
+                         static_cast<unsigned long long>(options.world.seed));
+        } else {
+            std::fprintf(stderr, "new endless game: %s, islands from seed %llu\n",
+                         sim::endless_file(new_game_options.difficulty, new_game_options.layout).c_str(),
+                         static_cast<unsigned long long>(options.world.seed));
+        }
         options.new_game = new_game_options;
-        std::fprintf(stderr, "new endless game: %s, islands from seed %llu\n",
-                     sim::endless_file(new_game_options.difficulty, new_game_options.layout).c_str(),
-                     static_cast<unsigned long long>(options.world.seed));
+    } else if (custom_world) {
+        return usage();  // an own world is a new game
     }
 
     auto viewer = app::MapViewer::create(*game, options);

@@ -32,6 +32,7 @@ ebenfalls können. Bisher gab es mit `sim::Rules` nur Schalter für Abweichungen
 | höchste Spielgeschwindigkeit (`max_game_speed`, L-004) | Faktor | 4 | 8 |
 | Dürren (`droughts`) | wie das Spiel (Schwierigkeit), aus, selten, normal, häufig | wie das Spiel | wie das Spiel |
 | Vulkane (`volcanoes`) | wie das Spiel (Einstellung), aus, an | wie das Spiel | wie das Spiel |
+| Eigene Welt (`WorldSettings`, neues Spiel) | Größe 200–2000 je Seite, Spieler, Inselzahl, Inselgrößen, Dörfer, Vulkaninseln, Startgebiete getrennt/gemeinsam | die drei festen Pläne | aus; an: 500 × 350, 4 Spieler, normal, gemischt, getrennt |
 
 ## Folgen
 Der Spielstand von Open1602 braucht einen eigenen Abschnitt für die Einstellungen; Spielstände des

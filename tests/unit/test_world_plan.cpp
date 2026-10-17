@@ -1,0 +1,244 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Own worlds (docs/re/worldgen.md, "Eigene Welten"): the plan of islands and start areas.
+
+#include <algorithm>
+#include <map>
+#include <set>
+#include <tuple>
+
+#include "../test_framework.hpp"
+
+#include "o1602/sim/world_plan.hpp"
+
+using namespace o1602;
+
+namespace {
+
+constexpr std::array<std::uint32_t, 5> kWidth = {30, 40, 50, 70, 100};
+constexpr std::array<std::uint32_t, 5> kHeight = {30, 40, 52, 60, 90};
+
+/// A catalogue like the game's: 20 templates per climate and class, every fifth with a volcano,
+/// every third with a village, the big ones with ore mountains.
+std::vector<sim::TemplateInfo> catalogue() {
+    std::vector<sim::TemplateInfo> out;
+    for (std::uint8_t climate = 0; climate < 2; ++climate) {
+        for (std::uint8_t size = 0; size < 5; ++size) {
+            for (std::uint16_t n = 0; n < 20; ++n) {
+                sim::TemplateInfo t;
+                t.climate = climate;
+                t.size = size;
+                t.number = n;
+                t.width = static_cast<std::uint16_t>(kWidth[size]);
+                t.height = static_cast<std::uint16_t>(kHeight[size]);
+                t.volcano = n % 5 == 4;
+                t.village = n % 3 == 0;
+                t.big_mountains = size >= 2 ? 1 : 0;
+                t.small_mountains = 2;
+                out.push_back(t);
+            }
+        }
+    }
+    return out;
+}
+
+const std::vector<sim::TemplateInfo>& templates() {
+    static const std::vector<sim::TemplateInfo> t = catalogue();
+    return t;
+}
+
+struct Box {
+    std::int64_t x, y, w, h;
+};
+
+Box box(const assets::ScenarioPlan::Island& i) {
+    return Box{i.x, i.y, kWidth[i.size], kHeight[i.size]};
+}
+
+/// Checks every rule of a plan; returns the number of islands.
+std::size_t check_plan(const sim::WorldPlan& p, const sim::WorldSettings& s) {
+    CHECK(p.width == s.width);
+    CHECK(p.height == s.height);
+    REQUIRE(p.starts.size() == s.players);
+    const auto& islands = p.plan.islands;
+    std::set<std::tuple<int, int, int>> templates_used;
+    std::map<std::pair<int, int>, std::size_t> per_class;
+    for (std::size_t a = 0; a < islands.size(); ++a) {
+        const Box ra = box(islands[a]);
+        CHECK(islands[a].number == a);
+        CHECK(islands[a].climate < 2);
+        CHECK(ra.x >= 20);
+        CHECK(ra.y >= 20);
+        CHECK(ra.x + ra.w <= s.width - 20);
+        CHECK(ra.y + ra.h <= s.height - 20);
+        for (std::size_t b = a + 1; b < islands.size(); ++b) {
+            const Box rb = box(islands[b]);
+            const bool apart = ra.x + ra.w + 8 <= rb.x || rb.x + rb.w + 8 <= ra.x || ra.y + ra.h + 8 <= rb.y ||
+                               rb.y + rb.h + 8 <= ra.y;
+            CHECK(apart);
+        }
+        for (const sim::StartArea& st : p.starts) {
+            const std::int64_t dx = std::max<std::int64_t>({ra.x - st.x, 0, st.x - (ra.x + ra.w - 1)});
+            const std::int64_t dy = std::max<std::int64_t>({ra.y - st.y, 0, st.y - (ra.y + ra.h - 1)});
+            CHECK(std::max(dx, dy) >= 5);
+        }
+        templates_used.insert({islands[a].climate, islands[a].size, islands[a].template_number});
+        ++per_class[{islands[a].climate, islands[a].size}];
+    }
+    // Templates differ while the catalogue has enough: 20 per class here, 16 without a volcano.
+    std::size_t expected = 0;
+    for (const auto& [cls, count] : per_class) {
+        expected += std::min<std::size_t>(count, 16);
+    }
+    CHECK(templates_used.size() >= expected);
+    if (!p.shared_start) {
+        for (const sim::StartArea& st : p.starts) {
+            REQUIRE(st.home_island < islands.size());
+            const auto& home = islands[st.home_island];
+            CHECK((home.flags & sim::kPlanNoVillage) != 0);
+            CHECK(home.size >= 2);
+            std::array<int, 2> climates{};
+            for (const auto& i : islands) {
+                const Box r = box(i);
+                const std::int64_t dx = r.x + r.w / 2 - st.x;
+                const std::int64_t dy = r.y + r.h / 2 - st.y;
+                if (dx * dx + dy * dy <= std::int64_t{st.reach} * st.reach) {
+                    ++climates[i.climate];
+                }
+            }
+            CHECK(climates[0] >= 1);  // both climates within reach of every start
+            CHECK(climates[1] >= 1);
+        }
+    }
+    return islands.size();
+}
+
+}  // namespace
+
+TEST_CASE("world plan: the original's size and four players: about 18 islands, a home each, fair starts") {
+    sim::WorldSettings s;
+    for (std::uint64_t seed = 1; seed <= 30; ++seed) {
+        s.seed = seed;
+        std::vector<std::string> warnings;
+        auto plan = sim::plan_world(s, templates(), &warnings);
+        REQUIRE(plan.ok());
+        CHECK(warnings.empty());
+        const std::size_t n = check_plan(*plan, s);
+        CHECK(n >= 17);
+        CHECK(n <= 22);
+        // Villages, ore, crops and treasures as the original's plans for 18 islands.
+        CHECK(plan->plan.natives[0] + plan->plan.natives[1] == (n * 4 + 9) / 18);
+        CHECK(plan->plan.ores[0].building == 22401);
+        CHECK(plan->plan.ores[2].building == 22405);
+        CHECK(plan->plan.ores[0].count >= 6);
+        CHECK(plan->plan.treasures[0].count >= 10);
+    }
+}
+
+TEST_CASE("world plan: the same settings and seed give the same plan, another seed another") {
+    sim::WorldSettings s;
+    s.seed = 77;
+    auto a = sim::plan_world(s, templates());
+    auto b = sim::plan_world(s, templates());
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    REQUIRE(a->plan.islands.size() == b->plan.islands.size());
+    for (std::size_t i = 0; i < a->plan.islands.size(); ++i) {
+        CHECK(a->plan.islands[i].x == b->plan.islands[i].x);
+        CHECK(a->plan.islands[i].y == b->plan.islands[i].y);
+        CHECK(a->plan.islands[i].template_number == b->plan.islands[i].template_number);
+        CHECK(a->plan.islands[i].climate == b->plan.islands[i].climate);
+    }
+    s.seed = 78;
+    auto c = sim::plan_world(s, templates());
+    REQUIRE(c.ok());
+    bool differs = c->plan.islands.size() != a->plan.islands.size();
+    for (std::size_t i = 0; !differs && i < a->plan.islands.size(); ++i) {
+        differs = a->plan.islands[i].x != c->plan.islands[i].x || a->plan.islands[i].y != c->plan.islands[i].y;
+    }
+    CHECK(differs);
+}
+
+TEST_CASE("world plan: any size from 200 to 2000 tiles and up to 16 players") {
+    struct Case {
+        std::uint32_t w, h;
+        std::uint8_t players;
+    };
+    for (const Case c : {Case{200, 200, 1}, Case{300, 250, 2}, Case{500, 350, 3}, Case{800, 600, 6}, Case{1000, 700, 8},
+                         Case{2000, 2000, 16}, Case{2000, 300, 4}}) {
+        sim::WorldSettings s;
+        s.width = c.w;
+        s.height = c.h;
+        s.players = c.players;
+        s.seed = c.w + c.players;
+        auto plan = sim::plan_world(s, templates());
+        REQUIRE(plan.ok());
+        const std::size_t n = check_plan(*plan, s);
+        CHECK(n >= std::size_t{c.players} + 2);
+    }
+    sim::WorldSettings bad;
+    bad.width = 150;
+    CHECK(!sim::plan_world(bad, templates()).ok());
+    bad.width = 500;
+    bad.players = 0;
+    CHECK(!sim::plan_world(bad, templates()).ok());
+    CHECK(!sim::plan_world(sim::WorldSettings{}, {}).ok());
+}
+
+TEST_CASE("world plan: settings change the amount of islands, their sizes, villages and volcanoes") {
+    const auto plan_with = [](auto&& change) {
+        sim::WorldSettings s;
+        s.width = 1000;
+        s.height = 700;
+        s.seed = 5;
+        change(s);
+        auto p = sim::plan_world(s, templates());
+        REQUIRE(p.ok());
+        check_plan(*p, s);
+        return std::move(p).value();
+    };
+    using Amount = sim::WorldSettings::Amount;
+    const auto few = plan_with([](sim::WorldSettings& s) { s.islands = Amount::Few; });
+    const auto many = plan_with([](sim::WorldSettings& s) { s.islands = Amount::Many; });
+    CHECK(many.plan.islands.size() > few.plan.islands.size() * 3 / 2);
+    const auto average_size = [](const sim::WorldPlan& p) {
+        std::uint32_t sum = 0;
+        for (const auto& i : p.plan.islands) {
+            sum += i.size;
+        }
+        return sum * 100 / static_cast<std::uint32_t>(p.plan.islands.size());
+    };
+    const auto small = plan_with([](sim::WorldSettings& s) { s.sizes = sim::WorldSettings::Sizes::Small; });
+    const auto large = plan_with([](sim::WorldSettings& s) { s.sizes = sim::WorldSettings::Sizes::Large; });
+    CHECK(average_size(large) > average_size(small) + 60);
+    const auto no_villages = plan_with([](sim::WorldSettings& s) { s.natives = Amount::None; });
+    CHECK(no_villages.plan.natives[0] + no_villages.plan.natives[1] == 0);
+    // Volcano islands: none at all, or at most one per player.
+    const auto volcano_islands = [](const sim::WorldPlan& p) {
+        std::size_t n = 0;
+        for (const auto& i : p.plan.islands) {
+            n += i.template_number % 5 == 4 ? 1U : 0U;
+        }
+        return n;
+    };
+    CHECK(volcano_islands(plan_with([](sim::WorldSettings& s) { s.volcanoes = Amount::None; })) == 0);
+    CHECK(volcano_islands(plan_with([](sim::WorldSettings&) {})) <= 4);
+    // Homes have no volcano and a big ore mountain.
+    for (const sim::StartArea& st : plan_with([](sim::WorldSettings&) {}).starts) {
+        CHECK(plan_with([](sim::WorldSettings&) {}).plan.islands[st.home_island].template_number % 5 != 4);
+    }
+}
+
+TEST_CASE("world plan: together, all ships start at one place, as in the original") {
+    sim::WorldSettings s;
+    s.starts = sim::WorldSettings::Starts::Together;
+    s.seed = 3;
+    auto p = sim::plan_world(s, templates());
+    REQUIRE(p.ok());
+    CHECK(p->shared_start);
+    check_plan(*p, s);
+    for (const sim::StartArea& st : p->starts) {
+        CHECK(std::abs(static_cast<std::int32_t>(st.x) - 250) <= 10);
+        CHECK(std::abs(static_cast<std::int32_t>(st.y) - 175) <= 10);
+        CHECK(st.home_island == 0xFF);
+    }
+}

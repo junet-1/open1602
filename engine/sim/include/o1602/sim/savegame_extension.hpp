@@ -19,11 +19,14 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/assets/chunk_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/sim/world.hpp"
@@ -34,6 +37,13 @@ class Simulation;
 
 /// Name of the chunk (not one the original knows, at most 15 characters).
 inline constexpr std::string_view kExtensionChunk = "O1602";
+
+/// Size of a world other than the original's 500 x 350 (u32 width, u32 height): a chunk of its own,
+/// read before the islands are placed.
+inline constexpr std::string_view kMapChunk = "O1602MAP";
+[[nodiscard]] core::Bytes encode_map_size(std::uint32_t width, std::uint32_t height);
+/// The size the file's O1602MAP gives, nothing without one (or a damaged one).
+[[nodiscard]] std::optional<std::pair<std::uint32_t, std::uint32_t>> map_size(const assets::ChunkFile& file);
 
 /// FNV-1a (64 bit) of the bytes in front of the chunk.
 [[nodiscard]] std::uint64_t savegame_fingerprint(std::span<const std::uint8_t> bytes) noexcept;

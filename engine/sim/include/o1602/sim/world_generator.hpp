@@ -25,6 +25,7 @@
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/sim/random.hpp"
+#include "o1602/sim/world_plan.hpp"
 
 namespace o1602::sim {
 
@@ -89,6 +90,16 @@ struct GeneratedWorld {
 /// Makes the islands of `scenario`'s world plan. Templates come from the game directory; files
 /// that cannot be read are reported in `warnings` and their islands left out.
 [[nodiscard]] core::Result<GeneratedWorld> generate_islands(const assets::ChunkFile& scenario,
+                                                            const assets::GameDirectory& game,
+                                                            const assets::BuildingTable& buildings,
+                                                            const WorldStart& start,
+                                                            std::vector<std::string>* warnings = nullptr);
+
+/// Makes the islands of an own world plan (world_plan.hpp) with Open1602's generator from
+/// `start.seed`: the original's content passes, then every start area gets the same (iron on the
+/// home island before the passes, all six crops and a gold vein within reach after them). The
+/// rest of `scenario` (players, ships, timers) is kept; its own plan, if any, is replaced.
+[[nodiscard]] core::Result<GeneratedWorld> generate_islands(const assets::ChunkFile& scenario, const WorldPlan& plan,
                                                             const assets::GameDirectory& game,
                                                             const assets::BuildingTable& buildings,
                                                             const WorldStart& start,

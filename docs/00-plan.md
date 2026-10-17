@@ -193,11 +193,12 @@ darauf aufsetzt.
    geprüft, Insel erkunden mit Erz- und Goldsymbolen, beschädigte Rümpfe, Bugwelle, weiße Flagge und
    Sinken in der Darstellung, Stadttakt zur vollen 10. Sekunde ([ships.md](re/ships.md)). Offen sind nur
    Fenster der Oberfläche (Schritt 5) und der Mündungsrauch.
-4. **Weltengenerator, Stufe 1**: Inselzahl, Größenmischung und Lage nach Weltgröße und Spielerzahl mit den
-   Inselvorlagen des Originals; faire Startgebiete (Pflanzen, Eisen, Gold in Reichweite jedes Spielers);
-   Eingeborene, Vulkane und Piratenstärke nach Spielerzahl. Bewusst vor der KI, damit diese von Anfang an
-   mit beliebigen Welten arbeitet. Welten über das Original hinaus werden im eigenen Chunk gespeichert;
-   Kompatibilität zum Original ist dafür ausdrücklich nicht verlangt.
+4. **Weltengenerator, Stufe 1** ✅: eigene Welten für jede Kartengröße (200–2000 Felder je Seite) und
+   Spielerzahl: Inselzahl und Größenmischung nach Fläche, Startgebiete mit Heimatinsel und gleich großen
+   Nachbarinseln, Klima nach Lage mit beiden Klimata in Reichweite, Eisen auf jeder Heimatinsel, alle
+   Pflanzen und Gold in Reichweite, Dörfer und Vulkaninseln nach Insel- und Spielerzahl; größere Welten im
+   eigenen Chunk `O1602MAP` ([worldgen.md](re/worldgen.md#eigene-welten-weltengenerator-stufe-1)). Offen:
+   mehr als vier Spieler und Piratenstärke nach Spielerzahl (mit dem Mehrspieler), Startdialog (Schritt 5).
 5. **Computergegner (KI)**, dann Ereignisse (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen
    Einstellungen, übrige Oberfläche.
 6. **Mehrspieler** einschließlich Endlosspiel (`.szm`).

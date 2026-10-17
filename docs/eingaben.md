@@ -44,17 +44,24 @@ den Ordner `ausgaben/` in deinem Projektordner. Git übernimmt ihn nicht.
 
 Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 
-1. **Eigene Handelsroute** (freiwillig; Video und Händler-Stände sind schon da). Zwei Stände mit einer
+1. **Eigene Welt im Original** (prüft den Weltengenerator, Stufe 1). In `ausgaben/` liegt
+   `Open1602EigeneWelt.gam`: eine von Open1602 geplante Welt in Originalgröße (18 Inseln, vier Spieler mit
+   getrennten Startgebieten). Bitte wie die früheren Testdateien als freien Spielstand in `SAVEGAME/`
+   kopieren, im Original laden und ein paar Minuten spielen: Lädt sie ohne Absturz, stehen die vier
+   Schiffe an verschiedenen Stellen, und sehen die Inseln normal aus? Im Betrachter geht dasselbe mit
+   `open1602 --new-game 1 --world 500x350` (oder größer, z. B. `--world 900x600 --players 2`).
+
+2. **Eigene Handelsroute** (freiwillig; Video und Händler-Stände sind schon da). Zwei Stände mit einer
    eigenen Handelsroute: einer direkt vor der Ankunft an einem Kontor („VorKontor“), einer kurz danach
    („NachKontor“). Damit prüfe ich Laden und Entladen nach Route.
 
-2. **Rückmeldung zum Betrachter.** Startet die Kamera über Lemonhall, und siehst du die Vorschau beim
+3. **Rückmeldung zum Betrachter.** Startet die Kamera über Lemonhall, und siehst du die Vorschau beim
    Bauen (rote Fläche, wo nichts geht)? Siehst du in deiner eigenen Stadt keine Häuser, schick mir
    die Zeilen `renderer: …` und `GFX: …` aus dem Terminal. Neu: Linksklick wählt ein Schiff (Name,
    Tempo und Ladung stehen in der Titelzeile), Rechtsklick schickt es los (aufs Meer, an ein Kontor,
    zu einem anderen Schiff); ziehen mit der rechten Taste verschiebt wie bisher die Karte.
 
-3. **Vulkanausbruch** (prüft die eingebauten Vulkane). In Merlin04 sind schon zwei Vulkane
+4. **Vulkanausbruch** (prüft die eingebauten Vulkane). In Merlin04 sind schon zwei Vulkane
    ausgebrochen (Inseln 5 und 6); das bestätigt den Ablauf. Es fehlt ein Stand direkt davor und danach.
    Der nächste Ausbruch ist in Merlin04 für **130:32 Spielzeit** angesetzt; auf welcher der drei
    Inseln mit Vulkan er kommt, ist Zufall, keine davon ist deine.
@@ -64,7 +71,7 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    - einen etwa eine Minute danach, „NachVulkan2“ (zerstörte Bäume und Gebäude);
    - wenn möglich ein Video des Ausbruchs: wie lange er dauert, wie weit die Brocken fliegen.
 
-4. **Dürre** (prüft die eingebaute Dürre). In Merlin04 hat der Dürrewurf zwischen Minute 88 und 95
+5. **Dürre** (prüft die eingebaute Dürre). In Merlin04 hat der Dürrewurf zwischen Minute 88 und 95
    schon einmal getroffen (auf welcher Insel, zeigt der Stand nicht mehr); der nächste ist ab
    **122:00 Spielzeit** möglich. Damit es etwas zu verdorren gibt, braucht Lemonhall Felder oder
    Plantagen; deine Gewürzplantage ist ein Anfang, mehr helfen.
@@ -72,12 +79,12 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    - einer etwa zwei Minuten nach ihrem Ende (es gibt keine Meldung dafür; die verdorrten Felder
      wachsen dann wieder), „NachDuerre“.
 
-5. **Zwei Stände kurz hintereinander** (für den Test des Stadttakts mit Geld und Verbrauch). Von den
+6. **Zwei Stände kurz hintereinander** (für den Test des Stadttakts mit Geld und Verbrauch). Von den
    neuen Spielständen liegen keine zwei weniger als 10 Sekunden Spielzeit auseinander. Lade einen
    Stand, speichere sofort als „TaktA“, lass das Spiel etwa 5 Sekunden laufen und speichere als
    „TaktB“. Je größer die Stadt, desto mehr prüft das.
 
-6. **Eine größere Stadt.** Für Brände, Pest, Räuber und die höheren Bewohnerklassen:
+7. **Eine größere Stadt.** Für Brände, Pest, Räuber und die höheren Bewohnerklassen:
    - Brand: ab etwa 80 Pionieren oder 250 Pionieren und Siedlern;
    - Pest: ab 200 Siedlern und höher; Bürger, Kaufleute, Aristokraten in halb vollen Häusern;
    - Räuber: ab 300 Bürgern und höher.
@@ -88,10 +95,10 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    (er überfällt Träger und Marktkarren auf dem Heimweg). Wie lange ein Brand dauert und wohin er
    springt, sieht man darauf gut.
 
-7. **Schloss oder Kathedrale**, wenn du so weit kommst: ein Stand unmittelbar vor dem Bau und einer
+8. **Schloss oder Kathedrale**, wenn du so weit kommst: ein Stand unmittelbar vor dem Bau und einer
    etwa eine Minute danach. Der Unterschied in der Zufriedenheit prüft den „Stolz“ der Stadt.
 
-8. **Militär** (prüft Ausbildung, Kampf und Eroberung, die ich gerade einbaue). Eine Burg bauen,
+9. **Militär** (prüft Ausbildung, Kampf und Eroberung, die ich gerade einbaue). Eine Burg bauen,
    je zwei Schwertkämpfer und Musketiere ausbilden (Schwerter und Musketen müssen im Kontor liegen)
    und ein Eingeborenendorf angreifen (Angriffszeiger auf eine Hütte), wenn du so weit kommst. Dazu:
    - ein Stand mit den fertig ausgebildeten Einheiten noch in der Burg, „Burg“;
@@ -105,7 +112,7 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 
 | Wann | Was | Wofür |
 |---|---|---|
-| Militär (über Punkt 8 hinaus) | ein Stand mit einem zerstörten Kontor und einem Wachturm daneben (S-018), ein Video eines Seegefechts mit Kriegsschiffen | Gebietsverlust, Breitseite und Tempo des Seekampfs |
+| Militär (über Punkt 9 hinaus) | ein Stand mit einem zerstörten Kontor und einem Wachturm daneben (S-018), ein Video eines Seegefechts mit Kriegsschiffen | Gebietsverlust, Breitseite und Tempo des Seekampfs |
 | Computergegner | Stände eines länger laufenden Spiels mit wachsenden Gegnerstädten | KI |
 | Mehrspieler | erst wenn Open1602 Netzwerk kann | – |
 

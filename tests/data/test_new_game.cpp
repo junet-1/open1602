@@ -3,6 +3,7 @@
 // a world plan gets, the start state, and the savegame of a new game.
 
 #include <algorithm>
+#include <cstdio>
 #include <set>
 #include <string>
 #include <vector>
@@ -10,12 +11,16 @@
 #include "../test_framework.hpp"
 
 #include "o1602/assets/chunk_file.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/sim/new_game.hpp"
+#include "o1602/sim/savegame_extension.hpp"
 #include "o1602/sim/savegame_writer.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world_generator.hpp"
+#include "o1602/sim/world_plan.hpp"
 
 using namespace o1602;
 
@@ -349,4 +354,143 @@ TEST_CASE("data: endless games the original started come out of the same islands
     if (compared == 0) {
         SKIP("no savegames of fresh endless games");
     }
+}
+
+namespace {
+
+/// What start area `start` has within reach in a world made from `plan`: the crops (fertility bits),
+/// whether the home island has iron, whether gold lies near.
+struct Reach {
+    std::uint32_t fertility = 0;
+    bool home_iron = false;
+    bool gold = false;
+};
+
+Reach reach_of(const sim::World& world, const sim::StartArea& start) {
+    Reach r;
+    for (const sim::WorldIsland& island : world.islands()) {
+        const std::int64_t dx = std::int64_t{island.x} + island.map.width() / 2 - start.x;
+        const std::int64_t dy = std::int64_t{island.y} + island.map.height() / 2 - start.y;
+        const bool home = island.header.number == start.home_island;
+        if (dx * dx + dy * dy > std::int64_t{start.reach} * start.reach && !home) {
+            continue;
+        }
+        r.fertility |= island.header.fertility;
+        for (const auto& d : island.header.deposits) {
+            r.gold = r.gold || d.ware == 3;
+            r.home_iron = r.home_iron || (home && d.ware == 2);
+        }
+    }
+    return r;
+}
+
+}  // namespace
+
+TEST_CASE("data: an own world: ships at their starts, every start area alike, saved and loaded again") {
+    const auto game = game_or_skip();
+    auto buildings = assets::BuildingTable::load(game);
+    auto text = assets::TextTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(text.ok());
+    const std::vector<sim::TemplateInfo> templates = sim::island_templates(game, *buildings);
+    CHECK(templates.size() > 400);
+    for (const std::uint64_t seed : {11ULL, 12ULL, 13ULL}) {
+        sim::NewGameOptions options;
+        options.difficulty = 1;
+        options.world.seed = seed;
+        options.custom = sim::WorldSettings{};
+        std::vector<std::string> warnings;
+        auto world = sim::start_new_game(game, *buildings, *text, options, &warnings);
+        REQUIRE(world.ok());
+        for (const auto& w : warnings) {
+            std::fprintf(stderr, "  warning: %s\n", w.c_str());
+        }
+        CHECK(warnings.empty());
+        CHECK(world->width() == 500);
+        CHECK(world->height() == 350);
+        // The plan the game was made from (same settings, same seed).
+        sim::WorldSettings settings;
+        settings.difficulty = 1;
+        settings.seed = seed;
+        auto plan = sim::plan_world(settings, templates);
+        REQUIRE(plan.ok());
+        CHECK(world->islands().size() == plan->plan.islands.size());
+        REQUIRE(world->ships().size() == 4);
+        for (const sim::Ship& ship : world->ships()) {
+            REQUIRE(ship.owner < 4);
+            CHECK(ship.x == plan->starts[ship.owner].x);
+            CHECK(ship.y == plan->starts[ship.owner].y);
+        }
+        // Every start: the six crops near, iron on the home island, gold near; no village there.
+        constexpr std::uint32_t kCrops = 0x3FU << 1;  // tobacco (46) .. cocoa (51), bit = ware - 45
+        for (const sim::StartArea& start : plan->starts) {
+            const Reach r = reach_of(*world, start);
+            CHECK((r.fertility & kCrops) == kCrops);
+            CHECK(r.home_iron);
+            CHECK(r.gold);
+            for (const sim::City& c : world->cities()) {
+                CHECK(world->islands()[c.island].header.number != start.home_island);
+            }
+        }
+        // Saved and loaded: the same world, and saved again the same file.
+        auto bytes = sim::write_savegame(*world, *buildings);
+        REQUIRE(bytes.ok());
+        auto file = assets::ChunkFile::from_bytes(*bytes);
+        REQUIRE(file.ok());
+        CHECK(file->find(sim::kMapChunk) == nullptr);  // the original's size: the original loads it
+        auto again = sim::load_world(*file, *buildings, game);
+        REQUIRE(again.ok());
+        auto rewritten = sim::write_savegame(*again, *buildings);
+        REQUIRE(rewritten.ok());
+        CHECK(*rewritten == *bytes);
+    }
+}
+
+TEST_CASE("data: an own world larger than the original's, with two players, plays and is saved") {
+    const auto game = game_or_skip();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    auto text = assets::TextTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    REQUIRE(text.ok());
+    sim::NewGameOptions options;
+    options.world.seed = 21;
+    sim::WorldSettings settings;
+    settings.width = 900;
+    settings.height = 600;
+    settings.players = 2;
+    options.custom = settings;
+    auto world = sim::start_new_game(game, *buildings, *text, options);
+    REQUIRE(world.ok());
+    CHECK(world->width() == 900);
+    CHECK(world->height() == 600);
+    CHECK(world->islands().size() > 50);
+    CHECK(world->ships().size() == 2);
+    // Ten minutes of play: the traders and pirates find their way on the larger sea.
+    {
+        sim::Simulation s(*world, *buildings, *figures);
+        s.set_speed(8);
+        for (int i = 0; i < 750; ++i) {
+            s.advance(100);
+        }
+    }
+    auto bytes = sim::write_savegame(*world, *buildings);
+    REQUIRE(bytes.ok());
+    auto file = assets::ChunkFile::from_bytes(*bytes);
+    REQUIRE(file.ok());
+    CHECK(file->find(sim::kMapChunk) != nullptr);
+    auto again = sim::load_world(*file, *buildings, game);
+    REQUIRE(again.ok());
+    CHECK(again->width() == 900);
+    CHECK(again->height() == 600);
+    CHECK(again->islands().size() == world->islands().size());
+    CHECK(again->ships().size() == world->ships().size());
+    auto rewritten = sim::write_savegame(*again, *buildings);
+    REQUIRE(rewritten.ok());
+    CHECK(*rewritten == *bytes);
+    // More than four players come with the multiplayer.
+    settings.players = 5;
+    options.custom = settings;
+    CHECK(!sim::start_new_game(game, *buildings, *text, options).ok());
 }

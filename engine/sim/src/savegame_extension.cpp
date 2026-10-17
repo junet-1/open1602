@@ -1579,6 +1579,27 @@ core::Status check(const World& w, const Decoded& d) {
 
 }  // namespace
 
+core::Bytes encode_map_size(std::uint32_t width, std::uint32_t height) {
+    Out out;
+    out.u32(width);
+    out.u32(height);
+    return out.take();
+}
+
+std::optional<std::pair<std::uint32_t, std::uint32_t>> map_size(const assets::ChunkFile& file) {
+    const assets::Chunk* c = file.find(kMapChunk);
+    if (c == nullptr) {
+        return std::nullopt;
+    }
+    core::ByteReader in(file.payload(*c));
+    const auto w = in.u32();
+    const auto h = in.u32();
+    if (!w || !h || *w == 0 || *h == 0 || *w > 0xFFFF || *h > 0xFFFF) {
+        return std::nullopt;
+    }
+    return std::pair{*w, *h};
+}
+
 std::uint64_t savegame_fingerprint(std::span<const std::uint8_t> bytes) noexcept {
     std::uint64_t h = 0xCBF29CE484222325ULL;
     for (const std::uint8_t b : bytes) {
