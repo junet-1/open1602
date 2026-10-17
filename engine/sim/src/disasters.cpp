@@ -25,9 +25,11 @@ constexpr std::array<std::array<std::uint8_t, 16>, 3> kPlagueTakes = {{
     {0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},  // doctor or bath house: 5 of 16
     {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},  // both: 3 of 16
 }};
+// The original gives the 7-of-8 row to buildings with more bricks than wood and the 3-of-8 row
+// to wooden ones (0x0049AF08); Open1602 swaps them, so wood burns more easily (S-049).
 constexpr std::array<std::array<std::uint8_t, 8>, 2> kFireTakes = {{
-    {1, 1, 1, 1, 0, 1, 1, 1},  // more bricks than wood: 7 of 8 (S-049)
-    {0, 0, 1, 0, 1, 0, 0, 1},  // wood: 3 of 8
+    {0, 0, 1, 0, 1, 0, 0, 1},  // more bricks than wood: 3 of 8
+    {1, 1, 1, 1, 0, 1, 1, 1},  // wood: 7 of 8
 }};
 constexpr std::array<std::uint8_t, 8> kRobberPastGallows = {0, 0, 1, 0, 0, 0, 0, 1};
 

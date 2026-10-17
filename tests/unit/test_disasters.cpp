@@ -17,6 +17,7 @@ constexpr std::uint32_t kGround = 20101;
 constexpr std::uint32_t kRoad = 20401;
 constexpr std::uint32_t kForest = 20201;
 constexpr std::uint32_t kPioneerHouse = 20605;
+constexpr std::uint32_t kBrickPioneerHouse = 20606;
 constexpr std::uint32_t kCitizenHouse = 20640;
 constexpr std::uint32_t kBakery = 20503;
 constexpr std::uint32_t kKlinik = 20901;
@@ -50,6 +51,9 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 7\n  Id: 20902\n  Kind: 14\n  Gfx: 34\n  Size: 2, 2\n  Wegspeed: 120, 120, 120, 100\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 26\n    Radius: 15\n    Figurnr: 85\n  EndObj\n"
         "  @Nummer: 8\n  Id: 22601\n  Kind: 12\n  Gfx: 50\n  Size: 1, 1\n"
+        "  @Nummer: 9\n  Id: 20606\n  Kind: 14\n  Gfx: 54\n  Size: 2, 2\n  Ruinenr: 0\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 13\n    BGruppe: 0\n    Radius: 6\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Ziegel: 6\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -359,4 +363,41 @@ TEST_CASE("disasters: cities of many pioneers catch fire, the doctor and the bri
     CHECK(std::count_if(production.begin(), production.end(), [](const sim::ProductionEvent& e) {
               return e.kind == sim::ProductionEvent::Kind::NeedsRawGoods;
           }) >= 1);
+}
+
+TEST_CASE("disasters: wooden houses catch fire more easily than brick ones (S-049)") {
+    // The same city twice, once of wooden and once of brick houses, with the same random numbers.
+    const auto fires = [](std::uint32_t house) {
+        Town town;
+        for (std::uint16_t i = 0; i < 10; ++i) {
+            town.place(house, 2 + 3 * i, 4);
+        }
+        town.finish({});
+        for (std::uint16_t i = 0; i < 10; ++i) {
+            town.add_house(static_cast<std::uint16_t>(2 + 3 * i), 4, 0, 10);
+        }
+        std::size_t n = 0;
+        sim::advance_city_events(town.world, town.buildings, nullptr, nullptr);
+        for (int i = 0; i < 2000; ++i) {
+            town.world.set_time_ms(town.city().next_event_ms);
+            std::vector<sim::DisasterEvent> events;
+            sim::advance_city_events(town.world, town.buildings, &events, nullptr);
+            n += count(events, sim::DisasterEvent::Kind::Started, false);
+            town.world.disasters().clear();  // put out at once
+            sim::recount_disasters(town.world);
+            for (sim::House& h : town.world.houses()) {
+                h.services = 0;
+            }
+        }
+        return n;
+    };
+    const std::size_t wood = fires(kPioneerHouse);
+    const std::size_t brick = fires(kBrickPioneerHouse);
+    // Per check 15.5 % pass the roll; then three tries of 7/8 (wood, 99.8 %) or 3/8 (brick,
+    // 75.6 %): about 310 and 234 of 2000 checks.
+    CHECK(wood > brick + brick / 8);
+    CHECK(wood > 260);
+    CHECK(wood < 360);
+    CHECK(brick > 190);
+    CHECK(brick < 280);
 }
