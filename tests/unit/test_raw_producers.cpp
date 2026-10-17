@@ -31,12 +31,15 @@ constexpr std::uint32_t kMountain = 21101;
 constexpr std::uint32_t kSmallMine = 22401;
 constexpr std::uint32_t kDeepMine = 22402;
 constexpr std::uint32_t kGoldMine = 22403;
+constexpr std::uint32_t kStonemason = 20513;
+constexpr std::uint32_t kQuarry = 22407;
 
 constexpr std::uint8_t kGrain = 45;  // GETREIDE
 constexpr std::uint8_t kGrass = 52;  // GRAS
 constexpr std::uint8_t kFish = 57;   // FISCHE
 constexpr std::uint8_t kOre = 2;     // EISENERZ
 constexpr std::uint8_t kGold = 3;    // GOLD
+constexpr std::uint8_t kStone = 54;  // STEINE
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -84,6 +87,12 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 16\n  Id: 22403\n  Kind: 34\n  Gfx: 64\n  Size: 1, 2\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Ware: 3\n    Rohmenge: 1\n    Erzbergnr: 1\n    Maxlager: 5\n"
         "    Interval: 80\n  EndObj\n"
+        // Stonemason (takes stone like a farm) and quarry (PRODTYP 11 STEINBRUCH).
+        "  @Nummer: 17\n  Id: 20513\n  Kind: 14\n  Gfx: 70\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Ware: 24\n    Rohstoff: 54\n    Rohmenge: 1\n    Maxlager: 4\n"
+        "    Interval: 20\n    Figurnr: 75\n    Radius: 6\n  EndObj\n"
+        "  @Nummer: 18\n  Id: 22407\n  Kind: 34\n  Gfx: 74\n  Size: 1, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 11\n    Ware: 54\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -250,6 +259,26 @@ TEST_CASE("raw producers: a farm worker harvests the nearest ripe field") {
     CHECK(land.id(4, 8) == kWheatGrowing);
     logistics.handle(needs(land.index(4, 4), kGrain));
     CHECK(logistics.walkers().size() == 0);
+}
+
+TEST_CASE("raw producers: the stonemason works the quarry, which never runs out") {
+    Farmland land;
+    land.place(kStonemason, 4, 4);
+    land.place(kQuarry, 8, 4);
+    land.finish({{4, 4}});
+    sim::Logistics logistics(land.world, land.buildings, land.figures);
+    for (int trip = 1; trip <= 3; ++trip) {
+        logistics.handle(needs(land.index(4, 4), kStone));
+        REQUIRE(logistics.walkers().size() == 1);
+        logistics.walkers().for_each([&](sim::Handle, const sim::Walker& w) {
+            CHECK(w.kind == sim::WalkerKind::Harvester);
+            REQUIRE(w.field.has_value());
+            CHECK(w.field->x == 8);
+        });
+        run_until_idle(logistics);
+        CHECK(land.production(4, 4).raw == 32U * static_cast<std::uint32_t>(trip));
+        CHECK(land.id(8, 4) == kQuarry);
+    }
 }
 
 TEST_CASE("raw producers: cattle graze until full, two farms never share a tile") {

@@ -2,6 +2,14 @@
 # Deterministic simulation. Must not depend on platform, render, audio or ui (ADR 0004, 0005).
 
 add_library(o1602_sim
+    src/ai/ai_build.cpp
+    src/ai/ai_core.cpp
+    src/ai/ai_logistics.cpp
+    src/ai/ai_military.cpp
+    src/ai/ai_planner.cpp
+    src/ai/ai_settle.cpp
+    src/ai/ai_sites.cpp
+    src/ai/ai_world.cpp
     src/construction.cpp
     src/castles.cpp
     src/combat.cpp

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -67,6 +68,7 @@ struct RouteEdit {
         SetEntry,   ///< entry `entry` of stop `stop`
         Start,      ///< switches the route on
         Stop,       ///< and off
+        OneWay,     ///< `on`: the route ends after its last stop (computer players' supply runs)
     };
     PlayerId player = kNoPlayer;
     std::uint32_t ship = 0;
@@ -75,6 +77,7 @@ struct RouteEdit {
     std::uint8_t entry = 0;
     Target target{};
     RouteEntry value{};
+    bool on = true;
 };
 
 /// Kontor trade settings of one ware (city ops 0x14/0x1C-0x22).
@@ -190,6 +193,8 @@ public:
     void sink(Ship& ship, PlayerId attacker);
     /// Who sees whom and target choice; without it ships do not fight.
     void set_combat(Combat* combat) noexcept { m_combat = combat; }
+    /// Ships the AI steers itself (ComputerPlayers::directs): idle pirates of these choose nothing.
+    void set_directed(std::function<bool(std::uint32_t)> directed) { m_directed = std::move(directed); }
 
     /// Ships and shipyards a player has or has ordered (the original's limit of 33 counts both).
     [[nodiscard]] std::uint32_t fleet_size(PlayerId player) const;
@@ -286,6 +291,7 @@ private:
 
     World* m_world;
     Combat* m_combat = nullptr;
+    std::function<bool(std::uint32_t)> m_directed;
     const assets::BuildingTable* m_buildings;
     const assets::FigureTable* m_figures;
     const Rules* m_rules;

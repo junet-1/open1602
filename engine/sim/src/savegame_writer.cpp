@@ -982,8 +982,11 @@ private:
                     put16(r, o + 2, (get16(r, o + 2) & 0xC000U) | std::min<std::uint32_t>(s.cargo[c].amount, 0x3FFF));
                     put32(r, o + 4, (get32(r, o + 4) & ~0x3FFU) | (s.cargo[c].price & 0x3FFU));
                 } else if (get16(r, o) != 0) {
+                    // An emptied hold: no ware, no amount, no price (else the price of the record
+                    // the game was loaded from would stay).
                     put16(r, o, 0);
                     put16(r, o + 2, 0);
+                    put32(r, o + 4, get32(r, o + 4) & ~0x3FFU);
                 }
             }
             out.insert(out.end(), r.begin(), r.end());

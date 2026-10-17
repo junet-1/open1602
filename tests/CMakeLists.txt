@@ -31,6 +31,7 @@ add_executable(o1602_tests
     unit/test_units.cpp
     data/test_original_data.cpp
     data/test_new_game.cpp
+    data/test_ai_data.cpp
     data/test_ships_data.cpp
     data/test_military_data.cpp
 )

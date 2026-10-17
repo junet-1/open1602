@@ -1,6 +1,6 @@
 # Was Open1602 von dir braucht
 
-Stand: 17.10.2026 (Schiffe, Handel, Werften und der Neustart wie im Original; als Nächstes das Militär). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
+Stand: 17.10.2026 (Schiffe, Militär, Piraten, eigene Welten und die Computergegner sind da; als Nächstes Ereignisse und die Oberfläche). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
 Videos und Beobachtungen im Original brauche oder schon bekommen habe. Sie wird fortgeschrieben,
 sobald etwas dazukommt oder erledigt ist.
 
@@ -113,7 +113,7 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 | Wann | Was | Wofür |
 |---|---|---|
 | Militär (über Punkt 9 hinaus) | ein Stand mit einem zerstörten Kontor und einem Wachturm daneben (S-018), ein Video eines Seegefechts mit Kriegsschiffen | Gebietsverlust, Breitseite und Tempo des Seekampfs |
-| Computergegner | Stände eines länger laufenden Spiels mit wachsenden Gegnerstädten | KI |
+| Computergegner (jetzt nützlich) | Stände eines Endlosspiels nach etwa einer und nach drei Stunden, damit ich sehe, wie weit die Computer im Original kommen; dazu kurz, wie stark du selbst gebaut hast (die Computer bekommen Zuschüsse, wenn sie hinter dir liegen) | Tempo und Stärke der KI abgleichen |
 | Mehrspieler | erst wenn Open1602 Netzwerk kann | – |
 
 ## Nur bei Gelegenheit

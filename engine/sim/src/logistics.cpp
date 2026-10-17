@@ -38,6 +38,7 @@ constexpr std::uint32_t kBigVeinShared = 0xF00;
 constexpr std::uint32_t kComputerKeeps = 0x500;
 constexpr std::uint8_t kGold = 3;
 // Deer and hunters (docs/re/deer.md).
+constexpr std::int32_t kProdKindQuarry = 11;      // STEINBRUCH: the stonemason works there
 constexpr std::uint8_t kWareGrass = 52;           // GRAS
 constexpr std::uint8_t kWareTree = 53;            // BAUM
 constexpr std::uint16_t kFigureDeer = 89;         // HIRSCH
@@ -784,7 +785,9 @@ void Logistics::prepare_area(const Walker& w, const BuildingAt& hb, const assets
                 if (b == nullptr) {
                     continue;
                 }
-                const bool target = targets && b->prod_kind == kProdKindRipe && b->ware == w.ware &&
+                // The stonemason works the quarry's tiles as if they were ripe fields (raw_producers.md).
+                const bool quarry = b->prod_kind == kProdKindQuarry && b->ware == w.ware;
+                const bool target = targets && (b->prod_kind == kProdKindRipe || quarry) && b->ware == w.ware &&
                                     !m_reserved_tiles.contains(tile_key(w.island, t));
                 if (w.kind == WalkerKind::Fisher) {
                     // 0x0046FB50: shoals of any owner; surf and river mouths facing the hut's
@@ -798,7 +801,7 @@ void Logistics::prepare_area(const Walker& w, const BuildingAt& hb, const assets
                     continue;
                 }
                 // 0x0046F920: the worker's own crop is walkable in its city, ripe tiles are goals.
-                if (cell.city == w.city && crop_ware(*m_buildings, *b) == w.ware) {
+                if (cell.city == w.city && (quarry || crop_ware(*m_buildings, *b) == w.ware)) {
                     m_finder.set(t, target ? PathFinder::Cell::Goal : PathFinder::Cell::Walkable, b->walk_speed[type]);
                 }
             }
@@ -882,6 +885,16 @@ void Logistics::finish_work(Handle h, Walker& w) {
     if (w.field) {
         m_reserved_tiles.erase(tile_key(w.island, *w.field));
         harvested = harvest_tile(*m_world, *m_buildings, w.island, to_u16(w.field->x), to_u16(w.field->y), w.ware);
+        if (!harvested) {
+            // A quarry gives its stone and stays (quarries never run out, as in the original).
+            const IslandMap& map = m_world->islands()[w.island].map;
+            const auto fx = static_cast<std::uint32_t>(w.field->x);
+            const auto fy = static_cast<std::uint32_t>(w.field->y);
+            const MapCell* cell = map.contains(w.field->x, w.field->y) ? &map.top(fx, fy) : nullptr;
+            const assets::BuildingType* b =
+                cell != nullptr && !cell->empty() ? m_buildings->by_sprite(cell->sprite) : nullptr;
+            harvested = b != nullptr && b->prod_kind == kProdKindQuarry && b->ware == w.ware;
+        }
         w.field.reset();
     }
     // The original books a ton even if the field was gone meanwhile; Open1602 only what was

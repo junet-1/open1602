@@ -72,6 +72,7 @@ enum class RandomStream : std::uint8_t {
     Islands,       ///< droughts and the fields they wither
     Ships,         ///< courses, the free trader, ship names
     Military,      ///< soldiers wandering, plans after a failure
+    Ai,            ///< the computer players (house and field variants, ship types, patrols)
     Count,
 };
 

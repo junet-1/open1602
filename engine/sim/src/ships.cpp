@@ -772,7 +772,7 @@ void Fleet::decide(Ship& ship) {
                 route_next_stop(ship);
             } else if (ship.trader) {
                 trader_choose(ship);
-            } else if (ship.owner == pirates() && ship.owner != kNoPlayer) {
+            } else if (ship.owner == pirates() && ship.owner != kNoPlayer && !(m_directed && m_directed(ship.id))) {
                 pirate_choose(ship);
             }
         }
@@ -923,6 +923,9 @@ bool Fleet::edit_route(const RouteEdit& e) {
         }
         case RouteEdit::Op::Stop:
             route.active = false;
+            return true;
+        case RouteEdit::Op::OneWay:
+            route.one_way = e.on;
             return true;
     }
     return false;

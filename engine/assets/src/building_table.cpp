@@ -127,6 +127,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             }
             b.ore_mountain = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Erzbergnr")));
             b.max_wares = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Maxware"))));
+            b.max_wares2 = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Maxware", 1))));
         }
 
         if (const auto* cost = r.records("HAUS_BAUKOST"); cost != nullptr && !cost->empty()) {

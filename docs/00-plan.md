@@ -187,8 +187,8 @@ darauf aufsetzt.
    weiße Flagge und Plünderung ins Nest, Verkauf im Nest, Stimmung und Krieg alle 5 s, Frieden kaufen und
    Bestechung; Wohlwollen, Verbrauch und Krieger der Eingeborenen ([pirates.md](re/pirates.md)). Das
    Einheitenlimit ist eine Regel (`Rules::max_army`, Standard 250, Original 100; L-008), ebenso die
-   Flottengrenze (`Rules::max_ships_per_player`, Standard 100, Original 33; L-001). Offen:
-   ein neues Nest gründen und die Diplomatie der Computer mit den Piraten kommen mit der KI (Schritt 5).
+   Flottengrenze (`Rules::max_ships_per_player`, Standard 100, Original 33; L-001). Nestgründung und
+   die Diplomatie der Computer mit den Piraten kamen mit der KI (Schritt 5).
    **Schifffahrt abgeschlossen** (17.10.2026): Tempo, Diagonalen und Drehen gegen das Video des Originals
    geprüft, Insel erkunden mit Erz- und Goldsymbolen, beschädigte Rümpfe, Bugwelle, weiße Flagge und
    Sinken in der Darstellung, Stadttakt zur vollen 10. Sekunde ([ships.md](re/ships.md)). Offen sind nur
@@ -199,8 +199,13 @@ darauf aufsetzt.
    Pflanzen und Gold in Reichweite, Dörfer und Vulkaninseln nach Insel- und Spielerzahl; größere Welten im
    eigenen Chunk `O1602MAP` ([worldgen.md](re/worldgen.md#eigene-welten-weltengenerator-stufe-1)). Offen:
    mehr als vier Spieler und Piratenstärke nach Spielerzahl (mit dem Mehrspieler), Startdialog (Schritt 5).
-5. **Computergegner (KI)**, dann Ereignisse (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen
-   Einstellungen, übrige Oberfläche.
+5. **Computergegner (KI)** ✅: Aufgabenstapel, Stufen und Bedarfe wie im Original, Bauplatzsuche mit
+   Straßenplan, Wartung, Siedeln und Kolonien, Versorgungsrouten und Streifen, Flotte, Handel, Anwerben,
+   Türme und Burgen, Angriffe mit Landung, Inselsoldaten, Diplomatie, Piratennest; deterministisch auf
+   jedem Rechner, mit dem Spielstand gespeichert ([ai.md](re/ai.md), S-095 bis S-102). In Probeläufen ohne
+   aktiven Menschen erreichen die Computer nach sechs Stunden Kaufleute mit 500–870 Einwohnern. Offen:
+   KI-Schalter der Szenarien und die Schiffsaufträge aus Originalständen. Als Nächstes Ereignisse
+   (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen Einstellungen, übrige Oberfläche.
 6. **Mehrspieler** einschließlich Endlosspiel (`.szm`).
 7. **Weltengenerator, Stufe 2** (zurückgestellt, wenn alles andere fertig ist und läuft): eigene Inselformen,
    auch größer als die Vorlagen, mit Küsten-, Strand-, Berg- und Flussübergängen.
@@ -301,7 +306,8 @@ Dokuments.
 
 **Computergegner, Eingeborene, Piraten**
 - Piraten nehmen Waren mit der Piraten-KI ([consumption.md](re/consumption.md)).
-- KI-Bauten über `execute_build`; Reaktion der KI auf eine Gründung (Ereignis 0x0E).
+- Reaktion der KI auf eine Gründung (Ereignis 0x0E).
+- KI-Schalter der Szenarien (Spieler +0x70) und Auftragsfelder der Schiffe aus `SHIP4` übernehmen.
 
 **Mehrspieler**
 - Wie andere Rechner einen Hausaufstieg übernehmen (Nachricht 0x835, [houses.md](re/houses.md)).

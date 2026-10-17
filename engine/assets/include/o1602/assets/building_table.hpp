@@ -136,6 +136,9 @@ struct BuildingType {
     bool blocks_shots = false;
     /// HAUS_PRODTYP/Maxware (record +0x45): training places of a castle, wares a pirate Kontor sells.
     std::uint8_t max_wares = 0;
+    /// Second Maxware value (record +0x46): wares a Kontor of a computer player buys at most (the
+    /// first is what it sells at most).
+    std::uint8_t max_wares2 = 0;
     /// Ruinenr (record +0x66): what remains when the building is destroyed (RUINE_*, 0xFF = nothing).
     std::uint8_t ruin = 0xFF;
     /// Growing records (HAUS_PRODTYP Kind ROHSTWACHS): growth class 0..31. One growth stage lasts

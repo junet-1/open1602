@@ -25,9 +25,11 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_logistics(world, buildings, figures),
       m_fleet(world, buildings, figures, m_rules),
       m_combat(world, buildings, figures),
-      m_military(world, buildings, figures, m_rules, m_combat) {
+      m_military(world, buildings, figures, m_rules, m_combat),
+      m_ai(*this) {
     m_military.set_fleet(&m_fleet);
     m_fleet.set_combat(&m_combat);
+    m_fleet.set_directed([this](std::uint32_t ship) { return m_ai.directs(ship); });
     m_time_ms = world.time_ms();
     m_island_ms = static_cast<std::uint32_t>(m_time_ms % Logistics::kIslandEpochMs);
     // The cities consume at whole multiples of 10 s of game time (game08 -> game09, the video of
@@ -40,6 +42,8 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     if (restore_state(world.take_simulation_state())) {
         return;  // a game saved by Open1602 continues where it was
     }
+    // As the original after every load: the computer players look at the world anew (0x0042B710).
+    m_ai.reset();
     // As when the original loads a game: every deer spot gets its deer.
     m_logistics.spawn_deer_at_spots();
     // The original takes the saved coverage of the houses; Open1602 recomputes it once, which
@@ -48,7 +52,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
 }
 
 void Simulation::save_state(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 3;
+    constexpr std::uint16_t kVersion = 4;
     out.u16(kVersion);
     out.u32(m_production_ms);
     out.u32(m_city_ms);
@@ -58,6 +62,7 @@ void Simulation::save_state(core::ByteWriter& out) const {
     m_logistics.save(out);
     m_fleet.save(out);
     m_military.save(out);
+    m_ai.save(out);
 }
 
 bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
@@ -67,7 +72,7 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     core::ByteReader reader(state);
     StateIn in(reader);
     const std::uint16_t version = in.u16();
-    if (version < 1 || version > 3) {
+    if (version < 1 || version > 4) {
         return false;
     }
     const std::uint32_t production = in.u32();
@@ -83,6 +88,13 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     }
     if (version >= 3 && !m_military.load(reader)) {
         return false;
+    }
+    if (version >= 4) {
+        if (!m_ai.load(reader)) {
+            return false;
+        }
+    } else {
+        m_ai.reset();  // games of earlier versions had no computer players' state
     }
     m_production_ms = production;
     m_city_ms = city;
@@ -122,41 +134,8 @@ void Simulation::apply_commands() {
     while (!m_commands.empty()) {
         auto [sequence, command] = std::move(m_commands.front());
         m_commands.pop_front();
-        CommandResult result;
+        CommandResult result = execute(command);
         result.sequence = sequence;
-        const std::size_t first = m_construction_events.size();
-        if (const auto* build = std::get_if<BuildOrder>(&command)) {
-            result.build = execute_build(*m_world, *m_buildings, *build, m_city_names, &m_construction_events);
-        } else if (const auto* demolish = std::get_if<DemolishOrder>(&command)) {
-            const DemolishResult d =
-                execute_demolish(*m_world, *m_buildings, *demolish, &m_construction_events, m_rules.refund_share());
-            result.demolished = d.removed;
-            result.refund = d.refund;
-        } else if (const auto* order = std::get_if<ShipOrder>(&command)) {
-            result.accepted = m_fleet.order(*order);
-        } else if (const auto* transfer = std::get_if<CargoTransfer>(&command)) {
-            result.moved = m_fleet.transfer(*transfer);
-            result.accepted = result.moved != 0;
-        } else if (const auto* route = std::get_if<RouteEdit>(&command)) {
-            result.accepted = m_fleet.edit_route(*route);
-        } else if (const auto* trade = std::get_if<TradeSetting>(&command)) {
-            result.accepted = m_fleet.set_trade(*trade);
-        } else if (const auto* yard = std::get_if<ShipyardOrder>(&command)) {
-            result.accepted = m_fleet.shipyard(*yard);
-        } else if (const auto* explore = std::get_if<ExploreOrder>(&command)) {
-            result.accepted = m_fleet.explore(*explore);
-        } else if (const auto* dipl = std::get_if<DiplomacyOrder>(&command)) {
-            result.accepted = apply_diplomacy(*m_world, *dipl);
-        } else if (const auto* soldiers = std::get_if<SoldierOrder>(&command)) {
-            result.accepted = m_military.order(*soldiers);
-        } else if (const auto* soldier = std::get_if<SoldierCommand>(&command)) {
-            result.accepted = m_military.command(*soldier);
-        } else if (const auto* castle = std::get_if<CastleOrder>(&command)) {
-            result.accepted = m_military.castle(*castle);
-        } else if (const auto* unload = std::get_if<UnloadOrder>(&command)) {
-            result.accepted = m_military.unload(*unload);
-        }
-        handle(m_construction_events, first);
         m_command_results.push_back(std::move(result));
     }
     if (m_construction_events.size() > kMaxPendingEvents) {
@@ -167,6 +146,66 @@ void Simulation::apply_commands() {
         m_command_results.erase(m_command_results.begin(),
                                 m_command_results.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
     }
+}
+
+CommandResult Simulation::execute(const Command& command) {
+    CommandResult result;
+    const std::size_t first = m_construction_events.size();
+    if (const auto* build = std::get_if<BuildOrder>(&command)) {
+        result.build = execute_build(*m_world, *m_buildings, *build, m_city_names, &m_construction_events);
+    } else if (const auto* demolish = std::get_if<DemolishOrder>(&command)) {
+        const DemolishResult d =
+            execute_demolish(*m_world, *m_buildings, *demolish, &m_construction_events, m_rules.refund_share());
+        result.demolished = d.removed;
+        result.refund = d.refund;
+    } else if (const auto* order = std::get_if<ShipOrder>(&command)) {
+        result.accepted = m_fleet.order(*order);
+    } else if (const auto* transfer = std::get_if<CargoTransfer>(&command)) {
+        result.moved = m_fleet.transfer(*transfer);
+        result.accepted = result.moved != 0;
+    } else if (const auto* route = std::get_if<RouteEdit>(&command)) {
+        result.accepted = m_fleet.edit_route(*route);
+    } else if (const auto* trade = std::get_if<TradeSetting>(&command)) {
+        result.accepted = m_fleet.set_trade(*trade);
+    } else if (const auto* yard = std::get_if<ShipyardOrder>(&command)) {
+        result.accepted = m_fleet.shipyard(*yard);
+    } else if (const auto* explore = std::get_if<ExploreOrder>(&command)) {
+        result.accepted = m_fleet.explore(*explore);
+    } else if (const auto* dipl = std::get_if<DiplomacyOrder>(&command)) {
+        result.accepted = apply_diplomacy(*m_world, *dipl);
+    } else if (const auto* soldiers = std::get_if<SoldierOrder>(&command)) {
+        result.accepted = m_military.order(*soldiers);
+    } else if (const auto* soldier = std::get_if<SoldierCommand>(&command)) {
+        result.accepted = m_military.command(*soldier);
+    } else if (const auto* castle = std::get_if<CastleOrder>(&command)) {
+        result.accepted = m_military.castle(*castle);
+    } else if (const auto* unload = std::get_if<UnloadOrder>(&command)) {
+        result.accepted = m_military.unload(*unload);
+    } else if (const auto* sw = std::get_if<ProductionSwitch>(&command)) {
+        result.accepted = switch_production(*sw);
+    }
+    handle(m_construction_events, first);
+    return result;
+}
+
+bool Simulation::switch_production(const ProductionSwitch& s) {
+    if (s.island >= m_world->islands().size()) {
+        return false;
+    }
+    const IslandMap& map = m_world->islands()[s.island].map;
+    if (!map.contains(s.x, s.y) || (s.player != kNoPlayer && map.top(s.x, s.y).owner != s.player)) {
+        return false;
+    }
+    const auto index = m_world->production_index(s.island, s.x, s.y);
+    if (!index) {
+        return false;
+    }
+    Production& p = m_world->productions()[*index];
+    if (!p.used || p.enabled == s.on) {
+        return false;
+    }
+    p.enabled = s.on;
+    return true;
 }
 
 void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_t first) {
@@ -347,6 +386,8 @@ void Simulation::tick() {
                                    m_volcano_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
     }
+    // The computer players (AI_Tick 0x0042B4B0 runs after the players' tick in each slice).
+    m_ai.tick(kTickMs);
     // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670): first who
     // sees whom, then ships and shipyards, then soldiers, towers and the shots that land.
     m_combat.update();

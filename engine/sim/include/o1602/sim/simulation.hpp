@@ -16,6 +16,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/sim/ai.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/disasters.hpp"
@@ -31,10 +32,23 @@
 
 namespace o1602::sim {
 
+namespace ai {
+class Engine;
+}
+
+/// Switching a production building on or off (building op 0x18; docs/re/production.md).
+struct ProductionSwitch {
+    PlayerId player = kNoPlayer;
+    std::uint16_t island = 0;
+    std::uint16_t x = 0;  ///< origin of the building
+    std::uint16_t y = 0;
+    bool on = true;
+};
+
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
-using Command =
-    std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting, ShipyardOrder,
-                 ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder, UnloadOrder>;
+using Command = std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting,
+                             ShipyardOrder, ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder,
+                             UnloadOrder, ProductionSwitch>;
 
 /// What became of a command.
 struct CommandResult {
@@ -65,6 +79,9 @@ public:
     std::uint64_t submit(Command command);
     /// Applies the queued commands now (the start of a tick does this).
     void apply_commands();
+    /// Carries out one command at once, as if it had been queued (the computer players act this way
+    /// within a tick). The result is returned, not kept for take_command_results().
+    CommandResult execute(const Command& command);
     /// Results of the applied commands since the last call.
     [[nodiscard]] std::vector<CommandResult> take_command_results();
     /// What building and demolishing changed since the last call.
@@ -91,6 +108,8 @@ public:
     /// Soldiers, towers and the hostile lists.
     [[nodiscard]] const Military& military() const noexcept { return m_military; }
     [[nodiscard]] const Combat& combat() const noexcept { return m_combat; }
+    /// The computer players.
+    [[nodiscard]] const ComputerPlayers& computers() const noexcept { return m_ai; }
     /// Shots, hits, deaths and destroyed buildings since the last call.
     [[nodiscard]] std::vector<MilitaryEvent> take_military_events();
     /// Treaties offered, signed or broken since the last call.
@@ -118,7 +137,9 @@ public:
     [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events();
 
 private:
+    friend class ai::Engine;
     void pay_upkeep();
+    bool switch_production(const ProductionSwitch& s);
     bool restore_state(const std::vector<std::uint8_t>& state);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 
@@ -147,6 +168,7 @@ private:
     Combat m_combat;
     Military m_military;
     std::vector<MilitaryEvent> m_military_events;
+    ComputerPlayers m_ai;
     std::deque<std::pair<std::uint64_t, Command>> m_commands;
     std::uint64_t m_next_command = 1;
     std::vector<CommandResult> m_command_results;
