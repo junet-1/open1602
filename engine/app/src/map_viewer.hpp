@@ -134,7 +134,6 @@ private:
     std::string m_tool_status;                    ///< what the build tool would do at the mouse
     std::vector<render::EffectFigure> m_effects;  ///< volcano fire, lava, sea creatures, jugglers of this frame
     render::Ambient m_ambient;                    ///< life in the picture, no part of the game
-    std::uint64_t m_ambient_ms = 0;               ///< game time the ambient last ran to
     std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
 };
 

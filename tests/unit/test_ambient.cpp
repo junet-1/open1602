@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Townsfolk, sea creatures and jugglers (docs/re/flavor.md): life in the picture, no part of the game.
 
+#include <algorithm>
+#include <cmath>
+#include <initializer_list>
 #include <set>
 
 #include "../test_framework.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/render/ambient.hpp"
+#include "o1602/sim/simulation.hpp"
 
 using namespace o1602;
 
@@ -75,12 +79,13 @@ assets::FigureTable make_figures() {
     return std::move(table).value();
 }
 
-/// A 30 x 20 island at (100, 100) with a road along row 10, a house of city 0 at its west end, a
-/// tavern 9 steps east (inside the 21 x 21 window of the search) and a market; open sea around it.
+/// A 30 x 20 island at (100, 100) of a 168 x 140 world with a road along row 10, a house of city
+/// 0 at its west end, a tavern 9 steps east (inside the 21 x 21 window of the search) and a market;
+/// open sea around it.
 struct Scene {
     assets::BuildingTable buildings = make_buildings();
     assets::FigureTable figures = make_figures();
-    sim::World world;
+    sim::World world{168, 140};
     sim::IslandMap map{30, 20};
     render::AmbientView view;
 
@@ -111,7 +116,46 @@ struct Scene {
         view.islands = {true};
     }
     sim::City& city() { return *world.city(0, 0); }
+
+    /// One tick of game time for every ambient.
+    void tick(std::initializer_list<render::Ambient*> ambients) {
+        world.set_time_ms(world.time_ms() + sim::Simulation::kTickMs);
+        for (render::Ambient* a : ambients) {
+            a->tick(world, buildings, figures);
+        }
+    }
+    /// `ms` of game time, pictures every `frame_ms`; `each` after every picture.
+    template <typename F>
+    void run(render::Ambient& a, std::uint64_t ms, F&& each, std::uint64_t frame_ms = 100) {
+        a.tick(world, buildings, figures);  // starts it, or nothing new
+        for (std::uint64_t t = 0; t < ms; t += sim::Simulation::kTickMs) {
+            tick({&a});
+            if (world.time_ms() % frame_ms == 0) {
+                a.frame(world, buildings, figures, view);
+                if (!each()) {
+                    return;
+                }
+            }
+        }
+    }
+    void run(render::Ambient& a, std::uint64_t ms) {
+        run(a, ms, [] { return true; });
+    }
 };
+
+bool same(const render::FigureInstance& a, const render::FigureInstance& b) {
+    return a.x == b.x && a.y == b.y && a.figure == b.figure && a.anim == b.anim && a.frame == b.frame &&
+           a.direction == b.direction;
+}
+bool same(const render::EffectFigure& a, const render::EffectFigure& b) {
+    return a.x == b.x && a.y == b.y && a.figure == b.figure && a.anim == b.anim && a.frame == b.frame &&
+           a.direction == b.direction && a.sheet == b.sheet;
+}
+template <typename T>
+bool same(const std::vector<T>& a, const std::vector<T>& b) {
+    return a.size() == b.size() &&
+           std::equal(a.begin(), a.end(), b.begin(), [](const T& x, const T& y) { return same(x, y); });
+}
 
 }  // namespace
 
@@ -121,8 +165,7 @@ TEST_CASE("ambient: townsfolk walk from their house along the road to a tavern a
     std::set<std::uint16_t> seen;
     bool walked = false;
     // Over many rounds a walker comes: the house list rate of the original is low.
-    for (int t = 0; t < 400'000 && !walked; ++t) {
-        ambient.update(s.world, s.buildings, s.figures, s.view, 100);
+    s.run(ambient, 40'000'000, [&] {
         for (const render::FigureInstance& f : ambient.walkers()) {
             walked = true;
             seen.insert(f.figure);
@@ -133,91 +176,108 @@ TEST_CASE("ambient: townsfolk walk from their house along the road to a tavern a
             CHECK(f.x <= 111.5);
             CHECK(f.sheet == assets::FigureSheet::Traeger);
         }
-    }
+        return !walked;
+    });
     REQUIRE(walked);
     for (const std::uint16_t f : seen) {
         const auto choices = render::townsfolk_for(17);
         CHECK(std::find(choices.begin(), choices.end(), f) != choices.end());
     }
     // ... and vanishes at the tavern: 9 tiles at 0.4 tiles per second.
-    for (int t = 0; t < 400; ++t) {
-        ambient.update(s.world, s.buildings, s.figures, s.view, 100);
-    }
+    s.run(ambient, 40'000);
     CHECK(ambient.walkers().size() <= 1);
 }
 
-TEST_CASE("ambient: no townsfolk in small cities, off screen or with foreign soldiers") {
+TEST_CASE("ambient: no townsfolk in small cities or with foreign soldiers") {
     Scene s;
     s.city().inhabitants = {50, 29, 0, 0, 0};  // settlers and better: 29
     render::Ambient small(5);
-    for (int t = 0; t < 400'000; ++t) {
-        small.update(s.world, s.buildings, s.figures, s.view, 100);
-    }
+    s.run(small, 6'000'000);
     CHECK(small.stats().walkers == 0);
 
     s.city().inhabitants = {10, 40, 0, 0, 0};
-    s.view.islands = {false};
-    render::Ambient away(5);
-    for (int t = 0; t < 400'000; ++t) {
-        away.update(s.world, s.buildings, s.figures, s.view, 100);
-    }
-    CHECK(away.stats().walkers == 0);
-
-    s.view.islands = {true};
     std::vector<sim::Player> players(2);
     players[1].role = sim::PlayerRole::Computer;
     s.world.set_players(players);
     s.world.add_soldier(sim::Soldier{105.0, 105.0, 1, 1, 0, 0});
     render::Ambient troops(5);
-    for (int t = 0; t < 400'000; ++t) {
-        troops.update(s.world, s.buildings, s.figures, s.view, 100);
-    }
+    s.run(troops, 6'000'000);
     CHECK(troops.stats().walkers == 0);
 }
 
-TEST_CASE("ambient: sea creatures keep away from islands and ships, live a few seconds") {
+TEST_CASE("ambient: every computer sees the same, wherever it looks and however often it draws") {
     Scene s;
-    // Open sea far from the island.
-    s.view.tile_at = [](double, double) { return std::optional<sim::TilePos>(sim::TilePos{300, 250}); };
-    render::Ambient ambient(9);
-    std::set<std::uint16_t> species;
-    for (int t = 0; t < 4000; ++t) {  // 400 s: 80 chances
-        ambient.update(s.world, s.buildings, s.figures, s.view, 100);
-        for (const render::EffectFigure& e : ambient.effects()) {
-            if (e.sheet == assets::FigureSheet::Fische) {
-                species.insert(e.figure);
-                CHECK(e.x > 293.0);  // a pod spreads over 3 tiles, a whale swims 5.7
-                CHECK(e.x < 308.0);
-                CHECK(e.y > 243.0);
-                CHECK(e.y < 258.0);
-            }
+    s.world.add_ship(sim::Ship{"Sea Lion", 40, 40, 21, 0, 0, {}});
+    // One computer draws 10 times a second looking at the island, the other 1.4 times looking
+    // elsewhere, and its player scrolls.
+    render::Ambient a(77);
+    render::Ambient b(77);
+    render::Ambient other(78);
+    render::AmbientView away;
+    away.islands = {false};
+    s.tick({&a, &b, &other});
+    std::size_t compared = 0;
+    std::size_t walkers = 0;
+    std::size_t creatures = 0;
+    bool differs = false;
+    for (int i = 0; i < 400'000; ++i) {  // 20000 s
+        s.tick({&a, &b, &other});
+        const std::uint64_t now = s.world.time_ms();
+        if (now % 100 == 0) {
+            a.frame(s.world, s.buildings, s.figures, s.view);
+        }
+        if (now % 700 == 0) {
+            b.frame(s.world, s.buildings, s.figures, i % 2 == 0 ? away : s.view);
+        }
+        if (now % 700 == 0 && now % 100 == 0) {
+            other.frame(s.world, s.buildings, s.figures, s.view);
+            REQUIRE(same(a.walkers(), b.walkers()));
+            REQUIRE(same(a.effects(), b.effects()));
+            differs = differs || !same(a.effects(), other.effects());
+            walkers += a.walkers().size();
+            creatures += a.effects().size();
+            ++compared;
         }
     }
-    CHECK(ambient.stats().creatures == 80);
+    CHECK(compared > 20'000);
+    CHECK(walkers > 0);
+    CHECK(creatures > 0);
+    CHECK(differs);  // the seed matters
+    CHECK(a.stats().walkers == b.stats().walkers);
+    CHECK(a.stats().creatures == b.stats().creatures);
+}
+
+TEST_CASE("ambient: sea creatures come up all over the open sea, away from islands and ships") {
+    Scene s;
+    s.world.add_ship(sim::Ship{"Sea Lion", 40, 40, 21, 0, 0, {}});
+    render::Ambient ambient(9);
+    std::set<std::uint16_t> species;
+    std::set<std::pair<int, int>> blocks;
+    s.run(ambient, 400'000, [&] {  // 80 chances
+        for (const render::EffectFigure& e : ambient.effects()) {
+            if (e.sheet != assets::FigureSheet::Fische) {
+                continue;
+            }
+            species.insert(e.figure);
+            blocks.emplace(static_cast<int>(e.x) / 28, static_cast<int>(e.y) / 28);
+            // In the world, not on the island (a pod spreads by a tile, whales swim away).
+            CHECK(e.x > -6.0);
+            CHECK(e.y > -6.0);
+            CHECK(e.x < 174.0);
+            CHECK(e.y < 146.0);
+            if (e.figure != render::kFigureWhale) {
+                CHECK(!(e.x > 101.5 && e.x < 128.5 && e.y > 101.5 && e.y < 118.5));
+                // Nothing comes up within 5 tiles of a ship.
+                CHECK(!(std::abs(e.x - 40.5) < 4.5 && std::abs(e.y - 40.5) < 4.5));
+            }
+        }
+        return true;
+    });
+    CHECK(ambient.stats().creatures > 80);
+    CHECK(blocks.size() > 20);  // all over the sea, not only where someone looks
     CHECK(species.count(render::kFigureDolphin) == 1);
     CHECK(species.count(render::kFigureWhale) == 1);
     CHECK(species.count(render::kFigureKraken) == 1);
-    // Gone 12.5 s after the last one at the latest.
-    s.view.tile_at = nullptr;
-    for (int t = 0; t < 130; ++t) {
-        ambient.update(s.world, s.buildings, s.figures, s.view, 100);
-    }
-    CHECK(ambient.effects().empty());
-
-    // Inside the island's rectangle (water or not) and close to a ship: none.
-    s.view.tile_at = [](double, double) { return std::optional<sim::TilePos>(sim::TilePos{110, 105}); };
-    render::Ambient inside(9);
-    for (int t = 0; t < 1000; ++t) {
-        inside.update(s.world, s.buildings, s.figures, s.view, 100);
-    }
-    CHECK(inside.stats().creatures == 0);
-    s.world.add_ship(sim::Ship{"Sea Lion", 302, 252, 21, 0, 0, {}});
-    s.view.tile_at = [](double, double) { return std::optional<sim::TilePos>(sim::TilePos{300, 250}); };
-    render::Ambient ship(9);
-    for (int t = 0; t < 1000; ++t) {
-        ship.update(s.world, s.buildings, s.figures, s.view, 100);
-    }
-    CHECK(ship.stats().creatures == 0);
 }
 
 TEST_CASE("ambient: a juggler on the market of a city with more than 59 citizens") {
@@ -228,14 +288,22 @@ TEST_CASE("ambient: a juggler on the market of a city with more than 59 citizens
     s.world.set_production(market);
     s.city().inhabitants = {0, 0, 59, 0, 0};
     render::Ambient ambient(1);
-    ambient.update(s.world, s.buildings, s.figures, s.view, 100);
-    CHECK(ambient.effects().empty());
+    const auto jugglers = [&] {
+        std::vector<render::EffectFigure> j;
+        for (const render::EffectFigure& e : ambient.effects()) {
+            if (e.sheet == assets::FigureSheet::Gaukler) {
+                j.push_back(e);
+            }
+        }
+        return j;
+    };
+    s.run(ambient, 2000);
+    CHECK(jugglers().empty());
     s.city().inhabitants = {0, 0, 30, 30, 0};
-    ambient.update(s.world, s.buildings, s.figures, s.view, 100);
-    REQUIRE(ambient.effects().size() == 1);
-    const render::EffectFigure& j = ambient.effects()[0];
+    s.run(ambient, 1000);  // markets are looked at once a second
+    REQUIRE(jugglers().size() == 1);
+    const render::EffectFigure j = jugglers()[0];
     CHECK(j.figure == render::kFigureJuggler);
-    CHECK(j.sheet == assets::FigureSheet::Gaukler);
     CHECK(j.anim == (20 + 2) % 5);       // the act follows the market's position
     CHECK(j.x == 100 + 20 + 2.0 + 2.1);  // centre of the 4 x 3 market and Fahnoffs 2.1
     CHECK(j.y == 100 + 2 + 1.5);

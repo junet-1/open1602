@@ -269,6 +269,9 @@ void Simulation::tick() {
     for (const DisasterEvent& e : m_logistics.take_disaster_events()) {
         m_disaster_events.push_back(e);
     }
+    if (m_tick_observer) {
+        m_tick_observer(*m_world);
+    }
 }
 
 void Simulation::pay_upkeep() {

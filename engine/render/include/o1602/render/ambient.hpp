@@ -6,14 +6,15 @@
 //
 // The original runs these through the simulation: they take slots of its figure list, draw from
 // the one rand() of the game and depend on where the player looks, so scrolling changes fires,
-// plague and robbers (S-065). In Open1602 they live only here, on the side of the picture: own
-// random numbers, nothing saved, nothing sent to other players, no effect on the game. They follow
-// game time, so they stop when the game is paused.
+// plague and robbers (S-065). In Open1602 they live only here, on the side of the picture, with no
+// effect on the game and nothing saved. Every decision is a function of a fixed seed, the game
+// time and the world as it is after a tick, never of the camera or the frame rate: all computers
+// of a multiplayer game see the same townsfolk, whales and jugglers without sending anything.
+// They follow game time, so they stop when the game is paused.
 #pragma once
 
 #include <cstdint>
-#include <functional>
-#include <optional>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -28,11 +29,9 @@
 
 namespace o1602::render {
 
-/// What the player sees: which islands are on screen, and a world tile for a point of the screen
-/// (u, v in 0..1), nothing where the screen shows no map.
+/// What the player sees; only for the sounds, which each computer plays for itself.
 struct AmbientView {
-    std::vector<bool> islands;  ///< by index into World::islands()
-    std::function<std::optional<sim::TilePos>(double u, double v)> tile_at;
+    std::vector<bool> islands;     ///< by index into World::islands()
     std::uint32_t game_speed = 1;  ///< sounds play only at normal speed, as in the original
 };
 
@@ -60,14 +59,20 @@ inline constexpr std::uint16_t kFigureKraken = 103;   ///< KRAKE
 
 class Ambient {
 public:
-    static constexpr std::uint32_t kCityPeriodMs = 10'000;  ///< walkers: one round per city per 10 s
-    static constexpr std::uint32_t kSeaPeriodMs = 5'000;    ///< sea creatures: a chance every 5 s
+    static constexpr std::uint32_t kCityPeriodMs = 10'000;    ///< walkers: one round per city per 10 s
+    static constexpr std::uint32_t kSeaPeriodMs = 5'000;      ///< sea creatures: a chance every 5 s
+    static constexpr std::uint32_t kSeaBlock = 28;            ///< sea creatures: tiles per side of a sea block
+    static constexpr std::uint32_t kJugglerPeriodMs = 1'000;  ///< markets are looked at once a second
 
-    explicit Ambient(std::uint64_t seed = 1602) noexcept : m_random(seed, 0xA4B1E47ULL) {}
+    /// All computers of a game must use the same seed.
+    explicit Ambient(std::uint64_t seed = 1602) noexcept : m_seed(seed) {}
 
-    /// Runs `dt_ms` of game time.
-    void update(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
-                const AmbientView& view, std::uint32_t dt_ms);
+    /// Decisions up to the world's time: call after every tick of the simulation, with the world
+    /// as that tick left it. What happened between two calls is decided on the world of the later.
+    void tick(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
+    /// Pictures and sounds at the world's time: call once per displayed frame.
+    void frame(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+               const AmbientView& view);
 
     /// Townsfolk on the roads (drawn like the carriers, from TRAEGER.BSH).
     [[nodiscard]] const std::vector<FigureInstance>& walkers() const noexcept { return m_walker_instances; }
@@ -92,39 +97,55 @@ private:
         std::uint16_t figure = 0;
         std::uint64_t house = 0;         ///< key of the house it came from
         std::vector<sim::TilePos> path;  ///< island tiles, from the house to the target
-        double position = 0.0;           ///< steps done along `path`
-        double tiles_per_ms = 0.0;
+        std::uint64_t start_ms = 0;      ///< game time it left the house
+        std::uint64_t end_ms = 0;        ///< game time it reaches the target
+        std::uint32_t ms_per_tile = 1;
+        std::uint64_t anim_ms = 0;  ///< game time `anim` is at
         AnimState anim;
     };
     struct Creature {
         std::uint16_t figure = 0;
-        double x = 0.0;
+        double x = 0.0;  ///< where it came up
         double y = 0.0;
         double vx = 0.0;  ///< tiles per ms (whales only)
         double vy = 0.0;
         std::uint8_t direction = 0;
-        std::uint32_t life_ms = 0;
+        std::uint64_t start_ms = 0;
+        std::uint64_t end_ms = 0;
+        std::uint64_t anim_ms = 0;
         AnimState anim;
     };
+    struct Juggler {
+        std::uint64_t anim_ms = 0;
+        AnimState anim;
+        bool seen = false;
+    };
 
-    void city_walkers(const sim::World& world, const assets::BuildingTable& buildings,
-                      const assets::FigureTable& figures, const AmbientView& view);
+    void city_round(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+                    const sim::City& city, std::uint64_t at_ms, std::uint64_t round);
     void send_walker(const sim::World& world, const assets::BuildingTable& buildings,
-                     const assets::FigureTable& figures, const sim::House& house, std::uint32_t roll);
-    void sea_creatures(const sim::World& world, const assets::FigureTable& figures, const AmbientView& view);
+                     const assets::FigureTable& figures, const sim::House& house, sim::Random& random,
+                     std::uint64_t at_ms);
+    void sea_creatures(const sim::World& world, const assets::FigureTable& figures, std::uint64_t at_ms,
+                       std::uint64_t slot);
+    void sea_block(const sim::World& world, const assets::FigureTable& figures, sim::Random& random, std::uint32_t x0,
+                   std::uint32_t y0, std::uint64_t at_ms);
     void jugglers(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
-                  const AmbientView& view, std::uint32_t dt_ms);
+                  std::uint64_t at_ms);
     void sounds(const sim::World& world, const assets::BuildingTable& buildings, const AmbientView& view,
-                std::uint32_t dt_ms);
+                std::uint64_t now_ms);
+    void retire(std::uint64_t at_ms);
+    [[nodiscard]] sim::Random stream(std::uint64_t tag, std::uint64_t a, std::uint64_t b,
+                                     std::uint64_t c = 0) const noexcept;
 
-    sim::Random m_random;
-    std::unordered_map<std::uint32_t, std::uint32_t> m_city_ms;  ///< key island << 8 | city: time to the next round
-    std::uint32_t m_sea_ms = 0;
-    std::uint64_t m_time_ms = 0;
+    std::uint64_t m_seed;
+    bool m_started = false;
+    std::uint64_t m_tick_ms = 0;   ///< game time decided up to
+    std::uint64_t m_frame_ms = 0;  ///< game time of the last pictures (sounds)
     std::vector<Walker> m_walking;
     std::unordered_set<std::uint64_t> m_busy_houses;
     std::vector<Creature> m_creatures;
-    std::unordered_map<std::uint64_t, AnimState> m_juggler_anims;
+    std::map<std::uint64_t, Juggler> m_jugglers;  ///< by market (ordered: the same picture everywhere)
     struct Emitter {
         std::uint16_t x = 0;
         std::uint16_t y = 0;

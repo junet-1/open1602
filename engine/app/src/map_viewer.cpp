@@ -121,7 +121,11 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_camera.set_zoom(options.zoom, w / 2.0, h / 2.0);
     // Start over the player's own city.
     viewer->m_camera.center_on(viewer->home_tile());
-    viewer->m_ambient_ms = viewer->m_world.time_ms();
+    // Townsfolk and sea creatures follow the game tick by tick, the same on every computer.
+    MapViewer* self = viewer.get();
+    viewer->m_simulation.set_tick_observer(
+        [self](const sim::World& now) { self->m_ambient.tick(now, self->m_buildings, self->m_figures); });
+    viewer->m_ambient.tick(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     if (auto status = viewer->ensure_graphics(viewer->m_camera.view().zoom); !status) {
         return status.error();
     }
@@ -691,21 +695,12 @@ void MapViewer::collect_effects() {
 }
 
 void MapViewer::update_ambient() {
-    const std::uint64_t now = m_world.time_ms();
-    const auto dt = static_cast<std::uint32_t>(std::min<std::uint64_t>(now - std::min(now, m_ambient_ms), 1000));
-    m_ambient_ms = now;
+    // Decided tick by tick through the simulation's observer; here only the pictures and sounds.
     std::int32_t w = 0;
     std::int32_t h = 0;
     m_window->output_size(w, h);
     render::AmbientView view;
     view.game_speed = m_simulation.speed();
-    view.tile_at = [&](double u, double v) -> std::optional<sim::TilePos> {
-        const auto t = m_camera.tile_at_screen(u * w, v * h);
-        if (!t) {
-            return std::nullopt;
-        }
-        return sim::TilePos{static_cast<std::int32_t>(t->x), static_cast<std::int32_t>(t->y)};
-    };
     // Islands on screen: those overlapping the box of the tiles at the screen's corners and edges.
     std::uint32_t x0 = m_world.width();
     std::uint32_t y0 = m_world.height();
@@ -727,7 +722,7 @@ void MapViewer::update_ambient() {
         view.islands[i] = island.x <= x1 && island.x + island.map.width() > x0 && island.y <= y1 &&
                           island.y + island.map.height() > y0;
     }
-    m_ambient.update(m_world, m_buildings, m_figures, view, dt);
+    m_ambient.frame(m_world, m_buildings, m_figures, view);
     (void)m_ambient.take_sounds();  // no sound output yet
 }
 

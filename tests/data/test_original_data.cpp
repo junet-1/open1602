@@ -2109,14 +2109,17 @@ TEST_CASE("data: townsfolk, sea creatures and jugglers leave the game untouched"
     render::Ambient ambient(42);
     render::AmbientView view;
     view.islands.assign(world.islands().size(), true);
-    view.tile_at = [&](double u, double v) {
-        return std::optional<sim::TilePos>(
-            sim::TilePos{static_cast<std::int32_t>(u * world.width()), static_cast<std::int32_t>(v * world.height())});
-    };
+    const std::uint64_t start_ms = world.time_ms();
+    ambient.tick(world, *buildings, *figures);
     std::set<std::uint16_t> kinds;
     std::size_t jugglers = 0;
-    for (int t = 0; t < 6000; ++t) {  // 10 minutes
-        ambient.update(world, *buildings, *figures, view, 100);
+    for (int t = 0; t < 12'000; ++t) {  // 10 minutes
+        world.set_time_ms(world.time_ms() + sim::Simulation::kTickMs);
+        ambient.tick(world, *buildings, *figures);
+        if (t % 2 == 0) {
+            continue;
+        }
+        ambient.frame(world, *buildings, *figures, view);
         for (const render::FigureInstance& f : ambient.walkers()) {
             kinds.insert(f.figure);
             // Townsfolk are seen on roads, squares, bridges and piers only.
@@ -2130,6 +2133,7 @@ TEST_CASE("data: townsfolk, sea creatures and jugglers leave the game untouched"
             }
         }
     }
+    world.set_time_ms(start_ms);
     CHECK(ambient.stats().walkers > 0);
     CHECK(ambient.stats().creatures > 0);
     // Jugglers where a city has more than 59 citizens and better (and a market).

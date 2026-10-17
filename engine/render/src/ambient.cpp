@@ -108,6 +108,22 @@ constexpr std::array<std::uint8_t, 16> kAwayWhale = {0, 1, 3, 3, 5, 3, 5, 3, 7, 
 constexpr std::array<std::uint16_t, 8> kSpecies = {kFigureDolphin, kFigureKraken,  kFigureDolphin, kFigureDolphin,
                                                    kFigureWhale,   kFigureDolphin, kFigureWhale,   kFigureDolphin};
 
+// What the generators of a decision are derived from, besides the seed.
+constexpr std::uint64_t kTagCity = 1;
+constexpr std::uint64_t kTagSea = 2;
+constexpr std::uint64_t kTagSound = 3;
+
+/// Mixes `v` into `h` (the splitmix64 finaliser): a different value for every input.
+constexpr std::uint64_t mix(std::uint64_t h, std::uint64_t v) noexcept {
+    h ^= v + 0x9E3779B97F4A7C15ULL + (h << 6U) + (h >> 2U);
+    h ^= h >> 30U;
+    h *= 0xBF58476D1CE4E5B9ULL;
+    h ^= h >> 27U;
+    h *= 0x94D049BB133111EBULL;
+    h ^= h >> 31U;
+    return h;
+}
+
 AnimState fresh_anim(std::uint8_t anim, std::uint32_t seed) noexcept {
     AnimState s;
     s.anim = anim;
@@ -154,106 +170,149 @@ std::vector<std::int32_t> walker_targets(std::uint32_t roll) {
     }
 }
 
-void Ambient::update(const sim::World& world, const assets::BuildingTable& buildings,
-                     const assets::FigureTable& figures, const AmbientView& view, std::uint32_t dt_ms) {
-    m_time_ms += dt_ms;
-    // Townsfolk walk on.
-    for (Walker& w : m_walking) {
-        w.position += w.tiles_per_ms * dt_ms;
-        if (const assets::FigureType* type = figures.get(w.figure)) {
-            advance_animation(w.anim, *type, dt_ms);
+sim::Random Ambient::stream(std::uint64_t tag, std::uint64_t a, std::uint64_t b, std::uint64_t c) const noexcept {
+    return sim::Random(mix(mix(mix(mix(m_seed, tag), a), b), c), tag);
+}
+
+void Ambient::tick(const sim::World& world, const assets::BuildingTable& buildings,
+                   const assets::FigureTable& figures) {
+    const std::uint64_t now = world.time_ms();
+    if (!m_started || now < m_tick_ms) {
+        // The first call, or another game in the same picture: nothing is decided before it.
+        m_started = true;
+        m_tick_ms = now;
+        m_frame_ms = now;
+        m_walking.clear();
+        m_busy_houses.clear();
+        m_creatures.clear();
+        m_jugglers.clear();
+        return;
+    }
+    const std::uint64_t from = m_tick_ms;
+    m_tick_ms = now;
+    if (now == from) {
+        return;
+    }
+    // What falls into (from, now], in the order of game time.
+    enum class Kind : std::uint8_t { City, Sea, Markets };
+    struct Event {
+        std::uint64_t at = 0;
+        Kind kind = Kind::City;
+        std::uint64_t round = 0;
+        const sim::City* city = nullptr;
+    };
+    std::vector<Event> events;
+    const auto every = [&](std::uint64_t period, std::uint64_t phase, auto&& add) {
+        // Times phase + k * period after `from` and up to `now`.
+        std::uint64_t k = from < phase ? 0 : (from - phase) / period + 1;
+        for (std::uint64_t at = phase + k * period; at <= now; at += period, ++k) {
+            add(at, k);
+        }
+    };
+    for (const sim::City& c : world.cities()) {
+        // Each city has its own moment in the 10 s (the original: whenever the city first came up).
+        const std::uint64_t phase = mix(mix(m_seed, kTagCity), std::uint64_t{c.island} << 8U | c.index) % kCityPeriodMs;
+        every(kCityPeriodMs, phase,
+              [&](std::uint64_t at, std::uint64_t k) { events.push_back(Event{at, Kind::City, k, &c}); });
+    }
+    every(kSeaPeriodMs, 0, [&](std::uint64_t at, std::uint64_t k) { events.push_back(Event{at, Kind::Sea, k}); });
+    every(kJugglerPeriodMs, 0,
+          [&](std::uint64_t at, std::uint64_t k) { events.push_back(Event{at, Kind::Markets, k}); });
+    std::stable_sort(events.begin(), events.end(), [](const Event& a, const Event& b) { return a.at < b.at; });
+    for (const Event& e : events) {
+        retire(e.at);
+        switch (e.kind) {
+            case Kind::City:
+                city_round(world, buildings, figures, *e.city, e.at, e.round);
+                break;
+            case Kind::Sea:
+                sea_creatures(world, figures, e.at, e.round);
+                break;
+            case Kind::Markets:
+                jugglers(world, buildings, figures, e.at);
+                break;
         }
     }
+    retire(now);
+}
+
+void Ambient::retire(std::uint64_t at_ms) {
     std::erase_if(m_walking, [&](const Walker& w) {
-        const bool done = w.position >= static_cast<double>(w.path.size() - 1) || w.island >= world.islands().size();
+        const bool done = w.end_ms <= at_ms;
         if (done) {
             m_busy_houses.erase(w.house);
         }
         return done;
     });
-    // Sea creatures swim on and go.
-    for (Creature& c : m_creatures) {
-        c.x += c.vx * dt_ms;
-        c.y += c.vy * dt_ms;
-        c.life_ms = c.life_ms > dt_ms ? c.life_ms - dt_ms : 0;
-        if (const assets::FigureType* type = figures.get(c.figure)) {
-            advance_animation(c.anim, *type, dt_ms);
-        }
-    }
-    std::erase_if(m_creatures, [](const Creature& c) { return c.life_ms == 0; });
+    std::erase_if(m_creatures, [&](const Creature& c) { return c.end_ms <= at_ms; });
+}
 
-    // City rounds every 10 s.
-    for (const sim::City& c : world.cities()) {
-        const std::uint32_t key = std::uint32_t{c.island} << 8 | c.index;
-        auto [it, fresh] = m_city_ms.try_emplace(key, 0);
-        if (fresh) {
-            it->second = m_random.below(kCityPeriodMs);  // cities do not all go at once
-        }
-        if (it->second > dt_ms) {
-            it->second -= dt_ms;
+void Ambient::city_round(const sim::World& world, const assets::BuildingTable& buildings,
+                         const assets::FigureTable& figures, const sim::City& c, std::uint64_t at_ms,
+                         std::uint64_t round) {
+    if (c.island >= world.islands().size() || inhabitants_from(c, 1) < kMinSettlers) {
+        return;
+    }
+    // No townsfolk while soldiers of another player stand on the island (0x00480370).
+    for (const sim::Soldier& s : world.soldiers()) {
+        if (s.owner == c.owner || s.owner == sim::kNoPlayer || s.x < 0 || s.y < 0) {
             continue;
         }
-        it->second = kCityPeriodMs - (dt_ms - it->second) % kCityPeriodMs;
-        const bool seen = c.island < view.islands.size() && view.islands[c.island];
-        if (!seen || inhabitants_from(c, 1) < kMinSettlers) {
-            continue;
-        }
-        // No townsfolk while soldiers of another player stand on the island (0x00480370).
-        bool troops = false;
-        for (const sim::Soldier& s : world.soldiers()) {
-            if (s.owner == c.owner || s.owner == sim::kNoPlayer || s.x < 0 || s.y < 0) {
-                continue;
-            }
-            const auto sx = static_cast<std::uint32_t>(s.x);
-            const auto sy = static_cast<std::uint32_t>(s.y);
-            const sim::Player* p = world.player(s.owner);
-            troops = troops || (world.contains(sx, sy) && world.cell(sx, sy).island == c.island && p != nullptr &&
-                                (p->role == sim::PlayerRole::Human || p->role == sim::PlayerRole::Computer));
-        }
-        if (troops) {
-            continue;
-        }
-        std::vector<const sim::House*> houses;
-        for (const sim::House& h : world.houses()) {
-            if (h.island == c.island && h.city == c.index) {
-                houses.push_back(&h);
-            }
-        }
-        // The original picks 10 records of a house list shared by several islands, so a city gets
-        // about 10 * houses / 1087 walkers per round; Open1602 keeps that rate but always finds a
-        // house of the city.
-        for (std::uint32_t t = 0; t < kWalkerTries && !houses.empty(); ++t) {
-            if (m_random.below(kHouseBucket) >= houses.size()) {
-                continue;
-            }
-            const sim::House& h = *houses[m_random.below(static_cast<std::uint32_t>(houses.size()))];
-            send_walker(world, buildings, figures, h, m_random.below(4));
+        const auto sx = static_cast<std::uint32_t>(s.x);
+        const auto sy = static_cast<std::uint32_t>(s.y);
+        const sim::Player* p = world.player(s.owner);
+        if (world.contains(sx, sy) && world.cell(sx, sy).island == c.island && p != nullptr &&
+            (p->role == sim::PlayerRole::Human || p->role == sim::PlayerRole::Computer)) {
+            return;
         }
     }
-
-    // A chance for sea creatures every 5 s.
-    m_sea_ms += dt_ms;
-    while (m_sea_ms >= kSeaPeriodMs) {
-        m_sea_ms -= kSeaPeriodMs;
-        sea_creatures(world, figures, view);
+    std::vector<const sim::House*> houses;
+    for (const sim::House& h : world.houses()) {
+        if (h.island == c.island && h.city == c.index) {
+            houses.push_back(&h);
+        }
     }
+    // The original picks 10 records of a house list shared by several islands, so a city gets
+    // about 10 * houses / 1087 walkers per round; Open1602 keeps that rate but always finds a
+    // house of the city.
+    sim::Random random = stream(kTagCity, std::uint64_t{c.island} << 8U | c.index, round);
+    for (std::uint32_t t = 0; t < kWalkerTries && !houses.empty(); ++t) {
+        if (random.below(kHouseBucket) >= houses.size()) {
+            continue;
+        }
+        const sim::House& h = *houses[random.below(static_cast<std::uint32_t>(houses.size()))];
+        send_walker(world, buildings, figures, h, random, at_ms);
+    }
+}
 
-    jugglers(world, buildings, figures, view, dt_ms);
-    sounds(world, buildings, view, dt_ms);
+void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+                    const AmbientView& view) {
+    const std::uint64_t now = world.time_ms();
+    const auto catch_up = [&](AnimState& anim, std::uint64_t& anim_ms, std::uint16_t figure) {
+        if (now > anim_ms) {
+            if (const assets::FigureType* type = figures.get(figure)) {
+                advance_animation(anim, *type, static_cast<std::uint32_t>(std::min<std::uint64_t>(now - anim_ms, ~0U)));
+            }
+            anim_ms = now;
+        }
+    };
 
-    // Pictures.
     m_walker_instances.clear();
-    for (const Walker& w : m_walking) {
-        const auto step = static_cast<std::size_t>(w.position);
-        const double t = w.position - static_cast<double>(step);
+    for (Walker& w : m_walking) {
+        if (w.island >= world.islands().size() || now >= w.end_ms) {
+            continue;
+        }
+        catch_up(w.anim, w.anim_ms, w.figure);
+        const double position = static_cast<double>(now - std::min(now, w.start_ms)) / w.ms_per_tile;
+        const auto step = std::min(static_cast<std::size_t>(position), w.path.size() - 1);
+        const double t = position - static_cast<double>(step);
         const sim::TilePos a = w.path[step];
         const sim::TilePos b = w.path[std::min(step + 1, w.path.size() - 1)];
-        const sim::IslandMap& map = world.islands()[w.island].map;
+        const sim::WorldIsland& island = world.islands()[w.island];
         const sim::TilePos on = t < 0.5 ? a : b;
-        if (!walker_visible_on(type_at(map, buildings, on.x, on.y))) {
+        if (!walker_visible_on(type_at(island.map, buildings, on.x, on.y))) {
             continue;
         }
-        const sim::WorldIsland& island = world.islands()[w.island];
         FigureInstance f;
         f.x = static_cast<double>(island.x) + a.x + 0.5 + (b.x - a.x) * t;
         f.y = static_cast<double>(island.y) + a.y + 0.5 + (b.y - a.y) * t;
@@ -264,11 +323,17 @@ void Ambient::update(const sim::World& world, const assets::BuildingTable& build
         f.sheet = assets::FigureSheet::Traeger;
         m_walker_instances.push_back(f);
     }
-    std::erase_if(m_effects, [](const EffectFigure& e) { return e.sheet == assets::FigureSheet::Fische; });
-    for (const Creature& c : m_creatures) {
+
+    m_effects.clear();
+    for (Creature& c : m_creatures) {
+        if (now >= c.end_ms) {
+            continue;
+        }
+        catch_up(c.anim, c.anim_ms, c.figure);
+        const auto age = static_cast<double>(now - std::min(now, c.start_ms));
         EffectFigure e;
-        e.x = c.x;
-        e.y = c.y;
+        e.x = c.x + c.vx * age;
+        e.y = c.y + c.vy * age;
         e.figure = c.figure;
         e.anim = c.anim.anim;
         e.frame = c.anim.frame;
@@ -276,10 +341,43 @@ void Ambient::update(const sim::World& world, const assets::BuildingTable& build
         e.sheet = assets::FigureSheet::Fische;
         m_effects.push_back(e);
     }
+    if (const assets::FigureType* fig = figures.get(kFigureJuggler)) {
+        for (auto& [key, j] : m_jugglers) {
+            const auto island_index = static_cast<std::uint32_t>(key >> 32U);
+            const auto x = static_cast<std::uint32_t>(key & 0xFFFFU);
+            const auto y = static_cast<std::uint32_t>((key >> 16U) & 0xFFFFU);
+            if (island_index >= world.islands().size()) {
+                continue;
+            }
+            const sim::WorldIsland& island = world.islands()[island_index];
+            if (!island.map.contains(static_cast<std::int32_t>(x), static_cast<std::int32_t>(y))) {
+                continue;
+            }
+            const sim::MapCell& cell = island.map.top(x, y);
+            const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
+            if (b == nullptr || b->prod_kind != kProdMarket) {
+                continue;  // torn down since the last look
+            }
+            catch_up(j.anim, j.anim_ms, kFigureJuggler);
+            EffectFigure e;
+            building_attach_point(island, *b, x, y, cell.rotation, *fig, e.x, e.y);
+            e.z = fig->fahnoffs[2];
+            e.figure = kFigureJuggler;
+            e.anim = j.anim.anim;
+            e.frame = j.anim.frame;
+            e.direction = static_cast<std::uint8_t>(((cell.rotation + 1U) & 3U) * 2U);
+            e.sheet = assets::FigureSheet::Gaukler;
+            m_effects.push_back(e);
+        }
+    }
+    sounds(world, buildings, view, now);
 }
 
 void Ambient::send_walker(const sim::World& world, const assets::BuildingTable& buildings,
-                          const assets::FigureTable& figures, const sim::House& house, std::uint32_t roll) {
+                          const assets::FigureTable& figures, const sim::House& house, sim::Random& random,
+                          std::uint64_t at_ms) {
+    const std::uint32_t roll = random.below(4);
+    const std::uint32_t min_cost = (random.below(8) + 5) * kStraight;  // 5..12 steps on the road
     const std::uint64_t key = key3(house.island, house.x, house.y);
     if (m_busy_houses.contains(key)) {
         return;  // one walker per house
@@ -296,7 +394,6 @@ void Ambient::send_walker(const sim::World& world, const assets::BuildingTable& 
     const auto cx = static_cast<std::int32_t>(house.x + (hw - 1) / 2);
     const auto cy = static_cast<std::int32_t>(house.y + (hh - 1) / 2);
     const std::vector<std::int32_t> targets = walker_targets(roll);
-    const std::uint32_t min_cost = (m_random.below(8) + 5) * kStraight;  // 5..12 steps on the road
 
     // Wave search on the roads of a 21 x 21 window (0x0046F000 grid, 0x0046C7D0 search): roads,
     // squares, bridges, piers and the middle of gates are open; buildings of this city of the
@@ -410,40 +507,54 @@ void Ambient::send_walker(const sim::World& world, const assets::BuildingTable& 
     }
     std::reverse(w.path.begin(), w.path.end());
     const assets::BuildingType* target = type_at(map, buildings, w.path.back().x, w.path.back().y);
-    w.figure = townsfolk_for(target != nullptr ? target->prod_kind : 0)[m_random.below(4)];
+    w.figure = townsfolk_for(target != nullptr ? target->prod_kind : 0)[random.below(4)];
+    const std::uint32_t seed = random.next();
     const assets::FigureType* type = figures.get(w.figure);
-    if (type == nullptr || w.path.size() < 2) {
+    if (type == nullptr || type->speed == 0 || w.path.size() < 2) {
         return;
     }
-    // Speed * 0.002 tiles per second on the road (Wegspeed 100 %).
-    w.tiles_per_ms = type->speed * 0.000002;
-    w.anim = start_animation(*type, 0, m_random.next());
+    // Speed * 0.002 tiles per second on the road (Wegspeed 100 %), in whole milliseconds so that
+    // every computer lets it arrive at the same moment.
+    w.ms_per_tile = (500'000U + type->speed - 1) / type->speed;
+    w.start_ms = at_ms;
+    w.end_ms = at_ms + std::uint64_t{w.ms_per_tile} * (w.path.size() - 1);
+    w.anim_ms = at_ms;
+    w.anim = start_animation(*type, 0, seed);
     m_busy_houses.insert(key);
     m_walking.push_back(std::move(w));
     ++m_stats.walkers;
 }
 
-void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& figures, const AmbientView& view) {
-    if (!view.tile_at) {
-        return;
+void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& figures, std::uint64_t at_ms,
+                            std::uint64_t slot) {
+    // The original tries 3 random tiles of the screen (0x00487F10), so where the player looks
+    // decides where creatures come up. Here each block of 28 x 28 tiles, about one screen of
+    // 1024 x 768 at the nearest zoom, has the 3 tries: the same sea everywhere.
+    for (std::uint32_t by = 0; by * kSeaBlock < world.height(); ++by) {
+        for (std::uint32_t bx = 0; bx * kSeaBlock < world.width(); ++bx) {
+            sim::Random random = stream(kTagSea, slot, bx, by);
+            sea_block(world, figures, random, bx * kSeaBlock, by * kSeaBlock, at_ms);
+        }
     }
+}
+
+void Ambient::sea_block(const sim::World& world, const assets::FigureTable& figures, sim::Random& random,
+                        std::uint32_t x0, std::uint32_t y0, std::uint64_t at_ms) {
     for (std::uint32_t attempt = 0; attempt < kSeaTries; ++attempt) {
-        // A random tile of the screen (0x00487F10), outside every island's rectangle.
-        const double u = m_random.below(1024) / 1024.0;
-        const double v = m_random.below(1024) / 1024.0;
-        const auto tile = view.tile_at(u, v);
-        if (!tile || !world.contains(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y)) ||
-            world.cell(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y)).island !=
-                sim::World::kSea) {
+        // A random tile of the block, open sea outside every island's rectangle.
+        const auto tx = static_cast<std::int32_t>(x0 + random.below(kSeaBlock));
+        const auto ty = static_cast<std::int32_t>(y0 + random.below(kSeaBlock));
+        if (!world.contains(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty)) ||
+            world.cell(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty)).island != sim::World::kSea) {
             continue;
         }
-        const std::uint16_t species = kSpecies[m_random.below(8)];
+        const std::uint16_t species = kSpecies[random.below(8)];
         // Sides to keep away from: ships and islands near the spot (0x0044A200).
         std::uint32_t blocked = 0;
         bool near_ship = false;
         for (const sim::Ship& s : world.ships()) {
-            const std::int32_t dx = static_cast<std::int32_t>(s.x) - tile->x;
-            const std::int32_t dy = static_cast<std::int32_t>(s.y) - tile->y;
+            const std::int32_t dx = static_cast<std::int32_t>(s.x) - tx;
+            const std::int32_t dy = static_cast<std::int32_t>(s.y) - ty;
             if (std::abs(dx) >= kShipSeen || std::abs(dy) >= kShipSeen) {
                 continue;
             }
@@ -465,12 +576,12 @@ void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& 
             const auto top = static_cast<std::int32_t>(island.y);
             const std::int32_t right = left + static_cast<std::int32_t>(island.map.width()) - 1;
             const std::int32_t bottom = top + static_cast<std::int32_t>(island.map.height()) - 1;
-            if (tile->x < left - kIslandSeen || tile->x > right + kIslandSeen || tile->y < top - kIslandSeen ||
-                tile->y > bottom + kIslandSeen) {
+            if (tx < left - kIslandSeen || tx > right + kIslandSeen || ty < top - kIslandSeen ||
+                ty > bottom + kIslandSeen) {
                 continue;
             }
-            blocked |= (tile->x <= left ? 8U : 0U) | (tile->x >= right ? 2U : 0U) | (tile->y <= top ? 1U : 0U) |
-                       (tile->y >= bottom ? 4U : 0U);
+            blocked |=
+                (tx <= left ? 8U : 0U) | (tx >= right ? 2U : 0U) | (ty <= top ? 1U : 0U) | (ty >= bottom ? 4U : 0U);
         }
         const bool whale = species == kFigureWhale;
         std::uint8_t code = (whale ? kAwayWhale : kAwayDolphin)[blocked & 15U];
@@ -478,7 +589,7 @@ void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& 
             continue;
         }
         if (code == 0) {
-            code = static_cast<std::uint8_t>(whale ? m_random.below(4) * 2 + 1 : m_random.below(8) + 1);
+            code = static_cast<std::uint8_t>(whale ? random.below(4) * 2 + 1 : random.below(8) + 1);
         }
         const auto direction = static_cast<std::uint8_t>(code - 1);
         const assets::FigureType* type = figures.get(species);
@@ -486,23 +597,25 @@ void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& 
             return;
         }
         // Worktime runs down at Speed per 50 ms (0x00451890).
-        const auto life = static_cast<std::uint32_t>(std::uint64_t{type->work_time_ms} * 500 / type->speed);
-        const double x = tile->x + 0.5;
-        const double y = tile->y + 0.5;
+        const std::uint64_t life = std::uint64_t{type->work_time_ms} * 500 / type->speed;
+        const double x = tx + 0.5;
+        const double y = ty + 0.5;
         const auto add = [&](double cx, double cy, std::uint8_t anim) {
             Creature c;
             c.figure = species;
             c.x = cx;
             c.y = cy;
             c.direction = direction;
-            c.life_ms = life;
-            c.anim = fresh_anim(anim, m_random.next());
+            c.start_ms = at_ms;
+            c.end_ms = at_ms + life;
+            c.anim_ms = at_ms;
+            c.anim = fresh_anim(anim, random.next());
             m_creatures.push_back(c);
         };
         if (species == kFigureDolphin) {
             // A pod: one or two companions with later jumps, then the leader.
             add(x, y, 2);
-            if (m_random.below(2) != 0) {
+            if (random.below(2) != 0) {
                 add(x + 1.0, y + 0.2, 3);
             }
             add(x - 1.0, y + 0.7, 0);
@@ -523,15 +636,16 @@ void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& 
 }
 
 void Ambient::jugglers(const sim::World& world, const assets::BuildingTable& buildings,
-                       const assets::FigureTable& figures, const AmbientView& view, std::uint32_t dt_ms) {
-    std::erase_if(m_effects, [](const EffectFigure& e) { return e.sheet == assets::FigureSheet::Gaukler; });
+                       const assets::FigureTable& figures, std::uint64_t at_ms) {
     const assets::FigureType* fig = figures.get(kFigureJuggler);
     if (fig == nullptr) {
         return;
     }
-    std::unordered_set<std::uint64_t> seen;
+    for (auto& [key, j] : m_jugglers) {
+        j.seen = false;
+    }
     for (const sim::Production& p : world.productions()) {
-        if (!p.used || p.island >= view.islands.size() || !view.islands[p.island]) {
+        if (!p.used || p.island >= world.islands().size()) {
             continue;
         }
         const sim::WorldIsland& island = world.islands()[p.island];
@@ -545,37 +659,27 @@ void Ambient::jugglers(const sim::World& world, const assets::BuildingTable& bui
             continue;
         }
         // One per market; its act (ANIM) is (x + y) % 5 of the market (0x004466A0).
-        const std::uint64_t key = key3(p.island, p.x, p.y);
-        seen.insert(key);
-        const auto act = static_cast<std::uint8_t>((p.x + p.y) % 5);
-        auto [it, fresh] = m_juggler_anims.try_emplace(key);
+        auto [it, fresh] = m_jugglers.try_emplace(key3(p.island, p.x, p.y));
         if (fresh) {
-            it->second = start_animation(*fig, act, tile_hash(p.island, p.x, p.y));
-        } else {
-            advance_animation(it->second, *fig, dt_ms);
+            it->second.anim =
+                start_animation(*fig, static_cast<std::uint8_t>((p.x + p.y) % 5), tile_hash(p.island, p.x, p.y));
+            it->second.anim_ms = at_ms;
         }
-        EffectFigure e;
-        building_attach_point(island, *b, p.x, p.y, cell.rotation, *fig, e.x, e.y);
-        e.z = fig->fahnoffs[2];
-        e.figure = kFigureJuggler;
-        e.anim = it->second.anim;
-        e.frame = it->second.frame;
-        e.direction = static_cast<std::uint8_t>(((cell.rotation + 1U) & 3U) * 2U);
-        e.sheet = assets::FigureSheet::Gaukler;
-        m_effects.push_back(e);
+        it->second.seen = true;
     }
-    std::erase_if(m_juggler_anims, [&](const auto& kv) { return !seen.contains(kv.first); });
+    std::erase_if(m_jugglers, [](const auto& kv) { return !kv.second.seen; });
 }
 
 void Ambient::sounds(const sim::World& world, const assets::BuildingTable& buildings, const AmbientView& view,
-                     std::uint32_t dt_ms) {
+                     std::uint64_t now_ms) {
     // Birds in every 25th tree and surf at every 4th inner beach corner of the islands on screen;
     // the original counts them in the order it looks at the screen, so they move when it scrolls;
     // here each tile decides by itself. Each one sounds in its own cycle; only at normal speed.
-    if (view.game_speed != 1 || dt_ms == 0) {
+    const std::uint64_t before = std::min(m_frame_ms, now_ms);
+    m_frame_ms = now_ms;
+    if (view.game_speed != 1 || before == now_ms) {
         return;
     }
-    const std::uint64_t before = m_time_ms - dt_ms;
     m_emitters.resize(world.islands().size());
     for (std::uint16_t i = 0; i < world.islands().size() && i < view.islands.size(); ++i) {
         if (!view.islands[i]) {
@@ -583,10 +687,10 @@ void Ambient::sounds(const sim::World& world, const assets::BuildingTable& build
         }
         const sim::WorldIsland& island = world.islands()[i];
         IslandEmitters& em = m_emitters[i];
-        if (!em.built || m_time_ms - em.built_ms >= kCityPeriodMs) {
+        if (!em.built || now_ms - em.built_ms >= kCityPeriodMs) {
             // Trees are felled and planted: look again from time to time.
             em.built = true;
-            em.built_ms = m_time_ms;
+            em.built_ms = now_ms;
             em.list.clear();
             for (std::uint32_t y = 0; y < island.map.height(); ++y) {
                 for (std::uint32_t x = 0; x < island.map.width(); ++x) {
@@ -608,16 +712,19 @@ void Ambient::sounds(const sim::World& world, const assets::BuildingTable& build
         for (const Emitter& e : em.list) {
             const std::uint32_t period = e.birds ? kBirdPeriodMs : kSurfPeriodMs;
             const std::uint64_t phase = (e.hash >> 8) % period;
-            if ((before + phase) / period == (m_time_ms + phase) / period) {
+            if ((before + phase) / period == (now_ms + phase) / period) {
                 continue;
             }
+            // Which bird, or whether the surf sounds at all, follows the cycle.
+            const std::uint64_t cycle = (now_ms + phase) / period;
+            sim::Random random = stream(kTagSound, e.hash, cycle);
             AmbientSound s;
             s.x = island.x + e.x + 0.5;
             s.y = island.y + e.y + 0.5;
             if (e.birds) {
                 s.kind = AmbientSound::Kind::Birds;
-                s.variant = static_cast<std::uint8_t>(m_random.below(kBirdVariants));
-            } else if (m_random.below(2) == 0) {
+                s.variant = static_cast<std::uint8_t>(random.below(kBirdVariants));
+            } else if (random.below(2) == 0) {
                 s.kind = AmbientSound::Kind::Surf;
             } else {
                 continue;

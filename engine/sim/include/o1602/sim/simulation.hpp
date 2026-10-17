@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <optional>
 #include <string>
 #include <variant>
@@ -66,6 +67,9 @@ public:
     void set_city_names(std::vector<std::string> names) { m_city_names = std::move(names); }
     /// One tick of game time.
     void tick();
+    /// Called at the end of every tick: for what has to follow the game tick by tick without
+    /// being part of it, such as the townsfolk of render::Ambient. It must not change the world.
+    void set_tick_observer(std::function<void(const World&)> observer) { m_tick_observer = std::move(observer); }
 
     /// Game speed factor (1 = normal, up to Rules::max_game_speed); 0 pauses.
     void set_speed(std::uint32_t speed) noexcept;
@@ -124,6 +128,7 @@ private:
     std::vector<CommandResult> m_command_results;
     std::vector<ConstructionEvent> m_construction_events;
     std::vector<std::string> m_city_names;
+    std::function<void(const World&)> m_tick_observer;
 };
 
 }  // namespace o1602::sim
