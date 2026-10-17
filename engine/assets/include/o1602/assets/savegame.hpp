@@ -198,6 +198,8 @@ struct GameState {
     std::vector<HouseRecord> houses;
     std::optional<HouseClocks> house_clocks;
     std::optional<std::uint32_t> game_time;  ///< TIMERS +0xA0: game time in 1/10 s
+    /// TIMERS +0x01: phase of the island epochs (0..7, one step every 30 s, 0x005DBAB0).
+    std::optional<std::uint8_t> island_phase;
     /// TIMERS +0xB0: next name of the [STAEDTE] list of Text.cod a new city gets (0x005B3168).
     std::optional<std::uint32_t> city_name_index;
     std::optional<std::uint8_t> difficulty;     ///< TIMERS +0xA6: 0 easy .. 3 hard (droughts)

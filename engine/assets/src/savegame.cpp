@@ -246,6 +246,9 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         if (data.size() >= kTimersGameTime + 4) {
             state.game_time = u32(data, kTimersGameTime);
         }
+        if (data.size() >= 2) {
+            state.island_phase = static_cast<std::uint8_t>(data[1] & 7U);
+        }
         constexpr std::size_t kTimersCityName = 0xB0;
         if (data.size() >= kTimersCityName + 4) {
             state.city_name_index = u32(data, kTimersCityName);

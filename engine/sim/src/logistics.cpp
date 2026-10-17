@@ -1516,9 +1516,12 @@ bool Logistics::field_reserved(std::uint16_t island, TilePos tile) const {
     return m_reserved_tiles.contains(tile_key(island, tile));
 }
 
-void Logistics::advance_islands() {
+void Logistics::advance_islands(const std::vector<bool>* due) {
     const std::uint64_t now = m_world->time_ms();
     for (std::uint16_t i = 0; i < m_world->islands().size(); ++i) {
+        if (due != nullptr && (i >= due->size() || !(*due)[i])) {
+            continue;
+        }
         WorldIsland& island = m_world->island(i);
         // Expired slots: a deer comes back if the place is still forest (a ripe tree in the
         // middle and trees on at least two sides) and its last deer is gone; otherwise the slot is

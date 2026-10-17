@@ -268,3 +268,85 @@ TEST_CASE("data: a new endless game and its savegame") {
         CHECK((*rewritten)[i].data == (*chunks)[i].data);
     }
 }
+
+TEST_CASE("data: endless games the original started come out of the same islands and records") {
+    const auto game = game_or_skip();
+    auto buildings = assets::BuildingTable::load(game);
+    auto text = assets::TextTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(text.ok());
+    // Saved by the original about 8 s after starting "Durchschnittlich", Merlin, yellow: the
+    // layout and the start in the island table are the only ones that give these templates.
+    struct Start {
+        const char* file;
+        std::uint8_t layout;
+        std::uint32_t start;
+    };
+    std::size_t compared = 0;
+    for (const Start& s : {Start{"SAVEGAME/game06.gam", 2, 399}, Start{"SAVEGAME/game07.gam", 0, 22}}) {
+        const auto path = game.resolve(s.file);
+        if (!path) {
+            continue;
+        }
+        auto original = assets::ChunkFile::load(*path);
+        REQUIRE(original.ok());
+        const assets::Chunk* name = original->find("NAME");
+        if (name == nullptr || original->payload(*name).size() != 11) {
+            continue;  // another savegame in this place
+        }
+        sim::NewGameOptions options;
+        options.difficulty = 1;
+        options.layout = s.layout;
+        options.colour = 2;
+        options.name = "Merlin";
+        options.game_id = u32(original->payload(*original->find("TIMERS")), 0xAC);
+        options.world.seed = s.start;
+        options.world.guarantee_resources = false;
+        auto world = sim::start_new_game(game, *buildings, *text, options);
+        REQUIRE(world.ok());
+        auto bytes = sim::write_savegame(*world, *buildings, nullptr);
+        REQUIRE(bytes.ok());
+        auto mine = assets::ChunkFile::from_bytes(*bytes);
+        REQUIRE(mine.ok());
+        // Chunk by chunk in the same order; what the 8 s of play changed is left out: the deer
+        // census of the first island epoch, harvests of the natives, the computer players'
+        // ships, the first free trader and the clocks.
+        const auto all = [](const assets::ChunkFile& f, const char* n) {
+            std::vector<std::vector<std::uint8_t>> out;
+            for (const assets::Chunk& c : f.chunks()) {
+                if (c.name == n) {
+                    out.emplace_back(f.payload(c).begin(), f.payload(c).end());
+                }
+            }
+            return out;
+        };
+        for (const char* n : {"NAME", "PLAYER4", "AUFTRAG4", "STADT4", "KONTOR2", "MARKT2"}) {
+            CHECK(all(*original, n) == all(*mine, n));
+        }
+        const auto a = all(*original, "INSEL5");
+        const auto b = all(*mine, "INSEL5");
+        REQUIRE(a.size() == b.size());
+        for (std::size_t i = 0; i < a.size(); ++i) {
+            auto x = a[i];
+            auto y = b[i];
+            for (std::size_t o = 8; o < 12; ++o) {
+                x[o] = y[o] = 0;  // deer census and island epoch phase
+            }
+            for (std::size_t o = 0x68; o < 0x6C; ++o) {
+                x[o] = y[o] = 0;  // islands the computer players' ships discovered meanwhile
+            }
+            for (std::size_t d = 0; d < 2; ++d) {
+                const std::size_t o = 0x1C + 8 * d;
+                if (x[o] == 58 && y[o] == 58) {
+                    x[o + 1] = y[o + 1] = 0;  // a treasure: the original stores the wrong column (S-067)
+                    x[o + 2] = y[o + 2] = 0;
+                }
+            }
+            CHECK(x == y);
+        }
+        ++compared;
+    }
+    if (compared == 0) {
+        SKIP("no savegames of fresh endless games");
+    }
+}

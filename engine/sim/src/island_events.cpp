@@ -176,9 +176,13 @@ void start_drought(World& world, std::uint16_t island, std::uint8_t strength, st
 }
 
 void advance_island_events(World& world, const assets::BuildingTable& buildings, const Rules& rules,
-                           const FieldReserved& reserved, std::vector<IslandEvent>* events) {
+                           const FieldReserved& reserved, std::vector<IslandEvent>* events,
+                           const std::vector<bool>* due) {
     const std::uint8_t level = drought_level(world, rules);
     for (std::uint16_t i = 0; i < world.islands().size(); ++i) {
+        if (due != nullptr && (i >= due->size() || !(*due)[i])) {
+            continue;
+        }
         WorldIsland::Drought& d = world.island(i).drought;
         // A curse of the natives: a weaker drought, at once, replacing one that runs.
         if (d.curse_pending) {

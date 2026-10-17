@@ -45,9 +45,11 @@ struct IslandEvent {
 /// Whether a figure is on its way to harvest the tile (such fields are left to the harvest).
 using FieldReserved = std::function<bool(std::uint16_t island, TilePos tile)>;
 
-/// One island epoch of every island: curse, drought roll, withering or recovery.
+/// One island epoch: curse, drought roll, withering or recovery; of the islands marked in `due`
+/// (all without it).
 void advance_island_events(World& world, const assets::BuildingTable& buildings, const Rules& rules,
-                           const FieldReserved& reserved, std::vector<IslandEvent>* events);
+                           const FieldReserved& reserved, std::vector<IslandEvent>* events,
+                           const std::vector<bool>* due = nullptr);
 
 /// Starts a drought on an island (0x0046B3A0): `duration_ms` from now, replacing one that runs.
 void start_drought(World& world, std::uint16_t island, std::uint8_t strength, std::uint64_t duration_ms,

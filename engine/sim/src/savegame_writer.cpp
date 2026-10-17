@@ -325,6 +325,7 @@ private:
         put16(r, 4, island.x);
         put16(r, 6, island.y);
         r[8] = static_cast<std::uint8_t>((r[8] & ~3U) | (island.deer_phase & 3U));
+        r[0x0A] = static_cast<std::uint8_t>((r[0x0A] & ~7U) | (island.last_phase & 7U));
         // Owners of the eight city slots.
         for (std::uint8_t c = 0; c < 8; ++c) {
             const City* city = m_world.city(i, c);
@@ -914,6 +915,7 @@ private:
             }
         }
         put32(r, 0xA0, clamp32(m_world.time_ms() / 100));
+        r[1] = static_cast<std::uint8_t>((r[1] & ~7U) | (m_world.island_phase() & 7U));
         put32(r, 0xB0, m_world.city_name_index());
         r[0xA6] = m_world.game_settings().difficulty;
         put32(r, 0xA8, m_world.game_settings().flags);

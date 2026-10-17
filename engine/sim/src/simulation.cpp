@@ -256,21 +256,42 @@ void Simulation::tick() {
                                     m_disaster_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
     }
-    // Island epochs of 30 s (0x0046B3E0): droughts, then deer come back and settle.
+    // Island epochs of 30 s (0x0046B3E0): droughts, then deer come back and settle. The phase
+    // steps every 30 s; an island whose last phase differs is ticked. In a new game that happens
+    // at once for islands whose template says so (docs/re/newgame.md).
     m_island_ms += kTickMs;
+    bool epoch = false;
     if (m_island_ms >= Logistics::kIslandEpochMs) {
         m_island_ms -= Logistics::kIslandEpochMs;
+        m_world->set_island_phase(static_cast<std::uint8_t>(m_world->island_phase() + 1U));
+        epoch = true;
+    }
+    std::vector<bool> due(m_world->islands().size(), false);
+    bool any = false;
+    for (std::uint16_t i = 0; i < m_world->islands().size(); ++i) {
+        WorldIsland& island = m_world->island(i);
+        if (island.last_phase != m_world->island_phase()) {
+            island.last_phase = m_world->island_phase();
+            due[i] = true;
+            any = true;
+        }
+    }
+    if (any) {
         advance_island_events(
             *m_world, *m_buildings, m_rules,
             [this](std::uint16_t island, TilePos tile) { return m_logistics.field_reserved(island, tile); },
-            &m_island_events);
-        // The eruption roll; the original makes it only while no drought roll is due (S-042).
-        roll_eruptions(*m_world, m_rules, &m_volcano_events);
+            &m_island_events, &due);
         if (m_island_events.size() > kMaxPendingEvents) {
             m_island_events.erase(m_island_events.begin(),
                                   m_island_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
-        m_logistics.advance_islands();
+    }
+    if (epoch) {
+        // The eruption roll; the original makes it only while no drought roll is due (S-042).
+        roll_eruptions(*m_world, m_rules, &m_volcano_events);
+    }
+    if (any) {
+        m_logistics.advance_islands(&due);
     }
     // Eruptions and lava (figures of the original, kinds 0x20 and 0x21).
     {

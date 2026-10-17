@@ -46,6 +46,7 @@ constexpr std::uint32_t kDisasters = tag("DISA");
 constexpr std::uint32_t kVolcanoes = tag("VOLC");
 constexpr std::uint32_t kSimulation = tag("SIMU");
 constexpr std::uint32_t kFleet = tag("FLEE");
+constexpr std::uint32_t kEpochs = tag("EPOC");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -236,6 +237,12 @@ struct Decoded {
         std::vector<Ship> ships;
     };
     std::optional<FleetPart> fleet;
+    /// Phase of the island epochs and the phase each island was last ticked in (island number).
+    struct EpochPart {
+        std::uint8_t phase = 0;
+        std::vector<std::pair<std::uint8_t, std::uint8_t>> islands;
+    };
+    std::optional<EpochPart> epochs;
 };
 
 // ---- Sections: write -----------------------------------------------------------------------------
@@ -754,6 +761,26 @@ Decoded::FleetPart read_fleet(StateIn& in) {
     return f;
 }
 
+void write_epochs(Out& out, const World& w) {
+    out.u8(w.island_phase());
+    out.u32(static_cast<std::uint32_t>(w.islands().size()));
+    for (const WorldIsland& i : w.islands()) {
+        out.u8(i.header.number);
+        out.u8(i.last_phase);
+    }
+}
+
+Decoded::EpochPart read_epochs(StateIn& in) {
+    Decoded::EpochPart e;
+    e.phase = static_cast<std::uint8_t>(in.u8() & 7U);
+    e.islands.resize(in.count(2));
+    for (auto& [number, phase] : e.islands) {
+        number = in.u8();
+        phase = static_cast<std::uint8_t>(in.u8() & 7U);
+    }
+    return e;
+}
+
 void write_soldiers(Out& out, const World& w) {
     out.u32(static_cast<std::uint32_t>(w.soldiers().size()));
     for (const Soldier& s : w.soldiers()) {
@@ -1261,6 +1288,7 @@ core::Bytes encode_extension(const World& world, const assets::BuildingTable& bu
     section(out, kDisasters, [&](Out& o) { write_disasters(o, world); });
     section(out, kVolcanoes, [&](Out& o) { write_volcanoes(o, world); });
     section(out, kFleet, [&](Out& o) { write_fleet(o, world); });
+    section(out, kEpochs, [&](Out& o) { write_epochs(o, world); });
     if (simulation != nullptr) {
         section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
     } else if (!world.simulation_state().empty()) {
@@ -1343,6 +1371,9 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
                 break;
             case kFleet:
                 d.fleet = read_fleet(in);
+                break;
+            case kEpochs:
+                d.epochs = read_epochs(in);
                 break;
             case kSoldiers:
                 d.soldiers = read_soldiers(in);
@@ -1455,6 +1486,14 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         world.ships().clear();
         for (Ship& ship : *d.ships) {
             world.add_ship(std::move(ship));
+        }
+    }
+    if (d.epochs) {
+        world.set_island_phase(d.epochs->phase);
+        for (const auto& [number, phase] : d.epochs->islands) {
+            if (const auto i = world.island_index(number)) {
+                world.island(*i).last_phase = phase;
+            }
         }
     }
     if (d.fleet) {

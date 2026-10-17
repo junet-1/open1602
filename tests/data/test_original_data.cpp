@@ -960,6 +960,19 @@ struct LoadedSave {
     sim::World world;
 };
 
+/// A world plan, or a savegame of an endless game the original made from one (NAME "Endlosspiel").
+bool endless_start(const assets::ChunkFile& file) {
+    if (sim::plans_islands(file)) {
+        return true;
+    }
+    const assets::Chunk* name = file.find("NAME");
+    if (name == nullptr) {
+        return false;
+    }
+    const auto data = file.payload(*name);
+    return std::string(data.begin(), std::find(data.begin(), data.end(), std::uint8_t{0})) == "Endlosspiel";
+}
+
 /// All savegames in SAVEGAME/ that load, oldest game time first.
 std::vector<LoadedSave> load_savegames(const assets::GameDirectory& game, const assets::BuildingTable& buildings) {
     std::vector<LoadedSave> saves;
@@ -980,6 +993,9 @@ std::vector<LoadedSave> load_savegames(const assets::GameDirectory& game, const 
         auto file = assets::ChunkFile::load(f);
         if (!file.ok()) {
             continue;
+        }
+        if (endless_start(*file)) {
+            continue;  // a fresh endless game: no cities of the players yet (test_new_game.cpp)
         }
         auto world = sim::load_world(*file, buildings, game);
         if (world.ok()) {
@@ -1712,7 +1728,7 @@ TEST_CASE("data: craters of scenarios and savegames are the volcano mountains (0
         REQUIRE(file.ok());
         auto world = sim::load_world(*file, *buildings, game);
         REQUIRE(world.ok());
-        const bool generated = sim::plans_islands(*file);
+        const bool generated = endless_start(*file);
         for (const sim::WorldIsland& island : world->islands()) {
             // The list the original stored equals the search on the island's tiles.
             const std::vector<sim::Crater> found = sim::find_craters(island.map, *buildings);

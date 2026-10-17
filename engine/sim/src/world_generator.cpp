@@ -9,6 +9,7 @@
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/volcanoes.hpp"
 
 namespace o1602::sim {
@@ -770,14 +771,63 @@ std::vector<std::uint8_t> Generator::village_tiles(const Slot& slot, const std::
     // the natives: 97 older templates say player 0, which the original leaves in the tiles and
     // only corrects in the city; Open1602 keeps tile and city in agreement.
     constexpr std::uint8_t kNatives = 6;
+    constexpr std::uint8_t kNoCity = 7;
+    constexpr std::uint8_t kMinKontorRadius = 8;
+    constexpr std::int32_t kProdMarket = 7;
+    constexpr std::int32_t kProdKontor = 8;
     std::vector<std::uint8_t> out;
     if (!slot.village || slot.village->layers.empty()) {
         return out;
     }
+    // At the start of the game the original recomputes the territory of every island
+    // (0x0048C0F0 -> 0x00482120): village tiles outside the circle of the Kontor and the markets
+    // (radius at least 8) lose their city. Some older village templates have one such tile.
+    struct Anchor {
+        Catchment area;
+        std::uint8_t radius;
+        std::uint8_t city;
+    };
+    std::vector<Anchor> anchors;
+    for (const assets::IslandTile& t : slot.village->layers.front()) {
+        const assets::BuildingType* b = m_buildings.by_id(t.cod_id());
+        if (b == nullptr || (b->prod_kind != kProdMarket && b->prod_kind != kProdKontor)) {
+            continue;
+        }
+        const auto radius =
+            static_cast<std::uint8_t>(b->prod_kind == kProdKontor ? std::max(b->radius, kMinKontorRadius) : b->radius);
+        anchors.push_back(
+            Anchor{catchment_of(*b, static_cast<std::uint8_t>(t.bits & 3U), {t.x, t.y}), radius, t.city()});
+    }
+    const auto covered = [&](std::uint8_t city, std::int32_t x, std::int32_t y) {
+        if (anchors.empty()) {
+            return true;  // nothing to measure against: leave the template as it is
+        }
+        for (const Anchor& a : anchors) {
+            if (a.city != city) {
+                continue;
+            }
+            const std::int32_t dy = y < a.area.centre.y                     ? a.area.centre.y - y
+                                    : y > a.area.centre.y + a.area.parity_y ? y - a.area.centre.y - a.area.parity_y
+                                                                            : 0;
+            const std::int32_t dx = x < a.area.centre.x                     ? a.area.centre.x - x
+                                    : x > a.area.centre.x + a.area.parity_x ? x - a.area.centre.x - a.area.parity_x
+                                                                            : 0;
+            const std::vector<std::uint8_t> half = circle_half_widths(a.radius);
+            if (dy <= a.radius && dx <= half[static_cast<std::size_t>(dy)]) {
+                return true;
+            }
+        }
+        return false;
+    };
     for (const assets::IslandTile& t : slot.village->layers.front()) {
         std::uint32_t bits = (t.bits & ~(0xFFU << 6)) | (std::uint32_t{slot.plan.number} << 6);
         if (t.city() < natives.size() && natives[t.city()]) {
             bits = (bits & ~(0xFU << 22)) | (std::uint32_t{kNatives} << 22);
+            const assets::BuildingType* b = m_buildings.by_id(t.cod_id());
+            if (b != nullptr && b->size_x == 1 && b->size_y == 1 && !covered(t.city(), t.x, t.y)) {
+                bits = (bits & ~(7U << 14) & ~(0xFU << 22)) | (std::uint32_t{kNoCity} << 14) |
+                       (std::uint32_t{kNoCity} << 22);
+            }
         }
         const std::array<std::uint8_t, 8> e = {static_cast<std::uint8_t>(t.id),
                                                static_cast<std::uint8_t>(t.id >> 8),
@@ -796,6 +846,7 @@ std::vector<std::uint8_t> Generator::village_records(const Slot& slot, const Sta
                                                      const std::array<bool, 8>& natives) const {
     constexpr std::uint8_t kNatives = 6;
     const bool city = std::strcmp(chunk.name, "STADT4") == 0;
+    const bool store = std::strcmp(chunk.name, "KONTOR2") == 0;
     std::vector<std::uint8_t> out;
     if (!slot.village_file) {
         return out;
@@ -807,6 +858,46 @@ std::vector<std::uint8_t> Generator::village_records(const Slot& slot, const Sta
         record[0] = slot.plan.number;  // the handlers take the island being made (0x0060912C)
         if (city && record[1] < natives.size() && natives[record[1]]) {
             record[2] = kNatives;
+            // 0x0046A220: goodwill 200 towards the four player slots; the loader turns zero
+            // satisfaction, taxes and food into 128 (0x00484910).
+            constexpr std::size_t kPlayers = 4;
+            constexpr std::uint8_t kGoodwill = 200;
+            for (std::size_t p = 0; p < kPlayers; ++p) {
+                std::fill_n(record.begin() + static_cast<std::ptrdiff_t>(0x18 + 4 * p), 4, std::uint8_t{0});
+                record[0x18 + 4 * p] = kGoodwill;
+            }
+            for (std::size_t k = 0; k < 5; ++k) {
+                record[0x78 + k] = record[0x78 + k] == 0 ? std::uint8_t{0x80} : record[0x78 + k];
+                record[0x7F + k] = record[0x7F + k] == 0 ? std::uint8_t{0x80} : record[0x7F + k];
+            }
+            record[0x86] = record[0x86] == 0 ? std::uint8_t{0x80} : record[0x86];
+        }
+        if (store && record.size() >= 4 && (record[3] & 0xFU) < natives.size() && natives[record[3] & 0xFU]) {
+            // 0x0047F5E0: the village sells tobacco goods (north) or spices (south) and buys alcohol
+            // and cloth up to 10 t, all for nothing.
+            const auto slot_at = [](std::uint8_t ware) { return std::size_t{4} + 20U * ware; };
+            const auto set_flags = [&](std::uint8_t ware, std::uint32_t clear, std::uint32_t set) {
+                const std::size_t o = slot_at(ware);
+                std::uint32_t v = std::uint32_t{record[o]} | (std::uint32_t{record[o + 1]} << 8) |
+                                  (std::uint32_t{record[o + 2]} << 16) | (std::uint32_t{record[o + 3]} << 24);
+                v = (v & ~clear) | set;
+                for (std::size_t i = 0; i < 4; ++i) {
+                    record[o + i] = static_cast<std::uint8_t>(v >> (8 * i));
+                }
+            };
+            constexpr std::uint8_t kTobaccoGoods = 15;
+            constexpr std::uint8_t kSpiceGoods = 16;
+            constexpr std::uint8_t kAlcohol = 18;
+            constexpr std::uint8_t kCloth = 19;
+            const std::uint8_t sold = slot.plan.climate == 0 ? kTobaccoGoods : kSpiceGoods;
+            set_flags(sold, 0x3FFU, 1U << 20);
+            record[slot_at(sold) + 8] = 0;
+            record[slot_at(sold) + 9] = 0;
+            for (const std::uint8_t ware : {kAlcohol, kCloth}) {
+                set_flags(ware, 0x3FFU << 10, 1U << 21);
+                record[slot_at(ware) + 10] = 0x40;  // 320 = 10 t
+                record[slot_at(ware) + 11] = 0x01;
+            }
         }
         out.insert(out.end(), record.begin(), record.end());
     };

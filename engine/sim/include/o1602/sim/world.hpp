@@ -47,6 +47,10 @@ struct WorldIsland {
     std::uint32_t y = 0;
     std::array<DeerSpot, 8> deer_spots{};
     std::uint8_t deer_phase = 0;  ///< island epochs (30 s) since the last deer census, 0..3
+    /// Phase of the island epochs (World::island_phase) the island was last ticked in (INSEL5 +0x0A).
+    /// A new game takes it from the template, so islands whose template says otherwise than 0 get
+    /// their first epoch at once (docs/re/newgame.md).
+    std::uint8_t last_phase = 0;
     /// Drought on the island (docs/re/growth.md#dürre).
     struct Drought {
         std::uint8_t strength = 0;   ///< 0 = none; lowers the fertility by strength/128
@@ -467,6 +471,11 @@ public:
     [[nodiscard]] const VolcanoState& volcanoes() const noexcept { return m_volcanoes; }
     [[nodiscard]] VolcanoState& volcanoes() noexcept { return m_volcanoes; }
 
+    /// Phase of the island epochs, 0..7, one step every 30 s (TIMERS +0x01): an island is ticked
+    /// when its last phase differs.
+    [[nodiscard]] std::uint8_t island_phase() const noexcept { return m_island_phase; }
+    void set_island_phase(std::uint8_t p) noexcept { m_island_phase = static_cast<std::uint8_t>(p & 7U); }
+
     /// Game time since the start of the game (TIMERS +0xA0 of a savegame).
     [[nodiscard]] std::uint64_t time_ms() const noexcept { return m_time_ms; }
     void set_time_ms(std::uint64_t t) noexcept { m_time_ms = t; }
@@ -520,6 +529,7 @@ private:
     std::vector<House> m_houses;
     HouseClocks m_house_clocks;
     std::uint64_t m_time_ms = 0;
+    std::uint8_t m_island_phase = 0;
     std::uint32_t m_city_name_index = 0;
     std::vector<Disaster> m_disasters;
     std::uint32_t m_next_disaster_id = 0;

@@ -517,12 +517,16 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     if (state->game_time) {
         world.set_time_ms(std::uint64_t{*state->game_time} * 100);
     }
+    if (state->island_phase) {
+        world.set_island_phase(*state->island_phase);
+    }
     if (state->city_name_index) {
         world.set_city_name_index(*state->city_name_index);
     }
     for (std::size_t i = 0; i < world.islands().size(); ++i) {
         WorldIsland& island = world.island(i);
         island.deer_phase = island.header.deer_phase;
+        island.last_phase = island.header.last_phase;
         island.drought.strength = island.header.drought_strength;
         island.drought.end_ms = std::uint64_t{island.header.drought_end} * 100;
         island.drought.curse_pending = island.header.curse_pending;

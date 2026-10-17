@@ -191,7 +191,7 @@ public:
     void spawn_deer_at_spots();
     /// One island epoch (30 s, 0x0046B3E0): expired spots get their deer back or are given up, and
     /// every fourth epoch the island counts its forest spots and may settle new deer.
-    void advance_islands();
+    void advance_islands(const std::vector<bool>* due = nullptr);
     /// Whether a worker is on the way to harvest this tile.
     [[nodiscard]] bool field_reserved(std::uint16_t island, TilePos tile) const;
     /// A robber the city tick sent out (0x0044B620): he waits in the house for a victim.
