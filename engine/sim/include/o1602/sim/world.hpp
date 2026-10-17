@@ -95,6 +95,11 @@ struct City {
     /// The player keeps building material from the people (city window): no house upgrades.
     bool material_lock = false;
     std::uint8_t worst_good = 0;  ///< the scarcest good whose supply keeps falling, 0 = none
+    /// Fires and plagues burning in the city now (city + 0x1FE, kept by recount_disasters): any
+    /// of them stops the growth of every house.
+    std::uint16_t disasters = 0;
+    /// Game time of the next check for plague, robbers and fire (city + 0x1E0, every 60-67 s).
+    std::uint64_t next_event_ms = 0;
 
     [[nodiscard]] std::uint32_t stock(std::uint8_t ware) const noexcept {
         return ware < goods.size() ? goods[ware] : 0;
@@ -129,6 +134,18 @@ struct City {
             incoming.resize(goods.size(), 0);
         }
     }
+};
+
+/// A fire or a plague on a building (the original's list 0x005A5100, docs/re/disasters.md).
+struct Disaster {
+    enum class Kind : std::uint8_t { Plague = 1, Fire = 2 };
+    Kind kind = Kind::Fire;
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint16_t x = 0;       ///< origin tile of the building
+    std::uint16_t y = 0;
+    std::uint8_t elapsed = 0;   ///< epochs of 10 s it has lasted
+    std::uint8_t duration = 0;  ///< epochs until it ends (plague) or burns the building down (fire)
+    std::uint32_t id = 0;       ///< order of creation: the epochs handle the oldest first
 };
 
 /// A wild animal standing on an island (HIRSCH2 in the original: up to 8 per island).
@@ -308,6 +325,11 @@ public:
     [[nodiscard]] std::uint32_t city_name_index() const noexcept { return m_city_name_index; }
     void set_city_name_index(std::uint32_t i) noexcept { m_city_name_index = i; }
 
+    /// Fires and plagues (not saved by the original, S-001).
+    [[nodiscard]] const std::vector<Disaster>& disasters() const noexcept { return m_disasters; }
+    [[nodiscard]] std::vector<Disaster>& disasters() noexcept { return m_disasters; }
+    [[nodiscard]] std::uint32_t next_disaster_id() noexcept { return m_next_disaster_id++; }
+
     /// Settings the original keeps with a game (TIMERS): the difficulty 0..3 (how often droughts
     /// come) and the settings word (bit 2: no droughts).
     struct GameSettings {
@@ -376,6 +398,8 @@ private:
     HouseClocks m_house_clocks;
     std::uint64_t m_time_ms = 0;
     std::uint32_t m_city_name_index = 0;
+    std::vector<Disaster> m_disasters;
+    std::uint32_t m_next_disaster_id = 0;
     GameSettings m_game_settings;
     std::uint64_t m_next_drought_ms = 54'000ULL * 100;
     std::optional<std::uint8_t> m_drought_seed;

@@ -61,10 +61,13 @@ struct Production {
     static constexpr std::uint8_t kFullRate = 128;
     /// `flags` bit: the player forbids market carts to collect here (+0x0F bit 4, 0x0047CD60).
     static constexpr std::uint8_t kNoPickupFlag = 0x10;
+    /// `flags` bit: the building burns (+0x0F bit 7, not saved): no new cycle, no smoke.
+    static constexpr std::uint8_t kBurningFlag = 0x80;
     static constexpr std::uint16_t kProgressDone = 512;  ///< market: `produced` of a full cycle
 
     [[nodiscard]] constexpr bool working() const noexcept { return rate != 0; }
     [[nodiscard]] constexpr bool no_pickup() const noexcept { return (flags & kNoPickupFlag) != 0; }
+    [[nodiscard]] constexpr bool burning() const noexcept { return (flags & kBurningFlag) != 0; }
     /// Stock nobody has reserved.
     [[nodiscard]] constexpr std::uint16_t available() const noexcept {
         return stock > reserved ? static_cast<std::uint16_t>(stock - reserved) : 0;
@@ -76,10 +79,14 @@ enum class ProductionStatus : std::uint8_t {
     Ok,          ///< no icon
     Disabled,    ///< switched off by the player
     NoRawGoods,  ///< idle for at least Maxnorohst cycles
+    Burning,     ///< on fire (status 3)
 };
 
 [[nodiscard]] constexpr ProductionStatus production_status(const Production& p,
                                                            const assets::BuildingType& b) noexcept {
+    if (p.burning()) {
+        return ProductionStatus::Burning;
+    }
     if (!p.enabled) {
         return ProductionStatus::Disabled;
     }

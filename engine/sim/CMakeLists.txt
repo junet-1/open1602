@@ -4,6 +4,7 @@
 add_library(o1602_sim
     src/construction.cpp
     src/consumption.cpp
+    src/disasters.cpp
     src/drag_path.cpp
     src/growth.cpp
     src/houses.cpp

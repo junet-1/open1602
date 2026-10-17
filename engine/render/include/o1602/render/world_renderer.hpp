@@ -74,10 +74,12 @@ struct SpriteExtent {
 /// -> 0x004466A0). Buildings do not move, so Open1602 collects them once per world; what depends on
 /// the building's state (smoke, status icons) is decided when drawing.
 enum class BuildingFigureRole : std::uint8_t {
-    Flag,    ///< warehouse, market, tower (kind 0x1D): flag in the colour of the owner's banner
-    Smoke,   ///< chimney of a workshop (kind 0x17): rises while the building works, translucent
-    Status,  ///< icon above a production building of the local player (kind 0x16, NOAKTIV):
-             ///< switched off or short of raw material
+    Flag,        ///< warehouse, market, tower (kind 0x1D): flag in the colour of the owner's banner
+    Smoke,       ///< chimney of a workshop (kind 0x17): rises while the building works, translucent
+    Status,      ///< icon above a production building of the local player (kind 0x16, NOAKTIV):
+                 ///< switched off, short of raw material or on fire
+    Disaster,    ///< plague or fire on a house, for everybody (kind 0x1A, SENSENMANN)
+    MarketFire,  ///< a burning market of the local player (kind 0x18, BRANDMARKT)
 };
 
 struct BuildingFigure {

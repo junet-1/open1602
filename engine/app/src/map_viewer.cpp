@@ -592,6 +592,21 @@ void MapViewer::apply_production_events() {
             std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
         }
     }
+    // Fires and plagues in the player's cities (MELDUNG 1, 2).
+    for (const sim::DisasterEvent& e : m_simulation.take_disaster_events()) {
+        if (e.owner != m_local_player) {
+            continue;
+        }
+        const sim::City* city = m_world.city(e.island, e.city);
+        const char* name = city != nullptr ? city->name.c_str() : "?";
+        const bool fire = e.disaster == sim::Disaster::Kind::Fire;
+        if (e.kind == sim::DisasterEvent::Kind::Started && !e.spread) {
+            std::fprintf(stderr, "%s: %s (%u,%u)\n", name,
+                         fire ? "a fire broke out!" : "the plague haunts your settlement!", e.x, e.y);
+        } else if (e.kind == sim::DisasterEvent::Kind::BurnedDown) {
+            std::fprintf(stderr, "%s: a building burned down (%u,%u)\n", name, e.x, e.y);
+        }
+    }
     // Droughts: the player hears of those on islands where he has a city (MELDUNG 3).
     for (const sim::IslandEvent& e : m_simulation.take_island_events()) {
         const sim::City* own = nullptr;

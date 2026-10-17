@@ -17,6 +17,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/consumption.hpp"
+#include "o1602/sim/disasters.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/island_events.hpp"
 #include "o1602/sim/logistics.hpp"
@@ -83,6 +84,8 @@ public:
     [[nodiscard]] std::vector<HouseEvent> take_house_events();
     /// Droughts and withered fields since the last call.
     [[nodiscard]] std::vector<IslandEvent> take_island_events();
+    /// Fires and plagues that broke out, spread, ended or burned a building down since the last call.
+    [[nodiscard]] std::vector<DisasterEvent> take_disaster_events();
 
 private:
     void pay_upkeep();
@@ -100,6 +103,9 @@ private:
     std::vector<CityEvent> m_city_events;
     std::vector<HouseEvent> m_house_events;
     std::vector<IslandEvent> m_island_events;
+    std::vector<DisasterEvent> m_disaster_events;
+    std::vector<RobberSpawn> m_robbers;
+    std::uint32_t m_disaster_ms = 0;  ///< game time since the last disaster epoch
     const assets::FigureTable* m_figures;
     std::uint32_t m_upkeep_ms = 0;  ///< game time since the military upkeep was last paid
     std::uint32_t m_island_ms = 0;  ///< game time since the last island epoch

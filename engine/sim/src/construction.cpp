@@ -6,6 +6,7 @@
 #include <set>
 
 #include "o1602/assets/savegame.hpp"
+#include "o1602/sim/disasters.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/logistics.hpp"
@@ -965,6 +966,7 @@ public:
         const auto oy = static_cast<std::uint16_t>(old.origin.y);
         const std::int32_t p = old.type->prod_kind;
         std::optional<Production> state;
+        forget_disaster(m_world, m_island, old.origin);  // its fire or plague goes with it
         if (const auto index = m_world.production_index(m_island, ox, oy)) {
             state = m_world.productions()[*index];
             m_world.remove_production(m_island, ox, oy);
@@ -2022,6 +2024,21 @@ DemolishResult execute_demolish(World& world, const assets::BuildingTable& build
     }
     builder.finish();
     return result;
+}
+
+bool destroy_building(World& world, const assets::BuildingTable& buildings, std::uint16_t island, TilePos origin,
+                      std::vector<ConstructionEvent>* events) {
+    if (island >= world.islands().size()) {
+        return false;
+    }
+    const auto b = building_at(world, buildings, island, origin);
+    if (!b || b->origin.x != origin.x || b->origin.y != origin.y) {
+        return false;
+    }
+    Builder builder(world, buildings, island, events);
+    builder.destroy(*b);
+    builder.finish();
+    return true;
 }
 
 }  // namespace o1602::sim

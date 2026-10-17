@@ -22,6 +22,7 @@ constexpr std::uint32_t kMill = 20505;
 constexpr std::uint32_t kWeaver = 20507;
 constexpr std::uint32_t kKontor = 22101;
 constexpr std::uint32_t kMarket = 20809;
+constexpr std::uint32_t kHouse = 20640;
 
 constexpr std::uint8_t kFlour = 5;
 constexpr std::uint8_t kBread = 10;
@@ -49,6 +50,8 @@ assets::BuildingTable make_buildings() {
         "  Wegspeed: 120, 120, 120, 100\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Ware: 1\n    Rohstoff: 1\n    Rohmenge: 1\n    Maxlager: 30\n"
         "    Figurnr: 82\n    Figuranz: 1\n    Radius: 12\n  EndObj\n"
+        "  @Nummer: +1\n  Id: 20640\n  Kind: 14\n  Gfx: 60\n  Size: 2, 2\n  Wegspeed: 120, 120, 120, 100\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 13\n    BGruppe: 2\n  EndObj\n"
         "  @Nummer: +1\n  Id: 20809\n  Kind: 14\n  Gfx: 50\n  Size: 3, 3\n  Wegspeed: 120, 120, 120, 100\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 7\n    Ware: 1\n    Rohstoff: 1\n    Rohmenge: 1\n    Maxlager: 30\n"
         "    Figurnr: 82\n    Figuranz: 2\n    Radius: 12\n  EndObj\n"
@@ -73,6 +76,12 @@ assets::FigureTable make_figures() {
         "  Objekt: ANIM\n"
         "    Nummer: 0\n    Kind: 1\n    AnimOffs: 0\n    AnimAdd: 1\n    AnimAnz: 8\n    AnimSpeed: 60\n"
         "    Nummer: 1\n    Kind: 1\n    AnimOffs: 64\n    AnimAdd: 1\n    AnimAnz: 8\n    AnimSpeed: 60\n"
+        "  EndObj\n"
+        "  Nummer: 92\n  Blocknr: 3\n  Speed: 340\n  Rotate: 8\n  Gfx: 320\n  Maxtrag: 6\n  Worktime: 0.78\n"
+        "  Objekt: ANIM\n"
+        "    Nummer: 0\n    Kind: 1\n    AnimOffs: 0\n    AnimAdd: 1\n    AnimAnz: 8\n    AnimSpeed: 55\n"
+        "    Nummer: 1\n    Kind: 1\n    AnimOffs: 64\n    AnimAdd: 1\n    AnimAnz: 8\n    AnimSpeed: 55\n"
+        "    Nummer: 2\n    Kind: 1\n    AnimOffs: 128\n    AnimAdd: 1\n    AnimAnz: 6\n    AnimSpeed: 130\n"
         "  EndObj\n"
         "EndObj\n",
         types);
@@ -413,4 +422,42 @@ TEST_CASE("logistics: the simulation sends carriers when a workshop runs short")
     CHECK(town.city().goods[kFlour] < 2 * 32);
     // The bread went to the warehouse with the Kontor's cart once the bakery was full.
     CHECK(town.city().goods[kBread] + town.production(8, 6).stock >= 8 * 32);
+}
+
+TEST_CASE("logistics: a robber waits in his house and robs a cart on its way home") {
+    Town town;
+    town.place(kKontor, 2, 3);
+    town.place(kWeaver, 14, 4);
+    town.place(kHouse, 8, 6);  // next to the road, half way
+    town.finish({{2, 3}, {14, 4}});
+    sim::City& city = town.city();
+    city.ensure_ware(kCloth);
+    sim::Logistics logistics(town.world, town.buildings, town.figures);
+
+    logistics.spawn_robber(sim::RobberSpawn{0, {8, 6}, 0});
+    logistics.spawn_robber(sim::RobberSpawn{0, {8, 6}, 0});  // one per house
+    CHECK(logistics.walkers().size() == 1);
+    CHECK(first_walker(logistics)->kind == sim::WalkerKind::Robber);
+
+    town.production(14, 4).stock = 4 * 32;
+    logistics.handle(needs(town.index(2, 3), sim::kAllWares));
+    REQUIRE(logistics.walkers().size() == 2);
+    run_until_idle(logistics);
+    CHECK(logistics.stats().robberies == 1);
+    CHECK(logistics.stats().stolen == 4 * 32);
+    CHECK(city.goods[kCloth] == 0);     // never arrived
+    CHECK(city.incoming[kCloth] == 0);  // the room it reserved is free again
+    CHECK(town.production(14, 4).stock == 0);
+}
+
+TEST_CASE("logistics: a robber without a victim gives up after half a minute") {
+    Town town;
+    town.place(kKontor, 2, 3);
+    town.place(kHouse, 12, 6);
+    town.finish({{2, 3}});
+    sim::Logistics logistics(town.world, town.buildings, town.figures);
+    logistics.spawn_robber(sim::RobberSpawn{0, {8, 6}, 0});
+    const std::uint32_t ticks = run_until_idle(logistics);
+    CHECK(ticks == 30 * 20);
+    CHECK(logistics.stats().robberies == 0);
 }

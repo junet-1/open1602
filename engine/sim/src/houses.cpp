@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 
+#include "o1602/sim/disasters.hpp"
 #include "o1602/sim/pathfinding.hpp"
 
 namespace o1602::sim {
@@ -453,6 +454,7 @@ private:
             }
         }
         emit(HouseEvent::Kind::Abandoned, copy);
+        forget_disaster(m_world, copy.island, {copy.x, copy.y});
         m_world.remove_house(copy.island, copy.x, copy.y);
     }
 
@@ -575,7 +577,8 @@ std::int32_t growth_rate(const City& city, const House& house) noexcept {
     const std::uint16_t disaster = house.services & hs::kDisasterMask;
     const std::size_t dist = std::min<std::size_t>(house.market_distance, kNoMarket);
     if (food > 87 && s > 107 && house.services_complete && disaster == 0) {
-        if (food >= kFull && s >= kFull) {
+        // A fire or plague anywhere in the city stops all growth (city + 0x1FE).
+        if (food >= kFull && s >= kFull && city.disasters == 0) {
             return (128 - t.t1[food]) * t.t2[dist] / 128;
         }
         return 0;  // nearly content: the house neither grows nor shrinks

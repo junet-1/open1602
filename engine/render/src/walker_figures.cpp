@@ -16,6 +16,9 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
         if (type == nullptr || w.island >= world.islands().size()) {
             return;
         }
+        if (w.kind == sim::WalkerKind::Robber && w.working() && w.animation == 1) {
+            return;  // waits unseen in his house (0x00451590)
+        }
         if (h.index >= m_slots.size()) {
             m_slots.resize(std::size_t{h.index} + 1);
         }

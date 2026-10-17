@@ -6,6 +6,8 @@
 #include <numbers>
 #include <unordered_map>
 
+#include "o1602/sim/houses.hpp"
+
 namespace o1602::render {
 
 namespace {
@@ -228,7 +230,9 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
 
 namespace {
 
-constexpr std::uint16_t kFigureNoAktiv = 46;  // NOAKTIV: status icon of production buildings
+constexpr std::uint16_t kFigureNoAktiv = 46;     // NOAKTIV: status icon of production buildings
+constexpr std::uint16_t kFigureBrandMarkt = 47;  // BRANDMARKT: fire on a market
+constexpr std::uint16_t kFigureSensenmann = 56;  // SENSENMANN: plague and fire on houses
 
 /// Building centre (0x00463A70) plus the figure's Fahnoffs turned with the building (0x004466A0,
 /// the same for flags, smoke, icons and jugglers).
@@ -268,6 +272,7 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
     constexpr std::int32_t kProdMarkt = 7;      // HAUS_PRODTYP Kind MARKT
     constexpr std::int32_t kProdKontor = 8;     // KONTOR
     constexpr std::int32_t kProdWachturm = 16;  // WACHTURM: same branch in 0x00486B60
+    constexpr std::int32_t kProdHouse = 13;     // WOHNUNG
     std::vector<BuildingFigure> out;
     const auto& islands = world.islands();
     for (std::size_t index = 0; index < islands.size(); ++index) {
@@ -313,6 +318,11 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
                 };
                 if (b.prod_kind == kProdMarkt || b.prod_kind == kProdKontor || b.prod_kind == kProdWachturm) {
                     add(BuildingFigureRole::Flag, b.attached_figures[0]);
+                    if (b.prod_kind == kProdMarkt) {
+                        add(BuildingFigureRole::MarketFire, kFigureBrandMarkt);
+                    }
+                } else if (b.prod_kind == kProdHouse) {
+                    add(BuildingFigureRole::Disaster, kFigureSensenmann);
                 } else if (sim::is_producer(b)) {
                     add(BuildingFigureRole::Status, kFigureNoAktiv);
                     add(BuildingFigureRole::Smoke, b.attached_figures[0]);
@@ -355,6 +365,7 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
     }
     const WorldView view = fit_view(view_in, world);
     DrawCommand& c = out.parts[0];
+    double z = figure.z;
     c = DrawCommand{};
     switch (figure.role) {
         case BuildingFigureRole::Flag: {
@@ -369,6 +380,41 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
                 return false;
             }
             c.sprite = *sprite;
+            break;
+        }
+        case BuildingFigureRole::Disaster:
+        case BuildingFigureRole::MarketFire: {
+            // 0x00486B60: the reaper over a house with the plague (ANIM 0), flames over a house on
+            // fire (ANIM 1, 0.4 lower) and over a burning market of the local player.
+            const auto base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Effekte)];
+            if (!base) {
+                return false;
+            }
+            std::uint8_t anim = 0;
+            if (figure.role == BuildingFigureRole::Disaster) {
+                const sim::House* house = world.house(figure.island, figure.origin_x, figure.origin_y);
+                const std::uint16_t dis = house != nullptr ? (house->services & sim::house_service::kDisasterMask) : 0;
+                if (dis == 0) {
+                    return false;
+                }
+                anim = dis == 1 ? 0 : 1;
+                if (anim == 1) {
+                    z -= 0.4;
+                }
+            } else {
+                const sim::Production* state = world.production(figure.island, figure.origin_x, figure.origin_y);
+                if (state == nullptr || !state->burning() || figure.owner != layers.local_player) {
+                    return false;
+                }
+                anim = 2;  // BRANDMARKT is NOAKTIV placed for markets: ANIM 2 are the flames (status 3)
+            }
+            const assets::FigureAnim* a = fig->anim(anim);
+            std::uint32_t frame = 0;
+            if (a != nullptr && a->count > 0) {
+                const std::uint64_t speed = a->speed_ms > 0 ? a->speed_ms : 1;
+                frame = static_cast<std::uint32_t>((time_ms / speed + figure.phase) % a->count);
+            }
+            c.sprite = *base + assets::figure_sprite(*fig, anim, frame, 0, view.rotation);
             break;
         }
         case BuildingFigureRole::Smoke:
@@ -401,7 +447,7 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
                 if (status == sim::ProductionStatus::Ok) {
                     return false;
                 }
-                anim = status == sim::ProductionStatus::Disabled ? 0 : 1;
+                anim = status == sim::ProductionStatus::Disabled ? 0 : status == sim::ProductionStatus::Burning ? 2 : 1;
             }
             // Endless animations: the original starts them at a random frame (0x0044670B); here the
             // building's phase stands in for it so the picture is reproducible.
@@ -419,7 +465,7 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
     if (r.empty()) {
         return false;
     }
-    place_display_figure(view, r, *fig, figure.x, figure.y, figure.z, c, out.row);
+    place_display_figure(view, r, *fig, figure.x, figure.y, z, c, out.row);
     out.count = 1;
     return true;
 }

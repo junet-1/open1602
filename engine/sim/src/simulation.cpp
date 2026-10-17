@@ -24,6 +24,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_logistics(world, buildings, figures) {
     m_time_ms = world.time_ms();
     m_island_ms = static_cast<std::uint32_t>(m_time_ms % Logistics::kIslandEpochMs);
+    recount_disasters(world);
     // As when the original loads a game: every deer spot gets its deer.
     m_logistics.spawn_deer_at_spots();
     // The original takes the saved coverage of the houses; Open1602 recomputes it once, which
@@ -163,6 +164,12 @@ void Simulation::tick() {
                                 m_city_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
     }
+    // Every 60-67 s a city may catch the plague, send out a robber or catch fire (0x0047F8A0).
+    advance_city_events(*m_world, *m_buildings, &m_disaster_events, &m_robbers);
+    for (const RobberSpawn& r : m_robbers) {
+        m_logistics.spawn_robber(r);
+    }
+    m_robbers.clear();
     // Houses after the cities (0x0047B9C0).
     advance_houses(*m_world, *m_buildings, kTickMs, &m_house_events);
     if (m_house_events.size() > kMaxPendingEvents) {
@@ -174,6 +181,18 @@ void Simulation::tick() {
     if (m_upkeep_ms >= kUpkeepPeriodMs) {
         m_upkeep_ms -= kUpkeepPeriodMs;
         pay_upkeep();
+    }
+    // Disasters in epochs of 10 s (0x0047A020): they spread, end or burn the building down.
+    m_disaster_ms += kTickMs;
+    if (m_disaster_ms >= kDisasterEpochMs) {
+        m_disaster_ms -= kDisasterEpochMs;
+        const std::size_t first = m_construction_events.size();
+        advance_disasters(*m_world, *m_buildings, &m_disaster_events, &m_construction_events);
+        handle(m_construction_events, first);
+        if (m_disaster_events.size() > kMaxPendingEvents) {
+            m_disaster_events.erase(m_disaster_events.begin(),
+                                    m_disaster_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+        }
     }
     // Island epochs of 30 s (0x0046B3E0): droughts, then deer come back and settle.
     m_island_ms += kTickMs;
@@ -191,6 +210,9 @@ void Simulation::tick() {
     }
     // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670).
     m_logistics.tick();
+    for (const DisasterEvent& e : m_logistics.take_disaster_events()) {
+        m_disaster_events.push_back(e);
+    }
 }
 
 void Simulation::pay_upkeep() {
@@ -214,6 +236,12 @@ void Simulation::pay_upkeep() {
 std::vector<HouseEvent> Simulation::take_house_events() {
     std::vector<HouseEvent> events;
     events.swap(m_house_events);
+    return events;
+}
+
+std::vector<DisasterEvent> Simulation::take_disaster_events() {
+    std::vector<DisasterEvent> events;
+    events.swap(m_disaster_events);
     return events;
 }
 

@@ -49,6 +49,16 @@ constexpr std::uint32_t kDeerRespawnMs = 60'000;  // a spot waits a minute for i
 constexpr std::uint32_t kShotSteps = 3;           // the hunter shoots from 3 tiles
 constexpr std::int32_t kHuntReach = 8;            // lodges within 8 tiles answer
 constexpr std::uint8_t kGrassStops = 2;           // grass, grass, then a tree
+constexpr std::int32_t kProdHouse = 13;           // WOHNUNG
+constexpr std::int32_t kProdKlinik = 22;          // doctor
+constexpr std::int32_t kProdBrunnen = 26;         // fire brigade ("Feuerwehr")
+constexpr std::uint16_t kFigureRobber = 92;       // RAEUBER
+constexpr std::uint32_t kRobberWaitMs = 1'000;    // looks for a victim every second
+constexpr std::uint8_t kRobberPatience = 30;      // seconds in the house before he gives up
+constexpr std::uint8_t kRobberChase = 49;         // tiles of chase (with the seconds waited)
+constexpr std::uint8_t kRobberRadius = 19;        // his square around the house
+constexpr std::int64_t kRobberSight = 13;         // tiles to a victim
+constexpr std::int64_t kRobberReach = 32'768;     // half a tile: caught
 using assets::kStockUnitsPerTon;
 
 std::uint64_t tile_key(std::uint16_t island, TilePos t) noexcept {
@@ -213,6 +223,14 @@ void Logistics::handle(const ProductionEvent& event) {
     const bool second = event.ware != 0 && event.ware == type.raw2_ware && event.ware != type.raw_ware;
     if (type.prod_kind == static_cast<std::int32_t>(ProductionKind::Bergwerk) && !second) {
         mine_ore(event.production);
+        return;
+    }
+    if (type.prod_kind == kProdKlinik) {
+        send_responder(event.production, WalkerKind::Doctor);
+        return;
+    }
+    if (type.prod_kind == kProdBrunnen) {
+        send_responder(event.production, WalkerKind::Firefighter);
         return;
     }
     if (event.ware == 0) {
@@ -565,6 +583,21 @@ void Logistics::arrive(Handle h, Walker& w) {
         hunter_arrive(h, w);
         return;
     }
+    if (w.kind == WalkerKind::Robber) {
+        if (w.returning) {
+            finish(h, w);  // back in a house: gone
+        } else {
+            robber_chase(h, w);
+        }
+        return;
+    }
+    if (responds(w.kind) && !w.returning) {
+        // At the building: works for Worktime, the fireman facing it (0x004599D0, 0x0045A040).
+        const assets::FigureType* fig = m_figures->get(w.figure);
+        w.work_ms = std::max<std::uint32_t>(fig != nullptr ? fig->work_time_ms : 0, 1);
+        w.animation = 2;
+        return;
+    }
     if (w.returning) {
         deliver(w);
         finish(h, w);
@@ -665,8 +698,8 @@ void Logistics::prepare_area(const Walker& w, const BuildingAt& hb, const assets
     const Catchment area = catchment_of(*hb.type, hb.rotation, hb.origin);
     const std::uint8_t type = std::min<std::uint8_t>(fig.speed_type, 3);
     WalkClass walk = WalkClass::Land;
-    if (w.kind == WalkerKind::Cart) {
-        walk = WalkClass::Roads;
+    if (w.kind == WalkerKind::Cart || w.kind == WalkerKind::Firefighter) {
+        walk = WalkClass::Roads;  // the fire brigade only on roads (0x00470B60)
     } else if (w.kind == WalkerKind::Fisher) {
         walk = WalkClass::Water;
     }
@@ -774,6 +807,14 @@ void Logistics::finish_work(Handle h, Walker& w) {
         w.animation = 1;  // the shot is done; on to the deer
         return;
     }
+    if (w.kind == WalkerKind::Robber) {
+        robber_wait(h, w);
+        return;
+    }
+    if (responds(w.kind)) {
+        responder_done(h, w);
+        return;
+    }
     bool harvested = false;
     if (w.field) {
         m_reserved_tiles.erase(tile_key(w.island, *w.field));
@@ -848,6 +889,9 @@ void Logistics::mine_ore(std::uint32_t home) {
 }
 
 void Logistics::deliver(Walker& w) {
+    if (responds(w.kind) || w.home == kNoHome) {
+        return;  // doctors and firemen bring nothing
+    }
     Production& home = m_world->productions()[w.home];
     const auto hb = building_of(w.home);
     if (!hb) {
@@ -1483,6 +1527,324 @@ void Logistics::census(std::uint16_t island) {
         if (centre != nullptr && centre->prod_kind != kProdKindGrowing) {
             spawn_deer(island, pick);
         }
+    }
+}
+
+// ---- Doctors and firemen ------------------------------------------------------------------
+
+namespace {
+
+Disaster::Kind disaster_of(WalkerKind kind) noexcept {
+    return kind == WalkerKind::Doctor ? Disaster::Kind::Plague : Disaster::Kind::Fire;
+}
+
+}  // namespace
+
+void Logistics::send_responder(std::uint32_t home, WalkerKind kind) {
+    const auto hb = building_of(home);
+    if (!hb || jobs(home) != 0) {
+        return;  // one figure per building (0x00443080)
+    }
+    // The original sends both for any disaster of the city (city + 0x1FE); the figure of the other
+    // kind finds nothing and is gone at once. Open1602 only sends it when there is work.
+    const std::uint16_t island = m_world->productions()[home].island;
+    const Disaster::Kind wanted = disaster_of(kind);
+    const IslandMap& map = m_world->islands()[island].map;
+    const bool work = std::any_of(m_world->disasters().begin(), m_world->disasters().end(), [&](const Disaster& d) {
+        return d.island == island && d.kind == wanted && map.contains(d.x, d.y) && map.top(d.x, d.y).city == hb->city;
+    });
+    const assets::FigureType* fig = m_figures->get(hb->type->worker_figure);
+    if (!work || fig == nullptr || fig->speed == 0) {
+        return;
+    }
+    Walker w;
+    w.kind = kind;
+    w.island = island;
+    w.figure = hb->type->worker_figure;
+    w.city = hb->city;
+    w.home = home;
+    w.home_tile = centre_tile(*hb);
+    w.tile = w.home_tile;
+    w.animation = 0;
+    if (!find_disaster(w, *hb, *fig)) {
+        return;
+    }
+    launch(std::move(w));
+}
+
+bool Logistics::find_disaster(Walker& w, const BuildingAt& hb, const assets::FigureType& fig) {
+    prepare_area(w, hb, fig, false);
+    // Leave the building it worked at.
+    if (const auto here = building_at(*m_world, *m_buildings, w.island, w.tile)) {
+        m_finder.open_footprint(here->origin, here->width, here->height);
+    }
+    const IslandMap& map = m_world->islands()[w.island].map;
+    const Disaster::Kind wanted = disaster_of(w.kind);
+    bool any = false;
+    for (const Disaster& d : m_world->disasters()) {
+        if (d.island != w.island || d.kind != wanted || !map.contains(d.x, d.y) || map.top(d.x, d.y).city != w.city) {
+            continue;
+        }
+        const auto at = building_at(*m_world, *m_buildings, w.island, {d.x, d.y});
+        if (!at) {
+            continue;
+        }
+        for (std::uint32_t j = 0; j < at->height; ++j) {
+            for (std::uint32_t i = 0; i < at->width; ++i) {
+                const TilePos t{at->origin.x + static_cast<std::int32_t>(i),
+                                at->origin.y + static_cast<std::int32_t>(j)};
+                if (m_finder.inside(t)) {
+                    m_finder.set(t, PathFinder::Cell::Goal, 32);
+                    any = true;
+                }
+            }
+        }
+    }
+    if (!any) {
+        return false;
+    }
+    const auto hit = m_finder.search(w.tile, [](TilePos) { return PathFinder::Answer::Accept; });
+    if (!hit || !m_finder.path_to(*hit, w.path)) {
+        return false;
+    }
+    const auto at = building_at(*m_world, *m_buildings, w.island, *hit);
+    if (!at) {
+        return false;
+    }
+    w.target = at->origin;
+    w.step = 0;
+    w.returning = false;
+    w.animation = 0;
+    return true;
+}
+
+void Logistics::responder_done(Handle h, Walker& w) {
+    if (w.target) {
+        if (end_disaster(*m_world, w.island, *w.target, disaster_of(w.kind), &m_disaster_events)) {
+            w.load = clamp_u16(std::uint32_t{w.load} + kStockUnitsPerTon);  // counts the buildings
+            ++(w.kind == WalkerKind::Doctor ? m_stats.cured : m_stats.extinguished);
+        }
+        w.target.reset();
+    }
+    w.animation = 0;
+    const auto hb = building_of(w.home);
+    const assets::FigureType* fig = m_figures->get(w.figure);
+    // Up to Maxtrag buildings per trip (doctor 6, fireman 4), then home.
+    if (hb && fig != nullptr && w.load < fig->max_carry && find_disaster(w, *hb, *fig)) {
+        return;
+    }
+    if (!plan_home(w)) {
+        finish(h, w);
+    }
+}
+
+// ---- Robbers ------------------------------------------------------------------------------
+
+namespace {
+
+struct FixedPosition {
+    std::int64_t x;
+    std::int64_t y;
+};
+
+/// Position in 1/65536 tiles (tile centres at + 0.5).
+FixedPosition fixed_position(const Walker& w) noexcept {
+    constexpr std::int64_t kUnit = Logistics::kTileUnits;
+    FixedPosition p{w.tile.x * kUnit + kUnit / 2, w.tile.y * kUnit + kUnit / 2};
+    if (w.moving() && w.step < w.path.size() && w.length != 0) {
+        const TilePos next = w.path[w.step];
+        p.x += (next.x - w.tile.x) * kUnit * w.progress / w.length;
+        p.y += (next.y - w.tile.y) * kUnit * w.progress / w.length;
+    }
+    return p;
+}
+
+/// The original's distance between figures: the longer axis plus a third of the shorter.
+std::int64_t figure_distance(const FixedPosition& a, const FixedPosition& b) noexcept {
+    const std::int64_t dx = a.x > b.x ? a.x - b.x : b.x - a.x;
+    const std::int64_t dy = a.y > b.y ? a.y - b.y : b.y - a.y;
+    return std::max(dx, dy) + std::min(dx, dy) * 33 / 100;
+}
+
+}  // namespace
+
+void Logistics::spawn_robber(const RobberSpawn& s) {
+    if (s.island >= m_world->islands().size()) {
+        return;
+    }
+    const auto house = building_at(*m_world, *m_buildings, s.island, s.house);
+    const assets::FigureType* fig = m_figures->get(kFigureRobber);
+    if (!house || fig == nullptr || fig->speed == 0) {
+        return;
+    }
+    const TilePos centre = centre_tile(*house);
+    // One robber per house.
+    bool there = false;
+    m_walkers.for_each([&](Handle, const Walker& o) {
+        there = there || (o.kind == WalkerKind::Robber && o.island == s.island && o.home_tile == centre);
+    });
+    if (there) {
+        return;
+    }
+    Walker w;
+    w.kind = WalkerKind::Robber;
+    w.island = s.island;
+    w.figure = kFigureRobber;
+    w.city = s.city;
+    w.home = kNoHome;
+    w.home_tile = centre;
+    w.tile = centre;
+    w.animation = 1;
+    w.work_ms = kRobberWaitMs;  // hides in the house and looks out
+    ++m_stats.robbers;
+    launch(std::move(w));
+}
+
+bool Logistics::find_victim(Walker& r) {
+    const FixedPosition me = fixed_position(r);
+    const IslandMap& map = m_world->islands()[r.island].map;
+    Handle found;
+    m_walkers.for_each([&](Handle h, const Walker& v) {
+        if (found.valid() || (v.kind != WalkerKind::Carrier && v.kind != WalkerKind::Cart) || !v.returning ||
+            v.island != r.island || !map.contains(v.tile.x, v.tile.y)) {
+            return;
+        }
+        // On the road or open land (not inside a building).
+        const MapCell& cell = map.top(static_cast<std::uint32_t>(v.tile.x), static_cast<std::uint32_t>(v.tile.y));
+        const assets::BuildingType* b = cell.empty() ? nullptr : m_buildings->by_sprite(cell.sprite);
+        if (b == nullptr || !walkable(*b, cell, WalkClass::Land)) {
+            return;
+        }
+        if (figure_distance(me, fixed_position(v)) > kRobberSight * kTileUnits) {
+            return;
+        }
+        const std::int32_t dx = std::abs(v.tile.x - r.home_tile.x);
+        const std::int32_t dy = std::abs(v.tile.y - r.home_tile.y);
+        if (std::max(dx, dy) + std::min(dx, dy) / 4 > kRobberRadius) {
+            return;
+        }
+        found = h;
+    });
+    r.partner = found;
+    return found.valid();
+}
+
+void Logistics::prepare_robber_area(const Walker& r, const assets::FigureType& fig) {
+    const IslandMap& map = m_world->islands()[r.island].map;
+    Catchment area;
+    area.centre = r.home_tile;
+    area.radius = kRobberRadius;
+    m_finder.begin(map, *m_buildings, area, WalkClass::Land, fig.speed_type, false);  // a square
+    if (const auto here = building_at(*m_world, *m_buildings, r.island, r.tile)) {
+        if (here->type->kind != building_kind::kRoad) {
+            m_finder.open_footprint(here->origin, here->width, here->height);
+        }
+    }
+}
+
+void Logistics::robber_wait(Handle h, Walker& r) {
+    if (r.animation == 2) {
+        robber_flee(h, r);  // robbed: off with the sack
+        return;
+    }
+    if (find_victim(r)) {
+        robber_chase(h, r);
+        return;
+    }
+    if (++r.patience >= kRobberPatience) {
+        finish(h, r);  // nobody came
+        return;
+    }
+    r.work_ms = kRobberWaitMs;
+}
+
+void Logistics::robber_chase(Handle h, Walker& r) {
+    Walker* v = m_walkers.get(r.partner);
+    if (v == nullptr || (v->kind != WalkerKind::Carrier && v->kind != WalkerKind::Cart) || !v->returning) {
+        r.partner = Handle{};  // the victim is home (the original might chase another figure, B4)
+        robber_flee(h, r);
+        return;
+    }
+    if (figure_distance(fixed_position(r), fixed_position(*v)) <= kRobberReach) {
+        // Caught: the figure and what it carries are gone (nothing is booked anywhere).
+        ++m_stats.robberies;
+        m_stats.stolen += v->load;
+        v->load = 0;
+        finish(r.partner, *v);
+        r.partner = Handle{};
+        const assets::FigureType* fig = m_figures->get(r.figure);
+        r.work_ms = std::max<std::uint32_t>(fig != nullptr ? fig->work_time_ms : 0, 1);
+        r.animation = 2;
+        r.path.clear();
+        r.step = 0;
+        return;
+    }
+    if (++r.patience > kRobberChase) {
+        r.partner = Handle{};
+        robber_flee(h, r);
+        return;
+    }
+    // One tile towards the victim, then look again.
+    const assets::FigureType* fig = m_figures->get(r.figure);
+    if (fig == nullptr) {
+        finish(h, r);
+        return;
+    }
+    prepare_robber_area(r, *fig);
+    // Towards the tile the victim is walking to (the original takes the tile it is on; when that
+    // is the robber's own tile, he would stand still).
+    const TilePos goal = v->moving() && v->step < v->path.size() ? v->path[v->step] : v->tile;
+    if (goal == r.tile) {
+        r.work_ms = 1;  // it comes to him: look again in a moment
+        return;
+    }
+    m_finder.set(goal, PathFinder::Cell::Goal, 32);
+    const auto hit = m_finder.search(
+        r.tile, [&](TilePos t) { return t == goal ? PathFinder::Answer::Accept : PathFinder::Answer::Reject; });
+    std::vector<TilePos> path;
+    if (!hit || !m_finder.path_to(*hit, path) || path.empty()) {
+        r.partner = Handle{};
+        robber_flee(h, r);
+        return;
+    }
+    r.path.assign(1, path.front());
+    r.step = 0;
+    r.animation = 1;
+}
+
+void Logistics::robber_flee(Handle h, Walker& r) {
+    const bool loot = r.animation == 2;
+    r.returning = true;
+    r.animation = loot ? 0 : 1;  // with the sack, or empty-handed
+    r.work_ms = 0;
+    const assets::FigureType* fig = m_figures->get(r.figure);
+    if (fig == nullptr) {
+        finish(h, r);
+        return;
+    }
+    // Into the nearest house of his city (0x00470EA0), the whole way at once (the original
+    // re-plans after 12 tiles and is gone on the street, B7).
+    prepare_robber_area(r, *fig);
+    const IslandMap& map = m_world->islands()[r.island].map;
+    const TilePos corner = m_finder.window_min();
+    for (std::uint32_t j = 0; j < m_finder.window_height(); ++j) {
+        for (std::uint32_t i = 0; i < m_finder.window_width(); ++i) {
+            const TilePos t{corner.x + static_cast<std::int32_t>(i), corner.y + static_cast<std::int32_t>(j)};
+            if (!map.contains(t.x, t.y)) {
+                continue;
+            }
+            const MapCell& cell = map.top(static_cast<std::uint32_t>(t.x), static_cast<std::uint32_t>(t.y));
+            const assets::BuildingType* b = cell.empty() ? nullptr : m_buildings->by_sprite(cell.sprite);
+            if (b != nullptr && b->prod_kind == kProdHouse && cell.city == r.city) {
+                m_finder.set(t, PathFinder::Cell::Goal, 32);
+            }
+        }
+    }
+    r.path.clear();
+    r.step = 0;
+    const auto hit = m_finder.search(r.tile, [](TilePos) { return PathFinder::Answer::Accept; });
+    if (!hit || !m_finder.path_to(*hit, r.path) || r.path.empty()) {
+        finish(h, r);
     }
 }
 

@@ -22,6 +22,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/sim/disasters.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/pool.hpp"
 #include "o1602/sim/production_cycle.hpp"
@@ -57,14 +58,22 @@ struct BuildingAt {
 [[nodiscard]] std::uint32_t deer_allowed(std::size_t spots) noexcept;
 
 enum class WalkerKind : std::uint8_t {
-    Carrier,    ///< fetches raw material for a workshop (figure kind 8)
-    Cart,       ///< brings goods of producers to the warehouse (figure kind 0x0B)
-    Harvester,  ///< farm worker: harvests one ripe field, tree or quarry tile (kind 0x0C)
-    Grazer,     ///< cattle or sheep: grazes ripe meadow tiles until full (kind 0x10)
-    Fisher,     ///< fishing boat: fishes ripe shoals until full (kind 0x0D)
-    Deer,       ///< deer or antelope: grazes around its spot in the forest (kind 0x11)
-    Hunter,     ///< hunter of a hunting lodge, called by a grazing deer (kind 0x0E)
+    Carrier,      ///< fetches raw material for a workshop (figure kind 8)
+    Cart,         ///< brings goods of producers to the warehouse (figure kind 0x0B)
+    Harvester,    ///< farm worker: harvests one ripe field, tree or quarry tile (kind 0x0C)
+    Grazer,       ///< cattle or sheep: grazes ripe meadow tiles until full (kind 0x10)
+    Fisher,       ///< fishing boat: fishes ripe shoals until full (kind 0x0D)
+    Deer,         ///< deer or antelope: grazes around its spot in the forest (kind 0x11)
+    Hunter,       ///< hunter of a hunting lodge, called by a grazing deer (kind 0x0E)
+    Doctor,       ///< doctor of a Klinik: cures houses with the plague (kind 9)
+    Firefighter,  ///< fire brigade ("Feuerwehr", HAUS_PRODTYP BRUNNEN): puts out fires (kind 10)
+    Robber,       ///< robs carriers and carts on their way home (kind 0x0F)
 };
+
+/// Doctors and firemen: they walk to disasters of their city and end them.
+[[nodiscard]] constexpr bool responds(WalkerKind kind) noexcept {
+    return kind == WalkerKind::Doctor || kind == WalkerKind::Firefighter;
+}
 
 /// Workers that harvest tiles themselves instead of fetching from buildings.
 [[nodiscard]] constexpr bool harvests(WalkerKind kind) noexcept {
@@ -98,11 +107,13 @@ struct Walker {
     /// 0 home; cattle and fishing boats 0 moving, 1 working.
     std::uint8_t animation = 1;
     // Deer and hunters.
-    std::uint8_t grazes = 0;  ///< deer: grass stops since the last tree
-    bool dying = false;       ///< deer: falls (shot, or no way left)
-    bool shot = false;        ///< deer: hit by a hunter
-    bool retargeted = false;  ///< hunter: followed the deer once
-    Handle partner;           ///< the deer a hunter hunts, the hunter after a deer
+    std::uint8_t grazes = 0;        ///< deer: grass stops since the last tree
+    bool dying = false;             ///< deer: falls (shot, or no way left)
+    bool shot = false;              ///< deer: hit by a hunter
+    bool retargeted = false;        ///< hunter: followed the deer once
+    Handle partner;                 ///< the deer a hunter hunts, the hunter after a deer; a robber's victim
+    std::optional<TilePos> target;  ///< doctors and firemen: origin of the building they go to
+    std::uint8_t patience = 0;      ///< robbers: seconds waited plus tiles chased
 
     // Movement: the figure walks from `tile` towards path[step]; `progress` of `length` (units of
     // 1/65536 tile) is done, at `speed` units per tick.
@@ -137,6 +148,11 @@ struct LogisticsStats {
     std::uint64_t ore_mined = 0;        ///< raw material mines took from deposits, 1/32 t
     std::uint64_t deer_spawned = 0;     ///< deer that appeared at their spots
     std::uint64_t deer_hunted = 0;      ///< deer brought home by hunters
+    std::uint64_t robbers = 0;          ///< robbers that set out
+    std::uint64_t robberies = 0;        ///< carriers and carts robbed
+    std::uint64_t stolen = 0;           ///< goods they carried, 1/32 t
+    std::uint64_t cured = 0;            ///< houses cured by doctors
+    std::uint64_t extinguished = 0;     ///< fires put out by firemen
 };
 
 class Logistics {
@@ -174,6 +190,14 @@ public:
     void advance_islands();
     /// Whether a worker is on the way to harvest this tile.
     [[nodiscard]] bool field_reserved(std::uint16_t island, TilePos tile) const;
+    /// A robber the city tick sent out (0x0044B620): he waits in the house for a victim.
+    void spawn_robber(const RobberSpawn& spawn);
+    /// Disasters doctors and firemen ended since the last call.
+    [[nodiscard]] std::vector<DisasterEvent> take_disaster_events() {
+        std::vector<DisasterEvent> events;
+        events.swap(m_disaster_events);
+        return events;
+    }
     /// Game time per island epoch.
     static constexpr std::uint32_t kIslandEpochMs = 30'000;
 
@@ -218,6 +242,20 @@ private:
     /// A hunter close to its grazing deer shoots (0x0045C450).
     void check_shot(Walker& hunter);
     void census(std::uint16_t island);
+    /// A Klinik or fire brigade sends its figure if the city has a disaster of its kind
+    /// (0x0044AF90, 0x0044B470).
+    void send_responder(std::uint32_t home, WalkerKind kind);
+    /// The nearest disaster of the walker's kind in its city and circle; plans the way there.
+    bool find_disaster(Walker& walker, const BuildingAt& home, const assets::FigureType& figure);
+    /// A doctor or fireman has worked at a building: it is cured or put out; then the next one.
+    void responder_done(Handle handle, Walker& walker);
+    /// Robbers (0x0045A780): waiting, chasing, fleeing.
+    void robber_wait(Handle handle, Walker& robber);
+    void robber_chase(Handle handle, Walker& robber);
+    void robber_flee(Handle handle, Walker& robber);
+    [[nodiscard]] bool find_victim(Walker& robber);
+    /// The square of 19 tiles around a robber's house, what carriers walk on.
+    void prepare_robber_area(const Walker& robber, const assets::FigureType& figure);
     /// Marks the tiles of the city's buildings with HAUS_PRODTYP kind 1..last_kind as goals
     /// (inside the current search area).
     void mark_goals(const IslandMap& map, std::uint8_t city, std::int32_t last_kind, std::uint8_t speed_type);
@@ -245,6 +283,7 @@ private:
     std::vector<std::uint8_t> m_jobs;  ///< walkers out per production building
     PathFinder m_finder;
     LogisticsStats m_stats;
+    std::vector<DisasterEvent> m_disaster_events;
     /// Ripe tiles a worker is on its way to (the original's grid bit 29), key: island, y, x.
     std::unordered_set<std::uint64_t> m_reserved_tiles;
     /// Deer that started grazing and call a hunter (handled after the figures moved).

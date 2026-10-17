@@ -174,6 +174,11 @@ DemolishResult execute_demolish(World& world, const assets::BuildingTable& build
 void place_tiles(World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                  const assets::BuildingType& type, std::int32_t x, std::int32_t y, std::uint8_t rotation);
 
+/// Destroys the building with origin `origin` to ruins without an order of its owner (a fire,
+/// 0x00463F40): like demolishing, the territory is checked again afterwards.
+bool destroy_building(World& world, const assets::BuildingTable& buildings, std::uint16_t island, TilePos origin,
+                      std::vector<ConstructionEvent>* events);
+
 /// Whether crops of `ware` grow on the tile (0x004684A0): the island's fertility for the ware
 /// (0, 64 or 128), weighted with the Randwachs of the ground and lowered by a drought on the
 /// island, picks one of five patterns.
