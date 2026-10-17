@@ -765,6 +765,14 @@ private:
             }
         };
         ref(0xC4, v.eruptions.empty() ? std::nullopt : std::optional<CraterRef>(v.eruptions.front().crater));
+        if (v.eruptions.empty() && v.last) {
+            // The original ends an eruption with "last = running; running.low = 0" (0x00447350):
+            // the running ref keeps the crater of the last eruption.
+            r[0xC4] = 0;
+            r[0xC5] = number(v.last->island);
+            r[0xC6] = v.last->x;
+            r[0xC7] = v.last->y;
+        }
         ref(0xC8, v.last);
         put32(r, 0xCC, clamp32(v.next_ms / 100));
         std::uint32_t craters = 0;

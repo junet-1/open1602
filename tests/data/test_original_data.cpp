@@ -608,8 +608,10 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
         auto state = assets::load_game_state(*file);
         REQUIRE(state.ok());
         CHECK(!world->cities().empty());
-        // Every animal of HIRSCH2 stands on its island.
-        CHECK(world->animals().size() == state->animals.size());
+        // Every animal of HIRSCH2 stands on its island (Open1602's own chunk brings its own list).
+        if (file->find("O1602") == nullptr) {
+            CHECK(world->animals().size() == state->animals.size());
+        }
         for (const auto& a : world->animals()) {
             CHECK(a.x < world->islands()[a.island].map.width());
             CHECK((a.figure == 89 || a.figure == 91));
@@ -1782,7 +1784,12 @@ TEST_CASE("data: a savegame written back without changes is the original file (0
         const assets::ChunkFile& source = *save.world.source();
         auto chunks = sim::savegame_chunks(save.world, *buildings);
         REQUIRE(chunks.ok());
-        REQUIRE(chunks->size() + 1 == source.chunks().size());
+        // The original's chunks; a savegame of Open1602 has its own chunk after WIFF.
+        std::size_t original_chunks = source.chunks().size();
+        if (source.chunks().back().name == "O1602") {
+            --original_chunks;
+        }
+        REQUIRE(chunks->size() + 1 == original_chunks);
         for (std::size_t k = 0; k < chunks->size(); ++k) {
             const assets::Chunk& c = source.chunks()[k];
             const auto original = source.payload(c);
@@ -1802,13 +1809,13 @@ TEST_CASE("data: a savegame written back without changes is the original file (0
             }
             CHECK(same);
         }
-        CHECK(source.chunks().back().name == "WIFF");
+        CHECK(source.chunks()[original_chunks - 1].name == "WIFF");
         // WIFF is the sum of the payload words of the original's own chunks.
         std::uint32_t sum = 0;
-        for (std::size_t k = 0; k + 1 < source.chunks().size(); ++k) {
+        for (std::size_t k = 0; k + 1 < original_chunks; ++k) {
             sum += assets::payload_checksum(source.payload(source.chunks()[k]));
         }
-        const auto wiff = source.payload(source.chunks().back());
+        const auto wiff = source.payload(source.chunks()[original_chunks - 1]);
         CHECK(wiff.size() == 4);
         CHECK((static_cast<std::uint32_t>(wiff[0]) | (static_cast<std::uint32_t>(wiff[1]) << 8) |
                (static_cast<std::uint32_t>(wiff[2]) << 16) | (static_cast<std::uint32_t>(wiff[3]) << 24)) == sum);
