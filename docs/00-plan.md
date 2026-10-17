@@ -229,6 +229,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 
 ## 9. Offene Punkte nach Abhängigkeit
 
+Was ich dafür an Spielständen, Videos und Beobachtungen brauche: [eingaben.md](eingaben.md).
+
 Was wir bewusst zurückgestellt haben, weil ein anderes System fehlt. Wenn das System kommt, werden
 seine Punkte hier abgehakt. Die Einzelheiten stehen jeweils im Abschnitt „Offen“ des genannten
 Dokuments.

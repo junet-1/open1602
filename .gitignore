@@ -55,3 +55,6 @@ __pycache__/
 # Analysis logs may contain decompiled code of the original (ADR 0003)
 re/notes/*.log
 *.mp4
+
+# Inputs for the analysis (savegames, videos, screenshots): local only, see docs/eingaben.md
+/eingaben/
