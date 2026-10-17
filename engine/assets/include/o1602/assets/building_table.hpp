@@ -105,6 +105,9 @@ struct BuildingType {
     /// HAUS_PRODTYP/Erzbergnr (record +0x3F): 0 deep mine (ERZBERG_GROSS), 1 small mine
     /// (ERZBERG_KLEIN). Only mines with 0 dig on in a big vein below 120 t.
     std::uint8_t ore_mountain = 0;
+    /// Nativflg (HAUS_PRODTYP, record +0x47 bit 4): a building of the natives; a city whose centre
+    /// stands on one belongs to the natives (0x0046A220).
+    bool native = false;
     /// HAUS_PRODTYP/BGruppe (record +0x2E): class of inhabitants of a house (WOHNUNG), index into
     /// BuildingTable::resident_classes().
     std::uint8_t resident_class = 0;

@@ -27,7 +27,7 @@ bei `BSH`). Nur bis zum ersten NUL vergleichen.
 | `INSELHAUS` | dito | Felder/Gebäude einer Insel, 8 Byte je Eintrag |
 | `HIRSCH2`, `PRODLIST2`, `WERFT`, `MILITAR`, `SIEDLER`, `ROHWACHS2`, `STADT4`, `KONTOR2`, `MARKT2` | Szenarien, Spielstände | Inselbezogene Spielzustände (je Insel ein Satz) |
 | `SZENE_PLAYERMIN`, `SZENE_PLAYERMAX`, `SZENE_GAMEID`, `SZENE_MISSNR`, `SZENE_RANKING` | Szenarien | je 4 Byte |
-| `RANDTAB` | Szenarien | 1024 Byte – vermutlich Zufallstabelle |
+| `RANDTAB` | Szenarien | 512 Zufallszahlen (u16), aus denen der Weltplan zieht → [worldgen.md](../re/worldgen.md) |
 | `AUFTRAG4` | Szenarien | 2244 Byte – Missionsziele |
 | `SZENE`, `PLAYER4`, `HANDLER`, `SHIP4`, `SOLDAT3`, `TURM`, `TIMERS` | Szenarien, Spielstände | globale Spielzustände |
 

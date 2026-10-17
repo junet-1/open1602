@@ -1,6 +1,6 @@
 # Was Open1602 von dir braucht
 
-Stand: 17.10.2026 (Vulkane und Speichern eingebaut). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
+Stand: 17.10.2026 (neues Endlosspiel eingebaut). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
 Videos und Beobachtungen im Original brauche oder schon bekommen habe. Sie wird fortgeschrieben,
 sobald etwas dazukommt oder erledigt ist.
 
@@ -39,11 +39,22 @@ den Ordner `ausgaben/` in deinem Projektordner. Git übernimmt ihn nicht.
 
 Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 
-1. **Rückmeldung zum Betrachter.** Startet die Kamera über Lemonhall, und siehst du die Vorschau beim
+1. **Neues Endlosspiel aus Open1602 im Original laden.** In `ausgaben/` liegt `Open1602Endlos.gam`,
+   ein Endlosspiel, das Open1602 selbst angelegt hat (Stufe „Durchschnittlich“, gelbe Flagge, Name
+   Merlin). Bitte in einen freien Platz kopieren, im Original laden und kurz ansehen: Inseln, die vier
+   Schiffe mit Ladung, Geld 15 000, Eingeborenendörfer. Ein paar Minuten weiterspielen (Kontor bauen)
+   und als neuen Stand speichern („Open1602Endlos_Laufend“).
+
+2. **Ein Endlosspiel des Originals direkt nach dem Start**, sofort gespeichert („EndlosStart“), mit der
+   gewählten Stufe. Damit vergleiche ich den ersten Spielstand Byte für Byte mit dem, was Open1602
+   schreibt. Wenn du magst, dieselbe Stufe zweimal starten: Sind die Inseln verschieden, würfelt das
+   Original den Startpunkt der Inseltabelle bei jedem Start neu.
+
+3. **Rückmeldung zum Betrachter.** Startet die Kamera über Lemonhall, und siehst du die Vorschau beim
    Bauen (rote Fläche, wo nichts geht)? Siehst du in deiner eigenen Stadt keine Häuser, schick mir
    die Zeilen `renderer: …` und `GFX: …` aus dem Terminal.
 
-2. **Vulkanausbruch** (prüft die eingebauten Vulkane). In Merlin04 sind schon zwei Vulkane
+4. **Vulkanausbruch** (prüft die eingebauten Vulkane). In Merlin04 sind schon zwei Vulkane
    ausgebrochen (Inseln 5 und 6); das bestätigt den Ablauf. Es fehlt ein Stand direkt davor und danach.
    Der nächste Ausbruch ist in Merlin04 für **130:32 Spielzeit** angesetzt; auf welcher der drei
    Inseln mit Vulkan er kommt, ist Zufall, keine davon ist deine.
@@ -53,7 +64,7 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    - einen etwa eine Minute danach, „NachVulkan2“ (zerstörte Bäume und Gebäude);
    - wenn möglich ein Video des Ausbruchs: wie lange er dauert, wie weit die Brocken fliegen.
 
-3. **Dürre** (prüft die eingebaute Dürre). In Merlin04 hat der Dürrewurf zwischen Minute 88 und 95
+5. **Dürre** (prüft die eingebaute Dürre). In Merlin04 hat der Dürrewurf zwischen Minute 88 und 95
    schon einmal getroffen (auf welcher Insel, zeigt der Stand nicht mehr); der nächste ist ab
    **122:00 Spielzeit** möglich. Damit es etwas zu verdorren gibt, braucht Lemonhall Felder oder
    Plantagen; deine Gewürzplantage ist ein Anfang, mehr helfen.
@@ -61,12 +72,12 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    - einer etwa zwei Minuten nach ihrem Ende (es gibt keine Meldung dafür; die verdorrten Felder
      wachsen dann wieder), „NachDuerre“.
 
-4. **Zwei Stände kurz hintereinander** (für den Test des Stadttakts mit Geld und Verbrauch). Von den
+6. **Zwei Stände kurz hintereinander** (für den Test des Stadttakts mit Geld und Verbrauch). Von den
    neuen Spielständen liegen keine zwei weniger als 10 Sekunden Spielzeit auseinander. Lade einen
    Stand, speichere sofort als „TaktA“, lass das Spiel etwa 5 Sekunden laufen und speichere als
    „TaktB“. Je größer die Stadt, desto mehr prüft das.
 
-5. **Eine größere Stadt.** Für Brände, Pest, Räuber und die höheren Bewohnerklassen:
+7. **Eine größere Stadt.** Für Brände, Pest, Räuber und die höheren Bewohnerklassen:
    - Brand: ab etwa 80 Pionieren oder 250 Pionieren und Siedlern;
    - Pest: ab 200 Siedlern und höher; Bürger, Kaufleute, Aristokraten in halb vollen Häusern;
    - Räuber: ab 300 Bürgern und höher.
@@ -77,7 +88,7 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    (er überfällt Träger und Marktkarren auf dem Heimweg). Wie lange ein Brand dauert und wohin er
    springt, sieht man darauf gut.
 
-6. **Schloss oder Kathedrale**, wenn du so weit kommst: ein Stand unmittelbar vor dem Bau und einer
+8. **Schloss oder Kathedrale**, wenn du so weit kommst: ein Stand unmittelbar vor dem Bau und einer
    etwa eine Minute danach. Der Unterschied in der Zufriedenheit prüft den „Stolz“ der Stadt.
 
 ## Später, wenn die Systeme kommen

@@ -113,6 +113,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.stock_animation = (prodtyp.integer("LagAniFlg") & 1) != 0;
             b.continuous_animation = (prodtyp.integer("Anicontflg") & 1) != 0;
             b.withered = (prodtyp.integer("Doerrflg") & 1) != 0;
+            b.native = (prodtyp.integer("Nativflg") & 1) != 0;
             b.resident_class = static_cast<std::uint8_t>(non_negative(prodtyp.integer("BGruppe")));
             b.infra = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Bauinfra"))));
             b.workers = static_cast<std::uint16_t>(std::min(65535U, non_negative(prodtyp.integer("Arbeiter"))));

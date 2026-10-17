@@ -198,7 +198,16 @@ PlayerId first_human_player(const World& world) noexcept {
 }
 
 core::Result<World> load_world(const assets::ChunkFile& file, const assets::BuildingTable& buildings,
-                               const assets::GameDirectory& game, std::vector<std::string>* warnings) {
+                               const assets::GameDirectory& game, std::vector<std::string>* warnings,
+                               const WorldStart& start) {
+    if (plans_islands(file)) {
+        // The SZENE handler of the original makes the islands while the scenario loads (0x0048C5C0).
+        auto generated = generate_islands(file, game, buildings, start, warnings);
+        if (!generated) {
+            return generated.error();
+        }
+        return load_world(generated->file, buildings, game, warnings, start);
+    }
     auto islands = assets::load_islands(file);
     if (!islands) {
         return islands.error();

@@ -150,11 +150,11 @@ public:
         growth();
         cities();
         players();
-        passthrough("AUFTRAG4");
-        passthrough("HANDLER");
+        passthrough("AUFTRAG4", true);
+        passthrough("HANDLER", true);
         ships();
         soldiers();
-        passthrough("TURM");
+        passthrough("TURM", true);
         timers();
         return std::move(m_out);
     }
@@ -196,9 +196,13 @@ private:
         return p < assets::kOriginalPlayerSlots ? static_cast<std::uint8_t>(p) : kNoOwner;
     }
 
-    void passthrough(std::string_view name) {
+    /// A chunk Open1602 does not model yet, as the source has it; `always`: the original writes it
+    /// even when empty (a new endless game has no trader and no towers).
+    void passthrough(std::string_view name, bool always = false) {
         if (const auto c = m_source.chunk(name)) {
             add(std::string(name), core::Bytes(c->begin(), c->end()));
+        } else if (always) {
+            add(std::string(name), {});
         }
     }
 

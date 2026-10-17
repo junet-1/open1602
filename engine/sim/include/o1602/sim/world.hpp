@@ -20,6 +20,7 @@
 #include "o1602/sim/production.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/rules.hpp"
+#include "o1602/sim/world_generator.hpp"
 
 namespace o1602::sim {
 
@@ -508,8 +509,11 @@ private:
 
 /// Loads a scenario (.SZS/.SZM) or savegame (.GAM): all islands, each on its island template and
 /// placed on the world map, the players and the ships. Problems are collected in `warnings`; islands that cannot be
-/// placed are skipped.
+/// placed are skipped. A scenario that makes its islands at the start (the endless games) gets
+/// them as `start` says (world_generator.hpp); the world's source is then that scenario with
+/// the islands made.
 core::Result<World> load_world(const assets::ChunkFile& file, const assets::BuildingTable& buildings,
-                               const assets::GameDirectory& game, std::vector<std::string>* warnings = nullptr);
+                               const assets::GameDirectory& game, std::vector<std::string>* warnings = nullptr,
+                               const WorldStart& start = {});
 
 }  // namespace o1602::sim

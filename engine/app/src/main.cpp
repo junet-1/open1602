@@ -13,6 +13,9 @@
 #include <SDL3/SDL_main.h>
 #include <charconv>
 #include <cstdio>
+#include <ctime>
+#include <optional>
+#include <random>
 #include <string_view>
 
 #include "map_viewer.hpp"
@@ -30,7 +33,12 @@ int usage() {
         "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]\n"
         "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--droughts MODE]\n"
         "                [--volcanoes MODE] [--frames N]\n"
+        "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
+        "                [--islands original|seed]\n"
         "                [--screenshot out.png]\n"
+        "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
+        "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
+        "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
         "  --original-flags   original flag images instead of the tinted generic flag\n"
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
@@ -64,6 +72,11 @@ int main(int argc, char** argv) {
     std::string_view scenario = "Szenes/Das Atoll.szs";
     std::string_view savegame;
     app::ViewerOptions options;
+    bool new_game = false;
+    sim::NewGameOptions new_game_options;
+    new_game_options.name = "Spieler";
+    std::optional<std::uint8_t> layout_given;
+    std::optional<std::uint64_t> seed_given;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool has_value = i + 1 < argc;
@@ -142,6 +155,47 @@ int main(int argc, char** argv) {
             } else {
                 return usage();
             }
+        } else if (arg == "--new-game" && has_value) {
+            // A new endless game: difficulty 0 (easy) .. 3 (hard).
+            std::int32_t difficulty = 0;
+            if (!parse_number(argv[++i], difficulty) || difficulty < 0 ||
+                difficulty >= sim::NewGameOptions::kDifficulties) {
+                return usage();
+            }
+            new_game = true;
+            new_game_options.difficulty = static_cast<std::uint8_t>(difficulty);
+        } else if (arg == "--layout" && has_value) {
+            std::int32_t layout = 0;
+            if (!parse_number(argv[++i], layout) || layout < 0 || layout >= sim::NewGameOptions::kLayouts) {
+                return usage();
+            }
+            layout_given = static_cast<std::uint8_t>(layout);
+        } else if (arg == "--seed" && has_value) {
+            std::uint64_t seed = 0;
+            const std::string_view text = argv[++i];
+            if (std::from_chars(text.data(), text.data() + text.size(), seed).ec != std::errc{}) {
+                return usage();
+            }
+            seed_given = seed;
+        } else if (arg == "--name" && has_value) {
+            new_game_options.name = argv[++i];
+        } else if (arg == "--colour" && has_value) {
+            std::int32_t colour = 0;
+            if (!parse_number(argv[++i], colour) || colour < 0 || colour > 3) {
+                return usage();
+            }
+            new_game_options.colour = static_cast<std::uint8_t>(colour);
+        } else if (arg == "--islands" && has_value) {
+            // How the islands of an endless game are drawn: as the original (512 worlds per file)
+            // or from the whole seed.
+            const std::string_view mode = argv[++i];
+            if (mode == "original") {
+                options.world.draws = sim::WorldStart::Draws::Table;
+            } else if (mode == "seed") {
+                options.world.draws = sim::WorldStart::Draws::Seeded;
+            } else {
+                return usage();
+            }
         } else if (arg == "--size" && has_value) {
             const std::string_view size = argv[++i];
             const auto x = size.find('x');
@@ -185,6 +239,30 @@ int main(int argc, char** argv) {
         options.scenario = *resolved;
     } else {
         options.scenario = std::filesystem::path(scenario);
+    }
+
+    // What the original rolls with rand(): the map layout and where the island table starts; the
+    // game id from the clock.
+    std::random_device device;
+    options.world.seed = seed_given.value_or((std::uint64_t{device()} << 32) | device());
+    options.world.guarantee_resources = options.rules.guarantee_resources;
+    if (new_game) {
+        new_game_options.layout =
+            layout_given.value_or(static_cast<std::uint8_t>(device() % sim::NewGameOptions::kLayouts));
+        const std::time_t now = std::time(nullptr);
+        const std::tm* local = std::localtime(&now);
+        new_game_options.game_id = local != nullptr
+                                       ? sim::new_game_id(static_cast<std::uint32_t>(local->tm_year + 1900),
+                                                          static_cast<std::uint32_t>(local->tm_mon + 1),
+                                                          static_cast<std::uint32_t>(local->tm_mday),
+                                                          static_cast<std::uint32_t>(local->tm_hour),
+                                                          static_cast<std::uint32_t>(local->tm_min), device())
+                                       : device();
+        new_game_options.world = options.world;
+        options.new_game = new_game_options;
+        std::fprintf(stderr, "new endless game: %s, islands from seed %llu\n",
+                     sim::endless_file(new_game_options.difficulty, new_game_options.layout).c_str(),
+                     static_cast<unsigned long long>(options.world.seed));
     }
 
     auto viewer = app::MapViewer::create(*game, options);

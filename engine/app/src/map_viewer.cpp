@@ -51,12 +51,21 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (!buildings) {
         return buildings.error();
     }
-    auto file = assets::ChunkFile::load(options.scenario);
-    if (!file) {
-        return file.error();
-    }
     std::vector<std::string> warnings;
-    auto world = sim::load_world(*file, *buildings, game, &warnings);
+    core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
+    if (options.new_game) {
+        auto texts = assets::TextTable::load(game);
+        if (!texts) {
+            return texts.error();
+        }
+        world = sim::start_new_game(game, *buildings, *texts, *options.new_game, &warnings);
+    } else {
+        auto file = assets::ChunkFile::load(options.scenario);
+        if (!file) {
+            return file.error();
+        }
+        world = sim::load_world(*file, *buildings, game, &warnings, options.world);
+    }
     if (!world) {
         return world.error();
     }

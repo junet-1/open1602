@@ -100,6 +100,83 @@ core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file) {
     return ships;
 }
 
+core::Result<std::optional<ScenarioPlan>> load_scenario_plan(const ChunkFile& file) {
+    const Chunk* chunk = file.find("SZENE");
+    if (chunk == nullptr) {
+        return std::optional<ScenarioPlan>{};
+    }
+    const auto d = file.payload(*chunk);
+    constexpr std::size_t kIslands = 0x174;
+    constexpr std::size_t kIslandSize = 16;
+    constexpr std::uint32_t kMaxIslands = 50;
+    if (d.size() < kIslands) {
+        return make_error(ErrorCode::InvalidFormat, "SZENE chunk too short");
+    }
+    ScenarioPlan plan;
+    plan.natives = {read_u32(d, 0x40), read_u32(d, 0x44)};
+    plan.max_crops = read_u32(d, 0x60);
+    plan.gold_min_size = read_u32(d, 0x68);
+    plan.gold_max_size = read_u32(d, 0x6C);
+    const auto resource = [&](std::size_t o, bool typed) {
+        ScenarioPlan::Resource r;
+        r.building = read_u16(d, o) + std::uint32_t{20000};
+        r.count = read_u16(d, o + 2);
+        r.type = typed ? read_u32(d, o + 4) : 0;
+        if (read_u16(d, o) == 0) {
+            r = ScenarioPlan::Resource{};
+        }
+        return r;
+    };
+    for (std::size_t k = 0; k < plan.ores.size(); ++k) {
+        plan.ores[k] = resource(0x94 + 8 * k, true);
+    }
+    for (std::size_t k = 0; k < plan.crops.size(); ++k) {
+        plan.crops[k] = resource(0xB4 + 8 * k, false);
+    }
+    for (std::size_t k = 0; k < plan.treasures.size(); ++k) {
+        plan.treasures[k] = resource(0x114 + 8 * k, false);
+    }
+    const std::uint32_t count = std::min(read_u32(d, 0x64), kMaxIslands);
+    for (std::uint32_t i = 0; i < count; ++i) {
+        const std::size_t o = kIslands + i * kIslandSize;
+        if (o + kIslandSize > d.size()) {
+            return make_error(ErrorCode::InvalidFormat, "SZENE island list exceeds the chunk");
+        }
+        ScenarioPlan::Island island;
+        island.climate = d[o];
+        island.size = d[o + 1];
+        island.flags = d[o + 2];
+        island.number = d[o + 3];
+        island.template_number = read_u16(d, o + 4);
+        island.x = read_u32(d, o + 8);
+        island.y = read_u32(d, o + 12);
+        plan.islands.push_back(island);
+    }
+    return std::optional<ScenarioPlan>{std::move(plan)};
+}
+
+std::optional<std::array<std::uint16_t, 512>> load_random_table(const ChunkFile& file) {
+    const Chunk* chunk = file.find("RANDTAB");
+    if (chunk == nullptr || chunk->size < 2) {
+        return std::nullopt;
+    }
+    const auto d = file.payload(*chunk);
+    const std::size_t words = d.size() / 2;
+    std::array<std::uint16_t, 512> table{};
+    for (std::size_t i = 0; i < table.size(); ++i) {
+        table[i] = read_u16(d, (i % words) * 2);
+    }
+    return table;
+}
+
+std::optional<std::uint32_t> load_mission_number(const ChunkFile& file) {
+    const Chunk* chunk = file.find("SZENE_MISSNR");
+    if (chunk == nullptr || chunk->size < 4) {
+        return std::nullopt;
+    }
+    return read_u32(file.payload(*chunk), 0);
+}
+
 std::vector<SavegameSlot> parse_savegame_slots(std::string_view text) {
     std::vector<SavegameSlot> slots;
     bool in_names = false;

@@ -28,6 +28,7 @@
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/walker_figures.hpp"
 #include "o1602/render/world_graphics.hpp"
+#include "o1602/sim/new_game.hpp"
 #include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -51,6 +52,11 @@ struct ViewerOptions {
     std::int32_t width = 1280;
     std::int32_t height = 800;
     sim::Rules rules;  ///< settings of the game (refund on demolishing, ...)
+    /// Start a new endless game instead of loading `scenario`.
+    std::optional<sim::NewGameOptions> new_game;
+    /// How the islands of a scenario that makes them at the start are drawn (also --scenario
+    /// Szenes/Endlosspiel00.szs).
+    sim::WorldStart world;
 };
 
 class MapViewer {

@@ -377,7 +377,8 @@ bool erupt(World& world, CraterRef crater, std::uint16_t seed, bool message, std
     island.volcano_erupted = true;
     c->steps_left = kLastStep;
     // The ore deposit registered for this very mountain goes (0x0046BDD0; none in the shipped
-    // data): the last one takes its place, as in the original.
+    // scenarios, but the endless generator may put a big iron vein into a volcano): the last one
+    // takes its place, as in the original.
     auto& deposits = island.header.deposits;
     for (std::size_t k = deposits.size(); k-- > 0;) {
         if (deposits[k].x == crater.x && deposits[k].y == crater.y) {

@@ -23,6 +23,7 @@ add_executable(o1602_tests
     unit/test_ambient.cpp
     unit/test_units.cpp
     data/test_original_data.cpp
+    data/test_new_game.cpp
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render)
 o1602_set_warnings(o1602_tests)

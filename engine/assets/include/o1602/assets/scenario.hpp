@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -87,6 +88,50 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file);
 
 /// SHIP4 chunk. Files without it yield an empty list.
 core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file);
+
+/// The world plan of a scenario that makes its islands at the start (SZENE chunk, 0x494 bytes; the
+/// endless games). For each island its number, place, size class and climate; the template, which
+/// islands get a native village, the crops and the ore and gold deposits are drawn when the game
+/// starts (docs/re/worldgen.md).
+struct ScenarioPlan {
+    static constexpr std::uint16_t kRandomTemplate = 0xFFFF;
+    static constexpr std::uint8_t kClimateByPosition = 2;
+    struct Island {
+        std::uint8_t climate = 0;  ///< 0 north, 1 south, 2 by position on the map
+        std::uint8_t size = 0;     ///< 0 lit, 1 mit, 2 med, 3 big, 4 lar
+        std::uint8_t flags = 0;    ///< bit 0: native village (set by the generator)
+        std::uint8_t number = 0;   ///< island number
+        std::uint16_t template_number = kRandomTemplate;
+        std::uint32_t x = 0;  ///< world tile of the top left corner
+        std::uint32_t y = 0;
+    };
+    /// An entry of the ore, crop or treasure list: a haeuser.cod building whose Ware names what
+    /// is placed, how many times, and (ore) 0 big vein, 1 small vein.
+    struct Resource {
+        std::uint32_t building = 0;  ///< haeuser.cod Id
+        std::uint16_t count = 0;
+        std::uint32_t type = 0;
+    };
+    std::array<std::uint32_t, 2> natives{};  ///< native villages to place in the north, the south
+    std::uint32_t max_crops = 0;             ///< crops per island in the main passes, 0 = 2
+    std::uint32_t gold_min_size = 0;         ///< size classes for gold in the first passes
+    std::uint32_t gold_max_size = 0;
+    std::array<Resource, 4> ores{};
+    std::array<Resource, 12> crops{};
+    std::array<Resource, 4> treasures{};
+    std::vector<Island> islands;
+};
+
+/// The SZENE chunk, nothing if the file has none.
+[[nodiscard]] core::Result<std::optional<ScenarioPlan>> load_scenario_plan(const ChunkFile& file);
+
+/// RANDTAB: the 512 random numbers the world plan draws from (a saved rand() table), nothing if
+/// the file has none. A shorter chunk repeats, as the original copies it.
+[[nodiscard]] std::optional<std::array<std::uint16_t, 512>> load_random_table(const ChunkFile& file);
+
+/// SZENE_MISSNR: 1 marks the endless game of the single player menu, 0 that of the multiplayer
+/// menu; nothing if the file has none.
+[[nodiscard]] std::optional<std::uint32_t> load_mission_number(const ChunkFile& file);
 
 /// A savegame slot as listed in Game.dat ("Objekt: SPIELNAME", "Name: slot, \"text\", flag").
 /// Slot n is stored as SAVEGAME/gameNN.gam.

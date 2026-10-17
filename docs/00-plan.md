@@ -220,7 +220,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M3: Vulkane: Krater, Wurf, Ausbruch mit 141 Lavabrocken, Brand und Zerstörung, Anzeige, Einstellung `Rules::volcanoes`; S-042 behoben | ✅ `docs/re/volcanoes.md` |
 | M4: Spielstände schreiben, die das Original lädt: alle Chunks in der Reihenfolge des Originals, Datensätze aus der Quelldatei mit Open1602s Zustand, WIFF; unverändert geschrieben Byte für Byte die Originaldatei, weitergespielt lädt er zum selben Zustand; F5 / `--save`, nie in die Installation | ✅ `docs/re/savegame-writer.md` |
 | M4: Eigener Chunk `O1602` hinter `WIFF`: Einstellungen, Zufall, Uhren, alle Listen, Brände, Lava, Figuren, abweichende Felder; Fingerabdruck der Originalchunks; ein gespeichertes Spiel läuft genau weiter wie ohne Unterbrechung | ✅ `docs/formats/o1602-chunk.md` |
-| M4: neues Spiel ohne Quelldatei; Prüfung im Original | ⬜ |
+| M4: neues Endlosspiel wie im Original: Weltplan und Inseltabelle (`SZENE`, `RANDTAB`), Vorlagen, Dörfer, Pflanzen, Erz, Schätze, Startzustand nach dem Neustart; `open1602 --new-game D`; Inseln wahlweise aus dem ganzen Startwert; S-019 behoben (Regel), S-067; Prüfung im Original steht aus | ✅ `docs/re/worldgen.md`, `docs/re/newgame.md` |
 | M3: Verbrauch der Einwohner aus dem Lager (Stadttakt `0x0047F8A0`): Bedarf aus haeuser.cod, Versorgungsgrade, Zufriedenheit mit Steuerkurve, Meldungen; Einwohner aus `STADT4`, Abrechnung aus `MARKT2` | ✅ `docs/re/consumption.md` |
 | M3: Häuser (`SIEDLER`), Versorgung durch Märkte und öffentliche Gebäude, Wachstum, Auf- und Abstieg, Ruinen; Steuern, Betriebskosten, Sold; Zufallsquellen je Teilsystem, Piraten | ✅ `docs/re/houses.md` |
 | M3: Hirsche und Jäger: Wildplätze, Zählung, Rückkehr, Grasen, Ruf des Jägers, Schuss, Beute | ✅ `docs/re/deer.md` |
@@ -245,7 +245,6 @@ Dokuments.
 **Speichern**
 - Mehr Inseln, Städte, Spieler, Schiffe und Waren, als das Original fasst, im eigenen Chunk, sobald
   Open1602 sie anlegen kann ([o1602-chunk.md](formats/o1602-chunk.md)).
-- Neues Spiel ohne Quelldatei: Grundwerte für `PLAYER4` und `TIMERS` ([savegame-writer.md](re/savegame-writer.md)).
 - Originalspielstände laden mit `Rules::original()` für die Wahlpunkte ([ADR 0008](architecture/0008-spieleinstellungen.md));
   Spielstände von Open1602 bringen ihre Einstellungen mit.
 
