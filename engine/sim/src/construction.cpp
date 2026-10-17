@@ -309,8 +309,8 @@ bool player_has_city(const World& world, std::uint16_t island, PlayerId player) 
 /// stepping on (S-015).
 bool unit_in_the_way(const World& world, const WorldIsland& island, const Footprint& f) {
     for (const Soldier& s : world.soldiers()) {
-        const double lx = s.x - island.x;
-        const double ly = s.y - island.y;
+        const double lx = s.x() - island.x;
+        const double ly = s.y() - island.y;
         const double x0 = f.x;
         const double y0 = f.y;
         if (lx >= x0 - 0.5 && ly >= y0 - 0.5 && lx < x0 + f.w + 0.5 && ly < y0 + f.h + 0.5) {

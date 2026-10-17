@@ -45,7 +45,7 @@ inline constexpr std::uint32_t kHoldCapacity = 50 * 32;
 struct ShipOrder {
     PlayerId player = kNoPlayer;
     std::uint32_t ship = 0;  ///< Ship::id
-    ShipTarget target;       ///< none = stop
+    Target target;           ///< none = stop
 };
 
 /// Goods between a ship and the Kontor it lies at: the player's own (no money) or another's at the
@@ -73,7 +73,7 @@ struct RouteEdit {
     Op op = Op::SetStop;
     std::uint8_t stop = 0;
     std::uint8_t entry = 0;
-    ShipTarget target{};
+    Target target{};
     RouteEntry value{};
 };
 
@@ -190,9 +190,9 @@ private:
     bool start_next_run(Ship& ship);
     bool plan(Ship& ship, std::int32_t radius);
     bool local_detour(Ship& ship);
-    [[nodiscard]] bool at_target(const Ship& ship, const ShipTarget& target) const;
-    [[nodiscard]] bool target_valid(const ShipTarget& target) const;
-    [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> target_point(const ShipTarget& target) const;
+    [[nodiscard]] bool at_target(const Ship& ship, const Target& target) const;
+    [[nodiscard]] bool target_valid(const Target& target) const;
+    [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> target_point(const Target& target) const;
     void update_island(Ship& ship);
     void finish_order(Ship& ship);
     void route_next_stop(Ship& ship);

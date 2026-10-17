@@ -1,0 +1,494 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "o1602/sim/diplomacy.hpp"
+
+#include <algorithm>
+#include <cstdlib>
+#include <initializer_list>
+#include <utility>
+
+#include "o1602/sim/world.hpp"
+
+namespace o1602::sim {
+
+namespace {
+
+/// Piecewise linear table of the original (Table_InterpByte 0x00403370): knots (x, value); 0 past
+/// the last knot unless it says otherwise.
+struct Knot {
+    std::int32_t x;
+    std::int32_t v;
+};
+
+std::int32_t interpolate(std::initializer_list<Knot> knots, std::int32_t x) noexcept {
+    const Knot* prev = nullptr;
+    for (const Knot& k : knots) {
+        if (x <= k.x) {
+            if (prev == nullptr) {
+                return k.v;
+            }
+            return prev->v + (k.v - prev->v) * (x - prev->x) / (k.x - prev->x);
+        }
+        prev = &k;
+    }
+    return prev != nullptr ? prev->v : 0;
+}
+
+bool acts_diplomatically(PlayerRole role) noexcept {
+    return role == PlayerRole::Human || role == PlayerRole::Computer;
+}
+
+PlayerRole role_of(const World& world, PlayerId p) noexcept {
+    const Player* player = world.player(p);
+    return player != nullptr ? player->role : PlayerRole::Human;
+}
+
+constexpr std::uint32_t kCounterMax = 0xFFFF;  // the original's u16 counters, saturating here (S-086)
+
+}  // namespace
+
+std::int32_t diplomacy_event_value(DiplomacyEventType type, std::uint64_t age_ms) noexcept {
+    // Age in units of 12.8 s ((now - time) >> 7 in 1/10 s), at most 255.
+    const auto age = static_cast<std::int32_t>(std::min<std::uint64_t>(255, age_ms / 100 >> 7));
+    switch (type) {
+        case DiplomacyEventType::TradeCancelled:
+            return interpolate({{0, -30}, {50, -18}, {75, 0}}, age);
+        case DiplomacyEventType::WarDeclared:
+            return interpolate({{0, -30}, {75, -18}, {150, -8}, {200, 0}}, age);
+        case DiplomacyEventType::Settled:
+            return interpolate({{0, -50}, {50, -25}, {75, 0}}, age);
+        case DiplomacyEventType::Surrendered:
+            return interpolate({{0, 12}, {30, 7}, {50, 0}}, age);
+        case DiplomacyEventType::PeaceBought:
+            return interpolate({{0, 70}, {100, 35}, {250, 0}}, age);
+        case DiplomacyEventType::BribedAgainst:
+            return interpolate({{0, -60}, {80, -30}, {200, 0}}, age);
+        case DiplomacyEventType::AnySurrender:
+            return interpolate({{0, 25}, {30, 13}, {45, 0}}, age);
+        case DiplomacyEventType::ShipsNearby:
+            return interpolate({{0, -100}, {50, -50}, {70, -10}, {100, 0}}, age);
+        case DiplomacyEventType::BribedBy:
+            return interpolate({{0, 40}, {80, 20}, {200, 0}}, age);
+        case DiplomacyEventType::FriendlyGesture:
+            return interpolate({{0, 30}, {80, 15}, {200, 0}}, age);
+        case DiplomacyEventType::HostileGesture:
+            return interpolate({{0, -30}, {80, -15}, {200, 0}}, age);
+        case DiplomacyEventType::TradeOffered:
+        case DiplomacyEventType::PeaceOffered:
+        case DiplomacyEventType::None:
+            break;
+    }
+    return 0;
+}
+
+void Diplomacy::resize(std::size_t count) {
+    if (count == m_count) {
+        return;
+    }
+    std::vector<Relation> pairs(count * count);
+    for (std::size_t a = 0; a < std::min(count, m_count); ++a) {
+        for (std::size_t b = 0; b < std::min(count, m_count); ++b) {
+            pairs[a * count + b] = m_pairs[a * m_count + b];
+        }
+    }
+    m_pairs = std::move(pairs);
+    m_events.resize(count);
+    m_blamed.resize(count, kNoPlayer);
+    m_count = count;
+}
+
+void Diplomacy::reset(const std::vector<Player>& players) {
+    m_count = 0;
+    m_pairs.clear();
+    m_events.clear();
+    m_blamed.clear();
+    resize(players.size());
+    for (std::size_t a = 0; a < m_count; ++a) {
+        for (std::size_t b = 0; b < m_count; ++b) {
+            const PlayerRole ra = players[a].role;
+            const PlayerRole rb = players[b].role;
+            Relation& r = m_pairs[a * m_count + b];
+            const bool pirates = ra == PlayerRole::Pirates || rb == PlayerRole::Pirates;
+            // Peace with everyone except the pirates; the pirates are at peace only with the
+            // trader and themselves.
+            r.peace = pirates && !(ra == PlayerRole::Trader || rb == PlayerRole::Trader || a == b) ? Treaty::None
+                                                                                                   : Treaty::Signed;
+            Treaty trade = Treaty::None;
+            switch (ra) {
+                case PlayerRole::Human:
+                case PlayerRole::Computer:
+                    trade = rb == PlayerRole::Trader || rb == PlayerRole::Pirates || rb == PlayerRole::Natives
+                                ? Treaty::Signed
+                                : Treaty::None;
+                    break;
+                case PlayerRole::Trader:
+                case PlayerRole::Natives:
+                    trade = acts_diplomatically(rb) ? Treaty::Signed : Treaty::None;
+                    break;
+                case PlayerRole::Pirates:
+                    trade = a == b ? Treaty::Signed : Treaty::None;
+                    break;
+            }
+            r.trade = trade;
+        }
+    }
+}
+
+const Relation& Diplomacy::relation(PlayerId a, PlayerId b) const noexcept {
+    static const Relation kNone{};
+    return a < m_count && b < m_count ? m_pairs[std::size_t{a} * m_count + b] : kNone;
+}
+
+Relation& Diplomacy::relation(PlayerId a, PlayerId b) noexcept {
+    static Relation scratch{};
+    if (a < m_count && b < m_count) {
+        return m_pairs[std::size_t{a} * m_count + b];
+    }
+    scratch = Relation{};
+    return scratch;
+}
+
+bool Diplomacy::hostile(PlayerId a, PlayerId b) const noexcept {
+    if (a == b || a >= m_count || b >= m_count) {
+        return false;
+    }
+    return relation(a, b).peace != Treaty::Signed;
+}
+
+bool Diplomacy::may_trade(PlayerId a, PlayerId b) const noexcept {
+    if (a == b) {
+        return true;
+    }
+    return a < m_count && b < m_count && relation(a, b).trade == Treaty::Signed;
+}
+
+const std::array<DiplomacyEvent, Diplomacy::kEvents>& Diplomacy::events(PlayerId a) const noexcept {
+    static const std::array<DiplomacyEvent, kEvents> kNone{};
+    return a < m_events.size() ? m_events[a] : kNone;
+}
+
+void Diplomacy::set_events(PlayerId a, const std::array<DiplomacyEvent, kEvents>& events) noexcept {
+    if (a < m_events.size()) {
+        m_events[a] = events;
+    }
+}
+
+bool Diplomacy::set_peace(const World& world, PlayerId a, PlayerId b, Treaty v, std::uint64_t now_ms) {
+    if (a == b || a >= m_count || b >= m_count || relation(a, b).peace == v || v == Treaty::Received) {
+        return false;
+    }
+    const PlayerRole ra = role_of(world, a);
+    const PlayerRole rb = role_of(world, b);
+    Relation& ab = relation(a, b);
+    Relation& ba = relation(b, a);
+    switch (v) {
+        case Treaty::None:
+            // War cancels a trade treaty, except with the pirates.
+            if (ra != PlayerRole::Pirates && rb != PlayerRole::Pirates &&
+                (ab.trade == Treaty::Received || ab.trade == Treaty::Signed)) {
+                ab.trade = Treaty::None;
+                ba.trade = Treaty::None;
+                if (acts_diplomatically(ra)) {
+                    m_notices.push_back({DiplomacyNotice::Kind::TradeEnded, b, a});
+                }
+                add_event(b, a, DiplomacyEventType::TradeCancelled, now_ms);
+            }
+            if (acts_diplomatically(ra) && ab.peace == Treaty::Signed) {
+                m_notices.push_back({DiplomacyNotice::Kind::PeaceBroken, b, a});
+            }
+            add_event(b, a, DiplomacyEventType::WarDeclared, now_ms);
+            ab.peace = Treaty::None;
+            ba.peace = Treaty::None;
+            relation(b, b).war_time_ms = now_ms;
+            break;
+        case Treaty::Offered:
+            m_notices.push_back({DiplomacyNotice::Kind::PeaceOffered, b, a});
+            add_event(b, a, DiplomacyEventType::PeaceOffered, now_ms);
+            ab.peace = Treaty::Offered;
+            ba.peace = Treaty::Received;
+            break;
+        case Treaty::Signed:
+            // Natives and the trader make a trade treaty with the peace.
+            if (!acts_diplomatically(ra) && ra != PlayerRole::Pirates) {
+                ab.trade = Treaty::Signed;
+                ba.trade = Treaty::Signed;
+            }
+            if (acts_diplomatically(ra)) {
+                m_notices.push_back({DiplomacyNotice::Kind::PeaceSigned, b, a});
+            }
+            ab.peace = Treaty::Signed;
+            ba.peace = Treaty::Signed;
+            break;
+        case Treaty::Received:
+            break;
+    }
+    return true;
+}
+
+bool Diplomacy::set_trade(const World& world, PlayerId a, PlayerId b, Treaty v, std::uint64_t now_ms) {
+    (void)world;
+    if (a == b || a >= m_count || b >= m_count || relation(a, b).trade == v || v == Treaty::Received) {
+        return false;
+    }
+    Relation& ab = relation(a, b);
+    Relation& ba = relation(b, a);
+    switch (v) {
+        case Treaty::None:
+            if (ab.trade == Treaty::Signed) {
+                m_notices.push_back({DiplomacyNotice::Kind::TradeEnded, b, a});
+            }
+            add_event(b, a, DiplomacyEventType::TradeCancelled, now_ms);
+            ab.trade = Treaty::None;
+            ba.trade = Treaty::None;
+            break;
+        case Treaty::Offered:
+            m_notices.push_back({DiplomacyNotice::Kind::TradeOffered, b, a});
+            add_event(b, a, DiplomacyEventType::TradeOffered, now_ms);
+            ab.trade = Treaty::Offered;
+            ba.trade = Treaty::Received;
+            break;
+        case Treaty::Signed:
+            m_notices.push_back({DiplomacyNotice::Kind::TradeSigned, b, a});
+            ab.trade = Treaty::Signed;
+            ba.trade = Treaty::Signed;
+            break;
+        case Treaty::Received:
+            break;
+    }
+    return true;
+}
+
+void Diplomacy::add_event(PlayerId a, PlayerId b, DiplomacyEventType type, std::uint64_t now_ms) {
+    if (a >= m_count || type == DiplomacyEventType::None) {
+        return;
+    }
+    auto& list = m_events[a];
+    const auto remove = [&](DiplomacyEventType t) {
+        for (DiplomacyEvent& e : list) {
+            if (e.type == t && e.partner == b) {
+                e = DiplomacyEvent{};
+            }
+        }
+    };
+    switch (type) {
+        case DiplomacyEventType::Surrendered:
+            relation(a, b).damage >>= 3U;
+            break;
+        case DiplomacyEventType::PeaceBought:
+        case DiplomacyEventType::BribedBy:
+            remove(DiplomacyEventType::BribedAgainst);
+            relation(a, b).damage = 0;
+            break;
+        case DiplomacyEventType::BribedAgainst:
+            remove(DiplomacyEventType::PeaceBought);
+            remove(DiplomacyEventType::BribedBy);
+            break;
+        default:
+            break;
+    }
+    const auto t = static_cast<std::uint8_t>(type);
+    if (t >= 6 && t <= 11) {
+        for (DiplomacyEvent& e : list) {
+            if (e.type == type && e.partner == b) {
+                e.time_ms = now_ms;  // refreshed in place
+                return;
+            }
+        }
+    }
+    // The slot whose event weighs least now; the first empty one wins.
+    std::size_t best = 0;
+    std::int32_t best_value = 0x7FFFFFFF;
+    for (std::size_t i = 0; i < list.size(); ++i) {
+        if (list[i].type == DiplomacyEventType::None) {
+            best = i;
+            break;
+        }
+        const std::int32_t v =
+            std::abs(diplomacy_event_value(list[i].type, now_ms >= list[i].time_ms ? now_ms - list[i].time_ms : 0));
+        if (v < best_value) {
+            best_value = v;
+            best = i;
+        }
+    }
+    list[best] = DiplomacyEvent{type, b, now_ms};
+}
+
+void Diplomacy::add_damage(PlayerId victim, PlayerId attacker, std::uint32_t damage) noexcept {
+    if (victim < m_count && attacker < m_count) {
+        Relation& r = relation(victim, attacker);
+        r.damage = r.damage + damage < r.damage ? 0xFFFFFFFFU : r.damage + damage;
+    }
+}
+
+void Diplomacy::add_trade(PlayerId a, PlayerId b, std::uint32_t value) noexcept {
+    if (a < m_count && b < m_count) {
+        Relation& r = relation(a, b);
+        r.trade_mood = std::min(kCounterMax, r.trade_mood + value);
+    }
+}
+
+void Diplomacy::decay(PlayerId a) noexcept {
+    if (a >= m_count) {
+        return;
+    }
+    for (std::size_t b = 0; b < m_count; ++b) {
+        Relation& r = m_pairs[std::size_t{a} * m_count + b];
+        r.damage = static_cast<std::uint32_t>(std::uint64_t{r.damage} * 255 / 256);
+        r.tribute = r.tribute * 255 / 256;
+        r.trade_mood = r.trade_mood * 255 / 256;
+    }
+}
+
+std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::uint32_t extra,
+                             std::uint64_t now_ms) const {
+    if (a >= m_count || b >= m_count) {
+        return 0;
+    }
+    std::int32_t m = 0;
+    for (const DiplomacyEvent& e : m_events[a]) {
+        if (e.type != DiplomacyEventType::None && e.partner == b) {
+            m += diplomacy_event_value(e.type, now_ms >= e.time_ms ? now_ms - e.time_ms : 0);
+        }
+    }
+    const Relation& r = relation(a, b);
+    m -= static_cast<std::int32_t>(std::min<std::uint32_t>(100, r.damage / 4));
+
+    // Territory: computer players and pirates mind others on their small islands.
+    const PlayerRole ra = role_of(world, a);
+    std::uint64_t size_a = 0;
+    std::uint64_t size_b = 0;
+    std::uint32_t cities_a = 0;
+    for (const City& c : world.cities()) {
+        std::uint64_t n = 0;
+        for (const std::uint32_t i : c.inhabitants) {
+            n += i;
+        }
+        if (c.owner == a) {
+            size_a += n;
+            ++cities_a;
+        } else if (c.owner == b) {
+            size_b += n;
+        }
+    }
+    if (ra == PlayerRole::Computer || ra == PlayerRole::Pirates) {
+        std::int32_t settle_penalty = 0;
+        std::int32_t troop_penalty = 0;
+        for (const City& c : world.cities()) {
+            if (c.owner != a || c.island >= world.islands().size()) {
+                continue;
+            }
+            if (world.islands()[c.island].header.template_size > 3) {
+                continue;
+            }
+            bool b_city = false;
+            for (const City& o : world.cities()) {
+                b_city = b_city || (o.island == c.island && o.owner == b);
+            }
+            bool empty = true;
+            for (const std::uint32_t i : c.inhabitants) {
+                empty = empty && i == 0;
+            }
+            if (b_city && (cities_a <= 2 || empty)) {
+                settle_penalty = 200;
+            }
+            bool b_troops = false;
+            bool a_troops = false;
+            for (const Soldier& s : world.soldiers()) {
+                if (s.island == c.island) {
+                    b_troops = b_troops || s.owner == b;
+                    a_troops = a_troops || s.owner == a;
+                }
+            }
+            if (b_troops) {
+                troop_penalty = std::max(troop_penalty, a_troops && b_city ? 60 : 200);
+            }
+        }
+        m -= settle_penalty + troop_penalty;
+    }
+
+    // Tribute and trade count less between big players.
+    const auto x = static_cast<std::int32_t>(std::min<std::uint64_t>(127, (size_b * 76 + size_a * 51) >> 14U));
+    const auto f = static_cast<std::uint64_t>(
+        interpolate({{0, 254}, {1, 213}, {4, 128}, {8, 96}, {12, 64}, {20, 51}, {40, 38}, {70, 25}, {127, 12}}, x));
+    m += static_cast<std::int32_t>(std::min<std::uint64_t>(110, (std::uint64_t{r.tribute} + extra) * f >> 12U));
+    m += static_cast<std::int32_t>(std::min<std::uint64_t>(70, std::uint64_t{r.trade_mood} * f >> 12U));
+    return m;
+}
+
+bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
+    const Player* self = world.player(order.player);
+    const Player* partner = world.player(order.partner);
+    if (self == nullptr || partner == nullptr || order.player == order.partner || !acts_diplomatically(partner->role) ||
+        !acts_diplomatically(self->role)) {
+        return false;
+    }
+    Diplomacy& d = world.diplomacy();
+    const std::uint64_t now = world.time_ms();
+    const auto allowed = [](Treaty current, Treaty v) {
+        switch (current) {
+            case Treaty::None:
+                return v == Treaty::Offered;
+            case Treaty::Offered:
+                return v == Treaty::None;
+            case Treaty::Received:
+                return v == Treaty::Signed;
+            case Treaty::Signed:
+                return v == Treaty::None;
+        }
+        return false;
+    };
+    switch (order.kind) {
+        case DiplomacyOrder::Kind::Peace:
+            return allowed(d.relation(order.player, order.partner).peace, order.value) &&
+                   d.set_peace(world, order.player, order.partner, order.value, now);
+        case DiplomacyOrder::Kind::Trade:
+            return allowed(d.relation(order.player, order.partner).trade, order.value) &&
+                   d.set_trade(world, order.player, order.partner, order.value, now);
+        case DiplomacyOrder::Kind::Gesture:
+            d.add_event(order.partner, order.player,
+                        order.friendly ? DiplomacyEventType::FriendlyGesture : DiplomacyEventType::HostileGesture, now);
+            return true;
+        case DiplomacyOrder::Kind::Tribute: {
+            constexpr std::uint32_t kMaxTribute = 10'000;
+            if (order.gold == 0 || order.gold > kMaxTribute || self->money < static_cast<std::int64_t>(order.gold)) {
+                return false;
+            }
+            // op 0x49: the counter grows by gold * 32 / (half the base price of Tabak = 17).
+            Relation& r = d.relation(order.partner, order.player);
+            r.tribute = std::min(kCounterMax, r.tribute + order.gold * 32 / 17);
+            if (Player* payer = world.player(order.player)) {
+                payer->money -= static_cast<std::int32_t>(order.gold);
+            }
+            if (Player* receiver = world.player(order.partner)) {
+                receiver->money += static_cast<std::int32_t>(order.gold);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+bool operator==(const Diplomacy& a, const Diplomacy& b) noexcept {
+    if (a.m_count != b.m_count || a.m_blamed != b.m_blamed) {
+        return false;
+    }
+    for (std::size_t i = 0; i < a.m_pairs.size(); ++i) {
+        const Relation& x = a.m_pairs[i];
+        const Relation& y = b.m_pairs[i];
+        if (x.peace != y.peace || x.trade != y.trade || x.war_time_ms != y.war_time_ms || x.tribute != y.tribute ||
+            x.trade_mood != y.trade_mood || x.damage != y.damage) {
+            return false;
+        }
+    }
+    for (std::size_t p = 0; p < a.m_events.size(); ++p) {
+        for (std::size_t i = 0; i < Diplomacy::kEvents; ++i) {
+            const DiplomacyEvent& x = a.m_events[p][i];
+            const DiplomacyEvent& y = b.m_events[p][i];
+            if (x.type != y.type || x.partner != y.partner || x.time_ms != y.time_ms) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+}  // namespace o1602::sim

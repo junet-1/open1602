@@ -201,7 +201,7 @@ TEST_CASE("ships: a ship sails at Speed / 200 tiles per second and turns in plac
     sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
     CHECK(sea.world.ship(id)->health == 50 * kTon);  // full health for a ship without one
     CHECK(fleet.speed_milli(*sea.world.ship(id)) == 2500);
-    REQUIRE(fleet.order(sim::ShipOrder{0, id, sim::ShipTarget::position(20, 10)}));
+    REQUIRE(fleet.order(sim::ShipOrder{0, id, sim::Target::position(20, 10)}));
     // Ten tiles at 2.5 tiles per second: 4 s.
     auto events = run(fleet, sea.world, 3500);
     CHECK(count(events, sim::ShipEvent::Kind::Arrived) == 0);
@@ -212,7 +212,7 @@ TEST_CASE("ships: a ship sails at Speed / 200 tiles per second and turns in plac
     CHECK(sea.world.ship(id)->pos_x == 20 * sim::kShipUnit + sim::kShipUnit / 2);
 
     // Facing east, sailing north-west: three 45 degree steps take two turn times.
-    REQUIRE(fleet.order(sim::ShipOrder{0, id, sim::ShipTarget::position(14, 4)}));
+    REQUIRE(fleet.order(sim::ShipOrder{0, id, sim::Target::position(14, 4)}));
     run(fleet, sea.world, 250);  // the decision at the end of the wait and the first step
     CHECK(sea.world.ship(id)->direction != 2);
     run(fleet, sea.world, 6000);
@@ -239,7 +239,7 @@ TEST_CASE("ships: an order onto land ends at the coast instead of being given up
     sim::Ship& ship = sea.add(30, 25);
     const std::uint32_t id = ship.id;
     sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
-    REQUIRE(fleet.order(sim::ShipOrder{0, id, sim::ShipTarget::position(42, 25)}));
+    REQUIRE(fleet.order(sim::ShipOrder{0, id, sim::Target::position(42, 25)}));
     const auto events = run(fleet, sea.world, 20000);
     CHECK(count(events, sim::ShipEvent::Kind::GaveUp) == 0);
     CHECK(count(events, sim::ShipEvent::Kind::Arrived) == 1);
@@ -298,9 +298,9 @@ TEST_CASE("ships: a trade route loads where it should and delivers at the next s
     const std::uint32_t id = ship.id;
     sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
     using Op = sim::RouteEdit::Op;
-    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 0, 0, sim::ShipTarget::city_of(0, 0)}));
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 0, 0, sim::Target::city_of(0, 0)}));
     REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetEntry, 0, 0, {}, sim::RouteEntry{kWood, false, 20 * kTon}}));
-    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 1, 0, sim::ShipTarget::city_of(1, 0)}));
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 1, 0, sim::Target::city_of(1, 0)}));
     REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetEntry, 1, 0, {}, sim::RouteEntry{kWood, true, 50 * kTon}}));
     REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::Start}));
     auto events = run(fleet, sea.world, 60000);

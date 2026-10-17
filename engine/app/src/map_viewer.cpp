@@ -338,8 +338,8 @@ void MapViewer::order_ship_to_mouse() {
     if (ship == nullptr || !tile || ship->owner != m_local_player) {
         return;
     }
-    sim::ShipTarget target =
-        sim::ShipTarget::position(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y));
+    sim::Target target =
+        sim::Target::position(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y));
     // On a Kontor: its city; next to another ship: that ship.
     const auto& cell = m_world.cell(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y));
     if (cell.island != sim::World::kSea) {
@@ -357,7 +357,7 @@ void MapViewer::order_ship_to_mouse() {
             }
             if (cell.local_x >= *c.warehouse_x && cell.local_x < *c.warehouse_x + w && cell.local_y >= *c.warehouse_y &&
                 cell.local_y < *c.warehouse_y + h) {
-                target = sim::ShipTarget::city_of(c.island, c.index);
+                target = sim::Target::city_of(c.island, c.index);
             }
         }
     } else {
@@ -365,7 +365,7 @@ void MapViewer::order_ship_to_mouse() {
             if (s.id != ship->id &&
                 std::abs(static_cast<std::int32_t>(s.x) - static_cast<std::int32_t>(tile->x)) <= 1 &&
                 std::abs(static_cast<std::int32_t>(s.y) - static_cast<std::int32_t>(tile->y)) <= 1) {
-                target = sim::ShipTarget::other_ship(s.id);
+                target = sim::Target::other_ship(s.id);
             }
         }
     }

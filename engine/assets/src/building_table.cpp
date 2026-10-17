@@ -65,6 +65,10 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         b.high = (r.integer("Highflg") & 1) != 0;
         b.draw_ground = (r.integer("Grundflg") & 1) != 0;
         b.door_on_edge = (r.integer("Tuerflg") & 1) != 0;
+        b.blocks_shots = (r.integer("NoShotFlg") & 1) != 0;
+        if (const cod::Field* energy = r.field("Maxenergy"); energy != nullptr && !energy->values.empty()) {
+            b.max_health = static_cast<std::uint32_t>(std::max(0.0, energy->values[0].real * kStockUnitsPerTon));
+        }
         if (const cod::Field* ruin = r.field("Ruinenr"); ruin != nullptr && !ruin->values.empty()) {
             b.ruin = static_cast<std::uint8_t>(ruin->values[0].integer);
         }
@@ -122,6 +126,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
                 b.idle_cost = non_negative(kosten->integer(1));
             }
             b.ore_mountain = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Erzbergnr")));
+            b.max_wares = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Maxware"))));
         }
 
         if (const auto* cost = r.records("HAUS_BAUKOST"); cost != nullptr && !cost->empty()) {

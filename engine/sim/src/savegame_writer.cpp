@@ -9,6 +9,7 @@
 #include <unordered_set>
 
 #include "o1602/assets/chunk_writer.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
@@ -25,6 +26,9 @@ namespace {
 constexpr std::size_t kMaxIslands = 50;
 constexpr std::size_t kMaxCities = 75;
 constexpr std::size_t kMaxShips = 150;
+constexpr std::size_t kMaxSoldiers = 400;
+constexpr std::size_t kMaxTowers = 350;
+constexpr std::size_t kTowerSize = 0x24;
 constexpr std::size_t kCityNameMax = 23;
 constexpr std::size_t kShipNameMax = 23;
 constexpr std::uint8_t kNoOwner = 7;
@@ -141,6 +145,7 @@ public:
             return status.error();
         }
         assign_ship_slots();
+        assign_unit_slots();
         islands();
         passthrough("CUSTOM");
         passthrough("NAME");
@@ -155,7 +160,7 @@ public:
         traders();
         ships();
         soldiers();
-        passthrough("TURM", true);
+        towers();
         timers();
         return std::move(m_out);
     }
@@ -189,6 +194,12 @@ private:
         if (m_world.ships().size() > kMaxShips) {
             return make_error(ErrorCode::OutOfRange, "more than 150 ships");
         }
+        if (m_world.soldiers().size() > kMaxSoldiers) {
+            return make_error(ErrorCode::OutOfRange, "more than 400 soldiers");
+        }
+        if (m_world.towers().size() > kMaxTowers) {
+            return make_error(ErrorCode::OutOfRange, "more than 350 towers");
+        }
         return core::Ok{};
     }
 
@@ -221,8 +232,43 @@ private:
             }
         }
     }
+    /// Places of soldiers (table of 400) and towers (350), likewise.
+    std::unordered_map<std::uint32_t, std::uint16_t> m_soldier_slots;
+    std::vector<std::uint16_t> m_tower_slots;
+    template <class List, class Key, class Store>
+    static void assign_slots(const List& list, std::size_t max, Key key, Store store) {
+        std::vector<bool> used(max, false);
+        std::vector<bool> placed(list.size(), false);
+        for (std::size_t i = 0; i < list.size(); ++i) {
+            const std::uint16_t slot = list[i].source_slot;
+            if (slot < max && !used[slot]) {
+                used[slot] = true;
+                placed[i] = true;
+                store(key(list[i], i), slot);
+            }
+        }
+        std::uint16_t next = 0;
+        for (std::size_t i = 0; i < list.size(); ++i) {
+            if (!placed[i]) {
+                while (next < max && used[next]) {
+                    ++next;
+                }
+                used[std::min<std::size_t>(next, max - 1)] = true;
+                store(key(list[i], i), next);
+            }
+        }
+    }
+    void assign_unit_slots() {
+        assign_slots(
+            m_world.soldiers(), kMaxSoldiers, [](const Soldier& s, std::size_t) { return s.id; },
+            [&](std::uint32_t id, std::uint16_t slot) { m_soldier_slots[id] = slot; });
+        m_tower_slots.assign(m_world.towers().size(), 0);
+        assign_slots(
+            m_world.towers(), kMaxTowers, [](const Tower&, std::size_t i) { return static_cast<std::uint32_t>(i); },
+            [&](std::uint32_t i, std::uint16_t slot) { m_tower_slots[i] = slot; });
+    }
     /// A reference that still names the same target stays as stored.
-    void put_ref(core::Bytes& r, std::size_t o, const ShipTarget& t) const { put32(r, o, ref_of(t)); }
+    void put_ref(core::Bytes& r, std::size_t o, const Target& t) const { put32(r, o, ref_of(t)); }
     [[nodiscard]] std::uint8_t ship_kind(const Ship& s) const {
         if (s.trader) {
             return 2;
@@ -231,23 +277,23 @@ private:
         return p != nullptr && p->role == PlayerRole::Pirates ? 3 : 1;
     }
     /// A target as the original's object reference (docs/re/ships.md).
-    [[nodiscard]] std::uint32_t ref_of(const ShipTarget& t) const {
+    [[nodiscard]] std::uint32_t ref_of(const Target& t) const {
         // A reference loaded from a file goes back as it was while it names the same target.
         if (t.raw != 0 && target_from_ref(m_world, t.raw) == t) {
             return t.raw;
         }
         switch (t.kind) {
-            case ShipTarget::Kind::Position:
+            case Target::Kind::Position:
                 return 0x37U | ((t.y >> 8) << 4 | (t.x >> 8)) << 8 | (t.x & 0xFFU) << 16 | (t.y & 0xFFU) << 24;
-            case ShipTarget::Kind::City:
+            case Target::Kind::City:
                 return t.island < m_world.islands().size()
                            ? 0x35U | std::uint32_t{number(t.island)} << 8 | std::uint32_t{t.city} << 16
                            : 0U;
-            case ShipTarget::Kind::Building:
+            case Target::Kind::Building:
                 return t.island < m_world.islands().size()
                            ? 0x33U | std::uint32_t{number(t.island)} << 8 | (t.x & 0xFFU) << 16 | (t.y & 0xFFU) << 24
                            : 0U;
-            case ShipTarget::Kind::Ship: {
+            case Target::Kind::Ship: {
                 const Ship* other = m_world.ship(t.ship);
                 const auto it = m_ship_slots.find(t.ship);
                 if (other == nullptr || it == m_ship_slots.end()) {
@@ -255,7 +301,18 @@ private:
                 }
                 return ship_kind(*other) | 0xFFU << 8 | std::uint32_t{it->second} << 16;
             }
-            case ShipTarget::Kind::None:
+            case Target::Kind::Soldier: {
+                const Soldier* other = m_world.soldier(t.ship);
+                const auto it = m_soldier_slots.find(t.ship);
+                if (other == nullptr || it == m_soldier_slots.end()) {
+                    return 0;
+                }
+                const std::uint8_t island = other->island < m_world.islands().size() ? number(other->island) : 0xFF;
+                return 4U | std::uint32_t{island} << 8 | std::uint32_t{it->second} << 16;
+            }
+            case Target::Kind::Spot:
+                return 0x38U | ((t.y >> 8) << 4 | (t.x >> 8)) << 8 | (t.x & 0xFFU) << 16 | (t.y & 0xFFU) << 24;
+            case Target::Kind::None:
                 break;
         }
         return 0;
@@ -520,6 +577,24 @@ private:
                 put16(r, 0x0A, std::min<std::uint32_t>(b.wood, 0xFFFF));
                 const auto slot = m_ship_slots.find(b.repair_ship);
                 put16(r, 0x0C, b.repair_ship != 0 && slot != m_ship_slots.end() ? slot->second : 0xFFFFU);
+            } else {
+                put16(r, 4, b.countdown);
+                for (std::size_t w = 0; w < b.weapons.size(); ++w) {
+                    put16(r, 8 + 2 * w, std::min<std::uint32_t>(b.weapons[w], 0xFFFF));
+                }
+                for (std::size_t k = 0; k < 9; ++k) {
+                    const std::size_t o = 0x10 + 8 * k;
+                    if (k < b.slots.size() && b.slots[k].figure != 0) {
+                        const CastleSlot& c = b.slots[k];
+                        put32(r, o,
+                              (get32(r, o) & ~0x3FFFU) | (c.figure & 0xFFFU) | (c.training ? 1U << 12 : 0U) |
+                                  (c.armed ? 1U << 13 : 0U));
+                        put32(r, o + 4, std::min<std::uint32_t>(c.health, 0xFFF) | std::uint32_t{c.progress} << 16);
+                    } else {
+                        put32(r, o, 0);
+                        put32(r, o + 4, 0);
+                    }
+                }
             }
             out.insert(out.end(), r.begin(), r.end());
         }
@@ -733,6 +808,35 @@ private:
                 put16(r, 0x12, player->arches_built);
                 put16(r, 0x38, player->monuments_allowed);
                 put16(r, 0x3A, player->monuments_built);
+                const Diplomacy& d = m_world.diplomacy();
+                const auto a = static_cast<PlayerId>(p);
+                r[0x08] = owner_byte(d.blamed(a));
+                for (std::size_t b = 0; b < assets::kOriginalPlayerSlots; ++b) {
+                    const Relation& rel = d.relation(a, static_cast<PlayerId>(b));
+                    if (b >= m_world.players().size()) {
+                        continue;
+                    }
+                    r[0xC0 + 8 * b] = static_cast<std::uint8_t>(rel.peace);
+                    put32(r, 0xC4 + 8 * b, clamp32(rel.war_time_ms / 100));
+                    r[0x140 + 8 * b] = static_cast<std::uint8_t>(rel.trade);
+                    put16(r, 0x40 + 2 * b, std::min<std::uint32_t>(rel.tribute, 0xFFFF));
+                    put16(r, 0x60 + 2 * b, std::min<std::uint32_t>(rel.trade_mood, 0xFFFF));
+                    put32(r, 0x80 + 4 * b, rel.damage);
+                }
+                // The first 7 of the 32 events, as the original saves them (S-085).
+                const auto& events = d.events(a);
+                for (std::size_t i = 0; i < Diplomacy::kSavedEvents; ++i) {
+                    const DiplomacyEvent& e = events[i];
+                    const std::size_t o = 0x1C0 + 8 * i;
+                    if (e.type == DiplomacyEventType::None) {
+                        put32(r, o, 0);
+                        put32(r, o + 4, 0);
+                        continue;
+                    }
+                    r[o] = static_cast<std::uint8_t>(e.type);
+                    r[o + 1] = owner_byte(e.partner);
+                    put32(r, o + 4, clamp32(e.time_ms / 100));
+                }
             }
             out.insert(out.end(), r.begin(), r.end());
         }
@@ -861,33 +965,90 @@ private:
     }
 
     void soldiers() {
-        auto raw = m_source.records("SOLDAT3", kSoldierSize);
-        std::erase_if(raw, [&](auto r) { return !m_world.contains(get16(r, 0) / 2, get16(r, 2) / 2); });
+        const auto raw = m_source.records("SOLDAT3", kSoldierSize);
+        std::unordered_map<std::uint16_t, std::size_t> by_slot;
+        for (std::size_t k = 0; k < raw.size(); ++k) {
+            by_slot.emplace(get16(raw[k], 8), k);
+        }
         core::Bytes out;
-        for (std::size_t k = 0; k < m_world.soldiers().size(); ++k) {
-            const Soldier& s = m_world.soldiers()[k];
+        for (const Soldier& s : m_world.soldiers()) {
+            if (s.dying()) {
+                continue;  // the original does not save dying units
+            }
             core::Bytes r(kSoldierSize, 0);
-            if (raw.size() == m_world.soldiers().size()) {
-                std::copy(raw[k].begin(), raw[k].end(), r.begin());
-            } else {
-                put16(r, 6, s.figure);
-                put16(r, 8, static_cast<std::uint32_t>(k));  // slot
+            const auto source = s.source_slot != 0xFFFF ? by_slot.find(s.source_slot) : by_slot.end();
+            if (source != by_slot.end()) {
+                std::copy(raw[source->second].begin(), raw[source->second].end(), r.begin());
             }
-            // Half tiles; a stored position that gives the same one stays.
-            const auto x2 = static_cast<std::uint32_t>(s.x * 2.0 + 0.5);
-            const auto y2 = static_cast<std::uint32_t>(s.y * 2.0 + 0.5);
-            if (get16(r, 0) / 2.0 != s.x) {
-                put16(r, 0, x2);
+            const std::uint16_t slot = m_soldier_slots.at(s.id);
+            put16(r, 0, static_cast<std::uint32_t>(std::max(0, s.cell_x())));
+            put16(r, 2, static_cast<std::uint32_t>(std::max(0, s.cell_y())));
+            put16(r, 4, std::min<std::uint32_t>(s.health, 0xFFFF));
+            // The colour variant of the owner's banner (FIGUR family + colour).
+            std::uint32_t figure = s.figure;
+            if (const auto variant = assets::FigureTable::unit_variant(s.figure)) {
+                const Player* p = m_world.player(s.owner);
+                const auto stored = assets::FigureTable::unit_variant(get16(r, 6));
+                if (p != nullptr && p->banner < variant->count) {
+                    figure = variant->family + p->banner;
+                } else if (stored && stored->family == variant->family) {
+                    figure = get16(r, 6);  // a banner without own figures: the stored variant stays
+                }
             }
-            if (get16(r, 2) / 2.0 != s.y) {
-                put16(r, 2, y2);
-            }
+            put16(r, 6, figure);
+            put16(r, 8, slot);
+            put_ref(r, 0x0A, s.home);
+            put32(r, 0x0E, 0);
+            put_ref(r, 0x12, s.target);
+            r[0x16] = 4;
+            r[0x17] = s.island < m_world.islands().size() ? number(s.island) : std::uint8_t{0xFF};
             r[0x18] = owner_byte(s.owner);
             r[0x19] = s.anim;
+            r[0x1A] = s.radius;
             r[0x1B] = static_cast<std::uint8_t>((r[0x1B] & ~7U) | (s.direction & 7U));
+            r[0x1C] = s.patrol.index;
+            r[0x1D] =
+                static_cast<std::uint8_t>((r[0x1D] & ~3U) | (s.patrol.active ? 1U : 0U) | (s.patrol.one_way ? 2U : 0U));
+            put_ref(r, 0x1E, s.patrol.points[0]);
+            put_ref(r, 0x22, s.patrol.points[1]);
             out.insert(out.end(), r.begin(), r.end());
         }
         add("SOLDAT3", std::move(out));
+    }
+
+    void towers() {
+        const auto raw = m_source.records("TURM", kTowerSize);
+        std::unordered_map<std::uint16_t, std::size_t> by_slot;
+        for (std::size_t k = 0; k < raw.size(); ++k) {
+            by_slot.emplace(get16(raw[k], 8), k);
+        }
+        core::Bytes out;
+        for (std::size_t i = 0; i < m_world.towers().size(); ++i) {
+            const Tower& t = m_world.towers()[i];
+            if (t.island >= m_world.islands().size()) {
+                continue;
+            }
+            core::Bytes r(kTowerSize, 0);
+            const auto source = t.source_slot != 0xFFFF ? by_slot.find(t.source_slot) : by_slot.end();
+            if (source != by_slot.end()) {
+                std::copy(raw[source->second].begin(), raw[source->second].end(), r.begin());
+            }
+            const WorldIsland& island = m_world.islands()[t.island];
+            put16(r, 0, island.x + t.x);
+            put16(r, 2, island.y + t.y);
+            if (get16(r, 4) == 0) {
+                put16(r, 4, 24 * 32);  // the tower figure's Maxenergy, never reduced
+            }
+            put16(r, 6, t.figure);
+            put16(r, 8, m_tower_slots[i]);
+            put_ref(r, 0x0A, Target::building(t.island, t.x, t.y));
+            r[0x16] = 6;
+            r[0x17] = number(t.island);
+            r[0x18] = owner_byte(t.owner);
+            r[0x1B] = static_cast<std::uint8_t>((r[0x1B] & ~7U) | (t.direction & 7U));
+            out.insert(out.end(), r.begin(), r.end());
+        }
+        add("TURM", std::move(out));
     }
 
     // ---- Timers ----------------------------------------------------------------------------------

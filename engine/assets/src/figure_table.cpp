@@ -65,6 +65,20 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
         f.ship.price = static_cast<std::uint32_t>(std::max(0, r.integer("Preis")));
         f.ship.build_ware = static_cast<std::uint8_t>(std::clamp(r.integer("Rohstoff"), 0, 255));
         f.ship.build_amount = tons("Rohmenge");
+        f.combat.max_health = f.ship.max_health;
+        f.combat.hit = f.ship.hit;
+        if (const cod::Field* radius = r.field("Shotradius"); radius != nullptr && !radius->values.empty()) {
+            f.combat.range8 = static_cast<std::uint32_t>(std::max(0.0, radius->values[0].real * 8.0));
+        }
+        f.combat.hit_delay_ms = f.ship.shot_ms;
+        if (r.field("Stirbtime") != nullptr) {
+            f.combat.die_ms = f.ship.sink_ms;
+        }
+        f.combat.max_step = static_cast<std::uint8_t>(std::clamp(r.integer("Maxstepcnt", 0, 1), 1, 15));
+        f.combat.weapon_ware = f.ship.build_ware;
+        f.combat.weapon_amount = f.ship.build_amount;
+        f.combat.hit_figure = static_cast<std::uint16_t>(std::clamp(r.integer("Hitfignr"), 0, 0xFFFF));
+        f.combat.shot_figure = static_cast<std::uint16_t>(std::clamp(r.integer("Shotfignr"), 0, 0xFFFF));
         if (const cod::Field* fahn = r.field("Fahnoffs")) {
             for (std::size_t i = 0; i < f.fahnoffs.size() && i < fahn->values.size(); ++i) {
                 f.fahnoffs[i] = fahn->values[i].real;
@@ -106,8 +120,32 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
             static_cast<std::size_t>(values[0].integer) < table.m_unit_upkeep.size()) {
             table.m_unit_upkeep[static_cast<std::size_t>(values[0].integer)] =
                 static_cast<std::uint32_t>(std::max(0, values[1].integer));
+            if (values.size() >= 3) {
+                table.m_unit_cost[static_cast<std::size_t>(values[0].integer)] =
+                    static_cast<std::uint32_t>(std::max(0, values[2].integer));
+            }
         } else if (name == "Turm" && values.size() >= 2) {
             table.m_tower_upkeep = static_cast<std::uint32_t>(std::max(0, values[1].integer));
+        }
+    }
+    if (const auto* formations = figuren.root.records("FORMATION")) {
+        for (const auto& [nummer, r] : *formations) {
+            if (nummer < 0 || nummer >= 64) {
+                continue;
+            }
+            if (static_cast<std::size_t>(nummer) >= table.m_formations.size()) {
+                table.m_formations.resize(static_cast<std::size_t>(nummer) + 1);
+            }
+            auto& slots = table.m_formations[static_cast<std::size_t>(nummer)];
+            for (const auto& [name, values] : r.history) {
+                if (name == "Offs" && values.size() >= 3) {
+                    const auto index = static_cast<std::size_t>(std::clamp(values[0].integer, 0, 63));
+                    if (index >= slots.size()) {
+                        slots.resize(index + 1);
+                    }
+                    slots[index] = {values[1].integer, values[2].integer};
+                }
+            }
         }
     }
     return table;

@@ -644,8 +644,17 @@ TEST_CASE("data: savegames of the installation (if any) load like scenarios") {
         CHECK(world->soldiers().size() == state->soldiers.size());
         for (const auto& soldier : world->soldiers()) {
             const auto& cell =
-                world->cell(static_cast<std::uint32_t>(soldier.x), static_cast<std::uint32_t>(soldier.y));
+                world->cell(static_cast<std::uint32_t>(soldier.x()), static_cast<std::uint32_t>(soldier.y()));
             CHECK(cell.island != sim::World::kSea);
+            CHECK(soldier.island == cell.island);
+        }
+        // Towers stand in their Wachturm buildings.
+        CHECK(world->towers().size() == state->towers.size());
+        for (const auto& tower : world->towers()) {
+            const auto b = sim::building_at(*world, *buildings, tower.island, {tower.x, tower.y});
+            REQUIRE(b.has_value());
+            CHECK(b->origin.x == tower.x);
+            CHECK(b->origin.y == tower.y);
         }
         // PRODLIST2 names buildings by their origin tile (the lookup of 0x0047CBF0): every entry
         // is the origin of a building with a HAUS_PRODTYP.

@@ -73,6 +73,32 @@ void World::add_ship(Ship ship) {
     m_ships.push_back(std::move(ship));
 }
 
+void World::add_soldier(Soldier soldier) {
+    if (soldier.id == 0) {
+        soldier.id = m_next_soldier_id;
+    }
+    m_next_soldier_id = std::max(m_next_soldier_id, soldier.id + 1);
+    m_soldiers.push_back(std::move(soldier));
+}
+
+const Soldier* World::soldier(std::uint32_t id) const noexcept {
+    for (const Soldier& s : m_soldiers) {
+        if (s.id == id) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
+Soldier* World::soldier(std::uint32_t id) noexcept {
+    for (Soldier& s : m_soldiers) {
+        if (s.id == id) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
 const Ship* World::ship(std::uint32_t id) const noexcept {
     for (const Ship& s : m_ships) {
         if (s.id == id) {
@@ -102,11 +128,16 @@ constexpr std::uint32_t ship_id_of_slot(std::uint32_t slot) noexcept {
     return slot + 1;
 }
 
+/// Soldiers likewise.
+constexpr std::uint32_t soldier_id_of_slot(std::uint32_t slot) noexcept {
+    return slot + 1;
+}
+
 }  // namespace
 
 namespace {
 
-ShipTarget decode_ref(const World& world, std::uint32_t ref) {
+Target decode_ref(const World& world, std::uint32_t ref) {
     const auto type = static_cast<std::uint8_t>(ref);
     const auto b1 = static_cast<std::uint8_t>(ref >> 8);
     const auto b2 = static_cast<std::uint8_t>(ref >> 16);
@@ -115,21 +146,33 @@ ShipTarget decode_ref(const World& world, std::uint32_t ref) {
         case 1:
         case 2:
         case 3:
-            return ShipTarget::other_ship(ship_id_of_slot(ref >> 16));
+            return Target::other_ship(ship_id_of_slot(ref >> 16));
         case 0x32:
         case 0x33:
         case 0x34:
             if (const auto island = world.island_index(b1)) {
-                return ShipTarget::building(*island, b2, b3);
+                return Target::building(*island, b2, b3);
             }
             break;
         case 0x35:
             if (const auto island = world.island_index(b1)) {
-                return ShipTarget::city_of(*island, b2);
+                return Target::city_of(*island, b2);
+            }
+            break;
+        case 4:
+            return Target::soldier(soldier_id_of_slot(ref >> 16));
+        case 6:
+            // A tower by its slot: the building it stands in.
+            for (const Tower& t : world.towers()) {
+                if (t.source_slot == (ref >> 16)) {
+                    return Target::building(t.island, t.x, t.y);
+                }
             }
             break;
         case 0x37:
-            return ShipTarget::position((std::uint32_t{b1} & 0x0FU) << 8 | b2, (std::uint32_t{b1} >> 4) << 8 | b3);
+            return Target::position((std::uint32_t{b1} & 0x0FU) << 8 | b2, (std::uint32_t{b1} >> 4) << 8 | b3);
+        case 0x38:
+            return Target::spot((std::uint32_t{b1} & 0x0FU) << 8 | b2, (std::uint32_t{b1} >> 4) << 8 | b3);
         default:
             break;
     }
@@ -138,8 +181,8 @@ ShipTarget decode_ref(const World& world, std::uint32_t ref) {
 
 }  // namespace
 
-ShipTarget target_from_ref(const World& world, std::uint32_t ref) {
-    ShipTarget t = decode_ref(world, ref);
+Target target_from_ref(const World& world, std::uint32_t ref) {
+    Target t = decode_ref(world, ref);
     t.raw = ref;
     return t;
 }
@@ -436,6 +479,31 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         slots.push_back(std::move(player));
     }
     world.set_players(std::move(slots));
+    // Diplomacy (PLAYER4 +0x40 .. +0x1FF): times in 1/10 s.
+    Diplomacy& dipl = world.diplomacy();
+    for (std::size_t a = 0; a < players->size() && a < world.players().size(); ++a) {
+        const auto& p = (*players)[a];
+        const auto pa = static_cast<PlayerId>(a);
+        for (std::size_t b = 0; b < 7 && b < world.players().size(); ++b) {
+            Relation& r = dipl.relation(pa, static_cast<PlayerId>(b));
+            r.peace = static_cast<Treaty>(p.peace[b] & 3U);
+            r.trade = static_cast<Treaty>(p.trade[b] & 3U);
+            r.war_time_ms = std::uint64_t{p.war_time[b]} * 100;
+            r.tribute = p.tribute[b];
+            r.trade_mood = p.trade_mood[b];
+            r.damage = p.damage[b];
+        }
+        std::array<DiplomacyEvent, Diplomacy::kEvents> events{};
+        for (std::size_t i = 0; i < p.events.size(); ++i) {
+            const auto& e = p.events[i];
+            if (e.type != 0 && e.type <= 13) {
+                events[i] = {static_cast<DiplomacyEventType>(e.type), player_from_original(e.player),
+                             std::uint64_t{e.time} * 100};
+            }
+        }
+        dipl.set_events(pa, events);
+        dipl.set_blamed(pa, player_from_original(p.blamed));
+    }
 
     auto state = assets::load_game_state(file);
     if (!state) {
@@ -600,6 +668,18 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
                 b.wood = r.wood;
                 b.countdown = r.countdown;
                 b.repair_ship = r.repair != 0xFFFF ? ship_id_of_slot(r.repair) : 0U;
+            } else {
+                b.countdown = r.countdown;
+                for (std::size_t w = 0; w < b.weapons.size(); ++w) {
+                    b.weapons[w] = r.weapons[w];
+                }
+                // Used slots are kept together at the front (removing one shifts the rest down).
+                for (const auto& slot : r.slots) {
+                    if (slot.figure != 0) {
+                        b.slots.push_back(
+                            CastleSlot{slot.figure, slot.training, slot.armed, slot.health, slot.progress});
+                    }
+                }
             }
             world.add_cost_building(b);
         }
@@ -651,16 +731,61 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         q.elapsed = p.elapsed;
         world.set_production(q);
     }
+    // Towers before the soldiers: references to them name their slot.
+    for (const auto& r : state->towers) {
+        const Target building = target_from_ref(world, r.building);
+        if (building.kind != Target::Kind::Building) {
+            warn("tower without its building");
+            continue;
+        }
+        Tower t;
+        t.island = building.island;
+        t.x = static_cast<std::uint16_t>(building.x);
+        t.y = static_cast<std::uint16_t>(building.y);
+        t.owner = player_from_original(r.owner);
+        t.figure = r.figure;
+        t.direction = r.direction;
+        t.source_slot = r.slot;
+        world.towers().push_back(t);
+    }
     for (const auto& r : state->soldiers) {
-        Soldier soldier{r.x2 / 2.0, r.y2 / 2.0, r.figure, player_from_original(r.owner), r.direction, r.anim};
-        if (!world.contains(static_cast<std::uint32_t>(soldier.x), static_cast<std::uint32_t>(soldier.y))) {
+        Soldier soldier;
+        soldier.id = soldier_id_of_slot(r.slot);
+        if (world.soldier(soldier.id) != nullptr) {
+            soldier.id = 0;  // a duplicate slot: the next free id
+        }
+        soldier.source_slot = r.slot;
+        soldier.place_cell(r.x2, r.y2);  // the loader: v * 0.5 + 0.25, the centre of the cell
+        if (!world.contains(r.x2 / 2U, r.y2 / 2U)) {
             warn("soldier outside the world map");
             continue;
         }
+        soldier.figure = r.figure;
         if (const auto variant = assets::FigureTable::unit_variant(r.figure)) {
             soldier.figure = static_cast<std::uint16_t>(variant->family);
         }
+        soldier.owner = player_from_original(r.owner);
+        soldier.direction = r.direction;
+        soldier.anim = r.anim;
+        soldier.health = r.health;
+        const World::Cell& cell = world.cell(r.x2 / 2U, r.y2 / 2U);
+        soldier.island = cell.island;
+        soldier.radius = r.radius != 0 ? r.radius : std::uint8_t{0x2D};
+        soldier.patrol.active = (r.patrol & 1U) != 0;
+        soldier.patrol.one_way = (r.patrol & 2U) != 0;
+        soldier.patrol.index = static_cast<std::uint8_t>(r.waypoint & 1U);
         world.add_soldier(soldier);
+    }
+    // References after all units are known (they may name each other).
+    for (const auto& r : state->soldiers) {
+        for (Soldier& s : world.soldiers()) {
+            if (s.source_slot == r.slot) {
+                s.home = target_from_ref(world, r.home);
+                s.target = target_from_ref(world, r.target);
+                s.patrol.points = {target_from_ref(world, r.waypoints[0]), target_from_ref(world, r.waypoints[1])};
+                break;
+            }
+        }
     }
     // HIRSCH2 stores only position and timer; the kind follows the island's climate: deer
     // (HIRSCH) in the north, antelopes (ANTILOPE) in the south (confirmed in the running game).

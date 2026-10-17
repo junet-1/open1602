@@ -135,7 +135,7 @@ void Fleet::trader_choose(Ship& ship) {
         if (owner == nullptr || (owner->role != PlayerRole::Human && owner->role != PlayerRole::Computer)) {
             continue;
         }
-        if (ship.previous == ShipTarget::city_of(c.island, c.index)) {
+        if (ship.previous == Target::city_of(c.island, c.index)) {
             continue;
         }
         const WorldIsland& isl = m_world->islands()[c.island];
@@ -193,7 +193,7 @@ void Fleet::trader_choose(Ship& ship) {
     const City& chosen = m_world->cities()[*best];
     City* city = m_world->city(chosen.island, chosen.index);
     city->trader_inbound = true;
-    ship.target = ShipTarget::city_of(chosen.island, chosen.index);
+    ship.target = Target::city_of(chosen.island, chosen.index);
     ship.motion.failures = 0;
 }
 

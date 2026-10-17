@@ -269,19 +269,23 @@ std::uint32_t Fleet::fleet_size(PlayerId player) const {
 
 // ---- Targets -----------------------------------------------------------------------------------
 
-bool Fleet::target_valid(const ShipTarget& t) const {
+bool Fleet::target_valid(const Target& t) const {
     switch (t.kind) {
-        case ShipTarget::Kind::None:
+        case Target::Kind::None:
             return false;
-        case ShipTarget::Kind::Position:
+        case Target::Kind::Position:
             return m_world->contains(t.x, t.y);
-        case ShipTarget::Kind::City: {
+        case Target::Kind::City: {
             const City* c = m_world->city(t.island, t.city);
             return c != nullptr && c->warehouse_x && c->warehouse_y;
         }
-        case ShipTarget::Kind::Ship:
+        case Target::Kind::Ship:
             return m_world->ship(t.ship) != nullptr;
-        case ShipTarget::Kind::Building:
+        case Target::Kind::Soldier:
+            return m_world->soldier(t.ship) != nullptr;
+        case Target::Kind::Spot:
+            return m_world->contains(t.x / 2, t.y / 2);
+        case Target::Kind::Building:
             return t.island < m_world->islands().size() &&
                    m_world->islands()[t.island].map.contains(static_cast<std::int32_t>(t.x),
                                                              static_cast<std::int32_t>(t.y)) &&
@@ -290,11 +294,11 @@ bool Fleet::target_valid(const ShipTarget& t) const {
     return false;
 }
 
-std::optional<std::pair<std::int32_t, std::int32_t>> Fleet::target_point(const ShipTarget& t) const {
+std::optional<std::pair<std::int32_t, std::int32_t>> Fleet::target_point(const Target& t) const {
     switch (t.kind) {
-        case ShipTarget::Kind::Position:
+        case Target::Kind::Position:
             return std::pair{static_cast<std::int32_t>(t.x), static_cast<std::int32_t>(t.y)};
-        case ShipTarget::Kind::City: {
+        case Target::Kind::City: {
             const City* c = m_world->city(t.island, t.city);
             if (c == nullptr || !c->warehouse_x || !c->warehouse_y) {
                 return std::nullopt;
@@ -303,19 +307,26 @@ std::optional<std::pair<std::int32_t, std::int32_t>> Fleet::target_point(const S
             return std::pair{static_cast<std::int32_t>(isl.x + *c->warehouse_x),
                              static_cast<std::int32_t>(isl.y + *c->warehouse_y)};
         }
-        case ShipTarget::Kind::Ship:
+        case Target::Kind::Ship:
             if (const Ship* s = m_world->ship(t.ship)) {
                 return std::pair{static_cast<std::int32_t>(s->x), static_cast<std::int32_t>(s->y)};
             }
             return std::nullopt;
-        case ShipTarget::Kind::Building: {
+        case Target::Kind::Soldier:
+            if (const Soldier* s = m_world->soldier(t.ship)) {
+                return std::pair{s->pos_x / kPosUnit, s->pos_y / kPosUnit};
+            }
+            return std::nullopt;
+        case Target::Kind::Spot:
+            return std::pair{static_cast<std::int32_t>(t.x / 2), static_cast<std::int32_t>(t.y / 2)};
+        case Target::Kind::Building: {
             if (t.island >= m_world->islands().size()) {
                 return std::nullopt;
             }
             const WorldIsland& isl = m_world->islands()[t.island];
             return std::pair{static_cast<std::int32_t>(isl.x + t.x), static_cast<std::int32_t>(isl.y + t.y)};
         }
-        case ShipTarget::Kind::None:
+        case Target::Kind::None:
             break;
     }
     return std::nullopt;
@@ -326,10 +337,10 @@ namespace {
 /// Whether a ship on tile (x, y) has reached the target. The planner aims at the same tiles, so a
 /// course ends where this holds. Positions on land count as reached within the Kontor reach: the
 /// original aims at the water there but then never arrives and gives the order up (S-071).
-bool reached(const World& world, const assets::BuildingTable& buildings, const SeaMap& sea, const ShipTarget& t,
+bool reached(const World& world, const assets::BuildingTable& buildings, const SeaMap& sea, const Target& t,
              std::int32_t x, std::int32_t y) {
     switch (t.kind) {
-        case ShipTarget::Kind::Position: {
+        case Target::Kind::Position: {
             const auto tx = static_cast<std::int32_t>(t.x);
             const auto ty = static_cast<std::int32_t>(t.y);
             if (sea.sailable(tx, ty)) {
@@ -337,18 +348,24 @@ bool reached(const World& world, const assets::BuildingTable& buildings, const S
             }
             return in_circle(x - tx, y - ty, kReach);
         }
-        case ShipTarget::Kind::City: {
+        case Target::Kind::City: {
             const City* c = world.city(t.island, t.city);
             return c != nullptr && c->warehouse_x && c->warehouse_y &&
                    building_in_reach(world, buildings, t.island, *c->warehouse_x, *c->warehouse_y, x, y);
         }
-        case ShipTarget::Kind::Ship: {
+        case Target::Kind::Ship: {
             const Ship* s = world.ship(t.ship);
             return s != nullptr && sea_distance(s->x - x, s->y - y) < kShipNear;
         }
-        case ShipTarget::Kind::Building:
+        case Target::Kind::Soldier: {
+            const Soldier* s = world.soldier(t.ship);
+            return s != nullptr && sea_distance(s->pos_x / kPosUnit - x, s->pos_y / kPosUnit - y) < kShipNear;
+        }
+        case Target::Kind::Spot:
+            return in_circle(x - static_cast<std::int32_t>(t.x / 2), y - static_cast<std::int32_t>(t.y / 2), kReach);
+        case Target::Kind::Building:
             return building_in_reach(world, buildings, t.island, t.x, t.y, x, y);
-        case ShipTarget::Kind::None:
+        case Target::Kind::None:
             break;
     }
     return false;
@@ -356,7 +373,7 @@ bool reached(const World& world, const assets::BuildingTable& buildings, const S
 
 }  // namespace
 
-bool Fleet::at_target(const Ship& ship, const ShipTarget& target) const {
+bool Fleet::at_target(const Ship& ship, const Target& target) const {
     return reached(*m_world, *m_buildings, m_sea, target, ship.x, ship.y);
 }
 
@@ -489,12 +506,12 @@ bool Fleet::plan(Ship& ship, std::int32_t radius) {
         if (o.id == ship.id || std::abs(o.x - ship.x) >= kObstacleRange || std::abs(o.y - ship.y) >= kObstacleRange) {
             continue;
         }
-        if (ship.target.kind == ShipTarget::Kind::Ship && o.id == ship.target.ship) {
+        if (ship.target.kind == Target::Kind::Ship && o.id == ship.target.ship) {
             continue;  // the ship it sails to is no obstacle
         }
         r.ships.push_back(SeaPlan::Obstacle{o.x, o.y, o.motion.phase == ShipMotion::Phase::Run});
     }
-    const ShipTarget target = ship.target;
+    const Target target = ship.target;
     r.goal = [&](std::int32_t x, std::int32_t y) { return reached(*m_world, *m_buildings, m_sea, target, x, y); };
     SeaCourse course = m_planner.plan(m_sea, r);
     if (course.path.empty()) {
@@ -623,9 +640,9 @@ void Fleet::decide(Ship& ship) {
     std::int32_t radius = kPlanRadius;
     if (path_done) {
         if (!ship.target.empty() && at_target(ship, ship.target)) {
-            const ShipTarget arrived = ship.target;
+            const Target arrived = ship.target;
             m_events.push_back(ShipEvent{ShipEvent::Kind::Arrived, ship.id, ship.owner});
-            if (ship.trader && arrived.kind == ShipTarget::Kind::City && !ship.route.active) {
+            if (ship.trader && arrived.kind == Target::Kind::City && !ship.route.active) {
                 if (City* c = m_world->city(arrived.island, arrived.city)) {
                     c->trader_inbound = false;
                     if (trader_trade(ship, *c)) {
@@ -635,11 +652,11 @@ void Fleet::decide(Ship& ship) {
             } else if (ship.route.active) {
                 const RouteStop& stop = ship.route.stops[ship.route.current % TradeRoute::kStops];
                 if (stop.target == arrived) {
-                    if (arrived.kind == ShipTarget::Kind::City) {
+                    if (arrived.kind == Target::Kind::City) {
                         if (route_city_stop(ship, stop)) {
                             wait = kKontorStopMs;
                         }
-                    } else if (arrived.kind == ShipTarget::Kind::Ship) {
+                    } else if (arrived.kind == Target::Kind::Ship) {
                         if (route_ship_stop(ship, stop)) {
                             wait = kShipStopMs;
                         }
@@ -668,7 +685,7 @@ void Fleet::decide(Ship& ship) {
         if (!ship.target.empty() && !wait && !at_target(ship, ship.target)) {
             want_plan = true;
         }
-    } else if (ship.target.kind == ShipTarget::Kind::Ship) {
+    } else if (ship.target.kind == Target::Kind::Ship) {
         // Following a moving ship: a new course at most every 2 s (0x00452370).
         const std::uint64_t now = m_world->time_ms() * 1000ULL;
         if (now >= m.next_follow_us && !at_target(ship, ship.target)) {
@@ -753,7 +770,7 @@ bool Fleet::order(const ShipOrder& o) {
         ship->repairing = false;
     }
     ship->route.active = false;
-    ship->previous = ShipTarget::position(ship->x, ship->y);
+    ship->previous = Target::position(ship->x, ship->y);
     ship->target = o.target;
     ship->order = o.target;
     return true;
@@ -793,7 +810,7 @@ bool Fleet::edit_route(const RouteEdit& e) {
                 return false;
             }
             // Op 0x28: from the current stop, white flag and repair cancelled, a fresh course.
-            ship->previous = ShipTarget::position(ship->x, ship->y);
+            ship->previous = Target::position(ship->x, ship->y);
             ship->held = false;
             ship->repairing = false;
             ship->motion.path.clear();
@@ -805,7 +822,7 @@ bool Fleet::edit_route(const RouteEdit& e) {
             route.active = true;
             route.problem_rounds = 0;
             const RouteStop& stop = route.stops[route.current % TradeRoute::kStops];
-            ship->target = target_valid(stop.target) ? stop.target : ShipTarget{};
+            ship->target = target_valid(stop.target) ? stop.target : Target{};
             return true;
         }
         case RouteEdit::Op::Stop:
@@ -826,9 +843,9 @@ bool Fleet::may_trade(PlayerId ship_owner, PlayerId city_owner) const {
     if (city == nullptr || ship == nullptr) {
         return false;
     }
-    // The original needs a trade treaty (player + 0x130); without diplomacy in Open1602 yet, the
-    // natives and the computer players trade with everyone, other humans do not.
-    return city->role == PlayerRole::Natives || city->role == PlayerRole::Computer || ship->role == PlayerRole::Trader;
+    // A trade treaty of the ship's owner with the Kontor's (player + 0x130); the free trader trades
+    // everywhere.
+    return ship->role == PlayerRole::Trader || m_world->diplomacy().may_trade(ship_owner, city_owner);
 }
 
 std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool to_ship, std::uint32_t amount,
@@ -936,6 +953,13 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
         }
         remove_cargo(ship, ware, n, hold);
         city.goods[ware] += n;
+    }
+    if (price != 0 && ship.owner != city.owner && !natives) {
+        // Trade makes friends (op 0x4A from 0x00484450): the Kontor's owner by half the value, the
+        // ship's owner by a third.
+        const auto value = static_cast<std::uint32_t>(std::uint64_t{price} * n / kTon);
+        m_world->diplomacy().add_trade(city.owner, ship.owner, value / 2);
+        m_world->diplomacy().add_trade(ship.owner, city.owner, value * 85 / 128 / 2);
     }
     m_events.push_back(ShipEvent{ShipEvent::Kind::Traded, ship.id, ship.owner, city.island, city.index, ware,
                                  to_ship ? std::int64_t{n} : -std::int64_t{n}, std::int64_t{price} * n / kTon});
@@ -1068,7 +1092,7 @@ void Fleet::route_next_stop(Ship& ship) {
     }
     route.current = static_cast<std::uint8_t>(next % TradeRoute::kStops);
     const RouteStop& stop = route.stops[route.current];
-    ship.target = target_valid(stop.target) ? stop.target : ShipTarget{};
+    ship.target = target_valid(stop.target) ? stop.target : Target{};
     ship.held = false;
     ship.motion.path.clear();
     ship.motion.path_index = 0;

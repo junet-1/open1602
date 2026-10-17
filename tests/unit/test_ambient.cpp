@@ -204,7 +204,7 @@ TEST_CASE("ambient: no townsfolk in small cities or with foreign soldiers") {
     std::vector<sim::Player> players(2);
     players[1].role = sim::PlayerRole::Computer;
     s.world.set_players(players);
-    s.world.add_soldier(sim::Soldier{105.0, 105.0, 1, 1, 0, 0});
+    s.world.add_soldier(sim::make_soldier(105, 105, 1, 1));
     render::Ambient troops(5);
     s.run(troops, 6'000'000);
     CHECK(troops.stats().walkers == 0);

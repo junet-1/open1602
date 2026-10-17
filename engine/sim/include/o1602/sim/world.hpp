@@ -15,12 +15,14 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/result.hpp"
+#include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/player.hpp"
 #include "o1602/sim/production.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/ship.hpp"
+#include "o1602/sim/soldier.hpp"
 #include "o1602/sim/world_generator.hpp"
 
 namespace o1602::sim {
@@ -296,6 +298,11 @@ struct CostBuilding {
     std::uint8_t failed_launches = 0;
     std::uint8_t idle_cycles = 0;  ///< cycles without material, at most 15
     bool fetching = false;         ///< its pack donkey is out
+    /// Castles (MILITAR, 0x0055EB80): weapons in store (swords, muskets, cannons, 1/32 t) and the
+    /// training slots (3, 5 or 8 used by castle size). `countdown` counts the seconds to the next
+    /// training step.
+    std::array<std::uint32_t, 3> weapons{};
+    std::vector<CastleSlot> slots{};
 };
 
 /// A growing field, tree, meadow or fish shoal (ROHWACHS2 in the original). One growth stage of
@@ -317,26 +324,12 @@ struct GrowthState {
     std::vector<GrowthEntry> entries;
 };
 
-/// A land unit (SOLDAT3 in the original). The position is continuous in world tiles; the original
-/// saves it in half tiles.
-struct Soldier {
-    double x = 0.0;
-    double y = 0.0;
-    /// FIGUR number of the unit type. For units drawn per player colour this is the first figure
-    /// of the family (SOLDAT1, KAVALERIE1, ...): the colour follows the owner's banner, so any number
-    /// of players works (ADR 0007).
-    std::uint16_t figure = 0;
-    PlayerId owner = kNoPlayer;
-    std::uint8_t direction = 0;  ///< 0..7
-    std::uint8_t anim = 0;       ///< ANIM index when saved
-};
-
 class World;
 
 /// An object reference of the original files (SHIP4 targets and route stops, docs/re/ships.md):
 /// byte 0 the type (1-3 a ship by its slot, whose id is slot + 1; 0x32-0x34 a building, 0x35 a city,
 /// 0x37 a world position). Unknown types give no target.
-[[nodiscard]] ShipTarget target_from_ref(const World& world, std::uint32_t ref);
+[[nodiscard]] Target target_from_ref(const World& world, std::uint32_t ref);
 
 /// The world map: open sea with islands placed on it (the original keeps one 4-byte cell per
 /// world tile: island number, local x, local y, colour table - see rendering.md). The size is a
@@ -381,7 +374,14 @@ public:
     [[nodiscard]] Player* player(PlayerId owner) noexcept {
         return owner < m_players.size() ? &m_players[owner] : nullptr;
     }
-    void set_players(std::vector<Player> players) { m_players = std::move(players); }
+    /// Replaces the players. A different number of players starts the diplomacy over with the
+    /// relations of a new game (Diplomacy::reset).
+    void set_players(std::vector<Player> players) {
+        m_players = std::move(players);
+        if (m_diplomacy.size() != m_players.size()) {
+            m_diplomacy.reset(m_players);
+        }
+    }
     /// Adds a ship; one without an id gets the next free one.
     void add_ship(Ship ship);
     /// Ship with this id, nullptr if it is gone.
@@ -404,7 +404,27 @@ public:
     void add_animal(Animal animal) { m_animals.push_back(animal); }
 
     [[nodiscard]] const std::vector<Soldier>& soldiers() const noexcept { return m_soldiers; }
-    void add_soldier(const Soldier& soldier) { m_soldiers.push_back(soldier); }
+    [[nodiscard]] std::vector<Soldier>& soldiers() noexcept { return m_soldiers; }
+    /// Adds a land unit; one without an id gets the next free one.
+    void add_soldier(Soldier soldier);
+    /// Unit with this id, nullptr if it is gone.
+    [[nodiscard]] const Soldier* soldier(std::uint32_t id) const noexcept;
+    [[nodiscard]] Soldier* soldier(std::uint32_t id) noexcept;
+    [[nodiscard]] std::uint32_t next_soldier_id() const noexcept { return m_next_soldier_id; }
+    void set_next_soldier_id(std::uint32_t id) noexcept { m_next_soldier_id = id; }
+
+    /// Cannon towers of the Wachturm buildings.
+    [[nodiscard]] const std::vector<Tower>& towers() const noexcept { return m_towers; }
+    [[nodiscard]] std::vector<Tower>& towers() noexcept { return m_towers; }
+    /// Damage of buildings under attack, and shots on their way.
+    [[nodiscard]] const std::vector<BuildingDamage>& building_damage() const noexcept { return m_building_damage; }
+    [[nodiscard]] std::vector<BuildingDamage>& building_damage() noexcept { return m_building_damage; }
+    [[nodiscard]] const std::vector<PendingHit>& pending_hits() const noexcept { return m_hits; }
+    [[nodiscard]] std::vector<PendingHit>& pending_hits() noexcept { return m_hits; }
+
+    /// Peace and trade treaties and what players remember of each other.
+    [[nodiscard]] const Diplomacy& diplomacy() const noexcept { return m_diplomacy; }
+    [[nodiscard]] Diplomacy& diplomacy() noexcept { return m_diplomacy; }
 
     /// Replace whole lists in their order (restoring a saved game, savegame_extension.hpp).
     void set_cities(std::vector<City> cities) { m_cities = std::move(cities); }
@@ -523,6 +543,11 @@ private:
     std::vector<City> m_cities;
     std::vector<Animal> m_animals;
     std::vector<Soldier> m_soldiers;
+    std::uint32_t m_next_soldier_id = 1;
+    std::vector<Tower> m_towers;
+    std::vector<BuildingDamage> m_building_damage;
+    std::vector<PendingHit> m_hits;
+    Diplomacy m_diplomacy;
     std::vector<Production> m_productions;
     GrowthState m_growth;
     RandomStreams m_random;

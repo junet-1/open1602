@@ -3,6 +3,7 @@
 
 add_library(o1602_sim
     src/construction.cpp
+    src/diplomacy.cpp
     src/consumption.cpp
     src/disasters.cpp
     src/drag_path.cpp

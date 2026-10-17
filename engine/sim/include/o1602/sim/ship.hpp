@@ -11,47 +11,9 @@
 #include <vector>
 
 #include "o1602/sim/player.hpp"
+#include "o1602/sim/target.hpp"
 
 namespace o1602::sim {
-
-/// Positions of ships in 1/4096 tile; a tile centre is tile * 4096 + 2048.
-inline constexpr std::int32_t kShipUnit = 4096;
-
-/// What a ship sails to or a route stop names (the original's object references).
-struct ShipTarget {
-    enum class Kind : std::uint8_t {
-        None,
-        Position,  ///< a world tile (type 0x37)
-        City,      ///< the Kontor of a city (type 0x35): island index and city number on it
-        Ship,      ///< another ship, by id (types 1-3)
-        Building,  ///< a building by its origin tile, e.g. a shipyard (types 0x32-0x34)
-    };
-    Kind kind = Kind::None;
-    std::uint16_t island = 0;  ///< City, Building: index into World::islands()
-    std::uint8_t city = 0;     ///< City: city number on the island
-    std::uint32_t x = 0;       ///< Position: world tile; Building: island tile
-    std::uint32_t y = 0;
-    std::uint32_t ship = 0;  ///< Ship: Ship::id
-    /// The reference as a file of the original had it: kept for writing it back (bytes Open1602
-    /// does not read, references of kinds it does not know). Not part of the comparison.
-    std::uint32_t raw = 0;
-
-    [[nodiscard]] static ShipTarget position(std::uint32_t x, std::uint32_t y) noexcept {
-        return {Kind::Position, 0, 0, x, y, 0, 0};
-    }
-    [[nodiscard]] static ShipTarget city_of(std::uint16_t island, std::uint8_t city) noexcept {
-        return {Kind::City, island, city, 0, 0, 0, 0};
-    }
-    [[nodiscard]] static ShipTarget other_ship(std::uint32_t id) noexcept { return {Kind::Ship, 0, 0, 0, 0, id, 0}; }
-    [[nodiscard]] static ShipTarget building(std::uint16_t island, std::uint32_t x, std::uint32_t y) noexcept {
-        return {Kind::Building, island, 0, x, y, 0, 0};
-    }
-    [[nodiscard]] bool empty() const noexcept { return kind == Kind::None; }
-    friend bool operator==(const ShipTarget& a, const ShipTarget& b) noexcept {
-        return a.kind == b.kind && a.island == b.island && a.city == b.city && a.x == b.x && a.y == b.y &&
-               a.ship == b.ship;
-    }
-};
 
 /// A hold of a ship: one ware, at most 50 t (docs/re/ships.md).
 struct CargoSlot {
@@ -69,7 +31,7 @@ struct RouteEntry {
 };
 
 struct RouteStop {
-    ShipTarget target;  ///< a city (Kontor), or a ship or position for computer players and pirates
+    Target target;  ///< a city (Kontor), or a ship or position for computer players and pirates
     std::array<RouteEntry, 3> entries{};
     friend bool operator==(const RouteStop&, const RouteStop&) = default;
 };
@@ -143,11 +105,13 @@ struct Ship {
     /// Holds; as many as the ship type has (8 in every original file). Empty holds have ware 0.
     std::vector<CargoSlot> cargo;
     TradeRoute route;
-    ShipTarget target;       ///< what it sails to now
-    ShipTarget order;        ///< what the player or computer last ordered
-    ShipTarget previous;     ///< where it came from (the trader does not visit it again)
-    bool held = false;       ///< white flag: no decisions of its own
-    bool repairing = false;  ///< ordered to a shipyard for repair
+    Target target;                   ///< what it sails to now
+    Target order;                    ///< what the player or computer last ordered
+    Target previous;                 ///< where it came from (the trader does not visit it again)
+    bool held = false;               ///< white flag: no decisions of its own
+    bool sinking = false;            ///< hit fatally: turns, sinks and is removed
+    std::uint64_t next_shot_ms = 0;  ///< game time of the next shot allowed (reload)
+    bool repairing = false;          ///< ordered to a shipyard for repair
     bool for_sale = false;
     std::uint16_t sale_factor = 128;  ///< sale price = Preis * factor / 128
     /// Free trader only: goods by ware number, and the counters of what he gets from nowhere.

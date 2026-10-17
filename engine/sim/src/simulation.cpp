@@ -12,6 +12,7 @@ namespace {
 constexpr std::uint32_t kProductionPeriodMs = 1000;  // 0x0047DAF0: once per game second
 constexpr std::size_t kMaxPendingEvents = 8192;      // events nobody takes are dropped, oldest first
 constexpr std::uint32_t kUpkeepPeriodMs = 5000;      // 0x00476350: each player once per 5 s
+constexpr std::uint32_t kDiplomacyTickMs = 5000;     // 0x00476350: the diplomacy counters fade
 
 }  // namespace
 
@@ -131,6 +132,8 @@ void Simulation::apply_commands() {
             result.accepted = m_fleet.set_trade(*trade);
         } else if (const auto* yard = std::get_if<ShipyardOrder>(&command)) {
             result.accepted = m_fleet.shipyard(*yard);
+        } else if (const auto* dipl = std::get_if<DiplomacyOrder>(&command)) {
+            result.accepted = apply_diplomacy(*m_world, *dipl);
         }
         handle(m_construction_events, first);
         m_command_results.push_back(std::move(result));
@@ -201,6 +204,13 @@ void Simulation::tick() {
     apply_commands();
     m_time_ms += kTickMs;
     m_world->set_time_ms(m_time_ms);
+    // Every 5 s the diplomacy counters fade (Player_Tick 0x00476350; the original takes one
+    // player per call, each once in 5 s).
+    if (m_time_ms % kDiplomacyTickMs == 0) {
+        for (std::size_t p = 0; p < m_world->players().size(); ++p) {
+            m_world->diplomacy().decay(static_cast<PlayerId>(p));
+        }
+    }
     // Growth first, as in the original (0x0047CA80 is the first subsystem of 0x00489670).
     advance_growth(*m_world, *m_buildings, kTickMs);
     m_production_ms += kTickMs;

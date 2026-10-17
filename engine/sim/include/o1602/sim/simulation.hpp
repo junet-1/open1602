@@ -31,8 +31,8 @@
 namespace o1602::sim {
 
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
-using Command =
-    std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting, ShipyardOrder>;
+using Command = std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting,
+                             ShipyardOrder, DiplomacyOrder>;
 
 /// What became of a command.
 struct CommandResult {
@@ -40,7 +40,7 @@ struct CommandResult {
     std::optional<BuildPlan> build;  ///< build orders: what was built and why the rest was not
     std::size_t demolished = 0;      ///< demolish orders: buildings removed
     BuildBill refund;                ///< demolish orders: what came back (Rules::demolish_refund)
-    bool accepted = false;           ///< ship, route, trade and shipyard orders: carried out
+    bool accepted = false;           ///< ship, route, trade, shipyard and diplomacy orders: carried out
     std::uint32_t moved = 0;         ///< cargo transfers: goods moved, 1/32 t
 };
 
@@ -86,6 +86,8 @@ public:
     [[nodiscard]] const Logistics& logistics() const noexcept { return m_logistics; }
     /// Ships, the free trader and shipyards.
     [[nodiscard]] const Fleet& fleet() const noexcept { return m_fleet; }
+    /// Treaties offered, signed or broken since the last call.
+    [[nodiscard]] std::vector<DiplomacyNotice> take_diplomacy_notices() { return m_world->diplomacy().take_notices(); }
     /// What happened to ships since the last call.
     [[nodiscard]] std::vector<ShipEvent> take_ship_events();
     /// Names for new ships (Text.cod [SHIPS]).

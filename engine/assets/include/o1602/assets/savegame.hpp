@@ -134,17 +134,41 @@ struct AnimalRecord {
     std::uint32_t timer = 0;
 };
 
-/// SOLDAT3 record (0x44 bytes, written by 0x004600C0 from the soldier table 0x0051C678,
-/// 400 x 0x1B0, with the soldier's figure): one land unit. Positions are stored in half tiles
-/// (the figure's float position doubled and rounded).
+/// SOLDAT3 record (0x44 bytes, writer 0x004600C0 / loader 0x0045FAC0 from the soldier table
+/// 0x0051C678, 400 x 0x1B0): one land unit (docs/re/military.md). Positions are stored in half
+/// tiles; the loader puts the unit on the centre of that cell.
 struct SoldierRecord {
-    std::uint16_t x2 = 0;                  ///< world position in half tiles (+0x00, figure +0x28 * 2)
-    std::uint16_t y2 = 0;                  ///< (+0x02, figure +0x2C * 2)
-    std::uint16_t figure = 0;              ///< FIGUR number (+0x06): SOLDAT1..4, KAVALERIE1..4, ..., SPEER1
-    std::uint8_t owner = 7;                ///< original owner slot (+0x18), 7 = nobody
-    std::uint8_t anim = 0;                 ///< ANIM index of the figure (+0x19)
-    std::uint8_t direction = 0;            ///< 0..7 (+0x1B)
-    std::array<std::uint8_t, 0x44> raw{};  ///< the whole record; the remaining fields are still open
+    std::uint16_t x2 = 0;                      ///< +0x00: world position in half tiles
+    std::uint16_t y2 = 0;                      ///< +0x02
+    std::uint16_t health = 0;                  ///< +0x04: 1/32 HP
+    std::uint16_t figure = 0;                  ///< +0x06: FIGUR number: SOLDAT1..4, KAVALERIE1..4, ..., SPEER1
+    std::uint16_t slot = 0;                    ///< +0x08: slot in the soldier table
+    std::uint32_t home = 0;                    ///< +0x0A: home reference
+    std::uint32_t target = 0;                  ///< +0x12: target reference
+    std::uint8_t island = 0xFF;                ///< +0x17
+    std::uint8_t owner = 7;                    ///< +0x18: original owner slot, 7 = nobody
+    std::uint8_t anim = 0;                     ///< +0x19: ANIM index of the figure
+    std::uint8_t radius = 0x2D;                ///< +0x1A: planning radius
+    std::uint8_t direction = 0;                ///< +0x1B: 0..7
+    std::uint8_t waypoint = 0;                 ///< +0x1C: patrol: current point
+    std::uint8_t patrol = 0;                   ///< +0x1D: bit 0 patrol on, bit 1 one-way
+    std::array<std::uint32_t, 2> waypoints{};  ///< +0x1E: patrol points (references)
+    std::array<std::uint8_t, 0x44> raw{};      ///< the whole record
+};
+
+/// TURM record (0x24 bytes, writer 0x004600C0 from the tower table 0x004EDE60): the gun of a
+/// Wachturm building.
+struct TowerRecord {
+    std::uint16_t x = 0;         ///< +0x00: world tile of the figure (truncated)
+    std::uint16_t y = 0;         ///< +0x02
+    std::uint16_t health = 0;    ///< +0x04: never reduced
+    std::uint16_t figure = 0;    ///< +0x06: KANONTURM (38) or PIRATTURM (40)
+    std::uint16_t slot = 0;      ///< +0x08
+    std::uint32_t building = 0;  ///< +0x0A: reference of the tower building (type 0x33)
+    std::uint8_t island = 0xFF;  ///< +0x17
+    std::uint8_t owner = 7;      ///< +0x18
+    std::uint8_t anim = 0;       ///< +0x19
+    std::uint8_t direction = 0;  ///< +0x1B
 };
 
 /// Everything above, read from one file. Files without a chunk give empty lists.
@@ -185,6 +209,18 @@ struct CostRecord {
     std::uint16_t wood = 0;
     std::uint16_t countdown = 0;
     std::uint16_t repair = 0xFFFF;
+    /// Castles (MILITAR, loader 0x00483C60): +8 weapons in store (swords, muskets, cannons, 1/32 t)
+    /// and nine slots of 8 bytes from +0x10: figure (bits 0-11), in training (bit 12), armed
+    /// (bit 13); health (bits 0-11 of the second word) and training progress (bits 16-31).
+    std::array<std::uint16_t, 3> weapons{};
+    struct Slot {
+        std::uint16_t figure = 0;
+        bool training = false;
+        bool armed = false;
+        std::uint16_t health = 0;
+        std::uint16_t progress = 0;
+    };
+    std::array<Slot, 9> slots{};
 };
 
 struct GameState {
@@ -217,6 +253,7 @@ struct GameState {
     std::optional<std::uint32_t> crater_count;  ///< TIMERS +0xD0: craters in the world, at most 20
     std::vector<CostRecord> shipyards;
     std::vector<CostRecord> castles;
+    std::vector<TowerRecord> towers;
     std::optional<GrowthClocks> growth_clocks;  ///< nothing without a TIMERS chunk
 };
 

@@ -65,7 +65,14 @@ Eingeborenen. Die Nummer des Platzes ist zugleich die **Besitzernummer** in den 
 | 0x00F | u8 | Kathedralen gebaut (+0x88) |
 | 0x010, 0x012 | u16, u16 | Triumphbögen: Zuteilungen, gebaut (+0x8E, +0x90) |
 | 0x034 | u32 | **erreichte Baustufen**: Bit n − 1 = INFRA-Stufe n (Laufzeit +0x6C, [construction.md](../re/construction.md#freischaltung)) |
+| 0x008 | u8 | **Schuldiger**: wer zuletzt ein Kontor oder einen Markt dieses Spielers zerstört hat (Laufzeit +0x81, 7 = niemand; Fluch der Eingeborenen) |
 | 0x038, 0x03A | u16, u16 | Denkmäler: Zuteilungen, gebaut (+0x8A, +0x8C) |
+| 0x040 + 2b | u16 × 7 | Tribut von Spieler b erhalten, skaliert, verblasst (+0xB0) ([diplomacy.md](../re/diplomacy.md)) |
+| 0x060 + 2b | u16 × 7 | Handel mit b, verblasst (+0xC0) |
+| 0x080 + 4b | u32 × 7 | Schaden von b erlitten, 1/32 LP, verblasst (+0xD0) |
+| 0x0C0 + 8b | u8, u32 | **Frieden** gegenüber b: 0 Krieg, 1 angeboten, 2 erhalten, 3 Vertrag; dahinter die Zeit der letzten Kriegserklärung (1/10 s, nur der eigene Eintrag) (+0xF0, +0xF4) |
+| 0x140 + 8b | u8 | **Handelsvertrag** gegenüber b, gleiche Werte (+0x130) |
+| 0x1C0 + 8i | 7 × {u8 Art, u8 Spieler, u16, u32 Zeit} | die ersten 7 der 32 Ereignisse, an die sich der Spieler erinnert (+0x170, S-085) |
 | 0x3C0 | char[64] | Name des Spielers (in Szenarien leer, im Spielstand der Name des Menschen) |
 | 0x400 | char[64] | zweiter Name (Netzwerk) |
 
@@ -184,14 +191,14 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `PLAYER4` | 0x430 | `0x00478363` | – | Spieler (oben) |
 | `SHIP4` | 0x1B4 | `0x004600C0` | `0x004CF358`, 150 × 0x218 | Schiffe (oben, 14) |
 | `HANDLER` | 0x25C | `0x004600C0` | `0x004A0DC8`, 30 × 0xD0 | Waren des freien Händlers je Schiff: Preis, Alter, Menge (oben, 7) |
-| `SOLDAT3` | 0x44 | `0x004600C0` | `0x0051C678`, 400 × 0x1B0 | Soldaten: Position in halben Feldern, Figur, Besitzer, Animation, Richtung ([figures.md](../re/figures.md#soldaten-im-spielstand), 9) |
-| `TURM` | 0x24 | `0x004600C0` | `0x004EDE60`, 350 × 0x118 | Türme als Figuren: Weltfeld x/y, Figur (40), Besitzer +0x18 (61, alle Piratentürme) |
+| `SOLDAT3` | 0x44 | `0x004600C0` | `0x0051C678`, 400 × 0x1B0 | Soldaten: Position in halben Feldern, Lebenspunkte, Figur, Platz, Heimat und Ziel, Besitzer, Animation, Planungsradius, Richtung, Streife ([figures.md](../re/figures.md#soldaten-im-spielstand), 9) |
+| `TURM` | 0x24 | `0x004600C0` | `0x004EDE60`, 350 × 0x118 | Kanonen der Wachtürme: +0 Weltfeld x/y, +4 Lebenspunkte (nie verringert), +6 Figur (38/40), +8 Platz, +0x0A Verweis auf das Turmgebäude (0x33), +0x17 Insel, +0x18 Besitzer, +0x1B Richtung (Merlin01: 61 Piratentürme, Besitzer 5) |
 | `STADT4` | 0xA8 | `0x00485020` | Städte `0x005DBAE0`, 75 × 0x258 | Städte (unten, 20) |
 | `KONTOR2` | 0x3EC | `0x00485020` | dieselbe Städtetabelle | Warenlager einer Stadt (unten, 20) |
 | `MARKT2` | 0x104 | `0x00485020` | dieselbe Städtetabelle | Verbrauch einer Stadt: Insel, Stadt; 11 Einträge à 16 Byte: Bedarf A, Versorgung B (u32, 1/8192 t), Ware als Id − 20000, Versorgungsgrad C ([consumption.md](../re/consumption.md)) (20) |
 | `PRODLIST2` | 0x18 | `0x00485530` | `0x0054A3B8`, 4144 × 0x14 | Produktionsbetriebe und Kontore am Ursprungsfeld: Zustand, Lager, Fortschritt (unten, 126) |
 | `WERFT` | 0x18 | `0x00485530` | `0x005A6C18`, 160 × 0x12 | Werften: Insel, x, y, Bit 27 eingeschaltet; +4 Sekunden bis zum Taktende, +6 Auftrag (Schiffsart 0–3, 0xFF keiner), +8 Baupunkte, +0x0A Holz, +0x0C Schiff in Reparatur (0xFFFF keins) ([ships.md](../re/ships.md#werft)) (1) |
-| `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | Militärgebäude: Insel, x, y, 9 Plätze (3) |
+| `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | Burgen und Kriegerhütten (Lader `0x00483C60`): Insel, x, y, Epoche (+3 Bits 0–2), +4 Sekunden bis zum nächsten Ausbildungsschritt, +8/+0x0A/+0x0C Waffen im Lager (Schwerter, Musketen, Kanonen, 1/32 t), ab +0x10 neun Plätze zu 8 Byte: Figur (Bits 0–11), in Ausbildung (Bit 12), bewaffnet (Bit 13); Lebenspunkte (Bits 0–11 des zweiten Worts), Fortschritt 0–320 (Bits 16–31) (3: die Hütten der Eingeborenen mit je acht fertigen Speerträgern) |
 | `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | Wohnhäuser: Insel, x, y, Epochen, Klasse, Marktentfernung, Einwohner · 64, Zeitgruppe, Markt- und Dienstbits ([houses.md](../re/houses.md)) (132) |
 | `ROHWACHS2` | 8 | `0x00485C20` | `0x00562DC8`, 32860 × 8 | Wachstum von Feldern, Bäumen, Plantagen, Fischgründen: Insel, x, y, Klasse, gesehener Zählerstand, Stufe, 2 Byte 0 ([growth.md](../re/growth.md)) |
 | `TIMERS` | 0x298 | `0x00485D10` | verstreute Zähler (`0x005A77E0`, `0x005DBAB0`, …) | globale Zähler und Zeitgeber; +0x00: Phase des Stadttakts (10 s), +0x01: Phase des Inseltakts (30 s), +0x02–0x04: Sekundenphasen (Werft, Militär, Produktion), +0x84/+0x88/+0x8C/+0x90/+0x94: deren Zeitspeicher in ms; +0x64: 32 Zähler der Wachstumsklassen (0–7), +0x218: 32 Klassenuhren in ms, +0x44: 16 Epochen der Hauszeitgruppen, +0x198: 16 Hauszeitgeber in ms, +0xA0: Spielzeit in 1/10 s, +0xA6: Schwierigkeit 0–3 (`0x005B6304`, Dürretabelle), +0xA8: Spieleinstellungen (`0x005B706C`; Bit 2 keine Dürren, Bit 8 keine Vulkane), +0xB0: nächster Stadtname aus `[STAEDTE]` (`0x005B3168`), +0xB4: frühester nächster Dürrewurf in 1/10 s (neues Spiel 54000; eine gespeicherte 0 wird 36000), +0xC4: laufender Vulkanausbruch, +0xC8: letzter (Verweise `{0x33, Insel, x, y}`), +0xCC: frühester nächster Vulkanausbruch in 1/10 s, +0xD0: Krater der Welt, höchstens 20 ([volcanoes.md](../re/volcanoes.md)) |

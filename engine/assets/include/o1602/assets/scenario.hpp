@@ -40,6 +40,9 @@ inline constexpr std::uint8_t kPlayerColorCount = 7;
 
 /// One player slot. The original stores 7 slots of 0x430 bytes: four players (human or
 /// computer), the free trader, the pirates and the natives.
+/// Owner value meaning "nobody" (island tile attribute bits 22..25, ship byte +0x4B).
+inline constexpr std::uint8_t kNoOwner = 7;
+
 struct PlayerRecord {
     std::int32_t money = 0;
     PlayerKind kind = PlayerKind::Human;
@@ -55,10 +58,24 @@ struct PlayerRecord {
     std::uint16_t monuments_built = 0;    ///< +0x3A (+0x8C)
     std::uint16_t arches_allowed = 0;     ///< +0x10 (+0x8E): Triumphbogen allowances
     std::uint16_t arches_built = 0;       ///< +0x12 (+0x90)
+    /// Diplomacy towards the 7 slots (saver 0x00478160, docs/re/diplomacy.md): treaty states 0..3,
+    /// the time of the last war declaration (1/10 s, only the own entry is used), the decaying
+    /// tribute, trade and damage counters, and the first 7 of 32 remembered events.
+    std::array<std::uint8_t, 7> peace{};        ///< +0xC0 + 8b
+    std::array<std::uint32_t, 7> war_time{};    ///< +0xC4 + 8b
+    std::array<std::uint8_t, 7> trade{};        ///< +0x140 + 8b
+    std::array<std::uint16_t, 7> tribute{};     ///< +0x40 + 2b
+    std::array<std::uint16_t, 7> trade_mood{};  ///< +0x60 + 2b
+    std::array<std::uint32_t, 7> damage{};      ///< +0x80 + 4b
+    struct Event {
+        std::uint8_t type = 0;  ///< 0 = empty
+        std::uint8_t player = 0;
+        std::uint32_t time = 0;  ///< 1/10 s
+    };
+    std::array<Event, 7> events{};   ///< +0x1C0 + 8i
+    std::uint8_t blamed = kNoOwner;  ///< +0x08: last player who destroyed a Kontor or market of it
 };
 
-/// Owner value meaning "nobody" (island tile attribute bits 22..25, ship byte +0x4B).
-inline constexpr std::uint8_t kNoOwner = 7;
 /// Number of PLAYER4 records in the original files (4 players, free trader, pirates, natives).
 /// Only the file format is limited to this; the engine is not (ADR 0007).
 inline constexpr std::uint8_t kOriginalPlayerSlots = 7;

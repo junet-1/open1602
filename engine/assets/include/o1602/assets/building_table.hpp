@@ -129,6 +129,13 @@ struct BuildingType {
     /// record +0x2C) and switched off (second value, +0x2A).
     std::uint32_t running_cost = 0;
     std::uint32_t idle_cost = 0;
+    /// Maxenergy (record +0x64, value * 32): hit points against combat damage (1/32 HP); without
+    /// it the first hit destroys the building.
+    std::uint32_t max_health = 0;
+    /// NoShotFlg (record +0x6A bit 4): blocks shots and the line of sight of soldiers.
+    bool blocks_shots = false;
+    /// HAUS_PRODTYP/Maxware (record +0x45): training places of a castle, wares a pirate Kontor sells.
+    std::uint8_t max_wares = 0;
     /// Ruinenr (record +0x66): what remains when the building is destroyed (RUINE_*, 0xFF = nothing).
     std::uint8_t ruin = 0xFF;
     /// Growing records (HAUS_PRODTYP Kind ROHSTWACHS): growth class 0..31. One growth stage lasts

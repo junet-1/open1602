@@ -24,6 +24,7 @@ constexpr std::size_t kConsumptionSize = 0x104;
 constexpr std::size_t kHouseSize = 16;
 constexpr std::size_t kShipyardSize = 0x18;
 constexpr std::size_t kCastleSize = 0x70;
+constexpr std::size_t kTowerSize = 0x24;
 constexpr std::size_t kTimersHouseEpochs = 0x44;
 constexpr std::size_t kTimersHouseMs = 0x198;
 constexpr std::size_t kTimersGameTime = 0xA0;
@@ -134,15 +135,43 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         return status.error();
     }
     status = for_each_record(file, "SOLDAT3", kSoldierSize, [&](std::span<const std::uint8_t> r) {
+        const auto u16 = [&](std::size_t o) { return static_cast<std::uint16_t>(r[o] | (r[o + 1] << 8)); };
         SoldierRecord s;
-        s.x2 = static_cast<std::uint16_t>(r[0] | (r[1] << 8));
-        s.y2 = static_cast<std::uint16_t>(r[2] | (r[3] << 8));
-        s.figure = static_cast<std::uint16_t>(r[6] | (r[7] << 8));
+        s.x2 = u16(0);
+        s.y2 = u16(2);
+        s.health = u16(4);
+        s.figure = u16(6);
+        s.slot = u16(8);
+        s.home = u32(r, 0x0A);
+        s.target = u32(r, 0x12);
+        s.island = r[0x17];
         s.owner = r[0x18];
         s.anim = r[0x19];
+        s.radius = r[0x1A];
         s.direction = static_cast<std::uint8_t>(r[0x1B] & 7U);
+        s.waypoint = r[0x1C];
+        s.patrol = static_cast<std::uint8_t>(r[0x1D] & 3U);
+        s.waypoints = {u32(r, 0x1E), u32(r, 0x22)};
         std::copy(r.begin(), r.end(), s.raw.begin());
         state.soldiers.push_back(s);
+    });
+    if (!status) {
+        return status.error();
+    }
+    status = for_each_record(file, "TURM", kTowerSize, [&](std::span<const std::uint8_t> r) {
+        const auto u16 = [&](std::size_t o) { return static_cast<std::uint16_t>(r[o] | (r[o + 1] << 8)); };
+        TowerRecord t;
+        t.x = u16(0);
+        t.y = u16(2);
+        t.health = u16(4);
+        t.figure = u16(6);
+        t.slot = u16(8);
+        t.building = u32(r, 0x0A);
+        t.island = r[0x17];
+        t.owner = r[0x18];
+        t.anim = r[0x19];
+        t.direction = static_cast<std::uint8_t>(r[0x1B] & 7U);
+        state.towers.push_back(t);
     });
     if (!status) {
         return status.error();
@@ -211,7 +240,17 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
     }
     status = for_each_record(file, "MILITAR", kCastleSize, [&](std::span<const std::uint8_t> r) {
         if (r[0] != 0xFF) {
-            state.castles.push_back(CostRecord{r[0], r[1], r[2], true});
+            const auto u16 = [&](std::size_t o) { return static_cast<std::uint16_t>(r[o] | (r[o + 1] << 8)); };
+            CostRecord c{r[0], r[1], r[2], true};
+            c.countdown = u16(4);
+            c.weapons = {u16(8), u16(0x0A), u16(0x0C)};
+            for (std::size_t k = 0; k < c.slots.size(); ++k) {
+                const std::uint32_t d0 = u32(r, 0x10 + 8 * k);
+                const std::uint32_t d1 = u32(r, 0x14 + 8 * k);
+                c.slots[k] = {static_cast<std::uint16_t>(d0 & 0xFFFU), ((d0 >> 12) & 1U) != 0, ((d0 >> 13) & 1U) != 0,
+                              static_cast<std::uint16_t>(d1 & 0xFFFU), static_cast<std::uint16_t>(d1 >> 16)};
+            }
+            state.castles.push_back(c);
         }
     });
     if (!status) {

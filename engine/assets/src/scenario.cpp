@@ -64,6 +64,16 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file) {
         p.arches_built = read_u16(data, o + 0x12);
         p.monuments_allowed = read_u16(data, o + 0x38);
         p.monuments_built = read_u16(data, o + 0x3A);
+        p.blamed = data[o + 0x08];
+        for (std::size_t b = 0; b < 7; ++b) {
+            p.peace[b] = data[o + 0xC0 + 8 * b];
+            p.war_time[b] = read_u32(data, o + 0xC4 + 8 * b);
+            p.trade[b] = data[o + 0x140 + 8 * b];
+            p.tribute[b] = read_u16(data, o + 0x40 + 2 * b);
+            p.trade_mood[b] = read_u16(data, o + 0x60 + 2 * b);
+            p.damage[b] = read_u32(data, o + 0x80 + 4 * b);
+            p.events[b] = {data[o + 0x1C0 + 8 * b], data[o + 0x1C1 + 8 * b], read_u32(data, o + 0x1C4 + 8 * b)};
+        }
         players.push_back(std::move(p));
     }
     return players;

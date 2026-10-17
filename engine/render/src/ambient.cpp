@@ -257,11 +257,11 @@ void Ambient::city_round(const sim::World& world, const assets::BuildingTable& b
     }
     // No townsfolk while soldiers of another player stand on the island (0x00480370).
     for (const sim::Soldier& s : world.soldiers()) {
-        if (s.owner == c.owner || s.owner == sim::kNoPlayer || s.x < 0 || s.y < 0) {
+        if (s.owner == c.owner || s.owner == sim::kNoPlayer || s.x() < 0 || s.y() < 0) {
             continue;
         }
-        const auto sx = static_cast<std::uint32_t>(s.x);
-        const auto sy = static_cast<std::uint32_t>(s.y);
+        const auto sx = static_cast<std::uint32_t>(s.x());
+        const auto sy = static_cast<std::uint32_t>(s.y());
         const sim::Player* p = world.player(s.owner);
         if (world.contains(sx, sy) && world.cell(sx, sy).island == c.island && p != nullptr &&
             (p->role == sim::PlayerRole::Human || p->role == sim::PlayerRole::Computer)) {

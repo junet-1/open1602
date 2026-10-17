@@ -58,8 +58,10 @@ Spielstände ungültig zu machen.
 | `WRLD` | Spielzeit, Stadtnamenzähler, Schwierigkeit und Einstellungswort, Dürretermin und -saat, Zufallsgeneratoren (Zustand, Inkrement), Uhren der Häuser und des Wachstums, nächste Katastrophennummer |
 | `ISLE` | je Insel in der Reihenfolge der Welt, mit Inselnummer zur Prüfung |
 | `TILE` | abweichende Felder: Inselnummer, x, y, Ebene, Gebäude-Id, Teilfeld, Drehung, Phase, Besitzer, Stadt, Zufallswert |
-| `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `SHIP` `SOLD` `ANIM` `DISA` `VOLC` | die Listen der Welt, vollständig |
+| `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `SHIP` `ANIM` `DISA` `VOLC` | die Listen der Welt, vollständig (`SOLD`, die Soldaten älterer Fassungen, wird noch gelesen) |
 | `FLEE` | Schiffe vollständig (Lage in 1/4096 Feld, Kurs, Laderäume mit Preis, Handelsroute, Ziele mit dem Verweis des Originals, Waren des Händlers), nächste Schiffsnummer, entdeckte Inseln, Handelseinstellungen und Zuneigung der Städte, Felder der Werften (Auftrag, Baupunkte, Holz, Stoffe, Takt, Reparatur); `SHIP` bleibt für ältere Leser |
+| `ARMY` | Soldaten vollständig (Lage in 1/4096 Feld, Lebenspunkte, Heimat, Ziel, Planung, Uhren, Streife, Weg), nächste Soldatennummer, Kanonentürme, Gebäudeschaden, Schüsse im Flug, Waffen und Plätze der Burgen |
+| `DIPL` | Diplomatie: je Spielerpaar Frieden, Handel, Kriegszeit, Tribut, Handel und Schaden, je Spieler alle 32 Ereignisse und der Schuldige ([diplomacy.md](../re/diplomacy.md)) |
 | `SIMU` | Uhren der Simulation und Figuren (eigene Versionsnummer am Anfang; ab Version 2 mit den Packeseln der Werften und den Uhren der Flotte) |
 
 Gebäude stehen als **Id** (aus `haeuser.cod`) und Teilfeld, nicht als Bildnummer, damit ein Spielstand

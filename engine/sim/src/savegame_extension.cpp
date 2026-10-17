@@ -47,6 +47,8 @@ constexpr std::uint32_t kVolcanoes = tag("VOLC");
 constexpr std::uint32_t kSimulation = tag("SIMU");
 constexpr std::uint32_t kFleet = tag("FLEE");
 constexpr std::uint32_t kEpochs = tag("EPOC");
+constexpr std::uint32_t kArmy = tag("ARMY");
+constexpr std::uint32_t kDiplomacy = tag("DIPL");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -237,6 +239,17 @@ struct Decoded {
         std::vector<Ship> ships;
     };
     std::optional<FleetPart> fleet;
+    /// Soldiers with their paths, towers, building damage, shots in flight, castle slots.
+    struct ArmyPart {
+        std::uint32_t next_soldier_id = 1;
+        std::vector<Soldier> soldiers;
+        std::vector<Tower> towers;
+        std::vector<BuildingDamage> damage;
+        std::vector<PendingHit> hits;
+        std::vector<std::pair<std::array<std::uint32_t, 3>, std::vector<CastleSlot>>> castles;
+    };
+    std::optional<ArmyPart> army;
+    std::optional<Diplomacy> diplomacy;
     /// Phase of the island epochs and the phase each island was last ticked in (island number).
     struct EpochPart {
         std::uint8_t phase = 0;
@@ -505,7 +518,7 @@ void write_ships(Out& out, const World& w) {
     }
 }
 
-void put_target(Out& out, const ShipTarget& t) {
+void put_target(Out& out, const Target& t) {
     out.u8(static_cast<std::uint8_t>(t.kind));
     out.u16(t.island);
     out.u8(t.city);
@@ -515,13 +528,13 @@ void put_target(Out& out, const ShipTarget& t) {
     out.u32(t.raw);
 }
 
-ShipTarget get_target(StateIn& in) {
-    ShipTarget t;
+Target get_target(StateIn& in) {
+    Target t;
     const std::uint8_t kind = in.u8();
-    if (kind > static_cast<std::uint8_t>(ShipTarget::Kind::Building)) {
+    if (kind > static_cast<std::uint8_t>(Target::Kind::Spot)) {
         in.fail();
     }
-    t.kind = static_cast<ShipTarget::Kind>(kind);
+    t.kind = static_cast<Target::Kind>(kind);
     t.island = in.u16();
     t.city = in.u8();
     t.x = in.u32();
@@ -761,6 +774,251 @@ Decoded::FleetPart read_fleet(StateIn& in) {
     return f;
 }
 
+// ---- Military and diplomacy -----------------------------------------------------------------
+
+void put_soldier(Out& out, const Soldier& s) {
+    out.u32(s.id);
+    out.i32(s.pos_x);
+    out.i32(s.pos_y);
+    out.u16(s.figure);
+    out.u8(s.owner);
+    out.u8(s.direction);
+    out.u8(s.anim);
+    out.u16(s.island);
+    out.u32(s.health);
+    put_target(out, s.home);
+    put_target(out, s.target);
+    out.u8(s.radius);
+    out.u8(s.failures);
+    out.u64(s.next_attack_ms);
+    out.u64(s.next_follow_ms);
+    out.u64(s.last_attack_ms);
+    out.boolean(s.patrol.active);
+    out.boolean(s.patrol.one_way);
+    out.u8(s.patrol.index);
+    put_target(out, s.patrol.points[0]);
+    put_target(out, s.patrol.points[1]);
+    out.boolean(s.disbanded);
+    out.u16(s.source_slot);
+    const SoldierMotion& m = s.motion;
+    out.u8(static_cast<std::uint8_t>(m.phase));
+    out.u8(m.direction);
+    out.u8(m.count);
+    out.u32(m.elapsed_us);
+    out.u32(m.duration_us);
+    out.i32(m.from_x);
+    out.i32(m.from_y);
+    put_u8s(out, m.path);
+    out.u8(m.path_index);
+}
+
+Soldier get_soldier(StateIn& in) {
+    Soldier s;
+    s.id = in.u32();
+    s.pos_x = in.i32();
+    s.pos_y = in.i32();
+    s.figure = in.u16();
+    s.owner = in.u8();
+    s.direction = static_cast<std::uint8_t>(in.u8() & 7U);
+    s.anim = in.u8();
+    s.island = in.u16();
+    s.health = in.u32();
+    s.home = get_target(in);
+    s.target = get_target(in);
+    s.radius = in.u8();
+    s.failures = in.u8();
+    s.next_attack_ms = in.u64();
+    s.next_follow_ms = in.u64();
+    s.last_attack_ms = in.u64();
+    s.patrol.active = in.boolean();
+    s.patrol.one_way = in.boolean();
+    s.patrol.index = static_cast<std::uint8_t>(in.u8() & 1U);
+    s.patrol.points[0] = get_target(in);
+    s.patrol.points[1] = get_target(in);
+    s.disbanded = in.boolean();
+    s.source_slot = in.u16();
+    SoldierMotion& m = s.motion;
+    const std::uint8_t phase = in.u8();
+    if (phase > static_cast<std::uint8_t>(SoldierMotion::Phase::Healing)) {
+        in.fail();
+    }
+    m.phase = static_cast<SoldierMotion::Phase>(phase);
+    m.direction = static_cast<std::uint8_t>(in.u8() & 7U);
+    m.count = in.u8();
+    m.elapsed_us = in.u32();
+    m.duration_us = in.u32();
+    m.from_x = in.i32();
+    m.from_y = in.i32();
+    const std::size_t runs = in.count(1);
+    for (std::size_t k = 0; k < runs; ++k) {
+        m.path.push_back(in.u8());
+    }
+    m.path_index = in.u8();
+    return s;
+}
+
+void write_army(Out& out, const World& w) {
+    out.u32(w.next_soldier_id());
+    out.u32(static_cast<std::uint32_t>(w.soldiers().size()));
+    for (const Soldier& s : w.soldiers()) {
+        put_soldier(out, s);
+    }
+    out.u32(static_cast<std::uint32_t>(w.towers().size()));
+    for (const Tower& t : w.towers()) {
+        out.u16(t.island);
+        out.u16(t.x);
+        out.u16(t.y);
+        out.u8(t.owner);
+        out.u16(t.figure);
+        out.u8(t.direction);
+        out.u64(t.next_shot_ms);
+        out.u32(t.next_think_us);
+        out.u16(t.source_slot);
+    }
+    out.u32(static_cast<std::uint32_t>(w.building_damage().size()));
+    for (const BuildingDamage& d : w.building_damage()) {
+        out.u16(d.island);
+        out.u16(d.x);
+        out.u16(d.y);
+        out.u32(d.damage);
+    }
+    out.u32(static_cast<std::uint32_t>(w.pending_hits().size()));
+    for (const PendingHit& h : w.pending_hits()) {
+        out.u64(h.due_ms);
+        put_target(out, h.shooter);
+        out.u8(h.attacker);
+        out.boolean(h.cannon);
+        out.u32(h.damage);
+        put_target(out, h.target);
+        out.i32(h.from_x);
+        out.i32(h.from_y);
+    }
+    // Castles, in the order of the costs list.
+    out.u32(static_cast<std::uint32_t>(w.cost_buildings().size()));
+    for (const CostBuilding& b : w.cost_buildings()) {
+        for (const std::uint32_t weapon : b.weapons) {
+            out.u32(weapon);
+        }
+        out.u32(static_cast<std::uint32_t>(b.slots.size()));
+        for (const CastleSlot& slot : b.slots) {
+            out.u16(slot.figure);
+            out.boolean(slot.training);
+            out.boolean(slot.armed);
+            out.u32(slot.health);
+            out.u16(slot.progress);
+        }
+    }
+}
+
+Decoded::ArmyPart read_army(StateIn& in) {
+    Decoded::ArmyPart a;
+    a.next_soldier_id = in.u32();
+    a.soldiers.resize(in.count(60));
+    for (Soldier& s : a.soldiers) {
+        s = get_soldier(in);
+    }
+    a.towers.resize(in.count(24));
+    for (Tower& t : a.towers) {
+        t.island = in.u16();
+        t.x = in.u16();
+        t.y = in.u16();
+        t.owner = in.u8();
+        t.figure = in.u16();
+        t.direction = static_cast<std::uint8_t>(in.u8() & 7U);
+        t.next_shot_ms = in.u64();
+        t.next_think_us = in.u32();
+        t.source_slot = in.u16();
+    }
+    a.damage.resize(in.count(10));
+    for (BuildingDamage& d : a.damage) {
+        d.island = in.u16();
+        d.x = in.u16();
+        d.y = in.u16();
+        d.damage = in.u32();
+    }
+    a.hits.resize(in.count(40));
+    for (PendingHit& h : a.hits) {
+        h.due_ms = in.u64();
+        h.shooter = get_target(in);
+        h.attacker = in.u8();
+        h.cannon = in.boolean();
+        h.damage = in.u32();
+        h.target = get_target(in);
+        h.from_x = in.i32();
+        h.from_y = in.i32();
+    }
+    a.castles.resize(in.count(16));
+    for (auto& [weapons, slots] : a.castles) {
+        for (std::uint32_t& weapon : weapons) {
+            weapon = in.u32();
+        }
+        slots.resize(in.count(10));
+        for (CastleSlot& slot : slots) {
+            slot.figure = in.u16();
+            slot.training = in.boolean();
+            slot.armed = in.boolean();
+            slot.health = in.u32();
+            slot.progress = in.u16();
+        }
+    }
+    return a;
+}
+
+void write_diplomacy(Out& out, const World& w) {
+    const Diplomacy& d = w.diplomacy();
+    const auto n = static_cast<PlayerId>(d.size());
+    out.u32(n);
+    for (PlayerId a = 0; a < n; ++a) {
+        for (PlayerId b = 0; b < n; ++b) {
+            const Relation& r = d.relation(a, b);
+            out.u8(static_cast<std::uint8_t>(r.peace));
+            out.u8(static_cast<std::uint8_t>(r.trade));
+            out.u64(r.war_time_ms);
+            out.u32(r.tribute);
+            out.u32(r.trade_mood);
+            out.u32(r.damage);
+        }
+        for (const DiplomacyEvent& e : d.events(a)) {
+            out.u8(static_cast<std::uint8_t>(e.type));
+            out.u8(e.partner);
+            out.u64(e.time_ms);
+        }
+        out.u8(d.blamed(a));
+    }
+}
+
+Diplomacy read_diplomacy(StateIn& in) {
+    Diplomacy d;
+    const std::uint32_t n = in.u32();
+    if (n > 254) {
+        in.fail();
+        return d;
+    }
+    d.resize(n);
+    for (std::uint32_t a = 0; a < n && in.ok(); ++a) {
+        const auto pa = static_cast<PlayerId>(a);
+        for (std::uint32_t b = 0; b < n; ++b) {
+            Relation& r = d.relation(pa, static_cast<PlayerId>(b));
+            r.peace = static_cast<Treaty>(in.u8() & 3U);
+            r.trade = static_cast<Treaty>(in.u8() & 3U);
+            r.war_time_ms = in.u64();
+            r.tribute = in.u32();
+            r.trade_mood = in.u32();
+            r.damage = in.u32();
+        }
+        std::array<DiplomacyEvent, Diplomacy::kEvents> events{};
+        for (DiplomacyEvent& e : events) {
+            const std::uint8_t type = in.u8();
+            e.type = type <= 13 ? static_cast<DiplomacyEventType>(type) : DiplomacyEventType::None;
+            e.partner = in.u8();
+            e.time_ms = in.u64();
+        }
+        d.set_events(pa, events);
+        d.set_blamed(pa, in.u8());
+    }
+    return d;
+}
+
 void write_epochs(Out& out, const World& w) {
     out.u8(w.island_phase());
     out.u32(static_cast<std::uint32_t>(w.islands().size()));
@@ -779,18 +1037,6 @@ Decoded::EpochPart read_epochs(StateIn& in) {
         phase = static_cast<std::uint8_t>(in.u8() & 7U);
     }
     return e;
-}
-
-void write_soldiers(Out& out, const World& w) {
-    out.u32(static_cast<std::uint32_t>(w.soldiers().size()));
-    for (const Soldier& s : w.soldiers()) {
-        put_real(out, s.x);
-        put_real(out, s.y);
-        out.u16(s.figure);
-        out.u8(s.owner);
-        out.u8(s.direction);
-        out.u8(s.anim);
-    }
 }
 
 void write_animals(Out& out, const World& w) {
@@ -1105,8 +1351,8 @@ std::vector<Ship> read_ships(StateIn& in) {
 std::vector<Soldier> read_soldiers(StateIn& in) {
     std::vector<Soldier> list(in.count(21));
     for (Soldier& s : list) {
-        s.x = in.real();
-        s.y = in.real();
+        s.pos_x = static_cast<std::int32_t>(in.real() * kPosUnit);
+        s.pos_y = static_cast<std::int32_t>(in.real() * kPosUnit);
         s.figure = in.u16();
         s.owner = in.u8();
         s.direction = in.u8();
@@ -1283,12 +1529,13 @@ core::Bytes encode_extension(const World& world, const assets::BuildingTable& bu
     section(out, kGrowth, [&](Out& o) { write_growth(o, world); });
     section(out, kCosts, [&](Out& o) { write_costs(o, world); });
     section(out, kShips, [&](Out& o) { write_ships(o, world); });
-    section(out, kSoldiers, [&](Out& o) { write_soldiers(o, world); });
     section(out, kAnimals, [&](Out& o) { write_animals(o, world); });
     section(out, kDisasters, [&](Out& o) { write_disasters(o, world); });
     section(out, kVolcanoes, [&](Out& o) { write_volcanoes(o, world); });
     section(out, kFleet, [&](Out& o) { write_fleet(o, world); });
     section(out, kEpochs, [&](Out& o) { write_epochs(o, world); });
+    section(out, kArmy, [&](Out& o) { write_army(o, world); });
+    section(out, kDiplomacy, [&](Out& o) { write_diplomacy(o, world); });
     if (simulation != nullptr) {
         section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
     } else if (!world.simulation_state().empty()) {
@@ -1377,6 +1624,12 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
                 break;
             case kSoldiers:
                 d.soldiers = read_soldiers(in);
+                break;
+            case kArmy:
+                d.army = read_army(in);
+                break;
+            case kDiplomacy:
+                d.diplomacy = read_diplomacy(in);
                 break;
             case kAnimals:
                 d.animals = read_animals(in);
@@ -1531,8 +1784,29 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
             world.set_next_ship_id(std::max(world.next_ship_id(), ship.id + 1));
         }
     }
-    if (d.soldiers) {
+    if (d.soldiers && !d.army && d.soldiers->size() != world.soldiers().size()) {
+        // Files of an earlier version: the units of SOLDAT3 are the same ones with more fields;
+        // only a different number replaces them.
         world.set_soldiers(std::move(*d.soldiers));
+    }
+    if (d.army) {
+        world.set_soldiers(std::move(d.army->soldiers));
+        world.set_next_soldier_id(d.army->next_soldier_id);
+        for (const Soldier& s : world.soldiers()) {
+            world.set_next_soldier_id(std::max(world.next_soldier_id(), s.id + 1));
+        }
+        world.towers() = std::move(d.army->towers);
+        world.building_damage() = std::move(d.army->damage);
+        world.pending_hits() = std::move(d.army->hits);
+        if (d.army->castles.size() == world.cost_buildings().size()) {
+            for (std::size_t i = 0; i < d.army->castles.size(); ++i) {
+                world.cost_buildings()[i].weapons = d.army->castles[i].first;
+                world.cost_buildings()[i].slots = std::move(d.army->castles[i].second);
+            }
+        }
+    }
+    if (d.diplomacy && d.diplomacy->size() == world.players().size()) {
+        world.diplomacy() = std::move(*d.diplomacy);
     }
     if (d.animals) {
         world.set_animals(std::move(*d.animals));

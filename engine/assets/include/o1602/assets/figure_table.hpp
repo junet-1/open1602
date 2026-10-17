@@ -97,6 +97,20 @@ struct FigureType {
         std::uint32_t build_amount = 0;  ///< Rohmenge (+0x32): that material in 1/32 t
     };
     ShipData ship;
+    /// Fighting values of soldiers, towers and ships (docs/re/military.md).
+    struct Combat {
+        std::uint32_t max_health = 0;     ///< Maxenergy (+0x3C), 1/32 HP
+        std::uint32_t hit = 0;            ///< Hitpoint (+0x3E): damage at full health, 1/32 HP (truncated)
+        std::uint32_t range8 = 0;         ///< Shotradius (+0x4A) in 1/8 tile
+        std::uint32_t hit_delay_ms = 0;   ///< Shottime (+0x50): from the shot to the hit
+        std::uint32_t die_ms = 2500;      ///< Stirbtime (+0x1C): death animation or sinking
+        std::uint8_t max_step = 1;        ///< Maxstepcnt (+0x2D): cells per run
+        std::uint8_t weapon_ware = 0;     ///< Rohstoff (+0x31): weapons a castle needs for the unit
+        std::uint32_t weapon_amount = 0;  ///< Rohmenge (+0x32), 1/32 t
+        std::uint16_t hit_figure = 0;     ///< Hitfignr: effect at the target
+        std::uint16_t shot_figure = 0;    ///< Shotfignr: smoke at the shooter
+    };
+    Combat combat;
     std::vector<FigureAnim> anims;  ///< indexed by ANIM Nummer
     bool defined = false;
 
@@ -139,6 +153,18 @@ public:
                    : 0;
     }
     [[nodiscard]] std::uint32_t tower_upkeep() const noexcept { return m_tower_upkeep; }
+    /// Third value of the `Soldat:` lines (0x0062BD20): what disbanding a unit of the type costs.
+    [[nodiscard]] std::uint32_t unit_cost(std::int32_t unit_type) const noexcept {
+        return unit_type >= 0 && static_cast<std::size_t>(unit_type) < m_unit_cost.size()
+                   ? m_unit_cost[static_cast<std::size_t>(unit_type)]
+                   : 0;
+    }
+    /// Formations (FORMATION records): slots as offsets in tiles, in the order units take them.
+    struct FormationSlot {
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+    };
+    [[nodiscard]] const std::vector<std::vector<FormationSlot>>& formations() const noexcept { return m_formations; }
 
     [[nodiscard]] const FigureType* get(std::uint32_t number) const noexcept {
         return number < m_types.size() && m_types[number].defined ? &m_types[number] : nullptr;
@@ -162,6 +188,8 @@ private:
     std::vector<FigureType> m_types;
     std::array<std::uint32_t, 8> m_unit_upkeep{};
     std::uint32_t m_tower_upkeep = 0;
+    std::array<std::uint32_t, 8> m_unit_cost{};
+    std::vector<std::vector<FormationSlot>> m_formations;
 };
 
 }  // namespace o1602::assets

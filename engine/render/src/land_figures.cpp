@@ -200,15 +200,15 @@ void SoldierFigures::reset(const sim::World& world, const assets::BuildingTable&
     clear();
     for (const sim::Soldier& s : world.soldiers()) {
         FigureInstance f;
-        f.x = s.x;
-        f.y = s.y;
+        f.x = s.x();
+        f.y = s.y();
         f.figure = s.figure;
         f.direction = s.direction;
         f.owner = s.owner;
-        f.z = spawn_height(world, buildings, s.x, s.y, true);  // 0x0045E1F0 with 0x00451180
-        f.sheet = assets::FigureSheet::Soldat;                 // draw kind 4 (0x0044FA90)
-        const auto seed = static_cast<std::uint32_t>(std::lround(s.x * 2.0)) * 73856093U ^
-                          static_cast<std::uint32_t>(std::lround(s.y * 2.0)) * 19349663U;
+        f.z = spawn_height(world, buildings, s.x(), s.y(), true);  // 0x0045E1F0 with 0x00451180
+        f.sheet = assets::FigureSheet::Soldat;                     // draw kind 4 (0x0044FA90)
+        const auto seed = static_cast<std::uint32_t>(std::lround(s.x() * 2.0)) * 73856093U ^
+                          static_cast<std::uint32_t>(std::lround(s.y() * 2.0)) * 19349663U;
         add(f, figures, s.anim, seed);
     }
 }
