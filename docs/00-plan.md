@@ -166,22 +166,34 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 | M2 | Karten-Renderer | Szenario/Savegame laden und statisch isometrisch darstellen (3 Zoomstufen) |
 | M3 | Kern-Simulation | Bauen, Produktion, Bevölkerung, Lager, Steuern – Paritätstests gegen Original |
 | M4 | Spielbares Endlosspiel | Schiffe, Handel, Figuren, UI, Speichern/Laden (kompatibel zu `.GAM`) |
-| M5 | Vollständiges Spiel | KI, Militär, Piraten, Ereignisse, Szenarien/Missionsziele (bereits im erweiterbaren Modell: Fraktionen und Skalierung mit der Spielerzahl, ADR 0007) |
+| M5 | Vollständiges Spiel | Militär, Piraten, Weltengenerator Stufe 1, KI, Ereignisse, Szenarien/Missionsziele (bereits im erweiterbaren Modell: Fraktionen und Skalierung mit der Spielerzahl, ADR 0007) |
 | M6 | Multiplayer | Lockstep, Lobby mit beliebiger Spielerzahl und Flaggenwahl, Desync-Erkennung, Reconnect |
 | M7 | Verbesserungen | Bugfixes, beliebige Auflösungen, freier Zoom, Hotkeys, UI-Skalierung, Editor |
-| M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, neuer Inselgenerator (ADR 0007) |
+| M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, eigene Inselformen (Weltengenerator Stufe 2, ADR 0007) |
 
 ## 7. Nächste Schritte
 
-1. **Entscheidungen**: Lizenz (Vorschlag GPL-3.0 wie OpenRCT2/OpenTTD oder MIT), Sprache bestätigen,
-   Git-Remote (GitHub?).
-2. **Toolchain installieren**: Node ≥ 22.19 (vorhanden: 22.23), `npx rea-agents setup`, Ghidra 12.1.x + JDK 21,
-   Wine (32 Bit), CMake, Compiler, SDL3 via vcpkg.
-3. **Machbarkeitstest**: rea + Ghidra auf `1602.exe` → Funktionsliste, Dekompilat einer bekannten Funktion
-   (z. B. GAD-Ladefunktion über String-Querverweis).
-4. **Repository-Gerüst** anlegen (Struktur aus Abschnitt 5, CMake, CI).
-5. **Erste Formate**: `.cod`-Decoder (bereits verstanden), COL-Palette, BSH → PNG.
-6. **Funktionsinventar** und Subsystem-Zuordnung von `1602.exe` starten.
+**Vereinbarte Reihenfolge (17.10.2026):** erst die Spielinhalte vervollständigen, dann der Mehrspieler.
+Jedes neue System bleibt deterministisch und befehlsbasiert, damit der Mehrspieler später ohne Umbau
+darauf aufsetzt.
+
+1. **Schiffe**: Fahren mit Wegsuche auf See, Laden und Entladen, Handelsrouten, freier Händler.
+2. **Militär**: Soldaten und Kampf, schießende Türme und Burgen, Seekampf, Schäden und Brand an
+   Gebäuden, Eroberung über ein zerstörtes Kontor, Fluch der Eingeborenen.
+3. **Piraten und Eingeborene** mit ihrem Verhalten.
+4. **Weltengenerator, Stufe 1**: Inselzahl, Größenmischung und Lage nach Weltgröße und Spielerzahl mit den
+   Inselvorlagen des Originals; faire Startgebiete (Pflanzen, Eisen, Gold in Reichweite jedes Spielers);
+   Eingeborene, Vulkane und Piratenstärke nach Spielerzahl. Bewusst vor der KI, damit diese von Anfang an
+   mit beliebigen Welten arbeitet. Welten über das Original hinaus werden im eigenen Chunk gespeichert;
+   Kompatibilität zum Original ist dafür ausdrücklich nicht verlangt.
+5. **Computergegner (KI)**, dann Ereignisse (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen
+   Einstellungen, übrige Oberfläche.
+6. **Mehrspieler** einschließlich Endlosspiel (`.szm`).
+7. **Weltengenerator, Stufe 2** (zurückgestellt, wenn alles andere fertig ist und läuft): eigene Inselformen,
+   auch größer als die Vorlagen, mit Küsten-, Strand-, Berg- und Flussübergängen.
+
+Originalformate laden und Standardszenarien im Original weiterspielen zu können ist erwünscht, aber kein
+Anspruch: erweiterte Funktionen von Open1602 müssen nicht mit dem Original kompatibel sein.
 
 ## 8. Entscheidungen und Fortschritt
 
