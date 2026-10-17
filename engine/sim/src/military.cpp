@@ -526,6 +526,7 @@ void Military::regenerate() {
 void Military::save(core::ByteWriter& out) const {
     out.u32(m_regen_ms);
     out.u32(m_castle_ms);
+    out.u32(m_native_ticks);
 }
 
 bool Military::load(core::ByteReader& in) {
@@ -540,6 +541,13 @@ bool Military::load(core::ByteReader& in) {
             return false;
         }
         m_castle_ms = *castle % kCastleSecondMs;
+    }
+    if (!in.at_end()) {
+        const auto ticks = in.u32();
+        if (!ticks) {
+            return false;
+        }
+        m_native_ticks = *ticks;
     }
     return true;
 }

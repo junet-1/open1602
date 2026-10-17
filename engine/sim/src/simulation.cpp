@@ -235,6 +235,7 @@ void Simulation::tick() {
         for (std::size_t p = 0; p < m_world->players().size(); ++p) {
             m_world->diplomacy().decay(static_cast<PlayerId>(p));
         }
+        pirates_reconsider(*m_world);
     }
     // Growth first, as in the original (0x0047CA80 is the first subsystem of 0x00489670).
     advance_growth(*m_world, *m_buildings, kTickMs);
@@ -256,6 +257,7 @@ void Simulation::tick() {
     if (m_city_ms >= kCityTickMs) {
         m_city_ms -= kCityTickMs;
         advance_cities(*m_world, *m_buildings, &m_city_events);
+        m_military.natives_tick();
         if (m_city_events.size() > kMaxPendingEvents) {
             m_city_events.erase(m_city_events.begin(),
                                 m_city_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));

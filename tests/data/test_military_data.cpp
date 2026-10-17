@@ -2,6 +2,7 @@
 // Military and diplomacy of the original savegames (docs/re/military.md, docs/re/diplomacy.md):
 // what SOLDAT3, TURM, MILITAR and the diplomacy part of PLAYER4 hold, and that they come back.
 
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -130,5 +131,48 @@ TEST_CASE("data: soldiers, towers, castles and diplomacy of a savegame, written 
             std::fprintf(stderr, "  %s differs\n", c.name.c_str());
         }
         CHECK(same);
+    }
+}
+
+TEST_CASE("data: military chunks of every savegame come back byte for byte") {
+    auto game = assets::GameDirectory::from_environment();
+    if (!game) {
+        SKIP("ANNO1602_DIR not set");
+    }
+    auto buildings = assets::BuildingTable::load(*game);
+    REQUIRE(buildings.ok());
+    int checked = 0;
+    for (int n = 0; n < 12; ++n) {
+        char name[32];
+        std::snprintf(name, sizeof name, "SAVEGAME/game%02d.gam", n);
+        const auto path = game->resolve(name);
+        if (!path) {
+            continue;
+        }
+        auto file = assets::ChunkFile::load(*path);
+        REQUIRE(file.ok());
+        auto world = sim::load_world(*file, *buildings, *game);
+        REQUIRE(world.ok());
+        auto chunks = sim::savegame_chunks(*world, *buildings);
+        REQUIRE(chunks.ok());
+        for (const sim::SavedChunk& c : *chunks) {
+            if (c.name != "SOLDAT3" && c.name != "TURM" && c.name != "MILITAR" && c.name != "PLAYER4") {
+                continue;
+            }
+            const assets::Chunk* original = file->find(c.name);
+            if (original == nullptr) {
+                continue;
+            }
+            const auto bytes = file->payload(*original);
+            const bool same = std::vector<std::uint8_t>(bytes.begin(), bytes.end()) == c.data;
+            if (!same) {
+                std::fprintf(stderr, "  %s: %s differs\n", name, c.name.c_str());
+            }
+            CHECK(same);
+        }
+        ++checked;
+    }
+    if (checked == 0) {
+        SKIP("no savegames");
     }
 }

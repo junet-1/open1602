@@ -1030,6 +1030,42 @@ bool same_game(const sim::World& a, const sim::World& b) {
     return true;
 }
 
+/// Players whose money a trade moved between two saves of the same game: the owners of ships whose
+/// cargo (or the free trader's goods) changed, and of the cities those ships are bound for.
+std::vector<bool> traders(const sim::World& a, const sim::World& b) {
+    std::vector<bool> traded(a.players().size(), false);
+    const auto mark = [&](sim::PlayerId p) {
+        if (p < traded.size()) {
+            traded[p] = true;
+        }
+    };
+    for (const sim::Ship& ship : a.ships()) {
+        const sim::Ship* other = b.ship(ship.id);
+        if (other == nullptr) {
+            continue;
+        }
+        bool changed = other->cargo.size() != ship.cargo.size();
+        for (std::size_t i = 0; !changed && i < ship.cargo.size(); ++i) {
+            changed = ship.cargo[i].ware != other->cargo[i].ware || ship.cargo[i].amount != other->cargo[i].amount;
+        }
+        for (std::size_t i = 0; !changed && i < ship.trader_goods.size() && i < other->trader_goods.size(); ++i) {
+            changed = ship.trader_goods[i].amount != other->trader_goods[i].amount;
+        }
+        if (!changed) {
+            continue;
+        }
+        mark(ship.owner);
+        for (const sim::Target& t : {ship.target, other->target, ship.previous, other->previous}) {
+            if (t.kind == sim::Target::Kind::City) {
+                if (const sim::City* city = a.city(t.island, t.city)) {
+                    mark(city->owner);
+                }
+            }
+        }
+    }
+    return traded;
+}
+
 }  // namespace
 
 TEST_CASE("data: money of the next city tick matches the original (pairs of savegames)") {
@@ -1060,7 +1096,12 @@ TEST_CASE("data: money of the next city tick matches the original (pairs of save
             }
             delta[city.owner] += (sim::tax_income(city, *buildings) - costs[c]) / 6;
         }
+        // A trade in between moves money too (game08 -> game09: the free trader sold tools).
+        const std::vector<bool> traded = traders(world, later);
         for (std::size_t p = 0; p < 4; ++p) {
+            if (traded[p]) {
+                continue;
+            }
             CHECK(world.players()[p].money + delta[p] == later.players()[p].money);
         }
     }

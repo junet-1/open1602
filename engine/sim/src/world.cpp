@@ -641,7 +641,8 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         }
     }
     if (state->difficulty) {
-        world.set_game_settings(World::GameSettings{*state->difficulty, state->settings.value_or(0)});
+        world.set_game_settings(World::GameSettings{*state->difficulty, state->settings.value_or(0),
+                                                    state->pirate_interval.value_or(1500)});
     }
     if (state->next_drought) {
         // A stored 0 becomes 60 minutes, as in the original's loader (0x00484E3C).
@@ -676,8 +677,10 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
                 // Used slots are kept together at the front (removing one shifts the rest down).
                 for (const auto& slot : r.slots) {
                     if (slot.figure != 0) {
-                        b.slots.push_back(
-                            CastleSlot{slot.figure, slot.training, slot.armed, slot.health, slot.progress});
+                        // Units by family, as soldiers (the colour follows the owner's banner).
+                        const auto variant = assets::FigureTable::unit_variant(slot.figure);
+                        const auto figure = static_cast<std::uint16_t>(variant ? variant->family : slot.figure);
+                        b.slots.push_back(CastleSlot{figure, slot.training, slot.armed, slot.health, slot.progress});
                     }
                 }
             }

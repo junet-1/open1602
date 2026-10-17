@@ -144,10 +144,12 @@ private:
 /// A player's diplomatic action (the diplomacy panel 0x0043CE00, docs/re/diplomacy.md).
 struct DiplomacyOrder {
     enum class Kind : std::uint8_t {
-        Peace,    ///< `value`: Offered (offer), Signed (accept an offer), None (withdraw or break)
-        Trade,    ///< the same for the trade treaty
-        Gesture,  ///< `friendly` or not: remembered by the partner
-        Tribute,  ///< `gold` (at most 10000) goes to the partner and makes him friendlier
+        Peace,     ///< `value`: Offered (offer), Signed (accept an offer), None (withdraw or break)
+        Trade,     ///< the same for the trade treaty
+        Gesture,   ///< `friendly` or not: remembered by the partner
+        Tribute,   ///< `gold` (at most 10000) goes to the partner and makes him friendlier
+        BuyPeace,  ///< with `ship` at a pirate Kontor: pay the pirates for peace (B.6)
+        Bribe,     ///< with `ship` at a pirate Kontor: pay the pirates to fight `target`
     };
     PlayerId player = kNoPlayer;
     PlayerId partner = kNoPlayer;
@@ -155,7 +157,19 @@ struct DiplomacyOrder {
     Treaty value = Treaty::Offered;
     bool friendly = true;
     std::uint32_t gold = 0;
+    std::uint32_t ship = 0;       ///< BuyPeace, Bribe: Ship::id lying at the pirates' Kontor
+    PlayerId target = kNoPlayer;  ///< Bribe: whom the pirates go after
 };
+
+/// What the pirates want for peace (0x00428970): a base by the payer's money (500 to 6000), times a
+/// factor by their mood towards him. 0: nothing to pay.
+[[nodiscard]] std::uint32_t pirate_peace_price(const World& world, PlayerId pirates, PlayerId payer);
+/// What they want to fight `target` (0x00428A30): a base by the payer's money (1000 to 6000), more if
+/// they like the target better than the payer.
+[[nodiscard]] std::uint32_t pirate_bribe_price(const World& world, PlayerId pirates, PlayerId payer, PlayerId target);
+/// The pirates look at every player again (Pirates_ReconsiderPeace 0x00476230, every 5 s): war
+/// with whom they do not like (mood 0 or less), peace with whom they like (more than 20).
+void pirates_reconsider(World& world);
 
 /// Carries out a diplomatic action if the panel would allow it: only towards human and computer
 /// players, and only the steps the treaty state offers. Returns whether it was carried out.

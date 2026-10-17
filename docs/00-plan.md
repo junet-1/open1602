@@ -183,7 +183,11 @@ darauf aufsetzt.
    Burg, Einschiffen, Eroberung über ein zerstörtes Kontor, Fluch der Eingeborenen
    ([military.md](re/military.md), [diplomacy.md](re/diplomacy.md)). Burgen schießen im Original nicht,
    und Treffer legen keinen Brand. Offen: Fenster dafür in der Oberfläche (Schritt 5).
-3. **Piraten und Eingeborene** mit ihrem Verhalten.
+3. **Piraten und Eingeborene** ✅: Piratenschiffe nach Spielerstufe und Schwierigkeit, Beutesuche,
+   weiße Flagge und Plünderung ins Nest, Verkauf im Nest, Stimmung und Krieg alle 5 s, Frieden kaufen und
+   Bestechung; Wohlwollen, Verbrauch und Krieger der Eingeborenen ([pirates.md](re/pirates.md)). Das
+   Einheitenlimit ist eine Regel (`Rules::max_army`, Standard unbegrenzt, Original 100; L-008). Offen:
+   ein neues Nest gründen und die Diplomatie der Computer mit den Piraten kommen mit der KI (Schritt 5).
 4. **Weltengenerator, Stufe 1**: Inselzahl, Größenmischung und Lage nach Weltgröße und Spielerzahl mit den
    Inselvorlagen des Originals; faire Startgebiete (Pflanzen, Eisen, Gold in Reichweite jedes Spielers);
    Eingeborene, Vulkane und Piratenstärke nach Spielerzahl. Bewusst vor der KI, damit diese von Anfang an

@@ -60,6 +60,7 @@ enum RuleKey : std::uint16_t {
     kDroughts = 6,
     kVolcanoRule = 7,
     kTraderPrices = 8,
+    kMaxArmy = 9,
 };
 
 using Out = core::ByteWriter;
@@ -116,7 +117,7 @@ bool same_cell(const MapCell& a, const MapCell& b) noexcept {
 }
 
 void put_rules(Out& out, const Rules& r) {
-    const std::array<std::pair<RuleKey, std::uint32_t>, 8> values = {{
+    const std::array<std::pair<RuleKey, std::uint32_t>, 9> values = {{
         {kRefund, static_cast<std::uint32_t>(r.demolish_refund)},
         {kRefundPercent, r.refund_percent},
         {kMaxShips, r.max_ships_per_player},
@@ -125,6 +126,7 @@ void put_rules(Out& out, const Rules& r) {
         {kDroughts, static_cast<std::uint32_t>(r.droughts)},
         {kVolcanoRule, static_cast<std::uint32_t>(r.volcanoes)},
         {kTraderPrices, static_cast<std::uint32_t>(r.trader_prices)},
+        {kMaxArmy, r.max_army},
     }};
     out.u32(static_cast<std::uint32_t>(values.size()));
     for (const auto& [key, value] : values) {
@@ -163,6 +165,9 @@ Rules get_rules(StateIn& in) {
                 break;
             case kTraderPrices:
                 r.trader_prices = static_cast<TraderPrices>(std::min<std::uint32_t>(v, 1));
+                break;
+            case kMaxArmy:
+                r.max_army = v;
                 break;
             default:
                 break;  // a setting of a later version
@@ -1702,7 +1707,9 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         const auto& w = *d.world;
         world.set_time_ms(w.time_ms);
         world.set_city_name_index(w.city_name_index);
-        world.set_game_settings(w.settings);
+        World::GameSettings settings = w.settings;
+        settings.pirate_interval_s = world.game_settings().pirate_interval_s;  // from TIMERS
+        world.set_game_settings(settings);
         world.set_next_drought_ms(w.next_drought_ms);
         if (w.drought_seed) {
             world.set_drought_seed(*w.drought_seed);

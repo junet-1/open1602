@@ -13,6 +13,7 @@ constexpr std::uint8_t kFull = 128;         // supply level / satisfaction of a 
 constexpr std::uint64_t kSupplyUnit = 256;  // A and B count 1/256 of a stock unit (1/32 t)
 constexpr std::uint8_t kHungerLevel = 76;   // "Euer Volk hungert" at or below
 constexpr std::uint32_t kNativeKeep = 96;   // natives keep 96/128 of their store
+constexpr std::uint32_t kNativeGoodwillFloor = 49;
 constexpr std::uint32_t kStockUnitsPerTon = 32;
 // Natives' few needs (0x0047EB30): one unit of cloth, alcohol and jewellery per tick.
 constexpr std::array<std::uint8_t, 3> kNativeGoods = {19, 18, 21};
@@ -190,6 +191,12 @@ void consume_natives(City& city) {
     }
     for (const std::uint8_t w : kNativeGoods) {
         take(city, w, std::min<std::uint32_t>(available(city, w), 1));
+    }
+    // Their goodwill fades towards 49 (0x0047EB30): 1/128 every 10 s while above it.
+    for (std::uint32_t& g : city.goodwill) {
+        if (g > kNativeGoodwillFloor) {
+            g = g * 127 / 128;
+        }
     }
 }
 

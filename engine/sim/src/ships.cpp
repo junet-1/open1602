@@ -397,6 +397,7 @@ void Fleet::tick(std::uint32_t dt_ms) {
     std::erase_if(m_world->ships(), [](const Ship& s) { return s.sinking && s.owner == kNoPlayer; });
     trader_tick(dt_ms);
     yards_tick(dt_ms);
+    pirates_tick(dt_ms);
 }
 
 void Fleet::hit(std::uint32_t id, std::uint32_t damage, PlayerId attacker, bool by_pirates) {
@@ -711,7 +712,24 @@ void Fleet::decide(Ship& ship) {
         if (!ship.target.empty() && at_target(ship, ship.target)) {
             const Target arrived = ship.target;
             m_events.push_back(ShipEvent{ShipEvent::Kind::Arrived, ship.id, ship.owner});
-            if (ship.trader && arrived.kind == Target::Kind::City && !ship.route.active) {
+            if (!ship.route.active && arrived.kind == Target::Kind::City && ship.owner == pirates() &&
+                ship.owner != kNoPlayer) {
+                // A pirate at its base unloads everything at price 0 and stays 8 s (0x0044E120).
+                if (City* c = m_world->city(arrived.island, arrived.city); c != nullptr && c->owner == ship.owner) {
+                    for (CargoSlot& slot : ship.cargo) {
+                        if (slot.ware != 0 && slot.ware <= 24) {
+                            c->ensure_ware(slot.ware);
+                            const std::uint32_t n = std::min(slot.amount, c->free_space(slot.ware));
+                            c->goods[slot.ware] += n;
+                            slot.amount -= n;
+                            if (slot.amount == 0) {
+                                slot = CargoSlot{};
+                            }
+                        }
+                    }
+                    wait = 8000;
+                }
+            } else if (ship.trader && arrived.kind == Target::Kind::City && !ship.route.active) {
                 if (City* c = m_world->city(arrived.island, arrived.city)) {
                     c->trader_inbound = false;
                     if (trader_trade(ship, *c)) {
@@ -749,6 +767,8 @@ void Fleet::decide(Ship& ship) {
                 route_next_stop(ship);
             } else if (ship.trader) {
                 trader_choose(ship);
+            } else if (ship.owner == pirates() && ship.owner != kNoPlayer) {
+                pirate_choose(ship);
             }
         }
         if (!ship.target.empty() && !wait && !at_target(ship, ship.target)) {
@@ -1239,6 +1259,9 @@ bool Fleet::route_ship_stop(Ship& ship, const RouteStop& stop) {
         remove_cargo(from, e.ware, n, 0xFF);
         add_cargo(to, e.ware, n, 0);
         moved_any = true;
+        if (ship.owner == pirates() && ship.owner != kNoPlayer) {
+            m_world->diplomacy().add_trade(ship.owner, other->owner, n / 2);  // plunder pleases the pirates
+        }
     }
     return moved_any;
 }
@@ -1248,18 +1271,22 @@ bool Fleet::route_ship_stop(Ship& ship, const RouteStop& stop) {
 namespace o1602::sim {
 
 void Fleet::save(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 1;
+    constexpr std::uint16_t kVersion = 2;
     out.u16(kVersion);
     out.u32(m_trader_ms);
     out.u32(m_yard_ms);
     out.u32(m_tools_given);
     out.u32(m_tools_quota);
     out.u32(m_name_index);
+    out.u32(m_pirate_ms);
+    out.u32(m_pirate_spawn_ms);
+    out.boolean(m_pirate_armed);
 }
 
 bool Fleet::load(core::ByteReader& reader) {
     StateIn in(reader);
-    if (in.u16() != 1) {
+    const std::uint16_t version = in.u16();
+    if (version < 1 || version > 2) {
         return false;
     }
     const std::uint32_t trader = in.u32();
@@ -1267,6 +1294,11 @@ bool Fleet::load(core::ByteReader& reader) {
     const std::uint32_t tools = in.u32();
     const std::uint32_t quota = in.u32();
     const std::uint32_t name = in.u32();
+    if (version >= 2) {
+        m_pirate_ms = in.u32() % 10'000U;
+        m_pirate_spawn_ms = in.u32();
+        m_pirate_armed = in.boolean();
+    }
     if (!in.ok()) {
         return false;
     }

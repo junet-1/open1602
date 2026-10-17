@@ -142,6 +142,10 @@ public:
         return r;
     }
 
+    /// The natives' city tick (every 10 s, 0x0047EB30): warriors come out of their huts, three
+    /// every 30 s, seven every 10 s for ten minutes after their village was attacked.
+    void natives_tick();
+
     /// A tower building was built or a city's territory changed: towers come and go with it.
     void update_towers(std::uint16_t island);
 
@@ -210,8 +214,9 @@ private:
     Fleet* m_fleet = nullptr;
     LandPlanner m_planner;
     std::vector<MilitaryEvent> m_events;
-    std::uint32_t m_regen_ms = 0;   ///< game time since the building damage last healed
-    std::uint32_t m_castle_ms = 0;  ///< game time since the castles' last second
+    std::uint32_t m_regen_ms = 0;      ///< game time since the building damage last healed
+    std::uint32_t m_castle_ms = 0;     ///< game time since the castles' last second
+    std::uint32_t m_native_ticks = 0;  ///< natives' city ticks (warriors every third)
     std::vector<FetchRequest> m_fetch;
 };
 

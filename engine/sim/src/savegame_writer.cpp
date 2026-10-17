@@ -317,6 +317,20 @@ private:
         }
         return 0;
     }
+    /// The colour variant of a unit for the owner's banner (FIGUR family + colour); a banner without
+    /// own figures keeps the stored variant.
+    [[nodiscard]] std::uint32_t unit_figure(std::uint32_t family, PlayerId owner, std::uint32_t stored) const {
+        const auto variant = assets::FigureTable::unit_variant(family);
+        if (!variant) {
+            return family;
+        }
+        const Player* p = m_world.player(owner);
+        const auto old = assets::FigureTable::unit_variant(stored);
+        if (p != nullptr && p->banner < variant->count) {
+            return variant->family + p->banner;
+        }
+        return old && old->family == variant->family ? stored : family;
+    }
     [[nodiscard]] std::uint8_t owner_byte(PlayerId p) const {
         return p < assets::kOriginalPlayerSlots ? static_cast<std::uint8_t>(p) : kNoOwner;
     }
@@ -586,11 +600,14 @@ private:
                     const std::size_t o = 0x10 + 8 * k;
                     if (k < b.slots.size() && b.slots[k].figure != 0) {
                         const CastleSlot& c = b.slots[k];
+                        const PlayerId owner = m_world.islands()[b.island].map.top(b.x, b.y).owner;
+                        const std::uint32_t figure = unit_figure(c.figure, owner, get32(r, o) & 0xFFFU);
                         put32(r, o,
-                              (get32(r, o) & ~0x3FFFU) | (c.figure & 0xFFFU) | (c.training ? 1U << 12 : 0U) |
+                              (get32(r, o) & ~0x3FFFU) | (figure & 0xFFFU) | (c.training ? 1U << 12 : 0U) |
                                   (c.armed ? 1U << 13 : 0U));
                         put32(r, o + 4, std::min<std::uint32_t>(c.health, 0xFFF) | std::uint32_t{c.progress} << 16);
-                    } else {
+                    } else if ((get32(r, o) & 0xFFFU) != 0) {
+                        // An emptied place; one empty already keeps what the original left in it.
                         put32(r, o, 0);
                         put32(r, o + 4, 0);
                     }
@@ -984,18 +1001,7 @@ private:
             put16(r, 0, static_cast<std::uint32_t>(std::max(0, s.cell_x())));
             put16(r, 2, static_cast<std::uint32_t>(std::max(0, s.cell_y())));
             put16(r, 4, std::min<std::uint32_t>(s.health, 0xFFFF));
-            // The colour variant of the owner's banner (FIGUR family + colour).
-            std::uint32_t figure = s.figure;
-            if (const auto variant = assets::FigureTable::unit_variant(s.figure)) {
-                const Player* p = m_world.player(s.owner);
-                const auto stored = assets::FigureTable::unit_variant(get16(r, 6));
-                if (p != nullptr && p->banner < variant->count) {
-                    figure = variant->family + p->banner;
-                } else if (stored && stored->family == variant->family) {
-                    figure = get16(r, 6);  // a banner without own figures: the stored variant stays
-                }
-            }
-            put16(r, 6, figure);
+            put16(r, 6, unit_figure(s.figure, s.owner, get16(r, 6)));
             put16(r, 8, slot);
             put_ref(r, 0x0A, s.home);
             put32(r, 0x0E, 0);

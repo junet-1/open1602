@@ -466,7 +466,8 @@ public:
     /// come) and the settings word (bit 2: no droughts).
     struct GameSettings {
         std::uint8_t difficulty = 2;
-        std::uint32_t flags = 0;
+        std::uint32_t flags = 0;                 ///< bit 0: no pirates, bit 2: no droughts, bit 5: defeat the pirates
+        std::uint32_t pirate_interval_s = 1500;  ///< TIMERS +0xB8: time between two new pirate ships
     };
     [[nodiscard]] const GameSettings& game_settings() const noexcept { return m_game_settings; }
     void set_game_settings(const GameSettings& s) noexcept { m_game_settings = s; }

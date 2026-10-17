@@ -386,6 +386,25 @@ TEST_CASE("military: a castle trains units with weapons and sends them out") {
     CHECK(castle.slots.empty());
 }
 
+TEST_CASE("military: the unit limit is a rule, unlimited by default (L-008)") {
+    Field f;
+    f.build(kCastle, 20, 5, 0);
+    f.world.add_cost_building(sim::CostBuilding{sim::CostBuilding::Kind::Castle, 0, 20, 5, true});
+    CHECK(f.rules.max_army == 0);
+    CHECK(sim::Rules::original().max_army == 100);
+    f.rules.max_army = 2;
+    f.start();
+    using Op = sim::CastleOrder::Op;
+    REQUIRE(f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Recruit, kSword, 0, {}}));
+    REQUIRE(f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Recruit, kSword, 0, {}}));
+    CHECK(!f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Recruit, kSword, 0, {}}));
+    f.run(50);
+    CHECK(f.count(sim::MilitaryEvent::Kind::ArmyFull) == 1);
+    f.rules.max_army = 0;
+    CHECK(f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Recruit, kSword, 0, {}}));
+    CHECK(f.military->army_size(0) == 3);
+}
+
 TEST_CASE("military: soldiers go on board a ship and land elsewhere") {
     Field f;
     f.start();

@@ -126,6 +126,8 @@ struct ShipEvent {
         Sunk,              ///< 9: `player` lost the ship; `city` holds the attacker
         WhiteFlag,         ///< a computer's ship surrendered to the pirates
         Fired,             ///< a broadside; `ware` holds the bearing
+        PirateAppeared,    ///< a new pirate ship at the edge of the map
+        Plundered,         ///< pirates took a surrendered ship's goods (`amount` 1) or found nothing
     };
     Kind kind = Kind::Arrived;
     std::uint32_t ship = 0;
@@ -225,6 +227,16 @@ private:
     bool naval_combat(Ship& ship);
     [[nodiscard]] std::optional<std::uint8_t> bearing_to(const Ship& ship, const Target& target) const;
 
+    // Pirates (pirates.cpp)
+    [[nodiscard]] PlayerId pirates() const;
+    [[nodiscard]] std::uint32_t pirate_max_ships() const;
+    [[nodiscard]] std::vector<std::size_t> pirate_bases() const;
+    void pirates_tick(std::uint32_t dt_ms);
+    void pirates_step();
+    void pirate_nest_sales(City& nest);
+    void pirate_choose(Ship& ship);
+    bool plunder(Ship& pirate, Ship& victim);
+
     // Free trader (trader.cpp)
     void trader_tick(std::uint32_t dt_ms);
     void trader_choose(Ship& ship);
@@ -253,8 +265,11 @@ private:
     std::vector<FetchRequest> m_fetch;
     std::vector<std::string> m_ship_names;
     std::uint32_t m_name_index = 0;
-    std::uint32_t m_trader_ms = 0;  ///< game time since the last check for a new free trader
-    std::uint32_t m_yard_ms = 0;    ///< game time since the last shipyard second
+    std::uint32_t m_trader_ms = 0;        ///< game time since the last check for a new free trader
+    std::uint32_t m_yard_ms = 0;          ///< game time since the last shipyard second
+    std::uint32_t m_pirate_ms = 0;        ///< game time since the pirates' last step
+    std::uint32_t m_pirate_spawn_ms = 0;  ///< time until the next pirate ship may appear
+    bool m_pirate_armed = false;          ///< the last new pirate ship has its cannons
     /// Tools the free trader got from nowhere (TIMERS +0x98) and the quota after which he gets
     /// only one ton at a time (+0x9C, 400 t).
     std::uint32_t m_tools_given = 0;

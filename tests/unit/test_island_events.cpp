@@ -212,7 +212,7 @@ TEST_CASE("drought: a harvest in the drought withers what does not bear, trees g
 
 TEST_CASE("drought: chance by the game's difficulty, at most one per half hour") {
     Fields f;
-    f.world.set_game_settings(sim::World::GameSettings{3, 0});
+    f.world.set_game_settings(sim::World::GameSettings{3, 0, 1500});
     f.world.set_next_drought_ms(0);
     std::uint64_t started_at = 0;
     for (int i = 0; i < 200 && started_at == 0; ++i) {
@@ -230,9 +230,9 @@ TEST_CASE("drought: chance by the game's difficulty, at most one per half hour")
     CHECK(f.world.next_drought_ms() <= started_at + 34 * 60'000);
 
     // "No droughts" in the game settings, difficulty easy, or the rule: never.
-    for (const auto& [settings, rule] : {std::pair{sim::World::GameSettings{3, 4}, sim::Droughts::Game},
-                                         std::pair{sim::World::GameSettings{0, 0}, sim::Droughts::Game},
-                                         std::pair{sim::World::GameSettings{3, 0}, sim::Droughts::Off}}) {
+    for (const auto& [settings, rule] : {std::pair{sim::World::GameSettings{3, 4, 1500}, sim::Droughts::Game},
+                                         std::pair{sim::World::GameSettings{0, 0, 1500}, sim::Droughts::Game},
+                                         std::pair{sim::World::GameSettings{3, 0, 1500}, sim::Droughts::Off}}) {
         Fields g;
         g.world.set_game_settings(settings);
         g.world.set_next_drought_ms(0);
@@ -244,7 +244,7 @@ TEST_CASE("drought: chance by the game's difficulty, at most one per half hour")
     }
     // The rule overrides the game: frequent droughts in an easy game.
     Fields h;
-    h.world.set_game_settings(sim::World::GameSettings{0, 0});
+    h.world.set_game_settings(sim::World::GameSettings{0, 0, 1500});
     h.world.set_next_drought_ms(0);
     h.rules.droughts = sim::Droughts::Frequent;
     bool any = false;

@@ -18,6 +18,7 @@ add_library(o1602_sim
     src/military.cpp
     src/naval.cpp
     src/pathfinding.cpp
+    src/pirates.cpp
     src/savegame_extension.cpp
     src/savegame_writer.cpp
     src/world_generator.cpp

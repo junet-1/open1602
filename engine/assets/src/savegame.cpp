@@ -298,6 +298,10 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         if (data.size() >= kTimersNextDrought + 4) {
             state.difficulty = data[kTimersDifficulty];
             state.settings = u32(data, kTimersSettings);
+            constexpr std::size_t kTimersPirates = 0xB8;
+            if (data.size() >= kTimersPirates + 4) {
+                state.pirate_interval = u32(data, kTimersPirates);
+            }
             state.next_drought = u32(data, kTimersNextDrought);
         }
         constexpr std::size_t kTimersRunningVolcano = 0xC4;

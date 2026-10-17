@@ -414,7 +414,88 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
     return m;
 }
 
+namespace {
+
+/// Money steps of the pirates' prices (0x00428970, 0x00428A30). The original takes the payer's slot
+/// number at exactly 5000 gold (S-090); Open1602 counts 5000 with the next step.
+std::uint32_t price_base(std::int64_t money, const std::array<std::uint32_t, 7>& steps) noexcept {
+    if (money > 70'000) {
+        return steps[6];
+    }
+    if (money > 40'000) {
+        return steps[5];
+    }
+    if (money > 20'000) {
+        return steps[4];
+    }
+    if (money > 10'000) {
+        return steps[3];
+    }
+    if (money >= 5'000) {
+        return steps[2];
+    }
+    return steps[0];
+}
+
+PlayerId pirate_player(const World& world) noexcept {
+    for (std::size_t p = 0; p < world.players().size(); ++p) {
+        if (world.players()[p].role == PlayerRole::Pirates) {
+            return static_cast<PlayerId>(p);
+        }
+    }
+    return kNoPlayer;
+}
+
+}  // namespace
+
 bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
+    if (order.kind == DiplomacyOrder::Kind::BuyPeace || order.kind == DiplomacyOrder::Kind::Bribe) {
+        // The pirate Kontor's window (0x0043CE00): a ship of the payer lies at a pirate Kontor.
+        const PlayerId pirates = pirate_player(world);
+        Player* payer = world.player(order.player);
+        const Ship* ship = world.ship(order.ship);
+        if (pirates == kNoPlayer || payer == nullptr || ship == nullptr || ship->owner != order.player) {
+            return false;
+        }
+        bool at_nest = false;
+        for (const City& c : world.cities()) {
+            if (c.owner == pirates && c.warehouse_x && c.warehouse_y && c.island < world.islands().size()) {
+                const WorldIsland& isl = world.islands()[c.island];
+                const std::int32_t dx =
+                    static_cast<std::int32_t>(ship->x) - static_cast<std::int32_t>(isl.x + *c.warehouse_x);
+                const std::int32_t dy =
+                    static_cast<std::int32_t>(ship->y) - static_cast<std::int32_t>(isl.y + *c.warehouse_y);
+                at_nest = at_nest || (dx * dx + dy * dy <= 7 * 7);
+            }
+        }
+        if (!at_nest) {
+            return false;
+        }
+        Diplomacy& d = world.diplomacy();
+        if (order.kind == DiplomacyOrder::Kind::BuyPeace) {
+            const std::uint32_t price = pirate_peace_price(world, pirates, order.player);
+            if (price == 0 || payer->money < static_cast<std::int64_t>(price)) {
+                return false;
+            }
+            payer->money -= static_cast<std::int32_t>(price);  // the money is gone (original)
+            d.add_event(pirates, order.player, DiplomacyEventType::PeaceBought, world.time_ms());
+            pirates_reconsider(world);
+            return true;
+        }
+        const Player* target = world.player(order.target);
+        if (target == nullptr || order.target == order.player || !acts_diplomatically(target->role)) {
+            return false;
+        }
+        const std::uint32_t price = pirate_bribe_price(world, pirates, order.player, order.target);
+        if (payer->money < static_cast<std::int64_t>(price)) {
+            return false;
+        }
+        payer->money -= static_cast<std::int32_t>(price);
+        d.add_event(pirates, order.player, DiplomacyEventType::BribedBy, world.time_ms());
+        d.add_event(pirates, order.target, DiplomacyEventType::BribedAgainst, world.time_ms());
+        pirates_reconsider(world);
+        return true;
+    }
     const Player* self = world.player(order.player);
     const Player* partner = world.player(order.partner);
     if (self == nullptr || partner == nullptr || order.player == order.partner || !acts_diplomatically(partner->role) ||
@@ -447,6 +528,9 @@ bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
             d.add_event(order.partner, order.player,
                         order.friendly ? DiplomacyEventType::FriendlyGesture : DiplomacyEventType::HostileGesture, now);
             return true;
+        case DiplomacyOrder::Kind::BuyPeace:
+        case DiplomacyOrder::Kind::Bribe:
+            return false;  // handled above
         case DiplomacyOrder::Kind::Tribute: {
             constexpr std::uint32_t kMaxTribute = 10'000;
             if (order.gold == 0 || order.gold > kMaxTribute || self->money < static_cast<std::int64_t>(order.gold)) {
@@ -465,6 +549,53 @@ bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
         }
     }
     return false;
+}
+
+std::uint32_t pirate_peace_price(const World& world, PlayerId pirates, PlayerId payer) {
+    const Player* p = world.player(payer);
+    if (p == nullptr) {
+        return 0;
+    }
+    const std::uint32_t base = price_base(p->money, {500, 500, 1000, 1500, 2000, 4000, 6000});
+    const std::int32_t m = world.diplomacy().mood(world, pirates, payer, 0, world.time_ms());
+    const std::int32_t factor = m < 0 ? 100 - std::max(m, -60) : 70 - std::min(m, 70);
+    const std::uint32_t price = base / 100 * static_cast<std::uint32_t>(factor);
+    return price < 100 ? 0 : price;
+}
+
+std::uint32_t pirate_bribe_price(const World& world, PlayerId pirates, PlayerId payer, PlayerId target) {
+    const Player* p = world.player(payer);
+    if (p == nullptr) {
+        return 0;
+    }
+    const std::uint32_t base = price_base(p->money, {1000, 1000, 1500, 2000, 3000, 4000, 6000});
+    const std::int32_t mp = world.diplomacy().mood(world, pirates, payer, 0, world.time_ms());
+    const std::int32_t mt = world.diplomacy().mood(world, pirates, target, 0, world.time_ms());
+    std::uint32_t price = base;
+    if (mp < mt) {
+        price += base / 100 * static_cast<std::uint32_t>(std::min(100, mt - mp));
+    }
+    return price;
+}
+
+void pirates_reconsider(World& world) {
+    const PlayerId pirates = pirate_player(world);
+    if (pirates == kNoPlayer) {
+        return;
+    }
+    Diplomacy& d = world.diplomacy();
+    for (std::size_t b = 0; b < world.players().size(); ++b) {
+        if (!acts_diplomatically(world.players()[b].role)) {
+            continue;
+        }
+        const auto pb = static_cast<PlayerId>(b);
+        const std::int32_t m = d.mood(world, pirates, pb, 0, world.time_ms());
+        if (m <= 0) {
+            d.set_peace(world, pirates, pb, Treaty::None, world.time_ms());
+        } else if (m > 20) {
+            d.set_peace(world, pirates, pb, Treaty::Signed, world.time_ms());
+        }
+    }
 }
 
 bool operator==(const Diplomacy& a, const Diplomacy& b) noexcept {

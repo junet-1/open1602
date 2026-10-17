@@ -13,7 +13,6 @@ namespace {
 
 constexpr std::uint32_t kSecondMs = 1000;
 constexpr std::uint16_t kTrained = 320;     // training points of a finished unit
-constexpr std::uint32_t kMaxArmy = 100;     // the executor refuses at 100 (0x0047E2A0)
 constexpr std::uint16_t kTickSeconds = 10;  // Interval of the castles; 11 s when nothing was trained
 constexpr std::uint8_t kFirstWeapon = 11;   // SCHWERTER, MUSKETEN, KANONEN
 constexpr std::uint8_t kFirstSoldierWare = 25;
@@ -115,7 +114,7 @@ bool Military::castle(const CastleOrder& o) {
             if (type == nullptr || type->combat.max_health == 0) {
                 return false;
             }
-            if (army_size(owner) >= kMaxArmy) {
+            if (m_rules->max_army != 0 && army_size(owner) >= m_rules->max_army) {
                 m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::ArmyFull, {}, {}, owner, owner});
                 return false;
             }
@@ -123,7 +122,8 @@ bool Military::castle(const CastleOrder& o) {
                 return false;
             }
             CastleSlot slot;
-            slot.figure = o.figure;
+            const auto variant = assets::FigureTable::unit_variant(o.figure);
+            slot.figure = static_cast<std::uint16_t>(variant ? variant->family : o.figure);
             slot.training = true;
             slot.health = type->combat.max_health;
             const std::uint8_t weapon = type->combat.weapon_ware;
@@ -259,6 +259,84 @@ void Military::castle_second(CostBuilding& c) {
             slot.training = false;
             m_events.push_back(MilitaryEvent{
                 MilitaryEvent::Kind::UnitTrained, {}, Target::building(c.island, c.x, c.y), owner, owner});
+        }
+    }
+}
+
+void Military::natives_tick() {
+    constexpr std::uint64_t kAlarmAfterMs = 15 * 60'000;  // not in the first 15 minutes
+    constexpr std::uint64_t kAlarmMs = 10 * 60'000;       // ten minutes after an attack
+    constexpr std::uint32_t kCalm = 3;
+    constexpr std::uint32_t kAlarmed = 7;
+    constexpr std::int32_t kSpread = 7;  // tiles around the hut where a warrior goes
+    ++m_native_ticks;
+    const std::uint64_t now = m_world->time_ms();
+    for (const City& found : m_world->cities()) {
+        const Player* owner = m_world->player(found.owner);
+        if (owner == nullptr || owner->role != PlayerRole::Natives) {
+            continue;
+        }
+        const bool alarmed =
+            found.last_attacked_ms != 0 && now >= kAlarmAfterMs && now - found.last_attacked_ms <= kAlarmMs;
+        if (!alarmed && m_native_ticks % 3 != 0) {
+            continue;
+        }
+        const std::uint32_t wanted = alarmed ? kAlarmed : kCalm;
+        std::uint32_t out = 0;
+        for (const Soldier& s : m_world->soldiers()) {
+            out += s.owner == found.owner && s.island == found.island && !s.dying() ? 1U : 0U;
+        }
+        for (CostBuilding& hut : m_world->cost_buildings()) {
+            if (out >= wanted) {
+                break;
+            }
+            if (hut.kind != CostBuilding::Kind::Castle || hut.island != found.island ||
+                m_world->islands()[hut.island].map.top(hut.x, hut.y).city != found.index) {
+                continue;
+            }
+            const auto b = building_at(*m_world, *m_buildings, hut.island, {hut.x, hut.y});
+            if (!b) {
+                continue;
+            }
+            // From the last place: a trained warrior goes out, a new one starts training in its place.
+            for (std::size_t k = hut.slots.size(); k-- > 0 && out < wanted;) {
+                if (hut.slots[k].figure == 0 || hut.slots[k].training) {
+                    continue;
+                }
+                const auto cell = exit_cell(hut.island, hut.x, hut.y);
+                if (!cell) {
+                    break;
+                }
+                Random& random = m_world->random(RandomStream::Military);
+                Target spot =
+                    Target::spot(static_cast<std::uint32_t>(cell->first), static_cast<std::uint32_t>(cell->second));
+                for (int tries = 0; tries < 8; ++tries) {
+                    const std::int32_t x =
+                        cell->first / 2 + kSpread - 2 * static_cast<std::int32_t>(random.below(kSpread));
+                    const std::int32_t y =
+                        cell->second / 2 + kSpread - 2 * static_cast<std::int32_t>(random.below(kSpread));
+                    if (m_combat->land().cell(2 * x, 2 * y, 0) == LandMap::Cell::Walk &&
+                        m_combat->land().island_at(x, y) == hut.island) {
+                        spot = Target::spot(static_cast<std::uint32_t>(2 * x), static_cast<std::uint32_t>(2 * y));
+                        break;
+                    }
+                }
+                const CastleSlot slot = hut.slots[k];
+                Soldier s;
+                s.place_cell(cell->first, cell->second);
+                s.figure = slot.figure;
+                s.owner = found.owner;
+                s.island = hut.island;
+                s.health = slot.health;
+                s.anim = 1;
+                s.home = spot;
+                s.target = spot;
+                m_world->add_soldier(s);
+                ++out;
+                const assets::FigureType* type = m_figures->get(b->type->worker_figure);
+                hut.slots[k] = CastleSlot{b->type->worker_figure, true, true,
+                                          type != nullptr ? type->combat.max_health : slot.health, 0};
+            }
         }
     }
 }

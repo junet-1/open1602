@@ -238,9 +238,10 @@ struct GameState {
     std::optional<std::uint8_t> island_phase;
     /// TIMERS +0xB0: next name of the [STAEDTE] list of Text.cod a new city gets (0x005B3168).
     std::optional<std::uint32_t> city_name_index;
-    std::optional<std::uint8_t> difficulty;     ///< TIMERS +0xA6: 0 easy .. 3 hard (droughts)
-    std::optional<std::uint32_t> settings;      ///< TIMERS +0xA8: game settings word, bit 2 no droughts
-    std::optional<std::uint32_t> next_drought;  ///< TIMERS +0xB4: earliest drought roll, 1/10 s
+    std::optional<std::uint8_t> difficulty;        ///< TIMERS +0xA6: 0 easy .. 3 hard (droughts)
+    std::optional<std::uint32_t> settings;         ///< TIMERS +0xA8: game settings word, bit 2 no droughts
+    std::optional<std::uint32_t> pirate_interval;  ///< TIMERS +0xB8: seconds between new pirate ships
+    std::optional<std::uint32_t> next_drought;     ///< TIMERS +0xB4: earliest drought roll, 1/10 s
     /// A volcano crater as the original refers to it (an object ref: type 0x33, island number, x, y).
     struct CraterRef {
         std::uint8_t island = 0;  ///< island number (INSEL5 header)

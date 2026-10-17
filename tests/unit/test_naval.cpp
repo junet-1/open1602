@@ -167,18 +167,23 @@ TEST_CASE("naval: ships at peace and unarmed ships do not fight") {
     CHECK(s.count(sim::ShipEvent::Kind::Fired) == 0);
 }
 
-TEST_CASE("naval: a computer's ship hit by pirates raises the white flag") {
+TEST_CASE("naval: a computer's ship hit by pirates surrenders; the pirates plunder it and make peace") {
     Sea s;
     s.start();
     // Pirates are at war with everyone from the start in a real game; here by hand.
     s.world.diplomacy().set_peace(s.world, 2, 1, sim::Treaty::None, 0);
     s.add(10, 40, kWarship, 2, 8);
     const std::uint32_t merchant = s.add(14, 40, kTrade, 1, 0);
+    s.world.ship(merchant)->cargo[0] = sim::CargoSlot{21, 20 * 32, 0};  // jewellery: worth taking
     s.run(10'000);
     const sim::Ship* m = s.world.ship(merchant);
     REQUIRE(m != nullptr);
-    CHECK(m->held);
     CHECK(s.count(sim::ShipEvent::Kind::WhiteFlag) == 1);
+    CHECK(s.count(sim::ShipEvent::Kind::Plundered) == 1);
+    // Without a pirate base there is nowhere to take the loot: the computer's ship sails on, and
+    // the pirates are at peace with its owner all the same (original).
+    CHECK(!m->held);
+    CHECK(!s.world.diplomacy().hostile(2, 1));
 }
 
 TEST_CASE("naval: a cannon tower fires at hostile ships near its island") {

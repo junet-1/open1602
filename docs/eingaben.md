@@ -31,6 +31,9 @@ sobald etwas dazukommt oder erledigt ist.
 | Test im Original: `Open1602Test.gam` und `Open1602Test2.gam` (mit Zusatzabschnitt) geladen und weitergespielt, ohne Absturz; danach `Merlin04_Laufend` (67:20, mit Gewürzplantage) | Spielstände schreiben, eigener Chunk | ✅ (Gold nach dem Laden 3219 statt 3206: vermutlich der erste Stadttakt) |
 | Test im Original: `Open1602Endlos.gam` (ein von Open1602 angelegtes Endlosspiel) geladen und gespielt | Neues Spiel im Originalformat | ✅ |
 | Endlos1 und Endlos2 (`game06.gam`, `game07.gam`): zwei Endlosspiele des Originals direkt nach dem Start („Durchschnitt“, Merlin, Gelb) | Abgleich des Neustarts Byte für Byte | ✅ Inseln, Spieler, Städte, Kontore und Märkte stimmen; das Original würfelt die Inseltabelle bei jedem Start neu |
+| Video `Schiffe_Fahren.mp4` (92 s, 4K) | Tempo und Drehen der Schiffe | ✅ erhalten; genaue Auswertung von Tempo und Wendezeit folgt |
+| Routenschiff_Vor und Routenschiff_Nach (`game08.gam`, `game09.gam`): ein freier Händler kurz vor und direkt nach dem Anlegen am eigenen Kontor | Handel des freien Händlers | ✅ der Handel stimmt genau (7 t Werkzeug zu je 105 an Lemonhall); die Computer behalten im selben Takt dasselbe Geld; kleine Abweichungen nur im Kurs einzelner Schiffe |
+| Endlos_Laufend (`game10.gam`): zwei Inseln, erste Kaufleute, Ausbildung in der Burg, ein Kanonier bereit | Militär im Spielstand | ✅ lädt und wird Byte für Byte zurückgeschrieben, auch die Einheiten in der Burg |
 
 ## So bekommst du etwas von mir
 
@@ -41,11 +44,9 @@ den Ordner `ausgaben/` in deinem Projektordner. Git übernimmt ihn nicht.
 
 Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 
-1. **Schiffe im Original** (prüft Fahren, Handel und Händler). Ein kurzes Video, in dem ein eigenes
-   Schiff aus dem Stand losfährt, wendet und ein Stück übers offene Meer fährt (Tempo und Drehen), und
-   wenn möglich zwei Stände mit eigener Handelsroute: einer direkt vor der Ankunft an einem Kontor
-   („VorKontor“), einer kurz danach („NachKontor“). Schön wäre außerdem, wenn du dir merkst, wann ein
-   freier Händler an deinem Kontor anlegt und was er kauft oder verkauft (im Kontor sichtbar).
+1. **Eigene Handelsroute** (freiwillig; Video und Händler-Stände sind schon da). Zwei Stände mit einer
+   eigenen Handelsroute: einer direkt vor der Ankunft an einem Kontor („VorKontor“), einer kurz danach
+   („NachKontor“). Damit prüfe ich Laden und Entladen nach Route.
 
 2. **Rückmeldung zum Betrachter.** Startet die Kamera über Lemonhall, und siehst du die Vorschau beim
    Bauen (rote Fläche, wo nichts geht)? Siehst du in deiner eigenen Stadt keine Häuser, schick mir

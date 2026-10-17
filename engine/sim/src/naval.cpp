@@ -101,6 +101,13 @@ bool Fleet::naval_combat(Ship& ship) {
     if (fight.empty()) {
         return false;
     }
+    // A pirate meeting a ship with the white flag plunders it instead of shooting (0x00455840).
+    if (pirate && fight.kind == Target::Kind::Ship) {
+        if (Ship* victim = m_world->ship(fight.ship); victim != nullptr && victim->held) {
+            plunder(ship, *victim);
+            return false;
+        }
+    }
     const auto bearing = bearing_to(ship, fight);
     if (!bearing) {
         if (chase && !(ship.target == fight)) {
