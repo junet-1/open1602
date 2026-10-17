@@ -66,6 +66,9 @@ struct WorldIsland {
     /// Players who know the island (island + 0x43): a ship of theirs came close (docs/re/ships.md).
     std::vector<bool> discovered{};
 
+    /// Players who explored the island's crops with a ship (island + 0x42, docs/re/ships.md#erkunden).
+    std::vector<bool> explored{};
+
     [[nodiscard]] bool discovered_by(PlayerId p) const noexcept { return p < discovered.size() && discovered[p]; }
     void discover(PlayerId p) {
         if (p >= discovered.size()) {
@@ -73,7 +76,19 @@ struct WorldIsland {
         }
         discovered[p] = true;
     }
+    [[nodiscard]] bool explored_by(PlayerId p) const noexcept { return p < explored.size() && explored[p]; }
+    void explore(PlayerId p) {
+        if (p >= explored.size()) {
+            explored.resize(std::size_t{p} + 1, false);
+        }
+        explored[p] = true;
+    }
 };
+
+/// Whether player `p` knows the deposit (explored it; docs/re/ships.md#erkunden). Up to 32 players.
+[[nodiscard]] inline bool deposit_known(const assets::IslandHeader::Deposit& d, PlayerId p) noexcept {
+    return p < 32 && (d.mask >> p & 1U) != 0;
+}
 
 /// A city: the settlement of one player on one island (STADT4 in the original).
 struct City {

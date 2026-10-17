@@ -186,8 +186,12 @@ darauf aufsetzt.
 3. **Piraten und Eingeborene** ✅: Piratenschiffe nach Spielerstufe und Schwierigkeit, Beutesuche,
    weiße Flagge und Plünderung ins Nest, Verkauf im Nest, Stimmung und Krieg alle 5 s, Frieden kaufen und
    Bestechung; Wohlwollen, Verbrauch und Krieger der Eingeborenen ([pirates.md](re/pirates.md)). Das
-   Einheitenlimit ist eine Regel (`Rules::max_army`, Standard unbegrenzt, Original 100; L-008). Offen:
+   Einheitenlimit ist eine Regel (`Rules::max_army`, Standard 250, Original 100; L-008). Offen:
    ein neues Nest gründen und die Diplomatie der Computer mit den Piraten kommen mit der KI (Schritt 5).
+   **Schifffahrt abgeschlossen** (17.10.2026): Tempo, Diagonalen und Drehen gegen das Video des Originals
+   geprüft, Insel erkunden mit Erz- und Goldsymbolen, beschädigte Rümpfe, Bugwelle, weiße Flagge und
+   Sinken in der Darstellung, Stadttakt zur vollen 10. Sekunde ([ships.md](re/ships.md)). Offen sind nur
+   Fenster der Oberfläche (Schritt 5) und der Mündungsrauch.
 4. **Weltengenerator, Stufe 1**: Inselzahl, Größenmischung und Lage nach Weltgröße und Spielerzahl mit den
    Inselvorlagen des Originals; faire Startgebiete (Pflanzen, Eisen, Gold in Reichweite jedes Spielers);
    Eingeborene, Vulkane und Piratenstärke nach Spielerzahl. Bewusst vor der KI, damit diese von Anfang an
@@ -303,7 +307,7 @@ Dokuments.
 
 **Ohne Abhängigkeit, nur Analyse**
 - Bits +0x0F/4 und /6 der Produktion ([production.md](re/production.md)).
-- Byte 3 der Lagerstätten, zweite Liste bei Insel +0x30 ([growth.md](re/growth.md)).
+- Zweite Liste bei Insel +0x30 ([growth.md](re/growth.md)).
 - Gebäude mit `Grundflg`: Das Original öffnet für die Wegesuche nur Wald, Boden und Ruinen unter
   dem Gebäude ([logistics.md](re/logistics.md)).
 

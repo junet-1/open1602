@@ -134,8 +134,11 @@ Fleet::Fleet(World& world, const assets::BuildingTable& buildings, const assets:
         if (s.cargo.empty()) {
             s.cargo.resize(type != nullptr && type->ship.cargo_slots != 0 ? type->ship.cargo_slots : 1U);
         }
-        s.near_island = 0xFFFF;
-        update_island(s);
+        if (world.simulation_state().empty()) {
+            // An original savegame keeps no island for its ships; a game saved by Open1602 does.
+            s.near_island = 0xFFFF;
+            update_island(s);
+        }
     }
     // The original starts the names at rand() (0x00442A90); a copy of the generator, so that
     // making a Simulation does not change the game.
@@ -398,6 +401,7 @@ void Fleet::tick(std::uint32_t dt_ms) {
     trader_tick(dt_ms);
     yards_tick(dt_ms);
     pirates_tick(dt_ms);
+    explore_tick();
 }
 
 void Fleet::hit(std::uint32_t id, std::uint32_t damage, PlayerId attacker, bool by_pirates) {
@@ -435,6 +439,7 @@ void Fleet::sink(Ship& ship, PlayerId attacker) {
     ship.held = false;
     ship.route.active = false;
     ship.repairing = false;
+    ship.explore_steps = 0;
     for (CostBuilding& yard : m_world->cost_buildings()) {
         if (yard.repair_ship == ship.id) {
             yard.repair_ship = 0;
@@ -858,6 +863,7 @@ bool Fleet::order(const ShipOrder& o) {
     if (ship->repairing) {
         ship->repairing = false;
     }
+    stop_exploring(*ship);  // every order ends the exploring (0x00448A10)
     ship->route.active = false;
     ship->previous = Target::position(ship->x, ship->y);
     ship->target = o.target;
@@ -902,6 +908,7 @@ bool Fleet::edit_route(const RouteEdit& e) {
             ship->previous = Target::position(ship->x, ship->y);
             ship->held = false;
             ship->repairing = false;
+            stop_exploring(*ship);
             ship->motion.path.clear();
             ship->motion.path_index = 0;
             ship->motion.failures = 0;
@@ -1271,7 +1278,7 @@ bool Fleet::route_ship_stop(Ship& ship, const RouteStop& stop) {
 namespace o1602::sim {
 
 void Fleet::save(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 2;
+    constexpr std::uint16_t kVersion = 3;
     out.u16(kVersion);
     out.u32(m_trader_ms);
     out.u32(m_yard_ms);
@@ -1281,12 +1288,25 @@ void Fleet::save(core::ByteWriter& out) const {
     out.u32(m_pirate_ms);
     out.u32(m_pirate_spawn_ms);
     out.boolean(m_pirate_armed);
+    // Version 3: running explorations (the original loses them when saving, Open1602 keeps them).
+    std::uint32_t exploring = 0;
+    for (const Ship& s : m_world->ships()) {
+        exploring += s.explore_steps != 0 ? 1U : 0U;
+    }
+    out.u32(exploring);
+    for (const Ship& s : m_world->ships()) {
+        if (s.explore_steps != 0) {
+            out.u32(s.id);
+            out.u8(s.explore_steps);
+            out.u64(s.explore_next_ms);
+        }
+    }
 }
 
 bool Fleet::load(core::ByteReader& reader) {
     StateIn in(reader);
     const std::uint16_t version = in.u16();
-    if (version < 1 || version > 2) {
+    if (version < 1 || version > 3) {
         return false;
     }
     const std::uint32_t trader = in.u32();
@@ -1298,6 +1318,18 @@ bool Fleet::load(core::ByteReader& reader) {
         m_pirate_ms = in.u32() % 10'000U;
         m_pirate_spawn_ms = in.u32();
         m_pirate_armed = in.boolean();
+    }
+    if (version >= 3) {
+        const std::uint32_t exploring = in.count(13);
+        for (std::uint32_t i = 0; i < exploring; ++i) {
+            const std::uint32_t id = in.u32();
+            const std::uint8_t steps = in.u8();
+            const std::uint64_t next = in.u64();
+            if (Ship* s = m_world->ship(id)) {
+                s->explore_steps = steps;
+                s->explore_next_ms = next;
+            }
+        }
     }
     if (!in.ok()) {
         return false;

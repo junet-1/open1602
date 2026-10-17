@@ -125,13 +125,13 @@ bei Schiff + 4), die Position, Richtung und Figurnummer trägt.
 | 0x000 | char[28] | Name |
 | 0x01C | u16 | x (Weltfeld): Gleitkomma-Position der Anzeigefigur (+0x28), abgeschnitten |
 | 0x01E | u16 | y (Weltfeld), ebenso (+0x2C) |
-| 0x024 | u16 | Schiff + 0x1AE (offen) |
+| 0x024 | u16 | Schiff + 0x1AE: Auftrag der Computer-KI (0 keiner; 1, 2 heimkehren, 5, 6, 9 …) ([ships.md](../re/ships.md#offen)) |
 | 0x02C | u32 | **befohlenes Ziel** (Verweis, [ships.md](../re/ships.md#daten)) |
 | 0x030 | u32 | **aktuelles Ziel** (Verweis) |
 | 0x034 | u32 | **letztes Ziel** (Verweis, z. B. das Kontor, das der Händler zuletzt besucht hat) |
 | 0x03C | u16 | **Lebenspunkte** in 1/32 |
-| 0x03E | u16 | Schiff + 0x1AC (offen) |
-| 0x040 | u8 | Zähler, bei jedem Stationswechsel um 1 vermindert |
+| 0x03E | u16 | Schiff + 0x1AC: Parameter des KI-Auftrags (z. B. Insel · 32 + Stadt) oder Wartezeit |
+| 0x040 | u8 | Schiff + 0x1A7: Zähler des KI-Auftrags (10 beim Auftrag, je Ent- oder Ausladen − 1) |
 | 0x041 | u8 | Planungsradius (0x50) |
 | 0x042 | u8 | **Kanonen** an Bord |
 | 0x043 | u8 | Schalter: Bit 1 Handelsroute an, Bit 3 Einbahnroute, Bit 2 zum Verkauf, Bit 4 in Reparatur, Bit 0 Merker der Oberfläche |
@@ -144,6 +144,7 @@ bei Schiff + 4), die Position, Richtung und Figurnummer trägt.
 | 0x04D | u8 | **Insel an der Schiffsposition** (`0x0046A570`, z. B. am Kontor), 0xFF = offenes Meer |
 | 0x04F | u8 | **aktuelle Station** der Handelsroute |
 | 0x050 | u8 | **Richtung 0–7** (Byte 3 der Anzeigefigur, 45°-Schritte) |
+| 0x051 | u8 | Schiff + 0x003: nur gelesen und geschrieben, sonst unbenutzt (in allen Ständen 0) |
 | 0x052 + 0x24·s | | **Handelsroute**, 4 Stationen: u32 Verweis, dann 3 × (u16 Ware als Id des Erzeugers − 20000, u16 Menge in 1/32 t, u8 Bit 0 abliefern), Rest frei |
 | 0x174 | 8 × 8 Byte | **Ladung**: u16 Ware als Id des Erzeugers − 20000 (Soldaten: Ware + 9876), u16 Bits 0–13 Menge in 1/32 t, u32 Bits 0–9 **Durchschnittspreis** je Tonne; leerer Platz = Ware 0 |
 

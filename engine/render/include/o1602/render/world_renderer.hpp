@@ -80,6 +80,8 @@ enum class BuildingFigureRole : std::uint8_t {
                  ///< switched off, short of raw material or on fire
     Disaster,    ///< plague or fire on a house, for everybody (kind 0x1A, SENSENMANN)
     MarketFire,  ///< a burning market of the local player (kind 0x18, BRANDMARKT)
+    Deposit,     ///< ore (SHOWEISEN) or gold (SHOWGOLD) on a mountain, once the local player explored
+                 ///< the deposit (kind 0x1B, 0x00487076 and 0x0045205B)
 };
 
 struct BuildingFigure {
@@ -203,7 +205,7 @@ struct WorldLayers {
 struct FigureSprites {
     std::int32_t row = 0;
     std::int32_t depth = 0;  ///< Y of the original (0x00451CC5): order within the row, smaller first
-    std::array<DrawCommand, 2> parts{};
+    std::array<DrawCommand, 4> parts{};
     std::uint8_t count = 0;
 };
 
@@ -231,9 +233,13 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
 struct ShipSprites {
     std::int32_t row = 0;  ///< tile row (view space) after whose flat pass the ship is drawn
     std::int32_t depth = 0;
-    DrawCommand hull;
-    DrawCommand flag;
+    DrawCommand wave;  ///< bow wave (BUGH) while sailing, under the hull
+    DrawCommand hull;  ///< the damaged hull below 50 % health
+    DrawCommand flag;  ///< the owner's flag, or the white flag of a surrendered ship
+    DrawCommand sink;  ///< UNTERGANG: the splash of a sinking ship
+    bool has_wave = false;
     bool has_flag = false;
+    bool has_sink = false;
 };
 [[nodiscard]] bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view,
                                 const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out);

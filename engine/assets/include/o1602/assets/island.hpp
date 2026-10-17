@@ -34,11 +34,15 @@ struct IslandHeader {
         std::uint8_t ware = 0;  ///< 2 iron ore, 3 gold
         std::uint8_t x = 0;     ///< origin tile of the mountain it lies in
         std::uint8_t y = 0;
-        std::uint8_t mask = 0;     ///< byte 3, meaning open (probably: discovered by players)
+        /// Byte 3: bit p = player slot p knows the deposit (explored it, or a computer bound it to
+        /// a mountain of its own; docs/re/ships.md#erkunden). 32 bits in Open1602.
+        std::uint32_t mask = 0;
         std::uint8_t kind = 0;     ///< 0 big vein, 1 small vein
         std::uint16_t amount = 0;  ///< left, 1/32 t
     };
     std::vector<Deposit> deposits;
+    /// INSEL5 +0x1B: bit p = player slot p has explored the island's crops (island +0x42).
+    std::uint8_t explored = 0;
     /// INSEL5 +0x08: island epochs (of 30 s) until the next deer census, 0..3 (island +0x68).
     std::uint8_t deer_phase = 0;
     /// INSEL5 +0x0A: the phase of the island epochs the island was last ticked in (island +0x64);

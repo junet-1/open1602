@@ -89,6 +89,23 @@ struct TradeSetting {
     std::optional<std::uint32_t> amount;  ///< keep (selling) or limit (buying); none = default
 };
 
+/// "Insel erkunden": a ship standing in the rectangle of an island explores its crops and
+/// deposits (button 0x9487; docs/re/ships.md#erkunden).
+struct ExploreOrder {
+    PlayerId player = kNoPlayer;
+    std::uint32_t ship = 0;
+};
+
+/// Whether and why a ship can explore an island now (the button of the ship panel).
+enum class ExploreState : std::uint8_t {
+    Possible,    ///< standing in an island's rectangle with something left to find
+    Running,     ///< exploring now
+    Done,        ///< the island is fully explored by the owner
+    Moving,      ///< the ship is sailing or turning
+    NoIsland,    ///< not inside the rectangle of an island
+    NotAllowed,  ///< not the player's ship, or sinking
+};
+
 /// Orders to a shipyard (building ops 0x1A, 0x1B, 0x26) and to a ship to go there for repair.
 struct ShipyardOrder {
     enum class Op : std::uint8_t {
@@ -128,6 +145,9 @@ struct ShipEvent {
         Fired,             ///< a broadside; `ware` holds the bearing
         PirateAppeared,    ///< a new pirate ship at the edge of the map
         Plundered,         ///< pirates took a surrendered ship's goods (`amount` 1) or found nothing
+        CropsExplored,     ///< 0x2A: the crops of `island` are explored (centre of the island in x, y)
+        DepositFound,      ///< 0x2B iron ore / 0x2C gold (`ware`) at the mountain x, y of `island`
+        ExploreFinished,   ///< the exploring of `island` has ended (for the progress display)
     };
     Kind kind = Kind::Arrived;
     std::uint32_t ship = 0;
@@ -137,6 +157,8 @@ struct ShipEvent {
     std::uint8_t ware = 0;
     std::int64_t amount = 0;
     std::int64_t money = 0;
+    std::uint16_t x = 0;  ///< island tile for messages with a place
+    std::uint16_t y = 0;
 };
 
 class Combat;
@@ -156,6 +178,11 @@ public:
     bool edit_route(const RouteEdit& edit);
     bool set_trade(const TradeSetting& setting);
     bool shipyard(const ShipyardOrder& order);
+    /// Starts exploring the island the ship stands in (ExploreState::Possible only).
+    bool explore(const ExploreOrder& order);
+    [[nodiscard]] ExploreState explore_state(const Ship& ship, PlayerId player) const;
+    /// The island whose rectangle holds the ship's tile (0x0046A570), if any.
+    [[nodiscard]] std::optional<std::uint16_t> island_at_ship(const Ship& ship) const;
     /// A shot hit ship `ship` (0x00445930): it loses health and sails slower, sinks at 0. A
     /// computer's ship hit by pirates surrenders.
     void hit(std::uint32_t ship, std::uint32_t damage, PlayerId attacker, bool by_pirates);
@@ -209,6 +236,9 @@ private:
     [[nodiscard]] bool target_valid(const Target& target) const;
     [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> target_point(const Target& target) const;
     void update_island(Ship& ship);
+    void explore_tick();
+    void explore_step(Ship& ship);
+    void stop_exploring(Ship& ship);
     void finish_order(Ship& ship);
     void route_next_stop(Ship& ship);
     bool route_city_stop(Ship& ship, const RouteStop& stop);

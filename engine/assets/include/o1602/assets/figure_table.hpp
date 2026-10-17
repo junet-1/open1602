@@ -72,7 +72,8 @@ struct FigureType {
     /// Fahnoffs: flag position on ships/buildings. [1] distance along the ship axis and [2] height,
     /// both in tile units (height in half tile widths). Presentation only, so floating point.
     std::array<double, 3> fahnoffs{};
-    std::uint32_t shadow = 0;  ///< Schatten: figure number of the shadow, 0 = none
+    std::uint32_t shadow = 0;    ///< Schatten: figure number of the shadow, 0 = none
+    std::uint32_t bow_wave = 0;  ///< Bugfignr (ships, the same slot +0x44): bow wave figure, 0 = none
     /// Speed (record +0x10, the original stores Speed * 0.0001): walking speed. On a tile with
     /// Wegspeed w (32 = road) a figure covers 0.16 * speed / w tiles per second (0x0044A690).
     std::uint32_t speed = 0;

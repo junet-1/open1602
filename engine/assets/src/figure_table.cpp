@@ -34,6 +34,7 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
         f.gfx = static_cast<std::uint32_t>(std::max(0, r.integer("Gfx")));
         f.sheet = static_cast<FigureSheet>(std::clamp(r.integer("Blocknr"), 0, 6));
         f.shadow = static_cast<std::uint32_t>(std::max(0, r.integer("Schatten")));
+        f.bow_wave = static_cast<std::uint32_t>(std::max(0, r.integer("Bugfignr")));
         f.rotate = static_cast<std::uint32_t>(std::max(0, r.integer("Rotate")));
         f.posoffs = {r.integer("Posoffs", 0), r.integer("Posoffs", 1)};
         f.speed = static_cast<std::uint32_t>(std::max(0, r.integer("Speed")));

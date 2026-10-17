@@ -2073,6 +2073,19 @@ TEST_CASE("data: a game saved in Open1602 continues exactly as if it had not sto
                 }
                 std::fprintf(stderr, "  chunk %zu %s: %zu / %zu bytes, first difference at %zu\n", k,
                              fa->chunks()[k].name.c_str(), x.size(), y.size(), d);
+                if (fa->chunks()[k].name == "O1602") {
+                    std::size_t o = 20;  // magic, version, flags, fingerprint
+                    while (o + 12 <= x.size()) {
+                        const std::uint32_t size =
+                            static_cast<std::uint32_t>(x[o + 8]) | static_cast<std::uint32_t>(x[o + 9]) << 8U |
+                            static_cast<std::uint32_t>(x[o + 10]) << 16U | static_cast<std::uint32_t>(x[o + 11]) << 24U;
+                        if (d >= o && d < o + 12 + size) {
+                            std::fprintf(stderr, "  in section %c%c%c%c at %zu\n", x[o], x[o + 1], x[o + 2], x[o + 3],
+                                         d - o - 12);
+                        }
+                        o += 12 + size;
+                    }
+                }
             }
         }
     };
@@ -2105,6 +2118,19 @@ TEST_CASE("data: a game saved in Open1602 continues exactly as if it had not sto
                 }
                 std::fprintf(stderr, "  chunk %zu %s: %zu / %zu bytes, first difference at %zu\n", k,
                              fa->chunks()[k].name.c_str(), x.size(), y.size(), d);
+                if (fa->chunks()[k].name == "O1602") {
+                    std::size_t o = 20;  // magic, version, flags, fingerprint
+                    while (o + 12 <= x.size()) {
+                        const std::uint32_t size =
+                            static_cast<std::uint32_t>(x[o + 8]) | static_cast<std::uint32_t>(x[o + 9]) << 8U |
+                            static_cast<std::uint32_t>(x[o + 10]) << 16U | static_cast<std::uint32_t>(x[o + 11]) << 24U;
+                        if (d >= o && d < o + 12 + size) {
+                            std::fprintf(stderr, "  in section %c%c%c%c at %zu\n", x[o], x[o + 1], x[o + 2], x[o + 3],
+                                         d - o - 12);
+                        }
+                        o += 12 + size;
+                    }
+                }
                 if (fa->chunks()[k].name == "INSELHAUS" && d / 8 * 8 + 8 <= x.size()) {
                     const std::size_t o = d / 8 * 8;
                     std::fprintf(stderr, "    id %u at %u,%u bits %08x / id %u bits %08x\n", x[o] | x[o + 1] << 8,

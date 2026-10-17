@@ -58,8 +58,9 @@ struct Rules {
 
     /// L-001: ships per player. 0 = unlimited; the original hard limit is 33.
     std::uint32_t max_ships_per_player = 0;
-    /// L-008: units per player (on land, in castles, on board). 0 = unlimited; the original allows 100.
-    std::uint32_t max_army = 0;
+    /// L-008: units per player (on land, in castles, on board). 0 = unlimited; the original allows 100,
+    /// Open1602 250.
+    std::uint32_t max_army = 250;
 
     /// S-019: random worlds contain at least one deposit of every resource that a building needs
     /// (the original can generate endless games without gold).

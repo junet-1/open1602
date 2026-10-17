@@ -11,6 +11,7 @@
 #include "o1602/assets/text_table.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/construction.hpp"
 #include "o1602/sim/growth.hpp"
 
 namespace o1602::app {
@@ -21,6 +22,25 @@ namespace {
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
 
 constexpr double kScrollSpeed = 1200.0;  ///< screen pixels per second (keyboard)
+
+/// What the help bar of the original shows over grass and trees of an explored island
+/// (0x0040A3D0): the three crops of the climate with their fertility in percent.
+std::string crops_text(const sim::WorldIsland& island) {
+    struct Crop {
+        std::uint8_t ware;
+        const char* name;
+    };
+    static constexpr Crop kNorth[] = {{48, "sugar cane"}, {50, "grapes"}, {46, "tobacco"}};
+    static constexpr Crop kSouth[] = {{47, "spices"}, {49, "cotton"}, {51, "cocoa"}};
+    std::string text;
+    for (const Crop& c : island.header.climate == 1 ? kSouth : kNorth) {
+        if (!text.empty()) {
+            text += ", ";
+        }
+        text += std::string(c.name) + " " + std::to_string(sim::island_fertility(island, c.ware) * 100 / 128) + " %";
+    }
+    return text;
+}
 constexpr std::int32_t kMaxPixelScale = 4;
 
 const char* zoom_name(render::Zoom zoom) {
@@ -498,6 +518,11 @@ void MapViewer::handle_key(int key, bool shift) {
         case SDLK_O:
             m_show_owners = !m_show_owners;
             break;
+        case SDLK_E:  // "Insel erkunden" with the selected ship
+            if (const sim::Ship* ship = m_world.ship(m_selected_ship)) {
+                m_simulation.submit(sim::ExploreOrder{m_local_player, ship->id});
+            }
+            break;
         case SDLK_SPACE:
             m_paused = !m_paused;
             break;
@@ -752,6 +777,34 @@ void MapViewer::apply_production_events() {
             std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
         }
     }
+    // Ships of the local player: discoveries and exploring (MELDUNG 0x2A-0x30).
+    for (const sim::ShipEvent& e : m_simulation.take_ship_events()) {
+        if (e.player != m_local_player || e.island >= m_world.islands().size()) {
+            continue;
+        }
+        const unsigned number = m_world.islands()[e.island].header.number;
+        switch (e.kind) {
+            case sim::ShipEvent::Kind::NativesFound:
+                std::fprintf(stderr, "you discovered a native village! (island %u)\n", number);
+                break;
+            case sim::ShipEvent::Kind::PiratesFound:
+                std::fprintf(stderr, "the pirates' hideout has been found! (island %u)\n", number);
+                break;
+            case sim::ShipEvent::Kind::CropsExplored:
+                std::fprintf(stderr, "the crops of island %u are explored: %s\n", number,
+                             crops_text(m_world.islands()[e.island]).c_str());
+                break;
+            case sim::ShipEvent::Kind::DepositFound:
+                std::fprintf(stderr, "%s on island %u (%u,%u)!\n",
+                             e.ware == 3 ? "you discovered a gold vein" : "an ore deposit lies", number, e.x, e.y);
+                break;
+            case sim::ShipEvent::Kind::ExploreFinished:
+                std::fprintf(stderr, "island %u explored\n", number);
+                break;
+            default:
+                break;
+        }
+    }
     // Fires and plagues in the player's cities (MELDUNG 1, 2).
     for (const sim::DisasterEvent& e : m_simulation.take_disaster_events()) {
         if (e.owner != m_local_player) {
@@ -793,10 +846,10 @@ void MapViewer::apply_production_events() {
                 break;
         }
     }
-    // Volcanoes (MELDUNG 94). The original tells only players who have discovered the island;
-    // Open1602 does not know discoveries yet.
+    // Volcanoes (MELDUNG 94): only for players who have discovered the island.
     for (const sim::VolcanoEvent& e : m_simulation.take_volcano_events()) {
-        if (e.kind == sim::VolcanoEvent::Kind::Erupted && e.message) {
+        if (e.kind == sim::VolcanoEvent::Kind::Erupted && e.message &&
+            m_world.islands()[e.island].discovered_by(m_local_player)) {
             std::fprintf(stderr, "a volcano has erupted! (island %u)\n",
                          static_cast<unsigned>(m_world.islands()[e.island].header.number));
         }
@@ -931,6 +984,19 @@ void MapViewer::update_title(double fps) {
         }
         if (ship->route.active) {
             title += ", trade route";
+        }
+        if (ship->explore_steps != 0) {
+            title += ", exploring " + std::to_string((11 - ship->explore_steps) * 100 / 11) + " %";
+        } else if (ship->owner == m_local_player &&
+                   m_simulation.fleet().explore_state(*ship, m_local_player) == sim::ExploreState::Possible) {
+            title += ", E: explore island";
+        }
+    }
+    // Over an island its player has explored: the crops, as in the original's help bar.
+    if (const auto spot = spot_at_mouse()) {
+        const sim::WorldIsland& isl = m_world.islands()[spot->island];
+        if (isl.explored_by(m_local_player)) {
+            title += " | " + crops_text(isl);
         }
     }
     if (m_tool.active()) {

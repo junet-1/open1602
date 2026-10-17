@@ -49,6 +49,7 @@ constexpr std::uint32_t kFleet = tag("FLEE");
 constexpr std::uint32_t kEpochs = tag("EPOC");
 constexpr std::uint32_t kArmy = tag("ARMY");
 constexpr std::uint32_t kDiplomacy = tag("DIPL");
+constexpr std::uint32_t kExplored = tag("XPLR");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -208,6 +209,12 @@ struct Decoded {
         std::uint32_t fertility = 0;
     };
     std::optional<std::vector<IslandPart>> islands;
+    /// Explored crops and known deposits for every player (INSEL5 keeps seven slots and 8 bits).
+    struct ExplorePart {
+        std::vector<bool> explored;
+        std::vector<std::uint32_t> deposit_masks;
+    };
+    std::optional<std::vector<ExplorePart>> explored;
     struct TileOverride {
         std::uint8_t island = 0;  ///< island number
         std::uint16_t x = 0;
@@ -301,6 +308,35 @@ void write_world(Out& out, const World& w) {
     out.u32(w.peek_disaster_id());
 }
 
+void write_explored(Out& out, const World& w) {
+    out.u32(static_cast<std::uint32_t>(w.islands().size()));
+    for (const WorldIsland& i : w.islands()) {
+        out.u32(static_cast<std::uint32_t>(i.explored.size()));
+        for (const bool e : i.explored) {
+            out.boolean(e);
+        }
+        out.u32(static_cast<std::uint32_t>(i.header.deposits.size()));
+        for (const auto& d : i.header.deposits) {
+            out.u32(d.mask);
+        }
+    }
+}
+
+std::vector<Decoded::ExplorePart> read_explored(StateIn& in) {
+    std::vector<Decoded::ExplorePart> list(in.count(8));
+    for (auto& part : list) {
+        part.explored.resize(in.count(1));
+        for (std::size_t p = 0; p < part.explored.size(); ++p) {
+            part.explored[p] = in.boolean();
+        }
+        part.deposit_masks.resize(in.count(4));
+        for (auto& m : part.deposit_masks) {
+            m = in.u32();
+        }
+    }
+    return list;
+}
+
 void write_islands(Out& out, const World& w) {
     out.u32(static_cast<std::uint32_t>(w.islands().size()));
     for (const WorldIsland& i : w.islands()) {
@@ -327,7 +363,7 @@ void write_islands(Out& out, const World& w) {
             out.u8(d.ware);
             out.u8(d.x);
             out.u8(d.y);
-            out.u8(d.mask);
+            out.u8(static_cast<std::uint8_t>(d.mask));  // all bits in XPLR
             out.u8(d.kind);
             out.u16(d.amount);
         }
@@ -1581,6 +1617,7 @@ core::Bytes encode_extension(const World& world, const assets::BuildingTable& bu
     section(out, kEpochs, [&](Out& o) { write_epochs(o, world); });
     section(out, kArmy, [&](Out& o) { write_army(o, world); });
     section(out, kDiplomacy, [&](Out& o) { write_diplomacy(o, world); });
+    section(out, kExplored, [&](Out& o) { write_explored(o, world); });
     if (simulation != nullptr) {
         section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
     } else if (!world.simulation_state().empty()) {
@@ -1676,6 +1713,9 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
             case kDiplomacy:
                 d.diplomacy = read_diplomacy(in);
                 break;
+            case kExplored:
+                d.explored = read_explored(in);
+                break;
             case kAnimals:
                 d.animals = read_animals(in);
                 break;
@@ -1733,6 +1773,18 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
             island.volcano_erupted = part.volcano_erupted;
             island.header.deposits = part.deposits;
             island.header.fertility = part.fertility;
+        }
+    }
+    if (d.explored && d.explored->size() == world.islands().size()) {
+        for (std::size_t i = 0; i < d.explored->size(); ++i) {
+            const auto& part = (*d.explored)[i];
+            WorldIsland& island = world.island(i);
+            island.explored = part.explored;
+            if (part.deposit_masks.size() == island.header.deposits.size()) {
+                for (std::size_t k = 0; k < part.deposit_masks.size(); ++k) {
+                    island.header.deposits[k].mask = part.deposit_masks[k];
+                }
+            }
         }
     }
     if (d.tiles) {

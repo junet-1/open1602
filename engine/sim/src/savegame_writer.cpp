@@ -426,7 +426,7 @@ private:
                 r[o] = d.ware;
                 r[o + 1] = d.x;
                 r[o + 2] = d.y;
-                r[o + 3] = d.mask;
+                r[o + 3] = static_cast<std::uint8_t>(d.mask);
                 r[o + 4] = d.kind;
                 put16(r, o + 6, d.amount);
             } else {
@@ -445,6 +445,11 @@ private:
         }
         constexpr std::uint32_t kSlots = (1U << assets::kOriginalPlayerSlots) - 1U;
         put32(r, 0x68, (get32(r, 0x68) & ~kSlots) | discovered);
+        std::uint32_t explored = 0;
+        for (std::uint8_t p = 0; p < assets::kOriginalPlayerSlots; ++p) {
+            explored |= island.explored_by(p) ? 1U << p : 0U;
+        }
+        r[0x1B] = static_cast<std::uint8_t>((r[0x1B] & ~kSlots) | explored);
         put32(r, 0x6C, clamp32(island.drought.end_ms / 100));
         return r;
     }

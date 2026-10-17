@@ -34,6 +34,7 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
         h.template_size = static_cast<std::uint16_t>(data[0x62] | (data[0x63] << 8));
         h.climate = data[0x64];
         h.stored_complete = data[0x65] != 0;
+        h.explored = data[0x1B];
         // Deposits: count at +0x1A (at most 2 in the original), entries at +0x1C.
         const std::size_t deposits = std::min<std::size_t>(data[0x1A], 2);
         for (std::size_t i = 0; i < deposits; ++i) {

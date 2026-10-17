@@ -107,7 +107,9 @@ void project_point(const WorldView& view, double wx, double wy, double& sx, doub
     sy = (fx + fy) * (tile_height(view.zoom) / 2.0);
 }
 
-constexpr std::uint64_t kFlagFrameMs = 90;  // AnimSpeed of the flag figures
+constexpr std::uint64_t kFlagFrameMs = 90;        // AnimSpeed of the flag figures
+constexpr std::uint16_t kFigureUntergang = 45;    // UNTERGANG: splash of a sinking ship
+constexpr std::uint16_t kFigureFahneWeiss = 111;  // FAHNEWEISS: white flag
 
 /// Image `frame` of a banner's flag: the tinted generic flag or the banner's own sprites.
 std::optional<std::uint32_t> flag_sprite(const WorldLayers& layers, sim::BannerId id, std::uint64_t frame) {
@@ -182,6 +184,14 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     if (fig == nullptr || fig->sheet != assets::FigureSheet::Ship) {
         return false;
     }
+    // Below half health the next record (HANDELD1 ..., Gfx + 8) every frame (0x0044FB0C).
+    const std::uint32_t max_health = fig->ship.max_health;
+    if (ship.health != 0 && max_health != 0 && ship.health * 128U / max_health < 64U) {
+        const assets::FigureType* damaged = layers.figures->get(ship.figure + 1U);
+        if (damaged != nullptr && damaged->sheet == assets::FigureSheet::Ship) {
+            fig = damaged;
+        }
+    }
     const RotatedWorld rw(view);
     const double tw = tile_width(view.zoom);
     const double hw = tw / 2.0;
@@ -212,13 +222,71 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     out.hull.x = static_cast<std::int32_t>(std::floor(screen_x)) - hull.width / 2;
     out.hull.y = depth + fig->posoffs[0] * itw / 64 - 1;
 
+    // Sinking (docs/re/ships.md#bilder): after the turn the hull goes down by one height unit
+    // (half a tile width) per second and is cut at the waterline, its bottom at height 0; the
+    // splash UNTERGANG plays where it went down.
+    const sim::ShipMotion& m = ship.motion;
+    std::int32_t drop = 0;
+    out.has_sink = false;
+    if (ship.sinking && m.phase == sim::ShipMotion::Phase::Sinking) {
+        const std::uint64_t sink_us = std::uint64_t{fig->ship.sink_ms != 0 ? fig->ship.sink_ms : 3000U} * 1000U;
+        const std::uint64_t start_us = m.duration_us > sink_us ? m.duration_us - sink_us : 0U;
+        if (m.elapsed_us > start_us) {
+            const std::uint64_t t_us = m.elapsed_us - start_us;
+            drop = static_cast<std::int32_t>(static_cast<double>(t_us) / 1e6 * hw);
+            const assets::FigureType* splash = layers.figures->get(kFigureUntergang);
+            const auto base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Effekte)];
+            if (splash != nullptr && base) {
+                // 300 ms the last frame, then 36 frames of 110 ms, then the last frame again.
+                const std::uint64_t t_ms = t_us / 1000U;
+                const std::uint32_t frame =
+                    t_ms < 300U ? 35U : std::min<std::uint32_t>(35U, static_cast<std::uint32_t>((t_ms - 300U) / 110U));
+                out.sink.sprite = *base + splash->gfx + dir * 36U + frame;
+                const AtlasRect& sr = layers.atlas->rect(out.sink.sprite);
+                const std::int32_t sd = static_cast<std::int32_t>(std::floor(screen_y)) + splash->posoffs[1] * itw / 64;
+                out.sink.x = static_cast<std::int32_t>(std::floor(screen_x)) - sr.width / 2;
+                out.sink.y = sd + splash->posoffs[0] * itw / 64 - 1;
+                out.has_sink = !sr.empty();
+            }
+        }
+    }
+    const std::int32_t waterline = out.hull.y;
+    if (drop > 0) {
+        out.hull.y += drop;
+        out.hull.cut_bottom = static_cast<std::uint16_t>(std::min<std::int32_t>(drop, hull.height));
+    }
+
+    // Bow wave while the ship runs (not turning, waiting or sinking; 0x0044FC09): BUGH, 12 frames
+    // per direction at the ship's 90 ms, bottom on the ship's Y, drawn under the hull.
+    out.has_wave = false;
+    if (!ship.sinking && m.phase == sim::ShipMotion::Phase::Run && fig->bow_wave != 0) {
+        if (const assets::FigureType* wave = layers.figures->get(fig->bow_wave)) {
+            const assets::FigureAnim* a = wave->anim(0);
+            const std::uint32_t frames = a != nullptr && a->count > 0 ? a->count : 12U;
+            out.wave.sprite =
+                layers.ship_base + wave->gfx + dir * wave->rotate + static_cast<std::uint32_t>(time_ms / 90U % frames);
+            const AtlasRect& wr = layers.atlas->rect(out.wave.sprite);
+            out.wave.x = static_cast<std::int32_t>(std::floor(screen_x)) - wr.width / 2;
+            out.wave.y = depth + wave->posoffs[0] * itw / 64 - 1;
+            out.has_wave = !wr.empty();
+        }
+    }
+
     // Flag of the owner's banner (original: figure from table 0x00498F2C). Offset: Fahnoffs[1]
     // along the ship axis, rotated by (direction + 2) * 45 degrees (0x00443180), projected; lifted
     // by Fahnoffs[2] * w/2 from Y and hanging down from there. (The original also adds the flag
     // figure's Posoffs[0], which is 0 for all flags.)
     out.has_flag = false;
     const sim::Player* owner = world.player(ship.owner);
-    const auto flag = owner != nullptr ? flag_sprite(layers, owner->banner, time_ms / kFlagFrameMs) : std::nullopt;
+    auto flag = owner != nullptr ? flag_sprite(layers, owner->banner, time_ms / kFlagFrameMs) : std::nullopt;
+    if (ship.held) {
+        // A surrendered ship shows FAHNEWEISS instead (ship + 0x1A8 bit 3).
+        const assets::FigureType* white = layers.figures->get(kFigureFahneWeiss);
+        flag = white != nullptr && white->sheet == assets::FigureSheet::Ship
+                   ? std::optional<std::uint32_t>(layers.ship_base + white->gfx +
+                                                  static_cast<std::uint32_t>(time_ms / kFlagFrameMs % 8U))
+                   : std::nullopt;
+    }
     if (flag) {
         out.flag.sprite = *flag;
         const AtlasRect& fr = layers.atlas->rect(out.flag.sprite);
@@ -231,6 +299,14 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
         const std::int32_t top = static_cast<std::int32_t>(std::floor(screen_y - py)) + fig->posoffs[1] * itw / 64 -
                                  static_cast<std::int32_t>(fig->fahnoffs[2] * hw) - 1;
         out.flag.y = top + fr.height;
+        if (drop > 0) {
+            out.flag.y += drop;
+            const std::int32_t below = out.flag.y - waterline;
+            if (below >= fr.height) {
+                return true;  // gone under
+            }
+            out.flag.cut_bottom = static_cast<std::uint16_t>(std::max(0, below));
+        }
         out.has_flag = true;
     }
     return true;
@@ -241,6 +317,11 @@ namespace {
 constexpr std::uint16_t kFigureNoAktiv = 46;     // NOAKTIV: status icon of production buildings
 constexpr std::uint16_t kFigureBrandMarkt = 47;  // BRANDMARKT: fire on a market
 constexpr std::uint16_t kFigureSensenmann = 56;  // SENSENMANN: plague and fire on houses
+constexpr std::uint16_t kFigureShowEisen = 57;   // SHOWEISEN: ore deposit symbol
+constexpr std::uint16_t kFigureShowGold = 58;    // SHOWGOLD: gold vein symbol
+constexpr std::int32_t kProdRohsterz = 12;       // HAUS_PRODTYP Kind ROHSTERZ: ore mountain
+constexpr std::uint8_t kWareIronOre = 2;
+constexpr std::uint8_t kWareGold = 3;
 
 }  // namespace
 
@@ -351,6 +432,32 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
                 }
             }
         }
+        // Ore and gold symbols: on the origin of the ore mountain a deposit lies at (0x00487076);
+        // whether the local player sees one is decided when drawing.
+        for (const auto& d : island.header.deposits) {
+            if ((d.ware != kWareIronOre && d.ware != kWareGold) || d.x >= map.width() || d.y >= map.height()) {
+                continue;
+            }
+            const sim::SubTile sub = map.sub_tile(buildings, d.x, d.y);
+            if (sub.building == nullptr || sub.building->prod_kind != kProdRohsterz || sub.origin_x != d.x ||
+                sub.origin_y != d.y) {
+                continue;
+            }
+            const std::uint16_t number = d.ware == kWareGold ? kFigureShowGold : kFigureShowEisen;
+            if (figures.get(number) == nullptr) {
+                continue;
+            }
+            BuildingFigure f;
+            f.role = BuildingFigureRole::Deposit;
+            attach_point(island, *sub.building, d.x, d.y, map.top(d.x, d.y).rotation, assets::FigureType{}, f.x, f.y);
+            f.z = sub.building->icon_height;
+            f.figure = number;
+            f.phase = static_cast<std::uint8_t>((island.x + d.x) * 7 + (island.y + d.y) * 13);
+            f.island = static_cast<std::uint16_t>(index);
+            f.origin_x = d.x;
+            f.origin_y = d.y;
+            out.push_back(f);
+        }
     }
     return out;
 }
@@ -405,6 +512,35 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
                 return false;
             }
             c.sprite = *sprite;
+            break;
+        }
+        case BuildingFigureRole::Deposit: {
+            // Drawn only for the local player who discovered the island and explored this deposit
+            // (byte 3, 0x00452098).
+            if (figure.island >= world.islands().size()) {
+                return false;
+            }
+            const sim::WorldIsland& island = world.islands()[figure.island];
+            if (!island.discovered_by(layers.local_player)) {
+                return false;
+            }
+            const auto& deposits = island.header.deposits;
+            const bool known = std::any_of(deposits.begin(), deposits.end(), [&](const auto& d) {
+                return d.x == figure.origin_x && d.y == figure.origin_y && d.ware != 0 &&
+                       sim::deposit_known(d, layers.local_player);
+            });
+            // Kind 0x1B draws from EFFEKTE.BSH like the other symbols (SHOWEISEN has no Blocknr).
+            const auto base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Effekte)];
+            if (!known || !base) {
+                return false;
+            }
+            const assets::FigureAnim* a = fig->anim(0);
+            std::uint32_t frame = 0;
+            if (a != nullptr && a->count > 0) {
+                const std::uint64_t speed = a->speed_ms > 0 ? a->speed_ms : 1;
+                frame = static_cast<std::uint32_t>((time_ms / speed + figure.phase) % a->count);
+            }
+            c.sprite = *base + assets::figure_sprite(*fig, 0, frame, 0, view.rotation);
             break;
         }
         case BuildingFigureRole::Disaster:
@@ -708,9 +844,15 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 FigureSprites f;
                 f.row = s.row;
                 f.depth = s.depth;
+                if (s.has_wave) {
+                    f.parts[f.count++] = s.wave;
+                }
                 f.parts[f.count++] = s.hull;
                 if (s.has_flag) {
                     f.parts[f.count++] = s.flag;
+                }
+                if (s.has_sink) {
+                    f.parts[f.count++] = s.sink;
                 }
                 add_figure(f);
             }

@@ -602,6 +602,9 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             if ((island.header.discovered >> p & 1U) != 0) {
                 island.discover(p);
             }
+            if ((static_cast<std::uint32_t>(island.header.explored) >> p & 1U) != 0) {
+                island.explore(p);
+            }
         }
         // Craters: the list of the savegame, searched only for islands without one (INSEL3/4).
         constexpr std::size_t kCraterFields = 0x4C;

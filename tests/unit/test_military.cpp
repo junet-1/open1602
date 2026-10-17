@@ -386,11 +386,11 @@ TEST_CASE("military: a castle trains units with weapons and sends them out") {
     CHECK(castle.slots.empty());
 }
 
-TEST_CASE("military: the unit limit is a rule, unlimited by default (L-008)") {
+TEST_CASE("military: the unit limit is a rule, 250 by default (L-008)") {
     Field f;
     f.build(kCastle, 20, 5, 0);
     f.world.add_cost_building(sim::CostBuilding{sim::CostBuilding::Kind::Castle, 0, 20, 5, true});
-    CHECK(f.rules.max_army == 0);
+    CHECK(f.rules.max_army == 250);
     CHECK(sim::Rules::original().max_army == 100);
     f.rules.max_army = 2;
     f.start();

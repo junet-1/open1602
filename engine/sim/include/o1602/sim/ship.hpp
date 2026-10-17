@@ -120,6 +120,10 @@ struct Ship {
     std::uint32_t trader_tools_ms = 0;
     std::uint32_t trader_ore_ms = 0;
     bool trader = false;
+    /// Exploring an island (ship + 0x1A4): steps of 1.5 s left, 0 = not exploring; the next step
+    /// at game time `explore_next_ms` (docs/re/ships.md#erkunden).
+    std::uint8_t explore_steps = 0;
+    std::uint64_t explore_next_ms = 0;
     /// Island whose surroundings (rectangle + 5 tiles) the ship is in, for discovering islands;
     /// 0xFFFF = open sea.
     std::uint16_t near_island = 0xFFFF;

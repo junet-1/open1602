@@ -30,6 +30,9 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     m_fleet.set_combat(&m_combat);
     m_time_ms = world.time_ms();
     m_island_ms = static_cast<std::uint32_t>(m_time_ms % Logistics::kIslandEpochMs);
+    // The cities consume at whole multiples of 10 s of game time (game08 -> game09, the video of
+    // game04); the extra tick the original runs right after loading is not taken over (S-091).
+    m_city_ms = static_cast<std::uint32_t>(m_time_ms % kCityTickMs);
     if (world.saved_rules()) {
         m_rules = *world.saved_rules();  // the settings the game was started with
     }
@@ -140,6 +143,8 @@ void Simulation::apply_commands() {
             result.accepted = m_fleet.set_trade(*trade);
         } else if (const auto* yard = std::get_if<ShipyardOrder>(&command)) {
             result.accepted = m_fleet.shipyard(*yard);
+        } else if (const auto* explore = std::get_if<ExploreOrder>(&command)) {
+            result.accepted = m_fleet.explore(*explore);
         } else if (const auto* dipl = std::get_if<DiplomacyOrder>(&command)) {
             result.accepted = apply_diplomacy(*m_world, *dipl);
         } else if (const auto* soldiers = std::get_if<SoldierOrder>(&command)) {
