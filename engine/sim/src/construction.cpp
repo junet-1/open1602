@@ -711,6 +711,31 @@ bool tile_fertile_at(const World& world, const assets::BuildingTable& buildings,
     return kPatterns[pattern][at] != 0;
 }
 
+bool city_defenceless(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                      std::uint8_t city) {
+    if (island >= world.islands().size()) {
+        return false;
+    }
+    const IslandMap& map = world.islands()[island].map;
+    for (std::uint32_t y = 0; y < map.height(); ++y) {
+        for (std::uint32_t x = 0; x < map.width(); ++x) {
+            const MapCell& c = map.top(x, y);
+            if (c.empty() || c.city != city) {
+                continue;
+            }
+            const assets::BuildingType* b = buildings.by_sprite(c.sprite);
+            if (b == nullptr) {
+                continue;
+            }
+            if (((b->prod_kind == prod::kMarket || b->prod_kind == prod::kKontor) && !b->destroyed) ||
+                b->prod_kind == prod::kTower) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings, const BuildOrder& order) {
     BuildPlan plan;
     plan.items.resize(order.items.size());
@@ -731,6 +756,19 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
                                            footprint_of(*t, first.x, first.y, first.rotation), order.island);
         planner.city = oc.foreign ? MapCell::kNoCity : oc.city;
         planner.foreign = oc.foreign;
+        // Taking over a city: a Kontor over the destroyed Kontor of a defenceless city of another
+        // human or computer player (Ausbau path, build_effects 4.3).
+        const bool acting =
+            player != nullptr && (player->role == PlayerRole::Human || player->role == PlayerRole::Computer);
+        if (oc.foreign && acting && t->kind == kind::kHq && t->upgrade && order.items.size() == 1) {
+            const auto old = building_at(world, buildings, order.island, {first.x, first.y});
+            if (old && old->type->destroyed && old->type->kreuz_base == t->kreuz_base && old->city == oc.city &&
+                city_defenceless(world, buildings, order.island, oc.city)) {
+                planner.city = oc.city;
+                planner.foreign = false;
+                plan.takeover = true;
+            }
+        }
     }
     plan.city = planner.city;
 
@@ -1818,6 +1856,24 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
         e.type = &b;
         e.production = world.production_index(order.island, static_cast<std::uint16_t>(item.x),
                                               static_cast<std::uint16_t>(item.y));
+        builder.emit(e);
+    }
+    if (plan.takeover && city != MapCell::kNoCity) {
+        // City_ChangeOwner: every tile of the city, and the city with its goods, go to the builder.
+        IslandMap& map = world.island(order.island).map;
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                if (map.top(x, y).city == city) {
+                    map.set_city(x, y, city, order.player);
+                }
+            }
+        }
+        if (City* c = world.city(order.island, city)) {
+            c->owner = order.player;
+        }
+        ConstructionEvent e;
+        e.kind = ConstructionEvent::Kind::CityTaken;
+        e.city = city;
         builder.emit(e);
     }
     // Pay what was built: goods from the city (or the ship), gold from the player.

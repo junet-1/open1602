@@ -55,6 +55,30 @@ struct SoldierCommand {
     bool one_way = false;
 };
 
+/// Orders to a castle (building ops 0x10, 0x4C; docs/re/military.md, "Ausbildung").
+struct CastleOrder {
+    enum class Op : std::uint8_t {
+        Recruit,  ///< train a unit of `figure` (SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1)
+        Release,  ///< send the trained unit of `slot` out, walking to `spot`
+        Cancel,   ///< give up the unit of `slot`; paid weapons come back as far as it is healthy
+    };
+    PlayerId player = kNoPlayer;
+    std::uint16_t island = 0;
+    std::uint16_t x = 0;  ///< origin of the castle
+    std::uint16_t y = 0;
+    Op op = Op::Recruit;
+    std::uint16_t figure = 0;
+    std::uint8_t slot = 0;
+    Target spot;
+};
+
+/// Soldiers from a ship's holds onto land within 6 tiles (0x00448F90).
+struct UnloadOrder {
+    PlayerId player = kNoPlayer;
+    std::uint32_t ship = 0;
+    std::uint8_t hold = 0xFF;  ///< one hold, 0xFF = all holds with soldiers
+};
+
 /// What happened in a fight, for messages, sounds and effects.
 struct MilitaryEvent {
     enum class Kind : std::uint8_t {
@@ -67,6 +91,11 @@ struct MilitaryEvent {
         ShipSunk,           ///< 9
         SoldierHealed,      ///< 13
         WarDeclared,        ///< the attack cursor declared war: `player` on `owner`
+        UnitTrained,        ///< MELDUNG 12: a castle finished training a unit
+        ArmyFull,           ///< 0x45: the player has 100 units
+        TroopsLanded,       ///< 16: soldiers of `player` landed on an island where `owner` has a city
+        Boarded,            ///< `unit` went on board ship `target`
+        NativesCurse,       ///< MELDUNG 4: the natives curse `player` (a drought on their island if `pirates`)
     };
     Kind kind = Kind::Shot;
     Target unit;
@@ -92,6 +121,26 @@ public:
 
     bool order(const SoldierOrder& order);
     bool command(const SoldierCommand& command);
+    bool castle(const CastleOrder& order);
+    bool unload(const UnloadOrder& order);
+
+    /// Units a player has: on land, in castles and on board ships (Player_ArmySize 0x00475B60).
+    [[nodiscard]] std::uint32_t army_size(PlayerId player) const;
+    /// A castle's pack donkey brought weapons (the logistics call this; amount 0: the trip failed).
+    void castle_delivery(std::uint16_t island, std::uint16_t x, std::uint16_t y, std::uint8_t ware,
+                         std::uint32_t amount);
+    /// Castles that need a pack donkey to fetch weapons from their city.
+    struct FetchRequest {
+        std::uint16_t island = 0;
+        std::uint16_t x = 0;
+        std::uint16_t y = 0;
+        std::uint8_t ware = 0;
+    };
+    [[nodiscard]] std::vector<FetchRequest> take_fetch_requests() {
+        std::vector<FetchRequest> r;
+        r.swap(m_fetch);
+        return r;
+    }
 
     /// A tower building was built or a city's territory changed: towers come and go with it.
     void update_towers(std::uint16_t island);
@@ -133,9 +182,20 @@ private:
     [[nodiscard]] std::uint32_t run_us(const Soldier& s, std::uint8_t direction, std::uint8_t cells) const;
     void kill(Soldier& s, PlayerId killer, bool disband);
 
+    // Castles and ships (castles.cpp)
+    void castles_tick();
+    void castle_second(CostBuilding& castle);
+    [[nodiscard]] CostBuilding* castle_at(std::uint16_t island, std::uint16_t x, std::uint16_t y);
+    [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> exit_cell(std::uint16_t island, std::uint16_t x,
+                                                                                 std::uint16_t y) const;
+    bool board(Soldier& s, Ship& ship);
+
     // Towers (towers.cpp)
     void towers_tick(std::uint32_t dt_ms);
     void tower_think(Tower& t);
+
+    /// The natives' curse (0x0047EAA0) after their village fell.
+    void curse(std::uint16_t island, std::uint8_t city, bool dissolved);
 
     // Hits and buildings (combat side)
     void resolve_hits(std::vector<ConstructionEvent>* construction);
@@ -150,7 +210,9 @@ private:
     Fleet* m_fleet = nullptr;
     LandPlanner m_planner;
     std::vector<MilitaryEvent> m_events;
-    std::uint32_t m_regen_ms = 0;  ///< game time since the building damage last healed
+    std::uint32_t m_regen_ms = 0;   ///< game time since the building damage last healed
+    std::uint32_t m_castle_ms = 0;  ///< game time since the castles' last second
+    std::vector<FetchRequest> m_fetch;
 };
 
 }  // namespace o1602::sim

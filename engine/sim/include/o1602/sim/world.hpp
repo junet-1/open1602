@@ -148,6 +148,8 @@ struct City {
     /// Game time a building of the city was last hit (city + 0x1EC): the natives send more warriors
     /// for 10 minutes after.
     std::uint64_t last_attacked_ms = 0;
+    /// Natives: the village has cursed its destroyer (once).
+    bool cursed = false;
 
     [[nodiscard]] const Trade* trade_of(std::uint8_t ware) const noexcept {
         return ware < trade.size() ? &trade[ware] : nullptr;

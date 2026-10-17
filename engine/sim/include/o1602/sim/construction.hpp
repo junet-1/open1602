@@ -113,6 +113,9 @@ struct BuildPlan {
     BuildBill bill;                        ///< costs of the items that are built
     std::uint8_t city = MapCell::kNoCity;  ///< city of the order; kNoCity founds one
     std::size_t placed = 0;                ///< items that are built
+    /// A Kontor built over the destroyed Kontor of a defenceless city of another player: the city
+    /// changes hands (build_effects 4.3, City_ChangeOwner).
+    bool takeover = false;
 };
 
 /// Checks an order without changing anything (the preview of the build tool).
@@ -126,6 +129,7 @@ struct ConstructionEvent {
         CityFounded,     ///< a city was founded (city)
         CityDissolved,   ///< a city lost its Kontor and was dissolved
         StorageChanged,  ///< markets or Kontors of the city changed: warehouse room
+        CityTaken,       ///< the city (city) went over to a new owner
     };
     Kind kind = Kind::Placed;
     std::uint16_t island = 0;
@@ -135,6 +139,11 @@ struct ConstructionEvent {
     std::optional<std::uint32_t> production;
     const assets::BuildingType* type = nullptr;
 };
+
+/// Whether a city can be taken over (0x0047F1B0): no market or Kontor standing (a destroyed Kontor
+/// does not count) and no tower in it.
+[[nodiscard]] bool city_defenceless(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                                    std::uint8_t city);
 
 /// Builds what plan_build() accepts and pays for it. New cities take the next name of
 /// `city_names` (round robin, World::city_name_index()).

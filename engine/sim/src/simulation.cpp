@@ -146,6 +146,10 @@ void Simulation::apply_commands() {
             result.accepted = m_military.order(*soldiers);
         } else if (const auto* soldier = std::get_if<SoldierCommand>(&command)) {
             result.accepted = m_military.command(*soldier);
+        } else if (const auto* castle = std::get_if<CastleOrder>(&command)) {
+            result.accepted = m_military.castle(*castle);
+        } else if (const auto* unload = std::get_if<UnloadOrder>(&command)) {
+            result.accepted = m_military.unload(*unload);
         }
         handle(m_construction_events, first);
         m_command_results.push_back(std::move(result));
@@ -173,6 +177,7 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                 }
                 break;
             case ConstructionEvent::Kind::StorageChanged:
+            case ConstructionEvent::Kind::CityTaken:
             case ConstructionEvent::Kind::CityFounded:
             case ConstructionEvent::Kind::CityDissolved:
                 storage = true;
@@ -346,6 +351,18 @@ void Simulation::tick() {
         for (MilitaryEvent& e : m_military.take_events()) {
             m_military_events.push_back(e);
         }
+        // Castles fetch their weapons with a pack donkey, like shipyards their wood.
+        for (const Military::FetchRequest& r : m_military.take_fetch_requests()) {
+            const assets::BuildingType* castle = nullptr;
+            if (r.island < m_world->islands().size()) {
+                const MapCell& c = m_world->islands()[r.island].map.top(r.x, r.y);
+                castle = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite);
+            }
+            if (castle == nullptr ||
+                !m_logistics.send_yard_carrier(r.island, TilePos{r.x, r.y}, r.ware, castle->worker_figure)) {
+                m_military.castle_delivery(r.island, r.x, r.y, r.ware, 0);
+            }
+        }
         if (m_military_events.size() > kMaxPendingEvents) {
             m_military_events.erase(m_military_events.begin(),
                                     m_military_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
@@ -371,8 +388,11 @@ void Simulation::tick() {
     }
     m_logistics.tick();
     for (const Logistics::YardDelivery& d : m_logistics.take_yard_deliveries()) {
+        // Shipyards and castles (each ignores what is not its own).
         m_fleet.yard_delivery(d.island, static_cast<std::uint16_t>(d.origin.x), static_cast<std::uint16_t>(d.origin.y),
                               d.ware, d.amount);
+        m_military.castle_delivery(d.island, static_cast<std::uint16_t>(d.origin.x),
+                                   static_cast<std::uint16_t>(d.origin.y), d.ware, d.amount);
     }
     for (const DisasterEvent& e : m_logistics.take_disaster_events()) {
         m_disaster_events.push_back(e);
@@ -400,6 +420,16 @@ void Simulation::pay_upkeep() {
             const assets::FigureType* type = m_figures->get(slot.figure);
             if (type != nullptr && owner < upkeep.size()) {
                 upkeep[owner] += m_figures->unit_upkeep(type->kind);
+            }
+        }
+    }
+    // Soldiers on board ships (cargo wares 25..44 = figure + 24).
+    for (const Ship& ship : m_world->ships()) {
+        for (const CargoSlot& c : ship.cargo) {
+            if (c.ware >= 25 && c.ware <= 44 && ship.owner < upkeep.size()) {
+                if (const assets::FigureType* type = m_figures->get(static_cast<std::uint32_t>(c.ware - 24))) {
+                    upkeep[ship.owner] += m_figures->unit_upkeep(type->kind);
+                }
             }
         }
     }

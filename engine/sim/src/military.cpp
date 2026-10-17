@@ -14,8 +14,9 @@ namespace {
 constexpr std::uint32_t kRegenEpochMs = 10'000;  // 0x0047A8C0: building damage heals every 10 s
 constexpr std::uint32_t kRegenAmount = 32;       // by 1 HP
 constexpr std::uint32_t kTowerThinkUs = 1'000'000;
-constexpr std::int32_t kTowerSight8 = 0x60;  // towers score entries within 12 tiles
-constexpr std::int32_t kProdTower = 16;      // HAUS_PRODTYP WACHTURM
+constexpr std::uint32_t kCastleSecondMs = 1000;  // castles count their training in seconds
+constexpr std::int32_t kTowerSight8 = 0x60;      // towers score entries within 12 tiles
+constexpr std::int32_t kProdTower = 16;          // HAUS_PRODTYP WACHTURM
 constexpr std::int32_t kProdMarket = 7;
 constexpr std::int32_t kProdKontor = 8;
 
@@ -66,6 +67,11 @@ void Military::tick(std::uint32_t dt_ms, std::vector<ConstructionEvent>* constru
     }
     // The dead are gone at the end of their animation.
     std::erase_if(m_world->soldiers(), [](const Soldier& s) { return s.owner == kNoPlayer; });
+    m_castle_ms += dt_ms;
+    while (m_castle_ms >= kCastleSecondMs) {
+        m_castle_ms -= kCastleSecondMs;
+        castles_tick();
+    }
     towers_tick(dt_ms);
     resolve_hits(construction);
     m_regen_ms += dt_ms;
@@ -445,11 +451,68 @@ void Military::damage_building(std::uint16_t island, std::uint16_t x, std::uint1
         m_world->diplomacy().set_blamed(victim, attacker);
     }
     const Target what = Target::building(island, ox, oy);
+    const std::uint8_t city = cell.city;
+    const Player* owner = m_world->player(victim);
+    const bool natives = owner != nullptr && owner->role == PlayerRole::Natives && city != MapCell::kNoCity;
     if (destroy_building(*m_world, *m_buildings, island, {ox, oy}, construction)) {
         m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::BuildingDestroyed, {}, what, attacker, victim});
         m_combat->island_changed(island);
         update_towers(island);
+        if (natives) {
+            curse(island, city, m_world->city(island, city) == nullptr);
+        }
     }
+}
+
+void Military::curse(std::uint16_t island, std::uint8_t city, bool dissolved) {
+    // Natives_Curse 0x0047EAA0, from 0x00482120: when the village is gone, or defenceless with fewer
+    // than 3 dwellings. The blamed player (the last who killed their warriors or destroyed their
+    // main building) is cursed; one time in two a drought follows on the island.
+    City* c = m_world->city(island, city);
+    if (c != nullptr) {
+        if (c->cursed || !city_defenceless(*m_world, *m_buildings, island, city)) {
+            return;
+        }
+        constexpr std::int32_t kDwelling = 31;  // PIRATWOHN
+        std::uint32_t dwellings = 0;
+        const IslandMap& map = m_world->islands()[island].map;
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                const MapCell& cell = map.top(x, y);
+                if (cell.city != city || cell.empty()) {
+                    continue;
+                }
+                const auto b = building_at(*m_world, *m_buildings, island,
+                                           {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)});
+                dwellings += b && b->type->prod_kind == kDwelling && b->origin.x == static_cast<std::int32_t>(x) &&
+                                     b->origin.y == static_cast<std::int32_t>(y)
+                                 ? 1U
+                                 : 0U;
+            }
+        }
+        if (dwellings >= 3) {
+            return;
+        }
+        c->cursed = true;
+    } else if (!dissolved) {
+        return;
+    }
+    PlayerId natives = kNoPlayer;
+    for (std::size_t p = 0; p < m_world->players().size(); ++p) {
+        if (m_world->players()[p].role == PlayerRole::Natives) {
+            natives = static_cast<PlayerId>(p);
+        }
+    }
+    const PlayerId blamed = m_world->diplomacy().blamed(natives);
+    if (!acts(*m_world, blamed)) {
+        return;
+    }
+    // The original rolls this on the cursed player's computer only (M-016).
+    const bool drought = (m_world->random(RandomStream::Military).next() & 1U) != 0;
+    if (drought) {
+        m_world->island(island).drought.curse_pending = true;
+    }
+    m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::NativesCurse, {}, {}, blamed, natives, 0, 0, 0, drought});
 }
 
 void Military::regenerate() {
@@ -462,6 +525,7 @@ void Military::regenerate() {
 
 void Military::save(core::ByteWriter& out) const {
     out.u32(m_regen_ms);
+    out.u32(m_castle_ms);
 }
 
 bool Military::load(core::ByteReader& in) {
@@ -470,6 +534,13 @@ bool Military::load(core::ByteReader& in) {
         return false;
     }
     m_regen_ms = *regen % kRegenEpochMs;
+    if (!in.at_end()) {
+        const auto castle = in.u32();
+        if (!castle) {
+            return false;
+        }
+        m_castle_ms = *castle % kCastleSecondMs;
+    }
     return true;
 }
 

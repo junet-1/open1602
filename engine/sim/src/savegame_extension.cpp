@@ -257,6 +257,7 @@ struct Decoded {
             std::uint16_t island = 0;
             std::uint8_t index = 0;
             std::uint64_t last_attacked_ms = 0;
+            bool cursed = false;
         };
         std::vector<CityPart> cities;
     };
@@ -917,6 +918,7 @@ void write_army(Out& out, const World& w) {
         out.u16(c.island);
         out.u8(c.index);
         out.u64(c.last_attacked_ms);
+        out.boolean(c.cursed);
     }
     // Castles, in the order of the costs list.
     out.u32(static_cast<std::uint32_t>(w.cost_buildings().size()));
@@ -978,11 +980,12 @@ Decoded::ArmyPart read_army(StateIn& in) {
         ship.sinking = in.boolean();
         ship.next_shot_ms = in.u64();
     }
-    a.cities.resize(in.count(11));
+    a.cities.resize(in.count(12));
     for (auto& city : a.cities) {
         city.island = in.u16();
         city.index = in.u8();
         city.last_attacked_ms = in.u64();
+        city.cursed = in.boolean();
     }
     a.castles.resize(in.count(16));
     for (auto& [weapons, slots] : a.castles) {
@@ -1844,6 +1847,7 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         for (const auto& part : d.army->cities) {
             if (City* city = world.city(part.island, part.index)) {
                 city->last_attacked_ms = part.last_attacked_ms;
+                city->cursed = part.cursed;
             }
         }
         if (d.army->castles.size() == world.cost_buildings().size()) {

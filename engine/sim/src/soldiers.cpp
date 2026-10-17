@@ -28,6 +28,7 @@ constexpr std::int32_t kOthersRange = 8;   // cells: other figures block plannin
 constexpr std::int32_t kCrowded = 3;       // cells: walking slower next to another figure
 constexpr std::uint8_t kMaxFailures = 3;
 constexpr std::int32_t kWanderRange = 9;    // tiles around home
+constexpr std::int32_t kBoardRange = 9;     // cells from an own ship: the soldier goes on board
 constexpr std::int32_t kProdDoctor = 0x16;  // HAUS_PRODTYP KLINIK
 constexpr std::uint8_t kAnimWalk = 0;
 constexpr std::uint8_t kAnimStand = 1;
@@ -189,6 +190,20 @@ std::optional<CellRect> Military::target_cells(const Target& t) const {
                 return std::nullopt;
             }
             return target_cells(Target::building(t.island, *c->warehouse_x, *c->warehouse_y));
+        }
+        case Target::Kind::Ship: {
+            const Ship* s = m_world->ship(t.ship);
+            if (s == nullptr) {
+                return std::nullopt;
+            }
+            return CellRect{2 * s->x, 2 * s->y, 2 * s->x + 1, 2 * s->y + 1};
+        }
+        case Target::Kind::Soldier: {
+            const Soldier* s = m_world->soldier(t.ship);
+            if (s == nullptr) {
+                return std::nullopt;
+            }
+            return CellRect{s->cell_x(), s->cell_y(), s->cell_x(), s->cell_y()};
         }
         default:
             break;
@@ -370,6 +385,17 @@ bool Military::arrived(Soldier& s) {
             return true;
         }
     }
+    if (s.target.kind == Target::Kind::Ship) {
+        Ship* ship = m_world->ship(s.target.ship);
+        if (ship != nullptr && ship->owner == s.owner) {
+            if (d > kBoardRange) {
+                return false;
+            }
+            if (board(s, *ship)) {
+                return true;
+            }
+        }
+    }
     if (d > kFriendlyGoal) {
         return false;
     }
@@ -535,8 +561,8 @@ void Military::decide(Soldier& s) {
         // Nothing to fight; the way is done (step 7).
         const bool hostile_target = attackable(s, s.target);
         if (!s.target.empty() && !hostile_target && arrived(s)) {
-            if (s.motion.phase == SoldierMotion::Phase::Healing) {
-                return;
+            if (s.motion.phase == SoldierMotion::Phase::Healing || s.owner == kNoPlayer) {
+                return;  // inside the doctor's house, or on board
             }
         }
         if (s.target.empty() && now >= s.last_attack_ms + kWanderAfterMs) {

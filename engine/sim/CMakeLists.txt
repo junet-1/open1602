@@ -3,6 +3,7 @@
 
 add_library(o1602_sim
     src/construction.cpp
+    src/castles.cpp
     src/combat.cpp
     src/diplomacy.cpp
     src/consumption.cpp

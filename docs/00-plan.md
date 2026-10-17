@@ -178,10 +178,11 @@ Jedes neue System bleibt deterministisch und befehlsbasiert, damit der Mehrspiel
 darauf aufsetzt.
 
 1. **Schiffe** ✅: Fahren mit Wegsuche auf See, Laden und Entladen, Handelsrouten, freier Händler, Werften.
-2. **Militär** (läuft): Diplomatie ✅ (Friedens- und Handelsverträge, Ereignisse, Stimmung, Tribut);
-   Soldaten und Kampf, schießende Türme, Seekampf, Gebäudeschaden, Ausbildung in der Burg, Eroberung
-   über ein zerstörtes Kontor, Fluch der Eingeborenen ([military.md](re/military.md)). Burgen schießen im
-   Original nicht, und Treffer legen keinen Brand.
+2. **Militär** ✅: Diplomatie (Friedens- und Handelsverträge, Ereignisse, Stimmung, Tribut), Soldaten
+   und Kampf, schießende Türme, Seekampf mit Breitseite und Sinken, Gebäudeschaden, Ausbildung in der
+   Burg, Einschiffen, Eroberung über ein zerstörtes Kontor, Fluch der Eingeborenen
+   ([military.md](re/military.md), [diplomacy.md](re/diplomacy.md)). Burgen schießen im Original nicht,
+   und Treffer legen keinen Brand. Offen: Fenster dafür in der Oberfläche (Schritt 5).
 3. **Piraten und Eingeborene** mit ihrem Verhalten.
 4. **Weltengenerator, Stufe 1**: Inselzahl, Größenmischung und Lage nach Weltgröße und Spielerzahl mit den
    Inselvorlagen des Originals; faire Startgebiete (Pflanzen, Eisen, Gold in Reichweite jedes Spielers);
@@ -264,18 +265,12 @@ Dokuments.
   Spielstände von Open1602 bringen ihre Einstellungen mit.
 
 **Militär und Kampf**
-- Übernahme wehrloser Städte über ein zerstörtes Kontor ([construction.md](re/construction.md)).
-- Türme als schießende Figuren; Kanonentürme beim Sold ([houses.md](re/houses.md)).
-- S-018 Wachturm hält das Gebiet: Ein zerstörtes Kontor bleibt als Datensatz mit Destroyflg das
-  Hauptkontor, Türme decken weiter Gebiet; prüfen und entscheiden ([bugs.md](re/bugs.md)).
-- Kampf beschädigt Gebäude bis zur Ruine; Brand durch Treffer gibt es im Original nicht ([military.md](re/military.md)).
-- Seekampf: Kanonen, Breitseite, Treffer, Sinken, Wrack; Wasser bei feindlichen Türmen teurer in der
-  Wegsuche; Kanonen auf- und abladen ([ships.md](re/ships.md)).
+- Wasser bei feindlichen Türmen teurer in der Wegsuche der Schiffe; Kanonen auf- und abladen
+  ([ships.md](re/ships.md)).
+- Darstellung von Schussrauch, Treffern, Sinken und Wrack; Fenster für Burg, Diplomatie, Einheiten.
 - Piratenschiffe: Beute, Rückkehr zum Nest, Jagd auf Handelsschiffe.
 
 **Inselereignisse und Katastrophen**
-- Fluch der Eingeborenen auslösen, wenn ein Dorf zerstört wird (`0x0047EAA0`; die Dürre selbst ist
-  fertig, [growth.md](re/growth.md#dürre)); kommt mit dem Militär.
 - Vulkanausbrüche und andere Ereignisse der Szenarien.
 
 **Oberfläche (Baumenü, Fenster, Meldungen)**

@@ -9,6 +9,7 @@
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/combat.hpp"
+#include "o1602/sim/construction.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/world.hpp"
@@ -22,6 +23,10 @@ constexpr std::uint32_t kHouse = 20103;
 constexpr std::uint32_t kDoctor = 20104;
 constexpr std::uint32_t kTowerBuilding = 20105;
 constexpr std::uint32_t kForest = 20106;
+constexpr std::uint32_t kCastle = 20107;
+constexpr std::uint32_t kKontor = 20108;
+constexpr std::uint32_t kKontorDestroyed = 20109;
+constexpr std::uint32_t kNativeHut = 20110;
 constexpr std::uint16_t kSword = 1;
 constexpr std::uint16_t kMusket = 9;
 
@@ -37,6 +42,17 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 3\n  Id: 20105\n  Kind: 6\n  Gfx: 10\n  Size: 1, 1\n  Maxenergy: 55\n  NoShotFlg: 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 16\n    Figurnr: 38\n  EndObj\n"                 // Wachturm
         "  @Nummer: 4\n  Id: 20106\n  Kind: 10\n  Gfx: 11\n  Size: 1, 1\n  NoShotFlg: 1\n"  // forest
+        "  @Nummer: 5\n  Id: 20107\n  Kind: 14\n  Gfx: 20\n  Size: 2, 2\n  Maxenergy: 100\n  NoShotFlg: 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 15\n    Maxware: 3\n    Prodmenge: 0.5\n    Interval: 10\n  EndObj\n"
+        "  @Nummer: 6\n  Id: 20108\n  Kind: 35\n  Gfx: 30\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+        "  KreuzBase: 6\n  Ausbauflg: 1\n  Ruinenr: 255\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // Kontor
+        "  @Nummer: 7\n  Id: 20109\n  Kind: 35\n  Gfx: 40\n  Size: 2, 2\n  NoShotFlg: 1\n"
+        "  KreuzBase: 6\n  Ausbauflg: 1\n  Destroyflg: 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // destroyed Kontor
+        "  @Nummer: 8\n  Id: 20110\n  Kind: 35\n  Gfx: 50\n  Size: 2, 2\n  Maxenergy: 5\n  NoShotFlg: 1\n"
+        "  Ruinenr: 255\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n    Nativflg: 1\n  EndObj\n"  // natives' main hut
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -326,4 +342,120 @@ TEST_CASE("military: patrols walk between two points") {
     }
     CHECK(max_x == 50);
     CHECK(min_x_after < 50);
+}
+
+TEST_CASE("military: a castle trains units with weapons and sends them out") {
+    Field f;
+    f.build(kCastle, 20, 5, 0);
+    f.world.add_cost_building(sim::CostBuilding{sim::CostBuilding::Kind::Castle, 0, 20, 5, true});
+    f.world.cost_buildings().back().weapons[0] = 3 * 32;  // 3 t swords
+    f.start();
+    using Op = sim::CastleOrder::Op;
+    REQUIRE(f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Recruit, kSword, 0, {}}));
+    REQUIRE(f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Recruit, kSword, 0, {}}));
+    const sim::CostBuilding& castle = f.world.cost_buildings().back();
+    REQUIRE(castle.slots.size() == 2);
+    CHECK(castle.slots[0].armed);
+    CHECK(!castle.slots[1].armed);  // no swords left
+    CHECK(castle.weapons[0] == 0);
+    CHECK(f.military->army_size(0) == 2);
+    // The second asks for a pack donkey.
+    f.run(2'000);
+    const auto fetch = f.military->take_fetch_requests();
+    REQUIRE(fetch.size() == 1);
+    CHECK(fetch[0].ware == 11);
+    // 16 points every 10 s, 320 needed: the first unit is done after 200 s; it cannot leave before.
+    CHECK(!f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Release, 0, 0, sim::Target::spot(40, 40)}));
+    f.run(200'000);
+    CHECK(f.count(sim::MilitaryEvent::Kind::UnitTrained) == 1);
+    CHECK(!castle.slots[0].training);
+    REQUIRE(f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Release, 0, 0, sim::Target::spot(40, 40)}));
+    REQUIRE(f.world.soldiers().size() == 1);
+    CHECK(f.world.soldiers()[0].health == 640);
+    CHECK(f.world.soldiers()[0].target == sim::Target::spot(40, 40));
+    CHECK(castle.slots.size() == 1);
+    // The second has its points but no weapons; the swords arrive and it is done.
+    f.run(200'000);
+    CHECK(castle.slots[0].training);
+    f.military->castle_delivery(0, 20, 5, 11, 3 * 32);
+    f.run(1'000);
+    CHECK(!castle.slots[0].training);
+    // Cancelling gives the weapons back.
+    REQUIRE(f.military->castle(sim::CastleOrder{0, 0, 20, 5, Op::Cancel, 0, 0, {}}));
+    CHECK(castle.weapons[0] == 3 * 32);
+    CHECK(castle.slots.empty());
+}
+
+TEST_CASE("military: soldiers go on board a ship and land elsewhere") {
+    Field f;
+    f.start();
+    // A ship of player 0 at sea just west of the island (world tile 8, 15).
+    sim::Ship ship = sim::make_ship("Boat", 8, 15, 21, 0);
+    ship.cargo.resize(4);
+    f.world.add_ship(ship);
+    const std::uint32_t ship_id = f.world.ships().back().id;
+    const std::uint32_t id = f.add(kSword, 0, 2 * 14, 2 * 15).id;
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::other_ship(ship_id)}));
+    f.run(10'000);
+    CHECK(f.world.soldier(id) == nullptr);
+    const sim::Ship* boat = f.world.ship(ship_id);
+    REQUIRE(boat != nullptr);
+    CHECK(boat->cargo[0].ware == 25);
+    CHECK(boat->cargo[0].amount == 1600);
+    CHECK(f.military->army_size(0) == 1);
+    REQUIRE(f.military->unload(sim::UnloadOrder{0, ship_id}));
+    REQUIRE(f.world.soldiers().size() == 1);
+    CHECK(f.world.soldiers()[0].health == 640);
+    CHECK(f.world.soldiers()[0].figure == kSword);
+    CHECK(boat->cargo[0].ware == 0);
+}
+
+TEST_CASE("military: a Kontor over the destroyed Kontor of a defenceless city takes the city over") {
+    Field f;
+    f.build(kKontorDestroyed, 20, 5, 1);
+    for (std::uint32_t y = 0; y < 12; ++y) {
+        for (std::uint32_t x = 14; x < 28; ++x) {
+            if (f.world.islands()[0].map.top(x, y).city == sim::MapCell::kNoCity) {
+                f.world.island(0).map.set_city(x, y, 0, 1);
+            }
+        }
+    }
+    f.world.city(0, 0)->warehouse_x = 20;
+    f.world.city(0, 0)->warehouse_y = 5;
+    CHECK(sim::city_defenceless(f.world, f.buildings, 0, 0));
+    sim::BuildOrder order;
+    order.player = 0;
+    order.items = {sim::BuildItem{kKontor, 20, 5, 0, 0}};
+    std::vector<sim::ConstructionEvent> events;
+    const sim::BuildPlan plan = sim::execute_build(f.world, f.buildings, order, {}, &events);
+    CHECK(plan.takeover);
+    REQUIRE(plan.placed == 1);
+    CHECK(f.world.city(0, 0)->owner == 0);
+    CHECK(f.world.islands()[0].map.top(15, 2).owner == 0);
+    CHECK(std::any_of(events.begin(), events.end(),
+                      [](const auto& e) { return e.kind == sim::ConstructionEvent::Kind::CityTaken; }));
+    // A city with a standing Kontor cannot be taken.
+    Field g;
+    g.build(kKontor, 20, 5, 1);
+    CHECK(!sim::city_defenceless(g.world, g.buildings, 0, 0));
+    sim::BuildOrder again;
+    again.player = 0;
+    again.items = {sim::BuildItem{kKontor, 20, 5, 0, 0}};
+    CHECK(!sim::plan_build(g.world, g.buildings, again).takeover);
+}
+
+TEST_CASE("military: natives curse who destroyed their village") {
+    Field f;
+    f.build(kNativeHut, 20, 5, 2, 1);
+    f.start();
+    const std::uint32_t id = f.add(kSword, 0, 2 * 26, 2 * 15).id;
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::building(0, 20, 5), true}));
+    f.run(40'000);
+    CHECK(f.count(sim::MilitaryEvent::Kind::BuildingDestroyed) == 1);
+    CHECK(f.world.diplomacy().blamed(2) == 0);
+    REQUIRE(f.count(sim::MilitaryEvent::Kind::NativesCurse) == 1);
+    const auto curse = std::find_if(f.events.begin(), f.events.end(),
+                                    [](const auto& e) { return e.kind == sim::MilitaryEvent::Kind::NativesCurse; });
+    CHECK(curse->player == 0);
+    CHECK(curse->pirates == f.world.islands()[0].drought.curse_pending);
 }

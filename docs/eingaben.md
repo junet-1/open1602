@@ -104,7 +104,7 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 
 | Wann | Was | Wofür |
 |---|---|---|
-| Militär (über Punkt 8 hinaus) | ein Stand mit einem zerstörten Kontor und einem Wachturm daneben (S-018), Seegefechte mit Kriegsschiffen | Gebietsverlust, Seekampf |
+| Militär (über Punkt 8 hinaus) | ein Stand mit einem zerstörten Kontor und einem Wachturm daneben (S-018), ein Video eines Seegefechts mit Kriegsschiffen | Gebietsverlust, Breitseite und Tempo des Seekampfs |
 | Computergegner | Stände eines länger laufenden Spiels mit wachsenden Gegnerstädten | KI |
 | Mehrspieler | erst wenn Open1602 Netzwerk kann | – |
 
@@ -116,4 +116,6 @@ würde sie bestätigen oder widerlegen; Open1602 vermeidet sie ohnehin.
 - **U-007 (alter Weg beim Ziehen):** Auf einer Insel mit zwei eigenen Städten: in Stadt A eine Straße
   ziehen, dann in Stadt B mit dem Ziehen beginnen und die Maus nach Stadt A bewegen. Beginnt der
   angezeigte Weg am alten Startpunkt in A?
-- **S-018 (Wachturm hält Gebiet):** gehört zum Militär, siehe oben.
+- **S-018 (Wachturm hält Gebiet):** aus dem Code geklärt und beibehalten: Eine Stadt ist erst
+  eroberbar, wenn Kontor, Märkte und Türme gefallen sind. Ein Stand mit zerstörtem Kontor und
+  stehendem Turm würde es im Spiel bestätigen.
