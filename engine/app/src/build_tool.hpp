@@ -13,6 +13,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/sim/construction.hpp"
+#include "o1602/sim/drag_path.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::app {

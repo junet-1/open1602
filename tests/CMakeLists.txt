@@ -15,6 +15,7 @@ add_executable(o1602_tests
     unit/test_random.cpp
     unit/test_houses.cpp
     unit/test_construction.cpp
+    unit/test_drag_path.cpp
     unit/test_deer.cpp
     unit/test_units.cpp
     data/test_original_data.cpp

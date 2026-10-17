@@ -10,14 +10,21 @@ namespace {
 
 constexpr std::int32_t kKindRoad = 1;
 constexpr std::int32_t kKindWall = 4;
+constexpr std::int32_t kKindWallBeach = 5;
 constexpr std::int32_t kKindGround = 11;
 constexpr std::int32_t kKindSquare = 13;
 constexpr std::int32_t kKindHq = 35;
 constexpr std::int32_t kProdGrowing = 10;
 constexpr std::size_t kMaxItems = 512;  // the original's drag list holds 0x200 entries
 
-bool line_kind(const assets::BuildingType& b) noexcept {
-    return b.kind == kKindRoad || b.kind == kKindWall;
+std::optional<sim::DragLine> line_kind(const assets::BuildingType& b) noexcept {
+    if (b.kind == kKindRoad) {
+        return sim::DragLine::Road;
+    }
+    if (b.kind == kKindWall || b.kind == kKindWallBeach) {
+        return sim::DragLine::Wall;
+    }
+    return std::nullopt;
 }
 bool area_kind(const assets::BuildingType& b) noexcept {
     return b.prod_kind == kProdGrowing || b.kind == kKindGround || b.kind == kKindSquare;
@@ -78,17 +85,14 @@ std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, s
             order.items.push_back(sim::BuildItem{b->id, x, y, m_rotation, 0});
         }
     };
-    if (m_drag_start && line_kind(*b)) {
-        // Along x first, then along y (the original searches a path; a corner will do here).
-        const std::int32_t sx = start.x < spot.x ? 1 : -1;
-        for (std::int32_t x = start.x; x != spot.x; x += sx) {
-            add(x, start.y);
+    if (const auto line = line_kind(*b); m_drag_start && line) {
+        // The original's path search from the drag start to the cursor (0x0040AB20).
+        for (const sim::DragStep& step : sim::drag_path(world, *m_buildings, spot.island, *line, {start.x, start.y},
+                                                        {spot.x, spot.y}, m_rotation)) {
+            if (order.items.size() < kMaxItems) {
+                order.items.push_back(sim::BuildItem{b->id, step.x, step.y, step.rotation, 0});
+            }
         }
-        const std::int32_t sy = start.y < spot.y ? 1 : -1;
-        for (std::int32_t y = start.y; y != spot.y; y += sy) {
-            add(spot.x, y);
-        }
-        add(spot.x, spot.y);
     } else if (m_drag_start && area_kind(*b)) {
         for (std::int32_t y = std::min(start.y, spot.y); y <= std::max(start.y, spot.y); ++y) {
             for (std::int32_t x = std::min(start.x, spot.x); x <= std::max(start.x, spot.x); ++x) {

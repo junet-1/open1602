@@ -37,6 +37,7 @@
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/consumption.hpp"
+#include "o1602/sim/drag_path.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/island_map.hpp"
@@ -1400,4 +1401,62 @@ TEST_CASE("data: the human player builds and demolishes a house in a savegame") 
     REQUIRE(ground != nullptr);
     CHECK((ground->kind == 11 || ground->kind == 10));
     CHECK(after.city == index);
+}
+
+TEST_CASE("data: a dragged road follows the tiles of its city (0x0040AB20)") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    std::size_t paths = 0;
+    for (const auto& save : saves) {
+        const sim::World& world = save.world;
+        for (const sim::City& city : world.cities()) {
+            const sim::IslandMap& map = world.islands()[city.island].map;
+            // From the first to the last road tile of the city, row by row.
+            std::optional<sim::TilePos> first;
+            std::optional<sim::TilePos> last;
+            for (std::uint32_t y = 0; y < map.height(); ++y) {
+                for (std::uint32_t x = 0; x < map.width(); ++x) {
+                    const sim::MapCell& c = map.top(x, y);
+                    const assets::BuildingType* b = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+                    if (b != nullptr && b->kind == 1 && c.city == city.index) {
+                        const sim::TilePos p{static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)};
+                        first = first.value_or(p);
+                        last = p;
+                    }
+                }
+            }
+            if (!first || *first == *last) {
+                continue;
+            }
+            const auto path = sim::drag_path(world, *buildings, city.island, sim::DragLine::Road, *first, *last, 0);
+            REQUIRE(!path.empty());
+            CHECK(path.back().x == last->x);
+            CHECK(path.back().y == last->y);
+            if (path.size() == 1) {
+                continue;  // out of reach
+            }
+            ++paths;
+            CHECK(path.size() <= 258);
+            CHECK(path.front().x == first->x);
+            CHECK(path.front().y == first->y);
+            for (std::size_t i = 0; i < path.size(); ++i) {
+                const sim::MapCell& c =
+                    map.top(static_cast<std::uint32_t>(path[i].x), static_cast<std::uint32_t>(path[i].y));
+                const assets::BuildingType* b = buildings->by_sprite(c.sprite);
+                REQUIRE(b != nullptr);
+                CHECK(c.city == city.index);
+                CHECK(
+                    sim::drag_passable(sim::DragLine::Road, b->kind, c.sprite == b->gfx + (b->size_x * b->size_y) / 2));
+                if (i + 1 < path.size()) {
+                    CHECK(std::abs(path[i + 1].x - path[i].x) + std::abs(path[i + 1].y - path[i].y) == 1);
+                }
+            }
+        }
+    }
+    CHECK(paths > 0);
 }
