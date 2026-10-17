@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -402,6 +403,11 @@ public:
     [[nodiscard]] std::optional<std::uint8_t> drought_seed() const noexcept { return m_drought_seed; }
     void set_drought_seed(std::uint8_t s) noexcept { m_drought_seed = static_cast<std::uint8_t>(s & 31U); }
 
+    /// The file the world was loaded from: the savegame writer starts from its records and keeps
+    /// what Open1602 does not model yet (savegame_writer.hpp). Null for a world built in code.
+    [[nodiscard]] const std::shared_ptr<const assets::ChunkFile>& source() const noexcept { return m_source; }
+    void set_source(std::shared_ptr<const assets::ChunkFile> file) noexcept { m_source = std::move(file); }
+
     /// Eruptions, lava in flight and the time of the next eruption (volcanoes.hpp).
     [[nodiscard]] const VolcanoState& volcanoes() const noexcept { return m_volcanoes; }
     [[nodiscard]] VolcanoState& volcanoes() noexcept { return m_volcanoes; }
@@ -464,6 +470,7 @@ private:
     std::uint64_t m_next_drought_ms = 54'000ULL * 100;
     std::optional<std::uint8_t> m_drought_seed;
     VolcanoState m_volcanoes;
+    std::shared_ptr<const assets::ChunkFile> m_source;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x

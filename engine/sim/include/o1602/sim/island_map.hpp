@@ -103,6 +103,9 @@ public:
 
     /// Inverse of place() for one tile (original 0x00463250): building and placement origin.
     [[nodiscard]] SubTile sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const;
+    /// The same for the ground layer.
+    [[nodiscard]] SubTile ground_sub_tile(const assets::BuildingTable& buildings, std::uint32_t x,
+                                          std::uint32_t y) const;
 
     /// Builds the map from INSELHAUS entries (one entry per building at its origin).
     /// If `base` is given (the island template, see IslandHeader::template_path()), its tiles are
@@ -116,6 +119,8 @@ private:
     core::Status write(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                        std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode);
     [[nodiscard]] std::size_t index(std::uint32_t x, std::uint32_t y) const { return std::size_t{y} * m_width + x; }
+    static SubTile sub_tile_of(const MapCell& cell, const assets::BuildingTable& buildings, std::uint32_t x,
+                               std::uint32_t y);
 
     std::uint32_t m_width;
     std::uint32_t m_height;

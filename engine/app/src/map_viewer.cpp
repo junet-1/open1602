@@ -212,6 +212,13 @@ int MapViewer::run() {
                      static_cast<unsigned long long>(elapsed), frames * 1000.0 / static_cast<double>(elapsed),
                      m_sprites_drawn);
     }
+    if (!m_options.save.empty()) {
+        if (auto status = save_game(m_options.save); !status) {
+            std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
+            return 1;
+        }
+        std::fprintf(stderr, "game saved: %s\n", m_options.save.string().c_str());
+    }
     if (!m_options.screenshot.empty()) {
         render();  // read back a complete frame
         if (auto status = save_screenshot(m_options.screenshot); !status) {
@@ -361,6 +368,13 @@ void MapViewer::handle_key(int key, bool shift) {
         case SDLK_HOME:
             m_camera.center_on(home_tile());
             break;
+        case SDLK_F5: {  // quick save into Open1602's own folder
+            const std::filesystem::path path = save_folder() / "quicksave.gam";
+            const auto status = save_game(path);
+            std::fprintf(stderr, "%s%s\n", status ? "game saved: " : "",
+                         status ? path.string().c_str() : status.error().message.c_str());
+            break;
+        }
         case SDLK_F12: {  // U-002: the original's screenshot key does not work
             const auto status = save_screenshot("open1602-screenshot.png");
             std::fprintf(stderr, "%s\n",
@@ -731,6 +745,47 @@ void MapViewer::update_title(double fps) {
                   static_cast<unsigned long long>(seconds / 60 % 60), static_cast<unsigned long long>(seconds % 60));
     title += clock;
     m_window->set_title(title);
+}
+
+std::filesystem::path MapViewer::save_folder() {
+    std::filesystem::path folder;
+    if (char* pref = SDL_GetPrefPath(nullptr, "Open1602")) {
+        folder = std::filesystem::path(pref) / "saves";
+        SDL_free(pref);
+    } else {
+        folder = std::filesystem::current_path() / "saves";
+    }
+    return folder;
+}
+
+core::Status MapViewer::save_game(const std::filesystem::path& path) {
+    // The installation stays as it is: no savegame goes into it (nor into Game.dat).
+    std::error_code ec;
+    const auto target = std::filesystem::weakly_canonical(std::filesystem::absolute(path), ec);
+    const auto root = std::filesystem::weakly_canonical(m_game.root(), ec);
+    const auto rel = target.lexically_relative(root);
+    if (!rel.empty() && *rel.begin() != "..") {
+        return core::make_error(core::ErrorCode::Unsupported,
+                                "will not write into the game's installation: " + target.string());
+    }
+    auto bytes = sim::write_savegame(m_world, m_buildings);
+    if (!bytes) {
+        return bytes.error();
+    }
+    if (target.has_parent_path()) {
+        std::filesystem::create_directories(target.parent_path(), ec);
+    }
+    // Write next to it and rename, so a failed write never leaves half a file.
+    std::filesystem::path temp = target;
+    temp += ".tmp";
+    if (auto status = core::write_file(temp, *bytes); !status) {
+        return status;
+    }
+    std::filesystem::rename(temp, target, ec);
+    if (ec) {
+        return core::make_error(core::ErrorCode::IoError, "cannot write " + target.string() + ": " + ec.message());
+    }
+    return core::Ok{};
 }
 
 core::Status MapViewer::save_screenshot(const std::filesystem::path& path) {

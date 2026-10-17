@@ -136,6 +136,23 @@ std::size_t advance_growth(World& world, const assets::BuildingTable& buildings,
     return ripened;
 }
 
+std::optional<GrowthEntry> missing_growth_entry(const GrowthState& growth, const assets::BuildingTable& buildings,
+                                                std::uint16_t island, std::uint16_t x, std::uint16_t y,
+                                                const MapCell& cell) {
+    const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
+    if (b == nullptr || b->prod_kind != kProdKindGrowing || b->withered) {
+        return std::nullopt;
+    }
+    GrowthEntry e;
+    e.island = island;
+    e.x = x;
+    e.y = y;
+    e.growth_class = b->growth_class;
+    e.seen = growth.counter[b->growth_class % GrowthState::kClasses];
+    e.stage = static_cast<std::uint8_t>(b->anim_time == 0 ? cell.anim_phase : 0);
+    return e;
+}
+
 void add_missing_growth(World& world, const assets::BuildingTable& buildings) {
     GrowthState& g = world.growth();
     std::unordered_set<std::uint64_t> present;
@@ -147,19 +164,12 @@ void add_missing_growth(World& world, const assets::BuildingTable& buildings) {
         const IslandMap& map = world.islands()[i].map;
         for (std::uint16_t y = 0; y < map.height(); ++y) {
             for (std::uint16_t x = 0; x < map.width(); ++x) {
-                const MapCell& cell = map.top(x, y);
-                const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
-                if (b == nullptr || b->prod_kind != kProdKindGrowing || b->withered || present.contains(key(i, x, y))) {
+                if (present.contains(key(i, x, y))) {
                     continue;
                 }
-                GrowthEntry e;
-                e.island = i;
-                e.x = x;
-                e.y = y;
-                e.growth_class = b->growth_class;
-                e.seen = g.counter[b->growth_class % GrowthState::kClasses];
-                e.stage = static_cast<std::uint8_t>(b->anim_time == 0 ? cell.anim_phase : 0);
-                g.entries.push_back(e);
+                if (const auto e = missing_growth_entry(g, buildings, i, x, y, map.top(x, y))) {
+                    g.entries.push_back(*e);
+                }
             }
         }
     }

@@ -27,6 +27,7 @@
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/walker_figures.hpp"
 #include "o1602/render/world_graphics.hpp"
+#include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -38,6 +39,7 @@ struct ViewerOptions {
     std::filesystem::path scenario;    ///< scenario (.szs / .szm) or savegame (.gam)
     std::uint32_t max_frames = 0;      ///< stop after N frames (0 = run until closed); for smoke tests
     std::filesystem::path screenshot;  ///< write the last frame as PNG before exiting
+    std::filesystem::path save;        ///< write the game as a savegame (.gam) before exiting
     render::Zoom zoom = render::Zoom::Large;
     bool show_owners = false;  ///< start with the ownership view
     /// Show figures at the smallest zoom level from half-size graphics of the middle level (the
@@ -81,6 +83,10 @@ private:
     /// else the first island.
     [[nodiscard]] render::TilePos home_tile() const;
     core::Status save_screenshot(const std::filesystem::path& path);
+    /// Writes the game as a savegame the original can load. Never into the game's installation.
+    core::Status save_game(const std::filesystem::path& path);
+    /// Open1602's own folder for savegames (the user's data folder, not the installation).
+    [[nodiscard]] static std::filesystem::path save_folder();
 
     void zoom_by(int steps, double sx, double sy);
     /// Island tile under the mouse, nullopt over the sea.

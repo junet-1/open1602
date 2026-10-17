@@ -503,6 +503,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         growth.entries.push_back(e);
     }
     add_missing_growth(world, buildings);
+    world.set_source(std::make_shared<const assets::ChunkFile>(file));
     return world;
 }
 

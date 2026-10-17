@@ -58,3 +58,4 @@ re/notes/*.log
 
 # Inputs for the analysis (savegames, videos, screenshots): local only, see docs/eingaben.md
 /eingaben/
+/ausgaben/

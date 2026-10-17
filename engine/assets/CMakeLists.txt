@@ -4,6 +4,7 @@
 add_library(o1602_assets
     src/building_table.cpp
     src/chunk_file.cpp
+    src/chunk_writer.cpp
     src/cod.cpp
     src/cod_parser.cpp
     src/cod_predefined.cpp

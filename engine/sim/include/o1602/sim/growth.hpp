@@ -52,6 +52,12 @@ std::size_t advance_growth(World& world, const assets::BuildingTable& buildings,
 /// grow (S-020).
 void add_missing_growth(World& world, const assets::BuildingTable& buildings);
 
+/// The entry add_missing_growth gives a growing tile showing `cell`, if it is one.
+[[nodiscard]] std::optional<GrowthEntry> missing_growth_entry(const GrowthState& growth,
+                                                              const assets::BuildingTable& buildings,
+                                                              std::uint16_t island, std::uint16_t x, std::uint16_t y,
+                                                              const MapCell& cell);
+
 /// Harvests the ripe tile (x, y) of island `island` if it carries `ware`: it becomes the growing
 /// record again and starts growing; during a drought a field that is not fertile at its strength
 /// withers instead (0x0047C830). False if there is nothing to harvest.

@@ -108,8 +108,16 @@ core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std
 }
 
 SubTile IslandMap::sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const {
+    return sub_tile_of(top(x, y), buildings, x, y);
+}
+
+SubTile IslandMap::ground_sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const {
+    return sub_tile_of(ground(x, y), buildings, x, y);
+}
+
+SubTile IslandMap::sub_tile_of(const MapCell& cell, const assets::BuildingTable& buildings, std::uint32_t x,
+                               std::uint32_t y) {
     SubTile result;
-    const MapCell& cell = top(x, y);
     if (cell.empty()) {
         return result;
     }
@@ -178,8 +186,8 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
             // The original's loader (0x00468550): every tile goes on top; terrain of no city also
             // becomes the ground (not ruins, 0x00463E10).
             constexpr std::uint8_t kNoCityBits = 7;
-            const bool ground = tile.city() == kNoCityBits && b->kind != 12 && b->kind != 29 &&
-                                !territory_building(buildings, *b);
+            const bool ground =
+                tile.city() == kNoCityBits && b->kind != 12 && b->kind != 29 && !territory_building(buildings, *b);
             if (auto status = map.load(*b, tile.x, tile.y, tile.rotation(), tile.anim_phase(),
                                        player_from_original(tile.player()), city_of(tile), ground);
                 !status) {
@@ -202,7 +210,7 @@ bool territory_building(const assets::BuildingTable& buildings, const assets::Bu
     switch (p) {
         case 0:
             return b.kind == 1 || b.kind == 30;  // STRASSE, PIER
-        case 9:  // ROHSTOFF: a ripe field, unless grass, a tree or fish
+        case 9:                                  // ROHSTOFF: a ripe field, unless grass, a tree or fish
             return crop(&b);
         case 10:  // ROHSTWACHS: by the ripe record that follows
             return crop(buildings.by_record(b.record + 1));

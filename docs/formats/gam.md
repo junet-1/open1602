@@ -13,7 +13,8 @@ WERFT  SIEDLER  ROHWACHS2  PRODLIST2  INSEL5 (INSEL4, INSEL3)  INSELHAUS
 
 Namen in Klammern sind ältere Versionen, die nur noch geladen werden. Die Inseln sind in
 [scp.md](scp.md) beschrieben. Open1602 lädt Spielstände und Szenarien deshalb mit demselben Code
-(`sim::load_world`). Der Betrachter öffnet Spielstände mit `open1602 --savegame NAME`.
+(`sim::load_world`). Der Betrachter öffnet Spielstände mit `open1602 --savegame NAME` (oder `--scenario DATEI`) und
+schreibt sie mit F5 oder `--save DATEI` ([savegame-writer.md](../re/savegame-writer.md)).
 
 ## Unterschiede eines Spielstands zum Szenario
 
@@ -27,7 +28,7 @@ Geprüft an einem Spielstand, der direkt nach dem Start von „Das Atoll“ gesp
   Ebene überdeckt sie vollständig. Die Darstellung ist pixelgleich mit dem Szenario.
 - **Inselbezogene Chunks nur einmal:** `PRODLIST2`, `WERFT`, `MILITAR`, `SIEDLER`, `ROHWACHS2`,
   `STADT4`, `KONTOR2`, `MARKT2` stehen einmal für alle Inseln (im Szenario je Insel).
-- **`NAME`**: Name des Szenarios („Das Atoll“). **`WIFF`** (4 Byte): Bedeutung offen.
+- **`NAME`**: Name des Szenarios („Das Atoll“). **`WIFF`** (4 Byte): Summe aller 32-Bit-Wörter der Daten davor, vom Original nie gelesen ([savegame-writer.md](../re/savegame-writer.md)).
 - Kein `SZENE`, `RANDTAB` und keine `SZENE_*`-Chunks.
 
 ## Namen der Spielstände (Game.dat)
@@ -178,7 +179,7 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `ROHWACHS2` | 8 | `0x00485C20` | `0x00562DC8`, 32860 × 8 | Wachstum von Feldern, Bäumen, Plantagen, Fischgründen: Insel, x, y, Klasse, gesehener Zählerstand, Stufe, 2 Byte 0 ([growth.md](../re/growth.md)) |
 | `TIMERS` | 0x298 | `0x00485D10` | verstreute Zähler (`0x005A77E0`, `0x005DBAB0`, …) | globale Zähler und Zeitgeber; +0x64: 32 Zähler der Wachstumsklassen (0–7), +0x218: 32 Klassenuhren in ms, +0x44: 16 Epochen der Hauszeitgruppen, +0x198: 16 Hauszeitgeber in ms, +0xA0: Spielzeit in 1/10 s, +0xA6: Schwierigkeit 0–3 (`0x005B6304`, Dürretabelle), +0xA8: Spieleinstellungen (`0x005B706C`; Bit 2 keine Dürren, Bit 8 keine Vulkane), +0xB0: nächster Stadtname aus `[STAEDTE]` (`0x005B3168`), +0xB4: frühester nächster Dürrewurf in 1/10 s (neues Spiel 54000; eine gespeicherte 0 wird 36000), +0xC4: laufender Vulkanausbruch, +0xC8: letzter (Verweise `{0x33, Insel, x, y}`), +0xCC: frühester nächster Vulkanausbruch in 1/10 s, +0xD0: Krater der Welt, höchstens 20 ([volcanoes.md](../re/volcanoes.md)) |
 | `AUFTRAG4` | – | `0x00478558` | – | Aufträge/Ziele des Szenarios (2244 Byte, noch nicht untersucht) |
-| `WIFF` | 4 | `0x00485EE0` | u32 `0x005B3160` | Bedeutung offen |
+| `WIFF` | 4 | `0x00485EE0` | u32 `0x005B3160` | Prüfsumme: Summe der 32-Bit-Wörter aller Daten davor (`0x00490730`), wird nie gelesen |
 
 Alle Koordinaten in `STADT4` … `ROHWACHS2` sind Inselfelder; die Insel steht als Inselnummer im ersten
 Byte. Die Bitfelder der Datensätze sind in den Schreibroutinen genau beschrieben, ihre Bedeutung ist

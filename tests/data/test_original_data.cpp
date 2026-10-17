@@ -20,6 +20,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/chunk_file.hpp"
+#include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/assets/figure_table.hpp"
@@ -42,6 +43,7 @@
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/island_events.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -1766,4 +1768,163 @@ TEST_CASE("data: a volcano erupts in a savegame and its lava hits what it should
             CHECK((b == nullptr || b->kind != 35));  // no Kontor stays
         }
     }
+}
+
+TEST_CASE("data: a savegame written back without changes is the original file (0x0040D6F0)") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    for (const LoadedSave& save : saves) {
+        const assets::ChunkFile& source = *save.world.source();
+        auto chunks = sim::savegame_chunks(save.world, *buildings);
+        REQUIRE(chunks.ok());
+        REQUIRE(chunks->size() + 1 == source.chunks().size());
+        for (std::size_t k = 0; k < chunks->size(); ++k) {
+            const assets::Chunk& c = source.chunks()[k];
+            const auto original = source.payload(c);
+            const sim::SavedChunk& out = (*chunks)[k];
+            CHECK(out.name == c.name);
+            if (c.name == "ROHWACHS2") {
+                // Open1602 gives every growing tile an entry (S-020): the original's entries come
+                // first, the added ones follow.
+                REQUIRE(out.data.size() >= original.size());
+                CHECK(std::equal(original.begin(), original.end(), out.data.begin()));
+                continue;
+            }
+            const bool same =
+                out.data.size() == original.size() && std::equal(original.begin(), original.end(), out.data.begin());
+            if (!same) {
+                std::fprintf(stderr, "  %s: chunk %zu (%s) differs\n", save.name.c_str(), k, c.name.c_str());
+            }
+            CHECK(same);
+        }
+        CHECK(source.chunks().back().name == "WIFF");
+        // WIFF is the sum of the payload words of the original's own chunks.
+        std::uint32_t sum = 0;
+        for (std::size_t k = 0; k + 1 < source.chunks().size(); ++k) {
+            sum += assets::payload_checksum(source.payload(source.chunks()[k]));
+        }
+        const auto wiff = source.payload(source.chunks().back());
+        CHECK(wiff.size() == 4);
+        CHECK((static_cast<std::uint32_t>(wiff[0]) | (static_cast<std::uint32_t>(wiff[1]) << 8) |
+               (static_cast<std::uint32_t>(wiff[2]) << 16) | (static_cast<std::uint32_t>(wiff[3]) << 24)) == sum);
+    }
+}
+
+TEST_CASE("data: a game played on in Open1602 saves and loads to the same state") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.back().world;
+    {
+        sim::Simulation simulation(world, *buildings, *figures);
+        simulation.set_speed(8);
+        for (int i = 0; i < 1500; ++i) {  // 20 minutes of game time
+            simulation.advance(100);
+        }
+    }
+    auto first = sim::write_savegame(world, *buildings);
+    REQUIRE(first.ok());
+    auto file = assets::ChunkFile::from_bytes(*first);
+    REQUIRE(file.ok());
+    std::vector<std::string> warnings;
+    auto loaded = sim::load_world(*file, *buildings, game, &warnings);
+    REQUIRE(loaded.ok());
+    for (const std::string& w : warnings) {
+        std::fprintf(stderr, "  warning: %s\n", w.c_str());
+    }
+    CHECK(warnings.empty());
+    // What was written is read back: writing again gives the same file.
+    auto second = sim::write_savegame(*loaded, *buildings);
+    REQUIRE(second.ok());
+    if (*first != *second) {
+        auto other = assets::ChunkFile::from_bytes(*second);
+        REQUIRE(other.ok());
+        for (std::size_t k = 0; k < std::min(file->chunks().size(), other->chunks().size()); ++k) {
+            const auto a = file->payload(file->chunks()[k]);
+            const auto b = other->payload(other->chunks()[k]);
+            if (a.size() != b.size() || !std::equal(a.begin(), a.end(), b.begin())) {
+                std::size_t d = 0;
+                while (d < a.size() && d < b.size() && a[d] == b[d]) {
+                    ++d;
+                }
+                std::fprintf(stderr, "  chunk %zu %s: %zu / %zu bytes, first difference at %zu\n", k,
+                             file->chunks()[k].name.c_str(), a.size(), b.size(), d);
+            }
+        }
+    }
+    CHECK(*first == *second);
+    // And the state matches.
+    CHECK(loaded->time_ms() / 100 == world.time_ms() / 100);
+    REQUIRE(loaded->islands().size() == world.islands().size());
+    // Every tile comes back; the original saves no ripening of grass and fish outside the cities
+    // (0x00468BF0), which therefore shows the ground's stage again.
+    std::size_t tiles = 0;
+    std::size_t grass = 0;
+    for (std::size_t i = 0; i < world.islands().size(); ++i) {
+        const sim::IslandMap& a = world.islands()[i].map;
+        const sim::IslandMap& b = loaded->islands()[i].map;
+        for (std::uint32_t y = 0; y < a.height(); ++y) {
+            for (std::uint32_t x = 0; x < a.width(); ++x) {
+                const sim::MapCell& p = a.top(x, y);
+                const sim::MapCell& q = b.top(x, y);
+                ++tiles;
+                if (p.sprite == q.sprite && p.rotation == q.rotation && p.city == q.city && p.owner == q.owner) {
+                    continue;
+                }
+                const auto ware = [&](const sim::MapCell& c) -> std::uint8_t {
+                    const assets::BuildingType* t = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+                    if (t != nullptr && t->prod_kind == sim::kProdKindGrowing) {
+                        t = buildings->by_record(t->record + 1);
+                    }
+                    return t != nullptr ? t->ware : 0;
+                };
+                const bool same_crop = p.city == sim::MapCell::kNoCity && q.city == sim::MapCell::kNoCity &&
+                                       ware(p) == ware(q) && (ware(p) == 52 || ware(p) == 57);
+                if (same_crop) {
+                    ++grass;
+                } else {
+                    std::fprintf(stderr, "  island %zu tile %u,%u differs\n", i, x, y);
+                    CHECK(same_crop);
+                }
+            }
+        }
+    }
+    CHECK(tiles > 0);
+    std::fprintf(stderr, "  %zu tiles of grass or fish show the ground's stage again\n", grass);
+    REQUIRE(loaded->cities().size() == world.cities().size());
+    for (std::size_t c = 0; c < world.cities().size(); ++c) {
+        const sim::City& a = world.cities()[c];
+        const sim::City* b = loaded->city(a.island, a.index);
+        REQUIRE(b != nullptr);
+        CHECK(b->inhabitants == a.inhabitants);
+        for (std::uint8_t w = 2; w <= 24; ++w) {
+            CHECK(b->stock(w) == a.stock(w));
+        }
+    }
+    for (std::size_t p = 0; p < world.players().size(); ++p) {
+        CHECK(loaded->players()[p].money == world.players()[p].money);
+    }
+    CHECK(loaded->houses().size() == world.houses().size());
+    std::size_t productions = 0;
+    for (const sim::Production& p : world.productions()) {
+        productions += p.used ? 1U : 0U;
+        if (p.used) {
+            const sim::Production* q = loaded->production(p.island, p.x, p.y);
+            REQUIRE(q != nullptr);
+            CHECK(q->stock == p.stock);
+            CHECK(q->countdown == p.countdown);
+        }
+    }
+    CHECK(productions > 0);
 }

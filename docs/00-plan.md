@@ -218,6 +218,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M3: Dürre (Wurf nach Schwierigkeit, Verdorren, Erholung, Ernte, Einstellung `Rules::droughts`) | ✅ |
 | M3: Brände, Pest, Räuber: Stadttermin, Ausbreitung, Niederbrennen, Arzt und Feuerwehr, Räuber mit Verfolgung, Anzeige | ✅ `docs/re/disasters.md` |
 | M3: Vulkane: Krater, Wurf, Ausbruch mit 141 Lavabrocken, Brand und Zerstörung, Anzeige, Einstellung `Rules::volcanoes`; S-042 behoben | ✅ `docs/re/volcanoes.md` |
+| M4: Spielstände schreiben, die das Original lädt: alle Chunks in der Reihenfolge des Originals, Datensätze aus der Quelldatei mit Open1602s Zustand, WIFF; unverändert geschrieben Byte für Byte die Originaldatei, weitergespielt lädt er zum selben Zustand; F5 / `--save`, nie in die Installation | ✅ `docs/re/savegame-writer.md` |
+| M4: Eigener Chunk für den Zustand, den das Original nicht speichert; neues Spiel ohne Quelldatei; Prüfung im Original | ⬜ |
 | M3: Verbrauch der Einwohner aus dem Lager (Stadttakt `0x0047F8A0`): Bedarf aus haeuser.cod, Versorgungsgrade, Zufriedenheit mit Steuerkurve, Meldungen; Einwohner aus `STADT4`, Abrechnung aus `MARKT2` | ✅ `docs/re/consumption.md` |
 | M3: Häuser (`SIEDLER`), Versorgung durch Märkte und öffentliche Gebäude, Wachstum, Auf- und Abstieg, Ruinen; Steuern, Betriebskosten, Sold; Zufallsquellen je Teilsystem, Piraten | ✅ `docs/re/houses.md` |
 | M3: Hirsche und Jäger: Wildplätze, Zählung, Rückkehr, Grasen, Ruf des Jägers, Schuss, Beute | ✅ `docs/re/deer.md` |
@@ -235,17 +237,22 @@ Was wir bewusst zurückgestellt haben, weil ein anderes System fehlt. Wenn das S
 seine Punkte hier abgehakt. Die Einzelheiten stehen jeweils im Abschnitt „Offen“ des genannten
 Dokuments.
 
-**Speichern (Spielstand von Open1602 und `.GAM`)**
-- Wildplätze (`HIRSCH2`) und die Phase der Inselepochen mitspeichern ([deer.md](re/deer.md)).
+**Speichern (eigener Chunk von Open1602 hinter `WIFF`, [savegame-writer.md](re/savegame-writer.md))**
+
+Die `.GAM`-Teile schreibt Open1602 schon (Wildplätze, Dürre, Krater und Termine eingeschlossen). Was
+das Original nicht kennt, kommt in den eigenen Chunk:
+- Phase der Inselepochen ([deer.md](re/deer.md)).
 - Spieleinstellungen (`sim::Rules`) als eigener Abschnitt; Originalspielstände laden mit
   `Rules::original()` für die Wahlpunkte ([ADR 0008](architecture/0008-spieleinstellungen.md)).
 - Zustände, die nur im Spielzustand stehen: Reservierungen, Figuren, Baustufen-Zähler (S-001, S-016).
 - Stolz der Städte auf Schloss und Kathedrale (S-037, [consumption.md](re/consumption.md)).
-- Dürre: Stärke, Ende, Fluch je Insel, nächster Dürrezeitpunkt und Saat ([growth.md](re/growth.md#dürre)).
+- Saat der Dürretabelle ([growth.md](re/growth.md#dürre)); Stärke, Ende, Fluch und Termin stehen schon im `.GAM`.
+- Reifes Gras und Fischgründe außerhalb der Städte, die das Original nicht speichert.
+- Mehr Inseln, Städte, Spieler, Schiffe und Waren, als das Original fasst; genaue Uhren in ms.
 - Brände und Seuchen, Stadttermine der Ereignisse, Räuber, Ärzte und Feuerwehrleute
   ([disasters.md](re/disasters.md), S-001).
 - Laufende Ausbrüche und Lava im Flug, damit ein geladenes Spiel fortsetzt statt neu zu beginnen
-  (S-062, [volcanoes.md](re/volcanoes.md)); Kraterliste, Zeichen und Termine in `INSEL5`/`TIMERS`.
+  (S-062, [volcanoes.md](re/volcanoes.md)).
 
 **Militär und Kampf**
 - Übernahme wehrloser Städte über ein zerstörtes Kontor ([construction.md](re/construction.md)).

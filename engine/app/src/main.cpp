@@ -36,6 +36,7 @@ int usage() {
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
         "  --droughts MODE    game (as the game's difficulty says, original), off, rare, normal, frequent\n"
         "  --volcanoes MODE   game (as the game's settings say, original), off, on\n"
+        "  --save FILE        write the game as a savegame when the viewer ends (never into the installation)\n"
         "\n"
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
@@ -43,6 +44,7 @@ int usage() {
         "  Space          pause the game              Home                     own city\n"
         "  PageUp/PageDn  game speed x2 / /2\n"
         "  O              ownership view              F12                      screenshot\n"
+        "  F5             quick save (own folder)\n"
         "  B              build tool                  X                        demolish tool\n"
         "  Tab / Shift+Tab next / previous building   , / .                    turn the building\n"
         "  left mouse     build or demolish (drag: roads, walls, fields, areas)\n"
@@ -126,6 +128,8 @@ int main(int argc, char** argv) {
             } else {
                 return usage();
             }
+        } else if (arg == "--save" && has_value) {
+            options.save = argv[++i];
         } else if (arg == "--volcanoes" && has_value) {
             // Game setting: whether volcanoes erupt.
             const std::string_view mode = argv[++i];
