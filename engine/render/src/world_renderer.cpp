@@ -234,10 +234,13 @@ constexpr std::uint16_t kFigureNoAktiv = 46;     // NOAKTIV: status icon of prod
 constexpr std::uint16_t kFigureBrandMarkt = 47;  // BRANDMARKT: fire on a market
 constexpr std::uint16_t kFigureSensenmann = 56;  // SENSENMANN: plague and fire on houses
 
+}  // namespace
+
 /// Building centre (0x00463A70) plus the figure's Fahnoffs turned with the building (0x004466A0,
 /// the same for flags, smoke, icons and jugglers).
-void attach_point(const sim::WorldIsland& island, const assets::BuildingType& b, std::uint32_t x, std::uint32_t y,
-                  std::uint8_t rotation, const assets::FigureType& fig, double& cx, double& cy) {
+void building_attach_point(const sim::WorldIsland& island, const assets::BuildingType& b, std::uint32_t x,
+                           std::uint32_t y, std::uint8_t rotation, const assets::FigureType& fig, double& cx,
+                           double& cy) {
     std::uint32_t w = 0;
     std::uint32_t h = 0;
     sim::rotated_size(b, rotation, w, h);
@@ -263,6 +266,13 @@ void attach_point(const sim::WorldIsland& island, const assets::BuildingType& b,
             cy -= f0;
             break;
     }
+}
+
+namespace {
+
+void attach_point(const sim::WorldIsland& island, const assets::BuildingType& b, std::uint32_t x, std::uint32_t y,
+                  std::uint8_t rotation, const assets::FigureType& fig, double& cx, double& cy) {
+    building_attach_point(island, b, x, y, rotation, fig, cx, cy);
 }
 
 }  // namespace
@@ -551,7 +561,7 @@ bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, 
         return false;
     }
     const assets::FigureType* fig = layers.figures->get(figure.figure);
-    const auto base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Effekte)];
+    const auto base = layers.sheet_base[static_cast<std::size_t>(figure.sheet)];
     if (fig == nullptr || !base) {
         return false;
     }
@@ -580,11 +590,13 @@ bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, 
     c = DrawCommand{};
     const assets::FigureAnim* a = fig->anim(figure.anim);
     std::uint32_t frame = 0;
-    if (a != nullptr && a->count > 0) {
+    if (figure.frame) {
+        frame = *figure.frame;
+    } else if (a != nullptr && a->count > 0) {
         const std::uint64_t speed = a->speed_ms > 0 ? a->speed_ms : 1;
         frame = static_cast<std::uint32_t>(((time_ms + figure.phase) / speed) % a->count);
     }
-    c.sprite = *base + assets::figure_sprite(*fig, figure.anim, frame, 0, view.rotation);
+    c.sprite = *base + assets::figure_sprite(*fig, figure.anim, frame, figure.direction, view.rotation);
     const AtlasRect& r = layers.atlas->rect(c.sprite);
     if (r.empty()) {
         out.count = 0;

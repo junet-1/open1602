@@ -20,6 +20,7 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/platform/window.hpp"
+#include "o1602/render/ambient.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/camera.hpp"
 #include "o1602/render/land_figures.hpp"
@@ -97,6 +98,8 @@ private:
     void apply_production_events();
     /// Volcano fire and lava of the current game time (m_effects).
     void collect_effects();
+    /// Townsfolk, sea creatures and jugglers of the game time since the last frame.
+    void update_ambient();
 
     assets::GameDirectory m_game;
     assets::BuildingTable m_buildings;
@@ -129,7 +132,9 @@ private:
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;
     std::string m_tool_status;                    ///< what the build tool would do at the mouse
-    std::vector<render::EffectFigure> m_effects;  ///< volcano fire and lava of this frame
+    std::vector<render::EffectFigure> m_effects;  ///< volcano fire, lava, sea creatures, jugglers of this frame
+    render::Ambient m_ambient;                    ///< life in the picture, no part of the game
+    std::uint64_t m_ambient_ms = 0;               ///< game time the ambient last ran to
     std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
 };
 

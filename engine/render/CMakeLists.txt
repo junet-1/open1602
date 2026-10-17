@@ -5,6 +5,7 @@
 add_library(o1602_render
     src/land_figures.cpp
     src/walker_figures.cpp
+    src/ambient.cpp
     src/animation_clock.cpp
     src/banner.cpp
     src/camera.cpp

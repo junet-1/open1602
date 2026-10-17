@@ -129,7 +129,18 @@ struct EffectFigure {
     std::uint16_t figure = 0;  ///< FIGUR number
     std::uint8_t anim = 0;     ///< ANIM index
     std::uint32_t phase = 0;   ///< animation offset in ms
+    /// Sheet of the images: EFFEKTE.BSH for the volcano, FISCHE.BSH for sea creatures, GAUKLER.BSH
+    /// for jugglers.
+    assets::FigureSheet sheet = assets::FigureSheet::Effekte;
+    std::uint8_t direction = 0;         ///< 0..7
+    std::optional<std::uint8_t> frame;  ///< a frame of its own instead of one from the time
 };
+
+/// Where a figure attached to a building stands (0x004466A0): the building centre plus the
+/// figure's Fahnoffs turned with the building, in world tiles.
+void building_attach_point(const sim::WorldIsland& island, const assets::BuildingType& b, std::uint32_t x,
+                           std::uint32_t y, std::uint8_t rotation, const assets::FigureType& fig, double& cx,
+                           double& cy);
 
 /// Opacity of figure shadows (the original dithers every second pixel).
 inline constexpr std::uint8_t kShadowAlpha = 128;

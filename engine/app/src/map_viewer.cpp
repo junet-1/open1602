@@ -121,6 +121,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_camera.set_zoom(options.zoom, w / 2.0, h / 2.0);
     // Start over the player's own city.
     viewer->m_camera.center_on(viewer->home_tile());
+    viewer->m_ambient_ms = viewer->m_world.time_ms();
     if (auto status = viewer->ensure_graphics(viewer->m_camera.view().zoom); !status) {
         return status.error();
     }
@@ -416,6 +417,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_walkers.update(m_simulation.logistics(), m_world, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_simulation.speed());
+        update_ambient();
     }
     apply_construction();
 }
@@ -481,7 +483,7 @@ void MapViewer::render() {
         layers.ship_base = graphics->graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
         layers.sheet_base = graphics->graphics.base;
         // The deer walk as figures of the simulation (m_walkers).
-        layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances()};
+        layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances(), &m_ambient.walkers()};
         layers.unit_tint = &graphics->graphics.unit_tint;
         layers.banners = &m_banners;
         layers.banner_flags = &graphics->graphics.banner_flags;
@@ -684,6 +686,49 @@ void MapViewer::collect_effects() {
         f.phase = static_cast<std::uint32_t>(p.launch_us / 1000);
         m_effects.push_back(f);
     }
+    const auto& ambient = m_ambient.effects();
+    m_effects.insert(m_effects.end(), ambient.begin(), ambient.end());
+}
+
+void MapViewer::update_ambient() {
+    const std::uint64_t now = m_world.time_ms();
+    const auto dt = static_cast<std::uint32_t>(std::min<std::uint64_t>(now - std::min(now, m_ambient_ms), 1000));
+    m_ambient_ms = now;
+    std::int32_t w = 0;
+    std::int32_t h = 0;
+    m_window->output_size(w, h);
+    render::AmbientView view;
+    view.game_speed = m_simulation.speed();
+    view.tile_at = [&](double u, double v) -> std::optional<sim::TilePos> {
+        const auto t = m_camera.tile_at_screen(u * w, v * h);
+        if (!t) {
+            return std::nullopt;
+        }
+        return sim::TilePos{static_cast<std::int32_t>(t->x), static_cast<std::int32_t>(t->y)};
+    };
+    // Islands on screen: those overlapping the box of the tiles at the screen's corners and edges.
+    std::uint32_t x0 = m_world.width();
+    std::uint32_t y0 = m_world.height();
+    std::uint32_t x1 = 0;
+    std::uint32_t y1 = 0;
+    for (const double u : {0.0, 0.5, 1.0}) {
+        for (const double v : {0.0, 0.5, 1.0}) {
+            if (const auto t = m_camera.tile_at_screen(u * w, v * h)) {
+                x0 = std::min(x0, t->x);
+                y0 = std::min(y0, t->y);
+                x1 = std::max(x1, t->x);
+                y1 = std::max(y1, t->y);
+            }
+        }
+    }
+    view.islands.assign(m_world.islands().size(), false);
+    for (std::size_t i = 0; i < m_world.islands().size(); ++i) {
+        const sim::WorldIsland& island = m_world.islands()[i];
+        view.islands[i] = island.x <= x1 && island.x + island.map.width() > x0 && island.y <= y1 &&
+                          island.y + island.map.height() > y0;
+    }
+    m_ambient.update(m_world, m_buildings, m_figures, view, dt);
+    (void)m_ambient.take_sounds();  // no sound output yet
 }
 
 render::TilePos MapViewer::home_tile() const {

@@ -225,7 +225,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M3: Häuser (`SIEDLER`), Versorgung durch Märkte und öffentliche Gebäude, Wachstum, Auf- und Abstieg, Ruinen; Steuern, Betriebskosten, Sold; Zufallsquellen je Teilsystem, Piraten | ✅ `docs/re/houses.md` |
 | M3: Hirsche und Jäger: Wildplätze, Zählung, Rückkehr, Grasen, Ruf des Jägers, Schuss, Beute | ✅ `docs/re/deer.md` |
 | M3: Jagd geprüft: Zählregel gegen gespeicherte Wildplätze, eingesetzte Jagdhütte jagt mit Originaldaten; Merlin02 → Merlin03 (mit Video) läuft Feld für Feld wie im Original (Zielwahl des Hirschs mit der Wellensuche, Wildplätze, Statistik der Hütte) | ✅ `docs/re/deer.md` |
-| M2: Gaukler (Einwohnerzahlen), Träger (Wirtschaft) | ⬜ mit der Wirtschaftssimulation |
+| M2: Leben im Bild: Spaziergänger, Wale, Delfine, Kraken, Gaukler, Geräuschquellen; nur Darstellung, eigener Zufall, ohne Einfluss aufs Spiel (S-065) | ✅ `docs/re/flavor.md` |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
@@ -286,5 +286,4 @@ Dokuments.
 - Byte 3 der Lagerstätten, zweite Liste bei Insel +0x30 ([growth.md](re/growth.md)).
 - Gebäude mit `Grundflg`: Das Original öffnet für die Wegesuche nur Wald, Boden und Ruinen unter
   dem Gebäude ([logistics.md](re/logistics.md)).
-- Wale, Delfine, Kraken als Effektfiguren ([deer.md](re/deer.md)).
 

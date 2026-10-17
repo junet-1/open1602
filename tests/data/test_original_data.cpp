@@ -31,6 +31,7 @@
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/core/file.hpp"
+#include "o1602/render/ambient.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
@@ -2090,4 +2091,63 @@ TEST_CASE("data: Open1602's chunk is left out when the original's chunks changed
         CHECK(w.simulation_state().empty());
         CHECK(w.time_ms() == world.time_ms() / 100 * 100);  // the original's chunks stand
     }
+}
+
+TEST_CASE("data: townsfolk, sea creatures and jugglers leave the game untouched") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.back().world;
+    auto before = sim::write_savegame(world, *buildings);
+    REQUIRE(before.ok());
+    render::Ambient ambient(42);
+    render::AmbientView view;
+    view.islands.assign(world.islands().size(), true);
+    view.tile_at = [&](double u, double v) {
+        return std::optional<sim::TilePos>(
+            sim::TilePos{static_cast<std::int32_t>(u * world.width()), static_cast<std::int32_t>(v * world.height())});
+    };
+    std::set<std::uint16_t> kinds;
+    std::size_t jugglers = 0;
+    for (int t = 0; t < 6000; ++t) {  // 10 minutes
+        ambient.update(world, *buildings, *figures, view, 100);
+        for (const render::FigureInstance& f : ambient.walkers()) {
+            kinds.insert(f.figure);
+            // Townsfolk are seen on roads, squares, bridges and piers only.
+            const sim::World::Cell& c = world.cell(static_cast<std::uint32_t>(f.x), static_cast<std::uint32_t>(f.y));
+            REQUIRE(c.island != sim::World::kSea);
+        }
+        for (const render::EffectFigure& e : ambient.effects()) {
+            jugglers += e.sheet == assets::FigureSheet::Gaukler ? 1U : 0U;
+            if (e.sheet == assets::FigureSheet::Fische) {
+                kinds.insert(e.figure);
+            }
+        }
+    }
+    CHECK(ambient.stats().walkers > 0);
+    CHECK(ambient.stats().creatures > 0);
+    // Jugglers where a city has more than 59 citizens and better (and a market).
+    bool big = false;
+    for (const sim::City& c : world.cities()) {
+        std::uint32_t n = 0;
+        for (std::size_t k = 2; k < c.inhabitants.size(); ++k) {
+            n += c.inhabitants[k];
+        }
+        big = big || n > 59;
+    }
+    CHECK((jugglers > 0) == big);
+    for (const std::uint16_t k : kinds) {
+        CHECK(((k >= 93 && k <= 103)));
+        CHECK(figures->get(k) != nullptr);
+    }
+    // Nothing of it reaches the game.
+    auto after = sim::write_savegame(world, *buildings);
+    REQUIRE(after.ok());
+    CHECK(*before == *after);
 }
