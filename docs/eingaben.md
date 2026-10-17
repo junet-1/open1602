@@ -53,9 +53,10 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    - einen etwa eine Minute danach, „NachVulkan2“ (zerstörte Bäume und Gebäude);
    - wenn möglich ein Video des Ausbruchs: wie lange er dauert, wie weit die Brocken fliegen.
 
-3. **Dürre** (prüft die eingebaute Dürre). Ab **90 Minuten Spielzeit** sind Dürren möglich; bei
-   deiner Schwierigkeit kommt die erste meist bald danach. Damit es etwas zu verdorren gibt, bau
-   vorher in Lemonhall ein paar **Felder oder Plantagen** (Getreide, Tabak oder was die Insel trägt).
+3. **Dürre** (prüft die eingebaute Dürre). In Merlin04 hat der Dürrewurf zwischen Minute 88 und 95
+   schon einmal getroffen (auf welcher Insel, zeigt der Stand nicht mehr); der nächste ist ab
+   **122:00 Spielzeit** möglich. Damit es etwas zu verdorren gibt, braucht Lemonhall Felder oder
+   Plantagen; deine Gewürzplantage ist ein Anfang, mehr helfen.
    - ein Stand während der Dürre (nach „Die Trockenheit vernichtet Eure Ernte!“), „Duerre“;
    - einer etwa zwei Minuten nach ihrem Ende (es gibt keine Meldung dafür; die verdorrten Felder
      wachsen dann wieder), „NachDuerre“.
