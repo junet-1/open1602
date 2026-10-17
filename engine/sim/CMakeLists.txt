@@ -12,6 +12,7 @@ add_library(o1602_sim
     src/island_map.cpp
     src/logistics.cpp
     src/pathfinding.cpp
+    src/savegame_extension.cpp
     src/savegame_writer.cpp
     src/player.cpp
     src/production_cycle.cpp

@@ -64,6 +64,16 @@ public:
         return v;
     }
 
+    [[nodiscard]] std::optional<std::uint64_t> u64() noexcept {
+        if (!has(8)) {
+            return std::nullopt;
+        }
+        const std::uint64_t lo = load_u32(m_data, m_offset);
+        const std::uint64_t hi = load_u32(m_data, m_offset + 4);
+        m_offset += 8;
+        return lo | (hi << 32);
+    }
+
     /// Returns a sub-span of n bytes and advances.
     [[nodiscard]] std::optional<ByteSpan> bytes(std::size_t n) noexcept {
         if (!has(n)) {

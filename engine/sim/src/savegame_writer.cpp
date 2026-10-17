@@ -12,6 +12,7 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
+#include "o1602/sim/savegame_extension.hpp"
 
 namespace o1602::sim {
 
@@ -331,8 +332,9 @@ private:
                                      std::uint32_t{island.header.number} << 6 | std::uint32_t{city & 7U} << 14 |
                                      std::uint32_t{owner & 0xFU} << 22;
                 const auto id = static_cast<std::uint16_t>(sub.building->id - kIdOffset);
+                bits |= std::uint32_t{cell.random & 0x1FU} << 17;
                 if (const auto it = source.find(y << 8 | x); it != source.end() && it->second.id == id) {
-                    bits |= it->second.bits & (0x1FU << 17 | 0x3FU << 26);  // random value, unknown bits
+                    bits |= it->second.bits & (0x3FU << 26);  // bits of unknown meaning
                 }
                 const std::size_t o = out.size();
                 out.resize(o + kTileSize);
@@ -756,8 +758,10 @@ private:
                 r[o + 1] = number(c->island);
                 r[o + 2] = c->x;
                 r[o + 3] = c->y;
-            } else {
-                r[o] = 0;  // only the low byte tells (0x0048C0F0)
+            } else if (r[o] != 0) {
+                // Only the low byte tells (0x0048C0F0); a ref that was set is cleared whole so the
+                // file does not depend on what ran before.
+                std::fill_n(r.begin() + static_cast<std::ptrdiff_t>(o), 4, std::uint8_t{0});
             }
         };
         ref(0xC4, v.eruptions.empty() ? std::nullopt : std::optional<CraterRef>(v.eruptions.front().crater));
@@ -778,7 +782,8 @@ core::Result<std::vector<SavedChunk>> savegame_chunks(const World& world, const 
     return Writer(world, buildings).run();
 }
 
-core::Result<core::Bytes> write_savegame(const World& world, const assets::BuildingTable& buildings) {
+core::Result<core::Bytes> write_savegame(const World& world, const assets::BuildingTable& buildings,
+                                         const Simulation* simulation) {
     auto chunks = savegame_chunks(world, buildings);
     if (!chunks) {
         return chunks.error();
@@ -788,6 +793,8 @@ core::Result<core::Bytes> write_savegame(const World& world, const assets::Build
         out.add(c.name, c.data);
     }
     out.add_checksum();
+    const core::Bytes extension = encode_extension(world, buildings, simulation, out.bytes());
+    out.add(kExtensionChunk, extension);
     return out.take();
 }
 

@@ -1848,4 +1848,163 @@ void Logistics::robber_flee(Handle h, Walker& r) {
     }
 }
 
+namespace {
+
+void put_walker(core::ByteWriter& out, const Walker& w) {
+    out.u8(static_cast<std::uint8_t>(w.kind));
+    out.u16(w.island);
+    out.u16(w.figure);
+    out.u8(w.city);
+    out.u32(w.home);
+    put_tile(out, w.home_tile);
+    out.boolean(w.source.has_value());
+    out.u32(w.source.value_or(0));
+    put_tile(out, w.source_origin);
+    out.boolean(w.from_warehouse);
+    out.u8(w.ware);
+    out.u16(w.reserved);
+    out.u16(w.load);
+    out.u16(w.expected);
+    out.boolean(w.returning);
+    put_maybe_tile(out, w.field);
+    out.u32(w.work_ms);
+    out.u8(w.animation);
+    out.u8(w.grazes);
+    out.boolean(w.dying);
+    out.boolean(w.shot);
+    out.boolean(w.retargeted);
+    put_handle(out, w.partner);
+    put_maybe_tile(out, w.target);
+    out.u8(w.patience);
+    put_tile(out, w.tile);
+    out.u32(static_cast<std::uint32_t>(w.path.size()));
+    for (const TilePos& t : w.path) {
+        put_tile(out, t);
+    }
+    out.u32(w.step);
+    out.u32(w.progress);
+    out.u32(w.length);
+    out.u32(w.speed);
+    out.u8(w.direction);
+    out.u8(w.walk_speed);
+}
+
+Walker get_walker(StateIn& in) {
+    Walker w;
+    w.kind = static_cast<WalkerKind>(in.u8());
+    if (static_cast<std::uint8_t>(w.kind) > static_cast<std::uint8_t>(WalkerKind::Robber)) {
+        in.fail();
+    }
+    w.island = in.u16();
+    w.figure = in.u16();
+    w.city = in.u8();
+    w.home = in.u32();
+    w.home_tile = in.tile();
+    const bool has_source = in.boolean();
+    const std::uint32_t source = in.u32();
+    if (has_source) {
+        w.source = source;
+    }
+    w.source_origin = in.tile();
+    w.from_warehouse = in.boolean();
+    w.ware = in.u8();
+    w.reserved = in.u16();
+    w.load = in.u16();
+    w.expected = in.u16();
+    w.returning = in.boolean();
+    w.field = in.maybe_tile();
+    w.work_ms = in.u32();
+    w.animation = in.u8();
+    w.grazes = in.u8();
+    w.dying = in.boolean();
+    w.shot = in.boolean();
+    w.retargeted = in.boolean();
+    w.partner = in.handle();
+    w.target = in.maybe_tile();
+    w.patience = in.u8();
+    w.tile = in.tile();
+    const std::uint32_t steps = in.count(8);
+    w.path.reserve(steps);
+    for (std::uint32_t i = 0; i < steps; ++i) {
+        w.path.push_back(in.tile());
+    }
+    w.step = in.u32();
+    w.progress = in.u32();
+    w.length = in.u32();
+    w.speed = in.u32();
+    w.direction = in.u8();
+    w.walk_speed = in.u8();
+    return w;
+}
+
+}  // namespace
+
+void Logistics::save(core::ByteWriter& out) const {
+    out.u32(m_walkers.slot_count());
+    for (std::uint32_t i = 0; i < m_walkers.slot_count(); ++i) {
+        out.u32(m_walkers.generation(i));
+        const Walker* w = m_walkers.slot(i);
+        out.boolean(w != nullptr);
+        if (w != nullptr) {
+            put_walker(out, *w);
+        }
+    }
+    out.u32(static_cast<std::uint32_t>(m_jobs.size()));
+    for (const std::uint8_t j : m_jobs) {
+        out.u8(j);
+    }
+    std::vector<std::uint64_t> tiles(m_reserved_tiles.begin(), m_reserved_tiles.end());
+    std::sort(tiles.begin(), tiles.end());
+    out.u32(static_cast<std::uint32_t>(tiles.size()));
+    for (const std::uint64_t t : tiles) {
+        out.u64(t);
+    }
+    for (const std::uint64_t v :
+         {m_stats.carrier_trips, m_stats.cart_trips, m_stats.raw_delivered, m_stats.goods_collected,
+          m_stats.worker_trips, m_stats.harvested, m_stats.ore_mined, m_stats.deer_spawned, m_stats.deer_hunted,
+          m_stats.robbers, m_stats.robberies, m_stats.stolen, m_stats.cured, m_stats.extinguished}) {
+        out.u64(v);
+    }
+}
+
+bool Logistics::load(core::ByteReader& reader) {
+    StateIn in(reader);
+    std::vector<std::pair<std::optional<Walker>, std::uint32_t>> slots;
+    const std::uint32_t n = in.count(5);
+    slots.reserve(n);
+    for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
+        const std::uint32_t generation = in.u32();
+        std::optional<Walker> w;
+        if (in.boolean()) {
+            w = get_walker(in);
+        }
+        slots.emplace_back(std::move(w), generation);
+    }
+    std::vector<std::uint8_t> jobs(in.count(1));
+    for (std::uint8_t& j : jobs) {
+        j = in.u8();
+    }
+    std::unordered_set<std::uint64_t> tiles;
+    const std::uint32_t reserved = in.count(8);
+    for (std::uint32_t i = 0; i < reserved; ++i) {
+        tiles.insert(in.u64());
+    }
+    LogisticsStats stats;
+    for (std::uint64_t* v :
+         {&stats.carrier_trips, &stats.cart_trips, &stats.raw_delivered, &stats.goods_collected, &stats.worker_trips,
+          &stats.harvested, &stats.ore_mined, &stats.deer_spawned, &stats.deer_hunted, &stats.robbers, &stats.robberies,
+          &stats.stolen, &stats.cured, &stats.extinguished}) {
+        *v = in.u64();
+    }
+    if (!in.ok()) {
+        return false;
+    }
+    m_walkers.restore(std::move(slots));
+    m_jobs = std::move(jobs);
+    m_reserved_tiles = std::move(tiles);
+    m_stats = stats;
+    m_hunt_calls.clear();
+    return true;
+}
+
 }  // namespace o1602::sim

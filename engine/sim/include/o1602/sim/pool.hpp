@@ -80,6 +80,28 @@ public:
         }
     }
 
+    /// Slots for saving: their number, each one's generation and value (nullptr if free).
+    [[nodiscard]] std::uint32_t slot_count() const noexcept { return static_cast<std::uint32_t>(m_slots.size()); }
+    [[nodiscard]] std::uint32_t generation(std::uint32_t i) const noexcept { return m_slots[i].generation; }
+    [[nodiscard]] const T* slot(std::uint32_t i) const noexcept {
+        return m_slots[i].value ? &*m_slots[i].value : nullptr;
+    }
+    /// Restores saved slots: the same handles stay valid, free slots are taken again lowest first.
+    void restore(std::vector<std::pair<std::optional<T>, std::uint32_t>> slots) {
+        m_slots.clear();
+        m_free.clear();
+        m_size = 0;
+        for (auto& [value, generation] : slots) {
+            m_size += value ? 1U : 0U;
+            m_slots.push_back(Slot{std::move(value), generation});
+        }
+        for (std::uint32_t i = static_cast<std::uint32_t>(m_slots.size()); i-- > 0;) {
+            if (!m_slots[i].value) {
+                m_free.push_back(i);
+            }
+        }
+    }
+
 private:
     struct Slot {
         std::optional<T> value;

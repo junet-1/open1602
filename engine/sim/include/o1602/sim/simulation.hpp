@@ -87,11 +87,16 @@ public:
     [[nodiscard]] std::vector<IslandEvent> take_island_events();
     /// Fires and plagues that broke out, spread, ended or burned a building down since the last call.
     [[nodiscard]] std::vector<DisasterEvent> take_disaster_events();
+    /// Clocks and figures for Open1602's own savegame chunk (savegame_extension.hpp). A Simulation
+    /// built on a world that carries such state continues from it.
+    void save_state(core::ByteWriter& out) const;
+
     /// Eruptions and what the lava hit since the last call.
     [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events();
 
 private:
     void pay_upkeep();
+    bool restore_state(const std::vector<std::uint8_t>& state);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 
     World* m_world;

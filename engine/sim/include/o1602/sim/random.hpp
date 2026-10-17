@@ -45,6 +45,14 @@ public:
         }
     }
 
+    /// A generator continuing from a saved state.
+    [[nodiscard]] static constexpr Random from_state(std::uint64_t state, std::uint64_t increment) noexcept {
+        Random r;
+        r.m_state = state;
+        r.m_increment = increment | 1U;
+        return r;
+    }
+
     [[nodiscard]] constexpr std::uint64_t state() const noexcept { return m_state; }
     [[nodiscard]] constexpr std::uint64_t increment() const noexcept { return m_increment; }
     friend constexpr bool operator==(const Random&, const Random&) = default;
@@ -75,6 +83,9 @@ public:
         }
     }
     [[nodiscard]] constexpr Random& operator[](RandomStream s) noexcept {
+        return m_streams[static_cast<std::size_t>(s)];
+    }
+    [[nodiscard]] constexpr const Random& operator[](RandomStream s) const noexcept {
         return m_streams[static_cast<std::size_t>(s)];
     }
 

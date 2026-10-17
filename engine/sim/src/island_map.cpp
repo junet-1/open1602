@@ -31,8 +31,9 @@ core::Status IslandMap::build(const assets::BuildingType& b, std::int32_t x, std
 }
 
 core::Status IslandMap::load(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                             std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool to_ground) {
-    return write(b, x, y, rotation, anim_phase, owner, city, to_ground ? Mode::LoadGround : Mode::Load);
+                             std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool to_ground,
+                             std::uint8_t random) {
+    return write(b, x, y, rotation, anim_phase, owner, city, to_ground ? Mode::LoadGround : Mode::Load, random);
 }
 
 core::Status IslandMap::replace(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
@@ -41,7 +42,8 @@ core::Status IslandMap::replace(const assets::BuildingType& b, std::int32_t x, s
 }
 
 core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                              std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode) {
+                              std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode,
+                              std::uint8_t random) {
     rotation &= 3U;
     std::uint32_t fw = 0;
     std::uint32_t fh = 0;
@@ -65,8 +67,9 @@ core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std
         } else if (mode == Mode::Place && !m_top[i].empty()) {
             m_ground[i] = m_top[i];
         }
-        m_top[i] = MapCell{static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation,
-                           static_cast<std::uint8_t>(anim_phase & 0xFU), o, c};
+        m_top[i] = MapCell{
+            static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation, static_cast<std::uint8_t>(anim_phase & 0xFU), o, c,
+            static_cast<std::uint8_t>(random & 0x1FU)};
         if (mode == Mode::LoadGround) {
             m_ground[i] = m_top[i];
         }
@@ -189,7 +192,7 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
             const bool ground =
                 tile.city() == kNoCityBits && b->kind != 12 && b->kind != 29 && !territory_building(buildings, *b);
             if (auto status = map.load(*b, tile.x, tile.y, tile.rotation(), tile.anim_phase(),
-                                       player_from_original(tile.player()), city_of(tile), ground);
+                                       player_from_original(tile.player()), city_of(tile), ground, tile.random());
                 !status) {
                 warn(status.error().message);
             }

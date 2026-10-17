@@ -26,6 +26,7 @@
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/pool.hpp"
 #include "o1602/sim/production_cycle.hpp"
+#include "o1602/sim/state_io.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
@@ -202,6 +203,11 @@ public:
     static constexpr std::uint32_t kIslandEpochMs = 30'000;
 
     [[nodiscard]] const Pool<Walker>& walkers() const noexcept { return m_walkers; }
+
+    /// The figures, their reservations and the statistics, for a savegame of Open1602.
+    void save(core::ByteWriter& out) const;
+    /// Restores what save() wrote; false if the data is damaged (then nothing changed).
+    bool load(core::ByteReader& in);
     [[nodiscard]] const LogisticsStats& stats() const noexcept { return m_stats; }
 
     /// Tiles per tick of a figure on a tile of Wegspeed class `walk_speed` (units of 1/65536).

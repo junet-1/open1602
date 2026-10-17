@@ -19,6 +19,7 @@
 #include "o1602/sim/player.hpp"
 #include "o1602/sim/production.hpp"
 #include "o1602/sim/random.hpp"
+#include "o1602/sim/rules.hpp"
 
 namespace o1602::sim {
 
@@ -368,6 +369,16 @@ public:
     [[nodiscard]] const std::vector<Soldier>& soldiers() const noexcept { return m_soldiers; }
     void add_soldier(const Soldier& soldier) { m_soldiers.push_back(soldier); }
 
+    /// Replace whole lists in their order (restoring a saved game, savegame_extension.hpp).
+    void set_cities(std::vector<City> cities) { m_cities = std::move(cities); }
+    void set_animals(std::vector<Animal> animals) { m_animals = std::move(animals); }
+    void set_soldiers(std::vector<Soldier> soldiers) { m_soldiers = std::move(soldiers); }
+    void set_houses(std::vector<House> houses);
+    /// All slots of the production list, used or free, and the free slots in the order they are
+    /// taken again (last first).
+    void set_productions(std::vector<Production> productions, std::vector<std::uint32_t> free);
+    [[nodiscard]] const std::vector<std::uint32_t>& free_productions() const noexcept { return m_free_productions; }
+
     [[nodiscard]] const std::vector<House>& houses() const noexcept { return m_houses; }
     [[nodiscard]] std::vector<House>& houses() noexcept { return m_houses; }
     /// House whose building has its origin at (x, y), nullptr if none.
@@ -386,6 +397,8 @@ public:
     [[nodiscard]] const std::vector<Disaster>& disasters() const noexcept { return m_disasters; }
     [[nodiscard]] std::vector<Disaster>& disasters() noexcept { return m_disasters; }
     [[nodiscard]] std::uint32_t next_disaster_id() noexcept { return m_next_disaster_id++; }
+    [[nodiscard]] std::uint32_t peek_disaster_id() const noexcept { return m_next_disaster_id; }
+    void set_next_disaster_id(std::uint32_t id) noexcept { m_next_disaster_id = id; }
 
     /// Settings the original keeps with a game (TIMERS): the difficulty 0..3 (how often droughts
     /// come) and the settings word (bit 2: no droughts).
@@ -408,6 +421,15 @@ public:
     [[nodiscard]] const std::shared_ptr<const assets::ChunkFile>& source() const noexcept { return m_source; }
     void set_source(std::shared_ptr<const assets::ChunkFile> file) noexcept { m_source = std::move(file); }
 
+    /// State of the running simulation (clocks, figures) from Open1602's own savegame chunk, kept
+    /// until a Simulation takes it over (Simulation::Simulation).
+    [[nodiscard]] const std::vector<std::uint8_t>& simulation_state() const noexcept { return m_simulation_state; }
+    void set_simulation_state(std::vector<std::uint8_t> state) noexcept { m_simulation_state = std::move(state); }
+    [[nodiscard]] std::vector<std::uint8_t> take_simulation_state() noexcept { return std::move(m_simulation_state); }
+    /// Game settings saved with the game, which a Simulation of it uses (ADR 0008).
+    [[nodiscard]] const std::optional<Rules>& saved_rules() const noexcept { return m_saved_rules; }
+    void set_saved_rules(std::optional<Rules> rules) noexcept { m_saved_rules = rules; }
+
     /// Eruptions, lava in flight and the time of the next eruption (volcanoes.hpp).
     [[nodiscard]] const VolcanoState& volcanoes() const noexcept { return m_volcanoes; }
     [[nodiscard]] VolcanoState& volcanoes() noexcept { return m_volcanoes; }
@@ -424,6 +446,7 @@ public:
 
     /// Random generators of the simulation, one per subsystem (random.hpp).
     [[nodiscard]] Random& random(RandomStream stream) noexcept { return m_random[stream]; }
+    [[nodiscard]] const Random& random(RandomStream stream) const noexcept { return m_random[stream]; }
     void reseed(std::uint64_t seed) noexcept { m_random.reseed(seed); }
 
     [[nodiscard]] const GrowthState& growth() const noexcept { return m_growth; }
@@ -471,6 +494,8 @@ private:
     std::optional<std::uint8_t> m_drought_seed;
     VolcanoState m_volcanoes;
     std::shared_ptr<const assets::ChunkFile> m_source;
+    std::vector<std::uint8_t> m_simulation_state;
+    std::optional<Rules> m_saved_rules;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x

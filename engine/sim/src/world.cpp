@@ -7,6 +7,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/growth.hpp"
+#include "o1602/sim/savegame_extension.hpp"
 #include "o1602/sim/volcanoes.hpp"
 
 namespace o1602::sim {
@@ -110,6 +111,25 @@ void World::remove_house(std::uint16_t island, std::uint16_t x, std::uint16_t y)
         m_house_index[production_key(moved.island, moved.x, moved.y)] = index;
     }
     m_houses.pop_back();
+}
+
+void World::set_houses(std::vector<House> houses) {
+    m_houses = std::move(houses);
+    m_house_index.clear();
+    for (std::uint32_t i = 0; i < m_houses.size(); ++i) {
+        m_house_index[production_key(m_houses[i].island, m_houses[i].x, m_houses[i].y)] = i;
+    }
+}
+
+void World::set_productions(std::vector<Production> productions, std::vector<std::uint32_t> free) {
+    m_productions = std::move(productions);
+    m_free_productions = std::move(free);
+    m_production_index.clear();
+    for (std::uint32_t i = 0; i < m_productions.size(); ++i) {
+        if (m_productions[i].used) {
+            m_production_index[production_key(m_productions[i].island, m_productions[i].x, m_productions[i].y)] = i;
+        }
+    }
 }
 
 std::optional<std::uint32_t> World::production_index(std::uint16_t island, std::uint16_t x, std::uint16_t y) const {
@@ -503,6 +523,17 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         growth.entries.push_back(e);
     }
     add_missing_growth(world, buildings);
+    // Open1602's own chunk: the state the original's chunks cannot hold.
+    for (const assets::Chunk& c : file.chunks()) {
+        if (c.name == kExtensionChunk) {
+            constexpr std::size_t kHeader = 20;
+            const auto before = file.data().subspan(0, c.offset - kHeader);
+            if (auto status = apply_extension(world, buildings, file.payload(c), before); !status) {
+                warn(status.error().message + " (loaded without it)");
+            }
+            break;
+        }
+    }
     world.set_source(std::make_shared<const assets::ChunkFile>(file));
     return world;
 }

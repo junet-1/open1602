@@ -1928,3 +1928,159 @@ TEST_CASE("data: a game played on in Open1602 saves and loads to the same state"
     }
     CHECK(productions > 0);
 }
+
+TEST_CASE("data: a game saved in Open1602 continues exactly as if it had not stopped") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.back().world;
+    sim::Simulation a(world, *buildings, *figures);
+    a.set_speed(8);
+    for (int i = 0; i < 130; ++i) {
+        a.advance(100);
+    }
+    // Save in the middle of things: lava in the air, a fire with the fire brigade on its way.
+    for (std::uint16_t i = 0; i < world.islands().size(); ++i) {
+        if (!world.islands()[i].craters.empty()) {
+            const sim::Crater& c = world.islands()[i].craters.front();
+            REQUIRE(sim::erupt(world, sim::CraterRef{i, c.x, c.y}, 999, true, nullptr));
+            break;
+        }
+    }
+    for (const sim::House& h : world.houses()) {
+        if (world.city(h.island, h.city) != nullptr && world.city(h.island, h.city)->owner == 0) {
+            REQUIRE(sim::start_disaster(world, *buildings, h.island, {h.x, h.y}, sim::Disaster::Kind::Fire,
+                                        sim::kFireDuration, nullptr));
+            break;
+        }
+    }
+    for (int i = 0; i < 20; ++i) {
+        a.advance(100);
+    }
+    CHECK(!world.volcanoes().lava.empty());
+    CHECK(!world.disasters().empty());
+    auto saved = sim::write_savegame(world, *buildings, &a);
+    REQUIRE(saved.ok());
+    auto file = assets::ChunkFile::from_bytes(*saved);
+    REQUIRE(file.ok());
+    REQUIRE(file->chunks().back().name == "O1602");
+    std::vector<std::string> warnings;
+    auto loaded = sim::load_world(*file, *buildings, game, &warnings);
+    REQUIRE(loaded.ok());
+    for (const std::string& w : warnings) {
+        std::fprintf(stderr, "  warning: %s\n", w.c_str());
+    }
+    CHECK(warnings.empty());
+    sim::Simulation b(*loaded, *buildings, *figures);
+    b.set_speed(8);
+    // Right after loading the state is the same ...
+    auto again = sim::write_savegame(*loaded, *buildings, &b);
+    REQUIRE(again.ok());
+    CHECK(*again == *saved);
+    // ... and five minutes later too.
+    for (int i = 0; i < 375; ++i) {
+        a.advance(100);
+        b.advance(100);
+    }
+    auto first = sim::write_savegame(world, *buildings, &a);
+    auto second = sim::write_savegame(*loaded, *buildings, &b);
+    REQUIRE(first.ok());
+    REQUIRE(second.ok());
+    if (*first != *second) {
+        auto fa = assets::ChunkFile::from_bytes(*first);
+        auto fb = assets::ChunkFile::from_bytes(*second);
+        for (std::size_t k = 0; k < std::min(fa->chunks().size(), fb->chunks().size()); ++k) {
+            const auto x = fa->payload(fa->chunks()[k]);
+            const auto y = fb->payload(fb->chunks()[k]);
+            if (x.size() != y.size() || !std::equal(x.begin(), x.end(), y.begin())) {
+                std::size_t d = 0;
+                while (d < x.size() && d < y.size() && x[d] == y[d]) {
+                    ++d;
+                }
+                std::fprintf(stderr, "  chunk %zu %s: %zu / %zu bytes, first difference at %zu\n", k,
+                             fa->chunks()[k].name.c_str(), x.size(), y.size(), d);
+                if (fa->chunks()[k].name == "INSELHAUS" && d / 8 * 8 + 8 <= x.size()) {
+                    const std::size_t o = d / 8 * 8;
+                    std::fprintf(stderr, "    id %u at %u,%u bits %08x / id %u bits %08x\n", x[o] | x[o + 1] << 8,
+                                 x[o + 2], x[o + 3], x[o + 4] | x[o + 5] << 8 | x[o + 6] << 16 | x[o + 7] << 24,
+                                 y[o] | y[o + 1] << 8, y[o + 4] | y[o + 5] << 8 | y[o + 6] << 16 | y[o + 7] << 24);
+                }
+            }
+        }
+    }
+    CHECK(*first == *second);
+}
+
+TEST_CASE("data: Open1602's chunk is left out when the original's chunks changed or it is damaged") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.back().world;
+    sim::Rules rules;
+    rules.droughts = sim::Droughts::Frequent;
+    sim::Simulation a(world, *buildings, *figures, rules);
+    a.set_speed(8);
+    for (int i = 0; i < 40; ++i) {
+        a.advance(100);
+    }
+    auto saved = sim::write_savegame(world, *buildings, &a);
+    REQUIRE(saved.ok());
+    const auto load = [&](const core::Bytes& bytes, std::vector<std::string>& warnings) {
+        auto file = assets::ChunkFile::from_bytes(bytes);
+        REQUIRE(file.ok());
+        auto w = sim::load_world(*file, *buildings, game, &warnings);
+        REQUIRE(w.ok());
+        return std::move(w).value();
+    };
+    {
+        std::vector<std::string> warnings;
+        const sim::World w = load(*saved, warnings);
+        CHECK(warnings.empty());
+        REQUIRE(w.saved_rules().has_value());
+        CHECK(w.saved_rules()->droughts == sim::Droughts::Frequent);
+        CHECK(!w.simulation_state().empty());
+    }
+    auto file = assets::ChunkFile::from_bytes(*saved);
+    REQUIRE(file.ok());
+    const assets::Chunk* timers = file->find("TIMERS");
+    const assets::Chunk* own = file->find("O1602");
+    REQUIRE(timers != nullptr);
+    REQUIRE(own != nullptr);
+    {
+        // Another tool changed a byte of the original's chunks (one the original ignores).
+        core::Bytes changed = *saved;
+        changed[timers->offset + 0x10] ^= 0x5A;
+        std::vector<std::string> warnings;
+        const sim::World w = load(changed, warnings);
+        REQUIRE(warnings.size() == 1);
+        CHECK(warnings[0].find("changed") != std::string::npos);
+        CHECK(!w.saved_rules().has_value());
+        CHECK(w.simulation_state().empty());
+    }
+    {
+        // A damaged chunk: cut off in the middle.
+        core::Bytes cut(saved->begin(), saved->begin() + static_cast<std::ptrdiff_t>(own->offset + own->size / 2));
+        const auto size = static_cast<std::uint32_t>(own->size / 2);
+        for (std::size_t k = 0; k < 4; ++k) {
+            cut[own->offset - 4 + k] = static_cast<std::uint8_t>(size >> (8 * k));
+        }
+        std::vector<std::string> warnings;
+        const sim::World w = load(cut, warnings);
+        REQUIRE(warnings.size() == 1);
+        CHECK(!w.saved_rules().has_value());
+        CHECK(w.simulation_state().empty());
+        CHECK(w.time_ms() == world.time_ms() / 100 * 100);  // the original's chunks stand
+    }
+}

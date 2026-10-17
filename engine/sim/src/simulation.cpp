@@ -24,12 +24,54 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_logistics(world, buildings, figures) {
     m_time_ms = world.time_ms();
     m_island_ms = static_cast<std::uint32_t>(m_time_ms % Logistics::kIslandEpochMs);
+    if (world.saved_rules()) {
+        m_rules = *world.saved_rules();  // the settings the game was started with
+    }
     recount_disasters(world);
+    if (restore_state(world.take_simulation_state())) {
+        return;  // a game saved by Open1602 continues where it was
+    }
     // As when the original loads a game: every deer spot gets its deer.
     m_logistics.spawn_deer_at_spots();
     // The original takes the saved coverage of the houses; Open1602 recomputes it once, which
     // also restores what the savegame does not keep (gallows, fountains).
     update_services(world, buildings);
+}
+
+void Simulation::save_state(core::ByteWriter& out) const {
+    constexpr std::uint16_t kVersion = 1;
+    out.u16(kVersion);
+    out.u32(m_production_ms);
+    out.u32(m_city_ms);
+    out.u32(m_disaster_ms);
+    out.u32(m_upkeep_ms);
+    out.u32(m_island_ms);
+    m_logistics.save(out);
+}
+
+bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
+    if (state.empty()) {
+        return false;
+    }
+    core::ByteReader reader(state);
+    StateIn in(reader);
+    if (in.u16() != 1) {
+        return false;
+    }
+    const std::uint32_t production = in.u32();
+    const std::uint32_t city = in.u32();
+    const std::uint32_t disaster = in.u32();
+    const std::uint32_t upkeep = in.u32();
+    const std::uint32_t island = in.u32();
+    if (!in.ok() || !m_logistics.load(reader)) {
+        return false;
+    }
+    m_production_ms = production;
+    m_city_ms = city;
+    m_disaster_ms = disaster;
+    m_upkeep_ms = upkeep;
+    m_island_ms = island;
+    return true;
 }
 
 void Simulation::set_speed(std::uint32_t speed) noexcept {

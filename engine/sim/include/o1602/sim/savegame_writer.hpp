@@ -9,9 +9,9 @@
 // world was loaded from and changes only what Open1602 keeps; a value the loader would have turned
 // into the same state stays as it was, so a world saved without changes comes out byte for byte.
 //
-// What the original cannot hold (fires, robbers, lava, more islands, cities or players than it
-// knows) goes into a chunk of Open1602's own after WIFF, which the original skips. That chunk is
-// not written yet.
+// What the original cannot hold (fires, robbers, lava, figures, more islands, cities or players
+// than it knows) goes into a chunk of Open1602's own after WIFF, which the original skips
+// (savegame_extension.hpp).
 #pragma once
 
 #include <cstdint>
@@ -37,7 +37,11 @@ struct SavedChunk {
 [[nodiscard]] core::Result<std::vector<SavedChunk>> savegame_chunks(const World& world,
                                                                     const assets::BuildingTable& buildings);
 
-/// The whole file: the chunks and WIFF.
-[[nodiscard]] core::Result<core::Bytes> write_savegame(const World& world, const assets::BuildingTable& buildings);
+class Simulation;
+
+/// The whole file: the chunks, WIFF and Open1602's own chunk (savegame_extension.hpp). With the
+/// running `simulation` its clocks and figures are saved too, so the game continues exactly.
+[[nodiscard]] core::Result<core::Bytes> write_savegame(const World& world, const assets::BuildingTable& buildings,
+                                                       const Simulation* simulation = nullptr);
 
 }  // namespace o1602::sim

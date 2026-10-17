@@ -768,7 +768,7 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
         return core::make_error(core::ErrorCode::Unsupported,
                                 "will not write into the game's installation: " + target.string());
     }
-    auto bytes = sim::write_savegame(m_world, m_buildings);
+    auto bytes = sim::write_savegame(m_world, m_buildings, &m_simulation);
     if (!bytes) {
         return bytes.error();
     }

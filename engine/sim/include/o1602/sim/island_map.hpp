@@ -24,6 +24,9 @@ struct MapCell {
     std::uint8_t anim_phase = 0;    ///< 0..15, per-tile animation offset
     PlayerId owner = kNoPlayer;     ///< index into World::players()
     std::uint8_t city = kNoCity;    ///< city on this island (World::city()), attribute bits 14-16
+    /// The value of INSELHAUS attribute bits 17-21, which the original passes to its placement
+    /// handler and writes anew with every save; kept so a savegame comes back as it was.
+    std::uint8_t random = 0;
 
     [[nodiscard]] bool empty() const noexcept { return sprite == kEmpty; }
 };
@@ -75,7 +78,8 @@ public:
     /// A tile of a saved island (INSELHAUS, 0x00468550): written on top like the original's loader;
     /// with `to_ground` it also becomes the tile's ground (0x00463E10). Nothing moves down.
     core::Status load(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                      std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool to_ground);
+                      std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool to_ground,
+                      std::uint8_t random = 0);
 
     /// Takes the current picture as the original terrain of every tile (the ground layer the
     /// original keeps at island + 0xAFC).
@@ -89,6 +93,10 @@ public:
         t.rotation = g.rotation;
         t.anim_phase = g.anim_phase;
     }
+
+    /// Sets a tile of either layer as it was saved (Open1602's own savegame chunk).
+    void set_top_cell(std::uint32_t x, std::uint32_t y, const MapCell& cell) { m_top[index(x, y)] = cell; }
+    void set_ground_cell(std::uint32_t x, std::uint32_t y, const MapCell& cell) { m_ground[index(x, y)] = cell; }
 
     /// Territory: the city (and its owner) a tile belongs to.
     void set_city(std::uint32_t x, std::uint32_t y, std::uint8_t city, PlayerId owner) {
@@ -117,7 +125,7 @@ public:
 private:
     enum class Mode : std::uint8_t { Place, Replace, Build, Load, LoadGround };
     core::Status write(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
-                       std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode);
+                       std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode, std::uint8_t random = 0);
     [[nodiscard]] std::size_t index(std::uint32_t x, std::uint32_t y) const { return std::size_t{y} * m_width + x; }
     static SubTile sub_tile_of(const MapCell& cell, const assets::BuildingTable& buildings, std::uint32_t x,
                                std::uint32_t y);
