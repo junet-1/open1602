@@ -11,10 +11,14 @@
 #include "o1602/assets/text_table.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/growth.hpp"
 
 namespace o1602::app {
 
 namespace {
+
+/// Ground under a building that cannot be built there.
+constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
 
 constexpr double kScrollSpeed = 1200.0;  ///< screen pixels per second (keyboard)
 constexpr std::int32_t kMaxPixelScale = 4;
@@ -115,14 +119,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_camera.set_world_size(viewer->m_world.width(), viewer->m_world.height());
     viewer->m_camera.set_screen(w, h, std::clamp(scale, 1, kMaxPixelScale));
     viewer->m_camera.set_zoom(options.zoom, w / 2.0, h / 2.0);
-    // Start over the first island (or the map centre).
-    if (!viewer->m_world.islands().empty()) {
-        const auto& island = viewer->m_world.islands().front();
-        viewer->m_camera.center_on(
-            render::TilePos{island.x + island.map.width() / 2, island.y + island.map.height() / 2});
-    } else {
-        viewer->m_camera.center_on(render::TilePos{viewer->m_world.width() / 2, viewer->m_world.height() / 2});
-    }
+    // Start over the player's own city.
+    viewer->m_camera.center_on(viewer->home_tile());
     if (auto status = viewer->ensure_graphics(viewer->m_camera.view().zoom); !status) {
         return status.error();
     }
@@ -361,11 +359,7 @@ void MapViewer::handle_key(int key, bool shift) {
             m_simulation.set_speed(std::max(1U, m_simulation.speed() / 2));
             break;
         case SDLK_HOME:
-            if (!m_world.islands().empty()) {
-                const auto& island = m_world.islands().front();
-                m_camera.center_on(
-                    render::TilePos{island.x + island.map.width() / 2, island.y + island.map.height() / 2});
-            }
+            m_camera.center_on(home_tile());
             break;
         case SDLK_F12: {  // U-002: the original's screenshot key does not work
             const auto status = save_screenshot("open1602-screenshot.png");
@@ -489,21 +483,49 @@ void MapViewer::render() {
         };
         std::vector<Saved> saved;
         m_tool_status.clear();
+        m_tile_marks.clear();
+        layers.tile_marks = &m_tile_marks;
         if (m_tool.mode() == BuildTool::Mode::Build) {
             if (const auto spot = spot_at_mouse()) {
                 if (const auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
                     const sim::BuildPlan plan = sim::plan_build(m_world, m_buildings, *order);
                     sim::IslandMap& map = m_world.island(order->island).map;
                     for (const sim::PlannedBuild& item : plan.items) {
-                        if (!item.ok()) {
-                            if (m_tool_status.empty()) {
-                                m_tool_status = sim::refusal_name(item.refusal);
-                            }
+                        if (!item.ok() && m_tool_status.empty()) {
+                            m_tool_status = sim::refusal_name(item.refusal);
+                        }
+                        if (item.type == nullptr) {
                             continue;
                         }
+                        // What cannot be built is shown too, on red ground, as in the original.
                         std::uint32_t w = 1;
                         std::uint32_t h = 1;
                         sim::rotated_size(*item.type, item.rotation, w, h);
+                        bool inside = true;
+                        for (std::uint32_t j = 0; j < h; ++j) {
+                            for (std::uint32_t i = 0; i < w; ++i) {
+                                const std::int32_t tx = item.x + static_cast<std::int32_t>(i);
+                                const std::int32_t ty = item.y + static_cast<std::int32_t>(j);
+                                if (!map.contains(tx, ty)) {
+                                    inside = false;
+                                    continue;
+                                }
+                                if (!item.ok()) {
+                                    m_tile_marks.push_back(
+                                        render::TileMark{order->island, static_cast<std::uint16_t>(tx),
+                                                         static_cast<std::uint16_t>(ty), kRefusedTint});
+                                }
+                            }
+                        }
+                        // What only lacks gold or goods is shown on its red ground; anything else that
+                        // cannot be built only as red ground (it might stand over a building or the sea).
+                        const bool short_of_means =
+                            item.refusal == sim::BuildRefusal::Money || item.refusal == sim::BuildRefusal::Tools ||
+                            item.refusal == sim::BuildRefusal::Wood || item.refusal == sim::BuildRefusal::Bricks ||
+                            item.refusal == sim::BuildRefusal::Cannons;
+                        if (!inside || (!item.ok() && !short_of_means)) {
+                            continue;
+                        }
                         for (std::uint32_t j = 0; j < h; ++j) {
                             for (std::uint32_t i = 0; i < w; ++i) {
                                 const auto tx = static_cast<std::uint32_t>(item.x) + i;
@@ -513,7 +535,12 @@ void MapViewer::render() {
                         }
                         const sim::MapCell& at =
                             map.top(static_cast<std::uint32_t>(item.x), static_cast<std::uint32_t>(item.y));
-                        (void)map.build(*item.type, item.x, item.y, item.rotation, 0, at.owner, at.city);
+                        // A field or tree is shown grown, a seedling would hardly be seen.
+                        const assets::BuildingType* shown = item.type;
+                        if (const assets::BuildingType* ripe = sim::ripe_record(m_buildings, *item.type)) {
+                            shown = ripe;
+                        }
+                        (void)map.build(*shown, item.x, item.y, item.rotation, 0, at.owner, at.city);
                     }
                     if (m_tool_status.empty()) {
                         m_tool_status = std::to_string(plan.bill.money) + " gold";
@@ -591,6 +618,25 @@ void MapViewer::apply_production_events() {
                 break;
         }
     }
+}
+
+render::TilePos MapViewer::home_tile() const {
+    for (const sim::City& c : m_world.cities()) {
+        if (c.owner == m_local_player && c.warehouse_x && c.warehouse_y && c.island < m_world.islands().size()) {
+            const sim::WorldIsland& island = m_world.islands()[c.island];
+            return render::TilePos{island.x + *c.warehouse_x, island.y + *c.warehouse_y};
+        }
+    }
+    for (const sim::Ship& s : m_world.ships()) {
+        if (s.owner == m_local_player) {
+            return render::TilePos{static_cast<std::uint32_t>(s.x), static_cast<std::uint32_t>(s.y)};
+        }
+    }
+    if (!m_world.islands().empty()) {
+        const auto& island = m_world.islands().front();
+        return render::TilePos{island.x + island.map.width() / 2, island.y + island.map.height() / 2};
+    }
+    return render::TilePos{m_world.width() / 2, m_world.height() / 2};
 }
 
 void MapViewer::update_title(double fps) {

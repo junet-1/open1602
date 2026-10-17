@@ -39,7 +39,7 @@ int usage() {
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
         "  R / Shift+R    rotate view                 + / -                    pixel scale\n"
-        "  Space          pause the game              Home                     first island\n"
+        "  Space          pause the game              Home                     own city\n"
         "  PageUp/PageDn  game speed x2 / /2\n"
         "  O              ownership view              F12                      screenshot\n"
         "  B              build tool                  X                        demolish tool\n"

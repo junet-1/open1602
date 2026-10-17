@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <unordered_map>
 
 namespace o1602::render {
 
@@ -575,17 +576,32 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
 
     // Ownership view: a translucent diamond on the tile surface, after the flat pass of the row.
     std::vector<DrawCommand> overlays;
-    const auto add_overlay = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom) {
-        const sim::Player* p = world.player(cell.owner);
-        const Banner* banner = p != nullptr && layers.banners != nullptr ? layers.banners->get(p->banner) : nullptr;
-        if (!layers.owner_tint || banner == nullptr) {
-            return;
+    // Marked tiles go on top of everything, so buildings do not hide them.
+    std::unordered_map<std::uint64_t, assets::Rgba> marks;
+    std::vector<DrawCommand> marked;
+    if (layers.tile_marks != nullptr) {
+        for (const TileMark& m : *layers.tile_marks) {
+            marks[(std::uint64_t{m.island} << 32U) | (std::uint64_t{m.x} << 16U) | m.y] = m.color;
         }
+    }
+    const auto add_overlay = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom,
+                                 std::uint16_t island, std::uint16_t lx, std::uint16_t ly) {
         const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
         const std::int32_t elevation = b != nullptr ? b->posoffs * tw / 64 : 0;
-        const assets::Rgba tint{banner->color.r, banner->color.g, banner->color.b, kOverlayAlpha};
-        overlays.push_back(
-            DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation, tint, static_cast<std::uint8_t>(tw)});
+        const sim::Player* p = world.player(cell.owner);
+        const Banner* banner = p != nullptr && layers.banners != nullptr ? layers.banners->get(p->banner) : nullptr;
+        if (layers.owner_tint && banner != nullptr) {
+            const assets::Rgba tint{banner->color.r, banner->color.g, banner->color.b, kOverlayAlpha};
+            overlays.push_back(DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation, tint,
+                                           static_cast<std::uint8_t>(tw)});
+        }
+        if (!marks.empty()) {
+            if (const auto it = marks.find((std::uint64_t{island} << 32U) | (std::uint64_t{lx} << 16U) | ly);
+                it != marks.end()) {
+                marked.push_back(DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation, it->second,
+                                             static_cast<std::uint8_t>(tw)});
+            }
+        }
     };
     // Tiles of production buildings take their frame from the building's state (0x00489C90);
     // `island` is kSea for tiles without such state (the ground layer).
@@ -640,7 +656,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     continue;
                 }
                 if (!high_pass) {
-                    add_overlay(*cell, sx, row_bottom);
+                    add_overlay(*cell, sx, row_bottom, wc.island, wc.local_x, wc.local_y);
                 }
                 const assets::BuildingType* b = buildings.by_sprite(cell->sprite);
                 if ((b != nullptr && b->high) != high_pass) {
@@ -666,6 +682,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             }
         }
     }
+    commands.insert(commands.end(), marked.begin(), marked.end());
 }
 
 }  // namespace o1602::render

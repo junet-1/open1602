@@ -77,6 +77,9 @@ private:
     void update(std::uint32_t delta_ms);
     void render();
     void update_title(double fps);
+    /// Where the camera starts and Home goes: the local player's Kontor, else his first ship,
+    /// else the first island.
+    [[nodiscard]] render::TilePos home_tile() const;
     core::Status save_screenshot(const std::filesystem::path& path);
 
     void zoom_by(int steps, double sx, double sy);
@@ -117,7 +120,8 @@ private:
     double m_mouse_y = 0.0;
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;
-    std::string m_tool_status;  ///< what the build tool would do at the mouse
+    std::string m_tool_status;                   ///< what the build tool would do at the mouse
+    std::vector<render::TileMark> m_tile_marks;  ///< red ground under what cannot be built
 };
 
 }  // namespace o1602::app

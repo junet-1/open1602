@@ -41,6 +41,9 @@ BuildTool::BuildTool(const assets::BuildingTable& buildings) : m_buildings(&buil
         if (b.land_record != assets::BuildingType::kNoRecord || buildings.by_id(b.id) != &b) {
             continue;  // beach variants come from building the land record on the beach
         }
+        if (b.build_gfx == 0) {
+            continue;  // no icon in the build menu: ground and other things of the editor
+        }
         m_list.push_back(&b);
     }
     std::stable_sort(m_list.begin(), m_list.end(), [](const assets::BuildingType* a, const assets::BuildingType* b) {

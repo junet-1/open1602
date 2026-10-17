@@ -121,6 +121,15 @@ inline constexpr std::uint8_t kShadowAlpha = 128;
 /// Opacity of chimney smoke (the original draws every second pixel, 0x004048E0).
 inline constexpr std::uint8_t kSmokeAlpha = 128;
 
+/// A tile marked with a translucent diamond, e.g. the red ground under a building that cannot be
+/// built there.
+struct TileMark {
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint16_t x = 0;       ///< island tile
+    std::uint16_t y = 0;
+    assets::Rgba color;  ///< alpha = opacity
+};
+
 /// Everything besides the tiles that goes into the world draw list.
 struct WorldLayers {
     SpriteExtent extent;
@@ -135,6 +144,8 @@ struct WorldLayers {
     const std::vector<std::optional<std::uint32_t>>* banner_flags = nullptr;
     /// Ownership view: tiles owned by a player get a diamond in the colour of the owner's banner.
     bool owner_tint = false;
+    /// Single marked tiles, drawn on top of everything.
+    const std::vector<TileMark>* tile_marks = nullptr;
     /// Flags, smoke and status icons of buildings (collect_building_figures). Smoke and icons need
     /// the atlas bases of their sheets (`sheet_base`) and follow the buildings' production state.
     const std::vector<BuildingFigure>* building_figures = nullptr;

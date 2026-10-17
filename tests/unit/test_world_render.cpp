@@ -198,6 +198,32 @@ TEST_CASE("world renderer: islands replace the sea, buildings use their elevatio
     CHECK(cy == 30 * 4 + 4);
 }
 
+TEST_CASE("world renderer: marked tiles get a diamond on top of everything") {
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 2, 2);
+    REQUIRE(island.map.place(*table.by_id(20100), 0, 0, 0, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+    render::WorldView view;
+    view.zoom = render::Zoom::Small;
+    render::Viewport all;
+    render::world_pixel_size(view, all.width, all.height);
+    const std::vector<render::TileMark> marks{{0, 1, 0, assets::Rgba{220, 30, 30, 140}},
+                                              {0, 0, 1, assets::Rgba{220, 30, 30, 140}}};
+    render::WorldLayers layers;
+    layers.extent = render::SpriteExtent{16, 8};
+    layers.tile_marks = &marks;
+    std::vector<render::DrawCommand> commands;
+    render::build_world_draw_list(world, table, clock, view, all, layers, commands);
+    REQUIRE(commands.size() == std::size_t{500} * 350 + 2);
+    for (std::size_t i = commands.size() - 2; i < commands.size(); ++i) {
+        CHECK(commands[i].sprite == render::DrawCommand::kOverlayDiamond);
+        CHECK(commands[i].tint.r == 220);
+        CHECK(commands[i].tint_size == 16);
+    }
+}
+
 TEST_CASE("world renderer: viewport culling keeps exactly the visible tiles (all rotations)") {
     const auto table = make_table();
     const sim::World world;
