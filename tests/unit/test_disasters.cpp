@@ -401,3 +401,66 @@ TEST_CASE("disasters: wooden houses catch fire more easily than brick ones (S-04
     CHECK(brick > 190);
     CHECK(brick < 280);
 }
+
+TEST_CASE("disasters: a burning house does not catch fire again (S-050)") {
+    Town town;
+    for (std::uint16_t i = 0; i < 4; ++i) {
+        town.place(kPioneerHouse, 20 + 2 * i, 4);  // a row of wooden houses wall to wall
+    }
+    town.finish({});
+    for (std::uint16_t i = 0; i < 4; ++i) {
+        town.add_house(static_cast<std::uint16_t>(20 + 2 * i), 4, 0, 2);
+        REQUIRE(sim::start_disaster(town.world, town.buildings, 0, {20 + 2 * i, 4}, sim::Disaster::Kind::Fire,
+                                    sim::kFireDuration, nullptr));
+    }
+    for (int i = 0; i < 24; ++i) {
+        town.epoch();
+    }
+    for (std::uint16_t i = 0; i < 4; ++i) {
+        const sim::Disaster* d = town.at(static_cast<std::uint16_t>(20 + 2 * i), 4);
+        REQUIRE(d != nullptr);
+        CHECK(d->elapsed == 24);  // never started anew by its burning neighbours
+    }
+    town.epoch();
+    CHECK(town.world.disasters().empty());
+    CHECK(town.world.houses().empty());
+}
+
+TEST_CASE("disasters: a gallows keeps three of four robbers away (S-055)") {
+    const auto robbers = [](bool gallows) {
+        Town town;
+        for (std::uint16_t i = 0; i < 10; ++i) {
+            town.place(kCitizenHouse, 2 + 3 * i, 4);
+            town.place(kCitizenHouse, 2 + 3 * i, 14);
+        }
+        town.finish({});
+        for (std::uint16_t i = 0; i < 10; ++i) {
+            town.add_house(static_cast<std::uint16_t>(2 + 3 * i), 4, 2, 15);
+            town.add_house(static_cast<std::uint16_t>(2 + 3 * i), 14, 2, 15);  // 300 citizens
+        }
+        if (gallows) {
+            for (sim::House& h : town.world.houses()) {
+                h.services = sim::house_service::kGalgen;
+            }
+        }
+        std::size_t n = 0;
+        sim::advance_city_events(town.world, town.buildings, nullptr, nullptr);
+        for (int i = 0; i < 2000; ++i) {
+            town.world.set_time_ms(town.city().next_event_ms);
+            std::vector<sim::RobberSpawn> spawns;
+            sim::advance_city_events(town.world, town.buildings, nullptr, &spawns);
+            n += spawns.size();
+            for (const sim::Disaster& d : std::vector<sim::Disaster>(town.world.disasters())) {
+                sim::end_disaster(town.world, d.island, {d.x, d.y}, d.kind, nullptr);
+            }
+        }
+        return n;
+    };
+    const std::size_t without = robbers(false);
+    const std::size_t with = robbers(true);
+    // 37.75 % of the checks (300..499 citizens): about 755 of 2000; with gallows a quarter of it.
+    CHECK(without > 650);
+    CHECK(without < 860);
+    CHECK(with > without / 6);
+    CHECK(with < without / 3);
+}

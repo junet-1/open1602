@@ -275,8 +275,9 @@ void spread_fire(World& world, const assets::BuildingTable& buildings, const Dis
         const Production* state = production_at(world, d.island, tx, ty);
         catches = state != nullptr && !state->burning();
     } else if (p == kProdHouse) {
-        // A burning house catches fire again and burns longer (the original resets its count).
-        catches = world.house(d.island, tx, ty) != nullptr;
+        // A house with the plague catches fire, a burning one does not catch it again (the original
+        // starts its count anew, so wooden quarters burn far longer, S-050).
+        catches = world.house(d.island, tx, ty) != nullptr && !burning;
     } else if (p == kProdShipyard) {
         catches = !burning;
     }
@@ -340,23 +341,21 @@ void break_out_fire(World& world, const assets::BuildingTable& buildings, const 
     }
 }
 
-/// 0x0047B710: up to three tries on houses of citizens and better; a gallows nearby lets only two
-/// of eight through.
+/// 0x0047B710: a house of citizens and better; a gallows nearby lets only two of eight through.
 void send_robber(World& world, const City& city, std::vector<RobberSpawn>* robbers) {
     const std::vector<House*> candidates = houses_of(world, city, true);
     if (candidates.empty()) {
         return;
     }
+    // The original tries up to three houses, each turned away by a gallows nearby with 6 of 8; the
+    // retries undo most of the gallows (a city covered everywhere still gets 58 % of the robbers,
+    // S-055). In Open1602 a robber a gallows turned away does not try another house: a covered
+    // house lets 2 of 8 through.
     Random& random = world.random(RandomStream::Events);
-    for (int attempt = 0; attempt < 3; ++attempt) {
-        const House* h = candidates[random.below(static_cast<std::uint32_t>(candidates.size()))];
-        const std::uint32_t r = random.below(8);
-        if ((h->services & hs::kGalgen) == 0 || kRobberPastGallows[r] != 0) {
-            if (robbers != nullptr) {
-                robbers->push_back(RobberSpawn{h->island, {h->x, h->y}, h->city});
-            }
-            return;
-        }
+    const House* h = candidates[random.below(static_cast<std::uint32_t>(candidates.size()))];
+    const std::uint32_t r = random.below(8);
+    if (((h->services & hs::kGalgen) == 0 || kRobberPastGallows[r] != 0) && robbers != nullptr) {
+        robbers->push_back(RobberSpawn{h->island, {h->x, h->y}, h->city});
     }
 }
 
