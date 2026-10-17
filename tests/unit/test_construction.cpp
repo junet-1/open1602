@@ -25,6 +25,7 @@ constexpr std::uint32_t kMarket = 20701;
 constexpr std::uint32_t kHouse = 20801;
 constexpr std::uint32_t kMeadow = 22722;
 constexpr std::uint32_t kField = 21301;
+constexpr std::uint32_t kCastle = 21501;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -67,6 +68,10 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 46\n  EndObj\n"
         "  @Nummer: 15\n  Id: 21303\n  Kind: 10\n  Gfx: 47\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 10\n    Doerrflg: 1\n  EndObj\n"
+        // A castle (Bauinfra 11: one per player).
+        "  @Nummer: 16\n  Id: 21501\n  Kind: 14\n  Gfx: 50\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Bauinfra: 11\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 30\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -371,4 +376,17 @@ TEST_CASE("construction: refunded goods only fill the free room of the warehouse
     CHECK(r.refund.wood == 0);
     CHECK(r.refund.money == 10);
     CHECK(city->stock(island.buildings.materials().wood) == 30 * 32);
+}
+
+TEST_CASE("construction: a castle makes its city proud, once per player") {
+    Island island;
+    island.found();
+    island.world.player(0)->infra_mask = 0xFFFFFFFFU;
+    REQUIRE(island.build({{kCastle, 10, 12, 0, 0}}).placed == 1);
+    CHECK(island.world.city(0, 0)->satisfaction_bonus == 800);
+    CHECK(island.world.players()[0].castles_built == 1);
+    const sim::BuildPlan again = island.build({{kCastle, 10, 15, 0, 0}});
+    CHECK(again.placed == 0);
+    CHECK(again.items[0].refusal == sim::BuildRefusal::Limit);
+    CHECK(island.world.city(0, 0)->satisfaction_bonus == 800);
 }

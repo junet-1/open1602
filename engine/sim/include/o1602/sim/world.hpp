@@ -73,6 +73,9 @@ struct City {
     std::vector<std::uint8_t> tax_rate;      ///< per class, 128 = normal (64..192)
     std::vector<Supply> supply;              ///< per ware
     std::uint8_t food_ratio = 128;           ///< supply of food (city + 0x255)
+    /// Pride in a castle or cathedral (city + 0x200): each adds 800, the city tick takes 1/256 off.
+    /// Every 32 lower the taxes the satisfaction is measured against by 1/128. Not in the .GAM.
+    std::uint16_t satisfaction_bonus = 0;
     /// One house per target class may try out the next class (city + 0x234): its inhabitants
     /// count for that class in the demand for one tick, then it upgrades or gives up.
     struct UpgradeSlot {

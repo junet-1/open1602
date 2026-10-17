@@ -88,9 +88,12 @@ std::uint8_t satisfaction_of(const City& city, const assets::ResidentClass& rc, 
     for (const assets::ResidentClass::Need& n : rc.needs) {
         sum += n.ware < city.supply.size() ? city.supply[n.ware].ratio : kFull;
     }
-    // 0x0047F3B0: curve[tax] * Prozent * goods / 128 (the satisfaction bonus city + 0x200 is not
-    // simulated yet).
-    const std::uint64_t asked = std::uint64_t{tax_curve(tax_rate)} * rc.share * rc.needs.size() / kFull;
+    // 0x0047F3B0: curve[tax'] * Prozent * goods / 128, the tax lowered by the bonus of a castle or
+    // cathedral: tax' = (128 - bonus / 32) * tax / 128. The original goes below the curve for a bonus
+    // above 4096 (S-038); Open1602 stops at 0.
+    const std::uint32_t relief = std::min<std::uint32_t>(kFull, city.satisfaction_bonus >> 5);
+    const std::uint32_t index = (kFull - relief) * tax_rate / kFull;
+    const std::uint64_t asked = std::uint64_t{tax_curve(index)} * rc.share * rc.needs.size() / kFull;
     return asked == 0 ? kFull : static_cast<std::uint8_t>(std::min<std::uint64_t>(kFull, sum * kFull / asked));
 }
 
@@ -175,6 +178,7 @@ void consume(City& city, const assets::BuildingTable& buildings, std::vector<Cit
         s.demand = s.demand * 15 / 16;
         s.supplied = s.supplied * 15 / 16;
     }
+    city.satisfaction_bonus = static_cast<std::uint16_t>(std::uint32_t{city.satisfaction_bonus} * 255 / 256);
 }
 
 void consume_natives(City& city) {

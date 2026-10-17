@@ -119,6 +119,29 @@ TEST_CASE("consumption: satisfaction against Prozent and the tax rate") {
     CHECK(sim::satisfaction_of(city, b.resident_classes()[2], 192) == 256 * 128 / (352 * 360 / 128));
 }
 
+TEST_CASE("consumption: a castle or cathedral lowers the taxes satisfaction is measured against") {
+    const auto b = make_buildings();
+    sim::City city = make_city(14, 76);
+    city.supply.resize(city.goods.size());
+    city.supply[kCloth].ratio = 128;
+    city.supply[kAlcohol].ratio = 128;
+    city.supply[kTobacco].ratio = 0;
+    city.supply[kSpices].ratio = 0;
+    // Bonus 800: tax (128 - 25) * 128 / 128 = 103, curve[103] = 102, 256 * 128 / (102 * 360 / 128).
+    city.satisfaction_bonus = 800;
+    CHECK(sim::satisfaction_of(city, b.resident_classes()[2], 128) == 256 * 128 / (102 * 360 / 128));
+    // At 192: (103 * 192) >> 7 = 154, curve[154] = 182.
+    CHECK(sim::satisfaction_of(city, b.resident_classes()[2], 192) == 256 * 128 / (182 * 360 / 128));
+    // Beyond 4096 the original reads before its table (S-038); Open1602 stops at tax 0, curve[0] = 76.
+    city.satisfaction_bonus = 6000;
+    CHECK(sim::satisfaction_of(city, b.resident_classes()[2], 128) == 128);
+
+    // The city tick takes 1/256 off.
+    city.satisfaction_bonus = 800;
+    sim::consume(city, b, nullptr);
+    CHECK(city.satisfaction_bonus == 796);
+}
+
 TEST_CASE("consumption: natives dump what fills their store beyond 75 %") {
     sim::City village;
     village.capacity = 40 * 32;

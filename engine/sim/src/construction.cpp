@@ -66,6 +66,8 @@ constexpr std::uint8_t kInfraCastle = 11;
 constexpr std::uint8_t kInfraCathedral = 12;
 constexpr std::uint8_t kInfraArch = 13;
 constexpr std::uint8_t kInfraMonument = 14;
+/// A castle or cathedral makes its city proud: city + 0x200 += 25 * 32 (command 0x4B of 0x004084D0).
+constexpr std::uint32_t kPrideBonus = 25 * 32;
 
 constexpr std::uint8_t kWareTree = 53;      // BAUM
 constexpr std::uint8_t kWareTreasure = 58;  // SCHATZ
@@ -1579,7 +1581,13 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
     }
     if (Player* p = world.player(order.player)) {
         p->money -= static_cast<std::int32_t>(plan.bill.money);
-        // Counted limits.
+        // Counted limits; castle and cathedral raise the satisfaction of their city.
+        const auto pride = [&] {
+            if (City* c = world.city(order.island, city)) {
+                c->satisfaction_bonus =
+                    static_cast<std::uint16_t>(std::min<std::uint32_t>(0xFFFF, c->satisfaction_bonus + kPrideBonus));
+            }
+        };
         for (const PlannedBuild& item : plan.items) {
             if (!item.ok()) {
                 continue;
@@ -1587,9 +1595,11 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
             switch (item.type->infra) {
                 case kInfraCastle:
                     ++p->castles_built;
+                    pride();
                     break;
                 case kInfraCathedral:
                     ++p->cathedrals_built;
+                    pride();
                     break;
                 case kInfraArch:
                     ++p->arches_built;

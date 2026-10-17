@@ -236,6 +236,7 @@ Dokuments.
 - Spieleinstellungen (`sim::Rules`) als eigener Abschnitt; Originalspielstände laden mit
   `Rules::original()` für die Wahlpunkte ([ADR 0008](architecture/0008-spieleinstellungen.md)).
 - Zustände, die nur im Spielzustand stehen: Reservierungen, Figuren, Baustufen-Zähler (S-001, S-016).
+- Stolz der Städte auf Schloss und Kathedrale (S-037, [consumption.md](re/consumption.md)).
 
 **Militär und Kampf**
 - Übernahme wehrloser Städte über ein zerstörtes Kontor ([construction.md](re/construction.md)).
