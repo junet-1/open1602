@@ -334,7 +334,19 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         world.set_city_name_index(*state->city_name_index);
     }
     for (std::size_t i = 0; i < world.islands().size(); ++i) {
-        world.island(i).deer_phase = world.islands()[i].header.deer_phase;
+        WorldIsland& island = world.island(i);
+        island.deer_phase = island.header.deer_phase;
+        island.drought.strength = island.header.drought_strength;
+        island.drought.end_ms = std::uint64_t{island.header.drought_end} * 100;
+        island.drought.curse_pending = island.header.curse_pending;
+    }
+    if (state->difficulty) {
+        world.set_game_settings(World::GameSettings{*state->difficulty, state->settings.value_or(0)});
+    }
+    if (state->next_drought) {
+        // A stored 0 becomes 60 minutes, as in the original's loader (0x00484E3C).
+        const std::uint32_t next = *state->next_drought != 0 ? *state->next_drought : 36'000U;
+        world.set_next_drought_ms(std::uint64_t{next} * 100);
     }
     if (state->house_clocks) {
         HouseClocks& clocks = world.house_clocks();

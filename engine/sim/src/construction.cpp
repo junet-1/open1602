@@ -74,7 +74,9 @@ constexpr std::uint8_t kInfraMonument = 14;
 /// A castle or cathedral makes its city proud: city + 0x200 += 25 * 32 (command 0x4B of 0x004084D0).
 constexpr std::uint32_t kPrideBonus = 25 * 32;
 
+constexpr std::uint8_t kWareGrass = 52;     // GRAS
 constexpr std::uint8_t kWareTree = 53;      // BAUM
+constexpr std::uint8_t kWareFish = 57;      // FISCHE
 constexpr std::uint8_t kWareTreasure = 58;  // SCHATZ
 constexpr std::uint32_t kMaxCitiesPerIsland = 7;
 constexpr std::int32_t kShipRange = 16;       // founding from a ship: circle of radius 16
@@ -668,6 +670,13 @@ std::uint32_t island_fertility(const WorldIsland& island, std::uint8_t ware) noe
 
 bool tile_fertile(const World& world, const assets::BuildingTable& buildings, std::uint16_t island_index,
                   std::uint8_t ware, std::int32_t x, std::int32_t y) {
+    const std::uint8_t strength =
+        island_index < world.islands().size() ? world.islands()[island_index].drought.strength : 0;
+    return tile_fertile_at(world, buildings, island_index, ware, x, y, strength);
+}
+
+bool tile_fertile_at(const World& world, const assets::BuildingTable& buildings, std::uint16_t island_index,
+                     std::uint8_t ware, std::int32_t x, std::int32_t y, std::uint8_t drought) {
     // The five patterns (table 0x00499B98): 2, 10, 16, 23 and 32 of 32 tiles carry.
     static constexpr std::array<std::array<std::uint8_t, 32>, 5> kPatterns = {{
         {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -676,6 +685,9 @@ bool tile_fertile(const World& world, const assets::BuildingTable& buildings, st
         {1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1},
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     }};
+    if (island_index >= world.islands().size()) {
+        return false;
+    }
     const WorldIsland& island = world.islands()[island_index];
     const IslandMap& map = island.map;
     if (!map.contains(x, y)) {
@@ -685,8 +697,11 @@ bool tile_fertile(const World& world, const assets::BuildingTable& buildings, st
     const MapCell& ground = map.ground(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
     const assets::BuildingType* g = ground.empty() ? nullptr : buildings.by_sprite(ground.sprite);
     const std::uint32_t edge = g != nullptr ? g->edge_growth : 128;
-    const std::uint32_t f = std::min<std::uint32_t>(island_fertility(island, ware) * edge >> 7, 128);
-    // Drought (island + 0x45) is not simulated yet.
+    std::uint32_t f = std::min<std::uint32_t>(island_fertility(island, ware) * edge >> 7, 128);
+    // A drought takes its share, except from grass, trees and fish.
+    if (drought != 0 && ware != kWareGrass && ware != kWareTree && ware != kWareFish) {
+        f -= drought * f / 128;
+    }
     // Pattern by value (table 0x0054697C): 0..18, 19..41, 42..75, 76..107, 108..128.
     const std::size_t pattern = f >= 108 ? 4 : f >= 76 ? 3 : f >= 42 ? 2 : f >= 19 ? 1 : 0;
     const auto at = static_cast<std::size_t>((static_cast<std::uint32_t>(x) & 3U) + static_cast<std::uint32_t>(y) * 4U +
@@ -850,9 +865,17 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
             out.type = final_type;
             if (final_type->prod_kind == kProdKindGrowing) {
                 // S-003: crops are checked when planted (the original planted them withered).
+                // During a drought a field that will bear afterwards is planted withered and grows
+                // once the drought is over, as in the original.
                 const std::uint8_t crop = crop_ware(buildings, *final_type);
-                if (crop != 0 && !tile_fertile(world, buildings, order.island, crop, out.x, out.y)) {
+                if (crop != 0 && !tile_fertile_at(world, buildings, order.island, crop, out.x, out.y, 0)) {
                     refusal = BuildRefusal::Infertile;
+                } else if (crop != 0 && !tile_fertile(world, buildings, order.island, crop, out.x, out.y)) {
+                    const assets::BuildingType* ripe = ripe_record(buildings, *final_type);
+                    if (const assets::BuildingType* withered =
+                            ripe != nullptr ? withered_record(buildings, *ripe) : nullptr) {
+                        out.type = withered;
+                    }
                 }
             }
         }
@@ -862,7 +885,7 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
         }
         // Costs in order; once something does not fit, the rest of the order stays unbuilt.
         BuildBill next = bill;
-        next.add(ordered_cost(buildings, *out.type));
+        next.add(ordered_cost(buildings, *type));
         if (budget == BuildRefusal::None) {
             if (placed >= limit) {
                 budget = BuildRefusal::Limit;
@@ -1047,7 +1070,7 @@ public:
                 m_services = true;
             }
         }
-        if (p == kProdKindGrowing) {
+        if (p == kProdKindGrowing && !b.withered) {  // a withered field waits for the end of the drought
             GrowthEntry g;
             g.island = m_island;
             g.x = ux;

@@ -28,11 +28,13 @@ namespace {
 int usage() {
     std::fputs(
         "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]\n"
-        "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--frames N]\n"
+        "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--droughts MODE]\n"
+        "                [--frames N]\n"
         "                [--screenshot out.png]\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
         "  --original-flags   original flag images instead of the tinted generic flag\n"
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
+        "  --droughts MODE    game (as the game's difficulty says, original), off, rare, normal, frequent\n"
         "\n"
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
@@ -104,6 +106,22 @@ int main(int argc, char** argv) {
                     }
                     options.rules.refund_percent = static_cast<std::uint8_t>(percent);
                 }
+            } else {
+                return usage();
+            }
+        } else if (arg == "--droughts" && has_value) {
+            // Game setting: how often droughts come.
+            const std::string_view mode = argv[++i];
+            if (mode == "game") {
+                options.rules.droughts = sim::Droughts::Game;
+            } else if (mode == "off") {
+                options.rules.droughts = sim::Droughts::Off;
+            } else if (mode == "rare") {
+                options.rules.droughts = sim::Droughts::Rare;
+            } else if (mode == "normal") {
+                options.rules.droughts = sim::Droughts::Normal;
+            } else if (mode == "frequent") {
+                options.rules.droughts = sim::Droughts::Frequent;
             } else {
                 return usage();
             }

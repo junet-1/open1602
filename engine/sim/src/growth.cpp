@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/sim/growth.hpp"
 
+#include <algorithm>
 #include <unordered_set>
+
+#include "o1602/sim/construction.hpp"
 
 namespace o1602::sim {
 
@@ -53,6 +56,24 @@ const assets::BuildingType* growing_record(const assets::BuildingTable& building
     }
     const assets::BuildingType* prev = buildings.by_record(ripe.record - 1);
     return prev != nullptr && prev->prod_kind == kProdKindGrowing ? prev : nullptr;
+}
+
+const assets::BuildingType* withered_record(const assets::BuildingTable& buildings,
+                                            const assets::BuildingType& ripe) noexcept {
+    if (ripe.prod_kind != kProdKindRipe) {
+        return nullptr;
+    }
+    const assets::BuildingType* next = buildings.by_record(ripe.record + 1);
+    return next != nullptr && next->prod_kind == kProdKindGrowing && next->withered ? next : nullptr;
+}
+
+const assets::BuildingType* ripe_of_withered(const assets::BuildingTable& buildings,
+                                             const assets::BuildingType& withered) noexcept {
+    if (withered.prod_kind != kProdKindGrowing || !withered.withered || withered.record == 0) {
+        return nullptr;
+    }
+    const assets::BuildingType* prev = buildings.by_record(withered.record - 1);
+    return prev != nullptr && prev->prod_kind == kProdKindRipe ? prev : nullptr;
 }
 
 std::uint8_t crop_ware(const assets::BuildingTable& buildings, const assets::BuildingType& b) noexcept {
@@ -154,6 +175,19 @@ bool harvest_tile(World& world, const assets::BuildingTable& buildings, std::uin
     if (growing == nullptr) {
         return false;
     }
+    // During a drought a field that is not fertile at its strength withers. Only fields and
+    // plantations have a withered record; the original turned trees and grass on poor ground into
+    // the next variant.
+    if (world.islands()[island].drought.strength != 0) {
+        if (const assets::BuildingType* withered = withered_record(buildings, *ripe);
+            withered != nullptr && !tile_fertile(world, buildings, island, ware, x, y)) {
+            swap_record(world, island, x, y, *ripe, *withered);
+            if (withered->anim_time == 0) {
+                world.island(island).map.set_anim_phase(x, y, 0);
+            }
+            return true;
+        }
+    }
     swap_record(world, island, x, y, *ripe, *growing);
     if (growing->anim_time == 0) {
         world.island(island).map.set_anim_phase(x, y, 0);
@@ -164,6 +198,57 @@ bool harvest_tile(World& world, const assets::BuildingTable& buildings, std::uin
     e.x = x;
     e.y = y;
     e.growth_class = growing->growth_class;  // without the random 0..2 of a newly planted tile
+    e.seen = g.counter[growing->growth_class % GrowthState::kClasses];
+    e.stage = 0;
+    g.entries.push_back(e);
+    return true;
+}
+
+namespace {
+
+void forget_growth(World& world, std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+    std::erase_if(world.growth().entries,
+                  [&](const GrowthEntry& e) { return e.island == island && e.x == x && e.y == y; });
+}
+
+}  // namespace
+
+bool wither_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
+                 std::uint16_t y) {
+    const assets::BuildingType* ripe = tile_record(world, buildings, island, x, y);
+    const assets::BuildingType* withered = ripe != nullptr ? withered_record(buildings, *ripe) : nullptr;
+    if (withered == nullptr) {
+        return false;
+    }
+    swap_record(world, island, x, y, *ripe, *withered);
+    if (withered->anim_time == 0) {
+        world.island(island).map.set_anim_phase(x, y, 0);
+    }
+    // The original gives the withered field a growth entry that ends where it started (a withered
+    // field stays withered); Open1602 keeps none.
+    forget_growth(world, island, x, y);
+    return true;
+}
+
+bool recover_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
+                  std::uint16_t y) {
+    const assets::BuildingType* withered = tile_record(world, buildings, island, x, y);
+    const assets::BuildingType* ripe = withered != nullptr ? ripe_of_withered(buildings, *withered) : nullptr;
+    const assets::BuildingType* growing = ripe != nullptr ? growing_record(buildings, *ripe) : nullptr;
+    if (growing == nullptr) {
+        return false;
+    }
+    swap_record(world, island, x, y, *withered, *growing);
+    if (growing->anim_time == 0) {
+        world.island(island).map.set_anim_phase(x, y, 0);
+    }
+    forget_growth(world, island, x, y);
+    GrowthState& g = world.growth();
+    GrowthEntry e;
+    e.island = island;
+    e.x = x;
+    e.y = y;
+    e.growth_class = growing->growth_class;
     e.seen = g.counter[growing->growth_class % GrowthState::kClasses];
     e.stage = 0;
     g.entries.push_back(e);

@@ -52,6 +52,12 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
         h.deer_phase = static_cast<std::uint8_t>(data[0x08] & 3U);
         h.fertility = static_cast<std::uint32_t>(data[0x5C]) | (static_cast<std::uint32_t>(data[0x5D]) << 8) |
                       (static_cast<std::uint32_t>(data[0x5E]) << 16) | (static_cast<std::uint32_t>(data[0x5F]) << 24);
+        h.curse_pending = (data[0x03] & 1U) != 0;
+    }
+    if (data.size() >= 0x70) {
+        h.drought_strength = data[0x66];
+        h.drought_end = static_cast<std::uint32_t>(data[0x6C]) | (static_cast<std::uint32_t>(data[0x6D]) << 8) |
+                        (static_cast<std::uint32_t>(data[0x6E]) << 16) | (static_cast<std::uint32_t>(data[0x6F]) << 24);
     }
     h.raw.assign(data.begin(), data.end());
     return h;

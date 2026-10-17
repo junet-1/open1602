@@ -565,6 +565,32 @@ void MapViewer::apply_production_events() {
             std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
         }
     }
+    // Droughts: the player hears of those on islands where he has a city (MELDUNG 3).
+    for (const sim::IslandEvent& e : m_simulation.take_island_events()) {
+        const sim::City* own = nullptr;
+        for (const sim::City& c : m_world.cities()) {
+            if (c.island == e.island && c.owner == m_local_player) {
+                own = &c;
+            }
+        }
+        if (own == nullptr) {
+            continue;
+        }
+        switch (e.kind) {
+            case sim::IslandEvent::Kind::DroughtStarted:
+                std::fprintf(stderr, "%s: the drought destroys your harvest!\n", own->name.c_str());
+                break;
+            case sim::IslandEvent::Kind::Withered:
+                std::fprintf(stderr, "%s: %u fields withered\n", own->name.c_str(), e.count);
+                break;
+            case sim::IslandEvent::Kind::Recovered:
+                std::fprintf(stderr, "%s: %u fields grow again\n", own->name.c_str(), e.count);
+                break;
+            case sim::IslandEvent::Kind::DroughtOver:
+                std::fprintf(stderr, "%s: the drought is over\n", own->name.c_str());
+                break;
+        }
+    }
 }
 
 void MapViewer::update_title(double fps) {

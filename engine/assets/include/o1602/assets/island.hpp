@@ -43,6 +43,12 @@ struct IslandHeader {
     std::uint8_t deer_phase = 0;
     /// INSEL5 +0x5C: bit (ware - 45) set = the island is fertile for that crop or resource.
     std::uint32_t fertility = 0;
+    /// Drought (docs/re/growth.md): INSEL5 +0x66 strength (0 = none, 0x40 random, 0x26 curse;
+    /// island +0x45), +0x6C end as game time in 1/10 s (island +0x60), +0x03 bit 0 a curse of the
+    /// natives that turns into a drought at the next island epoch (island +0x44 bit 5).
+    std::uint8_t drought_strength = 0;
+    std::uint32_t drought_end = 0;
+    bool curse_pending = false;
 
     std::vector<std::uint8_t> raw;  ///< complete chunk payload for not yet decoded fields
 

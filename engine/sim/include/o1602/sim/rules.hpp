@@ -20,6 +20,16 @@ enum class Refund : std::uint8_t {
     Full,     ///< all the building's costs
 };
 
+/// How often droughts come (docs/re/growth.md#dürre). The original takes it from the difficulty of
+/// the game; the rows are its drought tables.
+enum class Droughts : std::uint8_t {
+    Game,      ///< as the game's difficulty and settings say (original)
+    Off,       ///< never (difficulty "easy", or the game setting "no droughts")
+    Rare,      ///< 1 in 32 (the original's "average", by a stray byte before its table, S-043)
+    Normal,    ///< 8 in 32, 10 minutes ("demanding")
+    Frequent,  ///< 10 in 32, 15 minutes ("hard")
+};
+
 struct Rules {
     /// Refund of the build costs (gold and goods) when the player demolishes a building. The goods
     /// go back into the warehouse of the building's city as far as there is room.
@@ -38,6 +48,9 @@ struct Rules {
     /// L-004: highest game speed factor (original: 4, with an unintended 8 via Shift+F8).
     std::uint32_t max_game_speed = 8;
 
+    /// Droughts: as the game says, or chosen for the endless game.
+    Droughts droughts = Droughts::Game;
+
     /// Defaults: corrected behaviour.
     [[nodiscard]] static constexpr Rules open1602() noexcept { return Rules{}; }
 
@@ -48,6 +61,7 @@ struct Rules {
         r.guarantee_resources = false;
         r.max_game_speed = 4;
         r.demolish_refund = Refund::None;
+        r.droughts = Droughts::Game;
         return r;
     }
 

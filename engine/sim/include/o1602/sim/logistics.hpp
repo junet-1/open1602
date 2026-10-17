@@ -172,6 +172,8 @@ public:
     /// One island epoch (30 s, 0x0046B3E0): expired spots get their deer back or are given up, and
     /// every fourth epoch the island counts its forest spots and may settle new deer.
     void advance_islands();
+    /// Whether a worker is on the way to harvest this tile.
+    [[nodiscard]] bool field_reserved(std::uint16_t island, TilePos tile) const;
     /// Game time per island epoch.
     static constexpr std::uint32_t kIslandEpochMs = 30'000;
 

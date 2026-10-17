@@ -7,6 +7,7 @@ add_library(o1602_sim
     src/drag_path.cpp
     src/growth.cpp
     src/houses.cpp
+    src/island_events.cpp
     src/island_map.cpp
     src/logistics.cpp
     src/pathfinding.cpp

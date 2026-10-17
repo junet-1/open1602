@@ -24,12 +24,14 @@ Inselvorlage:
 
 | Offset | Typ | Feld | Beleg |
 |---|---|---|---|
-| `0x17` | u8 | Anzahl der zweiten Ortsliste (`0x3C`, Ware 0; Inselereignisse) | Schreiber `0x00468740` |
+| `0x03` | u8 | Bit 0: Fluch der Eingeborenen, wird im nächsten Inseltakt zur Dürre (Insel +0x44 Bit 5); Bit 2: ein Vulkan der Insel ist ausgebrochen (+0x44 Bit 6) | `0x0046B3E0`, [growth.md](../re/growth.md#dürre) |
+| `0x17` | u8 | Anzahl der Vulkankrater (Liste bei `0x3C`: x, y, verbleibende Ausbruchsschritte; höchstens 2) | Schreiber `0x00468740` |
 | `0x1A` | u8 | Anzahl Lagerstätten (höchstens 2) | Schreiber `0x00468740` |
 | `0x1B` | u8 | Insel +0x42 (gleich Byte 3 der Lagerstätten, Bedeutung offen) | |
 | `0x1C` | 2 × 8 | Lagerstätten: Ware, x, y (Ursprung des Bergs), Byte 3 (offen), Art (0 große, 1 kleine Ader), 0, u16 Menge in 1/32 t ([logistics.md](../re/logistics.md#bergwerke-und-lagerstätten)) | `0x0046C010` |
 | `0x5C` | u32 | Fruchtbarkeit: Bit (Ware − 45) für Getreide, Tabak, …, Gras, Baum, Fische | `0x0046AFF0` |
-| `0x66` | u8 | Stärke einer laufenden Dürre (Insel +0x45) | `0x0046B3E0` |
+| `0x66` | u8 | Stärke einer laufenden Dürre (Insel +0x45): 0 keine, 0x40 Zufall, 0x26 Fluch | `0x0046B3E0` |
+| `0x6C` | u32 | Ende der Dürre als Spielzeit in 1/10 s (Insel +0x60) | `0x0046A630` |
 | `0x60` | u16 | Vorlagennummer (`0xFFFF` = keine) | Lader bei `0x00469BCA`, Pfadbau `0x00469690` |
 | `0x62` | u16 | Größenklasse: 0 `lit`, 1 `mit`, 2 `med`, 3 `big`, 4 `lar` | Tabelle `0x0049A890` |
 | `0x64` | u8 | Klima: 0 `Nord`, 1 `Sued` | Tabelle `0x0049A8A4` |

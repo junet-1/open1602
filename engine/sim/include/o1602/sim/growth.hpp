@@ -32,6 +32,13 @@ inline constexpr std::int32_t kProdKindGrowing = 10;  ///< ROHSTWACHS: growing (
 /// The growing record before a ripe one, nullptr if `ripe` is no crop.
 [[nodiscard]] const assets::BuildingType* growing_record(const assets::BuildingTable& buildings,
                                                          const assets::BuildingType& ripe) noexcept;
+/// The withered record after a ripe one (fields and plantations; trees, grass and fish have
+/// none), nullptr if there is none.
+[[nodiscard]] const assets::BuildingType* withered_record(const assets::BuildingTable& buildings,
+                                                          const assets::BuildingType& ripe) noexcept;
+/// The ripe record before a withered one, nullptr if `withered` is no withered crop.
+[[nodiscard]] const assets::BuildingType* ripe_of_withered(const assets::BuildingTable& buildings,
+                                                           const assets::BuildingType& withered) noexcept;
 /// The ware a worker gets from a tile of this record once it is ripe (0 if none): the ware of a
 /// ripe record, or of the ripe record that follows a growing one.
 [[nodiscard]] std::uint8_t crop_ware(const assets::BuildingTable& buildings, const assets::BuildingType& b) noexcept;
@@ -46,8 +53,19 @@ std::size_t advance_growth(World& world, const assets::BuildingTable& buildings,
 void add_missing_growth(World& world, const assets::BuildingTable& buildings);
 
 /// Harvests the ripe tile (x, y) of island `island` if it carries `ware`: it becomes the growing
-/// record again and starts growing. False if there is nothing to harvest.
+/// record again and starts growing; during a drought a field that is not fertile at its strength
+/// withers instead (0x0047C830). False if there is nothing to harvest.
 bool harvest_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
                   std::uint16_t y, std::uint8_t ware);
+
+/// A ripe field withers (0x0047C920): it becomes its withered record. False if the tile is no ripe
+/// crop with a withered record.
+bool wither_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
+                 std::uint16_t y);
+
+/// A withered field comes back (0x0047C920): it becomes the growing record and starts growing.
+/// Unlike the original, which adds a second growth entry, the tile keeps only the new one.
+bool recover_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
+                  std::uint16_t y);
 
 }  // namespace o1602::sim

@@ -40,6 +40,7 @@
 #include "o1602/sim/drag_path.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
+#include "o1602/sim/island_events.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -1569,4 +1570,103 @@ TEST_CASE("data: walls on the beach and the piers of Kontors come out as in the 
     }
     CHECK(walls > 0);
     CHECK(kontors > 0);
+}
+
+TEST_CASE("data: a drought withers the fields of an island and returns them (0x0046B3E0)") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    for (const auto& save : saves) {
+        // What the original keeps with a game: the difficulty and the next drought time.
+        CHECK(save.world.game_settings().difficulty <= 3);
+        CHECK(save.world.next_drought_ms() >= 36'000ULL * 100);
+    }
+    sim::World& world = saves.front().world;
+    // Fields of human and computer players (natives' plantations are not fertile, construction.md).
+    const auto settler = [&](const sim::City* city) {
+        const sim::Player* p = city != nullptr ? world.player(city->owner) : nullptr;
+        return p != nullptr && (p->role == sim::PlayerRole::Human || p->role == sim::PlayerRole::Computer);
+    };
+    // The island with most of their fields and plantations.
+    std::optional<std::uint16_t> island;
+    std::size_t best = 0;
+    for (std::uint16_t i = 0; i < world.islands().size(); ++i) {
+        const sim::IslandMap& map = world.islands()[i].map;
+        std::size_t fields = 0;
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                const sim::MapCell& c = map.top(x, y);
+                const assets::BuildingType* b = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+                const assets::BuildingType* ripe =
+                    b == nullptr ? nullptr
+                                 : (b->prod_kind == sim::kProdKindRipe ? b : sim::ripe_record(*buildings, *b));
+                const sim::City* city = world.city(i, c.city);
+                if (ripe != nullptr && sim::withered_record(*buildings, *ripe) != nullptr && settler(city)) {
+                    ++fields;
+                }
+            }
+        }
+        if (fields > best) {
+            best = fields;
+            island = i;
+        }
+    }
+    if (!island) {
+        SKIP("no fields of human or computer players");
+    }
+    const auto withered_fields = [&] {
+        std::vector<sim::TilePos> out;
+        const sim::IslandMap& map = world.islands()[*island].map;
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                const sim::MapCell& c = map.top(x, y);
+                const assets::BuildingType* b = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+                const sim::City* city = world.city(*island, c.city);
+                if (b != nullptr && b->withered && settler(city)) {
+                    out.push_back({static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)});
+                }
+            }
+        }
+        return out;
+    };
+    const std::size_t before = withered_fields().size();
+    sim::Rules rules;
+    rules.droughts = sim::Droughts::Off;  // only the drought of this test
+    sim::Simulation simulation(world, *buildings, *figures, rules);
+    sim::start_drought(world, *island, sim::kDroughtStrength, 600'000, nullptr);
+    std::size_t most = 0;
+    bool started = false;
+    for (std::uint32_t t = 0; t < 12 * 60 * 1000; t += 100) {
+        simulation.advance(100);
+        for (const sim::IslandEvent& e : simulation.take_island_events()) {
+            started |= e.kind == sim::IslandEvent::Kind::Withered;
+        }
+        if (t % 30'000 == 0) {
+            const auto now = withered_fields();
+            most = std::max(most, now.size());
+            for (const sim::TilePos p : now) {
+                const assets::BuildingType* b =
+                    buildings->by_sprite(world.islands()[*island]
+                                             .map.top(static_cast<std::uint32_t>(p.x), static_cast<std::uint32_t>(p.y))
+                                             .sprite);
+                const assets::BuildingType* ripe = sim::ripe_of_withered(*buildings, *b);
+                REQUIRE(ripe != nullptr);
+                CHECK(!sim::tile_fertile_at(world, *buildings, *island, ripe->ware, p.x, p.y, sim::kDroughtStrength));
+            }
+        }
+    }
+    CHECK(started);
+    CHECK(most > before);
+    // Three epochs after its end the drought is gone and the fields that bear grow again.
+    for (std::uint32_t t = 0; t < 2 * 60 * 1000; t += 100) {
+        simulation.advance(100);
+    }
+    CHECK(world.islands()[*island].drought.strength == 0);
+    CHECK(withered_fields().size() <= before);
 }

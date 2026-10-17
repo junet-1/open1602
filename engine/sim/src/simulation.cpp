@@ -175,10 +175,18 @@ void Simulation::tick() {
         m_upkeep_ms -= kUpkeepPeriodMs;
         pay_upkeep();
     }
-    // Island epochs of 30 s (0x0046B3E0): deer come back and settle.
+    // Island epochs of 30 s (0x0046B3E0): droughts, then deer come back and settle.
     m_island_ms += kTickMs;
     if (m_island_ms >= Logistics::kIslandEpochMs) {
         m_island_ms -= Logistics::kIslandEpochMs;
+        advance_island_events(
+            *m_world, *m_buildings, m_rules,
+            [this](std::uint16_t island, TilePos tile) { return m_logistics.field_reserved(island, tile); },
+            &m_island_events);
+        if (m_island_events.size() > kMaxPendingEvents) {
+            m_island_events.erase(m_island_events.begin(),
+                                  m_island_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+        }
         m_logistics.advance_islands();
     }
     // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670).
@@ -206,6 +214,12 @@ void Simulation::pay_upkeep() {
 std::vector<HouseEvent> Simulation::take_house_events() {
     std::vector<HouseEvent> events;
     events.swap(m_house_events);
+    return events;
+}
+
+std::vector<IslandEvent> Simulation::take_island_events() {
+    std::vector<IslandEvent> events;
+    events.swap(m_island_events);
     return events;
 }
 

@@ -175,9 +175,14 @@ void place_tiles(World& world, const assets::BuildingTable& buildings, std::uint
                  const assets::BuildingType& type, std::int32_t x, std::int32_t y, std::uint8_t rotation);
 
 /// Whether crops of `ware` grow on the tile (0x004684A0): the island's fertility for the ware
-/// (0, 64 or 128), weighted with the Randwachs of the ground, picks one of five patterns.
+/// (0, 64 or 128), weighted with the Randwachs of the ground and lowered by a drought on the
+/// island, picks one of five patterns.
 [[nodiscard]] bool tile_fertile(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                                 std::uint8_t ware, std::int32_t x, std::int32_t y);
+/// The same for a given drought strength (0 = none): the fertility loses strength/128 of itself
+/// before the pattern is chosen, except for grass, trees and fish.
+[[nodiscard]] bool tile_fertile_at(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                                   std::uint8_t ware, std::int32_t x, std::int32_t y, std::uint8_t drought);
 
 /// How fertile an island is for a ware (0x0046AFF0): crops and resources 45..58 from the
 /// fertility mask (128) or the climate's own crops (64); ore by its deposits (big 128, small 64).

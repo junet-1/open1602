@@ -36,6 +36,13 @@ struct WorldIsland {
     std::uint32_t y = 0;
     std::array<DeerSpot, 8> deer_spots{};
     std::uint8_t deer_phase = 0;  ///< island epochs (30 s) since the last deer census, 0..3
+    /// Drought on the island (docs/re/growth.md#dürre).
+    struct Drought {
+        std::uint8_t strength = 0;   ///< 0 = none; lowers the fertility by strength/128
+        std::uint64_t end_ms = 0;    ///< game time it ends; then the strength halves every epoch
+        bool curse_pending = false;  ///< a curse of the natives, a drought from the next epoch
+    };
+    Drought drought{};
 };
 
 /// A city: the settlement of one player on one island (STADT4 in the original).
@@ -301,6 +308,22 @@ public:
     [[nodiscard]] std::uint32_t city_name_index() const noexcept { return m_city_name_index; }
     void set_city_name_index(std::uint32_t i) noexcept { m_city_name_index = i; }
 
+    /// Settings the original keeps with a game (TIMERS): the difficulty 0..3 (how often droughts
+    /// come) and the settings word (bit 2: no droughts).
+    struct GameSettings {
+        std::uint8_t difficulty = 2;
+        std::uint32_t flags = 0;
+    };
+    [[nodiscard]] const GameSettings& game_settings() const noexcept { return m_game_settings; }
+    void set_game_settings(const GameSettings& s) noexcept { m_game_settings = s; }
+    /// Game time from which droughts may come again (TIMERS +0xB4; 90 min into a new game).
+    [[nodiscard]] std::uint64_t next_drought_ms() const noexcept { return m_next_drought_ms; }
+    void set_next_drought_ms(std::uint64_t t) noexcept { m_next_drought_ms = t; }
+    /// Phase of the drought table (0..31, the original's 0x00548D30); drawn once per world. The
+    /// original rolls it anew at every load and does not save it.
+    [[nodiscard]] std::optional<std::uint8_t> drought_seed() const noexcept { return m_drought_seed; }
+    void set_drought_seed(std::uint8_t s) noexcept { m_drought_seed = static_cast<std::uint8_t>(s & 31U); }
+
     /// Game time since the start of the game (TIMERS +0xA0 of a savegame).
     [[nodiscard]] std::uint64_t time_ms() const noexcept { return m_time_ms; }
     void set_time_ms(std::uint64_t t) noexcept { m_time_ms = t; }
@@ -353,6 +376,9 @@ private:
     HouseClocks m_house_clocks;
     std::uint64_t m_time_ms = 0;
     std::uint32_t m_city_name_index = 0;
+    GameSettings m_game_settings;
+    std::uint64_t m_next_drought_ms = 54'000ULL * 100;
+    std::optional<std::uint8_t> m_drought_seed;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x

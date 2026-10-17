@@ -18,6 +18,7 @@
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/houses.hpp"
+#include "o1602/sim/island_events.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
@@ -80,6 +81,8 @@ public:
     [[nodiscard]] std::vector<CityEvent> take_city_events();
     /// Houses that rose, fell back or were abandoned since the last call.
     [[nodiscard]] std::vector<HouseEvent> take_house_events();
+    /// Droughts and withered fields since the last call.
+    [[nodiscard]] std::vector<IslandEvent> take_island_events();
 
 private:
     void pay_upkeep();
@@ -96,6 +99,7 @@ private:
     std::vector<ProductionEvent> m_production_events;
     std::vector<CityEvent> m_city_events;
     std::vector<HouseEvent> m_house_events;
+    std::vector<IslandEvent> m_island_events;
     const assets::FigureTable* m_figures;
     std::uint32_t m_upkeep_ms = 0;  ///< game time since the military upkeep was last paid
     std::uint32_t m_island_ms = 0;  ///< game time since the last island epoch

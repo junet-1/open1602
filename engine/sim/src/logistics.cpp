@@ -1393,6 +1393,10 @@ void Logistics::spawn_deer_at_spots() {
     }
 }
 
+bool Logistics::field_reserved(std::uint16_t island, TilePos tile) const {
+    return m_reserved_tiles.contains(tile_key(island, tile));
+}
+
 void Logistics::advance_islands() {
     const std::uint64_t now = m_world->time_ms();
     for (std::uint16_t i = 0; i < m_world->islands().size(); ++i) {
