@@ -9,10 +9,11 @@ sobald etwas dazukommt oder erledigt ist.
 - **Spielstände:** Bitte in **neuen Plätzen** speichern (ab „Leer03“), nie über Merlin01, Merlin02
   oder Merlin03: Die Tests vergleichen genau diese Stände mit Open1602. Gib dem Stand einen
   sprechenden Namen (z. B. „VorVulkan“) und schreib mir kurz, was du davor getan hast.
-- **Übergabe:** Kopiere die Datei `SAVEGAME/gameNN.gam` und die `Game.dat` (darin stehen die Namen)
-  in den Ordner `eingaben/` in deinem Projektordner „Projekt Anno“. Den Ordner lese ich direkt; Git
-  übernimmt ihn nicht (Originaldaten kommen nie ins Repository). Hochladen im Chat geht auch.
-- **Videos und Bildschirmfotos:** ebenfalls nach `eingaben/` (Videos `*.mp4` ignoriert Git ohnehin).
+- **Übergabe:** Nichts zu kopieren. Der Installationsordner unter Heroic ist für mich freigegeben;
+  ich lese `SAVEGAME/` und `Game.dat` dort direkt (nur lesend, die Installation bleibt unverändert).
+  Sag mir einfach den Namen des Stands.
+- **Videos und Bildschirmfotos:** in den Ordner `eingaben/` in deinem Projektordner „Projekt Anno“.
+  Den Ordner lese ich direkt; Git übernimmt ihn nicht (Originaldaten kommen nie ins Repository).
   Bildschirmfotos am besten in der kleinsten Grafikstufe (SGFX) und 1024 × 768, wie beim ersten.
 - **Spielzeit:** Das Original zählt Spielzeit, nicht Echtzeit. Bei normaler Geschwindigkeit ist sie
   gleich; bei schnellerer Geschwindigkeit vergeht sie entsprechend schneller.
@@ -21,7 +22,7 @@ sobald etwas dazukommt oder erledigt ist.
 
 | Was | Wofür | Stand |
 |---|---|---|
-| Kopie der GOG-Installation (Grafik, `.cod`-Dateien, Szenarien, Spielstände) | Grundlage für alles | ✅ vorhanden; ohne Musik, Sprache und Videos |
+| Freigabe der GOG-Installation unter Heroic (Grafik, `.cod`-Dateien, Szenarien, Spielstände, Musik `MUSIC8`, Geräusche `SAMPLES`, Sprache `Speech8`, Videos `VideoSmk`) | Grundlage für alles | ✅ vollständig lesbar |
 | Merlin01 (`game00.gam`) und `lastgame.gam`, auch in der ersten, später überspeicherten Fassung | Spielstand-Format, Städte, Lager, Produktion, Häuser, Verbrauch, Geld | ✅ beide Fassungen werden getestet |
 | Bildschirmfoto des Originals (Merlin01, SGFX, 1024 × 768) und eines mit stillgelegten Betrieben | Abgleich der Grafik, Flaggen, Statussymbole | ✅ Korrelation 0,967 |
 | Bestätigungen im laufenden Spiel: Kontorbestände von Lemonhall, Antilopen und Hirsche, Flaggenwahl | Einheiten der Lagerbestände, Tiere | ✅ |
@@ -76,7 +77,6 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 | Militär | Stände mit Soldaten im Kampf, mit einem zerstörten Kontor und einem Wachturm daneben (S-018), mit einem zerstörten Eingeborenendorf | Kampf, Gebietsverlust, Fluch der Eingeborenen |
 | Schiffe und Handel | Stände mit Handelsrouten, beladenen Schiffen, dem freien Händler | Schiffsbewegung, Laden, Handel |
 | Computergegner | Stände eines länger laufenden Spiels mit wachsenden Gegnerstädten | KI |
-| Ton und Videos | die Ordner mit Musik, Sprache und Videos der Installation (in der Kopie fehlen sie) | Ton, Meldungssprache, Videos |
 | Mehrspieler | erst wenn Open1602 Netzwerk kann | – |
 
 ## Nur bei Gelegenheit
