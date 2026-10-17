@@ -124,7 +124,7 @@ struct Island {
     }
     std::size_t demolish(sim::TilePos a, sim::TilePos b) {
         sim::DemolishOrder order{0, 0, a, b};
-        return sim::execute_demolish(world, buildings, order, &events);
+        return sim::execute_demolish(world, buildings, order, &events).removed;
     }
     const assets::BuildingType* at(std::int32_t x, std::int32_t y) const {
         const auto& cell = world.islands()[0].map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
@@ -321,4 +321,54 @@ TEST_CASE("construction: building and demolishing are commands of the simulation
     simulation.submit(sim::DemolishOrder{0, 0, {5, 10}, {5, 10}});
     simulation.advance(100);
     CHECK(island.world.cities().empty());
+}
+
+TEST_CASE("construction: the game setting decides what a demolition gives back") {
+    const auto house_back = [](sim::Refund mode, std::uint8_t percent) {
+        Island island;
+        island.found();
+        sim::Rules rules;
+        rules.demolish_refund = mode;
+        rules.refund_percent = percent;
+        REQUIRE(island.build({{kHouse, 8, 13, 0, 0}}).placed == 1);  // 10 gold, 1 t wood
+        const std::int32_t money = island.world.players()[0].money;
+        const std::uint32_t wood = island.world.cities()[0].stock(island.buildings.materials().wood);
+        sim::DemolishOrder order{0, 0, {8, 13}, {8, 13}};
+        const sim::DemolishResult r =
+            sim::execute_demolish(island.world, island.buildings, order, nullptr, rules.refund_share());
+        CHECK(r.removed == 1);
+        CHECK(island.world.players()[0].money == money + r.refund.money);
+        CHECK(island.world.cities()[0].stock(island.buildings.materials().wood) == wood + r.refund.wood);
+        return r.refund;
+    };
+    // Original: nothing.
+    const sim::BuildBill none = house_back(sim::Refund::None, 50);
+    CHECK(none.money == 0);
+    CHECK(none.wood == 0);
+    // Full: everything.
+    const sim::BuildBill full = house_back(sim::Refund::Full, 50);
+    CHECK(full.money == 10);
+    CHECK(full.wood == 32);
+    // Partial: the share, rounded down (1/32 t for goods).
+    const sim::BuildBill half = house_back(sim::Refund::Partial, 50);
+    CHECK(half.money == 5);
+    CHECK(half.wood == 16);
+    const sim::BuildBill quarter = house_back(sim::Refund::Partial, 25);
+    CHECK(quarter.money == 2);
+    CHECK(quarter.wood == 8);
+    CHECK(sim::Rules::original().refund_share() == 0);
+}
+
+TEST_CASE("construction: refunded goods only fill the free room of the warehouse") {
+    Island island;
+    island.found();
+    REQUIRE(island.build({{kHouse, 8, 13, 0, 0}}).placed == 1);
+    sim::City* city = island.world.city(0, 0);
+    city->capacity = 30 * 32;
+    city->goods[island.buildings.materials().wood] = 30 * 32;  // full
+    sim::DemolishOrder order{0, 0, {8, 13}, {8, 13}};
+    const sim::DemolishResult r = sim::execute_demolish(island.world, island.buildings, order, nullptr, 100);
+    CHECK(r.refund.wood == 0);
+    CHECK(r.refund.money == 10);
+    CHECK(city->stock(island.buildings.materials().wood) == 30 * 32);
 }

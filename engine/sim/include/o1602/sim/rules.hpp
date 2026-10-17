@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Game rules that differ between Open1602 and the original (ADR 0006, docs/re/bugs.md).
+// Settings of a game (ADR 0008): points where Open1602 lets the players choose, like the
+// configurable endless games of later Anno titles, and points that differ between Open1602 and the
+// original (ADR 0006, docs/re/bugs.md).
 //
 // Only points that change balance or feel are switchable. Real bugs and exploits are always fixed
 // and have no switch here. Rules are part of the game state and of a multiplayer session, so all
@@ -11,7 +13,21 @@
 
 namespace o1602::sim {
 
+/// What a player gets back when he demolishes a building.
+enum class Refund : std::uint8_t {
+    None,     ///< nothing, as in the original (0x00464B40)
+    Partial,  ///< Rules::refund_percent of the building's costs
+    Full,     ///< all the building's costs
+};
+
 struct Rules {
+    /// Refund of the build costs (gold and goods) when the player demolishes a building. The goods
+    /// go back into the warehouse of the building's city as far as there is room.
+    Refund demolish_refund = Refund::None;
+    /// Share for Refund::Partial, in percent (1..100). 50 by default: a wrong building costs half
+    /// its price, moving one stays affordable.
+    std::uint8_t refund_percent = 50;
+
     /// L-001: ships per player. 0 = unlimited; the original hard limit is 33.
     std::uint32_t max_ships_per_player = 0;
 
@@ -31,7 +47,21 @@ struct Rules {
         r.max_ships_per_player = 33;
         r.guarantee_resources = false;
         r.max_game_speed = 4;
+        r.demolish_refund = Refund::None;
         return r;
+    }
+
+    /// Share of the build costs a demolition gives back, in percent.
+    [[nodiscard]] constexpr std::uint32_t refund_share() const noexcept {
+        switch (demolish_refund) {
+            case Refund::Full:
+                return 100;
+            case Refund::Partial:
+                return refund_percent > 100 ? 100U : refund_percent;
+            case Refund::None:
+                break;
+        }
+        return 0;
     }
 
     friend constexpr bool operator==(const Rules&, const Rules&) = default;

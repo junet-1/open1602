@@ -47,6 +47,7 @@ struct ViewerOptions {
     bool original_flags = false;
     std::int32_t width = 1280;
     std::int32_t height = 800;
+    sim::Rules rules;  ///< settings of the game (refund on demolishing, ...)
 };
 
 class MapViewer {

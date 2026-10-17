@@ -67,7 +67,10 @@ void Simulation::apply_commands() {
         if (const auto* build = std::get_if<BuildOrder>(&command)) {
             result.build = execute_build(*m_world, *m_buildings, *build, m_city_names, &m_construction_events);
         } else if (const auto* demolish = std::get_if<DemolishOrder>(&command)) {
-            result.demolished = execute_demolish(*m_world, *m_buildings, *demolish, &m_construction_events);
+            const DemolishResult d =
+                execute_demolish(*m_world, *m_buildings, *demolish, &m_construction_events, m_rules.refund_share());
+            result.demolished = d.removed;
+            result.refund = d.refund;
         }
         handle(m_construction_events, first);
         m_command_results.push_back(std::move(result));

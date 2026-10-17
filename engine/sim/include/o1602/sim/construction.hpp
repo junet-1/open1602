@@ -12,7 +12,8 @@
 //
 // Placing a building registers it with the lists of the simulation (production, houses, growth,
 // shipyards and castles), claims territory for markets and Kontors, founds a city with the first
-// Kontor on an island and pays the costs. Demolishing restores the ground, without refunds, and
+// Kontor on an island and pays the costs. Demolishing restores the ground, without refunds in the
+// original and with the refund the game settings ask for in Open1602 (Rules::demolish_refund), and
 // may shrink the territory: buildings that lose it change city or fall to ruins (0x00482120).
 #pragma once
 
@@ -155,10 +156,16 @@ struct DemolishOrder {
 [[nodiscard]] std::vector<TilePos> plan_demolish(const World& world, const assets::BuildingTable& buildings,
                                                  const DemolishOrder& order);
 
-/// Removes them and restores the ground (forest becomes meadow). No refund. Returns the number of
-/// buildings removed.
-std::size_t execute_demolish(World& world, const assets::BuildingTable& buildings, const DemolishOrder& order,
-                             std::vector<ConstructionEvent>* events);
+struct DemolishResult {
+    std::size_t removed = 0;  ///< buildings removed
+    BuildBill refund;         ///< what the player got back (Rules::demolish_refund)
+};
+
+/// Removes them and restores the ground (forest becomes meadow). The original gives nothing back;
+/// with `refund_percent` > 0 the player gets that share of each building's costs: the gold, and
+/// the goods into the warehouse of the building's city as far as there is room.
+DemolishResult execute_demolish(World& world, const assets::BuildingTable& buildings, const DemolishOrder& order,
+                                std::vector<ConstructionEvent>* events, std::uint32_t refund_percent = 0);
 
 /// Whether crops of `ware` grow on the tile (0x004684A0): the island's fertility for the ware
 /// (0, 64 or 128), weighted with the Randwachs of the ground, picks one of five patterns.

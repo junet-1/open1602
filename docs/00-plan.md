@@ -23,6 +23,9 @@ Festgelegt am 16.10.2026, verbindlich für jeden neuen Code. Die Architektur daz
   Beispiel auch zu fünft im Mehrspielermodus spielen, und neutrale Parteien wie Piraten und fahrende
   Händler skalieren mit.
 - **Farben und Flaggen** sind erweiterbar, mit einem Flaggenauswahlmenü wie in Anno 1503.
+- Das **Endlosspiel** lässt sich genauer einstellen als im Original, wie in späteren Anno-Teilen
+  (zum Beispiel die Rückerstattung beim Abriss: keine, teilweise oder voll). Die Einstellungen
+  stehen in `sim::Rules` ([ADR 0008](architecture/0008-spieleinstellungen.md)).
 
 ## 2. Bestandsaufnahme (erste Analyse des Spielordners)
 
@@ -211,6 +214,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M3: Logistik, Stufe 1: Lager der Stadt (Bestand, Reservierung, Lagerraum), Wegesuche im Einzugskreis, Träger und Marktkarren mit Bewegung und Animation; Originalfehler S-022–S-025 behoben | ✅ `docs/re/logistics.md` |
 | M3: Logistik, Stufe 2: Wachstum der Felder (Klassenuhren, `ROHWACHS2`), Bauern, Viehherden, Fischerboote, Lagerstätten der Minen | ✅ `docs/re/growth.md`, `docs/re/logistics.md` |
 | M3: Bauen und Abreißen als Befehle der Simulation: Prüfungen (Gelände, Drehung, Gebiet, Einheiten, Freischaltung, Fruchtbarkeit), Kosten in Auftragsreihenfolge, Anmelden in allen Listen, Straßen an Nachbarn anpassen, Gebiet von Markt und Kontor, Stadtgründung vom Schiff, Abriss mit Gebietsprüfung; Baustufen im Stadttakt; Bauwerkzeug im Betrachter (B, X) | ✅ `docs/re/construction.md` |
+| Spieleinstellungen in `sim::Rules` (ADR 0008), erste Wahl: Rückerstattung beim Abriss (keine, teilweise, voll) | ✅ `docs/architecture/0008-spieleinstellungen.md` |
 | M3: Inselereignisse (Dürre), Brände, Pest, Räuber | ⬜ |
 | M3: Verbrauch der Einwohner aus dem Lager (Stadttakt `0x0047F8A0`): Bedarf aus haeuser.cod, Versorgungsgrade, Zufriedenheit mit Steuerkurve, Meldungen; Einwohner aus `STADT4`, Abrechnung aus `MARKT2` | ✅ `docs/re/consumption.md` |
 | M3: Häuser (`SIEDLER`), Versorgung durch Märkte und öffentliche Gebäude, Wachstum, Auf- und Abstieg, Ruinen; Steuern, Betriebskosten, Sold; Zufallsquellen je Teilsystem, Piraten | ✅ `docs/re/houses.md` |

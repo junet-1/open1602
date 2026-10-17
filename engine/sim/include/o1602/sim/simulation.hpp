@@ -33,6 +33,7 @@ struct CommandResult {
     std::uint64_t sequence = 0;      ///< as returned by Simulation::submit()
     std::optional<BuildPlan> build;  ///< build orders: what was built and why the rest was not
     std::size_t demolished = 0;      ///< demolish orders: buildings removed
+    BuildBill refund;                ///< demolish orders: what came back (Rules::demolish_refund)
 };
 
 class Simulation {

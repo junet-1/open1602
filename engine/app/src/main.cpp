@@ -28,9 +28,11 @@ namespace {
 int usage() {
     std::fputs(
         "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]\n"
-        "                [--owners] [--original-sheets] [--original-flags] [--frames N] [--screenshot out.png]\n"
+        "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--frames N]\n"
+        "                [--screenshot out.png]\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
         "  --original-flags   original flag images instead of the tinted generic flag\n"
+        "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
         "\n"
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
@@ -86,6 +88,25 @@ int main(int argc, char** argv) {
             options.zoom = static_cast<render::Zoom>(zoom);
         } else if (arg == "--screenshot" && has_value) {
             options.screenshot = argv[++i];
+        } else if (arg == "--refund" && has_value) {
+            // Game setting: what demolishing gives back (none as in the original, partial[:N], full).
+            const std::string_view mode = argv[++i];
+            if (mode == "none") {
+                options.rules.demolish_refund = sim::Refund::None;
+            } else if (mode == "full") {
+                options.rules.demolish_refund = sim::Refund::Full;
+            } else if (mode.starts_with("partial")) {
+                options.rules.demolish_refund = sim::Refund::Partial;
+                if (mode.size() > 8 && mode[7] == ':') {
+                    std::int32_t percent = 0;
+                    if (!parse_number(mode.substr(8), percent) || percent < 1 || percent > 100) {
+                        return usage();
+                    }
+                    options.rules.refund_percent = static_cast<std::uint8_t>(percent);
+                }
+            } else {
+                return usage();
+            }
         } else if (arg == "--size" && has_value) {
             const std::string_view size = argv[++i];
             const auto x = size.find('x');

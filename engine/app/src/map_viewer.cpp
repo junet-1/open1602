@@ -137,7 +137,7 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_palette(std::move(palette)),
       m_figures(std::move(figures)),
       m_options(std::move(options)),
-      m_simulation(m_world, m_buildings, m_figures),
+      m_simulation(m_world, m_buildings, m_figures, m_options.rules),
       m_clock(m_buildings),
       m_tool(m_buildings) {}
 
@@ -428,7 +428,9 @@ void MapViewer::apply_construction() {
     for (const sim::CommandResult& r : m_simulation.take_command_results()) {
         if (!r.build) {
             if (r.demolished != 0) {
-                std::fprintf(stderr, "demolished %zu\n", r.demolished);
+                std::fprintf(stderr, "demolished %zu, back: %lld gold, %u t tools, %u t wood, %u t bricks\n",
+                             r.demolished, static_cast<long long>(r.refund.money), r.refund.tools / 32,
+                             r.refund.wood / 32, r.refund.bricks / 32);
             }
             continue;
         }

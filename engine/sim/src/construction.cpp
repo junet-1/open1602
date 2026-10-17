@@ -1679,26 +1679,60 @@ std::vector<TilePos> plan_demolish(const World& world, const assets::BuildingTab
     return result;
 }
 
-std::size_t execute_demolish(World& world, const assets::BuildingTable& buildings, const DemolishOrder& order,
-                             std::vector<ConstructionEvent>* events) {
+DemolishResult execute_demolish(World& world, const assets::BuildingTable& buildings, const DemolishOrder& order,
+                                std::vector<ConstructionEvent>* events, std::uint32_t refund_percent) {
+    DemolishResult result;
     const std::vector<TilePos> origins = plan_demolish(world, buildings, order);
     if (origins.empty()) {
-        return 0;
+        return result;
     }
+    refund_percent = std::min<std::uint32_t>(refund_percent, 100);
+    const assets::BuildingTable::Materials& m = buildings.materials();
     Builder builder(world, buildings, order.island, events);
-    std::size_t removed = 0;
     for (const TilePos& o : origins) {
         const auto b = building_at(world, buildings, order.island, o);
         if (!b || b->origin.x != o.x || b->origin.y != o.y) {
             continue;
         }
+        if (refund_percent != 0) {
+            // Game setting: a share of the costs comes back (the original gives nothing). Goods
+            // go into the city's warehouse while there is room; what does not fit is lost.
+            const auto& cost = b->type->build_cost;
+            const auto share = [&](std::uint32_t amount) {
+                return static_cast<std::uint32_t>(std::uint64_t{amount} * refund_percent / 100);
+            };
+            if (City* city = world.city(order.island, b->city)) {
+                const auto give = [&](std::uint8_t ware, std::uint32_t amount, std::uint32_t& booked) {
+                    if (amount == 0) {
+                        return;
+                    }
+                    city->ensure_ware(ware);
+                    std::uint32_t room = amount;
+                    if (city->capacity != 0) {
+                        room = city->capacity > city->goods[ware] ? city->capacity - city->goods[ware] : 0;
+                    }
+                    const std::uint32_t added = std::min(amount, room);
+                    city->goods[ware] += added;
+                    booked += added;
+                };
+                give(m.tools, share(cost.tools), result.refund.tools);
+                give(m.wood, share(cost.wood), result.refund.wood);
+                give(m.bricks, share(cost.bricks), result.refund.bricks);
+                give(m.cannons, share(cost.cannons), result.refund.cannons);
+            }
+            if (Player* p = world.player(order.player); p != nullptr && cost.money > 0) {
+                const auto gold = static_cast<std::int32_t>(std::int64_t{cost.money} * refund_percent / 100);
+                p->money += gold;
+                result.refund.money += gold;
+            }
+        }
         const Footprint f{o.x, o.y, b->width, b->height};
         builder.remove(*b);
         builder.restore_ground(f, b->city);
-        ++removed;
+        ++result.removed;
     }
     builder.finish();
-    return removed;
+    return result;
 }
 
 }  // namespace o1602::sim
