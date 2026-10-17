@@ -224,3 +224,59 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
+
+## 9. Offene Punkte nach Abhängigkeit
+
+Was wir bewusst zurückgestellt haben, weil ein anderes System fehlt. Wenn das System kommt, werden
+seine Punkte hier abgehakt. Die Einzelheiten stehen jeweils im Abschnitt „Offen“ des genannten
+Dokuments.
+
+**Speichern (Spielstand von Open1602 und `.GAM`)**
+- Wildplätze (`HIRSCH2`) und die Phase der Inselepochen mitspeichern ([deer.md](re/deer.md)).
+- Spieleinstellungen (`sim::Rules`) als eigener Abschnitt; Originalspielstände laden mit
+  `Rules::original()` für die Wahlpunkte ([ADR 0008](architecture/0008-spieleinstellungen.md)).
+- Zustände, die nur im Spielzustand stehen: Reservierungen, Figuren, Baustufen-Zähler (S-001, S-016).
+
+**Militär und Kampf**
+- Übernahme wehrloser Städte über ein zerstörtes Kontor ([construction.md](re/construction.md)).
+- Türme als schießende Figuren; Kanonentürme beim Sold ([houses.md](re/houses.md)).
+- S-018 Wachturm hält das Gebiet: Ein zerstörtes Kontor bleibt als Datensatz mit Destroyflg das
+  Hauptkontor, Türme decken weiter Gebiet; prüfen und entscheiden ([bugs.md](re/bugs.md)).
+- Kampf beschädigt Gebäude, Brand durch Treffer.
+
+**Inselereignisse und Katastrophen**
+- Dürre: reife Felder verdorren, Fruchtbarkeit bei der Ernte und nach der Dürre
+  ([growth.md](re/growth.md), [construction.md](re/construction.md)).
+- Brände, Pest, Räuber; Stadt + 0x1FE (laufende Katastrophen, sperrt Wachstum)
+  ([houses.md](re/houses.md)).
+- Vulkanausbrüche und andere Ereignisse der Szenarien.
+
+**Oberfläche (Baumenü, Fenster, Meldungen)**
+- Baumenü des Originals (GAD) mit Gebäudenamen aus Text.cod, Freischaltung als ausgegraute
+  Knöpfe ([construction.md](re/construction.md)).
+- Warnung beim Abriss eines Markts, der Häuser die Grundlage nimmt (S-035).
+- Startdialog für das Endlosspiel mit allen Spieleinstellungen ([ADR 0008](architecture/0008-spieleinstellungen.md)).
+- Idee: volle Rückerstattung für wenige Sekunden nach dem Bau (Schutz vor Fehlklicks); dafür
+  braucht jedes Gebäude seinen Bauzeitpunkt.
+- Idee: eigenes Verhalten der Straßen-Wegsuche neben dem des Originals.
+
+**Schiffe und Handel**
+- Bedeutung der Stadtfelder +2/+4/+8 (Handel), Handelsgrenzen beim Kontor-Ausbau (`0x00481EE0`)
+  ([logistics.md](re/logistics.md)).
+- Schiffsbewegung, Laden und Entladen; die Ladung ist bisher nur geladen und für die Gründung benutzt.
+
+**Computergegner, Eingeborene, Piraten**
+- Piraten nehmen Waren mit der Piraten-KI ([consumption.md](re/consumption.md)).
+- KI-Bauten über `execute_build`; Reaktion der KI auf eine Gründung (Ereignis 0x0E).
+
+**Mehrspieler**
+- Wie andere Rechner einen Hausaufstieg übernehmen (Nachricht 0x835, [houses.md](re/houses.md)).
+- Zustands-Hash je Tick, Befehle über das Netz (ADR 0004).
+
+**Ohne Abhängigkeit, nur Analyse**
+- Bits +0x0F/4 und /6 der Produktion ([production.md](re/production.md)).
+- Byte 3 der Lagerstätten, zweite Liste bei Insel +0x30 ([growth.md](re/growth.md)).
+- Gebäude mit `Grundflg`: Das Original öffnet für die Wegesuche nur Wald, Boden und Ruinen unter
+  dem Gebäude ([logistics.md](re/logistics.md)).
+- Wale, Delfine, Kraken als Effektfiguren ([deer.md](re/deer.md)).
+
