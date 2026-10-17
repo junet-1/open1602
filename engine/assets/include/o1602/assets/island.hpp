@@ -49,6 +49,16 @@ struct IslandHeader {
     std::uint8_t drought_strength = 0;
     std::uint32_t drought_end = 0;
     bool curse_pending = false;
+    /// Volcano craters (docs/re/volcanoes.md): INSEL5 +0x17 count (at most 2), entries of 8 bytes
+    /// at +0x3C (island record +0x30): [1] x, [2] y = origin of the volcano mountain, [6..7] lava
+    /// throws left of a running eruption. +0x03 bit 2: a volcano of the island has erupted.
+    struct Crater {
+        std::uint8_t x = 0;
+        std::uint8_t y = 0;
+        std::uint16_t steps_left = 0;
+    };
+    std::vector<Crater> craters;
+    bool volcano_erupted = false;
 
     std::vector<std::uint8_t> raw;  ///< complete chunk payload for not yet decoded fields
 

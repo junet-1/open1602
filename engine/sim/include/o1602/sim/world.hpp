@@ -29,6 +29,13 @@ struct DeerSpot {
     std::uint64_t respawn_ms = 0;  ///< game time before which no new deer comes
 };
 
+/// A volcano crater: the origin tile of a volcano mountain (docs/re/volcanoes.md).
+struct Crater {
+    std::uint8_t x = 0;
+    std::uint8_t y = 0;
+    std::uint16_t steps_left = 0;  ///< lava throws left of a running eruption (shown nowhere)
+};
+
 struct WorldIsland {
     assets::IslandHeader header;
     IslandMap map;
@@ -43,6 +50,9 @@ struct WorldIsland {
         bool curse_pending = false;  ///< a curse of the natives, a drought from the next epoch
     };
     Drought drought{};
+    /// Volcano craters, at most two (INSEL5 +0x17/+0x3C).
+    std::vector<Crater> craters{};
+    bool volcano_erupted = false;  ///< a volcano of the island has erupted (for the computer players)
 };
 
 /// A city: the settlement of one player on one island (STADT4 in the original).
@@ -146,6 +156,52 @@ struct Disaster {
     std::uint8_t elapsed = 0;   ///< epochs of 10 s it has lasted
     std::uint8_t duration = 0;  ///< epochs until it ends (plague) or burns the building down (fire)
     std::uint32_t id = 0;       ///< order of creation: the epochs handle the oldest first
+};
+
+/// A crater named by island and position (the original's object ref of type 0x33).
+struct CraterRef {
+    std::uint16_t island = 0;  ///< index into World::islands()
+    std::uint8_t x = 0;        ///< origin of the volcano mountain
+    std::uint8_t y = 0;
+    friend bool operator==(const CraterRef&, const CraterRef&) = default;
+};
+
+/// A volcano erupting (figure VULKAN, kind 0x20 in the original): 141 lava throws over 28.4 s.
+struct Eruption {
+    CraterRef crater;
+    std::uint16_t seed = 0;     ///< decides where the lava flies
+    std::uint8_t step = 0;      ///< lava throws so far
+    std::uint64_t next_us = 0;  ///< game time of the next step, in microseconds
+};
+
+/// A lump of lava in flight (figure VULKANFIRE1, kind 0x21). It flies in legs of half a second;
+/// positions are world tiles and heights in half tile widths, both in 1/65536.
+struct LavaLump {
+    std::uint16_t island = 0;  ///< island of the volcano
+    std::int64_t x = 0;        ///< position at the start of the leg
+    std::int64_t y = 0;
+    std::int64_t z = 0;
+    std::int64_t dx = 0;  ///< way of the leg
+    std::int64_t dy = 0;
+    std::int64_t dz = 0;
+    std::uint64_t launch_us = 0;     ///< game time of the throw
+    std::uint64_t leg_start_us = 0;  ///< game time of the start and the end of the leg
+    std::uint64_t leg_end_us = 0;
+    std::int64_t speed = 0;    ///< launch speed in 1/65536 tile per second of the throw
+    std::uint8_t heading = 0;  ///< 0..63, steps of 5.625 degrees
+    std::uint8_t tilt = 0;     ///< 0..31, steepness class
+    bool grounded = false;     ///< the leg ends on the ground
+    std::uint8_t anim = 1;     ///< ANIM of the figure (1 or 2), for the display
+};
+
+/// Volcanoes of the world (TIMERS +0xC4..+0xD0 in the original).
+struct VolcanoState {
+    /// Game time from which the next eruption may come (TIMERS +0xCC; 70 min into a new game).
+    std::uint64_t next_ms = 42'000ULL * 100;
+    /// The crater that erupted last: the next roll may not pick it once (TIMERS +0xC8).
+    std::optional<CraterRef> last;
+    std::vector<Eruption> eruptions;
+    std::vector<LavaLump> lava;
 };
 
 /// A wild animal standing on an island (HIRSCH2 in the original: up to 8 per island).
@@ -346,6 +402,10 @@ public:
     [[nodiscard]] std::optional<std::uint8_t> drought_seed() const noexcept { return m_drought_seed; }
     void set_drought_seed(std::uint8_t s) noexcept { m_drought_seed = static_cast<std::uint8_t>(s & 31U); }
 
+    /// Eruptions, lava in flight and the time of the next eruption (volcanoes.hpp).
+    [[nodiscard]] const VolcanoState& volcanoes() const noexcept { return m_volcanoes; }
+    [[nodiscard]] VolcanoState& volcanoes() noexcept { return m_volcanoes; }
+
     /// Game time since the start of the game (TIMERS +0xA0 of a savegame).
     [[nodiscard]] std::uint64_t time_ms() const noexcept { return m_time_ms; }
     void set_time_ms(std::uint64_t t) noexcept { m_time_ms = t; }
@@ -403,6 +463,7 @@ private:
     GameSettings m_game_settings;
     std::uint64_t m_next_drought_ms = 54'000ULL * 100;
     std::optional<std::uint8_t> m_drought_seed;
+    VolcanoState m_volcanoes;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x

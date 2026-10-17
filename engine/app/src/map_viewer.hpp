@@ -89,6 +89,8 @@ private:
     void apply_construction();
     /// Animation phases of buildings that started or stopped work (presentation only).
     void apply_production_events();
+    /// Volcano fire and lava of the current game time (m_effects).
+    void collect_effects();
 
     assets::GameDirectory m_game;
     assets::BuildingTable m_buildings;
@@ -120,8 +122,9 @@ private:
     double m_mouse_y = 0.0;
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;
-    std::string m_tool_status;                   ///< what the build tool would do at the mouse
-    std::vector<render::TileMark> m_tile_marks;  ///< red ground under what cannot be built
+    std::string m_tool_status;                    ///< what the build tool would do at the mouse
+    std::vector<render::EffectFigure> m_effects;  ///< volcano fire and lava of this frame
+    std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
 };
 
 }  // namespace o1602::app

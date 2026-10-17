@@ -544,6 +544,57 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
     return true;
 }
 
+bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, const WorldView& view_in,
+                           const WorldLayers& layers, std::uint64_t time_ms, FigureSprites& out) {
+    out.count = 0;
+    if (layers.figures == nullptr || layers.atlas == nullptr) {
+        return false;
+    }
+    const assets::FigureType* fig = layers.figures->get(figure.figure);
+    const auto base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Effekte)];
+    if (fig == nullptr || !base) {
+        return false;
+    }
+    const WorldView view = fit_view(view_in, world);
+    const double tw = tile_width(view.zoom);
+    constexpr double kShadowHeight = 5.0;
+    const assets::FigureType* shadow = fig->shadow != 0 ? layers.figures->get(fig->shadow) : nullptr;
+    const auto shadow_base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Schatten)];
+    if (shadow != nullptr && shadow_base && figure.z - figure.ground < kShadowHeight) {
+        DrawCommand& c = out.parts[out.count];
+        c = DrawCommand{};
+        c.sprite = *shadow_base + assets::figure_sprite(*shadow, 0, 0, 0, view.rotation);
+        const AtlasRect& r = layers.atlas->rect(c.sprite);
+        if (!r.empty()) {
+            double sx = 0.0;
+            double sy = 0.0;
+            project_point(view, figure.x, figure.y, sx, sy);
+            c.x = static_cast<std::int32_t>(std::lround(sx)) - r.width / 2;
+            c.y = static_cast<std::int32_t>(std::lround(sy - figure.ground * tw / 2.0)) + r.height / 2;
+            c.mode = DrawCommand::Mode::Shadow;
+            c.tint = assets::Rgba{0, 0, 0, kShadowAlpha};
+            ++out.count;
+        }
+    }
+    DrawCommand& c = out.parts[out.count];
+    c = DrawCommand{};
+    const assets::FigureAnim* a = fig->anim(figure.anim);
+    std::uint32_t frame = 0;
+    if (a != nullptr && a->count > 0) {
+        const std::uint64_t speed = a->speed_ms > 0 ? a->speed_ms : 1;
+        frame = static_cast<std::uint32_t>(((time_ms + figure.phase) / speed) % a->count);
+    }
+    c.sprite = *base + assets::figure_sprite(*fig, figure.anim, frame, 0, view.rotation);
+    const AtlasRect& r = layers.atlas->rect(c.sprite);
+    if (r.empty()) {
+        out.count = 0;
+        return false;
+    }
+    place_display_figure(view, r, *fig, figure.x, figure.y, figure.z, c, out.row);
+    ++out.count;
+    return true;
+}
+
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
                            const WorldView& view_in, const Viewport& viewport, const WorldLayers& layers,
                            std::vector<DrawCommand>& commands) {
@@ -611,6 +662,14 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             for (const FigureInstance& instance : *set) {
                 FigureSprites f;
                 if (land_figure_sprites(instance, world, view, layers, f)) {
+                    add_figure(f);
+                }
+            }
+        }
+        if (layers.effects != nullptr) {
+            for (const EffectFigure& e : *layers.effects) {
+                FigureSprites f;
+                if (effect_figure_sprites(e, world, view, layers, clock.elapsed_ms(), f)) {
                     add_figure(f);
                 }
             }

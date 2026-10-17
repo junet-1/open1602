@@ -1670,3 +1670,100 @@ TEST_CASE("data: a drought withers the fields of an island and returns them (0x0
     CHECK(world.islands()[*island].drought.strength == 0);
     CHECK(withered_fields().size() <= before);
 }
+
+TEST_CASE("data: craters of scenarios and savegames are the volcano mountains (0x0046C1C0)") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    const assets::FigureType* lava = figures->get(sim::kFigureLava);
+    REQUIRE(lava != nullptr);
+    CHECK(lava->speed == sim::kLavaSpeed);
+    std::vector<std::filesystem::path> files;
+    for (const char* dir : {"szenes", "SAVEGAME"}) {
+        const auto d = game.resolve(dir);
+        if (!d || !std::filesystem::is_directory(*d)) {
+            continue;
+        }
+        for (const auto& entry : std::filesystem::directory_iterator(*d)) {
+            std::string ext = entry.path().extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (entry.is_regular_file() && (ext == ".szs" || ext == ".szm" || ext == ".gam")) {
+                files.push_back(entry.path());
+            }
+        }
+    }
+    std::sort(files.begin(), files.end());
+    REQUIRE(!files.empty());
+    std::size_t craters = 0;
+    for (const auto& f : files) {
+        auto file = assets::ChunkFile::load(f);
+        REQUIRE(file.ok());
+        auto world = sim::load_world(*file, *buildings, game);
+        REQUIRE(world.ok());
+        for (const sim::WorldIsland& island : world->islands()) {
+            // The list the original stored equals the search on the island's tiles.
+            const std::vector<sim::Crater> found = sim::find_craters(island.map, *buildings);
+            REQUIRE(found.size() == island.craters.size());
+            for (std::size_t i = 0; i < found.size(); ++i) {
+                CHECK(found[i].x == island.craters[i].x);
+                CHECK(found[i].y == island.craters[i].y);
+            }
+            craters += found.size();
+            // No ore deposit lies on a volcano (the deposit removal never finds one).
+            for (const auto& d : island.header.deposits) {
+                for (const sim::Crater& c : found) {
+                    CHECK(!(d.x == c.x && d.y == c.y));
+                }
+            }
+        }
+        CHECK(world->volcanoes().eruptions.empty());
+        if (f.extension() == ".gam" || f.extension() == ".GAM") {
+            // A savegame keeps the next eruption time: 70 minutes and up to 15.5 more from the start.
+            CHECK(world->volcanoes().next_ms >= 42'000ULL * 100);
+        }
+    }
+    CHECK(craters > 0);
+}
+
+TEST_CASE("data: a volcano erupts in a savegame and its lava hits what it should (0x00446ED0)") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.back().world;
+    std::optional<sim::CraterRef> crater;
+    for (std::uint16_t i = 0; i < world.islands().size() && !crater; ++i) {
+        for (const sim::Crater& c : world.islands()[i].craters) {
+            crater = sim::CraterRef{i, c.x, c.y};
+        }
+    }
+    if (!crater) {
+        SKIP("no volcano in the savegame");
+    }
+    sim::Simulation simulation(world, *buildings, *figures, sim::Rules::open1602());
+    REQUIRE(sim::erupt(world, *crater, 4321, true, nullptr));
+    simulation.set_speed(1);
+    for (int i = 0; i < 400; ++i) {
+        simulation.advance(100);
+    }
+    CHECK(world.volcanoes().eruptions.empty());
+    CHECK(world.volcanoes().lava.empty());
+    CHECK(world.islands()[crater->island].volcano_erupted);
+    for (const sim::VolcanoEvent& e : simulation.take_volcano_events()) {
+        const sim::MapCell& c = world.islands()[e.island].map.top(e.x, e.y);
+        const assets::BuildingType* b = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+        if (e.kind == sim::VolcanoEvent::Kind::Fire) {
+            // Still standing (or burned to ruins by now), and of a kind that burns.
+            CHECK(b != nullptr);
+        } else if (e.kind == sim::VolcanoEvent::Kind::Destroyed) {
+            CHECK((b == nullptr || b->kind != 35));  // no Kontor stays
+        }
+    }
+}

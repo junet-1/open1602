@@ -29,12 +29,13 @@ int usage() {
     std::fputs(
         "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]\n"
         "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--droughts MODE]\n"
-        "                [--frames N]\n"
+        "                [--volcanoes MODE] [--frames N]\n"
         "                [--screenshot out.png]\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
         "  --original-flags   original flag images instead of the tinted generic flag\n"
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
         "  --droughts MODE    game (as the game's difficulty says, original), off, rare, normal, frequent\n"
+        "  --volcanoes MODE   game (as the game's settings say, original), off, on\n"
         "\n"
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
@@ -122,6 +123,18 @@ int main(int argc, char** argv) {
                 options.rules.droughts = sim::Droughts::Normal;
             } else if (mode == "frequent") {
                 options.rules.droughts = sim::Droughts::Frequent;
+            } else {
+                return usage();
+            }
+        } else if (arg == "--volcanoes" && has_value) {
+            // Game setting: whether volcanoes erupt.
+            const std::string_view mode = argv[++i];
+            if (mode == "game") {
+                options.rules.volcanoes = sim::Volcanoes::Game;
+            } else if (mode == "off") {
+                options.rules.volcanoes = sim::Volcanoes::Off;
+            } else if (mode == "on") {
+                options.rules.volcanoes = sim::Volcanoes::On;
             } else {
                 return usage();
             }

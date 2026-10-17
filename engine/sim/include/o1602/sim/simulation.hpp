@@ -23,6 +23,7 @@
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
+#include "o1602/sim/volcanoes.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
@@ -86,6 +87,8 @@ public:
     [[nodiscard]] std::vector<IslandEvent> take_island_events();
     /// Fires and plagues that broke out, spread, ended or burned a building down since the last call.
     [[nodiscard]] std::vector<DisasterEvent> take_disaster_events();
+    /// Eruptions and what the lava hit since the last call.
+    [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events();
 
 private:
     void pay_upkeep();
@@ -104,6 +107,7 @@ private:
     std::vector<HouseEvent> m_house_events;
     std::vector<IslandEvent> m_island_events;
     std::vector<DisasterEvent> m_disaster_events;
+    std::vector<VolcanoEvent> m_volcano_events;
     std::vector<RobberSpawn> m_robbers;
     std::uint32_t m_disaster_ms = 0;  ///< game time since the last disaster epoch
     const assets::FigureTable* m_figures;

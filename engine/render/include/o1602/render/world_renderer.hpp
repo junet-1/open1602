@@ -118,6 +118,19 @@ struct FigureInstance {
     std::optional<assets::FigureSheet> sheet;
 };
 
+/// A figure of an effect hanging or flying over the world: the fire over an erupting volcano
+/// (VULKAN, kind 0x20) and lumps of lava (VULKANFIRE1, kind 0x21). Drawn from EFFEKTE.BSH at a
+/// height over its point, with its shadow on the ground while it is low (0x0044FA90).
+struct EffectFigure {
+    double x = 0.0;  ///< world position in tiles (continuous)
+    double y = 0.0;
+    double z = 0.0;            ///< height in half tile widths
+    double ground = 0.0;       ///< height of the ground below, in half tile widths
+    std::uint16_t figure = 0;  ///< FIGUR number
+    std::uint8_t anim = 0;     ///< ANIM index
+    std::uint32_t phase = 0;   ///< animation offset in ms
+};
+
 /// Opacity of figure shadows (the original dithers every second pixel).
 inline constexpr std::uint8_t kShadowAlpha = 128;
 /// Opacity of chimney smoke (the original draws every second pixel, 0x004048E0).
@@ -160,6 +173,8 @@ struct WorldLayers {
     std::array<std::optional<std::uint32_t>, assets::kFigureSheetCount> sheet_base{};
     /// Tinted units for banners without drawn variants (WorldGraphics::unit_tint).
     const UnitTint* unit_tint = nullptr;
+    /// Volcano fire and lava. Needs `figures` and the atlas bases of EFFEKTE.BSH and SCHATTEN.BSH.
+    const std::vector<EffectFigure>* effects = nullptr;
 };
 
 /// Up to two draw commands of one figure (shadow + body, hull + flag) and the tile row after
@@ -176,6 +191,12 @@ struct FigureSprites {
 /// SCHATTEN.BSH, centred on Y - Posoffs[1] * w/64 = y (cases 0x0C-0x0E of 0x0044FA90).
 [[nodiscard]] bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, const WorldView& view,
                                        const WorldLayers& layers, FigureSprites& out);
+
+/// Body and shadow of an effect figure at time `time_ms` (exposed for tests). The shadow shows
+/// while the figure is less than 5 half tile widths above the ground. The original centres the
+/// lava with the size of the carriers' sheet (U-008); Open1602 uses its own image.
+[[nodiscard]] bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, const WorldView& view,
+                                         const WorldLayers& layers, std::uint64_t time_ms, FigureSprites& out);
 
 /// Draw list including ships (drawn after the flat pass of their tile row, like the figures in
 /// the original, 0x0044FA90) and the ownership tint.

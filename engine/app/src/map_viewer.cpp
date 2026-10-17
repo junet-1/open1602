@@ -474,6 +474,8 @@ void MapViewer::render() {
         layers.owner_tint = m_show_owners;
         layers.building_figures = &m_building_figures;
         layers.local_player = m_local_player;
+        collect_effects();
+        layers.effects = &m_effects;
         // The building the tool would place, drawn into the map for this frame only.
         struct Saved {
             std::uint16_t island;
@@ -632,6 +634,41 @@ void MapViewer::apply_production_events() {
                 std::fprintf(stderr, "%s: the drought is over\n", own->name.c_str());
                 break;
         }
+    }
+    // Volcanoes (MELDUNG 94). The original tells only players who have discovered the island;
+    // Open1602 does not know discoveries yet.
+    for (const sim::VolcanoEvent& e : m_simulation.take_volcano_events()) {
+        if (e.kind == sim::VolcanoEvent::Kind::Erupted && e.message) {
+            std::fprintf(stderr, "a volcano has erupted! (island %u)\n",
+                         static_cast<unsigned>(m_world.islands()[e.island].header.number));
+        }
+    }
+}
+
+void MapViewer::collect_effects() {
+    m_effects.clear();
+    const sim::VolcanoState& v = m_world.volcanoes();
+    for (const sim::Eruption& e : v.eruptions) {
+        const sim::WorldIsland& island = m_world.islands()[e.crater.island];
+        render::EffectFigure f;
+        f.x = island.x + e.crater.x + 2.0;  // the centre of the 4x4 mountain
+        f.y = island.y + e.crater.y + 2.0;
+        f.z = sim::kVolcanoHeight;
+        f.figure = sim::kFigureVolcano;
+        m_effects.push_back(f);
+    }
+    const std::uint64_t now_us = m_world.time_ms() * 1000;
+    for (const sim::LavaLump& p : v.lava) {
+        const sim::LavaPoint at = sim::lava_position(p, now_us);
+        render::EffectFigure f;
+        f.x = at.x;
+        f.y = at.y;
+        f.z = at.z;
+        f.ground = sim::lava_ground(m_world, m_buildings, at.x, at.y);
+        f.figure = sim::kFigureLava;
+        f.anim = p.anim;
+        f.phase = static_cast<std::uint32_t>(p.launch_us / 1000);
+        m_effects.push_back(f);
     }
 }
 

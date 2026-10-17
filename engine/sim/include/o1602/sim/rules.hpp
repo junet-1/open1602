@@ -30,6 +30,13 @@ enum class Droughts : std::uint8_t {
     Frequent,  ///< 10 in 32, 15 minutes ("hard")
 };
 
+/// Whether volcanoes erupt (docs/re/volcanoes.md). The original has a game setting for it.
+enum class Volcanoes : std::uint8_t {
+    Game,  ///< as the game's settings say (original)
+    Off,   ///< never
+    On,    ///< always, whatever the game says
+};
+
 struct Rules {
     /// Refund of the build costs (gold and goods) when the player demolishes a building. The goods
     /// go back into the warehouse of the building's city as far as there is room.
@@ -50,6 +57,8 @@ struct Rules {
 
     /// Droughts: as the game says, or chosen for the endless game.
     Droughts droughts = Droughts::Game;
+    /// Volcanoes: as the game says, or switched on or off.
+    Volcanoes volcanoes = Volcanoes::Game;
 
     /// Defaults: corrected behaviour.
     [[nodiscard]] static constexpr Rules open1602() noexcept { return Rules{}; }
@@ -62,6 +71,7 @@ struct Rules {
         r.max_game_speed = 4;
         r.demolish_refund = Refund::None;
         r.droughts = Droughts::Game;
+        r.volcanoes = Volcanoes::Game;
         return r;
     }
 

@@ -12,8 +12,8 @@
 // 27 to 34 minutes on, whichever island it fell on. A curse of the natives starts a weaker one.
 //
 // Unlike the original, every island is handled at the same moment of its epoch and the events
-// draw from their own random numbers (M-006); the volcanoes the original checks in the same place
-// follow later.
+// draw from their own random numbers (M-006). The volcanoes, which the original checks in the same
+// place, have their own roll (volcanoes.hpp, S-042).
 #pragma once
 
 #include <cstdint>

@@ -53,6 +53,13 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
         h.fertility = static_cast<std::uint32_t>(data[0x5C]) | (static_cast<std::uint32_t>(data[0x5D]) << 8) |
                       (static_cast<std::uint32_t>(data[0x5E]) << 16) | (static_cast<std::uint32_t>(data[0x5F]) << 24);
         h.curse_pending = (data[0x03] & 1U) != 0;
+        h.volcano_erupted = (data[0x03] & 4U) != 0;
+        const std::size_t craters = std::min<std::size_t>(data[0x17], 2);
+        for (std::size_t i = 0; i < craters; ++i) {
+            const std::size_t o = 0x3C + 8 * i;
+            h.craters.push_back(IslandHeader::Crater{data[o + 1], data[o + 2],
+                                                     static_cast<std::uint16_t>(data[o + 6] | (data[o + 7] << 8))});
+        }
     }
     if (data.size() >= 0x70) {
         h.drought_strength = data[0x66];

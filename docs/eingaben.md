@@ -1,6 +1,6 @@
 # Was Open1602 von dir braucht
 
-Stand: 17.10.2026. Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
+Stand: 17.10.2026 (Vulkane eingebaut). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
 Videos und Beobachtungen im Original brauche oder schon bekommen habe. Sie wird fortgeschrieben,
 sobald etwas dazukommt oder erledigt ist.
 
@@ -37,12 +37,14 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
    Bauen (rote Fläche, wo nichts geht)? Siehst du in deiner eigenen Stadt keine Häuser, schick mir
    die Zeilen `renderer: …` und `GFX: …` aus dem Terminal.
 
-2. **Vulkanausbruch** (für die Vulkane, die noch kommen). In deinem Spiel ist der erste Ausbruch für
-   **84,5 Minuten Spielzeit** angesetzt, also etwa 46 Minuten nach Merlin03. Auf welcher der Inseln
-   mit Kratern er kommt, ist Zufall.
+2. **Vulkanausbruch** (prüft die eingebauten Vulkane). In deinem Spiel ist der erste Ausbruch für
+   **84,5 Minuten Spielzeit** angesetzt, also etwa 46 Minuten nach Merlin03. Auf welcher der drei
+   Inseln mit Vulkan er kommt, ist Zufall; keine davon ist deine.
    - einen Stand kurz davor (etwa bei Minute 83), „VorVulkan“;
-   - einen kurz nach der Meldung „Ein Vulkan ist ausgebrochen!“, „NachVulkan“;
-   - wenn möglich ein Video des Ausbruchs (was die Lava trifft, ist noch offen).
+   - einen kurz nach der Meldung „Ein Vulkan ist ausgebrochen!“, „NachVulkan“ (der Stand zeigt den
+     nächsten Termin und welcher Krater es war);
+   - einen etwa eine Minute danach, „NachVulkan2“ (zerstörte Bäume und Gebäude);
+   - wenn möglich ein Video des Ausbruchs: wie lange er dauert, wie weit die Brocken fliegen.
 
 3. **Dürre** (prüft die eingebaute Dürre). Ab **90 Minuten Spielzeit** sind Dürren möglich; bei
    deiner Schwierigkeit kommt die erste meist bald danach. Damit es etwas zu verdorren gibt, bau

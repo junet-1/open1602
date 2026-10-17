@@ -19,6 +19,7 @@ add_executable(o1602_tests
     unit/test_drag_path.cpp
     unit/test_deer.cpp
     unit/test_disasters.cpp
+    unit/test_volcanoes.cpp
     unit/test_units.cpp
     data/test_original_data.cpp
 )

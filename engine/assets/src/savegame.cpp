@@ -253,6 +253,24 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
             state.settings = u32(data, kTimersSettings);
             state.next_drought = u32(data, kTimersNextDrought);
         }
+        constexpr std::size_t kTimersRunningVolcano = 0xC4;
+        constexpr std::size_t kTimersLastVolcano = 0xC8;
+        constexpr std::size_t kTimersNextVolcano = 0xCC;
+        constexpr std::size_t kTimersCraters = 0xD0;
+        constexpr std::uint8_t kRefIslandTile = 0x33;
+        const auto crater_ref = [&](std::size_t o) -> std::optional<GameState::CraterRef> {
+            // The low byte tells whether the ref is set (0x0048C0F0 tests it alone).
+            if (data[o] != kRefIslandTile) {
+                return std::nullopt;
+            }
+            return GameState::CraterRef{data[o + 1], data[o + 2], data[o + 3]};
+        };
+        if (data.size() >= kTimersCraters + 4) {
+            state.running_volcano = crater_ref(kTimersRunningVolcano);
+            state.last_volcano = crater_ref(kTimersLastVolcano);
+            state.next_volcano = u32(data, kTimersNextVolcano);
+            state.crater_count = u32(data, kTimersCraters);
+        }
     }
     return state;
 }

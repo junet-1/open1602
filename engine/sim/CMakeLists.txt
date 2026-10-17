@@ -15,6 +15,7 @@ add_library(o1602_sim
     src/player.cpp
     src/production_cycle.cpp
     src/simulation.cpp
+    src/volcanoes.cpp
     src/world.cpp
 )
 add_library(o1602::sim ALIAS o1602_sim)

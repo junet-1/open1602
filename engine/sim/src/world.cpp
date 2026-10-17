@@ -7,6 +7,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/growth.hpp"
+#include "o1602/sim/volcanoes.hpp"
 
 namespace o1602::sim {
 
@@ -339,6 +340,42 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         island.drought.strength = island.header.drought_strength;
         island.drought.end_ms = std::uint64_t{island.header.drought_end} * 100;
         island.drought.curse_pending = island.header.curse_pending;
+        // Craters: the list of the savegame, searched only for islands without one (INSEL3/4).
+        constexpr std::size_t kCraterFields = 0x4C;
+        if (island.header.raw.size() >= kCraterFields) {
+            for (const auto& c : island.header.craters) {
+                island.craters.push_back(Crater{c.x, c.y, c.steps_left});
+            }
+        } else {
+            island.craters = find_craters(island.map, buildings);
+        }
+        island.volcano_erupted = island.header.volcano_erupted;
+    }
+    // Volcanoes. The crater count is not taken from TIMERS +0xD0 but follows the islands (a
+    // scenario may carry a stale one, S-063).
+    VolcanoState& volcanoes = world.volcanoes();
+    if (state->next_volcano) {
+        volcanoes.next_ms = std::uint64_t{*state->next_volcano} * 100;
+    }
+    const auto crater_ref = [&](const assets::GameState::CraterRef& r) -> std::optional<CraterRef> {
+        const auto island = world.island_index(r.island);
+        if (!island) {
+            return std::nullopt;
+        }
+        return CraterRef{*island, r.x, r.y};
+    };
+    if (state->last_volcano) {
+        volcanoes.last = crater_ref(*state->last_volcano);
+    }
+    if (state->running_volcano) {
+        // The original keeps no lava in its savegames and starts a running eruption anew, with a
+        // new pattern and without the message (0x0048C0F0, S-062).
+        if (const auto ref = crater_ref(*state->running_volcano)) {
+            const auto seed = static_cast<std::uint16_t>(world.random(RandomStream::Islands).below(0x8000));
+            if (!erupt(world, *ref, seed, false, nullptr)) {
+                warn("running eruption on an island without that crater");
+            }
+        }
     }
     if (state->difficulty) {
         world.set_game_settings(World::GameSettings{*state->difficulty, state->settings.value_or(0)});

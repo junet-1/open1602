@@ -183,6 +183,16 @@ struct GameState {
     std::optional<std::uint8_t> difficulty;     ///< TIMERS +0xA6: 0 easy .. 3 hard (droughts)
     std::optional<std::uint32_t> settings;      ///< TIMERS +0xA8: game settings word, bit 2 no droughts
     std::optional<std::uint32_t> next_drought;  ///< TIMERS +0xB4: earliest drought roll, 1/10 s
+    /// A volcano crater as the original refers to it (an object ref: type 0x33, island number, x, y).
+    struct CraterRef {
+        std::uint8_t island = 0;  ///< island number (INSEL5 header)
+        std::uint8_t x = 0;       ///< origin of the volcano mountain
+        std::uint8_t y = 0;
+    };
+    std::optional<CraterRef> running_volcano;   ///< TIMERS +0xC4: the eruption that runs
+    std::optional<CraterRef> last_volcano;      ///< TIMERS +0xC8: the last eruption
+    std::optional<std::uint32_t> next_volcano;  ///< TIMERS +0xCC: earliest eruption, 1/10 s
+    std::optional<std::uint32_t> crater_count;  ///< TIMERS +0xD0: craters in the world, at most 20
     std::vector<CostRecord> shipyards;
     std::vector<CostRecord> castles;
     std::optional<GrowthClocks> growth_clocks;  ///< nothing without a TIMERS chunk

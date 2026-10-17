@@ -25,7 +25,7 @@ Inselvorlage:
 | Offset | Typ | Feld | Beleg |
 |---|---|---|---|
 | `0x03` | u8 | Bit 0: Fluch der Eingeborenen, wird im nächsten Inseltakt zur Dürre (Insel +0x44 Bit 5); Bit 2: ein Vulkan der Insel ist ausgebrochen (+0x44 Bit 6) | `0x0046B3E0`, [growth.md](../re/growth.md#dürre) |
-| `0x17` | u8 | Anzahl der Vulkankrater (Liste bei `0x3C`: x, y, verbleibende Ausbruchsschritte; höchstens 2) | Schreiber `0x00468740` |
+| `0x17` | u8 | Anzahl der Vulkankrater (Liste bei `0x3C`, 8 Byte je Krater: Byte 1 x, Byte 2 y = Ursprung des Bergs 21108, Byte 6–7 verbleibende Würfe; höchstens 2) | Schreiber `0x00468740`, [volcanoes.md](../re/volcanoes.md) |
 | `0x1A` | u8 | Anzahl Lagerstätten (höchstens 2) | Schreiber `0x00468740` |
 | `0x1B` | u8 | Insel +0x42 (gleich Byte 3 der Lagerstätten, Bedeutung offen) | |
 | `0x1C` | 2 × 8 | Lagerstätten: Ware, x, y (Ursprung des Bergs), Byte 3 (offen), Art (0 große, 1 kleine Ader), 0, u16 Menge in 1/32 t ([logistics.md](../re/logistics.md#bergwerke-und-lagerstätten)) | `0x0046C010` |

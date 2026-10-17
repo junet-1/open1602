@@ -30,6 +30,7 @@ ebenfalls können. Bisher gab es mit `sim::Rules` nur Schalter für Abweichungen
 | Rohstoffe garantieren (`guarantee_resources`, S-019) | ja/nein | nein | ja |
 | höchste Spielgeschwindigkeit (`max_game_speed`, L-004) | Faktor | 4 | 8 |
 | Dürren (`droughts`) | wie das Spiel (Schwierigkeit), aus, selten, normal, häufig | wie das Spiel | wie das Spiel |
+| Vulkane (`volcanoes`) | wie das Spiel (Einstellung), aus, an | wie das Spiel | wie das Spiel |
 
 ## Folgen
 Der Spielstand von Open1602 braucht einen eigenen Abschnitt für die Einstellungen; Spielstände des

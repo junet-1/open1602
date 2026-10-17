@@ -217,7 +217,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | Spieleinstellungen in `sim::Rules` (ADR 0008), erste Wahl: Rückerstattung beim Abriss (keine, teilweise, voll) | ✅ `docs/architecture/0008-spieleinstellungen.md` |
 | M3: Dürre (Wurf nach Schwierigkeit, Verdorren, Erholung, Ernte, Einstellung `Rules::droughts`) | ✅ |
 | M3: Brände, Pest, Räuber: Stadttermin, Ausbreitung, Niederbrennen, Arzt und Feuerwehr, Räuber mit Verfolgung, Anzeige | ✅ `docs/re/disasters.md` |
-| M3: Vulkane | ⬜ |
+| M3: Vulkane: Krater, Wurf, Ausbruch mit 141 Lavabrocken, Brand und Zerstörung, Anzeige, Einstellung `Rules::volcanoes`; S-042 behoben | ✅ `docs/re/volcanoes.md` |
 | M3: Verbrauch der Einwohner aus dem Lager (Stadttakt `0x0047F8A0`): Bedarf aus haeuser.cod, Versorgungsgrade, Zufriedenheit mit Steuerkurve, Meldungen; Einwohner aus `STADT4`, Abrechnung aus `MARKT2` | ✅ `docs/re/consumption.md` |
 | M3: Häuser (`SIEDLER`), Versorgung durch Märkte und öffentliche Gebäude, Wachstum, Auf- und Abstieg, Ruinen; Steuern, Betriebskosten, Sold; Zufallsquellen je Teilsystem, Piraten | ✅ `docs/re/houses.md` |
 | M3: Hirsche und Jäger: Wildplätze, Zählung, Rückkehr, Grasen, Ruf des Jägers, Schuss, Beute | ✅ `docs/re/deer.md` |
@@ -244,23 +244,26 @@ Dokuments.
 - Dürre: Stärke, Ende, Fluch je Insel, nächster Dürrezeitpunkt und Saat ([growth.md](re/growth.md#dürre)).
 - Brände und Seuchen, Stadttermine der Ereignisse, Räuber, Ärzte und Feuerwehrleute
   ([disasters.md](re/disasters.md), S-001).
+- Laufende Ausbrüche und Lava im Flug, damit ein geladenes Spiel fortsetzt statt neu zu beginnen
+  (S-062, [volcanoes.md](re/volcanoes.md)); Kraterliste, Zeichen und Termine in `INSEL5`/`TIMERS`.
 
 **Militär und Kampf**
 - Übernahme wehrloser Städte über ein zerstörtes Kontor ([construction.md](re/construction.md)).
 - Türme als schießende Figuren; Kanonentürme beim Sold ([houses.md](re/houses.md)).
 - S-018 Wachturm hält das Gebiet: Ein zerstörtes Kontor bleibt als Datensatz mit Destroyflg das
   Hauptkontor, Türme decken weiter Gebiet; prüfen und entscheiden ([bugs.md](re/bugs.md)).
-- Kampf beschädigt Gebäude, Brand durch Treffer (`0x00446ED0`, [disasters.md](re/disasters.md)).
+- Kampf beschädigt Gebäude, Brand durch Treffer ([disasters.md](re/disasters.md)).
 
 **Inselereignisse und Katastrophen**
 - Fluch der Eingeborenen auslösen, wenn ein Dorf zerstört wird (`0x0047EAA0`; die Dürre selbst ist
   fertig, [growth.md](re/growth.md#dürre)); kommt mit dem Militär.
-- Vulkane: Krater, Ausbruch, Lagerstätte im Berg verschwindet; S-042.
 - Vulkanausbrüche und andere Ereignisse der Szenarien.
 
 **Oberfläche (Baumenü, Fenster, Meldungen)**
 - Baumenü des Originals (GAD) mit Gebäudenamen aus Text.cod, Freischaltung als ausgegraute
   Knöpfe ([construction.md](re/construction.md)).
+- Entdeckte Inseln: die Meldung eines Ausbruchs nur für Spieler, die die Insel kennen
+  ([volcanoes.md](re/volcanoes.md)).
 - Warnung beim Abriss eines Markts, der Häuser die Grundlage nimmt (S-035).
 - Startdialog für das Endlosspiel mit allen Spieleinstellungen ([ADR 0008](architecture/0008-spieleinstellungen.md)).
 - Idee: volle Rückerstattung für wenige Sekunden nach dem Bau (Schutz vor Fehlklicks); dafür

@@ -202,11 +202,25 @@ void Simulation::tick() {
             *m_world, *m_buildings, m_rules,
             [this](std::uint16_t island, TilePos tile) { return m_logistics.field_reserved(island, tile); },
             &m_island_events);
+        // The eruption roll; the original makes it only while no drought roll is due (S-042).
+        roll_eruptions(*m_world, m_rules, &m_volcano_events);
         if (m_island_events.size() > kMaxPendingEvents) {
             m_island_events.erase(m_island_events.begin(),
                                   m_island_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
         m_logistics.advance_islands();
+    }
+    // Eruptions and lava (figures of the original, kinds 0x20 and 0x21).
+    {
+        const std::size_t first = m_construction_events.size();
+        const assets::FigureType* lava = m_figures->get(kFigureLava);
+        advance_volcanoes(*m_world, *m_buildings, lava != nullptr && lava->speed != 0 ? lava->speed : kLavaSpeed,
+                          &m_volcano_events, &m_disaster_events, &m_construction_events);
+        handle(m_construction_events, first);
+        if (m_volcano_events.size() > kMaxPendingEvents) {
+            m_volcano_events.erase(m_volcano_events.begin(),
+                                   m_volcano_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+        }
     }
     // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670).
     m_logistics.tick();
@@ -242,6 +256,12 @@ std::vector<HouseEvent> Simulation::take_house_events() {
 std::vector<DisasterEvent> Simulation::take_disaster_events() {
     std::vector<DisasterEvent> events;
     events.swap(m_disaster_events);
+    return events;
+}
+
+std::vector<VolcanoEvent> Simulation::take_volcano_events() {
+    std::vector<VolcanoEvent> events;
+    events.swap(m_volcano_events);
     return events;
 }
 
