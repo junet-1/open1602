@@ -115,6 +115,9 @@ struct Walker {
     Handle partner;                 ///< the deer a hunter hunts, the hunter after a deer; a robber's victim
     std::optional<TilePos> target;  ///< doctors and firemen: origin of the building they go to
     std::uint8_t patience = 0;      ///< robbers: seconds waited plus tiles chased
+    /// Pack donkeys of shipyards: origin of the yard (home is then kNoHome; the yard is no
+    /// production building).
+    std::optional<TilePos> yard;
 
     // Movement: the figure walks from `tile` towards path[step]; `progress` of `length` (units of
     // 1/65536 tile) is done, at `speed` units per tick.
@@ -193,6 +196,21 @@ public:
     [[nodiscard]] bool field_reserved(std::uint16_t island, TilePos tile) const;
     /// A robber the city tick sent out (0x0044B620): he waits in the house for a victim.
     void spawn_robber(const RobberSpawn& spawn);
+    /// A shipyard's pack donkey fetches `ware` from a market or Kontor of its city within the
+    /// yard's Radius (0x0044AB60 with PACKESEL). False if there is nothing to fetch.
+    bool send_yard_carrier(std::uint16_t island, TilePos origin, std::uint8_t ware, std::uint16_t figure);
+    /// What pack donkeys brought to shipyards (amount 0: the trip failed).
+    struct YardDelivery {
+        std::uint16_t island = 0;
+        TilePos origin;
+        std::uint8_t ware = 0;
+        std::uint32_t amount = 0;
+    };
+    [[nodiscard]] std::vector<YardDelivery> take_yard_deliveries() {
+        std::vector<YardDelivery> d;
+        d.swap(m_yard_deliveries);
+        return d;
+    }
     /// Disasters doctors and firemen ended since the last call.
     [[nodiscard]] std::vector<DisasterEvent> take_disaster_events() {
         std::vector<DisasterEvent> events;
@@ -206,8 +224,9 @@ public:
 
     /// The figures, their reservations and the statistics, for a savegame of Open1602.
     void save(core::ByteWriter& out) const;
-    /// Restores what save() wrote; false if the data is damaged (then nothing changed).
-    bool load(core::ByteReader& in);
+    /// Restores what save() wrote; false if the data is damaged (then nothing changed). Version 1
+    /// is the format before shipyards had pack donkeys.
+    bool load(core::ByteReader& in, std::uint16_t version = 2);
     [[nodiscard]] const LogisticsStats& stats() const noexcept { return m_stats; }
 
     /// Tiles per tick of a figure on a tile of Wegspeed class `walk_speed` (units of 1/65536).
@@ -215,6 +234,8 @@ public:
 
 private:
     void send_carrier(std::uint32_t home, std::uint8_t ware, std::uint16_t figure);
+    [[nodiscard]] std::optional<BuildingAt> home_building(const Walker& walker) const;
+    std::vector<YardDelivery> m_yard_deliveries;
     void send_cart(std::uint32_t home);
     /// Farm worker, cattle or fishing boat for `ware` (0x0044B7E0, 0x0044BB40, 0x0044B9A0).
     void send_worker(std::uint32_t home, std::uint8_t ware, WalkerKind kind);

@@ -59,7 +59,8 @@ Spielstände ungültig zu machen.
 | `ISLE` | je Insel in der Reihenfolge der Welt, mit Inselnummer zur Prüfung |
 | `TILE` | abweichende Felder: Inselnummer, x, y, Ebene, Gebäude-Id, Teilfeld, Drehung, Phase, Besitzer, Stadt, Zufallswert |
 | `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `SHIP` `SOLD` `ANIM` `DISA` `VOLC` | die Listen der Welt, vollständig |
-| `SIMU` | Uhren der Simulation und Figuren (eigene Versionsnummer am Anfang) |
+| `FLEE` | Schiffe vollständig (Lage in 1/4096 Feld, Kurs, Laderäume mit Preis, Handelsroute, Ziele mit dem Verweis des Originals, Waren des Händlers), nächste Schiffsnummer, entdeckte Inseln, Handelseinstellungen und Zuneigung der Städte, Felder der Werften (Auftrag, Baupunkte, Holz, Stoffe, Takt, Reparatur); `SHIP` bleibt für ältere Leser |
+| `SIMU` | Uhren der Simulation und Figuren (eigene Versionsnummer am Anfang; ab Version 2 mit den Packeseln der Werften und den Uhren der Flotte) |
 
 Gebäude stehen als **Id** (aus `haeuser.cod`) und Teilfeld, nicht als Bildnummer, damit ein Spielstand
 auch mit geänderten Grafiken passt; eine unbekannte Id macht den Chunk ungültig.

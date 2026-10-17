@@ -133,9 +133,10 @@ struct Island {
         players[1].role = sim::PlayerRole::Computer;
         players[1].money = 10000;
         world.set_players(players);
-        sim::Ship ship{"Patria", 12, 21, 21, 0, 0, {}};
-        ship.cargo.push_back(sim::Ship::Cargo{buildings.materials().tools, 10 * 32});
-        ship.cargo.push_back(sim::Ship::Cargo{buildings.materials().wood, 10 * 32});
+        sim::Ship ship = sim::make_ship("Patria", 12, 21, 21, 0, 0);
+        ship.cargo.resize(4);
+        ship.cargo[0] = sim::CargoSlot{buildings.materials().tools, 10 * 32, 0};
+        ship.cargo[1] = sim::CargoSlot{buildings.materials().wood, 10 * 32, 0};
         world.add_ship(ship);
     }
 
@@ -145,7 +146,9 @@ struct Island {
         order.player = player;
         order.island = 0;
         order.items = std::move(items);
-        order.ship = ship;
+        if (ship) {
+            order.ship = world.ships()[*ship].id;  // tests name the ship by its place in the list
+        }
         return sim::execute_build(world, buildings, order, names, &events);
     }
     std::size_t demolish(sim::TilePos a, sim::TilePos b) {
@@ -327,7 +330,7 @@ TEST_CASE("construction: building and demolishing are commands of the simulation
     order.player = 0;
     order.island = 0;
     order.items = {{kKontor, 5, 10, 0, 0}};
-    order.ship = 0;
+    order.ship = island.world.ships()[0].id;
     const std::uint64_t seq = simulation.submit(order);
     CHECK(island.world.cities().empty());  // applied at the next tick
     simulation.tick();

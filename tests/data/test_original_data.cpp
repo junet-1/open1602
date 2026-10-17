@@ -1655,6 +1655,11 @@ TEST_CASE("data: a drought withers the fields of an island and returns them (0x0
         if (t % 30'000 == 0) {
             const auto now = withered_fields();
             most = std::max(most, now.size());
+            if (t >= 600'000) {
+                // After the drought its strength halves every epoch; a harvest then withers by the
+                // strength of the moment, whose fertility pattern is not that of the full drought.
+                continue;
+            }
             for (const sim::TilePos p : now) {
                 const assets::BuildingType* b =
                     buildings->by_sprite(world.islands()[*island]
@@ -1989,9 +1994,28 @@ TEST_CASE("data: a game saved in Open1602 continues exactly as if it had not sto
     CHECK(warnings.empty());
     sim::Simulation b(*loaded, *buildings, *figures);
     b.set_speed(8);
+    const auto report = [](const core::Bytes& one, const core::Bytes& two) {
+        auto fa = assets::ChunkFile::from_bytes(one);
+        auto fb = assets::ChunkFile::from_bytes(two);
+        for (std::size_t k = 0; k < std::min(fa->chunks().size(), fb->chunks().size()); ++k) {
+            const auto x = fa->payload(fa->chunks()[k]);
+            const auto y = fb->payload(fb->chunks()[k]);
+            if (x.size() != y.size() || !std::equal(x.begin(), x.end(), y.begin())) {
+                std::size_t d = 0;
+                while (d < x.size() && d < y.size() && x[d] == y[d]) {
+                    ++d;
+                }
+                std::fprintf(stderr, "  chunk %zu %s: %zu / %zu bytes, first difference at %zu\n", k,
+                             fa->chunks()[k].name.c_str(), x.size(), y.size(), d);
+            }
+        }
+    };
     // Right after loading the state is the same ...
     auto again = sim::write_savegame(*loaded, *buildings, &b);
     REQUIRE(again.ok());
+    if (*again != *saved) {
+        report(*saved, *again);
+    }
     CHECK(*again == *saved);
     // ... and five minutes later too.
     for (int i = 0; i < 375; ++i) {

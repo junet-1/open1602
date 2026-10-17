@@ -212,7 +212,7 @@ TEST_CASE("ambient: no townsfolk in small cities or with foreign soldiers") {
 
 TEST_CASE("ambient: every computer sees the same, wherever it looks and however often it draws") {
     Scene s;
-    s.world.add_ship(sim::Ship{"Sea Lion", 40, 40, 21, 0, 0, {}});
+    s.world.add_ship(sim::make_ship("Sea Lion", 40, 40, 21, 0, 0));
     // One computer draws 10 times a second looking at the island, the other 1.4 times looking
     // elsewhere, and its player scrolls.
     render::Ambient a(77);
@@ -254,7 +254,7 @@ TEST_CASE("ambient: every computer sees the same, wherever it looks and however 
 
 TEST_CASE("ambient: sea creatures come up all over the open sea, away from islands and ships") {
     Scene s;
-    s.world.add_ship(sim::Ship{"Sea Lion", 40, 40, 21, 0, 0, {}});
+    s.world.add_ship(sim::make_ship("Sea Lion", 40, 40, 21, 0, 0));
     render::Ambient ambient(9);
     std::set<std::uint16_t> species;
     std::set<std::pair<int, int>> blocks;

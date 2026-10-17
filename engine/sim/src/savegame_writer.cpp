@@ -140,6 +140,7 @@ public:
         if (auto status = check(); !status) {
             return status.error();
         }
+        assign_ship_slots();
         islands();
         passthrough("CUSTOM");
         passthrough("NAME");
@@ -151,7 +152,7 @@ public:
         cities();
         players();
         passthrough("AUFTRAG4", true);
-        passthrough("HANDLER", true);
+        traders();
         ships();
         soldiers();
         passthrough("TURM", true);
@@ -192,6 +193,73 @@ private:
     }
 
     [[nodiscard]] std::uint8_t number(std::uint16_t island) const { return m_world.islands()[island].header.number; }
+
+    /// Places of the ships in the original's table of 150: the place a ship was loaded from, the
+    /// first free one for the others. The free trader's ships get HANDLER records in order.
+    std::unordered_map<std::uint32_t, std::uint16_t> m_ship_slots;
+    std::unordered_map<std::uint32_t, std::uint8_t> m_trader_records;
+    void assign_ship_slots() {
+        std::vector<bool> used(kMaxShips, false);
+        for (const Ship& s : m_world.ships()) {
+            if (s.source_slot < kMaxShips && !used[s.source_slot]) {
+                used[s.source_slot] = true;
+                m_ship_slots[s.id] = s.source_slot;
+            }
+        }
+        std::uint16_t next = 0;
+        std::uint8_t trader = 0;
+        for (const Ship& s : m_world.ships()) {
+            if (m_ship_slots.find(s.id) == m_ship_slots.end()) {
+                while (next < kMaxShips && used[next]) {
+                    ++next;
+                }
+                used[std::min<std::size_t>(next, kMaxShips - 1)] = true;
+                m_ship_slots[s.id] = next;
+            }
+            if (s.trader) {
+                m_trader_records[s.id] = trader++;
+            }
+        }
+    }
+    /// A reference that still names the same target stays as stored.
+    void put_ref(core::Bytes& r, std::size_t o, const ShipTarget& t) const { put32(r, o, ref_of(t)); }
+    [[nodiscard]] std::uint8_t ship_kind(const Ship& s) const {
+        if (s.trader) {
+            return 2;
+        }
+        const Player* p = m_world.player(s.owner);
+        return p != nullptr && p->role == PlayerRole::Pirates ? 3 : 1;
+    }
+    /// A target as the original's object reference (docs/re/ships.md).
+    [[nodiscard]] std::uint32_t ref_of(const ShipTarget& t) const {
+        // A reference loaded from a file goes back as it was while it names the same target.
+        if (t.raw != 0 && target_from_ref(m_world, t.raw) == t) {
+            return t.raw;
+        }
+        switch (t.kind) {
+            case ShipTarget::Kind::Position:
+                return 0x37U | ((t.y >> 8) << 4 | (t.x >> 8)) << 8 | (t.x & 0xFFU) << 16 | (t.y & 0xFFU) << 24;
+            case ShipTarget::Kind::City:
+                return t.island < m_world.islands().size()
+                           ? 0x35U | std::uint32_t{number(t.island)} << 8 | std::uint32_t{t.city} << 16
+                           : 0U;
+            case ShipTarget::Kind::Building:
+                return t.island < m_world.islands().size()
+                           ? 0x33U | std::uint32_t{number(t.island)} << 8 | (t.x & 0xFFU) << 16 | (t.y & 0xFFU) << 24
+                           : 0U;
+            case ShipTarget::Kind::Ship: {
+                const Ship* other = m_world.ship(t.ship);
+                const auto it = m_ship_slots.find(t.ship);
+                if (other == nullptr || it == m_ship_slots.end()) {
+                    return 0;
+                }
+                return ship_kind(*other) | 0xFFU << 8 | std::uint32_t{it->second} << 16;
+            }
+            case ShipTarget::Kind::None:
+                break;
+        }
+        return 0;
+    }
     [[nodiscard]] std::uint8_t owner_byte(PlayerId p) const {
         return p < assets::kOriginalPlayerSlots ? static_cast<std::uint8_t>(p) : kNoOwner;
     }
@@ -299,6 +367,12 @@ private:
             put32(r, 0x5C, h.fertility);
         }
         r[0x66] = island.drought.strength;
+        std::uint32_t discovered = 0;
+        for (std::uint8_t p = 0; p < assets::kOriginalPlayerSlots; ++p) {
+            discovered |= island.discovered_by(p) ? 1U << p : 0U;
+        }
+        constexpr std::uint32_t kSlots = (1U << assets::kOriginalPlayerSlots) - 1U;
+        put32(r, 0x68, (get32(r, 0x68) & ~kSlots) | discovered);
         put32(r, 0x6C, clamp32(island.drought.end_ms / 100));
         return r;
     }
@@ -439,6 +513,12 @@ private:
             r[2] = static_cast<std::uint8_t>(b.y);
             if (kind == CostBuilding::Kind::Shipyard) {
                 r[3] = static_cast<std::uint8_t>((r[3] & ~0x08U) | (b.enabled ? 0x08U : 0U));
+                put16(r, 4, b.countdown);
+                r[6] = b.order;
+                put16(r, 8, std::min<std::uint32_t>(b.progress, 0xFFFF));
+                put16(r, 0x0A, std::min<std::uint32_t>(b.wood, 0xFFFF));
+                const auto slot = m_ship_slots.find(b.repair_ship);
+                put16(r, 0x0C, b.repair_ship != 0 && slot != m_ship_slots.end() ? slot->second : 0xFFFFU);
             }
             out.insert(out.end(), r.begin(), r.end());
         }
@@ -529,15 +609,14 @@ private:
 
     /// Id (- 20000) of the first producer of a ware (the original's ware table, 0x00609160).
     [[nodiscard]] std::uint16_t producer_id(std::uint8_t ware) const {
-        for (std::uint32_t rec = 0;; ++rec) {
-            const assets::BuildingType* b = m_buildings.by_record(rec);
-            if (b == nullptr) {
-                return 0;
-            }
-            if (b->kind != 0 && b->prod_kind != 0 && b->ware == ware) {
-                return static_cast<std::uint16_t>(b->id - kIdOffset);
+        // The first building in record order that produces the ware (records may have gaps).
+        const assets::BuildingType* first = nullptr;
+        for (const assets::BuildingType& b : m_buildings.types()) {
+            if (b.kind != 0 && b.prod_kind != 0 && b.ware == ware && (first == nullptr || b.record < first->record)) {
+                first = &b;
             }
         }
+        return first != nullptr ? static_cast<std::uint16_t>(first->id - kIdOffset) : std::uint16_t{0};
     }
 
     void cities() {
@@ -576,6 +655,9 @@ private:
             if (!(r[0x86] == 0 && c.food_ratio == 128)) {
                 r[0x86] = c.food_ratio;
             }
+            for (std::size_t k = 0; k < assets::kOriginalPlayerSlots && k < c.goodwill.size(); ++k) {
+                put32(r, 0x18 + 4 * k, c.goodwill[k]);
+            }
             const auto stored = std::span<const std::uint8_t>(r).subspan(0x87);
             const std::string old(stored.begin(), std::find(stored.begin(), stored.end(), std::uint8_t{0}));
             if (old != c.name) {
@@ -593,6 +675,15 @@ private:
                 const std::size_t o = 4 + 20 * std::size_t{w};
                 const std::uint32_t stock = std::min<std::uint32_t>(c.stock(w), 0xFFFF);
                 put16(s, o + 0x0C, stock);
+                if (const City::Trade* t = c.trade_of(w)) {
+                    // Prices, sell and buy flags (+0), what the Kontor keeps (+8) and buys up to (+0x0A).
+                    put32(s, o,
+                          (get32(s, o) & 0xFFC00000U) | (t->sell_price & 0x3FFU) |
+                              std::uint32_t{t->buy_price & 0x3FFU} << 10 | (t->sell ? 1U << 20 : 0U) |
+                              (t->buy ? 1U << 21 : 0U));
+                    put16(s, o + 8, std::min<std::uint32_t>(t->keep, 0xFFFF));
+                    put16(s, o + 0x0A, std::min<std::uint32_t>(t->limit, 0xFFFF));
+                }
                 if (get16(s, o + 0x10) == 0 && stock != 0) {
                     put16(s, o + 0x10, producer_id(w));
                 }
@@ -647,19 +738,58 @@ private:
         add("PLAYER4", std::move(out));
     }
 
-    void ships() {
-        auto raw = m_source.records("SHIP4", kShipSize);
-        // The loader skips ships outside the map; the others are the world's ships in order.
-        std::erase_if(raw, [&](auto r) { return !m_world.contains(get16(r, 0x1C), get16(r, 0x1E)); });
+    /// HANDLER: the free trader's goods, one record per trader ship (0x004600C0).
+    void traders() {
+        constexpr std::size_t kSize = 0x25C;
+        constexpr std::size_t kGoods = 50;
+        const auto raw = m_source.records("HANDLER", kSize);
         core::Bytes out;
-        for (std::size_t k = 0; k < m_world.ships().size(); ++k) {
-            const Ship& s = m_world.ships()[k];
-            core::Bytes r(kShipSize, 0);
-            if (raw.size() == m_world.ships().size()) {
-                std::copy(raw[k].begin(), raw[k].end(), r.begin());
-            } else {
-                put16(r, 0x46, static_cast<std::uint32_t>(k));  // slot
+        for (const Ship& s : m_world.ships()) {
+            const auto record = m_trader_records.find(s.id);
+            if (record == m_trader_records.end()) {
+                continue;
             }
+            core::Bytes r(kSize, 0);
+            bool from_source = false;
+            for (const auto& old : raw) {
+                if (old[0] != 0 && get16(old, 1) == s.source_slot) {
+                    std::copy(old.begin(), old.end(), r.begin());  // keeps the original's ware ids
+                    from_source = true;
+                    break;
+                }
+            }
+            r[0] = 1;
+            put16(r, 1, m_ship_slots.at(s.id));
+            r[3] = record->second;
+            for (std::uint8_t w = 0; w < 25 && w < kGoods; ++w) {
+                const std::size_t o = 4 + 12 * std::size_t{w};
+                const TraderGood g = w < s.trader_goods.size() ? s.trader_goods[w] : TraderGood{};
+                put32(r, o, (g.price & 0x3FFU) | std::uint32_t{g.age & 0x1FU} << 10);
+                put32(r, o + 4, g.amount);
+                if (!from_source) {
+                    put16(r, o + 8, producer_id(w));
+                }
+            }
+            out.insert(out.end(), r.begin(), r.end());
+        }
+        add("HANDLER", std::move(out));
+    }
+
+    void ships() {
+        const auto raw = m_source.records("SHIP4", kShipSize);
+        std::unordered_map<std::uint16_t, std::size_t> by_slot;
+        for (std::size_t k = 0; k < raw.size(); ++k) {
+            by_slot.emplace(get16(raw[k], 0x46), k);
+        }
+        core::Bytes out;
+        for (const Ship& s : m_world.ships()) {
+            core::Bytes r(kShipSize, 0);
+            const std::uint16_t slot = m_ship_slots.at(s.id);
+            const auto source = s.source_slot != 0xFFFF ? by_slot.find(s.source_slot) : by_slot.end();
+            if (source != by_slot.end()) {
+                std::copy(raw[source->second].begin(), raw[source->second].end(), r.begin());
+            }
+            put16(r, 0x46, slot);
             const auto stored = std::span<const std::uint8_t>(r).subspan(0, 0x1C);
             const std::string old(stored.begin(), std::find(stored.begin(), stored.end(), std::uint8_t{0}));
             if (old != s.name) {
@@ -669,19 +799,56 @@ private:
             }
             put16(r, 0x1C, s.x);
             put16(r, 0x1E, s.y);
+            put_ref(r, 0x2C, s.order);
+            put_ref(r, 0x30, s.target);
+            put_ref(r, 0x34, s.previous);
+            put16(r, 0x3C, std::min<std::uint32_t>(s.health, 0xFFFF));
+            r[0x42] = s.cannons;
+            // Flags: bit 1 route on, bit 3 one-way, bit 2 for sale, bit 4 repair; bit 0 is the UI's.
+            r[0x43] = static_cast<std::uint8_t>((r[0x43] & 0xE1U) | (s.route.active ? 0x02U : 0U) |
+                                                (s.route.one_way ? 0x08U : 0U) | (s.for_sale ? 0x04U : 0U) |
+                                                (s.repairing ? 0x10U : 0U));
+            if (!(get16(r, 0x44) == 0 && s.sale_factor == 128)) {  // the loader reads 0 as 100 %
+                put16(r, 0x44, s.sale_factor);
+            }
             put16(r, 0x48, s.figure);
+            r[0x4A] = ship_kind(s);
             r[0x4B] = owner_byte(s.owner);
+            const auto record = m_trader_records.find(s.id);
+            r[0x4C] = record != m_trader_records.end() ? record->second : std::uint8_t{0};
+            const World::Cell& cell = m_world.cell(s.x, s.y);
+            r[0x4D] = cell.island == World::kSea ? std::uint8_t{0xFF} : number(cell.island);
+            r[0x4F] = s.route.current;
             r[0x50] = static_cast<std::uint8_t>((r[0x50] & ~7U) | (s.direction & 7U));
-            // Cargo: eight slots of the producer id and the amount (whole tons for the original).
+            for (std::size_t g = 0; g < TradeRoute::kStops; ++g) {
+                const std::size_t o = 0x52 + 0x24 * g;
+                const RouteStop& stop = s.route.stops[g];
+                put_ref(r, o, stop.target);
+                for (std::size_t e = 0; e < stop.entries.size(); ++e) {
+                    const std::size_t eo = o + 4 + 8 * e;
+                    const RouteEntry& entry = stop.entries[e];
+                    const assets::BuildingType* stored_type = m_buildings.by_id(get16(r, eo) + kIdOffset);
+                    const std::uint8_t stored_ware =
+                        get16(r, eo) != 0 && stored_type != nullptr ? stored_type->ware : 0;
+                    if (stored_ware != entry.ware) {
+                        put16(r, eo, entry.ware != 0 ? producer_id(entry.ware) : 0U);
+                    }
+                    put16(r, eo + 2, std::min<std::uint32_t>(entry.amount, 0xFFFF));
+                    r[eo + 4] = static_cast<std::uint8_t>((r[eo + 4] & ~1U) | (entry.unload ? 1U : 0U));
+                }
+            }
+            // Cargo: eight holds of the producer id, the amount (whole tons for the original) and the
+            // average price paid.
             for (std::size_t c = 0; c < 8; ++c) {
                 const std::size_t o = 0x174 + 8 * c;
-                if (c < s.cargo.size()) {
+                if (c < s.cargo.size() && s.cargo[c].ware != 0) {
                     const std::uint16_t id = producer_id(s.cargo[c].ware);
                     if (get16(r, o) == 0 || m_buildings.by_id(get16(r, o) + kIdOffset) == nullptr ||
                         m_buildings.by_id(get16(r, o) + kIdOffset)->ware != s.cargo[c].ware) {
                         put16(r, o, id);
                     }
-                    put16(r, o + 2, std::min<std::uint32_t>(s.cargo[c].amount, 0xFFFF));
+                    put16(r, o + 2, (get16(r, o + 2) & 0xC000U) | std::min<std::uint32_t>(s.cargo[c].amount, 0x3FFF));
+                    put32(r, o + 4, (get32(r, o + 4) & ~0x3FFU) | (s.cargo[c].price & 0x3FFU));
                 } else if (get16(r, o) != 0) {
                     put16(r, o, 0);
                     put16(r, o + 2, 0);

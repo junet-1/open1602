@@ -177,7 +177,7 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 Jedes neue System bleibt deterministisch und befehlsbasiert, damit der Mehrspieler später ohne Umbau
 darauf aufsetzt.
 
-1. **Schiffe**: Fahren mit Wegsuche auf See, Laden und Entladen, Handelsrouten, freier Händler.
+1. **Schiffe** ✅: Fahren mit Wegsuche auf See, Laden und Entladen, Handelsrouten, freier Händler, Werften.
 2. **Militär**: Soldaten und Kampf, schießende Türme und Burgen, Seekampf, Schäden und Brand an
    Gebäuden, Eroberung über ein zerstörtes Kontor, Fluch der Eingeborenen.
 3. **Piraten und Eingeborene** mit ihrem Verhalten.
@@ -241,6 +241,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: Zierfiguren auf allen Rechnern gleich ohne Netzverkehr (aus Startwert, Spielzeit und Welt, nicht aus Kamera und Bildrate) | ✅ `docs/re/flavor.md` |
 | M2: Landfiguren mit Höhe (0,028 · Posoffs des Entstehungsfelds) und Feldmitte wie im Original, Sortierung nach Y in der Zeile; kein Abschneiden durch Nachbarfelder; Begegnungen ohne Ausweichen wie im Original | ✅ `docs/re/figures.md` |
 | M2: Alle Figuren pixelgenau zu den Feldern (Abschneiden wie im Original, eine Zeile Versatz der Feldzeilen ausgeglichen), mit Bildschirmfoto geprüft; Symbol „abgeschaltet“ über Werften | ✅ `docs/re/rendering.md` |
+| M4: Schiffe: Fahren von Feldmitte zu Feldmitte mit Drehen im Stand, Tempo nach Schaden und Ladung, Wegsuche auf See im Fenster mit Umwegen um andere Schiffe, Ankunft am Kontor im Radius 5, Entdecken von Inseln; Laden und Entladen am eigenen und an fremden Kontoren mit Preisen und Grenzen, Handel mit Eingeborenen gegen Zuneigung; Handelsrouten mit vier Stationen; freier Händler (Ankunft am Kartenrand, Zielwahl nach Gewinn, Kauf und Verkauf, Altern, Werkzeug aus dem Nichts); Werften mit Packesel, Bau und Reparatur; alles gespeichert (SHIP4, HANDLER, WERFT, KONTOR2, eigener Chunk); Fahrbefehl im Betrachter; S-005, S-013, S-070–S-083 | ✅ `docs/re/ships.md` |
 | M2: Arbeiter und Tiere von Feldern und Bäumen verdeckt wie im Original (Holzfäller beim Fällen unsichtbar, Mäher bis zu den Knien im Getreide); Schiff mit Bildschirmfoto geprüft | ✅ `docs/re/figures.md` |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
@@ -266,6 +267,9 @@ Dokuments.
 - S-018 Wachturm hält das Gebiet: Ein zerstörtes Kontor bleibt als Datensatz mit Destroyflg das
   Hauptkontor, Türme decken weiter Gebiet; prüfen und entscheiden ([bugs.md](re/bugs.md)).
 - Kampf beschädigt Gebäude, Brand durch Treffer ([disasters.md](re/disasters.md)).
+- Seekampf: Kanonen, Breitseite, Treffer, Sinken, Wrack; Wasser bei feindlichen Türmen teurer in der
+  Wegsuche; Kanonen auf- und abladen ([ships.md](re/ships.md)).
+- Piratenschiffe: Beute, Rückkehr zum Nest, Jagd auf Handelsschiffe.
 
 **Inselereignisse und Katastrophen**
 - Fluch der Eingeborenen auslösen, wenn ein Dorf zerstört wird (`0x0047EAA0`; die Dürre selbst ist
@@ -284,9 +288,11 @@ Dokuments.
 - Idee: eigenes Verhalten der Straßen-Wegsuche neben dem des Originals.
 
 **Schiffe und Handel**
-- Bedeutung der Stadtfelder +2/+4/+8 (Handel), Handelsgrenzen beim Kontor-Ausbau (`0x00481EE0`)
-  ([logistics.md](re/logistics.md)).
-- Schiffsbewegung, Laden und Entladen; die Ladung ist bisher nur geladen und für die Gründung benutzt.
+- Handelsgrenzen beim Kontor-Ausbau (`0x00481EE0`) ([logistics.md](re/logistics.md)).
+- Handelsverträge zwischen den Spielern (kommt mit der Diplomatie); bis dahin handeln Computer und
+  Eingeborene mit jedem ([ships.md](re/ships.md)).
+- Fenster für Kontor, Laderäume, Handelsrouten und Werft (Oberfläche).
+- Bugwelle und beschädigte Schiffsbilder in der Darstellung.
 
 **Computergegner, Eingeborene, Piraten**
 - Piraten nehmen Waren mit der Piraten-KI ([consumption.md](re/consumption.md)).

@@ -37,6 +37,17 @@ enum class Volcanoes : std::uint8_t {
     On,    ///< always, whatever the game says
 };
 
+/// What the free trader pays for goods (docs/re/ships.md, "Freier Händler").
+enum class TraderPrices : std::uint8_t {
+    /// As players know it: about half the base price. The original means to follow the market but
+    /// gathers its statistics at a rate that depends on the frame rate, so they are almost always
+    /// empty (S-077).
+    Original,
+    /// What the original intends: three quarters of the average price Kontors pay for the ware;
+    /// he stops buying a ware all traders together hold half again as much of as Kontors want.
+    Market,
+};
+
 struct Rules {
     /// Refund of the build costs (gold and goods) when the player demolishes a building. The goods
     /// go back into the warehouse of the building's city as far as there is room.
@@ -59,6 +70,8 @@ struct Rules {
     Droughts droughts = Droughts::Game;
     /// Volcanoes: as the game says, or switched on or off.
     Volcanoes volcanoes = Volcanoes::Game;
+    /// Prices of the free trader.
+    TraderPrices trader_prices = TraderPrices::Original;
 
     /// Defaults: corrected behaviour.
     [[nodiscard]] static constexpr Rules open1602() noexcept { return Rules{}; }
@@ -72,6 +85,7 @@ struct Rules {
         r.demolish_refund = Refund::None;
         r.droughts = Droughts::Game;
         r.volcanoes = Volcanoes::Game;
+        r.trader_prices = TraderPrices::Original;
         return r;
     }
 

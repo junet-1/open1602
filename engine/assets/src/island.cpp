@@ -63,6 +63,8 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
     }
     if (data.size() >= 0x70) {
         h.drought_strength = data[0x66];
+        h.discovered = static_cast<std::uint32_t>(data[0x68]) | (static_cast<std::uint32_t>(data[0x69]) << 8) |
+                       (static_cast<std::uint32_t>(data[0x6A]) << 16) | (static_cast<std::uint32_t>(data[0x6B]) << 24);
         h.drought_end = static_cast<std::uint32_t>(data[0x6C]) | (static_cast<std::uint32_t>(data[0x6D]) << 8) |
                         (static_cast<std::uint32_t>(data[0x6E]) << 16) | (static_cast<std::uint32_t>(data[0x6F]) << 24);
     }

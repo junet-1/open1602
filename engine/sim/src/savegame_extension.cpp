@@ -45,6 +45,7 @@ constexpr std::uint32_t kAnimals = tag("ANIM");
 constexpr std::uint32_t kDisasters = tag("DISA");
 constexpr std::uint32_t kVolcanoes = tag("VOLC");
 constexpr std::uint32_t kSimulation = tag("SIMU");
+constexpr std::uint32_t kFleet = tag("FLEE");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -55,6 +56,7 @@ enum RuleKey : std::uint16_t {
     kMaxGameSpeed = 5,
     kDroughts = 6,
     kVolcanoRule = 7,
+    kTraderPrices = 8,
 };
 
 using Out = core::ByteWriter;
@@ -111,7 +113,7 @@ bool same_cell(const MapCell& a, const MapCell& b) noexcept {
 }
 
 void put_rules(Out& out, const Rules& r) {
-    const std::array<std::pair<RuleKey, std::uint32_t>, 7> values = {{
+    const std::array<std::pair<RuleKey, std::uint32_t>, 8> values = {{
         {kRefund, static_cast<std::uint32_t>(r.demolish_refund)},
         {kRefundPercent, r.refund_percent},
         {kMaxShips, r.max_ships_per_player},
@@ -119,6 +121,7 @@ void put_rules(Out& out, const Rules& r) {
         {kMaxGameSpeed, r.max_game_speed},
         {kDroughts, static_cast<std::uint32_t>(r.droughts)},
         {kVolcanoRule, static_cast<std::uint32_t>(r.volcanoes)},
+        {kTraderPrices, static_cast<std::uint32_t>(r.trader_prices)},
     }};
     out.u32(static_cast<std::uint32_t>(values.size()));
     for (const auto& [key, value] : values) {
@@ -154,6 +157,9 @@ Rules get_rules(StateIn& in) {
                 break;
             case kVolcanoRule:
                 r.volcanoes = static_cast<Volcanoes>(std::min<std::uint32_t>(v, 2));
+                break;
+            case kTraderPrices:
+                r.trader_prices = static_cast<TraderPrices>(std::min<std::uint32_t>(v, 1));
                 break;
             default:
                 break;  // a setting of a later version
@@ -214,6 +220,22 @@ struct Decoded {
     std::optional<std::vector<Disaster>> disasters;
     std::optional<VolcanoState> volcanoes;
     std::optional<std::vector<std::uint8_t>> simulation;
+    /// Ships with their courses and routes, shipyards, Kontor trade settings, discovered islands.
+    struct FleetPart {
+        std::uint32_t next_ship_id = 1;
+        std::vector<std::pair<std::uint8_t, std::vector<bool>>> discovered;  ///< island number, players
+        struct CityTrade {
+            std::uint16_t island = 0;
+            std::uint8_t index = 0;
+            std::vector<City::Trade> trade;
+            std::vector<std::uint32_t> goodwill;
+            bool trader_inbound = false;
+        };
+        std::vector<CityTrade> cities;
+        std::vector<CostBuilding> yards;  ///< the shipyard fields, in the order of the costs list
+        std::vector<Ship> ships;
+    };
+    std::optional<FleetPart> fleet;
 };
 
 // ---- Sections: write -----------------------------------------------------------------------------
@@ -461,12 +483,275 @@ void write_ships(Out& out, const World& w) {
         out.u16(s.figure);
         out.u8(s.owner);
         out.u8(s.direction);
-        out.u32(static_cast<std::uint32_t>(s.cargo.size()));
-        for (const Ship::Cargo& c : s.cargo) {
-            out.u8(c.ware);
-            out.u32(c.amount);
+        // The cargo as a list of the filled holds (the format of the first version).
+        std::uint32_t filled = 0;
+        for (const CargoSlot& c : s.cargo) {
+            filled += c.ware != 0 ? 1U : 0U;
+        }
+        out.u32(filled);
+        for (const CargoSlot& c : s.cargo) {
+            if (c.ware != 0) {
+                out.u8(c.ware);
+                out.u32(c.amount);
+            }
         }
     }
+}
+
+void put_target(Out& out, const ShipTarget& t) {
+    out.u8(static_cast<std::uint8_t>(t.kind));
+    out.u16(t.island);
+    out.u8(t.city);
+    out.u32(t.x);
+    out.u32(t.y);
+    out.u32(t.ship);
+    out.u32(t.raw);
+}
+
+ShipTarget get_target(StateIn& in) {
+    ShipTarget t;
+    const std::uint8_t kind = in.u8();
+    if (kind > static_cast<std::uint8_t>(ShipTarget::Kind::Building)) {
+        in.fail();
+    }
+    t.kind = static_cast<ShipTarget::Kind>(kind);
+    t.island = in.u16();
+    t.city = in.u8();
+    t.x = in.u32();
+    t.y = in.u32();
+    t.ship = in.u32();
+    t.raw = in.u32();
+    return t;
+}
+
+void put_ship(Out& out, const Ship& s) {
+    out.u32(s.id);
+    out.string(s.name);
+    out.i32(s.pos_x);
+    out.i32(s.pos_y);
+    out.u16(s.figure);
+    out.u8(s.owner);
+    out.u8(s.direction);
+    out.u32(s.health);
+    out.u8(s.cannons);
+    out.u32(static_cast<std::uint32_t>(s.cargo.size()));
+    for (const CargoSlot& c : s.cargo) {
+        out.u8(c.ware);
+        out.u32(c.amount);
+        out.u16(c.price);
+    }
+    for (const RouteStop& stop : s.route.stops) {
+        put_target(out, stop.target);
+        for (const RouteEntry& e : stop.entries) {
+            out.u8(e.ware);
+            out.boolean(e.unload);
+            out.u32(e.amount);
+        }
+    }
+    out.u8(s.route.current);
+    out.boolean(s.route.active);
+    out.boolean(s.route.one_way);
+    out.boolean(s.route.problem);
+    out.u8(s.route.problem_rounds);
+    put_target(out, s.target);
+    put_target(out, s.order);
+    put_target(out, s.previous);
+    out.boolean(s.held);
+    out.boolean(s.repairing);
+    out.boolean(s.for_sale);
+    out.u16(s.sale_factor);
+    out.boolean(s.trader);
+    out.u32(static_cast<std::uint32_t>(s.trader_goods.size()));
+    for (const TraderGood& g : s.trader_goods) {
+        out.u16(g.price);
+        out.u8(g.age);
+        out.u32(g.amount);
+    }
+    out.u32(s.trader_tools_ms);
+    out.u32(s.trader_ore_ms);
+    out.u16(s.near_island);
+    out.u16(s.source_slot);
+    const ShipMotion& m = s.motion;
+    out.u8(static_cast<std::uint8_t>(m.phase));
+    out.u8(m.count);
+    out.u32(m.elapsed_us);
+    out.u32(m.duration_us);
+    out.i32(m.from_x);
+    out.i32(m.from_y);
+    put_u8s(out, m.path);
+    out.u8(m.path_index);
+    out.u8(m.radius);
+    out.u8(m.failures);
+    out.u8(m.turn_to);
+    out.u64(m.next_follow_us);
+}
+
+Ship get_ship(StateIn& in) {
+    Ship s;
+    s.id = in.u32();
+    s.name = in.string();
+    s.pos_x = in.i32();
+    s.pos_y = in.i32();
+    s.x = static_cast<std::uint16_t>(std::max(0, s.pos_x / kShipUnit));
+    s.y = static_cast<std::uint16_t>(std::max(0, s.pos_y / kShipUnit));
+    s.figure = in.u16();
+    s.owner = in.u8();
+    s.direction = static_cast<std::uint8_t>(in.u8() & 7U);
+    s.health = in.u32();
+    s.cannons = in.u8();
+    s.cargo.resize(in.count(7));
+    for (CargoSlot& c : s.cargo) {
+        c.ware = in.u8();
+        c.amount = in.u32();
+        c.price = in.u16();
+    }
+    for (RouteStop& stop : s.route.stops) {
+        stop.target = get_target(in);
+        for (RouteEntry& e : stop.entries) {
+            e.ware = in.u8();
+            e.unload = in.boolean();
+            e.amount = in.u32();
+        }
+    }
+    s.route.current = static_cast<std::uint8_t>(in.u8() % TradeRoute::kStops);
+    s.route.active = in.boolean();
+    s.route.one_way = in.boolean();
+    s.route.problem = in.boolean();
+    s.route.problem_rounds = in.u8();
+    s.target = get_target(in);
+    s.order = get_target(in);
+    s.previous = get_target(in);
+    s.held = in.boolean();
+    s.repairing = in.boolean();
+    s.for_sale = in.boolean();
+    s.sale_factor = in.u16();
+    s.trader = in.boolean();
+    s.trader_goods.resize(in.count(7));
+    for (TraderGood& g : s.trader_goods) {
+        g.price = in.u16();
+        g.age = in.u8();
+        g.amount = in.u32();
+    }
+    s.trader_tools_ms = in.u32();
+    s.trader_ore_ms = in.u32();
+    s.near_island = in.u16();
+    s.source_slot = in.u16();
+    ShipMotion& m = s.motion;
+    const std::uint8_t phase = in.u8();
+    if (phase > static_cast<std::uint8_t>(ShipMotion::Phase::Wait)) {
+        in.fail();
+    }
+    m.phase = static_cast<ShipMotion::Phase>(phase);
+    m.count = in.u8();
+    m.elapsed_us = in.u32();
+    m.duration_us = in.u32();
+    m.from_x = in.i32();
+    m.from_y = in.i32();
+    m.path.resize(in.count(1));
+    for (std::uint8_t& c : m.path) {
+        c = in.u8();
+    }
+    m.path_index = in.u8();
+    m.radius = in.u8();
+    m.failures = in.u8();
+    m.turn_to = in.u8();
+    m.next_follow_us = in.u64();
+    return s;
+}
+
+void write_fleet(Out& out, const World& w) {
+    out.u32(w.next_ship_id());
+    out.u32(static_cast<std::uint32_t>(w.islands().size()));
+    for (const WorldIsland& i : w.islands()) {
+        out.u8(i.header.number);
+        out.u32(static_cast<std::uint32_t>(i.discovered.size()));
+        for (const bool d : i.discovered) {
+            out.boolean(d);
+        }
+    }
+    out.u32(static_cast<std::uint32_t>(w.cities().size()));
+    for (const City& c : w.cities()) {
+        out.u16(c.island);
+        out.u8(c.index);
+        out.u32(static_cast<std::uint32_t>(c.trade.size()));
+        for (const City::Trade& t : c.trade) {
+            out.boolean(t.sell);
+            out.boolean(t.buy);
+            out.u16(t.sell_price);
+            out.u16(t.buy_price);
+            out.u32(t.keep);
+            out.u32(t.limit);
+        }
+        put_u32s(out, c.goodwill);
+        out.boolean(c.trader_inbound);
+    }
+    out.u32(static_cast<std::uint32_t>(w.cost_buildings().size()));
+    for (const CostBuilding& b : w.cost_buildings()) {
+        out.u8(b.order);
+        out.u32(b.progress);
+        out.u32(b.wood);
+        out.u32(b.cloth);
+        out.u8(b.rate);
+        out.u16(b.countdown);
+        out.u32(b.repair_ship);
+        out.u8(b.failed_launches);
+        out.u8(b.idle_cycles);
+        out.boolean(b.fetching);
+    }
+    out.u32(static_cast<std::uint32_t>(w.ships().size()));
+    for (const Ship& s : w.ships()) {
+        put_ship(out, s);
+    }
+}
+
+Decoded::FleetPart read_fleet(StateIn& in) {
+    Decoded::FleetPart f;
+    f.next_ship_id = in.u32();
+    f.discovered.resize(in.count(5));
+    for (auto& [number, players] : f.discovered) {
+        number = in.u8();
+        players.resize(in.count(1));
+        for (std::size_t p = 0; p < players.size(); ++p) {
+            players[p] = in.boolean();
+        }
+    }
+    f.cities.resize(in.count(12));
+    for (auto& c : f.cities) {
+        c.island = in.u16();
+        c.index = in.u8();
+        c.trade.resize(in.count(14));
+        for (City::Trade& t : c.trade) {
+            t.sell = in.boolean();
+            t.buy = in.boolean();
+            t.sell_price = in.u16();
+            t.buy_price = in.u16();
+            t.keep = in.u32();
+            t.limit = in.u32();
+        }
+        c.goodwill.resize(in.count(4));
+        for (std::uint32_t& g : c.goodwill) {
+            g = in.u32();
+        }
+        c.trader_inbound = in.boolean();
+    }
+    f.yards.resize(in.count(23));
+    for (CostBuilding& b : f.yards) {
+        b.order = in.u8();
+        b.progress = in.u32();
+        b.wood = in.u32();
+        b.cloth = in.u32();
+        b.rate = in.u8();
+        b.countdown = in.u16();
+        b.repair_ship = in.u32();
+        b.failed_launches = in.u8();
+        b.idle_cycles = in.u8();
+        b.fetching = in.boolean();
+    }
+    f.ships.resize(in.count(40));
+    for (Ship& s : f.ships) {
+        s = get_ship(in);
+    }
+    return f;
 }
 
 void write_soldiers(Out& out, const World& w) {
@@ -781,10 +1066,11 @@ std::vector<Ship> read_ships(StateIn& in) {
         s.owner = in.u8();
         s.direction = in.u8();
         s.cargo.resize(in.count(5));
-        for (Ship::Cargo& c : s.cargo) {
+        for (CargoSlot& c : s.cargo) {
             c.ware = in.u8();
             c.amount = in.u32();
         }
+        s.place(s.x, s.y);
     }
     return list;
 }
@@ -931,7 +1217,7 @@ core::Status check(const World& w, const Decoded& d) {
             }
         }
     }
-    if (d.world && d.world->randoms.size() != static_cast<std::size_t>(RandomStream::Count)) {
+    if (d.world && d.world->randoms.size() > static_cast<std::size_t>(RandomStream::Count)) {
         return bad("random generators do not match");
     }
     return core::Ok{};
@@ -974,6 +1260,7 @@ core::Bytes encode_extension(const World& world, const assets::BuildingTable& bu
     section(out, kAnimals, [&](Out& o) { write_animals(o, world); });
     section(out, kDisasters, [&](Out& o) { write_disasters(o, world); });
     section(out, kVolcanoes, [&](Out& o) { write_volcanoes(o, world); });
+    section(out, kFleet, [&](Out& o) { write_fleet(o, world); });
     if (simulation != nullptr) {
         section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
     } else if (!world.simulation_state().empty()) {
@@ -1054,6 +1341,9 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
             case kShips:
                 d.ships = read_ships(in);
                 break;
+            case kFleet:
+                d.fleet = read_fleet(in);
+                break;
             case kSoldiers:
                 d.soldiers = read_soldiers(in);
                 break;
@@ -1128,6 +1418,13 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         world.set_players(std::move(*d.players));
     }
     if (d.cities) {
+        // Files of an earlier version have no trade settings: those of the original's chunks stay.
+        for (City& c : *d.cities) {
+            if (const City* old = world.city(c.island, c.index)) {
+                c.trade = old->trade;
+                c.goodwill = old->goodwill;
+            }
+        }
         world.set_cities(std::move(*d.cities));
     }
     if (d.productions) {
@@ -1140,10 +1437,60 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         world.growth().entries = std::move(*d.growth);
     }
     if (d.costs) {
+        // The shipyard fields of files of an earlier version come from WERFT.
+        for (CostBuilding& b : *d.costs) {
+            for (const CostBuilding& old : world.cost_buildings()) {
+                if (old.kind == b.kind && old.island == b.island && old.x == b.x && old.y == b.y) {
+                    const bool enabled = b.enabled;
+                    b = old;
+                    b.enabled = enabled;
+                }
+            }
+        }
         world.cost_buildings() = std::move(*d.costs);
     }
-    if (d.ships) {
-        world.ships() = std::move(*d.ships);
+    if (d.ships && !d.fleet && d.ships->size() != world.ships().size()) {
+        // Files of an earlier version: the ships of SHIP4 are the same ones with more fields;
+        // only a different number replaces them.
+        world.ships().clear();
+        for (Ship& ship : *d.ships) {
+            world.add_ship(std::move(ship));
+        }
+    }
+    if (d.fleet) {
+        world.set_next_ship_id(d.fleet->next_ship_id);
+        for (const auto& [number, players] : d.fleet->discovered) {
+            if (const auto i = world.island_index(number)) {
+                world.island(*i).discovered = players;
+            }
+        }
+        for (auto& c : d.fleet->cities) {
+            if (City* city = world.city(c.island, c.index)) {
+                city->trade = std::move(c.trade);
+                city->goodwill = std::move(c.goodwill);
+                city->trader_inbound = c.trader_inbound;
+            }
+        }
+        if (d.fleet->yards.size() == world.cost_buildings().size()) {
+            for (std::size_t i = 0; i < d.fleet->yards.size(); ++i) {
+                CostBuilding& b = world.cost_buildings()[i];
+                const CostBuilding& y = d.fleet->yards[i];
+                b.order = y.order;
+                b.progress = y.progress;
+                b.wood = y.wood;
+                b.cloth = y.cloth;
+                b.rate = y.rate;
+                b.countdown = y.countdown;
+                b.repair_ship = y.repair_ship;
+                b.failed_launches = y.failed_launches;
+                b.idle_cycles = y.idle_cycles;
+                b.fetching = y.fetching;
+            }
+        }
+        world.ships() = std::move(d.fleet->ships);
+        for (const Ship& ship : world.ships()) {
+            world.set_next_ship_id(std::max(world.next_ship_id(), ship.id + 1));
+        }
     }
     if (d.soldiers) {
         world.set_soldiers(std::move(*d.soldiers));

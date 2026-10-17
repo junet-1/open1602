@@ -70,6 +70,7 @@ enum class RandomStream : std::uint8_t {
     Pirates,       ///< what pirates take
     Construction,  ///< random bits of new buildings (house timer group, growth class), ruins
     Islands,       ///< droughts and the fields they wither
+    Ships,         ///< courses, the free trader, ship names
     Count,
 };
 

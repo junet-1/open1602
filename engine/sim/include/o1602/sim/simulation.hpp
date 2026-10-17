@@ -24,13 +24,15 @@
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
+#include "o1602/sim/ships.hpp"
 #include "o1602/sim/volcanoes.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
 
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
-using Command = std::variant<BuildOrder, DemolishOrder>;
+using Command =
+    std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting, ShipyardOrder>;
 
 /// What became of a command.
 struct CommandResult {
@@ -38,6 +40,8 @@ struct CommandResult {
     std::optional<BuildPlan> build;  ///< build orders: what was built and why the rest was not
     std::size_t demolished = 0;      ///< demolish orders: buildings removed
     BuildBill refund;                ///< demolish orders: what came back (Rules::demolish_refund)
+    bool accepted = false;           ///< ship, route, trade and shipyard orders: carried out
+    std::uint32_t moved = 0;         ///< cargo transfers: goods moved, 1/32 t
 };
 
 class Simulation {
@@ -80,6 +84,12 @@ public:
     [[nodiscard]] const Rules& rules() const noexcept { return m_rules; }
     /// Carriers and carts on their way.
     [[nodiscard]] const Logistics& logistics() const noexcept { return m_logistics; }
+    /// Ships, the free trader and shipyards.
+    [[nodiscard]] const Fleet& fleet() const noexcept { return m_fleet; }
+    /// What happened to ships since the last call.
+    [[nodiscard]] std::vector<ShipEvent> take_ship_events();
+    /// Names for new ships (Text.cod [SHIPS]).
+    void set_ship_names(std::vector<std::string> names) { m_fleet.set_ship_names(std::move(names)); }
 
     /// Production events since the last call (floating texts, animation phases, later logistics).
     [[nodiscard]] std::vector<ProductionEvent> take_production_events();
@@ -123,6 +133,8 @@ private:
     std::uint32_t m_upkeep_ms = 0;  ///< game time since the military upkeep was last paid
     std::uint32_t m_island_ms = 0;  ///< game time since the last island epoch
     Logistics m_logistics;
+    Fleet m_fleet;
+    std::vector<ShipEvent> m_ship_events;
     std::deque<std::pair<std::uint64_t, Command>> m_commands;
     std::uint64_t m_next_command = 1;
     std::vector<CommandResult> m_command_results;

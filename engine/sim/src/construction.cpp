@@ -738,8 +738,8 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
     const assets::BuildingTable::Materials& m = buildings.materials();
     BuildBill available;
     if (order.ship) {
-        if (*order.ship < world.ships().size()) {
-            const Ship& ship = world.ships()[*order.ship];
+        if (const Ship* found = world.ship(*order.ship)) {
+            const Ship& ship = *found;
             available.tools = ship.load(m.tools);
             available.wood = ship.load(m.wood);
             available.bricks = ship.load(m.bricks);
@@ -842,7 +842,7 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
             }
             if (refusal == BuildRefusal::None && order.ship) {
                 // The ship lies within the circle of radius 16 around the footprint.
-                const Ship* ship = *order.ship < world.ships().size() ? &world.ships()[*order.ship] : nullptr;
+                const Ship* ship = world.ship(*order.ship);
                 const Footprint f = footprint_of(*type, item.x, item.y, out.rotation);
                 const std::int32_t sx =
                     ship != nullptr ? static_cast<std::int32_t>(ship->x) - static_cast<std::int32_t>(island.x) : -1000;
@@ -1822,10 +1822,10 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
     }
     // Pay what was built: goods from the city (or the ship), gold from the player.
     const assets::BuildingTable::Materials& m = buildings.materials();
-    if (order.ship && *order.ship < world.ships().size()) {
-        Ship& ship = world.ships()[*order.ship];
+    if (Ship* found = order.ship ? world.ship(*order.ship) : nullptr) {
+        Ship& ship = *found;
         const auto take = [&](std::uint8_t ware, std::uint32_t amount) {
-            for (Ship::Cargo& c : ship.cargo) {
+            for (CargoSlot& c : ship.cargo) {
                 if (amount == 0) {
                     break;
                 }
@@ -1833,9 +1833,11 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
                     const std::uint32_t t = std::min(c.amount, amount);
                     c.amount -= t;
                     amount -= t;
+                    if (c.amount == 0) {
+                        c.ware = 0;
+                    }
                 }
             }
-            std::erase_if(ship.cargo, [](const Ship::Cargo& c) { return c.amount == 0; });
         };
         take(m.tools, plan.bill.tools);
         take(m.wood, plan.bill.wood);

@@ -48,6 +48,8 @@ struct IslandHeader {
     /// natives that turns into a drought at the next island epoch (island +0x44 bit 5).
     std::uint8_t drought_strength = 0;
     std::uint32_t drought_end = 0;
+    /// INSEL5 +0x68: bit p = player slot p has discovered the island (island +0x43, 0x00468740).
+    std::uint32_t discovered = 0;
     bool curse_pending = false;
     /// Volcano craters (docs/re/volcanoes.md): INSEL5 +0x17 count (at most 2), entries of 8 bytes
     /// at +0x3C (island record +0x30): [1] x, [2] y = origin of the volcano mountain, [6..7] lava

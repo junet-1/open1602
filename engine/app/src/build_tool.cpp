@@ -122,7 +122,7 @@ std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, s
             const std::int64_t d = std::abs(s.x - wx) + std::abs(s.y - wy);
             if (best < 0 || d < best) {
                 best = d;
-                order.ship = i;
+                order.ship = s.id;
             }
         }
         const sim::MapCell& cell =

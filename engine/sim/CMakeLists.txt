@@ -16,6 +16,10 @@ add_library(o1602_sim
     src/savegame_writer.cpp
     src/world_generator.cpp
     src/new_game.cpp
+    src/sea_paths.cpp
+    src/ships.cpp
+    src/trader.cpp
+    src/shipyards.cpp
     src/player.cpp
     src/production_cycle.cpp
     src/simulation.cpp

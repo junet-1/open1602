@@ -101,6 +101,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_local_player = sim::first_human_player(viewer->m_world);
     if (auto texts = assets::TextTable::load(game)) {
         viewer->m_simulation.set_city_names(texts->section("STAEDTE"));
+        viewer->m_simulation.set_ship_names(texts->section("SHIPS"));
     }
     viewer->m_soldiers.reset(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
@@ -266,20 +267,29 @@ void MapViewer::handle_event(const SDL_Event& original) {
             m_mouse_y = event.motion.y;
             if (m_dragging) {
                 m_camera.scroll(-event.motion.xrel, -event.motion.yrel);
+                m_drag_distance +=
+                    std::abs(static_cast<double>(event.motion.xrel)) + std::abs(static_cast<double>(event.motion.yrel));
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = true;
+                m_drag_distance = 0.0;
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.active()) {
                 if (const auto spot = spot_at_mouse()) {
                     m_tool.press(*spot);
                 }
+            } else if (event.button.button == SDL_BUTTON_LEFT) {
+                select_ship_at_mouse();
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = false;
+                // A right click (not a drag) sends the selected ship there, as in the original.
+                if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && m_selected_ship != 0) {
+                    order_ship_to_mouse();
+                }
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
                 if (const auto spot = spot_at_mouse()) {
                     if (auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
@@ -301,6 +311,65 @@ void MapViewer::handle_event(const SDL_Event& original) {
         default:
             break;
     }
+}
+
+void MapViewer::select_ship_at_mouse() {
+    m_selected_ship = 0;
+    const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y);
+    if (!tile) {
+        return;
+    }
+    // The hull stands above its tile: a click on it lands a tile or two further north.
+    std::int32_t best = 3;
+    for (const sim::Ship& s : m_world.ships()) {
+        const std::int32_t dx = static_cast<std::int32_t>(s.x) - static_cast<std::int32_t>(tile->x);
+        const std::int32_t dy = static_cast<std::int32_t>(s.y) - static_cast<std::int32_t>(tile->y);
+        const std::int32_t d = std::max(std::abs(dx), std::abs(dy));
+        if (d < best) {
+            best = d;
+            m_selected_ship = s.id;
+        }
+    }
+}
+
+void MapViewer::order_ship_to_mouse() {
+    const sim::Ship* ship = m_world.ship(m_selected_ship);
+    const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y);
+    if (ship == nullptr || !tile || ship->owner != m_local_player) {
+        return;
+    }
+    sim::ShipTarget target =
+        sim::ShipTarget::position(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y));
+    // On a Kontor: its city; next to another ship: that ship.
+    const auto& cell = m_world.cell(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y));
+    if (cell.island != sim::World::kSea) {
+        for (const sim::City& c : m_world.cities()) {
+            if (c.island != cell.island || !c.warehouse_x || !c.warehouse_y) {
+                continue;
+            }
+            const auto& isl = m_world.islands()[cell.island];
+            const sim::MapCell& top = isl.map.top(*c.warehouse_x, *c.warehouse_y);
+            const assets::BuildingType* b = m_buildings.by_sprite(top.sprite);
+            std::uint32_t w = 1;
+            std::uint32_t h = 1;
+            if (b != nullptr) {
+                sim::rotated_size(*b, top.rotation, w, h);
+            }
+            if (cell.local_x >= *c.warehouse_x && cell.local_x < *c.warehouse_x + w && cell.local_y >= *c.warehouse_y &&
+                cell.local_y < *c.warehouse_y + h) {
+                target = sim::ShipTarget::city_of(c.island, c.index);
+            }
+        }
+    } else {
+        for (const sim::Ship& s : m_world.ships()) {
+            if (s.id != ship->id &&
+                std::abs(static_cast<std::int32_t>(s.x) - static_cast<std::int32_t>(tile->x)) <= 1 &&
+                std::abs(static_cast<std::int32_t>(s.y) - static_cast<std::int32_t>(tile->y)) <= 1) {
+                target = sim::ShipTarget::other_ship(s.id);
+            }
+        }
+    }
+    m_simulation.submit(sim::ShipOrder{m_local_player, ship->id, target});
 }
 
 void MapViewer::zoom_by(int steps, double sx, double sy) {
@@ -772,6 +841,23 @@ void MapViewer::update_title(double fps) {
                 title += ", " + player_label(*p, top.owner, m_banners);
             }
             title += ")";
+        }
+    }
+    if (const sim::Ship* ship = m_world.ship(m_selected_ship)) {
+        title += " | ship " + ship->name;
+        if (const sim::Player* p = m_world.player(ship->owner)) {
+            title += " (" + player_label(*p, ship->owner, m_banners) + ")";
+        }
+        char info[64];
+        std::snprintf(info, sizeof info, " %.1f tiles/s", m_simulation.fleet().speed_milli(*ship) / 1000.0);
+        title += info;
+        for (const sim::CargoSlot& c : ship->cargo) {
+            if (c.ware != 0) {
+                title += ", " + std::to_string(c.amount / 32) + " t #" + std::to_string(c.ware);
+            }
+        }
+        if (ship->route.active) {
+            title += ", trade route";
         }
     }
     if (m_tool.active()) {

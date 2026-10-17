@@ -42,6 +42,29 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
         if (const cod::Field* work = r.field("Worktime"); work != nullptr && !work->values.empty()) {
             f.work_time_ms = static_cast<std::uint32_t>(std::max(0.0, work->values[0].real * 1000.0 + 0.5));
         }
+        const auto seconds_ms = [&](const char* key) -> std::uint32_t {
+            const cod::Field* field = r.field(key);
+            return field != nullptr && !field->values.empty()
+                       ? static_cast<std::uint32_t>(std::max(0.0, field->values[0].real * 1000.0 + 0.5))
+                       : 0U;
+        };
+        const auto tons = [&](const char* key) -> std::uint32_t {
+            const cod::Field* field = r.field(key);
+            return field != nullptr && !field->values.empty()
+                       ? static_cast<std::uint32_t>(std::max(0.0, field->values[0].real * kStockUnitsPerTon))
+                       : 0U;
+        };
+        f.ship.cargo_slots = static_cast<std::uint8_t>(std::clamp(r.integer("Maxware"), 0, 255));
+        f.ship.max_cannons = static_cast<std::uint8_t>(std::clamp(r.integer("Maxkanon"), 0, 255));
+        f.ship.max_health = tons("Maxenergy");
+        f.ship.hit = tons("Hitpoint");
+        f.ship.shot_radius = static_cast<std::uint32_t>(std::max(0, r.integer("Shotradius")));
+        f.ship.shot_ms = seconds_ms("Shottime");
+        f.ship.turn_ms = seconds_ms("Drehtime");
+        f.ship.sink_ms = seconds_ms("Stirbtime");
+        f.ship.price = static_cast<std::uint32_t>(std::max(0, r.integer("Preis")));
+        f.ship.build_ware = static_cast<std::uint8_t>(std::clamp(r.integer("Rohstoff"), 0, 255));
+        f.ship.build_amount = tons("Rohmenge");
         if (const cod::Field* fahn = r.field("Fahnoffs")) {
             for (std::size_t i = 0; i < f.fahnoffs.size() && i < fahn->values.size(); ++i) {
                 f.fahnoffs[i] = fahn->values[i].real;

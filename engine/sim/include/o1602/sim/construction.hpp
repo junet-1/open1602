@@ -88,8 +88,8 @@ struct BuildOrder {
     PlayerId player = kNoPlayer;
     std::uint16_t island = 0;  ///< index into World::islands()
     std::vector<BuildItem> items;
-    /// Founding from a ship (index into World::ships()): its cargo pays the goods.
-    std::optional<std::size_t> ship;
+    /// Founding from a ship (Ship::id): its cargo pays the goods.
+    std::optional<std::uint32_t> ship;
     /// Turns buildings with a door towards the nearest road within 4 tiles (the original's
     /// "Automatische Ausrichtung zur Straße").
     bool orient_to_road = true;

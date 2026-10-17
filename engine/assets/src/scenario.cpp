@@ -92,12 +92,71 @@ core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file) {
             const std::size_t at = o + 0x174 + 8 * c;
             const std::uint16_t producer = read_u16(data, at);
             if (producer != 0) {
-                s.cargo[c] = ShipRecord::Cargo{std::uint32_t{producer} + 20000U, read_u16(data, at + 2)};
+                s.cargo[c] = ShipRecord::Cargo{std::uint32_t{producer} + 20000U,
+                                               static_cast<std::uint16_t>(read_u16(data, at + 2) & 0x3FFFU),
+                                               static_cast<std::uint16_t>(read_u16(data, at + 4) & 0x3FFU)};
+            }
+        }
+        s.slot = read_u16(data, o + 0x46);
+        s.kind = data[o + 0x4A];
+        s.health = read_u16(data, o + 0x3C);
+        s.cannons = data[o + 0x42];
+        s.flags = data[o + 0x43];
+        s.sale_factor = read_u16(data, o + 0x44);
+        s.trader = data[o + 0x4C];
+        s.route_stop = data[o + 0x4F];
+        s.order = read_u32(data, o + 0x2C);
+        s.target = read_u32(data, o + 0x30);
+        s.previous = read_u32(data, o + 0x34);
+        for (std::size_t r = 0; r < s.route.size(); ++r) {
+            const std::size_t at = o + 0x52 + 0x24 * r;
+            s.route[r].ref = read_u32(data, at);
+            for (std::size_t e = 0; e < 3; ++e) {
+                const std::size_t ea = at + 4 + 8 * e;
+                const std::uint16_t producer = read_u16(data, ea);
+                s.route[r].entries[e] = ShipRecord::RouteEntry{producer != 0 ? std::uint32_t{producer} + 20000U : 0U,
+                                                               read_u16(data, ea + 2), (data[ea + 4] & 1U) != 0};
             }
         }
         ships.push_back(std::move(s));
     }
     return ships;
+}
+
+core::Result<std::vector<TraderRecord>> load_traders(const ChunkFile& file) {
+    constexpr std::size_t kSize = 0x25C;
+    constexpr std::size_t kGoods = 50;
+    std::vector<TraderRecord> traders;
+    const Chunk* chunk = file.find("HANDLER");
+    if (chunk == nullptr) {
+        return traders;
+    }
+    const auto data = file.payload(*chunk);
+    if (data.size() % kSize != 0) {
+        return make_error(ErrorCode::InvalidFormat, "HANDLER size is not a multiple of 0x25C");
+    }
+    for (std::size_t o = 0; o < data.size(); o += kSize) {
+        if (data[o] == 0) {
+            continue;  // free record
+        }
+        TraderRecord t;
+        t.ship_slot = read_u16(data, o + 1);
+        t.index = data[o + 3];
+        for (std::size_t g = 0; g < kGoods; ++g) {
+            const std::size_t at = o + 4 + 12 * g;
+            const std::uint32_t a = read_u32(data, at);
+            const std::uint32_t b = read_u32(data, at + 4);
+            const std::uint16_t producer = read_u16(data, at + 8);
+            if (producer == 0) {
+                continue;
+            }
+            t.goods.push_back(TraderRecord::Good{std::uint32_t{producer} + 20000U,
+                                                 static_cast<std::uint16_t>(a & 0x3FFU),
+                                                 static_cast<std::uint8_t>((a >> 10) & 0x1FU), b});
+        }
+        traders.push_back(std::move(t));
+    }
+    return traders;
 }
 
 core::Result<std::optional<ScenarioPlan>> load_scenario_plan(const ChunkFile& file) {

@@ -118,15 +118,32 @@ bei Schiff + 4), die Position, Richtung und Figurnummer trägt.
 | 0x000 | char[28] | Name |
 | 0x01C | u16 | x (Weltfeld): Gleitkomma-Position der Anzeigefigur (+0x28), abgeschnitten |
 | 0x01E | u16 | y (Weltfeld), ebenso (+0x2C) |
+| 0x024 | u16 | Schiff + 0x1AE (offen) |
+| 0x02C | u32 | **befohlenes Ziel** (Verweis, [ships.md](../re/ships.md#daten)) |
+| 0x030 | u32 | **aktuelles Ziel** (Verweis) |
+| 0x034 | u32 | **letztes Ziel** (Verweis, z. B. das Kontor, das der Händler zuletzt besucht hat) |
+| 0x03C | u16 | **Lebenspunkte** in 1/32 |
+| 0x03E | u16 | Schiff + 0x1AC (offen) |
+| 0x040 | u8 | Zähler, bei jedem Stationswechsel um 1 vermindert |
+| 0x041 | u8 | Planungsradius (0x50) |
+| 0x042 | u8 | **Kanonen** an Bord |
+| 0x043 | u8 | Schalter: Bit 1 Handelsroute an, Bit 3 Einbahnroute, Bit 2 zum Verkauf, Bit 4 in Reparatur, Bit 0 Merker der Oberfläche |
+| 0x044 | u16 | Verkaufspreis in 1/128 des Preises (0 = 100 %) |
 | 0x046 | u16 | laufende Nummer (Platz in der Schiffstabelle) |
 | 0x048 | u16 | Figurnummer (HANDEL1 = 21, HANDEL2 = 23, KRIEG1 = 25, KRIEG2 = 27, HANDLER = 29, PIRAT = 31) |
-| 0x04A | u8 | Figurart (Byte 0 der Anzeigefigur: 1–3 Schiffe, 5 …) |
+| 0x04A | u8 | Figurart: 1 Schiff, 2 freier Händler, 3 Pirat, 5 Händlerkarren an Land (benutzt die Schiffstabelle) |
 | 0x04B | u8 | Besitzer (Platz in PLAYER4, 7 = niemand) |
-| 0x04C | u8 | Schiff + 0x1A3 (bei den Händlerschiffen 0, 1, 2 … – Platz im Verband?) |
+| 0x04C | u8 | Datensatz des freien Händlers in `HANDLER` |
 | 0x04D | u8 | **Insel an der Schiffsposition** (`0x0046A570`, z. B. am Kontor), 0xFF = offenes Meer |
+| 0x04F | u8 | **aktuelle Station** der Handelsroute |
 | 0x050 | u8 | **Richtung 0–7** (Byte 3 der Anzeigefigur, 45°-Schritte) |
-| 0x052… | | vier Gruppen à 0x24 Byte (Handelsroute?) |
-| 0x174 | 8 × 8 Byte | **Ladung**: u16 Ware als Id des Erzeugers − 20000 (wie `KONTOR2`), u16 Menge in 1/32 t, 4 Byte frei; leerer Platz = 0 |
+| 0x052 + 0x24·s | | **Handelsroute**, 4 Stationen: u32 Verweis, dann 3 × (u16 Ware als Id des Erzeugers − 20000, u16 Menge in 1/32 t, u8 Bit 0 abliefern), Rest frei |
+| 0x174 | 8 × 8 Byte | **Ladung**: u16 Ware als Id des Erzeugers − 20000 (Soldaten: Ware + 9876), u16 Bits 0–13 Menge in 1/32 t, u32 Bits 0–9 **Durchschnittspreis** je Tonne; leerer Platz = Ware 0 |
+
+`HANDLER` (0x25C Byte je Händlerschiff): Byte 0 belegt, Bytes 1–2 Platz des Schiffs, Byte 3 Nummer des
+Datensatzes; ab +4 50 Einträge zu 12 Byte (u32 Bits 0–9 Durchschnittspreis, Bits 10–14 Alter in
+Besuchen; u32 Menge in 1/32 t; u16 Ware als Id des Erzeugers − 20000), belegt sind die ersten 25 in der
+Reihenfolge der Waren.
 
 > Korrektur: Eine frühere Fassung hielt Byte 0x04D für die Richtung. Es ist die Insel, an der das
 > Schiff liegt. Die Richtung steht in 0x050. Aufgefallen ist das am weitergespielten Spielstand, in dem
@@ -166,14 +183,14 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `HIRSCH2` | 8 | `0x00468740` | Insel + 0x6C, 8 je Insel | Hirsche: Inselnummer, x, y, –, u32 Zeitgeber in ms (153) |
 | `PLAYER4` | 0x430 | `0x00478363` | – | Spieler (oben) |
 | `SHIP4` | 0x1B4 | `0x004600C0` | `0x004CF358`, 150 × 0x218 | Schiffe (oben, 14) |
-| `HANDLER` | 0x25C | `0x004600C0` | `0x004A0DC8`, 30 × 0xD0 | Händlerdaten: 25 Waren (Id − 20000 + 2 u32) (7) |
+| `HANDLER` | 0x25C | `0x004600C0` | `0x004A0DC8`, 30 × 0xD0 | Waren des freien Händlers je Schiff: Preis, Alter, Menge (oben, 7) |
 | `SOLDAT3` | 0x44 | `0x004600C0` | `0x0051C678`, 400 × 0x1B0 | Soldaten: Position in halben Feldern, Figur, Besitzer, Animation, Richtung ([figures.md](../re/figures.md#soldaten-im-spielstand), 9) |
 | `TURM` | 0x24 | `0x004600C0` | `0x004EDE60`, 350 × 0x118 | Türme als Figuren: Weltfeld x/y, Figur (40), Besitzer +0x18 (61, alle Piratentürme) |
 | `STADT4` | 0xA8 | `0x00485020` | Städte `0x005DBAE0`, 75 × 0x258 | Städte (unten, 20) |
 | `KONTOR2` | 0x3EC | `0x00485020` | dieselbe Städtetabelle | Warenlager einer Stadt (unten, 20) |
 | `MARKT2` | 0x104 | `0x00485020` | dieselbe Städtetabelle | Verbrauch einer Stadt: Insel, Stadt; 11 Einträge à 16 Byte: Bedarf A, Versorgung B (u32, 1/8192 t), Ware als Id − 20000, Versorgungsgrad C ([consumption.md](../re/consumption.md)) (20) |
 | `PRODLIST2` | 0x18 | `0x00485530` | `0x0054A3B8`, 4144 × 0x14 | Produktionsbetriebe und Kontore am Ursprungsfeld: Zustand, Lager, Fortschritt (unten, 126) |
-| `WERFT` | 0x18 | `0x00485530` | `0x005A6C18`, 160 × 0x12 | Werften: Insel, x, y, Bauauftrag (1) |
+| `WERFT` | 0x18 | `0x00485530` | `0x005A6C18`, 160 × 0x12 | Werften: Insel, x, y, Bit 27 eingeschaltet; +4 Sekunden bis zum Taktende, +6 Auftrag (Schiffsart 0–3, 0xFF keiner), +8 Baupunkte, +0x0A Holz, +0x0C Schiff in Reparatur (0xFFFF keins) ([ships.md](../re/ships.md#werft)) (1) |
 | `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | Militärgebäude: Insel, x, y, 9 Plätze (3) |
 | `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | Wohnhäuser: Insel, x, y, Epochen, Klasse, Marktentfernung, Einwohner · 64, Zeitgruppe, Markt- und Dienstbits ([houses.md](../re/houses.md)) (132) |
 | `ROHWACHS2` | 8 | `0x00485C20` | `0x00562DC8`, 32860 × 8 | Wachstum von Feldern, Bäumen, Plantagen, Fischgründen: Insel, x, y, Klasse, gesehener Zählerstand, Stufe, 2 Byte 0 ([growth.md](../re/growth.md)) |
@@ -219,9 +236,9 @@ Ein Warenplatz (20 Byte):
 
 | Offset | Inhalt |
 |---|---|
-| +0x00 | u32 Bitfeld: Bits 0–9, 10–19, Bit 20, Bit 21 (Verkauf/Ankauf? Bei Eingeborenen gesetzt) |
-| +0x04 | u16 (Stadt + 0x24 + 12 · i) |
-| +0x08 | u16, u16 (Stadt + 0x26/0x28; z. B. 320 = 10 t?) |
+| +0x00 | u32: Bits 0–9 **Verkaufspreis** je Tonne, 10–19 **Kaufpreis**, Bit 20 verkauft, Bit 21 kauft ([ships.md](../re/ships.md#handel-am-kontor)) |
+| +0x04 | u16 für Träger reserviert (Stadt + 0x24 + 12 · i; der Lader überliest es) |
+| +0x08 | u16 **Untergrenze** beim Verkauf, u16 **Obergrenze** beim Kauf, in 1/32 t (Stadt + 0x26/0x28) |
 | +0x0C | u16 **Bestand in 1/32 t**: Lemonhall 817 Nahrung (25,5 t), 400 Stoffe (12,5 t), 32 Werkzeug (1 t), 800 Ziegel (25 t), Holz 0 – im laufenden Spiel bestätigt (25 t, 12 t, 1 t, 25 t, kein Holz; das Kontor zeigt ganze Tonnen) |
 | +0x10 | u16 Ware als Id des ersten Erzeugers − 20000 (z. B. 513 → 20513 Ziegelei); daran erkennt das Spiel die Ware wieder |
 

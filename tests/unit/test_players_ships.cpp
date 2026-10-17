@@ -206,7 +206,7 @@ TEST_CASE("world renderer: ship hull, owner flag and row") {
 
     sim::World world;
     world.set_players({sim::Player{sim::PlayerRole::Human, 0, 0, ""}, sim::Player{sim::PlayerRole::Natives, 5, 0, ""}});
-    const sim::Ship ship{"Patria", 10, 20, 21, 0, 3, {}};
+    const sim::Ship ship = sim::make_ship("Patria", 10, 20, 21, 0, 3);
 
     // Original flag images for this test (the tinted generic flag is covered in test_figures).
     const auto banners = render::BannerTable::original(&figures, render::BannerOptions{true});
@@ -239,10 +239,10 @@ TEST_CASE("world renderer: ship hull, owner flag and row") {
     CHECK(s.hull.sprite == layers.ship_base + 5);
 
     // Natives have no flag; unknown figures are not drawn.
-    const sim::Ship native{"Kanu", 10, 20, 21, 1, 0, {}};
+    const sim::Ship native = sim::make_ship("Kanu", 10, 20, 21, 1, 0);
     REQUIRE(render::ship_sprites(native, world, view, layers, 0, s));
     CHECK(!s.has_flag);
-    const sim::Ship unknown{"?", 10, 20, 99, 0, 0, {}};
+    const sim::Ship unknown = sim::make_ship("?", 10, 20, 99, 0, 0);
     CHECK(!render::ship_sprites(unknown, world, view, layers, 0, s));
 }
 

@@ -664,8 +664,71 @@ void Logistics::pick_up(Walker& w) {
     w.load = clamp_u16(w.load + take);
 }
 
+std::optional<BuildingAt> Logistics::home_building(const Walker& w) const {
+    if (!w.yard) {
+        return building_of(w.home);
+    }
+    auto b = building_at(*m_world, *m_buildings, w.island, *w.yard);
+    if (b && b->origin != *w.yard) {
+        return std::nullopt;
+    }
+    return b;
+}
+
+bool Logistics::send_yard_carrier(std::uint16_t island, TilePos origin, std::uint8_t ware, std::uint16_t figure) {
+    const assets::FigureType* fig = m_figures->get(figure);
+    if (island >= m_world->islands().size() || fig == nullptr || fig->speed == 0 || fig->max_carry == 0) {
+        return false;
+    }
+    const auto hb = building_at(*m_world, *m_buildings, island, origin);
+    if (!hb || hb->origin != origin) {
+        return false;
+    }
+    const IslandMap& map = m_world->islands()[island].map;
+    m_finder.begin(map, *m_buildings, catchment_of(*hb->type, hb->rotation, hb->origin), WalkClass::Land,
+                   fig->speed_type);
+    // Goals: markets and Kontors of the yard's city, which hold the city's goods.
+    mark_goals(map, hb->city, kLastSourceKind, fig->speed_type);
+    m_finder.open_footprint(hb->origin, hb->width, hb->height);
+    Walker w;
+    w.kind = WalkerKind::Carrier;
+    w.island = island;
+    w.figure = figure;
+    w.city = hb->city;
+    w.home = kNoHome;
+    w.yard = origin;
+    w.home_tile = door_tile(*hb);
+    w.ware = ware;
+    w.tile = w.home_tile;
+    const auto max = clamp_u16(fig->max_carry);
+    const auto min = static_cast<std::uint16_t>(std::min<std::uint32_t>(max / 2U, kMaxCarrierMinimum));
+    const auto hit = m_finder.search(w.tile, [&](TilePos t) {
+        const auto at = building_at(*m_world, *m_buildings, island, t);
+        if (!at || !is_storehouse(at->type->prod_kind)) {
+            return PathFinder::Answer::Reject;
+        }
+        w.reserved = reserve(*at, island, ware, min, max, w.from_warehouse, w.source);
+        if (w.reserved == 0) {
+            return PathFinder::Answer::Reject;
+        }
+        w.source_origin = at->origin;
+        return PathFinder::Answer::Accept;
+    });
+    if (!hit || !m_finder.path_to(*hit, w.path)) {
+        if (hit) {
+            Handle none;
+            w.yard.reset();  // no delivery report: the caller learns from the result
+            finish(none, w);
+        }
+        return false;
+    }
+    ++m_stats.carrier_trips;
+    launch(std::move(w));
+    return true;
+}
+
 bool Logistics::plan_home(Walker& w) {
-    const auto hb = building_of(w.home);
+    const auto hb = home_building(w);
     const assets::FigureType* fig = m_figures->get(w.figure);
     if (!hb || fig == nullptr) {
         return false;
@@ -889,6 +952,13 @@ void Logistics::mine_ore(std::uint32_t home) {
 }
 
 void Logistics::deliver(Walker& w) {
+    if (w.yard) {
+        m_yard_deliveries.push_back(YardDelivery{w.island, *w.yard, w.ware, w.load});
+        m_stats.raw_delivered += w.load;
+        w.yard.reset();
+        w.load = 0;
+        return;
+    }
     if (responds(w.kind) || w.home == kNoHome) {
         return;  // doctors and firemen bring nothing
     }
@@ -948,6 +1018,11 @@ void Logistics::building_removed(std::uint32_t production) {
 }
 
 void Logistics::finish(Handle h, Walker& w) {
+    if (w.yard) {
+        // A pack donkey that does not come back: the yard may send another one.
+        m_yard_deliveries.push_back(YardDelivery{w.island, *w.yard, w.ware, 0});
+        w.yard.reset();
+    }
     if (Walker* other = m_walkers.get(w.partner); other != nullptr && other->partner == h) {
         other->partner = Handle{};
     }
@@ -1887,9 +1962,14 @@ void put_walker(core::ByteWriter& out, const Walker& w) {
     out.u32(w.speed);
     out.u8(w.direction);
     out.u8(w.walk_speed);
+    out.boolean(w.yard.has_value());
+    if (w.yard) {
+        out.i32(w.yard->x);
+        out.i32(w.yard->y);
+    }
 }
 
-Walker get_walker(StateIn& in) {
+Walker get_walker(StateIn& in, std::uint16_t version) {
     Walker w;
     w.kind = static_cast<WalkerKind>(in.u8());
     if (static_cast<std::uint8_t>(w.kind) > static_cast<std::uint8_t>(WalkerKind::Robber)) {
@@ -1934,6 +2014,9 @@ Walker get_walker(StateIn& in) {
     w.speed = in.u32();
     w.direction = in.u8();
     w.walk_speed = in.u8();
+    if (version >= 2) {
+        w.yard = in.maybe_tile();
+    }
     return w;
 }
 
@@ -1967,7 +2050,7 @@ void Logistics::save(core::ByteWriter& out) const {
     }
 }
 
-bool Logistics::load(core::ByteReader& reader) {
+bool Logistics::load(core::ByteReader& reader, std::uint16_t version) {
     StateIn in(reader);
     std::vector<std::pair<std::optional<Walker>, std::uint32_t>> slots;
     const std::uint32_t n = in.count(5);
@@ -1976,7 +2059,7 @@ bool Logistics::load(core::ByteReader& reader) {
         const std::uint32_t generation = in.u32();
         std::optional<Walker> w;
         if (in.boolean()) {
-            w = get_walker(in);
+            w = get_walker(in, version);
         }
         slots.emplace_back(std::move(w), generation);
     }

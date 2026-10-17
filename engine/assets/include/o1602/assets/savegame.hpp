@@ -27,7 +27,9 @@ struct CityRecord {
     std::array<std::uint8_t, 5> satisfaction{};  ///< +0x78: per class, 128 = content
     std::array<std::uint8_t, 5> tax{};           ///< +0x7F: tax rate per class, 128 = normal
     std::uint8_t food_ratio = 0;                 ///< +0x86: supply of food, 128 = full
-    bool material_lock = false;                  ///< +0x04 bit 0: no building material for houses
+    /// +0x18: goodwill of natives towards each player slot (city + 0x206; 49 per entry at the start).
+    std::array<std::uint32_t, 7> goodwill{};
+    bool material_lock = false;  ///< +0x04 bit 0: no building material for houses
 
     static constexpr std::uint8_t kNoCityOwner = 7;
 };
@@ -78,6 +80,16 @@ struct WareSlot {
 
     /// Stock in 1/32 t (kStockUnitsPerTon); fixed point keeps the simulation exact (ADR 0004).
     [[nodiscard]] std::uint32_t stock() const noexcept { return raw[3] & 0xFFFFU; }
+    /// Trade settings (city ware slot +8, docs/re/ships.md): prices per ton, whether the Kontor
+    /// sells or buys the ware, the stock it keeps when selling and the stock it buys up to.
+    [[nodiscard]] std::uint16_t sell_price() const noexcept { return static_cast<std::uint16_t>(raw[0] & 0x3FFU); }
+    [[nodiscard]] std::uint16_t buy_price() const noexcept {
+        return static_cast<std::uint16_t>((raw[0] >> 10) & 0x3FFU);
+    }
+    [[nodiscard]] bool selling() const noexcept { return (raw[0] >> 20 & 1U) != 0; }
+    [[nodiscard]] bool buying() const noexcept { return (raw[0] >> 21 & 1U) != 0; }
+    [[nodiscard]] std::uint32_t keep() const noexcept { return raw[2] & 0xFFFFU; }
+    [[nodiscard]] std::uint32_t limit() const noexcept { return raw[2] >> 16; }
 };
 
 /// KONTOR2 record (0x3EC bytes, same writer): the goods of one city's warehouses.
@@ -165,6 +177,14 @@ struct CostRecord {
     std::uint8_t x = 0;
     std::uint8_t y = 0;
     bool enabled = true;
+    /// Shipyards (WERFT, docs/re/ships.md): +6 ship type ordered (0xFF none), +8 build points,
+    /// +0x0A wood in the yard (1/32 t), +4 seconds to the end of the cycle, +0x0C ship slot being
+    /// repaired (0xFFFF none).
+    std::uint8_t order = 0xFF;
+    std::uint16_t progress = 0;
+    std::uint16_t wood = 0;
+    std::uint16_t countdown = 0;
+    std::uint16_t repair = 0xFFFF;
 };
 
 struct GameState {

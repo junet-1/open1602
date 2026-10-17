@@ -72,6 +72,9 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
             c.tax[k] = r[0x7F + k];
         }
         c.food_ratio = r[0x86];
+        for (std::size_t k = 0; k < c.goodwill.size(); ++k) {
+            c.goodwill[k] = u32(r, 0x18 + 4 * k);
+        }
         c.material_lock = (r[4] & 1U) != 0;
         state.cities.push_back(std::move(c));
     });
@@ -198,7 +201,9 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
     }
     status = for_each_record(file, "WERFT", kShipyardSize, [&](std::span<const std::uint8_t> r) {
         if (r[0] != 0xFF) {
-            state.shipyards.push_back(CostRecord{r[0], r[1], r[2], ((u32(r, 0) >> 27) & 1U) != 0});
+            const auto u16 = [&](std::size_t o) { return static_cast<std::uint16_t>(r[o] | (r[o + 1] << 8)); };
+            state.shipyards.push_back(CostRecord{r[0], r[1], r[2], ((u32(r, 0) >> 27) & 1U) != 0, r[6], u16(8),
+                                                 u16(0x0A), u16(4), u16(0x0C)});
         }
     });
     if (!status) {

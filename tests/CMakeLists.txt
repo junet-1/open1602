@@ -7,6 +7,7 @@ add_executable(o1602_tests
     unit/test_island_render.cpp
     unit/test_world_render.cpp
     unit/test_players_ships.cpp
+    unit/test_ships.cpp
     unit/test_figures.cpp
     unit/test_production.cpp
     unit/test_logistics.cpp
@@ -24,6 +25,7 @@ add_executable(o1602_tests
     unit/test_units.cpp
     data/test_original_data.cpp
     data/test_new_game.cpp
+    data/test_ships_data.cpp
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render)
 o1602_set_warnings(o1602_tests)

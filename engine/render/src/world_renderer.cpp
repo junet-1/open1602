@@ -190,7 +190,11 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     // Figure position: tile centre, projected like the tiles.
     double screen_x = 0.0;
     double screen_y = 0.0;
-    project_point(view, ship.x + 0.5, ship.y + 0.5, screen_x, screen_y);
+    // Ships move between tile centres; one built without a position lies on its tile's centre.
+    const bool placed = ship.pos_x != 0 || ship.pos_y != 0;
+    const double fx = placed ? static_cast<double>(ship.pos_x) / sim::kShipUnit : ship.x + 0.5;
+    const double fy = placed ? static_cast<double>(ship.pos_y) / sim::kShipUnit : ship.y + 0.5;
+    project_point(view, fx, fy, screen_x, screen_y);
 
     // The original keeps figures at Y = y + Posoffs[1] * w/64 (0x00451CC5), each term truncated, and
     // sorts them by Y into the row loop (0x00489A60). Open1602's tile rows start one pixel lower than

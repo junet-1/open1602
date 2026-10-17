@@ -20,6 +20,7 @@
 #include "o1602/sim/production.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/rules.hpp"
+#include "o1602/sim/ship.hpp"
 #include "o1602/sim/world_generator.hpp"
 
 namespace o1602::sim {
@@ -56,6 +57,16 @@ struct WorldIsland {
     /// Volcano craters, at most two (INSEL5 +0x17/+0x3C).
     std::vector<Crater> craters{};
     bool volcano_erupted = false;  ///< a volcano of the island has erupted (for the computer players)
+    /// Players who know the island (island + 0x43): a ship of theirs came close (docs/re/ships.md).
+    std::vector<bool> discovered{};
+
+    [[nodiscard]] bool discovered_by(PlayerId p) const noexcept { return p < discovered.size() && discovered[p]; }
+    void discover(PlayerId p) {
+        if (p >= discovered.size()) {
+            discovered.resize(std::size_t{p} + 1, false);
+        }
+        discovered[p] = true;
+    }
 };
 
 /// A city: the settlement of one player on one island (STADT4 in the original).
@@ -113,6 +124,25 @@ struct City {
     std::uint16_t disasters = 0;
     /// Game time of the next check for plague, robbers and fire (city + 0x1E0, every 60-67 s).
     std::uint64_t next_event_ms = 0;
+    /// What the Kontor offers to other players' ships and the free trader, per ware (city ware
+    /// slot +2, +4, +8; docs/re/ships.md). A ware is sold or bought, not both.
+    struct Trade {
+        bool sell = false;
+        bool buy = false;
+        std::uint16_t sell_price = 0;  ///< per ton, what a visiting ship pays
+        std::uint16_t buy_price = 0;   ///< per ton, what the city pays
+        std::uint32_t keep = 0;        ///< sells only above this stock (1/32 t)
+        std::uint32_t limit = 0;       ///< buys only up to this stock (1/32 t)
+    };
+    std::vector<Trade> trade;  ///< per ware
+    /// Natives: goodwill towards each player (city + 0x206); selling to them raises it, buying
+    /// from them uses it up. Indexed by PlayerId.
+    std::vector<std::uint32_t> goodwill;
+    bool trader_inbound = false;  ///< a free trader sails here (city + 0x257 bit 1)
+
+    [[nodiscard]] const Trade* trade_of(std::uint8_t ware) const noexcept {
+        return ware < trade.size() ? &trade[ware] : nullptr;
+    }
 
     [[nodiscard]] std::uint32_t stock(std::uint8_t ware) const noexcept {
         return ware < goods.size() ? goods[ware] : 0;
@@ -249,6 +279,19 @@ struct CostBuilding {
     std::uint16_t x = 0;
     std::uint16_t y = 0;
     bool enabled = true;
+    /// Shipyards (the original's WERFT table 0x005A6C18, docs/re/ships.md): the ship being built
+    /// and the material in the yard.
+    static constexpr std::uint8_t kNoOrder = 0xFF;
+    std::uint8_t order = kNoOrder;  ///< ship type 0..3 (HANDEL1, HANDEL2, KRIEG1, KRIEG2)
+    std::uint32_t progress = 0;     ///< build points, 32 per full cycle
+    std::uint32_t wood = 0;         ///< Rohstoff in the yard, 1/32 t
+    std::uint32_t cloth = 0;        ///< Workstoff in the yard, 1/32 t (the original does not save it)
+    std::uint8_t rate = 0;          ///< of the running cycle, 128 = full
+    std::uint16_t countdown = 0;    ///< game seconds to the end of the cycle
+    std::uint32_t repair_ship = 0;  ///< Ship::id being repaired, 0 = none
+    std::uint8_t failed_launches = 0;
+    std::uint8_t idle_cycles = 0;  ///< cycles without material, at most 15
+    bool fetching = false;         ///< its pack donkey is out
 };
 
 /// A growing field, tree, meadow or fish shoal (ROHWACHS2 in the original). One growth stage of
@@ -284,30 +327,12 @@ struct Soldier {
     std::uint8_t anim = 0;       ///< ANIM index when saved
 };
 
-/// A ship on the world map. Position in whole tiles for now; the movement simulation will use
-/// fixed point coordinates (ADR 0004).
-struct Ship {
-    std::string name;
-    std::uint16_t x = 0;
-    std::uint16_t y = 0;
-    std::uint16_t figure = 0;  ///< FIGUR number (figuren.cod)
-    PlayerId owner = kNoPlayer;
-    std::uint8_t direction = 0;  ///< 0..7
-    /// Goods on board (eight slots in the original), in 1/32 t by ware number.
-    struct Cargo {
-        std::uint8_t ware = 0;
-        std::uint32_t amount = 0;
-    };
-    std::vector<Cargo> cargo;
-    /// Goods of a ware on board.
-    [[nodiscard]] std::uint32_t load(std::uint8_t ware) const noexcept {
-        std::uint32_t n = 0;
-        for (const Cargo& c : cargo) {
-            n += c.ware == ware ? c.amount : 0U;
-        }
-        return n;
-    }
-};
+class World;
+
+/// An object reference of the original files (SHIP4 targets and route stops, docs/re/ships.md):
+/// byte 0 the type (1-3 a ship by its slot, whose id is slot + 1; 0x32-0x34 a building, 0x35 a city,
+/// 0x37 a world position). Unknown types give no target.
+[[nodiscard]] ShipTarget target_from_ref(const World& world, std::uint32_t ref);
 
 /// The world map: open sea with islands placed on it (the original keeps one 4-byte cell per
 /// world tile: island number, local x, local y, colour table - see rendering.md). The size is a
@@ -353,7 +378,14 @@ public:
         return owner < m_players.size() ? &m_players[owner] : nullptr;
     }
     void set_players(std::vector<Player> players) { m_players = std::move(players); }
-    void add_ship(Ship ship) { m_ships.push_back(std::move(ship)); }
+    /// Adds a ship; one without an id gets the next free one.
+    void add_ship(Ship ship);
+    /// Ship with this id, nullptr if it is gone.
+    [[nodiscard]] const Ship* ship(std::uint32_t id) const noexcept;
+    [[nodiscard]] Ship* ship(std::uint32_t id) noexcept;
+    /// Id the next new ship gets.
+    [[nodiscard]] std::uint32_t next_ship_id() const noexcept { return m_next_ship_id; }
+    void set_next_ship_id(std::uint32_t id) noexcept { m_next_ship_id = id; }
 
     [[nodiscard]] const std::vector<City>& cities() const noexcept { return m_cities; }
     /// City `index` on island `island` (index into islands()), nullptr if there is none.
@@ -478,6 +510,7 @@ private:
     std::vector<WorldIsland> m_islands;
     std::vector<Player> m_players;
     std::vector<Ship> m_ships;
+    std::uint32_t m_next_ship_id = 1;
     std::vector<City> m_cities;
     std::vector<Animal> m_animals;
     std::vector<Soldier> m_soldiers;

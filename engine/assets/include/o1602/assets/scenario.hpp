@@ -78,10 +78,50 @@ struct ShipRecord {
     /// (like KONTOR2) and the amount in 1/32 t. Empty slots have producer 0.
     struct Cargo {
         std::uint32_t producer = 0;  ///< haeuser.cod Id (20000 + stored value), 0 = empty
-        std::uint16_t amount = 0;
+        std::uint16_t amount = 0;    ///< bits 0-13 of the second word
+        std::uint16_t price = 0;     ///< +4 bits 0-9: average price paid per ton
     };
     std::array<Cargo, 8> cargo{};
+    std::uint16_t slot = 0;         ///< +0x46: place in the ship table
+    std::uint8_t kind = 0;          ///< +0x4A: 1 ship, 2 free trader, 3 pirate, 5 land cart
+    std::uint16_t health = 0;       ///< +0x3C: in 1/32
+    std::uint8_t cannons = 0;       ///< +0x42
+    std::uint8_t flags = 0;         ///< +0x43: bit 1 route on, bit 3 one-way route, bit 2 for sale, bit 4 repair
+    std::uint16_t sale_factor = 0;  ///< +0x44: sale price factor, 128 = 100 %
+    std::uint8_t trader = 0;        ///< +0x4C: HANDLER record of a free trader
+    std::uint8_t route_stop = 0;    ///< +0x4F: current stop of the trade route
+    /// Object references (byte 0 = type: 1-3 ship, 0x32-0x34 building, 0x35 city, 0x37 position).
+    std::uint32_t order = 0;     ///< +0x2C
+    std::uint32_t target = 0;    ///< +0x30
+    std::uint32_t previous = 0;  ///< +0x34
+    /// +0x52 + 0x24 * s: the trade route, four stops of a reference and three wares.
+    struct RouteEntry {
+        std::uint32_t producer = 0;  ///< the ware as its producer's Id, 0 = none
+        std::uint16_t amount = 0;
+        bool unload = false;
+    };
+    struct RouteStop {
+        std::uint32_t ref = 0;
+        std::array<RouteEntry, 3> entries{};
+    };
+    std::array<RouteStop, 4> route{};
 };
+
+/// HANDLER chunk: the goods of the free trader's ships (0x25C bytes each).
+struct TraderRecord {
+    std::uint16_t ship_slot = 0;  ///< SHIP4 +0x46 of its ship
+    std::uint8_t index = 0;       ///< record number (SHIP4 +0x4C)
+    struct Good {
+        std::uint32_t producer = 0;  ///< the ware as its producer's Id
+        std::uint16_t price = 0;     ///< average purchase price per ton
+        std::uint8_t age = 0;        ///< visits without a change
+        std::uint32_t amount = 0;    ///< 1/32 t
+    };
+    std::vector<Good> goods;
+};
+
+/// HANDLER chunk. Files without it yield an empty list.
+core::Result<std::vector<TraderRecord>> load_traders(const ChunkFile& file);
 
 /// PLAYER4 chunk. Files without it (older formats PLAYER2/PLAYER3) yield an empty list.
 core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file);

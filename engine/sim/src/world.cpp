@@ -65,10 +65,180 @@ const City* World::city(std::uint16_t island, std::uint8_t index) const noexcept
     return nullptr;
 }
 
+void World::add_ship(Ship ship) {
+    if (ship.id == 0) {
+        ship.id = m_next_ship_id;
+    }
+    m_next_ship_id = std::max(m_next_ship_id, ship.id + 1);
+    m_ships.push_back(std::move(ship));
+}
+
+const Ship* World::ship(std::uint32_t id) const noexcept {
+    for (const Ship& s : m_ships) {
+        if (s.id == id) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
+Ship* World::ship(std::uint32_t id) noexcept {
+    for (Ship& s : m_ships) {
+        if (s.id == id) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
 namespace {
 
 constexpr std::uint64_t production_key(std::uint16_t island, std::uint16_t x, std::uint16_t y) noexcept {
     return (std::uint64_t{island} << 32) | (std::uint64_t{y} << 16) | x;
+}
+
+/// Ships get the id of their slot in the original's table plus one.
+constexpr std::uint32_t ship_id_of_slot(std::uint32_t slot) noexcept {
+    return slot + 1;
+}
+
+}  // namespace
+
+namespace {
+
+ShipTarget decode_ref(const World& world, std::uint32_t ref) {
+    const auto type = static_cast<std::uint8_t>(ref);
+    const auto b1 = static_cast<std::uint8_t>(ref >> 8);
+    const auto b2 = static_cast<std::uint8_t>(ref >> 16);
+    const auto b3 = static_cast<std::uint8_t>(ref >> 24);
+    switch (type) {
+        case 1:
+        case 2:
+        case 3:
+            return ShipTarget::other_ship(ship_id_of_slot(ref >> 16));
+        case 0x32:
+        case 0x33:
+        case 0x34:
+            if (const auto island = world.island_index(b1)) {
+                return ShipTarget::building(*island, b2, b3);
+            }
+            break;
+        case 0x35:
+            if (const auto island = world.island_index(b1)) {
+                return ShipTarget::city_of(*island, b2);
+            }
+            break;
+        case 0x37:
+            return ShipTarget::position((std::uint32_t{b1} & 0x0FU) << 8 | b2, (std::uint32_t{b1} >> 4) << 8 | b3);
+        default:
+            break;
+    }
+    return {};
+}
+
+}  // namespace
+
+ShipTarget target_from_ref(const World& world, std::uint32_t ref) {
+    ShipTarget t = decode_ref(world, ref);
+    t.raw = ref;
+    return t;
+}
+
+namespace {
+
+std::uint8_t ware_of_producer(const assets::BuildingTable& buildings, std::uint32_t producer) {
+    const assets::BuildingType* b = producer != 0 ? buildings.by_id(producer) : nullptr;
+    return b != nullptr ? b->ware : std::uint8_t{0};
+}
+
+/// SHIP4 and HANDLER: after the cities, so that route stops can name them.
+template <typename Warn>
+void load_ships(World& world, const assets::ChunkFile& file, const assets::BuildingTable& buildings, Warn&& warn) {
+    auto records = assets::load_ships(file);
+    if (!records) {
+        warn("SHIP4: " + records.error().message);
+        return;
+    }
+    auto traders = assets::load_traders(file);
+    if (!traders) {
+        warn("HANDLER: " + traders.error().message);
+    }
+    constexpr std::uint8_t kKindTrader = 2;
+    constexpr std::uint8_t kFlagRoute = 1U << 1;
+    constexpr std::uint8_t kFlagOneWay = 1U << 3;
+    constexpr std::uint8_t kFlagForSale = 1U << 2;
+    constexpr std::uint8_t kFlagRepair = 1U << 4;
+    for (const auto& s : *records) {
+        if (!world.contains(s.x, s.y)) {
+            warn("ship '" + s.name + "' outside the world map");
+            continue;
+        }
+        if (s.kind == 5) {
+            continue;  // a land trader cart borrowing the ship table, not a ship
+        }
+        Ship ship;
+        ship.id = ship_id_of_slot(s.slot);
+        if (world.ship(ship.id) != nullptr) {
+            ship.id = 0;  // a duplicate slot: the next free id
+        }
+        ship.source_slot = s.slot;
+        ship.name = s.name;
+        ship.place(s.x, s.y);
+        ship.figure = s.figure;
+        ship.owner = player_from_original(s.owner);
+        ship.direction = static_cast<std::uint8_t>(s.direction & 7U);
+        ship.health = s.health;
+        ship.cannons = s.cannons;
+        // The original keeps eight holds for every ship and uses as many as the type has.
+        ship.cargo.resize(s.cargo.size());
+        std::size_t next = 0;
+        for (const auto& c : s.cargo) {
+            // Cargo names the good by its producer, like the warehouse chunk KONTOR2.
+            const std::uint8_t ware = ware_of_producer(buildings, c.producer);
+            if (ware != 0 && c.amount != 0) {
+                if (next == ship.cargo.size()) {
+                    ship.cargo.emplace_back();
+                }
+                ship.cargo[next++] = CargoSlot{ware, c.amount, c.price};
+            }
+        }
+        ship.trader = s.kind == kKindTrader;
+        ship.route.active = (s.flags & kFlagRoute) != 0;
+        ship.route.one_way = (s.flags & kFlagOneWay) != 0;
+        ship.for_sale = (s.flags & kFlagForSale) != 0;
+        ship.repairing = (s.flags & kFlagRepair) != 0;
+        ship.sale_factor = s.sale_factor != 0 ? s.sale_factor : std::uint16_t{128};
+        ship.route.current = static_cast<std::uint8_t>(s.route_stop & 3U);
+        for (std::size_t r = 0; r < s.route.size(); ++r) {
+            RouteStop& stop = ship.route.stops[r];
+            stop.target = target_from_ref(world, s.route[r].ref);
+            for (std::size_t e = 0; e < stop.entries.size(); ++e) {
+                const auto& in = s.route[r].entries[e];
+                stop.entries[e] = RouteEntry{ware_of_producer(buildings, in.producer), in.unload, in.amount};
+            }
+        }
+        ship.order = target_from_ref(world, s.order);
+        ship.target = target_from_ref(world, s.target);
+        ship.previous = target_from_ref(world, s.previous);
+        if (ship.trader && traders) {
+            for (const auto& t : *traders) {
+                if (t.ship_slot != s.slot) {
+                    continue;
+                }
+                for (const auto& g : t.goods) {
+                    const std::uint8_t ware = ware_of_producer(buildings, g.producer);
+                    if (ware == 0) {
+                        continue;
+                    }
+                    if (ship.trader_goods.size() <= ware) {
+                        ship.trader_goods.resize(std::size_t{ware} + 1);
+                    }
+                    ship.trader_goods[ware] = TraderGood{g.price, g.age, g.amount};
+                }
+            }
+        }
+        world.add_ship(std::move(ship));
+    }
 }
 
 }  // namespace
@@ -267,26 +437,6 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     }
     world.set_players(std::move(slots));
 
-    auto ships = assets::load_ships(file);
-    if (!ships) {
-        return ships.error();
-    }
-    for (const auto& s : *ships) {
-        if (!world.contains(s.x, s.y)) {
-            warn("ship '" + s.name + "' outside the world map");
-            continue;
-        }
-        const auto direction = static_cast<std::uint8_t>(s.direction & 7U);
-        Ship ship{s.name, s.x, s.y, s.figure, player_from_original(s.owner), direction, {}};
-        for (const auto& c : s.cargo) {
-            // Cargo names the good by its producer, like the warehouse chunk KONTOR2.
-            const assets::BuildingType* producer = c.producer != 0 ? buildings.by_id(c.producer) : nullptr;
-            if (producer != nullptr && producer->ware != 0 && c.amount != 0) {
-                ship.cargo.push_back(Ship::Cargo{producer->ware, c.amount});
-            }
-        }
-        world.add_ship(std::move(ship));
-    }
     auto state = assets::load_game_state(file);
     if (!state) {
         return state.error();
@@ -311,6 +461,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         }
         city.food_ratio = c.food_ratio;
         city.material_lock = c.material_lock;
+        city.goodwill.assign(c.goodwill.begin(), c.goodwill.end());
         world.add_city(std::move(city));
     }
     for (const auto& w : state->warehouses) {
@@ -325,8 +476,14 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         for (const auto& slot : w.wares) {
             city->ensure_ware(slot.ware);
             city->goods[slot.ware] = slot.stock();
+            if (city->trade.size() <= slot.ware) {
+                city->trade.resize(std::size_t{slot.ware} + 1);
+            }
+            city->trade[slot.ware] = City::Trade{slot.selling(),   slot.buying(), slot.sell_price(),
+                                                 slot.buy_price(), slot.keep(),   slot.limit()};
         }
     }
+    load_ships(world, file, buildings, warn);
     // Houses: only on a dwelling (HAUS_PRODTYP Kind WOHNUNG); the class is the building's, as in
     // the loader of the original (0x00483EE0).
     constexpr std::int32_t kProdKindHouse = 13;
@@ -369,6 +526,11 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         island.drought.strength = island.header.drought_strength;
         island.drought.end_ms = std::uint64_t{island.header.drought_end} * 100;
         island.drought.curse_pending = island.header.curse_pending;
+        for (std::uint8_t p = 0; p < assets::kOriginalPlayerSlots; ++p) {
+            if ((island.header.discovered >> p & 1U) != 0) {
+                island.discover(p);
+            }
+        }
         // Craters: the list of the savegame, searched only for islands without one (INSEL3/4).
         constexpr std::size_t kCraterFields = 0x4C;
         if (island.header.raw.size() >= kCraterFields) {
@@ -427,7 +589,15 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             if (!island || !world.islands()[*island].map.contains(r.x, r.y)) {
                 continue;
             }
-            world.add_cost_building(CostBuilding{kind, *island, r.x, r.y, r.enabled});
+            CostBuilding b{kind, *island, r.x, r.y, r.enabled};
+            if (kind == CostBuilding::Kind::Shipyard) {
+                b.order = r.order < 4 ? r.order : CostBuilding::kNoOrder;
+                b.progress = r.progress;
+                b.wood = r.wood;
+                b.countdown = r.countdown;
+                b.repair_ship = r.repair != 0xFFFF ? ship_id_of_slot(r.repair) : 0U;
+            }
+            world.add_cost_building(b);
         }
     };
     add_costs(state->shipyards, CostBuilding::Kind::Shipyard);

@@ -305,14 +305,14 @@ TEST_CASE("flags: one tinted block per banner in the atlas and in the draw list"
     world.set_players(
         {sim::Player{sim::PlayerRole::Human, 0, 0, ""}, sim::Player{sim::PlayerRole::Computer, 1, 0, ""}});
     render::ShipSprites s;
-    REQUIRE(render::ship_sprites(sim::Ship{"A", 10, 20, 21, 1, 0, {}}, world, render::WorldView{}, layers, 0, s));
+    REQUIRE(render::ship_sprites(sim::make_ship("A", 10, 20, 21, 1, 0), world, render::WorldView{}, layers, 0, s));
     REQUIRE(s.has_flag);
     CHECK(s.flag.sprite == atlas->sheet_base(1) + 4);
-    REQUIRE(render::ship_sprites(sim::Ship{"A", 10, 20, 21, 1, 0, {}}, world, render::WorldView{}, layers, 200, s));
+    REQUIRE(render::ship_sprites(sim::make_ship("A", 10, 20, 21, 1, 0), world, render::WorldView{}, layers, 200, s));
     CHECK(s.flag.sprite == atlas->sheet_base(1) + 4 + 2);  // frame 200 / 90 = 2 (of 8, wraps at the block)
     // Without the atlas block (e.g. graphics loaded without banners) there is no flag.
     layers.banner_flags = nullptr;
-    REQUIRE(render::ship_sprites(sim::Ship{"A", 10, 20, 21, 1, 0, {}}, world, render::WorldView{}, layers, 0, s));
+    REQUIRE(render::ship_sprites(sim::make_ship("A", 10, 20, 21, 1, 0), world, render::WorldView{}, layers, 0, s));
     CHECK(!s.has_flag);
 }
 

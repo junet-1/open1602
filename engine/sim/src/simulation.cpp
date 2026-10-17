@@ -21,7 +21,8 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_buildings(&buildings),
       m_rules(rules),
       m_figures(&figures),
-      m_logistics(world, buildings, figures) {
+      m_logistics(world, buildings, figures),
+      m_fleet(world, buildings, figures, m_rules) {
     m_time_ms = world.time_ms();
     m_island_ms = static_cast<std::uint32_t>(m_time_ms % Logistics::kIslandEpochMs);
     if (world.saved_rules()) {
@@ -39,7 +40,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
 }
 
 void Simulation::save_state(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 1;
+    constexpr std::uint16_t kVersion = 2;
     out.u16(kVersion);
     out.u32(m_production_ms);
     out.u32(m_city_ms);
@@ -47,6 +48,7 @@ void Simulation::save_state(core::ByteWriter& out) const {
     out.u32(m_upkeep_ms);
     out.u32(m_island_ms);
     m_logistics.save(out);
+    m_fleet.save(out);
 }
 
 bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
@@ -55,7 +57,8 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     }
     core::ByteReader reader(state);
     StateIn in(reader);
-    if (in.u16() != 1) {
+    const std::uint16_t version = in.u16();
+    if (version < 1 || version > 2) {
         return false;
     }
     const std::uint32_t production = in.u32();
@@ -63,7 +66,10 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     const std::uint32_t disaster = in.u32();
     const std::uint32_t upkeep = in.u32();
     const std::uint32_t island = in.u32();
-    if (!in.ok() || !m_logistics.load(reader)) {
+    if (!in.ok() || !m_logistics.load(reader, version)) {
+        return false;
+    }
+    if (version >= 2 && !m_fleet.load(reader)) {
         return false;
     }
     m_production_ms = production;
@@ -114,6 +120,17 @@ void Simulation::apply_commands() {
                 execute_demolish(*m_world, *m_buildings, *demolish, &m_construction_events, m_rules.refund_share());
             result.demolished = d.removed;
             result.refund = d.refund;
+        } else if (const auto* order = std::get_if<ShipOrder>(&command)) {
+            result.accepted = m_fleet.order(*order);
+        } else if (const auto* transfer = std::get_if<CargoTransfer>(&command)) {
+            result.moved = m_fleet.transfer(*transfer);
+            result.accepted = result.moved != 0;
+        } else if (const auto* route = std::get_if<RouteEdit>(&command)) {
+            result.accepted = m_fleet.edit_route(*route);
+        } else if (const auto* trade = std::get_if<TradeSetting>(&command)) {
+            result.accepted = m_fleet.set_trade(*trade);
+        } else if (const auto* yard = std::get_if<ShipyardOrder>(&command)) {
+            result.accepted = m_fleet.shipyard(*yard);
         }
         handle(m_construction_events, first);
         m_command_results.push_back(std::move(result));
@@ -147,6 +164,9 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                 break;
             case ConstructionEvent::Kind::Placed:
                 break;
+        }
+        if (e.kind == ConstructionEvent::Kind::Placed || e.kind == ConstructionEvent::Kind::Removed) {
+            m_fleet.island_changed(e.island);
         }
     }
     if (storage) {
@@ -264,8 +284,32 @@ void Simulation::tick() {
                                    m_volcano_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
     }
-    // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670).
+    // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670); ships
+    // and shipyards with them.
+    m_fleet.tick(kTickMs);
+    for (const Fleet::FetchRequest& r : m_fleet.take_fetch_requests()) {
+        const assets::BuildingType* yard = nullptr;
+        if (r.island < m_world->islands().size()) {
+            const MapCell& c = m_world->islands()[r.island].map.top(r.x, r.y);
+            yard = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite);
+        }
+        if (yard == nullptr ||
+            !m_logistics.send_yard_carrier(r.island, TilePos{r.x, r.y}, r.ware, yard->worker_figure)) {
+            m_fleet.yard_delivery(r.island, r.x, r.y, r.ware, 0);
+        }
+    }
+    for (ShipEvent& e : m_fleet.take_events()) {
+        m_ship_events.push_back(e);
+    }
+    if (m_ship_events.size() > kMaxPendingEvents) {
+        m_ship_events.erase(m_ship_events.begin(),
+                            m_ship_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+    }
     m_logistics.tick();
+    for (const Logistics::YardDelivery& d : m_logistics.take_yard_deliveries()) {
+        m_fleet.yard_delivery(d.island, static_cast<std::uint16_t>(d.origin.x), static_cast<std::uint16_t>(d.origin.y),
+                              d.ware, d.amount);
+    }
     for (const DisasterEvent& e : m_logistics.take_disaster_events()) {
         m_disaster_events.push_back(e);
     }
@@ -290,6 +334,15 @@ void Simulation::pay_upkeep() {
             player->money -= static_cast<std::int32_t>(upkeep[p] / 12);
         }
     }
+}
+
+std::vector<ShipEvent> Simulation::take_ship_events() {
+    for (ShipEvent& e : m_fleet.take_events()) {
+        m_ship_events.push_back(e);  // events of commands applied outside a tick
+    }
+    std::vector<ShipEvent> events;
+    events.swap(m_ship_events);
+    return events;
 }
 
 std::vector<HouseEvent> Simulation::take_house_events() {
