@@ -26,7 +26,8 @@ ebenfalls können. Bisher gab es mit `sim::Rules` nur Schalter für Abweichungen
 | Einstellung | Werte | Original | Standard |
 |---|---|---|---|
 | Rückerstattung beim Abriss (`demolish_refund`, `refund_percent`) | keine, teilweise (1–100 %, Vorgabe 50 %), voll | keine | keine |
-| Schiffe je Spieler (`max_ships_per_player`, L-001) | Zahl, 0 = unbegrenzt | 33 | unbegrenzt |
+| Schiffe je Spieler (`max_ships_per_player`, L-001) | Zahl, 0 = unbegrenzt | 33 | 100 |
+| Einheiten je Spieler (`max_army`, L-008) | Zahl, 0 = unbegrenzt | 100 | 250 |
 | Rohstoffe garantieren (`guarantee_resources`, S-019) | ja/nein | nein | ja |
 | höchste Spielgeschwindigkeit (`max_game_speed`, L-004) | Faktor | 4 | 8 |
 | Dürren (`droughts`) | wie das Spiel (Schwierigkeit), aus, selten, normal, häufig | wie das Spiel | wie das Spiel |

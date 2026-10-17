@@ -396,7 +396,7 @@ TEST_CASE("camera: scrolling is clamped to the map") {
 TEST_CASE("rules: defaults fix the original, original() restores it (ADR 0006)") {
     constexpr auto open = sim::Rules::open1602();
     constexpr auto orig = sim::Rules::original();
-    CHECK(open.max_ships_per_player == 0);  // L-001: unlimited
+    CHECK(open.max_ships_per_player == 100);  // L-001
     CHECK(orig.max_ships_per_player == 33);
     CHECK(open.guarantee_resources);  // S-019
     CHECK(!orig.guarantee_resources);

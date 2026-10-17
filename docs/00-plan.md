@@ -186,7 +186,8 @@ darauf aufsetzt.
 3. **Piraten und Eingeborene** ✅: Piratenschiffe nach Spielerstufe und Schwierigkeit, Beutesuche,
    weiße Flagge und Plünderung ins Nest, Verkauf im Nest, Stimmung und Krieg alle 5 s, Frieden kaufen und
    Bestechung; Wohlwollen, Verbrauch und Krieger der Eingeborenen ([pirates.md](re/pirates.md)). Das
-   Einheitenlimit ist eine Regel (`Rules::max_army`, Standard 250, Original 100; L-008). Offen:
+   Einheitenlimit ist eine Regel (`Rules::max_army`, Standard 250, Original 100; L-008), ebenso die
+   Flottengrenze (`Rules::max_ships_per_player`, Standard 100, Original 33; L-001). Offen:
    ein neues Nest gründen und die Diplomatie der Computer mit den Piraten kommen mit der KI (Schritt 5).
    **Schifffahrt abgeschlossen** (17.10.2026): Tempo, Diagonalen und Drehen gegen das Video des Originals
    geprüft, Insel erkunden mit Erz- und Goldsymbolen, beschädigte Rümpfe, Bugwelle, weiße Flagge und

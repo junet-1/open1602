@@ -56,8 +56,9 @@ struct Rules {
     /// its price, moving one stays affordable.
     std::uint8_t refund_percent = 50;
 
-    /// L-001: ships per player. 0 = unlimited; the original hard limit is 33.
-    std::uint32_t max_ships_per_player = 0;
+    /// L-001: ships per player, shipyard orders included. 0 = unlimited; the original allows 33,
+    /// Open1602 100.
+    std::uint32_t max_ships_per_player = 100;
     /// L-008: units per player (on land, in castles, on board). 0 = unlimited; the original allows 100,
     /// Open1602 250.
     std::uint32_t max_army = 250;
