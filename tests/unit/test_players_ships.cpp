@@ -221,16 +221,16 @@ TEST_CASE("world renderer: ship hull, owner flag and row") {
     REQUIRE(render::ship_sprites(ship, world, view, layers, 0, s));
     // Tile centre: x = (10.5 - 20.5 + 350) * 32, y = 31 * 16 = 496; the figure is kept at
     // Y = y + Posoffs[1] = 530 (also its depth). Hull: sprite Gfx + direction, centred, bottom at
-    // Y + Posoffs[0].
+    // Y + Posoffs[0], one pixel up for the tile rows of Open1602 starting one lower.
     CHECK(s.hull.sprite == layers.ship_base + 3);
     CHECK(s.hull.x == 340 * 32 - 10);
-    CHECK(s.hull.y == 530 - 19);
+    CHECK(s.hull.y == 530 - 19 - 1);
     CHECK(s.row == (530 - 1) / 16);
     // Flag: FAHNE1 (red), frame 0, Fahnoffs height 2.0 * 32 above Y, hanging down from there.
     REQUIRE(s.has_flag);
     CHECK(s.flag.sprite == layers.ship_base + 8);
     CHECK(s.flag.x == 340 * 32 - 3);
-    CHECK(s.flag.y == 530 - 64 + 4);
+    CHECK(s.flag.y == 530 - 64 + 4 - 1);
     REQUIRE(render::ship_sprites(ship, world, view, layers, 200, s));
     CHECK(s.flag.sprite == layers.ship_base + 10);  // 90 ms per flag frame
 
@@ -360,9 +360,9 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     // Yellow (banner 2), frame 200 / 90 = 2.
     CHECK(s.parts[0].sprite == layers.ship_base + 16 + 2);
     // Point: x = (7.5 - 7.0 + 350) * 32, y = 14.5 * 16 = 232; centred; bottom at
-    // y + Posoffs[1] + Posoffs[0] - 2.0 * 32 = y - 64 (the offsets cancel out).
+    // y + Posoffs[1] + Posoffs[0] - 2.0 * 32 = y - 64 (the offsets cancel out), one pixel up.
     CHECK(s.parts[0].x == 11216 - 4);
-    CHECK(s.parts[0].y == 232 - 64);
+    CHECK(s.parts[0].y == 232 - 64 - 1);
     CHECK(s.row == (232 + 40 - 1) / 16);  // sorted by y + Posoffs[1]
 
     // A banner without flag sprites (like the free trader) or an unknown banner shows no flag.

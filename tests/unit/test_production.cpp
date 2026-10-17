@@ -219,9 +219,9 @@ TEST_CASE("production: smoke and status icons on buildings") {
     CHECK(s.parts[0].mode == render::DrawCommand::Mode::Translucent);
     CHECK(s.parts[0].tint.a == render::kSmokeAlpha);
     // Point: x = (6.5 - 7.25 + 350) * 32 = 11176, y = 13.75 * 16 = 220; Posoffs cancel out,
-    // bottom 2.0 * 32 above the point; depth y + 20.
+    // bottom 2.0 * 32 above the point and one pixel up; depth y + 20.
     CHECK(s.parts[0].x == 11176 - 3);
-    CHECK(s.parts[0].y == 220 - 64);
+    CHECK(s.parts[0].y == 220 - 64 - 1);
     CHECK(s.row == (220 + 20 - 1) / 16);
 
     // Status icon: only for the local player's buildings; anim 0 off, 1 short of raw material.
@@ -231,16 +231,31 @@ TEST_CASE("production: smoke and status icons on buildings") {
     REQUIRE(render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
     CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10);
     CHECK(s.parts[0].mode == render::DrawCommand::Mode::Normal);
-    // Point: x = (7 - 7 + 350) * 32 = 11200, y = 14 * 16 = 224; bottom 2.5 * 32 above it.
+    // Point: x = (7 - 7 + 350) * 32 = 11200, y = 14 * 16 = 224; bottom 2.5 * 32 above it and one
+    // pixel up (matches a screenshot of the original, docs/re/figures.md).
     CHECK(s.parts[0].x == 11200 - 3);
-    CHECK(s.parts[0].y == 224 - 80);
+    CHECK(s.parts[0].y == 224 - 80 - 1);
     world.set_production(make(0, 1, 1, true, 0, 7, 0));
     REQUIRE(render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
     CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10 + 4);
     // Player 1's bakery is short of raw material too, but player 1 is not at this computer.
     CHECK(!render::building_figure_sprites(all[2], world, buildings, view, layers, 0, s));
+    // A shipyard has no production state; its icon (kind 0x19, 0x004790C0) shows while it is
+    // switched off, as a screenshot of the original shows.
+    render::BuildingFigure yard = icon;
+    yard.origin_x = 4;
+    yard.origin_y = 0;
+    CHECK(!render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
+    world.add_cost_building(sim::CostBuilding{sim::CostBuilding::Kind::Shipyard, 0, 4, 0, false});
+    REQUIRE(render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
+    CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10);  // ANIM 0: switched off
+    world.cost_buildings().back().enabled = true;
+    CHECK(!render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
+    world.cost_buildings().back().enabled = false;
+
     layers.local_player = sim::kNoPlayer;
     CHECK(!render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));
+    CHECK(!render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
 }
 
 namespace {

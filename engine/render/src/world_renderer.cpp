@@ -192,19 +192,21 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     double screen_y = 0.0;
     project_point(view, ship.x + 0.5, ship.y + 0.5, screen_x, screen_y);
 
-    // The original keeps figures at Y = y + Posoffs[1] * w/64 (0x00451CC5) and sorts them by Y into
-    // the row loop (0x00489A60).
-    const double depth = screen_y + fig->posoffs[1] * tw / 64.0;
-    out.depth = static_cast<std::int32_t>(std::lround(depth));
-    out.row = floor_div(out.depth - 1, static_cast<std::int32_t>(hh));
+    // The original keeps figures at Y = y + Posoffs[1] * w/64 (0x00451CC5), each term truncated, and
+    // sorts them by Y into the row loop (0x00489A60). Open1602's tile rows start one pixel lower than
+    // the original's, so the pictures go one pixel up (docs/re/figures.md).
+    const std::int32_t itw = tile_width(view.zoom);
+    const std::int32_t depth = static_cast<std::int32_t>(std::floor(screen_y)) + fig->posoffs[1] * itw / 64;
+    out.depth = depth;
+    out.row = floor_div(depth - 1, static_cast<std::int32_t>(hh));
 
     // Hull: sprite = Gfx + ((direction + 2 * view rotation) & 7) * Rotate (0x0044FA60), centred,
     // bottom at Y + Posoffs[0] * w/64 (field +0x0C of the figure record).
     const std::uint32_t dir = (ship.direction + 2U * rw.rotation) & 7U;
     out.hull.sprite = layers.ship_base + fig->gfx + dir * fig->rotate;
     const AtlasRect& hull = layers.atlas->rect(out.hull.sprite);
-    out.hull.x = static_cast<std::int32_t>(std::lround(screen_x)) - hull.width / 2;
-    out.hull.y = static_cast<std::int32_t>(std::lround(depth + fig->posoffs[0] * tw / 64.0));
+    out.hull.x = static_cast<std::int32_t>(std::floor(screen_x)) - hull.width / 2;
+    out.hull.y = depth + fig->posoffs[0] * itw / 64 - 1;
 
     // Flag of the owner's banner (original: figure from table 0x00498F2C). Offset: Fahnoffs[1]
     // along the ship axis, rotated by (direction + 2) * 45 degrees (0x00443180), projected; lifted
@@ -221,9 +223,10 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
         const double oy = fig->fahnoffs[1] * std::cos(angle);
         const double px = (ox - oy) * hw;
         const double py = (ox + oy) * hh;
-        out.flag.x = static_cast<std::int32_t>(std::lround(screen_x + px)) - fr.width / 2;
-        const double top = depth - py - fig->fahnoffs[2] * hw;
-        out.flag.y = static_cast<std::int32_t>(std::lround(top)) + fr.height;
+        out.flag.x = static_cast<std::int32_t>(std::floor(screen_x + px)) - fr.width / 2;
+        const std::int32_t top = static_cast<std::int32_t>(std::floor(screen_y - py)) + fig->posoffs[1] * itw / 64 -
+                                 static_cast<std::int32_t>(fig->fahnoffs[2] * hw) - 1;
+        out.flag.y = top + fr.height;
         out.has_flag = true;
     }
     return true;
@@ -284,6 +287,7 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
     constexpr std::int32_t kProdKontor = 8;     // KONTOR
     constexpr std::int32_t kProdWachturm = 16;  // WACHTURM: same branch in 0x00486B60
     constexpr std::int32_t kProdHouse = 13;     // WOHNUNG
+    constexpr std::int32_t kProdWerft = 14;     // WERFT
     std::vector<BuildingFigure> out;
     const auto& islands = world.islands();
     for (std::size_t index = 0; index < islands.size(); ++index) {
@@ -334,6 +338,9 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
                     }
                 } else if (b.prod_kind == kProdHouse) {
                     add(BuildingFigureRole::Disaster, kFigureSensenmann);
+                } else if (b.prod_kind == kProdWerft) {
+                    // Shipyards of the local player: the same icon as kind 0x19 (0x00486E91).
+                    add(BuildingFigureRole::Status, kFigureNoAktiv);
                 } else if (sim::is_producer(b)) {
                     add(BuildingFigureRole::Status, kFigureNoAktiv);
                     add(BuildingFigureRole::Smoke, b.attached_figures[0]);
@@ -346,20 +353,22 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
 
 namespace {
 
-/// Body of a display figure at world point (x, y) with height z (0x0044FA90): centred, bottom at
-/// Y + Posoffs[0] * w/64 - z * w/2, where Y = y + Posoffs[1] * w/64 is also its depth (0x00451F74).
-/// For flags and smoke both offsets cancel out (Posoffs -40, 40 / -20, 20 ...).
+/// Body of a display figure at world point (x, y) with height z (0x00451D72, 0x0044FA90): centred,
+/// bottom at Y + Posoffs[0] * w/64 - trunc(z * w/2), where Y = y + Posoffs[1] * w/64 is also its
+/// depth (0x00451F74). The original truncates each term; Open1602's tile rows start one pixel lower
+/// than the original's, so figures go one pixel up (docs/re/figures.md). For flags and smoke both
+/// offsets cancel out (Posoffs -40, 40 / -20, 20 ...).
 void place_display_figure(const WorldView& view, const AtlasRect& r, const assets::FigureType& fig, double x, double y,
                           double z, DrawCommand& c, FigureSprites& out) {
     double sx = 0.0;
     double sy = 0.0;
     project_point(view, x, y, sx, sy);
-    const double tw = tile_width(view.zoom);
-    const double depth = sy + fig.posoffs[1] * tw / 64.0;
-    c.x = static_cast<std::int32_t>(std::lround(sx)) - r.width / 2;
-    c.y = static_cast<std::int32_t>(std::lround(depth + fig.posoffs[0] * tw / 64.0 - z * tw / 2.0));
-    out.depth = static_cast<std::int32_t>(std::lround(depth));
-    out.row = floor_div(out.depth - 1, tile_height(view.zoom) / 2);
+    const std::int32_t tw = tile_width(view.zoom);
+    const std::int32_t depth = static_cast<std::int32_t>(std::floor(sy)) + fig.posoffs[1] * tw / 64;
+    c.x = static_cast<std::int32_t>(std::floor(sx)) - r.width / 2;
+    c.y = depth + fig.posoffs[0] * tw / 64 - static_cast<std::int32_t>(z * tw / 2.0) - 1;
+    out.depth = depth;
+    out.row = floor_div(depth - 1, tile_height(view.zoom) / 2);
 }
 
 }  // namespace
@@ -435,11 +444,25 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
             // The draw kinds pick their sheet (0x0044FA90: kinds 0x16/0x17 always EFFEKTE.BSH), not
             // the figure's Blocknr - the smoke and icon figures have none.
             const auto base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Effekte)];
-            if (state == nullptr || !base) {
+            if (!base) {
                 return false;
             }
             std::uint8_t anim = 0;
-            if (figure.role == BuildingFigureRole::Smoke) {
+            if (state == nullptr && figure.role == BuildingFigureRole::Status) {
+                // A shipyard (kind 0x19, 0x004790C0): switched off -> ANIM 0. Short of material
+                // (ANIM 1) and on fire (ANIM 2) come from runtime bits Open1602 has no state for yet.
+                const auto& yards = world.cost_buildings();
+                const auto yard = std::find_if(yards.begin(), yards.end(), [&](const sim::CostBuilding& yard_state) {
+                    return yard_state.kind == sim::CostBuilding::Kind::Shipyard && yard_state.island == figure.island &&
+                           yard_state.x == figure.origin_x && yard_state.y == figure.origin_y;
+                });
+                if (yard == yards.end() || yard->enabled || figure.owner != layers.local_player ||
+                    figure.owner == sim::kNoPlayer) {
+                    return false;
+                }
+            } else if (state == nullptr) {
+                return false;
+            } else if (figure.role == BuildingFigureRole::Smoke) {
                 if (!sim::smoke_visible(*state)) {  // 0x0047CF30
                     return false;
                 }
@@ -588,8 +611,9 @@ bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, 
             double sx = 0.0;
             double sy = 0.0;
             project_point(view, figure.x, figure.y, sx, sy);
-            c.x = static_cast<std::int32_t>(std::lround(sx)) - r.width / 2;
-            c.y = static_cast<std::int32_t>(std::lround(sy - figure.ground * tw / 2.0)) + r.height / 2;
+            c.x = static_cast<std::int32_t>(std::floor(sx)) - r.width / 2;
+            c.y = static_cast<std::int32_t>(std::floor(sy)) - static_cast<std::int32_t>(figure.ground * tw / 2.0) - 1 +
+                  r.height / 2;
             c.mode = DrawCommand::Mode::Shadow;
             c.tint = assets::Rgba{0, 0, 0, kShadowAlpha};
             ++out.count;
