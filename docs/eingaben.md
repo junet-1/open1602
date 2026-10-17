@@ -40,9 +40,10 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 
 1. **Ein Spielstand von Open1602 im Original** (prüft das Speichern). In `ausgaben/` liegt
    `Open1602Test.gam`: Merlin03, in Open1602 zehn Minuten weitergespielt (Spielzeit 48:14, Gold
-   3206, Lemonhall mit 50 t Holz und 28 t Werkzeug). Seit dem 17.10. mittags enthält er auch Open1602s
-   eigenen Zusatzabschnitt am Ende; der Test prüft damit zugleich, dass das Original ihn überspringt.
-   Ich schreibe nie selbst in deine Installation; so kannst du ihn laden:
+   3206, Lemonhall mit 50 t Holz und 28 t Werkzeug). Daneben liegt `Open1602Test2.gam`: derselbe Stand,
+   aber mit Open1602s eigenem Zusatzabschnitt am Ende; mit ihm prüfst du zusätzlich, dass das Original
+   den Abschnitt überspringt (gleiches Vorgehen). Ich schreibe nie selbst in deine Installation; so
+   kannst du ihn laden:
    - im Original Merlin03 laden und auf einen leeren Platz speichern, Name „Open1602Test“; beenden;
    - die Datei dieses Platzes (`SAVEGAME/game03.gam` beim Platz „Leer03“) durch `Open1602Test.gam`
      ersetzen (vorher sichern, wenn du magst);
