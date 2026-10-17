@@ -110,6 +110,10 @@ struct FigureInstance {
     std::uint8_t anim = 0;     ///< ANIM index and frame (AnimState)
     std::uint8_t frame = 0;
     std::uint8_t direction = 0;  ///< 0..7
+    /// Height in half tile widths, drawn that much higher (0x00451CA4). The original gives every
+    /// walking land figure the height of the tile it was made on, 0.028 * Posoffs (0x00446CA0),
+    /// so 0.56 on land, and keeps it while it walks (render::spawn_height).
+    double z = 0.0;
     /// Owner: units drawn per colour (FigureTable::unit_variant) take the colour of the owner's
     /// banner - the drawn variant or the tinted template.
     sim::PlayerId owner = sim::kNoPlayer;
@@ -192,14 +196,16 @@ struct WorldLayers {
 /// whose flat pass they are drawn.
 struct FigureSprites {
     std::int32_t row = 0;
+    std::int32_t depth = 0;  ///< Y of the original (0x00451CC5): order within the row, smaller first
     std::array<DrawCommand, 2> parts{};
     std::uint8_t count = 0;
 };
 
 /// Shadow and body of a land figure (exposed for tests). The original keeps every figure at
-/// Y = y + Posoffs[1] * w/64 (0x00451CC5), which is also its depth. Body: Gfx + animation
-/// (0x0044F8F0), centred, bottom at Y + Posoffs[0] * w/64; shadow: figure `Schatten` from
-/// SCHATTEN.BSH, centred on Y - Posoffs[1] * w/64 = y (cases 0x0C-0x0E of 0x0044FA90).
+/// Y = y + Posoffs[1] * w/64 (0x00451CC5), which is also its depth; the height z lifts body and
+/// shadow by trunc(z * w/2) without changing Y. Body: Gfx + animation (0x0044F8F0), centred, bottom
+/// at Y + Posoffs[0] * w/64 - lift; shadow: figure `Schatten` from SCHATTEN.BSH, centred on
+/// y - lift (cases 8-0x12 of 0x0044FA90).
 [[nodiscard]] bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, const WorldView& view,
                                        const WorldLayers& layers, FigureSprites& out);
 
@@ -218,6 +224,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
 /// Sprite, position and flag of one ship (exposed for tests).
 struct ShipSprites {
     std::int32_t row = 0;  ///< tile row (view space) after whose flat pass the ship is drawn
+    std::int32_t depth = 0;
     DrawCommand hull;
     DrawCommand flag;
     bool has_flag = false;

@@ -95,12 +95,13 @@ private:
     struct Walker {
         std::uint16_t island = 0;
         std::uint16_t figure = 0;
-        std::uint64_t house = 0;         ///< key of the house it came from
-        std::vector<sim::TilePos> path;  ///< island tiles, from the house to the target
-        std::uint64_t start_ms = 0;      ///< game time it left the house
-        std::uint64_t end_ms = 0;        ///< game time it reaches the target
-        std::uint32_t ms_per_tile = 1;
-        std::uint64_t anim_ms = 0;  ///< game time `anim` is at
+        std::uint64_t house = 0;            ///< key of the house it came from
+        std::vector<sim::TilePos> path;     ///< island tiles, from the house to the target
+        std::vector<std::uint32_t> arrive;  ///< ms after the start it reaches path[i]
+        std::uint64_t start_ms = 0;         ///< game time it left the house
+        std::uint64_t end_ms = 0;           ///< game time it reaches the target
+        double z = 0.0;                     ///< height of the house tile (render::spawn_height)
+        std::uint64_t anim_ms = 0;          ///< game time `anim` is at
         AnimState anim;
     };
     struct Creature {

@@ -9,12 +9,24 @@
 #include <cstdint>
 #include <vector>
 
+#include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/render/figure_animation.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::render {
+
+/// Height per Posoffs pixel of the tile a figure is made on (0x004963E8).
+inline constexpr double kHeightPerPosoffs = 0.028;
+/// Height of a figure made on land (Posoffs 20, HIGHBODEN): drawn 17 px higher at full zoom.
+inline constexpr double kLandHeight = 0.56;
+
+/// Height of a land figure made on world point (x, y): 0.028 * Posoffs of what stands on that tile
+/// (callers of 0x00446CA0), 0.56 on land, 0 on beach, harbour tiles and sea. With `piers_as_land`
+/// the rule for soldiers (0x00451180): piers and beach ruins count as land.
+[[nodiscard]] double spawn_height(const sim::World& world, const assets::BuildingTable& buildings, double x, double y,
+                                  bool piers_as_land = false);
 
 /// A set of land figures with their animation states.
 class LandFigures {
@@ -34,7 +46,7 @@ private:
 class AnimalFigures : public LandFigures {
 public:
     /// One figure per animal of `world`; direction and animation phase come from its position.
-    void reset(const sim::World& world, const assets::FigureTable& figures);
+    void reset(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
 
     /// Animation the animals start with: grazing.
     static constexpr std::uint8_t kGrazeAnim = 1;
@@ -43,7 +55,7 @@ public:
 class SoldierFigures : public LandFigures {
 public:
     /// One figure per soldier of `world`, drawn from SOLDAT.BSH in the colour of its owner.
-    void reset(const sim::World& world, const assets::FigureTable& figures);
+    void reset(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
 };
 
 }  // namespace o1602::render

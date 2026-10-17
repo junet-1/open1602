@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/render/figure_animation.hpp"
 #include "o1602/render/world_renderer.hpp"
@@ -20,8 +21,8 @@ class WalkerFigures {
 public:
     /// Brings the figures in line with the walkers of `logistics` and advances their animations
     /// by `dt_ms` of game time.
-    void update(const sim::Logistics& logistics, const sim::World& world, const assets::FigureTable& figures,
-                std::uint32_t dt_ms);
+    void update(const sim::Logistics& logistics, const sim::World& world, const assets::BuildingTable& buildings,
+                const assets::FigureTable& figures, std::uint32_t dt_ms);
     [[nodiscard]] const std::vector<FigureInstance>& instances() const noexcept { return m_instances; }
 
 private:
@@ -33,6 +34,7 @@ private:
         /// JUMPTO animations: grazing deer look up, a shot deer falls and lies).
         std::uint8_t requested = 0;
         AnimState state;
+        double z = 0.0;  ///< height, from the tile it was first seen on (render::spawn_height)
     };
     std::vector<Slot> m_slots;  ///< by walker handle index
     std::vector<FigureInstance> m_instances;

@@ -93,7 +93,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (auto texts = assets::TextTable::load(game)) {
         viewer->m_simulation.set_city_names(texts->section("STAEDTE"));
     }
-    viewer->m_soldiers.reset(viewer->m_world, viewer->m_figures);
+    viewer->m_soldiers.reset(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
     auto sdl = platform::SdlSystem::init();
     if (!sdl) {
@@ -419,7 +419,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
         apply_production_events();
         m_clock.advance(delta_ms);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
-        m_walkers.update(m_simulation.logistics(), m_world, m_figures,
+        m_walkers.update(m_simulation.logistics(), m_world, m_buildings, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_simulation.speed());
         update_ambient();
     }

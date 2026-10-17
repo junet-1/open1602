@@ -137,24 +137,27 @@ TEST_CASE("figures: land figure with shadow, position and depth") {
     layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Schatten)] = atlas->sheet_base(2);
 
     sim::World world;
-    const render::FigureInstance deer{10.5, 20.5, 89, 1, 2, 3, sim::kNoPlayer, std::nullopt};
+    // Made on land: height 0.56 (0x00446CA0 callers).
+    const render::FigureInstance deer{10.5, 20.5, 89, 1, 2, 3, render::kLandHeight, sim::kNoPlayer, std::nullopt};
     render::FigureSprites f;
     REQUIRE(render::land_figure_sprites(deer, world, render::WorldView{render::Zoom::Large, 0}, layers, f));
     REQUIRE(f.count == 2);
     // Point: x = (10.5 - 20.5 + 350) * 32 = 10880, y = 31 * 16 = 496; the original keeps the figure
-    // at Y = y + Posoffs[1] = 505 (0x00451CC5).
+    // at Y = y + Posoffs[1] = 505 (0x00451CC5). Body and shadow are lifted by trunc(0.56 * 32) = 17
+    // and one pixel for the tile rows of Open1602 starting one lower.
     const render::DrawCommand& shadow = f.parts[0];
     CHECK(shadow.mode == render::DrawCommand::Mode::Shadow);
     CHECK(shadow.tint.a == render::kShadowAlpha);
     CHECK(shadow.sprite == atlas->sheet_base(2) + 8 + 3 * 8);  // no ANIM 1: direction only
     CHECK(shadow.x == 10880 - 7);
-    CHECK(shadow.y == 496 - 3 + 6);  // centred on Y - Posoffs[1], the ground point
+    CHECK(shadow.y == 496 - 18 - 3 + 6);  // centred on the lifted ground point
     const render::DrawCommand& body = f.parts[1];
     CHECK(body.mode == render::DrawCommand::Mode::Normal);
     CHECK(body.sprite == atlas->sheet_base(1) + 4 + 112 + 2 + 3 * 6);
     CHECK(body.x == 10880 - 5);
-    CHECK(body.y == 505 + 3);  // bottom at Y + Posoffs[0]
-    CHECK(f.row == (496 + 9 - 1) / 16);
+    CHECK(body.y == 505 + 3 - 18);       // bottom at Y + Posoffs[0], lifted
+    CHECK(f.row == (496 + 9 - 1) / 16);  // the height does not change the row
+    CHECK(f.depth == 505);
 
     // Without its sheet (e.g. SGFX without derived graphics) the figure is not drawn.
     layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Tiere)].reset();

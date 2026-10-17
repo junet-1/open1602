@@ -791,14 +791,14 @@ int cmd_render_world(const Args& args) {
     layers.building_figures = &building_figures;
     layers.local_player = sim::first_human_player(*world);
     render::AnimalFigures animals;
-    animals.reset(*world, *figures);
+    animals.reset(*world, *buildings, *figures);
     animals.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)), *figures);
     render::SoldierFigures soldiers;
-    soldiers.reset(*world, *figures);
+    soldiers.reset(*world, *buildings, *figures);
     soldiers.advance(static_cast<std::uint32_t>(args.number("--time").value_or(0)), *figures);
     render::WalkerFigures walkers;
     if (simulation) {
-        walkers.update(simulation->logistics(), *world, *figures, 0);
+        walkers.update(simulation->logistics(), *world, *buildings, *figures, 0);
     }
     if (simulation) {
         layers.land_figures = {&soldiers.instances(), &walkers.instances()};  // deer walk with the simulation

@@ -10,6 +10,7 @@
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/render/ambient.hpp"
+#include "o1602/render/land_figures.hpp"
 #include "o1602/sim/simulation.hpp"
 
 using namespace o1602;
@@ -32,7 +33,7 @@ assets::BuildingTable make_buildings() {
         "Objekt: HAUS\n"
         "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"
         "  @Nummer: 1\n  Id: 20401\n  Kind: 1\n  Gfx: 1\n  Size: 1, 1\n"
-        "  @Nummer: 2\n  Id: 20605\n  Kind: 14\n  Gfx: 10\n  Size: 2, 2\n"
+        "  @Nummer: 2\n  Id: 20605\n  Kind: 14\n  Gfx: 10\n  Size: 2, 2\n  Posoffs: 20\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 13\n    BGruppe: 0\n  EndObj\n"
         "  @Nummer: 3\n  Id: 20907\n  Kind: 14\n  Gfx: 20\n  Size: 2, 2\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 17\n  EndObj\n"
@@ -175,6 +176,10 @@ TEST_CASE("ambient: townsfolk walk from their house along the road to a tavern a
             CHECK(f.x >= 103.0);
             CHECK(f.x <= 111.5);
             CHECK(f.sheet == assets::FigureSheet::Traeger);
+            // At the height of its house tile (0x0044B140): land, 17 px up at full zoom.
+            CHECK(std::abs(f.z - render::kLandHeight) < 1e-9);
+            // On the line through the tile centres of the road, no lane (0x00459F40).
+            CHECK(f.y == 110.5);
         }
         return !walked;
     });

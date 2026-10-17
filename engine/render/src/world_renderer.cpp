@@ -195,7 +195,8 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     // The original keeps figures at Y = y + Posoffs[1] * w/64 (0x00451CC5) and sorts them by Y into
     // the row loop (0x00489A60).
     const double depth = screen_y + fig->posoffs[1] * tw / 64.0;
-    out.row = floor_div(static_cast<std::int32_t>(std::lround(depth)) - 1, static_cast<std::int32_t>(hh));
+    out.depth = static_cast<std::int32_t>(std::lround(depth));
+    out.row = floor_div(out.depth - 1, static_cast<std::int32_t>(hh));
 
     // Hull: sprite = Gfx + ((direction + 2 * view rotation) & 7) * Rotate (0x0044FA60), centred,
     // bottom at Y + Posoffs[0] * w/64 (field +0x0C of the figure record).
@@ -349,7 +350,7 @@ namespace {
 /// Y + Posoffs[0] * w/64 - z * w/2, where Y = y + Posoffs[1] * w/64 is also its depth (0x00451F74).
 /// For flags and smoke both offsets cancel out (Posoffs -40, 40 / -20, 20 ...).
 void place_display_figure(const WorldView& view, const AtlasRect& r, const assets::FigureType& fig, double x, double y,
-                          double z, DrawCommand& c, std::int32_t& row) {
+                          double z, DrawCommand& c, FigureSprites& out) {
     double sx = 0.0;
     double sy = 0.0;
     project_point(view, x, y, sx, sy);
@@ -357,7 +358,8 @@ void place_display_figure(const WorldView& view, const AtlasRect& r, const asset
     const double depth = sy + fig.posoffs[1] * tw / 64.0;
     c.x = static_cast<std::int32_t>(std::lround(sx)) - r.width / 2;
     c.y = static_cast<std::int32_t>(std::lround(depth + fig.posoffs[0] * tw / 64.0 - z * tw / 2.0));
-    row = floor_div(static_cast<std::int32_t>(std::lround(depth)) - 1, tile_height(view.zoom) / 2);
+    out.depth = static_cast<std::int32_t>(std::lround(depth));
+    out.row = floor_div(out.depth - 1, tile_height(view.zoom) / 2);
 }
 
 }  // namespace
@@ -475,7 +477,7 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
     if (r.empty()) {
         return false;
     }
-    place_display_figure(view, r, *fig, figure.x, figure.y, z, c, out.row);
+    place_display_figure(view, r, *fig, figure.x, figure.y, z, c, out);
     out.count = 1;
     return true;
 }
@@ -516,12 +518,17 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
     double fx = 0.0;
     double fy = 0.0;
     project_point(view, figure.x, figure.y, fx, fy);
-    const auto px = static_cast<std::int32_t>(std::lround(fx));
-    // The original stores every figure at Y = y + Posoffs[1] * w/64 (0x00451CC5); Y is its depth and
-    // the reference for body and shadow.
-    const std::int32_t depth = static_cast<std::int32_t>(std::lround(fy)) + type->posoffs[1] * tw / 64;
+    // The original truncates the screen position (0x00451B9E); visible positions are not negative.
+    const auto px = static_cast<std::int32_t>(std::floor(fx));
+    // Y = y + Posoffs[1] * w/64 (0x00451CC5): depth and reference for body and shadow.
+    const std::int32_t p1 = type->posoffs[1] * tw / 64;
+    const std::int32_t depth = static_cast<std::int32_t>(std::floor(fy)) + p1;
+    // Body and shadow are lifted by the height, trunc(z * w/2) (17 px on land at full zoom), and by
+    // one more pixel: Open1602's tile rows start one pixel below the original's, which puts the
+    // centre of a tile exactly on the centre row of its diamond (docs/re/figures.md).
+    const std::int32_t lift = static_cast<std::int32_t>(figure.z * tw / 2.0) + 1;
 
-    // Shadow first (drawn below the body), centred on Y - Posoffs[1] * w/64, i.e. the ground point.
+    // Shadow first (drawn below the body), centred on the lifted ground point.
     const assets::FigureType* shadow = layers.figures->get(type->shadow);
     const auto shadow_base = layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Schatten)];
     if (type->shadow != 0 && shadow != nullptr && shadow_base) {
@@ -531,7 +538,7 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
         const AtlasRect& r = layers.atlas->rect(c.sprite);
         if (!r.empty()) {
             c.x = px - r.width / 2;
-            c.y = depth - type->posoffs[1] * tw / 64 - r.height / 2 + r.height;
+            c.y = depth - p1 - lift - r.height / 2 + r.height;
             c.mode = DrawCommand::Mode::Shadow;
             c.tint = assets::Rgba{0, 0, 0, kShadowAlpha};
             ++out.count;
@@ -548,8 +555,10 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
         return false;
     }
     body.x = px - r.width / 2;
-    body.y = depth + type->posoffs[0] * tw / 64;
+    body.y = depth + type->posoffs[0] * tw / 64 - lift;
     ++out.count;
+    // The height does not change the row (0x0044FA90 compares Y).
+    out.depth = depth;
     out.row = floor_div(depth - 1, tile_height(view.zoom) / 2);
     return true;
 }
@@ -602,7 +611,7 @@ bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, 
         out.count = 0;
         return false;
     }
-    place_display_figure(view, r, *fig, figure.x, figure.y, figure.z, c, out.row);
+    place_display_figure(view, r, *fig, figure.x, figure.y, figure.z, c, out);
     ++out.count;
     return true;
 }
@@ -641,8 +650,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     const std::uint32_t sea_frame = sea != nullptr ? clock.frame(*sea) : 0;
     const std::int32_t sea_elevation = sea != nullptr ? sea->posoffs * tw / 64 : 0;
 
-    // Figures of the visible rows (ships, building flags, land figures), sorted by row
-    // (stable: within a row in this order).
+    // Figures of the visible rows (ships, building flags, land figures), sorted by row and within
+    // a row by depth, as the original sorts its one list by Y (0x00452190); equal depths keep this
+    // order (the original's radix sort leaves them in an order that depends on the other keys).
     std::vector<FigureSprites> figures;
     const auto add_figure = [&](const FigureSprites& f) {
         if (f.row >= d_begin && f.row <= d_end) {
@@ -655,6 +665,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             if (ship_sprites(ship, world, view, layers, clock.elapsed_ms(), s)) {
                 FigureSprites f;
                 f.row = s.row;
+                f.depth = s.depth;
                 f.parts[f.count++] = s.hull;
                 if (s.has_flag) {
                     f.parts[f.count++] = s.flag;
@@ -686,8 +697,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 }
             }
         }
-        std::stable_sort(figures.begin(), figures.end(),
-                         [](const FigureSprites& a, const FigureSprites& b) { return a.row < b.row; });
+        std::stable_sort(figures.begin(), figures.end(), [](const FigureSprites& a, const FigureSprites& b) {
+            return a.row != b.row ? a.row < b.row : a.depth < b.depth;
+        });
     }
     std::size_t next_figure = 0;
 

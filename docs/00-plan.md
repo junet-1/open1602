@@ -226,6 +226,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M3: Hirsche und Jäger: Wildplätze, Zählung, Rückkehr, Grasen, Ruf des Jägers, Schuss, Beute | ✅ `docs/re/deer.md` |
 | M3: Jagd geprüft: Zählregel gegen gespeicherte Wildplätze, eingesetzte Jagdhütte jagt mit Originaldaten; Merlin02 → Merlin03 (mit Video) läuft Feld für Feld wie im Original (Zielwahl des Hirschs mit der Wellensuche, Wildplätze, Statistik der Hütte) | ✅ `docs/re/deer.md` |
 | M2: Leben im Bild: Spaziergänger, Wale, Delfine, Kraken, Gaukler, Geräuschquellen; nur Darstellung, eigener Zufall, ohne Einfluss aufs Spiel (S-065) | ✅ `docs/re/flavor.md` |
+| M2: Zierfiguren auf allen Rechnern gleich ohne Netzverkehr (aus Startwert, Spielzeit und Welt, nicht aus Kamera und Bildrate) | ✅ `docs/re/flavor.md` |
+| M2: Landfiguren mit Höhe (0,028 · Posoffs des Entstehungsfelds) und Feldmitte wie im Original, Sortierung nach Y in der Zeile; kein Abschneiden durch Nachbarfelder; Begegnungen ohne Ausweichen wie im Original | ✅ `docs/re/figures.md` |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |

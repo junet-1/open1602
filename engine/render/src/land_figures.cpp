@@ -5,6 +5,43 @@
 
 namespace o1602::render {
 
+namespace {
+constexpr std::int32_t kLandPosoffs = 20;  // HIGHBODEN
+constexpr std::int32_t kBeachRuin = 29;    // HAUS Kind STRANDRUINE
+constexpr std::int32_t kPier = 30;
+}  // namespace
+
+double spawn_height(const sim::World& world, const assets::BuildingTable& buildings, double x, double y,
+                    bool piers_as_land) {
+    if (x < 0.0 || y < 0.0) {
+        return 0.0;
+    }
+    const auto wx = static_cast<std::uint32_t>(x);
+    const auto wy = static_cast<std::uint32_t>(y);
+    if (!world.contains(wx, wy)) {
+        return 0.0;
+    }
+    const sim::World::Cell& cell = world.cell(wx, wy);
+    if (cell.island == sim::World::kSea || cell.island >= world.islands().size()) {
+        return 0.0;
+    }
+    const sim::WorldIsland& island = world.islands()[cell.island];
+    const std::uint32_t lx = wx - island.x;
+    const std::uint32_t ly = wy - island.y;
+    if (!island.map.contains(static_cast<std::int32_t>(lx), static_cast<std::int32_t>(ly))) {
+        return 0.0;
+    }
+    const sim::MapCell& c = island.map.top(lx, ly);
+    const assets::BuildingType* b = c.empty() ? nullptr : buildings.by_sprite(c.sprite);
+    if (b == nullptr) {
+        return 0.0;
+    }
+    if (piers_as_land && (b->kind == kBeachRuin || b->kind == kPier)) {
+        return kLandPosoffs * kHeightPerPosoffs;
+    }
+    return b->posoffs * kHeightPerPosoffs;
+}
+
 void LandFigures::clear() {
     m_instances.clear();
     m_states.clear();
@@ -33,7 +70,8 @@ void LandFigures::advance(std::uint32_t dt_ms, const assets::FigureTable& figure
     }
 }
 
-void AnimalFigures::reset(const sim::World& world, const assets::FigureTable& figures) {
+void AnimalFigures::reset(const sim::World& world, const assets::BuildingTable& buildings,
+                          const assets::FigureTable& figures) {
     clear();
     for (const sim::Animal& a : world.animals()) {
         const sim::WorldIsland& island = world.islands()[a.island];
@@ -41,13 +79,15 @@ void AnimalFigures::reset(const sim::World& world, const assets::FigureTable& fi
         f.x = island.x + a.x + 0.5;
         f.y = island.y + a.y + 0.5;
         f.figure = a.figure;
+        f.z = spawn_height(world, buildings, f.x, f.y);
         const std::uint32_t seed = (island.x + a.x) * 73856093U ^ (island.y + a.y) * 19349663U;
         f.direction = static_cast<std::uint8_t>((seed >> 3) & 7U);
         add(f, figures, kGrazeAnim, seed);
     }
 }
 
-void SoldierFigures::reset(const sim::World& world, const assets::FigureTable& figures) {
+void SoldierFigures::reset(const sim::World& world, const assets::BuildingTable& buildings,
+                           const assets::FigureTable& figures) {
     clear();
     for (const sim::Soldier& s : world.soldiers()) {
         FigureInstance f;
@@ -56,7 +96,8 @@ void SoldierFigures::reset(const sim::World& world, const assets::FigureTable& f
         f.figure = s.figure;
         f.direction = s.direction;
         f.owner = s.owner;
-        f.sheet = assets::FigureSheet::Soldat;  // draw kind 4 (0x0044FA90)
+        f.z = spawn_height(world, buildings, s.x, s.y, true);  // 0x0045E1F0 with 0x00451180
+        f.sheet = assets::FigureSheet::Soldat;                 // draw kind 4 (0x0044FA90)
         const auto seed = static_cast<std::uint32_t>(std::lround(s.x * 2.0)) * 73856093U ^
                           static_cast<std::uint32_t>(std::lround(s.y * 2.0)) * 19349663U;
         add(f, figures, s.anim, seed);

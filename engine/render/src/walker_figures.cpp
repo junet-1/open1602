@@ -3,9 +3,12 @@
 
 #include <algorithm>
 
+#include "o1602/render/land_figures.hpp"
+
 namespace o1602::render {
 
-void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& world, const assets::FigureTable& figures,
+void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& world,
+                           const assets::BuildingTable& buildings, const assets::FigureTable& figures,
                            std::uint32_t dt_ms) {
     m_instances.clear();
     for (Slot& s : m_slots) {
@@ -29,6 +32,19 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
             slot.generation = h.generation;
             slot.requested = anim;
             slot.state = start_animation(*type, anim, h.index * 2654435761U + h.generation);
+            if (!change) {
+                // The height of the tile it was made on, kept while it walks (0x00446CA0 callers):
+                // fishers on the water, carriers never below land (0x0044AC28). Carts have no such
+                // floor in the original and walk 17 px low from a fisher's hut (U-010); here they
+                // get the carriers' floor.
+                const sim::WalkerPosition p = sim::walker_position(w);
+                const sim::WorldIsland& isl = world.islands()[w.island];
+                slot.z =
+                    w.kind == sim::WalkerKind::Fisher ? 0.0 : spawn_height(world, buildings, isl.x + p.x, isl.y + p.y);
+                if (w.kind == sim::WalkerKind::Carrier || w.kind == sim::WalkerKind::Cart) {
+                    slot.z = std::max(slot.z, kLandHeight);
+                }
+            }
             if (change) {
                 // A new animation starts from its first frame (0x00446D90): a shot deer falls.
                 slot.state.frame = 0;
@@ -48,6 +64,7 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
         f.x = island.x + p.x;
         f.y = island.y + p.y;
         f.figure = w.figure;
+        f.z = slot.z;
         f.direction = w.direction;
         f.anim = slot.state.anim;
         f.frame = slot.state.frame;

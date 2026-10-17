@@ -7,6 +7,8 @@
 #include <limits>
 #include <queue>
 
+#include "o1602/render/land_figures.hpp"
+
 namespace o1602::render {
 
 namespace {
@@ -303,11 +305,16 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
             continue;
         }
         catch_up(w.anim, w.anim_ms, w.figure);
-        const double position = static_cast<double>(now - std::min(now, w.start_ms)) / w.ms_per_tile;
-        const auto step = std::min(static_cast<std::size_t>(position), w.path.size() - 1);
-        const double t = position - static_cast<double>(step);
+        // On the straight line between the centres of two tiles of its path (0x00459F40).
+        const auto elapsed = static_cast<std::uint32_t>(now - std::min(now, w.start_ms));
+        const auto next = std::upper_bound(w.arrive.begin(), w.arrive.end(), elapsed);
+        const auto step = static_cast<std::size_t>(std::max<std::ptrdiff_t>(next - w.arrive.begin(), 1) - 1);
+        const std::size_t to = std::min(step + 1, w.path.size() - 1);
+        const double t = to == step ? 0.0
+                                    : static_cast<double>(elapsed - w.arrive[step]) /
+                                          static_cast<double>(w.arrive[to] - w.arrive[step]);
         const sim::TilePos a = w.path[step];
-        const sim::TilePos b = w.path[std::min(step + 1, w.path.size() - 1)];
+        const sim::TilePos b = w.path[to];
         const sim::WorldIsland& island = world.islands()[w.island];
         const sim::TilePos on = t < 0.5 ? a : b;
         if (!walker_visible_on(type_at(island.map, buildings, on.x, on.y))) {
@@ -317,6 +324,7 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
         f.x = static_cast<double>(island.x) + a.x + 0.5 + (b.x - a.x) * t;
         f.y = static_cast<double>(island.y) + a.y + 0.5 + (b.y - a.y) * t;
         f.figure = w.figure;
+        f.z = w.z;
         f.anim = w.anim.anim;
         f.frame = w.anim.frame;
         f.direction = sim::direction_between(a, b);
@@ -513,11 +521,20 @@ void Ambient::send_walker(const sim::World& world, const assets::BuildingTable& 
     if (type == nullptr || type->speed == 0 || w.path.size() < 2) {
         return;
     }
-    // Speed * 0.002 tiles per second on the road (Wegspeed 100 %), in whole milliseconds so that
-    // every computer lets it arrive at the same moment.
-    w.ms_per_tile = (500'000U + type->speed - 1) / type->speed;
+    // Speed * 0.002 tiles per second on the road (Wegspeed 100 %) from tile centre to tile centre,
+    // diagonal steps sqrt(2) times as long (0x0044A690); in whole milliseconds so that every
+    // computer lets it arrive at the same moment.
+    const std::uint32_t ms_per_tile = (500'000U + type->speed - 1) / type->speed;
+    w.arrive.assign(w.path.size(), 0);
+    for (std::size_t i = 1; i < w.path.size(); ++i) {
+        const bool diagonal = w.path[i].x != w.path[i - 1].x && w.path[i].y != w.path[i - 1].y;
+        w.arrive[i] = w.arrive[i - 1] + (diagonal ? ms_per_tile * 14'142U / 10'000U : ms_per_tile);
+    }
     w.start_ms = at_ms;
-    w.end_ms = at_ms + std::uint64_t{w.ms_per_tile} * (w.path.size() - 1);
+    w.end_ms = at_ms + w.arrive.back();
+    // The height of the house tile, kept on the way (0x0044B140): 0.56 on land.
+    w.z = spawn_height(world, buildings, world.islands()[house.island].x + house.x + 0.5,
+                       world.islands()[house.island].y + house.y + 0.5);
     w.anim_ms = at_ms;
     w.anim = start_animation(*type, 0, seed);
     m_busy_houses.insert(key);
