@@ -30,6 +30,11 @@ core::Status IslandMap::build(const assets::BuildingType& b, std::int32_t x, std
     return write(b, x, y, rotation, anim_phase, owner, city, Mode::Build);
 }
 
+core::Status IslandMap::load(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                             std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool to_ground) {
+    return write(b, x, y, rotation, anim_phase, owner, city, to_ground ? Mode::LoadGround : Mode::Load);
+}
+
 core::Status IslandMap::replace(const assets::BuildingType& b, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                                 std::uint8_t anim_phase) {
     return write(b, x, y, rotation, anim_phase, kNoPlayer, MapCell::kNoCity, Mode::Replace);
@@ -62,6 +67,9 @@ core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std
         }
         m_top[i] = MapCell{static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation,
                            static_cast<std::uint8_t>(anim_phase & 0xFU), o, c};
+        if (mode == Mode::LoadGround) {
+            m_ground[i] = m_top[i];
+        }
         ++sprite;
     };
 
@@ -159,14 +167,7 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
     for (const auto& layer : island.layers) {
         layers.push_back(&layer);
     }
-    // The template (or, without one, the island's first layer) is the original terrain: it fills
-    // the ground layer of every tile, the later layers lie on top.
-    const std::size_t base_layers = base != nullptr ? base->layers.size() : std::min<std::size_t>(1, layers.size());
-    std::size_t layer_index = 0;
     for (const auto* layer : layers) {
-        if (layer_index++ == base_layers) {
-            map.capture_ground();
-        }
         for (const auto& tile : *layer) {
             const assets::BuildingType* b = buildings.by_id(tile.cod_id());
             if (b == nullptr) {
@@ -174,17 +175,45 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
                      std::to_string(tile.y));
                 continue;
             }
-            if (auto status = map.place(*b, tile.x, tile.y, tile.rotation(), tile.anim_phase(),
-                                        player_from_original(tile.player()), city_of(tile));
+            // The original's loader (0x00468550): every tile goes on top; terrain of no city also
+            // becomes the ground (not ruins, 0x00463E10).
+            constexpr std::uint8_t kNoCityBits = 7;
+            const bool ground = tile.city() == kNoCityBits && b->kind != 12 && b->kind != 29 &&
+                                !territory_building(buildings, *b);
+            if (auto status = map.load(*b, tile.x, tile.y, tile.rotation(), tile.anim_phase(),
+                                       player_from_original(tile.player()), city_of(tile), ground);
                 !status) {
                 warn(status.error().message);
             }
         }
     }
-    if (layer_index <= base_layers) {
-        map.capture_ground();
-    }
     return map;
+}
+
+bool territory_building(const assets::BuildingTable& buildings, const assets::BuildingType& b) noexcept {
+    // HAUS_PRODTYP Kind (0x00480B70 -> 0x00480B40 -> 0x00480AF0).
+    constexpr std::uint8_t kGrass = 52;
+    constexpr std::uint8_t kTree = 53;
+    constexpr std::uint8_t kFish = 57;
+    const auto crop = [](const assets::BuildingType* t) {
+        return t != nullptr && t->ware != kGrass && t->ware != kTree && t->ware != kFish;
+    };
+    const std::int32_t p = b.prod_kind;
+    switch (p) {
+        case 0:
+            return b.kind == 1 || b.kind == 30;  // STRASSE, PIER
+        case 9:  // ROHSTOFF: a ripe field, unless grass, a tree or fish
+            return crop(&b);
+        case 10:  // ROHSTWACHS: by the ripe record that follows
+            return crop(buildings.by_record(b.record + 1));
+        case 16:  // WACHTURM
+        case 32:
+            return true;
+        default:
+            break;
+    }
+    // Production entries (1..8, 17..27, 30) and houses, shipyards, military (13..15, 31).
+    return (p >= 1 && p <= 8) || (p >= 13 && p <= 15) || (p >= 17 && p <= 27) || p == 30 || p == 31;
 }
 
 }  // namespace o1602::sim

@@ -151,11 +151,12 @@ TEST_CASE("island map: template is placed below the island's own entries") {
     base.header.width = 4;
     base.header.height = 4;
     assets::Island island = base;
-    // template: grass everywhere; island: one house
+    // template: grass everywhere (of no city: attribute city 7, it becomes the ground); island: one
+    // house of city 0
     base.layers.emplace_back();
     for (std::uint8_t y = 0; y < 4; ++y) {
         for (std::uint8_t x = 0; x < 4; ++x) {
-            base.layers[0].push_back(assets::IslandTile{0, x, y, 0});
+            base.layers[0].push_back(assets::IslandTile{0, x, y, 7U << 14});
         }
     }
     island.layers.push_back({assets::IslandTile{1, 1, 1, 0}});

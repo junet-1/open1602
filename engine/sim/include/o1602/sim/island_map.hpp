@@ -72,6 +72,11 @@ public:
     core::Status build(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                        std::uint8_t anim_phase, PlayerId owner, std::uint8_t city);
 
+    /// A tile of a saved island (INSELHAUS, 0x00468550): written on top like the original's loader;
+    /// with `to_ground` it also becomes the tile's ground (0x00463E10). Nothing moves down.
+    core::Status load(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
+                      std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, bool to_ground);
+
     /// Takes the current picture as the original terrain of every tile (the ground layer the
     /// original keeps at island + 0xAFC).
     void capture_ground() { m_ground = m_top; }
@@ -107,7 +112,7 @@ public:
                                  std::vector<std::string>* warnings = nullptr, const assets::Island* base = nullptr);
 
 private:
-    enum class Mode : std::uint8_t { Place, Replace, Build };
+    enum class Mode : std::uint8_t { Place, Replace, Build, Load, LoadGround };
     core::Status write(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                        std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode);
     [[nodiscard]] std::size_t index(std::uint32_t x, std::uint32_t y) const { return std::size_t{y} * m_width + x; }
@@ -117,6 +122,12 @@ private:
     std::vector<MapCell> m_top;
     std::vector<MapCell> m_ground;
 };
+
+/// Whether a building belongs to the land of a city (0x00480B70): roads, piers, crop fields, towers,
+/// production and public buildings, Kontors. Grass, trees, fish, ground, mountains and ruins do
+/// not. What does falls to ruins when its city loses the land; what does not is terrain the
+/// original keeps in the ground layer.
+[[nodiscard]] bool territory_building(const assets::BuildingTable& buildings, const assets::BuildingType& b) noexcept;
 
 /// Footprint after rotation (original 0x00463830): rotations 1 and 3 swap width and height.
 inline void rotated_size(const assets::BuildingType& b, std::uint8_t rotation, std::uint32_t& w, std::uint32_t& h) {

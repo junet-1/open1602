@@ -70,6 +70,13 @@ existieren als `Id` eines `HAUS`-Datensatzes (Test `data: island tile ids ...`).
 Feld mit dem `Gfx`-Index dieses Datensatzes aus `GFX/STADTFLD.BSH` isometrisch (64 × 31, Versatz
 `Posoffs`), entsteht eine stimmige Insel aus Grasland, Wald, Küste und Wasser.
 
+**Bodenebene beim Laden** (`0x00468550`): Jeder Eintrag kommt in die obere Ebene. Hat er keine Stadt
+(Stadtbits 7), ist er keine Ruine (Kind 12, 29) und gehört er nicht zum Land einer Stadt
+(`0x00480B70`: Straßen, Stege, Felder, Türme, Betriebe, Häuser, Kontore), kommt er zusätzlich in die
+Bodenebene (`0x00463E10`, Insel +0xAFC). Spielstände schreiben deshalb zwei Lagen: zuerst die ganze
+Bodenebene, alle Einträge mit Stadt und Besitzer 7, dann die Felder der oberen Ebene, die vom Boden
+abweichen ([savegame-writer.md](../re/savegame-writer.md)). Open1602 lädt genauso.
+
 Kuriosum: `NORD/big.scp` (ohne Nummer) hat Lücken in Form von „???“ – dort fehlen schlicht Einträge.
 Die Datei ist offenbar eine Platzhalter-Vorlage; die echten Inseln heißen `big00`–`big66`.
 

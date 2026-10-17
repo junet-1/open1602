@@ -1696,17 +1696,8 @@ public:
     }
 
     /// What falls to ruins when its land is lost (0x00480B70): buildings, roads, piers and crop
-    /// fields; not grass, trees or fish.
-    bool ruinable(const assets::BuildingType& b) const {
-        if (b.kind == kind::kGround || b.kind == kind::kSea || b.kind == kind::kRuin || b.kind == kind::kBeachRuin) {
-            return false;
-        }
-        if (b.prod_kind == kProdKindGrowing || b.prod_kind == kProdKindRipe) {
-            const std::uint8_t crop = crop_ware(m_buildings, b);
-            return crop != 0 && crop != kWareTree && crop != 52 /* GRAS */ && crop != 57 /* FISCHE */;
-        }
-        return b.kind != kind::kForest;
-    }
+    /// fields; not grass, trees, fish or terrain.
+    bool ruinable(const assets::BuildingType& b) const { return territory_building(m_buildings, b); }
 
     void dissolve_city(std::uint8_t index) {
         IslandMap& m = map();
