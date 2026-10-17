@@ -38,6 +38,9 @@ BuildTool::BuildTool(const assets::BuildingTable& buildings) : m_buildings(&buil
         if (b.destroyed || (c.money == 0 && c.tools == 0 && c.wood == 0 && c.bricks == 0)) {
             continue;  // terrain, ruins and other things nobody builds
         }
+        if (b.land_record != assets::BuildingType::kNoRecord || buildings.by_id(b.id) != &b) {
+            continue;  // beach variants come from building the land record on the beach
+        }
         m_list.push_back(&b);
     }
     std::stable_sort(m_list.begin(), m_list.end(), [](const assets::BuildingType* a, const assets::BuildingType* b) {

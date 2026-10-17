@@ -230,7 +230,7 @@ assets::BuildingTable original_buildings(const assets::GameDirectory& game) {
 TEST_CASE("data: building table from haeuser.cod") {
     const auto game = require_game();
     const auto table = original_buildings(game);
-    CHECK(table.types().size() == 495);  // distinct non-zero ids; 3 ids occur twice in the original
+    CHECK(table.types().size() == 498);  // all records with an id; 3 ids occur twice in the original (D-007)
     const auto* meer = table.by_id(21201);
     REQUIRE(meer != nullptr);
     CHECK(meer->gfx == 758);
@@ -1459,4 +1459,114 @@ TEST_CASE("data: a dragged road follows the tiles of its city (0x0040AB20)") {
         }
     }
     CHECK(paths > 0);
+}
+
+TEST_CASE("data: walls on the beach and the piers of Kontors come out as in the savegames (0x004653A0)") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    std::size_t walls = 0;
+    std::size_t kontors = 0;
+    for (auto& save : saves) {
+        sim::World& world = save.world;
+        for (std::uint16_t i = 0; i < world.islands().size(); ++i) {
+            sim::IslandMap& map = world.island(i).map;
+            const auto type_at = [&](std::uint32_t x, std::uint32_t y) {
+                const sim::MapCell& c = map.top(x, y);
+                return c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+            };
+            // Every beach wall, taken away and built again from its land wall, row by row.
+            for (std::uint32_t y = 0; y < map.height(); ++y) {
+                for (std::uint32_t x = 0; x < map.width(); ++x) {
+                    const assets::BuildingType* b = type_at(x, y);
+                    if (b == nullptr || b->kind != 5 || b->land_record == assets::BuildingType::kNoRecord) {
+                        continue;
+                    }
+                    const sim::MapCell saved = map.top(x, y);
+                    const assets::BuildingType* land = buildings->by_record(b->land_record);
+                    REQUIRE(land != nullptr);
+                    map.restore_ground(x, y);
+                    sim::place_tiles(world, *buildings, i, *land, static_cast<std::int32_t>(x),
+                                     static_cast<std::int32_t>(y), 0);
+                    const sim::MapCell& now = map.top(x, y);
+                    CHECK(now.sprite == saved.sprite);
+                    CHECK(now.rotation == saved.rotation);
+                    ++walls;
+                }
+            }
+            // Every Kontor at the coast, built again on bare ground: the piers in front of it.
+            for (std::uint32_t y = 0; y < map.height(); ++y) {
+                for (std::uint32_t x = 0; x < map.width(); ++x) {
+                    const assets::BuildingType* b = type_at(x, y);
+                    if (b == nullptr || !b->coastal || b->destroyed) {
+                        continue;
+                    }
+                    const auto at = sim::building_at(world, *buildings, i,
+                                                     {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)});
+                    if (!at || at->origin.x != static_cast<std::int32_t>(x) ||
+                        at->origin.y != static_cast<std::int32_t>(y)) {
+                        continue;
+                    }
+                    // The line in front of the long side.
+                    std::vector<sim::TilePos> line;
+                    for (std::int32_t k = 0; k < 3; ++k) {
+                        const std::int32_t ox = at->origin.x;
+                        const std::int32_t oy = at->origin.y;
+                        const auto w = static_cast<std::int32_t>(at->width);
+                        const auto h = static_cast<std::int32_t>(at->height);
+                        switch (at->rotation) {
+                            case 0:
+                                line.push_back({ox + w, oy + k});
+                                break;
+                            case 1:
+                                line.push_back({ox + k, oy + h});
+                                break;
+                            case 2:
+                                line.push_back({ox - 1, oy + k});
+                                break;
+                            default:
+                                line.push_back({ox + k, oy - 1});
+                                break;
+                        }
+                    }
+                    bool piers = true;
+                    for (const sim::TilePos p : line) {
+                        const auto* t = map.contains(p.x, p.y)
+                                            ? type_at(static_cast<std::uint32_t>(p.x), static_cast<std::uint32_t>(p.y))
+                                            : nullptr;
+                        piers = piers && t != nullptr && t->kind == 30;
+                    }
+                    CHECK(piers);
+                    if (!piers) {
+                        continue;
+                    }
+                    for (std::uint32_t j = 0; j < at->height; ++j) {
+                        for (std::uint32_t k = 0; k < at->width; ++k) {
+                            map.restore_ground(static_cast<std::uint32_t>(at->origin.x) + k,
+                                               static_cast<std::uint32_t>(at->origin.y) + j);
+                        }
+                    }
+                    for (const sim::TilePos p : line) {
+                        map.restore_ground(static_cast<std::uint32_t>(p.x), static_cast<std::uint32_t>(p.y));
+                    }
+                    sim::place_tiles(world, *buildings, i, *at->type, at->origin.x, at->origin.y, at->rotation);
+                    for (const sim::TilePos p : line) {
+                        const sim::MapCell& c =
+                            map.top(static_cast<std::uint32_t>(p.x), static_cast<std::uint32_t>(p.y));
+                        const auto* t = buildings->by_sprite(c.sprite);
+                        REQUIRE(t != nullptr);
+                        CHECK(t->kind == 30);
+                        CHECK(c.rotation == at->rotation);
+                    }
+                    ++kontors;
+                }
+            }
+        }
+    }
+    CHECK(walls > 0);
+    CHECK(kontors > 0);
 }

@@ -26,6 +26,9 @@ constexpr std::uint32_t kHouse = 20801;
 constexpr std::uint32_t kMeadow = 22722;
 constexpr std::uint32_t kField = 21301;
 constexpr std::uint32_t kCastle = 21501;
+constexpr std::uint32_t kWall = 22501;
+constexpr std::uint32_t kTower = 20305;
+constexpr std::uint32_t kGate = 20304;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -34,7 +37,7 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n  Randwachs: 100\n"
         "  @Nummer: 1\n  Id: 21201\n  Kind: 19\n  Gfx: 1\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 9\n  EndObj\n"
-        "  @Nummer: 2\n  Id: 20501\n  Kind: 23\n  Gfx: 2\n  Size: 1, 1\n"
+        "  @Nummer: 2\n  Id: 20501\n  Kind: 23\n  Gfx: 2\n  Size: 1, 1\n  Destroyflg: 1\n"
         "  @Nummer: 3\n  Id: 20202\n  Kind: 10\n  Gfx: 3\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"
         // Road family: straight, curve, T, cross (KreuzBase = record 4).
@@ -72,6 +75,23 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 16\n  Id: 21501\n  Kind: 14\n  Gfx: 50\n  Size: 2, 2\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Bauinfra: 11\n  EndObj\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 30\n  EndObj\n"
+        // Walls (straight, curve, T) and their beach variants three records on.
+        "  @Nummer: 17\n  Id: 22501\n  Kind: 4\n  Gfx: 60\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 17\n  Strandoff: 3\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 18\n  EndObj\n"
+        "  @Nummer: 18\n  Id: 22502\n  Kind: 4\n  Gfx: 64\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 17\n  Strandoff: 3\n"
+        "  @Nummer: 19\n  Id: 22503\n  Kind: 4\n  Gfx: 68\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 17\n  Strandoff: 3\n"
+        "  @Nummer: 20\n  Id: 22541\n  Kind: 5\n  Gfx: 72\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 20\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 20\n  EndObj\n"
+        "  @Nummer: 21\n  Id: 22542\n  Kind: 5\n  Gfx: 76\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 20\n"
+        "  @Nummer: 22\n  Id: 22543\n  Kind: 5\n  Gfx: 80\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 20\n"
+        // Tower and beach tower, a gate, the pier.
+        "  @Nummer: 23\n  Id: 20305\n  Kind: 6\n  Gfx: 84\n  Size: 1, 1\n  Rotate: 1\n  Strandoff: 1\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 40\n  EndObj\n"
+        "  @Nummer: 24\n  Id: 20306\n  Kind: 7\n  Gfx: 88\n  Size: 1, 1\n  Rotate: 1\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 40\n  EndObj\n"
+        "  @Nummer: 25\n  Id: 20304\n  Kind: 3\n  Gfx: 92\n  Size: 1, 1\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 15\n  EndObj\n"
+        "  @Nummer: 26\n  Id: 21073\n  Kind: 30\n  Gfx: 96\n  Size: 1, 1\n  Rotate: 1\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -97,7 +117,8 @@ struct Island {
                 } else if (x >= 20 && x <= 24 && y >= 5 && y <= 9) {
                     id = kTree;
                 }
-                REQUIRE(map.place(*buildings.by_id(id), x, y, 0, 0).ok());
+                // The beach turns its sea side west (rotation 1).
+                REQUIRE(map.place(*buildings.by_id(id), x, y, id == kBeach ? 1 : 0, 0).ok());
             }
         }
         map.capture_ground();
@@ -389,4 +410,42 @@ TEST_CASE("construction: a castle makes its city proud, once per player") {
     CHECK(again.placed == 0);
     CHECK(again.items[0].refusal == sim::BuildRefusal::Limit);
     CHECK(island.world.city(0, 0)->satisfaction_bonus == 800);
+}
+
+TEST_CASE("construction: walls and towers on the beach, piers in front of a new Kontor") {
+    Island island;
+    island.found();
+    // The Kontor at (5, 10), turned to the beach on its left, lays piers along x 4.
+    for (std::int32_t y = 10; y < 13; ++y) {
+        const sim::MapCell& c = island.world.islands()[0].map.top(4, static_cast<std::uint32_t>(y));
+        REQUIRE(island.at(4, y) != nullptr);
+        CHECK(island.at(4, y)->kind == 30);
+        CHECK(c.rotation == 2);
+        CHECK(c.city == island.city_at(5, 10));
+    }
+    // A wall on the beach becomes the beach wall, turned like the beach; it costs the land wall.
+    const std::int32_t money = island.world.players()[0].money;
+    REQUIRE(island.build({{kWall, 4, 15, 0, 0}}).placed == 1);
+    REQUIRE(island.at(4, 15) != nullptr);
+    CHECK(island.at(4, 15)->id == 22541);
+    CHECK(island.world.islands()[0].map.top(4, 15).rotation == 1);
+    CHECK(island.world.players()[0].money == money - 18);
+    // A second one below joins it: straight north-south, the sea still west.
+    REQUIRE(island.build({{kWall, 4, 16, 0, 0}}).placed == 1);
+    CHECK(island.at(4, 16)->id == 22541);
+    CHECK(island.world.islands()[0].map.top(4, 16).rotation == 1);
+    CHECK(island.world.islands()[0].map.top(4, 15).rotation == 1);
+    // A land wall next to it on the ground stays a land wall; the beach wall turns into a curve.
+    REQUIRE(island.build({{kWall, 5, 15, 0, 0}}).placed == 1);
+    CHECK(island.at(5, 15)->kind == 4);
+    CHECK(island.at(4, 15)->id == 22542);
+    // A tower on the beach is the beach tower; a gate does not stand on the beach.
+    REQUIRE(island.build({{kTower, 4, 18, 0, 0}}).placed == 1);
+    CHECK(island.at(4, 18)->kind == 7);
+    const sim::BuildPlan gate = island.build({{kGate, 4, 13, 0, 0}});
+    CHECK(gate.placed == 0);
+    CHECK(gate.items[0].refusal == sim::BuildRefusal::Terrain);
+    // Demolished, the beach comes back.
+    CHECK(island.demolish({4, 18}, {4, 18}) == 1);
+    CHECK(island.at(4, 18)->id == kBeach);
 }

@@ -147,14 +147,14 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.growth_class = static_cast<std::uint8_t>(std::min(cls, 31U));
         }
 
-        // Duplicate ids exist in the original (three ruins); the first record wins, as in the
-        // id -> record table the original builds while loading.
+        // Duplicate ids exist in the original (the wooden walls at a river mouth repeat those of
+        // the wooden beach walls, D-007); the first record wins the id, as in the id -> record
+        // table the original builds while loading, but every record keeps its number and sprites.
         const std::size_t slot = b.id - kIdOffset;
-        if (table.m_by_id[slot] >= 0) {
-            continue;
-        }
         const auto index = static_cast<std::int32_t>(table.m_types.size());
-        table.m_by_id[slot] = index;
+        if (table.m_by_id[slot] < 0) {
+            table.m_by_id[slot] = index;
+        }
         for (std::uint32_t k = 0; k < b.tile_count(); ++k) {
             if (b.gfx + k < kMaxSprite && table.m_by_sprite[b.gfx + k] < 0) {
                 table.m_by_sprite[b.gfx + k] = index;
@@ -165,6 +165,23 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         }
         table.m_by_record[b.record] = index;
         table.m_types.push_back(b);
+    }
+
+    // Beach and river mouth variants know the land building they stand for.
+    for (const BuildingType& land : table.m_types) {
+        if (land.beach_offset == 0) {
+            continue;
+        }
+        const std::uint32_t beach = land.record + land.beach_offset;
+        if (beach >= table.m_by_record.size() || table.m_by_record[beach] < 0) {
+            continue;
+        }
+        BuildingType& b = table.m_types[static_cast<std::size_t>(table.m_by_record[beach])];
+        b.land_record = land.record;
+        const std::uint32_t mouth = beach + b.mouth_offset;
+        if (b.mouth_offset != 0 && mouth < table.m_by_record.size() && table.m_by_record[mouth] >= 0) {
+            table.m_types[static_cast<std::size_t>(table.m_by_record[mouth])].land_record = land.record;
+        }
     }
 
     // Classes of inhabitants and their needs (0x00460750: k = trunc(v * 8192) / 600).

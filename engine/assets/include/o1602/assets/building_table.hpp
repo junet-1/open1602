@@ -49,12 +49,17 @@ struct BuildingType {
     /// Ausbauflg (record +0x6A bit 6): replaces a building of the same KreuzBase family in place
     /// (Kontor I to IV, deep mine, Weberei, stone walls).
     bool upgrade = false;
-    /// Destroyflg (record +0x6A bit 7): a destroyed building (destroyed Kontor or market).
+    /// Destroyflg (record +0x6A bit 7): a destroyed building (destroyed Kontor or market), also
+    /// set on beach terrain and beach ruins (their rotation is taken from the ground layer).
     bool destroyed = false;
     /// Strandoff, Mundoff (record +0x67, +0x68): records to the beach variant and, on a river
-    /// mouth, further on to its variant.
+    /// mouth, further on to its variant (walls and towers on the beach).
     std::uint8_t beach_offset = 0;
     std::uint8_t mouth_offset = 0;
+    /// For a beach or river mouth variant: the record of the land building the player ordered
+    /// (its costs are paid), kNoRecord for everything else.
+    static constexpr std::uint32_t kNoRecord = 0xFFFFFFFFU;
+    std::uint32_t land_record = kNoRecord;
     /// Randwachs (record +0x40, value * 128 / 100): how well crops grow on this ground, 128 =
     /// the island's full fertility (0x004684A0); the default 100 gives 128.
     std::uint8_t edge_growth = 128;

@@ -167,6 +167,13 @@ struct DemolishResult {
 DemolishResult execute_demolish(World& world, const assets::BuildingTable& buildings, const DemolishOrder& order,
                                 std::vector<ConstructionEvent>* events, std::uint32_t refund_percent = 0);
 
+/// Writes a building onto the tiles the way the original does after its checks (0x004653A0):
+/// walls and towers on the beach become their beach variant, roads, walls and bridges fit their
+/// neighbours, a new Kontor lays its piers. Nothing is checked, registered or paid; for tools and
+/// tests (execute_build does all of that).
+void place_tiles(World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                 const assets::BuildingType& type, std::int32_t x, std::int32_t y, std::uint8_t rotation);
+
 /// Whether crops of `ware` grow on the tile (0x004684A0): the island's fertility for the ware
 /// (0, 64 or 128), weighted with the Randwachs of the ground, picks one of five patterns.
 [[nodiscard]] bool tile_fertile(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
