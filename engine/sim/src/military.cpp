@@ -1,0 +1,476 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "o1602/sim/military.hpp"
+
+#include <algorithm>
+
+#include "o1602/sim/logistics.hpp"
+#include "o1602/sim/sea_paths.hpp"
+#include "o1602/sim/ships.hpp"
+
+namespace o1602::sim {
+
+namespace {
+
+constexpr std::uint32_t kRegenEpochMs = 10'000;  // 0x0047A8C0: building damage heals every 10 s
+constexpr std::uint32_t kRegenAmount = 32;       // by 1 HP
+constexpr std::uint32_t kTowerThinkUs = 1'000'000;
+constexpr std::int32_t kTowerSight8 = 0x60;  // towers score entries within 12 tiles
+constexpr std::int32_t kProdTower = 16;      // HAUS_PRODTYP WACHTURM
+constexpr std::int32_t kProdMarket = 7;
+constexpr std::int32_t kProdKontor = 8;
+
+/// HAUS kinds that take only 51/128 of the damage of a shot that is not a cannon's (0x0047A650).
+bool sturdy(std::int32_t kind) noexcept {
+    switch (kind) {
+        case 3:   // TOR
+        case 4:   // MAUER
+        case 5:   // MAUERSTRAND
+        case 6:   // TURM
+        case 7:   // TURMSTRAND
+        case 14:  // GEBAEUDE
+        case 28:  // STRANDHAUS
+        case 30:  // PIER
+        case 34:  // MINE
+        case 35:  // HQ
+        case 36:  // HAFEN
+        case 37:  // WMUEHLE
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool acts(const World& world, PlayerId p) noexcept {
+    const Player* player = world.player(p);
+    return player != nullptr && (player->role == PlayerRole::Human || player->role == PlayerRole::Computer);
+}
+
+}  // namespace
+
+Military::Military(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+                   const Rules& rules, Combat& combat)
+    : m_world(&world), m_buildings(&buildings), m_figures(&figures), m_rules(&rules), m_combat(&combat) {}
+
+void Military::tick(std::uint32_t dt_ms, std::vector<ConstructionEvent>* construction) {
+    const std::uint32_t budget = dt_ms * 1000U;
+    // Units may die while others act; iterate by id.
+    std::vector<std::uint32_t> ids;
+    ids.reserve(m_world->soldiers().size());
+    for (const Soldier& s : m_world->soldiers()) {
+        ids.push_back(s.id);
+    }
+    for (const std::uint32_t id : ids) {
+        if (Soldier* s = m_world->soldier(id)) {
+            advance(*s, budget);
+        }
+    }
+    // The dead are gone at the end of their animation.
+    std::erase_if(m_world->soldiers(), [](const Soldier& s) { return s.owner == kNoPlayer; });
+    towers_tick(dt_ms);
+    resolve_hits(construction);
+    m_regen_ms += dt_ms;
+    if (m_regen_ms >= kRegenEpochMs) {
+        m_regen_ms -= kRegenEpochMs;
+        regenerate();
+    }
+}
+
+// ---- Orders ------------------------------------------------------------------------------------
+
+bool Military::order(const SoldierOrder& o) {
+    std::vector<Soldier*> units;
+    for (const std::uint32_t id : o.soldiers) {
+        Soldier* s = m_world->soldier(id);
+        if (s != nullptr && !s->away() && (o.player == kNoPlayer || s->owner == o.player)) {
+            units.push_back(s);
+        }
+    }
+    if (units.empty() || (!o.target.empty() && !target_valid(o.target))) {
+        return false;
+    }
+    // The attack cursor on an object of another player means war (0x0044D540); not on the trader.
+    const PlayerId other = owner_of(o.target);
+    const PlayerId self = units.front()->owner;
+    if (o.attack && other != kNoPlayer && other != self) {
+        const Player* p = m_world->player(other);
+        if (p != nullptr && p->role != PlayerRole::Trader && !m_world->diplomacy().hostile(self, other)) {
+            m_world->diplomacy().set_peace(*m_world, self, other, Treaty::None, m_world->time_ms());
+            m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::WarDeclared, {}, o.target, self, other});
+        }
+    }
+    // Formation (0x0044C6D0): slots one tile apart around the spot; each unit in order takes the
+    // nearest free slot.
+    std::vector<Target> targets(units.size(), o.target);
+    const auto& formations = m_figures->formations();
+    if (o.target.kind == Target::Kind::Spot && o.formation < formations.size() && !formations[o.formation].empty()) {
+        const auto& slots = formations[o.formation];
+        std::vector<bool> taken(slots.size(), false);
+        for (std::size_t u = 0; u < units.size(); ++u) {
+            std::size_t best = slots.size();
+            std::int32_t best_d = 0;
+            for (std::size_t k = 0; k < slots.size(); ++k) {
+                if (taken[k]) {
+                    continue;
+                }
+                const std::int32_t sx = static_cast<std::int32_t>(o.target.x) + 2 * slots[k].x;
+                const std::int32_t sy = static_cast<std::int32_t>(o.target.y) + 2 * slots[k].y;
+                const std::int32_t d = sea_distance(sx - units[u]->cell_x(), sy - units[u]->cell_y());
+                if (best == slots.size() || d < best_d) {
+                    best = k;
+                    best_d = d;
+                }
+            }
+            if (best == slots.size()) {
+                break;  // more units than slots: the rest go to the spot
+            }
+            taken[best] = true;
+            targets[u] = Target::spot(
+                static_cast<std::uint32_t>(std::max(0, static_cast<std::int32_t>(o.target.x) + 2 * slots[best].x)),
+                static_cast<std::uint32_t>(std::max(0, static_cast<std::int32_t>(o.target.y) + 2 * slots[best].y)));
+        }
+    }
+    for (std::size_t u = 0; u < units.size(); ++u) {
+        Soldier& s = *units[u];
+        // Soldier_SetTarget 0x004497C0: the running cell ends, then the soldier plans.
+        s.target = targets[u];
+        s.motion.path.clear();
+        s.motion.path_index = 0;
+        s.failures = 0;
+        s.patrol.active = false;
+        if (s.motion.phase == SoldierMotion::Phase::Wait) {
+            s.motion.elapsed_us = s.motion.duration_us;
+        }
+    }
+    return true;
+}
+
+bool Military::command(const SoldierCommand& c) {
+    Soldier* s = m_world->soldier(c.soldier);
+    if (s == nullptr || s->away() || (c.player != kNoPlayer && s->owner != c.player)) {
+        return false;
+    }
+    switch (c.op) {
+        case SoldierCommand::Op::Stop:
+            s->target = {};
+            s->patrol.active = false;
+            s->motion.path.clear();
+            s->motion.path_index = 0;
+            return true;
+        case SoldierCommand::Op::Disband: {
+            // The original charges the third value of the Soldat: line (0x0043D559).
+            const assets::FigureType* type = type_of(*s);
+            if (Player* p = m_world->player(s->owner); p != nullptr && type != nullptr) {
+                p->money -= static_cast<std::int32_t>(m_figures->unit_cost(type->kind));
+            }
+            kill(*s, kNoPlayer, true);
+            return true;
+        }
+        case SoldierCommand::Op::SetWaypoint:
+            if (c.index > 1 || (!c.point.empty() && !target_valid(c.point))) {
+                return false;
+            }
+            s->patrol.points[c.index] = c.point;
+            return true;
+        case SoldierCommand::Op::Patrol:
+            if (!c.on) {
+                s->patrol.active = false;
+                return true;
+            }
+            if (s->patrol.points[0].empty()) {
+                return false;
+            }
+            s->patrol.active = true;
+            s->patrol.one_way = c.one_way;
+            s->patrol.index = 0;
+            s->target = s->patrol.points[0];
+            s->motion.path.clear();
+            s->motion.path_index = 0;
+            return true;
+    }
+    return false;
+}
+
+// ---- Towers ------------------------------------------------------------------------------------
+
+void Military::update_towers(std::uint16_t island) {
+    if (island >= m_world->islands().size()) {
+        return;
+    }
+    const IslandMap& map = m_world->islands()[island].map;
+    // Towers whose building is gone, or no Wachturm any more, go (0x00481450); the others belong to
+    // the owner of the city they stand in.
+    std::erase_if(m_world->towers(), [&](const Tower& t) {
+        if (t.island != island) {
+            return false;
+        }
+        const auto b = building_at(*m_world, *m_buildings, island, {t.x, t.y});
+        return !b || b->type->prod_kind != kProdTower || b->origin.x != t.x || b->origin.y != t.y;
+    });
+    for (Tower& t : m_world->towers()) {
+        if (t.island == island) {
+            const MapCell& c = map.top(t.x, t.y);
+            const City* city = m_world->city(island, c.city);
+            if (city != nullptr) {
+                t.owner = city->owner;
+            }
+        }
+    }
+    // New towers for Wachturm buildings in a city's territory (0x00482120).
+    for (std::uint32_t y = 0; y < map.height(); ++y) {
+        for (std::uint32_t x = 0; x < map.width(); ++x) {
+            const MapCell& c = map.top(x, y);
+            if (c.empty() || c.city == MapCell::kNoCity) {
+                continue;
+            }
+            const assets::BuildingType* type = m_buildings->by_sprite(c.sprite);
+            if (type == nullptr || type->prod_kind != kProdTower) {
+                continue;
+            }
+            const auto b = building_at(*m_world, *m_buildings, island,
+                                       {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)});
+            if (!b || b->origin.x != static_cast<std::int32_t>(x) || b->origin.y != static_cast<std::int32_t>(y)) {
+                continue;
+            }
+            const bool known = std::any_of(m_world->towers().begin(), m_world->towers().end(),
+                                           [&](const Tower& t) { return t.island == island && t.x == x && t.y == y; });
+            const City* city = m_world->city(island, c.city);
+            if (known || city == nullptr) {
+                continue;
+            }
+            Tower t;
+            t.island = island;
+            t.x = static_cast<std::uint16_t>(x);
+            t.y = static_cast<std::uint16_t>(y);
+            t.owner = city->owner;
+            t.figure = type->worker_figure;
+            t.next_shot_ms = m_world->time_ms();
+            m_world->towers().push_back(t);
+        }
+    }
+}
+
+void Military::towers_tick(std::uint32_t dt_ms) {
+    const std::uint32_t budget = dt_ms * 1000U;
+    for (std::size_t i = 0; i < m_world->towers().size(); ++i) {
+        Tower& t = m_world->towers()[i];
+        if (t.next_think_us > budget) {
+            t.next_think_us -= budget;
+            continue;
+        }
+        t.next_think_us = kTowerThinkUs - (budget - t.next_think_us);
+        tower_think(t);
+    }
+}
+
+void Military::tower_think(Tower& t) {
+    const Target self = Target::building(t.island, t.x, t.y);
+    const auto me = m_combat->fighter(self);
+    if (!me) {
+        return;
+    }
+    const Player* owner = m_world->player(t.owner);
+    const bool pirate_tower = owner != nullptr && owner->role == PlayerRole::Pirates;
+    const std::uint64_t now = m_world->time_ms();
+    for (const Candidate& c : m_combat->rank(*me, m_combat->hostiles(self), kTowerSight8)) {
+        if (!c.near) {
+            continue;
+        }
+        // Pirate towers spare unarmed trade ships without soldiers on board (0x00458E60).
+        if (pirate_tower && c.unit.kind == Target::Kind::Ship) {
+            const Ship* ship = m_world->ship(c.unit.ship);
+            if (ship != nullptr && ship->cannons == 0 && !ship->trader) {
+                bool troops = false;
+                for (const CargoSlot& slot : ship->cargo) {
+                    troops = troops || (slot.ware >= 25 && slot.ware <= 44);
+                }
+                if (!troops) {
+                    continue;
+                }
+            }
+        }
+        const auto target = m_combat->fighter(c.unit);
+        if (!target) {
+            continue;
+        }
+        // In range from the tower's centre (half tiles), no line of sight needed (0x00458D80).
+        const std::int32_t cx = me->x8 / 4;
+        const std::int32_t cy = me->y8 / 4;
+        if (target->cells.distance(cx, cy) > me->range8 / 4) {
+            continue;
+        }
+        const auto [nx, ny] = target->cells.nearest(cx, cy);
+        t.direction = direction_to(nx - cx, ny - cy);
+        if (now >= t.next_shot_ms) {
+            const assets::FigureType* type = m_figures->get(t.figure);
+            m_combat->shoot(*me, *target, type != nullptr ? type->combat.hit_delay_ms : 600);
+            t.next_shot_ms = now + (type != nullptr ? type->work_time_ms : 3000);
+            m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::Shot, self, c.unit, t.owner, target->owner,
+                                             me->x8 * 512, me->y8 * 512, t.figure});
+        }
+        return;
+    }
+}
+
+// ---- Hits --------------------------------------------------------------------------------------
+
+void Military::resolve_hits(std::vector<ConstructionEvent>* construction) {
+    const std::uint64_t now = m_world->time_ms();
+    auto& hits = m_world->pending_hits();
+    std::vector<PendingHit> due;
+    for (std::size_t i = 0; i < hits.size();) {
+        if (hits[i].due_ms <= now) {
+            due.push_back(hits[i]);
+            hits.erase(hits.begin() + static_cast<std::ptrdiff_t>(i));
+        } else {
+            ++i;
+        }
+    }
+    for (const PendingHit& h : due) {
+        hit(h, construction);
+    }
+}
+
+void Military::hit(const PendingHit& h, std::vector<ConstructionEvent>* construction) {
+    // Projectile_Hit 0x00445930: the target is hit if it still exists, wherever it went.
+    const auto target = m_combat->fighter(h.target);
+    if (!target) {
+        return;
+    }
+    m_world->diplomacy().add_damage(target->owner, h.attacker, h.damage);
+    // Impact effect: a third of the way from the target's nearest point to its centre.
+    std::uint16_t effect = 0;
+    switch (h.shooter.kind) {
+        case Target::Kind::Soldier:
+        case Target::Kind::Ship: {
+            const Soldier* s = h.shooter.kind == Target::Kind::Soldier ? m_world->soldier(h.shooter.ship) : nullptr;
+            const Ship* ship = h.shooter.kind == Target::Kind::Ship ? m_world->ship(h.shooter.ship) : nullptr;
+            const assets::FigureType* type = s != nullptr      ? m_figures->get(s->figure)
+                                             : ship != nullptr ? m_figures->get(ship->figure)
+                                                               : nullptr;
+            effect = type != nullptr ? type->combat.hit_figure : 0;
+            break;
+        }
+        case Target::Kind::Building:
+            for (const Tower& t : m_world->towers()) {
+                if (t.island == h.shooter.island && t.x == h.shooter.x && t.y == h.shooter.y) {
+                    const assets::FigureType* type = m_figures->get(t.figure);
+                    effect = type != nullptr ? type->combat.hit_figure : 0;
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    const auto [nx, ny] = target->cells.nearest(h.from_x / kCellUnit, h.from_y / kCellUnit);
+    const std::int32_t px =
+        (nx * kCellUnit + kCellUnit / 2) + (target->x8 * 512 - (nx * kCellUnit + kCellUnit / 2)) / 3;
+    const std::int32_t py =
+        (ny * kCellUnit + kCellUnit / 2) + (target->y8 * 512 - (ny * kCellUnit + kCellUnit / 2)) / 3;
+    m_events.push_back(
+        MilitaryEvent{MilitaryEvent::Kind::Hit, h.shooter, h.target, h.attacker, target->owner, px, py, effect});
+
+    switch (h.target.kind) {
+        case Target::Kind::Soldier: {
+            Soldier* s = m_world->soldier(h.target.ship);
+            const std::uint32_t health = target->health;
+            if (health > h.damage) {
+                s->health = health - h.damage;
+            } else {
+                s->health = 0;  // the original keeps the old health until the kill arrives (M-015)
+                kill(*s, h.attacker, false);
+            }
+            break;
+        }
+        case Target::Kind::Ship:
+            if (m_fleet != nullptr) {
+                const Player* attacker = m_world->player(h.attacker);
+                m_fleet->hit(h.target.ship, h.damage, h.attacker,
+                             attacker != nullptr && attacker->role == PlayerRole::Pirates &&
+                                 h.shooter.kind == Target::Kind::Ship);
+            }
+            break;
+        case Target::Kind::Building:
+            if (h.shooter.kind == Target::Kind::Ship) {
+                m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::SettlementShelled, h.shooter, h.target,
+                                                 h.attacker, target->owner, px, py});
+            }
+            damage_building(h.target.island, static_cast<std::uint16_t>(target->unit.x),
+                            static_cast<std::uint16_t>(target->unit.y), h.damage, h.cannon, h.attacker, construction);
+            break;
+        default:
+            break;
+    }
+}
+
+std::uint32_t Military::building_damage(std::uint16_t island, std::uint16_t x, std::uint16_t y) const {
+    for (const BuildingDamage& d : m_world->building_damage()) {
+        if (d.island == island && d.x == x && d.y == y) {
+            return d.damage;
+        }
+    }
+    return 0;
+}
+
+void Military::damage_building(std::uint16_t island, std::uint16_t x, std::uint16_t y, std::uint32_t damage,
+                               bool cannon, PlayerId attacker, std::vector<ConstructionEvent>* construction) {
+    const auto b = building_at(*m_world, *m_buildings, island, {x, y});
+    if (!b) {
+        return;
+    }
+    if (!cannon && sturdy(b->type->kind)) {
+        damage = damage * 51 / 128;
+    }
+    const auto ox = static_cast<std::uint16_t>(b->origin.x);
+    const auto oy = static_cast<std::uint16_t>(b->origin.y);
+    auto& list = m_world->building_damage();
+    auto it = std::find_if(list.begin(), list.end(),
+                           [&](const BuildingDamage& d) { return d.island == island && d.x == ox && d.y == oy; });
+    if (it == list.end()) {
+        list.push_back(BuildingDamage{island, ox, oy, 0});
+        it = list.end() - 1;
+    }
+    it->damage += damage;
+    const IslandMap& map = m_world->islands()[island].map;
+    const MapCell& cell = map.top(static_cast<std::uint32_t>(ox), static_cast<std::uint32_t>(oy));
+    if (City* city = m_world->city(island, cell.city)) {
+        city->last_attacked_ms = m_world->time_ms();
+    }
+    if (it->damage < b->type->max_health) {
+        return;
+    }
+    list.erase(it);
+    const PlayerId victim = cell.owner;
+    // A destroyed market or Kontor blames the attacker (op 0x52; the natives' curse looks at it).
+    if ((b->type->prod_kind == kProdMarket || b->type->prod_kind == kProdKontor) && acts(*m_world, attacker)) {
+        m_world->diplomacy().set_blamed(victim, attacker);
+    }
+    const Target what = Target::building(island, ox, oy);
+    if (destroy_building(*m_world, *m_buildings, island, {ox, oy}, construction)) {
+        m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::BuildingDestroyed, {}, what, attacker, victim});
+        m_combat->island_changed(island);
+        update_towers(island);
+    }
+}
+
+void Military::regenerate() {
+    auto& list = m_world->building_damage();
+    for (BuildingDamage& d : list) {
+        d.damage = d.damage > kRegenAmount ? d.damage - kRegenAmount : 0;
+    }
+    std::erase_if(list, [](const BuildingDamage& d) { return d.damage == 0; });
+}
+
+void Military::save(core::ByteWriter& out) const {
+    out.u32(m_regen_ms);
+}
+
+bool Military::load(core::ByteReader& in) {
+    const auto regen = in.u32();
+    if (!regen) {
+        return false;
+    }
+    m_regen_ms = *regen % kRegenEpochMs;
+    return true;
+}
+
+}  // namespace o1602::sim

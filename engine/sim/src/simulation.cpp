@@ -23,7 +23,11 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_rules(rules),
       m_figures(&figures),
       m_logistics(world, buildings, figures),
-      m_fleet(world, buildings, figures, m_rules) {
+      m_fleet(world, buildings, figures, m_rules),
+      m_combat(world, buildings, figures),
+      m_military(world, buildings, figures, m_rules, m_combat) {
+    m_military.set_fleet(&m_fleet);
+    m_fleet.set_combat(&m_combat);
     m_time_ms = world.time_ms();
     m_island_ms = static_cast<std::uint32_t>(m_time_ms % Logistics::kIslandEpochMs);
     if (world.saved_rules()) {
@@ -41,7 +45,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
 }
 
 void Simulation::save_state(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 2;
+    constexpr std::uint16_t kVersion = 3;
     out.u16(kVersion);
     out.u32(m_production_ms);
     out.u32(m_city_ms);
@@ -50,6 +54,7 @@ void Simulation::save_state(core::ByteWriter& out) const {
     out.u32(m_island_ms);
     m_logistics.save(out);
     m_fleet.save(out);
+    m_military.save(out);
 }
 
 bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
@@ -59,7 +64,7 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     core::ByteReader reader(state);
     StateIn in(reader);
     const std::uint16_t version = in.u16();
-    if (version < 1 || version > 2) {
+    if (version < 1 || version > 3) {
         return false;
     }
     const std::uint32_t production = in.u32();
@@ -71,6 +76,9 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
         return false;
     }
     if (version >= 2 && !m_fleet.load(reader)) {
+        return false;
+    }
+    if (version >= 3 && !m_military.load(reader)) {
         return false;
     }
     m_production_ms = production;
@@ -134,6 +142,10 @@ void Simulation::apply_commands() {
             result.accepted = m_fleet.shipyard(*yard);
         } else if (const auto* dipl = std::get_if<DiplomacyOrder>(&command)) {
             result.accepted = apply_diplomacy(*m_world, *dipl);
+        } else if (const auto* soldiers = std::get_if<SoldierOrder>(&command)) {
+            result.accepted = m_military.order(*soldiers);
+        } else if (const auto* soldier = std::get_if<SoldierCommand>(&command)) {
+            result.accepted = m_military.command(*soldier);
         }
         handle(m_construction_events, first);
         m_command_results.push_back(std::move(result));
@@ -170,7 +182,9 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
         }
         if (e.kind == ConstructionEvent::Kind::Placed || e.kind == ConstructionEvent::Kind::Removed) {
             m_fleet.island_changed(e.island);
+            m_combat.island_changed(e.island);
         }
+        m_military.update_towers(e.island);
     }
     if (storage) {
         m_logistics.update_storage();
@@ -186,6 +200,12 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
             }
         }
     }
+}
+
+std::vector<MilitaryEvent> Simulation::take_military_events() {
+    std::vector<MilitaryEvent> events;
+    events.swap(m_military_events);
+    return events;
 }
 
 std::vector<CommandResult> Simulation::take_command_results() {
@@ -315,9 +335,22 @@ void Simulation::tick() {
                                    m_volcano_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
         }
     }
-    // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670); ships
-    // and shipyards with them.
+    // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670): first who
+    // sees whom, then ships and shipyards, then soldiers, towers and the shots that land.
+    m_combat.update();
     m_fleet.tick(kTickMs);
+    {
+        const std::size_t first = m_construction_events.size();
+        m_military.tick(kTickMs, &m_construction_events);
+        handle(m_construction_events, first);
+        for (MilitaryEvent& e : m_military.take_events()) {
+            m_military_events.push_back(e);
+        }
+        if (m_military_events.size() > kMaxPendingEvents) {
+            m_military_events.erase(m_military_events.begin(),
+                                    m_military_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+        }
+    }
     for (const Fleet::FetchRequest& r : m_fleet.take_fetch_requests()) {
         const assets::BuildingType* yard = nullptr;
         if (r.island < m_world->islands().size()) {
@@ -353,14 +386,32 @@ void Simulation::pay_upkeep() {
     std::vector<std::uint32_t> upkeep(m_world->players().size(), 0);
     for (const Soldier& s : m_world->soldiers()) {
         const assets::FigureType* type = m_figures->get(s.figure);
-        if (type != nullptr && s.owner < upkeep.size()) {
+        if (type != nullptr && s.owner < upkeep.size() && !s.dying()) {
             upkeep[s.owner] += m_figures->unit_upkeep(type->kind);
+        }
+    }
+    // Units in training or waiting in a castle count too (player + 0xA6 from recruiting on).
+    for (const CostBuilding& b : m_world->cost_buildings()) {
+        if (b.kind != CostBuilding::Kind::Castle || b.island >= m_world->islands().size()) {
+            continue;
+        }
+        const PlayerId owner = m_world->islands()[b.island].map.top(b.x, b.y).owner;
+        for (const CastleSlot& slot : b.slots) {
+            const assets::FigureType* type = m_figures->get(slot.figure);
+            if (type != nullptr && owner < upkeep.size()) {
+                upkeep[owner] += m_figures->unit_upkeep(type->kind);
+            }
+        }
+    }
+    // Cannon towers (Turm: line of figuren.cod, player + 0xA4).
+    for (const Tower& t : m_world->towers()) {
+        if (t.owner < upkeep.size()) {
+            upkeep[t.owner] += m_figures->tower_upkeep();
         }
     }
     for (std::size_t p = 0; p < upkeep.size(); ++p) {
         Player* player = m_world->player(static_cast<PlayerId>(p));
-        // Computer players pay nothing, as in the original (0x00475B00). Cannon towers are not
-        // simulated yet.
+        // Computer players pay nothing, as in the original (0x00475B00).
         if (player != nullptr && player->role == PlayerRole::Human) {
             player->money -= static_cast<std::int32_t>(upkeep[p] / 12);
         }

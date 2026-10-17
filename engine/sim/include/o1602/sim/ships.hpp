@@ -122,6 +122,10 @@ struct ShipEvent {
         ShipLaunched,      ///< 6 / 11: a shipyard finished a ship
         ShipRepaired,      ///< 7
         FleetFull,         ///< 0x47: the player has too many ships for another order
+        Attacked,          ///< 8, or 5 when `amount` is 1 (pirates)
+        Sunk,              ///< 9: `player` lost the ship; `city` holds the attacker
+        WhiteFlag,         ///< a computer's ship surrendered to the pirates
+        Fired,             ///< a broadside; `ware` holds the bearing
     };
     Kind kind = Kind::Arrived;
     std::uint32_t ship = 0;
@@ -132,6 +136,8 @@ struct ShipEvent {
     std::int64_t amount = 0;
     std::int64_t money = 0;
 };
+
+class Combat;
 
 class Fleet {
 public:
@@ -148,6 +154,13 @@ public:
     bool edit_route(const RouteEdit& edit);
     bool set_trade(const TradeSetting& setting);
     bool shipyard(const ShipyardOrder& order);
+    /// A shot hit ship `ship` (0x00445930): it loses health and sails slower, sinks at 0. A
+    /// computer's ship hit by pirates surrenders.
+    void hit(std::uint32_t ship, std::uint32_t damage, PlayerId attacker, bool by_pirates);
+    /// The ship goes down: it turns to an odd heading, sinks for Stirbtime and is gone with its cargo.
+    void sink(Ship& ship, PlayerId attacker);
+    /// Who sees whom and target choice; without it ships do not fight.
+    void set_combat(Combat* combat) noexcept { m_combat = combat; }
 
     /// Ships and shipyards a player has or has ordered (the original's limit of 33 counts both).
     [[nodiscard]] std::uint32_t fleet_size(PlayerId player) const;
@@ -208,6 +221,10 @@ private:
     void add_cargo(Ship& ship, std::uint8_t ware, std::uint32_t amount, std::uint16_t price);
     std::uint32_t remove_cargo(Ship& ship, std::uint8_t ware, std::uint32_t amount, std::uint8_t hold);
 
+    // Naval combat (naval.cpp)
+    bool naval_combat(Ship& ship);
+    [[nodiscard]] std::optional<std::uint8_t> bearing_to(const Ship& ship, const Target& target) const;
+
     // Free trader (trader.cpp)
     void trader_tick(std::uint32_t dt_ms);
     void trader_choose(Ship& ship);
@@ -226,6 +243,7 @@ private:
     std::string next_ship_name();
 
     World* m_world;
+    Combat* m_combat = nullptr;
     const assets::BuildingTable* m_buildings;
     const assets::FigureTable* m_figures;
     const Rules* m_rules;

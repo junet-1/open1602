@@ -68,10 +68,11 @@ struct TraderGood {
 /// tiles; between runs they decide what to do next (docs/re/ships.md, "Fahren").
 struct ShipMotion {
     enum class Phase : std::uint8_t {
-        Idle,  ///< nothing to do; decides again at the end of a short wait
-        Run,   ///< sailing `count` tiles in `direction`
-        Turn,  ///< turning in place by 45 degrees
-        Wait,  ///< lying still (at a Kontor, after a failed plan)
+        Idle,     ///< nothing to do; decides again at the end of a short wait
+        Run,      ///< sailing `count` tiles in `direction`
+        Turn,     ///< turning in place by 45 degrees
+        Wait,     ///< lying still (at a Kontor, after a failed plan)
+        Sinking,  ///< going down for Stirbtime, then gone
     };
     Phase phase = Phase::Idle;
     std::uint8_t count = 0;  ///< tiles of the running run

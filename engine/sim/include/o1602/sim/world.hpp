@@ -145,6 +145,9 @@ struct City {
     /// from them uses it up. Indexed by PlayerId.
     std::vector<std::uint32_t> goodwill;
     bool trader_inbound = false;  ///< a free trader sails here (city + 0x257 bit 1)
+    /// Game time a building of the city was last hit (city + 0x1EC): the natives send more warriors
+    /// for 10 minutes after.
+    std::uint64_t last_attacked_ms = 0;
 
     [[nodiscard]] const Trade* trade_of(std::uint8_t ware) const noexcept {
         return ware < trade.size() ? &trade[ware] : nullptr;

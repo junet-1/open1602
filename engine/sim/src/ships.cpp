@@ -392,8 +392,67 @@ void Fleet::tick(std::uint32_t dt_ms) {
             advance(*s, budget);
         }
     }
+    // Sunk ships are gone with their cargo (Figure_Free 0x00443520). The wreck the original leaves
+    // for a minute is only a picture.
+    std::erase_if(m_world->ships(), [](const Ship& s) { return s.sinking && s.owner == kNoPlayer; });
     trader_tick(dt_ms);
     yards_tick(dt_ms);
+}
+
+void Fleet::hit(std::uint32_t id, std::uint32_t damage, PlayerId attacker, bool by_pirates) {
+    Ship* ship = m_world->ship(id);
+    if (ship == nullptr || ship->sinking) {
+        return;
+    }
+    const assets::FigureType* t = type_of(*ship);
+    const std::uint32_t max = t != nullptr && t->ship.max_health != 0 ? t->ship.max_health : 1U;
+    const std::uint32_t health = ship->health != 0 ? std::min(ship->health, max) : max;
+    if (health <= damage) {
+        ship->health = 0;  // the original keeps the old value until the sink command (M-015)
+        sink(*ship, attacker);
+        return;
+    }
+    ship->health = health - damage;
+    m_events.push_back(ShipEvent{ShipEvent::Kind::Attacked, ship->id, ship->owner, 0, 0, 0, by_pirates ? 1 : 0});
+    const Player* owner = m_world->player(ship->owner);
+    if (by_pirates && !ship->held && owner != nullptr && owner->role != PlayerRole::Human &&
+        owner->role != PlayerRole::Pirates) {
+        // A computer's, the trader's or the natives' ship surrenders at once (0x00445930).
+        ship->held = true;
+        ship->motion.path.clear();
+        ship->motion.path_index = 0;
+        m_events.push_back(ShipEvent{ShipEvent::Kind::WhiteFlag, ship->id, ship->owner});
+    }
+}
+
+void Fleet::sink(Ship& ship, PlayerId attacker) {
+    if (ship.sinking) {
+        return;
+    }
+    // Op 0x0C: the ship stops, turns to the nearest odd heading and goes down (0x0044A9A0).
+    ship.sinking = true;
+    ship.held = false;
+    ship.route.active = false;
+    ship.repairing = false;
+    for (CostBuilding& yard : m_world->cost_buildings()) {
+        if (yard.repair_ship == ship.id) {
+            yard.repair_ship = 0;
+        }
+    }
+    ShipMotion& m = ship.motion;
+    m.path.clear();
+    m.path_index = 0;
+    ship.place(ship.x, ship.y);
+    const auto heading = static_cast<std::uint8_t>((ship.direction & ~1U) + 1U);
+    const assets::FigureType* t = type_of(ship);
+    const std::uint32_t turn = t != nullptr ? t->ship.turn_ms : 0U;
+    const std::uint32_t sink_ms = t != nullptr && t->ship.sink_ms != 0 ? t->ship.sink_ms : 3000U;
+    const std::uint32_t steps = (heading - ship.direction) & 7U;
+    ship.direction = static_cast<std::uint8_t>(heading & 7U);
+    m.phase = ShipMotion::Phase::Sinking;
+    m.elapsed_us = 0;
+    m.duration_us = (steps * turn + sink_ms) * 1000U;
+    m_events.push_back(ShipEvent{ShipEvent::Kind::Sunk, ship.id, ship.owner, 0, attacker});
 }
 
 void Fleet::island_changed(std::uint16_t island) {
@@ -424,6 +483,10 @@ void Fleet::advance(Ship& ship, std::uint32_t budget_us) {
             ship.y = static_cast<std::uint16_t>(std::max(0, tile_of(ship.pos_y)));
         }
         if (!done) {
+            return;
+        }
+        if (m.phase == ShipMotion::Phase::Sinking) {
+            ship.owner = kNoPlayer;  // gone at the end of the tick
             return;
         }
         m.phase = ShipMotion::Phase::Idle;
@@ -623,6 +686,9 @@ void Fleet::finish_order(Ship& ship) {
 
 void Fleet::decide(Ship& ship) {
     ShipMotion& m = ship.motion;
+    if (ship.sinking) {
+        return;
+    }
     // A turn in place continues with the run it was for.
     update_island(ship);
     const bool path_done = m.path_index >= m.path.size();
@@ -634,6 +700,9 @@ void Fleet::decide(Ship& ship) {
     }
     if (!ship.target.empty() && !target_valid(ship.target)) {
         finish_order(ship);
+    }
+    if (naval_combat(ship)) {
+        return;  // turning to the broadside or standing after a shot
     }
     std::optional<std::uint32_t> wait;
     bool want_plan = false;
@@ -751,7 +820,7 @@ void Fleet::decide(Ship& ship) {
 
 bool Fleet::order(const ShipOrder& o) {
     Ship* ship = m_world->ship(o.ship);
-    if (ship == nullptr || (o.player != kNoPlayer && ship->owner != o.player)) {
+    if (ship == nullptr || ship->sinking || (o.player != kNoPlayer && ship->owner != o.player)) {
         return false;
     }
     if (!o.target.empty() && !target_valid(o.target)) {

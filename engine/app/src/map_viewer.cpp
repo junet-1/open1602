@@ -280,7 +280,11 @@ void MapViewer::handle_event(const SDL_Event& original) {
                     m_tool.press(*spot);
                 }
             } else if (event.button.button == SDL_BUTTON_LEFT) {
-                select_ship_at_mouse();
+                m_selected_soldier = soldier_at_mouse(true);
+                m_selected_ship = 0;
+                if (m_selected_soldier == 0) {
+                    select_ship_at_mouse();
+                }
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -289,6 +293,9 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 // A right click (not a drag) sends the selected ship there, as in the original.
                 if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && m_selected_ship != 0) {
                     order_ship_to_mouse();
+                } else if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 &&
+                           m_selected_soldier != 0) {
+                    order_soldier_to_mouse();
                 }
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
                 if (const auto spot = spot_at_mouse()) {
@@ -372,6 +379,55 @@ void MapViewer::order_ship_to_mouse() {
     m_simulation.submit(sim::ShipOrder{m_local_player, ship->id, target});
 }
 
+std::uint32_t MapViewer::soldier_at_mouse(bool own_only) const {
+    const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y);
+    if (!tile) {
+        return 0;
+    }
+    // Units stand a little above their tile: the click may land a tile further north.
+    std::uint32_t best = 0;
+    double best_d = 1.6;
+    for (const sim::Soldier& s : m_world.soldiers()) {
+        if (s.away() || (own_only && s.owner != m_local_player)) {
+            continue;
+        }
+        const double dx = s.x() - (tile->x + 0.5);
+        const double dy = s.y() - (tile->y + 0.5);
+        const double d = std::max(std::abs(dx), std::abs(dy));
+        if (d < best_d) {
+            best_d = d;
+            best = s.id;
+        }
+    }
+    return best;
+}
+
+void MapViewer::order_soldier_to_mouse() {
+    const sim::Soldier* soldier = m_world.soldier(m_selected_soldier);
+    const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y);
+    if (soldier == nullptr || !tile || soldier->owner != m_local_player) {
+        return;
+    }
+    sim::SoldierOrder order;
+    order.player = m_local_player;
+    order.soldiers = {soldier->id};
+    order.attack = m_attack_mode;
+    order.target = sim::Target::spot(2 * static_cast<std::uint32_t>(tile->x), 2 * static_cast<std::uint32_t>(tile->y));
+    // On another unit: that unit; on a building other than open ground and roads: that building.
+    if (const std::uint32_t other = soldier_at_mouse(false); other != 0 && other != soldier->id) {
+        order.target = sim::Target::soldier(other);
+    } else if (const auto spot = spot_at_mouse()) {
+        const auto b = sim::building_at(m_world, m_buildings, spot->island, {spot->x, spot->y});
+        if (b && b->type->kind != sim::building_kind::kGround && b->type->kind != sim::building_kind::kRoad &&
+            !sim::soldiers_walk_on(*b->type)) {
+            order.target = sim::Target::building(spot->island, static_cast<std::uint32_t>(b->origin.x),
+                                                 static_cast<std::uint32_t>(b->origin.y));
+        }
+    }
+    m_simulation.submit(std::move(order));
+    m_attack_mode = false;
+}
+
 void MapViewer::zoom_by(int steps, double sx, double sy) {
     const int current = static_cast<int>(m_camera.view().zoom);
     const int next = std::clamp(current + steps, 0, 2);
@@ -436,6 +492,9 @@ void MapViewer::handle_key(int key, bool shift) {
         case SDLK_KP_MINUS:
             m_camera.set_pixel_scale(std::max(m_camera.pixel_scale() - 1, 1), cx, cy);
             break;
+        case SDLK_K:  // attack cursor: the next order of the selected unit attacks
+            m_attack_mode = !m_attack_mode;
+            break;
         case SDLK_O:
             m_show_owners = !m_show_owners;
             break;
@@ -496,6 +555,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_simulation.advance(delta_ms);
         apply_production_events();
         m_clock.advance(delta_ms);
+        m_soldiers.sync(m_world, m_buildings, m_figures);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_walkers.update(m_simulation.logistics(), m_world, m_buildings, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_simulation.speed());
@@ -841,6 +901,19 @@ void MapViewer::update_title(double fps) {
                 title += ", " + player_label(*p, top.owner, m_banners);
             }
             title += ")";
+        }
+    }
+    if (const sim::Soldier* soldier = m_world.soldier(m_selected_soldier)) {
+        const assets::FigureType* type = m_figures.get(soldier->figure);
+        const std::uint32_t max = type != nullptr ? std::max<std::uint32_t>(1, type->combat.max_health) : 1U;
+        const std::uint32_t health = soldier->health != 0 ? soldier->health : max;
+        title += " | unit #" + std::to_string(soldier->figure);
+        if (const sim::Player* p = m_world.player(soldier->owner)) {
+            title += " (" + player_label(*p, soldier->owner, m_banners) + ")";
+        }
+        title += " " + std::to_string(health * 100 / max) + " %";
+        if (m_attack_mode) {
+            title += " | ATTACK";
         }
     }
     if (const sim::Ship* ship = m_world.ship(m_selected_ship)) {

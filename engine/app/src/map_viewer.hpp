@@ -97,6 +97,9 @@ private:
 
     void select_ship_at_mouse();
     void order_ship_to_mouse();
+    /// A unit under the mouse: an own soldier is selected first.
+    [[nodiscard]] std::uint32_t soldier_at_mouse(bool own_only) const;
+    void order_soldier_to_mouse();
     void zoom_by(int steps, double sx, double sy);
     /// Island tile under the mouse, nullopt over the sea.
     [[nodiscard]] std::optional<BuildTool::Spot> spot_at_mouse() const;
@@ -135,9 +138,11 @@ private:
     bool m_paused = false;
     bool m_show_owners = false;  ///< ownership overlay (key O)
     bool m_dragging = false;
-    double m_drag_distance = 0.0;       ///< mouse travel while the right button is held (a click if small)
-    std::uint32_t m_selected_ship = 0;  ///< Ship::id, 0 = none
-    double m_mouse_x = 0.0;             ///< in output pixels
+    double m_drag_distance = 0.0;          ///< mouse travel while the right button is held (a click if small)
+    std::uint32_t m_selected_ship = 0;     ///< Ship::id, 0 = none
+    std::uint32_t m_selected_soldier = 0;  ///< Soldier::id, 0 = none
+    bool m_attack_mode = false;            ///< key K: the attack cursor of the original
+    double m_mouse_x = 0.0;                ///< in output pixels
     double m_mouse_y = 0.0;
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;

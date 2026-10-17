@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Figures on land as the renderer sees them, with their animations running in real time. Until
-// the simulation moves them, they stand where the savegame put them:
+// Figures on land as the renderer sees them, with their animations running in real time:
 // - wild animals graze (deer: ANIM 1, which continues randomly with the eating animations),
-// - soldiers keep the animation they were saved with (usually standing), facing their direction.
+// - soldiers walk, stand, strike and die where the simulation has them.
 #pragma once
 
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -47,7 +47,6 @@ protected:
     void clear();
     void add(const FigureInstance& instance, const assets::FigureTable& figures, std::uint8_t anim, std::uint32_t seed);
 
-private:
     std::vector<FigureInstance> m_instances;
     std::vector<AnimState> m_states;
 };
@@ -65,6 +64,17 @@ class SoldierFigures : public LandFigures {
 public:
     /// One figure per soldier of `world`, drawn from SOLDAT.BSH in the colour of its owner.
     void reset(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
+    /// Follows the simulation: positions and directions of the soldiers, and a new animation when
+    /// a soldier's changes (walk, stand, strike, die). Soldiers in a doctor's house are not drawn.
+    void sync(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
+
+private:
+    struct Known {
+        AnimState state;
+        std::uint8_t sim_anim = 0;
+    };
+    std::unordered_map<std::uint32_t, Known> m_known;  ///< by Soldier::id
+    std::vector<std::uint32_t> m_ids;                  ///< Soldier::id per instance
 };
 
 }  // namespace o1602::render

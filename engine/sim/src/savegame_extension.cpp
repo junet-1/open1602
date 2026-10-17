@@ -247,6 +247,18 @@ struct Decoded {
         std::vector<BuildingDamage> damage;
         std::vector<PendingHit> hits;
         std::vector<std::pair<std::array<std::uint32_t, 3>, std::vector<CastleSlot>>> castles;
+        struct ShipPart {
+            std::uint32_t id = 0;
+            bool sinking = false;
+            std::uint64_t next_shot_ms = 0;
+        };
+        std::vector<ShipPart> ships;
+        struct CityPart {
+            std::uint16_t island = 0;
+            std::uint8_t index = 0;
+            std::uint64_t last_attacked_ms = 0;
+        };
+        std::vector<CityPart> cities;
     };
     std::optional<ArmyPart> army;
     std::optional<Diplomacy> diplomacy;
@@ -658,7 +670,7 @@ Ship get_ship(StateIn& in) {
     s.source_slot = in.u16();
     ShipMotion& m = s.motion;
     const std::uint8_t phase = in.u8();
-    if (phase > static_cast<std::uint8_t>(ShipMotion::Phase::Wait)) {
+    if (phase > static_cast<std::uint8_t>(ShipMotion::Phase::Sinking)) {
         in.fail();
     }
     m.phase = static_cast<ShipMotion::Phase>(phase);
@@ -893,6 +905,19 @@ void write_army(Out& out, const World& w) {
         out.i32(h.from_x);
         out.i32(h.from_y);
     }
+    // Combat state of ships and cities.
+    out.u32(static_cast<std::uint32_t>(w.ships().size()));
+    for (const Ship& s : w.ships()) {
+        out.u32(s.id);
+        out.boolean(s.sinking);
+        out.u64(s.next_shot_ms);
+    }
+    out.u32(static_cast<std::uint32_t>(w.cities().size()));
+    for (const City& c : w.cities()) {
+        out.u16(c.island);
+        out.u8(c.index);
+        out.u64(c.last_attacked_ms);
+    }
     // Castles, in the order of the costs list.
     out.u32(static_cast<std::uint32_t>(w.cost_buildings().size()));
     for (const CostBuilding& b : w.cost_buildings()) {
@@ -946,6 +971,18 @@ Decoded::ArmyPart read_army(StateIn& in) {
         h.target = get_target(in);
         h.from_x = in.i32();
         h.from_y = in.i32();
+    }
+    a.ships.resize(in.count(13));
+    for (auto& ship : a.ships) {
+        ship.id = in.u32();
+        ship.sinking = in.boolean();
+        ship.next_shot_ms = in.u64();
+    }
+    a.cities.resize(in.count(11));
+    for (auto& city : a.cities) {
+        city.island = in.u16();
+        city.index = in.u8();
+        city.last_attacked_ms = in.u64();
     }
     a.castles.resize(in.count(16));
     for (auto& [weapons, slots] : a.castles) {
@@ -1798,6 +1835,17 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         world.towers() = std::move(d.army->towers);
         world.building_damage() = std::move(d.army->damage);
         world.pending_hits() = std::move(d.army->hits);
+        for (const auto& part : d.army->ships) {
+            if (Ship* ship = world.ship(part.id)) {
+                ship->sinking = part.sinking;
+                ship->next_shot_ms = part.next_shot_ms;
+            }
+        }
+        for (const auto& part : d.army->cities) {
+            if (City* city = world.city(part.island, part.index)) {
+                city->last_attacked_ms = part.last_attacked_ms;
+            }
+        }
         if (d.army->castles.size() == world.cost_buildings().size()) {
             for (std::size_t i = 0; i < d.army->castles.size(); ++i) {
                 world.cost_buildings()[i].weapons = d.army->castles[i].first;

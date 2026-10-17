@@ -198,19 +198,59 @@ void AnimalFigures::reset(const sim::World& world, const assets::BuildingTable& 
 void SoldierFigures::reset(const sim::World& world, const assets::BuildingTable& buildings,
                            const assets::FigureTable& figures) {
     clear();
+    m_known.clear();
+    m_ids.clear();
+    sync(world, buildings, figures);
+}
+
+void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& buildings,
+                          const assets::FigureTable& figures) {
+    // What the animations did since the last frame.
+    for (std::size_t i = 0; i < m_ids.size() && i < m_states.size(); ++i) {
+        if (const auto it = m_known.find(m_ids[i]); it != m_known.end()) {
+            it->second.state = m_states[i];
+        }
+    }
+    m_instances.clear();
+    m_states.clear();
+    m_ids.clear();
+    std::unordered_map<std::uint32_t, Known> known;
     for (const sim::Soldier& s : world.soldiers()) {
+        if (s.motion.phase == sim::SoldierMotion::Phase::Healing) {
+            continue;
+        }
         FigureInstance f;
         f.x = s.x();
         f.y = s.y();
         f.figure = s.figure;
         f.direction = s.direction;
         f.owner = s.owner;
-        f.z = spawn_height(world, buildings, s.x(), s.y(), true);  // 0x0045E1F0 with 0x00451180
-        f.sheet = assets::FigureSheet::Soldat;                     // draw kind 4 (0x0044FA90)
-        const auto seed = static_cast<std::uint32_t>(std::lround(s.x() * 2.0)) * 73856093U ^
-                          static_cast<std::uint32_t>(std::lround(s.y() * 2.0)) * 19349663U;
-        add(f, figures, s.anim, seed);
+        f.z = spawn_height(world, buildings, f.x, f.y, true);  // 0x0045E1F0 with 0x00451180
+        f.sheet = assets::FigureSheet::Soldat;                 // draw kind 4 (0x0044FA90)
+        Known k;
+        const auto it = m_known.find(s.id);
+        const assets::FigureType* type = figures.get(s.figure);
+        if (it != m_known.end() && it->second.sim_anim == s.anim) {
+            k = it->second;
+        } else if (type != nullptr) {
+            const std::uint8_t anim = type->anim(s.anim) != nullptr ? s.anim : 0;
+            // A unit that was already there starts its animation from the first frame; one that
+            // appears (loaded, released) somewhere in it, so that neighbours do not move in step.
+            k.state = start_animation(*type, anim, s.id);
+            if (it != m_known.end()) {
+                k.state.frame = 0;
+                k.state.elapsed_ms = 0;
+            }
+            k.sim_anim = s.anim;
+        }
+        f.anim = k.state.anim;
+        f.frame = k.state.frame;
+        m_instances.push_back(f);
+        m_states.push_back(k.state);
+        m_ids.push_back(s.id);
+        known.emplace(s.id, k);
     }
+    m_known = std::move(known);
 }
 
 }  // namespace o1602::render

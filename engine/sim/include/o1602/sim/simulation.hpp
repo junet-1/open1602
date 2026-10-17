@@ -22,6 +22,7 @@
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/island_events.hpp"
 #include "o1602/sim/logistics.hpp"
+#include "o1602/sim/military.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/ships.hpp"
@@ -32,7 +33,7 @@ namespace o1602::sim {
 
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
 using Command = std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting,
-                             ShipyardOrder, DiplomacyOrder>;
+                             ShipyardOrder, DiplomacyOrder, SoldierOrder, SoldierCommand>;
 
 /// What became of a command.
 struct CommandResult {
@@ -40,7 +41,7 @@ struct CommandResult {
     std::optional<BuildPlan> build;  ///< build orders: what was built and why the rest was not
     std::size_t demolished = 0;      ///< demolish orders: buildings removed
     BuildBill refund;                ///< demolish orders: what came back (Rules::demolish_refund)
-    bool accepted = false;           ///< ship, route, trade, shipyard and diplomacy orders: carried out
+    bool accepted = false;           ///< all other orders: carried out
     std::uint32_t moved = 0;         ///< cargo transfers: goods moved, 1/32 t
 };
 
@@ -86,6 +87,11 @@ public:
     [[nodiscard]] const Logistics& logistics() const noexcept { return m_logistics; }
     /// Ships, the free trader and shipyards.
     [[nodiscard]] const Fleet& fleet() const noexcept { return m_fleet; }
+    /// Soldiers, towers and the hostile lists.
+    [[nodiscard]] const Military& military() const noexcept { return m_military; }
+    [[nodiscard]] const Combat& combat() const noexcept { return m_combat; }
+    /// Shots, hits, deaths and destroyed buildings since the last call.
+    [[nodiscard]] std::vector<MilitaryEvent> take_military_events();
     /// Treaties offered, signed or broken since the last call.
     [[nodiscard]] std::vector<DiplomacyNotice> take_diplomacy_notices() { return m_world->diplomacy().take_notices(); }
     /// What happened to ships since the last call.
@@ -137,6 +143,9 @@ private:
     Logistics m_logistics;
     Fleet m_fleet;
     std::vector<ShipEvent> m_ship_events;
+    Combat m_combat;
+    Military m_military;
+    std::vector<MilitaryEvent> m_military_events;
     std::deque<std::pair<std::uint64_t, Command>> m_commands;
     std::uint64_t m_next_command = 1;
     std::vector<CommandResult> m_command_results;

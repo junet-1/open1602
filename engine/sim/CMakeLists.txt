@@ -3,6 +3,7 @@
 
 add_library(o1602_sim
     src/construction.cpp
+    src/combat.cpp
     src/diplomacy.cpp
     src/consumption.cpp
     src/disasters.cpp
@@ -11,7 +12,10 @@ add_library(o1602_sim
     src/houses.cpp
     src/island_events.cpp
     src/island_map.cpp
+    src/land_paths.cpp
     src/logistics.cpp
+    src/military.cpp
+    src/naval.cpp
     src/pathfinding.cpp
     src/savegame_extension.cpp
     src/savegame_writer.cpp
@@ -24,6 +28,7 @@ add_library(o1602_sim
     src/player.cpp
     src/production_cycle.cpp
     src/simulation.cpp
+    src/soldiers.cpp
     src/volcanoes.cpp
     src/world.cpp
 )
