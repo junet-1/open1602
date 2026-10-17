@@ -98,12 +98,17 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
         }
         const float x0 = static_cast<float>(c.x * scale - origin_x);
         const float y0 = static_cast<float>((c.y - r.height) * scale - origin_y);
+        // Rows cut off at the bottom (figures in crops) are left out of the quad and the texture.
+        const std::int32_t height = r.height - std::min<std::int32_t>(c.cut_bottom, r.height);
+        if (height <= 0) {
+            continue;
+        }
         const float x1 = x0 + static_cast<float>(r.width) * s;
-        const float y1 = y0 + static_cast<float>(r.height) * s;
+        const float y1 = y0 + static_cast<float>(height) * s;
         const float u0 = static_cast<float>(r.x) * inv_page;
         const float v0 = static_cast<float>(r.y) * inv_page;
         const float u1 = static_cast<float>(r.x + r.width) * inv_page;
-        const float v1 = static_cast<float>(r.y + r.height) * inv_page;
+        const float v1 = static_cast<float>(r.y + height) * inv_page;
         // Shadows: the texture colour multiplied by the (black, translucent) vertex colour;
         // translucent sprites: white with the opacity as alpha.
         SDL_FColor color = white;

@@ -65,6 +65,12 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
         f.y = island.y + p.y;
         f.figure = w.figure;
         f.z = slot.z;
+        // Workers, hunters, grazing animals and deer are cut by the crops and trees they stand in
+        // (case 0x0C of 0x0044FA90): a woodcutter at work vanishes into the tree.
+        if (w.kind == sim::WalkerKind::Harvester || w.kind == sim::WalkerKind::Hunter ||
+            w.kind == sim::WalkerKind::Grazer || w.kind == sim::WalkerKind::Deer) {
+            f.crop = crop_cut(world, buildings, f.x, f.y);
+        }
         f.direction = w.direction;
         f.anim = slot.state.anim;
         f.frame = slot.state.frame;

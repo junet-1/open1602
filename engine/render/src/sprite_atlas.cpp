@@ -170,7 +170,8 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
         const std::int32_t x0 = std::max(0, -left);
         const std::int32_t y0 = std::max(0, -top);
         const std::int32_t x1 = std::min<std::int32_t>(r.width, tw - left);
-        const std::int32_t y1 = std::min<std::int32_t>(r.height, th - top);
+        const std::int32_t y1 =
+            std::min<std::int32_t>(r.height - std::min<std::int32_t>(c.cut_bottom, r.height), th - top);
         const std::vector<std::uint8_t>& page = atlas.pages()[r.page].pixels;
         if (page.empty()) {
             continue;  // pixels were dropped

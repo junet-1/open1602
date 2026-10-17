@@ -577,6 +577,20 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
         out.count = 0;
         return false;
     }
+    // Workers and animals in crops and young trees lose rows at the bottom, h * k / 256 of the
+    // picture of this zoom level; the shadow goes up by as much; all of it hidden: nothing drawn
+    // (0x00451250, case 0x0C of 0x0044FA90).
+    const std::int32_t cut = figure.crop >= kCropHidden ? r.height : r.height * figure.crop / 256;
+    if (cut >= r.height) {
+        out.count = 0;
+        return false;
+    }
+    if (cut > 0) {
+        for (std::uint8_t i = 0; i < out.count; ++i) {
+            out.parts[i].y -= cut;  // the shadow
+        }
+        body.cut_bottom = static_cast<std::uint16_t>(cut);
+    }
     body.x = px - r.width / 2;
     body.y = depth + type->posoffs[0] * tw / 64 - lift;
     ++out.count;

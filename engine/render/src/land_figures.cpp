@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/render/land_figures.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace o1602::render {
@@ -40,6 +42,113 @@ double spawn_height(const sim::World& world, const assets::BuildingTable& buildi
         return kLandPosoffs * kHeightPerPosoffs;
     }
     return b->posoffs * kHeightPerPosoffs;
+}
+
+namespace {
+
+// Wares of the crops (Text.cod order).
+constexpr std::uint8_t kGrain = 45;
+constexpr std::uint8_t kTobacco = 46;
+constexpr std::uint8_t kSpices = 47;
+constexpr std::uint8_t kSugar = 48;
+constexpr std::uint8_t kCotton = 49;
+constexpr std::uint8_t kGrapes = 50;
+constexpr std::uint8_t kCocoa = 51;
+constexpr std::uint8_t kTree = 53;
+
+/// Share hidden by a growing crop of `ware` at growth stage 0, 1, 2, 3, 4 and later (tables at
+/// 0x004514FC, 0x00451520-0x00451550).
+std::uint16_t growing_cut(std::uint8_t ware, std::uint8_t stage) noexcept {
+    struct Row {
+        std::uint8_t ware;
+        std::array<std::uint16_t, 5> by_stage;
+    };
+    static constexpr std::array<Row, 8> kRows = {{
+        {kGrain, {0, 10, 10, 45, 55}},
+        {kTobacco, {0, 0, 48, 48, 57}},
+        {kSpices, {0, 0, 48, 48, 57}},
+        {kSugar, {0, 0, 40, 65, 80}},
+        {kCotton, {55, 55, 55, 55, 55}},
+        {kGrapes, {70, 70, 70, 70, 70}},
+        {kCocoa, {145, 145, 145, 145, 145}},
+        {kTree, {0, 0, 40, 65, kCropHidden}},
+    }};
+    for (const Row& r : kRows) {
+        if (r.ware == ware && r.ware != 0) {
+            return r.by_stage[std::min<std::size_t>(stage, 4)];
+        }
+    }
+    return 0;  // meadows and anything else
+}
+
+/// Share hidden by a ripe crop of `ware` (0x00451560).
+std::uint16_t ripe_cut(std::uint8_t ware) noexcept {
+    switch (ware) {
+        case kGrain:
+        case kCotton:
+            return 55;
+        case kTobacco:
+        case kSpices:
+            return 57;
+        case kSugar:
+            return 80;
+        case kGrapes:
+            return 72;
+        case kCocoa:
+            return 145;
+        case kTree:
+            return kCropHidden;
+        default:
+            return 0;
+    }
+}
+
+}  // namespace
+
+std::uint16_t crop_cut(const sim::World& world, const assets::BuildingTable& buildings, double x, double y) {
+    if (x < 0.0 || y < 0.0) {
+        return 0;
+    }
+    const auto wx = static_cast<std::uint32_t>(x);
+    const auto wy = static_cast<std::uint32_t>(y);
+    if (!world.contains(wx, wy)) {
+        return 0;
+    }
+    const sim::World::Cell& wc = world.cell(wx, wy);
+    if (wc.island == sim::World::kSea || wc.island >= world.islands().size()) {
+        return 0;
+    }
+    const sim::MapCell& cell = world.islands()[wc.island].map.top(wc.local_x, wc.local_y);
+    const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
+    if (b == nullptr) {
+        return 0;
+    }
+    switch (b->kind) {
+        case 1:   // road
+        case 11:  // ground
+        case 12:  // ruin
+        case 13:  // square
+        case 17:  // river corner
+        case 18:  // bridge
+        case 23:  // beach
+        case 29:  // beach ruin
+        case 30:  // pier
+            return 0;
+        default:
+            break;
+    }
+    constexpr std::int32_t kRipe = 9;
+    constexpr std::int32_t kGrowing = 10;
+    constexpr std::int32_t kQuarry = 11;
+    if (b->prod_kind == kGrowing) {
+        // The crop is the ware of the ripe record that follows the growing one (HAUS + 0xA9).
+        const assets::BuildingType* ripe = buildings.by_record(b->record + 1);
+        return growing_cut(ripe != nullptr ? ripe->ware : 0, cell.anim_phase);
+    }
+    if (b->prod_kind == kRipe) {
+        return ripe_cut(b->ware);
+    }
+    return b->prod_kind == kQuarry ? 0 : kCropHidden;
 }
 
 void LandFigures::clear() {

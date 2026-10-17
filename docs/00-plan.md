@@ -229,6 +229,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: Zierfiguren auf allen Rechnern gleich ohne Netzverkehr (aus Startwert, Spielzeit und Welt, nicht aus Kamera und Bildrate) | ✅ `docs/re/flavor.md` |
 | M2: Landfiguren mit Höhe (0,028 · Posoffs des Entstehungsfelds) und Feldmitte wie im Original, Sortierung nach Y in der Zeile; kein Abschneiden durch Nachbarfelder; Begegnungen ohne Ausweichen wie im Original | ✅ `docs/re/figures.md` |
 | M2: Alle Figuren pixelgenau zu den Feldern (Abschneiden wie im Original, eine Zeile Versatz der Feldzeilen ausgeglichen), mit Bildschirmfoto geprüft; Symbol „abgeschaltet“ über Werften | ✅ `docs/re/rendering.md` |
+| M2: Arbeiter und Tiere von Feldern und Bäumen verdeckt wie im Original (Holzfäller beim Fällen unsichtbar, Mäher bis zu den Knien im Getreide); Schiff mit Bildschirmfoto geprüft | ✅ `docs/re/figures.md` |
 | Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |

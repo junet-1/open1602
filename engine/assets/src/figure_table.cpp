@@ -56,9 +56,9 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
                     f.anims.resize(static_cast<std::size_t>(index) + 1);
                 }
                 FigureAnim anim;
-                anim.kind = static_cast<AnimKind>(std::clamp(a.integer("Kind"), 0, 3));
+                anim.kind = static_cast<AnimKind>(std::clamp(a.integer("Kind", 0, 1), 0, 3));  // ENDLESS by default
                 anim.offset = static_cast<std::uint32_t>(std::max(0, a.integer("AnimOffs")));
-                anim.add = static_cast<std::uint32_t>(std::max(0, a.integer("AnimAdd", 0, 1)));
+                anim.add = static_cast<std::uint32_t>(std::max(0, a.integer("AnimAdd", 0, 0)));
                 anim.count = static_cast<std::uint32_t>(std::max(1, a.integer("AnimAnz", 0, 1)));
                 anim.repeat = static_cast<std::uint32_t>(std::max(1, a.integer("AnimRept", 0, 1)));
                 anim.speed_ms = static_cast<std::uint32_t>(std::max(1, a.integer("AnimSpeed", 0, 100)));

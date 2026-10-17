@@ -103,6 +103,9 @@ struct BuildingFigure {
 
 /// A figure standing or walking on land (animals, soldiers; carriers later) as the simulation or
 /// the viewer hands it to the renderer.
+/// FigureInstance::crop of a figure that cannot be seen at all.
+inline constexpr std::uint16_t kCropHidden = 256;
+
 struct FigureInstance {
     double x = 0.0;  ///< world position in tiles (continuous; tile centre = x + 0.5)
     double y = 0.0;
@@ -114,6 +117,9 @@ struct FigureInstance {
     /// walking land figure the height of the tile it was made on, 0.028 * Posoffs (0x00446CA0),
     /// so 0.56 on land, and keeps it while it walks (render::spawn_height).
     double z = 0.0;
+    /// Share of the body hidden from below in 1/256 of its height, kCropHidden or more: not drawn
+    /// at all. Workers and animals in crops and young trees (render::crop_cut).
+    std::uint16_t crop = 0;
     /// Owner: units drawn per colour (FigureTable::unit_variant) take the colour of the owner's
     /// banner - the drawn variant or the tinted template.
     sim::PlayerId owner = sim::kNoPlayer;

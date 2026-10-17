@@ -53,7 +53,7 @@ enum class AnimKind : std::uint8_t {
 struct FigureAnim {
     AnimKind kind = AnimKind::None;
     std::uint32_t offset = 0;        ///< AnimOffs: first sprite relative to the figure's Gfx
-    std::uint32_t add = 1;           ///< AnimAdd: sprite step per frame
+    std::uint32_t add = 0;           ///< AnimAdd: sprite step per frame (none given: 0, 0x004413A9)
     std::uint32_t count = 1;         ///< AnimAnz: frames
     std::uint32_t repeat = 1;        ///< AnimRept: runs before `kind` applies
     std::uint32_t speed_ms = 100;    ///< AnimSpeed: duration of one frame

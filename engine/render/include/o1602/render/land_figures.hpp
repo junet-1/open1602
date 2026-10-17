@@ -28,6 +28,15 @@ inline constexpr double kLandHeight = 0.56;
 [[nodiscard]] double spawn_height(const sim::World& world, const assets::BuildingTable& buildings, double x, double y,
                                   bool piers_as_land = false);
 
+/// How much of a worker or animal standing on world point (x, y) its tile hides, in 1/256 of the
+/// figure's height, kCropHidden: all of it (Figure_CropCut, 0x00451250). Roads, ground, squares,
+/// beach and the like hide nothing; crops hide the legs by growth stage and crop, ripe and tall
+/// young trees the whole figure, so a woodcutter vanishes into the tree he fells; quarries hide
+/// nothing, every other building all. Workers, hunters, grazing animals and deer only (kinds
+/// 0x0C, 0x0E, 0x10, 0x11); the others are shown or hidden by the kind of tile alone.
+[[nodiscard]] std::uint16_t crop_cut(const sim::World& world, const assets::BuildingTable& buildings, double x,
+                                     double y);
+
 /// A set of land figures with their animation states.
 class LandFigures {
 public:

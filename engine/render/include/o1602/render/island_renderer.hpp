@@ -80,6 +80,9 @@ struct DrawCommand {
     assets::Rgba tint{0, 0, 0, 0};  ///< colour of an overlay diamond or shadow
     std::uint8_t tint_size = 0;     ///< tile width of an overlay diamond (64 / 32 / 16)
     Mode mode = Mode::Normal;
+    /// Rows at the bottom of the sprite left out: workers and animals standing in crops and young
+    /// trees (0x00401B70 with 0x00451250).
+    std::uint16_t cut_bottom = 0;
 };
 
 /// Sprite of a building tile showing animation frame `frame`: base sprite + frame * AnimAdd +

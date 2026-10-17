@@ -138,7 +138,7 @@ TEST_CASE("figures: land figure with shadow, position and depth") {
 
     sim::World world;
     // Made on land: height 0.56 (0x00446CA0 callers).
-    const render::FigureInstance deer{10.5, 20.5, 89, 1, 2, 3, render::kLandHeight, sim::kNoPlayer, std::nullopt};
+    const render::FigureInstance deer{10.5, 20.5, 89, 1, 2, 3, render::kLandHeight, 0, sim::kNoPlayer, std::nullopt};
     render::FigureSprites f;
     REQUIRE(render::land_figure_sprites(deer, world, render::WorldView{render::Zoom::Large, 0}, layers, f));
     REQUIRE(f.count == 2);
@@ -158,6 +158,18 @@ TEST_CASE("figures: land figure with shadow, position and depth") {
     CHECK(body.y == 505 + 3 - 18);       // bottom at Y + Posoffs[0], lifted
     CHECK(f.row == (496 + 9 - 1) / 16);  // the height does not change the row
     CHECK(f.depth == 505);
+
+    // Half of it in a crop: the bottom 6 of 12 rows are left out, the shadow goes up by as much
+    // (0x00451250, 0x00401B70); all of it hidden: nothing drawn.
+    render::FigureInstance in_crop = deer;
+    in_crop.crop = 128;
+    render::FigureSprites c;
+    REQUIRE(render::land_figure_sprites(in_crop, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
+    CHECK(c.parts[1].cut_bottom == 6);
+    CHECK(c.parts[1].y == body.y);
+    CHECK(c.parts[0].y == shadow.y - 6);
+    in_crop.crop = render::kCropHidden;
+    CHECK(!render::land_figure_sprites(in_crop, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
 
     // Without its sheet (e.g. SGFX without derived graphics) the figure is not drawn.
     layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Tiere)].reset();
@@ -302,4 +314,50 @@ TEST_CASE("flags: one tinted block per banner in the atlas and in the draw list"
     layers.banner_flags = nullptr;
     REQUIRE(render::ship_sprites(sim::Ship{"A", 10, 20, 21, 1, 0, {}}, world, render::WorldView{}, layers, 0, s));
     CHECK(!s.has_flag);
+}
+
+TEST_CASE("figures: workers and animals vanish into crops and trees") {
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: HAUS\n"
+        "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"  // ground
+        "  @Nummer: 1\n  Id: 20401\n  Kind: 1\n  Gfx: 1\n  Size: 1, 1\n"   // road
+        "  @Nummer: 2\n  Id: 20501\n  Kind: 10\n  Gfx: 2\n  Size: 1, 1\n  AnimAnz: 5\n  AnimAdd: 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 10\n  EndObj\n"  // young tree
+        "  @Nummer: 3\n  Id: 20502\n  Kind: 10\n  Gfx: 7\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"  // ripe tree
+        "  @Nummer: 4\n  Id: 20503\n  Kind: 10\n  Gfx: 8\n  Size: 1, 1\n  AnimAnz: 5\n  AnimAdd: 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 10\n  EndObj\n"  // young grain
+        "  @Nummer: 5\n  Id: 20504\n  Kind: 10\n  Gfx: 13\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 45\n  EndObj\n"  // ripe grain
+        "  @Nummer: 6\n  Id: 20601\n  Kind: 14\n  Gfx: 14\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 11\n  EndObj\n"  // quarry
+        "  @Nummer: 7\n  Id: 20602\n  Kind: 14\n  Gfx: 15\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 2\n  EndObj\n"  // farm
+        "EndObj\n",
+        types);
+    auto table = assets::BuildingTable::from_cod(doc);
+    REQUIRE(table.ok());
+    const assets::BuildingTable& b = *table;
+    sim::World world;
+    sim::IslandMap map(9, 1);
+    const std::uint32_t ids[] = {20101, 20401, 20501, 20501, 20502, 20503, 20504, 20601, 20602};
+    for (std::int32_t x = 0; x < 9; ++x) {
+        REQUIRE(map.place(*b.by_id(ids[x]), x, 0, 0, 0, 0).ok());
+    }
+    map.set_anim_phase(2, 0, 2);  // young trees at growth stages 2 and 4
+    map.set_anim_phase(3, 0, 4);
+    map.set_anim_phase(5, 0, 3);  // young grain at stage 3
+    REQUIRE(world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 10, 10}).ok());
+    const auto at = [&](int x) { return render::crop_cut(world, b, 10 + x + 0.5, 10.5); };
+    CHECK(at(0) == 0);                                 // ground
+    CHECK(at(1) == 0);                                 // road
+    CHECK(at(2) == 40);                                // tree, stage 2: the legs
+    CHECK(at(3) == render::kCropHidden);               // tree, stage 4: all of it
+    CHECK(at(4) == render::kCropHidden);               // ripe tree: the woodcutter at work vanishes
+    CHECK(at(5) == 45);                                // grain, stage 3
+    CHECK(at(6) == 55);                                // ripe grain
+    CHECK(at(7) == 0);                                 // quarry: the stone cutter stays visible
+    CHECK(at(8) == render::kCropHidden);               // inside any other building
+    CHECK(render::crop_cut(world, b, 5.5, 5.5) == 0);  // open sea
 }
