@@ -149,6 +149,9 @@ private:
     void apply_options();
     /// The platform's text input runs exactly while a name is typed (in the menu or the settings).
     void sync_text_input();
+    /// A building (or the demolish tool) was taken from the menu: the selected ships and units
+    /// are let go, so a right click puts the building away instead of giving them an order.
+    void drop_units();
     /// Closes the open pop-up of a build category, else lays the building in hand away (the
     /// original's right click). False if there was neither.
     bool cancel_build_step();

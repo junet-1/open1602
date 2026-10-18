@@ -383,7 +383,8 @@ void Hud::draw_question() {
         return;
     }
     const double s = m_regions.scale;
-    const ui::Rect& v = m_regions.game_view;
+    // Centred on the main menu's window, in the game on the map.
+    const ui::Rect& v = m_menu_active ? m_regions.full : m_regions.game_view;
     const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
     const ui::Rect box{v.x + (v.w - px(520)) / 2, v.y + (v.h - px(130)) / 2, px(520), px(130)};
     constexpr std::uint8_t kGold = 215;  // (202, 172, 52) in STADTFLD.COL

@@ -615,6 +615,11 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && !(m_hud && m_hud->modal())) {
                     if (m_options.original_mouse) {
                         cancel_action();
+                    } else if (!m_units.empty() && cancel_build_step()) {
+                        // A building in hand goes first, even with a ship selected (the Kontor to
+                        // found from it); the ship stays selected and does not sail off.
+                        while (cancel_build_step()) {
+                        }
                     } else if (!m_units.empty() || !back_to_status()) {
                         map_order(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
                                   (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
@@ -623,7 +628,15 @@ void MapViewer::handle_event(const SDL_Event& original) {
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
                 if (const auto spot = spot_at_mouse()) {
                     if (auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
+                        // A Kontor founded from a ship is the only one there: the tool is put away
+                        // once it can be built (the ship's window gave it).
+                        const bool founded =
+                            order->ship && std::ranges::all_of(sim::plan_build(m_world, m_buildings, *order).items,
+                                                               [](const sim::PlannedBuild& i) { return i.ok(); });
                         m_simulation.submit(std::move(*order));
+                        if (founded) {
+                            m_tool.set_mode(BuildTool::Mode::Off);
+                        }
                     } else if (auto demolish = m_tool.demolish_order(m_local_player, *spot)) {
                         m_simulation.submit(*demolish);
                     }
@@ -947,6 +960,7 @@ void MapViewer::render() {
                     // A field or forest being dragged: its whole rectangle hatched on the ground,
                     // with no crops or trees in it, as in the History Edition.
                     const bool hatched = m_tool.hatched_drag();
+                    std::vector<std::pair<std::int32_t, std::int32_t>> fitted;  // road and wall tiles
                     if (hatched) {
                         for (const sim::BuildItem& item : order->items) {
                             if (map.contains(item.x, item.y)) {
@@ -1008,6 +1022,27 @@ void MapViewer::render() {
                             shown = ripe;
                         }
                         (void)map.build(*shown, item.x, item.y, item.rotation, 0, at.owner, at.city);
+                        if (shown->kreuz_base > 0) {
+                            fitted.push_back({item.x, item.y});
+                        }
+                    }
+                    // Roads and walls fit their neighbours as they will once built, and the
+                    // neighbours them (both put back after drawing like the rest).
+                    for (const auto& [fx, fy] : fitted) {
+                        sim::fit_connection(m_world, m_buildings, order->island, fx, fy);
+                    }
+                    for (const auto& [fx, fy] : fitted) {
+                        for (const auto& [dx, dy] :
+                             {std::pair{0, -1}, std::pair{1, 0}, std::pair{0, 1}, std::pair{-1, 0}}) {
+                            const std::int32_t nx = fx + dx;
+                            const std::int32_t ny = fy + dy;
+                            if (map.contains(nx, ny)) {
+                                const auto ux = static_cast<std::uint32_t>(nx);
+                                const auto uy = static_cast<std::uint32_t>(ny);
+                                saved.push_back(Saved{order->island, ux, uy, map.top(ux, uy)});
+                                sim::fit_connection(m_world, m_buildings, order->island, nx, ny);
+                            }
+                        }
                     }
                     if (m_tool_status.empty()) {
                         m_tool_status = std::to_string(plan.bill.money) + " gold";
@@ -1524,10 +1559,12 @@ void MapViewer::apply_hud(const Hud::Action& action) {
         case Hud::Action::Kind::Build:
             if (m_tool.select(action.building)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
+                drop_units();
             }
             break;
         case Hud::Action::Kind::Demolish:
             m_tool.set_mode(BuildTool::Mode::Demolish);
+            drop_units();
             break;
         case Hud::Action::Kind::TurnBuilding:
             m_tool.rotate(action.step);
@@ -1856,6 +1893,13 @@ void MapViewer::save_settings() {
     const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
     if (auto status = core::write_file(path, std::span<const std::uint8_t>(data, text.size())); !status) {
         std::fprintf(stderr, "settings: %s\n", status.error().message.c_str());
+    }
+}
+
+void MapViewer::drop_units() {
+    if (!m_units.empty()) {
+        m_units.clear();
+        selection_changed(false);
     }
 }
 
