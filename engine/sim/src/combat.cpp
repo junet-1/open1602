@@ -273,25 +273,39 @@ void Combat::update() {
     }
 
     // Buckets of kSight tiles: a figure sees only figures in its own and the eight around it.
+    // Within a bucket the figures are grouped by owner, so that a figure looks only at the groups
+    // of its enemies (review point 18: friends in a crowd cost nothing).
     constexpr std::int32_t kSight8 = kSight * 8;
+    // Farthest distance a figure in sight can have (sea_distance of kSight8 in both axes).
+    constexpr std::int32_t kMaxSeenDistance = kSight8 + kSight8 / 4;
     const auto bucket_of = [](std::int32_t v) { return v >= 0 ? v / kSight8 : -((-v + kSight8 - 1) / kSight8); };
     m_buckets.clear();
     for (std::size_t i = 0; i < n; ++i) {
-        m_buckets.push_back({bucket_of(m_entries[i].x8), bucket_of(m_entries[i].y8), static_cast<std::uint32_t>(i)});
+        const Entry& e = m_entries[i];
+        m_buckets.push_back({bucket_of(e.x8), bucket_of(e.y8), e.x8, e.y8, static_cast<std::uint32_t>(i), e.owner});
     }
     std::sort(m_buckets.begin(), m_buckets.end(), [](const Bucketed& a, const Bucketed& b) {
-        return std::tie(a.by, a.bx, a.entry) < std::tie(b.by, b.bx, b.entry);
+        return std::tie(a.by, a.bx, a.owner, a.entry) < std::tie(b.by, b.bx, b.owner, b.entry);
     });
-    const auto range = [&](std::int32_t bx, std::int32_t by) {
-        const auto lo = std::lower_bound(m_buckets.begin(), m_buckets.end(), std::pair{by, bx},
-                                         [](const Bucketed& e, const std::pair<std::int32_t, std::int32_t>& k) {
-                                             return std::pair{e.by, e.bx} < k;
-                                         });
-        auto hi = lo;
-        while (hi != m_buckets.end() && hi->by == by && hi->bx == bx) {
-            ++hi;
+    // The buckets in use with their owner groups.
+    m_cells.clear();
+    m_groups.clear();
+    for (std::size_t k = 0; k < m_buckets.size(); ++k) {
+        const Bucketed& e = m_buckets[k];
+        if (m_cells.empty() || m_cells.back().bx != e.bx || m_cells.back().by != e.by) {
+            m_cells.push_back({e.bx, e.by, static_cast<std::uint32_t>(m_groups.size()), 0});
         }
-        return std::pair{lo, hi};
+        if (m_groups.empty() || m_cells.back().first_group == m_groups.size() || m_groups.back().owner != e.owner) {
+            m_groups.push_back({e.owner, static_cast<std::uint32_t>(k), static_cast<std::uint32_t>(k)});
+        }
+        m_groups.back().end = static_cast<std::uint32_t>(k + 1);
+        m_cells.back().end_group = static_cast<std::uint32_t>(m_groups.size());
+    }
+    const auto cell_at = [&](std::int32_t bx, std::int32_t by) -> const Cell* {
+        const auto it = std::lower_bound(
+            m_cells.begin(), m_cells.end(), std::pair{by, bx},
+            [](const Cell& c, const std::pair<std::int32_t, std::int32_t>& k) { return std::pair{c.by, c.bx} < k; });
+        return it != m_cells.end() && it->by == by && it->bx == bx ? &*it : nullptr;
     };
 
     // Fix S-114: each list holds the nearest hostile figures (ties by the order of the figures),
@@ -305,32 +319,55 @@ void Combat::update() {
             continue;
         }
         m_seen.clear();
+        const std::int32_t abx = bucket_of(a.x8);
+        const std::int32_t aby = bucket_of(a.y8);
         for (std::int32_t dy = -1; dy <= 1; ++dy) {
             for (std::int32_t dx = -1; dx <= 1; ++dx) {
-                const auto [lo, hi] = range(bucket_of(a.x8) + dx, bucket_of(a.y8) + dy);
-                for (auto it = lo; it != hi; ++it) {
-                    const Entry& b = m_entries[it->entry];
-                    if (std::abs(b.x8 - a.x8) > kSight8 || std::abs(b.y8 - a.y8) > kSight8 ||
-                        !hostile(a.owner, b.owner)) {
+                const Cell* cell = cell_at(abx + dx, aby + dy);
+                if (cell == nullptr) {
+                    continue;
+                }
+                for (std::uint32_t g = cell->first_group; g < cell->end_group; ++g) {
+                    const Group& group = m_groups[g];
+                    if (!hostile(a.owner, group.owner)) {
                         continue;
                     }
-                    // A ship sees land figures only near their island (rectangle + 5 tiles).
-                    if (a.ship != b.ship && a.island != b.island) {
-                        continue;
+                    for (std::uint32_t k = group.begin; k < group.end; ++k) {
+                        const Bucketed& b = m_buckets[k];
+                        if (std::abs(b.x8 - a.x8) > kSight8 || std::abs(b.y8 - a.y8) > kSight8) {
+                            continue;
+                        }
+                        // A ship sees land figures only near their island (rectangle + 5 tiles).
+                        const Entry& e = m_entries[b.entry];
+                        if (a.ship != e.ship && a.island != e.island) {
+                            continue;
+                        }
+                        m_seen.push_back({sea_distance(a.x8 - b.x8, a.y8 - b.y8), b.entry});
                     }
-                    m_seen.push_back({sea_distance(a.x8 - b.x8, a.y8 - b.y8), it->entry});
                 }
             }
         }
         const auto nearer = [](const Seen& x, const Seen& y) {
             return std::tie(x.distance8, x.entry) < std::tie(y.distance8, y.entry);
         };
-        const std::size_t keep = std::min(m_seen.size(), kMaxNeighbours);
-        const auto end = m_seen.begin() + static_cast<std::ptrdiff_t>(keep);
-        if (keep < m_seen.size()) {
-            std::nth_element(m_seen.begin(), end, m_seen.end(), nearer);  // the order is total: no ties
+        if (m_seen.size() > kMaxNeighbours) {
+            // Only the nearest kMaxNeighbours stay: count the distances, find the one the list
+            // ends at and drop everything farther before sorting (the same list as sorting all).
+            m_distances.assign(kMaxSeenDistance + 1, 0);
+            for (const Seen& v : m_seen) {
+                ++m_distances[static_cast<std::size_t>(std::min(v.distance8, kMaxSeenDistance))];
+            }
+            std::int32_t last = 0;
+            for (std::size_t count = 0; last <= kMaxSeenDistance; ++last) {
+                count += m_distances[static_cast<std::size_t>(last)];
+                if (count >= kMaxNeighbours) {
+                    break;
+                }
+            }
+            std::erase_if(m_seen, [last](const Seen& v) { return v.distance8 > last; });
         }
-        std::sort(m_seen.begin(), end, nearer);
+        const std::size_t keep = std::min(m_seen.size(), kMaxNeighbours);
+        std::sort(m_seen.begin(), m_seen.end(), nearer);  // the order is total: no ties
         for (std::size_t k = 0; k < keep; ++k) {
             m_neighbours.push_back({m_entries[m_seen[k].entry].unit, m_seen[k].distance8});
         }
