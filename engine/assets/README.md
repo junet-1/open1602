@@ -1,18 +1,18 @@
 # engine/assets
 
-Loader für die Originalformate (Spezifikation in [docs/formats](../../docs/formats/README.md)):
+Loaders for the original formats (specification in [docs/formats](../../docs/formats/README.md)):
 
 | Header | Format |
 |---|---|
-| `chunk_file.hpp` | Chunk-Container (Basis fast aller Binärdateien) |
-| `cod.hpp` | `.cod`-Skripte entschlüsseln |
-| `cod_parser.hpp` | `.cod`-Interpreter (Symbole, Ausdrücke, Objekte, `ObjFill`) |
-| `cod_predefined.hpp` | von der Exe vordefinierte Konstanten (generiert) |
-| `palette.hpp` | `.COL`-Palette |
-| `sprite_sheet.hpp` | `.BSH`/`.ZEI`-Sprites (RLE) |
-| `island.hpp` | Inseln aus `.SCP`/`.SZS`/`.SZM`/`.GAM`, Attributbits der Felder |
-| `building_table.hpp` | typisierte Gebäude-/Geländetypen aus `haeuser.cod`, Suche nach Id und Sprite |
-| `game_directory.hpp` | Zugriff auf eine Originalinstallation |
+| `chunk_file.hpp` | Chunk container (basis of almost all binary files) |
+| `cod.hpp` | Decrypting `.cod` scripts |
+| `cod_parser.hpp` | `.cod` interpreter (symbols, expressions, objects, `ObjFill`) |
+| `cod_predefined.hpp` | constants predefined by the exe (generated) |
+| `palette.hpp` | `.COL` palette |
+| `sprite_sheet.hpp` | `.BSH`/`.ZEI` sprites (RLE) |
+| `island.hpp` | Islands from `.SCP`/`.SZS`/`.SZM`/`.GAM`, attribute bits of the tiles |
+| `building_table.hpp` | typed building/terrain types from `haeuser.cod`, lookup by id and sprite |
+| `game_directory.hpp` | Access to an original installation |
 
-Keine Abhängigkeit von Plattform oder Grafik; jede Funktion liefert `core::Result` und stürzt bei
-fehlerhaften Daten nicht ab.
+No dependency on platform or graphics; every function returns `core::Result` and does not crash on
+faulty data.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Building sites of the computer players (docs/re/ai.md, "Bauplätze"): every search walks along
+// Building sites of the computer players (docs/re/ai.md, "Building sites and roads"): every search walks along
 // the straight road runs of the current city (task 7), places the footprint of the building
 // beside the road, checks it with the build rules and scores the surroundings ring by ring. One
 // candidate that fits is scored per AI step, so a search spans many steps; the best one is built

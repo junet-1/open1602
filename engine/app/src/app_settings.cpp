@@ -113,7 +113,7 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
 
 std::string write_settings(const AppSettings& s) {
     const audio::AudioSettings& a = s.audio;
-    std::string out = "# Open1602: Einstellungen (vom Spiel geschrieben)\n";
+    std::string out = "# Open1602: settings (written by the game)\n";
     out += std::string("music = ") + (a.music ? "on" : "off") + "\n";
     out += std::string("effects = ") + (a.effects ? "on" : "off") + "\n";
     out += std::string("random_music = ") + (a.random_music ? "on" : "off") + "\n";
@@ -125,7 +125,8 @@ std::string write_settings(const AppSettings& s) {
         out += "disabled_song = " + t + "\n";
     }
     out += std::string("mission_window = ") + (s.mission_window ? "on" : "off") + "\n";
-    out += "# Wale, Delfine, Kraken: im Mittel einer je Bildschirm Meer alle so viele Sekunden (Original 5, 0 = aus)\n";
+    out +=
+        "# Whales, dolphins, krakens: on average one per screen of sea every this many seconds (original 5, 0 = off)\n";
     out += "sea_creatures_every = " + std::to_string(s.sea_creatures_every) + "\n";
     if (!s.player_name.empty()) {
         out += "player_name = " + s.player_name + "\n";
@@ -178,7 +179,7 @@ SaveSlots parse_slots(std::string_view text) {
 }
 
 std::string write_slots(const SaveSlots& slots) {
-    std::string out = "# Open1602: Namen der Spielstaende (Platz, Menschen, Name)\n";
+    std::string out = "# Open1602: savegame names (slot, humans, name)\n";
     for (std::size_t i = 0; i < slots.size(); ++i) {
         if (!slots.names[i].empty()) {
             out += std::to_string(i) + " " + std::to_string(slots.humans[i]) + " " + slots.names[i] + "\n";

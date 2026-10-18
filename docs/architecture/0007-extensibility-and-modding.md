@@ -1,149 +1,149 @@
-# 0007 – Erweiterbarkeit, Inhalte und Modding
+# 0007 – Extensibility, content and modding
 
-Status: angenommen · 16.10.2026
+Status: accepted · 2026-10-16
 
-## Anforderungen
+## Requirements
 
-Vom Projektinhaber festgelegt (16.10.2026). Open1602 soll erlauben:
+Set by the project owner (2026-10-16). Open1602 should allow:
 
-1. **Neue Inhalte:** Gebäude, Farben, Produktionsketten, Inseln, Landschaften, Fraktionen,
-   Animationen und Grafiken, Musik und Sounds.
-2. **Eigene Kampagnen und Szenarien.**
-3. **Neue Inseltypen und Inselgrößen**, zum Beispiel riesige Inseln.
-4. **Einen flexibleren, abwechslungsreicheren Inselgenerator.**
-5. **Keine feste Spielerzahl.** Statt vier Spielern plus Händler, Piraten und Eingeborenen soll
-   man zum Beispiel auch zu fünft im Mehrspielermodus spielen können. Das Spiel skaliert dann mit,
-   etwa bei Piraten und fahrenden Händlern.
-6. **Erweiterbare Farben und Flaggen** mit einem Flaggenauswahlmenü wie in Anno 1503.
+1. **New content:** buildings, colours, production chains, islands, landscapes, factions,
+   animations and graphics, music and sounds.
+2. **Custom campaigns and scenarios.**
+3. **New island types and island sizes**, for example huge islands.
+4. **A more flexible, more varied island generator.**
+5. **No fixed player count.** Instead of four players plus traders, pirates and natives, it should
+   be possible, for example, to play with five in multiplayer. The game then scales accordingly,
+   for instance for pirates and travelling traders.
+6. **Extensible colours and flags** with a flag selection menu as in Anno 1503.
 
-Diese Anforderungen gelten für jeden neuen Code, auch wenn das betreffende Feature erst später kommt.
-Feste Zahlen des Originals dürfen nur in den Ladern und Speicherern der Originalformate vorkommen.
+These requirements apply to all new code, even if the feature concerned only comes later.
+Fixed numbers of the original may only appear in the loaders and savers of the original formats.
 
-## Entscheidung
+## Decision
 
-### 1. Zwei Schichten: Originalformat und Engine-Modell
+### 1. Two layers: original format and engine model
 
-| Schicht | Module | Inhalt |
+| Layer | Modules | Content |
 |---|---|---|
-| Originalformat | `assets` | Liest die Dateien des Originals so, wie sie sind: 7 Spielerplätze, Farben 0–6, Besitzer 7 = niemand, Welt 500 × 350, höchstens 255 Inseln, `.cod`-Nummern |
-| Engine-Modell | `sim`, `render`, `ui`, `net`, `script` | Kennt keine dieser Grenzen. Spieler, Banner (Farbe und Flagge), Gebäude, Waren und Figuren sind Einträge in Tabellen beliebiger Größe |
+| Original format | `assets` | Reads the files of the original as they are: 7 player slots, colours 0–6, owner 7 = nobody, world 500 × 350, at most 255 islands, `.cod` numbers |
+| Engine model | `sim`, `render`, `ui`, `net`, `script` | Knows none of these limits. Players, banners (colour and flag), buildings, goods and figures are entries in tables of any size |
 
-Die Übersetzung geschieht ausschließlich beim Laden (z. B. `sim::load_world`) und später beim
-Speichern im Originalformat. Originalspielstände bleiben ladbar. Gespeichert wird im eigenen Format.
-Ein Export ins Originalformat ist nur möglich, wenn der Zustand hineinpasst, andernfalls gibt es
-eine klare Meldung.
+The translation happens exclusively when loading (e.g. `sim::load_world`) and later when
+saving in the original format. Savegames of the original stay loadable. Saving uses our own format.
+An export to the original format is only possible if the state fits into it; otherwise there is
+a clear message.
 
-### 2. Inhalte als Pakete mit stabilen Kennungen
+### 2. Content as packages with stable ids
 
-- **Basisspiel = ein Inhaltspaket** (`anno1602`). Es wird zur Laufzeit aus der Originalinstallation
-  erzeugt (`.cod`, `.bsh`, `.scp`, Sounds), damit keine Originaldaten verteilt werden (ADR 0002).
-- **Mods sind weitere Pakete** (Ordner oder Archiv) mit einem Manifest: Kennung, Version,
-  Abhängigkeiten, Ladereihenfolge. Sie enthalten Daten (TOML/JSON), Grafiken (PNG mit
-  Atlas-Beschreibung), Audio (OGG/WAV/FLAC) und Skripte (Lua).
-- **Kennungen sind Zeichenketten** mit Paketpräfix (`anno1602:kontor1`, `meinmod:leuchtturm`).
-  Ein Paket kann Einträge hinzufügen, ändern (Overlay auf einzelne Felder) oder ersetzen.
-- **Zur Laufzeit zählen nur Indizes.** Nach dem Laden werden die Tabellen zu flachen Arrays.
-  Zeichenketten braucht man nur beim Laden, Speichern und für den Mehrspielerabgleich. Das kostet
-  in der Simulation nichts (Performance-Vorgabe).
+- **Base game = one content package** (`anno1602`). It is generated at runtime from the original installation
+  (`.cod`, `.bsh`, `.scp`, sounds), so that no original data is distributed (ADR 0002).
+- **Mods are further packages** (folder or archive) with a manifest: id, version,
+  dependencies, load order. They contain data (TOML/JSON), graphics (PNG with
+  atlas description), audio (OGG/WAV/FLAC) and scripts (Lua).
+- **Ids are strings** with a package prefix (`anno1602:kontor1`, `meinmod:leuchtturm`).
+  A package can add entries, modify them (overlay on individual fields) or replace them.
+- **At runtime only indices count.** After loading, the tables become flat arrays.
+  Strings are only needed for loading, saving and multiplayer reconciliation. This costs
+  nothing in the simulation (performance requirement).
 
-| Inhaltsart | Quelle im Original | Erweiterung |
+| Content type | Source in the original | Extension |
 |---|---|---|
-| Gebäude, Produktion, Waren | `haeuser.cod` (`HAUS`, `HAUS_PRODTYP`, `HAUS_BAUKOST`) | eigene Datensätze und Produktionsketten, eigene Warenliste (keine feste Zahl an Waren) |
-| Figuren, Animationen | `figuren.cod`, `*.BSH` | eigene Figuren, Sprites aus PNG-Atlanten, beliebige Bildanzahl |
-| Banner (Farbe + Flaggen) | Farben 0–6, Flaggensprites in `SHIP.BSH` | beliebig viele Banner (Abschnitt 4) |
-| Fraktionen | fest im Programm: Siedler, Händler, Piraten, Eingeborene | Fraktionen als Daten mit KI-Verhalten und Skalierungsregeln (Abschnitt 3) |
-| Klimazonen, Landschaften | `NORD`, `SUED`, `*NAT`, Inselvorlagen | eigene Klimazonen, Boden- und Vegetationssätze |
-| Inseln | 677 Vorlagen (`.scp`) in festen Größen | beliebige Größe, eigene Vorlagen, Generatorregeln (Abschnitt 5) |
-| Musik, Sounds | `MUSIC8`, `SAMPLES`, `Speech8` | eigene Titel, Sounds pro Gebäude/Figur/Ereignis |
-| Szenarien, Kampagnen | `.szs`/`.szm`, fest verdrahtete Ziele | Abschnitt 6 |
+| Buildings, production, goods | `haeuser.cod` (`HAUS`, `HAUS_PRODTYP`, `HAUS_BAUKOST`) | custom records and production chains, custom goods list (no fixed number of goods) |
+| Figures, animations | `figuren.cod`, `*.BSH` | custom figures, sprites from PNG atlases, any number of frames |
+| Banners (colour + flags) | colours 0–6, flag sprites in `SHIP.BSH` | any number of banners (section 4) |
+| Factions | hard-coded in the program: settlers, traders, pirates, natives | factions as data with AI behaviour and scaling rules (section 3) |
+| Climate zones, landscapes | `NORD`, `SUED`, `*NAT`, island templates | custom climate zones, ground and vegetation sets |
+| Islands | 677 templates (`.scp`) in fixed sizes | any size, custom templates, generator rules (section 5) |
+| Music, sounds | `MUSIC8`, `SAMPLES`, `Speech8` | custom tracks, sounds per building/figure/event |
+| Scenarios, campaigns | `.szs`/`.szm`, hard-wired goals | section 6 |
 
-### 3. Spieler und Fraktionen
+### 3. Players and factions
 
-- `sim::PlayerId` ist ein Index in die Spielerliste der Partie (8 Bit). `sim::kNoPlayer` (0xFF) steht für
-  „niemand“. Damit sind bis zu 254 Plätze möglich. Die wirkliche Obergrenze setzen Lobby und Spielregeln.
-- **Steuerung und Fraktion sind getrennt.** Ein Platz wird von einem Menschen, einer KI oder
-  niemandem gesteuert (neutral). Er gehört zu einer Fraktion: Siedler, Händler, Piraten, Eingeborene
-  oder eine Fraktion aus einem Mod. Bis Fraktionen Daten werden, bildet `sim::PlayerRole` die Rollen des Originals ab (auch die Computergegner bauen darauf auf).
-- **Neutrale Fraktionen skalieren mit der Spielerzahl.** Ihre Daten enthalten Regeln wie „Piraten:
-  Schiffe = Grundwert + k · Siedlerspieler“ oder „Händler: eine Route je n Kontore“. So passt sich die
-  Welt bei fünf oder acht Spielern an.
-- Alles, was pro Spieler gilt (Geld, Lager, Statistiken, Diplomatie, Entdeckung), liegt in Containern,
-  die mit der Spielerzahl wachsen. Matrizen wie die Diplomatie haben die Größe *n × n*, nicht 7 × 7.
+- `sim::PlayerId` is an index into the match's player list (8 bits). `sim::kNoPlayer` (0xFF) stands for
+  "nobody". This allows up to 254 slots. The real upper limit is set by the lobby and the game rules.
+- **Control and faction are separate.** A slot is controlled by a human, an AI or
+  nobody (neutral). It belongs to a faction: settlers, traders, pirates, natives
+  or a faction from a mod. Until factions become data, `sim::PlayerRole` maps the roles of the original (the computer opponents build on it too).
+- **Neutral factions scale with the player count.** Their data contains rules such as "pirates:
+  ships = base value + k · settler players" or "traders: one route per n warehouses". This way the
+  world adapts to five or eight players.
+- Everything that applies per player (money, stock, statistics, diplomacy, discovery) lives in containers
+  that grow with the player count. Matrices such as diplomacy have size *n × n*, not 7 × 7.
 
-### 4. Banner: Farben und Flaggen
+### 4. Banners: colours and flags
 
-- Ein **Banner** fasst die Erkennungsmerkmale eines Spielers zusammen: Farbe (Flagge, Minikarte,
-  Besitzansicht, Oberfläche), Flaggenart und später die Farbvarianten der Soldaten. Spieler verweisen
-  auf ein Banner (`sim::BannerId`), nicht auf eine feste Farbnummer.
-- **Spielerflaggen sind eine einzige Flagge, die eingefärbt wird** (Vorschlag des Projektinhabers,
-  16.10.2026). Im Flaggenmenü wählt man eine von zwölf Vorgabefarben oder eine beliebige RGB-Farbe wie
-  in OpenRA; die Engine färbt die Flagge beim Laden der Grafik ein (`render::TintedFlagSource`, ein Satz
-  aus 8 Bildern je Banner und Zoomstufe). Neue Spieler brauchen keine neuen Bilder.
-- Die Vorlage folgt einer einfachen Regel: Reines Grau (R = G = B) ist Tuch, Grau 128 ist genau die
-  Spielerfarbe, dunklere und hellere Grautöne schattieren. Alles andere bleibt, wie es ist
-  (Anleitung für Modder: [docs/modding/flags.md](../modding/flags.md)).
-- Das Basisspiel macht die Vorlage aus der weißen Originalflagge. Rot, Blau, Gelb und Weiß werden in
-  den aus den Originalbildern ermittelten Farben eingefärbt; wer die Originalbilder möchte, schaltet
-  sie ein (`BannerOptions::original_player_flags`, `--original-flags`).
-- **Einheiten in Spielerfarbe** (Soldaten, Reiter, Kanoniere) folgen derselben Regel. Weil die vier
-  Originalfassungen einzeln gezeichnet und keine Umfärbungen sind (Messung in
-  [figures.md](../re/figures.md#soldaten-und-spielerfarben)), behalten Rot, Blau, Gelb und Weiß die
-  Originalbilder (`Banner::unit_variant`); jede weitere Farbe färbt eine beim Laden erzeugte Vorlage
-  ein (`render::TintedUnitSource`). Soldaten speichern nur ihre Einheitenart, nicht die Farbe.
-- Banner mit eigenem Motiv behalten fertige Bilder (`FlagStyle::Sprites`, z. B. der Totenkopf der
-  Piraten); Eingeborene und Händler haben keine Flagge (`FlagStyle::None`).
-- In einer Partie ist jedes Banner höchstens einmal vergeben. Das Menü warnt vor zu ähnlichen Farben.
+- A **banner** bundles a player's identifying features: colour (flag, minimap,
+  ownership view, interface), flag type and later the colour variants of the soldiers. Players refer
+  to a banner (`sim::BannerId`), not to a fixed colour number.
+- **Player flags are a single flag that is tinted** (proposal by the project owner,
+  2026-10-16). In the flag menu you choose one of twelve preset colours or any RGB colour, as
+  in OpenRA; the engine tints the flag when loading the graphics (`render::TintedFlagSource`, a set
+  of 8 images per banner and zoom level). New players need no new images.
+- The template follows a simple rule: pure grey (R = G = B) is cloth, grey 128 is exactly the
+  player colour, darker and lighter greys shade it. Everything else stays as it is
+  (guide for modders: [docs/modding/flags.md](../modding/flags.md)).
+- The base game makes the template from the white original flag. Red, blue, yellow and white are tinted in
+  the colours determined from the original images; anyone who wants the original images switches
+  them on (`BannerOptions::original_player_flags`, `--original-flags`).
+- **Units in player colour** (soldiers, cavalry, cannoneers) follow the same rule. Because the four
+  original versions are drawn individually and are not recolourings (measurement in
+  [figures.md](../re/figures.md#soldiers-and-player-colours)), red, blue, yellow and white keep the
+  original images (`Banner::unit_variant`); every further colour tints a template generated at load time
+  (`render::TintedUnitSource`). Soldiers only store their unit type, not the colour.
+- Banners with their own motif keep finished images (`FlagStyle::Sprites`, e.g. the pirates'
+  skull); natives and traders have no flag (`FlagStyle::None`).
+- In a match each banner is assigned at most once. The menu warns about colours that are too similar.
 
-### 5. Welt, Inseln und Inselgenerator
+### 5. World, islands and island generator
 
-- **Die Weltgröße ist eine Eigenschaft der Karte** (`sim::World::width()/height()`). Originalkarten
-  haben 500 × 350 Felder.
-- **Inseln haben keine Größengrenze** außer dem Speicher. Feldkoordinaten und Inselnummern
-  sind 16 Bit breit, das Original nutzt 8 Bit (L-003).
-- **Inselgenerator:** deterministisch aus einem Startwert (Mehrspieler, Wiederholbarkeit). Er
-  arbeitet mit Höhen- und Feuchtekarten aus Rauschfunktionen und erzeugt daraus Küsten, Berge,
-  Flüsse, Wälder und Rohstoffe. Die Regeln (Klimazone, Größe, Form, Häufigkeiten) sind Daten.
-  Die Originalvorlagen (`.scp`) bleiben als eine Quelle unter mehreren erhalten.
-- Riesige Inseln und Karten müssen flüssig laufen. Der Renderer zeichnet nur den sichtbaren
-  Ausschnitt (das ist schon umgesetzt), die Simulation arbeitet mit Regionen statt mit
-  Durchläufen über die ganze Karte.
+- **The world size is a property of the map** (`sim::World::width()/height()`). Original maps
+  have 500 × 350 tiles.
+- **Islands have no size limit** other than memory. Tile coordinates and island numbers
+  are 16 bits wide; the original uses 8 bits (L-003).
+- **Island generator:** deterministic from a seed (multiplayer, repeatability). It
+  works with height and moisture maps from noise functions and generates coasts, mountains,
+  rivers, forests and raw materials from them. The rules (climate zone, size, shape, frequencies) are data.
+  The original templates (`.scp`) remain as one source among several.
+- Huge islands and maps must run smoothly. The renderer only draws the visible
+  section (this is already done); the simulation works with regions instead of
+  passes over the whole map.
 
-### 6. Szenarien und Kampagnen
+### 6. Scenarios and campaigns
 
-- **Szenario** = Karte (Vorlage oder Generator mit Startwert) + Startbedingungen (Spieler, Banner,
-  Waren, Gebäude) + Ziele + optional ein Skript.
-- **Kampagne** = Folge von Szenarien mit Übergängen (Bedingungen, übernommene Werte, Texte, Videos).
-- **Skripte** sind Lua mit einer deterministischen, abgeschotteten Schnittstelle: kein Dateizugriff,
-  keine Uhrzeit, Zufall nur aus dem Spiel-RNG. Ereignisse (Tick, Bau, Handel, Kampf) lösen sie aus,
-  und Änderungen laufen als `Command` (ADR 0004). Der Skriptzustand gehört zum Spielstand.
-- Die Szenarien des Originals werden geladen, ihre fest verdrahteten Ziele werden in dieses Modell übersetzt.
+- **Scenario** = map (template or generator with seed) + starting conditions (players, banners,
+  goods, buildings) + goals + optionally a script.
+- **Campaign** = sequence of scenarios with transitions (conditions, carried-over values, texts, videos).
+- **Scripts** are Lua with a deterministic, sandboxed interface: no file access,
+  no clock time, randomness only from the game RNG. Events (tick, building, trade, combat) trigger them,
+  and changes run as a `Command` (ADR 0004). The script state belongs to the savegame.
+- The scenarios of the original are loaded; their hard-wired goals are translated into this model.
 
-### 7. Mehrspieler und Spielstände
+### 7. Multiplayer and savegames
 
-- Die Liste der Inhaltspakete mit Versionen und Prüfsummen ist Teil von Spielstand und Lobby.
-  Alle Teilnehmer brauchen dieselben Inhalte, sonst wird die Partie nicht gestartet.
-- Spielstände speichern Kennungen (Zeichenketten), keine Laufzeitindizes. So bleiben sie gültig,
-  wenn ein Paket Einträge ergänzt.
+- The list of content packages with versions and checksums is part of the savegame and the lobby.
+  All participants need the same content, otherwise the match is not started.
+- Savegames store ids (strings), not runtime indices. That way they stay valid
+  when a package adds entries.
 
-## Folgen
+## Consequences
 
-- Einige Stellen brauchen am Anfang mehr Aufwand (Tabellen statt Konstanten). Dafür ändert ein Mod
-  Daten statt Code.
-- Neue Features werden zuerst als Daten und Tabellen entworfen. Feste Zahlen im Engine-Code müssen
-  begründet werden (Kommentar mit Verweis auf diese ADR).
+- Some places need more effort at first (tables instead of constants). In return, a mod changes
+  data instead of code.
+- New features are designed as data and tables first. Fixed numbers in engine code must be
+  justified (a comment referring to this ADR).
 
-## Feste Grenzen im Code und ihr Abbau
+## Fixed limits in the code and their removal
 
-| Stelle | Grenze | Stand |
+| Place | Limit | Status |
 |---|---|---|
-| `sim::MapCell::owner`, `sim::Ship::owner` | Besitzer 0–6, 7 = niemand | ✅ `sim::PlayerId`, `kNoPlayer`; Übersetzung beim Laden |
-| `sim::Player` | Farbe als `assets::PlayerColor` (0–6), Art als `assets::PlayerKind` | ✅ `BannerId` und `PlayerRole` |
-| `render::player_rgb`, `FigureTable::flag_for_color` im Renderer | 7 feste Farben, 5 Flaggen | ✅ `render::BannerTable` mit eingefärbter Einheitsflagge, beliebige Farben |
-| Überlagerungsfarbe `DrawCommand::tint` | Index in die 7 Farben | ✅ RGBA direkt im Befehl |
-| `sim::World::kWidth/kHeight`, `Cell` mit 8-Bit-Inselnummer und Koordinaten | 500 × 350, 255 Inseln, Inseln bis 255 × 255 | ✅ Größe pro Welt, 16 Bit |
-| Gebäude, Figuren | `.cod`-Nummern als Index | ⬜ Inhaltsregister mit Kennungen (mit den ersten eigenen Inhalten) |
-| Waren | feste Liste des Originals | ⬜ mit der Wirtschaftssimulation |
-| Fraktionen, Skalierung neutraler Spieler | – | ⬜ `sim::PlayerRole` ist weiter ein festes enum; die Computergegner (18.10.2026) bauen darauf auf, Fraktionen als Daten stehen noch aus |
-| Spielerzahl beim Spielstart, Speichern | 4 Spieler beim Start, 7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme im Spielstand | ⬜ der Weltplan kann 16 Spieler; Speichern über die Originalgrenzen kommt in den eigenen Chunk ([status.md](../status.md)) |
-| Inselgenerator | – | 🟡 Stufe 1: eigene Welten aus den Originalvorlagen (200–2000 Felder, [worldgen.md](../re/worldgen.md)); Stufe 2 mit eigenen Inselformen zurückgestellt |
-| Lua, Kampagnen, Inhaltspakete | – | ⬜ eigene Meilensteine (M8) |
+| `sim::MapCell::owner`, `sim::Ship::owner` | owner 0–6, 7 = nobody | ✅ `sim::PlayerId`, `kNoPlayer`; translation when loading |
+| `sim::Player` | colour as `assets::PlayerColor` (0–6), kind as `assets::PlayerKind` | ✅ `BannerId` and `PlayerRole` |
+| `render::player_rgb`, `FigureTable::flag_for_color` in the renderer | 7 fixed colours, 5 flags | ✅ `render::BannerTable` with tinted single flag, any colours |
+| Overlay colour `DrawCommand::tint` | index into the 7 colours | ✅ RGBA directly in the command |
+| `sim::World::kWidth/kHeight`, `Cell` with 8-bit island number and coordinates | 500 × 350, 255 islands, islands up to 255 × 255 | ✅ size per world, 16 bits |
+| Buildings, figures | `.cod` numbers as index | ⬜ content registry with ids (with the first custom content) |
+| Goods | fixed list of the original | ⬜ with the economy simulation |
+| Factions, scaling of neutral players | – | ⬜ `sim::PlayerRole` is still a fixed enum; the computer opponents (2026-10-18) build on it, factions as data are still pending |
+| Player count at game start, saving | 4 players at start, 7 players, 150 ships, 400 soldiers, 350 towers in the savegame | ⬜ the world plan supports 16 players; saving beyond the original limits goes into our own chunk ([status.md](../status.md)) |
+| Island generator | – | 🟡 stage 1: custom worlds from the original templates (200–2000 tiles, [worldgen.md](../re/worldgen.md)); stage 2 with custom island shapes postponed |
+| Lua, campaigns, content packages | – | ⬜ own milestones (M8) |

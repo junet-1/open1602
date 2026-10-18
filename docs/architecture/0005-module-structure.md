@@ -1,25 +1,25 @@
-# 0005 – Modulstruktur und Abhängigkeitsregeln
+# 0005 – Module structure and dependency rules
 
-Status: angenommen · 16.10.2026
+Status: accepted · 2026-10-16
 
 ```
-            core            Logging, Dateien, Fehler (Result), Text, Festkomma, RNG
+            core            Logging, files, errors (Result), text, fixed point, RNG
               ▲
-            assets          Loader für Originalformate (keine Plattform-/Grafikabhängigkeit)
+            assets          Loaders for original formats (no platform/graphics dependency)
               ▲
-             sim            Deterministische Simulation (Welt, Inseln, Gebäude, Wirtschaft, KI …)
+             sim            Deterministic simulation (world, islands, buildings, economy, AI …)
            ▲     ▲
-         net   script       Lockstep-Multiplayer / Modding
+         net   script       Lockstep multiplayer / modding
            ▲
 platform ◄─ render, audio, ui ◄─ app
 ```
 
-Regeln:
-- Pfeile zeigen auf Abhängigkeiten; Zyklen sind verboten.
-- `sim` hängt **nie** von `platform`, `render`, `audio`, `ui` ab (Headless-Fähigkeit, Determinismus).
-- Jedes Modul ist eine eigene CMake-Bibliothek `o1602::<modul>` mit `include/o1602/<modul>/` als
-  öffentlicher Schnittstelle; Interna liegen in `src/`.
-- Namensraum `o1602::<modul>`.
+Rules:
+- Arrows point to dependencies; cycles are forbidden.
+- `sim` **never** depends on `platform`, `render`, `audio`, `ui` (headless capability, determinism).
+- Every module is its own CMake library `o1602::<module>` with `include/o1602/<module>/` as its
+  public interface; internals live in `src/`.
+- Namespace `o1602::<module>`.
 
-Bereits umgesetzt: `core`, `assets`, `sim` (Inselraster), `render` (Software-Renderer). Die übrigen Module sind in `engine/<modul>/README.md` beschrieben
-und werden mit ihren Meilensteinen angelegt.
+Already done: `core`, `assets`, `sim` (island grid), `render` (software renderer). The remaining modules are described in `engine/<module>/README.md`
+and will be created with their milestones.

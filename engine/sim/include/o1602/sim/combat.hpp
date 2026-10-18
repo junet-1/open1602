@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// What ships, soldiers and towers share in a fight (docs/re/military.md, "Kampf"): who sees whom,
+// What ships, soldiers and towers share in a fight (docs/re/military.md, "Combat"): who sees whom,
 // how good a target is, and shots on their way.
 //
 // Every figure step the original builds a list of hostile figures within 12 tiles for each ship,

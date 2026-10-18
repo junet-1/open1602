@@ -1,39 +1,39 @@
-# 0009 – Eigenes Speicherformat
+# 0009 – Own save format
 
-Status: angenommen · 18.10.2026
+Status: accepted · 2026-10-18
 
-## Kontext
-Bisher waren Spielstände von Open1602 `.GAM`-Dateien des Originals mit einem Zusatz-Chunk `O1602`. Der
-Schreiber baute die Chunks des Originals aus den Datensätzen der Quelldatei nach, der Zusatz-Chunk trug
-den vollständigen Zustand ein zweites Mal. Das hatte drei Nachteile:
+## Context
+Until now, Open1602 savegames were `.GAM` files of the original with an additional chunk `O1602`. The
+writer rebuilt the chunks of the original from the records of the source file, and the additional chunk carried
+the complete state a second time. This had three drawbacks:
 
-- **Grenzen:** Die Chunks des Originals fassen 7 Spieler, 150 Schiffe, 400 Soldaten und 350 Türme. Mit
-  den Standardregeln von Open1602 (100 Schiffe, 250 Einheiten je Spieler) ist das erreichbar; dann schlug
-  das Speichern fehl.
-- **Aufwand und Fehler:** Derselbe Zustand stand zweimal in der Datei, und manche Bytes hingen davon ab,
-  woraus das Spiel ursprünglich geladen wurde (zwei solche Fehler allein am 17.10.2026).
-- **Größe:** Feste Tabellen des Originals, ungepackt (Merlin04: 885 KB).
+- **Limits:** The chunks of the original hold 7 players, 150 ships, 400 soldiers and 350 towers. With
+  the default rules of Open1602 (100 ships, 250 units per player) this is reachable; saving then
+  failed.
+- **Effort and bugs:** The same state was in the file twice, and some bytes depended on
+  what the game was originally loaded from (two such bugs on 2026-10-17 alone).
+- **Size:** Fixed tables of the original, uncompressed (Merlin04: 885 KB).
 
-Der Projektinhaber legt Wert auf ein effizientes, einfaches und robustes Format; dass das Original
-Spielstände von Open1602 laden kann, ist ihm nicht wichtig (18.10.2026).
+The project owner values an efficient, simple and robust format; that the original can load
+Open1602 savegames is not important to him (2026-10-18).
 
-## Entscheidung
-1. Open1602 speichert in einem **eigenen Format** (`.o1602`, [o1602-save.md](../formats/o1602-save.md)):
-   kurzer Kopf mit Version, Größe und CRC-32, dahinter versionierte Abschnitte mit dem ganzen Zustand,
-   mit zlib gepackt.
-2. Die Abschnitte sind die des bisherigen Zusatz-Chunks, ergänzt um die ganze Karte (`MAPW`) und was
-   sonst nur in den Chunks des Originals stand. Es gibt **einen** Weg zu schreiben und **einen** zu lesen.
-3. Das Format ist **kanonisch**: gleicher Zustand, gleiche Bytes. Gebäude stehen als Id aus
-   `haeuser.cod`, nicht als Bildnummer (ADR 0007: Kennungen statt Laufzeitnummern).
-4. Die Dateien des Originals werden weiter **gelesen**. Ein Spiel lässt sich als `.GAM` **exportieren**,
-   solange es hineinpasst; dafür bleibt der bisherige Schreiber mit dem Zusatz-Chunk.
+## Decision
+1. Open1602 saves in its **own format** (`.o1602`, [o1602-save.md](../formats/o1602-save.md)):
+   a short header with version, size and CRC-32, followed by versioned sections with the whole state,
+   compressed with zlib.
+2. The sections are those of the previous additional chunk, extended by the whole map (`MAPW`) and whatever
+   else was only in the chunks of the original. There is **one** way to write and **one** to read.
+3. The format is **canonical**: same state, same bytes. Buildings are stored as an id from
+   `haeuser.cod`, not as an image number (ADR 0007: ids instead of runtime numbers).
+4. The files of the original continue to be **read**. A game can be **exported** as `.GAM`
+   as long as it fits; the previous writer with the additional chunk is kept for that.
 
-## Folgen
-- Keine Grenzen außer dem Speicher; neue Teile kommen als neue Abschnitte dazu, ältere Leser
-  überspringen sie.
-- Spielstände sind etwa ein Viertel so groß.
-- Bestehende `.GAM`-Stände von Open1602 laden weiter (mit ihrem Zusatz-Chunk genau wie bisher).
-- Ein aus einem `.o1602` geladenes Spiel bringt seine Quelldatei ohne die Inselfelder im Abschnitt
-  `ORIG` mit (etwa 12 KB), damit der Export als `.GAM` dieselben Bytes schreibt wie vorher (ergänzt
-  18.10.2026, nachdem ein Export ohne sie im Original abstürzte).
-- Später kommt in den Kopf oder einen Abschnitt die Liste der Inhaltspakete mit Versionen (ADR 0007).
+## Consequences
+- No limits other than memory; new parts are added as new sections, older readers
+  skip them.
+- Savegames are about a quarter of the size.
+- Existing Open1602 `.GAM` savegames still load (with their additional chunk exactly as before).
+- A game loaded from a `.o1602` carries its source file without the island tiles in the section
+  `ORIG` (about 12 KB), so that the export as `.GAM` writes the same bytes as before (added
+  2026-10-18, after an export without it crashed in the original).
+- Later, the list of content packages with versions goes into the header or a section (ADR 0007).

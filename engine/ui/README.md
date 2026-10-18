@@ -1,8 +1,8 @@
 # engine/ui
 
-Die Oberfläche ohne Plattformabhängigkeit: Schriften (`.ZEI`) und Textregeln (`font.hpp`), die
-Gadget-Layouts des Originals im Betrieb (`panel.hpp`: Bereiche des Bildschirms, Zeichnen je Zustand,
-Maus mit Umschaltern, Gruppen, Schiebern) und die Grafiken je Bildschirmgröße (`resources.hpp`).
-Gelesen werden die Layouts in `engine/assets` (`gad.hpp`).
+The user interface without platform dependencies: fonts (`.ZEI`) and text rules (`font.hpp`), the
+original's gadget layouts in operation (`panel.hpp`: screen areas, drawing per state,
+mouse with toggles, groups, sliders) and the graphics per screen size (`resources.hpp`).
+The layouts are read in `engine/assets` (`gad.hpp`).
 
-Beschreibung: [docs/re/ui.md](../../docs/re/ui.md), [docs/formats/gad.md](../../docs/formats/gad.md).
+Description: [docs/re/ui.md](../../docs/re/ui.md), [docs/formats/gad.md](../../docs/formats/gad.md).

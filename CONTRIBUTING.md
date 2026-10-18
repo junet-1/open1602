@@ -1,44 +1,46 @@
-# Mitmachen bei Open1602
+# Contributing to Open1602
 
-## Rechtliche Grundregeln
+## Basic legal rules
 
-1. **Keine Originaldaten** im Repository – weder Spieldateien noch daraus erzeugte Exporte
-   (PNGs, dekodierte `.cod`-Texte, Speicher-Dumps mit Spielinhalten).
-2. **Kein dekompilierter Code** in `engine/`. Erkenntnisse werden als Spezifikation in `docs/`
-   beschrieben und daraus neu implementiert (siehe ADR 0003).
-3. Beiträge stehen unter GPL-3.0-or-later. Fremdcode nur mit kompatibler Lizenz, dokumentiert in
-   `third_party/README.md`.
+1. **No original data** in the repository – neither game files nor exports generated from them
+   (PNGs, decoded `.cod` texts, memory dumps with game content).
+2. **No decompiled code** in `engine/`. Findings are described as a specification in `docs/`
+   and reimplemented from it (see ADR 0003).
+3. Contributions are licensed under GPL-3.0-or-later. Third-party code only with a compatible licence,
+   documented in `third_party/README.md`.
 
 ## Code
 
-- C++20, Formatierung per `.clang-format` (`clang-format -i <dateien>`), 120 Zeichen.
-- Bezeichner und Kommentare im Code auf **Englisch**; Projektdokumentation auf Deutsch.
-  Originalbegriffe aus den Spieldaten (`Insel`, `Haus`, `Figur`) bleiben erkennbar.
-- Namen: Typen `PascalCase`, Funktionen/Variablen `snake_case`, Member `m_name`, Konstanten `kName`.
-- Fehlerbehandlung beim Laden von Daten über `core::Result<T>` – niemals abstürzen bei kaputten Dateien.
-- Keine besitzenden Rohzeiger, kein `new`/`delete`; Container und RAII.
-- Simulation (`engine/sim`): deterministisch, keine Gleitkommazahlen im Zustand (ADR 0004).
-- Jede Datei beginnt mit `// SPDX-License-Identifier: GPL-3.0-or-later`.
+- C++20, formatting via `.clang-format` (`clang-format -i <files>`), 120 characters.
+- Everything in the repository is in **English**: documents, identifiers and code comments, log and
+  error messages, commit messages, PR titles and descriptions. Terms from the original game data
+  (`Insel`, `Haus`, `Figur`) stay recognisable. In-game texts follow the language of the installed game;
+  new texts go through the localisation ([docs/modding/languages.md](docs/modding/languages.md)).
+- Names: types `PascalCase`, functions/variables `snake_case`, members `m_name`, constants `kName`.
+- Error handling when loading data via `core::Result<T>` – never crash on broken files.
+- No owning raw pointers, no `new`/`delete`; containers and RAII.
+- Simulation (`engine/sim`): deterministic, no floating point in the state (ADR 0004).
+- Every file starts with `// SPDX-License-Identifier: GPL-3.0-or-later`.
 
-## Reverse Engineering
+## Reverse engineering
 
-- Neue Funktions-/Variablennamen in `re/symbols/*.csv` mit Konfidenz und Beleg eintragen.
-- Gesicherte Formate/Strukturen in `docs/formats/` bzw. `docs/re/` dokumentieren.
-- Gefundene Originalfehler in `docs/re/bugs.md` sammeln.
+- Enter new function/variable names in `re/symbols/*.csv` with confidence and evidence.
+- Document confirmed formats/structures in `docs/formats/` or `docs/re/`.
+- Collect bugs of the original you find in `docs/re/bugs.md`.
 
-Die Symboltabellen (`re/symbols/`) und die Analyse des Originals (`docs/re/`) liegen nicht in
-diesem Repository, sondern im privaten Repository `open1602-re`. Einrichten, neben diesem Ordner:
+The symbol tables (`re/symbols/`) and the analysis of the original (`docs/re/`) are not in
+this repository but in the private repository `open1602-re`. Set it up next to this folder:
 
 ```sh
-git clone <url-von-open1602-re> ../open1602-re
+git clone <url-of-open1602-re> ../open1602-re
 ln -s ../../open1602-re/docs/re docs/re
 ln -s ../../open1602-re/re/symbols re/symbols
 ```
 
-Beide Pfade stehen in der `.gitignore`; Änderungen daran werden in `open1602-re` committet.
+Both paths are in `.gitignore`; changes to them are committed in `open1602-re`.
 
 ## Commits
 
-- Kleine, thematisch abgeschlossene Commits; Präfix nach Bereich, z. B. `assets: decode ZEI glyph overhang`,
+- Small, self-contained commits; prefix by area, e.g. `assets: decode ZEI glyph overhang`,
   `re: name Cod_LoadHaeuser`, `docs: describe INSELHAUS bits`.
-- Vor dem Commit: `cmake --build --preset debug && ctest --preset debug`.
+- Before committing: `cmake --build --preset debug && ctest --preset debug`.

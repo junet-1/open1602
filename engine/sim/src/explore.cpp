@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // "Insel erkunden": a ship explores the crops and deposits of the island it stands in
-// (docs/re/ships.md#erkunden). Part of sim::Fleet.
+// (docs/re/ships.md#exploring). Part of sim::Fleet.
 
 #include "o1602/sim/ships.hpp"
 

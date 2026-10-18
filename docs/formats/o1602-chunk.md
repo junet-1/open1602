@@ -1,98 +1,98 @@
-# Der eigene Chunk von Open1602 (`O1602`)
+# Open1602's own chunk (`O1602`)
 
-Seit dem 18.10.2026 speichert Open1602 im eigenen Format ([o1602-save.md](o1602-save.md),
-[ADR 0009](../architecture/0009-own-save-format.md)). Der Chunk `O1602` bleibt für Spiele, die als
-`.GAM` für das Original **exportiert** werden, und für ältere Spielstände von Open1602; seine Abschnitte
-ab `RULE` sind dieselben wie im eigenen Format.
+Since 2026-10-18 Open1602 saves in its own format ([o1602-save.md](o1602-save.md),
+[ADR 0009](../architecture/0009-own-save-format.md)). The chunk `O1602` remains for games that are
+**exported** as `.GAM` for the original, and for older Open1602 savegames; its sections
+from `RULE` onwards are the same as in the own format.
 
-Exportierte Spielstände sind `.GAM`-Dateien des Originals ([savegame-writer.md](../re/savegame-writer.md))
-mit einem zusätzlichen Chunk `O1602` hinter `WIFF`. Das Original kennt den Namen nicht und überspringt
-ihn; speichert es den Stand neu, fällt er weg. Open1602 liest ihn nach den Chunks des Originals und
-ersetzt damit, was er enthält.
+Exported savegames are `.GAM` files of the original ([savegame-writer.md](../re/savegame-writer.md))
+with an additional chunk `O1602` after `WIFF`. The original does not know the name and skips
+it; if it saves the game again, the chunk is dropped. Open1602 reads it after the chunks of the original and
+uses it to replace whatever it contains.
 
 In Open1602: `engine/sim/include/o1602/sim/savegame_extension.hpp`.
 
-## Was er enthält und warum
+## What it contains and why
 
-Er ist **maßgeblich** für alles, was er enthält. Listen stehen vollständig und in ihrer Reihenfolge
-darin, nicht nur das, was dem Original fehlt. So hängt das Weiterspielen nicht davon ab, wie das Original
-Werte rundet, Bits zusammenfasst oder Listen ordnet:
+It is **authoritative** for everything it contains. Lists are stored in full and in their order,
+not just what the original lacks. That way, continuing the game does not depend on how the original
+rounds values, combines bits or orders lists:
 
-- Spieleinstellungen (`sim::Rules`) der Partie;
-- Spielzeit auf die Millisekunde, Uhren der Häuser und des Wachstums, Dürretermin und -saat, die
-  Zufallsgeneratoren der Simulation, die nächste Nummer der Katastrophen;
-- je Insel: Wildplätze mit genauer Zeit, Phase der Inselepochen, Dürre, Krater, Erzvorkommen,
-  Fruchtbarkeit;
-- Spieler, Städte (Lager aller Waren, Reservierungen, Zulieferungen, Versorgung mit 64-Bit-Zählern und
-  Verlauf, Stolz, Ausbauwarteschlange, Ereignistermin), die Produktionsliste mit ihren freien Plätzen,
-  Häuser, Wachstumseinträge, Werften und Burgen, Schiffe mit genauer Ladung, Soldaten mit genauer
-  Position, Tiere;
-- Brände und Seuchen (S-001), laufende Vulkanausbrüche und Lava im Flug (S-062);
-- die Uhren der Simulation und alle Figuren: Träger, Karren, Bauern, Herden, Fischer, Hirsche, Jäger,
-  Ärzte, Feuerwehr, Räuber, mit Weg, Ladung und Reservierungen, dazu die Statistik der Logistik;
-- Diplomatie, Erkunden, Schiffe mit Kurs und Route, Soldaten, Türme und Burgen;
-- der Zustand der Computergegner (Aufgabenstapel, Pläne je Stadt, Suche, Reservierungen, Siedlung,
-  Schiffsaufträge, Angriffe; [ai.md](../re/ai.md)), den das Original gar nicht speichert.
+- game settings (`sim::Rules`) of the match;
+- game time to the millisecond, clocks of the houses and of growth, drought date and seed, the
+  random generators of the simulation, the next disaster number;
+- per island: deer spots with exact time, phase of the island epochs, drought, craters, ore deposits,
+  fertility;
+- players, cities (stock of all goods, reservations, deliveries, supply with 64-bit counters and
+  history, pride, upgrade queue, event date), the production list with its free slots,
+  houses, growth entries, shipyards and castles, ships with exact cargo, soldiers with exact
+  position, animals;
+- fires and plagues (S-001), running volcanic eruptions and lava in flight (S-062);
+- the clocks of the simulation and all figures: carriers, carts, farmers, herds, fishermen, deer, hunters,
+  doctors, fire brigade, robbers, with path, cargo and reservations, plus the logistics statistics;
+- diplomacy, exploring, ships with course and route, soldiers, towers and castles;
+- the state of the computer opponents (task stack, plans per city, search, reservations, settlement,
+  ship missions, attacks; [ai.md](../re/ai.md)), which the original does not save at all.
 
-**Felder** stehen nur dort darin, wo das Laden der Chunks des Originals etwas anderes ergäbe:
-reifes Gras und Fischgründe außerhalb der Städte, die das Original nicht speichert. Dazu prüft der
-Schreiber, was die geschriebenen `INSELHAUS`-Chunks beim Laden ergeben, und vergleicht beide Ebenen
-jedes Felds.
+**Tiles** are only included where loading the chunks of the original would give something different:
+ripe grass and fishing grounds outside the cities, which the original does not save. For this the
+writer checks what the written `INSELHAUS` chunks give when loaded, and compares both layers
+of every tile.
 
-Ergebnis (Datentest): Ein Spiel, gespeichert und geladen, läuft **genau so weiter, als wäre es nie
-angehalten worden**. Auch mit Lava in der Luft, einem Brand und der Feuerwehr unterwegs ist es fünf
-Minuten später Byte für Byte derselbe Spielstand wie ohne Unterbrechung.
+Result (data test): a game that is saved and loaded continues **exactly as if it had never
+been paused**. Even with lava in the air, a fire and the fire brigade on its way, five
+minutes later it is byte for byte the same savegame as without interruption.
 
-## Aufbau
+## Structure
 
-Alle Zahlen little-endian.
+All numbers little-endian.
 
-| Feld | Typ | Inhalt |
+| Field | Type | Contents |
 |---|---|---|
-| Kennung | 8 Byte | `O1602SAV` |
+| Identifier | 8 bytes | `O1602SAV` |
 | Version | u16 | 1 |
 | Flags | u16 | 0 |
-| Fingerabdruck | u64 | FNV-1a (64 Bit) über alle Bytes der Datei vor dem Chunk (also Chunks des Originals und `WIFF`) |
-| Abschnitte | … | bis zum Ende des Chunks |
+| Fingerprint | u64 | FNV-1a (64 bit) over all bytes of the file before the chunk (i.e. chunks of the original and `WIFF`) |
+| Sections | … | up to the end of the chunk |
 
-**Abschnitt:** u32 Kennung (vier Zeichen), u16 Version, u16 0, u32 Länge, Daten. Ein Leser
-überspringt Abschnitte, die er nicht kennt, und Versionen, die er nicht lesen kann; dann gilt für diesen
-Teil, was die Chunks des Originals sagen. Spätere Fassungen können so Teile hinzufügen, ohne ältere
-Spielstände ungültig zu machen.
+**Section:** u32 identifier (four characters), u16 version, u16 0, u32 length, data. A reader
+skips sections it does not know and versions it cannot read; for that part, what the chunks of the original
+say then applies. Later versions can thus add parts without invalidating older
+savegames.
 
-| Kennung | Inhalt |
+| Identifier | Contents |
 |---|---|
-| `RULE` | Einstellungen als Paare (u16 Schlüssel, u32 Wert); unbekannte Schlüssel werden übergangen |
-| `WRLD` | Spielzeit, Stadtnamenzähler, Schwierigkeit und Einstellungswort, Dürretermin und -saat, Zufallsgeneratoren (Zustand, Inkrement), Uhren der Häuser und des Wachstums, nächste Katastrophennummer |
-| `ISLE` | je Insel in der Reihenfolge der Welt, mit Inselnummer zur Prüfung |
-| `TILE` | abweichende Felder: Inselnummer, x, y, Ebene, Gebäude-Id, Teilfeld, Drehung, Phase, Besitzer, Stadt, Zufallswert |
-| `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `SHIP` `ANIM` `DISA` `VOLC` | die Listen der Welt, vollständig (`SOLD`, die Soldaten älterer Fassungen, wird noch gelesen) |
-| `CSTA` | Handelsstatistik je Stadt (Insel, Nummer, Käufe, Verkäufe) |
-| `FLEE` | Schiffe vollständig (Lage in 1/4096 Feld, Kurs, Laderäume mit Preis, Handelsroute, Ziele mit dem Verweis des Originals, Waren des Händlers), nächste Schiffsnummer, entdeckte Inseln, Handelseinstellungen und Zuneigung der Städte, Felder der Werften (Auftrag, Baupunkte, Holz, Stoffe, Takt, Reparatur); `SHIP` bleibt für ältere Leser |
-| `ARMY` | Soldaten vollständig (Lage in 1/4096 Feld, Lebenspunkte, Heimat, Ziel, Planung, Uhren, Streife, Weg), nächste Soldatennummer, Kanonentürme, Gebäudeschaden, Schüsse im Flug, Waffen und Plätze der Burgen |
-| `EPOC` | Phase der Inselepochen und je Insel die zuletzt gesehene Phase |
-| `XPLR` | Erkunden: je Insel „Anbau erkundet“ je Spieler und je Lagerstätte die Spielermaske (32 Bit) ([ships.md](../re/ships.md#erkunden)) |
-| `DIPL` | Diplomatie: je Spielerpaar Frieden, Handel, Kriegszeit, Tribut, Handel und Schaden, je Spieler alle 32 Ereignisse und der Schuldige ([diplomacy.md](../re/diplomacy.md)) |
-| `SIMU` | Uhren der Simulation und Figuren (eigene Versionsnummer am Anfang; ab Version 2 mit den Packeseln der Werften und den Uhren der Flotte, ab 3 mit dem Militär, ab 4 mit dem Zustand der Computergegner, selbst mit Versionsnummer) |
+| `RULE` | settings as pairs (u16 key, u32 value); unknown keys are skipped |
+| `WRLD` | game time, city name counter, difficulty and settings word, drought date and seed, random generators (state, increment), clocks of the houses and of growth, next disaster number |
+| `ISLE` | per island in the order of the world, with island number for checking |
+| `TILE` | differing tiles: island number, x, y, layer, building id, sub-tile, rotation, phase, owner, city, random value |
+| `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `SHIP` `ANIM` `DISA` `VOLC` | the lists of the world, complete (`SOLD`, the soldiers of older versions, is still read) |
+| `CSTA` | trade statistics per city (island, number, purchases, sales) |
+| `FLEE` | ships in full (position in 1/4096 tile, course, holds with price, trade route, destinations with the original's reference, the trader's goods), next ship number, discovered islands, trade settings and affection of the cities, shipyard fields (order, build points, wood, cloth, tick, repair); `SHIP` remains for older readers |
+| `ARMY` | soldiers in full (position in 1/4096 tile, hit points, home, destination, planning, clocks, patrol, path), next soldier number, cannon towers, building damage, shots in flight, weapons and slots of the castles |
+| `EPOC` | phase of the island epochs and, per island, the phase last seen |
+| `XPLR` | exploring: per island "growing explored" per player, and per deposit the player mask (32 bit) ([ships.md](../re/ships.md#exploring)) |
+| `DIPL` | diplomacy: per player pair peace, trade, time of war, tribute, trade and damage; per player all 32 events and the culprit ([diplomacy.md](../re/diplomacy.md)) |
+| `SIMU` | clocks of the simulation and figures (own version number at the start; from version 2 with the shipyards' pack mules and the fleet clocks, from 3 with the military, from 4 with the state of the computer opponents, itself with a version number) |
 
-Gebäude stehen als **Id** (aus `haeuser.cod`) und Teilfeld, nicht als Bildnummer, damit ein Spielstand
-auch mit geänderten Grafiken passt; eine unbekannte Id macht den Chunk ungültig.
+Buildings are stored as **Id** (from `haeuser.cod`) and sub-tile, not as image number, so that a savegame
+also fits with changed graphics; an unknown Id makes the chunk invalid.
 
-## Sicherheit beim Laden
+## Safety when loading
 
-- **Fingerabdruck:** Passt er nicht (ein anderes Werkzeug hat die Chunks des Originals verändert), lädt
-  Open1602 nur die Chunks des Originals und meldet es.
-- **Prüfung vor dem Übernehmen:** Erst wird alles gelesen und gegen die Welt geprüft (Inseln, Felder
-  innerhalb ihrer Insel, freie Plätze der Produktionsliste, Zahl der Zufallsgeneratoren); nur wenn alles
-  stimmt, wird es übernommen. Ein beschädigter oder abgeschnittener Chunk ändert nichts.
-- Jede Anzahl wird gegen die verbleibende Länge geprüft, bevor Speicher reserviert wird.
+- **Fingerprint:** if it does not match (another tool has changed the chunks of the original), Open1602
+  loads only the chunks of the original and reports it.
+- **Check before applying:** first everything is read and checked against the world (islands, tiles
+  within their island, free slots of the production list, number of random generators); only if everything
+  is correct is it applied. A damaged or truncated chunk changes nothing.
+- Every count is checked against the remaining length before memory is reserved.
 
-## Grenzen dieser Fassung
+## Limits of this version
 
-- Eine größere Karte als die des Originals (eigene Welt) trägt ihre Größe im Chunk `O1602MAP`
-  (u32 Breite, u32 Höhe; hinter `WIFF`, vor `O1602`), mit bis zu 255 Inseln. Solche Stände lädt nur Open1602.
-- Mehr als 7 Spieler, 150 Schiffe, 400 Soldaten oder 350 Türme kann der Chunk noch nicht tragen; der
-  Schreiber lehnt solche Welten ab. Mit den Regeln von Open1602 (Flottengrenze 100 je Spieler,
-  Einheitenlimit 250) ist das erreichbar ([savegame-writer.md](../re/savegame-writer.md#offen)).
-- Befehle, die zwischen zwei Takten noch nicht ausgeführt sind, werden nicht gespeichert (gespeichert
-  wird zwischen den Takten).
+- A map larger than the original's (own world) carries its size in the chunk `O1602MAP`
+  (u32 width, u32 height; after `WIFF`, before `O1602`), with up to 255 islands. Such savegames are loaded only by Open1602.
+- The chunk cannot yet carry more than 7 players, 150 ships, 400 soldiers or 350 towers; the
+  writer rejects such worlds. With Open1602's rules (fleet limit 100 per player,
+  unit limit 250) this is reachable ([savegame-writer.md](../re/savegame-writer.md#open)).
+- Commands not yet executed between two ticks are not saved (saving
+  happens between the ticks).

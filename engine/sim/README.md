@@ -1,10 +1,10 @@
 # engine/sim
 
-Deterministische Spielsimulation (ADR 0004). Keine Abhängigkeit von Plattform, Grafik oder Audio,
-kein Gleitkomma im Zustand.
+Deterministic game simulation (ADR 0004). No dependency on platform, graphics or audio,
+no floating point in the state.
 
-| Header | Inhalt |
+| Header | Contents |
 |---|---|
-| `island_map.hpp` | Feldraster einer Insel (Gebäude + Boden), Platzierung nach dem Originalalgorithmus |
+| `island_map.hpp` | Tile grid of an island (buildings + ground), placement following the original algorithm |
 
-Geplant: Welt (500 × 350), Städte, Produktion, Bevölkerung, Handel, Figuren, Schiffe, KI, Militär.
+Planned: world (500 × 350), cities, production, population, trade, figures, ships, AI, military.

@@ -1,136 +1,136 @@
-# 0010 – Bedienung und Oberfläche
+# 0010 – Controls and interface
 
-Status: angenommen · 18.10.2026 (Tastenbelegung vom Projektinhaber als Standard bestätigt)
+Status: accepted · 2026-10-18 (key bindings confirmed as the default by the project owner)
 
-## Kontext
-Die Oberfläche des Originals ist nachgebaut: Seitenleiste, Baumenü, die Fenster der Auswahl. Ihre
-Bedienung ist von 1998: Befehle gibt die linke Taste, die rechte bricht ab
-(Bericht zur Auswahl, wird nach [ui.md](../re/ui.md) übernommen); viele Funktionen haben keine Taste, manche Tasten keine
-Funktion; Schiffe versenken und Krieg erklären geschieht ohne Rückfrage; manches bietet die
-Oberfläche nicht an, was die Simulation könnte (Erkunden an Werft und Piratenkontor, U-013).
+## Context
+The interface of the original has been rebuilt: side panel, build menu, the selection windows. Its
+controls date from 1998: the left button gives commands, the right one cancels
+(report on selection, to be moved into [ui.md](../re/ui.md)); many functions have no key, some keys no
+function; sinking ships and declaring war happen without confirmation; some things the simulation could do
+are not offered by the interface (exploring at the shipyard and the pirate warehouse, U-013).
 
-Der Projektinhaber möchte die Oberfläche so überarbeiten, dass neue Menüs, Einstellungen und
-Informationen Platz finden und die Bedienung heutigen Echtzeitstrategiespielen folgt (18.10.2026).
+The project owner wants to rework the interface so that new menus, settings and
+information fit in and the controls follow today's real-time strategy games (2026-10-18).
 
-## Entscheidung
-1. **Die Optik bleibt, die Bedienung wird modern.** Grafiken und Layouts des Originals sind die
-   Grundlage; was das Original verbirgt oder nicht anbietet, darf die Oberfläche von Open1602 anbieten
-   (Beispiel: Erkunden am Piratenkontor und an der Werft als Knopf, U-013). Neue Fenster und Knöpfe
-   kommen als Daten dazu (ADR 0007).
-2. **Rechtsklick gibt Befehle** (Standard): Bewegen, Angreifen, Anlegen, Handeln je nach Ziel. Die
-   Linksklick-Steuerung des Originals ist eine Einstellung. Die linke Taste wählt aus (Klick, Rahmen,
-   Shift fügt hinzu); Escape bricht ab und geht eine Seite zurück. Ziehen mit der rechten oder
-   mittleren Taste verschiebt die Karte weiter.
-3. **Befehle über die Minikarte:** ein Rechtsklick auf die Minikarte schickt die Auswahl dorthin.
-4. **Befehlsketten:** Shift + Rechtsklick hängt einen Befehl an die Warteschlange der Einheit an
-   (Wegpunkte). Die Warteschlange gehört zur Simulation (Befehl mit „anhängen“, deterministisch,
-   gespeichert); eine Handelsroute bleibt davon getrennt.
-5. **Tasten frei belegbar** im Einstellungsmenü. Die Vorgabe folgt heutigen Strategiespielen
-   (unten); Tasten können in verschiedenen Zusammenhängen (Bauen, Einheiten) doppelt belegt sein, wenn
-   diese nie gleichzeitig gelten. Die Belegung des Originals gibt es als zweite Vorlage.
-6. **Rückfragen** vor Folgen, die sich nicht zurücknehmen lassen: Schiff versenken, Einheit auflösen
-   und Krieg erklären durch einen Angriff. Die Rückfrage lässt sich in den Einstellungen abschalten.
-7. **Videos der Meldungen laufen im Fenster der Minikarte**, das Spiel läuft weiter; ein Klick auf das
-   Video beendet es. Intro, Abspann, Sieg und Niederlage bleiben bildschirmfüllend.
+## Decision
+1. **The look stays, the controls become modern.** The graphics and layouts of the original are the
+   basis; what the original hides or does not offer, the Open1602 interface may offer
+   (example: exploring at the pirate warehouse and at the shipyard as a button, U-013). New windows and buttons
+   are added as data (ADR 0007).
+2. **Right-click gives commands** (default): move, attack, dock, trade depending on the target. The
+   left-click controls of the original are a setting. The left button selects (click, box,
+   Shift adds); Escape cancels and goes back one page. Dragging with the right or
+   middle button still scrolls the map.
+3. **Commands via the minimap:** a right-click on the minimap sends the selection there.
+4. **Command chains:** Shift + right-click appends a command to the unit's queue
+   (waypoints). The queue belongs to the simulation (command with "append", deterministic,
+   saved); a trade route stays separate from it.
+5. **Freely assignable keys** in the settings menu. The default follows today's strategy games
+   (below); keys may be bound twice in different contexts (building, units) if
+   these never apply at the same time. The original's key bindings are available as a second preset.
+6. **Confirmations** before consequences that cannot be undone: sinking a ship, disbanding a unit
+   and declaring war through an attack. The confirmation can be switched off in the settings.
+7. **Videos of messages play in the minimap window**, and the game keeps running; a click on the
+   video ends it. Intro, credits, victory and defeat stay full-screen.
 
-## Tastenbelegung (Standard)
+## Key bindings (default)
 
-**Kamera und Spiel**
+**Camera and game**
 
-| Taste | Funktion |
+| Key | Function |
 |---|---|
-| W A S D, Pfeiltasten | Karte verschieben (Shift: schneller) |
-| Q / E | Ansicht drehen |
-| Mausrad, Bild↑ / Bild↓ | Zoom |
-| Leertaste | zur letzten Meldung springen |
-| Pos1 | Ansicht auf die Auswahl |
-| F3, Pause | Pause |
-| Num+ / Num− | Spielgeschwindigkeit |
-| F5 / F9 | Schnellspeichern / Schnellladen |
-| F10, Escape (wenn nichts abzubrechen ist) | Spielmenü |
-| F12, Druck | Bildschirmfoto |
-| F1 | Hilfe zum Fenster unter der Maus |
+| W A S D, arrow keys | scroll the map (Shift: faster) |
+| Q / E | rotate view |
+| Mouse wheel, Page Up / Page Down | zoom |
+| Space | jump to the last message |
+| Home | centre view on the selection |
+| F3, Pause | pause |
+| Num+ / Num− | game speed |
+| F5 / F9 | quicksave / quickload |
+| F10, Escape (when there is nothing to cancel) | game menu |
+| F12, Print Screen | screenshot |
+| F1 | help for the window under the mouse |
 
-**Fenster**
+**Windows**
 
-| Taste | Funktion |
+| Key | Function |
 |---|---|
-| B | Baumenü |
-| K | Kampfmodus |
-| I | Status/Info |
-| O | Optionen |
-| L / Shift+L | Schiffsliste / Städteliste |
-| V | Diplomatie (Verträge) |
+| B | build menu |
+| K | military mode |
+| I | status/info |
+| O | options |
+| L / Shift+L | ship list / city list |
+| V | diplomacy (treaties; German „Verträge“) |
 
-**Bauen**
+**Building**
 
-| Taste | Funktion |
+| Key | Function |
 |---|---|
-| R | Gebäude drehen |
-| Shift halten | weiter bauen nach dem Setzen |
-| C | Pipette: das Gebäude unter der Maus als Bauauftrag |
-| Entf | Abreißwerkzeug |
-| Escape | Werkzeug weglegen |
-| Rechtsklick | Werkzeug weglegen und zurück zum Spielerstatus |
+| R | rotate building |
+| hold Shift | keep building after placing |
+| C | pipette: the building under the mouse as the building order |
+| Delete | demolish tool |
+| Escape | put the tool away |
+| Right-click | put the tool away and return to the player status |
 
-**Auswahl**
+**Selection**
 
-| Taste | Funktion |
+| Key | Function |
 |---|---|
-| Linksklick / Ziehen | auswählen / Rahmen |
-| Shift + Linksklick | zur Auswahl hinzu oder heraus |
-| Doppelklick, Strg + Linksklick | alle sichtbaren Einheiten dieser Art |
-| Strg+1…0 | Gruppe festlegen |
-| Shift+1…0 | zur Gruppe hinzufügen |
-| 1…0 | Gruppe wählen (zweimal: hinspringen) |
-| . (Punkt) | nächstes untätiges Handelsschiff |
-| , (Komma) | nächste untätige Kampfeinheit |
-| Tab | durch die Arten in der Auswahl (Schiffe, Infanterie, Kavallerie …) |
+| Left-click / drag | select / box |
+| Shift + left-click | add to or remove from the selection |
+| Double-click, Ctrl + left-click | all visible units of this type |
+| Ctrl+1…0 | set group |
+| Shift+1…0 | add to group |
+| 1…0 | select group (twice: jump there) |
+| . (full stop) | next idle trading ship |
+| , (comma) | next idle combat unit |
+| Tab | cycle through the types in the selection (ships, infantry, cavalry …) |
 
-**Befehle an Einheiten**
+**Unit commands**
 
-| Taste | Funktion |
+| Key | Function |
 |---|---|
-| Rechtsklick (auch auf der Minikarte) | Befehl je nach Ziel |
-| Shift + Rechtsklick | Befehl anhängen |
-| F + Klick | Angriffsbewegung (greift unterwegs an; „Feuer“) |
-| H | Stopp („Halt“) |
-| G | Stellung halten (verfolgt nicht) |
-| P + Klick | Patrouille |
-| C | Formation wechseln (Linie, Reihe, Block) |
-| Shift+C | verteilen |
-| Y | weiße Flagge hissen / streichen |
-| X | Insel erkunden |
-| T | Handel / Umladen am Kontor |
-| R | Handelsroute bearbeiten (Schiff ausgewählt) |
-| Entf | Einheit auflösen / Schiff versenken (mit Rückfrage) |
+| Right-click (also on the minimap) | command depending on the target |
+| Shift + right-click | append command |
+| F + click | attack-move (attacks on the way; German „Feuer“, "fire") |
+| H | stop (German „Halt“) |
+| G | hold position (does not pursue) |
+| P + click | patrol |
+| C | change formation (line, column, block) |
+| Shift+C | spread out |
+| Y | raise / lower the white flag |
+| X | explore island |
+| T | trade / transfer at the warehouse |
+| R | edit trade route (ship selected) |
+| Delete | disband unit / sink ship (with confirmation) |
 
-Angriffsbewegung, Stellung halten und das Springen zu untätigen Einheiten gibt es im Original nicht.
+Attack-move, hold position and jumping to idle units do not exist in the original.
 
-Keine Taste der Einheiten ist zugleich eine allgemeine Taste (18.10.2026: Angriff von A auf F, Stopp von
-S auf H, dafür Stellung halten auf G, Formation auf C, verteilen auf Shift+C), W A S D verschieben also
-immer. Doppelt belegt sind nur Tasten in Zusammenhängen, die nie zugleich gelten: R und Entf (Bauen:
-drehen, abreißen; Einheiten: Route, auflösen), C (Bauen: Pipette; Einheiten: Formation) und Tab.
+No unit key is also a general key (2026-10-18: attack moved from A to F, stop from
+S to H, and in exchange hold position on G, formation on C, spread out on Shift+C), so W A S D always
+scroll. Only keys in contexts that never apply at the same time are bound twice: R and Delete (building:
+rotate, demolish; units: route, disband), C (building: pipette; units: formation) and Tab.
 
-Umgesetzt (18.10.2026): Tabelle `ui::KeyBindings` mit dieser Vorgabe und der Einstellungsdatei
-`keys.cfg` im Datenordner des Benutzers (bis zum Einstellungsmenü von Hand zu ändern; F1 zeigt die
-Belegung), Auswahl mit Rahmen, bildpunktgenau wie das Original, Gruppen mit der Ziffer des Originals,
-Formationen, Filtern und Tab (Arten der Auswahl nacheinander; `ui::UnitSelection`), Rechtsklick- und
-Minikartenbefehle, Befehlsketten in der Simulation, die Rückfragen, die Fenster des Kampfmodus, die
-Meldungsvideos im Minikartenfenster, Angriffsbewegung (Schiffe und Soldaten greifen Feinde in
-Reichweite an, verfolgen sie und fahren danach weiter; im Spielstand `STNC`), Stellung halten (sie
-schießen nur auf Feinde in Reichweite, verfolgen nicht), Schnellspeichern und -laden (F5, F9) und der
-Erkunden-Knopf neben Reparieren und Piraten im Schiffsfenster (U-013), Schiffs- und Städteliste (L,
-Shift+L), Diplomatiefenster mit Tribut (V; Rückfrage vor dem Bruch eines Friedensvertrags), die
-Einstellungen der Seitenleiste und das Hauptmenü für Einzelspieler (Szenarien, Endlosspiel, Spielstände).
-Noch nicht: Endbildschirm mit Bewertung und ein eigenes Spielmenü (Escape) mit Speichern, Laden, Einstellungen und Beenden. Das Original
-hat kein Spielmenü: Speichern, Laden und Beenden liegen in den Einstellungen der Seitenleiste (umgesetzt
-mit Rückfrage vor „Ende“).
+Done (2026-10-18): table `ui::KeyBindings` with this default and the settings file
+`keys.cfg` in the user's data folder (to be edited by hand until the settings menu exists; F1 shows the
+bindings), box selection, pixel-exact like the original, groups with the original's number key,
+formations, filtering and Tab (types of the selection one after another; `ui::UnitSelection`), right-click and
+minimap commands, command chains in the simulation, the confirmations, the military mode windows, the
+message videos in the minimap window, attack-move (ships and soldiers attack enemies in
+range, pursue them and then continue; in the savegame `STNC`), hold position (they
+only shoot at enemies in range, do not pursue), quicksave and quickload (F5, F9) and the
+explore button next to repair and pirates in the ship window (U-013), ship and city list (L,
+Shift+L), diplomacy window with tribute (V; confirmation before breaking a peace treaty), the
+settings of the side panel and the main menu for single player (scenarios, endless game, savegames).
+Not yet: end screen with rating and our own game menu (Escape) with save, load, settings and quit. The original
+has no game menu: save, load and quit are in the settings of the side panel (done
+with a confirmation before „Ende“ ("Quit")).
 
-## Folgen
-- Die Eingabe läuft über eine Tabelle Aktion → Taste (Einstellungsdatei), nicht über feste Tasten im
-  Code. Die heutigen festen Tasten des Betrachters werden darauf umgestellt.
-- Die Simulation braucht eine Befehlswarteschlange je Schiff und Einheit sowie Gruppenbefehle mit
-  Versatz je Einheit.
-- Abweichungen vom Original in der Bedienung sind keine Fehler im Sinne von ADR 0006, sondern
-  Einstellungen der Oberfläche; die Simulation bleibt davon unberührt.
+## Consequences
+- Input runs through an action → key table (settings file), not through fixed keys in the
+  code. The current fixed keys of the viewer will be switched over to it.
+- The simulation needs a command queue per ship and unit as well as group commands with
+  an offset per unit.
+- Deviations from the original in the controls are not bugs in the sense of ADR 0006, but
+  interface settings; the simulation is not affected by them.

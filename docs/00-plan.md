@@ -1,347 +1,347 @@
-# Anno 1602 – Open-Source-Engine: Projektplan
+# Anno 1602 – Open-Source Engine: Project Plan
 
-Stand: 18.10.2026 · Grundlage: GOG-Installation „Anno 1602 – Königsedition“ (de-DE)
+Status: 2026-10-18 · Basis: GOG installation „Anno 1602 – Königsedition“ ("Anno 1602 – King's Edition") (de-DE)
 
-## 1. Ziel
+## 1. Goal
 
-Eine eigenständige, plattformübergreifende Engine, die mit den **Originaldaten** einer legal erworbenen Kopie
-läuft (Ansatz wie OpenRCT2, OpenTTD, Julius/Augustus, OpenMW). Es werden keine Original-Assets verteilt.
-Die Engine soll originalgetreu spielbar sein, bekannte Originalbugs beheben und eine saubere Basis für
-neue Features, QoL und Mods bieten.
+A standalone, cross-platform engine that runs with the **original data** of a legally acquired copy
+(approach as in OpenRCT2, OpenTTD, Julius/Augustus, OpenMW). No original assets are distributed.
+The engine should be playable faithfully to the original, fix known bugs of the original and provide a clean basis for
+new features, QoL and mods.
 
-### Anforderungen an Erweiterbarkeit und Modding
+### Requirements for extensibility and modding
 
-Festgelegt am 16.10.2026, verbindlich für jeden neuen Code. Die Architektur dazu steht in
+Set on 2026-10-16, binding for all new code. The architecture for this is in
 [ADR 0007](architecture/0007-extensibility-and-modding.md).
 
-- Neue **Gebäude, Farben, Produktionsketten, Inseln, Landschaften, Fraktionen, Animationen,
-  Grafiken, Musik und Sounds** lassen sich hinzufügen.
-- Eigene **Kampagnen und Szenarien** lassen sich schreiben.
-- Neue **Inseltypen und Inselgrößen** sind möglich, auch riesige Inseln.
-- Der **Inselgenerator** ist flexibler und abwechslungsreicher als im Original.
-- Die **Spielerzahl** ist nicht auf 4 (+ Händler, Piraten, Eingeborene) festgelegt. Man kann zum
-  Beispiel auch zu fünft im Mehrspielermodus spielen, und neutrale Parteien wie Piraten und fahrende
-  Händler skalieren mit.
-- **Farben und Flaggen** sind erweiterbar, mit einem Flaggenauswahlmenü wie in Anno 1503.
-- Das **Endlosspiel** lässt sich genauer einstellen als im Original, wie in späteren Anno-Teilen
-  (zum Beispiel die Rückerstattung beim Abriss: keine, teilweise oder voll). Die Einstellungen
-  stehen in `sim::Rules` ([ADR 0008](architecture/0008-game-settings.md)).
+- New **buildings, colours, production chains, islands, landscapes, factions, animations,
+  graphics, music and sounds** can be added.
+- Custom **campaigns and scenarios** can be written.
+- New **island types and island sizes** are possible, including huge islands.
+- The **island generator** is more flexible and more varied than in the original.
+- The **number of players** is not fixed at 4 (+ traders, pirates, natives). For
+  example, five people can play in multiplayer, and neutral parties such as pirates and travelling
+  traders scale with it.
+- **Colours and flags** are extensible, with a flag selection menu as in Anno 1503.
+- The **endless game** can be configured in more detail than in the original, as in later Anno titles
+  (for example the refund on demolition: none, partial or full). The settings
+  live in `sim::Rules` ([ADR 0008](architecture/0008-game-settings.md)).
 
-## 2. Bestandsaufnahme (erste Analyse des Spielordners)
+## 2. Inventory (first analysis of the game folder)
 
-| Datei / Ordner | Befund | Bedeutung |
+| File / folder | Finding | Significance |
 |---|---|---|
-| `1602.exe` (632 KB) | PE32, Intel 386, MSVC 6 (Linker 6.0), **nicht gepackt**, kein Kopierschutz | Ideal für statische Analyse |
-| `.text` 0x94E70 (~595 KB Code) | geschätzt 2.000–3.000 Funktionen | überschaubarer Umfang |
-| `.data` endet bei 0x49D000, `.rsrc` erst bei 0x72D000 | **~2,9 MB uninitialisierte Globals (BSS)** | Spielzustand liegt großteils in globalen Arrays → Speicherlayout gut rekonstruierbar |
-| Imports `DDRAW`, `Maxsound.dll` (→ DSOUND), `Maxnet.dll` (→ DPLAYX), `smackw32.dll`, `Language.dll` | klare Subsystem-Grenzen | Einstiegspunkte für Grafik, Sound, Netzwerk, Video, Texte |
-| `haeuser.cod`, `figuren.cod`, `Text.cod`, `Editor.cod` | Klartext-Skripte, **jedes Byte negiert** (`b = -b & 0xFF`) | Gebäude, Einheiten, Kosten, Texte sind **datengetrieben** – riesiger Vorteil |
-| `GADDATA/*.GAD`, `Gadedit/*.GAD` | Klartext-UI-Definitionen (Gadgets) | UI-Layouts direkt übernehmbar |
-| `GFX/`, `MGFX/`, `SGFX/` `*.BSH` | Sprite-Container (`BSH\0`-Header), 3 Zoomstufen | Grafik |
-| `TOOLGFX/*.ZEI`, `*.COL` | Schriften (`ZEI\0`), Palette | Fonts, 8-Bit-Palette |
-| `NORD/`, `SUED/`, `*NAT/`, `NOKLIMA/` `*.SCP` (677 Dateien) | Insel-Vorlagen, chunk-basiert | Kartengenerierung |
-| `Szenes/*.SZS`, `*.SZM` (138) | Szenarien / Multiplayer-Karten | Gleiches Chunkformat wie Savegames (`.GAM`) |
-| `VideoSmk/*.SMK` (51) | Smacker-Videos | eigener Decoder nach der öffentlichen Beschreibung (`engine/video`, [smk.md](formats/smk.md)) |
-| `SAMPLES/`, `Speech8/`, `MUSIC8/` | WAV | direkt nutzbar |
-| `1602Edit.exe` + `Editor.dll` | Karten-Editor | später, gleiche Codebasis |
+| `1602.exe` (632 KB) | PE32, Intel 386, MSVC 6 (linker 6.0), **not packed**, no copy protection | Ideal for static analysis |
+| `.text` 0x94E70 (~595 KB code) | estimated 2,000–3,000 functions | manageable scope |
+| `.data` ends at 0x49D000, `.rsrc` only at 0x72D000 | **~2.9 MB uninitialised globals (BSS)** | Game state lives largely in global arrays → memory layout easy to reconstruct |
+| Imports `DDRAW`, `Maxsound.dll` (→ DSOUND), `Maxnet.dll` (→ DPLAYX), `smackw32.dll`, `Language.dll` | clear subsystem boundaries | Entry points for graphics, sound, network, video, texts |
+| `haeuser.cod`, `figuren.cod`, `Text.cod`, `Editor.cod` | Plain-text scripts, **every byte negated** (`b = -b & 0xFF`) | Buildings, units, costs, texts are **data-driven** – huge advantage |
+| `GADDATA/*.GAD`, `Gadedit/*.GAD` | Plain-text UI definitions (gadgets) | UI layouts can be taken over directly |
+| `GFX/`, `MGFX/`, `SGFX/` `*.BSH` | Sprite containers (`BSH\0` header), 3 zoom levels | Graphics |
+| `TOOLGFX/*.ZEI`, `*.COL` | Fonts (`ZEI\0`), palette | Fonts, 8-bit palette |
+| `NORD/`, `SUED/`, `*NAT/`, `NOKLIMA/` `*.SCP` (677 files) | Island templates, chunk-based | Map generation |
+| `Szenes/*.SZS`, `*.SZM` (138) | Scenarios / multiplayer maps | Same chunk format as savegames (`.GAM`) |
+| `VideoSmk/*.SMK` (51) | Smacker videos | own decoder based on the public description (`engine/video`, [smk.md](formats/smk.md)) |
+| `SAMPLES/`, `Speech8/`, `MUSIC8/` | WAV | usable directly |
+| `1602Edit.exe` + `Editor.dll` | Map editor | later, same code base |
 
-Vorhandene Community-Arbeit (Formatwissen, Referenz – Lizenzen vor Übernahme prüfen):
-`stwe/MDCII` (C++, Anno-1602-Welt-Rebuild, BSH/SCP-Parser), `stwe/Benno4j` (Java),
-ein Python-Grammatik-/Parser-Generator für die `.cod`-Skripte.
+Existing community work (format knowledge, reference – check licences before reuse):
+`stwe/MDCII` (C++, Anno 1602 world rebuild, BSH/SCP parser), `stwe/Benno4j` (Java),
+a Python grammar/parser generator for the `.cod` scripts.
 
-## 3. Reverse-Engineering-Methodik
+## 3. Reverse-engineering methodology
 
-### 3.1 Grundsätze
-- **Dokumentieren, nicht kopieren**: Erkenntnisse aus dem Binary werden als Spezifikation (Formate, Strukturen,
-  Algorithmen, Formeln) festgehalten. Die Engine wird auf Basis dieser Doku **neu geschrieben** – kein
-  Copy-Paste von Dekompilat. Das hält den Code lesbar und rechtlich sauberer.
-- **Symbole sind Quellcode**: Funktions-/Variablennamen, Structs und Kommentare werden regelmäßig aus der
-  Analyse-Datenbank exportiert und versioniert (`re/symbols/`). rea arbeitet mit einer *ephemeren*
-  Ghidra-Datenbank – ohne Export gehen Annotationen verloren.
-- **Jede Behauptung mit Beleg**: Adresse, Dekompilat-Ausschnitt, Testfall oder Speicher-Dump.
+### 3.1 Principles
+- **Document, don't copy**: Findings from the binary are recorded as a specification (formats, structures,
+  algorithms, formulas). The engine is **rewritten** on the basis of this documentation – no
+  copy-paste of decompiled code. This keeps the code readable and legally cleaner.
+- **Symbols are source code**: Function/variable names, structs and comments are regularly exported from the
+  analysis database and versioned (`re/symbols/`). rea works with an *ephemeral*
+  Ghidra database – without an export, annotations are lost.
+- **Every claim with evidence**: address, decompiled excerpt, test case or memory dump.
 
-### 3.2 Werkzeugkette
-| Zweck | Werkzeug |
+### 3.2 Toolchain
+| Purpose | Tool |
 |---|---|
-| Agentengestützte Analyse | **rea** (`rea-agents`, MCP + CLI) mit Ghidra-Backend |
-| Disassembler/Decompiler | **Ghidra 12.1.x** + JDK 21 (headless + GUI) |
-| Original als Referenz ausführen | **Wine** (32-Bit-Prefix) auf Linux, ggf. dgVoodoo/cnc-ddraw für DirectDraw |
-| Laufzeitbeobachtung | `winedbg`/x32dbg unter Wine, Speicher-Dumps der BSS-Region, Savegame-Diffs |
-| Formatanalyse | Python 3 (+ `construct`/Kaitai Struct), ImHex mit Pattern-Files |
-| Statische Schnellchecks | objdump, rizin (optional) |
+| Agent-assisted analysis | **rea** (`rea-agents`, MCP + CLI) with Ghidra backend |
+| Disassembler/decompiler | **Ghidra 12.1.x** + JDK 21 (headless + GUI) |
+| Run the original as reference | **Wine** (32-bit prefix) on Linux, possibly dgVoodoo/cnc-ddraw for DirectDraw |
+| Runtime observation | `winedbg`/x32dbg under Wine, memory dumps of the BSS region, savegame diffs |
+| Format analysis | Python 3 (+ `construct`/Kaitai Struct), ImHex with pattern files |
+| Quick static checks | objdump, rizin (optional) |
 
-**Risiko**: Die rea-Doku nennt 32-Bit-PE nicht explizit (Ghidra selbst unterstützt es vollständig).
-Erster technischer Schritt ist daher ein Machbarkeitstest „rea öffnet `1602.exe`“. Fallback: Ghidra headless mit
-eigenen Skripten, rea für die übrigen Ziele.
+**Risk**: The rea documentation does not explicitly mention 32-bit PE (Ghidra itself supports it fully).
+The first technical step is therefore a feasibility test "rea opens `1602.exe`". Fallback: Ghidra headless with
+our own scripts, rea for the remaining targets.
 
-### 3.3 Ablauf
-1. **Assets zuerst** (schnelle Erfolge, unabhängig vom Binary): `.cod`-Decoder, BSH+COL → PNG, ZEI-Fonts,
-   SCP/SZS/GAM-Chunks, GAD-Parser. Ergebnis: Asset-Viewer und statischer Karten-Renderer.
-2. **Funktionsinventar** von `1602.exe`: alle Funktionen erfassen, über Imports, Strings
-   (`gaddata\*.gad`, `%sSavegame\%s.gam`, …) und Querverweise Subsystemen zuordnen.
-3. **Globale Datenstrukturen** rekonstruieren: Karte/Inselfelder, Gebäude-, Figuren-, Schiffs-, Spieler- und
-   Lagertabellen. Abgleich mit Savegame-Chunks und Laufzeit-Dumps unter Wine.
-4. **Simulation verstehen**, Subsystem für Subsystem: Spielschleife & Tick, Bauen, Produktionsketten,
-   Bevölkerung/Bedürfnisse/Steuern, Handel & Routen, Schiffe/Pfadfindung, KI, Militär, Piraten, Ereignisse,
-   Missionsziele.
-5. **Paritätstests**: Savegame laden → N Ticks im Original (Wine) und in der neuen Engine → Zustand vergleichen.
-6. **Bugkatalog** (`docs/re/bugs.md`): Originalfehler mit Ursache dokumentieren; Fix in der Engine,
-   abschaltbar per „Original-Verhalten“-Option, damit Parität messbar bleibt.
+### 3.3 Procedure
+1. **Assets first** (quick wins, independent of the binary): `.cod` decoder, BSH+COL → PNG, ZEI fonts,
+   SCP/SZS/GAM chunks, GAD parser. Result: asset viewer and static map renderer.
+2. **Function inventory** of `1602.exe`: record all functions, assign them to subsystems via imports, strings
+   (`gaddata\*.gad`, `%sSavegame\%s.gam`, …) and cross-references.
+3. **Reconstruct global data structures**: map/island fields, building, figure, ship, player and
+   storage tables. Compare with savegame chunks and runtime dumps under Wine.
+4. **Understand the simulation**, subsystem by subsystem: game loop & tick, building, production chains,
+   population/needs/taxes, trade & routes, ships/pathfinding, AI, military, pirates, events,
+   mission goals.
+5. **Parity tests**: load savegame → N ticks in the original (Wine) and in the new engine → compare state.
+6. **Bug catalogue** (`docs/re/bugs.md`): document bugs of the original with their cause; fix in the engine,
+   switchable via an "original behaviour" option, so that parity stays measurable.
 
-## 4. Technologie-Vorschlag
+## 4. Technology proposal
 
-| Bereich | Wahl | Begründung |
+| Area | Choice | Rationale |
 |---|---|---|
-| Engine-Sprache | **C++20** | Original ist MSVC-6-C++ → Strukturen/Klassen lassen sich direkt abbilden; bewährt bei vergleichbaren Projekten; maximale Performance; großes Ökosystem |
-| Build | **CMake** + Presets, **vcpkg** (Manifest) | Linux/Windows/macOS aus einem Build |
-| Plattform | **SDL3** (Fenster, Input, Audio, Timer) | eine Abstraktion für alle Systeme |
-| Rendering | SDL3 GPU-API (Vulkan/Metal/D3D12) mit 2D-Sprite-Batching; Software-Fallback | hohe Auflösungen, Zoom, Skalierung |
-| Audio | SDL3 Audio + eigener Software-Mischer, eigener Smacker-Decoder für Videos | |
-| Netzwerk | Deterministischer **Lockstep** über UDP (**ENet** oder GameNetworkingSockets) | ersetzt DirectPlay; geringe Bandbreite |
-| Modding (später) | Lua 5.4 (sol2) + eigenes Datenformat (TOML/JSON) als Overlay zu den `.cod`-Dateien | Erweiterbarkeit ohne Neukompilieren |
-| Debug-UI | Dear ImGui | Inspektoren für Sim-Zustand |
-| Tests | Catch2 / doctest, Golden-File- und Paritätstests | |
-| RE-/Asset-Tools | **Python 3** | schnelles Prototyping von Formatparsern, Ghidra-Skripte |
-| CI | GitHub Actions (Linux, Windows, macOS), Sanitizer-Builds (ASan/UBSan) | Stabilität |
+| Engine language | **C++20** | The original is MSVC 6 C++ → structures/classes map directly; proven in comparable projects; maximum performance; large ecosystem |
+| Build | **CMake** + presets, **vcpkg** (manifest) | Linux/Windows/macOS from one build |
+| Platform | **SDL3** (window, input, audio, timer) | one abstraction for all systems |
+| Rendering | SDL3 GPU API (Vulkan/Metal/D3D12) with 2D sprite batching; software fallback | high resolutions, zoom, scaling |
+| Audio | SDL3 audio + own software mixer, own Smacker decoder for videos | |
+| Network | Deterministic **lockstep** over UDP (**ENet** or GameNetworkingSockets) | replaces DirectPlay; low bandwidth |
+| Modding (later) | Lua 5.4 (sol2) + own data format (TOML/JSON) as an overlay to the `.cod` files | Extensibility without recompiling |
+| Debug UI | Dear ImGui | Inspectors for the sim state |
+| Tests | Catch2 / doctest, golden-file and parity tests | |
+| RE/asset tools | **Python 3** | fast prototyping of format parsers, Ghidra scripts |
+| CI | GitHub Actions (Linux, Windows, macOS), sanitizer builds (ASan/UBSan) | Stability |
 
-Alternative **Rust**: stärkere Speichersicherheit, aber schwächere Abbildung der C++-Originalstrukturen und
-kleineres Spieleentwickler-Ökosystem. Empfehlung bleibt C++20 mit strengen Regeln (RAII, keine rohen
-Besitzzeiger, Sanitizer in CI).
+Alternative **Rust**: stronger memory safety, but a weaker mapping of the original C++ structures and
+a smaller game-development ecosystem. The recommendation remains C++20 with strict rules (RAII, no raw
+owning pointers, sanitizers in CI).
 
-### Architektur-Prinzipien (Performance, Stabilität, Multiplayer)
-- **Simulation strikt getrennt** von Rendering/Plattform: `sim/` kennt weder SDL noch Grafik.
-- **Deterministisch**: fester Tick, nur Ganzzahl-/Festkomma-Arithmetik, eigener seedbarer RNG, keine
-  Abhängigkeit von Iterationsreihenfolge ungeordneter Container.
-- **Command-basiert**: Spielereingaben werden zu serialisierten Befehlen → gleichzeitig Basis für
-  Multiplayer-Lockstep, Replays, Undo im Editor und Headless-Tests.
-- **Desync-Erkennung**: Zustands-Hash pro Tick im Multiplayer.
-- **Speicher**: Pools/Arenen für Entitäten, keine Allokationen im Tick-Hotpath → stabil bei langen Sitzungen.
-- **Datengetrieben**: Gebäude/Waren/Einheiten aus `.cod`-Daten, nicht hart codiert.
-- **Keine festen Grenzen des Originals im Engine-Modell** (ADR 0007): Spielerzahl, Banner (Farben und
-  Flaggen), Weltgröße, Inselgröße und Inselanzahl sind offen. Die Werte des Originals gelten nur beim
-  Laden und Speichern der Originalformate.
+### Architecture principles (performance, stability, multiplayer)
+- **Simulation strictly separated** from rendering/platform: `sim/` knows neither SDL nor graphics.
+- **Deterministic**: fixed tick, integer/fixed-point arithmetic only, own seedable RNG, no
+  dependence on the iteration order of unordered containers.
+- **Command-based**: player inputs become serialised commands → at the same time the basis for
+  multiplayer lockstep, replays, undo in the editor and headless tests.
+- **Desync detection**: state hash per tick in multiplayer.
+- **Memory**: pools/arenas for entities, no allocations in the tick hot path → stable in long sessions.
+- **Data-driven**: buildings/goods/units from `.cod` data, not hard-coded.
+- **No fixed limits of the original in the engine model** (ADR 0007): number of players, banners (colours and
+  flags), world size, island size and number of islands are open. The values of the original apply only when
+  loading and saving the original formats.
 
-## 5. Projektstruktur (`Projekt Anno/`)
+## 5. Project structure (`Projekt Anno/`)
 
 ```
 Projekt Anno/
 ├── README.md, LICENSE, CMakeLists.txt, CMakePresets.json, vcpkg.json
 ├── docs/
-│   ├── 00-plan.md              ← dieses Dokument
-│   ├── architecture/           Architekturentscheidungen (ADRs)
+│   ├── 00-plan.md              ← this document
+│   ├── architecture/           architecture decisions (ADRs)
 │   ├── formats/                bsh.md, col.md, zei.md, cod.md, gad.md, scp.md, szs-gam.md, smk.md
 │   └── re/                     subsystems.md, structs.md, game-loop.md, economy.md, ai.md, bugs.md
-├── re/                         Reverse-Engineering-Arbeitsbereich
-│   ├── symbols/                functions.csv, globals.csv, types.h  (Quelle der Wahrheit, versioniert)
-│   ├── scripts/                Ghidra-Skripte, rea-Workflows, Export/Import der Symbole
-│   ├── runtime/                Wine-Harness, Speicher-Dumper, Savegame-Diff
-│   └── notes/                  Arbeitsnotizen pro Funktion/Subsystem
+├── re/                         reverse-engineering workspace
+│   ├── symbols/                functions.csv, globals.csv, types.h  (source of truth, versioned)
+│   ├── scripts/                Ghidra scripts, rea workflows, export/import of the symbols
+│   ├── runtime/                Wine harness, memory dumper, savegame diff
+│   └── notes/                  working notes per function/subsystem
 ├── tools/                      Python: cod-decode, bsh2png, scp-dump, gad-parse, save-diff
 ├── engine/
-│   ├── core/                   Logging, Dateisystem, Config, Festkomma, RNG, Speicherpools
-│   ├── platform/               SDL3: Fenster, Input, Timing
-│   ├── assets/                 Loader für alle Originalformate (eigenständige Bibliothek „libanno“)
-│   ├── sim/                    Deterministische Simulation: Welt, Inseln, Gebäude, Wirtschaft,
-│   │                           Bevölkerung, Handel, Figuren, Schiffe, KI, Militär, Szenarien
-│   ├── render/                 Isometrischer Sprite-Renderer
-│   ├── audio/                  Sound, Musik, Sprache, Videos
-│   ├── ui/                     GAD-basierte Oberfläche
-│   ├── net/                    Lockstep-Multiplayer
-│   ├── script/                 Modding (später)
-│   └── app/                    main, Spielzustände, Menüs
+│   ├── core/                   logging, file system, config, fixed point, RNG, memory pools
+│   ├── platform/               SDL3: window, input, timing
+│   ├── assets/                 loaders for all original formats (standalone library "libanno")
+│   ├── sim/                    deterministic simulation: world, islands, buildings, economy,
+│   │                           population, trade, figures, ships, AI, military, scenarios
+│   ├── render/                 isometric sprite renderer
+│   ├── audio/                  sound, music, speech, videos
+│   ├── ui/                     GAD-based interface
+│   ├── net/                    lockstep multiplayer
+│   ├── script/                 modding (later)
+│   └── app/                    main, game states, menus
 ├── tests/                      unit/, golden/, parity/
 ├── third_party/
 └── .github/workflows/
 ```
 
-Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pfad zur Installation
-(hier `~/Games/Heroic/Anno 1602`) per Konfiguration.
+Original data is **not** copied into the repository; the engine gets the path to the installation
+(here `~/Games/Heroic/Anno 1602`) via configuration.
 
-## 6. Meilensteine
+## 6. Milestones
 
-| # | Meilenstein | Ergebnis |
+| # | Milestone | Result |
 |---|---|---|
-| M0 | Setup | Repo, Toolchain, rea+Ghidra-Machbarkeitstest, CI-Grundgerüst |
-| M1 | Assets | Alle Formate dokumentiert, `tools/` + `libanno`, Asset-Viewer |
-| M2 | Karten-Renderer | Szenario/Savegame laden und statisch isometrisch darstellen (3 Zoomstufen) |
-| M3 | Kern-Simulation | Bauen, Produktion, Bevölkerung, Lager, Steuern – Paritätstests gegen Original |
-| M4 | Spielbares Endlosspiel | Schiffe, Handel, Figuren, UI, Speichern/Laden (kompatibel zu `.GAM`) |
-| M5 | Vollständiges Spiel | Militär, Piraten, Weltengenerator Stufe 1, KI, Ereignisse, Szenarien/Missionsziele (bereits im erweiterbaren Modell: Fraktionen und Skalierung mit der Spielerzahl, ADR 0007) |
-| M6 | Multiplayer | Lockstep, Lobby mit beliebiger Spielerzahl und Flaggenwahl, Desync-Erkennung, Reconnect |
-| M7 | Verbesserungen | Bugfixes, beliebige Auflösungen, freier Zoom, Hotkeys, UI-Skalierung, Editor |
-| M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, eigene Inselformen (Weltengenerator Stufe 2, ADR 0007) |
+| M0 | Setup | Repo, toolchain, rea+Ghidra feasibility test, CI skeleton |
+| M1 | Assets | All formats documented, `tools/` + `libanno`, asset viewer |
+| M2 | Map renderer | Load a scenario/savegame and display it statically in isometric view (3 zoom levels) |
+| M3 | Core simulation | Building, production, population, storage, taxes – parity tests against the original |
+| M4 | Playable endless game | Ships, trade, figures, UI, saving/loading (compatible with `.GAM`) |
+| M5 | Complete game | Military, pirates, world generator stage 1, AI, events, scenarios/mission goals (already in the extensible model: factions and scaling with the number of players, ADR 0007) |
+| M6 | Multiplayer | Lockstep, lobby with any number of players and flag choice, desync detection, reconnect |
+| M7 | Improvements | Bug fixes, arbitrary resolutions, free zoom, hotkeys, UI scaling, editor |
+| M8 | Content and modding | Content packs with manifest, content registry with identifiers, PNG/OGG import, Lua scripts, campaigns, custom island shapes (world generator stage 2, ADR 0007) |
 
-**Stand der Meilensteine (18.10.2026)**, Einzelheiten in [status.md](status.md): M0 ✅ · M1 🟡 (offen:
-Teile von Inselkopf und Szenario-Chunks; Schriften, Layouts, Ton und Videos fertig) · M2 ✅ ·
-M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel, Spielstände und Ton fertig; Grundlagen der Oberfläche da, es fehlt ihr Zeichnen und die Fenster) · M5 🟡
-(Militär, Piraten, Weltengenerator Stufe 1, KI und Aufträge mit Sieg und Niederlage fertig; offen:
-Kampagnenfortschritt, Bestenliste, KI-Schalter der Szenarien; Ereignisse haben Szenarien nicht) · M6 ⬜ (Grundlagen: Befehle, Determinismus) · M7 ⬜ (einzelne Verbesserungen
-schon da: Mausrad-Zoom, Bildschirmfoto, behobene Fehler) · M8 ⬜ (Banner mit eingefärbten Flaggen schon da).
+**Status of the milestones (2026-10-18)**, details in [status.md](status.md): M0 ✅ · M1 🟡 (open:
+parts of the island header and scenario chunks; fonts, layouts, sound and videos done) · M2 ✅ ·
+M3 ✅ · M4 🟡 (simulation, ships, trade, savegames and sound done; foundations of the interface are in place, what is missing is drawing it and the windows) · M5 🟡
+(military, pirates, world generator stage 1, AI and missions with victory and defeat done; open:
+campaign progress, high score list, AI switches of the scenarios; scenarios have no events) · M6 ⬜ (foundations: commands, determinism) · M7 ⬜ (some improvements
+already in place: mouse-wheel zoom, screenshot, fixed bugs) · M8 ⬜ (banners with tinted flags already in place).
 
-## 7. Nächste Schritte
+## 7. Next steps
 
-**Vereinbarte Reihenfolge (17.10.2026):** erst die Spielinhalte vervollständigen, dann der Mehrspieler.
-Jedes neue System bleibt deterministisch und befehlsbasiert, damit der Mehrspieler später ohne Umbau
-darauf aufsetzt.
+**Agreed order (2026-10-17):** first complete the game content, then multiplayer.
+Every new system stays deterministic and command-based, so that multiplayer can later build on it
+without rework.
 
-1. **Schiffe** ✅: Fahren mit Wegsuche auf See, Laden und Entladen, Handelsrouten, freier Händler, Werften.
-2. **Militär** ✅: Diplomatie (Friedens- und Handelsverträge, Ereignisse, Stimmung, Tribut), Soldaten
-   und Kampf, schießende Türme, Seekampf mit Breitseite und Sinken, Gebäudeschaden, Ausbildung in der
-   Burg, Einschiffen, Eroberung über ein zerstörtes Kontor, Fluch der Eingeborenen
-   ([military.md](re/military.md), [diplomacy.md](re/diplomacy.md)). Burgen schießen im Original nicht,
-   und Treffer legen keinen Brand. Offen: Fenster dafür in der Oberfläche (Schritt 5).
-3. **Piraten und Eingeborene** ✅: Piratenschiffe nach Spielerstufe und Schwierigkeit, Beutesuche,
-   weiße Flagge und Plünderung ins Nest, Verkauf im Nest, Stimmung und Krieg alle 5 s, Frieden kaufen und
-   Bestechung; Wohlwollen, Verbrauch und Krieger der Eingeborenen ([pirates.md](re/pirates.md)). Das
-   Einheitenlimit ist eine Regel (`Rules::max_army`, Standard 250, Original 100; L-008), ebenso die
-   Flottengrenze (`Rules::max_ships_per_player`, Standard 100, Original 33; L-001). Nestgründung und
-   die Diplomatie der Computer mit den Piraten kamen mit der KI (Schritt 5).
-   **Schifffahrt abgeschlossen** (17.10.2026): Tempo, Diagonalen und Drehen gegen das Video des Originals
-   geprüft, Insel erkunden mit Erz- und Goldsymbolen, beschädigte Rümpfe, Bugwelle, weiße Flagge und
-   Sinken in der Darstellung, Stadttakt zur vollen 10. Sekunde ([ships.md](re/ships.md)). Offen sind nur
-   Fenster der Oberfläche (Schritt 5) und der Mündungsrauch.
-4. **Weltengenerator, Stufe 1** ✅: eigene Welten für jede Kartengröße (200–2000 Felder je Seite) und
-   Spielerzahl: Inselzahl und Größenmischung nach Fläche, Startgebiete mit Heimatinsel und gleich großen
-   Nachbarinseln, Klima nach Lage mit beiden Klimata in Reichweite, Eisen auf jeder Heimatinsel, alle
-   Pflanzen und Gold in Reichweite, Dörfer und Vulkaninseln nach Insel- und Spielerzahl; größere Welten im
-   eigenen Chunk `O1602MAP` ([worldgen.md](re/worldgen.md#eigene-welten-weltengenerator-stufe-1)). Offen:
-   mehr als vier Spieler und Piratenstärke nach Spielerzahl (mit dem Mehrspieler), Startdialog (Schritt 5).
-5. **Computergegner (KI)** ✅: Aufgabenstapel, Stufen und Bedarfe wie im Original, Bauplatzsuche mit
-   Straßenplan, Wartung, Siedeln und Kolonien, Versorgungsrouten und Streifen, Flotte, Handel, Anwerben,
-   Türme und Burgen, Angriffe mit Landung, Inselsoldaten, Diplomatie, Piratennest; deterministisch auf
-   jedem Rechner, mit dem Spielstand gespeichert ([ai.md](re/ai.md), S-095 bis S-102). In Probeläufen ohne
-   aktiven Menschen erreichen die Computer nach sechs Stunden Kaufleute mit 500–870 Einwohnern. Offen:
-   KI-Schalter der Szenarien und die Schiffsaufträge aus Originalständen. Als Nächstes Ereignisse
-   (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen Einstellungen, übrige Oberfläche.
-   **Nach der Bestandsaufnahme erledigt (18.10.2026):** eigenes Speicherformat `.o1602` ohne die Grenzen
-   des Originals ([ADR 0009](architecture/0009-own-save-format.md)); teureres Wasser bei feindlichen
-   Türmen; Stadt- und Schiffsfenster als Befehle (Steuersatz, Name, Material, Kanonen, über Bord,
-   Schiffsverkauf); Handelseinstellungen nach `Maxware`; `Grundflg` in der Wegsuche; Aufträge der
-   Computerschiffe aus Originalständen; Reaktion der Computer auf eine Gründung. Danach die
-   **Aufträge der Szenarien** ([missions.md](re/missions.md)): alle 18 Ziele und beide
-   Verlustbedingungen, Sieg für alle Rechner gleich, Niederlage ohne Stadt und Schiff, Bankrott,
-   Computer und Piraten, Triumphbogen für den Schuldigen, Handelsstatistik (S-105 bis S-111).
-   Szenarien haben keine Ereignisse oder Skripte (belegt).
-6. **Mehrspieler** einschließlich Endlosspiel (`.szm`).
-7. **Weltengenerator, Stufe 2** (zurückgestellt, wenn alles andere fertig ist und läuft): eigene Inselformen,
-   auch größer als die Vorlagen, mit Küsten-, Strand-, Berg- und Flussübergängen.
+1. **Ships** ✅: sailing with pathfinding at sea, loading and unloading, trade routes, free trader, shipyards.
+2. **Military** ✅: diplomacy (peace and trade treaties, events, mood, tribute), soldiers
+   and combat, shooting towers, naval combat with broadsides and sinking, building damage, training in the
+   castle, embarking, conquest via a destroyed warehouse, curse of the natives
+   ([military.md](re/military.md), [diplomacy.md](re/diplomacy.md)). Castles do not shoot in the original,
+   and hits do not start fires. Open: windows for this in the interface (step 5).
+3. **Pirates and natives** ✅: pirate ships by player level and difficulty, searching for loot,
+   white flag and plundering into the nest, selling in the nest, mood and war every 5 s, buying peace and
+   bribery; goodwill, consumption and warriors of the natives ([pirates.md](re/pirates.md)). The
+   unit limit is a rule (`Rules::max_army`, default 250, original 100; L-008), as is the
+   fleet limit (`Rules::max_ships_per_player`, default 100, original 33; L-001). Founding a nest and
+   the computer players' diplomacy with the pirates came with the AI (step 5).
+   **Shipping completed** (2026-10-17): speed, diagonals and turning checked against the video of the original,
+   exploring islands with ore and gold symbols, damaged hulls, bow wave, white flag and
+   sinking in the display, town tick at every full 10th second ([ships.md](re/ships.md)). Only
+   windows of the interface (step 5) and the muzzle smoke remain open.
+4. **World generator, stage 1** ✅: custom worlds for every map size (200–2000 fields per side) and
+   number of players: number of islands and mix of sizes by area, starting areas with a home island and equally large
+   neighbouring islands, climate by position with both climates in reach, iron on every home island, all
+   plants and gold in reach, villages and volcanic islands by number of islands and players; larger worlds in
+   their own chunk `O1602MAP` ([worldgen.md](re/worldgen.md#custom-worlds-world-generator-stage-1)). Open:
+   more than four players and pirate strength by number of players (with multiplayer), start dialogue (step 5).
+5. **Computer opponents (AI)** ✅: task stack, levels and needs as in the original, building site search with
+   road plan, maintenance, settling and colonies, supply routes and patrols, fleet, trade, recruiting,
+   towers and castles, attacks with landings, island soldiers, diplomacy, pirate nest; deterministic on
+   every machine, saved with the savegame ([ai.md](re/ai.md), S-095 to S-102). In test runs without an
+   active human, the computer players reach merchants with 500–870 inhabitants after six hours. Open:
+   AI switches of the scenarios and the ship missions from original savegames. Next: events
+   (volcanic eruptions of the scenarios), build menu, start dialogue with all settings, the rest of the interface.
+   **Done after the inventory (2026-10-18):** own save format `.o1602` without the limits
+   of the original ([ADR 0009](architecture/0009-own-save-format.md)); more expensive water near enemy
+   towers; town and ship windows as commands (tax rate, name, material, cannons, overboard,
+   ship sale); trade settings by `Maxware`; `Grundflg` in pathfinding; missions of the
+   computer ships from original savegames; reaction of the computer players to a founding. After that the
+   **missions of the scenarios** ([missions.md](re/missions.md)): all 18 goals and both
+   loss conditions, victory the same on every machine, defeat with no town and no ship, bankruptcy,
+   computer players and pirates, triumphal arch for the culprit, trade statistics (S-105 to S-111).
+   Scenarios have no events or scripts (confirmed).
+6. **Multiplayer** including the endless game (`.szm`).
+7. **World generator, stage 2** (deferred until everything else is done and running): custom island shapes,
+   including ones larger than the templates, with coast, beach, mountain and river transitions.
 
-Originalformate laden und Standardszenarien im Original weiterspielen zu können ist erwünscht, aber kein
-Anspruch: erweiterte Funktionen von Open1602 müssen nicht mit dem Original kompatibel sein.
+Being able to load original formats and continue standard scenarios in the original is desirable, but not
+a requirement: extended features of Open1602 do not have to be compatible with the original.
 
-## 8. Entscheidungen und Fortschritt
+## 8. Decisions and progress
 
-**Entscheidungen (16.10.2026):** GPL-3.0-or-later · C++20 · Neuimplementierung statt Dekompilat ·
-Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](architecture/README.md).
+**Decisions (2026-10-16):** GPL-3.0-or-later · C++20 · reimplementation instead of decompiled code ·
+project name *Open1602* (namespace `o1602`) · details in [docs/architecture](architecture/README.md).
 
-| Schritt | Stand |
+| Step | Status |
 |---|---|
-| M0: Git-Repository, CMake-Presets, CI (Linux/Windows/macOS, ASan), ADRs | ✅ erledigt |
-| M0: rea + Ghidra Machbarkeitstest | ✅ bestanden (rea 6.5.0, Ghidra 12.1.2) – `re/notes/rea-smoke-test-result.md` |
-| M1: Chunk-Container, `.cod`, Palette, BSH-Sprites | ✅ dokumentiert, implementiert, gegen Originaldaten getestet |
-| M1: Inseln (`.SCP`) | 🟡 Kopf (Größe, Position, Klima, Lagerstätten, Schalter) und Feldlisten beider Ebenen; offen: Attributbits 26–31 und Rest des Kopfes (roh mitgeführt) |
-| M1: `.cod`-Interpreter (Grammatik aus der Exe, 685 Vordefinitionen, Parser + Tests) | ✅ `docs/formats/cod.md` |
-| M1: Gebäudedatensatz (`haeuser.cod` → `g_haeuser`), Inselattribute, Platzierungsalgorithmus | ✅ `docs/re/haus-record.md` |
-| M2: Renderer-Grundlage: Sprite-Formel, Maleralgorithmus, Software-Renderer, `render-island` | ✅ `docs/re/rendering.md` |
-| M2: Weltkarte (500 × 350, offenes Meer, Animationstakt), Sprite-Atlas, Kamera, `render-world` | ✅ `docs/re/rendering.md` §5 |
-| M2: SDL3-Kartenbetrachter `open1602` (Scrollen, Zoom an der Maus, Drehen, HiDPI) | ✅ `docs/setup-arch.md` |
-| M2: Spielstände (`.GAM`) im Betrachter, Spieler (PLAYER4), Spielerfarben, Schiffe mit Flaggen, Besitzansicht | ✅ `docs/formats/gam.md` |
-| M2: echter Spielstand geprüft (Merlin01): zwei Inselebenen, globale Chunks, Namen aus `Game.dat`, Flaggenwahl bestätigt | ✅ `docs/formats/gam.md` |
-| M2: Flaggen auf Kontor, Markt und Turm in Besitzerfarbe | ✅ `docs/re/rendering.md` §6 |
-| M2: Abgleich mit einem Bildschirmfoto des Originals (Merlin01, SGFX): Korrelation 0,955 | ✅ `docs/re/rendering.md` §8 |
-| Anforderungen an Erweiterbarkeit und Modding (ADR 0007); Engine-Modell ohne feste Spielerzahl, Banner statt fester Farben, Weltgröße pro Karte | ✅ `docs/architecture/0007-extensibility-and-modding.md` |
-| Spielstand-Analyse (Merlin01 weitergespielt): alle Chunks mit Schreibroutine und Laufzeittabelle; Städte mit Namen, Kontorbestände, Produktionsliste, Hirsche geladen; SHIP4-Richtung korrigiert | ✅ `docs/formats/gam.md` |
-| M2: Figuren-Animationssystem (ANIM), Tiere mit Schatten, Figuren-Sheets je Zoomstufe, Figuren in SGFX (abschaltbar) | ✅ `docs/re/figures.md` |
-| Spielerflaggen als eingefärbte Einheitsflagge (beliebige Farben, 12 Vorgaben, Modder-Anleitung) | ✅ `docs/modding/flags.md` |
-| M2: Produktionszustand aus dem Spielstand: Gebäudeanimationen nach Zustand (Mühlen, Füllstand, Marktstände), Rauch, Statussymbole; Figuren am Bezugspunkt Y wie im Original; Abgleich mit dem Bildschirmfoto jetzt 0,967 | ✅ `docs/re/production.md` |
-| Prüfung: Soldaten in beliebigen Spielerfarben (Vorlage aus den vier Fassungen, Originalbilder für die vier Originalfarben) | ✅ `docs/re/figures.md` |
-| M2: Soldaten aus dem Spielstand (`SOLDAT3`), in jeder Bannerfarbe (Originalbilder für die vier Originalfarben, sonst eingefärbte Vorlage) | ✅ `docs/re/figures.md` |
-| M3: Simulation in festen Ticks (`sim::Simulation`), Produktionszyklus wie im Original (Rohstoff, Rate, Intervall, Lager, Leerlauf, Statistik, Nachschubanforderungen), Viewer lässt die Zeit laufen | ✅ `docs/re/production.md` |
-| M3: Logistik, Stufe 1: Lager der Stadt (Bestand, Reservierung, Lagerraum), Wegesuche im Einzugskreis, Träger und Marktkarren mit Bewegung und Animation; Originalfehler S-022–S-025 behoben | ✅ `docs/re/logistics.md` |
-| M3: Logistik, Stufe 2: Wachstum der Felder (Klassenuhren, `ROHWACHS2`), Bauern, Viehherden, Fischerboote, Lagerstätten der Minen | ✅ `docs/re/growth.md`, `docs/re/logistics.md` |
-| M3: Bauen und Abreißen als Befehle der Simulation: Prüfungen (Gelände, Drehung, Gebiet, Einheiten, Freischaltung, Fruchtbarkeit), Kosten in Auftragsreihenfolge, Anmelden in allen Listen, Straßen an Nachbarn anpassen, Gebiet von Markt und Kontor, Stadtgründung vom Schiff, Abriss mit Gebietsprüfung; Baustufen im Stadttakt; Bauwerkzeug im Betrachter (B, X) | ✅ `docs/re/construction.md` |
-| Spieleinstellungen in `sim::Rules` (ADR 0008), erste Wahl: Rückerstattung beim Abriss (keine, teilweise, voll) | ✅ `docs/architecture/0008-game-settings.md` |
-| M3: Dürre (Wurf nach Schwierigkeit, Verdorren, Erholung, Ernte, Einstellung `Rules::droughts`) | ✅ |
-| M3: Brände, Pest, Räuber: Stadttermin, Ausbreitung, Niederbrennen, Arzt und Feuerwehr, Räuber mit Verfolgung, Anzeige | ✅ `docs/re/disasters.md` |
-| M3: Vulkane: Krater, Wurf, Ausbruch mit 141 Lavabrocken, Brand und Zerstörung, Anzeige, Einstellung `Rules::volcanoes`; S-042 behoben | ✅ `docs/re/volcanoes.md` |
-| M4: Spielstände schreiben, die das Original lädt: alle Chunks in der Reihenfolge des Originals, Datensätze aus der Quelldatei mit Open1602s Zustand, WIFF; unverändert geschrieben Byte für Byte die Originaldatei, weitergespielt lädt er zum selben Zustand; F5 / `--save`, nie in die Installation | ✅ `docs/re/savegame-writer.md` |
-| M4: Eigener Chunk `O1602` hinter `WIFF`: Einstellungen, Zufall, Uhren, alle Listen, Brände, Lava, Figuren, abweichende Felder; Fingerabdruck der Originalchunks; ein gespeichertes Spiel läuft genau weiter wie ohne Unterbrechung | ✅ `docs/formats/o1602-chunk.md` |
-| M4: neues Endlosspiel wie im Original: Weltplan und Inseltabelle (`SZENE`, `RANDTAB`), Vorlagen, Dörfer, Pflanzen, Erz, Schätze, Startzustand nach dem Neustart; `open1602 --new-game D`; Inseln wahlweise aus dem ganzen Startwert; S-019 behoben (Regel), S-067; Prüfung im Original steht aus | ✅ `docs/re/worldgen.md`, `docs/re/newgame.md` |
-| M3: Verbrauch der Einwohner aus dem Lager (Stadttakt `0x0047F8A0`): Bedarf aus haeuser.cod, Versorgungsgrade, Zufriedenheit mit Steuerkurve, Meldungen; Einwohner aus `STADT4`, Abrechnung aus `MARKT2` | ✅ `docs/re/consumption.md` |
-| M3: Häuser (`SIEDLER`), Versorgung durch Märkte und öffentliche Gebäude, Wachstum, Auf- und Abstieg, Ruinen; Steuern, Betriebskosten, Sold; Zufallsquellen je Teilsystem, Piraten | ✅ `docs/re/houses.md` |
-| M3: Hirsche und Jäger: Wildplätze, Zählung, Rückkehr, Grasen, Ruf des Jägers, Schuss, Beute | ✅ `docs/re/deer.md` |
-| M3: Jagd geprüft: Zählregel gegen gespeicherte Wildplätze, eingesetzte Jagdhütte jagt mit Originaldaten; Merlin02 → Merlin03 (mit Video) läuft Feld für Feld wie im Original (Zielwahl des Hirschs mit der Wellensuche, Wildplätze, Statistik der Hütte) | ✅ `docs/re/deer.md` |
-| M2: Leben im Bild: Spaziergänger, Wale, Delfine, Kraken, Gaukler, Geräuschquellen; nur Darstellung, eigener Zufall, ohne Einfluss aufs Spiel (S-065) | ✅ `docs/re/flavor.md` |
-| M2: Zierfiguren auf allen Rechnern gleich ohne Netzverkehr (aus Startwert, Spielzeit und Welt, nicht aus Kamera und Bildrate) | ✅ `docs/re/flavor.md` |
-| M2: Landfiguren mit Höhe (0,028 · Posoffs des Entstehungsfelds) und Feldmitte wie im Original, Sortierung nach Y in der Zeile; kein Abschneiden durch Nachbarfelder; Begegnungen ohne Ausweichen wie im Original | ✅ `docs/re/figures.md` |
-| M2: Alle Figuren pixelgenau zu den Feldern (Abschneiden wie im Original, eine Zeile Versatz der Feldzeilen ausgeglichen), mit Bildschirmfoto geprüft; Symbol „abgeschaltet“ über Werften | ✅ `docs/re/rendering.md` |
-| M4: Schiffe: Fahren von Feldmitte zu Feldmitte mit Drehen im Stand, Tempo nach Schaden und Ladung, Wegsuche auf See im Fenster mit Umwegen um andere Schiffe, Ankunft am Kontor im Radius 5, Entdecken von Inseln; Laden und Entladen am eigenen und an fremden Kontoren mit Preisen und Grenzen, Handel mit Eingeborenen gegen Zuneigung; Handelsrouten mit vier Stationen; freier Händler (Ankunft am Kartenrand, Zielwahl nach Gewinn, Kauf und Verkauf, Altern, Werkzeug aus dem Nichts); Werften mit Packesel, Bau und Reparatur; alles gespeichert (SHIP4, HANDLER, WERFT, KONTOR2, eigener Chunk); Fahrbefehl im Betrachter; S-005, S-013, S-070–S-083 | ✅ `docs/re/ships.md` |
-| M2: Arbeiter und Tiere von Feldern und Bäumen verdeckt wie im Original (Holzfäller beim Fällen unsichtbar, Mäher bis zu den Knien im Getreide); Schiff mit Bildschirmfoto geprüft | ✅ `docs/re/figures.md` |
-| Fehlerkatalog der GOG-Ausgabe (anfangs 51, jetzt 164 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
-| M5: Diplomatie und Militär (Verträge, Soldaten, Kampf, Türme, Burgen, Seekampf, Eroberung) | ✅ `docs/re/military.md`, `docs/re/diplomacy.md` |
-| M5: Piraten und Eingeborene, Einheiten- und Flottengrenze als Regeln | ✅ `docs/re/pirates.md` |
-| M5: Weltengenerator Stufe 1 (eigene Welten 200–2000 Felder, `O1602MAP`) | ✅ `docs/re/worldgen.md` |
-| M5: Computergegner (deterministisch, gespeichert, S-095 bis S-102) | ✅ `docs/re/ai.md` |
-| Bestandsaufnahme: was umgesetzt, offen und unklar ist, im Original und bei den Erweiterungen | ✅ `docs/status.md` |
-| M5: Aufträge der Szenarien, Sieg und Niederlage (S-105 bis S-111) | ✅ `docs/re/missions.md` |
-| M1: ZEI-Schriften, GAD | ✅ `docs/re/ui.md`, `docs/formats/gad.md` |
-| M1: restliche Szenario-Chunks | ⬜ |
-| RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
+| M0: Git repository, CMake presets, CI (Linux/Windows/macOS, ASan), ADRs | ✅ done |
+| M0: rea + Ghidra feasibility test | ✅ passed (rea 6.5.0, Ghidra 12.1.2) – `re/notes/rea-smoke-test-result.md` |
+| M1: chunk container, `.cod`, palette, BSH sprites | ✅ documented, implemented, tested against original data |
+| M1: islands (`.SCP`) | 🟡 header (size, position, climate, deposits, switches) and field lists of both layers; open: attribute bits 26–31 and the rest of the header (carried along raw) |
+| M1: `.cod` interpreter (grammar from the exe, 685 predefinitions, parser + tests) | ✅ `docs/formats/cod.md` |
+| M1: building record (`haeuser.cod` → `g_haeuser`), island attributes, placement algorithm | ✅ `docs/re/haus-record.md` |
+| M2: renderer foundation: sprite formula, painter's algorithm, software renderer, `render-island` | ✅ `docs/re/rendering.md` |
+| M2: world map (500 × 350, open sea, animation clock), sprite atlas, camera, `render-world` | ✅ `docs/re/rendering.md` §5 |
+| M2: SDL3 map viewer `open1602` (scrolling, zoom at the mouse, rotation, HiDPI) | ✅ `docs/setup-arch.md` |
+| M2: savegames (`.GAM`) in the viewer, players (PLAYER4), player colours, ships with flags, ownership view | ✅ `docs/formats/gam.md` |
+| M2: real savegame checked (Merlin01): two island layers, global chunks, names from `Game.dat`, flag choice confirmed | ✅ `docs/formats/gam.md` |
+| M2: flags on warehouse, marketplace and tower in the owner's colour | ✅ `docs/re/rendering.md` §6 |
+| M2: comparison with a screenshot of the original (Merlin01, SGFX): correlation 0.955 | ✅ `docs/re/rendering.md` §8 |
+| Requirements for extensibility and modding (ADR 0007); engine model without a fixed number of players, banners instead of fixed colours, world size per map | ✅ `docs/architecture/0007-extensibility-and-modding.md` |
+| Savegame analysis (Merlin01 played on): all chunks with write routine and runtime table; towns with names, warehouse stocks, production list, deer loaded; SHIP4 direction corrected | ✅ `docs/formats/gam.md` |
+| M2: figure animation system (ANIM), animals with shadows, figure sheets per zoom level, figures in SGFX (can be switched off) | ✅ `docs/re/figures.md` |
+| Player flags as a tinted standard flag (any colours, 12 presets, guide for modders) | ✅ `docs/modding/flags.md` |
+| M2: production state from the savegame: building animations by state (mills, fill level, market stalls), smoke, status symbols; figures at reference point Y as in the original; comparison with the screenshot now 0.967 | ✅ `docs/re/production.md` |
+| Check: soldiers in any player colours (template from the four versions, original images for the four original colours) | ✅ `docs/re/figures.md` |
+| M2: soldiers from the savegame (`SOLDAT3`), in every banner colour (original images for the four original colours, otherwise a tinted template) | ✅ `docs/re/figures.md` |
+| M3: simulation in fixed ticks (`sim::Simulation`), production cycle as in the original (raw material, rate, interval, storage, idling, statistics, resupply requests), viewer lets time run | ✅ `docs/re/production.md` |
+| M3: logistics, stage 1: town storage (stock, reservation, storage space), pathfinding within the catchment area, carriers and market carts with movement and animation; bugs of the original S-022–S-025 fixed | ✅ `docs/re/logistics.md` |
+| M3: logistics, stage 2: growth of fields (class clocks, `ROHWACHS2`), farmers, herds, fishing boats, deposits of the mines | ✅ `docs/re/growth.md`, `docs/re/logistics.md` |
+| M3: building and demolishing as simulation commands: checks (terrain, rotation, territory, units, unlocking, fertility), costs in order of the request, registration in all lists, adapting roads to neighbours, territory of marketplace and warehouse, founding a town from a ship, demolition with territory check; build levels in the town tick; build tool in the viewer (B, X) | ✅ `docs/re/construction.md` |
+| Game settings in `sim::Rules` (ADR 0008), first choice: refund on demolition (none, partial, full) | ✅ `docs/architecture/0008-game-settings.md` |
+| M3: drought (roll by difficulty, withering, recovery, harvest, setting `Rules::droughts`) | ✅ |
+| M3: fires, plague, robbers: town schedule, spreading, burning down, doctor and fire brigade, robbers with pursuit, display | ✅ `docs/re/disasters.md` |
+| M3: volcanoes: crater, roll, eruption with 141 lava bombs, fire and destruction, display, setting `Rules::volcanoes`; S-042 fixed | ✅ `docs/re/volcanoes.md` |
+| M4: writing savegames that the original loads: all chunks in the order of the original, records from the source file with Open1602's state, WIFF; written unchanged it is the original file byte for byte, played on it loads to the same state; F5 / `--save`, never into the installation | ✅ `docs/re/savegame-writer.md` |
+| M4: own chunk `O1602` after `WIFF`: settings, randomness, clocks, all lists, fires, lava, figures, deviating fields; fingerprint of the original chunks; a saved game continues exactly as without interruption | ✅ `docs/formats/o1602-chunk.md` |
+| M4: new endless game as in the original: world plan and island table (`SZENE`, `RANDTAB`), templates, villages, plants, ore, treasures, starting state after a new start; `open1602 --new-game D`; islands optionally from the whole seed; S-019 fixed (rule), S-067; check in the original is pending | ✅ `docs/re/worldgen.md`, `docs/re/newgame.md` |
+| M3: consumption of the inhabitants from storage (town tick `0x0047F8A0`): demand from haeuser.cod, supply levels, satisfaction with tax curve, messages; inhabitants from `STADT4`, accounting from `MARKT2` | ✅ `docs/re/consumption.md` |
+| M3: houses (`SIEDLER`), supply by marketplaces and public buildings, growth, rising and falling, ruins; taxes, operating costs, pay; random sources per subsystem, pirates | ✅ `docs/re/houses.md` |
+| M3: deer and hunters: game spots, counting, return, grazing, hunter's call, shot, prey | ✅ `docs/re/deer.md` |
+| M3: hunting checked: counting rule against saved game spots, a placed hunting lodge hunts with original data; Merlin02 → Merlin03 (with video) runs field by field as in the original (deer's target choice with the wave search, game spots, statistics of the lodge) | ✅ `docs/re/deer.md` |
+| M2: life in the picture: walkers, whales, dolphins, krakens, jugglers, sound sources; display only, own randomness, no influence on the game (S-065) | ✅ `docs/re/flavor.md` |
+| M2: decorative figures the same on all machines without network traffic (from seed, game time and world, not from camera and frame rate) | ✅ `docs/re/flavor.md` |
+| M2: land figures with height (0.028 · Posoffs of the field they appear on) and field centre as in the original, sorted by Y within the row; no clipping by neighbouring fields; encounters without evasion as in the original | ✅ `docs/re/figures.md` |
+| M2: all figures pixel-exact to the fields (clipping as in the original, one row offset of the field rows compensated), checked with a screenshot; „abgeschaltet“ ("switched off") symbol above shipyards | ✅ `docs/re/rendering.md` |
+| M4: ships: sailing from field centre to field centre with turning on the spot, speed by damage and cargo, pathfinding at sea in a window with detours around other ships, arrival at the warehouse within radius 5, discovering islands; loading and unloading at own and foreign warehouses with prices and limits, trade with natives for affection; trade routes with four stops; free trader (arrival at the map edge, target choice by profit, buying and selling, ageing, tools out of nothing); shipyards with pack mule, building and repair; all saved (SHIP4, HANDLER, WERFT, KONTOR2, own chunk); sail command in the viewer; S-005, S-013, S-070–S-083 | ✅ `docs/re/ships.md` |
+| M2: workers and animals hidden by fields and trees as in the original (woodcutter invisible while felling, mower knee-deep in the grain); ship checked with a screenshot | ✅ `docs/re/figures.md` |
+| Bug catalogue of the GOG edition (initially 51, now 164 entries), ADR 0006, `sim::Rules`, CI check of the references | ✅ `docs/re/bugs.md` |
+| M5: diplomacy and military (treaties, soldiers, combat, towers, castles, naval combat, conquest) | ✅ `docs/re/military.md`, `docs/re/diplomacy.md` |
+| M5: pirates and natives, unit and fleet limits as rules | ✅ `docs/re/pirates.md` |
+| M5: world generator stage 1 (custom worlds 200–2000 fields, `O1602MAP`) | ✅ `docs/re/worldgen.md` |
+| M5: computer opponents (deterministic, saved, S-095 to S-102) | ✅ `docs/re/ai.md` |
+| Inventory: what is done, open and unclear, in the original and in the extensions | ✅ `docs/status.md` |
+| M5: missions of the scenarios, victory and defeat (S-105 to S-111) | ✅ `docs/re/missions.md` |
+| M1: ZEI fonts, GAD | ✅ `docs/re/ui.md`, `docs/formats/gad.md` |
+| M1: remaining scenario chunks | ⬜ |
+| RE: first symbols (`WinMain`, `Game_Init`, `.cod` loader, `Text.cod` decryption) | ✅ `re/symbols/` |
 
-## 9. Offene Punkte nach Abhängigkeit
+## 9. Open points by dependency
 
-Die vollständige Übersicht (umgesetzt, offen, Klärung nötig, Erweiterungen) steht in
-[status.md](status.md); was ich dafür an Spielständen, Videos und Beobachtungen brauche, in
-[requests.md](requests.md). Hier nur die Punkte, die auf ein anderes System warten. Wenn das System
-kommt, werden sie abgehakt.
+The complete overview (done, open, needs clarification, extensions) is in
+[status.md](status.md); what I need for it in terms of savegames, videos and observations is in
+[requests.md](requests.md). Here only the points that are waiting for another system. When that system
+arrives, they are ticked off.
 
-**Speichern**
-- ~~Mehr Spieler, Schiffe, Soldaten und Türme, als das Original fasst~~: eigenes Format `.o1602`
+**Saving**
+- ~~More players, ships, soldiers and towers than the original can hold~~: own format `.o1602`
   ([o1602-save.md](formats/o1602-save.md)).
-- Liste der Spielstände (Abschnitt `META`) im Lade-Menü der Oberfläche.
-- Originalspielstände nehmen für die Wahlpunkte die Werte des Originals: erfüllt, weil der Standard
-  der Wahlpunkte das Original ist ([ADR 0008](architecture/0008-game-settings.md)); Stände von
-  Open1602 bringen ihre Einstellungen mit.
+- List of savegames (section `META`) in the load menu of the interface.
+- Original savegames take the values of the original for the options: fulfilled, because the default
+  of the options is the original ([ADR 0008](architecture/0008-game-settings.md)); savegames of
+  Open1602 bring their settings with them.
 
-**Szenarien**
-- ~~Missionsziele, Sieg und Niederlage~~: erledigt ([missions.md](re/missions.md)). Ereignisse haben die
-  Szenarien des Originals nicht.
-- Kampagnenfortschritt (eigene Datei statt `Game.dat`), Bestenliste und Punkte, Endbildschirm mit Meldung
-  und Video: mit der Oberfläche.
-- KI-Schalter (Spieler +0x70), Szenario-Haltung der Diplomatie (`PLAYER4` +0x1C/+0x20).
+**Scenarios**
+- ~~Mission goals, victory and defeat~~: done ([missions.md](re/missions.md)). The scenarios of the original
+  have no events.
+- Campaign progress (own file instead of `Game.dat`), high score list and points, end screen with message
+  and video: with the interface.
+- AI switch (player +0x70), scenario stance of diplomacy (`PLAYER4` +0x1C/+0x20).
 
-**Oberfläche (Baumenü, Fenster, Meldungen)**
-- Baumenü des Originals (GAD) mit Gebäudenamen aus Text.cod, Freischaltung als ausgegraute
-  Knöpfe ([construction.md](re/construction.md)).
-- Fenster für Kontor, Laderäume, Handelsrouten, Werft, Burg, Diplomatie, Einheiten, Statistik;
-  Lebensbalken; Formationswahl.
-- Warnung beim Abriss eines Markts, der Häuser die Grundlage nimmt (S-035).
-- Startdialog für das Endlosspiel mit allen Spieleinstellungen ([ADR 0008](architecture/0008-game-settings.md)).
-- U-013 noch einmal ansehen (Erkunden an Werft und Piratenkontor).
-- Idee: volle Rückerstattung für wenige Sekunden nach dem Bau (Schutz vor Fehlklicks); dafür
-  braucht jedes Gebäude seinen Bauzeitpunkt.
-- Idee: eigenes Verhalten der Straßen-Wegsuche neben dem des Originals.
+**Interface (build menu, windows, messages)**
+- Build menu of the original (GAD) with building names from Text.cod, unlocking shown as greyed-out
+  buttons ([construction.md](re/construction.md)).
+- Windows for warehouse, cargo holds, trade routes, shipyard, castle, diplomacy, units, statistics;
+  health bars; formation choice.
+- Warning when demolishing a marketplace that removes the basis for houses (S-035).
+- Start dialogue for the endless game with all game settings ([ADR 0008](architecture/0008-game-settings.md)).
+- Look at U-013 again (exploring at a shipyard and a pirate warehouse).
+- Idea: full refund for a few seconds after building (protection against misclicks); for this
+  every building needs its construction time.
+- Idea: own behaviour of the road pathfinding alongside that of the original.
 
-**Darstellung**
-- Mündungs- und Schussrauch, Treffer, Wrack (SHIPSUNK); Werftsymbole „Material fehlt“ und „Brand“;
-  Zierfiguren nur auf entdeckten Inseln; Helligkeits- und Farbstich-Tabellen.
+**Display**
+- Muzzle and shot smoke, hits, wreck (SHIPSUNK); shipyard symbols „Material fehlt“ ("material missing") and „Brand“ ("fire");
+  decorative figures only on discovered islands; brightness and colour-cast tables.
 
-**Ton und Videos**
-- ~~Geräusche, Musik, Sprache~~: erledigt ([audio.md](re/audio.md)).
-- ~~Smacker-Videos~~: erledigt (18.10.2026, [videos.md](re/videos.md), [smk.md](formats/smk.md)); offen nur, was am
-  Hauptmenü hängt (Intro-Knopf, Abspann) und Video 2990 mit dem Kampagnenfortschritt.
+**Sound and videos**
+- ~~Sounds, music, speech~~: done ([audio.md](re/audio.md)).
+- ~~Smacker videos~~: done (2026-10-18, [videos.md](re/videos.md), [smk.md](formats/smk.md)); open only what depends on the
+  main menu (intro button, credits) and video 2990 with the campaign progress.
 
-**Ohne Abhängigkeit**
-- ~~Symboltabelle `re/symbols/` ergänzen~~: erledigt (532 Funktionen).
-- Erledigt am 18.10.2026: Handelsgrenzen beim Kontor-Ausbau, dringende Waren (S-104), Wasser bei
-  feindlichen Türmen (S-103), Stadt- und Schiffsbefehle, Aufträge aus `SHIP4`, Reaktion der KI auf eine
-  Gründung, `Grundflg` in der Wegsuche.
+**No dependency**
+- ~~Extend the symbol table `re/symbols/`~~: done (532 functions).
+- Done on 2026-10-18: trade limits when upgrading the warehouse, urgent goods (S-104), water near
+  enemy towers (S-103), town and ship commands, missions from `SHIP4`, reaction of the AI to a
+  founding, `Grundflg` in pathfinding.
 
-**Mehrspieler**
-- Wie andere Rechner einen Hausaufstieg übernehmen (Nachricht 0x835, [houses.md](re/houses.md)).
-- Zustands-Hash je Tick, Befehle über das Netz, Lobby (ADR 0004); mehr als vier Spieler beim Start.
+**Multiplayer**
+- How other machines take over a house upgrade (message 0x835, [houses.md](re/houses.md)).
+- State hash per tick, commands over the network, lobby (ADR 0004); more than four players at the start.
 
-**Nur Analyse**
-- Bits +0x0F/4 und /6 der Produktion ([production.md](re/production.md)).
-- Zweite Liste bei Insel +0x30 ([growth.md](re/growth.md)).
-- Weitere Punkte in [status.md](status.md#13-klärung-nötig-verhalten-des-originals-nicht-belegt).
+**Analysis only**
+- Bits +0x0F/4 and /6 of production ([production.md](re/production.md)).
+- Second list at island +0x30 ([growth.md](re/growth.md)).
+- Further points in [status.md](status.md#13-needs-clarification-behaviour-of-the-original-not-confirmed).

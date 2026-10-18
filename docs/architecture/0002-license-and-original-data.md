@@ -1,20 +1,20 @@
-# 0002 – GPL-3.0, keine Originaldaten im Repository
+# 0002 – GPL-3.0, no original data in the repository
 
-Status: angenommen · 16.10.2026
+Status: accepted · 2026-10-16
 
-## Entscheidung
-- Lizenz: **GPL-3.0-or-later** (wie OpenRCT2 und OpenTTD). Jede Quelldatei trägt
+## Decision
+- Licence: **GPL-3.0-or-later** (like OpenRCT2 and OpenTTD). Every source file carries
   `SPDX-License-Identifier: GPL-3.0-or-later`.
-- Das Repository enthält **keine** Dateien des Originalspiels (Grafik, Sound, Video, Texte, Karten,
-  Binaries), keine daraus erzeugten Exporte (PNG-Dumps, dekodierte `.cod`-Texte) und kein Dekompilat.
-- Die Engine benötigt eine legal erworbene Installation; der Pfad wird konfiguriert
-  (`ANNO1602_DIR` bzw. später Einstellungsdialog).
+- The repository contains **no** files of the original game (graphics, sound, video, texts, maps,
+  binaries), no exports generated from them (PNG dumps, decoded `.cod` texts) and no decompiled code.
+- The engine needs a legally acquired installation; the path is configured
+  (`ANNO1602_DIR`, later a settings dialog).
 
-## Begründung
-Gängiges, rechtlich etabliertes Modell für Engine-Neuimplementierungen. Die GPL stellt sicher, dass
-Verbesserungen der Community offen bleiben.
+## Rationale
+A common, legally established model for engine reimplementations. The GPL ensures that
+community improvements stay open.
 
-## Folgen
-- `.gitignore` schließt typische Spieldateien und Exportordner aus.
-- Tests gegen Originaldaten laufen nur, wenn `ANNO1602_DIR` gesetzt ist (in CI übersprungen).
-- Fremdcode nur mit GPL-3.0-kompatibler Lizenz; Herkunft in `third_party/README.md` dokumentieren.
+## Consequences
+- `.gitignore` excludes typical game files and export folders.
+- Tests against original data only run when `ANNO1602_DIR` is set (skipped in CI).
+- Third-party code only with a GPL-3.0-compatible licence; document its origin in `third_party/README.md`.

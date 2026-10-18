@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
     bool game_named = false;  ///< without a game the program starts in the main menu
     bool menu = false;
     sim::NewGameOptions new_game_options;
-    new_game_options.name = "Spieler";
+    new_game_options.name = "Player";
     std::optional<std::uint8_t> layout_given;
     std::optional<std::uint64_t> seed_given;
     sim::WorldSettings custom;

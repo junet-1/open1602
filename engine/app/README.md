@@ -1,7 +1,7 @@
 # engine/app
 
-Programmeinstieg und Verknüpfung aller Module. Derzeit der Kartenbetrachter `open1602`
-(Meilenstein M2): Szenario laden, Weltkarte mit SDL3 darstellen, Scrollen, Zoom, Drehen.
-Später kommen Spielzustände (Hauptmenü, Spiel, Editor) und Konfiguration hinzu.
+Program entry point and wiring of all modules. Currently the map viewer `open1602`
+(milestone M2): load a scenario, display the world map with SDL3, scrolling, zoom, rotation.
+Game states (main menu, game, editor) and configuration come later.
 
-Nur mit `-DO1602_BUILD_GAME=ON`. Bedienung: [docs/setup-arch.md](../../docs/setup-arch.md#kartenbetrachter-open1602-sdl3).
+Only with `-DO1602_BUILD_GAME=ON`. Controls: [docs/setup-arch.md](../../docs/setup-arch.md#map-viewer-open1602-sdl3).

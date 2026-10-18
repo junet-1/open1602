@@ -1,23 +1,23 @@
-# 0003 – Neuimplementierung statt Dekompilat
+# 0003 – Reimplementation instead of decompiled code
 
-Status: angenommen · 16.10.2026
+Status: accepted · 2026-10-16
 
-## Kontext
-Möglich wären (a) eine Rekompilierung des dekompilierten Codes, (b) eine schrittweise Ersetzung
-von Funktionen per Hook-DLL (frühes OpenRCT2) oder (c) eine Neuimplementierung nach Spezifikation.
+## Context
+The options would be (a) recompiling the decompiled code, (b) replacing functions step by step
+via a hook DLL (early OpenRCT2) or (c) a reimplementation from a specification.
 
-## Entscheidung
-**(c) Neuimplementierung.** Reverse Engineering liefert Spezifikationen (`docs/`), die Engine wird
-danach sauber und modular neu geschrieben. Originalgetreues Verhalten wird durch Tests gesichert,
-nicht durch übernommenen Code.
+## Decision
+**(c) Reimplementation.** Reverse engineering produces specifications (`docs/`), and the engine is
+then rewritten cleanly and modularly. Behaviour faithful to the original is ensured by tests,
+not by adopted code.
 
-## Begründung
-- Lesbarer, erweiterbarer Code (Projektziel) statt 1998er-Strukturen mit globalem Zustand.
-- Saubere Trennung Simulation/Darstellung ist mit (a)/(b) kaum erreichbar, für Multiplayer aber nötig.
-- Rechtlich sauberer.
+## Rationale
+- Readable, extensible code (a project goal) instead of 1998-era structures with global state.
+- A clean separation of simulation and presentation is hardly achievable with (a)/(b), but is required for multiplayer.
+- Legally cleaner.
 
-## Folgen
-- Paritätstests sind Pflicht: gleiche Ausgangslage im Original (Wine) und in Open1602, Zustand nach
-  N Ticks vergleichen (`tests/parity/`, ab M3).
-- Originalfehler werden in `docs/re/bugs.md` gesammelt und in Open1602 behoben; wo das das Spielgefühl
-  ändert, per Option „Originalverhalten“ abschaltbar.
+## Consequences
+- Parity tests are mandatory: same starting position in the original (Wine) and in Open1602, compare the state after
+  N ticks (`tests/parity/`, from M3).
+- Bugs of the original are collected in `docs/re/bugs.md` and fixed in Open1602; where that changes the feel
+  of the game, it can be switched off via an "original behaviour" option.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Scheduler, task stack, root task and (re)initialisation of the computer players
-// (docs/re/ai.md, "Kern").
+// (docs/re/ai.md, "Flow and tick").
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>

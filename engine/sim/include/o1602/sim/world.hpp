@@ -55,7 +55,7 @@ struct WorldIsland {
     /// A new game takes it from the template, so islands whose template says otherwise than 0 get
     /// their first epoch at once (docs/re/newgame.md).
     std::uint8_t last_phase = 0;
-    /// Drought on the island (docs/re/growth.md#dürre).
+    /// Drought on the island (docs/re/growth.md#drought).
     struct Drought {
         std::uint8_t strength = 0;   ///< 0 = none; lowers the fertility by strength/128
         std::uint64_t end_ms = 0;    ///< game time it ends; then the strength halves every epoch

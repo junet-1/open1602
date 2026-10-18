@@ -1,23 +1,23 @@
 # 0001 – C++20, CMake, SDL3
 
-Status: angenommen · 16.10.2026
+Status: accepted · 2026-10-16
 
-## Kontext
-Die Engine soll plattformübergreifend (Linux, Windows, macOS), schnell und über lange Sitzungen
-stabil laufen. Das Original ist ein MSVC-6-C++-Programm.
+## Context
+The engine should run cross-platform (Linux, Windows, macOS), fast and stable over long
+sessions. The original is an MSVC 6 C++ program.
 
-## Entscheidung
-- **C++20** für Engine und Werkzeuge; **Python 3** für Forschungs-/RE-Skripte.
-- **CMake ≥ 3.25** mit Presets; Abhängigkeiten unter Linux aus dem System, unter Windows/macOS über **vcpkg**.
-- **SDL3** als einzige Plattformschicht (Fenster, Eingabe, Audio, Timer, GPU-API).
-- `assets` und `core` bleiben ohne externe Pflichtabhängigkeit (zlib optional).
+## Decision
+- **C++20** for the engine and tools; **Python 3** for research/RE scripts.
+- **CMake ≥ 3.25** with presets; dependencies from the system on Linux, via **vcpkg** on Windows/macOS.
+- **SDL3** as the only platform layer (window, input, audio, timers, GPU API).
+- `assets` and `core` stay free of mandatory external dependencies (zlib optional).
 
-## Begründung
-Strukturen und Algorithmen des Originals lassen sich direkt in C++ abbilden; vergleichbare Projekte
-(OpenRCT2, OpenTTD, OpenMW, Julius/Augustus) belegen die Tragfähigkeit. Rust wurde erwogen
-(Speichersicherheit), aber wegen schwächerer Abbildung der Originalstrukturen und des kleineren
-Spieleentwickler-Ökosystems verworfen.
+## Rationale
+The structures and algorithms of the original map directly onto C++; comparable projects
+(OpenRCT2, OpenTTD, OpenMW, Julius/Augustus) prove that the approach is viable. Rust was considered
+(memory safety), but rejected because it maps the original structures less well and has a smaller
+game development ecosystem.
 
-## Folgen
-Speichersicherheit muss durch Regeln erzwungen werden: RAII, keine besitzenden Rohzeiger,
-bounds-geprüftes Parsen (`ByteReader`, `Result<T>`), Warnungen als Fehler in CI, ASan/UBSan-Builds.
+## Consequences
+Memory safety has to be enforced by rules: RAII, no owning raw pointers,
+bounds-checked parsing (`ByteReader`, `Result<T>`), warnings as errors in CI, ASan/UBSan builds.

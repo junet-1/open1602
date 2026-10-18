@@ -77,7 +77,7 @@ struct TraderGood {
 };
 
 /// How a ship is moving right now. Ships sail from tile centre to tile centre in runs of one or two
-/// tiles; between runs they decide what to do next (docs/re/ships.md, "Fahren").
+/// tiles; between runs they decide what to do next (docs/re/ships.md, "Sailing").
 struct ShipMotion {
     enum class Phase : std::uint8_t {
         Idle,     ///< nothing to do; decides again at the end of a short wait
@@ -148,7 +148,7 @@ struct Ship {
     };
     std::optional<OriginalJob> original_job;
     /// Exploring an island (ship + 0x1A4): steps of 1.5 s left, 0 = not exploring; the next step
-    /// at game time `explore_next_ms` (docs/re/ships.md#erkunden).
+    /// at game time `explore_next_ms` (docs/re/ships.md#exploring).
     std::uint8_t explore_steps = 0;
     std::uint64_t explore_next_ms = 0;
     /// Island whose surroundings (rectangle + 5 tiles) the ship is in, for discovering islands;

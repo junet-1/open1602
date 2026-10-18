@@ -1,47 +1,47 @@
-# 0006 – Umgang mit Fehlern des Originals
+# 0006 – Handling bugs of the original
 
-Status: angenommen · 16.10.2026
+Status: accepted · 2026-10-16
 
-## Kontext
-Anno 1602 hat technische Probleme auf heutigen Systemen, spielmechanische Fehler und Exploits sowie
-feste Grenzen, deren Überschreitung zu Fehlverhalten führt. Sie stehen gesammelt in
-[docs/re/bugs.md](../re/bugs.md). Open1602 soll sie nicht übernehmen, aber Originalspielstände laden
-können und das Spielgefühl erhalten.
+## Context
+Anno 1602 has technical problems on today's systems, gameplay bugs and exploits, as well as
+fixed limits whose overflow leads to misbehaviour. They are collected in
+[docs/re/bugs.md](../re/bugs.md). Open1602 should not carry them over, but it should be able to load
+savegames of the original and preserve the feel of the game.
 
-## Entscheidung
-1. **Technik (T, M):** Wird nicht nachgebildet. Die Plattformschicht (SDL3), eigene Lader und das
-   eigene Netzwerk ersetzen die Originalkomponenten vollständig.
-2. **Spielmechanik (S):** Fehler und Exploits werden **immer behoben**, ohne Schalter.
-   Dafür gelten drei Regeln für den gesamten Simulationscode:
-   - *Befehle prüfen sich selbst.* Jede Spieleraktion ist ein `Command` (ADR 0004). Die Simulation
-     prüft beim Ausführen Besitzer, Reichweite, Kosten, Bau- und Stufenregeln. Die Oberfläche
-     darf nichts erlauben, was der Befehl nicht prüft. (S-005, S-006, S-010 … S-015, S-017)
-   - *Der gesamte Zustand gehört zum Spielstand.* Laden und Speichern ändern das Spiel nicht.
-     Das betrifft auch Katastrophen, ausstehende Ereignisse und die Spielerzuordnung. Ein Test lädt
-     einen gespeicherten Stand, simuliert N Ticks und vergleicht den Hash mit dem durchgelaufenen
-     Original. (S-001, S-007, S-008, S-016)
-   - *Verweise über stabile IDs, nie über Feldpositionen.* Träger, Tiere, Waren und Aufträge gehören
-     zu einem Objekt. Verschwindet es, werden sie aufgelöst. (S-002, S-009)
-3. **Grenzen (L, S-020, S-021):** Es gibt keine stillen technischen Grenzen. Container wachsen
-   dynamisch, Pools vergeben stabile IDs. Wo eine Grenze nötig ist (Dateiformat, Balance), ist sie
-   benannt, wird geprüft und erzeugt eine Fehlermeldung statt eines Fehlverhaltens.
-4. **Abschaltbar ist nur, was Balance oder Spielgefühl betrifft.** Solche Punkte stehen in
-   `sim::Rules`. Der Standard ist das korrigierte Verhalten, `Rules::original()` liefert das
-   Originalverhalten. `Rules` ist Teil des Spielstands und der Mehrspieler-Sitzung, damit alle
-   Teilnehmer dieselben Regeln haben.
-5. **Datenfehler (D):** Der `.cod`-Interpreter bleibt originalgetreu. Korrekturen kommen als
-   abschaltbare Daten-Patches, die nach dem Laden angewendet werden.
-6. **Nachvollziehbarkeit:** Code, der einen Eintrag behebt, nennt seine Kennung (`// Fix S-002: …`).
-   Jede Korrektur bekommt einen Test. `re/scripts/check_bug_refs.py` prüft, dass jede im Code genannte
-   Kennung im Katalog existiert. Der Katalog liegt im privaten Repository `open1602-re`, daher läuft
-   die Prüfung lokal (mit verlinktem `docs/re`) und nicht in der öffentlichen CI.
+## Decision
+1. **Technical (T, M):** Not reproduced. The platform layer (SDL3), our own loaders and our
+   own networking replace the original components entirely.
+2. **Gameplay (S):** Bugs and exploits are **always fixed**, without a switch.
+   Three rules apply to all simulation code for this:
+   - *Commands validate themselves.* Every player action is a `Command` (ADR 0004). When executing it, the simulation
+     checks owner, range, costs, building and build level rules. The interface
+     must not allow anything the command does not check. (S-005, S-006, S-010 … S-015, S-017)
+   - *The entire state belongs to the savegame.* Loading and saving do not change the game.
+     This also covers disasters, pending events and the player assignment. A test loads
+     a saved state, simulates N ticks and compares the hash with the original run straight through.
+     (S-001, S-007, S-008, S-016)
+   - *References via stable IDs, never via array positions.* Carriers, animals, goods and missions belong
+     to an object. If it disappears, they are dissolved. (S-002, S-009)
+3. **Limits (L, S-020, S-021):** There are no silent technical limits. Containers grow
+   dynamically, pools hand out stable IDs. Where a limit is needed (file format, balance), it is
+   named, checked and produces an error message instead of misbehaviour.
+4. **Only what affects balance or the feel of the game can be switched off.** Such points live in
+   `sim::Rules`. The default is the corrected behaviour, `Rules::original()` returns the
+   original behaviour. `Rules` is part of the savegame and of the multiplayer session, so that all
+   participants have the same rules.
+5. **Data bugs (D):** The `.cod` interpreter stays faithful to the original. Corrections come as
+   data patches that can be switched off and are applied after loading.
+6. **Traceability:** Code that fixes an entry names its id (`// Fix S-002: …`).
+   Every correction gets a test. `re/scripts/check_bug_refs.py` checks that every id mentioned in the code
+   exists in the catalogue. The catalogue lives in the private repository `open1602-re`, so the check
+   runs locally (with a linked `docs/re`) and not in the public CI.
 
-## Originalspielstände
-Originale `.GAM`-Dateien können Zustände enthalten, die nur durch einen Fehler entstanden sind,
-etwa Gebäude auf früheren Flussfeldern (S-009) oder mehr als 33 Schiffe. Beim Import werden sie
-geprüft. Unmögliche Zustände werden repariert oder gemeldet, nie stillschweigend übernommen.
+## Savegames of the original
+Original `.GAM` files can contain states that only arose through a bug,
+such as buildings on former river tiles (S-009) or more than 33 ships. They are checked on import.
+Impossible states are repaired or reported, never silently adopted.
 
-## Folgen
-- Einige Speedrun-Tricks und Exploits funktionieren in Open1602 nicht. Das ist gewollt.
-- Paritätstests gegen das Original (Plan, Abschnitt 3.3) müssen Szenarien vermeiden, die einen
-  behobenen Fehler auslösen, oder `Rules::original()` verwenden, soweit möglich.
+## Consequences
+- Some speedrun tricks and exploits do not work in Open1602. That is intended.
+- Parity tests against the original (plan, section 3.3) must avoid scenarios that trigger a
+  fixed bug, or use `Rules::original()` where possible.

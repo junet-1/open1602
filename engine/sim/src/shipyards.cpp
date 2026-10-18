@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Shipyards (docs/re/ships.md, "Werft"): a switched-on yard with an order or a ship to repair runs
+// Shipyards (docs/re/ships.md, "Shipyard"): a switched-on yard with an order or a ship to repair runs
 // production-like cycles of wood and cloth its pack donkey brings; the points of each cycle build
 // the ship or become its health.
 #include <algorithm>

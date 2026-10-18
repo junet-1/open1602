@@ -9,7 +9,7 @@ Originalfehlern, stabilem Multiplayer und Raum für neue Features, Komfortfunkti
 > **Status (Oktober 2026):** Die Simulation des Originals ist weitgehend fertig (Bauen, Wirtschaft,
 > Bevölkerung, Katastrophen, Schiffe und Handel, Militär, Diplomatie, Piraten, Computergegner, neues
 > Endlosspiel, Spielstände im Originalformat). Gespielt wird bisher im Kartenbetrachter ohne
-> Oberfläche, Ton und Mehrspieler. Was fertig, offen und unklar ist: [docs/stand.md](docs/stand.md).
+> Oberfläche, Ton und Mehrspieler. Was fertig, offen und unklar ist: [docs/status.md](docs/status.md).
 
 ## Originaldaten
 
@@ -47,7 +47,7 @@ o1602-tool render-world "Szenes/Das Atoll.szs" w.png  # ganze Weltkarte zeichnen
 
 Kartenbetrachter (braucht SDL3, `-DO1602_BUILD_GAME=ON`): `open1602 --scenario "Szenes/Das Atoll.szs"`
 oder `open1602 --savegame NAME`,
-Steuerung siehe [docs/setup-arch.md](docs/setup-arch.md#kartenbetrachter-open1602-sdl3).
+Steuerung siehe [docs/setup-arch.md](docs/setup-arch.md#map-viewer-open1602-sdl3).
 
 ## Projektstruktur
 
@@ -56,7 +56,7 @@ Steuerung siehe [docs/setup-arch.md](docs/setup-arch.md#kartenbetrachter-open160
 | `engine/` | Engine-Module (`core`, `assets`, `sim`, `render`, `platform`, `app`; später `audio`, `ui`, `net`) |
 | `tools/` | `o1602-tool` (C++) und Python-Prototypen |
 | `tests/` | Unit-Tests und Tests gegen Originaldaten |
-| `docs/` | [Plan](docs/00-plan.md), [Stand](docs/stand.md), [Dateiformate](docs/formats/README.md), [Reverse Engineering](docs/re/README.md), [Architektur](docs/architecture/README.md) |
+| `docs/` | [Plan](docs/00-plan.md), [Stand](docs/status.md), [Dateiformate](docs/formats/README.md), [Reverse Engineering](docs/re/README.md), [Architektur](docs/architecture/README.md) |
 | `re/` | Symboltabellen, Analyse-Skripte, Notizen |
 
 ## Mitmachen

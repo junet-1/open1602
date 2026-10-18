@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Droughts (docs/re/growth.md#dürre).
+// Droughts (docs/re/growth.md#drought).
 
 #include "../test_framework.hpp"
 

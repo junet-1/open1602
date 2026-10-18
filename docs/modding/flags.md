@@ -1,67 +1,67 @@
-# Spielerflaggen und Farben
+# Player flags and colours
 
-Alle Spielerflaggen sind **eine** Flagge, die die Engine in der Farbe des Spielers einfärbt. Eine neue
-Farbe braucht deshalb keine Grafik: Im Flaggenmenü wählt man eine der zwölf vorgegebenen Farben
-(`render::BannerTable::kDefaultColors`) oder eine beliebige RGB-Farbe. So wächst die Zahl der möglichen
-Spieler ohne neue Bilder ([ADR 0007](../architecture/0007-extensibility-and-modding.md), Abschnitt 4).
+All player flags are **one** flag that the engine tints in the player's colour. A new
+colour therefore needs no graphics: in the flag menu you choose one of the twelve preset colours
+(`render::BannerTable::kDefaultColors`) or any RGB colour. This way the number of possible
+players grows without new images ([ADR 0007](../architecture/0007-extensibility-and-modding.md), section 4).
 
-**Stand:** Umgesetzt sind das Einfärben (`render/flag_tint.hpp`), die zwölf Vorgaben und die Vorlage aus
-der weißen Originalflagge (`render::BannerTable`), eigene Bilder je Banner (`FlagStyle::Sprites`, so für
-den Totenkopf) und Einheiten in Spielerfarbe (`render/unit_tint.hpp`). Noch offen: das Flaggenmenü und
-die freie RGB-Farbe (Oberfläche; bis dahin `--colour 0–3` beim neuen Spiel im Betrachter) sowie eigene Flaggen als PNG
-(Inhaltspakete, Meilenstein M8).
+**Status:** Done are the tinting (`render/flag_tint.hpp`), the twelve presets and the template from
+the white original flag (`render::BannerTable`), custom images per banner (`FlagStyle::Sprites`, used for
+the skull) and units in player colour (`render/unit_tint.hpp`). Still open: the flag menu and
+the free RGB colour (interface; until then `--colour 0–3` for a new game in the viewer) as well as custom flags as PNG
+(content packages, milestone M8).
 
-## Wie gefärbt wird
+## How tinting works
 
-Jedes Pixel der Flaggenvorlage mit **R = G = B** (reines Grau) gehört zum Tuch und nimmt die
-Spielerfarbe an. Sein Grauwert ist die Schattierung:
+Every pixel of the flag template with **R = G = B** (pure grey) belongs to the cloth and takes on the
+player colour. Its grey value is the shading:
 
-| Grauwert | Ergebnis |
+| Grey value | Result |
 |---|---|
-| 128 | genau die Spielerfarbe |
-| 0 … 127 | dunkler, linear bis Schwarz: `Farbe · Grau / 128` |
-| 129 … 255 | heller, linear bis Weiß: `Farbe + (255 − Farbe) · (Grau − 128) / 127` |
+| 128 | exactly the player colour |
+| 0 … 127 | darker, linearly down to black: `colour · grey / 128` |
+| 129 … 255 | lighter, linearly up to white: `colour + (255 − colour) · (grey − 128) / 127` |
 
-Alle anderen Pixel – farbig oder durchsichtig – bleiben unverändert. Damit lassen sich Mast, Rand,
-Wappen oder Schrift in festen Farben zeichnen.
+All other pixels – coloured or transparent – stay unchanged. This lets you draw the mast, border,
+coat of arms or lettering in fixed colours.
 
-## Eine eigene Flagge zeichnen
+## Drawing your own flag
 
-- **Bilder:** 8 Phasen des Wehens, je Zoomstufe ein Satz (volle Größe wie `gfx/ship.bsh` 216–223,
-  89 × 30 Pixel; halbe und Viertelgröße für die anderen Stufen). Die Phasen laufen mit 90 ms je Bild.
-- **Ankerpunkt:** Die Engine zentriert das Bild waagrecht über dem Mast. Auf Gebäuden liegt die
-  Unterkante des Bildes in der Höhe `Fahnoffs[2]` der Flaggenfigur, auf Schiffen hängt die Oberkante
-  von der Mastspitze herab ([figures.md](../re/figures.md), [rendering.md](../re/rendering.md) §6).
-  Das Tuch beginnt in den Originalbildern knapp rechts der Mitte (Spalte 46 von 89, Zeile 6); eine
-  eigene Flagge sollte denselben Ansatzpunkt haben, sonst schwebt sie neben dem Mast.
-- **Tuch in Grautönen:** Grundton 128, Schatten darunter, Glanzlichter darüber. Mit einem
-  Grauverlauf statt einer festen Farbe zeichnen, dann sieht die Flagge in jeder Spielerfarbe richtig aus.
-- **Feste Teile in Farbe:** Ein Wappen, das nicht eingefärbt werden soll, darf kein reines Grau
-  enthalten. Für graue feste Teile (z. B. einen silbernen Rand) genügt eine minimale Abweichung, etwa
+- **Images:** 8 phases of waving, one set per zoom level (full size like `gfx/ship.bsh` 216–223,
+  89 × 30 pixels; half and quarter size for the other levels). The phases run at 90 ms per frame.
+- **Anchor point:** The engine centres the image horizontally above the mast. On buildings the
+  bottom edge of the image lies at the height `Fahnoffs[2]` of the flag figure; on ships the top edge hangs
+  down from the masthead ([figures.md](../re/figures.md), [rendering.md](../re/rendering.md) §6).
+  In the original images the cloth starts just right of centre (column 46 of 89, row 6); a
+  custom flag should have the same attachment point, otherwise it floats next to the mast.
+- **Cloth in greys:** base tone 128, shadows below, highlights above. Draw with a
+  grey gradient instead of a fixed colour, and the flag will look right in every player colour.
+- **Fixed parts in colour:** A coat of arms that should not be tinted must not contain pure grey.
+  For grey fixed parts (e.g. a silver border) a minimal deviation is enough, such as
   (120, 120, 121).
-- **Format:** PNG mit Alphakanal; Pixel mit Alpha 0 sind durchsichtig. Halbtransparenz wird nicht
-  unterstützt, damit die Flagge zum Pixelstil des Spiels passt.
+- **Format:** PNG with an alpha channel; pixels with alpha 0 are transparent. Semi-transparency is not
+  supported, so that the flag matches the pixel style of the game.
 
-Ein Mod kann außerdem für einzelne Banner eigene, fertig gefärbte Bilder liefern (`FlagStyle::Sprites`),
-wenn ein Motiv nicht einfärbbar sein soll – so behalten die Piraten ihren Totenkopf.
+A mod can also supply its own finished, pre-coloured images for individual banners (`FlagStyle::Sprites`)
+if a motif should not be tintable – this is how the pirates keep their skull.
 
-Dieselben Regeln sollen für eigene Einheiten in Spielerfarbe gelten (Soldaten, Reiter, Kanoniere): Tuch
-in reinem Grau, alles andere mit mindestens einem Wert Abweichung. Für die Originaleinheiten erzeugt
-Open1602 die Vorlage schon jetzt selbst ([figures.md](../re/figures.md#soldaten-und-spielerfarben)).
+The same rules are meant to apply to custom units in player colour (soldiers, cavalry, cannoneers): cloth
+in pure grey, everything else deviating by at least one value. For the original units
+Open1602 already generates the template itself ([figures.md](../re/figures.md#soldiers-and-player-colours)).
 
-## Die Originalflaggen
+## The original flags
 
-Das Original hat für Rot, Blau, Gelb und Weiß je eigene, von Hand gerasterte Bilder (`ship.bsh`
-192–223), dazu den Totenkopf der Piraten (224–231). Open1602 macht aus der weißen Flagge die Vorlage:
-Jedes Pixel bekommt den Grauwert 0,48 · Helligkeit + 5. Die Faktoren und die Grundfarben der vier
-Banner (Rot 216/51/8, Blau 0/0/241, Gelb 255/219/57, Weiß 255/255/255) sind an die Originalbilder
-angepasst; die mittlere Abweichung liegt bei etwa 15 von 255 je Farbkanal, weil die Originale mit
-256 Farben gerastert sind. Wer die Originalbilder möchte, schaltet sie mit `--original-flags` ein
+The original has separate, hand-dithered images for red, blue, yellow and white (`ship.bsh`
+192–223), plus the pirates' skull (224–231). Open1602 makes the template from the white flag:
+every pixel gets the grey value 0.48 · brightness + 5. The factors and the base colours of the four
+banners (red 216/51/8, blue 0/0/241, yellow 255/219/57, white 255/255/255) are fitted to the original
+images; the mean deviation is about 15 of 255 per colour channel, because the originals are dithered with
+256 colours. Anyone who wants the original images switches them on with `--original-flags`
 (`render::BannerOptions::original_player_flags`).
 
-## Farben wählen
+## Choosing colours
 
-Die zwölf Vorgaben sind auf Land, Wasser und der Minikarte gut zu unterscheiden: Rot, Blau, Gelb,
-Weiß (wie im Original), Grün, Orange, Lila, Türkis, Rosa, Hellblau, Braun, Hellgrün. Schwarz fehlt,
-weil die Piraten schwarz fliegen und sehr dunkle Flaggen auf den Dächern kaum zu sehen sind. Das
-Menü soll später bei freien RGB-Farben vor zu ähnlichen oder zu dunklen Farben warnen.
+The twelve presets are easy to tell apart on land, on water and on the minimap: red, blue, yellow,
+white (as in the original), green, orange, purple, turquoise, pink, light blue, brown, light green. Black is missing
+because the pirates fly black and very dark flags are hard to see on the roofs. Later, the
+menu is meant to warn about free RGB colours that are too similar or too dark.

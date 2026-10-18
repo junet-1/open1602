@@ -1,8 +1,8 @@
 # engine/platform
 
-Plattformschicht auf SDL3: Fenster, Renderer, Zeitgeber; später Eingabe-Abbildung und Dateidialoge.
-Einzige Stelle mit Betriebssystem-Abhängigkeiten ([ADR 0005](../../docs/architecture/0005-module-structure.md)).
-Alles ist RAII; SDL-Typen gelangen nie nach `sim` oder `assets`.
+Platform layer on SDL3: window, renderer, timers; later input mapping and file dialogs.
+The only place with operating system dependencies ([ADR 0005](../../docs/architecture/0005-module-structure.md)).
+Everything is RAII; SDL types never reach `sim` or `assets`.
 
-Das SDL3-Zeichen-Backend liegt in `engine/render/sdl` (eigenes Ziel `o1602::render_sdl`), damit
-Werkzeuge und Tests ohne SDL auskommen.
+The SDL3 drawing backend lives in `engine/render/sdl` (its own target `o1602::render_sdl`), so that
+tools and tests work without SDL.
