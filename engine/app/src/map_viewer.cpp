@@ -22,6 +22,7 @@
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/growth.hpp"
+#include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
 
@@ -1866,6 +1867,7 @@ void MapViewer::load_options() {
             m_sound->set_settings(m_app_settings.audio);
         }
     }
+    apply_language();
     m_ambient.set_config(ambient_config());
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
@@ -1883,6 +1885,19 @@ void MapViewer::load_options() {
         menu->set_slots(m_slots);
         menu->set_name(m_app_settings.player_name);
     }
+}
+
+void MapViewer::apply_language() {
+    std::string code = m_options.language;
+    if (code.empty() && m_app_settings.language != "auto") {
+        code = m_app_settings.language;
+    }
+    if (code.empty()) {
+        const auto texts = assets::TextTable::load(m_game);
+        code = ui::installation_language(m_game, texts ? &texts.value() : nullptr);
+    }
+    ui::set_language(code, data_folder() / "locale");
+    std::fprintf(stderr, "language: %s\n", ui::current_language().c_str());
 }
 
 void MapViewer::save_settings() {
@@ -1981,7 +1996,8 @@ void MapViewer::apply_options() {
     for (const OptionsEvent& e : m_hud->take_option_events()) {
         switch (e.kind) {
             case OptionsEvent::Kind::Save: {
-                const std::string name = e.text.empty() ? "Spielstand " + std::to_string(e.value + 1) : e.text;
+                const std::string name =
+                    e.text.empty() ? ui::tr("save.default_name", {std::to_string(e.value + 1)}) : e.text;
                 const auto status = save_game(slot_file(save_folder(), e.value));
                 if (!status) {
                     std::fprintf(stderr, "save: %s\n", status.error().message.c_str());
@@ -2021,7 +2037,7 @@ void MapViewer::apply_options() {
                 // The original leaves at once (M1 in the report); Open1602 asks first.
                 if (m_options.confirm) {
                     m_quit_pending = true;
-                    m_hud->ask("Spiel beenden?\nDer Stand wird als \x84lastgame\x93 gesichert.");
+                    m_hud->ask(ui::tr("dialog.quit_game"));
                 } else {
                     m_quit_pending = true;
                     Hud::Action yes{Hud::Action::Kind::Answer};
@@ -2177,7 +2193,7 @@ void MapViewer::apply_menu() {
                 // The original quits at once (U-036).
                 m_quit_pending = true;
                 if (m_options.confirm) {
-                    m_hud->ask("Anno 1602 beenden?");
+                    m_hud->ask(ui::tr("dialog.quit_anno"));
                 } else {
                     Hud::Action yes{Hud::Action::Kind::Answer};
                     yes.step = 1;

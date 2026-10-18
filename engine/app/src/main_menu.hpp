@@ -88,8 +88,8 @@ public:
     void type(std::string_view text);
     /// Backspace 8, Enter 13 (confirms: NameEntered), Escape 27 (back to the choice of the game).
     std::optional<MenuEvent> key(int key);
-    /// The name the field shows when none was typed yet.
-    static constexpr std::string_view kDefaultName = "Namenlos";
+    /// The name the field shows when none was typed yet ("Namenlos" in German).
+    [[nodiscard]] static const std::string& default_name();
 
 private:
     enum class ListMode : std::uint8_t { New, Load };

@@ -1,0 +1,91 @@
+# Open1602's own texts in German (Deutsch). Keys missing here are taken from en.lang.
+# Format: docs/modding/languages.md.
+
+language.name = Deutsch
+language.detect = Roter Spieler
+
+# Fragen
+dialog.yes = Ja
+dialog.no = Nein
+dialog.quit_game = Spiel beenden?\nDer Stand wird als „lastgame“ gesichert.
+dialog.quit_anno = Anno 1602 beenden?
+dialog.disband_unit = Einheit auflösen?\nDas kostet {1} Taler.
+dialog.break_peace = Friedensvertrag mit {1} brechen?\nDas bedeutet Krieg.
+dialog.declare_war = Ein Angriff bedeutet Krieg mit {1}.\nKrieg erklären?
+dialog.scuttle_ship = Schiff „{1}“ versenken?\nDie Ladung geht verloren.
+
+# Menüs und Spielstände
+menu.part = Teil {1}
+menu.default_name = Namenlos
+save.default_name = Spielstand {1}
+
+# Tastenübersicht (F1)
+keys.title = Tastenbelegung (Klick oder F1 schließt)
+keys.heading.general = Allgemein
+keys.heading.building = Beim Bauen
+keys.heading.units = Schiffe und Einheiten ausgewählt
+keys.modifier.ctrl = Strg+
+keys.modifier.shift = Umschalt+
+keys.name.space = Leertaste
+keys.name.delete = Entf
+keys.name.page_up = Bild auf
+keys.name.page_down = Bild ab
+keys.name.home = Pos1
+keys.name.up = Pfeil hoch
+keys.name.down = Pfeil runter
+keys.name.left = Pfeil links
+keys.name.right = Pfeil rechts
+keys.name.return = Eingabe
+keys.name.print_screen = Druck
+
+keys.action.scroll_up = Karte nach oben
+keys.action.scroll_down = Karte nach unten
+keys.action.scroll_left = Karte nach links
+keys.action.scroll_right = Karte nach rechts
+keys.action.rotate_view_left = Ansicht nach links drehen
+keys.action.rotate_view_right = Ansicht nach rechts drehen
+keys.action.zoom_in = Heranzoomen
+keys.action.zoom_out = Herauszoomen
+keys.action.jump_to_message = Zur letzten Meldung
+keys.action.centre_on_selection = Zur Auswahl / zum Kontor
+keys.action.pause = Pause
+keys.action.speed_up = Schneller
+keys.action.speed_down = Langsamer
+keys.action.quick_save = Schnellspeichern
+keys.action.quick_load = Schnellladen
+keys.action.game_menu = Spielmenü
+keys.action.screenshot = Bildschirmfoto
+keys.action.help = Diese Übersicht
+keys.action.cancel = Abbrechen, zurück
+keys.action.mode_build = Bauen
+keys.action.mode_military = Kampf
+keys.action.mode_info = Status
+keys.action.mode_options = Optionen
+keys.action.ship_list = Schiffsliste
+keys.action.city_list = Städteliste
+keys.action.diplomacy = Diplomatie
+keys.action.rotate_building = Gebäude drehen
+keys.action.pick_building = Gebäude unter der Maus wählen
+keys.action.demolish_tool = Abreißen
+keys.action.next_building = Nächstes Gebäude
+keys.action.group_store = Gruppe festlegen
+keys.action.group_add = Zur Gruppe hinzufügen
+keys.action.group_recall = Gruppe wählen (zweimal: hin)
+keys.action.next_idle_ship = Nächstes untätiges Schiff
+keys.action.next_idle_unit = Nächste untätige Einheit
+keys.action.next_kind_in_selection = Art in der Auswahl wechseln
+keys.action.attack_move = Angriff (Ziel klicken)
+keys.action.stop = Halt
+keys.action.hold_position = Stellung halten
+keys.action.patrol = Patrouille (Ziel klicken)
+keys.action.formation = Formation
+keys.action.scatter = Verteilen
+keys.action.white_flag = Weiße Flagge
+keys.action.explore = Insel erkunden
+keys.action.trade = Handeln / Umladen
+keys.action.edit_route = Handelsroute
+keys.action.delete = Auflösen / versenken
+keys.action.pixel_scale_up = Größere Pixel
+keys.action.pixel_scale_down = Kleinere Pixel
+keys.action.show_owners = Besitz zeigen
+keys.action.quit = Beenden
