@@ -50,6 +50,7 @@ Teile hinzufügen, ohne ältere Spielstände ungültig zu machen.
 | `MISN` | die Aufträge (Ziele, Verlustbedingungen, Werte, Text, die beim Start festgehaltenen Inseln der Inselziele) und das Spielende (Zeit, Sieger) ([missions.md](../re/missions.md)) |
 | `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | Schiffe mit Kurs, Route und Ladung, Werftaufträge, Handelseinstellungen; Soldaten, Türme, Gebäudeschaden, Schüsse im Flug, Burgplätze; Diplomatie; Inselepochen; Erkunden |
 | `SIMU` | Uhren der Simulation, alle laufenden Figuren und der Zustand der Computergegner |
+| `ORIG` | die Datei des Originals, aus der das Spiel stammt (Spielstand, Szenario oder die Vorlage eines neuen Spiels), als Chunks ohne die Inselfelder (`INSELHAUS`), etwa 12 KB gepackt. Nur für den Export als `.GAM`: Er nimmt daraus die Bytes, die Open1602 nicht führt, genau wie bei einem Spiel, das direkt aus der Datei geladen wurde. Fehlt der Abschnitt, schreibt der Export Vorgaben wie ein neues Spiel |
 
 Die Einzelheiten der Abschnitte ab `RULE` stehen in [o1602-chunk.md](o1602-chunk.md).
 
@@ -83,8 +84,8 @@ macht den Spielstand unlesbar (statt falscher Gebäude).
   255 Inseln, eine Insel höchstens 255 × 255 Felder (so weit reichen auch Weltengenerator und Vorlagen).
 - Befehle, die zwischen zwei Takten noch nicht ausgeführt sind, werden nicht gespeichert (gespeichert
   wird zwischen den Takten).
-- Ein aus einem `.o1602` geladenes Spiel kennt die Datei des Originals nicht mehr, aus der es einmal kam.
-  Exportiert man es als `.GAM`, schreibt Open1602 Steuerung, Farbe und Name der Spieler aus dem Spiel;
-  die Felder, die Open1602 nicht führt (Missionsziele, Teile von `TIMERS`, unbekannte Bytes der
-  Inselköpfe), sind 0. Ob das Original solche Dateien lädt, ist nicht geprüft (Testdatei
-  `ausgaben/Open1602Export.gam`, 18.10.2026).
+- Der Export als `.GAM` eines aus einem `.o1602` geladenen Spiels gleicht dem eines direkt geladenen
+  Byte für Byte (Test über game00 und game10), bis auf die sechs Bits unbekannter Bedeutung je Inselfeld
+  (`INSELHAUS` +4 Bits 26–31), die `ORIG` nicht mitnimmt. Ein Spielstand ohne `ORIG` (ältere
+  Fassung) exportiert Spieler und Inselvorlagen richtig, den Rest mit Vorgaben; der erste Export
+  ohne beides stürzte im Original nach zehn Sekunden ab (alle Spieler rot, Inselvorlagen 0).

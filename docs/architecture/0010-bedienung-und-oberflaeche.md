@@ -1,6 +1,6 @@
 # 0010 – Bedienung und Oberfläche
 
-Status: angenommen · 18.10.2026 (Tastenbelegung: Vorschlag, wartet auf Rückmeldung)
+Status: angenommen · 18.10.2026 (Tastenbelegung vom Projektinhaber als Standard bestätigt)
 
 ## Kontext
 Die Oberfläche des Originals ist nachgebaut: Seitenleiste, Baumenü, die Fenster der Auswahl. Ihre
@@ -33,7 +33,7 @@ Informationen Platz finden und die Bedienung heutigen Echtzeitstrategiespielen f
 7. **Videos der Meldungen laufen im Fenster der Minikarte**, das Spiel läuft weiter; ein Klick auf das
    Video beendet es. Intro, Abspann, Sieg und Niederlage bleiben bildschirmfüllend.
 
-## Tastenbelegung (Vorschlag)
+## Tastenbelegung (Standard)
 
 **Kamera und Spiel**
 

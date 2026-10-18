@@ -160,15 +160,54 @@ TEST_CASE("data: the computers of a new endless game found their cities and buil
     CHECK(computers == 3);
 }
 
-TEST_CASE("data: a game loaded from Open1602's savegame exports its players to a .GAM") {
+TEST_CASE("data: a game loaded from Open1602's savegame exports the same .GAM as the original file") {
+    const Setup s = setup_or_skip();
+    // Every savegame of the installation: the export through the own format loses nothing.
+    std::size_t tested = 0;
+    for (const char* name : {"SAVEGAME/game00.gam", "SAVEGAME/game10.gam"}) {
+        const auto path = s.game.resolve(name);
+        if (!path) {
+            continue;
+        }
+        auto file = assets::ChunkFile::load(*path);
+        REQUIRE(file.ok());
+        auto world = sim::load_world(*file, s.buildings, s.game);
+        REQUIRE(world.ok());
+        auto direct = sim::write_savegame(*world, s.buildings);
+        REQUIRE(direct.ok());
+        auto own = sim::write_game(*world, s.buildings);
+        REQUIRE(own.ok());
+        auto loaded = sim::read_game(*own, s.buildings);
+        REQUIRE(loaded.ok());
+        auto exported = sim::write_savegame(*loaded, s.buildings);
+        REQUIRE(exported.ok());
+        // Open1602's chunk at the end carries the save's time stamp of nothing: compare the
+        // original's chunks.
+        auto a = assets::ChunkFile::from_bytes(*direct);
+        auto b = assets::ChunkFile::from_bytes(*exported);
+        REQUIRE(a.ok());
+        REQUIRE(b.ok());
+        REQUIRE(a->chunks().size() == b->chunks().size());
+        for (std::size_t i = 0; i < a->chunks().size(); ++i) {
+            const auto& ca = a->chunks()[i];
+            const auto& cb = b->chunks()[i];
+            CHECK(ca.name == cb.name);
+            const auto pa = a->payload(ca);
+            const auto pb = b->payload(cb);
+            if (ca.name != "O1602") {
+                CHECK(std::equal(pa.begin(), pa.end(), pb.begin(), pb.end()));
+            }
+        }
+        ++tested;
+    }
+    CHECK(tested >= 1);
+}
+
+TEST_CASE("data: a world without its original file exports its players to a .GAM") {
     const Setup s = setup_or_skip();
     sim::World world = new_game(s, 7);
-    auto saved = sim::write_game(world, s.buildings);
-    REQUIRE(saved.ok());
-    auto loaded = sim::read_game(*saved, s.buildings);
-    REQUIRE(loaded.ok());
-    // No source file any more: controller, colour and name come from the players.
-    auto exported = sim::write_savegame(*loaded, s.buildings);
+    world.set_source(nullptr);  // as a game from an older .o1602 without the original's bytes
+    auto exported = sim::write_savegame(world, s.buildings);
     REQUIRE(exported.ok());
     auto file = assets::ChunkFile::from_bytes(*exported);
     REQUIRE(file.ok());
@@ -183,6 +222,12 @@ TEST_CASE("data: a game loaded from Open1602's savegame exports its players to a
         }
         CHECK(sim::banner_from_original(got.color) == want.banner);
         CHECK(got.name == want.name);
+    }
+    // The islands keep their templates.
+    auto islands = assets::load_islands(*file);
+    REQUIRE(islands.ok());
+    for (std::size_t i = 0; i < islands->size(); ++i) {
+        CHECK((*islands)[i].header.template_number == world.islands()[i].header.template_number);
     }
 }
 
@@ -221,6 +266,9 @@ TEST_CASE("data: a game with computer players saved in between goes on exactly t
     sim::Simulation c(*reloaded, s.buildings, s.figures);
     run_minutes(a, 2);
     run_minutes(c, 2);
+    // The original's file each came from differs (ORIG); the game is what is compared.
+    world.set_source(nullptr);
+    reloaded->set_source(nullptr);
     auto third = sim::write_game(world, s.buildings, &a, sim::SaveOptions{false});
     auto fourth = sim::write_game(*reloaded, s.buildings, &c, sim::SaveOptions{false});
     REQUIRE(third.ok());

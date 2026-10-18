@@ -9,6 +9,7 @@
 #include "save_sections.hpp"
 
 #include "o1602/assets/chunk_file.hpp"
+#include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/state_io.hpp"
@@ -60,6 +61,9 @@ constexpr std::uint32_t kMeta = tag("META");
 constexpr std::uint32_t kMissions = tag("MISN");
 constexpr std::uint32_t kPlayerState = tag("PSTA");
 constexpr std::uint32_t kCityState = tag("CSTA");
+/// The original's file the game came from, without the island tiles (Open1602's own savegame only):
+/// the export to a .GAM takes the bytes Open1602 does not model from it (savegame_writer.cpp).
+constexpr std::uint32_t kOrigin = tag("ORIG");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -2276,6 +2280,17 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kArmy, [&](Out& o) { write_army(o, world); });
     section(out, kDiplomacy, [&](Out& o) { write_diplomacy(o, world); });
     section(out, kExplored, [&](Out& o) { write_explored(o, world); });
+    if (tiles == TileMode::Full && world.source() != nullptr) {
+        section(out, kOrigin, [&](Out& o) {
+            assets::ChunkWriter chunks;
+            for (const assets::Chunk& c : world.source()->chunks()) {
+                if (c.name != "INSELHAUS") {
+                    chunks.add(c.name, world.source()->payload(c));
+                }
+            }
+            o.bytes(chunks.bytes());
+        });
+    }
     if (simulation != nullptr) {
         section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
     } else if (!world.simulation_state().empty()) {
@@ -2348,6 +2363,7 @@ core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, 
 core::Status apply_sections(World& world, const assets::BuildingTable& buildings,
                             std::span<const std::uint8_t> sections) {
     Decoded d;
+    core::Bytes origin;
     bool damaged = false;
     const bool ok = for_each_section(sections, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
         core::ByteReader sr(body);
@@ -2428,6 +2444,9 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
             case kSimulation:
                 d.simulation = std::vector<std::uint8_t>(body.begin(), body.end());
                 break;
+            case kOrigin:
+                origin.assign(body.begin(), body.end());
+                break;
             default:
                 return true;  // META, MAPW (read before), or a part of a later version
         }
@@ -2438,7 +2457,15 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
         return make_error(ErrorCode::InvalidFormat,
                           damaged ? "O1602: damaged section" : "O1602: damaged section header");
     }
-    return apply_decoded(world, d);
+    if (auto status = apply_decoded(world, d); !status) {
+        return status;
+    }
+    if (!origin.empty() && world.source() == nullptr) {
+        if (auto file = assets::ChunkFile::from_bytes(std::move(origin))) {
+            world.set_source(std::make_shared<const assets::ChunkFile>(std::move(file).value()));
+        }
+    }
+    return core::Ok{};
 }
 
 }  // namespace detail

@@ -33,6 +33,7 @@ Spielstände von Open1602 laden kann, ist ihm nicht wichtig (18.10.2026).
   überspringen sie.
 - Spielstände sind etwa ein Viertel so groß.
 - Bestehende `.GAM`-Stände von Open1602 laden weiter (mit ihrem Zusatz-Chunk genau wie bisher).
-- Ein aus einem `.o1602` geladenes Spiel hat keine Quelldatei mehr; ein Export füllt die Felder, die
-  Open1602 nicht führt, mit 0 (im Original ungeprüft).
+- Ein aus einem `.o1602` geladenes Spiel bringt seine Quelldatei ohne die Inselfelder im Abschnitt
+  `ORIG` mit (etwa 12 KB), damit der Export als `.GAM` dieselben Bytes schreibt wie vorher (ergänzt
+  18.10.2026, nachdem ein Export ohne sie im Original abstürzte).
 - Später kommt in den Kopf oder einen Abschnitt die Liste der Inhaltspakete mit Versionen (ADR 0007).

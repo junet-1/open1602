@@ -57,6 +57,7 @@
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/new_game.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -82,6 +83,7 @@ int usage() {
         "  o1602-tool bsh-export <file.bsh|.zei> <outdir> [--palette FILE] [--sheet] [--first N] [--count N]\n"
         "  o1602-tool islands    <file.scp|.szs|.szm|.gam>\n"
         "  o1602-tool savegames                               (names from Game.dat, needs ANNO1602_DIR)\n"
+        "  o1602-tool export    <in.gam|in.o1602> <out.gam> [--via-own]  (needs ANNO1602_DIR)\n"
         "  o1602-tool new-world <out.gam> [--level 0-3] [--seed N] [--world WxH] [--players N]\n"
         "                       [--island-count C] [--villages C] [--volcano-islands C] [--island-sizes S]\n"
         "                       [--together]   (an own world as a new game; C none|few|normal|many,\n"
@@ -935,6 +937,63 @@ int cmd_new_world(const Args& args) {
     return 0;
 }
 
+/// A savegame of the original or of Open1602 exported as a .GAM; with --via-own first through
+/// Open1602's own format (as a game saved and loaded again), to see what the export loses.
+int cmd_export(const Args& args) {
+    if (args.positional.size() != 2) {
+        return usage();
+    }
+    auto game = assets::GameDirectory::from_environment();
+    if (!game) {
+        return fail(game.error());
+    }
+    auto buildings = assets::BuildingTable::load(*game);
+    if (!buildings) {
+        return fail(buildings.error());
+    }
+    auto bytes = core::read_file(fs::path(args.positional[0]));
+    if (!bytes) {
+        return fail(bytes.error());
+    }
+    std::vector<std::string> warnings;
+    const auto load = [&]() -> core::Result<sim::World> {
+        if (sim::is_open1602_save(*bytes)) {
+            return sim::read_game(*bytes, *buildings, &warnings);
+        }
+        auto file = assets::ChunkFile::from_bytes(*bytes);
+        if (!file) {
+            return file.error();
+        }
+        return sim::load_world(*file, *buildings, *game, &warnings);
+    };
+    core::Result<sim::World> world = load();
+    if (!world) {
+        return fail(world.error());
+    }
+    if (args.flag("--via-own")) {
+        auto own = sim::write_game(*world, *buildings);
+        if (!own) {
+            return fail(own.error());
+        }
+        world = sim::read_game(*own, *buildings, &warnings);
+        if (!world) {
+            return fail(world.error());
+        }
+    }
+    for (const auto& text : warnings) {
+        std::fprintf(stderr, "warning: %s\n", text.c_str());
+    }
+    auto out = sim::write_savegame(*world, *buildings);
+    if (!out) {
+        return fail(out.error());
+    }
+    if (auto status = core::write_file(fs::path(args.positional[1]), *out); !status) {
+        return fail(status.error());
+    }
+    std::printf("-> %s\n", std::string(args.positional[1]).c_str());
+    return 0;
+}
+
 /// 16-bit PCM as a RIFF WAVE file.
 std::vector<std::uint8_t> wave_bytes(const audio::Pcm& pcm) {
     std::vector<std::uint8_t> out;
@@ -1070,6 +1129,9 @@ int main(int argc, char** argv) {
     }
     if (command == "new-world") {
         return cmd_new_world(args);
+    }
+    if (command == "export") {
+        return cmd_export(args);
     }
     return usage();
 }

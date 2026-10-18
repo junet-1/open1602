@@ -393,8 +393,25 @@ private:
         const WorldIsland& island = m_world.islands()[i];
         const assets::IslandHeader& h = island.header;
         core::Bytes r(kIslandHeaderSize, 0);
-        std::copy_n(h.raw.begin(), std::min(h.raw.size(), r.size()), r.begin());
+        if (!h.raw.empty()) {
+            std::copy_n(h.raw.begin(), std::min(h.raw.size(), r.size()), r.begin());
+        } else {
+            // A game from Open1602's own savegame: the bytes of the original's file it came from.
+            for (const auto& raw : m_source.records("INSEL5", kIslandHeaderSize)) {
+                if (!raw.empty() && raw[0] == h.number) {
+                    std::copy_n(raw.begin(), std::min(raw.size(), r.size()), r.begin());
+                    break;
+                }
+            }
+        }
         r[0] = h.number;
+        // The island template the original builds the island from (+0x60..+0x65).
+        if (h.chunk_name == "INSEL5" || h.raw.empty()) {
+            put16(r, 0x60, h.template_number);
+            put16(r, 0x62, h.template_size);
+            r[0x64] = h.climate;
+            r[0x65] = h.stored_complete ? 1 : 0;
+        }
         r[1] = static_cast<std::uint8_t>(island.map.width());
         r[2] = static_cast<std::uint8_t>(island.map.height());
         r[3] = static_cast<std::uint8_t>((r[3] & ~5U) | (island.drought.curse_pending ? 1U : 0U) |
@@ -852,7 +869,11 @@ private:
             if (player != nullptr && p >= raw.size()) {
                 // No record of a source file (a game loaded from Open1602's own savegame or made
                 // new): controller, colour and name from the player.
+                // As a new game sets them (0x00477520): in the session, nobody blamed, no mission.
                 r[4] = static_cast<std::uint8_t>(original_kind(*player));
+                r[6] = 1;
+                r[0x0C] = 0xFF;
+                std::fill_n(r.begin() + 0x3C, 4, std::uint8_t{0xFF});
                 r[7] = static_cast<std::uint8_t>(std::min<BannerId>(player->banner, assets::kPlayerColorCount - 1));
                 const std::size_t n = std::min<std::size_t>(player->name.size(), 0x3F);
                 std::copy_n(player->name.begin(), n, r.begin() + 0x3C0);
