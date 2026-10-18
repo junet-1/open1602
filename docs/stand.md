@@ -121,7 +121,8 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 ### 2.3 Entscheidungen, die noch anstehen
 
 - ~~Speichern über die Originalgrenzen~~: entschieden (18.10.2026), eigenes Format `.o1602` (ADR 0009).
-- **U-013** (Erkunden an Werft und Piratenkontor): mit der Oberfläche noch einmal ansehen.
+- ~~U-013~~ (Erkunden an Werft und Piratenkontor): entschieden (18.10.2026), die Oberfläche bietet es an (ADR 0010).
+- **Tastenbelegung** (ADR 0010): Vorschlag liegt vor, Rückmeldung steht aus.
 - **S-035** (Markt-Abriss zerstört Häuser): beibehalten, Warnung mit der Oberfläche.
 - ~~Dringende Waren und Turm-Kostenklasse~~: erledigt (18.10.2026).
 

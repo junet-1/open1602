@@ -160,6 +160,32 @@ TEST_CASE("data: the computers of a new endless game found their cities and buil
     CHECK(computers == 3);
 }
 
+TEST_CASE("data: a game loaded from Open1602's savegame exports its players to a .GAM") {
+    const Setup s = setup_or_skip();
+    sim::World world = new_game(s, 7);
+    auto saved = sim::write_game(world, s.buildings);
+    REQUIRE(saved.ok());
+    auto loaded = sim::read_game(*saved, s.buildings);
+    REQUIRE(loaded.ok());
+    // No source file any more: controller, colour and name come from the players.
+    auto exported = sim::write_savegame(*loaded, s.buildings);
+    REQUIRE(exported.ok());
+    auto file = assets::ChunkFile::from_bytes(*exported);
+    REQUIRE(file.ok());
+    auto players = assets::load_players(*file);
+    REQUIRE(players.ok());
+    REQUIRE(players->size() >= world.players().size());
+    for (std::size_t p = 0; p < world.players().size(); ++p) {
+        const sim::Player& want = world.players()[p];
+        const assets::PlayerRecord& got = (*players)[p];
+        if (want.status == sim::PlayerStatus::Playing) {
+            CHECK(sim::role_from_original(got.kind) == want.role);
+        }
+        CHECK(sim::banner_from_original(got.color) == want.banner);
+        CHECK(got.name == want.name);
+    }
+}
+
 TEST_CASE("data: a game with computer players saved in between goes on exactly the same") {
     const Setup s = setup_or_skip();
     sim::World world = new_game(s, 11);

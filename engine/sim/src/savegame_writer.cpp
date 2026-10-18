@@ -820,6 +820,25 @@ private:
 
     // ---- Players, ships, soldiers ------------------------------------------------------------------
 
+    [[nodiscard]] static assets::PlayerKind original_kind(const Player& p) noexcept {
+        if (p.status == PlayerStatus::Absent) {
+            return assets::PlayerKind::Absent;
+        }
+        switch (p.role) {
+            case PlayerRole::Computer:
+                return assets::PlayerKind::Computer;
+            case PlayerRole::Trader:
+                return assets::PlayerKind::Trader;
+            case PlayerRole::Pirates:
+                return assets::PlayerKind::Pirate;
+            case PlayerRole::Natives:
+                return assets::PlayerKind::Natives;
+            case PlayerRole::Human:
+                break;
+        }
+        return assets::PlayerKind::Human;
+    }
+
     void players() {
         const auto raw = m_source.records("PLAYER4", kPlayerSize);
         core::Bytes out;
@@ -829,7 +848,16 @@ private:
                 std::copy(raw[p].begin(), raw[p].end(), r.begin());
             }
             r[5] = static_cast<std::uint8_t>(p);
-            if (const Player* player = m_world.player(static_cast<PlayerId>(p))) {
+            const Player* player = m_world.player(static_cast<PlayerId>(p));
+            if (player != nullptr && p >= raw.size()) {
+                // No record of a source file (a game loaded from Open1602's own savegame or made
+                // new): controller, colour and name from the player.
+                r[4] = static_cast<std::uint8_t>(original_kind(*player));
+                r[7] = static_cast<std::uint8_t>(std::min<BannerId>(player->banner, assets::kPlayerColorCount - 1));
+                const std::size_t n = std::min<std::size_t>(player->name.size(), 0x3F);
+                std::copy_n(player->name.begin(), n, r.begin() + 0x3C0);
+            }
+            if (player != nullptr) {
                 put32(r, 0, static_cast<std::uint32_t>(player->money));
                 put32(r, 0x34, player->infra_mask);
                 r[0x0E] = player->castles_built;

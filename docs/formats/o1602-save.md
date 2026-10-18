@@ -84,5 +84,7 @@ macht den Spielstand unlesbar (statt falscher Gebäude).
 - Befehle, die zwischen zwei Takten noch nicht ausgeführt sind, werden nicht gespeichert (gespeichert
   wird zwischen den Takten).
 - Ein aus einem `.o1602` geladenes Spiel kennt die Datei des Originals nicht mehr, aus der es einmal kam.
-  Exportiert man es als `.GAM`, sind die Felder, die Open1602 nicht führt (Missionsziele, Teile von
-  `TIMERS`, unbekannte Bytes der Inselköpfe), 0. Ob das Original solche Dateien lädt, ist nicht geprüft.
+  Exportiert man es als `.GAM`, schreibt Open1602 Steuerung, Farbe und Name der Spieler aus dem Spiel;
+  die Felder, die Open1602 nicht führt (Missionsziele, Teile von `TIMERS`, unbekannte Bytes der
+  Inselköpfe), sind 0. Ob das Original solche Dateien lädt, ist nicht geprüft (Testdatei
+  `ausgaben/Open1602Export.gam`, 18.10.2026).
