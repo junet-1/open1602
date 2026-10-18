@@ -574,6 +574,7 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
                     set_mode(Hud::kModeBuild);
                     if (m_tool.select(at->type->id)) {
                         m_tool.set_mode(BuildTool::Mode::Build);
+                        drop_units();
                     }
                 }
             }
@@ -584,6 +585,9 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
             }
             m_tool.set_mode(m_tool.mode() == BuildTool::Mode::Demolish ? BuildTool::Mode::Off
                                                                        : BuildTool::Mode::Demolish);
+            if (m_tool.active()) {
+                drop_units();
+            }
             break;
         case KeyAction::NextBuilding:
             m_tool.cycle(b.param != 0 ? -1 : 1);

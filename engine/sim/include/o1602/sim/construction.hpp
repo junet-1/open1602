@@ -188,6 +188,11 @@ DemolishResult execute_demolish(World& world, const assets::BuildingTable& build
 void place_tiles(World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                  const assets::BuildingType& type, std::int32_t x, std::int32_t y, std::uint8_t rotation);
 
+/// Fits the road, wall or bridge tile at (x, y) to its neighbours, as building does; only that
+/// tile changes. For the preview of a building tool (place_tiles fits the neighbours too).
+void fit_connection(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::int32_t x,
+                    std::int32_t y);
+
 /// Destroys the building with origin `origin` to ruins without an order of its owner (a fire,
 /// 0x00463F40): like demolishing, the territory is checked again afterwards.
 bool destroy_building(World& world, const assets::BuildingTable& buildings, std::uint16_t island, TilePos origin,

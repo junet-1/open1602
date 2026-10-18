@@ -161,6 +161,9 @@ private:
     void apply_options();
     /// The platform's text input runs exactly while a name is typed (in the menu or the settings).
     void sync_text_input();
+    /// A building (or the demolish tool) was taken from the menu: the selected ships and units
+    /// are let go, so a right click puts the building away instead of giving them an order.
+    void drop_units();
     /// Closes the open pop-up of a build category, else lays the building in hand away (the
     /// original's right click). False if there was neither.
     bool cancel_build_step();
@@ -309,6 +312,8 @@ private:
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters
     render::ShipTrail m_ship_trail;                 ///< ships drawn between two ticks
+    std::uint64_t m_title_real_ms = 0;              ///< real and game time of the last title (the speed reached)
+    std::uint64_t m_title_game_ms = 0;
     ViewerOptions m_options;
     sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
     /// A multiplayer game: drives m_simulation in place of Simulation::advance().

@@ -70,9 +70,10 @@ public:
 
     /// What a ship, soldier or tower is now; nothing if it is gone (or dying, or sinking).
     [[nodiscard]] std::optional<Fighter> fighter(const Target& unit) const;
-    /// Scores the entries within `max_distance8` and sorts them best first (stable).
-    [[nodiscard]] std::vector<Candidate> rank(const Fighter& me, std::span<const Neighbour> list,
-                                              std::int32_t max_distance8) const;
+    /// Scores the entries within `max_distance8` and sorts them best first (stable). Valid until
+    /// the next rank().
+    [[nodiscard]] std::span<const Candidate> rank(const Fighter& me, std::span<const Neighbour> list,
+                                                  std::int32_t max_distance8) const;
 
     /// Fires: the hit lands `delay_ms` later on `target` (and only if it still exists).
     void shoot(const Fighter& shooter, const Fighter& target, std::uint32_t delay_ms);
@@ -128,6 +129,7 @@ private:
     std::vector<std::uint8_t> m_enemies;                           ///< per player: an enemy has figures
     std::vector<Bucketed> m_buckets;
     std::vector<Seen> m_seen;
+    mutable std::vector<Candidate> m_ranked;  ///< what rank() returns
 };
 
 }  // namespace o1602::sim

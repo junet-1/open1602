@@ -1835,6 +1835,15 @@ void place_tiles(World& world, const assets::BuildingTable& buildings, std::uint
     builder.write(*v.type, x, y, v.rotation, 0, city);
 }
 
+void fit_connection(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::int32_t x,
+                    std::int32_t y) {
+    if (island >= world.islands().size()) {
+        return;
+    }
+    Builder builder(world, buildings, island, nullptr);
+    builder.fit(x, y);
+}
+
 BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, const BuildOrder& order,
                         const std::vector<std::string>& city_names, std::vector<ConstructionEvent>* events) {
     BuildPlan plan = plan_build(world, buildings, order);

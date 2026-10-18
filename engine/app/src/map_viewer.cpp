@@ -628,6 +628,11 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && !(m_hud && m_hud->modal())) {
                     if (m_options.original_mouse) {
                         cancel_action();
+                    } else if (!m_units.empty() && cancel_build_step()) {
+                        // A building in hand goes first, even with a ship selected (the Kontor to
+                        // found from it); the ship stays selected and does not sail off.
+                        while (cancel_build_step()) {
+                        }
                     } else if (!m_units.empty() || !back_to_status()) {
                         map_order(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
                                   (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
@@ -636,7 +641,15 @@ void MapViewer::handle_event(const SDL_Event& original) {
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
                 if (const auto spot = spot_at_mouse()) {
                     if (auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
+                        // A Kontor founded from a ship is the only one there: the tool is put away
+                        // once it can be built (the ship's window gave it).
+                        const bool founded =
+                            order->ship && std::ranges::all_of(sim::plan_build(m_world, m_buildings, *order).items,
+                                                               [](const sim::PlannedBuild& i) { return i.ok(); });
                         submit(std::move(*order));
+                        if (founded) {
+                            m_tool.set_mode(BuildTool::Mode::Off);
+                        }
                     } else if (auto demolish = m_tool.demolish_order(m_local_player, *spot)) {
                         submit(*demolish);
                     }
@@ -860,8 +873,31 @@ void MapViewer::apply_construction() {
         }
     }
     if (changed) {
-        // Flags, smoke and status icons of the new buildings.
-        m_building_figures = render::collect_building_figures(m_world, m_buildings, m_figures);
+        // Flags, smoke and status icons of the new buildings: only the islands built on are
+        // collected again. The list stays ordered by island, as collect_building_figures() gives it.
+        std::vector<std::uint16_t> islands;
+        for (const sim::ConstructionEvent& e : events) {
+            islands.push_back(e.island);
+        }
+        std::sort(islands.begin(), islands.end());
+        islands.erase(std::unique(islands.begin(), islands.end()), islands.end());
+        std::vector<render::BuildingFigure> fresh;
+        for (const std::uint16_t island : islands) {
+            if (island >= m_world.islands().size()) {
+                continue;
+            }
+            fresh.clear();
+            render::collect_island_building_figures(m_world, m_buildings, m_figures, island, fresh);
+            const auto by_island = [](const render::BuildingFigure& f, std::uint16_t i) { return f.island < i; };
+            const auto first =
+                std::lower_bound(m_building_figures.begin(), m_building_figures.end(), island, by_island);
+            auto last = first;
+            while (last != m_building_figures.end() && last->island == island) {
+                ++last;
+            }
+            const auto at = m_building_figures.erase(first, last);
+            m_building_figures.insert(at, fresh.begin(), fresh.end());
+        }
     }
 }
 
@@ -945,6 +981,7 @@ void MapViewer::render() {
                     // A field or forest being dragged: its whole rectangle hatched on the ground,
                     // with no crops or trees in it, as in the History Edition.
                     const bool hatched = m_tool.hatched_drag();
+                    std::vector<std::pair<std::int32_t, std::int32_t>> fitted;  // road and wall tiles
                     if (hatched) {
                         for (const sim::BuildItem& item : order->items) {
                             if (map.contains(item.x, item.y)) {
@@ -1006,6 +1043,27 @@ void MapViewer::render() {
                             shown = ripe;
                         }
                         (void)map.build(*shown, item.x, item.y, item.rotation, 0, at.owner, at.city);
+                        if (shown->kreuz_base > 0) {
+                            fitted.push_back({item.x, item.y});
+                        }
+                    }
+                    // Roads and walls fit their neighbours as they will once built, and the
+                    // neighbours them (both put back after drawing like the rest).
+                    for (const auto& [fx, fy] : fitted) {
+                        sim::fit_connection(m_world, m_buildings, order->island, fx, fy);
+                    }
+                    for (const auto& [fx, fy] : fitted) {
+                        for (const auto& [dx, dy] :
+                             {std::pair{0, -1}, std::pair{1, 0}, std::pair{0, 1}, std::pair{-1, 0}}) {
+                            const std::int32_t nx = fx + dx;
+                            const std::int32_t ny = fy + dy;
+                            if (map.contains(nx, ny)) {
+                                const auto ux = static_cast<std::uint32_t>(nx);
+                                const auto uy = static_cast<std::uint32_t>(ny);
+                                saved.push_back(Saved{order->island, ux, uy, map.top(ux, uy)});
+                                sim::fit_connection(m_world, m_buildings, order->island, nx, ny);
+                            }
+                        }
                     }
                     if (m_tool_status.empty()) {
                         m_tool_status = std::to_string(plan.bill.money) + " gold";
@@ -1522,10 +1580,12 @@ void MapViewer::apply_hud(const Hud::Action& action) {
         case Hud::Action::Kind::Build:
             if (m_tool.select(action.building)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
+                drop_units();
             }
             break;
         case Hud::Action::Kind::Demolish:
             m_tool.set_mode(BuildTool::Mode::Demolish);
+            drop_units();
             break;
         case Hud::Action::Kind::TurnBuilding:
             m_tool.rotate(action.step);
@@ -1745,6 +1805,22 @@ void MapViewer::update_title(double fps) {
     } else if (m_simulation.speed() != 1) {
         title += " | speed x" + std::to_string(m_simulation.speed());
     }
+    // A computer too slow for the speed lets the game run slower (Simulation::behind()): the speed
+    // reached since the last title.
+    const std::uint64_t now = platform::ticks_ms();
+    const std::uint64_t game_ms = m_simulation.game_time_ms();
+    if (!m_simulation.paused() && now > m_title_real_ms && game_ms >= m_title_game_ms && m_title_real_ms != 0) {
+        const double reached =
+            static_cast<double>(game_ms - m_title_game_ms) / static_cast<double>(now - m_title_real_ms);
+        if (reached < 0.9 * m_simulation.speed()) {
+            char slow[48];
+            std::snprintf(slow, sizeof slow, " (too slow: x%.1f)", reached);
+            title += m_simulation.speed() == 1 ? " | speed x1" : "";
+            title += slow;
+        }
+    }
+    m_title_real_ms = now;
+    m_title_game_ms = game_ms;
     const std::uint64_t seconds = m_simulation.game_time_ms() / 1000;
     char clock[32];
     std::snprintf(clock, sizeof clock, " | %02llu:%02llu:%02llu", static_cast<unsigned long long>(seconds / 3600),
@@ -1850,6 +1926,13 @@ void MapViewer::save_settings() {
     const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
     if (auto status = core::write_file(path, std::span<const std::uint8_t>(data, text.size())); !status) {
         std::fprintf(stderr, "settings: %s\n", status.error().message.c_str());
+    }
+}
+
+void MapViewer::drop_units() {
+    if (!m_units.empty()) {
+        m_units.clear();
+        selection_changed(false);
     }
 }
 

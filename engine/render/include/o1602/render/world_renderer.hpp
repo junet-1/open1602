@@ -104,6 +104,10 @@ struct BuildingFigure {
 [[nodiscard]] std::vector<BuildingFigure> collect_building_figures(const sim::World& world,
                                                                    const assets::BuildingTable& buildings,
                                                                    const assets::FigureTable& figures);
+/// The same for one island, appended to `out` (to bring a list up to date after building there).
+void collect_island_building_figures(const sim::World& world, const assets::BuildingTable& buildings,
+                                     const assets::FigureTable& figures, std::uint16_t island,
+                                     std::vector<BuildingFigure>& out);
 
 /// A figure standing or walking on land (animals, soldiers; carriers later) as the simulation or
 /// the viewer hands it to the renderer.
