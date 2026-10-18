@@ -3,6 +3,7 @@
 // computers over the in-memory network, with latency, jitter, desyncs, lost connections, slow
 // computers and players who try to give orders for others.
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <memory>
