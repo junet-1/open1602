@@ -1967,6 +1967,9 @@ void MapViewer::apply_options() {
 }
 
 core::Status MapViewer::load_game(const std::filesystem::path& path) {
+    if (m_sound) {
+        m_sound->prefill();  // the frames stand still while the game loads
+    }
     auto bytes = core::read_file(path);
     if (!bytes) {
         return bytes.error();

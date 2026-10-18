@@ -95,10 +95,14 @@ public:
 
     /// Every frame: plays what was asked for, the next voice, the music, and tops up the device.
     void frame(std::uint64_t game_ms, std::uint32_t real_ms);
+    /// Before a known pause of the frames (loading a game): fills the device's queue for longer.
+    void prefill();
 
 private:
     /// Opens the device and the music; false without a device.
     bool open_device();
+    /// Mixes until the device holds `ms` of sound.
+    void top_up(std::uint32_t ms);
 
     const assets::GameDirectory* m_game;
     std::unique_ptr<platform::AudioOutput> m_output;
@@ -114,6 +118,7 @@ private:
     float m_view_h = 768.0F;
     std::uint32_t m_variant = 0;  ///< own counter for the variants: no game random numbers (S-112)
     std::vector<std::int16_t> m_buffer;
+    std::uint32_t m_queue_ms = 120;  ///< what the device holds now (kQueueMs, more after a slow frame)
     std::vector<audio::Mixer::VoiceId> m_video_voices;
     bool m_video = false;
     std::map<std::pair<std::uint16_t, std::uint8_t>, std::uint64_t> m_cycles;  ///< figure, anim -> last cycle heard
