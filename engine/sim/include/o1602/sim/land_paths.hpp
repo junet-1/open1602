@@ -43,6 +43,9 @@ public:
     /// Cell kind at world half tile (x2, y2); `cost` gets the Wegspeed of the tile for `speed_type`.
     [[nodiscard]] Cell cell(std::int32_t x2, std::int32_t y2, std::uint8_t speed_type,
                             std::uint8_t* cost = nullptr) const noexcept;
+    /// The same for world tile (x, y): the kind of all four of its cells.
+    [[nodiscard]] Cell tile(std::int32_t x, std::int32_t y, std::uint8_t speed_type,
+                            std::uint8_t* cost = nullptr) const noexcept;
     /// Building on top of world tile (x, y), nullptr for sea, empty tiles or outside.
     [[nodiscard]] const assets::BuildingType* building(std::int32_t x, std::int32_t y) const noexcept;
     /// Island index at world tile (x, y), World::kSea for none.
@@ -121,6 +124,7 @@ private:
     std::vector<std::uint8_t> m_state;
     std::vector<std::uint8_t> m_speed;
     std::vector<Node> m_heap;
+    std::vector<std::uint8_t> m_dirs;  ///< scratch: the steps of the way found, back to front
 };
 
 }  // namespace o1602::sim
