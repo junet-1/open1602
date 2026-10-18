@@ -1,24 +1,24 @@
-# rea-Machbarkeitstest – Ergebnis
+# rea feasibility test – result
 
-Datum: 16.10.2026 · rea 6.5.0 · Ghidra 12.1.2 · JDK 21.0.12 · CachyOS (Linux x64)
+Date: 2026-10-16 · rea 6.5.0 · Ghidra 12.1.2 · JDK 21.0.12 · CachyOS (Linux x64)
 
-**Ergebnis: bestanden.** rea analysiert `1602.exe` (PE32, x86) vollständig über das Ghidra-Backend.
-Alle Prüfschritte von `re/scripts/rea-smoke-test.sh` liefen fehlerfrei (Exit 0).
+**Result: passed.** rea fully analyses `1602.exe` (PE32, x86) through the Ghidra backend.
+All check steps of `re/scripts/rea-smoke-test.sh` ran without errors (exit 0).
 
-| Prüfung | Erwartung (aus objdump-Analyse) | rea/Ghidra |
+| Check | Expectation (from objdump analysis) | rea/Ghidra |
 |---|---|---|
-| Format/Architektur | PE32 / i386 | `format: pe`, `architecture: x86` ✅ |
-| Umfang | ~2000 Funktionen geschätzt | 1896 Funktionen, 1101 definierte Strings |
-| WinMain `0x004081D0` | aufgerufen vom Entry Point, ruft `Game_Init` | Caller `entry` (`0x00495CE4`, Aufruf bei `0x00495E13`); Callees u. a. `GetMessageA`, `PeekMessageA`, `TranslateAcceleratorA`, `DispatchMessageA` und `0x00494870` ✅ |
-| Text.cod-Lader `0x0048F8D0` | Datei lesen, jedes Byte negieren | Dekompilat zeigt `sprintf("%sText.cod")`, `ReadFile`, Negationsschleife, Globals `0x005B6FC0`/`0x005B6050`; danach Parser für `[Abschnitt]`-Blöcke ✅ |
-| xrefs `haeuser.cod`, Suche `stadtfld`, Instruktion `0x0048F950` | | Exit 0 (Details im lokalen Log) |
+| Format/architecture | PE32 / i386 | `format: pe`, `architecture: x86` ✅ |
+| Size | ~2000 functions estimated | 1896 functions, 1101 defined strings |
+| WinMain `0x004081D0` | called from the entry point, calls `Game_Init` | Caller `entry` (`0x00495CE4`, call at `0x00495E13`); callees include `GetMessageA`, `PeekMessageA`, `TranslateAcceleratorA`, `DispatchMessageA` and `0x00494870` ✅ |
+| Text.cod loader `0x0048F8D0` | read file, negate every byte | Decompilation shows `sprintf("%sText.cod")`, `ReadFile`, negation loop, globals `0x005B6FC0`/`0x005B6050`; then a parser for `[section]` blocks ✅ |
+| xrefs `haeuser.cod`, search `stadtfld`, instruction `0x0048F950` | | Exit 0 (details in the local log) |
 
-## Folgen
+## Consequences
 
-- rea ist das Hauptwerkzeug für das Reverse Engineering (siehe `docs/re/README.md`).
-- Die rea-Werkzeuge sind über Claude Desktop auch in Claude-Sitzungen verfügbar, die mit dem Rechner
-  verbunden sind.
-- rea arbeitet mit einer ephemeren Ghidra-Datenbank. Namen und Kommentare bleiben daher in
-  `re/symbols/*.csv` die Quelle der Wahrheit. Umbenennen in der Sitzung (`set_addresses_names`) schlug
-  über die Desktop-Verbindung mit einem Formatfehler fehl; `annotate_native_function` ist die Alternative.
-- Das Log (`rea-smoke-test-*.log`) enthält Dekompilat und wird nicht eingecheckt.
+- rea is the main tool for reverse engineering (see `docs/re/README.md`).
+- The rea tools are also available via Claude Desktop in Claude sessions that are connected to the
+  computer.
+- rea works with an ephemeral Ghidra database. Names and comments therefore stay in
+  `re/symbols/*.csv` as the source of truth. Renaming in the session (`set_addresses_names`) failed
+  over the desktop connection with a format error; `annotate_native_function` is the alternative.
+- The log (`rea-smoke-test-*.log`) contains decompiled code and is not checked in.

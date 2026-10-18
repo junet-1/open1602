@@ -1,17 +1,17 @@
-# Architekturentscheidungen (ADRs)
+# Architecture decisions (ADRs)
 
-Kurze, datierte Entscheidungen mit Begründung. Neue Entscheidung = neue Datei
-`NNNN-titel.md`; überholte ADRs werden nicht gelöscht, sondern als „ersetzt durch NNNN“ markiert.
+Short, dated decisions with their rationale. New decision = new file
+`NNNN-title.md`; superseded ADRs are not deleted but marked as "superseded by NNNN".
 
-| # | Titel | Status |
+| # | Title | Status |
 |---|---|---|
-| [0001](0001-sprache-und-build.md) | C++20, CMake, SDL3 | angenommen |
-| [0002](0002-lizenz-und-originaldaten.md) | GPL-3.0, keine Originaldaten im Repository | angenommen |
-| [0003](0003-neuimplementierung.md) | Neuimplementierung statt Dekompilat | angenommen |
-| [0004](0004-deterministische-simulation.md) | Deterministische, befehlsbasierte Simulation | angenommen |
-| [0005](0005-modulstruktur.md) | Modulstruktur und Abhängigkeitsregeln | angenommen |
-| [0006](0006-umgang-mit-originalfehlern.md) | Umgang mit Fehlern des Originals, `sim::Rules` | angenommen |
-| [0007](0007-erweiterbarkeit-und-modding.md) | Erweiterbarkeit, Inhalte und Modding (Anforderungen, Banner, offene Spielerzahl) | angenommen |
-| [0008](0008-spieleinstellungen.md) | Spieleinstellungen in `sim::Rules` (Endlosspiel einstellbar wie in späteren Anno-Teilen) | angenommen |
-| [0009](0009-eigenes-speicherformat.md) | Eigenes Speicherformat `.o1602`; Originaldateien nur lesen und exportieren | angenommen |
-| [0010](0010-bedienung-und-oberflaeche.md) | Bedienung und Oberfläche: moderne Steuerung (Rechtsklick, Minikarte, Befehlsketten), freie Tasten, Rückfragen | angenommen |
+| [0001](0001-language-and-build.md) | C++20, CMake, SDL3 | accepted |
+| [0002](0002-license-and-original-data.md) | GPL-3.0, no original data in the repository | accepted |
+| [0003](0003-reimplementation.md) | Reimplementation instead of decompiled code | accepted |
+| [0004](0004-deterministic-simulation.md) | Deterministic, command-based simulation | accepted |
+| [0005](0005-module-structure.md) | Module structure and dependency rules | accepted |
+| [0006](0006-handling-original-bugs.md) | Handling bugs of the original, `sim::Rules` | accepted |
+| [0007](0007-extensibility-and-modding.md) | Extensibility, content and modding (requirements, banners, open player count) | accepted |
+| [0008](0008-game-settings.md) | Game settings in `sim::Rules` (endless game configurable as in later Anno titles) | accepted |
+| [0009](0009-own-save-format.md) | Own save format `.o1602`; original files only read and exported | accepted |
+| [0010](0010-controls-and-interface.md) | Controls and interface: modern controls (right-click, minimap, command chains), freely assignable keys, confirmations | accepted |

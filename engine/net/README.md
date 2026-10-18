@@ -1,5 +1,5 @@
 # engine/net
 
-Lockstep-Multiplayer über UDP (ENet): Befehlsverteilung, Tick-Synchronisation, Desync-Erkennung per Zustands-Hash, Lobby, Reconnect (ersetzt Maxnet.dll/DirectPlay). Hängt nur von sim ab. **Meilenstein:** M6.
+Lockstep multiplayer over UDP (ENet): command distribution, tick synchronisation, desync detection via state hash, lobby, reconnect (replaces Maxnet.dll/DirectPlay). Depends only on sim. **Milestone:** M6.
 
-Noch nicht angelegt – siehe [docs/00-plan.md](../../docs/00-plan.md) und [ADR 0005](../../docs/architecture/0005-modulstruktur.md).
+Not created yet – see [docs/00-plan.md](../../docs/00-plan.md) and [ADR 0005](../../docs/architecture/0005-module-structure.md).

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Military, diplomacy and the pirates' nest of the computer players (docs/re/ai.md, "Militär"):
+// Military, diplomacy and the pirates' nest of the computer players (docs/re/ai.md, "Military and diplomacy"):
 // recruiting and guards every 6 s, ship missions with the logistics every 10 s, a look at one
 // foreign city after every step, the soldiers on one island per tick, the treaties every 30 s.
 #include <algorithm>

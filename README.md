@@ -8,13 +8,15 @@ stable multiplayer and room for new features, quality-of-life improvements and m
 > population, disasters, ships and trade, military, diplomacy, pirates, computer opponents, new endless
 > game, savegames in the original format). The game starts in the original's main menu and is played with
 > its side panel; multiplayer and parts of the interface are still missing. What is done, open and
-> unclear: [docs/stand.md](docs/stand.md) (German, being translated).
+> unclear: [docs/status.md](docs/status.md).
 
 ## Original game data
 
 Open1602 contains **no** game files. You need your own copy of *Anno 1602*, for example the GOG
-"Königsedition" (*Anno 1602 – Creation of a New World*). Tell Open1602 where the installation is with
-the environment variable `ANNO1602_DIR` (or `--game-dir DIR` on the command line):
+"Königsedition" (*Anno 1602 – Creation of a New World*). The game speaks the language of your
+installation: a German Anno 1602 gives a German game, an English one an English game
+([details](docs/modding/languages.md)). Tell Open1602 where the installation is with the environment
+variable `ANNO1602_DIR` (or `--game-dir DIR` on the command line):
 
 | Shell | Command |
 |---|---|
@@ -136,7 +138,7 @@ o1602-tool savegames                                 # the savegames of the inst
 | `engine/` | Engine modules: `core`, `assets`, `sim`, `render`, `platform`, `audio`, `video`, `ui`, `app` |
 | `tools/` | `o1602-tool` (C++) and Python prototypes |
 | `tests/` | Unit tests and tests against the original data |
-| `docs/` | [Plan](docs/00-plan.md), [status](docs/stand.md), [file formats](docs/formats/README.md), [architecture decisions](docs/architecture/README.md) |
+| `docs/` | [Plan](docs/00-plan.md), [status](docs/status.md), [file formats](docs/formats/README.md), [architecture decisions](docs/architecture/README.md), [languages and modding](docs/modding/languages.md) |
 | `re/` | Analysis scripts and notes |
 
 ## Contributing

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Courses of ships (docs/re/ships.md, "Wegsuche auf See").
+// Courses of ships (docs/re/ships.md, "Pathfinding at sea").
 //
 // The original plans a ship's course in a square window around the ship (161 x 161 tiles for an
 // ordinary order, 0x00455A20) with the wavefront of the land figures: open sea and the water tiles

@@ -305,7 +305,7 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     out.hull.x = static_cast<std::int32_t>(std::floor(screen_x)) - hull.width / 2;
     out.hull.y = depth + fig->posoffs[0] * itw / 64 - 1;
 
-    // Sinking (docs/re/ships.md#bilder): after the turn the hull goes down by one height unit
+    // Sinking (docs/re/ships.md#images): after the turn the hull goes down by one height unit
     // (half a tile width) per second and is cut at the waterline, its bottom at height 0; the
     // splash UNTERGANG plays where it went down.
     const sim::ShipMotion& m = ship.motion;

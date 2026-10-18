@@ -4,7 +4,7 @@
 language.name = Deutsch
 language.detect = Roter Spieler
 
-# Fragen
+# Questions
 dialog.yes = Ja
 dialog.no = Nein
 dialog.quit_game = Spiel beenden?\nDer Stand wird als „lastgame“ gesichert.
@@ -14,12 +14,12 @@ dialog.break_peace = Friedensvertrag mit {1} brechen?\nDas bedeutet Krieg.
 dialog.declare_war = Ein Angriff bedeutet Krieg mit {1}.\nKrieg erklären?
 dialog.scuttle_ship = Schiff „{1}“ versenken?\nDie Ladung geht verloren.
 
-# Menüs und Spielstände
+# Menus and savegames
 menu.part = Teil {1}
 menu.default_name = Namenlos
 save.default_name = Spielstand {1}
 
-# Tastenübersicht (F1)
+# Key overview (F1)
 keys.title = Tastenbelegung (Klick oder F1 schließt)
 keys.heading.general = Allgemein
 keys.heading.building = Beim Bauen

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Founding cities (docs/re/ai.md, "Besiedlung"): the island search (0x00416370), the free land
+// Founding cities (docs/re/ai.md, "Settling"): the island search (0x00416370), the free land
 // test (task 2), the Kontor site and the free cargo (task 3), the landing (task 4), later colonies
 // (0x00426290) and giving a city up (task 0x2E).
 #include <algorithm>

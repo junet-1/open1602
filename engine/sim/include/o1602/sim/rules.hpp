@@ -20,7 +20,7 @@ enum class Refund : std::uint8_t {
     Full,     ///< all the building's costs
 };
 
-/// How often droughts come (docs/re/growth.md#dürre). The original takes it from the difficulty of
+/// How often droughts come (docs/re/growth.md#drought). The original takes it from the difficulty of
 /// the game; the rows are its drought tables.
 enum class Droughts : std::uint8_t {
     Game,      ///< as the game's difficulty and settings say (original)
@@ -37,7 +37,7 @@ enum class Volcanoes : std::uint8_t {
     On,    ///< always, whatever the game says
 };
 
-/// What the free trader pays for goods (docs/re/ships.md, "Freier Händler").
+/// What the free trader pays for goods (docs/re/ships.md, "Free trader").
 enum class TraderPrices : std::uint8_t {
     /// As players know it: about half the base price. The original means to follow the market but
     /// gathers its statistics at a rate that depends on the frame rate, so they are almost always

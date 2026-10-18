@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The path a dragged road or wall takes (docs/re/construction.md#ziehen-von-straßen-und-mauern).
+// The path a dragged road or wall takes (docs/re/construction.md#dragging-roads-and-walls).
 //
 // When the player drags a road or a wall, the original searches a path from the tile where the
 // drag began to the tile under the cursor (0x0040A890, 0x0040AB20, 0x0040C230, 0x0040C050): a

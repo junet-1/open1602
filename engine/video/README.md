@@ -1,8 +1,8 @@
 # engine/video
 
-Videos ohne Plattformabhängigkeit (ersetzt `smackw32.dll`): ein eigener Smacker-Decoder
-(`smacker.hpp`), geschrieben nach der öffentlichen Formatbeschreibung. Er liefert Bild für Bild die
-Palettenindizes und die Palette (oder gleich RGBA) und jede Tonspur als Ganzes für den Mischer
-(`audio::Pcm`). Anzeige und Zeitsteuerung übernimmt das Frontend.
+Videos without platform dependencies (replaces `smackw32.dll`): our own Smacker decoder
+(`smacker.hpp`), written from the public format description. It delivers, frame by frame, the
+palette indices and the palette (or RGBA directly) and each audio track as a whole for the mixer
+(`audio::Pcm`). Display and timing are handled by the frontend.
 
-Beschreibung: [docs/formats/smk.md](../../docs/formats/smk.md).
+Description: [docs/formats/smk.md](../../docs/formats/smk.md).

@@ -18,7 +18,7 @@ __pycache__/
 *.pyc
 .venv/
 
-# Original game data - never commit (see docs/architecture/0002-lizenz-und-originaldaten.md)
+# Original game data - never commit (see docs/architecture/0002-license-and-original-data.md)
 *.bsh
 *.BSH
 *.zei
@@ -73,7 +73,7 @@ __pycache__/
 re/notes/*.log
 *.mp4
 
-# Inputs for the analysis (savegames, videos, screenshots): local only, see docs/eingaben.md
+# Inputs for the analysis (savegames, videos, screenshots): local only, see docs/requests.md
 /eingaben/
 /ausgaben/
 

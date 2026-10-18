@@ -1,16 +1,16 @@
-# Entwicklungsumgebung unter Arch Linux
+# Development environment on Arch Linux
 
-## 1. Build-Werkzeuge (Engine)
+## 1. Build tools (engine)
 
 ```sh
 sudo pacman -Syu --needed base-devel git cmake ninja gcc clang gdb sdl3 python python-pillow
 ```
 
-zlib wird absichtlich nicht explizit installiert: Auf Systemen mit `zlib-ng-compat` (z. B. CachyOS,
-oder wenn Heroic es mitbringt) stellt dieses Paket `zlib.h` und `libz.so` bereit und kollidiert mit `zlib`.
-CMake findet beide Varianten. Prüfen: `pacman -Qo /usr/include/zlib.h`.
+zlib is deliberately not installed explicitly: on systems with `zlib-ng-compat` (e.g. CachyOS,
+or when Heroic brings it along) that package provides `zlib.h` and `libz.so` and conflicts with `zlib`.
+CMake finds both variants. Check: `pacman -Qo /usr/include/zlib.h`.
 
-Bauen und testen:
+Build and test:
 
 ```sh
 cd "$HOME/Projekt Anno"
@@ -18,116 +18,116 @@ cmake --preset debug
 cmake --build --preset debug
 ctest --preset debug
 
-# Tests zusätzlich gegen die eigene Installation:
+# Tests additionally against your own installation:
 export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
 ctest --preset debug
 ./build/debug/tools/o1602-tool/o1602-tool islands "$ANNO1602_DIR/NORD/big.scp"
 ```
 
-Weitere Presets: `release`, `asan` (AddressSanitizer + UBSan), `ci` (Warnungen als Fehler).
+More presets: `release`, `asan` (AddressSanitizer + UBSan), `ci` (warnings as errors).
 
-### Kartenbetrachter `open1602` (SDL3)
+### Map viewer `open1602` (SDL3)
 
-Das Programm wird nur mit `-DO1602_BUILD_GAME=ON` gebaut und braucht das Paket `sdl3` (siehe oben):
+The program is only built with `-DO1602_BUILD_GAME=ON` and needs the `sdl3` package (see above):
 
 ```sh
 cmake --preset release -DO1602_BUILD_GAME=ON
 cmake --build --preset release
 export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
-./build/release/engine/app/open1602                                  # „Das Atoll“
+./build/release/engine/app/open1602                                  # „Das Atoll“ ("The Atoll")
 ./build/release/engine/app/open1602 --scenario "Szenes/Endlosspiel00.szs" --zoom 1
-./build/release/engine/app/open1602 --savegame Merlin01           # Name aus dem Spiel (Game.dat)
-./build/release/engine/app/open1602 --load ~/.local/share/Open1602/saves/quicksave.o1602  # eigener Spielstand
-./build/release/tools/o1602-tool/o1602-tool savegames               # alle Spielstände mit Namen
+./build/release/engine/app/open1602 --savegame Merlin01           # name from the game (Game.dat)
+./build/release/engine/app/open1602 --load ~/.local/share/Open1602/saves/quicksave.o1602  # own savegame
+./build/release/tools/o1602-tool/o1602-tool savegames               # all savegames with names
 ```
 
-Steuerung: Pfeiltasten/WASD (mit Umschalt schneller) oder rechte/mittlere Maustaste ziehen zum
-Scrollen · Mausrad zoomt an der Mausposition · 1/2/3 Zoomstufe · R / Umschalt+R drehen ·
-+/− Pixelvergrößerung · O Besitzansicht (Gebiete in Spielerfarbe) · Leertaste hält Animationen an · Pos1 springt zur ersten Insel ·
-F5 Schnellspeichern (`quicksave.o1602` im Benutzerordner, [o1602-save.md](formats/o1602-save.md)) ·
-F12 Bildschirmfoto · Esc/Q beenden. `--save datei.o1602` speichert beim Beenden, `--save datei.gam`
-exportiert für das Original. Die Titelleiste zeigt Feld unter der Maus, Bildrate und
-Sprite-Anzahl. Mit `--frames N --screenshot bild.png` läuft das Programm N Bilder lang, speichert das
-letzte und meldet die Bildrate (für Tests ohne Bedienung).
+Controls: arrow keys/WASD (faster with Shift) or drag with the right/middle mouse button to
+scroll · mouse wheel zooms at the mouse position · 1/2/3 zoom level · R / Shift+R rotate ·
++/− pixel magnification · O ownership view (territories in player colour) · Space pauses animations · Home jumps to the first island ·
+F5 quicksave (`quicksave.o1602` in the user folder, [o1602-save.md](formats/o1602-save.md)) ·
+F12 screenshot · Esc/Q quit. `--save file.o1602` saves on exit, `--save file.gam`
+exports for the original. The title bar shows the tile under the mouse, frame rate and
+sprite count. With `--frames N --screenshot image.png` the program runs for N frames, saves the
+last one and reports the frame rate (for tests without user input).
 
-## 2. Reverse-Engineering-Werkzeuge
+## 2. Reverse engineering tools
 
 ### Node.js + rea
 
-rea braucht Node.js 22.19+ / 24.11+ / 26+ (die Arch-Pakete sind aktuell genug).
+rea needs Node.js 22.19+ / 24.11+ / 26+ (the Arch packages are recent enough).
 
 ```sh
 sudo pacman -S --needed nodejs npm
-# globale npm-Pakete ohne sudo:
+# global npm packages without sudo:
 npm config set prefix "$HOME/.local"
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc   # bzw. ~/.zshrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc   # or ~/.zshrc
 source ~/.bashrc
 
 npm install --global rea-agents
 rea --help
 ```
 
-`rea setup` erst **nach** der Ghidra-Installation (nächster Abschnitt) ausführen, damit es
-`GHIDRA_INSTALL_DIR` und das JDK in die MCP-Registrierung übernimmt.
+Run `rea setup` only **after** the Ghidra installation (next section), so that it
+puts `GHIDRA_INSTALL_DIR` and the JDK into the MCP registration.
 
 ### Ghidra 12.1.x + JDK
 
-rea verlangt **Ghidra 12.1.x** und das dazu passende 64-Bit-JDK (laut Ghidra-Release-Notes, derzeit JDK 21).
+rea requires **Ghidra 12.1.x** and the matching 64-bit JDK (according to the Ghidra release notes, currently JDK 21).
 
 ```sh
 sudo pacman -S --needed jdk21-openjdk
 sudo archlinux-java set java-21-openjdk
 
-# Variante A: Arch-Paket (prüfen, ob die Version 12.1.x ist!)
+# Option A: Arch package (check that the version is 12.1.x!)
 pacman -Si ghidra | grep '^Version'
-sudo pacman -S ghidra                # installiert nach /opt/ghidra
+sudo pacman -S ghidra                # installs to /opt/ghidra
 
-# Variante B: offizielles Release von GitHub (NationalSecurityAgency/ghidra), z. B. nach ~/opt
+# Option B: official release from GitHub (NationalSecurityAgency/ghidra), e.g. to ~/opt
 #   unzip ghidra_12.1.x_PUBLIC_*.zip -d ~/opt
 
-export GHIDRA_INSTALL_DIR=/opt/ghidra   # bzw. ~/opt/ghidra_12.1.x_PUBLIC
+export GHIDRA_INSTALL_DIR=/opt/ghidra   # or ~/opt/ghidra_12.1.x_PUBLIC
 echo "export GHIDRA_INSTALL_DIR=$GHIDRA_INSTALL_DIR" >> ~/.bashrc
 ```
 
-Ghidra-Version prüfen (muss 12.1.x sein): `grep application.version "$GHIDRA_INSTALL_DIR/Ghidra/application.properties"`.
-Das JDK muss vollständig sein (`javac` vorhanden) – `jdk21-openjdk`, nicht nur `jre21-openjdk`.
+Check the Ghidra version (must be 12.1.x): `grep application.version "$GHIDRA_INSTALL_DIR/Ghidra/application.properties"`.
+The JDK must be complete (`javac` present) – `jdk21-openjdk`, not just `jre21-openjdk`.
 
-### rea einrichten
+### Setting up rea
 
-Claude Desktop vorher **komplett beenden** (nicht nur das Fenster schließen), sonst überschreibt es die Konfiguration.
+**Quit Claude Desktop completely** beforehand (not just close the window), otherwise it overwrites the configuration.
 
 ```sh
-source ~/.bashrc                  # GHIDRA_INSTALL_DIR muss in dieser Shell gesetzt sein
-npx rea-agents setup              # Frage "Install Hopper?" mit **No** beantworten
-npx rea-agents doctor             # prüft Ghidra-Version, analyzeHeadless, Java/javac
+source ~/.bashrc                  # GHIDRA_INSTALL_DIR must be set in this shell
+npx rea-agents setup              # answer the question "Install Hopper?" with **No**
+npx rea-agents doctor             # checks Ghidra version, analyzeHeadless, Java/javac
 ```
 
-Hopper wird nicht gebraucht (wir nutzen Ghidra). Sein Arch-Paket kollidiert zudem mit `zlib-ng-compat`.
+Hopper is not needed (we use Ghidra). Its Arch package also conflicts with `zlib-ng-compat`.
 
-### Machbarkeitstest
+### Feasibility test
 
 ```sh
 export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
 re/scripts/rea-smoke-test.sh
 ```
 
-Das Log landet in `re/notes/rea-smoke-test-*.log`. Bitte einchecken oder mir zeigen – davon hängt ab,
-ob wir rea direkt nutzen oder Ghidra headless mit den Skripten aus `re/scripts/ghidra/`.
+The log ends up in `re/notes/rea-smoke-test-*.log`. Please check it in or show it to me – it decides
+whether we use rea directly or Ghidra headless with the scripts from `re/scripts/ghidra/`.
 
-### Weitere Werkzeuge
+### More tools
 
 ```sh
-sudo pacman -S --needed imhex rizin binutils    # Hex-Editor mit Pattern-Sprache, Disassembler, objdump
+sudo pacman -S --needed imhex rizin binutils    # hex editor with pattern language, disassembler, objdump
 ```
 
-## 3. Original unter Wine (Referenz für Paritätstests)
+## 3. The original under Wine (reference for parity tests)
 
 ```sh
 sudo pacman -S --needed wine winetricks
-# Falls pacman 'wine' nicht findet: [multilib] in /etc/pacman.conf aktivieren, dann pacman -Syu
+# If pacman does not find 'wine': enable [multilib] in /etc/pacman.conf, then pacman -Syu
 ```
 
-Eigener Prefix nur für die Analyse (die Heroic-Installation bleibt unberührt):
+A separate prefix just for the analysis (the Heroic installation stays untouched):
 
 ```sh
 export WINEPREFIX="$HOME/.wine-anno1602"
@@ -135,6 +135,6 @@ WINEARCH=win32 wineboot -i 2>/dev/null || wineboot -i
 cd "$ANNO1602_DIR" && wine 1602.exe
 ```
 
-Debugger: `winedbg --gdb 1602.exe` (GDB-Protokoll, z. B. mit `gdb` oder Ghidra-Debugger verbindbar).
-Falls DirectDraw unter Wine zickt: [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) als `ddraw.dll`
-in einen *Kopie* des Spielordners legen.
+Debugger: `winedbg --gdb 1602.exe` (GDB protocol, can be connected to e.g. `gdb` or the Ghidra debugger).
+If DirectDraw acts up under Wine: put [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) as `ddraw.dll`
+into a *copy* of the game folder.

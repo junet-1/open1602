@@ -1,10 +1,10 @@
-# Laufzeitanalyse
+# Runtime analysis
 
-Platz für Werkzeuge, die das Originalspiel unter Wine beobachten:
+Room for tools that observe the original game under Wine:
 
-- Start-Skript für einen 32-Bit-Wine-Prefix (siehe `docs/setup-arch.md`)
-- Speicher-Dumps der globalen Datenregion (`0x00498000`–`0x0072D000`) zu definierten Zeitpunkten
-- Savegame-Diffs (`.GAM`) vor/nach einer Aktion im Spiel
-- später: Paritätstests (Original vs. Engine, gleiche Startbedingungen, N Ticks)
+- Start script for a 32-bit Wine prefix (see `docs/setup-arch.md`)
+- Memory dumps of the global data region (`0x00498000`–`0x0072D000`) at defined points in time
+- Savegame diffs (`.GAM`) before/after an action in the game
+- later: parity tests (original vs. engine, same starting conditions, N ticks)
 
-Noch leer – kommt mit Meilenstein M3 (Kern-Simulation).
+Still empty – comes with milestone M3 (core simulation).

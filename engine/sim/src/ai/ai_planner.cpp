@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The city planner of the computer players (docs/re/ai.md, "Bauplanung"): task 5 refreshes the
+// The city planner of the computer players (docs/re/ai.md, "Building sites and roads"): task 5 refreshes the
 // current city (Kontor settings, production switches, money) or runs the handler of its stage,
 // which asks a fixed list of Needs and queues the first building that is missing.
 #include <algorithm>

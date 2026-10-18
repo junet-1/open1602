@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The main menu and the screens before a game (docs/re/ui.md "Hauptmenü"; Menu_OnClick 0x0048B590,
+// The main menu and the screens before a game (docs/re/ui.md "Main menu"; Menu_OnClick 0x0048B590,
 // Menu_Redraw 0x0048ABD0): BASE (main menu), HOST (list of scenarios or savegames), MISSION
 // (briefing, choice of level or part, high scores) and FARBWAHL (name and banner). Single player
 // only for now. The menu shows the screens and answers with MenuEvents; loading and starting is

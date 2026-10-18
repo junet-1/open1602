@@ -1,127 +1,127 @@
-# SMK – Smacker-Videos
+# SMK – Smacker videos
 
-Die Videos des Spiels sind Smacker-Dateien (RAD Game Tools); das Original spielt sie mit
-`smackw32.dll`. Open1602 hat einen eigenen Decoder, geschrieben nach der öffentlichen
-Formatbeschreibung ([MultimediaWiki: Smacker](https://wiki.multimedia.cx/index.php/Smacker)), ohne
-fremden Code und ohne Bibliothek: `video::Smacker` (`engine/video/src/smacker.cpp`). Was das Spiel wann
-zeigt, steht in [videos.md](../re/videos.md).
+The game's videos are Smacker files (RAD Game Tools); the original plays them with
+`smackw32.dll`. Open1602 has its own decoder, written from the public
+format description ([MultimediaWiki: Smacker](https://wiki.multimedia.cx/index.php/Smacker)), without
+third-party code and without a library: `video::Smacker` (`engine/video/src/smacker.cpp`). What the game shows
+and when is described in [videos.md](../re/videos.md).
 
-## Die Dateien des Spiels
+## The game's files
 
-| Datei | Bild | Bilder/s | Ton |
+| File | Image | Frames/s | Audio |
 |---|---|---|---|
-| `VideoSmk/*.smk` (51) | 352 × 240 (295: 352 × 216, 10: 432 × 352) | 15 (9: 25) | Spur 0 stereo, meist Spur 1 (mono oder stereo), bei 2500–2530 auch Spur 2; 8 Bit, 22050 Hz (9: 44100 Hz), alle gepackt |
-| `TOOLGFX/6s.smk` | 320 × 220 | 15 | Spur 0 stereo |
+| `VideoSmk/*.smk` (51) | 352 × 240 (295: 352 × 216, 10: 432 × 352) | 15 (9: 25) | track 0 stereo, usually track 1 (mono or stereo), for 2500–2530 also track 2; 8 bit, 22050 Hz (9: 44100 Hz), all packed |
+| `TOOLGFX/6s.smk` | 320 × 220 | 15 | track 0 stereo |
 
-Alle sind `SMK2` ohne Ringbild, ohne Zeilensprung und ohne Zeilenverdopplung; die Palette ändert sich
-nur ein- bis viermal je Video (Überblendungen sind im Bild selbst gemalt). Der Decoder schafft auch im
-Debug-Build rund ein Bild je Millisekunde.
+All are `SMK2` without ring frame, without interlacing and without line doubling; the palette changes
+only one to four times per video (cross-fades are painted into the image itself). Even in the
+debug build the decoder manages about one frame per millisecond.
 
-## Aufbau
+## Structure
 
-Alle Zahlen Little-Endian.
+All numbers little-endian.
 
-| Teil | Größe |
+| Part | Size |
 |---|---|
-| Kopf | 0x68 Byte |
-| Bildgrößen | 4 Byte je Bild (Bit 0: Schlüsselbild, Bit 1 unbekannt; beide vor dem Gebrauch löschen) |
-| Bildarten | 1 Byte je Bild (Bit 0: Palette, Bit 1 + n: Tonspur n) |
-| Huffman-Tabellen | `TreesSize` Byte, ein Bitstrom |
-| Bilder | nacheinander, je Bild die Größe aus der Tabelle |
+| Header | 0x68 bytes |
+| Frame sizes | 4 bytes per frame (bit 0: keyframe, bit 1 unknown; clear both before use) |
+| Frame types | 1 byte per frame (bit 0: palette, bit 1 + n: audio track n) |
+| Huffman tables | `TreesSize` bytes, one bit stream |
+| Frames | one after another, each frame with the size from the table |
 
-Gibt es ein Ringbild (Flag Bit 0), haben beide Tabellen ein Bild mehr als `Frames`.
+If there is a ring frame (flag bit 0), both tables have one frame more than `Frames`.
 
-### Kopf
+### Header
 
-| Offset | Feld |
+| Offset | Field |
 |---|---|
-| 0x00 | `SMK2` oder `SMK4` |
-| 0x04 | Breite |
-| 0x08 | Höhe |
-| 0x0C | Bilder |
-| 0x10 | Bildrate (vorzeichenbehaftet): > 0 Millisekunden je Bild, < 0 Hunderttausendstelsekunden je Bild, 0 = 10 Bilder/s. Das Spiel: −6666 (15 Bilder/s) |
-| 0x14 | Flags: Bit 0 Ringbild, Bit 1 Zeilensprung, Bit 2 Zeilenverdopplung (beides: doppelte Höhe auf dem Schirm) |
-| 0x18 | 7 × größter entpackter Tonblock je Spur |
+| 0x00 | `SMK2` or `SMK4` |
+| 0x04 | width |
+| 0x08 | height |
+| 0x0C | frames |
+| 0x10 | frame rate (signed): > 0 milliseconds per frame, < 0 hundred-thousandths of a second per frame, 0 = 10 frames/s. The game: −6666 (15 frames/s) |
+| 0x14 | flags: bit 0 ring frame, bit 1 interlacing, bit 2 line doubling (either: double height on screen) |
+| 0x18 | 7 × largest unpacked audio block per track |
 | 0x34 | `TreesSize` |
-| 0x38 | Tabellengrößen der vier 16-Bit-Bäume (Bildmasken, Zweifarbfarben, Vollblöcke, Blockarten), in Byte zu 4 je Eintrag |
-| 0x48 | 7 × Tonspur: Bit 31 gepackt, 30 vorhanden, 29 16 Bit, 28 stereo, 27–26 andere Packart (unbekannt, abgelehnt), 0–23 Abtastrate |
-| 0x64 | unbenutzt |
+| 0x38 | table sizes of the four 16-bit trees (image masks, two-colour colours, full blocks, block types), in bytes at 4 per entry |
+| 0x48 | 7 × audio track: bit 31 packed, 30 present, 29 16 bit, 28 stereo, 27–26 other packing method (unknown, rejected), 0–23 sample rate |
+| 0x64 | unused |
 
-### Bitstrom
+### Bit stream
 
-Bits werden vom niedrigsten Bit jedes Bytes an gelesen; mehrstellige Werte beginnen mit ihrem niedrigsten
-Bit.
+Bits are read starting from the lowest bit of each byte; multi-bit values start with their lowest
+bit.
 
-**Bytebaum** (8 Bit): ein Bit „vorhanden“; fehlt der Baum, ergibt er beim Lesen 0 und verbraucht keine
-Bits. Sonst rekursiv: Bit 1 = Knoten (erst der 0-Zweig, dann der 1-Zweig), Bit 0 = Blatt mit 8 Bit
-Wert. Danach ein abschließendes 0-Bit. Beim Dekodieren wählt jedes gelesene Bit den Zweig (0 links,
-1 rechts) bis zu einem Blatt; ein Baum aus nur einem Blatt verbraucht keine Bits.
+**Byte tree** (8 bit): one bit "present"; if the tree is missing, reading from it gives 0 and consumes no
+bits. Otherwise recursively: bit 1 = node (first the 0 branch, then the 1 branch), bit 0 = leaf with an 8-bit
+value. Then a terminating 0 bit. When decoding, each bit read selects the branch (0 left,
+1 right) until a leaf is reached; a tree consisting of only one leaf consumes no bits.
 
-**16-Bit-Baum**: Bit „vorhanden“ (sonst: ein Blatt 0), Bytebaum der niedrigen, Bytebaum der hohen
-Bytes, drei 16-Bit-**Marken**, dann der Baum wie oben, aber jedes Blatt ist „niedriges Byte (mit dem
-ersten Bytebaum gelesen) | hohes Byte (mit dem zweiten) << 8“, dann ein abschließendes 0-Bit. Ein Blatt
-mit dem Wert einer Marke ist ein **Merkblatt**: es enthält keinen festen Wert, sondern einen der drei
-zuletzt gelesenen. Zu Beginn jedes Bildes sind alle drei 0. Liest der Decoder einen Wert, der sich vom
-Inhalt des Merkblatts 1 unterscheidet, rückt Merkblatt 2 in 3, 1 in 2, und der neue Wert kommt in 1.
-Marken ohne Blatt zählen nicht.
+**16-bit tree**: bit "present" (otherwise: one leaf 0), byte tree of the low bytes, byte tree of the high
+bytes, three 16-bit **markers**, then the tree as above, but each leaf is "low byte (read with the
+first byte tree) | high byte (read with the second) << 8", then a terminating 0 bit. A leaf
+with the value of a marker is a **cache leaf**: it holds no fixed value but one of the three
+most recently read ones. At the start of each frame all three are 0. When the decoder reads a value that differs from the
+contents of cache leaf 1, cache leaf 2 moves into 3, 1 into 2, and the new value goes into 1.
+Markers without a leaf do not count.
 
-Die vier 16-Bit-Bäume liegen in dieser Reihenfolge hintereinander im Tabellenbereich.
+The four 16-bit trees lie one after another in this order in the table area.
 
-### Ein Bild
+### A frame
 
-In dieser Reihenfolge, je nach Bildart:
+In this order, depending on the frame type:
 
-1. **Palette**: ein Byte Länge (Größe des ganzen Blocks samt diesem Byte, durch 4), dann Befehle,
-   bis 256 Einträge erreicht sind oder der Block endet (ein angefangener Befehl am Ende ist Auffüllung):
-   - `1ccccccc`: die nächsten c + 1 Einträge bleiben, wie sie waren;
-   - `01cccccc ssssssss`: c + 1 Einträge aus der **vorigen** Palette ab Eintrag s kopieren;
-   - `00rrrrrr 00gggggg 00bbbbbb`: ein neuer Eintrag aus 6-Bit-Anteilen, verbreitert mit 4·c + c/16
+1. **Palette**: one byte length (size of the whole block including this byte, divided by 4), then commands
+   until 256 entries are reached or the block ends (a started command at the end is padding):
+   - `1ccccccc`: the next c + 1 entries stay as they were;
+   - `01cccccc ssssssss`: copy c + 1 entries from the **previous** palette starting at entry s;
+   - `00rrrrrr 00gggggg 00bbbbbb`: a new entry from 6-bit components, widened with 4·c + c/16
      (0 → 0, 16 → 65, 63 → 255).
 
-   Die Reihenfolge Rot, Grün, Blau ist an den Videos des Spiels geprüft (die Quelle nennt Blau zuerst;
-   damit wären Haut und Pergament blau).
-2. **Tonblöcke** der Spuren 0 … 6 mit gesetztem Bit: 4 Byte Länge (samt diesem Feld), bei gepackten
-   Spuren 4 Byte entpackte Länge, dann die Daten.
-3. **Bild**: der Rest. Das Bild besteht aus 4 × 4-Blöcken, zeilenweise von links oben (Breite und Höhe
-   auf ganze Blöcke aufgerundet). Es baut auf dem vorigen Bild auf.
+   The order red, green, blue was checked against the game's videos (the source names blue first;
+   with that, skin and parchment would be blue).
+2. **Audio blocks** of tracks 0 … 6 with their bit set: 4 bytes length (including this field), for packed
+   tracks 4 bytes unpacked length, then the data.
+3. **Image**: the rest. The image consists of 4 × 4 blocks, row by row from the top left (width and height
+   rounded up to whole blocks). It builds on the previous frame.
 
-### Blöcke
+### Blocks
 
-Ein Wert des Blockartbaums beschreibt eine Kette: Bits 0–1 Art, Bits 2–7 Index der Kettenlänge
-(1 … 59, dann 128, 256, 512, 1024, 2048), Bits 8–15 Zusatz. Die Kette reicht höchstens bis zum Bildende.
+A value of the block type tree describes a chain: bits 0–1 type, bits 2–7 index of the chain length
+(1 … 59, then 128, 256, 512, 1024, 2048), bits 8–15 extra. The chain reaches at most to the end of the image.
 
-| Art | Name | Inhalt je Block |
+| Type | Name | Contents per block |
 |---|---|---|
-| 0 | zwei Farben | Wert des Farbbaums (hohes Byte: Farbe der 1-Bits, niedriges: der 0-Bits), Wert des Maskenbaums: 16 Bits, Bit i = Pixel i (Zeile für Zeile, links nach rechts) |
-| 1 | voll | je Zeile zwei Werte des Vollbaums: der erste füllt die Pixel 2 und 3 (niedriges Byte links), der zweite die Pixel 0 und 1 |
-| 2 | leer | bleibt wie im vorigen Bild |
-| 3 | einfarbig | alle Pixel in der Farbe des Zusatzbytes |
+| 0 | two colours | value of the colour tree (high byte: colour of the 1 bits, low byte: of the 0 bits), value of the mask tree: 16 bits, bit i = pixel i (row by row, left to right) |
+| 1 | full | per row two values of the full tree: the first fills pixels 2 and 3 (low byte left), the second pixels 0 and 1 |
+| 2 | empty | stays as in the previous frame |
+| 3 | solid | all pixels in the colour of the extra byte |
 
-Die Reihenfolge der beiden Werte bei vollen Blöcken ist an den Videos geprüft (die Quelle sagt nichts
-dazu; umgekehrt wären alle Kanten gezackt). Bei `SMK4` beginnen Ketten voller Blöcke mit Bits für eine
-Unterart: `0` wie oben, `10` doppelt (ein Wert füllt zwei 2 × 2-Felder nebeneinander), `11` halb (nur
-jede zweite Zeile, die darunter wiederholt sie). Das Spiel hat keine `SMK4`-Dateien; diese Unterarten
-sind nur nach der Beschreibung umgesetzt.
+The order of the two values for full blocks was checked against the videos (the source says nothing
+about it; reversed, all edges would be jagged). In `SMK4`, chains of full blocks start with bits for a
+subtype: `0` as above, `10` double (one value fills two 2 × 2 fields side by side), `11` half (only
+every second row, the one below repeats it). The game has no `SMK4` files; these subtypes
+are implemented only from the description.
 
-### Ton
+### Audio
 
-Ungepackt: PCM (8 Bit ohne Vorzeichen oder 16 Bit). Gepackt (Huffman-DPCM), je Block ein Bitstrom:
+Unpacked: PCM (8 bit unsigned or 16 bit). Packed (Huffman DPCM), one bit stream per block:
 
-1. Bit „Daten“ (0: der Block ist stumm), Bit stereo, Bit 16 Bit (beide müssen zum Kopf passen);
-2. Bytebäume: einer je Kanal, bei 16 Bit zwei je Kanal (niedriges, hohes Byte; links vor rechts);
-3. Startwerte, **rechter Kanal zuerst**, bei 16 Bit das hohe Byte zuerst; sie sind das erste Sample;
-4. dann je Sample und Kanal (links, rechts) eine Differenz aus dem Baum des Kanals (bei 16 Bit niedriges
-   und hohes Byte zu einer 16-Bit-Zahl), auf den vorigen Wert addiert (mit Überlauf), bis die entpackte
-   Länge erreicht ist.
+1. bit "data" (0: the block is silent), bit stereo, bit 16 bit (both must match the header);
+2. byte trees: one per channel, for 16 bit two per channel (low, high byte; left before right);
+3. start values, **right channel first**, for 16 bit the high byte first; they are the first sample;
+4. then per sample and channel (left, right) a difference from the channel's tree (for 16 bit low
+   and high byte combined into a 16-bit number), added to the previous value (with overflow), until the unpacked
+   length is reached.
 
-Die Spuren des Spiels decken ihre Videos auf die Zehntelsekunde ab (geprüft: 911, 282). Open1602 gibt
-eine Spur als Ganzes an den Mischer ([audio.md](../re/audio.md)).
+The game's tracks cover their videos to the tenth of a second (checked: 911, 282). Open1602 passes
+a track as a whole to the mixer ([audio.md](../re/audio.md)).
 
-## Prüfung
+## Verification
 
-- `o1602-tool smk <datei> [--png ORDNER] [--every N] [--wav SPUR AUS.wav]`: Kopf, alle Bilder dekodieren,
-  Bilder als PNG, eine Spur als WAVE.
-- `tests/unit/test_video.cpp` baut kleine Dateien Bit für Bit (alle Blockarten, Ketten, Merkblätter,
-  Palettenbefehle, die drei Tonarten, beschädigte Dateien); `tests/data/test_video_data.cpp` dekodiert
-  ein Video des Spiels ganz.
-- Geprüft an 12 der 51 Videos und `6s.smk` (alle Bilder, Stichproben angesehen).
+- `o1602-tool smk <file> [--png FOLDER] [--every N] [--wav TRACK OUT.wav]`: header, decode all frames,
+  frames as PNG, one track as WAVE.
+- `tests/unit/test_video.cpp` builds small files bit by bit (all block types, chains, cache leaves,
+  palette commands, the three audio types, damaged files); `tests/data/test_video_data.cpp` decodes
+  a video of the game completely.
+- Checked on 12 of the 51 videos and `6s.smk` (all frames, samples viewed).

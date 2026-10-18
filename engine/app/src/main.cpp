@@ -76,7 +76,7 @@ int usage() {
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
         "\n"
-        "Keys (docs/architecture/0010-bedienung-und-oberflaeche.md):\n"
+        "Keys (docs/architecture/0010-controls-and-interface.md):\n"
         "  WASD, arrows   scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  Q / E          rotate view                 wheel, PageUp/PageDn     zoom\n"
         "  Space          to the last message         Home                     to the selection\n"
@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
     bool game_named = false;  ///< without a game the program starts in the main menu
     bool menu = false;
     sim::NewGameOptions new_game_options;
-    new_game_options.name = "Spieler";
+    new_game_options.name = "Player";
     std::optional<std::uint8_t> layout_given;
     std::optional<std::uint64_t> seed_given;
     sim::WorldSettings custom;
