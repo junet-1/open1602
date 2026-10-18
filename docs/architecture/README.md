@@ -15,3 +15,4 @@ Kurze, datierte Entscheidungen mit Begründung. Neue Entscheidung = neue Datei
 | [0008](0008-spieleinstellungen.md) | Spieleinstellungen in `sim::Rules` (Endlosspiel einstellbar wie in späteren Anno-Teilen) | angenommen |
 | [0009](0009-eigenes-speicherformat.md) | Eigenes Speicherformat `.o1602`; Originaldateien nur lesen und exportieren | angenommen |
 | [0010](0010-bedienung-und-oberflaeche.md) | Bedienung und Oberfläche: moderne Steuerung (Rechtsklick, Minikarte, Befehlsketten), freie Tasten, Rückfragen | angenommen |
+| [0011](0011-mehrspieler-lockstep.md) | Mehrspieler: Lockstep über den Gastgeber, Neusynchronisation per Spielstand, ENet | angenommen |

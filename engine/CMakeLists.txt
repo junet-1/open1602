@@ -12,6 +12,7 @@
 add_subdirectory(core)
 add_subdirectory(assets)
 add_subdirectory(sim)
+add_subdirectory(net)
 add_subdirectory(render)
 add_subdirectory(audio)
 add_subdirectory(video)
@@ -24,4 +25,4 @@ if(O1602_BUILD_GAME)
 endif()
 
 # Modules below are planned (see docs/00-plan.md) and get added as they are implemented:
-#   net, script
+#   script

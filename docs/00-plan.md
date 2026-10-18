@@ -175,7 +175,7 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 Teile von Inselkopf und Szenario-Chunks; Schriften, Layouts, Ton und Videos fertig) · M2 ✅ ·
 M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel, Spielstände und Ton fertig; Grundlagen der Oberfläche da, es fehlt ihr Zeichnen und die Fenster) · M5 🟡
 (Militär, Piraten, Weltengenerator Stufe 1, KI und Aufträge mit Sieg und Niederlage fertig; offen:
-Kampagnenfortschritt, Bestenliste, KI-Schalter der Szenarien; Ereignisse haben Szenarien nicht) · M6 ⬜ (Grundlagen: Befehle, Determinismus) · M7 ⬜ (einzelne Verbesserungen
+Kampagnenfortschritt, Bestenliste, KI-Schalter der Szenarien; Ereignisse haben Szenarien nicht) · M6 🟡 (Lockstep, Desync-Erkennung mit Neusynchronisation, Wiederverbinden; offen: Lobby, Menüs) · M7 ⬜ (einzelne Verbesserungen
 schon da: Mausrad-Zoom, Bildschirmfoto, behobene Fehler) · M8 ⬜ (Banner mit eingefärbten Flaggen schon da).
 
 ## 7. Nächste Schritte
@@ -339,7 +339,8 @@ kommt, werden sie abgehakt.
 
 **Mehrspieler**
 - Wie andere Rechner einen Hausaufstieg übernehmen (Nachricht 0x835, [houses.md](re/houses.md)).
-- Zustands-Hash je Tick, Befehle über das Netz, Lobby (ADR 0004); mehr als vier Spieler beim Start.
+- ~~Befehle über das Netz, Zustands-Hash~~: erledigt (18.10.2026, ADR 0011; Fingerabdruck alle 100 Rahmen).
+- Lobby und Menüs; mehr als vier Spieler beim Start.
 
 **Nur Analyse**
 - Bits +0x0F/4 und /6 der Produktion ([production.md](re/production.md)).

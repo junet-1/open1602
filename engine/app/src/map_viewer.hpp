@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,8 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
+#include "o1602/net/enet_transport.hpp"
+#include "o1602/net/session.hpp"
 #include "o1602/platform/window.hpp"
 #include "o1602/render/ambient.hpp"
 #include "o1602/render/animation_clock.hpp"
@@ -98,6 +101,15 @@ struct ViewerOptions {
     std::optional<std::array<std::uint16_t, 3>> select;
     std::optional<std::uint32_t> select_ship;     ///< index into the game's ships
     std::optional<std::uint32_t> select_soldier;  ///< index into the game's land units
+    /// A multiplayer game (ADR 0011): host the game named, or join a host and play the game it sends.
+    struct Multiplayer {
+        enum class Role : std::uint8_t { Host, Join };
+        Role role = Role::Host;
+        std::string address;  ///< Join: the host's name or IPv4 address
+        std::uint16_t port = net::kDefaultPort;
+        std::string name = "Spieler";  ///< the player's name for the others
+    };
+    std::optional<Multiplayer> multiplayer;
 };
 
 class MapViewer {
@@ -213,6 +225,18 @@ private:
     void selection_changed(bool box);
     /// Orders to the simulation; those that cannot be taken back wait for an answer (ADR 0010).
     void submit_orders(std::vector<sim::Command> orders, bool sound = true);
+    /// A command of the local player: to the simulation, or in a multiplayer game to the session,
+    /// which carries it out on every computer at the same frame.
+    void submit(sim::Command command);
+    /// Hosts or joins the multiplayer game of the options.
+    core::Status start_multiplayer();
+    /// What the multiplayer session reported this frame, for the player (on stderr for now).
+    void apply_session_events();
+    /// The game a host sent: replaces the world (also after a desync); nullptr if it cannot be read.
+    sim::Simulation* load_from_host(std::span<const std::uint8_t> save);
+    /// Fingerprint of the game data the simulation depends on: computers of a multiplayer game
+    /// must have the same.
+    [[nodiscard]] std::uint64_t content_fingerprint() const;
     [[nodiscard]] std::optional<std::string> question_for(const sim::Command& command) const;
     /// Health bars over the selected units and the selection rectangle.
     void draw_selection_overlay();
@@ -287,6 +311,8 @@ private:
     render::ShipTrail m_ship_trail;                 ///< ships drawn between two ticks
     ViewerOptions m_options;
     sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
+    /// A multiplayer game: drives m_simulation in place of Simulation::advance().
+    std::unique_ptr<net::Session> m_session;
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
     std::unique_ptr<platform::Window> m_window;

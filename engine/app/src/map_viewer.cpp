@@ -92,8 +92,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     std::vector<std::string> warnings;
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
-    if (options.menu) {
-        world = sim::World(500, 350);  // the sea behind the menu until a game is chosen
+    const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
+    if (options.menu || joining) {
+        world = sim::World(500, 350);  // the sea behind the menu until a game is chosen or comes from the host
     } else if (options.new_game) {
         auto texts = assets::TextTable::load(game);
         if (!texts) {
@@ -205,7 +206,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         if ((flags & audio::kMessageNormalSpeed) != 0 && self->m_simulation.speed() > 1) {
             // Fires, plagues and attacks: back to normal speed (0x004893F0), as a command like any
             // other change of the speed.
-            self->m_simulation.submit(sim::GameSpeedOrder{self->m_local_player, sim::GameSpeedOrder::Op::SetSpeed, 1});
+            self->submit(sim::GameSpeedOrder{self->m_local_player, sim::GameSpeedOrder::Op::SetSpeed, 1});
         }
         if (self->m_hud) {
             // The icon in the colour of the player the message is about (a rival's new city).
@@ -267,6 +268,11 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     if (auto status = viewer->ensure_graphics(viewer->m_camera.view().zoom); !status) {
         return status.error();
+    }
+    if (options.multiplayer) {
+        if (auto status = viewer->start_multiplayer(); !status) {
+            return status.error();
+        }
     }
     return viewer;
 }
@@ -422,7 +428,11 @@ int MapViewer::run() {
         }
         if (video && !video_windowed()) {
             // The game stands still while a video fills the screen (the original's main loop
-            // 0x00408293); the time does not reach the simulation afterwards.
+            // 0x00408293); the time does not reach the simulation afterwards. Not in a multiplayer
+            // game: the others would wait (M-018).
+            if (m_session) {
+                update(delta);
+            }
             std::int32_t w = 0;
             std::int32_t h = 0;
             m_window->output_size(w, h);
@@ -431,7 +441,10 @@ int MapViewer::run() {
         } else {
             sync_text_input();
             if (m_hud && m_hud->menu_active()) {
-                apply_menu();  // no game runs behind the menu
+                apply_menu();  // no game runs behind the menu, but for a multiplayer game
+                if (m_session) {
+                    update(delta);
+                }
                 render();
             } else {
                 if (m_hud) {
@@ -623,9 +636,9 @@ void MapViewer::handle_event(const SDL_Event& original) {
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
                 if (const auto spot = spot_at_mouse()) {
                     if (auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
-                        m_simulation.submit(std::move(*order));
+                        submit(std::move(*order));
                     } else if (auto demolish = m_tool.demolish_order(m_local_player, *spot)) {
-                        m_simulation.submit(*demolish);
+                        submit(*demolish);
                     }
                 }
                 m_tool.release();
@@ -674,15 +687,23 @@ void MapViewer::update(std::uint32_t delta_ms) {
     // game slower instead of stalling (review point 20).
     const auto frame_end = std::chrono::steady_clock::now() + std::chrono::milliseconds(kTickBudgetMs);
     bool first = true;
-    m_simulation.advance(delta_ms, [&] {
+    const auto before_tick = [&] {
         if (!first && std::chrono::steady_clock::now() >= frame_end) {
             return false;
         }
         first = false;
         m_ship_trail.capture(m_world);
         return true;
-    });
-    m_ship_trail.set_fraction(m_simulation.tick_fraction());
+    };
+    if (m_session) {
+        // A multiplayer game runs the frames the host has closed (ADR 0011).
+        m_session->update(delta_ms, before_tick);
+        apply_session_events();
+        m_ship_trail.set_fraction(m_session->tick_fraction());
+    } else {
+        m_simulation.advance(delta_ms, before_tick);
+        m_ship_trail.set_fraction(m_simulation.tick_fraction());
+    }
     if (!m_simulation.paused()) {
         place_listener();
         apply_production_events();
@@ -1340,12 +1361,12 @@ void MapViewer::handle_video_event(const SDL_Event& event) {
 void MapViewer::toggle_pause_video() {
     m_pause_video = !m_pause_video;
     if (m_pause_video) {
-        m_simulation.submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::Pause, m_simulation.speed()});
+        submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::Pause, m_simulation.speed()});
         if (m_video && m_video->available(6)) {
             request_video(6, 0, true);
         }
     } else {
-        m_simulation.submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::Resume, m_simulation.speed()});
+        submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::Resume, m_simulation.speed()});
         if (m_video && m_video->playing() && m_video->number() == 6 && m_video_now.loop) {
             stop_video();
         }
@@ -1729,6 +1750,18 @@ void MapViewer::update_title(double fps) {
     std::snprintf(clock, sizeof clock, " | %02llu:%02llu:%02llu", static_cast<unsigned long long>(seconds / 3600),
                   static_cast<unsigned long long>(seconds / 60 % 60), static_cast<unsigned long long>(seconds % 60));
     title += clock;
+    if (m_session) {
+        std::size_t players = 0;
+        for (const net::Member& m : m_session->roster()) {
+            players += m.seat != sim::kNoPlayer ? 1 : 0;
+        }
+        title += " | Mehrspieler: " + std::to_string(players) + " Spieler";
+        if (m_session->ended()) {
+            title += ", beendet";
+        } else if (m_session->waiting()) {
+            title += ", wartet";
+        }
+    }
     m_window->set_title(title);
 }
 
@@ -1980,6 +2013,9 @@ void MapViewer::apply_options() {
 }
 
 core::Status MapViewer::load_game(const std::filesystem::path& path) {
+    if (m_session) {
+        return core::make_error(core::ErrorCode::Unsupported, "no other game while a multiplayer game runs");
+    }
     if (m_sound) {
         m_sound->prefill();  // the frames stand still while the game loads
     }
@@ -2029,7 +2065,8 @@ void MapViewer::replace_world(sim::World world) noexcept {
     m_simulation.set_city_names(m_city_names);
     m_simulation.set_ship_names(m_ship_names);
     m_simulation.set_tick_observer([this](const sim::World& now) { m_ambient.tick(now, m_buildings, m_figures); });
-    m_local_player = sim::first_human_player(m_world);
+    // In a multiplayer game the slot the host gave this computer (kNoPlayer: watching).
+    m_local_player = m_session ? m_session->local_seat() : sim::first_human_player(m_world);
     m_building_figures = render::collect_building_figures(m_world, m_buildings, m_figures);
     m_production_phases.clear();
     m_soldiers.reset(m_world, m_buildings, m_figures);
@@ -2048,6 +2085,9 @@ void MapViewer::replace_world(sim::World world) noexcept {
 }
 
 core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name) {
+    if (m_session) {
+        return core::make_error(core::ErrorCode::Unsupported, "no other game while a multiplayer game runs");
+    }
     auto texts = assets::TextTable::load(m_game);
     if (!texts) {
         return texts.error();
@@ -2120,7 +2160,7 @@ void MapViewer::apply_menu() {
                 started = load_game(e.path);
                 if (started && !e.name.empty()) {
                     // The stored name goes to the human (0x0048A680).
-                    m_simulation.submit(sim::PlayerRename{m_local_player, e.name});
+                    submit(sim::PlayerRename{m_local_player, e.name});
                 }
                 break;
             case MenuEvent::Kind::LoadSlot:
@@ -2175,6 +2215,115 @@ core::Status MapViewer::save_screenshot(const std::filesystem::path& path) {
         pixels[i] = 255;
     }
     return core::write_png_rgba(path, width, height, pixels);
+}
+
+void MapViewer::submit(sim::Command command) {
+    if (m_session) {
+        m_session->submit(std::move(command));
+    } else {
+        m_simulation.submit(std::move(command));
+    }
+}
+
+std::uint64_t MapViewer::content_fingerprint() const {
+    // The tables the simulation computes with, and the names it gives new cities and ships.
+    std::uint64_t h = net::fingerprint({});
+    for (const char* file : {"haeuser.cod", "figuren.cod"}) {
+        if (const auto path = m_game.resolve(file)) {
+            if (const auto bytes = core::read_file(*path)) {
+                h = net::fingerprint(*bytes, h);
+            }
+        }
+    }
+    for (const auto* names : {&m_city_names, &m_ship_names}) {
+        for (const std::string& name : *names) {
+            const std::uint8_t end = 0;
+            h = net::fingerprint({reinterpret_cast<const std::uint8_t*>(name.data()), name.size()}, h);
+            h = net::fingerprint({&end, 1}, h);
+        }
+    }
+    return h;
+}
+
+core::Status MapViewer::start_multiplayer() {
+    const ViewerOptions::Multiplayer& mp = *m_options.multiplayer;
+    if (mp.role == ViewerOptions::Multiplayer::Role::Host) {
+        auto transport = net::enet_listen(mp.port);
+        if (!transport) {
+            return transport.error();
+        }
+        if (m_local_player == sim::kNoPlayer) {
+            return core::make_error(core::ErrorCode::Unsupported, "the game has no human player to host with");
+        }
+        m_session = std::make_unique<net::HostSession>(std::move(transport).value(), m_simulation, m_buildings,
+                                                       m_local_player, mp.name, content_fingerprint());
+        m_session->submit(sim::PlayerRename{m_local_player, mp.name});
+        std::fprintf(stderr, "multiplayer: hosting on UDP port %u as player %u\n", static_cast<unsigned>(mp.port),
+                     static_cast<unsigned>(m_local_player));
+        return core::Ok{};
+    }
+    auto transport = net::enet_connect(mp.address, mp.port);
+    if (!transport) {
+        return transport.error();
+    }
+    net::Hello hello;
+    hello.content = content_fingerprint();
+    hello.name = mp.name.substr(0, net::kMaxNameLength);
+    m_local_player = sim::kNoPlayer;  // until the host sends the game
+    m_session = std::make_unique<net::ClientSession>(
+        std::move(transport).value(), hello,
+        [this](std::span<const std::uint8_t> save) { return load_from_host(save); });
+    std::fprintf(stderr, "multiplayer: joining %s:%u\n", mp.address.c_str(), static_cast<unsigned>(mp.port));
+    return core::Ok{};
+}
+
+sim::Simulation* MapViewer::load_from_host(std::span<const std::uint8_t> save) {
+    std::vector<std::string> warnings;
+    auto world = sim::read_game(save, m_buildings, &warnings, &m_figures);
+    if (!world) {
+        std::fprintf(stderr, "multiplayer: the host's game cannot be loaded: %s\n", world.error().message.c_str());
+        return nullptr;
+    }
+    for (const auto& w : warnings) {
+        std::fprintf(stderr, "warning: %s\n", w.c_str());
+    }
+    replace_world(std::move(world).value());
+    return &m_simulation;
+}
+
+void MapViewer::apply_session_events() {
+    const auto who = [](const net::SessionEvent& e) {
+        return e.seat == sim::kNoPlayer ? e.name + " (watching)" : e.name + " (player " + std::to_string(e.seat) + ")";
+    };
+    for (const net::SessionEvent& e : m_session->take_events()) {
+        switch (e.kind) {
+            case net::SessionEvent::Kind::Welcomed:
+                std::fprintf(stderr, "multiplayer: in the game as %s\n",
+                             e.seat == sim::kNoPlayer ? "spectator" : ("player " + std::to_string(e.seat)).c_str());
+                break;
+            case net::SessionEvent::Kind::Loaded:
+                std::fprintf(stderr, "multiplayer: game from the host loaded at frame %llu\n",
+                             static_cast<unsigned long long>(e.frame));
+                break;
+            case net::SessionEvent::Kind::Joined:
+                std::fprintf(stderr, "multiplayer: %s joined\n", who(e).c_str());
+                break;
+            case net::SessionEvent::Kind::Left:
+                std::fprintf(stderr, "multiplayer: %s left\n", who(e).c_str());
+                break;
+            case net::SessionEvent::Kind::Lagging:
+                std::fprintf(stderr, "multiplayer: %s lags behind; the game goes on without waiting\n", who(e).c_str());
+                break;
+            case net::SessionEvent::Kind::Desync:
+                std::fprintf(stderr, "multiplayer: player %u diverged after frame %llu and gets the game anew\n",
+                             static_cast<unsigned>(e.seat), static_cast<unsigned long long>(e.frame));
+                break;
+            case net::SessionEvent::Kind::Ended:
+                std::fprintf(stderr, "multiplayer: %s\n",
+                             e.reason == net::EndReason::Refused ? net::describe(e.refused) : net::describe(e.reason));
+                break;
+        }
+    }
 }
 
 }  // namespace o1602::app

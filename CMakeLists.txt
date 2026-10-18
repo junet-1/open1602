@@ -42,6 +42,7 @@ option(O1602_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"  OFF)
 # Optional zlib: used for compressed PNG output in tools. Fallback is uncompressed PNG.
 find_package(ZLIB QUIET)
 
+add_subdirectory(third_party/enet)
 add_subdirectory(engine)
 
 if(O1602_BUILD_TOOLS)
