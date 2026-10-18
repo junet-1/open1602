@@ -45,6 +45,10 @@ public:
     void click();
     /// A message for the local player at a world tile (nothing: no place). Returns its flags.
     std::uint16_t message(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt);
+    /// Hears every message with its flags (the status bar's icons, normal speed).
+    using Listener =
+        std::function<void(std::uint16_t message, std::uint16_t flags, std::optional<std::pair<double, double>> tile)>;
+    void set_listener(Listener listener) { m_listener = std::move(listener); }
 
     // Events of the simulation that sound, for the local player `local`.
     void construction(const sim::World& world, const std::vector<sim::ConstructionEvent>& events);
@@ -68,6 +72,7 @@ private:
     std::unique_ptr<audio::Music> m_music;
     audio::AudioSettings m_settings;
     Locator m_locate;
+    Listener m_listener;
     float m_view_w = 1024.0F;
     float m_view_h = 768.0F;
     std::uint32_t m_variant = 0;  ///< own counter for the variants: no game random numbers (S-112)

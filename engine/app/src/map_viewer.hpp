@@ -14,6 +14,7 @@
 
 #include "build_tool.hpp"
 #include "game_sound.hpp"
+#include "hud.hpp"
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
@@ -59,6 +60,7 @@ struct ViewerOptions {
     /// How the islands of a scenario that makes them at the start are drawn (also --scenario
     /// Szenes/Endlosspiel00.szs).
     sim::WorldStart world;
+    bool frame = true;    ///< the original's panel and status bar around the map
     bool effects = true;  ///< sounds and voice messages (also off in the original's Game.dat)
     bool music = true;
 };
@@ -107,6 +109,11 @@ private:
     void order_soldier_to_mouse();
     /// Tells the sound where the view is (every frame, before events are heard).
     void place_listener();
+    /// Gives the map the window without the frame.
+    void lay_out();
+    /// What a click on the frame asked for.
+    void apply_hud(const Hud::Action& action);
+    [[nodiscard]] render::TilePos home_or_centre() const;
     /// Shots, hits, victory and defeat: sounds, messages and lines in the terminal.
     void apply_game_events();
     /// A message for the local player with its voice; a message that asks for it slows the game
@@ -162,6 +169,8 @@ private:
     std::vector<render::EffectFigure> m_effects;  ///< volcano fire, lava, sea creatures, jugglers of this frame
     render::Ambient m_ambient;                    ///< life in the picture, no part of the game
     std::unique_ptr<GameSound> m_sound;           ///< effects, voices and music (after the window)
+    std::unique_ptr<Hud> m_hud;                   ///< panel and status bar (after the window), may be null
+    bool m_left_down = false;                     ///< the left mouse button, for the frame's buttons
     std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
 };
 

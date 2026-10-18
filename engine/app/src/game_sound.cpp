@@ -132,14 +132,22 @@ void GameSound::click() {
 std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<double, double>> tile) {
     if (m_output == nullptr) {
         const audio::MessageAudio* m = audio::message_audio(message);
-        return m != nullptr ? m->flags : 0;
+        const std::uint16_t flags = m != nullptr ? m->flags : 0;
+        if (m_listener) {
+            m_listener(message, flags, tile);
+        }
+        return flags;
     }
     bool visible = false;
     if (tile && m_locate) {
         const auto [x, y] = m_locate(tile->first, tile->second);
         visible = std::abs(x) < 1.0F && std::abs(y) < 1.0F;
     }
-    return m_voices.message(message, visible);
+    const std::uint16_t flags = m_voices.message(message, visible);
+    if (m_listener) {
+        m_listener(message, flags, tile);
+    }
+    return flags;
 }
 
 void GameSound::construction(const sim::World& world, const std::vector<sim::ConstructionEvent>& events) {

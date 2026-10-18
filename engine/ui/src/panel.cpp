@@ -17,8 +17,12 @@ std::int32_t trunc_scaled(double v) noexcept {
 }  // namespace
 
 ScreenRegions screen_regions(std::int32_t width, std::int32_t height) noexcept {
+    return screen_regions(width, height, static_cast<double>(width) / kDesignWidth);
+}
+
+ScreenRegions screen_regions(std::int32_t width, std::int32_t height, double scale) noexcept {
     ScreenRegions r;
-    r.scale = static_cast<double>(width) / kDesignWidth;
+    r.scale = scale;
     const std::int32_t panel = trunc_scaled(256.5 * r.scale);
     const std::int32_t bar = trunc_scaled(34.5 * r.scale);
     const std::int32_t tutor = trunc_scaled(140.5 * r.scale);
@@ -82,6 +86,12 @@ void Panel::set_slider(std::int32_t id, std::size_t axis, std::int32_t value, st
     }
     const std::int32_t size = m_layout.gadgets[*i].slider_size[axis];
     m_state[*i].slider[axis] = std::clamp((value * size + range / 2) / range, 0, std::max(0, size));
+}
+
+void Panel::set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_state[*i].graphic = std::make_pair(gfx, press_offset);
+    }
 }
 
 void Panel::set_scroll(std::int32_t id, std::int32_t line) {
@@ -208,7 +218,7 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
             break;
         case GadgetKind::Graphic:
             item.kind = DrawItem::Kind::Sprite;
-            item.gfx = g.gfx + g.press_offset * state;
+            item.gfx = s.graphic ? s.graphic->first + s.graphic->second * state : g.gfx + g.press_offset * state;
             out.push_back(item);
             break;
         case GadgetKind::GraphicRaster:

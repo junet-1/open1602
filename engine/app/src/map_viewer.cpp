@@ -167,6 +167,25 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     viewer->m_window = std::move(window).value();
     viewer->m_sound = std::make_unique<GameSound>(game, options.effects, options.music);
+    if (options.frame) {
+        const auto texts = assets::TextTable::load(game);
+        viewer->m_hud =
+            Hud::create(viewer->m_window->sdl_renderer(), game, viewer->m_palette, texts ? &texts.value() : nullptr);
+        if (!viewer->m_hud) {
+            std::fprintf(stderr, "no panel: the interface's files are missing\n");
+        }
+    }
+    viewer->m_sound->set_listener([self = viewer.get()](std::uint16_t message, std::uint16_t flags,
+                                                        std::optional<std::pair<double, double>> tile) {
+        if ((flags & audio::kMessageNormalSpeed) != 0 && self->m_simulation.speed() > 1) {
+            self->m_simulation.set_speed(1);  // fires, plagues and attacks: back to normal speed (0x004893F0)
+        }
+        if (self->m_hud) {
+            const sim::Player* p = self->m_world.player(self->m_local_player);
+            self->m_hud->message(message, p != nullptr ? static_cast<std::uint8_t>(std::min<int>(p->banner, 4)) : 0,
+                                 tile, platform::ticks_ms());
+        }
+    });
     std::fprintf(stderr, "renderer: %s, max texture %d\n", viewer->m_window->renderer_name().c_str(),
                  viewer->m_window->max_texture_size());
 
@@ -176,6 +195,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     const auto scale = static_cast<std::int32_t>(std::lround(viewer->m_window->pixel_density()));
     viewer->m_camera.set_world_size(viewer->m_world.width(), viewer->m_world.height());
     viewer->m_camera.set_screen(w, h, std::clamp(scale, 1, kMaxPixelScale));
+    viewer->lay_out();
     viewer->m_camera.set_zoom(options.zoom, w / 2.0, h / 2.0);
     // Start over the player's own city.
     viewer->m_camera.center_on(viewer->home_tile());
@@ -307,6 +327,7 @@ void MapViewer::handle_event(const SDL_Event& original) {
             std::int32_t h = 0;
             m_window->output_size(w, h);
             m_camera.set_screen(w, h, m_camera.pixel_scale());
+            lay_out();
             break;
         }
         case SDL_EVENT_KEY_DOWN:
@@ -315,6 +336,12 @@ void MapViewer::handle_event(const SDL_Event& original) {
         case SDL_EVENT_MOUSE_MOTION:
             m_mouse_x = event.motion.x;
             m_mouse_y = event.motion.y;
+            if (m_hud) {
+                if (const auto a = m_hud->mouse(static_cast<std::int32_t>(event.motion.x),
+                                                static_cast<std::int32_t>(event.motion.y), m_left_down)) {
+                    apply_hud(*a);
+                }
+            }
             if (m_dragging) {
                 m_camera.scroll(-event.motion.xrel, -event.motion.yrel);
                 m_drag_distance +=
@@ -322,6 +349,20 @@ void MapViewer::handle_event(const SDL_Event& original) {
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                m_left_down = true;
+            }
+            if (m_hud &&
+                m_hud->covers(static_cast<std::int32_t>(event.button.x), static_cast<std::int32_t>(event.button.y))) {
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    m_sound->click();
+                    if (const auto a = m_hud->mouse(static_cast<std::int32_t>(event.button.x),
+                                                    static_cast<std::int32_t>(event.button.y), true)) {
+                        apply_hud(*a);
+                    }
+                }
+                break;  // the map does not see clicks on the frame
+            }
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = true;
                 m_drag_distance = 0.0;
@@ -338,6 +379,15 @@ void MapViewer::handle_event(const SDL_Event& original) {
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                m_left_down = false;
+                if (m_hud) {
+                    if (const auto a = m_hud->mouse(static_cast<std::int32_t>(event.button.x),
+                                                    static_cast<std::int32_t>(event.button.y), false)) {
+                        apply_hud(*a);
+                    }
+                }
+            }
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = false;
                 // A right click (not a drag) sends the selected ship there, as in the original.
@@ -789,6 +839,24 @@ void MapViewer::render() {
         m_camera.screen_origin(ox, oy);
         m_sprites_drawn = graphics->renderer->draw(m_commands, ox, oy, m_camera.pixel_scale());
     }
+    if (m_hud) {
+        // The corners of the visible map in world tiles, for the minimap's frame.
+        const ui::Rect& v = m_hud->game_view();
+        std::array<std::pair<double, double>, 4> corners{};
+        const std::array<std::pair<double, double>, 4> screen = {
+            std::make_pair(0.0, 0.0), std::make_pair(static_cast<double>(v.w), 0.0),
+            std::make_pair(static_cast<double>(v.w), static_cast<double>(v.h)),
+            std::make_pair(0.0, static_cast<double>(v.h))};
+        const render::TilePos centre = home_or_centre();
+        for (std::size_t i = 0; i < 4; ++i) {
+            const auto t = m_camera.tile_at_screen(screen[i].first, screen[i].second);
+            corners[i] = t ? std::make_pair(static_cast<double>(t->x), static_cast<double>(t->y))
+                           : std::make_pair(static_cast<double>(centre.x), static_cast<double>(centre.y));
+        }
+        m_hud->set_status(m_tool_status);
+        m_hud->set_rotation(m_camera.view().rotation);
+        m_hud->draw(m_world, m_buildings, m_banners, corners, platform::ticks_ms());
+    }
     SDL_RenderPresent(r);
 }
 
@@ -999,9 +1067,46 @@ void MapViewer::place_listener() {
 }
 
 void MapViewer::announce(std::uint16_t message, std::optional<std::pair<double, double>> tile) {
-    const std::uint16_t flags = m_sound->message(message, tile);
-    if ((flags & audio::kMessageNormalSpeed) != 0 && m_simulation.speed() > 1) {
-        m_simulation.set_speed(1);  // fires, plagues and attacks: back to normal speed (0x004893F0)
+    m_sound->message(message, tile);  // the listener puts it into the status bar
+}
+
+void MapViewer::lay_out() {
+    if (!m_hud) {
+        return;
+    }
+    std::int32_t w = 0;
+    std::int32_t h = 0;
+    m_window->output_size(w, h);
+    const ui::Rect view = m_hud->layout(w, h);
+    m_camera.set_screen(view.w, view.h, m_camera.pixel_scale());
+}
+
+render::TilePos MapViewer::home_or_centre() const {
+    return render::TilePos{m_world.width() / 2, m_world.height() / 2};
+}
+
+void MapViewer::apply_hud(const Hud::Action& action) {
+    const ui::Rect view = m_hud->game_view();
+    const double cx = view.w / 2.0;
+    const double cy = view.h / 2.0;
+    switch (action.kind) {
+        case Hud::Action::Kind::RotateLeft:
+            m_camera.set_rotation(static_cast<std::uint8_t>(m_camera.view().rotation + 3), cx, cy);
+            break;
+        case Hud::Action::Kind::RotateRight:
+            m_camera.set_rotation(static_cast<std::uint8_t>(m_camera.view().rotation + 1), cx, cy);
+            break;
+        case Hud::Action::Kind::ZoomIn:
+            zoom_by(-1, cx, cy);
+            break;
+        case Hud::Action::Kind::ZoomOut:
+            zoom_by(1, cx, cy);
+            break;
+        case Hud::Action::Kind::Minimap:
+        case Hud::Action::Kind::Message:
+            m_camera.center_on(render::TilePos{static_cast<std::uint32_t>(std::max(0.0, action.tile_x)),
+                                               static_cast<std::uint32_t>(std::max(0.0, action.tile_y))});
+            break;
     }
 }
 

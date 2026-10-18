@@ -39,7 +39,7 @@ int usage() {
         "                [--islands original|seed]\n"
         "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--starts spread|together]\n"
-        "                [--screenshot out.png] [--no-sound] [--no-music]\n"
+        "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
@@ -51,6 +51,7 @@ int usage() {
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
         "  --droughts MODE    game (as the game's difficulty says, original), off, rare, normal, frequent\n"
         "  --volcanoes MODE   game (as the game's settings say, original), off, on\n"
+        "  --no-panel         no panel and status bar around the map (the original's frame)\n"
         "  --no-sound         no effects and voice messages; --no-music: no music (the original's Game.dat\n"
         "                     is read for the volumes, never written)\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
@@ -102,6 +103,8 @@ int main(int argc, char** argv) {
             savegame = argv[++i];
         } else if (arg == "--load" && has_value) {
             load = argv[++i];
+        } else if (arg == "--no-panel") {
+            options.frame = false;
         } else if (arg == "--no-sound") {
             options.effects = false;
         } else if (arg == "--no-music") {

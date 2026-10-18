@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "o1602/assets/gad.hpp"
@@ -43,6 +44,10 @@ struct ScreenRegions {
     Rect game_view;  ///< what is left for the map
 };
 [[nodiscard]] ScreenRegions screen_regions(std::int32_t width, std::int32_t height) noexcept;
+
+/// The regions at a chosen scale (the original: width / 1024; Open1602 keeps the whole panel on
+/// screen with min(width / 1024, height / 768)).
+[[nodiscard]] ScreenRegions screen_regions(std::int32_t width, std::int32_t height, double scale) noexcept;
 
 /// Design units to pixels: trunc((v + 0.5) * scale), as the original rounds every element.
 [[nodiscard]] std::int32_t to_pixels(std::int32_t v, double scale) noexcept;
@@ -100,6 +105,8 @@ public:
     void set_slider(std::int32_t id, std::size_t axis, std::int32_t value, std::int32_t range);
     /// First line of a flowing text shown (TEXTFL scrolling).
     void set_scroll(std::int32_t id, std::int32_t line);
+    /// Another sprite and pressed step for a gadget (0x004077C0, 0x00407840): message icons.
+    void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset);
 
     /// The mouse at (x, y) in pixels relative to the region, button down or up.
     std::vector<PanelEvent> mouse(std::int32_t x, std::int32_t y, bool down);
@@ -117,6 +124,7 @@ private:
         std::array<std::int32_t, 2> slider{};
         std::int32_t scroll = 0;
         std::string text;
+        std::optional<std::pair<std::int32_t, std::int32_t>> graphic;  ///< gfx, press offset
     };
     [[nodiscard]] std::optional<std::size_t> hit(std::int32_t x, std::int32_t y) const;
     void draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint8_t state,
