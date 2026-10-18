@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 add_library(o1602_core
+    src/compress.cpp
     src/file.cpp
     src/png_writer.cpp
     src/text.cpp

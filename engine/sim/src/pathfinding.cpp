@@ -119,6 +119,8 @@ bool walkable(const assets::BuildingType& building, const MapCell& cell, WalkCla
 
 void PathFinder::begin(const IslandMap& map, const assets::BuildingTable& buildings, const Catchment& area,
                        WalkClass walk, std::uint8_t speed_type, bool circle) {
+    m_map = &map;
+    m_buildings = &buildings;
     const TilePos min = area.min();
     m_x0 = min.x;
     m_y0 = min.y;
@@ -221,10 +223,25 @@ void PathFinder::set(TilePos p, Cell cell) {
 }
 
 void PathFinder::open_footprint(TilePos origin, std::uint32_t width, std::uint32_t height) {
+    // 0x004710B0: a building with Grundflg opens only the tiles whose ground (the second layer) is
+    // forest, open ground or ruins.
+    const assets::BuildingType* building = nullptr;
+    if (m_map != nullptr && m_buildings != nullptr && m_map->contains(origin.x, origin.y)) {
+        const MapCell& c = m_map->top(static_cast<std::uint32_t>(origin.x), static_cast<std::uint32_t>(origin.y));
+        building = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite);
+    }
+    const bool ground_only = building != nullptr && building->draw_ground;
     for (std::uint32_t j = 0; j < height; ++j) {
         for (std::uint32_t i = 0; i < width; ++i) {
-            set({origin.x + static_cast<std::int32_t>(i), origin.y + static_cast<std::int32_t>(j)}, Cell::Walkable,
-                kFootprintCost);
+            const TilePos p{origin.x + static_cast<std::int32_t>(i), origin.y + static_cast<std::int32_t>(j)};
+            if (ground_only && m_map->contains(p.x, p.y)) {
+                const MapCell& g = m_map->ground(static_cast<std::uint32_t>(p.x), static_cast<std::uint32_t>(p.y));
+                const assets::BuildingType* under = g.empty() ? nullptr : m_buildings->by_sprite(g.sprite);
+                if (under == nullptr || under->kind < building_kind::kForest || under->kind > building_kind::kRuin) {
+                    continue;
+                }
+            }
+            set(p, Cell::Walkable, kFootprintCost);
         }
     }
 }

@@ -3,12 +3,14 @@
 
 #include <SDL3/SDL.h>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
+#include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/construction.hpp"
@@ -80,11 +82,19 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
         world = sim::start_new_game(game, *buildings, *texts, *options.new_game, &warnings);
     } else {
-        auto file = assets::ChunkFile::load(options.scenario);
-        if (!file) {
-            return file.error();
+        auto bytes = core::read_file(options.scenario);
+        if (!bytes) {
+            return bytes.error();
         }
-        world = sim::load_world(*file, *buildings, game, &warnings, options.world);
+        if (sim::is_open1602_save(*bytes)) {
+            world = sim::read_game(*bytes, *buildings, &warnings);
+        } else {
+            auto file = assets::ChunkFile::from_bytes(std::move(bytes).value());
+            if (!file) {
+                return file.error();
+            }
+            world = sim::load_world(*file, *buildings, game, &warnings, options.world);
+        }
     }
     if (!world) {
         return world.error();
@@ -536,7 +546,7 @@ void MapViewer::handle_key(int key, bool shift) {
             m_camera.center_on(home_tile());
             break;
         case SDLK_F5: {  // quick save into Open1602's own folder
-            const std::filesystem::path path = save_folder() / "quicksave.gam";
+            const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));
             const auto status = save_game(path);
             std::fprintf(stderr, "%s%s\n", status ? "game saved: " : "",
                          status ? path.string().c_str() : status.error().message.c_str());
@@ -1042,7 +1052,12 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
         return core::make_error(core::ErrorCode::Unsupported,
                                 "will not write into the game's installation: " + target.string());
     }
-    auto bytes = sim::write_savegame(m_world, m_buildings, &m_simulation);
+    // Open1602's own savegame, or with the ending .gam one the original loads (as long as the game
+    // fits its limits; without the file the game came from, the fields Open1602 does not keep are 0).
+    std::string ending = target.extension().string();
+    std::transform(ending.begin(), ending.end(), ending.begin(), [](unsigned char c) { return std::tolower(c); });
+    auto bytes = ending == ".gam" ? sim::write_savegame(m_world, m_buildings, &m_simulation)
+                                  : sim::write_game(m_world, m_buildings, &m_simulation);
     if (!bytes) {
         return bytes.error();
     }

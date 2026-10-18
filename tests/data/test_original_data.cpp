@@ -44,6 +44,7 @@
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/island_events.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
@@ -2141,6 +2142,123 @@ TEST_CASE("data: a game saved in Open1602 continues exactly as if it had not sto
         }
     }
     CHECK(*first == *second);
+}
+
+TEST_CASE("data: a game in Open1602's own savegame continues exactly as if it had not stopped") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.back().world;
+    sim::Simulation a(world, *buildings, *figures);
+    a.set_speed(8);
+    for (int i = 0; i < 130; ++i) {
+        a.advance(100);
+    }
+    // Save in the middle of things: lava in the air, a fire with the fire brigade on its way.
+    for (std::uint16_t i = 0; i < world.islands().size(); ++i) {
+        if (!world.islands()[i].craters.empty()) {
+            const sim::Crater& c = world.islands()[i].craters.front();
+            REQUIRE(sim::erupt(world, sim::CraterRef{i, c.x, c.y}, 999, true, nullptr));
+            break;
+        }
+    }
+    for (const sim::House& h : world.houses()) {
+        if (world.city(h.island, h.city) != nullptr && world.city(h.island, h.city)->owner == 0) {
+            REQUIRE(sim::start_disaster(world, *buildings, h.island, {h.x, h.y}, sim::Disaster::Kind::Fire,
+                                        sim::kFireDuration, nullptr));
+            break;
+        }
+    }
+    for (int i = 0; i < 20; ++i) {
+        a.advance(100);
+    }
+    auto saved = sim::write_game(world, *buildings, &a);
+    REQUIRE(saved.ok());
+    auto legacy = sim::write_savegame(world, *buildings, &a);
+    REQUIRE(legacy.ok());
+    std::fprintf(stderr, "  own savegame %zu bytes, .GAM with chunk %zu bytes\n", saved->size(), legacy->size());
+    CHECK(saved->size() * 3 < legacy->size());
+    std::vector<std::string> warnings;
+    auto loaded = sim::read_game(*saved, *buildings, &warnings);
+    REQUIRE(loaded.ok());
+    CHECK(warnings.empty());
+    sim::Simulation b(*loaded, *buildings, *figures);
+    b.set_speed(8);
+    // The format is canonical: right after loading the bytes are the same ...
+    auto again = sim::write_game(*loaded, *buildings, &b);
+    REQUIRE(again.ok());
+    CHECK(*again == *saved);
+    // ... and five minutes later too.
+    for (int i = 0; i < 375; ++i) {
+        a.advance(100);
+        b.advance(100);
+    }
+    auto first = sim::write_game(world, *buildings, &a);
+    auto second = sim::write_game(*loaded, *buildings, &b);
+    REQUIRE(first.ok());
+    REQUIRE(second.ok());
+    CHECK(*first == *second);
+    // An Open1602 savegame can still be exported to the original's format while it fits.
+    auto exported = sim::write_savegame(*loaded, *buildings, &b);
+    CHECK(exported.ok());
+}
+
+TEST_CASE("data: the city window sets the taxes, the name and the material lock") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.front().world;
+    sim::Simulation simulation(world, *buildings, *figures);
+    const sim::City* found = nullptr;
+    for (const sim::City& c : world.cities()) {
+        if (c.owner == 0 && c.inhabitants.size() > 1 && c.inhabitants[1] > 0) {
+            found = &c;
+        }
+    }
+    REQUIRE(found != nullptr);
+    const std::uint16_t island = found->island;
+    const std::uint8_t index = found->index;
+    const std::uint8_t before = found->satisfaction[1];
+    const auto order = [&](sim::CityOrder::Op op) {
+        sim::CityOrder o;
+        o.player = 0;
+        o.island = island;
+        o.city = index;
+        o.op = op;
+        return o;
+    };
+    sim::CityOrder tax = order(sim::CityOrder::Op::TaxRate);
+    tax.resident_class = 1;
+    tax.rate = 192;
+    CHECK(simulation.execute(tax).accepted);
+    const sim::City& city = *world.city(island, index);
+    CHECK(city.tax_rate[1] == 192);
+    CHECK(city.satisfaction[1] <= before);  // measured against the new tax at once
+    tax.rate = 200;                         // beyond the slider
+    CHECK(!simulation.execute(tax).accepted);
+    tax.rate = 64;
+    tax.player = 1;  // not his city
+    CHECK(!simulation.execute(tax).accepted);
+    sim::CityOrder rename = order(sim::CityOrder::Op::Rename);
+    rename.name = "Neu-Lemonhall";
+    CHECK(simulation.execute(rename).accepted);
+    CHECK(city.name == "Neu-Lemonhall");
+    sim::CityOrder lock = order(sim::CityOrder::Op::MaterialLock);
+    lock.on = true;
+    CHECK(simulation.execute(lock).accepted);
+    CHECK(city.material_lock);
 }
 
 TEST_CASE("data: Open1602's chunk is left out when the original's chunks changed or it is damaged") {

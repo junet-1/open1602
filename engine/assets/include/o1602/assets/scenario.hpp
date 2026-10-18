@@ -105,8 +105,13 @@ struct ShipRecord {
     std::uint8_t cannons = 0;       ///< +0x42
     std::uint8_t flags = 0;         ///< +0x43: bit 1 route on, bit 3 one-way route, bit 2 for sale, bit 4 repair
     std::uint16_t sale_factor = 0;  ///< +0x44: sale price factor, 128 = 100 %
-    std::uint8_t trader = 0;        ///< +0x4C: HANDLER record of a free trader
-    std::uint8_t route_stop = 0;    ///< +0x4F: current stop of the trade route
+    /// The computer player's job of the ship (docs/re/ai.md): +0x24 mission (0 idle), +0x3E its
+    /// parameter (island number * 32 + city, a patrol island or a cooldown), +0x40 its counter.
+    std::uint16_t ai_mission = 0;
+    std::uint16_t ai_param = 0;
+    std::uint8_t ai_counter = 0;
+    std::uint8_t trader = 0;      ///< +0x4C: HANDLER record of a free trader
+    std::uint8_t route_stop = 0;  ///< +0x4F: current stop of the trade route
     /// Object references (byte 0 = type: 1-3 ship, 0x32-0x34 building, 0x35 city, 0x37 position).
     std::uint32_t order = 0;     ///< +0x2C
     std::uint32_t target = 0;    ///< +0x30

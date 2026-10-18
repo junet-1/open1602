@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Writes a world as a savegame (.GAM) the original can load (docs/re/savegame-writer.md).
+// Writes a world as a savegame (.GAM) the original can load (docs/re/savegame-writer.md). Open1602
+// saves its own games in its own format (save_game.hpp); this writer exports a game for the original
+// as long as it fits the original's limits.
 //
 // The original loads its chunks in a fixed order, each acting on what came before: islands with
 // their two layers of tiles (the ground, then what stands on it), the deer, the building lists,

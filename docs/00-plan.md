@@ -213,10 +213,12 @@ darauf aufsetzt.
    aktiven Menschen erreichen die Computer nach sechs Stunden Kaufleute mit 500–870 Einwohnern. Offen:
    KI-Schalter der Szenarien und die Schiffsaufträge aus Originalständen. Als Nächstes Ereignisse
    (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen Einstellungen, übrige Oberfläche.
-   **Vorschlag aus der Bestandsaufnahme (18.10.2026), vor der Oberfläche:** Spielstände über die
-   Grenzen des Originals (7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme; mit den Standardregeln
-   erreichbar, dann schlägt das Speichern fehl), dringende Waren (Wunsch 2), teureres Wasser bei
-   feindlichen Türmen, fehlende Spielerbefehle (Steuersatz, Kanonen laden, Schiffsverkauf, Umbenennen).
+   **Nach der Bestandsaufnahme erledigt (18.10.2026):** eigenes Speicherformat `.o1602` ohne die Grenzen
+   des Originals ([ADR 0009](architecture/0009-eigenes-speicherformat.md)); teureres Wasser bei feindlichen
+   Türmen; Stadt- und Schiffsfenster als Befehle (Steuersatz, Name, Material, Kanonen, über Bord,
+   Schiffsverkauf); Handelseinstellungen nach `Maxware`; `Grundflg` in der Wegsuche; Aufträge der
+   Computerschiffe aus Originalständen; Reaktion der Computer auf eine Gründung. Als Nächstes die
+   Missionsziele der Szenarien.
 6. **Mehrspieler** einschließlich Endlosspiel (`.szm`).
 7. **Weltengenerator, Stufe 2** (zurückgestellt, wenn alles andere fertig ist und läuft): eigene Inselformen,
    auch größer als die Vorlagen, mit Küsten-, Strand-, Berg- und Flussübergängen.
@@ -289,8 +291,9 @@ Die vollständige Übersicht (umgesetzt, offen, Klärung nötig, Erweiterungen) 
 kommt, werden sie abgehakt.
 
 **Speichern**
-- Mehr Spieler, Schiffe, Soldaten und Türme, als das Original fasst (7, 150, 400, 350), im eigenen
-  Chunk ([savegame-writer.md](re/savegame-writer.md#offen)). Ohne Abhängigkeit, Vorrang.
+- ~~Mehr Spieler, Schiffe, Soldaten und Türme, als das Original fasst~~: eigenes Format `.o1602`
+  ([o1602-save.md](formats/o1602-save.md)).
+- Liste der Spielstände (Abschnitt `META`) im Lade-Menü der Oberfläche.
 - Originalspielstände nehmen für die Wahlpunkte die Werte des Originals: erfüllt, weil der Standard
   der Wahlpunkte das Original ist ([ADR 0008](architecture/0008-spieleinstellungen.md)); Stände von
   Open1602 bringen ihre Einstellungen mit.
@@ -320,14 +323,10 @@ kommt, werden sie abgehakt.
 - Geräusche, Musik, Sprache (die Geräuschquellen werden schon bestimmt), Smacker-Videos.
 
 **Ohne Abhängigkeit**
-- Handelsgrenzen beim Kontor-Ausbau (`0x00481EE0`) ([logistics.md](re/logistics.md)).
-- Dringende Waren (Wunsch 2) brechen die Welle der Träger ab ([logistics.md](re/logistics.md)).
-- Wasser bei feindlichen Türmen teurer in der Wegsuche der Schiffe ([ships.md](re/ships.md)).
-- Spielerbefehle für Steuersatz, Kanonen auf- und abladen, Schiffsverkauf, Umbenennen.
-- Auftragsfelder der Schiffe aus `SHIP4` übernehmen; Reaktion der KI auf eine Gründung (Ereignis 0x0E).
-- Gebäude mit `Grundflg`: Das Original öffnet für die Wegesuche nur Wald, Boden und Ruinen unter
-  dem Gebäude ([logistics.md](re/logistics.md)).
 - Symboltabelle `re/symbols/` um die Adressen aus Militär, Piraten und KI ergänzen.
+- Erledigt am 18.10.2026: Handelsgrenzen beim Kontor-Ausbau, dringende Waren (S-104), Wasser bei
+  feindlichen Türmen (S-103), Stadt- und Schiffsbefehle, Aufträge aus `SHIP4`, Reaktion der KI auf eine
+  Gründung, `Grundflg` in der Wegsuche.
 
 **Mehrspieler**
 - Wie andere Rechner einen Hausaufstieg übernehmen (Nachricht 0x835, [houses.md](re/houses.md)).

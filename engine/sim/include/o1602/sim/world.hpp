@@ -593,6 +593,16 @@ private:
     std::vector<Cell> m_cells;
 };
 
+/// The Kontor building of a city (at its warehouse position), nullptr if it has none.
+[[nodiscard]] const assets::BuildingType* kontor_of(const World& world, const assets::BuildingTable& buildings,
+                                                    const City& city);
+
+/// A Kontor allows `Maxware` wares to sell and as many to buy as its second value (HAUS +0x45,
+/// +0x46). When a Kontor of a city is built or loaded and the city sells or buys more wares than
+/// it allows, all the city's trade settings are switched off (0x00481EE0). True if they were.
+/// Data without Maxware (both 0) sets no limit.
+bool trim_trade_settings(City& city, const assets::BuildingType& kontor);
+
 /// The player at this computer until there is a lobby: the first human player, kNoPlayer if none.
 [[nodiscard]] PlayerId first_human_player(const World& world) noexcept;
 

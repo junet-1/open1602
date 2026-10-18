@@ -245,6 +245,7 @@ private:
     bool city_valid(AiPlayer& p, bool clear);
     void check_city_loss(AiPlayer& p);
     void choose_home(AiPlayer& p);
+    void take_original_jobs(AiPlayer& p);
     CommandResult execute(const Command& command);
     /// Debug trace to stderr when O1602_AI_LOG is set.
     void log(const AiPlayer& p, const char* format, ...) const;
@@ -456,6 +457,7 @@ private:
 
 public:
     [[nodiscard]] bool directs(std::uint32_t ship) const;
+    void city_founded(std::uint16_t island, std::uint8_t city);
 
 private:
     // ---- ai_build.cpp ----

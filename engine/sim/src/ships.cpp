@@ -17,6 +17,7 @@ constexpr std::int32_t kPlanRadius = 80;       // ordinary plan (ship + 0x00 = 0
 constexpr std::int32_t kFollowRadius = 40;     // re-plan towards a moving target (0x28)
 constexpr std::int32_t kDetourRadius = 9;      // way round a ship ahead (0x00456270)
 constexpr std::int32_t kObstacleRange = 5;     // other ships in the planning grid
+constexpr std::int32_t kTowerReach = 8;        // half side of the expensive square round a hostile tower
 constexpr std::int32_t kLookAhead = 6;         // ships ahead (0x004538A0)
 constexpr std::uint32_t kIdleMs = 1000;        // an idle ship decides again after a second
 constexpr std::uint32_t kNoWayMs = 2000;       // after a plan without a way
@@ -580,6 +581,23 @@ bool Fleet::plan(Ship& ship, std::int32_t radius) {
         }
         r.ships.push_back(SeaPlan::Obstacle{o.x, o.y, o.motion.phase == ShipMotion::Phase::Run});
     }
+    // Water near the cannon towers of players at war with the ship's owner (0x00455A20 with
+    // 0x0046AA20): a square of 16 tiles around each. The original raises the cost around every
+    // tower of an island with a hostile city, also the towers of allies; Open1602 only around
+    // hostile ones (S-103).
+    for (const Tower& t : m_world->towers()) {
+        if (t.island >= m_world->islands().size() || !m_world->diplomacy().hostile(t.owner, ship.owner)) {
+            continue;
+        }
+        const WorldIsland& island = m_world->islands()[t.island];
+        const std::int32_t tx = static_cast<std::int32_t>(island.x) + t.x;
+        const std::int32_t ty = static_cast<std::int32_t>(island.y) + t.y;
+        if (std::abs(tx - ship.x) > radius + kTowerReach + 1 || std::abs(ty - ship.y) > radius + kTowerReach + 1) {
+            continue;
+        }
+        r.danger.push_back(
+            SeaPlan::Danger{tx - kTowerReach + 1, ty - kTowerReach + 1, tx + kTowerReach, ty + kTowerReach});
+    }
     const Target target = ship.target;
     r.goal = [&](std::int32_t x, std::int32_t y) { return reached(*m_world, *m_buildings, m_sea, target, x, y); };
     SeaCourse course = m_planner.plan(m_sea, r);
@@ -1117,6 +1135,23 @@ bool Fleet::set_trade(const TradeSetting& s) {
     City::Trade& t = city->trade[s.ware];
     const Player* owner = m_world->player(city->owner);
     const bool natives = owner != nullptr && owner->role == PlayerRole::Natives;
+    // A Kontor trades in at most Maxware wares to sell and its second value to buy (HAUS +0x45,
+    // +0x46): the original's window allows no more, Open1602's command checks it.
+    if (owner != nullptr && (owner->role == PlayerRole::Human || owner->role == PlayerRole::Computer)) {
+        if (const assets::BuildingType* kontor = kontor_of(*m_world, *m_buildings, *city);
+            kontor != nullptr && (kontor->max_wares != 0 || kontor->max_wares2 != 0)) {
+            std::size_t sells = 0;
+            std::size_t buys = 0;
+            for (const City::Trade& o : city->trade) {
+                sells += o.sell ? 1U : 0U;
+                buys += o.buy ? 1U : 0U;
+            }
+            if ((s.mode == TradeSetting::Mode::Sell && !t.sell && sells >= kontor->max_wares) ||
+                (s.mode == TradeSetting::Mode::Buy && !t.buy && buys >= kontor->max_wares2)) {
+                return false;
+            }
+        }
+    }
     const std::uint16_t base = base_price(s.ware);
     // Prices range from 300/1024 of the base price to the base price (UI 0x84E6-0x84E8).
     const auto clamp_price = [&](std::uint16_t p) {

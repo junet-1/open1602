@@ -15,6 +15,10 @@ constexpr std::uint32_t kStraight = 64;  // open sea (0x0046F8A0 class 0)
 constexpr std::uint32_t kDiagonal = 91;
 constexpr std::uint32_t kSoftStraight = 500;  // around a ship lying still (cost class 0x7E)
 constexpr std::uint32_t kSoftDiagonal = 711;
+constexpr std::uint32_t kDangerStraight = 504;  // near hostile towers (cost class 0x7F)
+constexpr std::uint32_t kDangerDiagonal = 716;
+constexpr std::uint8_t kClassSoft = 1;
+constexpr std::uint8_t kClassDanger = 2;
 constexpr std::uint32_t kInfinite = 0xFFFFFFFFU;
 
 // Neighbour order of the original's wavefront: the diagonals NW, NE, SW, SE first, then N, S, W, E.
@@ -88,6 +92,14 @@ SeaCourse SeaPlanner::plan(const SeaMap& sea, const SeaPlan& r) {
             }
         }
     }
+    // Water near hostile towers first; the ships close by are marked over it (0x00455A20).
+    for (const SeaPlan::Danger& d : r.danger) {
+        for (std::int32_t y = std::max(d.y0, y0); y <= std::min(d.y1, y0 + size - 1); ++y) {
+            for (std::int32_t x = std::max(d.x0, x0); x <= std::min(d.x1, x0 + size - 1); ++x) {
+                m_class[at(x, y)] = kClassDanger;
+            }
+        }
+    }
     // Other ships (0x004560A0): 3 x 3 squares, softened after a failure for ships lying still.
     for (const SeaPlan::Obstacle& o : r.ships) {
         if (o.x == r.start_x && o.y == r.start_y) {
@@ -104,7 +116,7 @@ SeaCourse SeaPlanner::plan(const SeaMap& sea, const SeaPlan& r) {
                 if (!soft || (dx == 0 && dy == 0)) {
                     m_state[at(x, y)] = kBlocked;
                 } else {
-                    m_class[at(x, y)] = 1;
+                    m_class[at(x, y)] = kClassSoft;
                 }
             }
         }
@@ -177,9 +189,12 @@ SeaCourse SeaPlanner::plan(const SeaMap& sea, const SeaPlan& r) {
                 }
             }
             // The cost is that of the tile left (as the land search).
-            const bool soft = m_class[n.cell] != 0;
-            const std::uint32_t step =
-                diagonal ? (soft ? kSoftDiagonal : kDiagonal) : (soft ? kSoftStraight : kStraight);
+            std::uint32_t step = diagonal ? kDiagonal : kStraight;
+            if (m_class[n.cell] == kClassSoft) {
+                step = diagonal ? kSoftDiagonal : kSoftStraight;
+            } else if (m_class[n.cell] == kClassDanger) {
+                step = diagonal ? kDangerDiagonal : kDangerStraight;
+            }
             const std::uint32_t cost = n.cost + step;
             if (cost < m_cost[nc]) {
                 m_cost[nc] = cost;

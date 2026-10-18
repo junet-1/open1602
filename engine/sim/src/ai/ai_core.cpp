@@ -427,9 +427,15 @@ void Engine::init_player(AiPlayer& p) {
     refund(p);
     const PlayerId id = p.player;
     const bool pirates = p.pirates;
+    // The jobs of the ships stay: the original keeps them on the ships themselves (ship +0x1A7,
+    // +0x1AC, +0x1AE), which its re-initialisation does not touch.
+    std::vector<ShipNote> jobs = std::move(p.ships);
     p = AiPlayer{};
     p.player = id;
     p.pirates = pirates;
+    p.ships = std::move(jobs);
+    forget_ships(p);
+    take_original_jobs(p);
     p.settle.need = pirates ? 150 : 1800;
     p.settle.floor = 300;
     p.t_6s = 3000;
@@ -455,6 +461,71 @@ void Engine::init_player(AiPlayer& p) {
     if (pirates) {
         p.t_main = ships == 0 && p.cities == 0 ? 360'000 : 10'000;
         p.t_6s = 120'000;
+    }
+}
+
+void Engine::city_founded(std::uint16_t island, std::uint8_t index) {
+    // 0x004294C0 with event 0x0E (from 0x00465170): a computer with a city on the island, at peace
+    // with the founder, whose home city lies on another island and whose city here has fewer than
+    // 10 inhabitants (0x0040F430(city, 0, 10) == 0) takes it ill (event 5).
+    const City* founded = city(island, index);
+    if (founded == nullptr) {
+        return;
+    }
+    const PlayerId founder = founded->owner;
+    for (AiPlayer& p : m_state.players) {
+        if (p.pirates || p.player == founder || !p.home_valid || p.home_island == island) {
+            continue;
+        }
+        if (m_world.diplomacy().relation(p.player, founder).peace != Treaty::Signed) {
+            continue;
+        }
+        for (const City& c : m_world.cities()) {
+            if (c.owner == p.player && c.island == island && population(c) < 10) {
+                m_world.diplomacy().add_event(p.player, founder, DiplomacyEventType::Settled, now_ms());
+                log(p, "%u founded a city next to ours on island %u", founder, island);
+                break;
+            }
+        }
+    }
+}
+
+void Engine::take_original_jobs(AiPlayer& p) {
+    // An original savegame keeps the jobs on its ships (SHIP4 +0x24 mission, +0x3E parameter,
+    // +0x40 counter). Taken over: missions with a city (1 fetch troops, 2 go home, 5 and 6 attack,
+    // parameter island number * 32 + city), and with mission 0 a patrol (a looping route round the
+    // island in the parameter) or a cooldown. The rest starts over.
+    for (Ship& s : m_world.ships()) {
+        if (s.owner != p.player || !s.original_job) {
+            continue;
+        }
+        const Ship::OriginalJob job = *s.original_job;
+        s.original_job.reset();
+        ShipNote& n = note(p, s.id);
+        const auto island = m_world.island_index(job.param / 32U);
+        switch (job.mission) {
+            case 1:
+            case 2:
+            case 5:
+            case 6:
+                if (island) {
+                    n.mission = static_cast<std::uint8_t>(job.mission);
+                    n.param = std::uint32_t{*island} << 8 | (job.param % 32U);
+                    n.counter = job.counter;
+                }
+                break;
+            case 0:
+                if (const auto patrol = m_world.island_index(job.param); patrol && s.route.active && !s.route.one_way) {
+                    n.patrol = true;
+                    n.patrol_island = *patrol;
+                    n.counter = job.counter;
+                } else {
+                    n.cooldown = static_cast<std::uint8_t>(std::min<std::uint32_t>(job.param, 255));
+                }
+                break;
+            default:
+                break;
+        }
     }
 }
 
@@ -524,6 +595,10 @@ bool ComputerPlayers::load(core::ByteReader& in) {
 
 bool ComputerPlayers::directs(std::uint32_t ship) const {
     return m_engine->directs(ship);
+}
+
+void ComputerPlayers::city_founded(std::uint16_t island, std::uint8_t city) {
+    m_engine->city_founded(island, city);
 }
 
 std::vector<ComputerPlayers::View> ComputerPlayers::view() const {

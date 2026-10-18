@@ -1105,6 +1105,11 @@ public:
                     c->warehouse_x = ux;
                     c->warehouse_y = uy;
                 }
+                if (p == prod::kKontor) {
+                    // 0x00481EE0: a Kontor that allows fewer wares than the city trades in
+                    // switches all trade settings off (a Kontor rebuilt at a lower level).
+                    trim_trade_settings(*c, b);
+                }
             }
             if (is_public(p)) {
                 m_services = true;

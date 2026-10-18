@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -120,6 +121,15 @@ struct Ship {
     std::uint32_t trader_tools_ms = 0;
     std::uint32_t trader_ore_ms = 0;
     bool trader = false;
+    /// The computer player's job of the ship in an original savegame (SHIP4 +0x24, +0x3E, +0x40),
+    /// taken over once when the computer players start on it (docs/re/ai.md). Open1602 keeps the
+    /// jobs with the computer players' state.
+    struct OriginalJob {
+        std::uint16_t mission = 0;
+        std::uint16_t param = 0;
+        std::uint8_t counter = 0;
+    };
+    std::optional<OriginalJob> original_job;
     /// Exploring an island (ship + 0x1A4): steps of 1.5 s left, 0 = not exploring; the next step
     /// at game time `explore_next_ms` (docs/re/ships.md#erkunden).
     std::uint8_t explore_steps = 0;

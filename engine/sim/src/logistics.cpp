@@ -407,7 +407,8 @@ void Logistics::send_cart(std::uint32_t home) {
     };
 
     // The fullest producer wins (ties: the nearest). Open1602 ranks by the stock nobody has
-    // reserved yet (S-023) and skips goods without room in the warehouse (S-024).
+    // reserved yet (S-023) and skips goods without room in the warehouse (S-024). The original
+    // drops the rest of a wave once the best is an urgent ware; Open1602 looks at all (S-104).
     struct Best {
         TilePos tile;
         TilePos origin;

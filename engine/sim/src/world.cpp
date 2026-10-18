@@ -137,6 +137,8 @@ constexpr std::uint32_t soldier_id_of_slot(std::uint32_t slot) noexcept {
 
 namespace {
 
+constexpr std::int32_t kProdKindKontor = 8;  // HAUS_PRODTYP KONTOR
+
 Target decode_ref(const World& world, std::uint32_t ref) {
     const auto type = static_cast<std::uint8_t>(ref);
     const auto b1 = static_cast<std::uint8_t>(ref >> 8);
@@ -251,6 +253,9 @@ void load_ships(World& world, const assets::ChunkFile& file, const assets::Build
         ship.for_sale = (s.flags & kFlagForSale) != 0;
         ship.repairing = (s.flags & kFlagRepair) != 0;
         ship.sale_factor = s.sale_factor != 0 ? s.sale_factor : std::uint16_t{128};
+        if (s.ai_mission != 0 || s.ai_param != 0 || s.ai_counter != 0) {
+            ship.original_job = Ship::OriginalJob{s.ai_mission, s.ai_param, s.ai_counter};
+        }
         ship.route.current = static_cast<std::uint8_t>(s.route_stop & 3U);
         for (std::size_t r = 0; r < s.route.size(); ++r) {
             RouteStop& stop = ship.route.stops[r];
@@ -398,6 +403,38 @@ std::optional<std::uint16_t> World::island_index(std::uint32_t number) const noe
         }
     }
     return std::nullopt;
+}
+
+const assets::BuildingType* kontor_of(const World& world, const assets::BuildingTable& buildings, const City& city) {
+    if (!city.warehouse_x || !city.warehouse_y || city.island >= world.islands().size()) {
+        return nullptr;
+    }
+    const IslandMap& map = world.islands()[city.island].map;
+    if (!map.contains(*city.warehouse_x, *city.warehouse_y)) {
+        return nullptr;
+    }
+    const MapCell& c = map.top(*city.warehouse_x, *city.warehouse_y);
+    return c.empty() ? nullptr : buildings.by_sprite(c.sprite);
+}
+
+bool trim_trade_settings(City& city, const assets::BuildingType& kontor) {
+    if (kontor.max_wares == 0 && kontor.max_wares2 == 0) {
+        return false;  // data without Maxware: no limit
+    }
+    std::size_t sell = 0;
+    std::size_t buy = 0;
+    for (const City::Trade& t : city.trade) {
+        sell += t.sell ? 1U : 0U;
+        buy += t.buy ? 1U : 0U;
+    }
+    if (sell <= kontor.max_wares && buy <= kontor.max_wares2) {
+        return false;
+    }
+    for (City::Trade& t : city.trade) {
+        t.sell = false;
+        t.buy = false;
+    }
+    return true;
 }
 
 PlayerId first_human_player(const World& world) noexcept {
@@ -848,6 +885,16 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
                 warn(status.error().message + " (loaded without it)");
             }
             break;
+        }
+    }
+    // 0x00481EE0 on loading: a city that sells or buys more wares than its Kontor allows loses all
+    // its trade settings.
+    for (const City& c : world.cities()) {
+        const Player* owner = world.player(c.owner);
+        const assets::BuildingType* kontor = kontor_of(world, buildings, c);
+        if (owner != nullptr && (owner->role == PlayerRole::Human || owner->role == PlayerRole::Computer) &&
+            kontor != nullptr && kontor->prod_kind == kProdKindKontor) {
+            trim_trade_settings(*world.city(c.island, c.index), *kontor);
         }
     }
     world.set_source(std::make_shared<const assets::ChunkFile>(file));

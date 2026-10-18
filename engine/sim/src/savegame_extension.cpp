@@ -6,6 +6,8 @@
 #include <map>
 #include <optional>
 
+#include "save_sections.hpp"
+
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/simulation.hpp"
@@ -50,6 +52,11 @@ constexpr std::uint32_t kEpochs = tag("EPOC");
 constexpr std::uint32_t kArmy = tag("ARMY");
 constexpr std::uint32_t kDiplomacy = tag("DIPL");
 constexpr std::uint32_t kExplored = tag("XPLR");
+// Only in Open1602's own savegame (save_game.hpp): the whole map, further world settings, what the
+// file holds.
+constexpr std::uint32_t kMap = tag("MAPW");
+constexpr std::uint32_t kWorld2 = tag("WRL2");
+constexpr std::uint32_t kMeta = tag("META");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -110,6 +117,23 @@ MapCell get_cell(StateIn& in, const assets::BuildingTable& buildings) {
         c.sprite = static_cast<std::uint16_t>(b->gfx + sub);
     }
     return c;
+}
+
+/// FNV-1a over what makes the game's buildings (id, picture, size) for the META section.
+std::uint64_t buildings_fingerprint(const assets::BuildingTable& buildings) {
+    std::uint64_t h = 0xCBF29CE484222325ULL;
+    const auto mix = [&](std::uint32_t v) {
+        for (int k = 0; k < 4; ++k) {
+            h ^= (v >> (8 * k)) & 0xFFU;
+            h *= 0x100000001B3ULL;
+        }
+    };
+    for (const assets::BuildingType& b : buildings.types()) {
+        mix(b.id);
+        mix(b.gfx);
+        mix(b.size_x | b.size_y << 16);
+    }
+    return h;
 }
 
 bool same_cell(const MapCell& a, const MapCell& b) noexcept {
@@ -198,6 +222,7 @@ struct Decoded {
         std::uint32_t next_disaster_id = 0;
     };
     std::optional<WorldPart> world;
+    std::optional<std::uint32_t> pirate_interval_s;  ///< WRL2
     struct IslandPart {
         std::uint8_t number = 0;
         std::uint8_t deer_phase = 0;
@@ -282,6 +307,159 @@ struct Decoded {
     };
     std::optional<EpochPart> epochs;
 };
+
+// ---- Map (own savegame only) ----------------------------------------------------------------------
+
+/// What of an island header the game uses after loading. The rest of the header mirrors state the
+/// island itself keeps (drought, craters, discovered by, ...), or fields of the original's file the
+/// game does not use (`raw`); neither goes into Open1602's own savegame.
+void put_header(Out& out, const assets::IslandHeader& h) {
+    out.string(h.chunk_name);
+    out.u8(h.number);
+    out.u8(h.width);
+    out.u8(h.height);
+    out.u8(h.flags);
+    out.u16(h.pos_x);
+    out.u16(h.pos_y);
+    out.u16(h.template_number);
+    out.u16(h.template_size);
+    out.u8(h.climate);
+    out.boolean(h.stored_complete);
+}
+
+assets::IslandHeader get_header(StateIn& in) {
+    assets::IslandHeader h;
+    h.chunk_name = in.string();
+    h.number = in.u8();
+    h.width = in.u8();
+    h.height = in.u8();
+    h.flags = in.u8();
+    h.pos_x = in.u16();
+    h.pos_y = in.u16();
+    h.template_number = in.u16();
+    h.template_size = in.u16();
+    h.climate = in.u8();
+    h.stored_complete = in.boolean();
+    return h;
+}
+
+/// The whole map: the world's size and every island with both layers of all its tiles. The cells
+/// go field by field over the island (all ids, then all sub-tiles, ...), which zlib packs well.
+void write_map(Out& out, const World& w, const assets::BuildingTable& buildings) {
+    out.u32(w.width());
+    out.u32(w.height());
+    out.u32(static_cast<std::uint32_t>(w.islands().size()));
+    for (const WorldIsland& i : w.islands()) {
+        put_header(out, i.header);
+        out.u32(i.x);
+        out.u32(i.y);
+        out.u32(i.map.width());
+        out.u32(i.map.height());
+        const std::uint32_t n = i.map.width() * i.map.height();
+        for (const bool ground : {false, true}) {
+            std::vector<const MapCell*> cells;
+            cells.reserve(n);
+            for (std::uint32_t y = 0; y < i.map.height(); ++y) {
+                for (std::uint32_t x = 0; x < i.map.width(); ++x) {
+                    cells.push_back(ground ? &i.map.ground(x, y) : &i.map.top(x, y));
+                }
+            }
+            std::vector<const assets::BuildingType*> types(n);
+            for (std::uint32_t k = 0; k < n; ++k) {
+                types[k] = cells[k]->empty() ? nullptr : buildings.by_sprite(cells[k]->sprite);
+                out.u32(types[k] != nullptr ? types[k]->id : 0);
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                out.u16(types[k] != nullptr ? static_cast<std::uint16_t>(cells[k]->sprite - types[k]->gfx) : 0);
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                out.u8(static_cast<std::uint8_t>(cells[k]->rotation | cells[k]->anim_phase << 2));
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                out.u8(cells[k]->owner);
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                out.u8(cells[k]->city);
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                out.u8(cells[k]->random);
+            }
+        }
+    }
+}
+
+/// A world with the size and islands of the MAPW section, nothing else yet.
+core::Result<World> read_map(StateIn& in, const assets::BuildingTable& buildings) {
+    const std::uint32_t width = in.u32();
+    const std::uint32_t height = in.u32();
+    if (!in.ok() || width == 0 || height == 0 || width > 0xFFFF || height > 0xFFFF) {
+        return make_error(ErrorCode::InvalidFormat, "save: impossible world size");
+    }
+    World world(width, height);
+    const std::uint32_t islands = in.count(64);
+    for (std::uint32_t i = 0; i < islands && in.ok(); ++i) {
+        assets::IslandHeader header = get_header(in);
+        const std::uint32_t x = in.u32();
+        const std::uint32_t y = in.u32();
+        const std::uint32_t w = in.u32();
+        const std::uint32_t h = in.u32();
+        if (!in.ok() || w == 0 || h == 0 || w > width || h > height || std::uint64_t{w} * h * 2 * 10 > in.remaining()) {
+            return make_error(ErrorCode::InvalidFormat, "save: damaged island");
+        }
+        IslandMap map(w, h);
+        const std::uint32_t n = w * h;
+        for (const bool ground : {false, true}) {
+            std::vector<MapCell> cells(n);
+            std::vector<std::uint32_t> ids(n);
+            for (std::uint32_t k = 0; k < n; ++k) {
+                ids[k] = in.u32();
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                const std::uint16_t sub = in.u16();
+                if (ids[k] != 0) {
+                    const assets::BuildingType* b = buildings.by_id(ids[k]);
+                    if (b == nullptr) {
+                        return make_error(ErrorCode::InvalidFormat,
+                                          "save: building " + std::to_string(ids[k]) + " is not in the game's data");
+                    }
+                    cells[k].sprite = static_cast<std::uint16_t>(b->gfx + sub);
+                }
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                const std::uint8_t v = in.u8();
+                cells[k].rotation = static_cast<std::uint8_t>(v & 3U);
+                cells[k].anim_phase = static_cast<std::uint8_t>(v >> 2 & 0x0FU);
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                cells[k].owner = in.u8();
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                cells[k].city = in.u8();
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                cells[k].random = in.u8();
+            }
+            for (std::uint32_t k = 0; k < n; ++k) {
+                if (ground) {
+                    map.set_ground_cell(k % w, k / w, cells[k]);
+                } else {
+                    map.set_top_cell(k % w, k / w, cells[k]);
+                }
+            }
+        }
+        if (!in.ok()) {
+            break;
+        }
+        WorldIsland island{std::move(header), std::move(map), x, y};
+        if (auto status = world.add_island(std::move(island)); !status) {
+            return status.error();
+        }
+    }
+    if (!in.ok()) {
+        return make_error(ErrorCode::InvalidFormat, "save: damaged map");
+    }
+    return world;
+}
 
 // ---- Sections: write -----------------------------------------------------------------------------
 
@@ -1574,188 +1752,26 @@ core::Status check(const World& w, const Decoded& d) {
     if (d.world && d.world->randoms.size() > static_cast<std::size_t>(RandomStream::Count)) {
         return bad("random generators do not match");
     }
+    if (d.fleet) {
+        for (const Ship& s : d.fleet->ships) {
+            if (!w.contains(s.x, s.y)) {
+                return bad("ship outside the world");
+            }
+        }
+    }
+    if (d.army) {
+        for (const Soldier& s : d.army->soldiers) {
+            if (s.island != 0xFFFF && !island_ok(w, s.island)) {
+                return bad("unit on an unknown island");
+            }
+        }
+    }
     return core::Ok{};
 }
 
-}  // namespace
-
-core::Bytes encode_map_size(std::uint32_t width, std::uint32_t height) {
-    Out out;
-    out.u32(width);
-    out.u32(height);
-    return out.take();
-}
-
-std::optional<std::pair<std::uint32_t, std::uint32_t>> map_size(const assets::ChunkFile& file) {
-    const assets::Chunk* c = file.find(kMapChunk);
-    if (c == nullptr) {
-        return std::nullopt;
-    }
-    core::ByteReader in(file.payload(*c));
-    const auto w = in.u32();
-    const auto h = in.u32();
-    if (!w || !h || *w == 0 || *h == 0 || *w > 0xFFFF || *h > 0xFFFF) {
-        return std::nullopt;
-    }
-    return std::pair{*w, *h};
-}
-
-std::uint64_t savegame_fingerprint(std::span<const std::uint8_t> bytes) noexcept {
-    std::uint64_t h = 0xCBF29CE484222325ULL;
-    for (const std::uint8_t b : bytes) {
-        h ^= b;
-        h *= 0x100000001B3ULL;
-    }
-    return h;
-}
-
-core::Bytes encode_extension(const World& world, const assets::BuildingTable& buildings, const Simulation* simulation,
-                             std::span<const std::uint8_t> before) {
-    Out out;
-    out.bytes(kMagic);
-    out.u16(kFormatVersion);
-    out.u16(0);
-    out.u64(savegame_fingerprint(before));
-    // The settings: those of the running game, or those the world was loaded with.
-    if (simulation != nullptr || world.saved_rules()) {
-        const Rules rules = simulation != nullptr ? simulation->rules() : *world.saved_rules();
-        section(out, kRules, [&](Out& o) { put_rules(o, rules); });
-    }
-    section(out, kWorld, [&](Out& o) { write_world(o, world); });
-    section(out, kIslands, [&](Out& o) { write_islands(o, world); });
-    section(out, kTiles, [&](Out& o) { write_tiles(o, world, buildings, before); });
-    section(out, kPlayers, [&](Out& o) { write_players(o, world); });
-    section(out, kCities, [&](Out& o) { write_cities(o, world); });
-    section(out, kProductions, [&](Out& o) { write_productions(o, world); });
-    section(out, kHouses, [&](Out& o) { write_houses(o, world); });
-    section(out, kGrowth, [&](Out& o) { write_growth(o, world); });
-    section(out, kCosts, [&](Out& o) { write_costs(o, world); });
-    section(out, kShips, [&](Out& o) { write_ships(o, world); });
-    section(out, kAnimals, [&](Out& o) { write_animals(o, world); });
-    section(out, kDisasters, [&](Out& o) { write_disasters(o, world); });
-    section(out, kVolcanoes, [&](Out& o) { write_volcanoes(o, world); });
-    section(out, kFleet, [&](Out& o) { write_fleet(o, world); });
-    section(out, kEpochs, [&](Out& o) { write_epochs(o, world); });
-    section(out, kArmy, [&](Out& o) { write_army(o, world); });
-    section(out, kDiplomacy, [&](Out& o) { write_diplomacy(o, world); });
-    section(out, kExplored, [&](Out& o) { write_explored(o, world); });
-    if (simulation != nullptr) {
-        section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
-    } else if (!world.simulation_state().empty()) {
-        // A world loaded but not yet run keeps the figures it was saved with.
-        section(out, kSimulation, [&](Out& o) { o.bytes(world.simulation_state()); });
-    }
-    return out.take();
-}
-
-core::Status apply_extension(World& world, const assets::BuildingTable& buildings,
-                             std::span<const std::uint8_t> payload, std::span<const std::uint8_t> before) {
-    core::ByteReader reader(payload);
-    const auto magic = reader.bytes(kMagic.size());
-    if (!magic || !std::equal(magic->begin(), magic->end(), kMagic.begin())) {
-        return make_error(ErrorCode::InvalidFormat, "O1602: not Open1602's chunk");
-    }
-    const auto version = reader.u16();
-    const auto flags = reader.u16();
-    const auto fingerprint = reader.u64();
-    if (!version || !flags || !fingerprint) {
-        return make_error(ErrorCode::InvalidFormat, "O1602: chunk too short");
-    }
-    if (*version > kFormatVersion) {
-        return make_error(ErrorCode::Unsupported, "O1602: chunk of a newer Open1602");
-    }
-    if (*fingerprint != savegame_fingerprint(before)) {
-        return make_error(ErrorCode::InvalidFormat, "O1602: the original's chunks were changed since");
-    }
-    Decoded d;
-    while (!reader.at_end()) {
-        const auto id = reader.u32();
-        const auto section_version = reader.u16();
-        const auto reserved = reader.u16();
-        const auto size = reader.u32();
-        if (!id || !section_version || !reserved || !size) {
-            return make_error(ErrorCode::InvalidFormat, "O1602: damaged section header");
-        }
-        const auto body = reader.bytes(*size);
-        if (!body) {
-            return make_error(ErrorCode::InvalidFormat, "O1602: section beyond the chunk");
-        }
-        if (*section_version != 1) {
-            continue;  // a later version of this part: skipped, the original's data stands
-        }
-        core::ByteReader sr(*body);
-        StateIn in(sr);
-        switch (*id) {
-            case kRules:
-                d.rules = get_rules(in);
-                break;
-            case kWorld:
-                d.world = read_world(in);
-                break;
-            case kIslands:
-                d.islands = read_islands(in);
-                break;
-            case kTiles:
-                d.tiles = read_tiles(in, buildings);
-                break;
-            case kPlayers:
-                d.players = read_players(in);
-                break;
-            case kCities:
-                d.cities = read_cities(in);
-                break;
-            case kProductions:
-                d.productions = read_productions(in);
-                break;
-            case kHouses:
-                d.houses = read_houses(in);
-                break;
-            case kGrowth:
-                d.growth = read_growth(in);
-                break;
-            case kCosts:
-                d.costs = read_costs(in);
-                break;
-            case kShips:
-                d.ships = read_ships(in);
-                break;
-            case kFleet:
-                d.fleet = read_fleet(in);
-                break;
-            case kEpochs:
-                d.epochs = read_epochs(in);
-                break;
-            case kSoldiers:
-                d.soldiers = read_soldiers(in);
-                break;
-            case kArmy:
-                d.army = read_army(in);
-                break;
-            case kDiplomacy:
-                d.diplomacy = read_diplomacy(in);
-                break;
-            case kExplored:
-                d.explored = read_explored(in);
-                break;
-            case kAnimals:
-                d.animals = read_animals(in);
-                break;
-            case kDisasters:
-                d.disasters = read_disasters(in);
-                break;
-            case kVolcanoes:
-                d.volcanoes = read_volcanoes(in);
-                break;
-            case kSimulation:
-                d.simulation = std::vector<std::uint8_t>(body->begin(), body->end());
-                break;
-            default:
-                continue;  // a part of a later version
-        }
-        if (!in.ok()) {
-            return make_error(ErrorCode::InvalidFormat, "O1602: damaged section");
-        }
-    }
+/// Checks everything decoded against the world and applies it; the world stays as it was if a
+/// check fails.
+core::Status apply_decoded(World& world, Decoded& d) {
     if (auto status = check(world, d); !status) {
         return status;
     }
@@ -1769,7 +1785,7 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         world.set_time_ms(w.time_ms);
         world.set_city_name_index(w.city_name_index);
         World::GameSettings settings = w.settings;
-        settings.pirate_interval_s = world.game_settings().pirate_interval_s;  // from TIMERS
+        settings.pirate_interval_s = d.pirate_interval_s.value_or(world.game_settings().pirate_interval_s);
         world.set_game_settings(settings);
         world.set_next_drought_ms(w.next_drought_ms);
         if (w.drought_seed) {
@@ -1953,6 +1969,276 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
         world.set_simulation_state(std::move(*d.simulation));
     }
     return core::Ok{};
+}
+
+}  // namespace
+
+core::Bytes encode_map_size(std::uint32_t width, std::uint32_t height) {
+    Out out;
+    out.u32(width);
+    out.u32(height);
+    return out.take();
+}
+
+std::optional<std::pair<std::uint32_t, std::uint32_t>> map_size(const assets::ChunkFile& file) {
+    const assets::Chunk* c = file.find(kMapChunk);
+    if (c == nullptr) {
+        return std::nullopt;
+    }
+    core::ByteReader in(file.payload(*c));
+    const auto w = in.u32();
+    const auto h = in.u32();
+    if (!w || !h || *w == 0 || *h == 0 || *w > 0xFFFF || *h > 0xFFFF) {
+        return std::nullopt;
+    }
+    return std::pair{*w, *h};
+}
+
+std::uint64_t savegame_fingerprint(std::span<const std::uint8_t> bytes) noexcept {
+    std::uint64_t h = 0xCBF29CE484222325ULL;
+    for (const std::uint8_t b : bytes) {
+        h ^= b;
+        h *= 0x100000001B3ULL;
+    }
+    return h;
+}
+
+namespace detail {
+
+core::Bytes encode_sections(const World& world, const assets::BuildingTable& buildings, const Simulation* simulation,
+                            TileMode tiles, std::span<const std::uint8_t> before) {
+    Out out;
+    if (tiles == TileMode::Full) {
+        section(out, kMeta, [&](Out& o) {
+            o.u32(world.width());
+            o.u32(world.height());
+            o.u64(world.time_ms());
+            o.u64(buildings_fingerprint(buildings));
+            const PlayerId local = first_human_player(world);
+            const Player* p = world.player(local);
+            o.string(p != nullptr ? p->name : std::string());
+        });
+        section(out, kMap, [&](Out& o) { write_map(o, world, buildings); });
+    }
+    // The settings: those of the running game, or those the world was loaded with.
+    if (simulation != nullptr || world.saved_rules()) {
+        const Rules rules = simulation != nullptr ? simulation->rules() : *world.saved_rules();
+        section(out, kRules, [&](Out& o) { put_rules(o, rules); });
+    }
+    section(out, kWorld, [&](Out& o) { write_world(o, world); });
+    if (tiles == TileMode::Full) {
+        section(out, kWorld2, [&](Out& o) { o.u32(world.game_settings().pirate_interval_s); });
+    }
+    section(out, kIslands, [&](Out& o) { write_islands(o, world); });
+    if (tiles == TileMode::Differences) {
+        section(out, kTiles, [&](Out& o) { write_tiles(o, world, buildings, before); });
+    }
+    section(out, kPlayers, [&](Out& o) { write_players(o, world); });
+    section(out, kCities, [&](Out& o) { write_cities(o, world); });
+    section(out, kProductions, [&](Out& o) { write_productions(o, world); });
+    section(out, kHouses, [&](Out& o) { write_houses(o, world); });
+    section(out, kGrowth, [&](Out& o) { write_growth(o, world); });
+    section(out, kCosts, [&](Out& o) { write_costs(o, world); });
+    if (tiles == TileMode::Differences) {
+        section(out, kShips, [&](Out& o) { write_ships(o, world); });  // for readers older than FLEE
+    }
+    section(out, kAnimals, [&](Out& o) { write_animals(o, world); });
+    section(out, kDisasters, [&](Out& o) { write_disasters(o, world); });
+    section(out, kVolcanoes, [&](Out& o) { write_volcanoes(o, world); });
+    section(out, kFleet, [&](Out& o) { write_fleet(o, world); });
+    section(out, kEpochs, [&](Out& o) { write_epochs(o, world); });
+    section(out, kArmy, [&](Out& o) { write_army(o, world); });
+    section(out, kDiplomacy, [&](Out& o) { write_diplomacy(o, world); });
+    section(out, kExplored, [&](Out& o) { write_explored(o, world); });
+    if (simulation != nullptr) {
+        section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
+    } else if (!world.simulation_state().empty()) {
+        // A world loaded but not yet run keeps the figures it was saved with.
+        section(out, kSimulation, [&](Out& o) { o.bytes(world.simulation_state()); });
+    }
+    return out.take();
+}
+
+namespace {
+
+/// Calls `fn(id, body)` for every section of version 1; false if the sections are damaged.
+template <class Fn>
+bool for_each_section(std::span<const std::uint8_t> data, Fn&& fn) {
+    core::ByteReader reader(data);
+    while (!reader.at_end()) {
+        const auto id = reader.u32();
+        const auto section_version = reader.u16();
+        const auto reserved = reader.u16();
+        const auto size = reader.u32();
+        if (!id || !section_version || !reserved || !size) {
+            return false;
+        }
+        const auto body = reader.bytes(*size);
+        if (!body) {
+            return false;
+        }
+        if (*section_version != 1) {
+            continue;  // a later version of this part: skipped
+        }
+        if (!fn(*id, *body)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, const assets::BuildingTable& buildings,
+                                        std::vector<std::string>* warnings) {
+    std::optional<core::Result<World>> world;
+    bool meta_ok = true;
+    const bool ok = for_each_section(sections, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
+        core::ByteReader sr(body);
+        StateIn in(sr);
+        if (id == kMeta) {
+            in.u32();
+            in.u32();
+            in.u64();
+            const std::uint64_t fingerprint = in.u64();
+            meta_ok = in.ok() && fingerprint == buildings_fingerprint(buildings);
+        } else if (id == kMap && !world) {
+            world = read_map(in, buildings);
+        }
+        return true;
+    });
+    if (!ok) {
+        return make_error(ErrorCode::InvalidFormat, "save: damaged section header");
+    }
+    if (!world) {
+        return make_error(ErrorCode::InvalidFormat, "save: no map");
+    }
+    if (*world && !meta_ok && warnings != nullptr) {
+        warnings->push_back("the save was made with other game data (haeuser.cod); buildings are matched by id");
+    }
+    return std::move(*world);
+}
+
+core::Status apply_sections(World& world, const assets::BuildingTable& buildings,
+                            std::span<const std::uint8_t> sections) {
+    Decoded d;
+    bool damaged = false;
+    const bool ok = for_each_section(sections, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
+        core::ByteReader sr(body);
+        StateIn in(sr);
+        switch (id) {
+            case kRules:
+                d.rules = get_rules(in);
+                break;
+            case kWorld:
+                d.world = read_world(in);
+                break;
+            case kWorld2:
+                d.pirate_interval_s = in.u32();
+                break;
+            case kIslands:
+                d.islands = read_islands(in);
+                break;
+            case kTiles:
+                d.tiles = read_tiles(in, buildings);
+                break;
+            case kPlayers:
+                d.players = read_players(in);
+                break;
+            case kCities:
+                d.cities = read_cities(in);
+                break;
+            case kProductions:
+                d.productions = read_productions(in);
+                break;
+            case kHouses:
+                d.houses = read_houses(in);
+                break;
+            case kGrowth:
+                d.growth = read_growth(in);
+                break;
+            case kCosts:
+                d.costs = read_costs(in);
+                break;
+            case kShips:
+                d.ships = read_ships(in);
+                break;
+            case kFleet:
+                d.fleet = read_fleet(in);
+                break;
+            case kEpochs:
+                d.epochs = read_epochs(in);
+                break;
+            case kSoldiers:
+                d.soldiers = read_soldiers(in);
+                break;
+            case kArmy:
+                d.army = read_army(in);
+                break;
+            case kDiplomacy:
+                d.diplomacy = read_diplomacy(in);
+                break;
+            case kExplored:
+                d.explored = read_explored(in);
+                break;
+            case kAnimals:
+                d.animals = read_animals(in);
+                break;
+            case kDisasters:
+                d.disasters = read_disasters(in);
+                break;
+            case kVolcanoes:
+                d.volcanoes = read_volcanoes(in);
+                break;
+            case kSimulation:
+                d.simulation = std::vector<std::uint8_t>(body.begin(), body.end());
+                break;
+            default:
+                return true;  // META, MAPW (read before), or a part of a later version
+        }
+        damaged = damaged || !in.ok();
+        return !damaged;
+    });
+    if (!ok || damaged) {
+        return make_error(ErrorCode::InvalidFormat,
+                          damaged ? "O1602: damaged section" : "O1602: damaged section header");
+    }
+    return apply_decoded(world, d);
+}
+
+}  // namespace detail
+
+core::Bytes encode_extension(const World& world, const assets::BuildingTable& buildings, const Simulation* simulation,
+                             std::span<const std::uint8_t> before) {
+    Out out;
+    out.bytes(kMagic);
+    out.u16(kFormatVersion);
+    out.u16(0);
+    out.u64(savegame_fingerprint(before));
+    out.bytes(detail::encode_sections(world, buildings, simulation, detail::TileMode::Differences, before));
+    return out.take();
+}
+
+core::Status apply_extension(World& world, const assets::BuildingTable& buildings,
+                             std::span<const std::uint8_t> payload, std::span<const std::uint8_t> before) {
+    core::ByteReader reader(payload);
+    const auto magic = reader.bytes(kMagic.size());
+    if (!magic || !std::equal(magic->begin(), magic->end(), kMagic.begin())) {
+        return make_error(ErrorCode::InvalidFormat, "O1602: not Open1602's chunk");
+    }
+    const auto version = reader.u16();
+    const auto flags = reader.u16();
+    const auto fingerprint = reader.u64();
+    if (!version || !flags || !fingerprint) {
+        return make_error(ErrorCode::InvalidFormat, "O1602: chunk too short");
+    }
+    if (*version > kFormatVersion) {
+        return make_error(ErrorCode::Unsupported, "O1602: chunk of a newer Open1602");
+    }
+    if (*fingerprint != savegame_fingerprint(before)) {
+        return make_error(ErrorCode::InvalidFormat, "O1602: the original's chunks were changed since");
+    }
+    return detail::apply_sections(world, buildings, payload.subspan(payload.size() - reader.remaining()));
 }
 
 }  // namespace o1602::sim

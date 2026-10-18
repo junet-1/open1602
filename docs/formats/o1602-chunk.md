@@ -1,6 +1,11 @@
 # Der eigene Chunk von Open1602 (`O1602`)
 
-Spielstände von Open1602 sind `.GAM`-Dateien des Originals ([savegame-writer.md](../re/savegame-writer.md))
+Seit dem 18.10.2026 speichert Open1602 im eigenen Format ([o1602-save.md](o1602-save.md),
+[ADR 0009](../architecture/0009-eigenes-speicherformat.md)). Der Chunk `O1602` bleibt für Spiele, die als
+`.GAM` für das Original **exportiert** werden, und für ältere Spielstände von Open1602; seine Abschnitte
+ab `RULE` sind dieselben wie im eigenen Format.
+
+Exportierte Spielstände sind `.GAM`-Dateien des Originals ([savegame-writer.md](../re/savegame-writer.md))
 mit einem zusätzlichen Chunk `O1602` hinter `WIFF`. Das Original kennt den Namen nicht und überspringt
 ihn; speichert es den Stand neu, fällt er weg. Open1602 liest ihn nach den Chunks des Originals und
 ersetzt damit, was er enthält.

@@ -13,3 +13,4 @@ Kurze, datierte Entscheidungen mit Begründung. Neue Entscheidung = neue Datei
 | [0006](0006-umgang-mit-originalfehlern.md) | Umgang mit Fehlern des Originals, `sim::Rules` | angenommen |
 | [0007](0007-erweiterbarkeit-und-modding.md) | Erweiterbarkeit, Inhalte und Modding (Anforderungen, Banner, offene Spielerzahl) | angenommen |
 | [0008](0008-spieleinstellungen.md) | Spieleinstellungen in `sim::Rules` (Endlosspiel einstellbar wie in späteren Anno-Teilen) | angenommen |
+| [0009](0009-eigenes-speicherformat.md) | Eigenes Speicherformat `.o1602`; Originaldateien nur lesen und exportieren | angenommen |

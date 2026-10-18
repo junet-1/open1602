@@ -29,6 +29,7 @@ add_executable(o1602_tests
     unit/test_volcanoes.cpp
     unit/test_ambient.cpp
     unit/test_units.cpp
+    unit/test_save_game.cpp
     data/test_original_data.cpp
     data/test_new_game.cpp
     data/test_ai_data.cpp

@@ -90,6 +90,16 @@ struct SeaPlan {
     };
     std::vector<Obstacle> ships;
     bool soft_ships = false;
+    /// Water within reach of hostile cannon towers: about eight times as expensive (cost class
+    /// 0x7F, 0x0046D720); the ship still sails there if there is no other way. World tiles,
+    /// inclusive.
+    struct Danger {
+        std::int32_t x0 = 0;
+        std::int32_t y0 = 0;
+        std::int32_t x1 = 0;
+        std::int32_t y1 = 0;
+    };
+    std::vector<Danger> danger;
 };
 
 /// What the planner found.
@@ -112,7 +122,7 @@ public:
 private:
     std::vector<std::uint32_t> m_cost;
     std::vector<std::uint8_t> m_state;  ///< bit 0-1: 0 free, 1 blocked; bit 2 visited; bits 4-7 came-from + 1
-    std::vector<std::uint8_t> m_class;  ///< cost class: 0 sea, 1 around a standing ship
+    std::vector<std::uint8_t> m_class;  ///< cost class: 0 sea, 1 around a standing ship, 2 near hostile towers
     struct Node {
         std::uint32_t cost;
         std::uint32_t seq;

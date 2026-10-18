@@ -44,6 +44,10 @@ public:
     /// A ship a computer player or the pirates direct themselves (a nest founding): the pirates'
     /// own wandering leaves it alone.
     [[nodiscard]] bool directs(std::uint32_t ship) const;
+    /// A city was founded (0x004294C0, event 0x0E): a computer at peace with the founder that has
+    /// a young colony (fewer than 10 inhabitants) on that island, its home city elsewhere, remembers
+    /// it against him (diplomacy event 5).
+    void city_founded(std::uint16_t island, std::uint8_t city);
 
     void save(core::ByteWriter& out) const;
     bool load(core::ByteReader& in);

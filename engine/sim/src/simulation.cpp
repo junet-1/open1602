@@ -183,6 +183,10 @@ CommandResult Simulation::execute(const Command& command) {
         result.accepted = m_military.unload(*unload);
     } else if (const auto* sw = std::get_if<ProductionSwitch>(&command)) {
         result.accepted = switch_production(*sw);
+    } else if (const auto* city = std::get_if<CityOrder>(&command)) {
+        result.accepted = city_order(*city);
+    } else if (const auto* ship = std::get_if<ShipCommand>(&command)) {
+        result.accepted = m_fleet.command(*ship);
     }
     handle(m_construction_events, first);
     return result;
@@ -208,6 +212,38 @@ bool Simulation::switch_production(const ProductionSwitch& s) {
     return true;
 }
 
+bool Simulation::city_order(const CityOrder& o) {
+    City* city = m_world->city(o.island, o.city);
+    if (city == nullptr || (o.player != kNoPlayer && city->owner != o.player)) {
+        return false;
+    }
+    switch (o.op) {
+        case CityOrder::Op::TaxRate: {
+            // 0x0047F130 posts the rate, 0x0047F850 measures the class against it at once.
+            const auto& classes = m_buildings->resident_classes();
+            if (o.resident_class >= classes.size() || o.resident_class >= city->tax_rate.size() ||
+                o.rate < CityOrder::kMinTax || o.rate > CityOrder::kMaxTax) {
+                return false;
+            }
+            city->tax_rate[o.resident_class] = o.rate;
+            if (o.resident_class < city->satisfaction.size()) {
+                city->satisfaction[o.resident_class] = satisfaction_of(*city, classes[o.resident_class], o.rate);
+            }
+            return true;
+        }
+        case CityOrder::Op::Rename:
+            if (o.name.empty() || o.name.size() > CityOrder::kMaxNameLength) {
+                return false;
+            }
+            city->name = o.name;
+            return true;
+        case CityOrder::Op::MaterialLock:
+            city->material_lock = o.on;
+            return true;
+    }
+    return false;
+}
+
 void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_t first) {
     bool storage = false;
     for (std::size_t i = first; i < events.size(); ++i) {
@@ -220,9 +256,12 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                     m_logistics.building_removed(*e.production);
                 }
                 break;
+            case ConstructionEvent::Kind::CityFounded:
+                m_ai.city_founded(e.island, e.city);
+                storage = true;
+                break;
             case ConstructionEvent::Kind::StorageChanged:
             case ConstructionEvent::Kind::CityTaken:
-            case ConstructionEvent::Kind::CityFounded:
             case ConstructionEvent::Kind::CityDissolved:
                 storage = true;
                 break;

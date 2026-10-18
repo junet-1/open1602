@@ -113,6 +113,9 @@ core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file) {
         s.cannons = data[o + 0x42];
         s.flags = data[o + 0x43];
         s.sale_factor = read_u16(data, o + 0x44);
+        s.ai_mission = read_u16(data, o + 0x24);
+        s.ai_param = read_u16(data, o + 0x3E);
+        s.ai_counter = data[o + 0x40];
         s.trader = data[o + 0x4C];
         s.route_stop = data[o + 0x4F];
         s.order = read_u32(data, o + 0x2C);

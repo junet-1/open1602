@@ -2,13 +2,14 @@
 //
 // open1602 - map viewer (milestone M2). Usage:
 //
-//   open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]
+//   open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH] [--zoom 0|1|2]
 //            [--owners] [--original-sheets] [--frames N] [--screenshot out.png]
 //
 // The game directory defaults to $ANNO1602_DIR, the scenario to "Szenes/Das Atoll.szs".
 // A relative scenario path is looked up in the game directory first. --savegame NAME opens a
 // savegame by the name shown in the game (looked up in Game.dat, e.g. "Merlin01" ->
-// SAVEGAME/game00.gam) or by file name. Scenarios and savegames share one format.
+// SAVEGAME/game00.gam) or by file name. Scenarios and savegames share one format. --load FILE opens
+// a savegame of Open1602 (.o1602, docs/formats/o1602-save.md) or any file of the original by its path.
 
 #include <SDL3/SDL_main.h>
 #include <charconv>
@@ -30,7 +31,8 @@ namespace {
 
 int usage() {
     std::fputs(
-        "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME] [--size WxH] [--zoom 0|1|2]\n"
+        "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH]\n"
+        "                [--zoom 0|1|2]\n"
         "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--droughts MODE]\n"
         "                [--volcanoes MODE] [--frames N]\n"
         "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
@@ -49,7 +51,9 @@ int usage() {
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
         "  --droughts MODE    game (as the game's difficulty says, original), off, rare, normal, frequent\n"
         "  --volcanoes MODE   game (as the game's settings say, original), off, on\n"
-        "  --save FILE        write the game as a savegame when the viewer ends (never into the installation)\n"
+        "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
+        "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
+        "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
         "\n"
         "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
@@ -57,7 +61,7 @@ int usage() {
         "  Space          pause the game              Home                     own city\n"
         "  PageUp/PageDn  game speed x2 / /2\n"
         "  O              ownership view              F12                      screenshot\n"
-        "  F5             quick save (own folder)\n"
+        "  F5             quick save (own folder, quicksave.o1602)\n"
         "  B              build tool                  X                        demolish tool\n"
         "  Tab / Shift+Tab next / previous building   , / .                    turn the building\n"
         "  left mouse     build or demolish (drag: roads, walls, fields, areas)\n"
@@ -76,6 +80,7 @@ int main(int argc, char** argv) {
     std::string_view game_dir;
     std::string_view scenario = "Szenes/Das Atoll.szs";
     std::string_view savegame;
+    std::string_view load;
     app::ViewerOptions options;
     bool new_game = false;
     sim::NewGameOptions new_game_options;
@@ -93,6 +98,8 @@ int main(int argc, char** argv) {
             scenario = argv[++i];
         } else if (arg == "--savegame" && has_value) {
             savegame = argv[++i];
+        } else if (arg == "--load" && has_value) {
+            load = argv[++i];
         } else if (arg == "--owners") {
             options.show_owners = true;
         } else if (arg == "--original-sheets") {
@@ -304,7 +311,9 @@ int main(int argc, char** argv) {
         }
         scenario = savegame_path;
     }
-    if (const auto resolved = game->resolve(scenario)) {
+    if (!load.empty()) {
+        options.scenario = std::filesystem::path(load);
+    } else if (const auto resolved = game->resolve(scenario)) {
         options.scenario = *resolved;
     } else {
         options.scenario = std::filesystem::path(scenario);

@@ -16,6 +16,7 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/sim/new_game.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 
@@ -59,43 +60,34 @@ sim::World new_game(const Setup& s, std::uint64_t seed) {
     return std::move(world).value();
 }
 
-/// Where two savegames differ first (chunk, and the section of the Open1602 state).
+/// The sections of two uncompressed Open1602 savegames that differ.
 void report(const core::Bytes& one, const core::Bytes& two) {
-    auto fa = assets::ChunkFile::from_bytes(one);
-    auto fb = assets::ChunkFile::from_bytes(two);
-    if (!fa.ok() || !fb.ok()) {
-        return;
-    }
-    for (std::size_t k = 0; k < std::min(fa->chunks().size(), fb->chunks().size()); ++k) {
-        const auto x = fa->payload(fa->chunks()[k]);
-        const auto y = fb->payload(fb->chunks()[k]);
-        if (x.size() == y.size() && std::equal(x.begin(), x.end(), y.begin())) {
-            continue;
-        }
-        std::size_t d = 0;
-        while (d < x.size() && d < y.size() && x[d] == y[d]) {
-            ++d;
-        }
-        std::fprintf(stderr, "  chunk %zu %s: %zu / %zu bytes, first difference at %zu\n", k,
-                     fa->chunks()[k].name.c_str(), x.size(), y.size(), d);
-        if (fa->chunks()[k].name != "O1602") {
-            continue;
-        }
-        std::size_t o = 20;  // magic, version, flags, fingerprint
-        while (o + 12 <= x.size()) {
+    const auto sections = [](const core::Bytes& b) {
+        std::vector<std::pair<std::string, std::span<const std::uint8_t>>> out;
+        std::size_t o = 32;
+        while (o + 12 <= b.size()) {
             const std::uint32_t size =
-                static_cast<std::uint32_t>(x[o + 8]) | static_cast<std::uint32_t>(x[o + 9]) << 8U |
-                static_cast<std::uint32_t>(x[o + 10]) << 16U | static_cast<std::uint32_t>(x[o + 11]) << 24U;
-            if (o + 12 + size <= x.size() && o + 12 + size <= y.size()) {
-                for (std::size_t i = o; i < o + 12 + size; ++i) {
-                    if (x[i] != y[i]) {
-                        std::fprintf(stderr, "  section %c%c%c%c differs at %zu\n", x[o], x[o + 1], x[o + 2], x[o + 3],
-                                     i - o - 12);
-                        break;
-                    }
-                }
-            }
+                static_cast<std::uint32_t>(b[o + 8]) | static_cast<std::uint32_t>(b[o + 9]) << 8U |
+                static_cast<std::uint32_t>(b[o + 10]) << 16U | static_cast<std::uint32_t>(b[o + 11]) << 24U;
+            out.emplace_back(
+                std::string(b.begin() + static_cast<std::ptrdiff_t>(o), b.begin() + static_cast<std::ptrdiff_t>(o) + 4),
+                std::span<const std::uint8_t>(b).subspan(o + 12, std::min<std::size_t>(size, b.size() - o - 12)));
             o += 12 + size;
+        }
+        return out;
+    };
+    const auto a = sections(one);
+    const auto b = sections(two);
+    for (std::size_t k = 0; k < std::min(a.size(), b.size()); ++k) {
+        const auto& x = a[k].second;
+        const auto& y = b[k].second;
+        if (a[k].first != b[k].first || x.size() != y.size() || !std::equal(x.begin(), x.end(), y.begin())) {
+            std::size_t d = 0;
+            while (d < x.size() && d < y.size() && x[d] == y[d]) {
+                ++d;
+            }
+            std::fprintf(stderr, "  section %s: %zu / %zu bytes, first difference at %zu\n", a[k].first.c_str(),
+                         x.size(), y.size(), d);
         }
     }
 }
@@ -173,73 +165,42 @@ TEST_CASE("data: a game with computer players saved in between goes on exactly t
     sim::World world = new_game(s, 11);
     sim::Simulation a(world, s.buildings, s.figures);
     run_minutes(a, 12);
-    auto saved = sim::write_savegame(world, s.buildings, &a);
+    auto saved = sim::write_game(world, s.buildings, &a);
     REQUIRE(saved.ok());
-    auto file = assets::ChunkFile::from_bytes(*saved);
-    REQUIRE(file.ok());
-    auto loaded = sim::load_world(*file, s.buildings, s.game);
+    auto loaded = sim::read_game(*saved, s.buildings);
     REQUIRE(loaded.ok());
     sim::Simulation b(*loaded, s.buildings, s.figures);
-    auto again = sim::write_savegame(*loaded, s.buildings, &b);
-    REQUIRE(again.ok());
-    if (*again != *saved) {
-        report(*saved, *again);
-    }
-    CHECK(*again == *saved);
     run_minutes(a, 4);
     run_minutes(b, 4);
-    auto first = sim::write_savegame(world, s.buildings, &a);
-    auto second = sim::write_savegame(*loaded, s.buildings, &b);
+    auto first = sim::write_game(world, s.buildings, &a);
+    auto second = sim::write_game(*loaded, s.buildings, &b);
     REQUIRE(first.ok());
     REQUIRE(second.ok());
-    // A city founded during play has no record in the scenario: some bytes of its records keep
-    // what the first save wrote (satisfaction 0 or 128 both mean content, the producer of an
-    // empty ware). So the cities are compared by their values, everything else byte for byte.
-    auto fa = assets::ChunkFile::from_bytes(*first);
-    auto fb = assets::ChunkFile::from_bytes(*second);
-    REQUIRE(fa.ok());
-    REQUIRE(fb.ok());
-    REQUIRE(fa->chunks().size() == fb->chunks().size());
-    std::size_t differing = 0;
-    for (std::size_t k = 0; k < fa->chunks().size(); ++k) {
-        const std::string& name = fa->chunks()[k].name;
-        if (name == "STADT4" || name == "KONTOR2" || name == "WIFF") {
-            continue;
-        }
-        auto x = fa->payload(fa->chunks()[k]);
-        auto y = fb->payload(fb->chunks()[k]);
-        if (name == "O1602" && x.size() > 20 && y.size() > 20) {
-            x = x.subspan(20);  // without the fingerprint of the chunks above
-            y = y.subspan(20);
-        }
-        if (x.size() != y.size() || !std::equal(x.begin(), x.end(), y.begin())) {
-            ++differing;
-            report(*first, *second);
-        }
-    }
-    CHECK(differing == 0);
-    REQUIRE(world.cities().size() == loaded->cities().size());
-    for (std::size_t i = 0; i < world.cities().size(); ++i) {
-        const sim::City& x = world.cities()[i];
-        const sim::City& y = loaded->cities()[i];
-        CHECK(x.island == y.island);
-        CHECK(x.owner == y.owner);
-        CHECK(x.goods == y.goods);
-        CHECK(x.inhabitants == y.inhabitants);
-        CHECK(x.satisfaction == y.satisfaction);
-        CHECK(x.tax_rate == y.tax_rate);
-        REQUIRE(x.trade.size() == y.trade.size());
-        for (std::size_t w = 0; w < x.trade.size(); ++w) {
-            CHECK(x.trade[w].buy == y.trade[w].buy);
-            CHECK(x.trade[w].sell == y.trade[w].sell);
-            CHECK(x.trade[w].keep == y.trade[w].keep);
-            CHECK(x.trade[w].limit == y.trade[w].limit);
-        }
-    }
+    CHECK(*first == *second);
     // The computers kept building meanwhile.
     std::size_t plans = 0;
     for (const auto& v : b.computers().view()) {
         plans += v.plans.size();
     }
     CHECK(plans >= 3);
+    // The same through a savegame in the original's format with Open1602's chunk: the cities'
+    // records keep some bytes of the scenario (a city founded during play has none), so only the
+    // game itself is compared, through Open1602's own savegame.
+    auto legacy = sim::write_savegame(world, s.buildings, &a);
+    REQUIRE(legacy.ok());
+    auto file = assets::ChunkFile::from_bytes(*legacy);
+    REQUIRE(file.ok());
+    auto reloaded = sim::load_world(*file, s.buildings, s.game);
+    REQUIRE(reloaded.ok());
+    sim::Simulation c(*reloaded, s.buildings, s.figures);
+    run_minutes(a, 2);
+    run_minutes(c, 2);
+    auto third = sim::write_game(world, s.buildings, &a, sim::SaveOptions{false});
+    auto fourth = sim::write_game(*reloaded, s.buildings, &c, sim::SaveOptions{false});
+    REQUIRE(third.ok());
+    REQUIRE(fourth.ok());
+    if (*third != *fourth) {
+        report(*third, *fourth);
+    }
+    CHECK(*third == *fourth);
 }

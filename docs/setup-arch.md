@@ -37,13 +37,16 @@ export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
 ./build/release/engine/app/open1602                                  # „Das Atoll“
 ./build/release/engine/app/open1602 --scenario "Szenes/Endlosspiel00.szs" --zoom 1
 ./build/release/engine/app/open1602 --savegame Merlin01           # Name aus dem Spiel (Game.dat)
+./build/release/engine/app/open1602 --load ~/.local/share/Open1602/saves/quicksave.o1602  # eigener Spielstand
 ./build/release/tools/o1602-tool/o1602-tool savegames               # alle Spielstände mit Namen
 ```
 
 Steuerung: Pfeiltasten/WASD (mit Umschalt schneller) oder rechte/mittlere Maustaste ziehen zum
 Scrollen · Mausrad zoomt an der Mausposition · 1/2/3 Zoomstufe · R / Umschalt+R drehen ·
 +/− Pixelvergrößerung · O Besitzansicht (Gebiete in Spielerfarbe) · Leertaste hält Animationen an · Pos1 springt zur ersten Insel ·
-F12 Bildschirmfoto · Esc/Q beenden. Die Titelleiste zeigt Feld unter der Maus, Bildrate und
+F5 Schnellspeichern (`quicksave.o1602` im Benutzerordner, [o1602-save.md](formats/o1602-save.md)) ·
+F12 Bildschirmfoto · Esc/Q beenden. `--save datei.o1602` speichert beim Beenden, `--save datei.gam`
+exportiert für das Original. Die Titelleiste zeigt Feld unter der Maus, Bildrate und
 Sprite-Anzahl. Mit `--frames N --screenshot bild.png` läuft das Programm N Bilder lang, speichert das
 letzte und meldet die Bildrate (für Tests ohne Bedienung).
 

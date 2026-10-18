@@ -151,6 +151,47 @@ TEST_CASE("ships: a course over open sea runs in steps of one or two tiles") {
     CHECK(y == 13);
 }
 
+TEST_CASE("ships: water near hostile towers is avoided when a way round costs less") {
+    Sea sea;
+    sim::SeaMap map;
+    map.rebuild(sea.world, sea.buildings);
+    sim::SeaPlanner planner;
+    sim::SeaPlan plan;
+    plan.start_x = 10;
+    plan.start_y = 30;
+    plan.aim_x = 60;
+    plan.aim_y = 30;
+    plan.goal = [](std::int32_t x, std::int32_t y) { return x == 60 && y == 30; };
+    const auto passes = [](const sim::SeaCourse& course, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                           std::int32_t y1) {
+        std::int32_t x = 10;
+        std::int32_t y = 30;
+        bool inside = false;
+        for (const std::uint8_t code : course.path) {
+            for (std::uint32_t i = 0; i < (code & 0x0FU); ++i) {
+                x += sim::step_x(static_cast<std::uint8_t>(code >> 4U));
+                y += sim::step_y(static_cast<std::uint8_t>(code >> 4U));
+                inside = inside || (x >= x0 && x <= x1 && y >= y0 && y <= y1);
+            }
+        }
+        return inside;
+    };
+    // Straight through without danger.
+    sim::SeaCourse course = planner.plan(map, plan);
+    REQUIRE(course.reached_goal);
+    CHECK(passes(course, 30, 25, 40, 35));
+    // A small square of danger: the course goes round it.
+    plan.danger.push_back(sim::SeaPlan::Danger{30, 25, 40, 35});
+    course = planner.plan(map, plan);
+    REQUIRE(course.reached_goal);
+    CHECK(!passes(course, 30, 25, 40, 35));
+    // A wall of danger across the whole window: there is no way round, so the ship sails through.
+    plan.danger = {sim::SeaPlan::Danger{30, -100, 33, 200}};
+    course = planner.plan(map, plan);
+    REQUIRE(course.reached_goal);
+    CHECK(passes(course, 30, -100, 33, 200));
+}
+
 TEST_CASE("ships: courses go round islands without cutting their corners, also beyond the window") {
     Sea sea(true);
     sim::SeaMap map;
@@ -394,4 +435,111 @@ TEST_CASE("ships: a shipyard builds a ship from wood and cloth and repairs one l
     CHECK(sea.world.ship(id)->health == 50 * kTon);
     CHECK(!sea.world.ship(id)->repairing);
     CHECK(repaired == 1);
+}
+
+sim::ShipCommand cmd(sim::PlayerId player, std::uint32_t ship, sim::ShipCommand::Op op, std::uint8_t hold = 0xFF) {
+    sim::ShipCommand c;
+    c.player = player;
+    c.ship = ship;
+    c.op = op;
+    c.hold = hold;
+    return c;
+}
+
+TEST_CASE("ships: cannons go on and off board, goods overboard, a new name") {
+    Sea sea;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    sim::Ship& ship = sea.add(10, 10);
+    const std::uint32_t id = ship.id;
+    ship.cargo[0] = sim::CargoSlot{13, 7 * kTon + 5, 100};  // 7 t of cannons and a bit
+    ship.cargo[1] = sim::CargoSlot{kWood, 20 * kTon, 0};
+    using Op = sim::ShipCommand::Op;
+    // Six cannons at most (Maxkanon 6); each takes a ton from the hold.
+    for (int i = 0; i < 6; ++i) {
+        CHECK(fleet.command(cmd(0, id, Op::MountCannon)));
+    }
+    CHECK(!fleet.command(cmd(0, id, Op::MountCannon)));
+    CHECK(sea.world.ship(id)->cannons == 6);
+    CHECK(sea.world.ship(id)->cargo[0].amount == kTon + 5);
+    // Not someone else's ship.
+    CHECK(!fleet.command(cmd(1, id, Op::UnmountCannon)));
+    CHECK(fleet.command(cmd(0, id, Op::UnmountCannon)));
+    CHECK(sea.world.ship(id)->cannons == 5);
+    CHECK(sea.world.ship(id)->cargo[0].amount == 2 * kTon + 5);
+    // Overboard: one hold, then everything.
+    CHECK(fleet.command(cmd(0, id, Op::Dump, 1)));
+    CHECK(sea.world.ship(id)->cargo[1].ware == 0);
+    CHECK(fleet.command(cmd(0, id, Op::Dump)));
+    CHECK(sea.world.ship(id)->cargo[0].ware == 0);
+    CHECK(!fleet.command(cmd(0, id, Op::Dump)));  // nothing left
+    // Without cannons in a hold none can be mounted; taking one off needs a free hold.
+    CHECK(!fleet.command(cmd(0, id, Op::MountCannon)));
+    for (auto& slot : sea.world.ship(id)->cargo) {
+        slot = sim::CargoSlot{kWood, kTon, 0};
+    }
+    CHECK(!fleet.command(cmd(0, id, Op::UnmountCannon)));
+    sim::ShipCommand rename = cmd(0, id, Op::Rename);
+    rename.name = "Seeadler";
+    CHECK(fleet.command(rename));
+    CHECK(sea.world.ship(id)->name == "Seeadler");
+    rename.name.clear();
+    CHECK(!fleet.command(rename));
+}
+
+TEST_CASE("ships: a ship offered for sale changes hands for its price") {
+    Sea sea;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    sim::Ship& ship = sea.add(10, 10);
+    const std::uint32_t id = ship.id;
+    using Op = sim::ShipCommand::Op;
+    // Not for sale yet; then at three quarters of its price (Preis 1000).
+    CHECK(!fleet.command(cmd(1, id, Op::Buy)));
+    sim::ShipCommand offer = cmd(0, id, Op::OfferForSale);
+    offer.factor = 96;
+    CHECK(fleet.command(offer));
+    CHECK(fleet.sale_price(*sea.world.ship(id)) == 750);
+    // Too poor to buy it.
+    sea.world.player(1)->money = 700;
+    CHECK(!fleet.command(cmd(1, id, Op::Buy)));
+    sea.world.player(1)->money = 10000;
+    // Not with soldiers on board.
+    sea.world.ship(id)->cargo[0] = sim::CargoSlot{25, kTon, 0};
+    CHECK(!fleet.command(cmd(1, id, Op::Buy)));
+    sea.world.ship(id)->cargo[0] = sim::CargoSlot{};
+    // The owner cannot buy his own ship; another player can.
+    CHECK(!fleet.command(cmd(0, id, Op::Buy)));
+    const std::int32_t seller = sea.world.player(0)->money;
+    CHECK(fleet.command(cmd(1, id, Op::Buy)));
+    CHECK(sea.world.ship(id)->owner == 1);
+    CHECK(!sea.world.ship(id)->for_sale);
+    CHECK(sea.world.player(1)->money == 10000 - 750);
+    CHECK(sea.world.player(0)->money == seller + 750);
+    const auto events = fleet.take_events();
+    CHECK(std::any_of(events.begin(), events.end(),
+                      [](const sim::ShipEvent& e) { return e.kind == sim::ShipEvent::Kind::Sold && e.money == 750; }));
+    // Withdrawing an offer.
+    CHECK(fleet.command(cmd(1, id, Op::OfferForSale)));
+    CHECK(fleet.command(cmd(1, id, Op::WithdrawSale)));
+    CHECK(!fleet.command(cmd(0, id, Op::Buy)));
+}
+
+TEST_CASE("ships: a Kontor trades in no more wares than its Maxware allows") {
+    Sea sea(true);
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    // The test Kontor has no Maxware: no limit.
+    for (std::uint8_t w = 2; w <= 10; ++w) {
+        CHECK(fleet.set_trade(sim::TradeSetting{0, 0, 0, w, sim::TradeSetting::Mode::Sell, {}, {}}));
+    }
+    // A Kontor I (3 to sell, 4 to buy).
+    assets::BuildingType kontor = *sea.buildings.by_id(20103);
+    kontor.max_wares = 3;
+    kontor.max_wares2 = 4;
+    sim::City& city = *sea.world.city(0, 0);
+    CHECK(sim::trim_trade_settings(city, kontor));  // nine wares on sale: all off
+    CHECK(std::none_of(city.trade.begin(), city.trade.end(), [](const sim::City::Trade& t) { return t.sell; }));
+    for (std::uint8_t w = 2; w <= 4; ++w) {
+        city.trade[w].sell = true;
+    }
+    CHECK(!sim::trim_trade_settings(city, kontor));  // three are allowed
+    CHECK(city.trade[2].sell);
 }

@@ -22,6 +22,7 @@ public:
     explicit StateIn(core::ByteReader& r) noexcept : m_r(r) {}
 
     [[nodiscard]] bool ok() const noexcept { return m_ok; }
+    [[nodiscard]] std::size_t remaining() const noexcept { return m_r.remaining(); }
     void fail() noexcept { m_ok = false; }
 
     std::uint8_t u8() { return take(m_r.u8()); }

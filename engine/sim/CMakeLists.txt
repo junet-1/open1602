@@ -29,11 +29,13 @@ add_library(o1602_sim
     src/pirates.cpp
     src/explore.cpp
     src/savegame_extension.cpp
+    src/save_game.cpp
     src/savegame_writer.cpp
     src/world_generator.cpp
     src/world_plan.cpp
     src/new_game.cpp
     src/sea_paths.cpp
+    src/ship_orders.cpp
     src/ships.cpp
     src/trader.cpp
     src/shipyards.cpp

@@ -102,7 +102,8 @@ public:
                std::uint8_t speed_type, bool circle = true);
 
     /// Makes the footprint of a building walkable (the one a figure stands in, or the one it
-    /// returns to), as 0x004710B0 does: cost class 40 (125 %).
+    /// returns to), as 0x004710B0 does: cost class 40 (125 %). Of a building drawn over its ground
+    /// (`Grundflg`) only the tiles whose ground is forest, open ground or ruins.
     void open_footprint(TilePos origin, std::uint32_t width, std::uint32_t height);
 
     /// Whether `p` lies in the circle of the area.
@@ -179,6 +180,8 @@ private:
     void push(std::uint32_t index, std::uint32_t cost, std::uint8_t from);
     void expand(std::uint32_t index);
 
+    const IslandMap* m_map = nullptr;
+    const assets::BuildingTable* m_buildings = nullptr;
     std::int32_t m_x0 = 0;
     std::int32_t m_y0 = 0;
     std::uint32_t m_width = 0;

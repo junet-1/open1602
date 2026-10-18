@@ -45,10 +45,31 @@ struct ProductionSwitch {
     bool on = true;
 };
 
+/// Settings of the city window (docs/re/consumption.md): the tax of a class of inhabitants, the
+/// name, and keeping the building material from the people (no house upgrades).
+struct CityOrder {
+    enum class Op : std::uint8_t {
+        TaxRate,       ///< `resident_class` pays `rate` (64..192, 128 = normal; op 0x31 sub 0x33)
+        Rename,        ///< `name`, 1 to kMaxNameLength bytes (Windows-1252)
+        MaterialLock,  ///< `on`: the houses do not take the material to rise
+    };
+    static constexpr std::uint8_t kMinTax = 64;
+    static constexpr std::uint8_t kMaxTax = 192;
+    static constexpr std::size_t kMaxNameLength = 40;
+    PlayerId player = kNoPlayer;
+    std::uint16_t island = 0;
+    std::uint8_t city = 0;
+    Op op = Op::TaxRate;
+    std::uint8_t resident_class = 0;
+    std::uint8_t rate = 128;
+    bool on = false;
+    std::string name;
+};
+
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
 using Command = std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting,
                              ShipyardOrder, ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder,
-                             UnloadOrder, ProductionSwitch>;
+                             UnloadOrder, ProductionSwitch, CityOrder, ShipCommand>;
 
 /// What became of a command.
 struct CommandResult {
@@ -140,6 +161,7 @@ private:
     friend class ai::Engine;
     void pay_upkeep();
     bool switch_production(const ProductionSwitch& s);
+    bool city_order(const CityOrder& order);
     bool restore_state(const std::vector<std::uint8_t>& state);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 

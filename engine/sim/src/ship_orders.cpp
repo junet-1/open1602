@@ -1,0 +1,166 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Orders of the ship panel beyond sailing and trade (docs/re/ships.md#schiffsfenster): mounting
+// and taking off cannons, goods overboard, the name, and selling ships between players.
+#include <algorithm>
+
+#include "o1602/sim/ships.hpp"
+
+namespace o1602::sim {
+
+namespace {
+
+constexpr std::uint8_t kCannonWare = 13;  // KANONEN
+constexpr std::uint8_t kFirstSoldierWare = 25;
+constexpr std::uint8_t kLastSoldierWare = 44;
+constexpr std::uint32_t kTon = 32;
+
+bool is_soldier(std::uint8_t ware) noexcept {
+    return ware >= kFirstSoldierWare && ware <= kLastSoldierWare;
+}
+
+}  // namespace
+
+std::int32_t Fleet::sale_price(const Ship& ship) const {
+    const assets::FigureType* t = type_of(ship);
+    if (t == nullptr) {
+        return 0;
+    }
+    return static_cast<std::int32_t>(std::uint64_t{t->ship.price} * ship.sale_factor / 128U);
+}
+
+bool Fleet::command(const ShipCommand& c) {
+    Ship* ship = m_world->ship(c.ship);
+    if (ship == nullptr || ship->sinking || ship->trader) {
+        return false;
+    }
+    const bool own = c.player == kNoPlayer || ship->owner == c.player;
+    const assets::FigureType* type = type_of(*ship);
+    switch (c.op) {
+        case ShipCommand::Op::MountCannon: {
+            // A hold with at least 1 t of cannons, while the ship has room for another (Maxkanon).
+            if (!own || type == nullptr || ship->cannons >= type->ship.max_cannons) {
+                return false;
+            }
+            for (std::size_t h = 0; h < ship->cargo.size(); ++h) {
+                CargoSlot& slot = ship->cargo[h];
+                if ((c.hold != 0xFF && h != c.hold) || slot.ware != kCannonWare || slot.amount < kTon) {
+                    continue;
+                }
+                slot.amount -= kTon;
+                if (slot.amount == 0) {
+                    slot = CargoSlot{};
+                }
+                ++ship->cannons;
+                return true;
+            }
+            return false;
+        }
+        case ShipCommand::Op::UnmountCannon: {
+            // Needs room for 1 t of cannons: a hold with cannons and space, or an empty hold.
+            if (!own || ship->cannons == 0) {
+                return false;
+            }
+            CargoSlot* target = nullptr;
+            for (CargoSlot& slot : ship->cargo) {
+                if (slot.ware == kCannonWare && slot.amount + kTon <= kHoldCapacity) {
+                    target = &slot;
+                    break;
+                }
+            }
+            if (target == nullptr) {
+                for (CargoSlot& slot : ship->cargo) {
+                    if (slot.ware == 0) {
+                        target = &slot;
+                        break;
+                    }
+                }
+            }
+            if (target == nullptr) {
+                return false;
+            }
+            target->ware = kCannonWare;
+            target->amount += kTon;
+            --ship->cannons;
+            return true;
+        }
+        case ShipCommand::Op::Dump: {
+            // Every hold (or the one named) but soldiers on board; the goods are gone.
+            if (!own) {
+                return false;
+            }
+            bool dumped = false;
+            for (std::size_t h = 0; h < ship->cargo.size(); ++h) {
+                CargoSlot& slot = ship->cargo[h];
+                if ((c.hold != 0xFF && h != c.hold) || slot.ware == 0 || is_soldier(slot.ware)) {
+                    continue;
+                }
+                slot = CargoSlot{};
+                dumped = true;
+            }
+            return dumped;
+        }
+        case ShipCommand::Op::Rename:
+            if (!own || c.name.empty() || c.name.size() > ShipCommand::kMaxNameLength) {
+                return false;
+            }
+            ship->name = c.name;
+            return true;
+        case ShipCommand::Op::OfferForSale:
+            if (!own || c.factor > ShipCommand::kMaxSaleFactor) {
+                return false;
+            }
+            ship->for_sale = true;
+            ship->sale_factor = c.factor;
+            m_events.push_back(
+                ShipEvent{ShipEvent::Kind::OfferedForSale, ship->id, ship->owner, 0, 0, 0, 0, sale_price(*ship)});
+            return true;
+        case ShipCommand::Op::WithdrawSale:
+            if (!own || !ship->for_sale) {
+                return false;
+            }
+            ship->for_sale = false;
+            return true;
+        case ShipCommand::Op::Buy: {
+            // 0x0044DF80: the seller earns the price and the ship changes hands. The original takes
+            // the money without looking whether the buyer has it; Open1602 checks it, the fleet
+            // limit of the buyer, and that no soldiers are on board (they would change sides).
+            Player* buyer = m_world->player(c.player);
+            Player* seller = m_world->player(ship->owner);
+            if (!ship->for_sale || buyer == nullptr || seller == nullptr || c.player == ship->owner ||
+                (buyer->role != PlayerRole::Human && buyer->role != PlayerRole::Computer)) {
+                return false;
+            }
+            const std::int32_t price = sale_price(*ship);
+            if (buyer->money < price) {
+                return false;
+            }
+            if (m_rules->max_ships_per_player != 0 && fleet_size(c.player) >= m_rules->max_ships_per_player) {
+                m_events.push_back(ShipEvent{ShipEvent::Kind::FleetFull, ship->id, c.player});
+                return false;
+            }
+            if (std::any_of(ship->cargo.begin(), ship->cargo.end(),
+                            [](const CargoSlot& slot) { return is_soldier(slot.ware); })) {
+                return false;
+            }
+            const PlayerId old_owner = ship->owner;
+            buyer->money -= price;
+            seller->money += price;
+            ship->owner = c.player;
+            ship->for_sale = false;
+            ship->sale_factor = 128;
+            ship->held = false;
+            ship->repairing = false;
+            ship->route.active = false;
+            ship->target = Target{};
+            ship->order = Target{};
+            ship->motion.path.clear();
+            ship->motion.path_index = 0;
+            m_events.push_back(ShipEvent{ShipEvent::Kind::Sold, ship->id, old_owner, 0, c.player, 0, 0, price});
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace o1602::sim

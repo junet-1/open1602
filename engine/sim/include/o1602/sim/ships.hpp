@@ -99,6 +99,28 @@ struct ExploreOrder {
     std::uint32_t ship = 0;
 };
 
+/// Further orders of the ship panel (docs/re/ships.md#schiffsfenster): cannons, cargo overboard, the
+/// name, offering the ship for sale and buying a ship another player offers.
+struct ShipCommand {
+    enum class Op : std::uint8_t {
+        MountCannon,    ///< 1 t of cannons from a hold becomes a mounted cannon (op 0x19 +1)
+        UnmountCannon,  ///< "Kanonenbestückung reduzieren": a mounted cannon back into a hold as 1 t
+        Dump,           ///< "Waren über Bord werfen": the goods of `hold` (0xFF = all holds) are lost
+        Rename,         ///< `name`, 1 to kMaxNameLength bytes (Windows-1252)
+        OfferForSale,   ///< at Preis * `factor` / 128 (factor 0..384; op 0x20/0x21)
+        WithdrawSale,
+        Buy,  ///< `player` buys the ship at its price from its owner (0x84D)
+    };
+    static constexpr std::size_t kMaxNameLength = 40;
+    static constexpr std::uint16_t kMaxSaleFactor = 384;
+    PlayerId player = kNoPlayer;
+    std::uint32_t ship = 0;
+    Op op = Op::MountCannon;
+    std::uint8_t hold = 0xFF;  ///< MountCannon and Dump: the hold, 0xFF = the first fitting / all
+    std::uint16_t factor = 128;
+    std::string name;
+};
+
 /// Whether and why a ship can explore an island now (the button of the ship panel).
 enum class ExploreState : std::uint8_t {
     Possible,    ///< standing in an island's rectangle with something left to find
@@ -151,6 +173,8 @@ struct ShipEvent {
         CropsExplored,     ///< 0x2A: the crops of `island` are explored (centre of the island in x, y)
         DepositFound,      ///< 0x2B iron ore / 0x2C gold (`ware`) at the mountain x, y of `island`
         ExploreFinished,   ///< the exploring of `island` has ended (for the progress display)
+        OfferedForSale,    ///< 10: `player` offers the ship for `money`
+        Sold,              ///< the ship went from `player` to the player in `city` for `money`
     };
     Kind kind = Kind::Arrived;
     std::uint32_t ship = 0;
@@ -183,6 +207,10 @@ public:
     bool shipyard(const ShipyardOrder& order);
     /// Starts exploring the island the ship stands in (ExploreState::Possible only).
     bool explore(const ExploreOrder& order);
+    /// Cannons, cargo overboard, name, sale (ship_orders.cpp).
+    bool command(const ShipCommand& command);
+    /// What buying the ship costs (Preis * sale factor / 128).
+    [[nodiscard]] std::int32_t sale_price(const Ship& ship) const;
     [[nodiscard]] ExploreState explore_state(const Ship& ship, PlayerId player) const;
     /// The island whose rectangle holds the ship's tile (0x0046A570), if any.
     [[nodiscard]] std::optional<std::uint16_t> island_at_ship(const Ship& ship) const;
