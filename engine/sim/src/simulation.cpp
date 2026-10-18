@@ -23,7 +23,7 @@ constexpr std::uint64_t kArchInhabitants = 200;      // more than 199
 }  // namespace
 
 Simulation::Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
-                       Rules rules)
+                       Rules rules, Parts)
     : m_world(&world),
       m_buildings(&buildings),
       m_rules(rules),
@@ -44,6 +44,11 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     if (world.saved_rules()) {
         m_rules = *world.saved_rules();  // the settings the game was started with
     }
+}
+
+Simulation::Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+                       Rules rules)
+    : Simulation(world, buildings, figures, rules, Parts{}) {
     recount_disasters(world);
     if (const std::vector<std::uint8_t> state = world.take_simulation_state(); !state.empty()) {
         // Each part loads whole or not at all, but a later part may fail after an earlier one
@@ -63,6 +68,15 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     // The original takes the saved coverage of the houses; Open1602 recomputes it once, which
     // also restores what the savegame does not keep (gallows, fountains).
     update_services(world, buildings);
+}
+
+bool Simulation::state_readable(World& world, const assets::BuildingTable& buildings,
+                                const assets::FigureTable& figures) {
+    if (world.simulation_state().empty()) {
+        return true;
+    }
+    Simulation probe(world, buildings, figures, Rules::open1602(), Parts{});
+    return probe.restore_state(world.simulation_state());
 }
 
 std::optional<std::uint64_t> Simulation::state_hash() const {

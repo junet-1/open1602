@@ -9,6 +9,8 @@
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
 #include "o1602/core/compress.hpp"
+#include "o1602/sim/simulation.hpp"
+#include "o1602/sim/validate.hpp"
 
 namespace o1602::sim {
 
@@ -108,7 +110,7 @@ core::Result<SaveInfo> save_info(std::span<const std::uint8_t> bytes) {
 }
 
 core::Result<World> read_game(std::span<const std::uint8_t> bytes, const assets::BuildingTable& buildings,
-                              std::vector<std::string>* warnings) {
+                              std::vector<std::string>* warnings, const assets::FigureTable* figures) {
     auto h = read_header(bytes);
     if (!h) {
         return h.error();
@@ -135,6 +137,12 @@ core::Result<World> read_game(std::span<const std::uint8_t> bytes, const assets:
     }
     if (auto status = detail::apply_sections(*world, buildings, sections); !status) {
         return status.error();
+    }
+    if (auto status = validate(*world); !status) {
+        return status.error();
+    }
+    if (figures != nullptr && !Simulation::state_readable(*world, buildings, *figures)) {
+        return make_error(ErrorCode::InvalidFormat, "savegame: the state of the running game is damaged (SIMU)");
     }
     return world;
 }

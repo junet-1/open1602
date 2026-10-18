@@ -127,6 +127,12 @@ public:
     Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
                Rules rules = Rules::open1602());
 
+    /// Whether the state of the running game a world carries (a game saved by Open1602) can be
+    /// read whole; true for a world without one. Builds the parts of a game on the world to try,
+    /// without running anything, so that a loader can refuse a damaged file before the game starts.
+    [[nodiscard]] static bool state_readable(World& world, const assets::BuildingTable& buildings,
+                                             const assets::FigureTable& figures);
+
     /// Advances by `real_ms` of real time at the current speed; runs whole ticks and keeps the rest,
     /// at most kMaxTicksPerAdvance and only while `before_tick` agrees. Time owed beyond one more
     /// such step is dropped. Commands are applied even while the game is paused (the player may
@@ -230,6 +236,10 @@ public:
 
 private:
     friend class ai::Engine;
+    /// Only the parts, joined, and the clocks of the world: what state_readable needs.
+    struct Parts {};
+    Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures, Rules rules,
+               Parts);
     void pay_upkeep();
     void players_tick();
     void accomplish(PlayerId winner);

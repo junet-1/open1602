@@ -65,6 +65,10 @@ struct DrawCommand {
     /// Not a sprite but a dashed outline along the edges `edges` of the same tile
     /// diamond, in the colour `tint`: the border of a catchment circle.
     static constexpr std::uint32_t kOverlayOutline = 0xFFFFFFFE;
+    /// Not a sprite but the same tile diamond hatched: every second pixel (a checkerboard on the
+    /// world's pixels, see hatch_pixel) in the colour `tint`. The area dragged out for fields or
+    /// trees.
+    static constexpr std::uint32_t kOverlayHatch = 0xFFFFFFFD;
 
     /// Edges of a tile diamond (bits of `edges`), named by their side on screen.
     static constexpr std::uint8_t kTopLeft = 1;
@@ -99,7 +103,7 @@ struct DrawCommand {
     std::uint8_t edges = 0;  ///< edges of an outline (kTopLeft ...)
 
     /// Whether this is an untextured overlay, not a sprite.
-    [[nodiscard]] bool overlay() const noexcept { return sprite >= kOverlayOutline; }
+    [[nodiscard]] bool overlay() const noexcept { return sprite >= kOverlayHatch; }
 };
 
 /// The pixels of an outline command: calls `f(x, y)` for the left pixel of each lit two-pixel
@@ -126,6 +130,12 @@ void for_each_outline_step(const DrawCommand& c, F&& f) {
             f(cx + half - 2, y);
         }
     }
+}
+
+/// Whether the pixel (x, y) of the draw list's coordinates is one of the hatched ones of
+/// kOverlayHatch. Counted on the world's pixels, so the pattern of neighbouring tiles lines up.
+[[nodiscard]] constexpr bool hatch_pixel(std::int32_t x, std::int32_t y) noexcept {
+    return ((x + y) & 1) == 0;
 }
 
 /// Sprite of a building tile showing animation frame `frame`: base sprite + frame * AnimAdd +

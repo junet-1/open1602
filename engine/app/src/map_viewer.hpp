@@ -326,7 +326,7 @@ private:
     std::unique_ptr<GameSound> m_sound;           ///< effects, voices and music (after the window)
     std::unique_ptr<Hud> m_hud;                   ///< panel and status bar (after the window), may be null
     bool m_left_down = false;                     ///< the left mouse button, for the frame's buttons
-    std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
+    std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built, a dragged field
     render::TileLighting m_lighting;              ///< tiles drawn darker this frame
     /// The building looked at when the build menu picked its field: its circle stays lit while
     /// that field is placed.

@@ -3,6 +3,8 @@
 
 #include <SDL3/SDL.h>
 #include <algorithm>
+#include <array>
+#include <vector>
 
 namespace o1602::render {
 
@@ -17,6 +19,10 @@ void SdlSpriteRenderer::release() {
         SDL_DestroyTexture(texture);
     }
     m_pages.clear();
+    if (m_hatch != nullptr) {
+        SDL_DestroyTexture(m_hatch);
+        m_hatch = nullptr;
+    }
     m_atlas = nullptr;
 }
 
@@ -39,6 +45,22 @@ core::Status SdlSpriteRenderer::upload(const SpriteAtlas& atlas) {
         SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
         SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
     }
+    m_hatch =
+        SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, kHatchWidth, kHatchHeight);
+    if (m_hatch != nullptr) {
+        // Texel (x, y) is lit where hatch_pixel(x, y) holds.
+        std::vector<std::uint8_t> pixels(std::size_t{kHatchWidth} * kHatchHeight * 4, 0);
+        for (int y = 0; y < kHatchHeight; ++y) {
+            for (int x = 0; x < kHatchWidth; ++x) {
+                if (hatch_pixel(x, y)) {
+                    std::fill_n(pixels.begin() + (y * kHatchWidth + x) * 4, 4, std::uint8_t{255});
+                }
+            }
+        }
+        SDL_UpdateTexture(m_hatch, nullptr, pixels.data(), kHatchWidth * 4);
+        SDL_SetTextureBlendMode(m_hatch, SDL_BLENDMODE_BLEND);
+        SDL_SetTextureScaleMode(m_hatch, SDL_SCALEMODE_NEAREST);
+    }
     m_atlas = &atlas;
     return core::Ok{};
 }
@@ -47,7 +69,7 @@ void SdlSpriteRenderer::flush(std::uint16_t page) {
     if (m_indices.empty()) {
         return;
     }
-    SDL_Texture* texture = page == kUntextured ? nullptr : m_pages[page];
+    SDL_Texture* texture = page == kUntextured ? nullptr : page == kHatched ? m_hatch : m_pages[page];
     if (texture == nullptr) {
         SDL_SetRenderDrawBlendMode(m_renderer, SDL_BLENDMODE_BLEND);  // untextured geometry uses it
     }
@@ -86,6 +108,33 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
             m_vertices.push_back(SDL_Vertex{{left + w, cy}, color, {0, 0}});
             m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom}, color, {0, 0}});
             m_vertices.push_back(SDL_Vertex{{left, cy}, color, {0, 0}});
+            m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+            continue;
+        }
+        if (c.sprite == DrawCommand::kOverlayHatch) {  // every second pixel of the tile diamond
+            if (m_hatch == nullptr) {
+                continue;
+            }
+            if (current != kHatched) {
+                flush(current);
+                current = kHatched;
+            }
+            const SDL_FColor color{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, c.tint.a / 255.0F};
+            const std::int32_t w = c.tint_size;
+            const std::int32_t top = c.y - w / 2;
+            // The texture's checkerboard starts a column later where the world's is the other way
+            // round at the diamond's corner, so the pattern lines up from tile to tile.
+            const std::int32_t shift = (c.x + top) & 1;
+            const std::array<std::array<std::int32_t, 2>, 4> corners = {
+                {{w / 2, 0}, {w, w / 4}, {w / 2, w / 2}, {0, w / 4}}};  // in the diamond's box
+            const int base = static_cast<int>(m_vertices.size());
+            for (const auto& [lx, ly] : corners) {
+                m_vertices.push_back(
+                    SDL_Vertex{{static_cast<float>((c.x + lx) * scale - origin_x),
+                                static_cast<float>((top + ly) * scale - origin_y)},
+                               color,
+                               {static_cast<float>(lx + shift) / kHatchWidth, static_cast<float>(ly) / kHatchHeight}});
+            }
             m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
             continue;
         }

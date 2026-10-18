@@ -40,6 +40,7 @@ add_library(o1602_sim
     src/ship_orders.cpp
     src/ships.cpp
     src/trader.cpp
+    src/validate.cpp
     src/shipyards.cpp
     src/player.cpp
     src/production_cycle.cpp

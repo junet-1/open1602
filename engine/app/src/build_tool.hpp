@@ -55,6 +55,9 @@ public:
         ++m_variant_seed;
     }
     [[nodiscard]] bool dragging() const noexcept { return m_drag_start.has_value(); }
+    /// A field or forest being dragged out: its rectangle is shown hatched instead of the crops
+    /// or trees (History Edition).
+    [[nodiscard]] bool hatched_drag() const noexcept;
 
     [[nodiscard]] const assets::BuildingType* selected() const noexcept;
 

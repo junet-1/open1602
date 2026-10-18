@@ -86,6 +86,10 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (!buildings) {
         return buildings.error();
     }
+    auto figures = assets::FigureTable::load(game);
+    if (!figures) {
+        return figures.error();
+    }
     std::vector<std::string> warnings;
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     if (options.menu) {
@@ -102,7 +106,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             return bytes.error();
         }
         if (sim::is_open1602_save(*bytes)) {
-            world = sim::read_game(*bytes, *buildings, &warnings);
+            world = sim::read_game(*bytes, *buildings, &warnings, &*figures);
         } else {
             auto file = assets::ChunkFile::from_bytes(std::move(bytes).value());
             if (!file) {
@@ -131,10 +135,6 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     auto palette = assets::Palette::load(*palette_path);
     if (!palette) {
         return palette.error();
-    }
-    auto figures = assets::FigureTable::load(game);
-    if (!figures) {
-        return figures.error();
     }
 
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
@@ -921,11 +921,24 @@ void MapViewer::render() {
                     const sim::BuildPlan plan = sim::plan_build(m_world, m_buildings, *order);
                     m_pending_bill = plan.bill;
                     sim::IslandMap& map = m_world.island(order->island).map;
+                    // A field or forest being dragged: its whole rectangle hatched on the ground,
+                    // with no crops or trees in it, as in the History Edition.
+                    const bool hatched = m_tool.hatched_drag();
+                    if (hatched) {
+                        for (const sim::BuildItem& item : order->items) {
+                            if (map.contains(item.x, item.y)) {
+                                render::TileMark mark{order->island, static_cast<std::uint16_t>(item.x),
+                                                      static_cast<std::uint16_t>(item.y), render::kDragHatch};
+                                mark.hatched = true;
+                                m_tile_marks.push_back(mark);
+                            }
+                        }
+                    }
                     for (const sim::PlannedBuild& item : plan.items) {
                         if (!item.ok() && m_tool_status.empty()) {
                             m_tool_status = sim::refusal_name(item.refusal);
                         }
-                        if (item.type == nullptr) {
+                        if (item.type == nullptr || hatched) {
                             continue;
                         }
                         // What cannot be built is shown too, on red ground, as in the original.
@@ -1977,7 +1990,7 @@ core::Status MapViewer::load_game(const std::filesystem::path& path) {
     std::vector<std::string> warnings;
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     if (sim::is_open1602_save(*bytes)) {
-        world = sim::read_game(*bytes, m_buildings, &warnings);
+        world = sim::read_game(*bytes, m_buildings, &warnings, &m_figures);
     } else {
         auto file = assets::ChunkFile::from_bytes(std::move(bytes).value());
         if (!file) {
