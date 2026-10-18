@@ -23,6 +23,13 @@
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
+// Lets GCC and Clang check the arguments of printf-style functions (index counts 'this' as 1).
+#if defined(__GNUC__)
+#define O1602_PRINTF_FORMAT(fmt, first) __attribute__((format(printf, fmt, first)))
+#else
+#define O1602_PRINTF_FORMAT(fmt, first)
+#endif
+
 namespace o1602::sim::ai {
 
 // Ware numbers of haeuser.cod the AI refers to.
@@ -248,7 +255,7 @@ private:
     void take_original_jobs(AiPlayer& p);
     CommandResult execute(const Command& command);
     /// Debug trace to stderr when O1602_AI_LOG is set.
-    void log(const AiPlayer& p, const char* format, ...) const;
+    void log(const AiPlayer& p, const char* format, ...) const O1602_PRINTF_FORMAT(3, 4);
 
     // ---- ai_world.cpp ----
     [[nodiscard]] Tile tile(std::uint16_t island, std::int32_t x, std::int32_t y) const;

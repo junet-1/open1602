@@ -169,8 +169,10 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
                 }
                 for (std::int32_t tx = c.x - origin_x + x; tx < c.x - origin_x + x + 2; ++tx) {
                     if (tx >= 0 && tx < tw) {
-                        std::uint8_t* p = &target.pixels[(static_cast<std::size_t>(ty) * target.width +
-                                                          static_cast<std::size_t>(tx)) * 4];
+                        std::uint8_t* p =
+                            &target
+                                 .pixels[(static_cast<std::size_t>(ty) * target.width + static_cast<std::size_t>(tx)) *
+                                         4];
                         p[0] = c.tint.r;
                         p[1] = c.tint.g;
                         p[2] = c.tint.b;

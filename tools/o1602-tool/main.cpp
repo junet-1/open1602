@@ -246,7 +246,8 @@ int cmd_cod_dump(const Args& args) {
     }
     if (predefined == "auto") {
         std::string stem = path.stem().string();
-        std::transform(stem.begin(), stem.end(), stem.begin(), [](unsigned char c) { return std::tolower(c); });
+        std::transform(stem.begin(), stem.end(), stem.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         predefined = stem == "haeuser" || stem == "figuren" ? stem : "none";
     }
     std::span<const assets::CodPredefinedSymbol> symbols;

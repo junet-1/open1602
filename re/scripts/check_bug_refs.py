@@ -3,7 +3,8 @@
 """Checks that every bug id referenced in the code (e.g. "Fix S-002") exists in docs/re/bugs.md.
 
 Usage: python3 re/scripts/check_bug_refs.py [repo root]
-Exit code 1 lists unknown ids. Used by CI (ADR 0006).
+Exit code 1 lists unknown ids (ADR 0006). The catalog lives in the private repository open1602-re,
+so run this locally with docs/re linked in (CONTRIBUTING.md); public CI cannot see it.
 """
 import pathlib
 import re

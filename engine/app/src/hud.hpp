@@ -243,7 +243,6 @@ private:
     };
 
     SDL_Renderer* m_sdl;
-    const assets::GameDirectory* m_game;
     assets::Palette m_palette;
     std::unique_ptr<render::SdlUiRenderer> m_renderer;
     ui::Panel m_ctrl;
@@ -273,8 +272,6 @@ private:
     std::int32_t m_gfx_baumat = 46;  ///< TOOLS.INC GFXBAUMAT
     std::deque<Event> m_events;      ///< newest first, at most three
     std::vector<std::uint8_t> m_minimap;
-    std::int32_t m_minimap_w = 0;
-    std::int32_t m_minimap_h = 0;
     std::uint64_t m_minimap_ms = 0;
     bool m_minimap_dirty = true;
     std::uint32_t m_world_w = 0;

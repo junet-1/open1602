@@ -996,8 +996,8 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     // everything, so neither buildings nor the island's edge cut it off.
     const bool circle = layers.lighting != nullptr && layers.lighting->outlined();
     std::vector<DrawCommand> outline;
-    const auto add_outline = [&](std::int32_t vx, std::int32_t vy, std::uint32_t wx, std::uint32_t wy,
-                                 std::int32_t sx, std::int32_t row_bottom, const sim::MapCell* cell) {
+    const auto add_outline = [&](std::int32_t vx, std::int32_t vy, std::uint32_t wx, std::uint32_t wy, std::int32_t sx,
+                                 std::int32_t row_bottom, const sim::MapCell* cell) {
         if (!layers.lighting->in_circle(wx, wy)) {
             return;
         }
@@ -1084,8 +1084,8 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                         return;
                     }
                     // Water, the island's shallows and surf included, is never land to build on.
-                    const assets::BuildingType* t = cell != nullptr && !cell->empty() ? buildings.by_sprite(cell->sprite)
-                                                                                      : nullptr;
+                    const assets::BuildingType* t =
+                        cell != nullptr && !cell->empty() ? buildings.by_sprite(cell->sprite) : nullptr;
                     const bool land = t != nullptr && t->kind != sim::building_kind::kSea &&
                                       t->kind != sim::building_kind::kSurf &&
                                       t->kind != sim::building_kind::kSurfCorner;

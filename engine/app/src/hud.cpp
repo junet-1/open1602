@@ -96,7 +96,6 @@ std::unique_ptr<Hud> Hud::create(SDL_Renderer* renderer, const assets::GameDirec
 Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,
          assets::GadgetLayout ctrl, assets::GadgetLayout leist, const assets::TextTable* texts)
     : m_sdl(renderer),
-      m_game(&game),
       m_palette(palette),
       m_renderer(std::make_unique<render::SdlUiRenderer>(renderer, game, palette, ui::ArtSize::Large)),
       m_ctrl(std::move(ctrl), 1.0),

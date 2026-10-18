@@ -54,8 +54,8 @@ constexpr std::int32_t kMill = 37;
 // HAUS_PRODTYP Kind values.
 namespace prod {
 constexpr std::int32_t kWorkshop = 1;
-constexpr std::int32_t kMineWork = 3;
-constexpr std::int32_t kFisher = 6;
+[[maybe_unused]] constexpr std::int32_t kMineWork = 3;
+[[maybe_unused]] constexpr std::int32_t kFisher = 6;
 constexpr std::int32_t kMarket = 7;
 constexpr std::int32_t kKontor = 8;
 constexpr std::int32_t kHouse = 13;
