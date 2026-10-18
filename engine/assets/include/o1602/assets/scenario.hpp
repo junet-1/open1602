@@ -251,6 +251,30 @@ struct ScenarioPlan {
 /// menu; nothing if the file has none.
 [[nodiscard]] std::optional<std::uint32_t> load_mission_number(const ChunkFile& file);
 
+/// The head of a scenario as the menu's list reads it (0x0048D7A0: the SZENE_* chunks before the
+/// rest), with the original's defaults for chunks a file does not have.
+struct ScenarioHeader {
+    static constexpr std::uint32_t kNone = 0xFF;
+    std::uint32_t mission_number = kNone;  ///< SZENE_MISSNR: 0 tutorial, 1 endless, 2.. numbered missions
+    std::uint32_t campaign = kNone;        ///< SZENE_KAMPAGNE
+    std::uint32_t game_id = 0;             ///< SZENE_GAMEID
+    std::uint32_t ranking = 2;             ///< SZENE_RANKING: stars
+    std::uint32_t player_min = 1;          ///< SZENE_PLAYERMIN
+    std::uint32_t player_max = 1;          ///< SZENE_PLAYERMAX
+};
+[[nodiscard]] ScenarioHeader load_scenario_header(const ChunkFile& file);
+
+/// One line of a high score list (Szenes/<name>.hss: "Objekt: HISCORE", "Entry: i, \"name\",
+/// points, stars, game id").
+struct HighScore {
+    std::string name;  ///< Windows-1252, empty for an unused line
+    std::int64_t points = 0;
+    std::uint32_t stars = 0;
+    std::uint32_t game_id = 0;
+};
+/// The lines in the order of their index (12 in the original's files).
+[[nodiscard]] std::vector<HighScore> parse_high_scores(std::string_view text);
+
 /// A savegame slot as listed in Game.dat ("Objekt: SPIELNAME", "Name: slot, \"text\", flag").
 /// Slot n is stored as SAVEGAME/gameNN.gam.
 struct SavegameSlot {

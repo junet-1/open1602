@@ -99,6 +99,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
                 songs_listed = true;
             }
             a.disabled_songs.emplace_back(value);
+        } else if (key == "player_name") {
+            s.player_name = std::string(value);
         } else if (key == "mission_window") {
             s.mission_window = flag(value, s.mission_window);
         }
@@ -120,6 +122,9 @@ std::string write_settings(const AppSettings& s) {
         out += "disabled_song = " + t + "\n";
     }
     out += std::string("mission_window = ") + (s.mission_window ? "on" : "off") + "\n";
+    if (!s.player_name.empty()) {
+        out += "player_name = " + s.player_name + "\n";
+    }
     return out;
 }
 

@@ -6,6 +6,8 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <ctime>
+#include <random>
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
@@ -72,7 +74,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     std::vector<std::string> warnings;
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
-    if (options.new_game) {
+    if (options.menu) {
+        world = sim::World(500, 350);  // the sea behind the menu until a game is chosen
+    } else if (options.new_game) {
         auto texts = assets::TextTable::load(game);
         if (!texts) {
             return texts.error();
@@ -194,6 +198,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     });
     viewer->load_key_settings();
     viewer->load_options();
+    if (options.menu && viewer->m_hud) {
+        viewer->m_hud->open_menu();
+    }
     std::fprintf(stderr, "renderer: %s, max texture %d\n", viewer->m_window->renderer_name().c_str(),
                  viewer->m_window->max_texture_size());
 
@@ -347,8 +354,11 @@ int MapViewer::run() {
             SDL_PushEvent(&e);
         }
         while (SDL_PollEvent(&event)) {
-            if (m_video && m_video->playing() && !video_in_minimap()) {
+            if (m_video && m_video->playing() && !video_windowed()) {
                 handle_video_event(event);
+            } else if (video_in_frame() && (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+                                            (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE))) {
+                stop_video();  // the credits end with a click or Escape
             } else if (video_in_minimap() && event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
                        m_hud->minimap_area().contains(static_cast<std::int32_t>(event.button.x),
                                                       static_cast<std::int32_t>(event.button.y))) {
@@ -380,7 +390,7 @@ int MapViewer::run() {
                     break;
             }
         }
-        if (video && !video_in_minimap()) {
+        if (video && !video_windowed()) {
             // The game stands still while a video fills the screen (the original's main loop
             // 0x00408293); the time does not reach the simulation afterwards.
             std::int32_t w = 0;
@@ -389,14 +399,18 @@ int MapViewer::run() {
             m_video->draw(w, h);
             SDL_RenderPresent(m_window->sdl_renderer());
         } else {
-            if (m_hud) {
-                // What the windows of the panel ordered.
-                // What the windows of the panel ordered (scuttling and disbanding ask first).
-                submit_orders(m_hud->take_commands(), false);
-                apply_options();
+            if (m_hud && m_hud->menu_active()) {
+                apply_menu();  // no game runs behind the menu
+                render();
+            } else {
+                if (m_hud) {
+                    // What the windows of the panel ordered (scuttling and disbanding ask first).
+                    submit_orders(m_hud->take_commands(), false);
+                    apply_options();
+                }
+                update(delta);
+                render();
             }
-            update(delta);
-            render();
         }
         m_sound->frame(m_world.time_ms(), delta);
 
@@ -426,7 +440,7 @@ int MapViewer::run() {
     }
     if (!m_options.screenshot.empty()) {
         // Read back a complete frame.
-        if (m_video && m_video->playing() && !video_in_minimap()) {
+        if (m_video && m_video->playing() && !video_windowed()) {
             std::int32_t w = 0;
             std::int32_t h = 0;
             m_window->output_size(w, h);
@@ -710,6 +724,15 @@ void MapViewer::render() {
     SDL_Renderer* r = m_window->sdl_renderer();
     SDL_SetRenderDrawColor(r, 0, 0, 0, 255);
     SDL_RenderClear(r);
+    if (m_hud && m_hud->menu_active()) {
+        m_hud->draw_menu();
+        if (video_in_frame()) {
+            const ui::Rect f = m_hud->menu_video_rect();
+            m_video->draw_in(f.x, f.y, f.w, f.h);
+        }
+        SDL_RenderPresent(r);
+        return;
+    }
 
     auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
     if (graphics) {
@@ -1085,6 +1108,10 @@ bool MapViewer::video_in_minimap() const {
     return m_video && m_video->playing() && m_video_now.in_minimap && m_hud;
 }
 
+bool MapViewer::video_in_frame() const {
+    return m_video && m_video->playing() && m_video_now.in_frame && m_hud;
+}
+
 bool MapViewer::start_next_video(std::uint64_t now_ms) {
     while (m_video && !m_videos.empty()) {
         const VideoRequest r = m_videos.front();
@@ -1303,13 +1330,22 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             break;
         case Hud::Action::Kind::Answer:
             if (std::exchange(m_quit_pending, false)) {
-                // "Ende": the game is kept as lastgame (0x0043BCF0), then the program ends (until
-                // there is a main menu to go back to).
-                if (action.step != 0) {
-                    const auto status = save_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
-                    if (!status) {
-                        std::fprintf(stderr, "lastgame: %s\n", status.error().message.c_str());
-                    }
+                if (action.step == 0) {
+                    break;
+                }
+                if (m_hud && m_hud->menu_active()) {
+                    m_running = false;  // "Beenden" in the main menu
+                    break;
+                }
+                // "Ende": the game is kept as lastgame (0x0043BCF0), then back to the main menu
+                // (the score sheet comes later), or the end without one.
+                const auto status = save_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
+                if (!status) {
+                    std::fprintf(stderr, "lastgame: %s\n", status.error().message.c_str());
+                }
+                if (m_hud && m_hud->menu()) {
+                    m_hud->open_menu();
+                } else {
                     m_running = false;
                 }
                 break;
@@ -1587,6 +1623,10 @@ void MapViewer::load_options() {
     model.tracks = m_sound ? m_sound->tracks() : std::vector<std::string>{};
     model.slot_names = m_slots.names;
     model.slot_humans = m_slots.humans;
+    if (MainMenu* menu = m_hud->menu()) {
+        menu->set_slots(m_slots);
+        menu->set_name(m_app_settings.player_name);
+    }
 }
 
 void MapViewer::save_settings() {
@@ -1726,6 +1766,11 @@ core::Status MapViewer::load_game(const std::filesystem::path& path) {
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }
+    replace_world(std::move(world).value());
+    return core::Ok{};
+}
+
+void MapViewer::replace_world(sim::World world) {
     // What belongs to the old game goes: videos, selection, orders waiting for an answer, tools.
     stop_video();
     m_videos.clear();
@@ -1740,7 +1785,7 @@ core::Status MapViewer::load_game(const std::filesystem::path& path) {
     // The simulation runs on m_world: it goes first and is built anew on the loaded world, which
     // continues from the state the savegame keeps (as at the start of the program).
     std::destroy_at(&m_simulation);
-    m_world = std::move(world).value();
+    m_world = std::move(world);
     std::construct_at(&m_simulation, m_world, m_buildings, m_figures, m_options.rules);
     m_simulation.set_city_names(m_city_names);
     m_simulation.set_ship_names(m_ship_names);
@@ -1760,7 +1805,107 @@ core::Status MapViewer::load_game(const std::filesystem::path& path) {
     }
     m_camera.set_world_size(m_world.width(), m_world.height());
     m_camera.center_on(home_tile());
+}
+
+core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name) {
+    auto texts = assets::TextTable::load(m_game);
+    if (!texts) {
+        return texts.error();
+    }
+    // What the original rolls with rand() (map layout, start of the island table) and the game id
+    // from the clock (0x0048F5A0, 0x00469410).
+    std::random_device device;
+    sim::NewGameOptions o;
+    o.difficulty = std::min<std::uint8_t>(level, sim::NewGameOptions::kDifficulties - 1);
+    o.layout = static_cast<std::uint8_t>(device() % sim::NewGameOptions::kLayouts);
+    o.colour = std::min<std::uint8_t>(colour, 3);
+    o.name = name;
+    o.world = m_options.world;
+    o.world.seed = (std::uint64_t{device()} << 32U) | device();
+    const std::time_t now = std::time(nullptr);
+    if (const std::tm* t = std::localtime(&now)) {
+        o.game_id =
+            sim::new_game_id(static_cast<std::uint32_t>(t->tm_year + 1900), static_cast<std::uint32_t>(t->tm_mon + 1),
+                             static_cast<std::uint32_t>(t->tm_mday), static_cast<std::uint32_t>(t->tm_hour),
+                             static_cast<std::uint32_t>(t->tm_min), device());
+    }
+    std::vector<std::string> warnings;
+    auto world = sim::start_new_game(m_game, m_buildings, *texts, o, &warnings);
+    if (!world) {
+        return world.error();
+    }
+    for (const auto& w : warnings) {
+        std::fprintf(stderr, "warning: %s\n", w.c_str());
+    }
+    replace_world(std::move(world).value());
     return core::Ok{};
+}
+
+void MapViewer::apply_menu() {
+    MainMenu* menu = m_hud ? m_hud->menu() : nullptr;
+    if (menu == nullptr) {
+        return;
+    }
+    menu->set_slots(m_slots);
+    for (const MenuEvent& e : m_hud->take_menu_events()) {
+        core::Status started = core::make_error(core::ErrorCode::NotFound, "nothing started");
+        switch (e.kind) {
+            case MenuEvent::Kind::Quit:
+                // The original quits at once (U-036).
+                m_quit_pending = true;
+                if (m_options.confirm) {
+                    m_hud->ask("Anno 1602 beenden?");
+                } else {
+                    Hud::Action yes{Hud::Action::Kind::Answer};
+                    yes.step = 1;
+                    apply_hud(yes);
+                }
+                continue;
+            case MenuEvent::Kind::Credits:
+                if (m_video) {
+                    request_video(10);
+                    if (!m_videos.empty()) {
+                        m_videos.back().in_minimap = false;
+                        m_videos.back().in_frame = true;
+                    }
+                }
+                continue;
+            case MenuEvent::Kind::Intro:
+                request_video(58, 0, false, true);
+                continue;
+            case MenuEvent::Kind::NewEndless:
+                started = start_endless(e.level, e.colour, e.name);
+                break;
+            case MenuEvent::Kind::Scenario:
+                started = load_game(e.path);
+                if (started && !e.name.empty()) {
+                    // The stored name goes to the human (0x0048A680).
+                    if (sim::Player* p = m_world.player(m_local_player)) {
+                        p->name = e.name;
+                    }
+                }
+                break;
+            case MenuEvent::Kind::LoadSlot:
+                started = load_game(slot_file(save_folder(), e.level));
+                break;
+            case MenuEvent::Kind::ContinueLast:
+                started = load_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
+                break;
+        }
+        if (!started) {
+            std::fprintf(stderr, "menu: %s\n", started.error().message.c_str());
+            continue;
+        }
+        if (!e.name.empty() && e.name != m_app_settings.player_name) {
+            m_app_settings.player_name = e.name;
+            save_settings();
+        }
+        m_hud->close_menu();
+        if (const auto a = m_hud->set_mode(Hud::kModeInfo)) {
+            apply_hud(*a);
+        }
+        break;  // the rest belongs to the menu that is gone
+    }
 }
 
 core::Status MapViewer::save_screenshot(const std::filesystem::path& path) {

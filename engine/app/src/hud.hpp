@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "main_menu.hpp"
 #include "options_panel.hpp"
 #include "selection_panels.hpp"
 #include "side_panels.hpp"
@@ -157,18 +158,42 @@ public:
     /// The settings (mode 30014): what they show, and what they asked for since the last call.
     [[nodiscard]] OptionsModel& options_model() noexcept { return m_options_model; }
     [[nodiscard]] std::vector<OptionsEvent> take_option_events() { return std::exchange(m_option_events, {}); }
-    /// A savegame's name is being typed: the keys go there (Windows-1252 text, Backspace 8, Enter 13).
-    [[nodiscard]] bool typing() const noexcept { return m_options && m_mode == kModeOptions && m_options->editing(); }
+    /// A name is being typed (a savegame's, the player's in the menu): the keys go there
+    /// (Windows-1252 text, Backspace 8, Enter 13).
+    [[nodiscard]] bool typing() const noexcept {
+        return (m_menu_active && m_menu && m_menu->typing()) ||
+               (m_options && m_mode == kModeOptions && m_options->editing());
+    }
     void type_text(std::string_view text) {
-        if (m_options) {
+        if (m_menu_active && m_menu) {
+            m_menu->type(text);
+        } else if (m_options) {
             m_options->type(text);
         }
     }
     void type_key(int key) {
-        if (m_options) {
+        if (m_menu_active && m_menu) {
+            m_menu->key(key);
+        } else if (m_options) {
             m_options->key(key);
         }
     }
+
+    /// The main menu over the whole window (no game shows meanwhile); nothing if its layouts are
+    /// missing.
+    [[nodiscard]] MainMenu* menu() noexcept { return m_menu.get(); }
+    [[nodiscard]] bool menu_active() const noexcept { return m_menu_active; }
+    void open_menu() {
+        if (m_menu) {
+            m_menu_active = true;
+            m_menu->open();
+        }
+    }
+    void close_menu() noexcept { m_menu_active = false; }
+    [[nodiscard]] std::vector<MenuEvent> take_menu_events() { return std::exchange(m_menu_events, {}); }
+    /// The menu's picture frame on the screen (the credits play there).
+    [[nodiscard]] ui::Rect menu_video_rect() const;
+    void draw_menu();
 
     /// Draws the frame. `view` are the corners of the visible map in world tiles (the minimap's
     /// frame), `world` the game for the minimap (redrawn every few seconds).
@@ -230,6 +255,11 @@ private:
     bool m_minimap_dirty = true;
     std::uint32_t m_world_w = 0;
     std::uint32_t m_world_h = 0;
+    /// Top left of the menu's 1024 x 768 design on the screen (centred).
+    void menu_origin(std::int32_t& x, std::int32_t& y) const;
+    std::unique_ptr<MainMenu> m_menu;
+    bool m_menu_active = false;
+    std::vector<MenuEvent> m_menu_events;
     std::unique_ptr<OptionsPanel> m_options;
     OptionsModel m_options_model;
     std::vector<OptionsEvent> m_option_events;

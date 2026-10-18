@@ -2,6 +2,8 @@
 #include "o1602/assets/scenario.hpp"
 
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <cstring>
 
 namespace o1602::assets {
@@ -356,6 +358,77 @@ std::optional<std::uint32_t> load_mission_number(const ChunkFile& file) {
         return std::nullopt;
     }
     return read_u32(file.payload(*chunk), 0);
+}
+
+ScenarioHeader load_scenario_header(const ChunkFile& file) {
+    ScenarioHeader h;
+    const auto read = [&](const char* name, std::uint32_t& out) {
+        const Chunk* chunk = file.find(name);
+        if (chunk != nullptr && chunk->size >= 4) {
+            out = read_u32(file.payload(*chunk), 0);
+        }
+    };
+    read("SZENE_MISSNR", h.mission_number);
+    read("SZENE_KAMPAGNE", h.campaign);
+    read("SZENE_GAMEID", h.game_id);
+    read("SZENE_RANKING", h.ranking);
+    read("SZENE_PLAYERMIN", h.player_min);
+    read("SZENE_PLAYERMAX", h.player_max);
+    return h;
+}
+
+std::vector<HighScore> parse_high_scores(std::string_view text) {
+    std::vector<std::pair<std::size_t, HighScore>> entries;
+    std::size_t pos = 0;
+    while (pos < text.size()) {
+        std::size_t end = text.find('\n', pos);
+        if (end == std::string_view::npos) {
+            end = text.size();
+        }
+        std::string_view line = text.substr(pos, end - pos);
+        pos = end + 1;
+        const std::size_t key = line.find("Entry:");
+        if (key == std::string_view::npos) {
+            continue;
+        }
+        line.remove_prefix(key + 6);
+        // index, "name", points, stars, game id
+        const std::size_t q1 = line.find('"');
+        const std::size_t q2 = q1 == std::string_view::npos ? q1 : line.find('"', q1 + 1);
+        if (q2 == std::string_view::npos) {
+            continue;
+        }
+        const auto number = [](std::string_view s) {
+            const std::size_t a = s.find_first_of("-0123456789");
+            std::int64_t v = 0;
+            if (a != std::string_view::npos) {
+                (void)std::from_chars(s.data() + a, s.data() + s.size(), v);
+            }
+            return v;
+        };
+        HighScore h;
+        h.name = std::string(line.substr(q1 + 1, q2 - q1 - 1));
+        std::string_view rest = line.substr(q2 + 1);
+        std::array<std::int64_t, 3> values{};
+        for (std::int64_t& v : values) {
+            const std::size_t comma = rest.find(',');
+            if (comma == std::string_view::npos) {
+                break;
+            }
+            rest.remove_prefix(comma + 1);
+            v = number(rest);
+        }
+        h.points = values[0];
+        h.stars = static_cast<std::uint32_t>(std::max<std::int64_t>(0, values[1]));
+        h.game_id = static_cast<std::uint32_t>(values[2]);
+        entries.emplace_back(static_cast<std::size_t>(std::max<std::int64_t>(0, number(line.substr(0, q1)))), h);
+    }
+    std::stable_sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    std::vector<HighScore> out;
+    for (auto& [index, h] : entries) {
+        out.push_back(std::move(h));
+    }
+    return out;
 }
 
 std::vector<SavegameSlot> parse_savegame_slots(std::string_view text) {

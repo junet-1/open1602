@@ -120,8 +120,9 @@ Meldungsvideos im Minikartenfenster, Angriffsbewegung (Schiffe und Soldaten grei
 Reichweite an, verfolgen sie und fahren danach weiter; im Spielstand `STNC`), Stellung halten (sie
 schießen nur auf Feinde in Reichweite, verfolgen nicht), Schnellspeichern und -laden (F5, F9) und der
 Erkunden-Knopf neben Reparieren und Piraten im Schiffsfenster (U-013), Schiffs- und Städteliste (L,
-Shift+L), Diplomatiefenster mit Tribut (V; Rückfrage vor dem Bruch eines Friedensvertrags). Noch nicht:
-Hauptmenü und ein eigenes Spielmenü (Escape) mit Speichern, Laden, Einstellungen und Beenden. Das Original
+Shift+L), Diplomatiefenster mit Tribut (V; Rückfrage vor dem Bruch eines Friedensvertrags), die
+Einstellungen der Seitenleiste und das Hauptmenü für Einzelspieler (Szenarien, Endlosspiel, Spielstände).
+Noch nicht: Endbildschirm mit Bewertung und ein eigenes Spielmenü (Escape) mit Speichern, Laden, Einstellungen und Beenden. Das Original
 hat kein Spielmenü: Speichern, Laden und Beenden liegen in den Einstellungen der Seitenleiste (umgesetzt
 mit Rückfrage vor „Ende“).
 

@@ -374,6 +374,20 @@ ui::KeyContext MapViewer::key_context() const {
 }
 
 void MapViewer::handle_key(int key, std::uint16_t mod) {
+    if (m_hud && m_hud->menu_active() && !m_hud->modal()) {
+        // The menu knows Escape (a screen back) and the program's keys, nothing of the game.
+        if (key == SDLK_ESCAPE) {
+            (void)m_hud->back();
+            return;
+        }
+        const ui::KeyChord c{key, (mod & SDL_KMOD_CTRL) != 0, (mod & SDL_KMOD_SHIFT) != 0, (mod & SDL_KMOD_ALT) != 0};
+        if (const auto b = m_keys.find(ui::KeyContext::General, c);
+            b && (b->action == ui::KeyAction::Screenshot || b->action == ui::KeyAction::Quit ||
+                  b->action == ui::KeyAction::Help)) {
+            run_action(*b);
+        }
+        return;
+    }
     if (m_hud && m_hud->helping()) {
         m_hud->close_help();  // any key closes the key overview
         return;

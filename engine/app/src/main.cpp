@@ -5,7 +5,8 @@
 //   open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH] [--zoom 0|1|2]
 //            [--owners] [--original-sheets] [--frames N] [--screenshot out.png]
 //
-// The game directory defaults to $ANNO1602_DIR, the scenario to "Szenes/Das Atoll.szs".
+// The game directory defaults to $ANNO1602_DIR. Without a game the program starts in the main menu
+// (--menu forces it); with --no-panel the scenario defaults to "Szenes/Das Atoll.szs".
 // A relative scenario path is looked up in the game directory first. --savegame NAME opens a
 // savegame by the name shown in the game (looked up in Game.dat, e.g. "Merlin01" ->
 // SAVEGAME/game00.gam) or by file name. Scenarios and savegames share one format. --load FILE opens
@@ -70,6 +71,7 @@ int usage() {
         "  --select I,X,Y     select the building at tile X,Y of island I (index) and look at it\n"
         "  --select ship:N    select the N-th ship of the game (index) and look at it; unit:N a land unit\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
+        "  --menu             start in the main menu (the default when no game is named)\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
         "\n"
@@ -162,6 +164,8 @@ int main(int argc, char** argv) {
     std::string_view load;
     app::ViewerOptions options;
     bool new_game = false;
+    bool game_named = false;  ///< without a game the program starts in the main menu
+    bool menu = false;
     sim::NewGameOptions new_game_options;
     new_game_options.name = "Spieler";
     std::optional<std::uint8_t> layout_given;
@@ -175,10 +179,15 @@ int main(int argc, char** argv) {
             game_dir = argv[++i];
         } else if (arg == "--scenario" && has_value) {
             scenario = argv[++i];
+            game_named = true;
         } else if (arg == "--savegame" && has_value) {
             savegame = argv[++i];
+            game_named = true;
         } else if (arg == "--load" && has_value) {
             load = argv[++i];
+            game_named = true;
+        } else if (arg == "--menu") {
+            menu = true;
         } else if (arg == "--no-panel") {
             options.frame = false;
         } else if (arg == "--no-sound") {
@@ -480,6 +489,8 @@ int main(int argc, char** argv) {
         return usage();  // an own world is a new game
     }
 
+    // No game named: the main menu, as the original starts (with --frame off there is none).
+    options.menu = options.frame && (menu || (!game_named && !new_game));
     auto viewer = app::MapViewer::create(*game, options);
     if (!viewer) {
         std::fprintf(stderr, "error: %s\n", viewer.error().message.c_str());

@@ -19,6 +19,7 @@ namespace o1602::app {
 struct AppSettings {
     audio::AudioSettings audio;
     bool mission_window = false;  ///< "Auftrag ansehen"
+    std::string player_name;      ///< the name typed in the menu (Windows-1252)
 };
 
 /// "key = value" lines; unknown keys are passed over, missing ones keep `defaults`.

@@ -120,6 +120,10 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
                                                        std::move(musik).value(), std::move(anno).value(), own);
         }
     }
+    m_menu = std::make_unique<MainMenu>(game, own);
+    if (!m_menu->usable()) {
+        m_menu.reset();
+    }
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);
     }
@@ -230,6 +234,9 @@ std::optional<Hud::Action> Hud::toggle_window(Selection::Kind kind) {
 }
 
 bool Hud::back() {
+    if (m_menu_active) {
+        return m_menu && m_menu->back();
+    }
     if (m_mode == kModeOptions) {
         return m_options && m_options->back();
     }
@@ -303,6 +310,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
     if (m_options) {
         m_options->set_scale(scale);
     }
+    if (m_menu) {
+        m_menu->set_scale(scale);
+    }
     if (m_selection_panels) {
         m_selection_panels->set_scale(scale);
     }
@@ -310,8 +320,8 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
 }
 
 bool Hud::covers(std::int32_t x, std::int32_t y) const noexcept {
-    // The mission's window takes the clicks inside it (0x0042D1C0).
-    return m_regions.side_panel.contains(x, y) || m_regions.status_bar.contains(x, y) ||
+    // The mission's window takes the clicks inside it (0x0042D1C0); the menu all of them.
+    return m_menu_active || m_regions.side_panel.contains(x, y) || m_regions.status_bar.contains(x, y) ||
            (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y));
 }
 
@@ -392,12 +402,42 @@ void Hud::draw_question() {
     m_renderer->draw(items, box.x, box.y, s);
 }
 
+void Hud::menu_origin(std::int32_t& x, std::int32_t& y) const {
+    const double s = m_regions.scale;
+    x = std::max(0, (m_regions.full.w - static_cast<std::int32_t>(ui::kDesignWidth * s)) / 2);
+    y = std::max(0, (m_regions.full.h - static_cast<std::int32_t>(ui::kDesignHeight * s)) / 2);
+}
+
+ui::Rect Hud::menu_video_rect() const {
+    std::int32_t ox = 0;
+    std::int32_t oy = 0;
+    menu_origin(ox, oy);
+    const double s = m_regions.scale;
+    const ui::Rect f = MainMenu::video_frame();
+    return {ox + ui::to_pixels(f.x, s), oy + ui::to_pixels(f.y, s), ui::to_pixels(f.w, s), ui::to_pixels(f.h, s)};
+}
+
+void Hud::draw_menu() {
+    m_renderer->fill(m_regions.full, 0);
+    if (m_menu) {
+        std::int32_t ox = 0;
+        std::int32_t oy = 0;
+        menu_origin(ox, oy);
+        m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_regions.scale);
+    }
+    draw_question();
+    draw_help();
+}
+
 void Hud::draw_mission(const sim::World& world) {
     if (!m_options_model.mission_window || !m_tutor || m_simulation == nullptr) {
         return;
     }
     const sim::Player* p = world.player(m_local);
     const sim::Mission* mission = p != nullptr ? world.mission_of(*p) : nullptr;
+    if (mission == nullptr && !world.missions().empty()) {
+        mission = &world.missions().front();  // the endless game: one mission without owner, only its text
+    }
     // The window of the original (region above the status bar, 0x0043B53F): its art, the text
     // flowing in 110002; the lines and buttons of the tutorial stay hidden.
     m_tutor->set_scale(m_regions.scale);
@@ -480,7 +520,7 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         }
         return std::nullopt;
     }
-    if (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y)) {
+    if (!m_menu_active && m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y)) {
         // The mission's window: X closes it, the arrows scroll its text.
         for (const ui::PanelEvent& e : m_tutor->mouse(x - m_regions.tutor.x, y - m_regions.tutor.y, down)) {
             if (e.kind != ui::PanelEvent::Kind::Clicked) {
@@ -504,6 +544,15 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
             a.step = m_yes.contains(x, y) ? 1 : 0;
             m_question.reset();
             return a;
+        }
+        return std::nullopt;
+    }
+    if (m_menu_active && m_menu) {
+        std::int32_t ox = 0;
+        std::int32_t oy = 0;
+        menu_origin(ox, oy);
+        for (MenuEvent& e : m_menu->mouse(x - ox, y - oy, down)) {
+            m_menu_events.push_back(std::move(e));
         }
         return std::nullopt;
     }

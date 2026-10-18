@@ -80,6 +80,8 @@ struct ViewerOptions {
     /// The key settings (ADR 0010); empty: keys.cfg in the user's data folder, written with the
     /// defaults if it is not there yet.
     std::filesystem::path keys_file;
+    /// Start in the main menu instead of a game (no game was named on the command line).
+    bool menu = false;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
     struct ScriptedInput {
         enum class Kind : std::uint8_t { Move, Down, Up, Key };
@@ -149,6 +151,13 @@ private:
     /// Replaces the running game by a savegame (Open1602's own or the original's) while the
     /// program runs (F9); the game goes on as it was if the file cannot be read.
     core::Status load_game(const std::filesystem::path& path);
+    /// The game goes on in another world (a savegame, a scenario, a new game): everything of the old
+    /// one goes, the simulation starts anew on it.
+    void replace_world(sim::World world);
+    /// What the main menu asked for this frame.
+    void apply_menu();
+    /// A new endless game of `level` (from the menu): name and banner of the human.
+    core::Status start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name);
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
     [[nodiscard]] static std::filesystem::path save_folder();
 
@@ -297,9 +306,13 @@ private:
         /// In the minimap's window while the game goes on (videos of messages, ADR 0010); the
         /// start, the credits, the pause and the ends of the game fill the screen.
         bool in_minimap = false;
+        bool in_frame = false;  ///< in the picture frame of the main menu (the credits)
     };
     /// Whether the running video plays in the minimap's window.
     [[nodiscard]] bool video_in_minimap() const;
+    /// ... in the main menu's picture frame; either: the screen is not filled.
+    [[nodiscard]] bool video_in_frame() const;
+    [[nodiscard]] bool video_windowed() const { return video_in_minimap() || video_in_frame(); }
     std::optional<sim::BuildBill> m_pending_bill;  ///< costs of the order the build tool shows
     sim::PlayerFigures m_player_figures;           ///< the info panel's figures, refreshed once a second
     std::uint64_t m_figures_ms = 0;

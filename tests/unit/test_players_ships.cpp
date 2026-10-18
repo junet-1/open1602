@@ -526,3 +526,27 @@ TEST_CASE("scenario: savegame names from Game.dat") {
     CHECK(slots[2].file == "Savegame/game12.gam");
     CHECK(slots[2].name == "Insel mit \xfc");
 }
+
+TEST_CASE("scenario: high scores and the head of a scenario") {
+    const char* hss =
+        "\n  Objekt:   HISCORE\n\n"
+        "    Entry:    1, \"\", 0, 0, 0\n"
+        "    Entry:    0, \"Merlin\", 381, 2, 713262714\n"
+        "  EndObj;\n";
+    const auto scores = assets::parse_high_scores(hss);
+    REQUIRE(scores.size() == 2);
+    CHECK(scores[0].name == "Merlin");  // in the order of the index
+    CHECK(scores[0].points == 381);
+    CHECK(scores[0].stars == 2);
+    CHECK(scores[0].game_id == 713262714U);
+    CHECK(scores[1].name.empty());
+
+    // A file without the SZENE_* chunks has the original's defaults (0x0048D7A0).
+    assets::ChunkFile empty;
+    const assets::ScenarioHeader h = assets::load_scenario_header(empty);
+    CHECK(h.mission_number == assets::ScenarioHeader::kNone);
+    CHECK(h.campaign == assets::ScenarioHeader::kNone);
+    CHECK(h.ranking == 2);
+    CHECK(h.player_min == 1);
+    CHECK(h.player_max == 1);
+}

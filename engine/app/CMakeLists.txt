@@ -10,6 +10,7 @@ add_executable(open1602
     src/app_settings.cpp
     src/diplomacy_panel.cpp
     src/list_panels.cpp
+    src/main_menu.cpp
     src/options_panel.cpp
     src/ship_panel.cpp
     src/panel_common.cpp
