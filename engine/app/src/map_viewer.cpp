@@ -520,8 +520,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
             }
             break;
         case SDL_EVENT_MOUSE_MOTION:
-            m_mouse_x = event.motion.x;
-            m_mouse_y = event.motion.y;
+            m_mouse_x = static_cast<double>(event.motion.x);
+            m_mouse_y = static_cast<double>(event.motion.y);
             if (m_hud) {
                 if (const auto a = m_hud->mouse(static_cast<std::int32_t>(event.motion.x),
                                                 static_cast<std::int32_t>(event.motion.y), m_left_down)) {
@@ -534,7 +534,7 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 m_rubber_band = m_rubber_band || dx * dx + dy * dy >= 25.0;  // 5 px (0x0040BA70)
             }
             if (m_dragging) {
-                m_camera.scroll(-event.motion.xrel, -event.motion.yrel);
+                m_camera.scroll(-static_cast<double>(event.motion.xrel), -static_cast<double>(event.motion.yrel));
                 m_drag_distance +=
                     std::abs(static_cast<double>(event.motion.xrel)) + std::abs(static_cast<double>(event.motion.yrel));
             }
@@ -603,8 +603,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
                     }
                 }
                 if (m_press) {
-                    map_left_up(event.button.x, event.button.y, static_cast<std::uint16_t>(SDL_GetModState()),
-                                event.button.clicks);
+                    map_left_up(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
+                                static_cast<std::uint16_t>(SDL_GetModState()), event.button.clicks);
                     m_press.reset();
                     m_rubber_band = false;
                 }
@@ -618,7 +618,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
                     } else if (cancel_build_step()) {
                         // the pop-up or the building in hand went; the build menu stays open
                     } else if (!m_units.empty() || !back_to_status()) {
-                        map_order(event.button.x, event.button.y, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+                        map_order(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
+                                  (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
                     }
                 }
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
@@ -635,7 +636,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
         case SDL_EVENT_MOUSE_WHEEL: {  // U-001: the original has no wheel zoom
             const float y = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event.wheel.y : event.wheel.y;
             if (y != 0.0F) {
-                zoom_by(y > 0.0F ? -1 : 1, event.wheel.mouse_x, event.wheel.mouse_y);
+                zoom_by(y > 0.0F ? -1 : 1, static_cast<double>(event.wheel.mouse_x),
+                        static_cast<double>(event.wheel.mouse_y));
             }
             break;
         }

@@ -989,7 +989,7 @@ private:
         const auto raw = m_source.records("SHIP4", kShipSize);
         std::unordered_map<std::uint16_t, std::size_t> by_slot;
         for (std::size_t k = 0; k < raw.size(); ++k) {
-            by_slot.emplace(get16(raw[k], 0x46), k);
+            by_slot.emplace(static_cast<std::uint16_t>(get16(raw[k], 0x46)), k);
         }
         core::Bytes out;
         for (const Ship& s : m_world.ships()) {

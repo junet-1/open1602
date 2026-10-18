@@ -31,7 +31,7 @@ jobs:
           - { name: Windows MSVC, os: windows-2022, cxx: cl,      preset: ci }
           - { name: macOS Clang,  os: macos-14,     cxx: clang++, preset: ci }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -51,7 +51,7 @@ jobs:
         run: cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
 
       - name: Build
-        run: cmake --build --preset ${{ matrix.preset }}
+        run: cmake --build --preset ${{ matrix.preset }} -- -k 0  # report every failing file at once
 
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
@@ -69,7 +69,7 @@ jobs:
     env:
       SDL_VERSION: 3.2.24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -110,13 +110,13 @@ jobs:
           cmake --preset ci -DO1602_BUILD_GAME=ON -DCMAKE_PREFIX_PATH="${{ runner.temp }}/sdl3"
 
       - name: Build
-        run: cmake --build --preset ci
+        run: cmake --build --preset ci -- -k 0
 
   checks:
     name: Formatting
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check formatting
         run: |
           clang-format --version
