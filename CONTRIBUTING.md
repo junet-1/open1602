@@ -26,6 +26,17 @@
 - Gesicherte Formate/Strukturen in `docs/formats/` bzw. `docs/re/` dokumentieren.
 - Gefundene Originalfehler in `docs/re/bugs.md` sammeln.
 
+Die Symboltabellen (`re/symbols/`) und die Analyse des Originals (`docs/re/`) liegen nicht in
+diesem Repository, sondern im privaten Repository `open1602-re`. Einrichten, neben diesem Ordner:
+
+```sh
+git clone <url-von-open1602-re> ../open1602-re
+ln -s ../../open1602-re/docs/re docs/re
+ln -s ../../open1602-re/re/symbols re/symbols
+```
+
+Beide Pfade stehen in der `.gitignore`; Änderungen daran werden in `open1602-re` committet.
+
 ## Commits
 
 - Kleine, thematisch abgeschlossene Commits; Präfix nach Bereich, z. B. `assets: decode ZEI glyph overhang`,

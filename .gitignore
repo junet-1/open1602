@@ -76,3 +76,7 @@ re/notes/*.log
 # Inputs for the analysis (savegames, videos, screenshots): local only, see docs/eingaben.md
 /eingaben/
 /ausgaben/
+
+# Private analysis of the original, in the separate repository open1602-re (see CONTRIBUTING.md)
+/docs/re
+/re/symbols
