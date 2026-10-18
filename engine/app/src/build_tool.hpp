@@ -38,6 +38,9 @@ public:
     /// Buildings with a door turn towards the nearest road (the build menu's switch 31023; off at
     /// the start of a game as in the original).
     void set_orient_to_road(bool on) noexcept { m_orient_to_road = on; }
+    /// Picks the first Kontor to found from a ship (the ship window's button 38017): its cargo
+    /// pays instead of the nearest ship's. False if there is no Kontor to place.
+    bool select_kontor(std::uint32_t ship) noexcept;
 
     /// Where the mouse is (island tile), nullopt over the sea.
     struct Spot {
@@ -66,6 +69,7 @@ private:
     std::uint8_t m_rotation = 0;
     Mode m_mode = Mode::Off;
     bool m_orient_to_road = false;
+    std::optional<std::uint32_t> m_ship;  ///< the ship that founds, chosen in its window
     std::optional<Spot> m_drag_start;
 };
 

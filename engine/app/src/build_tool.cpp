@@ -53,6 +53,9 @@ BuildTool::BuildTool(const assets::BuildingTable& buildings) : m_buildings(&buil
 
 void BuildTool::set_mode(Mode mode) noexcept {
     m_mode = mode;
+    if (mode != Mode::Build) {
+        m_ship.reset();
+    }
     m_drag_start.reset();
 }
 
@@ -72,10 +75,26 @@ bool BuildTool::select(std::uint32_t id) noexcept {
     for (std::size_t i = 0; i < m_list.size(); ++i) {
         if (m_list[i]->id == id) {
             m_selected = i;
+            m_ship.reset();
             return true;
         }
     }
     return false;
+}
+
+bool BuildTool::select_kontor(std::uint32_t ship) noexcept {
+    std::optional<std::size_t> best;
+    for (std::size_t i = 0; i < m_list.size(); ++i) {
+        if (m_list[i]->kind == kKindHq && (!best || m_list[i]->id < m_list[*best]->id)) {
+            best = i;
+        }
+    }
+    if (!best) {
+        return false;
+    }
+    m_selected = *best;
+    m_ship = ship;
+    return true;
 }
 
 void BuildTool::press(const Spot& spot) noexcept {
@@ -125,7 +144,12 @@ std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, s
         const std::int64_t wx = static_cast<std::int64_t>(island.x) + spot.x;
         const std::int64_t wy = static_cast<std::int64_t>(island.y) + spot.y;
         std::int64_t best = -1;
-        for (std::size_t i = 0; i < world.ships().size(); ++i) {
+        const sim::Ship* chosen = m_ship ? world.ship(*m_ship) : nullptr;
+        if (chosen != nullptr && chosen->owner == player) {
+            order.ship = chosen->id;
+            best = 0;
+        }
+        for (std::size_t i = 0; i < world.ships().size() && chosen == nullptr; ++i) {
             const sim::Ship& s = world.ships()[i];
             if (s.owner != player) {
                 continue;

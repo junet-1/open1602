@@ -47,12 +47,14 @@ public:
             TurnBuilding,  ///< the building to place by `step` quarters
             ToolOff,       ///< another mode: no building tool
             OrientToRoad,  ///< buildings with a door turn to the road (`step` 1) or not (0)
+            FoundKontor,   ///< the building tool places a Kontor paid from `ship`
         };
         Kind kind = Kind::RotateLeft;
         double tile_x = 0.0;  ///< Minimap and Message: the world tile to look at
         double tile_y = 0.0;
         std::uint32_t building = 0;
         int step = 0;
+        std::uint32_t ship = 0;
     };
     /// The modes of the panel (CTRL.GAD).
     static constexpr std::int32_t kModeBuild = 30011;

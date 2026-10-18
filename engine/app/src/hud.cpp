@@ -302,6 +302,10 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
             for (const ui::PanelEvent& e : p->panel().mouse(x - panel.x, y - panel.y, down)) {
                 p->clicked(e, m_selection, *context, m_commands);
             }
+            if (const auto r = p->take_request(); r && r->kind == SelectionPanel::Request::Kind::FoundKontor) {
+                action = Action{Action::Kind::FoundKontor};
+                action->ship = r->ship;
+            }
         } else if (m_info) {
             m_info->mouse(x - panel.x, y - panel.y, down);
         }

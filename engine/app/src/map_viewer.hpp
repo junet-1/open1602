@@ -76,10 +76,12 @@ struct ViewerOptions {
         float x = 0.0F;
         float y = 0.0F;
         std::int32_t key = 0;  ///< Key: SDL key code
+        bool right = false;    ///< Down/Up: the right button
     };
     std::vector<ScriptedInput> input;
     /// Select the building on this island tile at the start (island index, x, y) and look at it.
     std::optional<std::array<std::uint16_t, 3>> select;
+    std::optional<std::uint32_t> select_ship;  ///< index into the game's ships
 };
 
 class MapViewer {

@@ -240,6 +240,13 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             viewer->m_camera.center_on(render::TilePos{island.x + sx, island.y + sy});
         }
     }
+    if (options.select_ship && *options.select_ship < viewer->m_world.ships().size()) {
+        const sim::Ship& ship = viewer->m_world.ships()[*options.select_ship];
+        viewer->m_selected_ship = ship.id;
+        viewer->select_for_panel();
+        viewer->m_camera.center_on(render::TilePos{static_cast<std::uint32_t>(std::max<std::int32_t>(ship.x, 0)),
+                                                   static_cast<std::uint32_t>(std::max<std::int32_t>(ship.y, 0))});
+    }
     if (auto status = viewer->ensure_graphics(viewer->m_camera.view().zoom); !status) {
         return status.error();
     }
@@ -321,7 +328,7 @@ int MapViewer::run() {
                 case ViewerOptions::ScriptedInput::Kind::Up:
                     e.type = in.kind == ViewerOptions::ScriptedInput::Kind::Down ? SDL_EVENT_MOUSE_BUTTON_DOWN
                                                                                  : SDL_EVENT_MOUSE_BUTTON_UP;
-                    e.button.button = SDL_BUTTON_LEFT;
+                    e.button.button = in.right ? SDL_BUTTON_RIGHT : SDL_BUTTON_LEFT;
                     e.button.down = in.kind == ViewerOptions::ScriptedInput::Kind::Down;
                     e.button.x = in.x;
                     e.button.y = in.y;
@@ -1455,6 +1462,11 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             break;
         case Hud::Action::Kind::OrientToRoad:
             m_tool.set_orient_to_road(action.step != 0);
+            break;
+        case Hud::Action::Kind::FoundKontor:
+            if (m_tool.select_kontor(action.ship)) {
+                m_tool.set_mode(BuildTool::Mode::Build);
+            }
             break;
     }
 }

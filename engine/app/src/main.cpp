@@ -43,7 +43,7 @@ int usage() {
         "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--starts spread|together]\n"
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
-        "                [--video N] [--input EVENTS] [--select ISLAND,X,Y]\n"
+        "                [--video N] [--input EVENTS] [--select ISLAND,X,Y|ship:N]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
@@ -61,8 +61,10 @@ int usage() {
         "  --no-videos        no videos of messages, victory, defeat and pause\n"
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
-        "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\"\n"
+        "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\";\n"
+        "                     rdown/rup: the right button\n"
         "  --select I,X,Y     select the building at tile X,Y of island I (index) and look at it\n"
+        "  --select ship:N    select the N-th ship of the game (index) and look at it\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
@@ -113,8 +115,11 @@ bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::S
                 return false;
             }
         } else {
-            in.kind = verb == "down" ? Input::Kind::Down : verb == "up" ? Input::Kind::Up : Input::Kind::Move;
-            if (verb != "down" && verb != "up" && verb != "move") {
+            in.right = verb == "rdown" || verb == "rup";
+            in.kind = verb == "down" || verb == "rdown" ? Input::Kind::Down
+                      : verb == "up" || verb == "rup"   ? Input::Kind::Up
+                                                        : Input::Kind::Move;
+            if (verb != "down" && verb != "up" && verb != "move" && !in.right) {
                 return false;
             }
             const std::size_t comma = args.find(',');
@@ -168,6 +173,12 @@ int main(int argc, char** argv) {
             if (!parse_input(argv[++i], options.input)) {
                 return usage();
             }
+        } else if (arg == "--select" && has_value && std::string_view(argv[i + 1]).starts_with("ship:")) {
+            std::int32_t n = 0;
+            if (!parse_number(std::string_view(argv[++i]).substr(5), n) || n < 0) {
+                return usage();
+            }
+            options.select_ship = static_cast<std::uint32_t>(n);
         } else if (arg == "--select" && has_value) {
             std::array<std::int32_t, 3> v{};
             std::string_view rest = argv[++i];

@@ -74,6 +74,13 @@ public:
                         const PanelContext& /*context*/, std::vector<sim::Command>& /*out*/) {}
     /// Escape: back one page or out of picking; false if there is nothing to go back from.
     virtual bool back() { return false; }
+    /// What the window asks of the interface beyond commands (once).
+    struct Request {
+        enum class Kind : std::uint8_t { FoundKontor };
+        Kind kind = Kind::FoundKontor;
+        std::uint32_t ship = 0;  ///< FoundKontor: the ship whose cargo pays
+    };
+    [[nodiscard]] virtual std::optional<Request> take_request() { return std::nullopt; }
 };
 
 /// A window of one layout.
