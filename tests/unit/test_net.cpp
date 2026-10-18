@@ -16,6 +16,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/net/enet_transport.hpp"
+#include "o1602/net/lan.hpp"
 #include "o1602/net/loopback.hpp"
 #include "o1602/net/protocol.hpp"
 #include "o1602/net/session.hpp"
@@ -81,6 +82,33 @@ struct Game {
         return simulation.get();
     }
 
+    /// The world a host makes from its lobby when it starts: a player per slot, a ship for each
+    /// human one, closed slots out of the game.
+    static Game from_lobby(const net::Lobby& lobby) {
+        Game g;
+        g.world = std::make_unique<sim::World>(64, 64);
+        std::vector<sim::Player> players(lobby.seats.size());
+        for (std::size_t p = 0; p < players.size(); ++p) {
+            const net::LobbySeat& seat = lobby.seats[p];
+            players[p].role =
+                seat.kind == net::LobbySeat::Kind::Computer ? sim::PlayerRole::Computer : sim::PlayerRole::Human;
+            players[p].status =
+                seat.kind == net::LobbySeat::Kind::Closed ? sim::PlayerStatus::Absent : sim::PlayerStatus::Playing;
+            players[p].banner = static_cast<sim::BannerId>(p);
+            players[p].name = seat.name;
+            players[p].money = 1000;
+        }
+        g.world->set_players(players);
+        for (std::size_t p = 0; p < players.size(); ++p) {
+            if (lobby.seats[p].kind != net::LobbySeat::Kind::Closed) {
+                g.world->add_ship(sim::make_ship("Schiff", 10 + 4 * static_cast<std::uint32_t>(p), 10, 21,
+                                                 static_cast<sim::PlayerId>(p)));
+            }
+        }
+        g.simulation = std::make_unique<sim::Simulation>(*g.world, buildings(), figures());
+        return g;
+    }
+
     int loads = 0;
     bool diverge = false;
 };
@@ -93,11 +121,12 @@ struct Computer {
     std::vector<net::SessionEvent> events;
 
     Computer(net::LoopbackNetwork& network, std::string name, std::uint64_t token = 0, std::uint64_t content = kContent,
-             net::SessionConfig config = {}) {
+             net::SessionConfig config = {}, std::string password = {}) {
         net::Hello hello;
         hello.content = content;
         hello.name = std::move(name);
         hello.token = token;
+        hello.password = std::move(password);
         auto link = network.connect();
         transport = link.get();
         session = std::make_unique<net::ClientSession>(
@@ -191,7 +220,7 @@ std::string random_name(sim::Random& r) {
 
 TEST_CASE("net: every message goes to bytes and back") {
     std::vector<net::Message> all;
-    all.emplace_back(net::Hello{net::kProtocolVersion, 77, "Merlin", 2, 1234});
+    all.emplace_back(net::Hello{net::kProtocolVersion, 77, "Merlin", 2, 1234, "geheim"});
     all.emplace_back(net::CommandBatch{{sim::PlayerRename{1, "Zweiter"}, sim::GameSpeedOrder{1, {}, 4}}});
     all.emplace_back(net::Progress{3, 1000, net::FrameHash{900, 0xABCDEF}});
     all.emplace_back(net::Progress{1, 5, std::nullopt});
@@ -208,6 +237,20 @@ TEST_CASE("net: every message goes to bytes and back") {
     all.emplace_back(net::Roster{{net::Member{0, "Gastgeber", net::Member::State::Playing, true},
                                   net::Member{sim::kNoPlayer, "Zuschauer", net::Member::State::Lagging, false}}});
     all.emplace_back(net::Desync{300, {1, 2}});
+    net::Lobby lobby;
+    lobby.title = "Merlins Inselwelt";
+    lobby.game = "Endlosspiel, Stufe 2";
+    lobby.seats = {net::LobbySeat{net::LobbySeat::Kind::Human, "Merlin", true},
+                   net::LobbySeat{net::LobbySeat::Kind::Open, "", false},
+                   net::LobbySeat{net::LobbySeat::Kind::Computer, "", true},
+                   net::LobbySeat{net::LobbySeat::Kind::Closed, "", false}};
+    lobby.password = true;
+    lobby.setup = {9, 8, 7};
+    all.emplace_back(lobby);
+    all.emplace_back(net::TakeSeat{3});
+    all.emplace_back(net::SetReady{true});
+    all.emplace_back(net::Chat{1, "Anna", "Hallo!"});
+    all.emplace_back(net::Refused{net::RefuseReason::Kicked});
     for (const net::Message& m : all) {
         const auto bytes = net::encode(m);
         const auto back = net::decode(bytes);
@@ -253,7 +296,7 @@ TEST_CASE("net: damaged or hostile bytes give no message") {
         for (auto& b : noise) {
             b = static_cast<std::uint8_t>(r.next());
         }
-        noise[0] = static_cast<std::uint8_t>(r.below(10));
+        noise[0] = static_cast<std::uint8_t>(r.below(14));
         if (const auto m = net::decode(noise)) {
             CHECK(net::encode(*m).size() <= noise.size() + 1024);
         }
@@ -330,7 +373,7 @@ TEST_CASE("net: nobody gives orders for another player") {
     std::vector<net::TransportEvent> ev;
     network.advance(50);
     raw->poll(ev);
-    raw->send(0, net::encode(net::Hello{net::kProtocolVersion, kContent, "Mallory", sim::kNoPlayer, 0}));
+    raw->send(0, net::encode(net::Hello{net::kProtocolVersion, kContent, "Mallory", sim::kNoPlayer, 0, ""}));
     for (int i = 0; i < 20; ++i) {
         step(network, host, {&a});
     }
@@ -568,4 +611,180 @@ TEST_CASE("net: over real UDP on this computer (ENet)") {
     CHECK(client.frames() > 20);
     CHECK(game.world->players()[1].name == "Anna");
     CHECK(!client.ended());
+}
+
+TEST_CASE("net: a lobby: slots, password, chat and ready, then the game starts on every computer") {
+    net::LoopbackNetwork network(30, 10);
+    net::SessionConfig config;
+    config.password = "insel";
+    net::Lobby setup;
+    setup.title = "Merlins Inselwelt";
+    setup.seats = {net::LobbySeat{}, net::LobbySeat{}, net::LobbySeat{net::LobbySeat::Kind::Computer, "", false},
+                   net::LobbySeat{}};
+    net::HostSession host(network.listen(), setup, 0, "Merlin", kContent, config);
+    std::vector<net::SessionEvent> host_events;
+    std::optional<Game> host_game;
+
+    Computer anna(network, "Anna", 0, kContent, {}, "insel");
+    Computer mallory(network, "Mallory", 0, kContent, {}, "falsch");
+    std::vector<Computer*> all = {&anna, &mallory};
+    const auto tick = [&](std::uint32_t ms) {
+        for (std::uint32_t t = 0; t < ms; t += kStepMs) {
+            network.advance(kStepMs);
+            host.update(kStepMs);
+            for (auto& e : host.take_events()) {
+                host_events.push_back(std::move(e));
+            }
+            for (Computer* c : all) {
+                c->update(kStepMs);
+            }
+        }
+    };
+    tick(300);
+    Computer bernd(network, "Bernd", 0, kContent, {}, "insel");  // after Anna: the slots go in order
+    all.push_back(&bernd);
+    tick(300);
+    CHECK(mallory.session->ended());
+    CHECK(std::any_of(mallory.events.begin(), mallory.events.end(), [](const net::SessionEvent& e) {
+        return e.kind == net::SessionEvent::Kind::Ended && e.refused == net::RefuseReason::Password;
+    }));
+    all = {&anna, &bernd};
+    // The open slots in order; the computer player's slot is not one.
+    CHECK(anna.session->local_seat() == 1);
+    CHECK(bernd.session->local_seat() == 3);
+    CHECK(anna.session->lobby() == host.lobby());
+    CHECK(anna.session->lobby().seats[3].name == "Bernd");
+    CHECK(anna.session->lobby().password);
+
+    // A third computer finds no slot and watches.
+    Computer clara(network, "Clara", 0, kContent, {}, "insel");
+    all.push_back(&clara);
+    tick(300);
+    CHECK(clara.session->welcomed());
+    CHECK(clara.session->local_seat() == sim::kNoPlayer);
+
+    // The host closes Bernd's slot: he watches; opened again, he takes it back.
+    host.set_seat(3, net::LobbySeat::Kind::Closed);
+    tick(300);
+    CHECK(bernd.session->local_seat() == sim::kNoPlayer);
+    CHECK(bernd.session->lobby().seats[3].kind == net::LobbySeat::Kind::Closed);
+    bernd.session->take_seat(3);
+    tick(300);
+    CHECK(bernd.session->local_seat() == sim::kNoPlayer);  // closed: not to be taken
+    host.set_seat(3, net::LobbySeat::Kind::Open);
+    bernd.session->take_seat(3);
+    anna.session->take_seat(3);  // too late: Bernd asked first
+    tick(300);
+    CHECK(bernd.session->local_seat() == 3);
+    CHECK(anna.session->local_seat() == 1);
+
+    // Chat reaches everyone, with the name the host knows.
+    anna.session->say("Stufe 2?");
+    tick(300);
+    for (const std::vector<net::SessionEvent>* events : {&host_events, &bernd.events, &clara.events}) {
+        CHECK(std::any_of(events->begin(), events->end(), [](const net::SessionEvent& e) {
+            return e.kind == net::SessionEvent::Kind::Chat && e.name == "Anna" && e.seat == 1 && e.text == "Stufe 2?";
+        }));
+    }
+
+    // Ready, and a watcher sent away.
+    CHECK(!host.everyone_ready());
+    anna.session->set_ready(true);
+    bernd.session->set_ready(true);
+    tick(300);
+    CHECK(host.everyone_ready());
+    CHECK(clara.session->lobby().seats[1].ready);
+    host.kick(3);
+    tick(300);
+    CHECK(bernd.session->ended());
+    CHECK(host.lobby().seats[3].kind == net::LobbySeat::Kind::Open);
+    Computer bernd2(network, "Bernd", 0, kContent, {}, "insel");
+    all = {&anna, &bernd2, &clara};
+    tick(300);
+    CHECK(bernd2.session->local_seat() == 3);
+    bernd2.session->set_ready(true);
+    tick(300);
+
+    // The start: the host makes the game from the lobby, every computer gets it.
+    host_game.emplace(Game::from_lobby(host.lobby()));
+    host.start(*host_game->simulation, buildings());
+    tick(2000);
+    REQUIRE(anna.session->playing());
+    REQUIRE(bernd2.session->playing());
+    REQUIRE(clara.session->playing());
+    CHECK(anna.session->lobby().started);
+    CHECK(anna.game.world->player(3)->name == "Bernd");
+    CHECK(host_game->world->player(1)->name == "Anna");
+    anna.session->submit(sim::GameSpeedOrder{1, sim::GameSpeedOrder::Op::SetSpeed, 4});
+    tick(5000);
+    CHECK(host_game->simulation->speed() == 4);
+    CHECK(host.fingerprints_compared() > 0);
+    CHECK(host.fingerprints_matched() == host.fingerprints_compared());
+
+    // Lobby messages are of no use once the game runs.
+    anna.session->take_seat(sim::kNoPlayer);
+    tick(300);
+    CHECK(anna.session->local_seat() == 1);
+}
+
+TEST_CASE("net: searches and answers of the game search, and hostile bytes") {
+    net::GameInfo info;
+    info.title = "Merlins Inselwelt";
+    info.host = "Merlin";
+    info.game = "Endlosspiel, Stufe 2";
+    info.players = 2;
+    info.slots = 4;
+    info.password = true;
+    CHECK(net::decode_search(net::encode_search(77)) == std::optional<std::uint32_t>(77));
+    const auto answer = net::decode_answer(net::encode_answer(5, info));
+    REQUIRE(answer.has_value());
+    CHECK(answer->first == 5);
+    CHECK(answer->second == info);
+    CHECK(!net::decode_answer(net::encode_search(5)));
+    CHECK(!net::decode_search(net::encode_answer(5, info)));
+    const auto bytes = net::encode_answer(5, info);
+    for (std::size_t n = 0; n < bytes.size(); ++n) {
+        CHECK(!net::decode_answer(std::span(bytes.data(), n)));
+    }
+
+    // What the host tells: the human slots of its lobby, who hosts.
+    net::Lobby lobby;
+    lobby.title = "T";
+    lobby.seats = {net::LobbySeat{net::LobbySeat::Kind::Human, "Merlin", true}, net::LobbySeat{},
+                   net::LobbySeat{net::LobbySeat::Kind::Computer, "", false},
+                   net::LobbySeat{net::LobbySeat::Kind::Closed, "", false}};
+    const net::GameInfo described =
+        net::game_info(lobby, {net::Member{0, "Merlin", net::Member::State::Playing, true}}, 16030);
+    CHECK(described.players == 1);
+    CHECK(described.slots == 2);
+    CHECK(described.host == "Merlin");
+    CHECK(described.port == 16030);
+}
+
+TEST_CASE("net: a host is found by its address over real UDP") {
+    constexpr std::uint16_t kPort = 46031;
+    auto beacon = net::LanBeacon::open(kPort);
+    REQUIRE(beacon.ok());
+    net::GameInfo info;
+    info.title = "Probe";
+    info.port = 46032;
+    beacon.value()->set_info(info);
+    auto browser = net::LanBrowser::open(kPort);
+    REQUIRE(browser.ok());
+    for (int i = 0; i < 200 && browser.value()->games().empty(); ++i) {
+        if (i % 50 == 0) {
+            browser.value()->search({"127.0.0.1"});
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        beacon.value()->update();
+        browser.value()->update(5);
+    }
+    REQUIRE(!browser.value()->games().empty());
+    const net::FoundGame& found = browser.value()->games().front();
+    CHECK(!found.address.empty());  // 127.0.0.1, or this computer's address if the broadcast came first
+    CHECK(found.info.title == "Probe");
+    CHECK(found.info.port == 46032);
+    // Not answering any more: forgotten.
+    browser.value()->update(7000);
+    CHECK(browser.value()->games().empty());
 }

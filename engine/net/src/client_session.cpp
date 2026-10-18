@@ -9,8 +9,26 @@ namespace o1602::net {
 ClientSession::ClientSession(std::unique_ptr<Transport> transport, Hello hello, Loader load, SessionConfig config)
     : Session(std::move(transport), config), m_hello(std::move(hello)), m_load(std::move(load)) {
     m_hello.protocol = kProtocolVersion;
-    if (m_hello.name.size() > kMaxNameLength) {
-        m_hello.name.resize(kMaxNameLength);
+    m_hello.name.resize(std::min(m_hello.name.size(), kMaxNameLength));
+    m_hello.password.resize(std::min(m_hello.password.size(), kMaxPasswordLength));
+}
+
+void ClientSession::say(std::string text) {
+    text.resize(std::min(text.size(), kMaxChatLength));
+    if (m_welcomed && !m_ended && !text.empty()) {
+        send(kHost, Chat{m_seat, m_hello.name, std::move(text)});
+    }
+}
+
+void ClientSession::take_seat(Seat seat) {
+    if (m_welcomed && !m_ended && !m_lobby.started) {
+        send(kHost, TakeSeat{seat});
+    }
+}
+
+void ClientSession::set_ready(bool ready) {
+    if (m_welcomed && !m_ended && !m_lobby.started) {
+        send(kHost, SetReady{ready});
     }
 }
 
@@ -72,7 +90,8 @@ void ClientSession::receive(std::span<const std::uint8_t> bytes) {
         return;
     }
     if (const auto* welcome = std::get_if<Welcome>(&*message)) {
-        if (m_welcomed || welcome->protocol != kProtocolVersion) {
+        // Again in the lobby when this computer moves to another slot.
+        if ((m_welcomed && m_lobby.started) || welcome->protocol != kProtocolVersion) {
             end(EndReason::ProtocolError);
             return;
         }
@@ -100,6 +119,11 @@ void ClientSession::receive(std::span<const std::uint8_t> bytes) {
         turn(*frames);
     } else if (auto* roster = std::get_if<Roster>(&*message)) {
         m_roster = std::move(roster->members);
+    } else if (auto* lobby = std::get_if<Lobby>(&*message)) {
+        m_lobby = std::move(*lobby);
+        lobby_event();
+    } else if (const auto* line = std::get_if<Chat>(&*message)) {
+        chat_event(*line);
     } else if (const auto* desync = std::get_if<Desync>(&*message)) {
         for (const Seat s : desync->seats) {
             SessionEvent e;

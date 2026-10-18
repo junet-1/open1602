@@ -43,6 +43,8 @@ struct HostSession::Peer {
     std::uint32_t epoch = 0;   ///< of the last game sent
     std::uint64_t frames = 0;  ///< run, as last reported
     bool lagging = false;
+    std::uint64_t token = 0;       ///< to come back to its slot (0: it watches)
+    std::uint32_t chat_lines = 0;  ///< in the current second
     std::uint32_t resyncs = 0;     ///< games sent after desyncs without a matching fingerprint since
     std::uint32_t this_frame = 0;  ///< commands in the open frame
     std::deque<FrameHash> hashes;  ///< reported ahead of the host, not compared yet
@@ -59,6 +61,60 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, sim::Simulation& 
       m_lead(m_config.min_lead),
       m_next_token(random_token()) {
     m_seat = seat;
+    // The lobby of a running game: its human slots are open, the computer players stay.
+    m_lobby.started = true;
+    const auto& players = simulation.world().players();
+    for (std::size_t s = 0; s < players.size() && s < kMaxLobbySeats; ++s) {
+        LobbySeat lobby_seat;
+        if (s == seat) {
+            lobby_seat = LobbySeat{LobbySeat::Kind::Human, m_name, true};
+        } else if (!players[s].active()) {
+            lobby_seat.kind = LobbySeat::Kind::Closed;
+        } else if (players[s].role == sim::PlayerRole::Computer) {
+            lobby_seat.kind = LobbySeat::Kind::Computer;
+        } else if (players[s].role != sim::PlayerRole::Human) {
+            lobby_seat.kind = LobbySeat::Kind::Closed;
+        }
+        m_lobby.seats.push_back(std::move(lobby_seat));
+    }
+    init_lobby();
+}
+
+HostSession::HostSession(std::unique_ptr<Transport> transport, Lobby lobby, Seat seat, std::string name,
+                         std::uint64_t content, SessionConfig config)
+    : Session(std::move(transport), config),
+      m_simulation(nullptr),
+      m_buildings(nullptr),
+      m_name(std::move(name)),
+      m_content(content),
+      m_lead(m_config.min_lead),
+      m_next_token(random_token()) {
+    m_lobby = std::move(lobby);
+    if (m_lobby.seats.size() > kMaxLobbySeats) {
+        m_lobby.seats.resize(kMaxLobbySeats);
+    }
+    m_lobby.started = false;
+    for (LobbySeat& s : m_lobby.seats) {
+        if (s.kind == LobbySeat::Kind::Human) {
+            s = LobbySeat{};  // only computers that come in are human players
+        }
+    }
+    m_seat = seat < m_lobby.seats.size() ? seat : sim::kNoPlayer;
+    if (m_seat != sim::kNoPlayer) {
+        m_lobby.seats[m_seat] = LobbySeat{LobbySeat::Kind::Human, m_name, true};
+    }
+    init_lobby();
+}
+
+void HostSession::init_lobby() {
+    m_lobby.join_running = m_config.join_running;
+    m_lobby.spectators = m_config.spectators;
+    m_lobby.password = !m_config.password.empty();
+    m_lobby.title.resize(std::min(m_lobby.title.size(), kMaxTitleLength));
+    m_lobby.game.resize(std::min(m_lobby.game.size(), kMaxTitleLength));
+    if (m_lobby.setup.size() > kMaxSetupBytes) {
+        m_lobby.setup.clear();
+    }
     refresh_roster();
 }
 
@@ -115,17 +171,30 @@ void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTic
                 break;
         }
     }
-    update_lead(real_ms);
-    run(real_ms, before_tick);
-    broadcast_frames();
-    m_game.reset();
-    for (std::size_t i = 0; i < m_peers.size(); ++i) {
-        if (m_peers[i]->game_due) {
-            send_game(*m_peers[i]);
+    if (m_chat_ms += real_ms; m_chat_ms >= 1000) {
+        m_chat_ms = 0;
+        for (const auto& p : m_peers) {
+            p->chat_lines = 0;
         }
     }
-    m_game.reset();
-    forget_frames();
+    if (m_lobby_changed) {
+        m_lobby_changed = false;
+        broadcast(m_lobby);
+        lobby_event();
+    }
+    if (started()) {
+        update_lead(real_ms);
+        run(real_ms, before_tick);
+        broadcast_frames();
+        m_game.reset();
+        for (std::size_t i = 0; i < m_peers.size(); ++i) {
+            if (m_peers[i]->game_due) {
+                send_game(*m_peers[i]);
+            }
+        }
+        m_game.reset();
+        forget_frames();
+    }
     std::erase_if(m_peers, [](const auto& p) { return p->gone; });
     if (m_roster_changed) {
         refresh_roster();
@@ -157,6 +226,12 @@ void HostSession::receive(LinkId link, std::span<const std::uint8_t> bytes) {
         commands(*peer, *batch);
     } else if (const auto* report = std::get_if<Progress>(&*message)) {
         progress(*peer, *report);
+    } else if (const auto* seat = std::get_if<TakeSeat>(&*message)) {
+        take_seat(*peer, seat->seat);
+    } else if (const auto* r = std::get_if<SetReady>(&*message)) {
+        ready(*peer, r->ready);
+    } else if (const auto* line = std::get_if<Chat>(&*message)) {
+        chat(*peer, *line);
     } else {
         drop(*peer, RefuseReason::Invalid);
     }
@@ -171,11 +246,16 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         drop(peer, RefuseReason::Content);
         return;
     }
+    if (m.password != m_config.password) {
+        drop(peer, RefuseReason::Password);
+        return;
+    }
     Seat seat = sim::kNoPlayer;
     if (m.token != 0) {
         const auto it =
             std::find_if(m_tokens.begin(), m_tokens.end(), [&](const auto& t) { return t.second == m.token; });
-        if (it != m_tokens.end()) {
+        // In the lobby a slot is only kept while the computer is in.
+        if (it != m_tokens.end() && (started() || free_seat(it->first) == it->first)) {
             seat = it->first;
             // Its old connection has not timed out yet: this is the same player, back.
             const auto old = std::find_if(m_peers.begin(), m_peers.end(), [&](const auto& p) {
@@ -187,7 +267,7 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         }
     }
     if (seat == sim::kNoPlayer) {
-        if (!m_config.join_running) {
+        if (started() && !m_config.join_running) {
             drop(peer, RefuseReason::Closed);
             return;
         }
@@ -198,22 +278,19 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         }
     }
     peer.welcomed = true;
-    peer.game_due = true;
+    peer.game_due = started();
     peer.seat = seat;
-    peer.name = m.name.empty() ? std::string("Spieler") : m.name;
-    std::uint64_t token = 0;
+    peer.name = m.name.empty() ? std::string("Player") : m.name;
     if (seat != sim::kNoPlayer) {
-        const auto it = std::find_if(m_tokens.begin(), m_tokens.end(), [&](const auto& t) { return t.first == seat; });
-        if (it != m_tokens.end()) {
-            token = it->second;
-        } else {
-            token = m_next_token++;
-            m_tokens.emplace_back(seat, token);
+        peer.token = token_of(seat);
+        m_lobby.seats[seat] = LobbySeat{LobbySeat::Kind::Human, peer.name, false};
+        if (started()) {
+            // The player's name in the game, as a command of that player like any other.
+            queue(seat, sim::PlayerRename{seat, peer.name});
         }
-        // The player's name in the game, as a command of that player like any other.
-        queue(seat, sim::PlayerRename{seat, peer.name});
     }
-    send(peer.link, Welcome{kProtocolVersion, seat, token});
+    send(peer.link, Welcome{kProtocolVersion, seat, peer.token});
+    m_lobby_changed = true;
     SessionEvent e;
     e.kind = SessionEvent::Kind::Joined;
     e.seat = seat;
@@ -295,13 +372,7 @@ void HostSession::desync(Peer& peer, std::uint64_t frame) {
     }
     ++peer.resyncs;
     peer.game_due = true;
-    const Message note = Desync{frame, {peer.seat}};
-    const std::vector<std::uint8_t> bytes = encode(note);
-    for (const auto& p : m_peers) {
-        if (!p->gone && p->welcomed) {
-            m_transport->send(p->link, bytes);
-        }
-    }
+    broadcast(Desync{frame, {peer.seat}});
 }
 
 void HostSession::close_frame() {
@@ -496,6 +567,10 @@ void HostSession::drop(Peer& peer, std::optional<RefuseReason> tell) {
     }
     m_transport->disconnect(peer.link);
     if (peer.welcomed) {
+        if (peer.seat != sim::kNoPlayer) {
+            m_lobby.seats[peer.seat] = LobbySeat{};
+            m_lobby_changed = true;
+        }
         SessionEvent e;
         e.kind = SessionEvent::Kind::Left;
         e.seat = peer.seat;
@@ -512,15 +587,20 @@ bool HostSession::seat_taken(Seat seat) const {
 }
 
 Seat HostSession::free_seat(Seat wanted) const {
-    const auto& players = m_simulation->world().players();
     const auto free = [&](std::size_t s) {
-        return s < players.size() && s != sim::kNoPlayer && players[s].role == sim::PlayerRole::Human &&
-               players[s].active() && !seat_taken(static_cast<Seat>(s));
+        if (s >= m_lobby.seats.size() || seat_taken(static_cast<Seat>(s))) {
+            return false;
+        }
+        if (!started()) {
+            return m_lobby.seats[s].kind == LobbySeat::Kind::Open;
+        }
+        const auto& players = m_simulation->world().players();
+        return s < players.size() && players[s].role == sim::PlayerRole::Human && players[s].active();
     };
     if (free(wanted)) {
         return wanted;
     }
-    for (std::size_t s = 0; s < players.size(); ++s) {
+    for (std::size_t s = 0; s < m_lobby.seats.size(); ++s) {
         if (free(s)) {
             return static_cast<Seat>(s);
         }
@@ -541,10 +621,154 @@ void HostSession::refresh_roster() {
                                                                        : Member::State::Loading;
         m_roster.push_back(Member{p->seat, p->name, state, false});
     }
-    const std::vector<std::uint8_t> bytes = encode(Roster{m_roster});
+    broadcast(Roster{m_roster});
+}
+
+void HostSession::broadcast(const Message& message) {
+    const std::vector<std::uint8_t> bytes = encode(message);
     for (const auto& p : m_peers) {
         if (!p->gone && p->welcomed) {
             m_transport->send(p->link, bytes);
+        }
+    }
+}
+
+std::uint64_t HostSession::token_of(Seat seat) {
+    const auto it = std::find_if(m_tokens.begin(), m_tokens.end(), [&](const auto& t) { return t.first == seat; });
+    if (it != m_tokens.end()) {
+        return it->second;
+    }
+    m_tokens.emplace_back(seat, m_next_token);
+    return m_next_token++;
+}
+
+// --- The lobby ---
+
+void HostSession::move(Peer* peer, Seat seat) {
+    Seat& current = peer != nullptr ? peer->seat : m_seat;
+    if (current != sim::kNoPlayer) {
+        m_lobby.seats[current] = LobbySeat{};
+        // The token stays with the slot it was made for: whoever takes the slot later gets it.
+    }
+    current = seat;
+    if (seat != sim::kNoPlayer) {
+        const std::string& name = peer != nullptr ? peer->name : m_name;
+        m_lobby.seats[seat] = LobbySeat{LobbySeat::Kind::Human, name, peer == nullptr};
+    }
+    if (peer != nullptr) {
+        peer->token = seat != sim::kNoPlayer ? token_of(seat) : 0;
+        send(peer->link, Welcome{kProtocolVersion, seat, peer->token});
+    }
+    m_lobby_changed = true;
+    m_roster_changed = true;
+}
+
+void HostSession::take_seat(Peer& peer, Seat seat) {
+    if (started() || seat == peer.seat) {
+        return;
+    }
+    if (seat == sim::kNoPlayer ? m_config.spectators : free_seat(seat) == seat) {
+        move(&peer, seat);
+    }
+}
+
+bool HostSession::take_seat(Seat seat) {
+    if (started() || seat == m_seat) {
+        return !started();
+    }
+    if (seat != sim::kNoPlayer && free_seat(seat) != seat) {
+        return false;
+    }
+    move(nullptr, seat);
+    return true;
+}
+
+void HostSession::ready(Peer& peer, bool ready) {
+    if (started() || peer.seat == sim::kNoPlayer || m_lobby.seats[peer.seat].ready == ready) {
+        return;
+    }
+    m_lobby.seats[peer.seat].ready = ready;
+    m_lobby_changed = true;
+}
+
+void HostSession::chat(Peer& peer, const Chat& m) {
+    if (m.text.empty() || peer.chat_lines >= m_config.max_chat_per_second) {
+        return;
+    }
+    ++peer.chat_lines;
+    const Chat line{peer.seat, peer.name, m.text};
+    broadcast(line);
+    chat_event(line);
+}
+
+void HostSession::say(std::string text) {
+    text.resize(std::min(text.size(), kMaxChatLength));
+    if (text.empty()) {
+        return;
+    }
+    const Chat line{m_seat, m_name, std::move(text)};
+    broadcast(line);
+    chat_event(line);
+}
+
+void HostSession::set_lobby_info(std::string title, std::string game, std::vector<std::uint8_t> setup) {
+    m_lobby.title = std::move(title);
+    m_lobby.game = std::move(game);
+    m_lobby.setup = std::move(setup);
+    m_lobby.title.resize(std::min(m_lobby.title.size(), kMaxTitleLength));
+    m_lobby.game.resize(std::min(m_lobby.game.size(), kMaxTitleLength));
+    if (m_lobby.setup.size() > kMaxSetupBytes) {
+        m_lobby.setup.clear();
+    }
+    m_lobby_changed = true;
+}
+
+void HostSession::set_seat(Seat seat, LobbySeat::Kind kind) {
+    if (started() || seat >= m_lobby.seats.size() || seat == m_seat || kind == LobbySeat::Kind::Human) {
+        return;
+    }
+    const auto holder =
+        std::find_if(m_peers.begin(), m_peers.end(), [&](const auto& p) { return !p->gone && p->seat == seat; });
+    if (holder != m_peers.end()) {
+        if (m_config.spectators) {
+            move(holder->get(), sim::kNoPlayer);
+        } else {
+            drop(**holder, RefuseReason::Full);
+        }
+    }
+    m_lobby.seats[seat] = LobbySeat{kind, {}, false};
+    m_lobby_changed = true;
+}
+
+void HostSession::kick(Seat seat) {
+    const auto holder = std::find_if(m_peers.begin(), m_peers.end(),
+                                     [&](const auto& p) { return !p->gone && p->welcomed && p->seat == seat; });
+    if (seat != sim::kNoPlayer && holder != m_peers.end()) {
+        drop(**holder, RefuseReason::Kicked);
+    }
+}
+
+bool HostSession::everyone_ready() const {
+    return std::all_of(m_peers.begin(), m_peers.end(), [&](const auto& p) {
+        return p->gone || !p->welcomed || p->seat == sim::kNoPlayer || m_lobby.seats[p->seat].ready;
+    });
+}
+
+void HostSession::start(sim::Simulation& simulation, const assets::BuildingTable& buildings) {
+    if (started()) {
+        return;
+    }
+    m_simulation = &simulation;
+    m_buildings = &buildings;
+    m_lobby.started = true;
+    m_lobby_changed = true;
+    for (const auto& p : m_peers) {
+        if (p->gone || !p->welcomed) {
+            continue;
+        }
+        p->game_due = true;
+        if (p->seat != sim::kNoPlayer) {
+            queue(p->seat, sim::PlayerRename{p->seat, p->name});
         }
     }
 }

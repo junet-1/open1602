@@ -3,7 +3,8 @@
 
 #include <utility>
 
-#include "o1602/core/byte_reader.hpp"
+#include "wire.hpp"
+
 #include "o1602/core/byte_writer.hpp"
 #include "o1602/sim/command_io.hpp"
 
@@ -11,75 +12,9 @@ namespace o1602::net {
 
 namespace {
 
+using detail::In;
+
 // A message starts with its type, the index in the Message variant (appended, never reordered).
-
-/// Reader that remembers the first error, so that a decoder can read on and check once.
-class In {
-public:
-    explicit In(std::span<const std::uint8_t> bytes) noexcept : m_reader(bytes) {}
-
-    [[nodiscard]] bool ok() const noexcept { return m_ok; }
-    [[nodiscard]] bool at_end() const noexcept { return m_reader.at_end(); }
-    void fail() noexcept { m_ok = false; }
-    core::ByteReader& reader() noexcept { return m_reader; }
-
-    std::uint8_t u8() { return take(m_reader.u8()); }
-    std::uint16_t u16() { return take(m_reader.u16()); }
-    std::uint32_t u32() { return take(m_reader.u32()); }
-    std::uint64_t u64() { return take(m_reader.u64()); }
-    bool boolean() {
-        const std::uint8_t b = u8();
-        if (b > 1) {
-            fail();
-        }
-        return b != 0;
-    }
-    /// A count of at most `limit` things.
-    std::uint32_t count(std::uint32_t limit) {
-        const std::uint32_t n = u32();
-        if (n > limit) {
-            fail();
-            return 0;
-        }
-        return n;
-    }
-    std::string text(std::size_t limit) {
-        const std::uint32_t n = count(static_cast<std::uint32_t>(limit));
-        const auto bytes = m_ok ? m_reader.bytes(n) : std::nullopt;
-        if (!bytes) {
-            fail();
-            return {};
-        }
-        return {bytes->begin(), bytes->end()};
-    }
-    std::vector<sim::Command> commands() {
-        const std::uint32_t n = count(kMaxCommandsPerMessage);
-        std::vector<sim::Command> out;
-        out.reserve(n);
-        for (std::uint32_t i = 0; i < n && m_ok; ++i) {
-            auto command = sim::read_command(m_reader);
-            if (!command) {
-                fail();
-                break;
-            }
-            out.push_back(std::move(*command));
-        }
-        return out;
-    }
-
-private:
-    template <class T>
-    T take(std::optional<T> v) {
-        if (!v) {
-            m_ok = false;
-            return T{};
-        }
-        return *v;
-    }
-
-    core::ByteReader m_reader;
-    bool m_ok = true;
-};
 
 void put_commands(core::ByteWriter& out, const std::vector<sim::Command>& commands) {
     out.u32(static_cast<std::uint32_t>(commands.size()));
@@ -94,6 +29,7 @@ void put(core::ByteWriter& out, const Hello& m) {
     out.string(m.name);
     out.u8(m.seat);
     out.u64(m.token);
+    out.string(m.password);
 }
 
 void put(core::ByteWriter& out, const CommandBatch& m) {
@@ -158,6 +94,37 @@ void put(core::ByteWriter& out, const Desync& m) {
     }
 }
 
+void put(core::ByteWriter& out, const Lobby& m) {
+    out.string(m.title);
+    out.string(m.game);
+    out.u32(static_cast<std::uint32_t>(m.seats.size()));
+    for (const LobbySeat& seat : m.seats) {
+        out.u8(static_cast<std::uint8_t>(seat.kind));
+        out.string(seat.name);
+        out.boolean(seat.ready);
+    }
+    out.boolean(m.started);
+    out.boolean(m.join_running);
+    out.boolean(m.spectators);
+    out.boolean(m.password);
+    out.u32(static_cast<std::uint32_t>(m.setup.size()));
+    out.bytes(m.setup);
+}
+
+void put(core::ByteWriter& out, const TakeSeat& m) {
+    out.u8(m.seat);
+}
+
+void put(core::ByteWriter& out, const SetReady& m) {
+    out.boolean(m.ready);
+}
+
+void put(core::ByteWriter& out, const Chat& m) {
+    out.u8(m.seat);
+    out.string(m.name);
+    out.string(m.text);
+}
+
 Hello get_hello(In& in) {
     Hello m;
     m.protocol = in.u16();
@@ -165,6 +132,7 @@ Hello get_hello(In& in) {
     m.name = in.text(kMaxNameLength);
     m.seat = in.u8();
     m.token = in.u64();
+    m.password = in.text(kMaxPasswordLength);
     return m;
 }
 
@@ -192,7 +160,7 @@ Welcome get_welcome(In& in) {
 Refused get_refused(In& in) {
     Refused m;
     const std::uint8_t reason = in.u8();
-    if (reason > static_cast<std::uint8_t>(RefuseReason::Invalid)) {
+    if (reason > static_cast<std::uint8_t>(RefuseReason::Kicked)) {
         in.fail();
     }
     m.reason = static_cast<RefuseReason>(reason);
@@ -268,6 +236,44 @@ Desync get_desync(In& in) {
     return m;
 }
 
+Lobby get_lobby(In& in) {
+    Lobby m;
+    m.title = in.text(kMaxTitleLength);
+    m.game = in.text(kMaxTitleLength);
+    const std::uint32_t n = in.count(kMaxLobbySeats);
+    m.seats.reserve(n);
+    for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
+        LobbySeat seat;
+        const std::uint8_t kind = in.u8();
+        if (kind > static_cast<std::uint8_t>(LobbySeat::Kind::Closed)) {
+            in.fail();
+        }
+        seat.kind = static_cast<LobbySeat::Kind>(kind);
+        seat.name = in.text(kMaxNameLength);
+        seat.ready = in.boolean();
+        m.seats.push_back(std::move(seat));
+    }
+    m.started = in.boolean();
+    m.join_running = in.boolean();
+    m.spectators = in.boolean();
+    m.password = in.boolean();
+    const std::uint32_t size = in.count(kMaxSetupBytes);
+    if (const auto bytes = in.ok() ? in.reader().bytes(size) : std::nullopt) {
+        m.setup.assign(bytes->begin(), bytes->end());
+    } else {
+        in.fail();
+    }
+    return m;
+}
+
+Chat get_chat(In& in) {
+    Chat m;
+    m.seat = in.u8();
+    m.name = in.text(kMaxNameLength);
+    m.text = in.text(kMaxChatLength);
+    return m;
+}
+
 std::optional<Message> get(In& in, std::uint8_t type) {
     switch (type) {
         case 0:
@@ -288,12 +294,20 @@ std::optional<Message> get(In& in, std::uint8_t type) {
             return get_roster(in);
         case 8:
             return get_desync(in);
+        case 9:
+            return get_lobby(in);
+        case 10:
+            return TakeSeat{in.u8()};
+        case 11:
+            return SetReady{in.boolean()};
+        case 12:
+            return get_chat(in);
         default:
             return std::nullopt;
     }
 }
 
-static_assert(std::variant_size_v<Message> == 9, "a new message needs its case in get()");
+static_assert(std::variant_size_v<Message> == 13, "a new message needs its case in get()");
 
 }  // namespace
 

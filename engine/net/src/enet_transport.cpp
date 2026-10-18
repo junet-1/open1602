@@ -3,49 +3,23 @@
 
 #include <cstdint>
 #include <enet/enet.h>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
 
+#include "enet_library.hpp"
+
 namespace o1602::net {
 
 namespace {
+
+using detail::EnetLibrary;
 
 constexpr std::size_t kChannels = 1;
 /// A computer's messages to the host are small (commands, progress); the host's carry whole games.
 constexpr std::size_t kMaxToHost = 1U << 20;
 constexpr enet_uint32 kTimeoutMinMs = 5000;
 constexpr enet_uint32 kTimeoutMaxMs = 15000;
-
-/// enet_initialize() once for all transports of the process.
-class EnetLibrary {
-public:
-    static bool acquire() {
-        const std::lock_guard lock(mutex());
-        if (count() == 0 && enet_initialize() != 0) {
-            return false;
-        }
-        ++count();
-        return true;
-    }
-    static void release() {
-        const std::lock_guard lock(mutex());
-        if (count() > 0 && --count() == 0) {
-            enet_deinitialize();
-        }
-    }
-
-private:
-    static std::mutex& mutex() {
-        static std::mutex m;
-        return m;
-    }
-    static int& count() {
-        static int c = 0;
-        return c;
-    }
-};
 
 class EnetTransport final : public Transport {
 public:

@@ -22,7 +22,7 @@
 namespace o1602::net {
 
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
-inline constexpr std::uint16_t kProtocolVersion = 1;
+inline constexpr std::uint16_t kProtocolVersion = 2;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
@@ -30,6 +30,11 @@ inline constexpr std::uint32_t kMaxCommandsPerMessage = 1024;
 inline constexpr std::uint32_t kMaxFramesPerTurn = 1U << 16;
 inline constexpr std::uint32_t kMaxRosterMembers = 256;
 inline constexpr std::uint32_t kMaxSnapshotBytes = 32U << 20;
+inline constexpr std::size_t kMaxPasswordLength = 64;
+inline constexpr std::size_t kMaxTitleLength = 64;
+inline constexpr std::size_t kMaxChatLength = 200;
+inline constexpr std::uint32_t kMaxLobbySeats = 255;
+inline constexpr std::uint32_t kMaxSetupBytes = 64U << 10;
 
 /// Which player of the world a computer plays: kNoPlayer watches only.
 using Seat = sim::PlayerId;
@@ -45,6 +50,7 @@ struct Hello {
     std::string name;            ///< the player's name, 1 to kMaxNameLength bytes (Windows-1252)
     Seat seat = sim::kNoPlayer;  ///< the player slot wanted, kNoPlayer for any
     std::uint64_t token = 0;     ///< from an earlier Welcome: takes the same slot again
+    std::string password;        ///< the game's password, if it has one
 };
 
 /// Commands of the computer's player, in the order given; the host puts them into the next frame
@@ -79,12 +85,14 @@ struct Welcome {
 
 /// Why the host does not take a computer (it disconnects right after).
 enum class RefuseReason : std::uint8_t {
-    Version,  ///< another kProtocolVersion
-    Content,  ///< other game data
-    Full,     ///< no free slot and no spectators
-    Closed,   ///< the host takes nobody in a running game
-    Desync,   ///< the computer kept diverging from the host's game
-    Invalid,  ///< the computer sent what makes no sense
+    Version,   ///< another kProtocolVersion
+    Content,   ///< other game data
+    Full,      ///< no free slot and no spectators
+    Closed,    ///< the host takes nobody in a running game
+    Desync,    ///< the computer kept diverging from the host's game
+    Invalid,   ///< the computer sent what makes no sense
+    Password,  ///< a wrong password
+    Kicked,    ///< the host sent it away
 };
 
 struct Refused {
@@ -143,7 +151,58 @@ struct Desync {
     std::vector<Seat> seats;
 };
 
-using Message = std::variant<Hello, CommandBatch, Progress, Welcome, Refused, Snapshot, Turn, Roster, Desync>;
+// --- Before the game: the lobby ---
+
+/// One player slot of the game to come, as the lobby shows it.
+struct LobbySeat {
+    enum class Kind : std::uint8_t {
+        Open,      ///< free for a computer that comes in
+        Human,     ///< `name` plays it
+        Computer,  ///< a computer player of the game
+        Closed,    ///< not in the game
+    };
+    Kind kind = Kind::Open;
+    std::string name;
+    bool ready = false;
+    friend bool operator==(const LobbySeat&, const LobbySeat&) = default;
+};
+
+/// (Host) The game being set up; sent to everyone whenever it changes. Who watches is in the
+/// Roster.
+struct Lobby {
+    std::string title;             ///< the game's name, as the host gave it
+    std::string game;              ///< what is played, for display ("Endlosspiel, Stufe 2")
+    std::vector<LobbySeat> seats;  ///< by player slot of the world (Seat)
+    bool started = false;          ///< the game runs: a computer that comes in gets it at once
+    bool join_running = true;      ///< computers may come into the running game
+    bool spectators = true;        ///< computers without a slot may watch
+    bool password = false;         ///< joining takes a password
+    /// The program's own description of the game (map, level, preview): the session passes it on
+    /// without reading it.
+    std::vector<std::uint8_t> setup;
+    friend bool operator==(const Lobby&, const Lobby&) = default;
+};
+
+/// (Computer) Wants slot `seat` of the lobby, an open one; kNoPlayer: to watch.
+struct TakeSeat {
+    Seat seat = sim::kNoPlayer;
+};
+
+/// (Computer) Ready to start, or not any more.
+struct SetReady {
+    bool ready = false;
+};
+
+/// A line of chat. From a computer only `text` counts: the host fills in who said it and sends it
+/// to everyone.
+struct Chat {
+    Seat seat = sim::kNoPlayer;
+    std::string name;
+    std::string text;  ///< 1 to kMaxChatLength bytes (Windows-1252)
+};
+
+using Message = std::variant<Hello, CommandBatch, Progress, Welcome, Refused, Snapshot, Turn, Roster, Desync, Lobby,
+                             TakeSeat, SetReady, Chat>;
 
 [[nodiscard]] std::vector<std::uint8_t> encode(const Message& message);
 /// Nothing if the bytes are cut off, too long, of an unknown type or out of range.

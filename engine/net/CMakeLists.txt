@@ -6,6 +6,7 @@ add_library(o1602_net
     src/client_session.cpp
     src/enet_transport.cpp
     src/host_session.cpp
+    src/lan.cpp
     src/loopback.cpp
     src/protocol.cpp
     src/session.cpp

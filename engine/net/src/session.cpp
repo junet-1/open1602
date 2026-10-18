@@ -18,17 +18,17 @@ const char* describe(EndReason reason) noexcept {
         case EndReason::None:
             return "";
         case EndReason::ConnectFailed:
-            return "Der Gastgeber ist nicht erreichbar.";
+            return "the host cannot be reached";
         case EndReason::HostLeft:
-            return "Die Verbindung zum Gastgeber ist beendet.";
+            return "the connection to the host ended";
         case EndReason::Refused:
-            return "Der Gastgeber hat abgelehnt.";
+            return "the host refused";
         case EndReason::ProtocolError:
-            return "Unverständliche Nachricht im Netz.";
+            return "a message made no sense";
         case EndReason::LoadFailed:
-            return "Das Spiel des Gastgebers ließ sich nicht laden.";
+            return "the host's game could not be loaded";
         case EndReason::Desync:
-            return "Dieser Rechner weicht immer wieder vom Gastgeber ab.";
+            return "this computer kept diverging from the host";
     }
     return "";
 }
@@ -36,17 +36,21 @@ const char* describe(EndReason reason) noexcept {
 const char* describe(RefuseReason reason) noexcept {
     switch (reason) {
         case RefuseReason::Version:
-            return "Der Gastgeber hat eine andere Version von Open1602.";
+            return "another version of Open1602";
         case RefuseReason::Content:
-            return "Der Gastgeber hat andere Spieldaten.";
+            return "other game data";
         case RefuseReason::Full:
-            return "Kein Platz mehr frei.";
+            return "no free slot";
         case RefuseReason::Closed:
-            return "Der Gastgeber nimmt niemanden mehr ins laufende Spiel.";
+            return "the host takes nobody into the running game";
         case RefuseReason::Desync:
-            return "Dieser Rechner weicht immer wieder vom Gastgeber ab.";
+            return "this computer kept diverging from the host";
         case RefuseReason::Invalid:
-            return "Dieser Rechner hat Unverständliches geschickt.";
+            return "this computer sent what makes no sense";
+        case RefuseReason::Password:
+            return "wrong password";
+        case RefuseReason::Kicked:
+            return "sent away by the host";
     }
     return "";
 }
@@ -109,6 +113,21 @@ void Session::end(EndReason reason) {
     SessionEvent e;
     e.kind = SessionEvent::Kind::Ended;
     e.reason = reason;
+    event(std::move(e));
+}
+
+void Session::lobby_event() {
+    SessionEvent e;
+    e.kind = SessionEvent::Kind::LobbyChanged;
+    event(std::move(e));
+}
+
+void Session::chat_event(const Chat& chat) {
+    SessionEvent e;
+    e.kind = SessionEvent::Kind::Chat;
+    e.seat = chat.seat;
+    e.name = chat.name;
+    e.text = chat.text;
     event(std::move(e));
 }
 
