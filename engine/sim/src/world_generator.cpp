@@ -437,7 +437,11 @@ void Generator::hand_out_crops() {
         Slot* s = candidates[m_random.below(static_cast<std::uint32_t>(candidates.size()))];
         give_crop(*s, ware);
     };
-    for (const auto& [min_size, max_size] : {std::pair<std::uint8_t, std::uint8_t>{3, 4}, {1, 2}}) {
+    struct SizeRange {
+        std::uint8_t min;
+        std::uint8_t max;
+    };
+    for (const auto& [min_size, max_size] : {SizeRange{3, 4}, SizeRange{1, 2}}) {
         for (Entry& e : list) {
             if (e.count == 0 || e.ware == 0) {
                 continue;

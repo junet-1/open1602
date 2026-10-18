@@ -22,7 +22,6 @@ namespace o1602::app {
 
 namespace {
 
-constexpr double kDragThreshold2 = 25.0;       // 5 px before a press becomes a rectangle (0x0040BA70)
 constexpr std::uint64_t kDoubleGroupMs = 500;  // a group key twice in this time goes there
 constexpr double kScrollSpeed = 900.0;         // pixels per second
 

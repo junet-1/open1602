@@ -995,7 +995,8 @@ std::vector<LoadedSave> load_savegames(const assets::GameDirectory& game, const 
     std::vector<std::filesystem::path> files;
     for (const auto& entry : std::filesystem::directory_iterator(*dir)) {
         std::string ext = entry.path().extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (entry.is_regular_file() && ext == ".gam") {
             files.push_back(entry.path());
         }
@@ -1767,7 +1768,8 @@ TEST_CASE("data: craters of scenarios and savegames are the volcano mountains (0
         }
         for (const auto& entry : std::filesystem::directory_iterator(*d)) {
             std::string ext = entry.path().extension().string();
-            std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return std::tolower(c); });
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
             if (entry.is_regular_file() && (ext == ".szs" || ext == ".szm" || ext == ".gam")) {
                 files.push_back(entry.path());
             }

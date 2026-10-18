@@ -43,8 +43,9 @@ TEST_CASE("cod: numbers in decimal, real, hex and binary notation") {
 
 TEST_CASE("cod: numbers beyond 32 bits stay at the largest, on every platform") {
     // The original's strtol() has a 32-bit long; Linux and macOS have 64 bits.
-    const auto doc = cod::parse("D: 4294967297\nH: $100000001\nB: %111111111111111111111111111111111\n"
-                                "E: 2147483647\nF: $7FFFFFFF\nG: 99999999999999999999999999\n");
+    const auto doc = cod::parse(
+        "D: 4294967297\nH: $100000001\nB: %111111111111111111111111111111111\n"
+        "E: 2147483647\nF: $7FFFFFFF\nG: 99999999999999999999999999\n");
     for (const char* name : {"D", "H", "B", "E", "F", "G"}) {
         CHECK(sym_int(doc, name) == 2147483647);
     }

@@ -2087,9 +2087,7 @@ bool Logistics::load(core::ByteReader& reader, std::uint16_t version) {
         slots.emplace_back(std::move(w), generation);
     }
     std::vector<std::uint8_t> jobs;
-    in.list(jobs, 1, [&](std::uint8_t& j) {
-        j = in.u8();
-    });
+    in.list(jobs, 1, [&](std::uint8_t& j) { j = in.u8(); });
     std::unordered_set<std::uint64_t> tiles;
     const std::uint32_t reserved = in.count(8);
     for (std::uint32_t i = 0; i < reserved; ++i) {

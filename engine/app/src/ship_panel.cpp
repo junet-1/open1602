@@ -423,7 +423,7 @@ private:
     static constexpr std::int32_t kStopArms = 58031;
     static constexpr std::int32_t kStopSymbol = 58041;
     static constexpr std::array<std::int32_t, 2> kEntryIcon{58101, 58201};
-    static constexpr std::array<std::int32_t, 2> kEntryBack{58111, 58211};
+    [[maybe_unused]] static constexpr std::array<std::int32_t, 2> kEntryBack{58111, 58211};
     static constexpr std::array<std::int32_t, 2> kEntryBar{58121, 58221};
     static constexpr std::array<std::int32_t, 2> kEntryFrame{58131, 58231};
     static constexpr std::array<std::int32_t, 2> kEntrySlider{58141, 58241};
@@ -759,7 +759,11 @@ private:
     }
 
     // Transfer: the wares of the Kontor in four groups, four at a time.
-    static std::pair<std::uint8_t, std::uint8_t> category_range(std::int32_t cat) {
+    struct WareRange {
+        std::uint8_t first;
+        std::uint8_t last;
+    };
+    static WareRange category_range(std::int32_t cat) {
         switch (cat) {
             case 0:
                 return {22, 24};  // Baumaterial

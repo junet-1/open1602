@@ -1,10 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Builds and tests on Linux, Windows and macOS. Original Anno 1602 data never reaches CI; the tests
+# that need it skip themselves. The private analysis repository (open1602-re) is not needed here.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -14,13 +25,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Linux GCC,   os: ubuntu-24.04, cxx: g++,     preset: ci }
-          - { name: Linux Clang, os: ubuntu-24.04, cxx: clang++, preset: ci }
-          - { name: Linux ASan,  os: ubuntu-24.04, cxx: clang++, preset: asan }
-          - { name: Windows MSVC, os: windows-2022, cxx: cl,     preset: ci }
-          - { name: macOS Clang, os: macos-14,     cxx: clang++, preset: ci }
+          - { name: Linux GCC,    os: ubuntu-24.04, cxx: g++,     preset: ci }
+          - { name: Linux Clang,  os: ubuntu-24.04, cxx: clang++, preset: ci }
+          - { name: Linux ASan,   os: ubuntu-24.04, cxx: clang++, preset: asan }
+          - { name: Windows MSVC, os: windows-2022, cxx: cl,      preset: ci }
+          - { name: macOS Clang,  os: macos-14,     cxx: clang++, preset: ci }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -33,27 +44,32 @@ jobs:
       - name: Set up MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Configure
         run: cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
 
       - name: Build
-        run: cmake --build --preset ${{ matrix.preset }}
+        run: cmake --build --preset ${{ matrix.preset }} -- -k 0  # report every failing file at once
 
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
   game:
-    name: Game (SDL3, ${{ matrix.os }})
+    name: Game (SDL3, ${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2022, macos-14]
+        include:
+          - { name: Linux,   os: ubuntu-24.04 }
+          - { name: Windows, os: windows-2022 }
+          - { name: macOS,   os: macos-14 }
     env:
       SDL_VERSION: 3.2.24
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -69,6 +85,8 @@ jobs:
       - name: Set up MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Cache SDL3
         id: sdl-cache
@@ -92,14 +110,14 @@ jobs:
           cmake --preset ci -DO1602_BUILD_GAME=ON -DCMAKE_PREFIX_PATH="${{ runner.temp }}/sdl3"
 
       - name: Build
-        run: cmake --build --preset ci
+        run: cmake --build --preset ci -- -k 0
 
-  format:
+  checks:
+    name: Formatting
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check formatting
         run: |
-          find engine tools tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror
-      - name: Check bug catalog references (ADR 0006)
-        run: python3 re/scripts/check_bug_refs.py
+          clang-format --version
+          find engine tools tests \( -name '*.cpp' -o -name '*.hpp' \) -print0 | xargs -0 clang-format --dry-run --Werror

@@ -285,8 +285,9 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
 
 void MapViewer::warn_if_state_damaged() const {
     if (m_simulation.state_damaged()) {
-        std::fprintf(stderr, "warning: the savegame's running state could not be read; the game continues "
-                             "from the world alone (computer players, walkers and clocks start anew)\n");
+        std::fprintf(stderr,
+                     "warning: the savegame's running state could not be read; the game continues "
+                     "from the world alone (computer players, walkers and clocks start anew)\n");
     }
 }
 
@@ -519,8 +520,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
             }
             break;
         case SDL_EVENT_MOUSE_MOTION:
-            m_mouse_x = event.motion.x;
-            m_mouse_y = event.motion.y;
+            m_mouse_x = static_cast<double>(event.motion.x);
+            m_mouse_y = static_cast<double>(event.motion.y);
             if (m_hud) {
                 if (const auto a = m_hud->mouse(static_cast<std::int32_t>(event.motion.x),
                                                 static_cast<std::int32_t>(event.motion.y), m_left_down)) {
@@ -533,7 +534,7 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 m_rubber_band = m_rubber_band || dx * dx + dy * dy >= 25.0;  // 5 px (0x0040BA70)
             }
             if (m_dragging) {
-                m_camera.scroll(-event.motion.xrel, -event.motion.yrel);
+                m_camera.scroll(-static_cast<double>(event.motion.xrel), -static_cast<double>(event.motion.yrel));
                 m_drag_distance +=
                     std::abs(static_cast<double>(event.motion.xrel)) + std::abs(static_cast<double>(event.motion.yrel));
             }
@@ -599,8 +600,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
                     }
                 }
                 if (m_press) {
-                    map_left_up(event.button.x, event.button.y, static_cast<std::uint16_t>(SDL_GetModState()),
-                                event.button.clicks);
+                    map_left_up(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
+                                static_cast<std::uint16_t>(SDL_GetModState()), event.button.clicks);
                     m_press.reset();
                     m_rubber_band = false;
                 }
@@ -612,7 +613,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
                     if (m_options.original_mouse) {
                         cancel_action();
                     } else if (!m_units.empty() || !back_to_status()) {
-                        map_order(event.button.x, event.button.y, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+                        map_order(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
+                                  (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
                     }
                 }
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
@@ -629,7 +631,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
         case SDL_EVENT_MOUSE_WHEEL: {  // U-001: the original has no wheel zoom
             const float y = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event.wheel.y : event.wheel.y;
             if (y != 0.0F) {
-                zoom_by(y > 0.0F ? -1 : 1, event.wheel.mouse_x, event.wheel.mouse_y);
+                zoom_by(y > 0.0F ? -1 : 1, static_cast<double>(event.wheel.mouse_x),
+                        static_cast<double>(event.wheel.mouse_y));
             }
             break;
         }
@@ -763,8 +766,8 @@ render::TileLighting MapViewer::tile_lighting() const {
         constexpr std::int32_t kProdHouse = 13;
         const auto spot = spot_at_mouse();
         if (b != nullptr && spot && b->radius > 0 && b->prod_kind != kProdHouse) {
-            l.outline(world_catchment(spot->island, sim::catchment_of(*b, m_tool.rotation(),
-                                                                      sim::TilePos{spot->x, spot->y})));
+            l.outline(world_catchment(spot->island,
+                                      sim::catchment_of(*b, m_tool.rotation(), sim::TilePos{spot->x, spot->y})));
         }
         return l;
     }
@@ -1727,7 +1730,8 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     // Open1602's own savegame, or with the ending .gam one the original loads (as long as the game
     // fits its limits; without the file the game came from, the fields Open1602 does not keep are 0).
     std::string ending = target.extension().string();
-    std::transform(ending.begin(), ending.end(), ending.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(ending.begin(), ending.end(), ending.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     auto bytes = ending == ".gam" ? sim::write_savegame(m_world, m_buildings, &m_simulation)
                                   : sim::write_game(m_world, m_buildings, &m_simulation);
     if (!bytes) {

@@ -13,7 +13,6 @@ namespace o1602::sim::ai {
 namespace {
 
 constexpr std::uint32_t kHealthy = 0x5F;  // health * 128 / max above this: at least 75 %
-constexpr std::uint8_t kNoCityShipCooldown = 40;
 
 bool moving(const Ship& s) {
     return !s.target.empty() || s.motion.phase == ShipMotion::Phase::Run || s.motion.phase == ShipMotion::Phase::Turn;
