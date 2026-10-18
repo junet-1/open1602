@@ -41,6 +41,27 @@ TEST_CASE("cod: numbers in decimal, real, hex and binary notation") {
     CHECK(sym_int(doc, "N") == -5);  // 0 - 5
 }
 
+TEST_CASE("cod: numbers beyond 32 bits stay at the largest, on every platform") {
+    // The original's strtol() has a 32-bit long; Linux and macOS have 64 bits.
+    const auto doc = cod::parse("D: 4294967297\nH: $100000001\nB: %111111111111111111111111111111111\n"
+                                "E: 2147483647\nF: $7FFFFFFF\nG: 99999999999999999999999999\n");
+    for (const char* name : {"D", "H", "B", "E", "F", "G"}) {
+        CHECK(sym_int(doc, name) == 2147483647);
+    }
+    CHECK(sym_int(cod::parse("A: $ffff\n"), "A") == 65535);
+}
+
+TEST_CASE("cod: real numbers round like strtod(), whatever the locale") {
+    const auto doc = cod::parse("A: 0.1\nB: 1.3\nC: 2.\nD: 0.0125\nE: 123456.789\n");
+    const auto real = [&](const char* name) { return doc.symbols.find(name)->values[0].real; };
+    CHECK(real("A") == 0.1);
+    CHECK(real("B") == 1.3);
+    CHECK(real("C") == 2.0);
+    CHECK(real("D") == 0.0125);
+    CHECK(real("E") == 123456.789);
+    CHECK(doc.symbols.find("E")->values[0].integer == 123456);
+}
+
 TEST_CASE("cod: comma separated values and value count") {
     const auto doc = cod::parse("Wegspeed: 145, 120, 170, 100 ; comment\n");
     const cod::Symbol* s = doc.symbols.find("Wegspeed");

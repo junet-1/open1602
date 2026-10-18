@@ -20,6 +20,10 @@ Result<Bytes> read_file(const std::filesystem::path& path);
 /// Writes a whole file (creates or truncates).
 Status write_file(const std::filesystem::path& path, std::span<const std::uint8_t> data);
 
+/// Writes a whole file so that `path` holds either the old or the complete new content, never
+/// half of it (savegames): into `path`.tmp, onto the disk, then renamed over `path`.
+Status write_file_atomic(const std::filesystem::path& path, std::span<const std::uint8_t> data);
+
 /// Resolves a relative path below `root` ignoring the case of every path component.
 ///
 /// The original game was written for Windows (case-insensitive file system) and references

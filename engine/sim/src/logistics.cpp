@@ -2070,20 +2070,26 @@ void Logistics::save(core::ByteWriter& out) const {
 bool Logistics::load(core::ByteReader& reader, std::uint16_t version) {
     StateIn in(reader);
     std::vector<std::pair<std::optional<Walker>, std::uint32_t>> slots;
-    const std::uint32_t n = in.count(5);
-    slots.reserve(n);
+    const std::uint32_t n = in.count(5);  // no reserve: a walker takes far more memory than its 5 bytes
     for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
         const std::uint32_t generation = in.u32();
         std::optional<Walker> w;
         if (in.boolean()) {
             w = get_walker(in, version);
+            // What a tick relies on without asking again: the island, a step on the path and,
+            // halfway through a step, a pace to divide by.
+            const bool on_way = w->length != 0;
+            if (w->island >= m_world->islands().size() || w->step > w->path.size() ||
+                (on_way && (w->speed == 0 || w->step >= w->path.size() || w->progress >= w->length))) {
+                in.fail();
+            }
         }
         slots.emplace_back(std::move(w), generation);
     }
-    std::vector<std::uint8_t> jobs(in.count(1));
-    for (std::uint8_t& j : jobs) {
+    std::vector<std::uint8_t> jobs;
+    in.list(jobs, 1, [&](std::uint8_t& j) {
         j = in.u8();
-    }
+    });
     std::unordered_set<std::uint64_t> tiles;
     const std::uint32_t reserved = in.count(8);
     for (std::uint32_t i = 0; i < reserved; ++i) {

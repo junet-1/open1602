@@ -3,9 +3,16 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <fstream>
 #include <string>
 #include <system_error>
+
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace o1602::core {
 
@@ -35,8 +42,55 @@ Status write_file(const fs::path& path, std::span<const std::uint8_t> data) {
         return make_error(ErrorCode::IoError, "cannot create file: " + path.string());
     }
     out.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
-    if (!out) {
+    // The last part of the buffer reaches the disk only now; a full disk shows up here.
+    out.close();
+    if (out.fail()) {
         return make_error(ErrorCode::IoError, "cannot write file: " + path.string());
+    }
+    return Ok{};
+}
+
+namespace {
+
+/// Writes and forces the data onto the disk before returning, so that a rename after it cannot
+/// replace a good file with one the system has not written yet.
+Status write_durable(const fs::path& path, std::span<const std::uint8_t> data) {
+#if defined(_WIN32)
+    std::FILE* f = _wfopen(path.c_str(), L"wb");
+#else
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+#endif
+    if (f == nullptr) {
+        return make_error(ErrorCode::IoError, "cannot create file: " + path.string());
+    }
+    bool ok = data.empty() || std::fwrite(data.data(), 1, data.size(), f) == data.size();
+    ok = std::fflush(f) == 0 && ok;
+#if defined(_WIN32)
+    ok = _commit(_fileno(f)) == 0 && ok;
+#else
+    ok = fsync(fileno(f)) == 0 && ok;
+#endif
+    ok = std::fclose(f) == 0 && ok;
+    if (!ok) {
+        return make_error(ErrorCode::IoError, "cannot write file: " + path.string());
+    }
+    return Ok{};
+}
+
+}  // namespace
+
+Status write_file_atomic(const fs::path& path, std::span<const std::uint8_t> data) {
+    fs::path temp = path;
+    temp += ".tmp";
+    std::error_code ec;
+    if (auto status = write_durable(temp, data); !status) {
+        fs::remove(temp, ec);
+        return status;
+    }
+    fs::rename(temp, path, ec);
+    if (ec) {
+        fs::remove(temp, ec);
+        return make_error(ErrorCode::IoError, "cannot write " + path.string() + ": " + ec.message());
     }
     return Ok{};
 }

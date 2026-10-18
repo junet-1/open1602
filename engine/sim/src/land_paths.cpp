@@ -38,29 +38,11 @@ bool soldiers_walk_on(const assets::BuildingType& b) noexcept {
 
 void LandMap::rebuild(const World& world, const assets::BuildingTable& buildings) {
     m_world = &world;
-    m_tiles.assign(world.islands().size(), {});
-    for (std::size_t i = 0; i < world.islands().size(); ++i) {
-        update_island(world, buildings, static_cast<std::uint16_t>(i));
-    }
+    m_buildings = &buildings;
 }
 
-void LandMap::update_island(const World& world, const assets::BuildingTable& buildings, std::uint16_t index) {
-    m_world = &world;
-    if (index >= world.islands().size()) {
-        return;
-    }
-    if (m_tiles.size() < world.islands().size()) {
-        m_tiles.resize(world.islands().size());
-    }
-    const IslandMap& map = world.islands()[index].map;
-    auto& tiles = m_tiles[index];
-    tiles.assign(std::size_t{map.width()} * map.height(), nullptr);
-    for (std::uint32_t y = 0; y < map.height(); ++y) {
-        for (std::uint32_t x = 0; x < map.width(); ++x) {
-            const MapCell& c = map.top(x, y);
-            tiles[std::size_t{y} * map.width() + x] = c.empty() ? nullptr : buildings.by_sprite(c.sprite);
-        }
-    }
+void LandMap::update_island(const World& world, const assets::BuildingTable& buildings, std::uint16_t /*island*/) {
+    rebuild(world, buildings);
 }
 
 std::uint16_t LandMap::island_at(std::int32_t x, std::int32_t y) const noexcept {
@@ -73,13 +55,16 @@ std::uint16_t LandMap::island_at(std::int32_t x, std::int32_t y) const noexcept 
 
 const assets::BuildingType* LandMap::building(std::int32_t x, std::int32_t y) const noexcept {
     const std::uint16_t island = island_at(x, y);
-    if (island == World::kSea || island >= m_tiles.size()) {
+    if (island == World::kSea || island >= m_world->islands().size() || m_buildings == nullptr) {
         return nullptr;
     }
     const World::Cell& c = m_world->cell(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
     const IslandMap& map = m_world->islands()[island].map;
-    const std::size_t i = std::size_t{c.local_y} * map.width() + c.local_x;
-    return i < m_tiles[island].size() ? m_tiles[island][i] : nullptr;
+    if (c.local_x >= map.width() || c.local_y >= map.height()) {
+        return nullptr;
+    }
+    const MapCell& top = map.top(c.local_x, c.local_y);
+    return top.empty() ? nullptr : m_buildings->by_sprite(top.sprite);
 }
 
 LandMap::Cell LandMap::cell(std::int32_t x2, std::int32_t y2, std::uint8_t speed_type,

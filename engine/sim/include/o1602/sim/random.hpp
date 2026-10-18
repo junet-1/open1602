@@ -76,10 +76,13 @@ enum class RandomStream : std::uint8_t {
     Count,
 };
 
+/// Seed of the simulation's generators when a game names none.
+inline constexpr std::uint64_t kDefaultSimulationSeed = 1602;
+
 /// The generators of a world, all derived from one seed.
 class RandomStreams {
 public:
-    explicit constexpr RandomStreams(std::uint64_t seed = 1602) noexcept { reseed(seed); }
+    explicit constexpr RandomStreams(std::uint64_t seed = kDefaultSimulationSeed) noexcept { reseed(seed); }
     constexpr void reseed(std::uint64_t seed) noexcept {
         for (std::size_t i = 0; i < m_streams.size(); ++i) {
             m_streams[i] = Random(seed, 0x5DEECE66DULL + i);

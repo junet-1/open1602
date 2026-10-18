@@ -420,7 +420,7 @@ void write_map(Out& out, const World& w, const assets::BuildingTable& buildings)
 core::Result<World> read_map(StateIn& in, const assets::BuildingTable& buildings) {
     const std::uint32_t width = in.u32();
     const std::uint32_t height = in.u32();
-    if (!in.ok() || width == 0 || height == 0 || width > 0xFFFF || height > 0xFFFF) {
+    if (!in.ok() || width == 0 || height == 0 || width > World::kMaxSide || height > World::kMaxSide) {
         return make_error(ErrorCode::InvalidFormat, "save: impossible world size");
     }
     World world(width, height);
@@ -529,17 +529,16 @@ void write_explored(Out& out, const World& w) {
 }
 
 std::vector<Decoded::ExplorePart> read_explored(StateIn& in) {
-    std::vector<Decoded::ExplorePart> list(in.count(8));
-    for (auto& part : list) {
+    std::vector<Decoded::ExplorePart> list;
+    in.list(list, 8, [&](auto& part) {
         part.explored.resize(in.count(1));
         for (std::size_t p = 0; p < part.explored.size(); ++p) {
             part.explored[p] = in.boolean();
         }
-        part.deposit_masks.resize(in.count(4));
-        for (auto& m : part.deposit_masks) {
+        in.list(part.deposit_masks, 4, [&](auto& m) {
             m = in.u32();
-        }
-    }
+        });
+    });
     return list;
 }
 
@@ -954,12 +953,11 @@ Ship get_ship(StateIn& in) {
     s.direction = static_cast<std::uint8_t>(in.u8() & 7U);
     s.health = in.u32();
     s.cannons = in.u8();
-    s.cargo.resize(in.count(7));
-    for (CargoSlot& c : s.cargo) {
+    in.list(s.cargo, 7, [&](CargoSlot& c) {
         c.ware = in.u8();
         c.amount = in.u32();
         c.price = in.u16();
-    }
+    });
     for (RouteStop& stop : s.route.stops) {
         stop.target = get_target(in);
         for (RouteEntry& e : stop.entries) {
@@ -981,12 +979,11 @@ Ship get_ship(StateIn& in) {
     s.for_sale = in.boolean();
     s.sale_factor = in.u16();
     s.trader = in.boolean();
-    s.trader_goods.resize(in.count(7));
-    for (TraderGood& g : s.trader_goods) {
+    in.list(s.trader_goods, 7, [&](TraderGood& g) {
         g.price = in.u16();
         g.age = in.u8();
         g.amount = in.u32();
-    }
+    });
     s.trader_tools_ms = in.u32();
     s.trader_ore_ms = in.u32();
     s.near_island = in.u16();
@@ -1002,10 +999,9 @@ Ship get_ship(StateIn& in) {
     m.duration_us = in.u32();
     m.from_x = in.i32();
     m.from_y = in.i32();
-    m.path.resize(in.count(1));
-    for (std::uint8_t& c : m.path) {
+    in.list(m.path, 1, [&](std::uint8_t& c) {
         c = in.u8();
-    }
+    });
     m.path_index = in.u8();
     m.radius = in.u8();
     m.failures = in.u8();
@@ -1062,35 +1058,31 @@ void write_fleet(Out& out, const World& w) {
 Decoded::FleetPart read_fleet(StateIn& in) {
     Decoded::FleetPart f;
     f.next_ship_id = in.u32();
-    f.discovered.resize(in.count(5));
-    for (auto& [number, players] : f.discovered) {
+    in.list(f.discovered, 5, [&](auto& item) {
+        auto& [number, players] = item;
         number = in.u8();
         players.resize(in.count(1));
         for (std::size_t p = 0; p < players.size(); ++p) {
             players[p] = in.boolean();
         }
-    }
-    f.cities.resize(in.count(12));
-    for (auto& c : f.cities) {
+    });
+    in.list(f.cities, 12, [&](auto& c) {
         c.island = in.u16();
         c.index = in.u8();
-        c.trade.resize(in.count(14));
-        for (City::Trade& t : c.trade) {
+        in.list(c.trade, 14, [&](City::Trade& t) {
             t.sell = in.boolean();
             t.buy = in.boolean();
             t.sell_price = in.u16();
             t.buy_price = in.u16();
             t.keep = in.u32();
             t.limit = in.u32();
-        }
-        c.goodwill.resize(in.count(4));
-        for (std::uint32_t& g : c.goodwill) {
+        });
+        in.list(c.goodwill, 4, [&](std::uint32_t& g) {
             g = in.u32();
-        }
+        });
         c.trader_inbound = in.boolean();
-    }
-    f.yards.resize(in.count(23));
-    for (CostBuilding& b : f.yards) {
+    });
+    in.list(f.yards, 23, [&](CostBuilding& b) {
         b.order = in.u8();
         b.progress = in.u32();
         b.wood = in.u32();
@@ -1101,11 +1093,10 @@ Decoded::FleetPart read_fleet(StateIn& in) {
         b.failed_launches = in.u8();
         b.idle_cycles = in.u8();
         b.fetching = in.boolean();
-    }
-    f.ships.resize(in.count(40));
-    for (Ship& s : f.ships) {
+    });
+    in.list(f.ships, 40, [&](Ship& s) {
         s = get_ship(in);
-    }
+    });
     return f;
 }
 
@@ -1262,12 +1253,10 @@ void write_army(Out& out, const World& w) {
 Decoded::ArmyPart read_army(StateIn& in) {
     Decoded::ArmyPart a;
     a.next_soldier_id = in.u32();
-    a.soldiers.resize(in.count(60));
-    for (Soldier& s : a.soldiers) {
+    in.list(a.soldiers, 60, [&](Soldier& s) {
         s = get_soldier(in);
-    }
-    a.towers.resize(in.count(24));
-    for (Tower& t : a.towers) {
+    });
+    in.list(a.towers, 24, [&](Tower& t) {
         t.island = in.u16();
         t.x = in.u16();
         t.y = in.u16();
@@ -1277,16 +1266,14 @@ Decoded::ArmyPart read_army(StateIn& in) {
         t.next_shot_ms = in.u64();
         t.next_think_us = in.u32();
         t.source_slot = in.u16();
-    }
-    a.damage.resize(in.count(10));
-    for (BuildingDamage& d : a.damage) {
+    });
+    in.list(a.damage, 10, [&](BuildingDamage& d) {
         d.island = in.u16();
         d.x = in.u16();
         d.y = in.u16();
         d.damage = in.u32();
-    }
-    a.hits.resize(in.count(40));
-    for (PendingHit& h : a.hits) {
+    });
+    in.list(a.hits, 40, [&](PendingHit& h) {
         h.due_ms = in.u64();
         h.shooter = get_target(in);
         h.attacker = in.u8();
@@ -1295,34 +1282,31 @@ Decoded::ArmyPart read_army(StateIn& in) {
         h.target = get_target(in);
         h.from_x = in.i32();
         h.from_y = in.i32();
-    }
-    a.ships.resize(in.count(13));
-    for (auto& ship : a.ships) {
+    });
+    in.list(a.ships, 13, [&](auto& ship) {
         ship.id = in.u32();
         ship.sinking = in.boolean();
         ship.next_shot_ms = in.u64();
-    }
-    a.cities.resize(in.count(12));
-    for (auto& city : a.cities) {
+    });
+    in.list(a.cities, 12, [&](auto& city) {
         city.island = in.u16();
         city.index = in.u8();
         city.last_attacked_ms = in.u64();
         city.cursed = in.boolean();
-    }
-    a.castles.resize(in.count(16));
-    for (auto& [weapons, slots] : a.castles) {
+    });
+    in.list(a.castles, 16, [&](auto& item) {
+        auto& [weapons, slots] = item;
         for (std::uint32_t& weapon : weapons) {
             weapon = in.u32();
         }
-        slots.resize(in.count(10));
-        for (CastleSlot& slot : slots) {
+        in.list(slots, 10, [&](CastleSlot& slot) {
             slot.figure = in.u16();
             slot.training = in.boolean();
             slot.armed = in.boolean();
             slot.health = in.u32();
             slot.progress = in.u16();
-        }
-    }
+        });
+    });
     return a;
 }
 
@@ -1393,11 +1377,11 @@ void write_epochs(Out& out, const World& w) {
 Decoded::EpochPart read_epochs(StateIn& in) {
     Decoded::EpochPart e;
     e.phase = static_cast<std::uint8_t>(in.u8() & 7U);
-    e.islands.resize(in.count(2));
-    for (auto& [number, phase] : e.islands) {
+    in.list(e.islands, 2, [&](auto& item) {
+        auto& [number, phase] = item;
         number = in.u8();
         phase = static_cast<std::uint8_t>(in.u8() & 7U);
-    }
+    });
     return e;
 }
 
@@ -1462,18 +1446,18 @@ void write_volcanoes(Out& out, const World& w) {
 
 template <class T>
 std::vector<T> get_u32s(StateIn& in) {
-    std::vector<T> v(in.count(4));
-    for (T& x : v) {
+    std::vector<T> v;
+    in.list(v, 4, [&](T& x) {
         x = static_cast<T>(in.u32());
-    }
+    });
     return v;
 }
 template <class T>
 std::vector<T> get_u8s(StateIn& in) {
-    std::vector<T> v(in.count(1));
-    for (T& x : v) {
+    std::vector<T> v;
+    in.list(v, 1, [&](T& x) {
         x = static_cast<T>(in.u8());
-    }
+    });
     return v;
 }
 
@@ -1507,8 +1491,8 @@ Decoded::WorldPart read_world(StateIn& in) {
 }
 
 std::vector<Decoded::IslandPart> read_islands(StateIn& in) {
-    std::vector<Decoded::IslandPart> list(in.count(2));
-    for (Decoded::IslandPart& i : list) {
+    std::vector<Decoded::IslandPart> list;
+    in.list(list, 2, [&](Decoded::IslandPart& i) {
         i.number = in.u8();
         i.deer_phase = in.u8();
         for (DeerSpot& s : i.deer_spots) {
@@ -1520,42 +1504,40 @@ std::vector<Decoded::IslandPart> read_islands(StateIn& in) {
         i.drought.strength = in.u8();
         i.drought.end_ms = in.u64();
         i.drought.curse_pending = in.boolean();
-        i.craters.resize(in.count(4));
-        for (Crater& c : i.craters) {
+        in.list(i.craters, 4, [&](Crater& c) {
             c.x = in.u8();
             c.y = in.u8();
             c.steps_left = in.u16();
-        }
+        });
         i.volcano_erupted = in.boolean();
-        i.deposits.resize(in.count(7));
-        for (auto& d : i.deposits) {
+        in.list(i.deposits, 7, [&](auto& d) {
             d.ware = in.u8();
             d.x = in.u8();
             d.y = in.u8();
             d.mask = in.u8();
             d.kind = in.u8();
             d.amount = in.u16();
-        }
+        });
         i.fertility = in.u32();
-    }
+    });
     return list;
 }
 
 std::vector<Decoded::TileOverride> read_tiles(StateIn& in, const assets::BuildingTable& buildings) {
-    std::vector<Decoded::TileOverride> list(in.count(17));
-    for (Decoded::TileOverride& t : list) {
+    std::vector<Decoded::TileOverride> list;
+    in.list(list, 17, [&](Decoded::TileOverride& t) {
         t.island = in.u8();
         t.x = in.u16();
         t.y = in.u16();
         t.ground = in.boolean();
         t.cell = get_cell(in, buildings);
-    }
+    });
     return list;
 }
 
 std::vector<Player> read_players(StateIn& in) {
-    std::vector<Player> list(in.count(8));
-    for (Player& p : list) {
+    std::vector<Player> list;
+    in.list(list, 8, [&](Player& p) {
         p.role = static_cast<PlayerRole>(in.u8());
         p.banner = in.u16();
         p.money = in.i32();
@@ -1567,7 +1549,7 @@ std::vector<Player> read_players(StateIn& in) {
         p.arches_built = in.u16();
         p.monuments_allowed = in.u16();
         p.monuments_built = in.u16();
-    }
+    });
     return list;
 }
 
@@ -1581,16 +1563,14 @@ Mission::CityGoal get_city_goal(StateIn& in) {
 
 Decoded::MissionPart read_missions(StateIn& in, std::size_t islands) {
     Decoded::MissionPart part;
-    part.missions.resize(in.count(40));
-    for (Mission& m : part.missions) {
+    in.list(part.missions, 40, [&](Mission& m) {
         m.goals = in.u32();
         m.losses = in.u32();
         m.target = in.u8();
         m.min_defeated = in.u16();
-        m.defeat.resize(in.count(1));
-        for (PlayerId& p : m.defeat) {
+        in.list(m.defeat, 1, [&](PlayerId& p) {
             p = in.u8();
-        }
+        });
         m.min_cities = in.i32();
         m.min_inhabitants = in.i32();
         m.min_balance = in.i32();
@@ -1604,13 +1584,12 @@ Decoded::MissionPart read_missions(StateIn& in, std::size_t islands) {
         }
         for (Mission::IslandGoal& g : m.islands) {
             g.resource = in.u8();
-            g.islands.resize(in.count(2));
-            for (std::uint16_t& i : g.islands) {
+            in.list(g.islands, 2, [&](std::uint16_t& i) {
                 i = in.u16();
                 if (i >= islands) {
                     in.fail();  // the island list and the islands do not belong together
                 }
-            }
+            });
         }
         for (Mission::CityGoal& g : m.cities) {
             g = get_city_goal(in);
@@ -1623,7 +1602,7 @@ Decoded::MissionPart read_missions(StateIn& in, std::size_t islands) {
         if ((m.goals & ~(goal::kKnown | goal::kComputers)) != 0 || (m.losses & ~loss::kKnown) != 0) {
             in.fail();  // goals of a later version
         }
-    }
+    });
     if (in.boolean()) {
         World::GameEnd end;
         end.time_ms = in.u64();
@@ -1634,8 +1613,8 @@ Decoded::MissionPart read_missions(StateIn& in, std::size_t islands) {
 }
 
 std::vector<Player> read_player_state(StateIn& in) {
-    std::vector<Player> list(in.count(23));
-    for (Player& p : list) {
+    std::vector<Player> list;
+    in.list(list, 23, [&](Player& p) {
         p.mission = in.u8();
         const std::uint8_t status = in.u8();
         if (status > static_cast<std::uint8_t>(PlayerStatus::Absent)) {
@@ -1648,24 +1627,24 @@ std::vector<Player> read_player_state(StateIn& in) {
         p.empty_checks = in.u8();
         p.purchases = in.i64();
         p.sales = in.i64();
-    }
+    });
     return list;
 }
 
 std::vector<Decoded::CityStats> read_city_state(StateIn& in) {
-    std::vector<Decoded::CityStats> list(in.count(19));
-    for (Decoded::CityStats& c : list) {
+    std::vector<Decoded::CityStats> list;
+    in.list(list, 19, [&](Decoded::CityStats& c) {
         c.island = in.u16();
         c.index = in.u8();
         c.purchases = in.i64();
         c.sales = in.i64();
-    }
+    });
     return list;
 }
 
 std::vector<City> read_cities(StateIn& in) {
-    std::vector<City> list(in.count(16));
-    for (City& c : list) {
+    std::vector<City> list;
+    in.list(list, 16, [&](City& c) {
         c.island = in.u16();
         c.index = in.u8();
         c.owner = in.u8();
@@ -1684,34 +1663,32 @@ std::vector<City> read_cities(StateIn& in) {
         c.inhabitants = get_u32s<std::uint32_t>(in);
         c.satisfaction = get_u8s<std::uint8_t>(in);
         c.tax_rate = get_u8s<std::uint8_t>(in);
-        c.supply.resize(in.count(20));
-        for (City::Supply& s : c.supply) {
+        in.list(c.supply, 20, [&](City::Supply& s) {
             s.demand = in.u64();
             s.supplied = in.u64();
             s.ratio = in.u8();
             for (std::uint8_t& h : s.history) {
                 h = in.u8();
             }
-        }
+        });
         c.food_ratio = in.u8();
         c.satisfaction_bonus = in.u16();
-        c.upgrade_queue.resize(in.count(8));
-        for (City::UpgradeSlot& u : c.upgrade_queue) {
+        in.list(c.upgrade_queue, 8, [&](City::UpgradeSlot& u) {
             u.inhabitants = in.u32();
             u.x = in.u16();
             u.y = in.u16();
-        }
+        });
         c.epoch = in.u8();
         c.material_lock = in.boolean();
         c.worst_good = in.u8();
         c.next_event_ms = in.u64();
-    }
+    });
     return list;
 }
 
 std::pair<std::vector<Production>, std::vector<std::uint32_t>> read_productions(StateIn& in) {
-    std::vector<Production> list(in.count(26));
-    for (Production& p : list) {
+    std::vector<Production> list;
+    in.list(list, 26, [&](Production& p) {
         p.island = in.u16();
         p.x = in.u16();
         p.y = in.u16();
@@ -1728,7 +1705,7 @@ std::pair<std::vector<Production>, std::vector<std::uint32_t>> read_productions(
         p.produced = in.u16();
         p.elapsed = in.u16();
         p.reserved = in.u16();
-    }
+    });
     std::vector<std::uint32_t> free = get_u32s<std::uint32_t>(in);
     for (const std::uint32_t f : free) {
         if (f >= list.size() || list[f].used) {
@@ -1739,8 +1716,8 @@ std::pair<std::vector<Production>, std::vector<std::uint32_t>> read_productions(
 }
 
 std::vector<House> read_houses(StateIn& in) {
-    std::vector<House> list(in.count(20));
-    for (House& h : list) {
+    std::vector<House> list;
+    in.list(list, 20, [&](House& h) {
         h.island = in.u16();
         h.x = in.u16();
         h.y = in.u16();
@@ -1754,81 +1731,80 @@ std::vector<House> read_houses(StateIn& in) {
         h.market = in.boolean();
         h.services_complete = in.boolean();
         h.services = in.u16();
-    }
+    });
     return list;
 }
 
 std::vector<GrowthEntry> read_growth(StateIn& in) {
-    std::vector<GrowthEntry> list(in.count(9));
-    for (GrowthEntry& e : list) {
+    std::vector<GrowthEntry> list;
+    in.list(list, 9, [&](GrowthEntry& e) {
         e.island = in.u16();
         e.x = in.u16();
         e.y = in.u16();
         e.growth_class = in.u8();
         e.seen = in.u8();
         e.stage = in.u8();
-    }
+    });
     return list;
 }
 
 std::vector<CostBuilding> read_costs(StateIn& in) {
-    std::vector<CostBuilding> list(in.count(8));
-    for (CostBuilding& b : list) {
+    std::vector<CostBuilding> list;
+    in.list(list, 8, [&](CostBuilding& b) {
         b.kind = static_cast<CostBuilding::Kind>(in.u8());
         b.island = in.u16();
         b.x = in.u16();
         b.y = in.u16();
         b.enabled = in.boolean();
-    }
+    });
     return list;
 }
 
 std::vector<Ship> read_ships(StateIn& in) {
-    std::vector<Ship> list(in.count(14));
-    for (Ship& s : list) {
+    std::vector<Ship> list;
+    in.list(list, 14, [&](Ship& s) {
         s.name = in.string();
         s.x = in.u16();
         s.y = in.u16();
         s.figure = in.u16();
         s.owner = in.u8();
         s.direction = in.u8();
-        s.cargo.resize(in.count(5));
-        for (CargoSlot& c : s.cargo) {
+        in.list(s.cargo, 5, [&](CargoSlot& c) {
             c.ware = in.u8();
             c.amount = in.u32();
-        }
+        });
         s.place(s.x, s.y);
-    }
+    });
     return list;
 }
 
 std::vector<Soldier> read_soldiers(StateIn& in) {
-    std::vector<Soldier> list(in.count(21));
-    for (Soldier& s : list) {
-        s.pos_x = static_cast<std::int32_t>(in.real() * kPosUnit);
-        s.pos_y = static_cast<std::int32_t>(in.real() * kPosUnit);
+    std::vector<Soldier> list;
+    in.list(list, 21, [&](Soldier& s) {
+        s.pos_x = in.real_fixed(kPosUnit);
+        s.pos_y = in.real_fixed(kPosUnit);
         s.figure = in.u16();
         s.owner = in.u8();
         s.direction = in.u8();
         s.anim = in.u8();
-    }
+    });
     return list;
 }
 
 std::vector<Animal> read_animals(StateIn& in) {
-    std::vector<Animal> list(in.count(8));
-    for (Animal& a : list) {
+    std::vector<Animal> list;
+    in.list(list, 8, [&](Animal& a) {
         a.island = in.u16();
         a.x = in.u16();
         a.y = in.u16();
         a.figure = in.u16();
-    }
+    });
     return list;
 }
 
 std::vector<Disaster> read_disasters(StateIn& in) {
-    std::vector<Disaster> list(in.count(13));
-    for (Disaster& d : list) {
+    std::vector<Disaster> list;
+    in.list(list, 13, [&](Disaster& d) {
         d.kind = static_cast<Disaster::Kind>(in.u8());
         d.island = in.u16();
         d.x = in.u16();
@@ -1836,7 +1812,7 @@ std::vector<Disaster> read_disasters(StateIn& in) {
         d.elapsed = in.u8();
         d.duration = in.u8();
         d.id = in.u32();
-    }
+    });
     return list;
 }
 
@@ -1856,15 +1832,13 @@ VolcanoState read_volcanoes(StateIn& in) {
     if (has_last) {
         v.last = last;
     }
-    v.eruptions.resize(in.count(15));
-    for (Eruption& e : v.eruptions) {
+    in.list(v.eruptions, 15, [&](Eruption& e) {
         e.crater = get_crater(in);
         e.seed = in.u16();
         e.step = in.u8();
         e.next_us = in.u64();
-    }
-    v.lava.resize(in.count(86));
-    for (LavaLump& p : v.lava) {
+    });
+    in.list(v.lava, 86, [&](LavaLump& p) {
         p.island = in.u16();
         for (std::int64_t* q : {&p.x, &p.y, &p.z, &p.dx, &p.dy, &p.dz, &p.speed}) {
             *q = in.i64();
@@ -1876,7 +1850,7 @@ VolcanoState read_volcanoes(StateIn& in) {
         p.tilt = in.u8();
         p.grounded = in.boolean();
         p.anim = in.u8();
-    }
+    });
     return v;
 }
 
@@ -2220,7 +2194,7 @@ std::optional<std::pair<std::uint32_t, std::uint32_t>> map_size(const assets::Ch
     core::ByteReader in(file.payload(*c));
     const auto w = in.u32();
     const auto h = in.u32();
-    if (!w || !h || *w == 0 || *h == 0 || *w > 0xFFFF || *h > 0xFFFF) {
+    if (!w || !h || *w == 0 || *h == 0 || *w > World::kMaxSide || *h > World::kMaxSide) {
         return std::nullopt;
     }
     return std::pair{*w, *h};

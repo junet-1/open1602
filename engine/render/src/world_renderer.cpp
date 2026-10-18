@@ -1039,7 +1039,11 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             const sim::SubTile sub = map->sub_tile(buildings, lx, ly);
             const sim::Production* state = world.production(island, static_cast<std::uint16_t>(sub.origin_x),
                                                             static_cast<std::uint16_t>(sub.origin_y));
-            frame = production_frame(*b, clock.frame(*b), state);
+            std::optional<std::uint8_t> phase;
+            if (state != nullptr && layers.production_phases != nullptr) {
+                phase = layers.production_phases->get(static_cast<std::size_t>(state - world.productions().data()));
+            }
+            frame = production_frame(*b, clock.frame(*b), state, phase);
         } else {
             frame = default_frame(cell, *b, clock.frame(*b));
         }

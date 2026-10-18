@@ -566,25 +566,30 @@ void Military::save(core::ByteWriter& out) const {
 }
 
 bool Military::load(core::ByteReader& in) {
+    // Read whole first, then taken over: a failed load leaves the clocks as they were.
     const auto regen = in.u32();
     if (!regen) {
         return false;
     }
-    m_regen_ms = *regen % kRegenEpochMs;
+    std::uint32_t castle_ms = m_castle_ms;
+    std::uint32_t native_ticks = m_native_ticks;
     if (!in.at_end()) {
         const auto castle = in.u32();
         if (!castle) {
             return false;
         }
-        m_castle_ms = *castle % kCastleSecondMs;
+        castle_ms = *castle % kCastleSecondMs;
     }
     if (!in.at_end()) {
         const auto ticks = in.u32();
         if (!ticks) {
             return false;
         }
-        m_native_ticks = *ticks;
+        native_ticks = *ticks;
     }
+    m_regen_ms = *regen % kRegenEpochMs;
+    m_castle_ms = castle_ms;
+    m_native_ticks = native_ticks;
     return true;
 }
 

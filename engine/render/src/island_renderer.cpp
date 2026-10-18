@@ -32,7 +32,7 @@ bool has_production_animation(const assets::BuildingType& building) {
 }
 
 std::uint32_t production_frame(const assets::BuildingType& building, std::uint32_t global_frame,
-                               const sim::Production* production) {
+                               const sim::Production* production, std::optional<std::uint8_t> phase) {
     const std::uint32_t count = building.anim_count;
     if (count < 2) {
         return 0;
@@ -53,7 +53,8 @@ std::uint32_t production_frame(const assets::BuildingType& building, std::uint32
     }
     std::uint32_t frame = global_frame;  // 0x0047CD10: no state -> the global frame alone
     if (production != nullptr) {
-        frame = production->anim_phase + (production->enabled && production->working() ? global_frame : 0);
+        frame =
+            phase.value_or(production->anim_phase) + (production->enabled && production->working() ? global_frame : 0);
     }
     return frame % count;
 }

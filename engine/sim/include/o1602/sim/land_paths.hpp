@@ -33,7 +33,11 @@ public:
         Wall,  ///< blocked, and blocks shots (buildings, walls, trees, rocks: NoShotFlg)
     };
 
+    /// The map reads the islands' tiles directly, so it cannot go stale when a tile changes without
+    /// a construction event (houses falling to ruins, fire, lava): what a soldier sees is always
+    /// what a freshly loaded game sees (ADR 0004).
     void rebuild(const World& world, const assets::BuildingTable& buildings);
+    /// Kept for the callers that announce a changed island; the map holds nothing to update.
     void update_island(const World& world, const assets::BuildingTable& buildings, std::uint16_t island);
 
     /// Cell kind at world half tile (x2, y2); `cost` gets the Wegspeed of the tile for `speed_type`.
@@ -46,8 +50,7 @@ public:
 
 private:
     const World* m_world = nullptr;
-    /// Per island: the building on top of each tile (nullptr = empty).
-    std::vector<std::vector<const assets::BuildingType*>> m_tiles;
+    const assets::BuildingTable* m_buildings = nullptr;
 };
 
 /// HAUS kinds soldiers walk on (0x0046F460).

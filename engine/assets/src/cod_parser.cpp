@@ -7,7 +7,6 @@
 #include "o1602/assets/cod_parser.hpp"
 
 #include <algorithm>
-#include <cstdlib>
 #include <limits>
 #include <set>
 
@@ -65,6 +64,49 @@ namespace {
 // Character classes of the MSVC "C" locale as used by the original (_pctype masks).
 
 constexpr int kEnd = -1;
+
+/// Digits as the original's strtol() reads them, where long has 32 bits: a value beyond the range
+/// stays at 0x7FFFFFFF. Not strtol() itself, whose long has 64 bits on Linux and macOS.
+std::int32_t parse_digits(const std::string& digits, int base) {
+    constexpr std::int64_t kMax = std::numeric_limits<std::int32_t>::max();
+    std::int64_t v = 0;
+    for (const char d : digits) {
+        const int digit = d <= '9' ? d - '0' : (d | 0x20) - 'a' + 10;
+        v = std::min(v * base + digit, kMax + 1);
+    }
+    return static_cast<std::int32_t>(std::min(v, kMax));
+}
+
+/// `digits.digits` without strtod(), which reads the decimal point of the locale. Up to 15
+/// significant digits this is one exact division and so rounds like strtod() (Clinger's fast
+/// path); digits beyond are dropped, the same on every platform.
+double parse_real(const std::string& digits) {
+    constexpr std::uint64_t kExact = std::uint64_t{1} << 53;
+    std::uint64_t mantissa = 0;
+    int scale = 0;
+    bool fraction = false;
+    double big = 0.0;  // integer parts beyond 2^53: no COD file has them, but they must not wrap
+    for (const char d : digits) {
+        if (d == '.') {
+            fraction = true;
+            continue;
+        }
+        if (mantissa < kExact / 10 && scale < 22) {
+            mantissa = mantissa * 10 + static_cast<std::uint64_t>(d - '0');
+            scale += fraction ? 1 : 0;
+        } else if (!fraction) {
+            big = (big == 0.0 ? static_cast<double>(mantissa) : big) * 10.0;
+        }
+    }
+    if (big != 0.0) {
+        return big;
+    }
+    double power = 1.0;
+    for (int i = 0; i < scale; ++i) {
+        power *= 10.0;  // exact up to 10^22
+    }
+    return static_cast<double>(mantissa) / power;
+}
 
 bool is_alpha(int c) {
     return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
@@ -150,8 +192,8 @@ public:
                         digits.push_back(static_cast<char>(c));
                         c = get();
                     }
-                    const long v = std::strtol(digits.c_str(), nullptr, hex ? 16 : 2);
-                    st.tokens.push_back(number_token(op, static_cast<std::int32_t>(v), static_cast<double>(v)));
+                    const std::int32_t v = parse_digits(digits, hex ? 16 : 2);
+                    st.tokens.push_back(number_token(op, v, static_cast<double>(v)));
                     break;
                 }
                 case '&':
@@ -344,14 +386,14 @@ private:
                 digits.push_back(static_cast<char>(c));
                 c = get();
             }
-            const double real = std::strtod(digits.c_str(), nullptr);
+            const double real = parse_real(digits);
             // ftol(): truncation toward zero
             const double clamped = std::clamp(real, static_cast<double>(std::numeric_limits<std::int32_t>::min()),
                                               static_cast<double>(std::numeric_limits<std::int32_t>::max()));
             st.tokens.push_back(number_token(op, static_cast<std::int32_t>(clamped), real));
         } else {
-            const long v = std::strtol(digits.c_str(), nullptr, 10);
-            st.tokens.push_back(number_token(op, static_cast<std::int32_t>(v), static_cast<double>(v)));
+            const std::int32_t v = parse_digits(digits, 10);
+            st.tokens.push_back(number_token(op, v, static_cast<double>(v)));
         }
         return c;
     }

@@ -162,8 +162,11 @@ private:
     /// program runs (F9); the game goes on as it was if the file cannot be read.
     core::Status load_game(const std::filesystem::path& path);
     /// The game goes on in another world (a savegame, a scenario, a new game): everything of the old
-    /// one goes, the simulation starts anew on it.
-    void replace_world(sim::World world);
+    /// one goes, the simulation starts anew on it. noexcept: m_simulation is rebuilt in place, and
+    /// a failure halfway (out of memory) must end the program, not leave a destroyed simulation.
+    void replace_world(sim::World world) noexcept;
+    /// Tells (on stderr) that a savegame's simulation state was damaged (Simulation::state_damaged).
+    void warn_if_state_damaged() const;
     /// What the main menu asked for this frame.
     void apply_menu();
     /// A new endless game of `level` (from the menu): name and banner of the human.
@@ -287,10 +290,10 @@ private:
 
     render::Camera m_camera;
     render::AnimationClock m_clock;
-    std::vector<render::DrawCommand> m_commands;  ///< reused every frame
+    render::ProductionPhases m_production_phases;  ///< animation phases, presentation only
+    std::vector<render::DrawCommand> m_commands;   ///< reused every frame
 
     bool m_running = true;
-    bool m_paused = false;
     bool m_show_owners = false;  ///< ownership overlay (key O)
     bool m_dragging = false;
     double m_drag_distance = 0.0;  ///< mouse travel while the right button is held (a click if small)

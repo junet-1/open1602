@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cstdint>
-#include <deque>
 #include <functional>
 #include <optional>
 #include <string>
@@ -74,14 +73,35 @@ struct CityOrder {
     std::string name;
 };
 
+/// Game speed and pause (ADR 0004): commands like every other action, so that all computers of a
+/// game and a replay run at the same pace and pause at the same tick.
+struct GameSpeedOrder {
+    enum class Op : std::uint8_t {
+        SetSpeed,  ///< `speed`, 1 to Rules::max_game_speed
+        Pause,     ///< the game stands still from this tick on; commands are still carried out
+        Resume,
+    };
+    PlayerId player = kNoPlayer;
+    Op op = Op::SetSpeed;
+    std::uint32_t speed = 1;
+};
+
+/// The name of a player (the original asks for it when a game starts, 0x0048A680).
+struct PlayerRename {
+    static constexpr std::size_t kMaxNameLength = 40;
+    PlayerId player = kNoPlayer;
+    std::string name;  ///< 1 to kMaxNameLength bytes (Windows-1252)
+};
+
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
 using Command = std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting,
                              ShipyardOrder, ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder,
-                             UnloadOrder, ProductionSwitch, CityOrder, ShipCommand>;
+                             UnloadOrder, ProductionSwitch, CityOrder, ShipCommand, GameSpeedOrder, PlayerRename>;
 
 /// What became of a command.
 struct CommandResult {
-    std::uint64_t sequence = 0;      ///< as returned by Simulation::submit()
+    std::uint64_t sequence = 0;      ///< as returned by Simulation::submit() or schedule()
+    bool late = false;               ///< refused: its tick had already run when it arrived
     std::optional<BuildPlan> build;  ///< build orders: what was built and why the rest was not
     std::size_t demolished = 0;      ///< demolish orders: buildings removed
     BuildBill refund;                ///< demolish orders: what came back (Rules::demolish_refund)
@@ -104,12 +124,24 @@ public:
     /// Commands are applied even while the game is paused (the player may build then).
     void advance(std::uint32_t real_ms);
 
-    /// Queues a command for the start of the next tick; returns its sequence number.
-    std::uint64_t submit(Command command);
-    /// Applies the queued commands now (the start of a tick does this).
+    /// Queues a command for the start of the next tick; returns its sequence number. This is the
+    /// way in for the players (interface, later the network): a command must name the player who
+    /// gives it, one of the world's players, or it is refused without effect. kNoPlayer, which the
+    /// handlers take as "any owner", is left to execute() for the game's own actors.
+    std::uint64_t submit(Command command) { return schedule(next_tick(), std::move(command)); }
+    /// Queues a command for the start of tick `tick` (ADR 0004): in a multiplayer game every computer
+    /// schedules the commands of all players for the same tick, a few ticks ahead so that they
+    /// arrive in time. Commands of one tick are carried out by player, and those of one player in
+    /// the order they were scheduled, so the order does not depend on the network. A command for a
+    /// tick that has already run is refused (CommandResult::late): the game would have diverged.
+    std::uint64_t schedule(std::uint64_t tick, Command command);
+    /// The number of the tick that runs next; ticks are counted from the start of the game.
+    [[nodiscard]] std::uint64_t next_tick() const noexcept { return m_time_ms / kTickMs; }
+    /// Applies the queued commands that are due (the start of a tick does this).
     void apply_commands();
     /// Carries out one command at once, as if it had been queued (the computer players act this way
-    /// within a tick). The result is returned, not kept for take_command_results().
+    /// within a tick). The result is returned, not kept for take_command_results(). Unlike submit()
+    /// it takes kNoPlayer as acting for every owner (tools, tests).
     CommandResult execute(const Command& command);
     /// Results of the applied commands since the last call.
     [[nodiscard]] std::vector<CommandResult> take_command_results();
@@ -123,9 +155,12 @@ public:
     /// being part of it, such as the townsfolk of render::Ambient. It must not change the world.
     void set_tick_observer(std::function<void(const World&)> observer) { m_tick_observer = std::move(observer); }
 
-    /// Game speed factor (1 = normal, up to Rules::max_game_speed); 0 pauses.
+    /// Game speed factor (1 = normal, up to Rules::max_game_speed); 0 pauses. For tools and tests;
+    /// a running game changes the speed with a GameSpeedOrder.
     void set_speed(std::uint32_t speed) noexcept;
     [[nodiscard]] std::uint32_t speed() const noexcept { return m_speed; }
+    /// Paused by a GameSpeedOrder: no ticks run, commands are still carried out.
+    [[nodiscard]] bool paused() const noexcept { return m_paused; }
 
     [[nodiscard]] std::uint64_t game_time_ms() const noexcept { return m_time_ms; }
     [[nodiscard]] const World& world() const noexcept { return *m_world; }
@@ -161,6 +196,15 @@ public:
     /// Clocks and figures for Open1602's own savegame chunk (savegame_extension.hpp). A Simulation
     /// built on a world that carries such state continues from it.
     void save_state(core::ByteWriter& out) const;
+    /// The world carried a state of the running game that could not be read (damaged, or of a
+    /// newer Open1602): the game starts from the world alone, as after loading an original
+    /// savegame, and so does not continue exactly as it was saved. Worth telling the player.
+    [[nodiscard]] bool state_damaged() const noexcept { return m_state_damaged; }
+    /// A fingerprint of the whole game (FNV-1a 64 over the uncompressed savegame): equal on every
+    /// computer of a multiplayer game after the same tick, or the games have diverged. Exchanged
+    /// every few seconds, not every tick, as it costs a full save. Nothing if the game cannot be
+    /// written.
+    [[nodiscard]] std::optional<std::uint64_t> state_hash() const;
 
     /// Eruptions and what the lava hit since the last call.
     [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events();
@@ -175,6 +219,8 @@ private:
     void defeat(PlayerId player, GameEvent::Reason reason, bool blame);
     bool switch_production(const ProductionSwitch& s);
     bool city_order(const CityOrder& order);
+    bool game_speed(const GameSpeedOrder& order);
+    bool rename_player(const PlayerRename& order);
     bool restore_state(const std::vector<std::uint8_t>& state);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 
@@ -182,6 +228,8 @@ private:
     const assets::BuildingTable* m_buildings;
     Rules m_rules;
     std::uint32_t m_speed = 1;
+    bool m_paused = false;
+    bool m_state_damaged = false;
     std::uint64_t m_time_ms = 0;
     std::uint32_t m_pending_ms = 0;     ///< game time not yet run as a tick
     std::uint32_t m_production_ms = 0;  ///< game time since the last production second
@@ -205,7 +253,12 @@ private:
     Military m_military;
     std::vector<MilitaryEvent> m_military_events;
     ComputerPlayers m_ai;
-    std::deque<std::pair<std::uint64_t, Command>> m_commands;
+    struct Queued {
+        std::uint64_t tick;
+        std::uint64_t sequence;
+        Command command;
+    };
+    std::vector<Queued> m_commands;  ///< sorted by tick, then player, then as scheduled
     std::uint64_t m_next_command = 1;
     std::vector<CommandResult> m_command_results;
     std::vector<ConstructionEvent> m_construction_events;

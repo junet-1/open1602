@@ -4,6 +4,7 @@ add_executable(o1602_tests
     test_main.cpp
     unit/test_assets.cpp
     unit/test_cod_parser.cpp
+    unit/test_commands.cpp
     unit/test_island_render.cpp
     unit/test_world_render.cpp
     unit/test_players_ships.cpp
@@ -44,6 +45,7 @@ add_executable(o1602_tests
     data/test_audio_data.cpp
     data/test_ui_data.cpp
     data/test_video_data.cpp
+    data/test_save_continuity.cpp
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render o1602::audio o1602::ui o1602::video)
 o1602_set_warnings(o1602_tests)

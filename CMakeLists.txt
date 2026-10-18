@@ -13,6 +13,11 @@ if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are not allowed. Use a build directory or a CMake preset.")
 endif()
 
+# Open1602 runs on 64-bit systems only (project decision of 18.10.2026).
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "Open1602 needs a 64-bit target; 32-bit builds are not supported.")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

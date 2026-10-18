@@ -2,6 +2,7 @@
 // Unit tests for the asset loaders using small synthetic files (no original data needed).
 
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -12,6 +13,7 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
+#include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
 
 using namespace o1602;
@@ -189,4 +191,30 @@ TEST_CASE("islands: header and INSELHAUS tiles") {
     CHECK(island.layers[0][0].x == 3);
     CHECK(island.layers[0][0].y == 4);
     CHECK(island.layers[0][0].bits == 0xDEADBEEF);
+}
+
+TEST_CASE("file: a full disk is an error, and an atomic write keeps the old file then") {
+    namespace fs = std::filesystem;
+    if (fs::exists("/dev/full")) {
+        // Every write to /dev/full fails with "no space left"; before the file is closed the data
+        // may still sit in a buffer.
+        const std::vector<std::uint8_t> data(100, 7);
+        CHECK(!core::write_file("/dev/full", data).ok());
+    }
+    const fs::path dir = fs::temp_directory_path() / "o1602_test_atomic";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    REQUIRE(fs::create_directories(dir));
+    const fs::path file = dir / "game.o1602";
+    const std::vector<std::uint8_t> first = {1, 2, 3};
+    const std::vector<std::uint8_t> second = {4, 5, 6, 7};
+    REQUIRE(core::write_file_atomic(file, first).ok());
+    REQUIRE(core::write_file_atomic(file, second).ok());
+    CHECK(*core::read_file(file) == second);
+    CHECK(!fs::exists(dir / "game.o1602.tmp"));
+    // A target that cannot be replaced (a folder of that name): nothing left behind.
+    REQUIRE(fs::create_directories(dir / "folder.o1602" / "inside"));
+    CHECK(!core::write_file_atomic(dir / "folder.o1602", first).ok());
+    CHECK(!fs::exists(dir / "folder.o1602.tmp"));
+    fs::remove_all(dir, ec);
 }

@@ -366,6 +366,9 @@ public:
     static constexpr std::uint32_t kOriginalWidth = 500;
     static constexpr std::uint32_t kOriginalHeight = 350;
     static constexpr std::uint16_t kSea = 0xFFFF;
+    /// Open1602's limit per side: 4096 x 4096 tiles take 100 MB. A file that names more is refused
+    /// before anything is allocated (the world generator stays below, WorldSettings::kMaxSide).
+    static constexpr std::uint32_t kMaxSide = 4096;
 
     explicit World(std::uint32_t width = kOriginalWidth, std::uint32_t height = kOriginalHeight);
 

@@ -308,12 +308,14 @@ bool player_has_city(const World& world, std::uint16_t island, PlayerId player) 
 /// A soldier stands on the footprint (0x00442980). Open1602 also counts a soldier that is just
 /// stepping on (S-015).
 bool unit_in_the_way(const World& world, const WorldIsland& island, const Footprint& f) {
+    // Half a tile around the footprint, in the soldiers' fixed point units (ADR 0004).
+    constexpr std::int64_t kHalf = kPosUnit / 2;
+    const std::int64_t left = (std::int64_t{island.x} + f.x) * kPosUnit - kHalf;
+    const std::int64_t top = (std::int64_t{island.y} + f.y) * kPosUnit - kHalf;
+    const std::int64_t right = (std::int64_t{island.x} + f.x + f.w) * kPosUnit + kHalf;
+    const std::int64_t bottom = (std::int64_t{island.y} + f.y + f.h) * kPosUnit + kHalf;
     for (const Soldier& s : world.soldiers()) {
-        const double lx = s.x() - island.x;
-        const double ly = s.y() - island.y;
-        const double x0 = f.x;
-        const double y0 = f.y;
-        if (lx >= x0 - 0.5 && ly >= y0 - 0.5 && lx < x0 + f.w + 0.5 && ly < y0 + f.h + 0.5) {
+        if (s.pos_x >= left && s.pos_y >= top && s.pos_x < right && s.pos_y < bottom) {
             return true;
         }
     }

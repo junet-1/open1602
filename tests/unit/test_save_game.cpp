@@ -9,6 +9,7 @@
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/core/compress.hpp"
 #include "o1602/sim/save_game.hpp"
+#include "o1602/sim/state_io.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -195,4 +196,84 @@ TEST_CASE("save game: a damaged, cut off or newer file loads nothing") {
     const auto without_house = make_buildings(false);
     auto r4 = sim::read_game(*bytes, without_house);
     CHECK(!r4.ok());
+}
+
+TEST_CASE("save game: unpacking follows the data, not what the header promises") {
+    if (!core::has_zlib()) {
+        SKIP("no zlib");
+    }
+    std::vector<std::uint8_t> data(3'000'000);
+    for (std::size_t i = 0; i < data.size(); ++i) {
+        data[i] = static_cast<std::uint8_t>(i * 7 / 1000);
+    }
+    auto packed = core::zlib_deflate(data);
+    REQUIRE(packed.ok());
+    auto back = core::zlib_inflate(*packed, data.size());
+    REQUIRE(back.ok());
+    CHECK(*back == data);
+    CHECK(!core::zlib_inflate(*packed, data.size() - 1).ok());  // more data than promised
+    CHECK(!core::zlib_inflate(*packed, data.size() + 1).ok());  // less
+    const std::vector<std::uint8_t> cut(packed->begin(), packed->end() - 10);
+    CHECK(!core::zlib_inflate(cut, data.size()).ok());
+    // A 2 GiB promise from a few bytes is refused before anything is allocated.
+    CHECK(!core::zlib_inflate(std::span(packed->data(), 33), std::size_t{1} << 31).ok());
+    auto empty = core::zlib_deflate({});
+    REQUIRE(empty.ok());
+    auto none = core::zlib_inflate(*empty, 0);
+    REQUIRE(none.ok());
+    CHECK(none->empty());
+}
+
+TEST_CASE("save game: a list grows with the records the data holds, not with its count") {
+    // A count of a million records of 2 bytes each, followed by three bytes.
+    const std::vector<std::uint8_t> data = {0x40, 0x42, 0x0F, 0x00, 1, 0, 2};
+    core::ByteReader reader(data);
+    sim::StateIn in(reader);
+    std::vector<std::uint64_t> list;
+    in.list(list, 2, [&](std::uint64_t& v) { v = in.u16(); });
+    CHECK(!in.ok());
+    CHECK(list.empty());  // the count does not fit: nothing is allocated
+
+    const std::vector<std::uint8_t> two = {2, 0, 0, 0, 5, 0, 6, 0};
+    core::ByteReader reader2(two);
+    sim::StateIn in2(reader2);
+    in2.list(list, 2, [&](std::uint64_t& v) { v = in2.u16(); });
+    CHECK(in2.ok());
+    REQUIRE(list.size() == 2);
+    CHECK(list[1] == 6);
+}
+
+TEST_CASE("save game: an island far outside the world or a world beyond the limit is refused") {
+    const auto buildings = make_buildings();
+    sim::World world(100, 100);
+    for (const auto& [x, y] : {std::pair{0xFFFFFFFFU, 0U}, std::pair{0U, 0xFFFFFFFFU}, std::pair{99U, 0U}}) {
+        sim::IslandMap map(2, 2);
+        sim::WorldIsland island{assets::IslandHeader{}, std::move(map), x, y};
+        CHECK(!world.add_island(std::move(island)).ok());
+    }
+    CHECK(world.islands().empty());
+
+    // MAPW naming a world of 65535 x 65535 tiles (25 GB): refused, nothing allocated.
+    core::ByteWriter sections;
+    sections.bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>("MAPW"), 4));
+    sections.u16(1);
+    sections.u16(0);
+    sections.u32(12);
+    sections.u32(0xFFFF);
+    sections.u32(0xFFFF);
+    sections.u32(0);
+    const core::Bytes body = sections.take();
+    core::ByteWriter file;
+    file.bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>("OPEN1602"), 8));
+    file.u16(1);
+    file.u16(0);
+    file.u32(0);
+    file.u64(body.size());
+    file.u32(core::crc32(body));
+    file.u32(static_cast<std::uint32_t>(body.size()));
+    file.bytes(body);
+    const core::Bytes bytes = file.take();
+    auto loaded = sim::read_game(bytes, buildings);
+    REQUIRE(!loaded.ok());
+    CHECK(loaded.error().message.find("world size") != std::string::npos);
 }

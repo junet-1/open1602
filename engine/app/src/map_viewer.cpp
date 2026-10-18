@@ -200,7 +200,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                                                         std::optional<std::pair<double, double>> tile,
                                                         std::optional<sim::PlayerId> about) {
         if ((flags & audio::kMessageNormalSpeed) != 0 && self->m_simulation.speed() > 1) {
-            self->m_simulation.set_speed(1);  // fires, plagues and attacks: back to normal speed (0x004893F0)
+            // Fires, plagues and attacks: back to normal speed (0x004893F0), as a command like any
+            // other change of the speed.
+            self->m_simulation.submit(sim::GameSpeedOrder{self->m_local_player, sim::GameSpeedOrder::Op::SetSpeed, 1});
         }
         if (self->m_hud) {
             // The icon in the colour of the player the message is about (a rival's new city).
@@ -278,10 +280,21 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_clock(m_buildings),
       m_tool(m_buildings) {
     setup_keys();
+    warn_if_state_damaged();
+}
+
+void MapViewer::warn_if_state_damaged() const {
+    if (m_simulation.state_damaged()) {
+        std::fprintf(stderr, "warning: the savegame's running state could not be read; the game continues "
+                             "from the world alone (computer players, walkers and clocks start anew)\n");
+    }
 }
 
 MapViewer::~MapViewer() {
-    // GPU resources must go before the renderer/window, which go before SDL_Quit.
+    // GPU resources must go before the renderer/window, which go before SDL_Quit: the textures of
+    // the video and the HUD as well as the world's sprites.
+    m_video.reset();
+    m_hud.reset();
     for (auto& g : m_graphics) {
         g.reset();
     }
@@ -654,10 +667,9 @@ void MapViewer::update(std::uint32_t delta_ms) {
     if (m_units.prune(m_world)) {
         selection_changed(false);
     }
-    if (m_paused) {
-        m_simulation.apply_commands();  // building is possible while paused
-    } else {
-        m_simulation.advance(delta_ms);
+    // While the game is paused this only carries out the commands (building is possible then).
+    m_simulation.advance(delta_ms);
+    if (!m_simulation.paused()) {
         place_listener();
         apply_production_events();
         apply_game_events();
@@ -793,6 +805,15 @@ void MapViewer::apply_construction() {
     const bool changed = !events.empty();
     m_sound->construction(m_world, events);
     for (const sim::ConstructionEvent& e : events) {
+        // A production entry that was freed or taken by a new building starts from its saved phase.
+        if (e.kind == sim::ConstructionEvent::Kind::Removed && e.production) {
+            m_production_phases.forget(*e.production);
+        } else if (e.kind == sim::ConstructionEvent::Kind::Placed && e.x >= 0 && e.y >= 0) {
+            if (const auto index = m_world.production_index(e.island, static_cast<std::uint16_t>(e.x),
+                                                            static_cast<std::uint16_t>(e.y))) {
+                m_production_phases.forget(*index);
+            }
+        }
         if (e.kind == sim::ConstructionEvent::Kind::CityFounded) {
             if (const sim::City* c = m_world.city(e.island, e.city)) {
                 std::fprintf(stderr, "a new city was founded: %s\n", c->name.c_str());
@@ -825,6 +846,7 @@ render::WorldLayers MapViewer::world_layers(const ZoomGraphics& graphics) const 
     layers.owner_tint = m_show_owners;
     layers.building_figures = &m_building_figures;
     layers.local_player = m_local_player;
+    layers.production_phases = &m_production_phases;
     return layers;
 }
 
@@ -847,14 +869,31 @@ void MapViewer::render() {
         render::WorldLayers layers = world_layers(*graphics);
         collect_effects();
         layers.effects = &m_effects;
-        // The building the tool would place, drawn into the map for this frame only.
+        // The building the tool would place, drawn into the map for this frame only. The guard puts
+        // back every cell whole (random bits included) even if drawing throws, so that the world and
+        // with it the savegame never depend on where the mouse was (ADR 0004).
         struct Saved {
             std::uint16_t island;
             std::uint32_t x;
             std::uint32_t y;
             sim::MapCell cell;
         };
-        std::vector<Saved> saved;
+        struct PreviewGuard {
+            sim::World& world;
+            std::vector<Saved> cells;
+            explicit PreviewGuard(sim::World& w) : world(w) {}
+            PreviewGuard(const PreviewGuard&) = delete;
+            PreviewGuard& operator=(const PreviewGuard&) = delete;
+            ~PreviewGuard() { restore(); }
+            void restore() noexcept {
+                for (auto it = cells.rbegin(); it != cells.rend(); ++it) {
+                    world.island(it->island).map.set_top_cell(it->x, it->y, it->cell);
+                }
+                cells.clear();
+            }
+        };
+        PreviewGuard preview{m_world};
+        std::vector<Saved>& saved = preview.cells;
         m_tool_status.clear();
         m_pending_bill.reset();
         m_tile_marks.clear();
@@ -927,13 +966,7 @@ void MapViewer::render() {
         }
         render::build_world_draw_list(m_world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(), layers,
                                       m_commands);
-        for (auto it = saved.rbegin(); it != saved.rend(); ++it) {
-            sim::IslandMap& map = m_world.island(it->island).map;
-            map.set_sprite(it->x, it->y, it->cell.sprite);
-            map.set_city(it->x, it->y, it->cell.city, it->cell.owner);
-            map.set_anim_phase(it->x, it->y, it->cell.anim_phase);
-            map.set_rotation(it->x, it->y, it->cell.rotation);
-        }
+        preview.restore();
         std::int32_t ox = 0;
         std::int32_t oy = 0;
         m_camera.screen_origin(ox, oy);
@@ -979,11 +1012,15 @@ void MapViewer::apply_production_events() {
         if (e.kind != sim::ProductionEvent::Kind::Started && e.kind != sim::ProductionEvent::Kind::Stopped) {
             continue;
         }
-        sim::Production& p = m_world.productions()[e.production];
+        // The picture continues smoothly; the phase follows the animation clock and so stays with
+        // the presentation, the game state keeps its own (ADR 0004).
+        const sim::Production& p = m_world.productions()[e.production];
         const sim::MapCell& cell = m_world.islands()[p.island].map.top(p.x, p.y);
         if (const assets::BuildingType* b = m_buildings.by_sprite(cell.sprite)) {
-            p.anim_phase = render::phase_after_change(*b, p.anim_phase, m_clock.frame(*b),
-                                                      e.kind == sim::ProductionEvent::Kind::Started);
+            const std::uint8_t phase = m_production_phases.get(e.production).value_or(p.anim_phase);
+            m_production_phases.set(e.production,
+                                    render::phase_after_change(*b, phase, m_clock.frame(*b),
+                                                               e.kind == sim::ProductionEvent::Kind::Started));
         }
     }
     // Messages for the local player until there is an interface for them.
@@ -1275,12 +1312,12 @@ void MapViewer::handle_video_event(const SDL_Event& event) {
 void MapViewer::toggle_pause_video() {
     m_pause_video = !m_pause_video;
     if (m_pause_video) {
-        m_paused = true;
+        m_simulation.submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::Pause, m_simulation.speed()});
         if (m_video && m_video->available(6)) {
             request_video(6, 0, true);
         }
     } else {
-        m_paused = false;
+        m_simulation.submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::Resume, m_simulation.speed()});
         if (m_video && m_video->playing() && m_video->number() == 6 && m_video_now.loop) {
             stop_video();
         }
@@ -1654,7 +1691,7 @@ void MapViewer::update_title(double fps) {
     char perf[64];
     std::snprintf(perf, sizeof perf, " | %.0f fps, %zu sprites", fps, m_sprites_drawn);
     title += perf;
-    if (m_paused) {
+    if (m_simulation.paused()) {
         title += " | paused";
     } else if (m_simulation.speed() != 1) {
         title += " | speed x" + std::to_string(m_simulation.speed());
@@ -1704,17 +1741,8 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     if (target.has_parent_path()) {
         std::filesystem::create_directories(target.parent_path(), ec);
     }
-    // Write next to it and rename, so a failed write never leaves half a file.
-    std::filesystem::path temp = target;
-    temp += ".tmp";
-    if (auto status = core::write_file(temp, *bytes); !status) {
-        return status;
-    }
-    std::filesystem::rename(temp, target, ec);
-    if (ec) {
-        return core::make_error(core::ErrorCode::IoError, "cannot write " + target.string() + ": " + ec.message());
-    }
-    return core::Ok{};
+    // A failed write (a full disk) never leaves half a file in place of the last good one.
+    return core::write_file_atomic(target, *bytes);
 }
 
 void MapViewer::load_options() {
@@ -1941,7 +1969,7 @@ core::Status MapViewer::load_game(const std::filesystem::path& path) {
     return core::Ok{};
 }
 
-void MapViewer::replace_world(sim::World world) {
+void MapViewer::replace_world(sim::World world) noexcept {
     // What belongs to the old game goes: videos, selection, orders waiting for an answer, tools.
     stop_video();
     m_videos.clear();
@@ -1958,11 +1986,13 @@ void MapViewer::replace_world(sim::World world) {
     std::destroy_at(&m_simulation);
     m_world = std::move(world);
     std::construct_at(&m_simulation, m_world, m_buildings, m_figures, m_options.rules);
+    warn_if_state_damaged();
     m_simulation.set_city_names(m_city_names);
     m_simulation.set_ship_names(m_ship_names);
     m_simulation.set_tick_observer([this](const sim::World& now) { m_ambient.tick(now, m_buildings, m_figures); });
     m_local_player = sim::first_human_player(m_world);
     m_building_figures = render::collect_building_figures(m_world, m_buildings, m_figures);
+    m_production_phases.clear();
     m_soldiers.reset(m_world, m_buildings, m_figures);
     m_walkers = render::WalkerFigures{};
     m_ambient = render::Ambient{1602, ambient_config()};
@@ -2051,9 +2081,7 @@ void MapViewer::apply_menu() {
                 started = load_game(e.path);
                 if (started && !e.name.empty()) {
                     // The stored name goes to the human (0x0048A680).
-                    if (sim::Player* p = m_world.player(m_local_player)) {
-                        p->name = e.name;
-                    }
+                    m_simulation.submit(sim::PlayerRename{m_local_player, e.name});
                 }
                 break;
             case MenuEvent::Kind::LoadSlot:

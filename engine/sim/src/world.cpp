@@ -21,7 +21,8 @@ World::World(std::uint32_t width, std::uint32_t height)
 core::Status World::add_island(WorldIsland island) {
     const std::uint32_t w = island.map.width();
     const std::uint32_t h = island.map.height();
-    if (island.x + w > m_width || island.y + h > m_height || w > kSea || h > kSea) {
+    // In 64 bits: a position near 2^32 from a file must not wrap around into the map.
+    if (std::uint64_t{island.x} + w > m_width || std::uint64_t{island.y} + h > m_height || w > kSea || h > kSea) {
         return make_error(ErrorCode::OutOfRange,
                           "island " + std::to_string(island.header.number) + " leaves the world map");
     }
@@ -930,6 +931,11 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         }
     }
     prepare_missions(world);
+    // The generators of the simulation (fires, plague, houses, computer players ...) follow the
+    // seed of this start, so that games differ by more than their islands; seed 0 keeps the
+    // streams of earlier versions. A game that carries Open1602's state continues its own
+    // generators (the extension chunk below).
+    world.reseed(start.seed + kDefaultSimulationSeed);
     for (const assets::Chunk& c : file.chunks()) {
         if (c.name == kExtensionChunk) {
             constexpr std::size_t kHeader = 20;

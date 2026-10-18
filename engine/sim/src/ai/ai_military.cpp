@@ -468,8 +468,10 @@ void Engine::recruit(AiPlayer& p) {
     }
     City* home_c = home_city(p);
     if (home_c != nullptr && army >= 8) {
-        const double f = (army - 8) * 0.006 * (has_population(*c, 0, 100) ? 40.0 : 15.0);
-        if (static_cast<double>(k) < f && soldiers_near(p.player, *home_c, 8, 16).size() >= 8) {
+        // k < (army - 8) * 0.006 * (40 or 15), in integers (ADR 0004: no floating point in the game's
+        // decisions). Equal to the floating point form for every army below 433 units.
+        const std::uint64_t f = std::uint64_t{army - 8} * 6U * (has_population(*c, 0, 100) ? 40U : 15U);
+        if (std::uint64_t{k} * 1000U < f && soldiers_near(p.player, *home_c, 8, 16).size() >= 8) {
             if (Ship* ship = best_armed_ship(p, Target::city_of(home_c->island, home_c->index), 1)) {
                 ship_send(p, *ship, Target::city_of(home_c->island, home_c->index), 1, city_param(*c));
             }

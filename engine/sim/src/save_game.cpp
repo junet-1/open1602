@@ -22,7 +22,7 @@ constexpr std::uint16_t kVersion = 1;
 constexpr std::uint16_t kCompressed = 1;  ///< flag: the sections are a zlib stream
 constexpr std::size_t kHeaderSize = 32;
 /// More than any game needs; a header promising more is damaged (and would cost the memory).
-constexpr std::uint64_t kMaxSize = 1ULL << 31;
+constexpr std::uint64_t kMaxSize = 1ULL << 28;  // 256 MiB; a game on the largest map needs about 100 MB
 
 struct Header {
     std::uint16_t version = 0;

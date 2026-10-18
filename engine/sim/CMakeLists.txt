@@ -13,6 +13,7 @@ add_library(o1602_sim
     src/construction.cpp
     src/castles.cpp
     src/combat.cpp
+    src/command_io.cpp
     src/diplomacy.cpp
     src/consumption.cpp
     src/disasters.cpp

@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -148,8 +149,11 @@ void for_each_outline_step(const DrawCommand& c, F&& f) {
 /// - Market: the frame follows the progress of the current cycle, (AnimAnz - 1) * progress / 512.
 /// - otherwise: a working building runs, (phase + global frame) % AnimAnz; an idle or disabled one
 ///   stands still at its phase.
+/// `phase` replaces the saved phase of the building (the presentation's own, see
+/// ProductionPhases); without it the phase stored with the building is taken.
 [[nodiscard]] std::uint32_t production_frame(const assets::BuildingType& building, std::uint32_t global_frame,
-                                             const sim::Production* production);
+                                             const sim::Production* production,
+                                             std::optional<std::uint8_t> phase = std::nullopt);
 
 /// New animation phase of a production building whose work starts or stops (0x004638C0), so the
 /// picture continues smoothly: starting keeps the current frame ((phase + frame) = old phase);

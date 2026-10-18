@@ -491,13 +491,19 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
             }
             break;
         case KeyAction::Pause:
-            m_paused = !m_paused;
+            m_simulation.submit(sim::GameSpeedOrder{
+                m_local_player,
+                m_simulation.paused() ? sim::GameSpeedOrder::Op::Resume : sim::GameSpeedOrder::Op::Pause,
+                m_simulation.speed()});
             break;
         case KeyAction::SpeedUp:
-            m_simulation.set_speed(std::min(16U, m_simulation.speed() * 2));
+            m_simulation.submit(
+                sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::SetSpeed,
+                                    std::min(m_simulation.rules().max_game_speed, m_simulation.speed() * 2)});
             break;
         case KeyAction::SpeedDown:
-            m_simulation.set_speed(std::max(1U, m_simulation.speed() / 2));
+            m_simulation.submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::SetSpeed,
+                                                    std::max(1U, m_simulation.speed() / 2)});
             break;
         case KeyAction::QuickSave: {
             const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));

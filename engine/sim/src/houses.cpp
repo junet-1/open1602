@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 
 #include "o1602/sim/disasters.hpp"
 #include "o1602/sim/pathfinding.hpp"
@@ -56,10 +55,16 @@ struct Tables {
         lerp(t5, 0, 3, 102, 128);
         lerp(t5, 3, 6, 128, 192);
         lerp(t2, 0, 6, 160, 115);
-        // round(0.375 * distance): the market distance class (0x005A6AF0).
+        // round(0.375 * distance): the market distance class (0x005A6AF0). In integers (ADR 0004):
+        // the class is the largest v with 3 * sqrt(n) / 8 + 1 / 2 >= v, that is (8v - 4)^2 <= 9n.
         for (std::size_t i = 0; i < 17; ++i) {
             for (std::size_t j = 0; j < 17; ++j) {
-                distance[i][j] = static_cast<std::uint8_t>(std::sqrt(static_cast<double>(i * i + j * j)) * 0.375 + 0.5);
+                const std::size_t n9 = 9 * (i * i + j * j);
+                std::uint8_t v = 0;
+                while ((8U * (v + 1U) - 4U) * (8U * (v + 1U) - 4U) <= n9) {
+                    ++v;
+                }
+                distance[i][j] = v;
             }
         }
     }

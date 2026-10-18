@@ -221,6 +221,37 @@ private:
 };
 
 /// Everything besides the tiles that goes into the world draw list.
+/// Animation phases of the production buildings as the presentation runs them (0x004638C0). They
+/// follow the real-time animation clock, so they live here and not in sim::Production, whose phase
+/// is part of the game state and must not depend on the frame rate (ADR 0004). Indexed like
+/// World::productions(); a building without an entry shows its saved phase.
+class ProductionPhases {
+public:
+    [[nodiscard]] std::optional<std::uint8_t> get(std::size_t production) const noexcept {
+        if (production >= m_phase.size() || m_phase[production] == kNone) {
+            return std::nullopt;
+        }
+        return m_phase[production];
+    }
+    void set(std::size_t production, std::uint8_t phase) {
+        if (production >= m_phase.size()) {
+            m_phase.resize(production + 1, kNone);
+        }
+        m_phase[production] = static_cast<std::uint8_t>(phase & 0x0FU);
+    }
+    /// The entry was freed or taken by another building: back to its saved phase.
+    void forget(std::size_t production) noexcept {
+        if (production < m_phase.size()) {
+            m_phase[production] = kNone;
+        }
+    }
+    void clear() noexcept { m_phase.clear(); }
+
+private:
+    static constexpr std::uint8_t kNone = 0xFF;
+    std::vector<std::uint8_t> m_phase;
+};
+
 struct WorldLayers {
     SpriteExtent extent;
     /// Ships with their player flags. Needs the figure table and an atlas containing SHIP.BSH of the
@@ -252,6 +283,8 @@ struct WorldLayers {
     const UnitTint* unit_tint = nullptr;
     /// Volcano fire and lava. Needs `figures` and the atlas bases of EFFEKTE.BSH and SCHATTEN.BSH.
     const std::vector<EffectFigure>* effects = nullptr;
+    /// Animation phases of the production buildings; without them the saved phases are shown.
+    const ProductionPhases* production_phases = nullptr;
 };
 
 /// Up to two draw commands of one figure (shadow + body, hull + flag) and the tile row after

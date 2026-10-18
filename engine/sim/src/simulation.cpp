@@ -4,6 +4,8 @@
 #include <algorithm>
 
 #include "o1602/sim/growth.hpp"
+#include "o1602/sim/save_game.hpp"
+#include "o1602/sim/savegame_extension.hpp"
 
 namespace o1602::sim {
 
@@ -43,8 +45,16 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
         m_rules = *world.saved_rules();  // the settings the game was started with
     }
     recount_disasters(world);
-    if (restore_state(world.take_simulation_state())) {
-        return;  // a game saved by Open1602 continues where it was
+    if (const std::vector<std::uint8_t> state = world.take_simulation_state(); !state.empty()) {
+        // Each part loads whole or not at all, but a later part may fail after an earlier one
+        // was taken over: then all go back to how they are now, fresh.
+        core::ByteWriter fresh;
+        save_state(fresh);
+        if (restore_state(state)) {
+            return;  // a game saved by Open1602 continues where it was
+        }
+        m_state_damaged = true;
+        restore_state(fresh.take());
     }
     // As the original after every load: the computer players look at the world anew (0x0042B710).
     m_ai.reset();
@@ -53,6 +63,14 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     // The original takes the saved coverage of the houses; Open1602 recomputes it once, which
     // also restores what the savegame does not keep (gallows, fountains).
     update_services(world, buildings);
+}
+
+std::optional<std::uint64_t> Simulation::state_hash() const {
+    const auto bytes = write_game(*m_world, *m_buildings, this, SaveOptions{false});
+    if (!bytes.ok()) {
+        return std::nullopt;
+    }
+    return savegame_fingerprint(bytes.value());
 }
 
 void Simulation::save_state(core::ByteWriter& out) const {
@@ -113,7 +131,7 @@ void Simulation::set_speed(std::uint32_t speed) noexcept {
 }
 
 void Simulation::advance(std::uint32_t real_ms) {
-    if (m_speed == 0) {
+    if (m_speed == 0 || m_paused) {
         apply_commands();
         return;
     }
@@ -125,21 +143,55 @@ void Simulation::advance(std::uint32_t real_ms) {
     while (m_pending_ms >= kTickMs) {
         m_pending_ms -= kTickMs;
         tick();
+        if (m_paused) {
+            m_pending_ms = 0;  // a pause from the commands of this tick: the rest of the time is dropped
+            break;
+        }
     }
 }
 
-std::uint64_t Simulation::submit(Command command) {
+namespace {
+
+PlayerId sender(const Command& command) {
+    return std::visit([](const auto& c) { return c.player; }, command);
+}
+
+}  // namespace
+
+std::uint64_t Simulation::schedule(std::uint64_t tick, Command command) {
     const std::uint64_t sequence = m_next_command++;
-    m_commands.emplace_back(sequence, std::move(command));
+    const PlayerId from = sender(command);
+    // After every command of an earlier tick, or of the same tick and an earlier or the same player.
+    const auto at = std::upper_bound(m_commands.begin(), m_commands.end(), std::pair{tick, from},
+                                     [](const std::pair<std::uint64_t, PlayerId>& key, const Queued& q) {
+                                         return key < std::pair{q.tick, sender(q.command)};
+                                     });
+    m_commands.insert(at, Queued{tick, sequence, std::move(command)});
     return sequence;
 }
 
 void Simulation::apply_commands() {
-    while (!m_commands.empty()) {
-        auto [sequence, command] = std::move(m_commands.front());
-        m_commands.pop_front();
-        CommandResult result = execute(command);
-        result.sequence = sequence;
+    const std::uint64_t now = next_tick();
+    std::size_t due = 0;
+    while (due < m_commands.size() && m_commands[due].tick <= now) {
+        ++due;
+    }
+    // Moved out first: a command may not add to the queue, but the vector must not be touched
+    // while it is walked.
+    std::vector<Queued> commands(std::make_move_iterator(m_commands.begin()),
+                                 std::make_move_iterator(m_commands.begin() + static_cast<std::ptrdiff_t>(due)));
+    m_commands.erase(m_commands.begin(), m_commands.begin() + static_cast<std::ptrdiff_t>(due));
+    for (Queued& q : commands) {
+        CommandResult result;
+        // A player's command acts for that player only: one without a valid sender would pass every
+        // owner check (kNoPlayer) and is refused.
+        const PlayerId from = sender(q.command);
+        if (q.tick < now) {
+            result.late = true;
+        } else if (from != kNoPlayer && m_world->player(from) != nullptr) {
+            result = execute(q.command);
+        }
+        result.sequence = q.sequence;
         m_command_results.push_back(std::move(result));
     }
     if (m_construction_events.size() > kMaxPendingEvents) {
@@ -155,7 +207,7 @@ void Simulation::apply_commands() {
 CommandResult Simulation::execute(const Command& command) {
     CommandResult result;
     // A defeated player or a slot nobody plays gives no orders (the original's controller 9, 10).
-    const PlayerId from = std::visit([](const auto& c) { return c.player; }, command);
+    const PlayerId from = sender(command);
     if (const Player* p = m_world->player(from); p != nullptr && !p->active()) {
         return result;
     }
@@ -201,6 +253,10 @@ CommandResult Simulation::execute(const Command& command) {
         result.accepted = city_order(*city);
     } else if (const auto* ship = std::get_if<ShipCommand>(&command)) {
         result.accepted = m_fleet.command(*ship);
+    } else if (const auto* speed = std::get_if<GameSpeedOrder>(&command)) {
+        result.accepted = game_speed(*speed);
+    } else if (const auto* rename = std::get_if<PlayerRename>(&command)) {
+        result.accepted = rename_player(*rename);
     }
     handle(m_construction_events, first);
     return result;
@@ -277,6 +333,33 @@ bool Simulation::city_order(const CityOrder& o) {
     return false;
 }
 
+bool Simulation::game_speed(const GameSpeedOrder& order) {
+    switch (order.op) {
+        case GameSpeedOrder::Op::SetSpeed:
+            if (order.speed == 0) {
+                return false;  // pausing is Op::Pause, so that resuming keeps the speed
+            }
+            set_speed(order.speed);
+            return true;
+        case GameSpeedOrder::Op::Pause:
+            m_paused = true;
+            return true;
+        case GameSpeedOrder::Op::Resume:
+            m_paused = false;
+            return true;
+    }
+    return false;
+}
+
+bool Simulation::rename_player(const PlayerRename& order) {
+    Player* p = m_world->player(order.player);
+    if (p == nullptr || order.name.empty() || order.name.size() > PlayerRename::kMaxNameLength) {
+        return false;
+    }
+    p->name = order.name;
+    return true;
+}
+
 void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_t first) {
     bool storage = false;
     for (std::size_t i = first; i < events.size(); ++i) {
@@ -343,6 +426,9 @@ std::vector<ConstructionEvent> Simulation::take_construction_events() {
 
 void Simulation::tick() {
     apply_commands();
+    if (m_paused) {
+        return;  // paused by a command of this tick: the game time stands still
+    }
     m_time_ms += kTickMs;
     m_world->set_time_ms(m_time_ms);
     // Every 5 s the diplomacy counters fade (Player_Tick 0x00476350; the original takes one

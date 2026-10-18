@@ -70,6 +70,8 @@ Eine Anweisung endet am Zeilenende (`\n`) oder Dateiende. Zeichenweise:
 
 Besonderheiten, die der Nachbau exakt übernimmt:
 
+- Zahlen über 32 Bit bleiben bei 2147483647 stehen (`strtol()` des Originals mit 32-Bit-`long`),
+  auf jeder Plattform gleich.
 - **Keine Punkt-vor-Strich-Regel**: Werte werden strikt von links nach rechts verknüpft.
   `A = 2+3*4` ergibt 20.
 - Ein Operator bleibt aktiv, bis ein anderer kommt (`A: 1 + 2 3` = 6).

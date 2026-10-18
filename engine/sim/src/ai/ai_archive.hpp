@@ -79,15 +79,7 @@ public:
     void operator()(std::int64_t& v) { v = m_in.i64(); }
     template <class T>
     void operator()(std::vector<T>& v) {
-        const std::uint32_t n = m_in.count(1);
-        v.clear();
-        v.resize(n);
-        for (T& e : v) {
-            (*this)(e);
-            if (!m_in.ok()) {
-                return;
-            }
-        }
+        m_in.list(v, 1, [this](T& e) { (*this)(e); });
     }
     template <class T, std::size_t N>
     void operator()(std::array<T, N>& v) {

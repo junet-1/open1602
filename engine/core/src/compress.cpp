@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/core/compress.hpp"
 
+#include <algorithm>
 #include <array>
 #include <limits>
 
@@ -38,13 +39,37 @@ Result<std::vector<std::uint8_t>> zlib_deflate(std::span<const std::uint8_t> dat
 
 Result<std::vector<std::uint8_t>> zlib_inflate(std::span<const std::uint8_t> stream, std::size_t size) {
 #if defined(O1602_HAVE_ZLIB)
-    if (stream.size() > std::numeric_limits<uLong>::max() || size > std::numeric_limits<uLong>::max()) {
-        return make_error(ErrorCode::OutOfRange, "zlib: data too large");
+    // Deflate packs at most about 1:1032; a size beyond that is a lie of the header.
+    constexpr std::size_t kMaxRatio = 1032;
+    if (stream.size() > std::numeric_limits<uInt>::max() || size > stream.size() * kMaxRatio + 64) {
+        return make_error(ErrorCode::InvalidFormat, "zlib: damaged stream");
     }
-    std::vector<std::uint8_t> out(size);
-    uLongf got = static_cast<uLongf>(size);
-    const int status = uncompress(out.data(), &got, stream.data(), static_cast<uLong>(stream.size()));
-    if (status != Z_OK || got != size) {
+    // The output grows with what the stream really yields, so a header that promises much costs
+    // memory only once the data delivers it.
+    constexpr std::size_t kFirstStep = std::size_t{1} << 20;
+    std::vector<std::uint8_t> out(std::min(size, kFirstStep));
+    z_stream z{};
+    if (inflateInit(&z) != Z_OK) {
+        return make_error(ErrorCode::InvalidFormat, "zlib: cannot unpack");
+    }
+    z.next_in = const_cast<Bytef*>(stream.data());  // zlib's API is not const; it does not write
+    z.avail_in = static_cast<uInt>(stream.size());
+    int status = Z_OK;
+    std::size_t got = 0;
+    while (status == Z_OK) {  // Z_BUF_ERROR: cut off, or more data than the header said
+        if (got == out.size() && out.size() < size) {
+            out.resize(std::min(size, out.size() * 2));
+        }
+        const std::size_t room = std::min<std::size_t>(out.size() - got, std::numeric_limits<uInt>::max());
+        std::uint8_t none = 0;  // zlib wants somewhere to write even when nothing is expected
+        z.next_out = out.empty() ? &none : out.data() + got;
+        z.avail_out = static_cast<uInt>(room);
+        status = inflate(&z, Z_NO_FLUSH);
+        got += room - z.avail_out;
+    }
+    const bool complete = status == Z_STREAM_END && z.avail_in == 0;
+    inflateEnd(&z);
+    if (!complete || got != size) {
         return make_error(ErrorCode::InvalidFormat, "zlib: damaged stream");
     }
     return out;

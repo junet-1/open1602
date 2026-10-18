@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
@@ -33,6 +34,18 @@ public:
     std::int64_t i64() { return static_cast<std::int64_t>(u64()); }
     bool boolean() { return u8() != 0; }
     double real() { return std::bit_cast<double>(u64()); }
+    /// A position that older versions saved as floating point, in fixed point units of 1/`unit`.
+    /// NaN, infinities and values beyond the range fail the read instead of converting with
+    /// undefined behaviour.
+    std::int32_t real_fixed(std::int32_t unit) {
+        const double v = real() * unit;
+        constexpr double kLimit = 2147483520.0;  // below 2^31, exact in double
+        if (!(v > -kLimit && v < kLimit)) {      // also false for NaN
+            m_ok = false;
+            return 0;
+        }
+        return static_cast<std::int32_t>(v);
+    }
     std::string string() {
         const std::uint32_t n = u32();
         const auto b = m_r.bytes(n);
@@ -50,6 +63,17 @@ public:
             return 0;
         }
         return n;
+    }
+    /// Reads a list of count(min_size) records with `read`, one call per record. The list grows
+    /// with the records actually read, not with the count up front: a count from damaged data
+    /// costs no more memory than the records the data really holds.
+    template <class T, class Read>
+    void list(std::vector<T>& v, std::size_t min_size, Read read) {
+        const std::uint32_t n = count(min_size);
+        v.clear();
+        for (std::uint32_t i = 0; i < n && m_ok; ++i) {
+            read(v.emplace_back());
+        }
     }
     TilePos tile() {
         const std::int32_t x = i32();

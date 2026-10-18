@@ -8,6 +8,9 @@
 
 namespace o1602::core {
 
+// Open1602 runs on 64-bit systems only; sizes such as std::size_t are 64 bits everywhere.
+static_assert(sizeof(void*) == 8, "Open1602 needs a 64-bit target");
+
 enum class ErrorCode {
     IoError,        ///< File could not be opened / read / written.
     NotFound,       ///< File or entry does not exist.

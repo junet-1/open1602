@@ -1340,7 +1340,7 @@ bool Fleet::route_ship_stop(Ship& ship, const RouteStop& stop) {
 namespace o1602::sim {
 
 void Fleet::save(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 3;
+    constexpr std::uint16_t kVersion = 4;
     out.u16(kVersion);
     out.u32(m_trader_ms);
     out.u32(m_yard_ms);
@@ -1363,12 +1363,21 @@ void Fleet::save(core::ByteWriter& out) const {
             out.u64(s.explore_next_ms);
         }
     }
+    // Version 4: the market statistics of the last pass, which set the free trader's prices until
+    // the next one (a loaded game must trade as the running one did).
+    out.u32(static_cast<std::uint32_t>(m_market.size()));
+    for (const Market& m : m_market) {
+        out.u64(m.demand);
+        out.u64(m.demand_value);
+        out.u64(m.offer);
+        out.u64(m.offer_value);
+    }
 }
 
 bool Fleet::load(core::ByteReader& reader) {
     StateIn in(reader);
     const std::uint16_t version = in.u16();
-    if (version < 1 || version > 3) {
+    if (version < 1 || version > 4) {
         return false;
     }
     const std::uint32_t trader = in.u32();
@@ -1376,26 +1385,50 @@ bool Fleet::load(core::ByteReader& reader) {
     const std::uint32_t tools = in.u32();
     const std::uint32_t quota = in.u32();
     const std::uint32_t name = in.u32();
+    // Read whole first, then taken over: a failed load changes neither the fleet nor the ships.
+    std::uint32_t pirate_ms = m_pirate_ms;
+    std::uint32_t pirate_spawn_ms = m_pirate_spawn_ms;
+    bool pirate_armed = m_pirate_armed;
     if (version >= 2) {
-        m_pirate_ms = in.u32() % 10'000U;
-        m_pirate_spawn_ms = in.u32();
-        m_pirate_armed = in.boolean();
+        pirate_ms = in.u32() % 10'000U;
+        pirate_spawn_ms = in.u32();
+        pirate_armed = in.boolean();
     }
+    struct Exploring {
+        std::uint32_t id;
+        std::uint8_t steps;
+        std::uint64_t next;
+    };
+    std::vector<Exploring> exploring;
     if (version >= 3) {
-        const std::uint32_t exploring = in.count(13);
-        for (std::uint32_t i = 0; i < exploring; ++i) {
-            const std::uint32_t id = in.u32();
-            const std::uint8_t steps = in.u8();
-            const std::uint64_t next = in.u64();
-            if (Ship* s = m_world->ship(id)) {
-                s->explore_steps = steps;
-                s->explore_next_ms = next;
-            }
-        }
+        in.list(exploring, 13, [&](Exploring& e) {
+            e.id = in.u32();
+            e.steps = in.u8();
+            e.next = in.u64();
+        });
+    }
+    std::vector<Market> market;
+    if (version >= 4) {
+        in.list(market, 32, [&](Market& m) {
+            m.demand = in.u64();
+            m.demand_value = in.u64();
+            m.offer = in.u64();
+            m.offer_value = in.u64();
+        });
     }
     if (!in.ok()) {
         return false;
     }
+    m_pirate_ms = pirate_ms;
+    m_pirate_spawn_ms = pirate_spawn_ms;
+    m_pirate_armed = pirate_armed;
+    for (const Exploring& e : exploring) {
+        if (Ship* s = m_world->ship(e.id)) {
+            s->explore_steps = e.steps;
+            s->explore_next_ms = e.next;
+        }
+    }
+    m_market = std::move(market);
     m_trader_ms = trader;
     m_yard_ms = yard;
     m_tools_given = tools;
