@@ -132,5 +132,5 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 | Tests | 276 Fälle (28 Unit-Dateien, 6 mit Originaldaten). Ohne eigene Unit-Tests: KI (nur zwei Datentests), See- und Landwege (nur indirekt), Weltengenerator (über das neue Spiel), eigener Chunk (über die Datentests), Betrachter |
 | Builds | lokal unter Linux: debug, game, game-rel, asan, game-asan ohne Warnungen; CI für Linux (GCC, Clang, ASan), Windows (MSVC 2022), macOS 14 und das Spiel mit SDL3 auf allen drei. Windows und macOS sind lokal nie gelaufen |
 | Spielerbefehle | vollständig für die Simulation (seit 18.10.2026 auch Stadtfenster und Schiffsfenster); es fehlt nur die Oberfläche, die sie auslöst |
-| Symboltabelle `re/symbols/` | zuletzt mit den Schiffen nachgetragen (319 Funktionen); die Adressen aus Militär, Piraten und KI stehen nur in den Dokumenten |
+| Symboltabelle `re/symbols/` | 532 Funktionen (18.10.2026 um die Adressen aus Militär, Piraten, Diplomatie, KI, Aufträgen, Katastrophen und Neuem Spiel ergänzt; Beleg verweist auf das Dokument) |
 | Lokaler Spieler | der erste Mensch, bis es eine Lobby gibt |

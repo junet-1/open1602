@@ -329,7 +329,7 @@ kommt, werden sie abgehakt.
 - Geräusche, Musik, Sprache (die Geräuschquellen werden schon bestimmt), Smacker-Videos.
 
 **Ohne Abhängigkeit**
-- Symboltabelle `re/symbols/` um die Adressen aus Militär, Piraten und KI ergänzen.
+- ~~Symboltabelle `re/symbols/` ergänzen~~: erledigt (532 Funktionen).
 - Erledigt am 18.10.2026: Handelsgrenzen beim Kontor-Ausbau, dringende Waren (S-104), Wasser bei
   feindlichen Türmen (S-103), Stadt- und Schiffsbefehle, Aufträge aus `SHIP4`, Reaktion der KI auf eine
   Gründung, `Grundflg` in der Wegsuche.
