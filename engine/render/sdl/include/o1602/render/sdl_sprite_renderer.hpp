@@ -42,7 +42,10 @@ private:
     SDL_Renderer* m_renderer;
     const SpriteAtlas* m_atlas = nullptr;
     std::vector<SDL_Texture*> m_pages;
-    /// 2 x 2 checkerboard, white and clear, repeated over hatched diamonds and tinted by them.
+    /// Checkerboard, white and clear, one tile diamond wide (and a column more to shift the
+    /// pattern by a pixel), tinted by hatched diamonds. Not repeated: SDL 3.2 has no wrap mode.
+    static constexpr int kHatchWidth = 65;
+    static constexpr int kHatchHeight = 32;
     SDL_Texture* m_hatch = nullptr;
     std::vector<SDL_Vertex> m_vertices;
     std::vector<int> m_indices;
