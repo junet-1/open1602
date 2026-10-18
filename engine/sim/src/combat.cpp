@@ -338,9 +338,10 @@ void Combat::update() {
     m_first[n] = static_cast<std::uint32_t>(m_neighbours.size());
 }
 
-std::vector<Candidate> Combat::rank(const Fighter& me, std::span<const Neighbour> list,
-                                    std::int32_t max_distance8) const {
-    std::vector<Candidate> out;
+std::span<const Candidate> Combat::rank(const Fighter& me, std::span<const Neighbour> list,
+                                        std::int32_t max_distance8) const {
+    std::vector<Candidate>& out = m_ranked;
+    out.clear();
     for (const Neighbour& n : list) {
         if (n.distance8 > max_distance8) {
             continue;
@@ -363,7 +364,16 @@ std::vector<Candidate> Combat::rank(const Fighter& me, std::span<const Neighbour
         score += t5(over);
         out.push_back({n.unit, n.distance8, score, over < 4});
     }
-    std::stable_sort(out.begin(), out.end(), [](const Candidate& a, const Candidate& b) { return a.score > b.score; });
+    // Stable, best first. Insertion sort: at most kMaxNeighbours entries, and unlike
+    // std::stable_sort it needs no buffer.
+    for (std::size_t i = 1; i < out.size(); ++i) {
+        const Candidate c = out[i];
+        std::size_t j = i;
+        for (; j > 0 && out[j - 1].score < c.score; --j) {
+            out[j] = out[j - 1];
+        }
+        out[j] = c;
+    }
     return out;
 }
 

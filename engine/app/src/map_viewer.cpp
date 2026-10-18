@@ -839,8 +839,31 @@ void MapViewer::apply_construction() {
         }
     }
     if (changed) {
-        // Flags, smoke and status icons of the new buildings.
-        m_building_figures = render::collect_building_figures(m_world, m_buildings, m_figures);
+        // Flags, smoke and status icons of the new buildings: only the islands built on are
+        // collected again. The list stays ordered by island, as collect_building_figures() gives it.
+        std::vector<std::uint16_t> islands;
+        for (const sim::ConstructionEvent& e : events) {
+            islands.push_back(e.island);
+        }
+        std::sort(islands.begin(), islands.end());
+        islands.erase(std::unique(islands.begin(), islands.end()), islands.end());
+        std::vector<render::BuildingFigure> fresh;
+        for (const std::uint16_t island : islands) {
+            if (island >= m_world.islands().size()) {
+                continue;
+            }
+            fresh.clear();
+            render::collect_island_building_figures(m_world, m_buildings, m_figures, island, fresh);
+            const auto by_island = [](const render::BuildingFigure& f, std::uint16_t i) { return f.island < i; };
+            const auto first =
+                std::lower_bound(m_building_figures.begin(), m_building_figures.end(), island, by_island);
+            auto last = first;
+            while (last != m_building_figures.end() && last->island == island) {
+                ++last;
+            }
+            const auto at = m_building_figures.erase(first, last);
+            m_building_figures.insert(at, fresh.begin(), fresh.end());
+        }
     }
 }
 
@@ -1724,6 +1747,22 @@ void MapViewer::update_title(double fps) {
     } else if (m_simulation.speed() != 1) {
         title += " | speed x" + std::to_string(m_simulation.speed());
     }
+    // A computer too slow for the speed lets the game run slower (Simulation::behind()): the speed
+    // reached since the last title.
+    const std::uint64_t now = platform::ticks_ms();
+    const std::uint64_t game_ms = m_simulation.game_time_ms();
+    if (!m_simulation.paused() && now > m_title_real_ms && game_ms >= m_title_game_ms && m_title_real_ms != 0) {
+        const double reached =
+            static_cast<double>(game_ms - m_title_game_ms) / static_cast<double>(now - m_title_real_ms);
+        if (reached < 0.9 * m_simulation.speed()) {
+            char slow[48];
+            std::snprintf(slow, sizeof slow, " (too slow: x%.1f)", reached);
+            title += m_simulation.speed() == 1 ? " | speed x1" : "";
+            title += slow;
+        }
+    }
+    m_title_real_ms = now;
+    m_title_game_ms = game_ms;
     const std::uint64_t seconds = m_simulation.game_time_ms() / 1000;
     char clock[32];
     std::snprintf(clock, sizeof clock, " | %02llu:%02llu:%02llu", static_cast<unsigned long long>(seconds / 3600),

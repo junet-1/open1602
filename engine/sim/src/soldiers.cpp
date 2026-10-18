@@ -534,7 +534,8 @@ void Military::decide(Soldier& s) {
     std::optional<Target> chase;
     if (enemy.empty()) {
         if (const auto me = m_combat->fighter(self)) {
-            const std::vector<Candidate> candidates = m_combat->rank(*me, m_combat->hostiles(self), me->range8 + 64);
+            const std::span<const Candidate> candidates =
+                m_combat->rank(*me, m_combat->hostiles(self), me->range8 + 64);
             for (const Candidate& c : candidates) {
                 if (c.near && now >= s.next_attack_ms && fire_direction(s, *type, c.unit)) {
                     enemy = c.unit;
