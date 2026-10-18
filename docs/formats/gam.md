@@ -106,7 +106,7 @@ nicht durch eine Umfärbung der Palette. Die Flagge eines Schiffs wählt das Spi
 **In Open1602** werden Platz, Steuerung und Farbe beim Laden übersetzt (`sim::load_world`): Plätze
 0–6 werden zu `sim::PlayerId`, Besitzer 7 zu `sim::kNoPlayer`, die Steuerung zu `sim::PlayerRole`
 und die Farbe zum gleichnamigen Banner des Basisspiels (`render::BannerTable::original`). Spielerzahl
-und Bannerliste sind im Engine-Modell offen ([ADR 0007](../architecture/0007-erweiterbarkeit-und-modding.md)).
+und Bannerliste sind im Engine-Modell offen ([ADR 0007](../architecture/0007-extensibility-and-modding.md)).
 
 `FAHNEWEISS` (111, Sprites 232–239) ist die weiße Fahne und keine Spielerfarbe. Die acht Sprites
 je Farbe sind die Animationsphasen des Wehens. Ebenso gibt es eigene Varianten für die Gebäudeflaggen

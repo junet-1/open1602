@@ -1,6 +1,6 @@
 # Was Open1602 von dir braucht
 
-Stand: 18.10.2026 (Schiffe, Militär, Piraten, eigene Welten und die Computergegner sind da; als Nächstes Ereignisse und die Oberfläche). Wofür eine Beobachtung im Original noch fehlt, steht gesammelt in [stand.md](stand.md#13-klärung-nötig-verhalten-des-originals-nicht-belegt). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
+Stand: 18.10.2026 (Schiffe, Militär, Piraten, eigene Welten und die Computergegner sind da; als Nächstes Ereignisse und die Oberfläche). Wofür eine Beobachtung im Original noch fehlt, steht gesammelt in [status.md](status.md#13-klärung-nötig-verhalten-des-originals-nicht-belegt). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
 Videos und Beobachtungen im Original brauche oder schon bekommen habe. Sie wird fortgeschrieben,
 sobald etwas dazukommt oder erledigt ist.
 

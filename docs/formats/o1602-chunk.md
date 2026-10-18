@@ -1,7 +1,7 @@
 # Der eigene Chunk von Open1602 (`O1602`)
 
 Seit dem 18.10.2026 speichert Open1602 im eigenen Format ([o1602-save.md](o1602-save.md),
-[ADR 0009](../architecture/0009-eigenes-speicherformat.md)). Der Chunk `O1602` bleibt für Spiele, die als
+[ADR 0009](../architecture/0009-own-save-format.md)). Der Chunk `O1602` bleibt für Spiele, die als
 `.GAM` für das Original **exportiert** werden, und für ältere Spielstände von Open1602; seine Abschnitte
 ab `RULE` sind dieselben wie im eigenen Format.
 

@@ -75,7 +75,7 @@ int usage() {
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
         "\n"
-        "Keys (docs/architecture/0010-bedienung-und-oberflaeche.md):\n"
+        "Keys (docs/architecture/0010-controls-and-interface.md):\n"
         "  WASD, arrows   scroll (Shift: faster)      right/middle mouse drag  scroll\n"
         "  Q / E          rotate view                 wheel, PageUp/PageDn     zoom\n"
         "  Space          to the last message         Home                     to the selection\n"

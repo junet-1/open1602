@@ -3,7 +3,7 @@
 Alle Spielerflaggen sind **eine** Flagge, die die Engine in der Farbe des Spielers einfärbt. Eine neue
 Farbe braucht deshalb keine Grafik: Im Flaggenmenü wählt man eine der zwölf vorgegebenen Farben
 (`render::BannerTable::kDefaultColors`) oder eine beliebige RGB-Farbe. So wächst die Zahl der möglichen
-Spieler ohne neue Bilder ([ADR 0007](../architecture/0007-erweiterbarkeit-und-modding.md), Abschnitt 4).
+Spieler ohne neue Bilder ([ADR 0007](../architecture/0007-extensibility-and-modding.md), Abschnitt 4).
 
 **Stand:** Umgesetzt sind das Einfärben (`render/flag_tint.hpp`), die zwölf Vorgaben und die Vorlage aus
 der weißen Originalflagge (`render::BannerTable`), eigene Bilder je Banner (`FlagStyle::Sprites`, so für

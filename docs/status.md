@@ -21,7 +21,7 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
   Kampagnenfortschritt und Bestenliste, der Mehrspieler und die
   Modding-Grundlagen (Inhaltspakete, Fraktionen als Daten, Lua).
 - **Spielstände** speichert Open1602 seit dem 18.10.2026 im eigenen Format `.o1602`
-  ([o1602-save.md](formats/o1602-save.md), [ADR 0009](architecture/0009-eigenes-speicherformat.md)): ohne
+  ([o1602-save.md](formats/o1602-save.md), [ADR 0009](architecture/0009-own-save-format.md)): ohne
   die Grenzen des Originals (7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme), mit Prüfsumme, gepackt,
   etwa ein Viertel so groß. Als `.GAM` für das Original exportieren geht weiter, solange das Spiel passt.
 
@@ -56,13 +56,13 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 | Oberfläche | 🟡 Grundlagen: alle 45 Layouts (`.GAD`) gelesen, Schriften (`.ZEI`) mit Farben und Umbruch, Bereiche des Bildschirms, Gadgets im Betrieb (Zustände, Klick, Umschalter, Gruppen, Schieber, Zeichenliste); im Betrachter der Rahmen des Originals: Kopf der Seitenleiste mit Weltkarte, Kompass, Drehen und Zoom, Statusleiste mit Hilfetexten und Meldungssymbolen; Modi Bauen und Info: **Baumenü** (Gruppen als Daten, Aufklappfeld, Verfügbarkeit, Kosten, Vorschau, Produktionskette, Abreißen, Drehen) und Spielerstatus; Geld und Waren oben auf der Karte; **Fenster der Auswahl**: Betriebe, öffentliche Gebäude, Wohnhaus, Kontor/Markt mit Listen und Lager, fremder Kontor, Werft mit Typauswahl, Burg, Schiff mit Umladen, Handeln, Kontorgründung, Handelsroute und Piraten; **Steuerung nach ADR 0010**: frei belegbare Tasten (`keys.cfg`, Übersicht mit F1), bildpunktgenaue Auswahl mit Rahmen, Gruppen mit Ziffer, Formationen, Filtern und Tab, Rechtsklick- und Minikartenbefehle, Befehlsketten, Angriffsbewegung, Stellung halten, Rückfragen, Schnellspeichern/-laden; **Kampfmodus** mit den vier Fenstern; **Schiffs- und Städteliste**, **Diplomatie** mit Tribut; **Einstellungen** mit Spielständen, Musik & Effekten, Sprachmeldungen & Filmen, Auftragsfenster; **Hauptmenü** (Einzelspieler: Szenarienliste, Auftrag mit Stufenwahl und Bestenliste, Name und Flagge, Spielstände, Fortsetzen, Credits, Intro) | Mehrspieler-Menüs, eigenes Spielmenü, Endbildschirm mit Bewertung, eigene Bestenlisten, Freischaltung der Missionen, Mauszeiger | [ui.md](re/ui.md) |
 | Ton, Musik, Sprache | ✅ Geräusche (Bauen, Schüsse, Treffer, Befehle, Vögel, Brandung, Arbeit und Tiere, Klicks) räumlich wie im Original, Sprachmeldungen mit Warteschlange, Musik mit Zufall, Kampfmusik und Ausblenden, 4-Bit-Musik entpackt; Lautstärken aus `Game.dat` (nur gelesen) | Tutorial-Sprache, Einwohner- und Warenmeldungen, Optionsfenster | [audio.md](re/audio.md) |
 | Videos | ✅ eigener Smacker-Decoder, Meldungs-, Sieg-, Niederlage- und Pausenvideos, Startfolge (`--intro`), Ton über den Mischer | Hauptmenü (Intro-Knopf, Abspann im Bilderrahmen), Video 2990 (Kampagnenfortschritt), Optionsfenster; im Mehrspieler nicht anhalten (M-018) | [videos.md](re/videos.md), [smk.md](formats/smk.md) |
-| Mehrspieler | 🟡 Grundlage: Befehle, feste Ticks, Zufallsströme, KI auf jedem Rechner, Einstellungen im Zustand | Netz (Lockstep), Zustands-Hash je Tick, Lobby, Spielerzuordnung, Wiederverbinden (M-003) | [ADR 0004](architecture/0004-deterministische-simulation.md) |
+| Mehrspieler | 🟡 Grundlage: Befehle, feste Ticks, Zufallsströme, KI auf jedem Rechner, Einstellungen im Zustand | Netz (Lockstep), Zustands-Hash je Tick, Lobby, Spielerzuordnung, Wiederverbinden (M-003) | [ADR 0004](architecture/0004-deterministic-simulation.md) |
 | Editor | ⬜ | `1602Edit.exe` nachbauen (später) | – |
 
 ### 1.3 Klärung nötig (Verhalten des Originals nicht belegt)
 
 Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich dafür brauche, steht in
-[eingaben.md](eingaben.md).
+[requests.md](requests.md).
 
 | Punkt | Wo | Weg zur Klärung |
 |---|---|---|
@@ -93,12 +93,12 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 | Was | Wo |
 |---|---|
 | **Fehler des Originals**: 173 Einträge im Katalog, davon 96 behoben, 43 vermieden, 6 als Regel umstellbar, 18 beibehalten | [bugs.md](re/bugs.md) |
-| **Einstellungen** (`sim::Rules`, im Spielstand): Rückerstattung beim Abriss, Schiffe je Spieler (100, Original 33), Einheiten je Spieler (250, Original 100), Rohstoffgarantie, höchstes Spieltempo (8, Original 4), Dürren, Vulkane, Händlerpreise | [ADR 0008](architecture/0008-spieleinstellungen.md) |
+| **Einstellungen** (`sim::Rules`, im Spielstand): Rückerstattung beim Abriss, Schiffe je Spieler (100, Original 33), Einheiten je Spieler (250, Original 100), Rohstoffgarantie, höchstes Spieltempo (8, Original 4), Dürren, Vulkane, Händlerpreise | [ADR 0008](architecture/0008-game-settings.md) |
 | **Eigene Welten** (Weltengenerator Stufe 1): 200–2000 Felder je Seite, Inselzahl, Größenmischung, Dörfer, Vulkaninseln, Startgebiete; Chunk `O1602MAP` | [worldgen.md](re/worldgen.md) |
 | **Eigenes Speicherformat `.o1602`**: voller Zustand (Karte, Uhren, Zufall, Figuren, Brände, Lava, Diplomatie, Erkunden, Schiffe, Soldaten, KI) ohne Grenzen, kanonisch, CRC-32, zlib; ein gespeichertes Spiel läuft genau weiter. Exportierte `.GAM` tragen denselben Zustand im Chunk `O1602` | [o1602-save.md](formats/o1602-save.md), [o1602-chunk.md](formats/o1602-chunk.md) |
 | **Aufträge auf jedem Rechner gleich geprüft** (S-105), nur mit dem eigenen Auftrag (S-106), Bankrott nur nach 200 s am Stück (S-107), beste Zuordnung der Stadtziele (S-108), Inselziele mit beim Start festgehaltenen Inseln (S-110), geprüfte Auftragsdaten (S-111); nach dem Sieg kann weitergespielt werden | [missions.md](re/missions.md) |
-| **Determinismus**: feste Ticks, Zufallsströme je Teilsystem, KI und Zierfiguren auf jedem Rechner gleich | [ADR 0004](architecture/0004-deterministische-simulation.md) |
-| **Banner**: beliebig viele Spieler im Modell, eingefärbte Einheitsflagge, Einheiten in jeder Farbe | [ADR 0007](architecture/0007-erweiterbarkeit-und-modding.md), [flags.md](modding/flags.md) |
+| **Determinismus**: feste Ticks, Zufallsströme je Teilsystem, KI und Zierfiguren auf jedem Rechner gleich | [ADR 0004](architecture/0004-deterministic-simulation.md) |
+| **Banner**: beliebig viele Spieler im Modell, eingefärbte Einheitsflagge, Einheiten in jeder Farbe | [ADR 0007](architecture/0007-extensibility-and-modding.md), [flags.md](modding/flags.md) |
 | **Keine technischen Grenzen** der Originaltabellen in der Simulation (Pools mit stabilen IDs), keine Grenze von 250 Anzeigefiguren | [bugs.md](re/bugs.md) (L-002, L-007) |
 | **Computergegner**: Tempo unabhängig von der Bildrate, breitere Steinbruchsuche, Felder nachpflanzen statt abreißen, Mitschrift mit `O1602_AI_LOG` | [ai.md](re/ai.md) |
 | **Korrekturen nach Rückmeldung (18.10.2026)**: Namenseingabe im Menü (Texteingabe lief nur im Spiel), Name vorbelegt mit „Namenlos“ oder dem letzten, erste Taste ersetzt ihn, Enter spricht „Wählt Euer Banner“ (Speech8 107–115), Escape zurück zur Auftragswahl; Rückfragen und Tastenübersicht antworten nur auf Klicks (Drücken und Loslassen), nicht auf Überfahren; Meerestiere seltener (`sea_creatures_every`, Standard 60 s); Sichtrahmen der Minikarte am Kartenrand behält seine Form; Schatten der Bauvorschau zeigt das gewählte Gebäude (vorher die Holzmauer); Fließtext bricht in Schriftpixeln um (Auftragsfenster, Briefing im Menü); Statusleiste und Auftragsfenster in voller Breite ohne Nähte; Ereignissymbol in der Farbe des Konkurrenten (neue Stadt, neues Schiff); Rechtsklick schließt erst das Aufklappfeld des Baumenüs, dann das Gebäude in der Hand | [flavor.md](re/flavor.md), [bugs.md](re/bugs.md#fehler-von-open1602-selbst) |
@@ -109,8 +109,8 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 
 | Was | Abhängigkeit | Quelle |
 |---|---|---|
-| Startdialog mit allen Einstellungen in Gruppen | Oberfläche | [ADR 0008](architecture/0008-spieleinstellungen.md) |
-| Flaggenmenü mit freier RGB-Farbe wie in Anno 1503 | Oberfläche | [ADR 0007](architecture/0007-erweiterbarkeit-und-modding.md) |
+| Startdialog mit allen Einstellungen in Gruppen | Oberfläche | [ADR 0008](architecture/0008-game-settings.md) |
+| Flaggenmenü mit freier RGB-Farbe wie in Anno 1503 | Oberfläche | [ADR 0007](architecture/0007-extensibility-and-modding.md) |
 | Mehr als vier Spieler beim Spielstart (Plan kann 16), Piraten und Händler skalieren mit | Mehrspieler, Fraktionen als Daten | [worldgen.md](re/worldgen.md) |
 | Fraktionen als Daten (heute festes `PlayerRole`) | – | ADR 0007 |
 | Inhaltspakete mit Manifest und Kennungen, freie Warenliste, PNG- und OGG-Import | M8 | ADR 0007 |

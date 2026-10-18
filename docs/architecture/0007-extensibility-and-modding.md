@@ -144,6 +144,6 @@ eine klare Meldung.
 | Gebäude, Figuren | `.cod`-Nummern als Index | ⬜ Inhaltsregister mit Kennungen (mit den ersten eigenen Inhalten) |
 | Waren | feste Liste des Originals | ⬜ mit der Wirtschaftssimulation |
 | Fraktionen, Skalierung neutraler Spieler | – | ⬜ `sim::PlayerRole` ist weiter ein festes enum; die Computergegner (18.10.2026) bauen darauf auf, Fraktionen als Daten stehen noch aus |
-| Spielerzahl beim Spielstart, Speichern | 4 Spieler beim Start, 7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme im Spielstand | ⬜ der Weltplan kann 16 Spieler; Speichern über die Originalgrenzen kommt in den eigenen Chunk ([stand.md](../stand.md)) |
+| Spielerzahl beim Spielstart, Speichern | 4 Spieler beim Start, 7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme im Spielstand | ⬜ der Weltplan kann 16 Spieler; Speichern über die Originalgrenzen kommt in den eigenen Chunk ([status.md](../status.md)) |
 | Inselgenerator | – | 🟡 Stufe 1: eigene Welten aus den Originalvorlagen (200–2000 Felder, [worldgen.md](../re/worldgen.md)); Stufe 2 mit eigenen Inselformen zurückgestellt |
 | Lua, Kampagnen, Inhaltspakete | – | ⬜ eigene Meilensteine (M8) |

@@ -12,7 +12,7 @@ neue Features, QoL und Mods bieten.
 ### Anforderungen an Erweiterbarkeit und Modding
 
 Festgelegt am 16.10.2026, verbindlich für jeden neuen Code. Die Architektur dazu steht in
-[ADR 0007](architecture/0007-erweiterbarkeit-und-modding.md).
+[ADR 0007](architecture/0007-extensibility-and-modding.md).
 
 - Neue **Gebäude, Farben, Produktionsketten, Inseln, Landschaften, Fraktionen, Animationen,
   Grafiken, Musik und Sounds** lassen sich hinzufügen.
@@ -25,7 +25,7 @@ Festgelegt am 16.10.2026, verbindlich für jeden neuen Code. Die Architektur daz
 - **Farben und Flaggen** sind erweiterbar, mit einem Flaggenauswahlmenü wie in Anno 1503.
 - Das **Endlosspiel** lässt sich genauer einstellen als im Original, wie in späteren Anno-Teilen
   (zum Beispiel die Rückerstattung beim Abriss: keine, teilweise oder voll). Die Einstellungen
-  stehen in `sim::Rules` ([ADR 0008](architecture/0008-spieleinstellungen.md)).
+  stehen in `sim::Rules` ([ADR 0008](architecture/0008-game-settings.md)).
 
 ## 2. Bestandsaufnahme (erste Analyse des Spielordners)
 
@@ -171,7 +171,7 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 | M7 | Verbesserungen | Bugfixes, beliebige Auflösungen, freier Zoom, Hotkeys, UI-Skalierung, Editor |
 | M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, eigene Inselformen (Weltengenerator Stufe 2, ADR 0007) |
 
-**Stand der Meilensteine (18.10.2026)**, Einzelheiten in [stand.md](stand.md): M0 ✅ · M1 🟡 (offen:
+**Stand der Meilensteine (18.10.2026)**, Einzelheiten in [status.md](status.md): M0 ✅ · M1 🟡 (offen:
 Teile von Inselkopf und Szenario-Chunks; Schriften, Layouts, Ton und Videos fertig) · M2 ✅ ·
 M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel, Spielstände und Ton fertig; Grundlagen der Oberfläche da, es fehlt ihr Zeichnen und die Fenster) · M5 🟡
 (Militär, Piraten, Weltengenerator Stufe 1, KI und Aufträge mit Sieg und Niederlage fertig; offen:
@@ -214,7 +214,7 @@ darauf aufsetzt.
    KI-Schalter der Szenarien und die Schiffsaufträge aus Originalständen. Als Nächstes Ereignisse
    (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen Einstellungen, übrige Oberfläche.
    **Nach der Bestandsaufnahme erledigt (18.10.2026):** eigenes Speicherformat `.o1602` ohne die Grenzen
-   des Originals ([ADR 0009](architecture/0009-eigenes-speicherformat.md)); teureres Wasser bei feindlichen
+   des Originals ([ADR 0009](architecture/0009-own-save-format.md)); teureres Wasser bei feindlichen
    Türmen; Stadt- und Schiffsfenster als Befehle (Steuersatz, Name, Material, Kanonen, über Bord,
    Schiffsverkauf); Handelseinstellungen nach `Maxware`; `Grundflg` in der Wegsuche; Aufträge der
    Computerschiffe aus Originalständen; Reaktion der Computer auf eine Gründung. Danach die
@@ -249,7 +249,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: echter Spielstand geprüft (Merlin01): zwei Inselebenen, globale Chunks, Namen aus `Game.dat`, Flaggenwahl bestätigt | ✅ `docs/formats/gam.md` |
 | M2: Flaggen auf Kontor, Markt und Turm in Besitzerfarbe | ✅ `docs/re/rendering.md` §6 |
 | M2: Abgleich mit einem Bildschirmfoto des Originals (Merlin01, SGFX): Korrelation 0,955 | ✅ `docs/re/rendering.md` §8 |
-| Anforderungen an Erweiterbarkeit und Modding (ADR 0007); Engine-Modell ohne feste Spielerzahl, Banner statt fester Farben, Weltgröße pro Karte | ✅ `docs/architecture/0007-erweiterbarkeit-und-modding.md` |
+| Anforderungen an Erweiterbarkeit und Modding (ADR 0007); Engine-Modell ohne feste Spielerzahl, Banner statt fester Farben, Weltgröße pro Karte | ✅ `docs/architecture/0007-extensibility-and-modding.md` |
 | Spielstand-Analyse (Merlin01 weitergespielt): alle Chunks mit Schreibroutine und Laufzeittabelle; Städte mit Namen, Kontorbestände, Produktionsliste, Hirsche geladen; SHIP4-Richtung korrigiert | ✅ `docs/formats/gam.md` |
 | M2: Figuren-Animationssystem (ANIM), Tiere mit Schatten, Figuren-Sheets je Zoomstufe, Figuren in SGFX (abschaltbar) | ✅ `docs/re/figures.md` |
 | Spielerflaggen als eingefärbte Einheitsflagge (beliebige Farben, 12 Vorgaben, Modder-Anleitung) | ✅ `docs/modding/flags.md` |
@@ -260,7 +260,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M3: Logistik, Stufe 1: Lager der Stadt (Bestand, Reservierung, Lagerraum), Wegesuche im Einzugskreis, Träger und Marktkarren mit Bewegung und Animation; Originalfehler S-022–S-025 behoben | ✅ `docs/re/logistics.md` |
 | M3: Logistik, Stufe 2: Wachstum der Felder (Klassenuhren, `ROHWACHS2`), Bauern, Viehherden, Fischerboote, Lagerstätten der Minen | ✅ `docs/re/growth.md`, `docs/re/logistics.md` |
 | M3: Bauen und Abreißen als Befehle der Simulation: Prüfungen (Gelände, Drehung, Gebiet, Einheiten, Freischaltung, Fruchtbarkeit), Kosten in Auftragsreihenfolge, Anmelden in allen Listen, Straßen an Nachbarn anpassen, Gebiet von Markt und Kontor, Stadtgründung vom Schiff, Abriss mit Gebietsprüfung; Baustufen im Stadttakt; Bauwerkzeug im Betrachter (B, X) | ✅ `docs/re/construction.md` |
-| Spieleinstellungen in `sim::Rules` (ADR 0008), erste Wahl: Rückerstattung beim Abriss (keine, teilweise, voll) | ✅ `docs/architecture/0008-spieleinstellungen.md` |
+| Spieleinstellungen in `sim::Rules` (ADR 0008), erste Wahl: Rückerstattung beim Abriss (keine, teilweise, voll) | ✅ `docs/architecture/0008-game-settings.md` |
 | M3: Dürre (Wurf nach Schwierigkeit, Verdorren, Erholung, Ernte, Einstellung `Rules::droughts`) | ✅ |
 | M3: Brände, Pest, Räuber: Stadttermin, Ausbreitung, Niederbrennen, Arzt und Feuerwehr, Räuber mit Verfolgung, Anzeige | ✅ `docs/re/disasters.md` |
 | M3: Vulkane: Krater, Wurf, Ausbruch mit 141 Lavabrocken, Brand und Zerstörung, Anzeige, Einstellung `Rules::volcanoes`; S-042 behoben | ✅ `docs/re/volcanoes.md` |
@@ -282,7 +282,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M5: Piraten und Eingeborene, Einheiten- und Flottengrenze als Regeln | ✅ `docs/re/pirates.md` |
 | M5: Weltengenerator Stufe 1 (eigene Welten 200–2000 Felder, `O1602MAP`) | ✅ `docs/re/worldgen.md` |
 | M5: Computergegner (deterministisch, gespeichert, S-095 bis S-102) | ✅ `docs/re/ai.md` |
-| Bestandsaufnahme: was umgesetzt, offen und unklar ist, im Original und bei den Erweiterungen | ✅ `docs/stand.md` |
+| Bestandsaufnahme: was umgesetzt, offen und unklar ist, im Original und bei den Erweiterungen | ✅ `docs/status.md` |
 | M5: Aufträge der Szenarien, Sieg und Niederlage (S-105 bis S-111) | ✅ `docs/re/missions.md` |
 | M1: ZEI-Schriften, GAD | ✅ `docs/re/ui.md`, `docs/formats/gad.md` |
 | M1: restliche Szenario-Chunks | ⬜ |
@@ -291,8 +291,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 ## 9. Offene Punkte nach Abhängigkeit
 
 Die vollständige Übersicht (umgesetzt, offen, Klärung nötig, Erweiterungen) steht in
-[stand.md](stand.md); was ich dafür an Spielständen, Videos und Beobachtungen brauche, in
-[eingaben.md](eingaben.md). Hier nur die Punkte, die auf ein anderes System warten. Wenn das System
+[status.md](status.md); was ich dafür an Spielständen, Videos und Beobachtungen brauche, in
+[requests.md](requests.md). Hier nur die Punkte, die auf ein anderes System warten. Wenn das System
 kommt, werden sie abgehakt.
 
 **Speichern**
@@ -300,7 +300,7 @@ kommt, werden sie abgehakt.
   ([o1602-save.md](formats/o1602-save.md)).
 - Liste der Spielstände (Abschnitt `META`) im Lade-Menü der Oberfläche.
 - Originalspielstände nehmen für die Wahlpunkte die Werte des Originals: erfüllt, weil der Standard
-  der Wahlpunkte das Original ist ([ADR 0008](architecture/0008-spieleinstellungen.md)); Stände von
+  der Wahlpunkte das Original ist ([ADR 0008](architecture/0008-game-settings.md)); Stände von
   Open1602 bringen ihre Einstellungen mit.
 
 **Szenarien**
@@ -316,7 +316,7 @@ kommt, werden sie abgehakt.
 - Fenster für Kontor, Laderäume, Handelsrouten, Werft, Burg, Diplomatie, Einheiten, Statistik;
   Lebensbalken; Formationswahl.
 - Warnung beim Abriss eines Markts, der Häuser die Grundlage nimmt (S-035).
-- Startdialog für das Endlosspiel mit allen Spieleinstellungen ([ADR 0008](architecture/0008-spieleinstellungen.md)).
+- Startdialog für das Endlosspiel mit allen Spieleinstellungen ([ADR 0008](architecture/0008-game-settings.md)).
 - U-013 noch einmal ansehen (Erkunden an Werft und Piratenkontor).
 - Idee: volle Rückerstattung für wenige Sekunden nach dem Bau (Schutz vor Fehlklicks); dafür
   braucht jedes Gebäude seinen Bauzeitpunkt.
@@ -344,4 +344,4 @@ kommt, werden sie abgehakt.
 **Nur Analyse**
 - Bits +0x0F/4 und /6 der Produktion ([production.md](re/production.md)).
 - Zweite Liste bei Insel +0x30 ([growth.md](re/growth.md)).
-- Weitere Punkte in [stand.md](stand.md#13-klärung-nötig-verhalten-des-originals-nicht-belegt).
+- Weitere Punkte in [status.md](status.md#13-klärung-nötig-verhalten-des-originals-nicht-belegt).

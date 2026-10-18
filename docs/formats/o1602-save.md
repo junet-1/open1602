@@ -1,6 +1,6 @@
 # Spielstand von Open1602 (`.o1602`)
 
-Open1602 speichert Spiele in einem eigenen Format ([ADR 0009](../architecture/0009-eigenes-speicherformat.md)).
+Open1602 speichert Spiele in einem eigenen Format ([ADR 0009](../architecture/0009-own-save-format.md)).
 Es enthält den vollständigen Zustand eines Spiels, hängt von keiner anderen Datei ab und kennt keine
 Grenzen des Originals (Spieler, Schiffe, Soldaten, Türme, Kartengröße). Ein gespeichertes Spiel läuft
 nach dem Laden **genau so weiter, als wäre es nie angehalten worden**; das prüfen Datentests mit einem
