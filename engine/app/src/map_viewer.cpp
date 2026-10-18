@@ -158,7 +158,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             }
         }
         if (options.video) {
-            viewer->request_video(*options.video, 0, false, true);
+            const std::uint16_t n = *options.video;
+            viewer->request_video(n, 0, false, n == 8 || n == 9 || n == 58);
         }
     }
     if (options.frame) {
@@ -332,8 +333,12 @@ int MapViewer::run() {
             SDL_PushEvent(&e);
         }
         while (SDL_PollEvent(&event)) {
-            if (m_video && m_video->playing()) {
+            if (m_video && m_video->playing() && !video_in_minimap()) {
                 handle_video_event(event);
+            } else if (video_in_minimap() && event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+                       m_hud->minimap_area().contains(static_cast<std::int32_t>(event.button.x),
+                                                      static_cast<std::int32_t>(event.button.y))) {
+                stop_video();  // a click on the video ends it
             } else {
                 handle_event(event);
             }
@@ -361,9 +366,9 @@ int MapViewer::run() {
                     break;
             }
         }
-        if (video) {
-            // The game stands still while a video plays (the original's main loop 0x00408293); the
-            // time does not reach the simulation afterwards.
+        if (video && !video_in_minimap()) {
+            // The game stands still while a video fills the screen (the original's main loop
+            // 0x00408293); the time does not reach the simulation afterwards.
             std::int32_t w = 0;
             std::int32_t h = 0;
             m_window->output_size(w, h);
@@ -406,7 +411,7 @@ int MapViewer::run() {
     }
     if (!m_options.screenshot.empty()) {
         // Read back a complete frame.
-        if (m_video && m_video->playing()) {
+        if (m_video && m_video->playing() && !video_in_minimap()) {
             std::int32_t w = 0;
             std::int32_t h = 0;
             m_window->output_size(w, h);
@@ -794,6 +799,11 @@ void MapViewer::render() {
         m_hud->set_resources(resources());
         m_hud->draw(m_world, m_buildings, m_banners, corners, now, m_player_figures,
                     static_cast<std::uint8_t>(local != nullptr ? std::min<int>(local->banner, 255) : 0));
+        if (video_in_minimap()) {
+            // The video of a message over the minimap; the game goes on (ADR 0010).
+            const ui::Rect a = m_hud->minimap_area();
+            m_video->draw_in(a.x, a.y, a.w, a.h);
+        }
     }
     SDL_RenderPresent(r);
 }
@@ -1029,7 +1039,15 @@ void MapViewer::request_video(std::uint16_t number, std::uint8_t tracks, bool lo
             stop_video();
         }
     }
-    m_videos.push_back(VideoRequest{number, tracks, loop, intro});
+    // Messages play in the minimap's window; the logos and the intro, the credits (10), the pause (6)
+    // and the ends of the game (defeat 998, 1010, 2020; missions fulfilled from 2500) fill the screen.
+    const bool full =
+        intro || loop || number == 10 || number == 998 || number == 1010 || number == 2020 || number >= 2500;
+    m_videos.push_back(VideoRequest{number, tracks, loop, intro, !full});
+}
+
+bool MapViewer::video_in_minimap() const {
+    return m_video && m_video->playing() && m_video_now.in_minimap && m_hud;
 }
 
 bool MapViewer::start_next_video(std::uint64_t now_ms) {

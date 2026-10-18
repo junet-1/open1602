@@ -124,6 +124,8 @@ public:
     /// Switches the mode (also from the keys); returns what the tool should do.
     std::optional<Action> set_mode(std::int32_t mode);
 
+    /// The minimap's window on the screen (videos of messages play there, ADR 0010).
+    [[nodiscard]] ui::Rect minimap_area() const { return minimap_rect(); }
     /// The world tile of a point on the minimap, nothing elsewhere.
     [[nodiscard]] std::optional<std::pair<double, double>> minimap_tile(std::int32_t x, std::int32_t y) const;
     /// The place of the newest message that has one (Space jumps there).

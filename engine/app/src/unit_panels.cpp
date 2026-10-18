@@ -236,8 +236,8 @@ public:
         const assets::FigureType* t = c.figures.get(s->figure);
         // The kind of unit (FIGKIND); the natives' warriors have none there (LEISTE 227, 0x0040A3D0).
         const std::int32_t kind = t != nullptr ? t->kind : 0;
-        m_panel.set_text(kName, kind >= 1 && kind <= 4 ? c.text("FIGKIND", static_cast<std::size_t>(kind))
-                                                       : help_line(c, 227));
+        m_panel.set_text(
+            kName, kind >= 1 && kind <= 4 ? c.text("FIGKIND", static_cast<std::size_t>(kind)) : help_line(c, 227));
         m_panel.set_visible(kStop, own && !s->target.empty());
         for (const std::int32_t id : {kPatrol, kDisband, kCost, kCoin}) {
             m_panel.set_visible(id, own);

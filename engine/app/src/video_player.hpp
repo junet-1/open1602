@@ -45,6 +45,9 @@ public:
     Step update(std::uint64_t now_ms);
     /// Draws the current frame into a window of `width` x `height` pixels.
     void draw(std::int32_t width, std::int32_t height);
+    /// Draws the current frame as large as it fits into a rectangle of the screen, on black (the
+    /// minimap's window, ADR 0010).
+    void draw_in(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height);
 
 private:
     SDL_Renderer* m_renderer;

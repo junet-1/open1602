@@ -261,7 +261,12 @@ private:
         std::uint8_t tracks = 0;
         bool loop = false;
         bool intro = false;
+        /// In the minimap's window while the game goes on (videos of messages, ADR 0010); the
+        /// start, the credits, the pause and the ends of the game fill the screen.
+        bool in_minimap = false;
     };
+    /// Whether the running video plays in the minimap's window.
+    [[nodiscard]] bool video_in_minimap() const;
     std::optional<sim::BuildBill> m_pending_bill;  ///< costs of the order the build tool shows
     sim::PlayerFigures m_player_figures;           ///< the info panel's figures, refreshed once a second
     std::uint64_t m_figures_ms = 0;

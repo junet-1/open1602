@@ -118,6 +118,28 @@ VideoPlayer::Step VideoPlayer::update(std::uint64_t now_ms) {
     return Step::Playing;
 }
 
+void VideoPlayer::draw_in(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) {
+    const SDL_FRect area{static_cast<float>(x), static_cast<float>(y), static_cast<float>(width),
+                         static_cast<float>(height)};
+    SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
+    SDL_RenderFillRect(m_renderer, &area);
+    if (!m_video || m_texture == nullptr || width <= 0 || height <= 0) {
+        return;
+    }
+    if (m_dirty) {
+        m_video->to_rgba(m_rgba);
+        SDL_UpdateTexture(m_texture, nullptr, m_rgba.data(), m_texture_w * 4);
+        m_dirty = false;
+    }
+    const double scale = std::min(static_cast<double>(width) / m_texture_w, static_cast<double>(height) / m_texture_h);
+    const double w = std::floor(m_texture_w * scale);
+    const double h = std::floor(m_texture_h * scale);
+    const SDL_FRect dst{static_cast<float>(x + std::floor((width - w) / 2.0)),
+                        static_cast<float>(y + std::floor((height - h) / 2.0)), static_cast<float>(w),
+                        static_cast<float>(h)};
+    SDL_RenderTexture(m_renderer, m_texture, nullptr, &dst);
+}
+
 void VideoPlayer::draw(std::int32_t width, std::int32_t height) {
     SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
     SDL_RenderClear(m_renderer);

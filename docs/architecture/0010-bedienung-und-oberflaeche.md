@@ -112,9 +112,9 @@ geltenden Zusammenhang nichts anderes bedeutet.
 
 Umgesetzt (18.10.2026): Tabelle `ui::KeyBindings` mit dieser Vorgabe (noch ohne Einstellungsdatei),
 Auswahl mit Rahmen, Gruppen, Formationen und Filtern (`ui::UnitSelection`), Rechtsklick- und
-Minikartenbefehle, Befehlsketten in der Simulation, die Rückfragen und die Fenster des Kampfmodus. Noch
-nicht: Angriffsbewegung (A wählt bisher ein Angriffsziel), Stellung halten, Videos im Minikartenfenster,
-Spielmenü, Listen, Diplomatie, Schnellladen, Hilfe.
+Minikartenbefehle, Befehlsketten in der Simulation, die Rückfragen, die Fenster des Kampfmodus und die
+Meldungsvideos im Minikartenfenster. Noch nicht: Angriffsbewegung (A wählt bisher ein Angriffsziel),
+Stellung halten, Spielmenü, Listen, Diplomatie, Schnellladen, Hilfe, Einstellungsdatei der Tasten.
 
 ## Folgen
 - Die Eingabe läuft über eine Tabelle Aktion → Taste (Einstellungsdatei), nicht über feste Tasten im
