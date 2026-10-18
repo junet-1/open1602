@@ -106,7 +106,23 @@ private:
     struct Bucketed {
         std::int32_t bx;
         std::int32_t by;
+        std::int32_t x8;  ///< the entry's position, here for the distance test
+        std::int32_t y8;
         std::uint32_t entry;
+        PlayerId owner;
+    };
+    /// A bucket in use: its owner groups in m_groups.
+    struct Cell {
+        std::int32_t bx;
+        std::int32_t by;
+        std::uint32_t first_group;
+        std::uint32_t end_group;
+    };
+    /// The figures of one owner in a bucket: m_buckets[begin, end).
+    struct Group {
+        PlayerId owner;
+        std::uint32_t begin;
+        std::uint32_t end;
     };
     struct Seen {
         std::int32_t distance8;
@@ -128,7 +144,10 @@ private:
     std::vector<std::uint8_t> m_present;                           ///< per player: has figures
     std::vector<std::uint8_t> m_enemies;                           ///< per player: an enemy has figures
     std::vector<Bucketed> m_buckets;
+    std::vector<Cell> m_cells;
+    std::vector<Group> m_groups;
     std::vector<Seen> m_seen;
+    std::vector<std::uint32_t> m_distances;   ///< scratch of update(): figures seen per distance
     mutable std::vector<Candidate> m_ranked;  ///< what rank() returns
 };
 
