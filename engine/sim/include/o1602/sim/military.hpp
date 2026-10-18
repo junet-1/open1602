@@ -180,6 +180,8 @@ public:
     bool load(core::ByteReader& in);
 
 private:
+    /// A unit or building on another island than the unit stands on (a melee unit cannot reach it).
+    [[nodiscard]] bool on_other_island(const Soldier& s, const Target& t) const;
     // Soldiers (soldiers.cpp)
     void advance(Soldier& s, std::uint32_t budget_us);
     void decide(Soldier& s);

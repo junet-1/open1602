@@ -487,6 +487,20 @@ void Military::kill(Soldier& s, PlayerId killer, bool disband) {
     }
 }
 
+bool Military::on_other_island(const Soldier& s, const Target& t) const {
+    if (s.island == 0xFFFF) {
+        return false;
+    }
+    if (t.kind == Target::Kind::Building) {
+        return t.island != s.island;
+    }
+    if (t.kind == Target::Kind::Soldier) {
+        const Soldier* o = m_world->soldier(t.ship);
+        return o != nullptr && o->island != 0xFFFF && o->island != s.island;
+    }
+    return false;
+}
+
 void Military::decide(Soldier& s) {
     SoldierMotion& m = s.motion;
     const assets::FigureType* type = type_of(s);
@@ -544,6 +558,14 @@ void Military::decide(Soldier& s) {
                     }
                     if (++tried > 7) {
                         break;  // the reachability test covers 7 candidates (0x00454580)
+                    }
+                    if (melee && on_other_island(s, c.unit)) {
+                        // No way leads there on foot; skip the search, which would only fail
+                        // (review point 18), but take its random draw so the game stays the same.
+                        if (s.failures != 0) {
+                            m_world->random(RandomStream::Military).next();
+                        }
+                        continue;
                     }
                     if (plan_to(s, c.unit, kChaseRadius, true)) {
                         chase = c.unit;
