@@ -1377,6 +1377,9 @@ void MapViewer::apply_hud(const Hud::Action& action) {
         case Hud::Action::Kind::ToolOff:
             m_tool.set_mode(BuildTool::Mode::Off);
             break;
+        case Hud::Action::Kind::OrientToRoad:
+            m_tool.set_orient_to_road(action.step != 0);
+            break;
     }
 }
 

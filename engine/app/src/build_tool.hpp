@@ -35,6 +35,9 @@ public:
     [[nodiscard]] std::uint8_t rotation() const noexcept { return m_rotation; }
     /// Picks a building by its Id (the build menu); false if it is none the tool can place.
     bool select(std::uint32_t id) noexcept;
+    /// Buildings with a door turn towards the nearest road (the build menu's switch 31023; off at
+    /// the start of a game as in the original).
+    void set_orient_to_road(bool on) noexcept { m_orient_to_road = on; }
 
     /// Where the mouse is (island tile), nullopt over the sea.
     struct Spot {
@@ -62,6 +65,7 @@ private:
     std::size_t m_selected = 0;
     std::uint8_t m_rotation = 0;
     Mode m_mode = Mode::Off;
+    bool m_orient_to_road = false;
     std::optional<Spot> m_drag_start;
 };
 

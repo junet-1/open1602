@@ -67,8 +67,6 @@ BuildPanel::BuildPanel(assets::GadgetLayout bau, const ui::BuildMenuDefinition& 
     m_gfx_bauhaus = m_layout.constant("GFXBAUHAUS").value_or(m_gfx_bauhaus);
     m_gfx_ware = m_layout.constant("GFXWARE").value_or(m_gfx_ware);
     m_bau.set_selected(m_category, true);
-    // The automatic turn towards a road (flag 0x6C3064) is not in the build tool yet.
-    m_bau.set_disabled(kAutoAlign, true);
 }
 
 void BuildPanel::set_scale(double scale) {
@@ -184,6 +182,9 @@ std::optional<BuildPanel::Action> BuildPanel::mouse(std::int32_t x, std::int32_t
             }
         } else if (e.kind == ui::PanelEvent::Kind::Clicked && (e.id == kRotateLeft || e.id == kRotateRight)) {
             action = Action{Action::Kind::Rotate, 0, e.id == kRotateLeft ? -1 : 1};
+        } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kAutoAlign) {
+            // Flipflg: the panel has already turned it over (flag 0x6C3064).
+            action = Action{Action::Kind::OrientToRoad, 0, m_bau.selected(kAutoAlign) ? 1 : 0};
         }
     }
     if (m_bau.hovered()) {

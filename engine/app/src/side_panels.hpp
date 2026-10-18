@@ -27,10 +27,10 @@ class BuildPanel {
 public:
     /// What a click asks for.
     struct Action {
-        enum class Kind : std::uint8_t { Pick, Demolish, Rotate };
+        enum class Kind : std::uint8_t { Pick, Demolish, Rotate, OrientToRoad };
         Kind kind = Kind::Pick;
         std::uint32_t building = 0;  ///< Pick: HAUS Id
-        int step = 0;                ///< Rotate: -1 left, +1 right
+        int step = 0;                ///< Rotate: -1 left, +1 right; OrientToRoad: 1 on, 0 off
     };
     /// Whether the local player may pick a building (sim::building_available).
     using Available = std::function<bool(std::uint32_t id)>;

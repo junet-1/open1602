@@ -93,6 +93,7 @@ std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, s
         return std::nullopt;
     }
     sim::BuildOrder order;
+    order.orient_to_road = m_orient_to_road;
     order.player = player;
     order.island = spot.island;
     const Spot start = m_drag_start && m_drag_start->island == spot.island ? *m_drag_start : spot;

@@ -44,6 +44,7 @@ public:
             Demolish,      ///< build mode, the demolish tool
             TurnBuilding,  ///< the building to place by `step` quarters
             ToolOff,       ///< another mode: no building tool
+            OrientToRoad,  ///< buildings with a door turn to the road (`step` 1) or not (0)
         };
         Kind kind = Kind::RotateLeft;
         double tile_x = 0.0;  ///< Minimap and Message: the world tile to look at

@@ -248,6 +248,10 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
                     action = Action{Action::Kind::TurnBuilding};
                     action->step = a->step;
                     break;
+                case BuildPanel::Action::Kind::OrientToRoad:
+                    action = Action{Action::Kind::OrientToRoad};
+                    action->step = a->step;
+                    break;
             }
         }
         if (popup && consumed) {
