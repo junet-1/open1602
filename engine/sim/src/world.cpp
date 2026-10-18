@@ -83,39 +83,23 @@ void World::add_soldier(Soldier soldier) {
 }
 
 const Soldier* World::soldier(std::uint32_t id) const noexcept {
-    for (const Soldier& s : m_soldiers) {
-        if (s.id == id) {
-            return &s;
-        }
-    }
-    return nullptr;
+    const std::size_t i = m_soldier_index.find(m_soldiers, id, m_next_soldier_id);
+    return i == IdIndex::kNone ? nullptr : &m_soldiers[i];
 }
 
 Soldier* World::soldier(std::uint32_t id) noexcept {
-    for (Soldier& s : m_soldiers) {
-        if (s.id == id) {
-            return &s;
-        }
-    }
-    return nullptr;
+    const std::size_t i = m_soldier_index.find(m_soldiers, id, m_next_soldier_id);
+    return i == IdIndex::kNone ? nullptr : &m_soldiers[i];
 }
 
 const Ship* World::ship(std::uint32_t id) const noexcept {
-    for (const Ship& s : m_ships) {
-        if (s.id == id) {
-            return &s;
-        }
-    }
-    return nullptr;
+    const std::size_t i = m_ship_index.find(m_ships, id, m_next_ship_id);
+    return i == IdIndex::kNone ? nullptr : &m_ships[i];
 }
 
 Ship* World::ship(std::uint32_t id) noexcept {
-    for (Ship& s : m_ships) {
-        if (s.id == id) {
-            return &s;
-        }
-    }
-    return nullptr;
+    const std::size_t i = m_ship_index.find(m_ships, id, m_next_ship_id);
+    return i == IdIndex::kNone ? nullptr : &m_ships[i];
 }
 
 namespace {
