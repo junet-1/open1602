@@ -17,7 +17,7 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 - **Spielbar ist sie heute nur im Kartenbetrachter**: Start über die Kommandozeile, Bauen, Abreißen,
   Schiffe und Soldaten mit der Maus, Rückmeldungen im Fenstertitel und im Terminal.
 - **Die großen offenen Blöcke** sind die Oberfläche (Menüs, Fenster, Baumenü, Minimap, Meldungen),
-  Videos, Kampagnenfortschritt und Bestenliste, der Mehrspieler und die
+  Kampagnenfortschritt und Bestenliste, der Mehrspieler und die
   Modding-Grundlagen (Inhaltspakete, Fraktionen als Daten, Lua).
 - **Spielstände** speichert Open1602 seit dem 18.10.2026 im eigenen Format `.o1602`
   ([o1602-save.md](formats/o1602-save.md), [ADR 0009](architecture/0009-eigenes-speicherformat.md)): ohne
@@ -43,7 +43,7 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 | Piraten, Eingeborene | ✅ Piratenschiffe, Beute, Plünderung, Nest mit Gründung und Ausbau, Frieden kaufen, Bestechung; Eingeborene mit Wohlwollen, Verbrauch, Kriegern; Niederlage der Piraten, wenn ein Auftrag sie verlangt | – | [pirates.md](re/pirates.md) |
 | Computergegner | ✅ Aufgabenstapel, Stufen und Bedarfe, Bauplatzsuche, Wartung, Siedeln, Kolonien, Versorgung, Flotte, Handel, Militär, Diplomatie, Aufträge der Schiffe aus Originalständen, Reaktion auf eine Gründung (Ereignis 0x0E) | KI-Schalter der Szenarien (Spieler +0x70) | [ai.md](re/ai.md) |
 | Neues Endlosspiel | ✅ wie das Original, Byte für Byte gegen zwei Endlosstarts geprüft | Mehrspieler-Endlosspiel (`.szm`) | [newgame.md](re/newgame.md), [worldgen.md](re/worldgen.md) |
-| Szenarien und Aufträge | ✅ Szenarien laden und laufen; Aufträge (`AUFTRAG4`, alle 18 Ziele, Verlustbedingungen), Sieg, Niederlage (ohne Stadt und Schiff, Bankrott, Computer, Piraten), Triumphbogen für den Schuldigen, Handelsstatistik, abwesende Plätze; Szenarien haben keine Ereignisse (belegt) | Kampagnenfortschritt (Original: `Game.dat`), Bestenliste und Punkte, Endbildschirm, Meldungen und Videos (Oberfläche); KI-Schalter der Szenarien | [missions.md](re/missions.md) |
+| Szenarien und Aufträge | ✅ Szenarien laden und laufen; Aufträge (`AUFTRAG4`, alle 18 Ziele, Verlustbedingungen), Sieg, Niederlage (ohne Stadt und Schiff, Bankrott, Computer, Piraten), Triumphbogen für den Schuldigen, Handelsstatistik, abwesende Plätze; Szenarien haben keine Ereignisse (belegt) | Kampagnenfortschritt (Original: `Game.dat`), Bestenliste und Punkte, Endbildschirm; KI-Schalter der Szenarien | [missions.md](re/missions.md) |
 | Spielstände | ✅ Originalstände lesen; eigenes Format `.o1602` ohne Grenzen, kanonisch, mit Prüfsumme; Export als `.GAM` (unverändert Byte für Byte zurück, vom Original geladen und weitergespielt) | Export eines aus `.o1602` geladenen Spiels im Original ungeprüft | [o1602-save.md](formats/o1602-save.md), [savegame-writer.md](re/savegame-writer.md) |
 
 ### 1.2 Darstellung, Oberfläche, Ton
@@ -54,7 +54,7 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 | Figuren | ✅ alle Figuren der Wirtschaft, Soldaten in jeder Bannerfarbe, Schiffe mit Schaden, Bugwelle, weißer Flagge, Sinken, Zierfiguren (Spaziergänger, Gaukler, Wale, Delfine, Kraken) | Mündungs- und Schussrauch, Treffer, Wrack (SHIPSUNK), Lebensbalken; Zierfiguren auch auf unentdeckten Inseln | [figures.md](re/figures.md), [flavor.md](re/flavor.md) |
 | Oberfläche | 🟡 Grundlagen: alle 45 Layouts (`.GAD`) gelesen, Schriften (`.ZEI`) mit Farben und Umbruch, Bereiche des Bildschirms, Gadgets im Betrieb (Zustände, Klick, Umschalter, Gruppen, Schieber, Zeichenliste); im Betrachter der Rahmen des Originals: Kopf der Seitenleiste mit Weltkarte, Kompass, Drehen und Zoom, Statusleiste mit Hilfetexten und Meldungssymbolen | Hauptmenü, Startdialog, Laden/Speichern, Optionen, Baumenü und die übrigen Felder der Seitenleiste (Modusknöpfe ohne Wirkung), alle Fenster, Highscore, Mauszeiger | [ui.md](re/ui.md) |
 | Ton, Musik, Sprache | ✅ Geräusche (Bauen, Schüsse, Treffer, Befehle, Vögel, Brandung, Arbeit und Tiere, Klicks) räumlich wie im Original, Sprachmeldungen mit Warteschlange, Musik mit Zufall, Kampfmusik und Ausblenden, 4-Bit-Musik entpackt; Lautstärken aus `Game.dat` (nur gelesen) | Tutorial-Sprache, Einwohner- und Warenmeldungen, Optionsfenster | [audio.md](re/audio.md) |
-| Videos | ⬜ | Smacker (`VideoSmk`) | – |
+| Videos | ✅ eigener Smacker-Decoder, Meldungs-, Sieg-, Niederlage- und Pausenvideos, Startfolge (`--intro`), Ton über den Mischer | Hauptmenü (Intro-Knopf, Abspann im Bilderrahmen), Video 2990 (Kampagnenfortschritt), Optionsfenster; im Mehrspieler nicht anhalten (M-018) | [videos.md](re/videos.md), [smk.md](formats/smk.md) |
 | Mehrspieler | 🟡 Grundlage: Befehle, feste Ticks, Zufallsströme, KI auf jedem Rechner, Einstellungen im Zustand | Netz (Lockstep), Zustands-Hash je Tick, Lobby, Spielerzuordnung, Wiederverbinden (M-003) | [ADR 0004](architecture/0004-deterministische-simulation.md) |
 | Editor | ⬜ | `1602Edit.exe` nachbauen (später) | – |
 

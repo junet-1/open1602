@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -191,7 +192,7 @@ TEST_CASE("audio: sound files and the settings of Game.dat") {
     CHECK(audio::sample_file(91) == std::optional<std::string>("SAMPLES/shpmove5.wav"));
     const auto s = audio::parse_audio_settings(
         "Objekt: OPTIONS\r\n  Musik: FALSE, 6\r\n  Samples: TRUE\r\n  Random: FALSE\r\n"
-        "  Volume: -750, -200, -595\r\n  Speach: 5, TRUE\r\n");
+        "  Volume: -750, -200, -595\r\n  Speach: 5, TRUE\r\n  Video: 7, TRUE\r\n");
     CHECK(!s.music);
     CHECK(s.effects);
     CHECK(!s.random_music);
@@ -199,6 +200,8 @@ TEST_CASE("audio: sound files and the settings of Game.dat") {
     CHECK(s.effect_volume == -200);
     CHECK(!s.speech[5]);
     CHECK(s.speech[1]);
+    CHECK(!s.video[7]);
+    CHECK(s.video[5]);
     CHECK(std::fabs(audio::gain_of(-2000) - 0.1F) < 1e-4F);
     CHECK(audio::gain_of(0) == 1.0F);
 }
@@ -261,6 +264,67 @@ TEST_CASE("audio: voice messages wait in four slots and speak one at a time") {
     voices.stop_all();
     voices.message(2, false);
     CHECK(voices.waiting() == 0);
+}
+
+TEST_CASE("audio: messages with a video play it instead of their voice (Msg_Audio 0x00488E80)") {
+    FakeGame fake;
+    auto game = assets::GameDirectory::open(fake.root);
+    REQUIRE(game.ok());
+    audio::SoundBank bank(*game);
+    audio::Mixer mixer(22050, 8);
+    audio::Effects effects(mixer, bank);
+    audio::Voices voices(mixer, bank, effects);
+    // Without a way to play videos (the viewer without --videos, the tests): the voice.
+    voices.message(1, false);
+    CHECK(!voices.take_video());
+    CHECK(voices.waiting() == 1);
+    voices.stop_all();
+
+    std::vector<std::uint16_t> asked;
+    voices.set_video_check([&](std::uint16_t n) {
+        asked.push_back(n);
+        return n != 703;  // the original names 703.smk, GOG has none
+    });
+    // Plague off screen: its video 282, no voice.
+    voices.message(1, false);
+    CHECK(voices.take_video() == std::optional<std::uint16_t>(282));
+    CHECK(!voices.take_video());
+    CHECK(voices.waiting() == 0);
+    // On screen it speaks (no flag 0x01 or 0x08).
+    voices.message(1, true);
+    CHECK(!voices.take_video());
+    CHECK(voices.waiting() == 1);
+    voices.stop_all();
+    // Flag 0x01 (the cathedral, 0x43): the video also on screen.
+    voices.message(0x43, true);
+    CHECK(voices.take_video() == std::optional<std::uint16_t>(262));
+    // Flag 0x08 (ore found, 0x2B): on screen at about a quarter of the times.
+    int videos = 0;
+    for (int i = 0; i < 400; ++i) {
+        voices.message(0x2B, true);
+        videos += voices.take_video() ? 1 : 0;
+        voices.stop_all();
+    }
+    CHECK(videos > 60);
+    CHECK(videos < 140);
+    // A missing video: the voice instead (the original stays silent, U-024).
+    voices.message(8, false);
+    CHECK(!voices.take_video());
+    CHECK(voices.waiting() == 1);
+    voices.stop_all();
+    // Videos of a kind switched off (kind 1, Ereignisse): the voice.
+    audio::AudioSettings s;
+    s.video[1] = false;
+    voices.set_settings(s);
+    voices.message(1, false);
+    CHECK(!voices.take_video());
+    CHECK(voices.waiting() == 1);
+    // The master switch blocks kind 0 too (mission success 0x5F, video 2000).
+    s.video[1] = true;
+    s.video[0] = false;
+    voices.set_settings(s);
+    voices.message(0x5F, false);
+    CHECK(!voices.take_video());
 }
 
 TEST_CASE("audio: music by name, battle music near shots, back after 25 s with a fade") {

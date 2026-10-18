@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -15,6 +16,7 @@
 #include "build_tool.hpp"
 #include "game_sound.hpp"
 #include "hud.hpp"
+#include "video_player.hpp"
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
@@ -63,6 +65,9 @@ struct ViewerOptions {
     bool frame = true;    ///< the original's panel and status bar around the map
     bool effects = true;  ///< sounds and voice messages (also off in the original's Game.dat)
     bool music = true;
+    bool videos = true;                  ///< the videos of messages, victory, defeat and pause
+    bool intro = false;                  ///< the logos and the intro before the game (the original always shows them)
+    std::optional<std::uint16_t> video;  ///< one video before the game (VideoSmk number)
 };
 
 class MapViewer {
@@ -119,6 +124,21 @@ private:
     /// A message for the local player with its voice; a message that asks for it slows the game
     /// to normal speed (flag 0x02).
     void announce(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt);
+    /// The same with the tracks of its video (bit i = track i, 0 = all): the messages 0x6B..0x6E
+    /// speak to the winner on track 1 and to the others on track 2.
+    void announce_with_tracks(std::uint16_t message, std::uint8_t tracks);
+    /// Videos (docs/re/videos.md): a new request replaces the running video and the waiting ones,
+    /// `intro` ones only queue after each other.
+    void request_video(std::uint16_t number, std::uint8_t tracks = 0, bool loop = false, bool intro = false);
+    /// Starts the next waiting video, if any; false if none plays.
+    bool start_next_video(std::uint64_t now_ms);
+    void stop_video();
+    /// Input while a video plays: Escape skips (the logos and the intro together), Pause and
+    /// Escape end the pause video; clicks on the game are swallowed.
+    void handle_video_event(const SDL_Event& event);
+    /// The pause of the original (Pause key): the pause video loops; without it the game still
+    /// stops (U-018).
+    void toggle_pause_video();
     void zoom_by(int steps, double sx, double sy);
     /// Island tile under the mouse, nullopt over the sea.
     [[nodiscard]] std::optional<BuildTool::Spot> spot_at_mouse() const;
@@ -172,6 +192,17 @@ private:
     std::unique_ptr<Hud> m_hud;                   ///< panel and status bar (after the window), may be null
     bool m_left_down = false;                     ///< the left mouse button, for the frame's buttons
     std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
+    struct VideoRequest {
+        std::uint16_t number = 0;
+        std::uint8_t tracks = 0;
+        bool loop = false;
+        bool intro = false;
+    };
+    std::unique_ptr<VideoPlayer> m_video;  ///< after the window; null without videos
+    std::deque<VideoRequest> m_videos;     ///< waiting
+    VideoRequest m_video_now;              ///< playing
+    bool m_pause_video = false;            ///< the original's pause is on
+    std::uint32_t m_defeat_variant = 0;    ///< own counter for 1010/2020 (no game random numbers)
 };
 
 }  // namespace o1602::app

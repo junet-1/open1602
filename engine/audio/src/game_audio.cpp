@@ -168,6 +168,15 @@ AudioSettings parse_audio_settings(std::string_view text) {
             }
         }
     }
+    for (const auto& v : lines_of(text, "Video")) {
+        // "Video: k, TRUE" switches the videos of kind k off (0: all).
+        if (v.size() >= 2) {
+            const auto k = number(v[0]);
+            if (k && *k >= 0 && *k < static_cast<std::int32_t>(s.video.size())) {
+                s.video[static_cast<std::size_t>(*k)] = !truth(v[1]);
+            }
+        }
+    }
     return s;
 }
 
@@ -219,7 +228,21 @@ std::uint16_t Voices::message(std::uint16_t message, bool visible) {
     if (m == nullptr) {
         return 0;
     }
-    // Videos are not played yet; a message with a video speaks instead (Msg_Audio 0x00488E80).
+    // Video first (Msg_Audio 0x00488E80): off screen, or always, or at a quarter of the times. The
+    // random numbers are the interface's own, not the game's (S-112).
+    const bool videos_on = m_settings.video[0] && (m->kind >= m_settings.video.size() || m_settings.video[m->kind]);
+    if (m->videos > 0 && videos_on && m_video_check) {
+        const bool chance = (m->flags & kMessageVideoQuarter) != 0 && (m_random() & 3U) == 0;
+        if (!visible || (m->flags & kMessageVideoAlways) != 0 || chance) {
+            const auto pick =
+                static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, m->videos - 1)(m_random));
+            const auto number = static_cast<std::uint16_t>(m->base + pick);
+            if (m_video_check(number)) {
+                m_video = number;
+                return m->flags;
+            }
+        }
+    }
     const bool allowed = m_settings.speech[0] && (m->kind >= m_settings.speech.size() || m_settings.speech[m->kind]);
     if (m->voices > 0 && allowed && (!visible || (m->flags & kMessageVoiceHidden) == 0)) {
         for (std::size_t i = 0; i < kSlots; ++i) {
@@ -335,6 +358,13 @@ void Music::shot(float x, float y, float view_width_px, float view_height_px, st
         fade_out();
     }
     m_mode_ms = game_ms;
+}
+
+void Music::stop() {
+    m_mixer->stop(m_voice);
+    m_voice = Mixer::kNoVoice;
+    m_fading = false;
+    m_title.clear();
 }
 
 void Music::fade_out() {

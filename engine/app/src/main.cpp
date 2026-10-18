@@ -14,6 +14,7 @@
 #include <SDL3/SDL_main.h>
 #include <charconv>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <optional>
 #include <random>
@@ -39,7 +40,8 @@ int usage() {
         "                [--islands original|seed]\n"
         "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--starts spread|together]\n"
-        "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel]\n"
+        "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
+        "                [--video N]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
@@ -54,6 +56,9 @@ int usage() {
         "  --no-panel         no panel and status bar around the map (the original's frame)\n"
         "  --no-sound         no effects and voice messages; --no-music: no music (the original's Game.dat\n"
         "                     is read for the volumes, never written)\n"
+        "  --no-videos        no videos of messages, victory, defeat and pause\n"
+        "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
+        "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
@@ -62,6 +67,7 @@ int usage() {
         "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
         "  R / Shift+R    rotate view                 + / -                    pixel scale\n"
         "  Space          pause the game              Home                     own city\n"
+        "  Pause          the original's pause (its video; Esc or Pause ends it)\n"
         "  PageUp/PageDn  game speed x2 / /2\n"
         "  O              ownership view              F12                      screenshot\n"
         "  F5             quick save (own folder, quicksave.o1602)\n"
@@ -109,6 +115,12 @@ int main(int argc, char** argv) {
             options.effects = false;
         } else if (arg == "--no-music") {
             options.music = false;
+        } else if (arg == "--no-videos") {
+            options.videos = false;
+        } else if (arg == "--intro") {
+            options.intro = true;
+        } else if (arg == "--video" && has_value) {
+            options.video = static_cast<std::uint16_t>(std::strtoul(argv[++i], nullptr, 10));
         } else if (arg == "--owners") {
             options.show_owners = true;
         } else if (arg == "--original-sheets") {

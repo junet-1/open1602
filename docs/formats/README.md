@@ -16,7 +16,7 @@ Status-Legende: ✅ verifiziert (Code + Test gegen Originaldaten) · 🟡 teilwe
 | Eigener Chunk | `O1602`, `O1602MAP` in exportierten `.GAM` | ✅ (Open1602) | [o1602-chunk.md](o1602-chunk.md) | `engine/sim/savegame_extension.*` |
 | Figuren | `figuren.cod` (FIGUR) | 🟡 Zeichen-, Lauf- und Kampfdaten, `FORMATION` (die Oberfläche wählt noch keine) | [gam.md](gam.md#darstellung-der-schiffe), [figures.md](../re/figures.md) | `engine/assets/figure_table.*` |
 | UI-Gadgets | `GADDATA/*.GAD`, `*.INC` | ✅ alle 45 Layouts des Spiels (`Gadedit/` des Editors nicht) | [gad.md](gad.md) | `engine/assets/gad.*`, `engine/ui/panel.*` |
-| Videos | `VideoSmk/*.SMK`, `TOOLGFX/6s.smk` | ⬜ (Smacker, extern dokumentiert) | – | – |
+| Videos | `VideoSmk/*.SMK`, `TOOLGFX/6s.smk` | ✅ Smacker 2 (Bild, Palette, alle Tonarten; `SMK4` nur nach Beschreibung) | [smk.md](smk.md) | `engine/video/smacker.*` |
 | Audio | `SAMPLES/ Speech8/ MUSIC8/ *.wav` | ✅ PCM und die eigene 4-Bit-Musik (IMA-Abart) | [wav.md](wav.md) | `engine/audio/wav.*` |
 
 Alle Binärformate sind Little-Endian. Texte sind Windows-1252.

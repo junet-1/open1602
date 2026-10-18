@@ -6,4 +6,4 @@ Töne des Spiels (`game_audio.hpp`: Geräusche auf dem Bildschirm, Sprachmeldung
 `platform::AudioOutput`; der Betrachter verbindet beides in `engine/app/src/game_sound.*`.
 
 Beschreibung: [docs/re/audio.md](../../docs/re/audio.md), [docs/formats/wav.md](../../docs/formats/wav.md).
-Videos (Smacker) fehlen noch.
+Videos (Smacker) dekodiert `engine/video`.

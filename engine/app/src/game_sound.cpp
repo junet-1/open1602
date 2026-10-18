@@ -378,14 +378,51 @@ void GameSound::order(bool ship, bool attack, double tile_x, double tile_y) {
     }
 }
 
+void GameSound::start_video(const video::Smacker& video, std::uint8_t tracks) {
+    stop_video();
+    m_video = true;
+    if (m_output == nullptr) {
+        return;
+    }
+    // Video_Request 0x00488C00 stops the music; a voice already speaking goes on.
+    if (m_music) {
+        m_music->stop();
+    }
+    for (std::size_t t = 0; t < video::kSmackerTracks; ++t) {
+        if (!video.info().tracks[t].present || (tracks != 0 && (tracks & (1U << t)) == 0)) {
+            continue;
+        }
+        auto pcm = video.audio(t);
+        if (!pcm || pcm->samples.empty()) {
+            continue;
+        }
+        // The sample volume, for every track (the original leaves track 2 at full volume, U-019).
+        audio::PlayOptions o;
+        o.group = audio::Group::Speech;
+        o.volume = audio::gain_of(m_settings.effect_volume);
+        m_video_voices.push_back(m_mixer.play(std::make_shared<const audio::Pcm>(std::move(*pcm)), o));
+    }
+}
+
+void GameSound::stop_video() {
+    for (const auto v : m_video_voices) {
+        m_mixer.stop(v);
+    }
+    m_video_voices.clear();
+    m_video = false;
+}
+
 void GameSound::frame(std::uint64_t game_ms, std::uint32_t real_ms) {
     if (m_output == nullptr) {
         return;
     }
     m_effects.flush();
-    m_voices.update();
-    if (m_music) {
-        m_music->update(game_ms, real_ms);
+    // While a video plays, the voices and the music wait (Game_FrameEnd 0x004899F5).
+    if (!m_video) {
+        m_voices.update();
+        if (m_music) {
+            m_music->update(game_ms, real_ms);
+        }
     }
     const std::size_t target = kRate * kQueueMs / 1000;
     const std::size_t queued = m_output->queued_frames();

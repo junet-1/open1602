@@ -167,6 +167,20 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     viewer->m_window = std::move(window).value();
     viewer->m_sound = std::make_unique<GameSound>(game, options.effects, options.music);
+    if (options.videos) {
+        viewer->m_video = std::make_unique<VideoPlayer>(viewer->m_window->sdl_renderer(), viewer->m_game);
+        viewer->m_sound->set_video_check(
+            [self = viewer.get()](std::uint16_t n) { return self->m_video->available(n); });
+        if (options.intro) {
+            // The start of the original: the two logos and the intro (0x004959AA, chained 8 -> 9 -> 58).
+            for (const std::uint16_t n : std::array<std::uint16_t, 3>{8, 9, 58}) {
+                viewer->request_video(n, 0, false, true);
+            }
+        }
+        if (options.video) {
+            viewer->request_video(*options.video, 0, false, true);
+        }
+    }
     if (options.frame) {
         const auto texts = assets::TextTable::load(game);
         viewer->m_hud =
@@ -271,13 +285,47 @@ int MapViewer::run() {
     while (m_running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            handle_event(event);
+            if (m_video && m_video->playing()) {
+                handle_video_event(event);
+            } else {
+                handle_event(event);
+            }
         }
         const std::uint64_t now = platform::ticks_ms();
         const auto delta = static_cast<std::uint32_t>(std::min<std::uint64_t>(now - last, 1000));
         last = now;
-        update(delta);
-        render();
+        // Messages of the scenery and the sound itself may ask for a video too.
+        if (const auto n = m_sound->take_video()) {
+            request_video(*n);
+        }
+        bool video = m_video && (m_video->playing() || start_next_video(now));
+        if (video) {
+            switch (m_video->update(now)) {
+                case VideoPlayer::Step::Playing:
+                    break;
+                case VideoPlayer::Step::Restarted:
+                    if (const video::Smacker* v = m_video->video()) {
+                        m_sound->start_video(*v, m_video_now.tracks);
+                    }
+                    break;
+                case VideoPlayer::Step::Ended:
+                    m_sound->stop_video();
+                    video = start_next_video(now);
+                    break;
+            }
+        }
+        if (video) {
+            // The game stands still while a video plays (the original's main loop 0x00408293); the
+            // time does not reach the simulation afterwards.
+            std::int32_t w = 0;
+            std::int32_t h = 0;
+            m_window->output_size(w, h);
+            m_video->draw(w, h);
+            SDL_RenderPresent(m_window->sdl_renderer());
+        } else {
+            update(delta);
+            render();
+        }
         m_sound->frame(m_world.time_ms(), delta);
 
         ++frames;
@@ -305,7 +353,15 @@ int MapViewer::run() {
         std::fprintf(stderr, "game saved: %s\n", m_options.save.string().c_str());
     }
     if (!m_options.screenshot.empty()) {
-        render();  // read back a complete frame
+        // Read back a complete frame.
+        if (m_video && m_video->playing()) {
+            std::int32_t w = 0;
+            std::int32_t h = 0;
+            m_window->output_size(w, h);
+            m_video->draw(w, h);
+        } else {
+            render();
+        }
         if (auto status = save_screenshot(m_options.screenshot); !status) {
             std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
             return 1;
@@ -608,7 +664,10 @@ void MapViewer::handle_key(int key, bool shift) {
                 m_simulation.submit(sim::ExploreOrder{m_local_player, ship->id});
             }
             break;
-        case SDLK_SPACE:
+        case SDLK_PAUSE:  // the original's pause with its video
+            toggle_pause_video();
+            break;
+        case SDLK_SPACE:  // Open1602's pause: the map stays, building goes on
             m_paused = !m_paused;
             break;
         case SDLK_PAGEUP:  // game speed
@@ -1070,6 +1129,96 @@ void MapViewer::place_listener() {
 
 void MapViewer::announce(std::uint16_t message, std::optional<std::pair<double, double>> tile) {
     m_sound->message(message, tile);  // the listener puts it into the status bar
+    if (const auto n = m_sound->take_video()) {
+        request_video(*n);
+    }
+}
+
+void MapViewer::announce_with_tracks(std::uint16_t message, std::uint8_t tracks) {
+    m_sound->message(message, std::nullopt);
+    if (const auto n = m_sound->take_video()) {
+        request_video(*n, tracks);
+    }
+}
+
+void MapViewer::request_video(std::uint16_t number, std::uint8_t tracks, bool loop, bool intro) {
+    if (!m_video) {
+        return;
+    }
+    if (!intro) {
+        // Video_Request 0x00488C00: the latest request wins.
+        m_videos.clear();
+        if (m_video->playing()) {
+            stop_video();
+        }
+    }
+    m_videos.push_back(VideoRequest{number, tracks, loop, intro});
+}
+
+bool MapViewer::start_next_video(std::uint64_t now_ms) {
+    while (m_video && !m_videos.empty()) {
+        const VideoRequest r = m_videos.front();
+        m_videos.pop_front();
+        // A missing file goes on with the next one (the original drops the rest of the chain, U-022).
+        if (m_video->start(r.number, r.loop, now_ms)) {
+            m_video_now = r;
+            if (const video::Smacker* v = m_video->video()) {
+                m_sound->start_video(*v, r.tracks);
+            }
+            return true;
+        }
+        std::fprintf(stderr, "video %u is missing\n", static_cast<unsigned>(r.number));
+    }
+    return false;
+}
+
+void MapViewer::stop_video() {
+    if (m_video) {
+        m_video->stop();
+    }
+    m_sound->stop_video();
+}
+
+void MapViewer::handle_video_event(const SDL_Event& event) {
+    switch (event.type) {
+        case SDL_EVENT_QUIT:
+        case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            handle_event(event);
+            break;
+        case SDL_EVENT_KEY_DOWN:
+            if (event.key.key == SDLK_PAUSE || (event.key.key == SDLK_ESCAPE && m_pause_video)) {
+                toggle_pause_video();
+            } else if (event.key.key == SDLK_ESCAPE) {
+                // Skipping a logo or the intro skips the whole start (0x00492690).
+                if (m_video_now.intro) {
+                    std::erase_if(m_videos, [](const VideoRequest& r) { return r.intro; });
+                }
+                stop_video();
+            }
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                m_left_down = false;
+            }
+            break;
+        default:
+            break;  // clicks on the game are swallowed while a video plays
+    }
+}
+
+void MapViewer::toggle_pause_video() {
+    m_pause_video = !m_pause_video;
+    if (m_pause_video) {
+        m_paused = true;
+        if (m_video && m_video->available(6)) {
+            request_video(6, 0, true);
+        }
+    } else {
+        m_paused = false;
+        if (m_video && m_video->playing() && m_video->number() == 6 && m_video_now.loop) {
+            stop_video();
+        }
+    }
 }
 
 void MapViewer::lay_out() {
@@ -1131,24 +1280,39 @@ void MapViewer::apply_game_events() {
             case sim::GameEvent::Kind::MissionAccomplished:
                 std::fprintf(stderr, "%s accomplished the mission!\n", who.c_str());
                 if (e.player == m_local_player) {
-                    // 0x6B is the multiplayer message with the winner's colour (0x6B..0x6E).
-                    const std::uint16_t m = e.message == audio::kMessageMultiplayerWin && p != nullptr
-                                                ? static_cast<std::uint16_t>(e.message + std::min<int>(p->banner, 3))
-                                                : e.message;
-                    announce(m);
+                    // 0x6B is the multiplayer message with the winner's colour (0x6B..0x6E); its
+                    // video speaks to the winner on track 1.
+                    if (e.message == audio::kMessageMultiplayerWin && p != nullptr) {
+                        announce_with_tracks(static_cast<std::uint16_t>(e.message + std::min<int>(p->banner, 3)), 0x03);
+                    } else {
+                        announce(e.message);
+                    }
                 }
                 break;
             case sim::GameEvent::Kind::GameOver:
                 std::fprintf(stderr, "the game is over\n");
                 if (e.player != m_local_player && m_world.player(m_local_player) != nullptr &&
                     !m_world.player(m_local_player)->won) {
-                    announce(0x53);  // "Ihr wurdet besiegt!"
+                    const sim::Mission* m = p != nullptr ? m_world.mission_of(*p) : nullptr;
+                    if (m != nullptr && m->success_message == audio::kMessageMultiplayerWin) {
+                        // A race: "the red player fulfilled his task", the others' voice (track 2).
+                        announce_with_tracks(
+                            static_cast<std::uint16_t>(audio::kMessageMultiplayerWin + std::min<int>(p->banner, 3)),
+                            0x05);
+                    } else {
+                        announce(0x53);  // "Ihr wurdet besiegt!"
+                    }
                 }
                 break;
             case sim::GameEvent::Kind::PlayerDefeated:
                 std::fprintf(stderr, "%s is defeated\n", who.c_str());
                 if (e.player == m_local_player) {
                     announce(0x53);
+                    // The defeat videos come directly, whatever the video switches say (0x004766A0):
+                    // bankruptcy 998, otherwise 1010 or 2020.
+                    request_video(e.reason == sim::GameEvent::Reason::Bankrupt ? 998
+                                  : (m_defeat_variant++ & 1U) == 0             ? 1010
+                                                                               : 2020);
                 } else {
                     announce(e.reason == sim::GameEvent::Reason::Bankrupt ? 0x59 : 0x5A);
                 }

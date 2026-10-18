@@ -41,7 +41,7 @@ Festgelegt am 16.10.2026, verbindlich für jeden neuen Code. Die Architektur daz
 | `TOOLGFX/*.ZEI`, `*.COL` | Schriften (`ZEI\0`), Palette | Fonts, 8-Bit-Palette |
 | `NORD/`, `SUED/`, `*NAT/`, `NOKLIMA/` `*.SCP` (677 Dateien) | Insel-Vorlagen, chunk-basiert | Kartengenerierung |
 | `Szenes/*.SZS`, `*.SZM` (138) | Szenarien / Multiplayer-Karten | Gleiches Chunkformat wie Savegames (`.GAM`) |
-| `VideoSmk/*.SMK` (51) | Smacker-Videos | via libsmacker / FFmpeg |
+| `VideoSmk/*.SMK` (51) | Smacker-Videos | eigener Decoder nach der öffentlichen Beschreibung (`engine/video`, [smk.md](formats/smk.md)) |
 | `SAMPLES/`, `Speech8/`, `MUSIC8/` | WAV | direkt nutzbar |
 | `1602Edit.exe` + `Editor.dll` | Karten-Editor | später, gleiche Codebasis |
 
@@ -96,7 +96,7 @@ eigenen Skripten, rea für die übrigen Ziele.
 | Build | **CMake** + Presets, **vcpkg** (Manifest) | Linux/Windows/macOS aus einem Build |
 | Plattform | **SDL3** (Fenster, Input, Audio, Timer) | eine Abstraktion für alle Systeme |
 | Rendering | SDL3 GPU-API (Vulkan/Metal/D3D12) mit 2D-Sprite-Batching; Software-Fallback | hohe Auflösungen, Zoom, Skalierung |
-| Audio | SDL3 Audio + miniaudio-Mixer, libsmacker für Videos | |
+| Audio | SDL3 Audio + eigener Software-Mischer, eigener Smacker-Decoder für Videos | |
 | Netzwerk | Deterministischer **Lockstep** über UDP (**ENet** oder GameNetworkingSockets) | ersetzt DirectPlay; geringe Bandbreite |
 | Modding (später) | Lua 5.4 (sol2) + eigenes Datenformat (TOML/JSON) als Overlay zu den `.cod`-Dateien | Erweiterbarkeit ohne Neukompilieren |
 | Debug-UI | Dear ImGui | Inspektoren für Sim-Zustand |
@@ -172,7 +172,7 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 | M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, eigene Inselformen (Weltengenerator Stufe 2, ADR 0007) |
 
 **Stand der Meilensteine (18.10.2026)**, Einzelheiten in [stand.md](stand.md): M0 ✅ · M1 🟡 (offen:
-Smacker-Videos, Teile von Inselkopf und Szenario-Chunks; Schriften, Layouts und Ton fertig) · M2 ✅ ·
+Teile von Inselkopf und Szenario-Chunks; Schriften, Layouts, Ton und Videos fertig) · M2 ✅ ·
 M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel, Spielstände und Ton fertig; Grundlagen der Oberfläche da, es fehlt ihr Zeichnen und die Fenster) · M5 🟡
 (Militär, Piraten, Weltengenerator Stufe 1, KI und Aufträge mit Sieg und Niederlage fertig; offen:
 Kampagnenfortschritt, Bestenliste, KI-Schalter der Szenarien; Ereignisse haben Szenarien nicht) · M6 ⬜ (Grundlagen: Befehle, Determinismus) · M7 ⬜ (einzelne Verbesserungen
@@ -327,7 +327,9 @@ kommt, werden sie abgehakt.
   Zierfiguren nur auf entdeckten Inseln; Helligkeits- und Farbstich-Tabellen.
 
 **Ton und Videos**
-- ~~Geräusche, Musik, Sprache~~: erledigt ([audio.md](re/audio.md)); offen Smacker-Videos.
+- ~~Geräusche, Musik, Sprache~~: erledigt ([audio.md](re/audio.md)).
+- ~~Smacker-Videos~~: erledigt (18.10.2026, [videos.md](re/videos.md), [smk.md](formats/smk.md)); offen nur, was am
+  Hauptmenü hängt (Intro-Knopf, Abspann) und Video 2990 mit dem Kampagnenfortschritt.
 
 **Ohne Abhängigkeit**
 - ~~Symboltabelle `re/symbols/` ergänzen~~: erledigt (532 Funktionen).

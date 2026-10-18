@@ -19,6 +19,7 @@
 #include "o1602/platform/audio_output.hpp"
 #include "o1602/render/ambient.hpp"
 #include "o1602/sim/simulation.hpp"
+#include "o1602/video/smacker.hpp"
 
 namespace o1602::app {
 
@@ -50,6 +51,15 @@ public:
     using Listener =
         std::function<void(std::uint16_t message, std::uint16_t flags, std::optional<std::pair<double, double>> tile)>;
     void set_listener(Listener listener) { m_listener = std::move(listener); }
+
+    /// Messages pick their videos when `check` says the number can be played (without: never).
+    void set_video_check(std::function<bool(std::uint16_t)> check) { m_voices.set_video_check(std::move(check)); }
+    /// The video a message asked for, once.
+    [[nodiscard]] std::optional<std::uint16_t> take_video() noexcept { return m_voices.take_video(); }
+    /// A video starts (docs/re/videos.md): its tracks play at the effects' volume (bit i of
+    /// `tracks` = track i, 0 = all), the music stops, voices and music wait until stop_video().
+    void start_video(const video::Smacker& video, std::uint8_t tracks);
+    void stop_video();
 
     // Events of the simulation that sound, for the local player `local`.
     void construction(const sim::World& world, const std::vector<sim::ConstructionEvent>& events);
@@ -84,6 +94,8 @@ private:
     float m_view_h = 768.0F;
     std::uint32_t m_variant = 0;  ///< own counter for the variants: no game random numbers (S-112)
     std::vector<std::int16_t> m_buffer;
+    std::vector<audio::Mixer::VoiceId> m_video_voices;
+    bool m_video = false;
     std::map<std::pair<std::uint16_t, std::uint8_t>, std::uint64_t> m_cycles;  ///< figure, anim -> last cycle heard
 };
 

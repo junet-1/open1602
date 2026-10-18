@@ -4,7 +4,7 @@
 #
 #   core  <-  assets  <-  sim  <-  net
 #                           ^
-#   platform  <-  render / audio / ui  <-  app
+#   platform  <-  render / audio / video / ui  <-  app
 #
 # 'sim' must never depend on platform, render, audio or ui: the simulation has to stay
 # deterministic and runnable headless (tests, dedicated server, replays).
@@ -14,6 +14,7 @@ add_subdirectory(assets)
 add_subdirectory(sim)
 add_subdirectory(render)
 add_subdirectory(audio)
+add_subdirectory(video)
 add_subdirectory(ui)
 
 if(O1602_BUILD_GAME)

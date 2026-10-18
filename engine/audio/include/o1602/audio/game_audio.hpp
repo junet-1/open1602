@@ -8,11 +8,13 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <random>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "o1602/audio/mixer.hpp"
@@ -49,11 +51,13 @@ struct AudioSettings {
     std::int32_t effect_volume = 0;
     /// Voice messages per kind (Text.cod [SPEECHKIND]): [0] all, [1..7] Ereignisse .. Diplomatie.
     std::array<bool, 8> speech{true, true, true, true, true, true, true, true};
+    /// Videos of the messages per kind, the same kinds ("Video: k, TRUE" in Game.dat switches off).
+    std::array<bool, 8> video{true, true, true, true, true, true, true, true};
     std::vector<std::string> disabled_songs;  ///< by track title (the original keeps indices)
 };
 
 /// The audio lines of the original's Game.dat (read only; Open1602 never writes it): Musik,
-/// Samples, Random, Volume (the third value is the mission progress), Song, Speach.
+/// Samples, Random, Volume (the third value is the mission progress), Song, Speach, Video.
 [[nodiscard]] AudioSettings parse_audio_settings(std::string_view game_dat);
 
 /// Effects at places on the screen (Maxsound.dll's MaxwavePlayOnce): the place is the offset from
@@ -102,7 +106,8 @@ struct MessageAudio {
     std::uint8_t videos = 0;
     std::uint16_t flags = 0;
 };
-inline constexpr std::uint16_t kMessageVideoAlways = 0x01;
+inline constexpr std::uint16_t kMessageVideoAlways = 0x01;     ///< video also when the place is on screen
+inline constexpr std::uint16_t kMessageVideoQuarter = 0x08;    ///< on screen: video at a quarter of the times
 inline constexpr std::uint16_t kMessageNormalSpeed = 0x02;     ///< the game falls back to normal speed
 inline constexpr std::uint16_t kMessageVoiceHidden = 0x20;     ///< voice only if the place is off screen
 inline constexpr std::uint16_t kMessageMultiplayerWin = 0x6B;  ///< + banner 0..3
@@ -117,9 +122,17 @@ public:
         : m_mixer(&mixer), m_bank(&bank), m_effects(&effects), m_random(seed) {}
 
     void set_settings(const AudioSettings& s) noexcept { m_settings = s; }
+    /// Whether the video of a number can be played (the file exists, videos are wanted). Without
+    /// it no message picks a video; a message whose video is missing speaks instead (the original
+    /// stays silent then, U-024).
+    void set_video_check(std::function<bool(std::uint16_t)> check) { m_video_check = std::move(check); }
     /// A message for the local player; `visible` whether its place is on screen. Returns the
-    /// message's flags (kMessageNormalSpeed asks the game to slow down).
+    /// message's flags (kMessageNormalSpeed asks the game to slow down). A message plays its video
+    /// instead of a voice when videos of its kind are on and its place is off screen, or always
+    /// (flag 0x01), or at a quarter of the times (flag 0x08) (Msg_Audio 0x00488E80).
     std::uint16_t message(std::uint16_t message, bool visible);
+    /// The video the last messages asked for (the latest wins), once.
+    [[nodiscard]] std::optional<std::uint16_t> take_video() noexcept { return std::exchange(m_video, std::nullopt); }
     /// Starts the next voice when the last one has ended.
     void update();
     void stop_all();
@@ -133,6 +146,8 @@ private:
     Effects* m_effects;
     std::mt19937 m_random;
     AudioSettings m_settings;
+    std::function<bool(std::uint16_t)> m_video_check;
+    std::optional<std::uint16_t> m_video;
     std::array<std::uint16_t, kSlots> m_queue{};  ///< voice file numbers, 0 = free
     std::size_t m_cursor = 0;
     Mixer::VoiceId m_voice = Mixer::kNoVoice;
@@ -160,6 +175,8 @@ public:
     void update(std::uint64_t game_ms, std::uint32_t real_ms);
 
     [[nodiscard]] const std::vector<std::string>& tracks() const noexcept { return m_tracks; }
+    /// Stops the track at once (a video starts, 0x00488C00); the next update picks a new one.
+    void stop();
     /// Title playing now, empty if none.
     [[nodiscard]] std::string playing() const;
     [[nodiscard]] bool battle() const noexcept { return m_battle; }
