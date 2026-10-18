@@ -180,6 +180,8 @@ public:
     bool load(core::ByteReader& in);
 
 private:
+    /// A unit or building on another island than the unit stands on (a melee unit cannot reach it).
+    [[nodiscard]] bool on_other_island(const Soldier& s, const Target& t) const;
     // Soldiers (soldiers.cpp)
     void advance(Soldier& s, std::uint32_t budget_us);
     void decide(Soldier& s);
@@ -230,6 +232,8 @@ private:
     Fleet* m_fleet = nullptr;
     LandPlanner m_planner;
     std::vector<MilitaryEvent> m_events;
+    std::vector<std::uint32_t> m_ids;  ///< scratch of tick(): the units in their order
+    std::vector<PendingHit> m_due;     ///< scratch of resolve_hits()
     std::uint32_t m_regen_ms = 0;      ///< game time since the building damage last healed
     std::uint32_t m_castle_ms = 0;     ///< game time since the castles' last second
     std::uint32_t m_native_ticks = 0;  ///< natives' city ticks (warriors every third)

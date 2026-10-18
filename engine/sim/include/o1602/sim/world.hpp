@@ -16,6 +16,7 @@
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/sim/diplomacy.hpp"
+#include "o1602/sim/id_index.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/mission.hpp"
 #include "o1602/sim/player.hpp"
@@ -587,10 +588,12 @@ private:
     std::vector<Player> m_players;
     std::vector<Ship> m_ships;
     std::uint32_t m_next_ship_id = 1;
+    IdIndex m_ship_index;
     std::vector<City> m_cities;
     std::vector<Animal> m_animals;
     std::vector<Soldier> m_soldiers;
     std::uint32_t m_next_soldier_id = 1;
+    IdIndex m_soldier_index;
     std::vector<Tower> m_towers;
     std::vector<BuildingDamage> m_building_damage;
     std::vector<PendingHit> m_hits;

@@ -15,6 +15,7 @@
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/camera.hpp"
+#include "o1602/render/ship_trail.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/sprite_hit_mask.hpp"
 #include "o1602/render/world_renderer.hpp"
@@ -641,4 +642,33 @@ TEST_CASE("sprite hit mask: units are picked by their visible pixels") {
     render::DrawCommand overlay;
     overlay.sprite = render::DrawCommand::kOverlayDiamond;
     CHECK(!render::command_bounds(overlay, *atlas));
+}
+
+TEST_CASE("render: a ship is drawn on its way between two ticks, a jump is not smoothed") {
+    sim::World world(40, 40);
+    sim::Ship ship;
+    ship.pos_x = 10 * sim::kShipUnit;
+    ship.pos_y = 10 * sim::kShipUnit;
+    world.add_ship(ship);
+    render::ShipTrail trail;
+    trail.capture(world);
+    sim::Ship& s = world.ships().back();
+    s.pos_x += sim::kShipUnit;  // one tile on during the tick
+    trail.set_fraction(0.25);
+    double x = 0.0;
+    double y = 0.0;
+    trail.position(s, x, y);
+    CHECK(x == 10.25);
+    CHECK(y == 10.0);
+    s.pos_x += 5 * sim::kShipUnit;  // far away at once: drawn where it is
+    trail.position(s, x, y);
+    CHECK(x == 16.0);
+    // A ship the trail has not seen is drawn where it is.
+    sim::Ship other;
+    other.pos_x = 3 * sim::kShipUnit;
+    other.pos_y = 4 * sim::kShipUnit;
+    world.add_ship(other);
+    trail.position(world.ships().back(), x, y);
+    CHECK(x == 3.0);
+    CHECK(y == 4.0);
 }

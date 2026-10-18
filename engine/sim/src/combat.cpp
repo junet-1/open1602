@@ -4,7 +4,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <initializer_list>
-#include <unordered_map>
+#include <tuple>
+#include <utility>
 
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/sea_paths.hpp"
@@ -199,26 +200,19 @@ std::optional<Fighter> Combat::tower_fighter(const Tower& t) const {
 }
 
 std::size_t Combat::list_index(const Target& unit) const {
-    const auto it = m_index.find(key_of(unit));
-    return it != m_index.end() ? it->second : m_entries.size();
+    const std::uint64_t key = key_of(unit);
+    const auto it =
+        std::lower_bound(m_index.begin(), m_index.end(), key,
+                         [](const std::pair<std::uint64_t, std::uint32_t>& e, std::uint64_t k) { return e.first < k; });
+    return it != m_index.end() && it->first == key ? it->second : m_entries.size();
 }
 
-const std::vector<Neighbour>& Combat::hostiles(const Target& unit) const {
-    static const std::vector<Neighbour> kNone;
+std::span<const Neighbour> Combat::hostiles(const Target& unit) const {
     const std::size_t i = list_index(unit);
-    return i < m_lists.size() ? m_lists[i] : kNone;
-}
-
-void Combat::add_pair(std::size_t a, std::size_t b) {
-    const Entry& ea = m_entries[a];
-    const Entry& eb = m_entries[b];
-    const std::int32_t d = sea_distance(ea.x8 - eb.x8, ea.y8 - eb.y8);
-    if (m_lists[a].size() < kMaxNeighbours) {
-        m_lists[a].push_back({eb.unit, d});
+    if (i >= m_entries.size()) {
+        return {};
     }
-    if (m_lists[b].size() < kMaxNeighbours) {
-        m_lists[b].push_back({ea.unit, d});
-    }
+    return std::span<const Neighbour>(m_neighbours).subspan(m_first[i], m_first[i + 1] - m_first[i]);
 }
 
 void Combat::update() {
@@ -243,40 +237,108 @@ void Combat::update() {
             m_entries.push_back({f->unit, t.owner, t.island, f->x8, f->y8, false});
         }
     }
-    m_lists.assign(m_entries.size(), {});
+    const std::size_t n = m_entries.size();
     m_index.clear();
-    for (std::size_t i = 0; i < m_entries.size(); ++i) {
-        m_index.emplace(key_of(m_entries[i].unit), i);
+    for (std::size_t i = 0; i < n; ++i) {
+        m_index.emplace_back(key_of(m_entries[i].unit), static_cast<std::uint32_t>(i));
     }
-    // Sorted by y like the original, so the lists fill in its order (x, then the order above, on ties).
-    std::vector<std::size_t> order(m_entries.size());
-    for (std::size_t i = 0; i < order.size(); ++i) {
-        order[i] = i;
-    }
-    std::stable_sort(order.begin(), order.end(),
-                     [&](std::size_t a, std::size_t b) { return m_entries[a].y8 < m_entries[b].y8; });
+    std::stable_sort(m_index.begin(), m_index.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    // Who is hostile to whom, once per tick instead of per pair.
     const Diplomacy& d = m_world->diplomacy();
-    constexpr std::int32_t kSight8 = kSight * 8;
-    for (std::size_t i = 0; i < order.size(); ++i) {
-        const Entry& a = m_entries[order[i]];
-        for (std::size_t j = i + 1; j < order.size(); ++j) {
-            const Entry& b = m_entries[order[j]];
-            if (b.y8 - a.y8 > kSight8) {
-                break;
-            }
-            if (std::abs(b.x8 - a.x8) > kSight8 || a.owner == b.owner || !d.hostile(a.owner, b.owner)) {
-                continue;
-            }
-            // A ship sees land figures only near their island (rectangle + 5 tiles).
-            if (a.ship != b.ship && a.island != b.island) {
-                continue;
-            }
-            add_pair(order[i], order[j]);
+    const std::size_t players = m_world->players().size();
+    m_hostile.assign(players * players, 0);
+    for (std::size_t a = 0; a < players; ++a) {
+        for (std::size_t b = 0; b < players; ++b) {
+            m_hostile[a * players + b] = d.hostile(static_cast<PlayerId>(a), static_cast<PlayerId>(b)) ? 1 : 0;
         }
     }
+    const auto hostile = [&](PlayerId a, PlayerId b) {
+        return a < players && b < players && m_hostile[std::size_t{a} * players + b] != 0;
+    };
+    // A figure whose owner has no enemy among the figures sees nobody: no search.
+    m_present.assign(players, 0);
+    for (const Entry& e : m_entries) {
+        if (e.owner < players) {
+            m_present[e.owner] = 1;
+        }
+    }
+    m_enemies.assign(players, 0);
+    for (std::size_t a = 0; a < players; ++a) {
+        for (std::size_t b = 0; b < players; ++b) {
+            if (m_present[b] != 0 && m_hostile[a * players + b] != 0) {
+                m_enemies[a] = 1;
+            }
+        }
+    }
+
+    // Buckets of kSight tiles: a figure sees only figures in its own and the eight around it.
+    constexpr std::int32_t kSight8 = kSight * 8;
+    const auto bucket_of = [](std::int32_t v) { return v >= 0 ? v / kSight8 : -((-v + kSight8 - 1) / kSight8); };
+    m_buckets.clear();
+    for (std::size_t i = 0; i < n; ++i) {
+        m_buckets.push_back({bucket_of(m_entries[i].x8), bucket_of(m_entries[i].y8), static_cast<std::uint32_t>(i)});
+    }
+    std::sort(m_buckets.begin(), m_buckets.end(), [](const Bucketed& a, const Bucketed& b) {
+        return std::tie(a.by, a.bx, a.entry) < std::tie(b.by, b.bx, b.entry);
+    });
+    const auto range = [&](std::int32_t bx, std::int32_t by) {
+        const auto lo = std::lower_bound(m_buckets.begin(), m_buckets.end(), std::pair{by, bx},
+                                         [](const Bucketed& e, const std::pair<std::int32_t, std::int32_t>& k) {
+                                             return std::pair{e.by, e.bx} < k;
+                                         });
+        auto hi = lo;
+        while (hi != m_buckets.end() && hi->by == by && hi->bx == bx) {
+            ++hi;
+        }
+        return std::pair{lo, hi};
+    };
+
+    // Fix S-114: each list holds the nearest hostile figures (ties by the order of the figures),
+    // not the first 32 of a sweep in y order, which left out the nearest in a crowd.
+    m_neighbours.clear();
+    m_first.assign(n + 1, 0);
+    for (std::size_t i = 0; i < n; ++i) {
+        m_first[i] = static_cast<std::uint32_t>(m_neighbours.size());
+        const Entry& a = m_entries[i];
+        if (a.owner >= players || m_enemies[a.owner] == 0) {
+            continue;
+        }
+        m_seen.clear();
+        for (std::int32_t dy = -1; dy <= 1; ++dy) {
+            for (std::int32_t dx = -1; dx <= 1; ++dx) {
+                const auto [lo, hi] = range(bucket_of(a.x8) + dx, bucket_of(a.y8) + dy);
+                for (auto it = lo; it != hi; ++it) {
+                    const Entry& b = m_entries[it->entry];
+                    if (std::abs(b.x8 - a.x8) > kSight8 || std::abs(b.y8 - a.y8) > kSight8 ||
+                        !hostile(a.owner, b.owner)) {
+                        continue;
+                    }
+                    // A ship sees land figures only near their island (rectangle + 5 tiles).
+                    if (a.ship != b.ship && a.island != b.island) {
+                        continue;
+                    }
+                    m_seen.push_back({sea_distance(a.x8 - b.x8, a.y8 - b.y8), it->entry});
+                }
+            }
+        }
+        const auto nearer = [](const Seen& x, const Seen& y) {
+            return std::tie(x.distance8, x.entry) < std::tie(y.distance8, y.entry);
+        };
+        const std::size_t keep = std::min(m_seen.size(), kMaxNeighbours);
+        const auto end = m_seen.begin() + static_cast<std::ptrdiff_t>(keep);
+        if (keep < m_seen.size()) {
+            std::nth_element(m_seen.begin(), end, m_seen.end(), nearer);  // the order is total: no ties
+        }
+        std::sort(m_seen.begin(), end, nearer);
+        for (std::size_t k = 0; k < keep; ++k) {
+            m_neighbours.push_back({m_entries[m_seen[k].entry].unit, m_seen[k].distance8});
+        }
+    }
+    m_first[n] = static_cast<std::uint32_t>(m_neighbours.size());
 }
 
-std::vector<Candidate> Combat::rank(const Fighter& me, const std::vector<Neighbour>& list,
+std::vector<Candidate> Combat::rank(const Fighter& me, std::span<const Neighbour> list,
                                     std::int32_t max_distance8) const {
     std::vector<Candidate> out;
     for (const Neighbour& n : list) {

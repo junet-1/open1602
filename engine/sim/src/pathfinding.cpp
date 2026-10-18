@@ -81,6 +81,17 @@ std::vector<std::uint8_t> circle_half_widths(std::uint32_t radius) {
     return half;
 }
 
+const std::vector<std::uint8_t>& circle_table(std::uint8_t radius) {
+    static const std::array<std::vector<std::uint8_t>, 256> kTables = [] {
+        std::array<std::vector<std::uint8_t>, 256> t;
+        for (std::uint32_t r = 0; r < t.size(); ++r) {
+            t[r] = circle_half_widths(r);
+        }
+        return t;
+    }();
+    return kTables[radius];
+}
+
 Catchment catchment_of(const assets::BuildingType& building, std::uint8_t rotation, TilePos origin) noexcept {
     std::uint32_t w = 1;
     std::uint32_t h = 1;
@@ -139,7 +150,8 @@ void PathFinder::begin(const IslandMap& map, const assets::BuildingTable& buildi
 
     // The original clips to the circle only from radius 2 on (0x00471280); below the window is
     // a square.
-    std::vector<std::uint8_t> half = circle_half_widths(area.radius);
+    std::vector<std::uint8_t>& half = m_half;
+    half = circle_table(area.radius);
     if (area.radius <= 1 || !circle) {
         std::fill(half.begin(), half.end(), area.radius);
     }

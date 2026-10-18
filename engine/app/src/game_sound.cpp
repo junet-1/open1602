@@ -13,6 +13,9 @@ namespace {
 
 constexpr std::uint32_t kRate = 44100;
 constexpr std::uint32_t kQueueMs = 120;  // what the device holds: little delay, no gaps at 8 fps
+// After a slow frame the queue grows to twice its length (at most this) and shrinks back slowly,
+// so that a second hitch does not run the device dry; before a known pause it is filled up to it.
+constexpr std::uint32_t kMaxQueueMs = 500;
 constexpr double kPosUnit = sim::kPosUnit;
 constexpr audio::SampleId kWavBirds = 27;  // WAV_VOGEL1 .. 6
 constexpr audio::SampleId kWavSurf = 33;   // WAV_WELLEN
@@ -486,7 +489,19 @@ void GameSound::frame(std::uint64_t game_ms, std::uint32_t real_ms) {
             m_music->update(game_ms, real_ms);
         }
     }
-    const std::size_t target = kRate * kQueueMs / 1000;
+    m_queue_ms = std::max<std::uint32_t>(kQueueMs, m_queue_ms - std::min<std::uint32_t>(m_queue_ms, real_ms / 16));
+    m_queue_ms = std::max(m_queue_ms, std::min(kMaxQueueMs, 2 * real_ms));
+    top_up(m_queue_ms);
+}
+
+void GameSound::prefill() {
+    if (m_output != nullptr) {
+        top_up(kMaxQueueMs);
+    }
+}
+
+void GameSound::top_up(std::uint32_t ms) {
+    const std::size_t target = std::size_t{kRate} * ms / 1000;
     const std::size_t queued = m_output->queued_frames();
     if (queued < target) {
         const std::size_t n = target - queued;

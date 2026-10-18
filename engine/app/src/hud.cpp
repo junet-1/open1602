@@ -37,7 +37,7 @@ constexpr std::int32_t kGfxTutor = 645;      // GFXTUTOR of TOOLS.INC
 constexpr std::int32_t kTutorText = 110002;  // its flowing text
 constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
 constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
-constexpr std::uint64_t kMinimapMs = 2'000;  // the minimap is redrawn this often
+constexpr std::uint64_t kMinimapMs = 500;    // the minimap texture is uploaded at most this often
 
 /// Help text line of [LEISTE] for the gadgets of the panel's head (in the order of the texts).
 std::optional<std::size_t> help_line(std::int32_t id) {
@@ -740,33 +740,46 @@ void Hud::message(std::uint16_t id, std::uint8_t banner, std::optional<std::pair
     }
 }
 
+namespace {
+
+/// The colour of a world tile on the minimap.
+std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
+                                           const render::BannerTable& banners, const sim::World::Cell& c) {
+    std::array<std::uint8_t, 3> rgb{38, 70, 128};  // sea
+    if (c.island == sim::World::kSea) {
+        return rgb;
+    }
+    const sim::MapCell& top = world.islands()[c.island].map.top(c.local_x, c.local_y);
+    const assets::BuildingType* b = top.empty() ? nullptr : buildings.by_sprite(top.sprite);
+    const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
+    namespace bk = sim::building_kind;
+    const bool water = kind == bk::kSea || kind == bk::kSurf || kind == bk::kSurfCorner;
+    rgb = water                 ? std::array<std::uint8_t, 3>{38, 70, 128}
+          : kind == bk::kForest ? std::array<std::uint8_t, 3>{60, 96, 40}
+                                : std::array<std::uint8_t, 3>{112, 132, 66};
+    const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
+    if (!scenery && top.owner != sim::kNoPlayer) {
+        const sim::Player* p = world.player(top.owner);
+        const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
+        if (banner != nullptr) {
+            rgb = {banner->color.r, banner->color.g, banner->color.b};
+        }
+    }
+    return rgb;
+}
+
+}  // namespace
+
 void Hud::build_minimap(const sim::World& world, const assets::BuildingTable& buildings,
                         const render::BannerTable& banners) {
     m_world_w = world.width();
     m_world_h = world.height();
+    m_minimap_islands = world.islands().size();
+    m_minimap_next = 0;
     m_minimap.assign(std::size_t{m_world_w} * m_world_h * 4, 0);
     for (std::uint32_t y = 0; y < m_world_h; ++y) {
         for (std::uint32_t x = 0; x < m_world_w; ++x) {
-            const sim::World::Cell& c = world.cell(x, y);
-            std::array<std::uint8_t, 3> rgb{38, 70, 128};  // sea
-            if (c.island != sim::World::kSea) {
-                const sim::MapCell& top = world.islands()[c.island].map.top(c.local_x, c.local_y);
-                const assets::BuildingType* b = top.empty() ? nullptr : buildings.by_sprite(top.sprite);
-                const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
-                namespace bk = sim::building_kind;
-                const bool water = kind == bk::kSea || kind == bk::kSurf || kind == bk::kSurfCorner;
-                rgb = water                 ? std::array<std::uint8_t, 3>{38, 70, 128}
-                      : kind == bk::kForest ? std::array<std::uint8_t, 3>{60, 96, 40}
-                                            : std::array<std::uint8_t, 3>{112, 132, 66};
-                const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
-                if (!scenery && top.owner != sim::kNoPlayer) {
-                    const sim::Player* p = world.player(top.owner);
-                    const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
-                    if (banner != nullptr) {
-                        rgb = {banner->color.r, banner->color.g, banner->color.b};
-                    }
-                }
-            }
+            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, world.cell(x, y));
             const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
             m_minimap[i] = rgb[0];
             m_minimap[i + 1] = rgb[1];
@@ -774,6 +787,32 @@ void Hud::build_minimap(const sim::World& world, const assets::BuildingTable& bu
             m_minimap[i + 3] = 255;
         }
     }
+}
+
+bool Hud::refresh_minimap_island(const sim::World& world, const assets::BuildingTable& buildings,
+                                 const render::BannerTable& banners, std::size_t island) {
+    // Only islands change on the map: the sea between them stays as the full build drew it.
+    const sim::WorldIsland& is = world.islands()[island];
+    const std::uint32_t x1 = std::min(m_world_w, is.x + is.map.width());
+    const std::uint32_t y1 = std::min(m_world_h, is.y + is.map.height());
+    bool changed = false;
+    for (std::uint32_t y = is.y; y < y1; ++y) {
+        for (std::uint32_t x = is.x; x < x1; ++x) {
+            const sim::World::Cell& c = world.cell(x, y);
+            if (c.island != island) {
+                continue;
+            }
+            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, c);
+            const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
+            if (m_minimap[i] != rgb[0] || m_minimap[i + 1] != rgb[1] || m_minimap[i + 2] != rgb[2]) {
+                m_minimap[i] = rgb[0];
+                m_minimap[i + 1] = rgb[1];
+                m_minimap[i + 2] = rgb[2];
+                changed = true;
+            }
+        }
+    }
+    return changed;
 }
 
 void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, const render::BannerTable& banners,
@@ -848,11 +887,22 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     }
     draw_mission(world);
     // The minimap on the parchment.
-    if (m_minimap_dirty || now_ms >= m_minimap_ms + kMinimapMs || world.width() != m_world_w ||
-        world.height() != m_world_h) {
+    // Built in full once per game; then one island per frame is brought up to date and the texture
+    // is uploaded again only when a pixel changed, at most every kMinimapMs.
+    if (m_minimap_dirty || world.width() != m_world_w || world.height() != m_world_h ||
+        world.islands().size() != m_minimap_islands) {
         build_minimap(world, buildings, banners);
         m_minimap_ms = now_ms;
         m_minimap_dirty = true;
+        m_minimap_changed = false;
+    } else if (m_minimap_islands > 0) {
+        m_minimap_next %= m_minimap_islands;
+        m_minimap_changed |= refresh_minimap_island(world, buildings, banners, m_minimap_next++);
+        if (m_minimap_changed && now_ms >= m_minimap_ms + kMinimapMs) {
+            m_minimap_ms = now_ms;
+            m_minimap_dirty = true;
+            m_minimap_changed = false;
+        }
     }
     const ui::Rect map = minimap_rect();
     if (map.w > 0) {

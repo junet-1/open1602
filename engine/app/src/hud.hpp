@@ -220,7 +220,7 @@ public:
     void draw_menu();
 
     /// Draws the frame. `view` are the corners of the visible map in world tiles (the minimap's
-    /// frame), `world` the game for the minimap (redrawn every few seconds).
+    /// frame), `world` the game for the minimap (kept up to date one island per frame).
     void draw(const sim::World& world, const assets::BuildingTable& buildings, const render::BannerTable& banners,
               const std::array<std::pair<double, double>, 4>& view, std::uint64_t now_ms,
               const sim::PlayerFigures& figures, std::uint8_t colour);
@@ -233,6 +233,9 @@ private:
     void draw_resources();
     void build_minimap(const sim::World& world, const assets::BuildingTable& buildings,
                        const render::BannerTable& banners);
+    /// Redraws one island's tiles on the minimap; true if a pixel changed.
+    bool refresh_minimap_island(const sim::World& world, const assets::BuildingTable& buildings,
+                                const render::BannerTable& banners, std::size_t island);
     [[nodiscard]] ui::Rect minimap_rect() const;
 
     struct Event {
@@ -273,7 +276,10 @@ private:
     std::deque<Event> m_events;      ///< newest first, at most three
     std::vector<std::uint8_t> m_minimap;
     std::uint64_t m_minimap_ms = 0;
-    bool m_minimap_dirty = true;
+    bool m_minimap_dirty = true;     ///< the texture must be uploaded again
+    bool m_minimap_changed = false;  ///< pixels changed since the last upload
+    std::size_t m_minimap_islands = 0;
+    std::size_t m_minimap_next = 0;  ///< the island refreshed next
     std::uint32_t m_world_w = 0;
     std::uint32_t m_world_h = 0;
     /// Top left of the menu's 1024 x 768 design on the screen (centred).

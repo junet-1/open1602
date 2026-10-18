@@ -284,6 +284,7 @@ private:
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters
+    render::ShipTrail m_ship_trail;                 ///< ships drawn between two ticks
     ViewerOptions m_options;
     sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
 

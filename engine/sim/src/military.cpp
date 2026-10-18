@@ -54,13 +54,12 @@ Military::Military(World& world, const assets::BuildingTable& buildings, const a
 
 void Military::tick(std::uint32_t dt_ms, std::vector<ConstructionEvent>* construction) {
     const std::uint32_t budget = dt_ms * 1000U;
-    // Units may die while others act; iterate by id.
-    std::vector<std::uint32_t> ids;
-    ids.reserve(m_world->soldiers().size());
+    // By id, so that a unit added on the way could not break the loop.
+    m_ids.clear();
     for (const Soldier& s : m_world->soldiers()) {
-        ids.push_back(s.id);
+        m_ids.push_back(s.id);
     }
-    for (const std::uint32_t id : ids) {
+    for (const std::uint32_t id : m_ids) {
         if (Soldier* s = m_world->soldier(id)) {
             advance(*s, budget);
         }
@@ -358,16 +357,18 @@ void Military::tower_think(Tower& t) {
 void Military::resolve_hits(std::vector<ConstructionEvent>* construction) {
     const std::uint64_t now = m_world->time_ms();
     auto& hits = m_world->pending_hits();
-    std::vector<PendingHit> due;
-    for (std::size_t i = 0; i < hits.size();) {
+    // One pass: the due hits move out in their order, the others close up behind them.
+    m_due.clear();
+    std::size_t kept = 0;
+    for (std::size_t i = 0; i < hits.size(); ++i) {
         if (hits[i].due_ms <= now) {
-            due.push_back(hits[i]);
-            hits.erase(hits.begin() + static_cast<std::ptrdiff_t>(i));
+            m_due.push_back(hits[i]);
         } else {
-            ++i;
+            hits[kept++] = hits[i];
         }
     }
-    for (const PendingHit& h : due) {
+    hits.resize(kept);
+    for (const PendingHit& h : m_due) {
         hit(h, construction);
     }
 }

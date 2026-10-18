@@ -13,7 +13,7 @@
 
 #include <cstdint>
 #include <optional>
-#include <unordered_map>
+#include <span>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -64,14 +64,14 @@ public:
 
     /// Rebuilds the hostile lists from the current positions (every tick).
     void update();
-    /// The hostile figures a ship, soldier or tower (by its building) sees, nearest first in list
-    /// order.
-    [[nodiscard]] const std::vector<Neighbour>& hostiles(const Target& unit) const;
+    /// The hostile figures a ship, soldier or tower (by its building) sees, at most kMaxNeighbours,
+    /// nearest first (S-114). Valid until the next update().
+    [[nodiscard]] std::span<const Neighbour> hostiles(const Target& unit) const;
 
     /// What a ship, soldier or tower is now; nothing if it is gone (or dying, or sinking).
     [[nodiscard]] std::optional<Fighter> fighter(const Target& unit) const;
     /// Scores the entries within `max_distance8` and sorts them best first (stable).
-    [[nodiscard]] std::vector<Candidate> rank(const Fighter& me, const std::vector<Neighbour>& list,
+    [[nodiscard]] std::vector<Candidate> rank(const Fighter& me, std::span<const Neighbour> list,
                                               std::int32_t max_distance8) const;
 
     /// Fires: the hit lands `delay_ms` later on `target` (and only if it still exists).
@@ -101,17 +101,33 @@ private:
         std::int32_t y8;
         bool ship;
     };
+    /// An entry and the bucket of kSight tiles it is in.
+    struct Bucketed {
+        std::int32_t bx;
+        std::int32_t by;
+        std::uint32_t entry;
+    };
+    struct Seen {
+        std::int32_t distance8;
+        std::uint32_t entry;
+    };
     [[nodiscard]] std::size_t list_index(const Target& unit) const;
     [[nodiscard]] std::optional<Fighter> tower_fighter(const Tower& t) const;
-    void add_pair(std::size_t a, std::size_t b);
 
     World* m_world;
     const assets::BuildingTable* m_buildings;
     const assets::FigureTable* m_figures;
     LandMap m_land;
+    // Rebuilt every tick; kept as members so that their memory is reused.
     std::vector<Entry> m_entries;
-    std::vector<std::vector<Neighbour>> m_lists;
-    std::unordered_map<std::uint64_t, std::size_t> m_index;  ///< unit key -> entry
+    std::vector<Neighbour> m_neighbours;                           ///< the lists of all entries, one after another
+    std::vector<std::uint32_t> m_first;                            ///< per entry: its list in m_neighbours, and the end
+    std::vector<std::pair<std::uint64_t, std::uint32_t>> m_index;  ///< unit key -> entry, sorted by key
+    std::vector<std::uint8_t> m_hostile;                           ///< players x players
+    std::vector<std::uint8_t> m_present;                           ///< per player: has figures
+    std::vector<std::uint8_t> m_enemies;                           ///< per player: an enemy has figures
+    std::vector<Bucketed> m_buckets;
+    std::vector<Seen> m_seen;
 };
 
 }  // namespace o1602::sim

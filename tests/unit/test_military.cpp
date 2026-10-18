@@ -564,3 +564,26 @@ TEST_CASE("military: an attack move fights on the way; holding the position chas
     REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::spot(2 * 12, 2 * 17)}));
     CHECK(!f.world.soldier(id)->hold);
 }
+
+TEST_CASE("military: a unit sees the nearest of many enemies, nearest first (S-114)") {
+    Field f;
+    f.war(0, 1);
+    const std::uint32_t me = f.add(kSword, 0, 50, 58).id;
+    // Forty enemies to the north, 8 to 10 tiles away, and one right beside.
+    for (std::int32_t k = 0; k < 40; ++k) {
+        f.add(kSword, 1, 40 + k % 10, 38 + k / 10);
+    }
+    const std::uint32_t beside = f.add(kSword, 1, 52, 58).id;
+    f.start();
+    f.combat->update();
+    const auto list = f.combat->hostiles(sim::Target::soldier(me));
+    REQUIRE(list.size() == sim::Combat::kMaxNeighbours);
+    CHECK(list[0].unit == sim::Target::soldier(beside));
+    for (std::size_t i = 1; i < list.size(); ++i) {
+        CHECK(list[i - 1].distance8 <= list[i].distance8);
+    }
+    // Each of the enemies sees the one unit of player 0.
+    const auto theirs = f.combat->hostiles(sim::Target::soldier(beside));
+    REQUIRE(theirs.size() == 1);
+    CHECK(theirs[0].unit == sim::Target::soldier(me));
+}

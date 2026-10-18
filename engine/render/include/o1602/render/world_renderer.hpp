@@ -17,6 +17,7 @@
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/banner.hpp"
 #include "o1602/render/island_renderer.hpp"
+#include "o1602/render/ship_trail.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/unit_tint.hpp"
 #include "o1602/sim/pathfinding.hpp"
@@ -264,6 +265,8 @@ struct WorldLayers {
     const assets::FigureTable* figures = nullptr;
     const SpriteAtlas* atlas = nullptr;
     std::uint32_t ship_base = 0;
+    /// Ships between two ticks (ShipTrail); without it they are drawn where they are.
+    const ShipTrail* ship_trail = nullptr;
     /// Colours and flags of the players' banners. Without it there are no flags and no ownership view.
     const BannerTable* banners = nullptr;
     /// Atlas index of each banner's tinted flag (WorldGraphics::banner_flags).
