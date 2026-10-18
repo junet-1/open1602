@@ -83,6 +83,10 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (!buildings) {
         return buildings.error();
     }
+    auto figures = assets::FigureTable::load(game);
+    if (!figures) {
+        return figures.error();
+    }
     std::vector<std::string> warnings;
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     if (options.menu) {
@@ -99,7 +103,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             return bytes.error();
         }
         if (sim::is_open1602_save(*bytes)) {
-            world = sim::read_game(*bytes, *buildings, &warnings);
+            world = sim::read_game(*bytes, *buildings, &warnings, &*figures);
         } else {
             auto file = assets::ChunkFile::from_bytes(std::move(bytes).value());
             if (!file) {
@@ -128,10 +132,6 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     auto palette = assets::Palette::load(*palette_path);
     if (!palette) {
         return palette.error();
-    }
-    auto figures = assets::FigureTable::load(game);
-    if (!figures) {
-        return figures.error();
     }
 
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
@@ -1957,7 +1957,7 @@ core::Status MapViewer::load_game(const std::filesystem::path& path) {
     std::vector<std::string> warnings;
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     if (sim::is_open1602_save(*bytes)) {
-        world = sim::read_game(*bytes, m_buildings, &warnings);
+        world = sim::read_game(*bytes, m_buildings, &warnings, &m_figures);
     } else {
         auto file = assets::ChunkFile::from_bytes(std::move(bytes).value());
         if (!file) {

@@ -562,9 +562,9 @@ TEST_CASE("data: figure animations and sheets of all zoom levels") {
         game.resolve(render::sheet_path(assets::FigureSheet::Tiere, render::Zoom::Small)).has_value();
     for (int z = 0; z < 3; ++z) {
         const auto zoom = static_cast<render::Zoom>(z);
-        if (!game.resolve(render::sheet_path(assets::FigureSheet::Tiere,
-                                             zoom == render::Zoom::Small && !small_animals ? render::Zoom::Medium
-                                                                                           : zoom))) {
+        if (!game.resolve(render::sheet_path(assets::FigureSheet::Tiere, zoom == render::Zoom::Small && !small_animals
+                                                                             ? render::Zoom::Medium
+                                                                             : zoom))) {
             SKIP("animal sheets not available");
         }
         auto g = render::load_world_graphics(game, *palette, zoom, render::kWorldFigureSheets);

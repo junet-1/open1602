@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Open1602's own savegame (docs/formats/o1602-save.md): the whole world without the limits of the
-// original's format, a checksum, compression, and nothing loaded from a damaged file.
+// original's format, a checksum, compression, and nothing loaded from a damaged file or a world
+// that does not hold together.
 
 #include <algorithm>
 
@@ -9,7 +10,9 @@
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/core/compress.hpp"
 #include "o1602/sim/save_game.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/state_io.hpp"
+#include "o1602/sim/validate.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -276,4 +279,69 @@ TEST_CASE("save game: an island far outside the world or a world beyond the limi
     auto loaded = sim::read_game(bytes, buildings);
     REQUIRE(!loaded.ok());
     CHECK(loaded.error().message.find("world size") != std::string::npos);
+}
+
+TEST_CASE("save game: a world whose references do not hold is refused (validate)") {
+    const auto buildings = make_buildings();
+    const sim::World good = make_world(buildings);
+    CHECK(sim::validate(good).ok());
+
+    const auto refused = [&](const auto& damage) {
+        sim::World world = make_world(buildings);
+        damage(world);
+        if (sim::validate(world).ok()) {
+            return false;
+        }
+        // Saved as it is, the file does not load either.
+        auto bytes = sim::write_game(world, buildings);
+        return bytes.ok() && !sim::read_game(*bytes, buildings).ok();
+    };
+    CHECK(refused([](sim::World& w) { w.city(0, 0)->owner = 40; }));
+    CHECK(refused([](sim::World& w) { w.ships()[5].owner = 9; }));
+    CHECK(refused([](sim::World& w) { w.soldiers()[3].island = 2; }));
+    CHECK(refused([](sim::World& w) { w.soldiers()[4].pos_x = 900 * 4096; }));
+    CHECK(refused([](sim::World& w) { w.island(1).craters.push_back(sim::Crater{30, 0, 0}); }));
+    CHECK(refused([](sim::World& w) {
+        sim::House house;
+        house.island = 0;
+        house.x = 4;
+        house.y = 20;
+        w.add_house(house);
+    }));
+}
+
+TEST_CASE("save game: a damaged state of the running game is refused when loading (SIMU)") {
+    const auto buildings = make_buildings();
+    const assets::FigureTable figures;
+    sim::World world = make_world(buildings);
+    sim::Simulation simulation(world, buildings, figures);
+    for (int t = 0; t < 20; ++t) {
+        simulation.tick();
+    }
+    auto bytes = sim::write_game(world, buildings, &simulation, sim::SaveOptions{false});
+    REQUIRE(bytes.ok());
+    auto loaded = sim::read_game(*bytes, buildings, nullptr, &figures);
+    REQUIRE(loaded.ok());
+    CHECK(sim::Simulation::state_readable(*loaded, buildings, figures));
+
+    // The version of the SIMU section (its first two bytes) made unknown, the checksum made right.
+    constexpr std::size_t kHeader = 32;
+    core::Bytes damaged = *bytes;
+    const std::string_view text(reinterpret_cast<const char*>(damaged.data()), damaged.size());
+    const std::size_t at = text.find("SIMU", kHeader);
+    REQUIRE(at != std::string_view::npos);
+    damaged[at + 12] = 0x63;
+    damaged[at + 13] = 0;
+    const std::uint32_t crc = core::crc32(std::span(damaged).subspan(kHeader));
+    for (std::size_t b = 0; b < 4; ++b) {
+        damaged[24 + b] = static_cast<std::uint8_t>(crc >> (8 * b));
+    }
+    auto refused = sim::read_game(damaged, buildings, nullptr, &figures);
+    REQUIRE(!refused.ok());
+    CHECK(refused.error().message.find("SIMU") != std::string::npos);
+    // Without the figures the world loads, and the game starts afresh and says so.
+    auto fresh = sim::read_game(damaged, buildings);
+    REQUIRE(fresh.ok());
+    sim::Simulation started(*fresh, buildings, figures);
+    CHECK(started.state_damaged());
 }

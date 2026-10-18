@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/sim/world.hpp"
@@ -50,9 +51,13 @@ struct SaveInfo {
 /// The header of a savegame (checks magic and version, not the data).
 [[nodiscard]] core::Result<SaveInfo> save_info(std::span<const std::uint8_t> bytes);
 
-/// Loads a savegame. Fails (with nothing loaded) if the file is damaged, of a newer Open1602 or
-/// names buildings the game's data does not have.
+/// Loads a savegame. Fails (with nothing loaded) if the file is damaged, of a newer Open1602,
+/// names buildings the game's data does not have or does not hold together (validate.hpp). With
+/// the `figures` it also fails if the state of the running game cannot be read
+/// (Simulation::state_readable); without them, the Simulation finds that out when it starts and
+/// begins afresh (Simulation::state_damaged).
 [[nodiscard]] core::Result<World> read_game(std::span<const std::uint8_t> bytes, const assets::BuildingTable& buildings,
-                                            std::vector<std::string>* warnings = nullptr);
+                                            std::vector<std::string>* warnings = nullptr,
+                                            const assets::FigureTable* figures = nullptr);
 
 }  // namespace o1602::sim

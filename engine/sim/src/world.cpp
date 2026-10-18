@@ -8,6 +8,7 @@
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/savegame_extension.hpp"
+#include "o1602/sim/validate.hpp"
 #include "o1602/sim/volcanoes.hpp"
 
 namespace o1602::sim {
@@ -958,6 +959,9 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
             kontor != nullptr && kontor->prod_kind == kProdKindKontor) {
             trim_trade_settings(*world.city(c.island, c.index), *kontor);
         }
+    }
+    if (auto status = validate(world); !status) {
+        return status.error();
     }
     world.set_source(std::make_shared<const assets::ChunkFile>(file));
     return world;
