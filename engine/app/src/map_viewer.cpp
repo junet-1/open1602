@@ -188,6 +188,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         if (!viewer->m_hud) {
             std::fprintf(stderr, "no panel: the interface's files are missing\n");
         } else {
+            viewer->m_hud->set_game(viewer->m_simulation, viewer->m_buildings, viewer->m_figures,
+                                    viewer->m_local_player);
             viewer->m_hud->set_available([self = viewer.get()](std::uint32_t id) {
                 const sim::Player* p = self->m_world.player(self->m_local_player);
                 const assets::BuildingType* b = self->m_buildings.by_id(id);
@@ -357,6 +359,12 @@ int MapViewer::run() {
             m_video->draw(w, h);
             SDL_RenderPresent(m_window->sdl_renderer());
         } else {
+            if (m_hud) {
+                // What the windows of the panel ordered.
+                for (sim::Command& c : m_hud->take_commands()) {
+                    m_simulation.submit(std::move(c));
+                }
+            }
             update(delta);
             render();
         }
@@ -466,6 +474,7 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 if (m_selected_soldier == 0) {
                     select_ship_at_mouse();
                 }
+                select_for_panel();
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
@@ -1292,6 +1301,49 @@ void MapViewer::lay_out() {
 
 render::TilePos MapViewer::home_or_centre() const {
     return render::TilePos{m_world.width() / 2, m_world.height() / 2};
+}
+
+void MapViewer::select_for_panel() {
+    if (!m_hud) {
+        return;
+    }
+    Selection sel;
+    if (m_selected_ship != 0) {
+        sel.kind = Selection::Kind::Ship;
+        sel.ship = m_selected_ship;
+    } else if (m_selected_soldier == 0) {
+        // A building: its origin, so that every tile of it selects the same. Buildings stand above
+        // their tiles, so a click on the picture over ground looks a little further down the
+        // screen for the tiles they stand on.
+        const auto selectable = [](const assets::BuildingType& b) {
+            const std::int32_t k = b.prod_kind;
+            return (k >= 1 && k <= 8) || (k >= 13 && k <= 0x1B) || k == 0x1E;
+        };
+        const double step = render::tile_height(m_camera.view().zoom) * m_camera.pixel_scale() / 2.0;
+        for (int i = 0; i <= 4 && sel.kind == Selection::Kind::None; ++i) {
+            const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y + step * i);
+            if (!tile || tile->x >= m_world.width() || tile->y >= m_world.height()) {
+                continue;
+            }
+            const sim::World::Cell& cell = m_world.cell(tile->x, tile->y);
+            if (cell.island == sim::World::kSea) {
+                continue;
+            }
+            const sim::IslandMap& map = m_world.islands()[cell.island].map;
+            const sim::SubTile t = map.sub_tile(m_buildings, cell.local_x, cell.local_y);
+            if (t.building == nullptr || !map.contains(t.origin_x, t.origin_y) || !selectable(*t.building)) {
+                continue;  // ground, fields, roads: nothing to show, look further down
+            }
+            sel.kind = Selection::Kind::Building;
+            sel.island = cell.island;
+            sel.x = static_cast<std::uint16_t>(t.origin_x);
+            sel.y = static_cast<std::uint16_t>(t.origin_y);
+        }
+    }
+    const Selection& old = m_hud->selection();
+    sel.again = sel.kind == Selection::Kind::Building && old.kind == Selection::Kind::Building &&
+                old.island == sel.island && old.x == sel.x && old.y == sel.y;
+    m_hud->set_selection(sel);
 }
 
 Hud::Resources MapViewer::resources() const {

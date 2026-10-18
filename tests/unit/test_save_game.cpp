@@ -69,6 +69,8 @@ sim::World make_world(const assets::BuildingTable& buildings) {
     city.owner = 1;
     city.name = "Neustadt";
     city.goods.assign(30, 64);
+    city.purchases = 480 * 75;
+    city.sales = 480 * 1234;
     world.add_city(city);
     for (std::uint32_t k = 0; k < 200; ++k) {
         sim::Ship ship;
@@ -120,6 +122,8 @@ TEST_CASE("save game: a world beyond the original's limits comes back whole") {
     CHECK(loaded->soldiers().size() == 500);
     CHECK(loaded->cities().size() == 1);
     CHECK(loaded->cities()[0].name == "Neustadt");
+    CHECK(loaded->cities()[0].purchases == 480 * 75);  // CSTA
+    CHECK(loaded->cities()[0].sales == 480 * 1234);
     CHECK(loaded->time_ms() == 123'456'789);
     // Both layers of every tile.
     const sim::IslandMap& a = world.islands()[0].map;

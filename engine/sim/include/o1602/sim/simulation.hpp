@@ -36,13 +36,21 @@ namespace ai {
 class Engine;
 }
 
-/// Switching a production building on or off (building op 0x18; docs/re/production.md).
+/// The two switches of the production windows (docs/re/production.md, docs/re/ui.md): working on
+/// or off (Prod_SetEnabled 0x0047CFA0, also building op 0x26), and whether market carts may collect
+/// the goods (Prod_SetNoPickup 0x0047CD90). The original's windows change both only on the
+/// clicking computer; here they are commands like everything else.
 struct ProductionSwitch {
+    enum class Op : std::uint8_t {
+        Enable,  ///< `on`: the building works
+        Pickup,  ///< `on`: market carts may collect here
+    };
     PlayerId player = kNoPlayer;
     std::uint16_t island = 0;
     std::uint16_t x = 0;  ///< origin of the building
     std::uint16_t y = 0;
     bool on = true;
+    Op op = Op::Enable;
 };
 
 /// Settings of the city window (docs/re/consumption.md): the tax of a class of inhabitants, the

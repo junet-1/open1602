@@ -1008,6 +1008,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
                 pay_for_trade(*buyer, value);
                 if (Player* seller = m_world->player(city.owner); seller != nullptr && !natives) {
                     earn_from_trade(*seller, value);
+                    city.sales += 32 * value;
                 }
             }
         }
@@ -1060,6 +1061,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
                 }
                 const std::int64_t value = std::int64_t{price} * n / kTon;
                 pay_for_trade(*buyer, value);
+                city.purchases += 32 * value;
             }
             if (Player* seller = m_world->player(ship.owner); seller != nullptr && !ship.trader) {
                 earn_from_trade(*seller, std::int64_t{price} * n / kTon);

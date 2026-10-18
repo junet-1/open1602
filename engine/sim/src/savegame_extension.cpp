@@ -59,6 +59,7 @@ constexpr std::uint32_t kWorld2 = tag("WRL2");
 constexpr std::uint32_t kMeta = tag("META");
 constexpr std::uint32_t kMissions = tag("MISN");
 constexpr std::uint32_t kPlayerState = tag("PSTA");
+constexpr std::uint32_t kCityState = tag("CSTA");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -260,6 +261,14 @@ struct Decoded {
     /// What players have of the missions and the defeat rules (PSTA), in the order of PLAY.
     std::optional<std::vector<Player>> player_state;
     std::optional<std::vector<City>> cities;
+    /// Trade statistics of the cities (CSTA): island, index, purchases, sales.
+    struct CityStats {
+        std::uint16_t island = 0;
+        std::uint8_t index = 0;
+        std::int64_t purchases = 0;
+        std::int64_t sales = 0;
+    };
+    std::optional<std::vector<CityStats>> city_state;
     std::optional<std::pair<std::vector<Production>, std::vector<std::uint32_t>>> productions;
     std::optional<std::vector<House>> houses;
     std::optional<std::vector<GrowthEntry>> growth;
@@ -733,6 +742,16 @@ void write_cities(Out& out, const World& w) {
         out.boolean(c.material_lock);
         out.u8(c.worst_good);
         out.u64(c.next_event_ms);
+    }
+}
+
+void write_city_state(Out& out, const World& w) {
+    out.u32(static_cast<std::uint32_t>(w.cities().size()));
+    for (const City& c : w.cities()) {
+        out.u16(c.island);
+        out.u8(c.index);
+        out.i64(c.purchases);
+        out.i64(c.sales);
     }
 }
 
@@ -1624,6 +1643,17 @@ std::vector<Player> read_player_state(StateIn& in) {
     return list;
 }
 
+std::vector<Decoded::CityStats> read_city_state(StateIn& in) {
+    std::vector<Decoded::CityStats> list(in.count(19));
+    for (Decoded::CityStats& c : list) {
+        c.island = in.u16();
+        c.index = in.u8();
+        c.purchases = in.i64();
+        c.sales = in.i64();
+    }
+    return list;
+}
+
 std::vector<City> read_cities(StateIn& in) {
     std::vector<City> list(in.count(16));
     for (City& c : list) {
@@ -2025,9 +2055,20 @@ core::Status apply_decoded(World& world, Decoded& d) {
             if (const City* old = world.city(c.island, c.index)) {
                 c.trade = old->trade;
                 c.goodwill = old->goodwill;
+                // Files of an earlier version have no CSTA: the statistics of the original's chunks stay.
+                c.purchases = old->purchases;
+                c.sales = old->sales;
             }
         }
         world.set_cities(std::move(*d.cities));
+        if (d.city_state) {
+            for (const Decoded::CityStats& st : *d.city_state) {
+                if (City* c = world.city(st.island, st.index)) {
+                    c->purchases = st.purchases;
+                    c->sales = st.sales;
+                }
+            }
+        }
     }
     if (d.productions) {
         world.set_productions(std::move(d.productions->first), std::move(d.productions->second));
@@ -2219,6 +2260,7 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kPlayerState, [&](Out& o) { write_player_state(o, world); });
     section(out, kMissions, [&](Out& o) { write_missions(o, world); });
     section(out, kCities, [&](Out& o) { write_cities(o, world); });
+    section(out, kCityState, [&](Out& o) { write_city_state(o, world); });
     section(out, kProductions, [&](Out& o) { write_productions(o, world); });
     section(out, kHouses, [&](Out& o) { write_houses(o, world); });
     section(out, kGrowth, [&](Out& o) { write_growth(o, world); });
@@ -2337,6 +2379,9 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 break;
             case kCities:
                 d.cities = read_cities(in);
+                break;
+            case kCityState:
+                d.city_state = read_city_state(in);
                 break;
             case kProductions:
                 d.productions = read_productions(in);

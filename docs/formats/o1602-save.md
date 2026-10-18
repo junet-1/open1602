@@ -46,6 +46,7 @@ Teile hinzufügen, ohne ältere Spielstände ungültig zu machen.
 | `ISLE` | je Insel: Wildplätze, Dürre, Krater, Lagerstätten, Fruchtbarkeit |
 | `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `ANIM` `DISA` `VOLC` | Spieler, Städte, Produktionsliste mit freien Plätzen, Häuser, Wachstum, Werften und Burgen, Tiere, Brände und Seuchen, Vulkane mit Lava im Flug |
 | `PSTA` | je Spieler (Reihenfolge wie `PLAY`): Auftrag, Stand (spielt, besiegt, abwesend), gewonnen, besiegte Gegner, die beiden Zähler der Niederlageregeln, Handelsstatistik (Käufe, Verkäufe) |
+| `CSTA` | je Stadt (Insel, Nummer): Handelsstatistik des Kontors (Käufe, Verkäufe, wie Stadt + 0x1F0/+0x1F4); fehlt der Abschnitt, gelten die Werte aus `STADT4` |
 | `MISN` | die Aufträge (Ziele, Verlustbedingungen, Werte, Text, die beim Start festgehaltenen Inseln der Inselziele) und das Spielende (Zeit, Sieger) ([missions.md](../re/missions.md)) |
 | `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | Schiffe mit Kurs, Route und Ladung, Werftaufträge, Handelseinstellungen; Soldaten, Türme, Gebäudeschaden, Schüsse im Flug, Burgplätze; Diplomatie; Inselepochen; Erkunden |
 | `SIMU` | Uhren der Simulation, alle laufenden Figuren und der Zustand der Computergegner |

@@ -744,6 +744,8 @@ private:
             r[1] = c.index;
             r[2] = owner_byte(c.owner);
             r[4] = static_cast<std::uint8_t>((r[4] & ~1U) | (c.material_lock ? 1U : 0U));
+            put32(r, 0x08, static_cast<std::uint32_t>(std::clamp<std::int64_t>(c.purchases, 0, 0xFFFFFFFFLL)));
+            put32(r, 0x0C, static_cast<std::uint32_t>(std::clamp<std::int64_t>(c.sales, 0, 0xFFFFFFFFLL)));
             for (std::size_t k = 0; k < 5; ++k) {
                 put32(r, 0x5C + 4 * k, k < c.inhabitants.size() ? c.inhabitants[k] : 0);
                 // The loader turns 0 into 128.

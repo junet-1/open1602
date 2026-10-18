@@ -568,6 +568,8 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         }
         city.food_ratio = c.food_ratio;
         city.material_lock = c.material_lock;
+        city.purchases = c.purchases;
+        city.sales = c.sales;
         city.goodwill.assign(c.goodwill.begin(), c.goodwill.end());
         world.add_city(std::move(city));
     }

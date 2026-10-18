@@ -13,8 +13,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "selection_panels.hpp"
 #include "side_panels.hpp"
 
 #include "o1602/assets/game_directory.hpp"
@@ -95,6 +97,19 @@ public:
     /// Which buildings the local player may pick (the build menu).
     void set_available(BuildPanel::Available available) { m_available = std::move(available); }
     [[nodiscard]] std::int32_t mode() const noexcept { return m_mode; }
+    /// The game the windows of the selections read, and who plays here.
+    void set_game(const sim::Simulation& simulation, const assets::BuildingTable& buildings,
+                  const assets::FigureTable& figures, sim::PlayerId local) {
+        m_simulation = &simulation;
+        m_buildings = &buildings;
+        m_figure_table = &figures;
+        m_local = local;
+    }
+    /// What the player selected on the map; its window shows in the info mode.
+    void set_selection(const Selection& selection) { m_selection = selection; }
+    [[nodiscard]] const Selection& selection() const noexcept { return m_selection; }
+    /// Commands the windows gave since the last call.
+    [[nodiscard]] std::vector<sim::Command> take_commands() { return std::exchange(m_commands, {}); }
     /// Switches the mode (also from the keys); returns what the tool should do.
     std::optional<Action> set_mode(std::int32_t mode);
 
@@ -139,6 +154,15 @@ private:
     std::unique_ptr<InfoPanel> m_info;
     BuildPanel::Available m_available;
     Resources m_resources;
+    std::unique_ptr<SelectionPanels> m_selection_panels;
+    Selection m_selection;
+    const sim::Simulation* m_simulation = nullptr;
+    const assets::BuildingTable* m_buildings = nullptr;
+    const assets::FigureTable* m_figure_table = nullptr;
+    sim::PlayerId m_local = sim::kNoPlayer;
+    std::vector<sim::Command> m_commands;
+    /// The window of the current selection, nothing without one or without the game.
+    [[nodiscard]] SelectionPanel* selection_panel(std::optional<PanelContext>& context);
     std::int32_t m_gfx_baumat = 46;  ///< TOOLS.INC GFXBAUMAT
     std::deque<Event> m_events;      ///< newest first, at most three
     std::vector<std::uint8_t> m_minimap;

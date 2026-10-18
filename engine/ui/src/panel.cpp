@@ -195,6 +195,13 @@ std::optional<std::int32_t> Panel::hovered() const {
     return m_layout.gadgets[*m_hovered].id;
 }
 
+std::optional<std::int32_t> Panel::held() const {
+    if (!m_down || !m_pressed) {
+        return std::nullopt;
+    }
+    return m_layout.gadgets[*m_pressed].id;
+}
+
 std::uint8_t Panel::state_of(std::size_t index) const {
     return (m_down && m_pressed == index) || m_state[index].selected ? 1 : 0;
 }

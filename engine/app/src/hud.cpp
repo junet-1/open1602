@@ -108,6 +108,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     if (auto info = assets::load_gad(game, "INFO.GAD")) {
         m_info = std::make_unique<InfoPanel>(std::move(info).value(), own);
     }
+    m_selection_panels = std::make_unique<SelectionPanels>(game);
     m_ctrl.set_selected(m_mode, true);
     m_gfx_baumat = m_ctrl.layout().constant("GFXBAUMAT").value_or(m_gfx_baumat);
 }
@@ -163,6 +164,15 @@ void Hud::draw_resources() {
     m_renderer->draw(items, x0, v.y, s);
 }
 
+SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
+    if (m_simulation == nullptr || m_buildings == nullptr || m_figure_table == nullptr || !m_selection_panels ||
+        m_selection.kind == Selection::Kind::None) {
+        return nullptr;
+    }
+    context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local});
+    return m_selection_panels->panel_for(m_selection, *context);
+}
+
 std::optional<Hud::Action> Hud::build_tool_action() {
     if (!m_build) {
         return std::nullopt;
@@ -207,6 +217,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
     }
     if (m_info) {
         m_info->set_scale(scale);
+    }
+    if (m_selection_panels) {
+        m_selection_panels->set_scale(scale);
     }
     return m_regions.game_view;
 }
@@ -257,8 +270,15 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         if (popup && consumed) {
             return action;
         }
-    } else if (m_mode == kModeInfo && m_info) {
-        m_info->mouse(x - panel.x, y - panel.y, down);
+    } else if (m_mode == kModeInfo) {
+        std::optional<PanelContext> context;
+        if (SelectionPanel* p = selection_panel(context)) {
+            for (const ui::PanelEvent& e : p->panel().mouse(x - panel.x, y - panel.y, down)) {
+                p->clicked(e, m_selection, *context, m_commands);
+            }
+        } else if (m_info) {
+            m_info->mouse(x - panel.x, y - panel.y, down);
+        }
     }
     const auto ctrl = m_ctrl.mouse(x - panel.x, y - panel.y, down);
     const auto leist = m_leist.mouse(x - bar.x, y - bar.y, down);
@@ -405,10 +425,21 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         if (const auto text = m_build->help(m_leiste)) {
             status = *text;
         }
-    } else if (m_mode == kModeInfo && m_info) {
-        m_info->draw(*m_renderer, figures, colour, m_regions.side_panel, s);
-        if (const auto text = m_info->help(m_leiste)) {
-            status = *text;
+    } else if (m_mode == kModeInfo) {
+        std::optional<PanelContext> context;
+        if (SelectionPanel* p = selection_panel(context)) {
+            p->refresh(m_selection, *context);
+            m_renderer->draw(p->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+            if (const auto id = p->panel().hovered()) {
+                if (const auto text = p->help(*id, m_selection, *context)) {
+                    status = *text;
+                }
+            }
+        } else if (m_info) {
+            m_info->draw(*m_renderer, figures, colour, m_regions.side_panel, s);
+            if (const auto text = m_info->help(m_leiste)) {
+                status = *text;
+            }
         }
     }
     // The minimap on the parchment.

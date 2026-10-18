@@ -214,6 +214,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         if (owner != nullptr) {
             earn_from_trade(*owner, std::int64_t{price} * n / kTon);
         }
+        city.sales += 32 * (std::int64_t{price} * n / kTon);
         add_good(ship, w, n, price);
         traded = true;
         m_events.push_back(ShipEvent{ShipEvent::Kind::Traded, ship.id, ship.owner, city.island, city.index, w,
@@ -231,6 +232,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         if (owner != nullptr) {
             pay_for_trade(*owner, std::int64_t{price} * n / kTon);
         }
+        city.purchases += 32 * (std::int64_t{price} * n / kTon);
         TraderGood* g = good_of(ship, w);
         g->amount -= std::min(n, g->amount);
         g->age = 0;

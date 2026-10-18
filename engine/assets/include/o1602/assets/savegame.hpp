@@ -29,7 +29,9 @@ struct CityRecord {
     std::uint8_t food_ratio = 0;                 ///< +0x86: supply of food, 128 = full
     /// +0x18: goodwill of natives towards each player slot (city + 0x206; 49 per entry at the start).
     std::array<std::uint32_t, 7> goodwill{};
-    bool material_lock = false;  ///< +0x04 bit 0: no building material for houses
+    bool material_lock = false;   ///< +0x04 bit 0: no building material for houses
+    std::uint32_t purchases = 0;  ///< +0x08: trade statistics (city + 0x1F0)
+    std::uint32_t sales = 0;      ///< +0x0C: (city + 0x1F4)
 
     static constexpr std::uint8_t kNoCityOwner = 7;
 };

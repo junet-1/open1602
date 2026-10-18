@@ -411,3 +411,45 @@ TEST_CASE("sim: pool with stable handles") {
     CHECK(pool.add(5).index == a.index);  // lowest free slot first
     CHECK(pool.size() == 2);
 }
+
+TEST_CASE("simulation: the switches of the production window (0x0047CFA0, 0x0047CD90)") {
+    const auto buildings = make_buildings();
+    sim::World world;
+    sim::WorldIsland island{assets::IslandHeader{}, sim::IslandMap(8, 8), 5, 5};
+    REQUIRE(island.map.place(*buildings.by_id(20503), 1, 1, 0, 0, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    sim::Production p = make(0, 1, 1, false, 0, 3, 0);
+    p.countdown = 7;
+    p.elapsed = 20;
+    world.set_production(p);
+    const assets::FigureTable no_figures;
+    sim::Simulation simulation(world, buildings, no_figures);
+
+    sim::ProductionSwitch sw;
+    sw.player = 0;
+    sw.island = 0;
+    sw.x = 1;
+    sw.y = 1;
+    sw.on = true;
+    CHECK(simulation.execute(sw).accepted);
+    const sim::Production& now = world.productions()[0];
+    CHECK(now.enabled);
+    // An idle building starts in the next second; its waiting does not count.
+    CHECK(now.countdown == 0);
+    CHECK(now.elapsed == 13);
+    CHECK(now.idle_cycles == 0);
+    CHECK(!simulation.execute(sw).accepted);  // already on
+
+    sw.op = sim::ProductionSwitch::Op::Pickup;
+    sw.on = false;
+    CHECK(simulation.execute(sw).accepted);
+    CHECK(world.productions()[0].no_pickup());
+    CHECK(!simulation.execute(sw).accepted);
+    sw.on = true;
+    CHECK(simulation.execute(sw).accepted);
+    CHECK(!world.productions()[0].no_pickup());
+    // Somebody else's building: refused.
+    sw.player = 1;
+    sw.on = false;
+    CHECK(!simulation.execute(sw).accepted);
+}

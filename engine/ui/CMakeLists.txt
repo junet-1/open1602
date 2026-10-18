@@ -5,6 +5,7 @@ add_library(o1602_ui
     src/build_menu.cpp
     src/font.cpp
     src/panel.cpp
+    src/text_format.cpp
 )
 add_library(o1602::ui ALIAS o1602_ui)
 

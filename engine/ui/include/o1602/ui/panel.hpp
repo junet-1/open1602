@@ -114,6 +114,8 @@ public:
     std::vector<PanelEvent> mouse(std::int32_t x, std::int32_t y, bool down);
     /// Gadget Id under the mouse at the last call (for the status line's help text).
     [[nodiscard]] std::optional<std::int32_t> hovered() const;
+    /// Gadget Id held down by the mouse now (a slider being dragged), nothing if none.
+    [[nodiscard]] std::optional<std::int32_t> held() const;
 
     /// Everything to draw, in paint order. `fonts` are the three font slots (for flowing text).
     [[nodiscard]] std::vector<DrawItem> draw(const std::array<const Font*, 3>& fonts) const;

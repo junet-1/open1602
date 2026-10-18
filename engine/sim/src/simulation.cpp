@@ -214,10 +214,29 @@ bool Simulation::switch_production(const ProductionSwitch& s) {
         return false;
     }
     Production& p = m_world->productions()[*index];
-    if (!p.used || p.enabled == s.on) {
+    if (!p.used) {
+        return false;
+    }
+    // M-019: both switches are commands, so every computer applies them.
+    if (s.op == ProductionSwitch::Op::Pickup) {
+        if (p.no_pickup() == !s.on) {
+            return false;
+        }
+        p.flags = static_cast<std::uint8_t>(s.on ? p.flags & ~Production::kNoPickupFlag
+                                                 : p.flags | Production::kNoPickupFlag);
+        return true;
+    }
+    if (p.enabled == s.on) {
         return false;
     }
     p.enabled = s.on;
+    if (s.on && !p.working()) {
+        // An idle building starts its next cycle in the next second; the time it waited does not
+        // count against its productivity (0x0047CFA0).
+        p.idle_cycles = 0;
+        p.elapsed = p.elapsed > p.countdown ? static_cast<std::uint16_t>(p.elapsed - p.countdown) : 0;
+        p.countdown = 0;
+    }
     return true;
 }
 

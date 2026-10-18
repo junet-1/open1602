@@ -330,6 +330,9 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
             default:
                 break;  // the free trader consumes nothing
         }
+        // The trade statistics fade (city + 0x1F0, + 0x1F4).
+        city->purchases = city->purchases * 89 / 90;
+        city->sales = city->sales * 89 / 90;
         city->epoch = static_cast<std::uint8_t>((city->epoch + 1) & 7U);
     }
 }

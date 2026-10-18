@@ -12,6 +12,7 @@
 #include "o1602/ui/font.hpp"
 #include "o1602/ui/panel.hpp"
 #include "o1602/ui/resources.hpp"
+#include "o1602/ui/text_format.hpp"
 
 using namespace o1602;
 
@@ -275,4 +276,20 @@ TEST_CASE("ui: the build menu's categories and the pop-up of a category") {
     CHECK(none.find(32902) == nullptr);
     CHECK(none.find(ui::kPopupIcon + 15)->gfx == 81 + 43);
     CHECK(none.find(ui::kPopupIcon + 0) == nullptr);
+}
+
+TEST_CASE("ui: the printf patterns of Text.cod, filled without printf") {
+    using ui::format_text;
+    CHECK(format_text("%d%%", {std::int64_t{42}}) == "42%");
+    CHECK(format_text("%dt %s", {std::int64_t{5}, std::string_view("Holz")}) == "5t Holz");
+    CHECK(format_text("%svorrat (reicht für weitere %0.1ft %s)",
+                      {std::string_view("Wolle"), 1.5, std::string_view("Stoffe")}) ==
+          "Wollevorrat (reicht für weitere 1.5t Stoffe)");
+    CHECK(format_text("%d%% Steuer:", {std::int64_t{32}}) == "32% Steuer:");
+    // Missing arguments stay empty, unknown conversions stay, wrong kinds are converted.
+    CHECK(format_text("%s and %d", {}) == " and ");
+    CHECK(format_text("%x %d", {std::int64_t{1}}) == "%x 1");
+    CHECK(format_text("%d", {2.7}) == "2");
+    CHECK(format_text("%s", {std::int64_t{7}}) == "7");
+    CHECK(format_text("100%", {}) == "100%");
 }

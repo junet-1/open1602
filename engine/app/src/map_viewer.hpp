@@ -118,6 +118,8 @@ private:
     [[nodiscard]] static std::filesystem::path save_folder();
 
     void select_ship_at_mouse();
+    /// Tells the panel what was clicked on the map (ship or building) for its windows.
+    void select_for_panel();
     void order_ship_to_mouse();
     /// A unit under the mouse: an own soldier is selected first.
     [[nodiscard]] std::uint32_t soldier_at_mouse(bool own_only) const;

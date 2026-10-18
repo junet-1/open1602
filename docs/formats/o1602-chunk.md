@@ -67,6 +67,7 @@ Spielstände ungültig zu machen.
 | `ISLE` | je Insel in der Reihenfolge der Welt, mit Inselnummer zur Prüfung |
 | `TILE` | abweichende Felder: Inselnummer, x, y, Ebene, Gebäude-Id, Teilfeld, Drehung, Phase, Besitzer, Stadt, Zufallswert |
 | `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `SHIP` `ANIM` `DISA` `VOLC` | die Listen der Welt, vollständig (`SOLD`, die Soldaten älterer Fassungen, wird noch gelesen) |
+| `CSTA` | Handelsstatistik je Stadt (Insel, Nummer, Käufe, Verkäufe) |
 | `FLEE` | Schiffe vollständig (Lage in 1/4096 Feld, Kurs, Laderäume mit Preis, Handelsroute, Ziele mit dem Verweis des Originals, Waren des Händlers), nächste Schiffsnummer, entdeckte Inseln, Handelseinstellungen und Zuneigung der Städte, Felder der Werften (Auftrag, Baupunkte, Holz, Stoffe, Takt, Reparatur); `SHIP` bleibt für ältere Leser |
 | `ARMY` | Soldaten vollständig (Lage in 1/4096 Feld, Lebenspunkte, Heimat, Ziel, Planung, Uhren, Streife, Weg), nächste Soldatennummer, Kanonentürme, Gebäudeschaden, Schüsse im Flug, Waffen und Plätze der Burgen |
 | `EPOC` | Phase der Inselepochen und je Insel die zuletzt gesehene Phase |

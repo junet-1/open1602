@@ -166,6 +166,11 @@ struct City {
     std::uint64_t last_attacked_ms = 0;
     /// Natives: the village has cursed its destroyer (once).
     bool cursed = false;
+    /// Trade statistics of the city's Kontor (city + 0x1F0, + 0x1F4): every purchase and sale adds
+    /// 32 times its value, the city tick takes 1/90 off every 10 s; divided by 480 they are a
+    /// moving average per minute (the city window).
+    std::int64_t purchases = 0;
+    std::int64_t sales = 0;
 
     [[nodiscard]] const Trade* trade_of(std::uint8_t ware) const noexcept {
         return ware < trade.size() ? &trade[ware] : nullptr;

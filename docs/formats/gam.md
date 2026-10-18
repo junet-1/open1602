@@ -226,7 +226,7 @@ ebenfalls Städte.
 | 0x02 | u8 | Besitzer |
 | 0x04 | Bit 0 | Stadt + 0x257 Bit 0 |
 | 0x05 | u8 | Stadtrang (Stadt + 0x253) |
-| 0x08, 0x0C | u32 | Stadt + 0x1F0, + 0x1F4: geglättete Geldstatistik |
+| 0x08, 0x0C | u32 | Stadt + 0x1F0, + 0x1F4: Handelsstatistik des Kontors (Käufe, Verkäufe; je Handel + 32 × Wert, alle 10 s × 89/90; / 480 = je Minute, das Stadtfenster) |
 | 0x10 | u32 | Stadt + 0x1FE: Zahl der laufenden Brände und Seuchen, sperrt das Wachstum; der Lader überliest es (S-001, [disasters.md](../re/disasters.md)) |
 | 0x18 | 7 × u32 | Stadt + 0x206 … (Eingeborene: 49 je Wert, Spieler: 0) |
 | 0x58 | u32 | Stadt + 0x1D4 |
