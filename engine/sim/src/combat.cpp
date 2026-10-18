@@ -326,7 +326,11 @@ void Combat::update() {
             return std::tie(x.distance8, x.entry) < std::tie(y.distance8, y.entry);
         };
         const std::size_t keep = std::min(m_seen.size(), kMaxNeighbours);
-        std::partial_sort(m_seen.begin(), m_seen.begin() + static_cast<std::ptrdiff_t>(keep), m_seen.end(), nearer);
+        const auto end = m_seen.begin() + static_cast<std::ptrdiff_t>(keep);
+        if (keep < m_seen.size()) {
+            std::nth_element(m_seen.begin(), end, m_seen.end(), nearer);  // the order is total: no ties
+        }
+        std::sort(m_seen.begin(), end, nearer);
         for (std::size_t k = 0; k < keep; ++k) {
             m_neighbours.push_back({m_entries[m_seen[k].entry].unit, m_seen[k].distance8});
         }
