@@ -67,6 +67,8 @@ public:
     /// Follows the simulation: positions and directions of the soldiers, and a new animation when
     /// a soldier's changes (walk, stand, strike, die). Soldiers in a doctor's house are not drawn.
     void sync(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
+    /// The figure of a soldier (Soldier::id), nothing if it is not drawn.
+    [[nodiscard]] const FigureInstance* find(std::uint32_t id) const noexcept;
 
 private:
     struct Known {

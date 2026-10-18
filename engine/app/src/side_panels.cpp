@@ -332,9 +332,20 @@ InfoPanel::InfoPanel(assets::GadgetLayout info, const assets::TextTable* texts) 
     m_panel.set_visible(kInfoPointsLabel, false);
     m_panel.set_visible(kInfoPoints, false);
     m_panel.set_disabled(kInfoRating, true);
-    for (const std::int32_t id : kInfoLists) {
-        m_panel.set_disabled(id, true);
+}
+
+std::optional<Selection::Kind> InfoPanel::mouse(std::int32_t x, std::int32_t y, bool down) {
+    std::optional<Selection::Kind> list;
+    for (const ui::PanelEvent& e : m_panel.mouse(x, y, down)) {
+        if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kInfoLists[0]) {
+            list = Selection::Kind::Diplomacy;
+        } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kInfoLists[1]) {
+            list = Selection::Kind::ShipList;
+        } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kInfoLists[2]) {
+            list = Selection::Kind::CityList;
+        }
     }
+    return list;
 }
 
 std::optional<std::string> InfoPanel::help(const std::vector<std::string>& leiste) const {

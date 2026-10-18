@@ -60,10 +60,12 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
                                                 const assets::FigureTable* figures = nullptr);
 
 /// The sheets the world renderer uses: ships, animals, shadows, effects (smoke, status icons),
-/// soldiers, carriers and carts (TRAEGER.BSH) and farm workers (MAEHER.BSH).
-inline constexpr std::array<assets::FigureSheet, 9> kWorldFigureSheets = {
+/// soldiers, carriers and carts (TRAEGER.BSH), farm workers (MAEHER.BSH), fish, jugglers and the
+/// group numbers over selected units (NUMBERS.BSH).
+inline constexpr std::array<assets::FigureSheet, 10> kWorldFigureSheets = {
     assets::FigureSheet::Ship,    assets::FigureSheet::Tiere,  assets::FigureSheet::Schatten,
     assets::FigureSheet::Effekte, assets::FigureSheet::Soldat, assets::FigureSheet::Traeger,
-    assets::FigureSheet::Maeher,  assets::FigureSheet::Fische, assets::FigureSheet::Gaukler};
+    assets::FigureSheet::Maeher,  assets::FigureSheet::Fische, assets::FigureSheet::Gaukler,
+    assets::FigureSheet::Numbers};
 
 }  // namespace o1602::render

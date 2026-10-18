@@ -13,6 +13,7 @@ add_library(o1602_render
     src/flag_tint.cpp
     src/island_renderer.cpp
     src/sprite_atlas.cpp
+    src/sprite_hit_mask.cpp
     src/sprite_source.cpp
     src/unit_tint.cpp
     src/world_graphics.cpp

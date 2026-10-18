@@ -26,7 +26,8 @@ namespace o1602::app {
 
 /// What the player selected on the map.
 struct Selection {
-    enum class Kind : std::uint8_t { None, Building, Ship };
+    /// ShipList, CityList, Diplomacy: the windows behind the player status (no object selected).
+    enum class Kind : std::uint8_t { None, Building, Ship, ShipList, CityList, Diplomacy };
     Kind kind = Kind::None;
     std::uint16_t island = 0;  ///< Building: its origin on the island
     std::uint16_t x = 0;
@@ -78,11 +79,17 @@ public:
                         const PanelContext& /*context*/, std::vector<sim::Command>& /*out*/) {}
     /// Escape: back one page or out of picking; false if there is nothing to go back from.
     virtual bool back() { return false; }
+    /// The window was opened anew (lists start at their first page).
+    virtual void opened() {}
     /// What the window asks of the interface beyond commands (once).
     struct Request {
-        enum class Kind : std::uint8_t { FoundKontor };
+        /// FoundKontor: the building tool places a Kontor; SelectShip: select `ship` and look at it;
+        /// Centre: look at world tile (x, y).
+        enum class Kind : std::uint8_t { FoundKontor, SelectShip, Centre };
         Kind kind = Kind::FoundKontor;
         std::uint32_t ship = 0;  ///< FoundKontor: the ship whose cargo pays
+        double x = 0.0;
+        double y = 0.0;
     };
     [[nodiscard]] virtual std::optional<Request> take_request() { return std::nullopt; }
 };

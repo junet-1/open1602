@@ -43,6 +43,13 @@ public:
         m_gfx_ware = sl.constant("GFXWARE").value_or(192);
         m_gfx_empty = sl.constant("GFXWARELEER").value_or(188) + 1;
         m_gfx_ship = sl.constant("GFXSHIP").value_or(363);
+        // Where the buttons of the left column stand in SHIP.GAD, and the bottom of the name.
+        for (std::size_t i = 0; i < m_column.size(); ++i) {
+            m_column[i] = m_ship.position(kColumn[i]).value_or(std::array<std::int32_t, 2>{});
+        }
+        if (const auto name = sl.index_of(kNameFrame)) {
+            m_name_bottom = sl.gadgets[*name].pos[1] + sl.gadgets[*name].size[1];
+        }
         m_ship.set_visible(kDeadSlider, false);
         m_transfer.set_selected(45003, true);
         m_transfer.set_selected(45141, true);
@@ -587,8 +594,31 @@ private:
         m_ship.set_visible(kRouteEditor, own && !ship.for_sale);
         m_ship.set_visible(kScuttle, own && !ship.for_sale);
         m_ship.set_visible(kPirates, idle && k.pirates);
+        arrange_column(own && (k.explore == sim::ExploreState::Possible || running),
+                       idle && k.yard.has_value() && health < max_health, idle && k.pirates);
         m_ship.set_selected(kRoute, !ship.route.active);
         holds(m_ship, ship, c, kHoldIcon, kHoldBar, kHoldButton, own || ship.for_sale);
+    }
+
+    /// U-013: in the original, "repair" and "pirates" take the place of "explore" (one button
+    /// over the other). When both apply, Open1602 puts the other button right under the name and
+    /// "explore" below it, so every action can be clicked.
+    void arrange_column(bool explore, bool repair, bool pirates) {
+        const bool apart = explore && (repair || pirates);
+        std::int32_t explore_top = m_column[2][1];
+        for (std::size_t i = 0; i < 2; ++i) {
+            const std::int32_t y = apart ? m_name_bottom + 2 : m_column[i][1];
+            m_ship.set_position(kColumn[i], m_column[i][0], y);
+            const bool shown = i == 0 ? repair : pirates;
+            if (apart && shown) {
+                if (const auto g = m_ship.layout().index_of(kColumn[i])) {
+                    explore_top = std::max(explore_top, y + m_ship.layout().gadgets[*g].size[1]);
+                }
+            }
+        }
+        for (std::size_t i = 2; i < m_column.size(); ++i) {
+            m_ship.set_position(kColumn[i], m_column[i][0], m_column[i][1] + (explore_top - m_column[2][1]));
+        }
     }
 
     void clicked_root(const ui::PanelEvent& e, const sim::Ship& ship, const PanelContext& c,
@@ -1329,6 +1359,11 @@ private:
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 189;
     std::int32_t m_gfx_ship = 363;
+    static constexpr std::int32_t kNameFrame = 38001;
+    /// The left column: repair, pirates, explore and its ring (arrange_column).
+    static constexpr std::array<std::int32_t, 4> kColumn = {38003, 38019, 38023, 38024};
+    std::array<std::array<std::int32_t, 2>, 4> m_column{};
+    std::int32_t m_name_bottom = 384;
     Page m_page = Page::Root;
     std::uint32_t m_last_ship = 0;
     std::int32_t m_hold = 0;

@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "selection_panels.hpp"
+
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/gad.hpp"
 #include "o1602/assets/text_table.hpp"
@@ -80,7 +82,8 @@ class InfoPanel {
 public:
     InfoPanel(assets::GadgetLayout info, const assets::TextTable* texts);
     void set_scale(double scale) { m_panel.set_scale(scale); }
-    void mouse(std::int32_t x, std::int32_t y, bool down) { (void)m_panel.mouse(x, y, down); }
+    /// The mouse; a click on a list button returns which list to open.
+    std::optional<Selection::Kind> mouse(std::int32_t x, std::int32_t y, bool down);
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste) const;
     void draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& figures, std::uint8_t colour,
               const ui::Rect& region, double scale);

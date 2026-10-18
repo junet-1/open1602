@@ -114,6 +114,10 @@ public:
     void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset);
     /// Another draw offset (Posoffs) for a gadget: art centred in its box, groups moved together.
     void set_offset(std::int32_t id, std::int32_t x, std::int32_t y);
+    /// Moves a gadget, click area and picture (Open1602 rearranges a few windows, e.g. U-013).
+    void set_position(std::int32_t id, std::int32_t x, std::int32_t y);
+    /// Top left of a gadget's click area, nothing if the layout has no such gadget.
+    [[nodiscard]] std::optional<std::array<std::int32_t, 2>> position(std::int32_t id) const;
 
     /// The mouse at (x, y) in pixels relative to the region, button down or up.
     std::vector<PanelEvent> mouse(std::int32_t x, std::int32_t y, bool down);

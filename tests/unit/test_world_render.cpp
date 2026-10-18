@@ -14,6 +14,7 @@
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/camera.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/sprite_hit_mask.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/world.hpp"
@@ -442,4 +443,68 @@ TEST_CASE("world: the size is a property of the map (ADR 0007)") {
     REQUIRE(back.has_value());
     CHECK(back->x == 1103);
     CHECK(back->y == 852);
+}
+
+namespace {
+
+/// Two sprites: 0 a 4x3 ring (the middle pixels transparent), 1 a 2x2 full square.
+class RingSource final : public render::SpriteSource {
+public:
+    [[nodiscard]] std::uint32_t count() const override { return 2; }
+    void size(std::uint32_t i, std::uint32_t& width, std::uint32_t& height) const override {
+        width = i == 0 ? 4 : 2;
+        height = i == 0 ? 3 : 2;
+    }
+    bool pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) const override {
+        std::uint32_t w = 0;
+        std::uint32_t h = 0;
+        size(i, w, h);
+        rgba.assign(std::size_t{w} * h * 4, 255);
+        if (i == 0) {
+            for (const std::uint32_t x : {1U, 2U}) {
+                rgba[(std::size_t{1} * w + x) * 4 + 3] = 0;
+            }
+        }
+        return true;
+    }
+};
+
+}  // namespace
+
+TEST_CASE("sprite hit mask: units are picked by their visible pixels") {
+    const RingSource source;
+    const render::SpriteSource* sources[] = {&source};
+    auto atlas = render::SpriteAtlas::build(sources, 16);
+    REQUIRE(atlas.ok());
+    const auto mask = render::SpriteHitMask::build(*atlas, 0);
+    CHECK(mask.visible(0, 0, 0));
+    CHECK(mask.visible(0, 3, 1));
+    CHECK(!mask.visible(0, 1, 1));  // the hole
+    CHECK(!mask.visible(0, 2, 1));
+    CHECK(!mask.visible(0, 4, 0));  // outside
+    CHECK(!mask.visible(0, -1, 0));
+    CHECK(mask.visible(1, 1, 1));
+    // Sprites before `first` have no mask: their whole rectangle counts.
+    const auto partial = render::SpriteHitMask::build(*atlas, 1);
+    CHECK(partial.visible(0, 1, 1));
+    CHECK(partial.visible(1, 0, 0));
+    // A command: left / bottom anchor (10, 20), so the ring covers x 10..13, y 17..19.
+    render::DrawCommand c;
+    c.sprite = 0;
+    c.x = 10;
+    c.y = 20;
+    const auto b = render::command_bounds(c, *atlas);
+    REQUIRE(b.has_value());
+    CHECK((*b == std::array<std::int32_t, 4>{10, 17, 4, 3}));
+    CHECK(render::command_hit(c, *atlas, mask, 10, 17));
+    CHECK(!render::command_hit(c, *atlas, mask, 11, 18));  // the hole
+    CHECK(render::command_hit(c, *atlas, mask, 13, 19));
+    CHECK(!render::command_hit(c, *atlas, mask, 13, 20));
+    // Rows cut at the bottom (a figure in a field) do not count.
+    c.cut_bottom = 1;
+    CHECK(!render::command_hit(c, *atlas, mask, 10, 19));
+    CHECK(render::command_hit(c, *atlas, mask, 10, 18));
+    render::DrawCommand overlay;
+    overlay.sprite = render::DrawCommand::kOverlayDiamond;
+    CHECK(!render::command_bounds(overlay, *atlas));
 }

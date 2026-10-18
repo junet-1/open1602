@@ -11,6 +11,7 @@
 // SAVEGAME/game00.gam) or by file name. Scenarios and savegames share one format. --load FILE opens
 // a savegame of Open1602 (.o1602, docs/formats/o1602-save.md) or any file of the original by its path.
 
+#include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_main.h>
 #include <array>
 #include <charconv>
@@ -61,6 +62,7 @@ int usage() {
         "  --no-videos        no videos of messages, victory, defeat and pause\n"
         "  --original-mouse   the original's mouse: orders with the left button, the right one cancels\n"
         "  --no-confirm       no questions before scuttling, disbanding and declaring war\n"
+        "  --keys FILE        key settings (default: keys.cfg in the user's data folder; F1 shows the keys)\n"
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
         "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\";\n"
@@ -76,14 +78,15 @@ int usage() {
         "  Q / E          rotate view                 wheel, PageUp/PageDn     zoom\n"
         "  Space          to the last message         Home                     to the selection\n"
         "  F3, Pause      pause                       Num+ / Num-              game speed\n"
-        "  F5             quick save                  F12, Print               screenshot\n"
+        "  F5 / F9        quick save / quick load     F12, Print               screenshot\n"
+        "  F1             these keys over the map\n"
         "  B K I O        build, military, info, options\n"
         "  left mouse     select (drag: rectangle, Shift: add, Ctrl/double: all alike on screen)\n"
         "  right mouse    order (also on the minimap; Shift: queued)\n"
         "  Ctrl+1..0      store a group  Shift+1..0 add to it  1..0 select it (twice: go there)\n"
         "  . / ,          next idle ship / unit\n"
-        "  units:         A attack, S stop, P patrol, F formation, G scatter, Y white flag,\n"
-        "                 X explore, Del disband/scuttle\n"
+        "  units:         F attack, H stop, G hold, P patrol, C formation, Shift+C scatter, Tab one kind,\n"
+        "                 Y white flag, X explore, T trade, R route, Del disband/scuttle\n"
         "  building:      R rotate, C pick the building under the mouse, Del demolish, Tab next\n"
         "  Esc            back, out of a tool, deselect   Ctrl+Q quit   Ctrl+O ownership view\n",
         stderr);
@@ -94,7 +97,7 @@ bool parse_number(std::string_view text, std::int32_t& value) {
     return std::from_chars(text.data(), text.data() + text.size(), value).ec == std::errc{};
 }
 
-/// "move X,Y@F;down X,Y@F;up X,Y@F;key K@F" (K: SDL key code).
+/// "move X,Y@F;down X,Y@F;up X,Y@F;key K@F" (K: SDL key code, "+ctrl" / "+shift" after it).
 bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::ScriptedInput>& out) {
     using Input = o1602::app::ViewerOptions::ScriptedInput;
     while (!text.empty()) {
@@ -116,7 +119,15 @@ bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::S
         in.frame = static_cast<std::uint32_t>(frame);
         if (verb == "key") {
             in.kind = Input::Kind::Key;
-            if (!parse_number(args, in.key)) {
+            std::string_view key = args;
+            for (const auto& [suffix, mod] :
+                 {std::pair<std::string_view, std::uint16_t>{"+ctrl", SDL_KMOD_LCTRL}, {"+shift", SDL_KMOD_LSHIFT}}) {
+                if (const std::size_t p = key.find(suffix); p != std::string_view::npos) {
+                    in.mod = static_cast<std::uint16_t>(in.mod | mod);
+                    key = key.substr(0, p);
+                }
+            }
+            if (!parse_number(key, in.key)) {
                 return false;
             }
         } else {
@@ -208,6 +219,8 @@ int main(int argc, char** argv) {
             options.original_mouse = true;
         } else if (arg == "--no-confirm") {
             options.confirm = false;
+        } else if (arg == "--keys" && has_value) {
+            options.keys_file = std::filesystem::path(argv[++i]);
         } else if (arg == "--no-videos") {
             options.videos = false;
         } else if (arg == "--intro") {

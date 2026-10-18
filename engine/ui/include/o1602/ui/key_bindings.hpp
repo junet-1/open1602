@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -106,6 +107,23 @@ public:
     /// Name of an action in settings files ("scroll_up", "group_recall").
     [[nodiscard]] static std::string_view name(KeyAction action) noexcept;
     [[nodiscard]] static std::optional<KeyAction> action_named(std::string_view name) noexcept;
+    [[nodiscard]] static std::string_view context_name(KeyContext context) noexcept;
+    [[nodiscard]] static std::optional<KeyContext> context_named(std::string_view name) noexcept;
+
+    /// Names of keys come from the platform (SDL_GetKeyName / SDL_GetKeyFromName).
+    using KeyName = std::function<std::string(std::int32_t)>;
+    using KeyFromName = std::function<std::optional<std::int32_t>(std::string_view)>;
+    /// "Ctrl+Shift+F" and back; modifiers first, the rest is the key's name.
+    [[nodiscard]] static std::string chord_text(const KeyChord& chord, const KeyName& key_name);
+    [[nodiscard]] static std::optional<KeyChord> parse_chord(std::string_view text, const KeyFromName& key_from_name);
+
+    /// The settings file (keys.cfg): one line per key, "context action [number] = keys". An action
+    /// that appears there has only the keys of its lines in that context ("= none": no key); the
+    /// others keep their defaults, so a file of an older version misses nothing new.
+    /// `as_comments`: every line behind "#", the defaults to look up and change one by one.
+    [[nodiscard]] std::string write_text(const KeyName& key_name, bool as_comments = false) const;
+    /// Applies a settings file; returns what it could not read (line by line), the rest counts.
+    std::vector<std::string> read_text(std::string_view text, const KeyFromName& key_from_name);
 
 private:
     std::vector<KeyBinding> m_bindings;

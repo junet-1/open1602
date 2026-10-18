@@ -110,6 +110,19 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         m_info = std::make_unique<InfoPanel>(std::move(info).value(), own);
     }
     m_selection_panels = std::make_unique<SelectionPanels>(game);
+    {
+        auto option = assets::load_gad(game, "OPTION.GAD");
+        auto disk = assets::load_gad(game, "DISK.GAD");
+        auto musik = assets::load_gad(game, "MUSIK.GAD");
+        auto anno = assets::load_gad(game, "ANNO.GAD");
+        if (option && disk && musik && anno) {
+            m_options = std::make_unique<OptionsPanel>(std::move(option).value(), std::move(disk).value(),
+                                                       std::move(musik).value(), std::move(anno).value(), own);
+        }
+    }
+    if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
+        m_tutor.emplace(std::move(tutor).value(), 1.0);
+    }
     m_ctrl.set_selected(m_mode, true);
     m_gfx_baumat = m_ctrl.layout().constant("GFXBAUMAT").value_or(m_gfx_baumat);
 }
@@ -198,9 +211,41 @@ void Hud::map_click(std::uint32_t x, std::uint32_t y) {
     }
 }
 
+std::optional<Hud::Action> Hud::toggle_window(Selection::Kind kind) {
+    if (m_mode == kModeInfo && m_selection.kind == kind) {
+        m_selection = Selection{};
+        return std::nullopt;
+    }
+    std::optional<Action> action;
+    if (m_mode != kModeInfo) {
+        action = set_mode(kModeInfo);
+    }
+    m_selection = Selection{};
+    m_selection.kind = kind;
+    std::optional<PanelContext> context;
+    if (SelectionPanel* p = selection_panel(context)) {
+        p->opened();
+    }
+    return action;
+}
+
 bool Hud::back() {
+    if (m_mode == kModeOptions) {
+        return m_options && m_options->back();
+    }
     if (m_mode != kModeInfo && m_mode != kModeMilitary) {
         return false;
+    }
+    if (m_mode == kModeInfo &&
+        (m_selection.kind == Selection::Kind::ShipList || m_selection.kind == Selection::Kind::CityList ||
+         m_selection.kind == Selection::Kind::Diplomacy)) {
+        // A page back (tribute -> treaties), else back to the player status (0x0040A0D6).
+        std::optional<PanelContext> context;
+        if (SelectionPanel* p = selection_panel(context); p != nullptr && p->back()) {
+            return true;
+        }
+        m_selection = Selection{};
+        return true;
     }
     std::optional<PanelContext> context;
     SelectionPanel* p = selection_panel(context);
@@ -229,6 +274,9 @@ std::optional<Hud::Action> Hud::set_mode(std::int32_t mode) {
         return std::nullopt;
     }
     m_ctrl.set_selected(m_mode, false);
+    if (mode == kModeOptions && m_mode != kModeOptions && m_options) {
+        m_options->opened();
+    }
     m_mode = mode;
     m_ctrl.set_selected(m_mode, true);
     if (m_build) {
@@ -252,6 +300,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
     if (m_info) {
         m_info->set_scale(scale);
     }
+    if (m_options) {
+        m_options->set_scale(scale);
+    }
     if (m_selection_panels) {
         m_selection_panels->set_scale(scale);
     }
@@ -259,7 +310,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
 }
 
 bool Hud::covers(std::int32_t x, std::int32_t y) const noexcept {
-    return m_regions.side_panel.contains(x, y) || m_regions.status_bar.contains(x, y);
+    // The mission's window takes the clicks inside it (0x0042D1C0).
+    return m_regions.side_panel.contains(x, y) || m_regions.status_bar.contains(x, y) ||
+           (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y));
 }
 
 ui::Rect Hud::minimap_rect() const {
@@ -339,8 +392,111 @@ void Hud::draw_question() {
     m_renderer->draw(items, box.x, box.y, s);
 }
 
+void Hud::draw_mission(const sim::World& world) {
+    if (!m_options_model.mission_window || !m_tutor || m_simulation == nullptr) {
+        return;
+    }
+    const sim::Player* p = world.player(m_local);
+    const sim::Mission* mission = p != nullptr ? world.mission_of(*p) : nullptr;
+    // The window of the original (region above the status bar, 0x0043B53F): its art, the text
+    // flowing in 110002; the lines and buttons of the tutorial stay hidden.
+    m_tutor->set_scale(m_regions.scale);
+    m_tutor->set_text(110002, mission != nullptr && !mission->text.empty() ? mission->text : std::string("-"));
+    for (std::int32_t id = 110011; id <= 110016; ++id) {
+        m_tutor->set_visible(id, false);
+    }
+    m_tutor->set_visible(110031, false);  // the arrows pressed
+    m_tutor->set_scroll(110002, m_tutor_line);
+    m_renderer->draw(m_tutor->draw(m_renderer->fonts()), m_regions.tutor.x, m_regions.tutor.y, m_regions.scale);
+}
+
+void Hud::reset_game() {
+    m_events.clear();
+    m_selection = Selection{};
+    m_question.reset();
+    m_help.reset();
+    m_commands.clear();
+    m_minimap_dirty = true;
+    m_tutor_line = 0;
+}
+
+void Hud::draw_help() {
+    if (!m_help) {
+        return;
+    }
+    const double s = m_regions.scale;
+    const ui::Rect& v = m_regions.game_view;
+    const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
+    const std::size_t rows = (m_help->size() + 1) / 2;
+    const std::int32_t line = px(14);
+    const std::int32_t w = std::min(v.w - px(16), px(740));
+    const std::int32_t h = std::min(v.h - px(16), px(56) + static_cast<std::int32_t>(rows) * line);
+    const ui::Rect box{v.x + (v.w - w) / 2, v.y + (v.h - h) / 2, w, h};
+    constexpr std::uint8_t kGold = 215;
+    constexpr std::uint8_t kDark = 28;
+    m_renderer->fill(ui::Rect{box.x - px(3), box.y - px(3), box.w + px(6), box.h + px(6)}, kGold);
+    m_renderer->fill(box, kDark);
+    std::vector<ui::DrawItem> items;
+    const auto text = [&](const std::string& t, std::int32_t x, std::int32_t y, ui::Align align,
+                          std::int32_t font = 1) {
+        ui::DrawItem d;
+        d.kind = ui::DrawItem::Kind::Text;
+        d.block = font;  // the small font (ZEILITTLE), headings in the normal one
+        d.colour = 4;
+        d.align = align;
+        d.x = x;
+        d.y = y;
+        d.text = t;
+        items.push_back(d);
+    };
+    text(
+        "Tastenbelegung (Klick oder F1 schlie\xDF"
+        "t)",
+        box.w / 2, px(28), ui::Align::Centre, 0);
+    const std::int32_t column = box.w / 2;
+    for (std::size_t i = 0; i < m_help->size(); ++i) {
+        const HelpLine& l = (*m_help)[i];
+        const std::int32_t x = px(14) + static_cast<std::int32_t>(i / rows) * column;
+        const std::int32_t y = px(52) + static_cast<std::int32_t>(i % rows) * line;
+        if (y > box.h - px(4)) {
+            continue;  // a small window: what does not fit is left out
+        }
+        if (l.keys.empty()) {
+            text(l.text, x, y + px(1), ui::Align::Left, 0);  // a heading (or a blank line)
+            continue;
+        }
+        text(l.keys, x + px(8), y, ui::Align::Left);
+        text(l.text, x + px(160), y, ui::Align::Left);
+    }
+    m_renderer->draw(items, box.x, box.y, s);
+}
+
 std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down) {
     std::optional<Action> action;
+    if (m_help) {
+        // The key overview takes the click that closes it.
+        if (!down) {
+            m_help.reset();
+        }
+        return std::nullopt;
+    }
+    if (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y)) {
+        // The mission's window: X closes it, the arrows scroll its text.
+        for (const ui::PanelEvent& e : m_tutor->mouse(x - m_regions.tutor.x, y - m_regions.tutor.y, down)) {
+            if (e.kind != ui::PanelEvent::Kind::Clicked) {
+                continue;
+            }
+            if (e.id == 110001) {
+                m_options_model.mission_window = false;
+                m_option_events.push_back(OptionsEvent{OptionsEvent::Kind::MissionWindow});
+            } else if (e.id >= 110022 && e.id <= 110026) {
+                m_tutor_line = std::max(0, m_tutor_line - 1);
+            } else if (e.id >= 110032 && e.id <= 110036) {
+                ++m_tutor_line;
+            }
+        }
+        return std::nullopt;
+    }
     if (m_question) {
         // The question takes every click until it is answered.
         if (!down && (m_yes.contains(x, y) || m_no.contains(x, y))) {
@@ -387,12 +543,29 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
             for (const ui::PanelEvent& e : p->panel().mouse(x - panel.x, y - panel.y, down)) {
                 p->clicked(e, m_selection, *context, m_commands);
             }
-            if (const auto r = p->take_request(); r && r->kind == SelectionPanel::Request::Kind::FoundKontor) {
-                action = Action{Action::Kind::FoundKontor};
-                action->ship = r->ship;
+            if (const auto r = p->take_request()) {
+                switch (r->kind) {
+                    case SelectionPanel::Request::Kind::FoundKontor:
+                        action = Action{Action::Kind::FoundKontor};
+                        action->ship = r->ship;
+                        break;
+                    case SelectionPanel::Request::Kind::SelectShip:
+                        action = Action{Action::Kind::SelectShip, r->x, r->y};
+                        action->ship = r->ship;
+                        break;
+                    case SelectionPanel::Request::Kind::Centre:
+                        action = Action{Action::Kind::Message, r->x, r->y};
+                        break;
+                }
             }
         } else if (m_info && m_mode == kModeInfo) {
-            m_info->mouse(x - panel.x, y - panel.y, down);
+            if (const auto list = m_info->mouse(x - panel.x, y - panel.y, down)) {
+                action = toggle_window(*list);
+            }
+        }
+    } else if (m_mode == kModeOptions && m_options) {
+        for (OptionsEvent& e : m_options->mouse(x - panel.x, y - panel.y, down, m_options_model)) {
+            m_option_events.push_back(std::move(e));
         }
     }
     const auto ctrl = m_ctrl.mouse(x - panel.x, y - panel.y, down);
@@ -550,7 +723,15 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
                 status = *text;
             }
         }
+    } else if (m_mode == kModeOptions && m_options) {
+        m_options->refresh(m_options_model);
+        m_renderer->draw(m_options->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y,
+                         s);
+        if (const auto text = m_options->help(m_leiste, m_options_model)) {
+            status = *text;
+        }
     }
+    draw_mission(world);
     // The minimap on the parchment.
     if (m_minimap_dirty || now_ms >= m_minimap_ms + kMinimapMs || world.width() != m_world_w ||
         world.height() != m_world_h) {
@@ -592,6 +773,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     m_leist.set_text(kStatusLine, status);
     m_renderer->draw(m_leist.draw(m_renderer->fonts()), m_regions.status_bar.x, m_regions.status_bar.y, s);
     draw_question();
+    draw_help();
 }
 
 }  // namespace o1602::app

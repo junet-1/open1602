@@ -50,6 +50,8 @@ struct ShipOrder {
     /// Given in the military mode (or as an attack): an object of another player (not the free
     /// trader) means war with him (0x0044D540).
     bool attack = false;
+    /// Open1602 (ADR 0010): on the way the ship fights every enemy it meets, then sails on.
+    bool attack_move = false;
     /// Waits behind the orders the ship has (Shift + right click); a ship without an order (or on
     /// its trade route) takes it at once.
     bool queue = false;
@@ -123,6 +125,8 @@ struct ShipCommand {
         /// Back and forth between where it lies and the world tile `x`, `y`, fighting what it
         /// meets (two position stops and the route on, 0x00440BD0).
         Patrol,
+        /// Open1602: stop and stay; fire at what comes in range, chase nothing (until the next order).
+        Hold,
     };
     static constexpr std::size_t kMaxNameLength = 40;
     static constexpr std::uint16_t kMaxSaleFactor = 384;

@@ -8,9 +8,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <span>
+#include <string_view>
+#include <tuple>
 
 #include "map_viewer.hpp"
 
+#include "o1602/core/file.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/sim/construction.hpp"
 
@@ -46,6 +50,149 @@ sim::PlayerId target_owner(const sim::World& world, const sim::Target& t) {
         default:
             return sim::kNoPlayer;
     }
+}
+
+/// What an action does, for the key overview (Windows-1252, as the fonts of the game have it).
+const char* action_label(ui::KeyAction a) {
+    using ui::KeyAction;
+    switch (a) {
+        case KeyAction::ScrollUp:
+            return "Karte nach oben";
+        case KeyAction::ScrollDown:
+            return "Karte nach unten";
+        case KeyAction::ScrollLeft:
+            return "Karte nach links";
+        case KeyAction::ScrollRight:
+            return "Karte nach rechts";
+        case KeyAction::RotateViewLeft:
+            return "Ansicht nach links drehen";
+        case KeyAction::RotateViewRight:
+            return "Ansicht nach rechts drehen";
+        case KeyAction::ZoomIn:
+            return "Heranzoomen";
+        case KeyAction::ZoomOut:
+            return "Herauszoomen";
+        case KeyAction::JumpToMessage:
+            return "Zur letzten Meldung";
+        case KeyAction::CentreOnSelection:
+            return "Zur Auswahl / zum Kontor";
+        case KeyAction::Pause:
+            return "Pause";
+        case KeyAction::SpeedUp:
+            return "Schneller";
+        case KeyAction::SpeedDown:
+            return "Langsamer";
+        case KeyAction::QuickSave:
+            return "Schnellspeichern";
+        case KeyAction::QuickLoad:
+            return "Schnellladen";
+        case KeyAction::GameMenu:
+            return "Spielmen\xFC";
+        case KeyAction::Screenshot:
+            return "Bildschirmfoto";
+        case KeyAction::Help:
+            return "Diese \xDC"
+                   "bersicht";
+        case KeyAction::Cancel:
+            return "Abbrechen, zur\xFC"
+                   "ck";
+        case KeyAction::ModeBuild:
+            return "Bauen";
+        case KeyAction::ModeMilitary:
+            return "Kampf";
+        case KeyAction::ModeInfo:
+            return "Status";
+        case KeyAction::ModeOptions:
+            return "Optionen";
+        case KeyAction::ShipList:
+            return "Schiffsliste";
+        case KeyAction::CityList:
+            return "St\xE4"
+                   "dteliste";
+        case KeyAction::Diplomacy:
+            return "Diplomatie";
+        case KeyAction::RotateBuilding:
+            return "Geb\xE4"
+                   "ude drehen";
+        case KeyAction::PickBuilding:
+            return "Geb\xE4"
+                   "ude unter der Maus w\xE4hlen";
+        case KeyAction::DemolishTool:
+            return "Abrei\xDF"
+                   "en";
+        case KeyAction::NextBuilding:
+            return "N\xE4"
+                   "chstes Geb\xE4ude";
+        case KeyAction::GroupStore:
+            return "Gruppe festlegen";
+        case KeyAction::GroupAdd:
+            return "Zur Gruppe hinzuf\xFC"
+                   "gen";
+        case KeyAction::GroupRecall:
+            return "Gruppe w\xE4hlen (zweimal: hin)";
+        case KeyAction::NextIdleShip:
+            return "N\xE4"
+                   "chstes unt\xE4tiges Schiff";
+        case KeyAction::NextIdleUnit:
+            return "N\xE4"
+                   "chste unt\xE4tige Einheit";
+        case KeyAction::NextKindInSelection:
+            return "Art in der Auswahl wechseln";
+        case KeyAction::AttackMove:
+            return "Angriff (Ziel klicken)";
+        case KeyAction::Stop:
+            return "Halt";
+        case KeyAction::HoldPosition:
+            return "Stellung halten";
+        case KeyAction::Patrol:
+            return "Patrouille (Ziel klicken)";
+        case KeyAction::Formation:
+            return "Formation";
+        case KeyAction::Scatter:
+            return "Verteilen";
+        case KeyAction::WhiteFlag:
+            return "Wei\xDF"
+                   "e Flagge";
+        case KeyAction::Explore:
+            return "Insel erkunden";
+        case KeyAction::Trade:
+            return "Handeln / Umladen";
+        case KeyAction::EditRoute:
+            return "Handelsroute";
+        case KeyAction::Delete:
+            return "Aufl\xF6sen / versenken";
+        case KeyAction::PixelScaleUp:
+            return "Gr\xF6\xDF"
+                   "ere Pixel";
+        case KeyAction::PixelScaleDown:
+            return "Kleinere Pixel";
+        case KeyAction::ShowOwners:
+            return "Besitz zeigen";
+        case KeyAction::Quit:
+            return "Beenden";
+    }
+    return "";
+}
+
+/// A key as the overview shows it: German names of the usual keys.
+std::string key_label(const ui::KeyChord& c) {
+    static constexpr std::pair<SDL_Keycode, const char*> kNames[] = {
+        {SDLK_SPACE, "Leertaste"},  {SDLK_DELETE, "Entf"},        {SDLK_ESCAPE, "Esc"},     {SDLK_PAGEUP, "Bild auf"},
+        {SDLK_PAGEDOWN, "Bild ab"}, {SDLK_HOME, "Pos1"},          {SDLK_UP, "Pfeil hoch"},  {SDLK_DOWN, "Pfeil runter"},
+        {SDLK_LEFT, "Pfeil links"}, {SDLK_RIGHT, "Pfeil rechts"}, {SDLK_RETURN, "Eingabe"}, {SDLK_PRINTSCREEN, "Druck"},
+        {SDLK_KP_PLUS, "Num +"},    {SDLK_KP_MINUS, "Num -"},     {SDLK_TAB, "Tab"},        {SDLK_PAUSE, "Pause"},
+    };
+    std::string name;
+    for (const auto& [key, label] : kNames) {
+        if (static_cast<std::int32_t>(key) == c.key) {
+            name = label;
+        }
+    }
+    if (name.empty()) {
+        const char* n = SDL_GetKeyName(static_cast<SDL_Keycode>(c.key));
+        name = n != nullptr ? n : "?";
+    }
+    return std::string(c.ctrl ? "Strg+" : "") + (c.shift ? "Umschalt+" : "") + (c.alt ? "Alt+" : "") + name;
 }
 
 ui::KeyChord chord(SDL_Keycode key, bool ctrl = false, bool shift = false) {
@@ -122,18 +269,98 @@ void MapViewer::setup_keys() {
     building(chord(SDLK_TAB), KeyAction::NextBuilding);
     building(chord(SDLK_TAB, false, true), KeyAction::NextBuilding, 1);
     // Orders to the selected units
-    units(chord(SDLK_A), KeyAction::AttackMove);
-    units(chord(SDLK_S), KeyAction::Stop);
-    units(chord(SDLK_H), KeyAction::HoldPosition);
+    // None of these means anything in general (no clash with W A S D).
+    units(chord(SDLK_F), KeyAction::AttackMove);  // "Feuer"
+    units(chord(SDLK_H), KeyAction::Stop);        // "Halt"
+    units(chord(SDLK_G), KeyAction::HoldPosition);
     units(chord(SDLK_P), KeyAction::Patrol);
-    units(chord(SDLK_F), KeyAction::Formation);
-    units(chord(SDLK_G), KeyAction::Scatter);
+    units(chord(SDLK_C), KeyAction::Formation);
+    units(chord(SDLK_C, false, true), KeyAction::Scatter);
     units(chord(SDLK_Y), KeyAction::WhiteFlag);
     units(chord(SDLK_X), KeyAction::Explore);
     units(chord(SDLK_T), KeyAction::Trade);
     units(chord(SDLK_R), KeyAction::EditRoute);
     units(chord(SDLK_DELETE), KeyAction::Delete);
     units(chord(SDLK_TAB), KeyAction::NextKindInSelection);
+}
+
+void MapViewer::load_key_settings() {
+    const std::filesystem::path path = m_options.keys_file.empty() ? data_folder() / "keys.cfg" : m_options.keys_file;
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) {
+        if (!m_options.keys_file.empty()) {
+            std::fprintf(stderr, "keys: %s not found, defaults used\n", path.string().c_str());
+            return;
+        }
+        // The defaults as a file to edit (in the user's folder, never in the installation).
+        const std::string text = m_keys.write_text(
+            [](std::int32_t key) {
+                const char* name = SDL_GetKeyName(static_cast<SDL_Keycode>(key));
+                return std::string(name != nullptr ? name : "");
+            },
+            true);
+        std::filesystem::create_directories(path.parent_path(), ec);
+        const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
+        if (auto status = core::write_file(path, std::span<const std::uint8_t>(data, text.size())); !status) {
+            std::fprintf(stderr, "keys: %s\n", status.error().message.c_str());
+        }
+        return;
+    }
+    auto bytes = core::read_file(path);
+    if (!bytes) {
+        std::fprintf(stderr, "keys: %s\n", bytes.error().message.c_str());
+        return;
+    }
+    const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    for (const std::string& w : m_keys.read_text(text, [](std::string_view name) -> std::optional<std::int32_t> {
+             const SDL_Keycode key = SDL_GetKeyFromName(std::string(name).c_str());
+             return key == SDLK_UNKNOWN ? std::nullopt : std::optional<std::int32_t>(static_cast<std::int32_t>(key));
+         })) {
+        std::fprintf(stderr, "keys: %s: %s\n", path.string().c_str(), w.c_str());
+    }
+}
+
+void MapViewer::show_key_help() {
+    if (!m_hud) {
+        return;
+    }
+    using ui::KeyAction;
+    using ui::KeyContext;
+    std::vector<Hud::HelpLine> lines;
+    for (const auto& [context, heading] : {std::pair<KeyContext, const char*>{KeyContext::General, "Allgemein"},
+                                           {KeyContext::Building, "Beim Bauen"},
+                                           {KeyContext::Units, "Schiffe und Einheiten ausgew\xE4hlt"}}) {
+        if (!lines.empty()) {
+            lines.push_back(Hud::HelpLine{});  // a blank line before the next heading
+        }
+        lines.push_back(Hud::HelpLine{"", heading});
+        std::vector<std::pair<KeyAction, std::string>> seen;  // one line per action, its keys joined
+        for (const ui::KeyBinding& b : m_keys.all()) {
+            if (b.context != context) {
+                continue;
+            }
+            std::string key = key_label(b.chord);
+            const bool group = b.action == KeyAction::GroupStore || b.action == KeyAction::GroupAdd ||
+                               b.action == KeyAction::GroupRecall;
+            if (group) {
+                if (b.param != 0) {
+                    continue;
+                }
+                key = key.substr(0, key.size() - 1) + "1 .. 0";  // the digits, 1 for group 1
+            }
+            const auto it = std::find_if(seen.begin(), seen.end(), [&](const auto& s) { return s.first == b.action; });
+            if (it == seen.end()) {
+                seen.emplace_back(b.action, key);
+            } else if (it->second.find(key) == std::string::npos) {
+                it->second += ", " + key;
+            }
+        }
+        std::stable_sort(seen.begin(), seen.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+        for (const auto& [action, keys] : seen) {
+            lines.push_back(Hud::HelpLine{keys, action_label(action)});
+        }
+    }
+    m_hud->show_help(std::move(lines));
 }
 
 ui::KeyContext MapViewer::key_context() const {
@@ -147,6 +374,10 @@ ui::KeyContext MapViewer::key_context() const {
 }
 
 void MapViewer::handle_key(int key, std::uint16_t mod) {
+    if (m_hud && m_hud->helping()) {
+        m_hud->close_help();  // any key closes the key overview
+        return;
+    }
     if (m_hud && m_hud->asking()) {
         // The question: Enter answers yes, Escape no.
         if (key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_ESCAPE) {
@@ -165,7 +396,7 @@ void MapViewer::handle_key(int key, std::uint16_t mod) {
 }
 
 void MapViewer::scroll_with_keys(std::uint32_t delta_ms) {
-    if (m_hud && m_hud->asking()) {
+    if (m_hud && (m_hud->modal() || m_hud->typing())) {
         return;
     }
     const bool* state = SDL_GetKeyboardState(nullptr);
@@ -174,7 +405,7 @@ void MapViewer::scroll_with_keys(std::uint32_t delta_ms) {
     const ui::KeyContext context = key_context();
     const auto held = [&](ui::KeyAction action) {
         for (const ui::KeyChord& k : m_keys.keys(action)) {
-            // A key that means something else here (A and S with units selected) does not scroll.
+            // A key that means something else here does not scroll (none does with the defaults).
             const auto b = m_keys.find(context, ui::KeyChord{k.key});
             if (b && b->action != action) {
                 continue;
@@ -261,9 +492,13 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
                          status ? path.string().c_str() : status.error().message.c_str());
             break;
         }
-        case KeyAction::QuickLoad:
-            not_yet("quick load");
+        case KeyAction::QuickLoad: {
+            const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));
+            const auto status = load_game(path);
+            std::fprintf(stderr, "%s%s\n", status ? "game loaded: " : "",
+                         status ? path.string().c_str() : status.error().message.c_str());
             break;
+        }
         case KeyAction::GameMenu:
             not_yet("game menu");
             break;
@@ -274,7 +509,7 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
             break;
         }
         case KeyAction::Help:
-            not_yet("help");
+            show_key_help();
             break;
         case KeyAction::Cancel:
             cancel_action();
@@ -296,13 +531,20 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
             set_mode(Hud::kModeOptions);
             break;
         case KeyAction::ShipList:
-            not_yet("ship list");
-            break;
         case KeyAction::CityList:
-            not_yet("city list");
+            if (m_hud) {
+                if (const auto a = m_hud->toggle_window(b.action == KeyAction::ShipList ? Selection::Kind::ShipList
+                                                                                        : Selection::Kind::CityList)) {
+                    apply_hud(*a);
+                }
+            }
             break;
         case KeyAction::Diplomacy:
-            not_yet("diplomacy");
+            if (m_hud) {
+                if (const auto a = m_hud->toggle_window(Selection::Kind::Diplomacy)) {
+                    apply_hud(*a);
+                }
+            }
             break;
         case KeyAction::RotateBuilding:
             m_tool.rotate(1);
@@ -378,7 +620,10 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
             break;
         }
         case KeyAction::NextKindInSelection:
-            break;  // comes with the group windows
+            if (m_units.cycle_types(m_world)) {
+                selection_changed(false);
+            }
+            break;
         case KeyAction::AttackMove:
             m_pick = Pick::Attack;
             break;
@@ -386,7 +631,7 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
             submit_orders(m_units.stop_orders(m_world, m_local_player), false);
             break;
         case KeyAction::HoldPosition:
-            not_yet("hold position");
+            submit_orders(m_units.hold_orders(m_world, m_local_player), false);
             break;
         case KeyAction::Patrol:
             m_pick = Pick::Patrol;
@@ -487,7 +732,72 @@ std::pair<double, double> MapViewer::screen_of(double tx, double ty) const {
     return {sx, sy};
 }
 
+std::optional<render::FigureSprites> MapViewer::unit_sprites(const ui::UnitRef& ref) const {
+    const auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
+    if (!graphics) {
+        return std::nullopt;
+    }
+    const render::WorldLayers layers = world_layers(*graphics);
+    render::FigureSprites out;
+    if (ref.kind == ui::UnitRef::Kind::Ship) {
+        const sim::Ship* ship = m_world.ship(ref.id);
+        render::ShipSprites s;
+        if (ship == nullptr ||
+            !render::ship_sprites(*ship, m_world, m_camera.view(), layers, m_clock.elapsed_ms(), s)) {
+            return std::nullopt;
+        }
+        out.row = s.row;
+        out.depth = s.depth;
+        out.parts[out.count++] = s.hull;
+        if (s.has_flag) {
+            out.parts[out.count++] = s.flag;
+        }
+        return out;
+    }
+    const render::FigureInstance* figure = m_soldiers.find(ref.id);
+    if (figure == nullptr || !render::land_figure_sprites(*figure, m_world, m_camera.view(), layers, out)) {
+        return std::nullopt;
+    }
+    // The shadow is not part of the unit.
+    std::uint8_t kept = 0;
+    for (std::uint8_t i = 0; i < out.count; ++i) {
+        if (out.parts[i].mode != render::DrawCommand::Mode::Shadow) {
+            out.parts[kept++] = out.parts[i];
+        }
+    }
+    out.count = kept;
+    return out.count > 0 ? std::optional<render::FigureSprites>(out) : std::nullopt;
+}
+
 std::optional<std::array<double, 4>> MapViewer::unit_box(const ui::UnitRef& ref) const {
+    const auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
+    if (const auto sprites = unit_sprites(ref); sprites && graphics) {
+        // The pictures as drawn: world pixels * scale - origin.
+        std::int32_t ox = 0;
+        std::int32_t oy = 0;
+        m_camera.screen_origin(ox, oy);
+        const double k = m_camera.pixel_scale();
+        std::optional<std::array<std::int32_t, 4>> u;
+        for (std::uint8_t i = 0; i < sprites->count; ++i) {
+            const auto b = render::command_bounds(sprites->parts[i], graphics->graphics.atlas);
+            if (!b) {
+                continue;
+            }
+            if (!u) {
+                u = b;
+                continue;
+            }
+            const std::int32_t x0 = std::min((*u)[0], (*b)[0]);
+            const std::int32_t y0 = std::min((*u)[1], (*b)[1]);
+            const std::int32_t x1 = std::max((*u)[0] + (*u)[2], (*b)[0] + (*b)[2]);
+            const std::int32_t y1 = std::max((*u)[1] + (*u)[3], (*b)[1] + (*b)[3]);
+            u = std::array<std::int32_t, 4>{x0, y0, x1 - x0, y1 - y0};
+        }
+        if (u) {
+            return std::array<double, 4>{(*u)[0] * k - ox, (*u)[1] * k - oy, (*u)[2] * k, (*u)[3] * k};
+        }
+    }
+    // No graphics yet: an estimate around the unit's position.
     const auto pos = ui::unit_position(m_world, ref);
     if (!pos) {
         return std::nullopt;
@@ -535,15 +845,53 @@ std::vector<ui::UnitCandidate> MapViewer::units_in(double x0, double y0, double 
 }
 
 std::optional<ui::UnitRef> MapViewer::unit_at(double sx, double sy) const {
+    // Pixel exact (Map_PickAtScreen 0x00487940): the unit whose visible pixel is under the mouse,
+    // the one drawn last if several overlap.
+    const auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
+    if (graphics) {
+        std::int32_t ox = 0;
+        std::int32_t oy = 0;
+        m_camera.screen_origin(ox, oy);
+        const double k = m_camera.pixel_scale();
+        const auto wx = static_cast<std::int32_t>(std::floor((sx + ox) / k));
+        const auto wy = static_cast<std::int32_t>(std::floor((sy + oy) / k));
+        std::optional<ui::UnitRef> best;
+        std::tuple<std::int32_t, std::int32_t, int> best_order{};
+        for (const ui::UnitCandidate& c : units_in(sx, sy, sx + 1.0, sy + 1.0)) {
+            const auto sprites = unit_sprites(c.ref);
+            if (!sprites) {
+                continue;
+            }
+            bool hit = false;
+            for (std::uint8_t i = 0; i < sprites->count && !hit; ++i) {
+                hit = render::command_hit(sprites->parts[i], graphics->graphics.atlas, graphics->hit_mask, wx, wy);
+            }
+            // Drawn by row and depth; land units after ships on the same place.
+            const std::tuple<std::int32_t, std::int32_t, int> order{sprites->row, sprites->depth,
+                                                                    c.ref.kind == ui::UnitRef::Kind::Soldier ? 1 : 0};
+            if (hit && (!best || order > best_order)) {
+                best = c.ref;
+                best_order = order;
+            }
+        }
+        if (best) {
+            return best;
+        }
+    }
+    // Small figures (zoomed out) are hard to hit: then the nearest whose picture box is within a
+    // few pixels, land units and the player's own first.
+    const double slack = 3.0 * m_camera.pixel_scale();
     std::optional<ui::UnitRef> best;
     double best_d = 0.0;
     bool best_own = false;
-    for (const ui::UnitCandidate& c : units_in(sx, sy, sx + 1.0, sy + 1.0)) {
+    for (const ui::UnitCandidate& c : units_in(sx - slack, sy - slack, sx + slack, sy + slack)) {
         const auto b = unit_box(c.ref);
+        if (!b || (*b)[2] * (*b)[3] > 400.0 * m_camera.pixel_scale() * m_camera.pixel_scale()) {
+            continue;  // only small pictures; a large one is hit by its pixels
+        }
         const double dx = (*b)[0] + (*b)[2] / 2 - sx;
         const double dy = (*b)[1] + (*b)[3] / 2 - sy;
         const double d = dx * dx + dy * dy;
-        // Land units before ships (they stand in front), the player's own first.
         const bool own = ui::unit_owner(m_world, c.ref) == m_local_player;
         const double rank = d - (c.ref.kind == ui::UnitRef::Kind::Soldier ? 1e6 : 0.0);
         if (!best || (own && !best_own) || (own == best_own && rank < best_d)) {
@@ -677,7 +1025,8 @@ void MapViewer::map_order(double x, double y, bool queue) {
             return;
         }
     }
-    submit_orders(m_units.move_orders(m_world, m_local_player, tile->x + 0.5, tile->y + 0.5, queue));
+    // With F first: an attack move (fights on the way, ADR 0010).
+    submit_orders(m_units.move_orders(m_world, m_local_player, tile->x + 0.5, tile->y + 0.5, queue, attack_pick));
 }
 
 void MapViewer::order_to_tile(double tx, double ty, bool queue) {
@@ -754,6 +1103,16 @@ std::optional<std::string> MapViewer::question_for(const sim::Command& command) 
         const std::uint32_t cost = t != nullptr ? m_figures.unit_cost(t->kind) : 0;
         return "Einheit aufl\xF6sen?\nDas kostet " + std::to_string(cost) + " Taler.";
     }
+    if (const auto* o = std::get_if<sim::DiplomacyOrder>(&command);
+        o != nullptr && o->kind == sim::DiplomacyOrder::Kind::Peace && o->value == sim::Treaty::None) {
+        // Breaking a peace treaty is a declaration of war (the original does not ask, U-033).
+        const sim::Diplomacy& d = m_world.diplomacy();
+        const sim::Player* p = m_world.player(o->partner);
+        if (p != nullptr && o->player < d.size() && o->partner < d.size() &&
+            d.relation(o->player, o->partner).peace == sim::Treaty::Signed) {
+            return "Friedensvertrag mit " + p->name + " brechen?\nDas bedeutet Krieg.";
+        }
+    }
     sim::Target target;
     bool attack = false;
     if (const auto* o = std::get_if<sim::ShipOrder>(&command)) {
@@ -811,32 +1170,64 @@ void MapViewer::submit_orders(std::vector<sim::Command> orders, bool sound) {
 
 void MapViewer::draw_selection_overlay() {
     SDL_Renderer* r = m_window->sdl_renderer();
-    const double tw = render::tile_width(m_camera.view().zoom) * m_camera.pixel_scale();
+    const auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
+    const std::int32_t k = m_camera.pixel_scale();
+    std::int32_t ox = 0;
+    std::int32_t oy = 0;
+    m_camera.screen_origin(ox, oy);
+    const std::int32_t tw = render::tile_width(m_camera.view().zoom);
+    const std::optional<std::uint32_t> numbers =
+        graphics ? graphics->graphics.sheet_base(assets::FigureSheet::Numbers) : std::nullopt;
+    std::vector<render::DrawCommand> digits;
     for (const ui::UnitRef& ref : m_units.units()) {
         const auto b = unit_box(ref);
         const auto health = ui::unit_health(m_world, m_figures, ref);
         if (!b || !health) {
             continue;
         }
-        // Figure_Draw 0x0044FA90: a green and red bar above the unit, its group's number beside it.
+        // Figure_Draw 0x0044FA90, in world pixels: a green and red bar right above the picture
+        // (ship: flag or hull), centred on the unit; its group's number (NUMBERS.BSH, sprite
+        // group + 1) 2 pixels right of the bar, half the bar's height higher.
         const bool ship = ref.kind == ui::UnitRef::Kind::Ship;
-        const double w = std::trunc((ship ? 76.0 : 51.0) * tw / 128.0);
-        const double h = std::max(1.0, std::trunc((ship ? 15.0 : 10.0) * tw / 128.0));
-        const double x = (*b)[0] + ((*b)[2] - w) / 2;
-        const double y = (*b)[1] - h - 2;
-        const SDL_FRect green{static_cast<float>(x), static_cast<float>(y), static_cast<float>(w * *health),
-                              static_cast<float>(h)};
-        const SDL_FRect red{static_cast<float>(x + w * *health), static_cast<float>(y),
-                            static_cast<float>(w * (1.0 - *health)), static_cast<float>(h)};
+        const std::int32_t w = (ship ? 76 : 51) * tw / 128;
+        const std::int32_t h = std::max(1, (ship ? 15 : 10) * tw / 128);
+        double centre = (*b)[0] + (*b)[2] / 2;
+        if (const auto sprites = unit_sprites(ref); sprites && graphics) {
+            if (const auto body = render::command_bounds(sprites->parts[0], graphics->graphics.atlas)) {
+                centre = ((*body)[0] + (*body)[2] / 2.0) * k - ox;
+            }
+        }
+        const auto left = static_cast<std::int32_t>(std::floor((centre + ox) / k)) - w / 2;
+        const auto top = static_cast<std::int32_t>(std::floor(((*b)[1] + oy) / k)) - h;
+        const auto filled = static_cast<std::int32_t>(w * *health);
+        const auto rect = [&](std::int32_t x, std::int32_t width) {
+            return SDL_FRect{static_cast<float>(x * k - ox), static_cast<float>(top * k - oy),
+                             static_cast<float>(width * k), static_cast<float>(h * k)};
+        };
+        const SDL_FRect green = rect(left, filled);
+        const SDL_FRect red = rect(left + filled, w - filled);
         SDL_SetRenderDrawColor(r, 0, 255, 0, 255);
         SDL_RenderFillRect(r, &green);
         SDL_SetRenderDrawColor(r, 255, 0, 0, 255);
         SDL_RenderFillRect(r, &red);
         if (const auto g = m_units.group_of(ref)) {
-            const char digit[2] = {static_cast<char>('0' + (*g + 1) % 10), 0};
-            SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
-            SDL_RenderDebugText(r, static_cast<float>(x + w + 3), static_cast<float>(y - 3), digit);
+            const auto sprite = static_cast<std::uint32_t>((*g + 1) % 10);
+            if (numbers && graphics && !graphics->graphics.atlas.rect(*numbers + sprite).empty()) {
+                render::DrawCommand c;
+                c.sprite = *numbers + sprite;
+                c.x = left + w + 2;
+                c.y = top - h / 2 + graphics->graphics.atlas.rect(c.sprite).height;  // left / bottom anchor
+                digits.push_back(c);
+            } else {
+                const char digit[2] = {static_cast<char>('0' + sprite), 0};
+                SDL_SetRenderDrawColor(r, 0, 255, 255, 255);
+                SDL_RenderDebugText(r, static_cast<float>((left + w + 2) * k - ox),
+                                    static_cast<float>((top - h / 2) * k - oy), digit);
+            }
         }
+    }
+    if (!digits.empty()) {
+        graphics->renderer->draw(digits, ox, oy, k);
     }
     // The selection rectangle: a thin white outline (0x0040CAC0).
     if (m_rubber_band && m_press) {

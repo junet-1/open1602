@@ -2,6 +2,7 @@
 #include "o1602/ui/key_bindings.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <utility>
 
 namespace o1602::ui {
@@ -115,6 +116,191 @@ std::optional<KeyAction> KeyBindings::action_named(std::string_view name) noexce
         }
     }
     return std::nullopt;
+}
+
+namespace {
+
+constexpr std::pair<KeyContext, std::string_view> kContexts[] = {
+    {KeyContext::General, "general"},
+    {KeyContext::Building, "building"},
+    {KeyContext::Units, "units"},
+};
+
+std::string_view trim(std::string_view s) {
+    while (!s.empty() && (s.front() == ' ' || s.front() == '\t' || s.front() == '\r')) {
+        s.remove_prefix(1);
+    }
+    while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r')) {
+        s.remove_suffix(1);
+    }
+    return s;
+}
+
+bool starts_with_nocase(std::string_view s, std::string_view prefix) {
+    if (s.size() < prefix.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < prefix.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(s[i])) != std::tolower(static_cast<unsigned char>(prefix[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+std::string_view KeyBindings::context_name(KeyContext context) noexcept {
+    for (const auto& [c, n] : kContexts) {
+        if (c == context) {
+            return n;
+        }
+    }
+    return {};
+}
+
+std::optional<KeyContext> KeyBindings::context_named(std::string_view name) noexcept {
+    for (const auto& [c, n] : kContexts) {
+        if (n == name) {
+            return c;
+        }
+    }
+    return std::nullopt;
+}
+
+std::string KeyBindings::chord_text(const KeyChord& chord, const KeyName& key_name) {
+    std::string out;
+    if (chord.ctrl) {
+        out += "Ctrl+";
+    }
+    if (chord.shift) {
+        out += "Shift+";
+    }
+    if (chord.alt) {
+        out += "Alt+";
+    }
+    return out + key_name(chord.key);
+}
+
+std::optional<KeyChord> KeyBindings::parse_chord(std::string_view text, const KeyFromName& key_from_name) {
+    KeyChord chord;
+    text = trim(text);
+    for (bool more = true; more;) {
+        more = false;
+        for (const auto& [prefix, flag] : {std::pair<std::string_view, bool*>{"ctrl+", &chord.ctrl},
+                                           std::pair<std::string_view, bool*>{"shift+", &chord.shift},
+                                           std::pair<std::string_view, bool*>{"alt+", &chord.alt}}) {
+            if (text.size() > prefix.size() && starts_with_nocase(text, prefix)) {
+                *flag = true;
+                text.remove_prefix(prefix.size());
+                more = true;
+            }
+        }
+    }
+    const auto key = key_from_name(trim(text));
+    if (!key) {
+        return std::nullopt;
+    }
+    chord.key = *key;
+    return chord;
+}
+
+std::string KeyBindings::write_text(const KeyName& key_name, bool as_comments) const {
+    std::string out =
+        "# Open1602: Tastenbelegung (ADR 0010). Zeilen: Zusammenhang Aktion [Nummer] = Taste\n"
+        "# Zusammenhang: general (immer), building (beim Bauen), units (Einheiten ausgewaehlt).\n"
+        "# Eine Aktion, die hier steht, hat nur die Tasten ihrer Zeilen; \"= none\" nimmt ihr jede Taste.\n"
+        "# Aktionen, die fehlen, behalten ihre Vorgabe. Tasten: Namen wie F, Space, PageUp, Keypad +,\n"
+        "# davor Ctrl+, Shift+, Alt+. Zeilen mit # am Anfang gelten nicht.\n";
+    for (const KeyBinding& b : m_bindings) {
+        if (as_comments) {
+            out += "# ";
+        }
+        out += context_name(b.context);
+        out += ' ';
+        out += name(b.action);
+        if (b.action == KeyAction::GroupStore || b.action == KeyAction::GroupAdd ||
+            b.action == KeyAction::GroupRecall) {
+            out += ' ' + std::to_string(b.param);
+        }
+        out += " = " + chord_text(b.chord, key_name) + '\n';
+    }
+    return out;
+}
+
+std::vector<std::string> KeyBindings::read_text(std::string_view text, const KeyFromName& key_from_name) {
+    std::vector<std::string> warnings;
+    struct Seen {
+        KeyContext context;
+        KeyAction action;
+        std::uint8_t param;
+    };
+    std::vector<Seen> seen;
+    std::size_t line_no = 0;
+    while (!text.empty()) {
+        const std::size_t nl = text.find('\n');
+        std::string_view line = text.substr(0, nl);
+        text = nl == std::string_view::npos ? std::string_view{} : text.substr(nl + 1);
+        ++line_no;
+        line = trim(line);
+        if (line.empty() || line.front() == '#') {
+            continue;
+        }
+        const auto warn = [&](const std::string& what) {
+            warnings.push_back("line " + std::to_string(line_no) + ": " + what);
+        };
+        const std::size_t eq = line.find('=');
+        if (eq == std::string_view::npos) {
+            warn("no '='");
+            continue;
+        }
+        // Left: context, action and an optional number.
+        std::vector<std::string_view> words;
+        std::string_view left = trim(line.substr(0, eq));
+        while (!left.empty()) {
+            const std::size_t sp = left.find_first_of(" \t");
+            words.push_back(left.substr(0, sp));
+            left = sp == std::string_view::npos ? std::string_view{} : trim(left.substr(sp));
+        }
+        const auto context = words.empty() ? std::nullopt : context_named(words[0]);
+        const auto action = words.size() < 2 ? std::nullopt : action_named(words[1]);
+        if (!context || !action || words.size() > 3) {
+            warn("unknown context or action");
+            continue;
+        }
+        std::uint8_t param = 0;
+        if (words.size() == 3) {
+            const std::string_view p = words[2];
+            if (p.size() != 1 || p[0] < '0' || p[0] > '9') {
+                warn("number 0..9 expected");
+                continue;
+            }
+            param = static_cast<std::uint8_t>(p[0] - '0');
+        }
+        const std::string_view right = trim(line.substr(eq + 1));
+        std::optional<KeyChord> chord;
+        if (right != "none") {
+            chord = parse_chord(right, key_from_name);
+            if (!chord) {
+                warn("unknown key '" + std::string(right) + "'");
+                continue;
+            }
+        }
+        // The first line of an action replaces its default keys in that context.
+        const bool first = std::none_of(seen.begin(), seen.end(), [&](const Seen& s) {
+            return s.context == *context && s.action == *action && s.param == param;
+        });
+        if (first) {
+            seen.push_back(Seen{*context, *action, param});
+            std::erase_if(m_bindings, [&](const KeyBinding& b) {
+                return b.context == *context && b.action == *action && b.param == param;
+            });
+        }
+        if (chord) {
+            bind(*context, *chord, *action, param);
+        }
+    }
+    return warnings;
 }
 
 }  // namespace o1602::ui

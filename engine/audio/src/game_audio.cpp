@@ -337,7 +337,11 @@ void Music::set_settings(const AudioSettings& s) {
         m_enabled[i] = std::none_of(s.disabled_songs.begin(), s.disabled_songs.end(),
                                     [&](const std::string& t) { return lower(t) == lower(m_tracks[i]); });
     }
-    if (!s.music) {
+    const bool playing_disabled =
+        !m_title.empty() && std::any_of(s.disabled_songs.begin(), s.disabled_songs.end(),
+                                        [&](const std::string& t) { return lower(t) == lower(m_title); });
+    if (!s.music || (playing_disabled && !m_battle)) {
+        // Off, or the track playing was switched off in the list: it stops at once.
         m_mixer->stop(m_voice);
         m_voice = Mixer::kNoVoice;
         m_title.clear();
@@ -365,6 +369,21 @@ void Music::stop() {
     m_voice = Mixer::kNoVoice;
     m_fading = false;
     m_title.clear();
+}
+
+void Music::play(const std::string& title) {
+    if (!m_settings.music) {
+        return;
+    }
+    const auto it =
+        std::find_if(m_tracks.begin(), m_tracks.end(), [&](const std::string& t) { return lower(t) == lower(title); });
+    if (it == m_tracks.end()) {
+        return;
+    }
+    stop();
+    m_battle = false;
+    m_current = static_cast<std::size_t>(it - m_tracks.begin());
+    start(*it);
 }
 
 void Music::fade_out() {

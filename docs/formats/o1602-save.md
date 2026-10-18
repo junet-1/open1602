@@ -49,6 +49,7 @@ Teile hinzufügen, ohne ältere Spielstände ungültig zu machen.
 | `CSTA` | je Stadt (Insel, Nummer): Handelsstatistik des Kontors (Käufe, Verkäufe, wie Stadt + 0x1F0/+0x1F4); fehlt der Abschnitt, gelten die Werte aus `STADT4` |
 | `MISN` | die Aufträge (Ziele, Verlustbedingungen, Werte, Text, die beim Start festgehaltenen Inseln der Inselziele) und das Spielende (Zeit, Sieger) ([missions.md](../re/missions.md)) |
 | `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | Schiffe mit Kurs, Route und Ladung, Werftaufträge, Handelseinstellungen; Soldaten, Türme, Gebäudeschaden, Schüsse im Flug, Burgplätze; Diplomatie; Inselepochen; Erkunden |
+| `QUEU` `STNC` | Befehlsketten der Schiffe und Einheiten (Shift+Rechtsklick, je bis 16 Ziele); Angriffsbewegung und „Stellung halten“ (ADR 0010, gibt es im Original nicht) |
 | `SIMU` | Uhren der Simulation, alle laufenden Figuren und der Zustand der Computergegner |
 | `ORIG` | die Datei des Originals, aus der das Spiel stammt (Spielstand, Szenario oder die Vorlage eines neuen Spiels), als Chunks ohne die Inselfelder (`INSELHAUS`), etwa 12 KB gepackt. Nur für den Export als `.GAM`: Er nimmt daraus die Bytes, die Open1602 nicht führt, genau wie bei einem Spiel, das direkt aus der Datei geladen wurde. Fehlt der Abschnitt, schreibt der Export Vorgaben wie ein neues Spiel |
 

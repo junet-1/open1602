@@ -45,6 +45,17 @@ public:
     void at(audio::SampleId sample, std::uint8_t variants, double tile_x, double tile_y);
     /// A click on the panel.
     void click();
+
+    /// The settings of the sounds (the panel MUSIK and ANNO); switching sound or music on opens
+    /// the device if the game started without it.
+    [[nodiscard]] const audio::AudioSettings& settings() const noexcept { return m_settings; }
+    void set_settings(const audio::AudioSettings& settings);
+    /// Titles of the music (empty without device) and the one playing now.
+    [[nodiscard]] std::vector<std::string> tracks() const;
+    [[nodiscard]] std::string playing() const;
+    void play_track(const std::string& title);
+    /// The test sound of the effects' volume, in the middle of the view.
+    void test_effects();
     /// A message for the local player at a world tile (nothing: no place). Returns its flags.
     std::uint16_t message(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt);
     /// Hears every message with its flags (the status bar's icons, normal speed).
@@ -81,6 +92,10 @@ public:
     void frame(std::uint64_t game_ms, std::uint32_t real_ms);
 
 private:
+    /// Opens the device and the music; false without a device.
+    bool open_device();
+
+    const assets::GameDirectory* m_game;
     std::unique_ptr<platform::AudioOutput> m_output;
     audio::Mixer m_mixer;
     audio::SoundBank m_bank;

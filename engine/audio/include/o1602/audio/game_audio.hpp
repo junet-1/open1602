@@ -35,6 +35,7 @@ inline constexpr SampleId kWavSoldierAttack = 73;  ///< + 0..5
 inline constexpr SampleId kWavShipAttack = 79;     ///< + 0..3
 inline constexpr SampleId kWavSoldierMove = 83;    ///< + 0..3
 inline constexpr SampleId kWavShipMove = 87;       ///< + 0..4
+inline constexpr SampleId kWavTest = 58;           ///< "Test" of the effects' volume (plantage.wav, 0x0049572D)
 
 /// File of a sound relative to the game directory ("SAMPLES/kanone5.wav"), nothing for the
 /// numbers the original leaves silent (GameInit 0x00494870).
@@ -177,6 +178,8 @@ public:
     [[nodiscard]] const std::vector<std::string>& tracks() const noexcept { return m_tracks; }
     /// Stops the track at once (a video starts, 0x00488C00); the next update picks a new one.
     void stop();
+    /// Plays `title` now (a click on it in the list, 0x00488C20); the list goes on from there.
+    void play(const std::string& title);
     /// Title playing now, empty if none.
     [[nodiscard]] std::string playing() const;
     [[nodiscard]] bool battle() const noexcept { return m_battle; }

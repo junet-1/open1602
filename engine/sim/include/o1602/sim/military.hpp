@@ -35,6 +35,8 @@ struct SoldierOrder {
     Target target;                        ///< a Spot, a building, a soldier or ship; none = stop
     /// With the attack cursor: an object of another player (not the free trader) means war with him.
     bool attack = false;
+    /// Open1602 (ADR 0010): on the way to the target the units fight every enemy they meet, then go on.
+    bool attack_move = false;
     /// FORMATION of figuren.cod to take up around a Spot, 0xFF = none (everyone walks to the spot).
     std::uint8_t formation = 0xFF;
     /// With a Spot: where each unit goes relative to it, in 1/8 tile, in the order of `soldiers`
@@ -51,6 +53,7 @@ struct SoldierCommand {
         Disband,      ///< "Einheit auflösen": dies without fight; costs the third value of its Soldat: line
         SetWaypoint,  ///< `index` 0 or 1 becomes `point`
         Patrol,       ///< `on`: walk between the waypoints (once with `one_way`), or stop doing so
+        Hold,         ///< Open1602: stop and stay; fight only what comes in range (until the next order)
     };
     PlayerId player = kNoPlayer;
     std::uint32_t soldier = 0;

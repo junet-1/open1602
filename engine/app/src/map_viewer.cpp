@@ -127,8 +127,10 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         render::collect_building_figures(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_local_player = sim::first_human_player(viewer->m_world);
     if (auto texts = assets::TextTable::load(game)) {
-        viewer->m_simulation.set_city_names(texts->section("STAEDTE"));
-        viewer->m_simulation.set_ship_names(texts->section("SHIPS"));
+        viewer->m_city_names = texts->section("STAEDTE");
+        viewer->m_ship_names = texts->section("SHIPS");
+        viewer->m_simulation.set_city_names(viewer->m_city_names);
+        viewer->m_simulation.set_ship_names(viewer->m_ship_names);
     }
     viewer->m_soldiers.reset(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_show_owners = options.show_owners;
@@ -190,6 +192,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                                  tile, platform::ticks_ms());
         }
     });
+    viewer->load_key_settings();
+    viewer->load_options();
     std::fprintf(stderr, "renderer: %s, max texture %d\n", viewer->m_window->renderer_name().c_str(),
                  viewer->m_window->max_texture_size());
 
@@ -282,16 +286,25 @@ core::Status MapViewer::ensure_graphics(render::Zoom zoom) {
         return graphics.error();
     }
     const std::uint32_t page_size = options.page_size;
-    slot.emplace(ZoomGraphics{std::move(graphics).value(), nullptr});
+    slot.emplace(ZoomGraphics{std::move(graphics).value(), nullptr, {}});
     slot->renderer = std::make_unique<render::SdlSpriteRenderer>(m_window->sdl_renderer());
     if (auto status = slot->renderer->upload(slot->graphics.atlas); !status) {
         slot.reset();
         return status;
     }
+    // Units are picked by their visible pixels: the figure sheets keep a mask (the terrain sheet
+    // comes first and is not needed).
+    std::uint32_t first_figure = static_cast<std::uint32_t>(slot->graphics.atlas.sprite_count());
+    for (std::size_t k = 0; k < assets::kFigureSheetCount; ++k) {
+        if (k != static_cast<std::size_t>(assets::FigureSheet::Stadtfld) && slot->graphics.base[k]) {
+            first_figure = std::min(first_figure, *slot->graphics.base[k]);
+        }
+    }
+    slot->hit_mask = render::SpriteHitMask::build(slot->graphics.atlas, first_figure);
     slot->graphics.atlas.drop_pixels();
-    std::fprintf(stderr, "%s: %zu sprites in %zu page(s) of %u px, %llu ms\n", zoom_name(zoom),
+    std::fprintf(stderr, "%s: %zu sprites in %zu page(s) of %u px, figure masks %zu KB, %llu ms\n", zoom_name(zoom),
                  slot->graphics.atlas.sprite_count(), slot->graphics.atlas.pages().size(), page_size,
-                 static_cast<unsigned long long>(platform::ticks_ms() - start));
+                 slot->hit_mask.bytes() / 1024, static_cast<unsigned long long>(platform::ticks_ms() - start));
     return core::Ok{};
 }
 
@@ -327,6 +340,7 @@ int MapViewer::run() {
                 case ViewerOptions::ScriptedInput::Kind::Key:
                     e.type = SDL_EVENT_KEY_DOWN;
                     e.key.key = static_cast<SDL_Keycode>(in.key);
+                    e.key.mod = in.mod;
                     e.key.down = true;
                     break;
             }
@@ -379,6 +393,7 @@ int MapViewer::run() {
                 // What the windows of the panel ordered.
                 // What the windows of the panel ordered (scuttling and disbanding ask first).
                 submit_orders(m_hud->take_commands(), false);
+                apply_options();
             }
             update(delta);
             render();
@@ -444,7 +459,22 @@ void MapViewer::handle_event(const SDL_Event& original) {
             break;
         }
         case SDL_EVENT_KEY_DOWN:
+            if (m_hud && m_hud->typing()) {
+                // A savegame's name is typed: the keys go there, not to the key table.
+                if (event.key.key == SDLK_BACKSPACE) {
+                    m_hud->type_key(8);
+                } else if (event.key.key == SDLK_RETURN || event.key.key == SDLK_KP_ENTER ||
+                           event.key.key == SDLK_ESCAPE) {
+                    m_hud->type_key(13);
+                }
+                break;
+            }
             handle_key(static_cast<int>(event.key.key), static_cast<std::uint16_t>(event.key.mod));
+            break;
+        case SDL_EVENT_TEXT_INPUT:
+            if (m_hud && m_hud->typing() && event.text.text != nullptr) {
+                m_hud->type_text(utf8_to_cp1252(event.text.text));
+            }
             break;
         case SDL_EVENT_MOUSE_MOTION:
             m_mouse_x = event.motion.x;
@@ -470,8 +500,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
             if (event.button.button == SDL_BUTTON_LEFT) {
                 m_left_down = true;
             }
-            if (m_hud && m_hud->asking()) {
-                // The question takes every click.
+            if (m_hud && m_hud->modal()) {
+                // The question (or the key overview) takes every click.
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     (void)m_hud->mouse(static_cast<std::int32_t>(event.button.x),
                                        static_cast<std::int32_t>(event.button.y), true);
@@ -533,7 +563,7 @@ void MapViewer::handle_event(const SDL_Event& original) {
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = false;
                 // A right click (not a drag): an order (ADR 0010), or back with the original's mouse.
-                if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && !(m_hud && m_hud->asking())) {
+                if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && !(m_hud && m_hud->modal())) {
                     if (m_options.original_mouse) {
                         cancel_action();
                     } else {
@@ -657,6 +687,25 @@ void MapViewer::apply_construction() {
     }
 }
 
+render::WorldLayers MapViewer::world_layers(const ZoomGraphics& graphics) const {
+    render::WorldLayers layers;
+    const render::SpriteAtlas& atlas = graphics.graphics.atlas;
+    layers.extent = render::SpriteExtent{atlas.max_sprite_width(), atlas.max_sprite_height()};
+    layers.figures = &m_figures;
+    layers.atlas = &atlas;
+    layers.ship_base = graphics.graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
+    layers.sheet_base = graphics.graphics.base;
+    // The deer walk as figures of the simulation (m_walkers).
+    layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances(), &m_ambient.walkers()};
+    layers.unit_tint = &graphics.graphics.unit_tint;
+    layers.banners = &m_banners;
+    layers.banner_flags = &graphics.graphics.banner_flags;
+    layers.owner_tint = m_show_owners;
+    layers.building_figures = &m_building_figures;
+    layers.local_player = m_local_player;
+    return layers;
+}
+
 void MapViewer::render() {
     SDL_Renderer* r = m_window->sdl_renderer();
     SDL_SetRenderDrawColor(r, 0, 0, 0, 255);
@@ -664,21 +713,7 @@ void MapViewer::render() {
 
     auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
     if (graphics) {
-        render::WorldLayers layers;
-        const render::SpriteAtlas& atlas = graphics->graphics.atlas;
-        layers.extent = render::SpriteExtent{atlas.max_sprite_width(), atlas.max_sprite_height()};
-        layers.figures = &m_figures;
-        layers.atlas = &atlas;
-        layers.ship_base = graphics->graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
-        layers.sheet_base = graphics->graphics.base;
-        // The deer walk as figures of the simulation (m_walkers).
-        layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances(), &m_ambient.walkers()};
-        layers.unit_tint = &graphics->graphics.unit_tint;
-        layers.banners = &m_banners;
-        layers.banner_flags = &graphics->graphics.banner_flags;
-        layers.owner_tint = m_show_owners;
-        layers.building_figures = &m_building_figures;
-        layers.local_player = m_local_player;
+        render::WorldLayers layers = world_layers(*graphics);
         collect_effects();
         layers.effects = &m_effects;
         // The building the tool would place, drawn into the map for this frame only.
@@ -1240,6 +1275,15 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             m_camera.center_on(render::TilePos{static_cast<std::uint32_t>(std::max(0.0, action.tile_x)),
                                                static_cast<std::uint32_t>(std::max(0.0, action.tile_y))});
             break;
+        case Hud::Action::Kind::SelectShip:
+            // The ship list (0x00434020): look at the ship and select it.
+            m_camera.center_on(render::TilePos{static_cast<std::uint32_t>(std::max(0.0, action.tile_x)),
+                                               static_cast<std::uint32_t>(std::max(0.0, action.tile_y))});
+            if (m_world.ship(action.ship) != nullptr) {
+                m_units.select(m_world, ui::UnitRef{ui::UnitRef::Kind::Ship, action.ship});
+                selection_changed(false);
+            }
+            break;
         case Hud::Action::Kind::Build:
             if (m_tool.select(action.building)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
@@ -1258,6 +1302,18 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             m_tool.set_orient_to_road(action.step != 0);
             break;
         case Hud::Action::Kind::Answer:
+            if (std::exchange(m_quit_pending, false)) {
+                // "Ende": the game is kept as lastgame (0x0043BCF0), then the program ends (until
+                // there is a main menu to go back to).
+                if (action.step != 0) {
+                    const auto status = save_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
+                    if (!status) {
+                        std::fprintf(stderr, "lastgame: %s\n", status.error().message.c_str());
+                    }
+                    m_running = false;
+                }
+                break;
+            }
             // The question before scuttling, disbanding or war.
             if (action.step != 0) {
                 std::vector<sim::Command> orders = std::move(m_pending_orders);
@@ -1453,15 +1509,19 @@ void MapViewer::update_title(double fps) {
     m_window->set_title(title);
 }
 
-std::filesystem::path MapViewer::save_folder() {
+std::filesystem::path MapViewer::data_folder() {
     std::filesystem::path folder;
     if (char* pref = SDL_GetPrefPath(nullptr, "Open1602")) {
-        folder = std::filesystem::path(pref) / "saves";
+        folder = std::filesystem::path(pref);
         SDL_free(pref);
     } else {
-        folder = std::filesystem::current_path() / "saves";
+        folder = std::filesystem::current_path();
     }
     return folder;
+}
+
+std::filesystem::path MapViewer::save_folder() {
+    return data_folder() / "saves";
 }
 
 core::Status MapViewer::save_game(const std::filesystem::path& path) {
@@ -1496,6 +1556,210 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     if (ec) {
         return core::make_error(core::ErrorCode::IoError, "cannot write " + target.string() + ": " + ec.message());
     }
+    return core::Ok{};
+}
+
+void MapViewer::load_options() {
+    // Defaults: the sounds as GameSound took them (the original's Game.dat, read only).
+    if (m_sound) {
+        m_app_settings.audio = m_sound->settings();
+    }
+    const std::filesystem::path settings = data_folder() / "settings.cfg";
+    if (auto bytes = core::read_file(settings)) {
+        m_app_settings = parse_settings(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()),
+                                        m_app_settings);
+        // What the command line switched off stays off for this run.
+        m_app_settings.audio.effects = m_app_settings.audio.effects && m_options.effects;
+        m_app_settings.audio.music = m_app_settings.audio.music && m_options.music;
+        if (m_sound) {
+            m_sound->set_settings(m_app_settings.audio);
+        }
+    }
+    if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
+        m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
+    }
+    if (!m_hud) {
+        return;
+    }
+    OptionsModel& model = m_hud->options_model();
+    model.audio = m_app_settings.audio;
+    model.mission_window = m_app_settings.mission_window;
+    model.tracks = m_sound ? m_sound->tracks() : std::vector<std::string>{};
+    model.slot_names = m_slots.names;
+    model.slot_humans = m_slots.humans;
+}
+
+void MapViewer::save_settings() {
+    const std::string text = write_settings(m_app_settings);
+    const std::filesystem::path path = data_folder() / "settings.cfg";
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
+    if (auto status = core::write_file(path, std::span<const std::uint8_t>(data, text.size())); !status) {
+        std::fprintf(stderr, "settings: %s\n", status.error().message.c_str());
+    }
+}
+
+void MapViewer::apply_options() {
+    if (!m_hud) {
+        return;
+    }
+    OptionsModel& model = m_hud->options_model();
+    if (m_sound) {
+        model.playing = m_sound->playing();
+    }
+    std::int32_t w = 0;
+    std::int32_t h = 0;
+    m_window->output_size(w, h);
+    model.resolution = w >= 1024 ? 2 : (w >= 800 ? 1 : 0);
+    // The platform's text input runs while a savegame's name is typed.
+    if (m_hud->typing() != m_text_input) {
+        m_text_input = m_hud->typing();
+        if (m_text_input) {
+            SDL_StartTextInput(m_window->sdl_window());
+        } else {
+            SDL_StopTextInput(m_window->sdl_window());
+        }
+    }
+    for (const OptionsEvent& e : m_hud->take_option_events()) {
+        switch (e.kind) {
+            case OptionsEvent::Kind::Save: {
+                const std::string name = e.text.empty() ? "Spielstand " + std::to_string(e.value + 1) : e.text;
+                const auto status = save_game(slot_file(save_folder(), e.value));
+                if (!status) {
+                    std::fprintf(stderr, "save: %s\n", status.error().message.c_str());
+                    break;
+                }
+                std::uint8_t humans = 0;
+                for (const sim::Player& p : m_world.players()) {
+                    humans = static_cast<std::uint8_t>(humans + (p.role == sim::PlayerRole::Human ? 1 : 0));
+                }
+                m_slots.names[e.value] = name;
+                m_slots.humans[e.value] = humans;
+                model.slot_names = m_slots.names;
+                model.slot_humans = m_slots.humans;
+                const std::string text = write_slots(m_slots);
+                const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
+                (void)core::write_file(save_folder() / "slots.cfg", std::span<const std::uint8_t>(data, text.size()));
+                // As the original: after saving, the info mode (0x0043F751).
+                if (const auto a = m_hud->set_mode(Hud::kModeInfo)) {
+                    apply_hud(*a);
+                }
+                break;
+            }
+            case OptionsEvent::Kind::Load: {
+                const std::filesystem::path path = slot_file(save_folder(), e.value);
+                std::error_code ec;
+                if (!std::filesystem::exists(path, ec)) {
+                    std::fprintf(stderr, "load: slot %zu is empty\n", e.value + 1);
+                    break;
+                }
+                const auto status = load_game(path);
+                std::fprintf(stderr, "%s%s\n", status ? "game loaded: " : "",
+                             status ? path.string().c_str() : status.error().message.c_str());
+                break;
+            }
+            case OptionsEvent::Kind::Quit:
+                // The original leaves at once (M1 in the report); Open1602 asks first.
+                if (m_options.confirm) {
+                    m_quit_pending = true;
+                    m_hud->ask("Spiel beenden?\nDer Stand wird als \x84lastgame\x93 gesichert.");
+                } else {
+                    m_quit_pending = true;
+                    Hud::Action yes{Hud::Action::Kind::Answer};
+                    yes.step = 1;
+                    apply_hud(yes);
+                }
+                break;
+            case OptionsEvent::Kind::Resolution: {
+                // The original's three sizes as window sizes (in full screen nothing changes).
+                constexpr std::array<std::pair<int, int>, 3> kSizes = {{{640, 480}, {800, 600}, {1024, 768}}};
+                const auto [rw, rh] = kSizes[std::min<std::size_t>(e.value, 2)];
+                SDL_SetWindowSize(m_window->sdl_window(), rw, rh);
+                break;
+            }
+            case OptionsEvent::Kind::Audio:
+                m_app_settings.audio = model.audio;
+                if (m_sound) {
+                    m_sound->set_settings(model.audio);
+                    model.tracks = m_sound->tracks();
+                }
+                save_settings();
+                break;
+            case OptionsEvent::Kind::PlayTrack:
+                if (m_sound) {
+                    m_sound->play_track(e.text);
+                }
+                break;
+            case OptionsEvent::Kind::TestEffects:
+                if (m_sound) {
+                    m_sound->test_effects();
+                }
+                break;
+            case OptionsEvent::Kind::MissionWindow:
+                m_app_settings.mission_window = model.mission_window;
+                save_settings();
+                break;
+        }
+    }
+}
+
+core::Status MapViewer::load_game(const std::filesystem::path& path) {
+    auto bytes = core::read_file(path);
+    if (!bytes) {
+        return bytes.error();
+    }
+    std::vector<std::string> warnings;
+    core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
+    if (sim::is_open1602_save(*bytes)) {
+        world = sim::read_game(*bytes, m_buildings, &warnings);
+    } else {
+        auto file = assets::ChunkFile::from_bytes(std::move(bytes).value());
+        if (!file) {
+            return file.error();
+        }
+        world = sim::load_world(*file, m_buildings, m_game, &warnings, m_options.world);
+    }
+    if (!world) {
+        return world.error();
+    }
+    for (const auto& w : warnings) {
+        std::fprintf(stderr, "warning: %s\n", w.c_str());
+    }
+    // What belongs to the old game goes: videos, selection, orders waiting for an answer, tools.
+    stop_video();
+    m_videos.clear();
+    m_pause_video = false;
+    m_units.clear();
+    m_pending_orders.clear();
+    m_pick = Pick::None;
+    m_press.reset();
+    m_rubber_band = false;
+    m_last_group = 0xFF;
+    m_tool.set_mode(BuildTool::Mode::Off);
+    // The simulation runs on m_world: it goes first and is built anew on the loaded world, which
+    // continues from the state the savegame keeps (as at the start of the program).
+    std::destroy_at(&m_simulation);
+    m_world = std::move(world).value();
+    std::construct_at(&m_simulation, m_world, m_buildings, m_figures, m_options.rules);
+    m_simulation.set_city_names(m_city_names);
+    m_simulation.set_ship_names(m_ship_names);
+    m_simulation.set_tick_observer([this](const sim::World& now) { m_ambient.tick(now, m_buildings, m_figures); });
+    m_local_player = sim::first_human_player(m_world);
+    m_building_figures = render::collect_building_figures(m_world, m_buildings, m_figures);
+    m_soldiers.reset(m_world, m_buildings, m_figures);
+    m_walkers = render::WalkerFigures{};
+    m_ambient = render::Ambient{};
+    m_ambient.tick(m_world, m_buildings, m_figures);
+    m_effects.clear();
+    m_player_figures = sim::PlayerFigures{};
+    m_figures_ms = 0;
+    if (m_hud) {
+        m_hud->set_game(m_simulation, m_buildings, m_figures, m_local_player);
+        m_hud->reset_game();
+    }
+    m_camera.set_world_size(m_world.width(), m_world.height());
+    m_camera.center_on(home_tile());
     return core::Ok{};
 }
 

@@ -153,3 +153,28 @@ TEST_CASE("unit selection: formation, filters and groups") {
     CHECK(sel.size() == 4);
     CHECK(!sel.recall_group(f.world, 5));
 }
+
+TEST_CASE("unit selection: Tab narrows to one type after the other, then back to all") {
+    Field f;
+    const UnitRef a = f.soldier(10, 10, 1);
+    const UnitRef b = f.soldier(11, 10, 9);
+    const UnitRef c = f.soldier(12, 10, 1);
+    ui::UnitSelection sel;
+    sel.box(f.world, {{a, 10}, {b, 10}, {c, 10}}, 0, false);
+    REQUIRE(sel.size() == 3);
+    CHECK(sel.cycle_types(f.world));
+    CHECK(sel.size() == 2);  // figure 1
+    CHECK(sel.contains(a));
+    CHECK(sel.contains(c));
+    CHECK(sel.cycle_types(f.world));
+    CHECK(sel.size() == 1);  // figure 9
+    CHECK(sel.contains(b));
+    CHECK(sel.cycle_types(f.world));
+    CHECK(sel.size() == 3);  // all again
+    CHECK(sel.cycle_types(f.world));
+    CHECK(sel.size() == 2);
+    // Another selection starts anew; one type alone does not cycle.
+    sel.select(f.world, b);
+    CHECK(!sel.cycle_types(f.world));
+    CHECK(sel.size() == 1);
+}

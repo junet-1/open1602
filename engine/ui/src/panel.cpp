@@ -113,6 +113,19 @@ void Panel::set_offset(std::int32_t id, std::int32_t x, std::int32_t y) {
     }
 }
 
+void Panel::set_position(std::int32_t id, std::int32_t x, std::int32_t y) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_layout.gadgets[*i].pos = {x, y};
+    }
+}
+
+std::optional<std::array<std::int32_t, 2>> Panel::position(std::int32_t id) const {
+    if (const auto i = m_layout.index_of(id)) {
+        return m_layout.gadgets[*i].pos;
+    }
+    return std::nullopt;
+}
+
 void Panel::set_scroll(std::int32_t id, std::int32_t line) {
     if (const auto i = m_layout.index_of(id)) {
         m_state[*i].scroll = std::max(0, line);
@@ -227,8 +240,11 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
     // Draw position: trunc((Pos + Posoffs + 0.5) * scale) plus the slider's offset (0x00407AED).
     std::int32_t x = to_pixels(g.pos[0] + g.offset[0], k);
     std::int32_t y = to_pixels(g.pos[1] + g.offset[1], k);
-    if (g.slider) {
+    // Only along the slider's own axes (Slidhorflg 0x40, Slidverflg 0x80 at +0x19).
+    if (g.slider_x) {
         x += trunc_scaled((s.slider[0] + g.slider_offset[0]) * k);
+    }
+    if (g.slider_y) {
         y += trunc_scaled((g.slider_size[1] - s.slider[1] + g.slider_offset[1]) * k);
     }
     const std::int32_t colour = g.color[state];

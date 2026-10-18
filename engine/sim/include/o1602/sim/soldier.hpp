@@ -74,6 +74,10 @@ struct Soldier {
     Patrol patrol;
     /// Orders waiting behind `target` (Open1602: Shift + right click); any other order clears them.
     std::vector<Target> queue;
+    /// Open1602 (ADR 0010): fights every enemy it meets on its way (attack move), or stays where it
+    /// is and only fights what is in range (hold position). Set by orders, ended by the next one.
+    bool attack_move = false;
+    bool hold = false;
     bool disbanded = false;  ///< dying without the death animation
     SoldierMotion motion;
     /// Slot of the unit in the file it was loaded from (SOLDAT3 +0x08), so the savegame writer keeps

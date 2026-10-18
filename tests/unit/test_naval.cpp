@@ -207,3 +207,41 @@ TEST_CASE("naval: a cannon tower fires at hostile ships near its island") {
     }
     CHECK(tower_shot);
 }
+
+TEST_CASE("naval: an attack move hunts an enemy off the way and sails on; holding stops the hunt") {
+    Sea s;
+    s.start();
+    s.world.diplomacy().set_peace(s.world, 0, 1, sim::Treaty::None, 0);
+    // A warship sailing east along row 50; an enemy off its way at (40, 42), out of range.
+    const std::uint32_t warship = s.add(10, 50, kWarship, 0, 8, 2);
+    const std::uint32_t victim = s.add(40, 42, kTrade, 1, 0, 0);
+    sim::ShipOrder order{0, warship, sim::Target::position(80, 50)};
+    order.attack_move = true;
+    REQUIRE(s.fleet->order(order));
+    // Once it sees the enemy it turns to it; the way east waits in the queue.
+    const sim::Ship* w = s.world.ship(warship);
+    bool hunting = false;
+    for (int t = 0; t < 40 && !hunting; ++t) {
+        s.run(1'000);
+        w = s.world.ship(warship);
+        REQUIRE(w != nullptr);
+        hunting = w->target == sim::Target::other_ship(victim);
+    }
+    CHECK(hunting);
+    CHECK(!w->queue.empty());
+    s.run(120'000);
+    CHECK(s.world.ship(victim) == nullptr);
+    w = s.world.ship(warship);
+    CHECK(w->x == 80);
+    CHECK(w->y == 50);
+    // Holding its place a ship chases nothing.
+    const std::uint32_t other = s.add(80, 43, kTrade, 1, 0, 0);
+    sim::ShipCommand hold;
+    hold.player = 0;
+    hold.ship = warship;
+    hold.op = sim::ShipCommand::Op::Hold;
+    REQUIRE(s.fleet->command(hold));
+    s.run(20'000);
+    CHECK(s.world.ship(warship)->x == 80);
+    CHECK(s.world.ship(other) != nullptr);
+}

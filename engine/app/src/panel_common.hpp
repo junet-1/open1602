@@ -89,6 +89,10 @@ struct ShipLayouts {
     assets::GadgetLayout piratord;
 };
 /// The ship's window with its pages (ship_panel.cpp).
+/// SHIPLIST (`ships`) or STADTLST: the lists of the player status (list_panels.cpp).
+std::unique_ptr<SelectionPanel> make_list_panel(assets::GadgetLayout layout, bool ships);
+/// VERTRAG with its tribute page TRIBUT (diplomacy_panel.cpp).
+std::unique_ptr<SelectionPanel> make_diplomacy_panel(assets::GadgetLayout vertrag, assets::GadgetLayout tribut);
 std::unique_ptr<SelectionPanel> make_ship_panel(ShipLayouts layouts);
 
 /// The windows of the military mode (unit_panels.cpp): SKSHIP, SKSOLDAT, MKSHIP, MKSOLDAT.

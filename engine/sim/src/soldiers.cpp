@@ -532,8 +532,8 @@ void Military::decide(Soldier& s) {
             // the player never walk towards enemies on their own (original).
             const bool melee = static_cast<std::int32_t>(type->combat.range8) <= kMeleeRange8;
             const bool walking = !s.target.empty() && !attackable(s, s.target);
-            const bool hunter = computer_controlled(*m_world, s.owner) || s.patrol.active;
-            if (enemy.empty() && (hunter || (melee && !walking))) {
+            const bool hunter = computer_controlled(*m_world, s.owner) || s.patrol.active || s.attack_move;
+            if (enemy.empty() && !s.hold && (hunter || (melee && !walking))) {
                 std::size_t tried = 0;
                 for (const Candidate& c : candidates) {
                     if (!hunter) {
@@ -557,7 +557,11 @@ void Military::decide(Soldier& s) {
         if (attack(s, *type, enemy)) {
             return;
         }
-        // Out of range or sight: walk into range (step 6).
+        // Out of range or sight: walk into range (step 6); holding its position it waits.
+        if (s.hold) {
+            start_wait(s, kIdleMs);
+            return;
+        }
         if (!plan_to(s, enemy, kPlanRadius, true)) {
             ++s.failures;
             if (s.failures > kMaxFailures && enemy == s.target) {

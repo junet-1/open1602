@@ -253,4 +253,13 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
     m_known = std::move(known);
 }
 
+const FigureInstance* SoldierFigures::find(std::uint32_t id) const noexcept {
+    for (std::size_t i = 0; i < m_ids.size() && i < m_instances.size(); ++i) {
+        if (m_ids[i] == id) {
+            return &m_instances[i];
+        }
+    }
+    return nullptr;
+}
+
 }  // namespace o1602::render

@@ -522,3 +522,44 @@ TEST_CASE("military: an attack ends a pending offer of peace too") {
     CHECK(f.world.diplomacy().relation(0, 1).peace == sim::Treaty::None);
     CHECK(!f.military->declare_war_by_attack(0, sim::Target::soldier(enemy.id)));  // at war already
 }
+
+TEST_CASE("military: an attack move fights on the way; holding the position chases nobody") {
+    for (const bool attack_move : {false, true}) {
+        Field f;
+        f.start();
+        f.war(0, 1);
+        const std::uint32_t id = f.add(kSword, 0, 2 * 12, 2 * 15).id;
+        sim::Soldier& enemy = f.add(kSword, 1, 2 * 20, 2 * 18);
+        enemy.health = 200;
+        enemy.hold = true;  // it stays where it is
+        sim::SoldierOrder order{0, {id}, sim::Target::spot(2 * 28, 2 * 15)};
+        order.attack_move = attack_move;
+        REQUIRE(f.military->order(order));
+        f.run(30'000);
+        // A melee unit of the player walking somewhere leaves enemies off its way alone (original);
+        // with the attack move it fights them and goes on.
+        CHECK((f.count(sim::MilitaryEvent::Kind::Shot) > 0) == attack_move);
+        f.run(30'000);
+        const sim::Soldier* s = f.world.soldier(id);
+        REQUIRE(s != nullptr);
+        CHECK(s->cell_x() == 56);
+        CHECK(s->cell_y() == 30);
+    }
+    // Holding the position: no chase of an enemy three tiles away.
+    Field f;
+    f.start();
+    f.war(0, 1);
+    const std::uint32_t id = f.add(kSword, 0, 2 * 12, 2 * 15).id;
+    f.add(kSword, 1, 2 * 15, 2 * 15).hold = true;
+    sim::SoldierCommand hold;
+    hold.player = 0;
+    hold.soldier = id;
+    hold.op = sim::SoldierCommand::Op::Hold;
+    REQUIRE(f.military->command(hold));
+    f.run(10'000);
+    CHECK(f.world.soldier(id)->cell_x() == 24);
+    CHECK(f.count(sim::MilitaryEvent::Kind::Shot) == 0);
+    // The next order ends it.
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::spot(2 * 12, 2 * 17)}));
+    CHECK(!f.world.soldier(id)->hold);
+}

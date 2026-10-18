@@ -7,6 +7,10 @@ add_executable(open1602
     src/game_sound.cpp
     src/hud.cpp
     src/selection_panels.cpp
+    src/app_settings.cpp
+    src/diplomacy_panel.cpp
+    src/list_panels.cpp
+    src/options_panel.cpp
     src/ship_panel.cpp
     src/panel_common.cpp
     src/unit_panels.cpp

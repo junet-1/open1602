@@ -59,8 +59,9 @@ bool Fleet::naval_combat(Ship& ship) {
     // Engage mode: ships on a route or patrol, pirates, and computer players' ships out at sea or
     // sent against something; the player's ships without a route only fight what is in range.
     const bool engage =
-        ship.route.active || pirate ||
-        (computer_controlled(owner) && !ship.repairing && (is_combat_ref(ship.target) || ship.near_island == 0xFFFF));
+        !ship.hold &&
+        (ship.route.active || pirate || ship.attack_move ||
+         (computer_controlled(owner) && !ship.repairing && (is_combat_ref(ship.target) || ship.near_island == 0xFFFF)));
     // The ordered target (pirates: their order; others: the current target) if hostile and near.
     Target candidate;
     const Target& ordered = pirate ? ship.order : ship.target;
@@ -111,7 +112,12 @@ bool Fleet::naval_combat(Ship& ship) {
     const auto bearing = bearing_to(ship, fight);
     if (!bearing) {
         if (chase && !(ship.target == fight)) {
-            // Sail towards it (approach radius 0x0C); the next decision fires once in range.
+            // Sail towards it (approach radius 0x0C); the next decision fires once in range. An
+            // attack move takes up its way again afterwards.
+            if (ship.attack_move && !ship.target.empty() && !is_combat_ref(ship.target) &&
+                ship.queue.size() < kMaxQueuedOrders) {
+                ship.queue.insert(ship.queue.begin(), ship.target);
+            }
             ship.target = fight;
             ship.motion.path.clear();
             ship.motion.path_index = 0;

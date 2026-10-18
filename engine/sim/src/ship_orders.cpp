@@ -175,6 +175,13 @@ bool Fleet::command(const ShipCommand& c) {
                 ship->held = false;
             }
             return true;
+        case ShipCommand::Op::Hold:
+            if (!own) {
+                return false;
+            }
+            order(ShipOrder{c.player, ship->id, Target{}});
+            ship->hold = true;
+            return true;
         case ShipCommand::Op::Scuttle:
             if (!own) {
                 return false;

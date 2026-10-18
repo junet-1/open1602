@@ -121,6 +121,8 @@ void UnitSelection::clear() {
     }
     m_units.clear();
     m_offsets.clear();
+    m_cycle_all.clear();
+    m_cycle_step = 0;
 }
 
 void UnitSelection::set(const sim::World& world, std::vector<UnitRef> units) {
@@ -134,6 +136,43 @@ void UnitSelection::set(const sim::World& world, std::vector<UnitRef> units) {
     m_units = std::move(unique);
     recentre(world);
     m_changed = true;
+    if (!m_cycling) {
+        m_cycle_all.clear();
+        m_cycle_step = 0;
+    }
+}
+
+bool UnitSelection::cycle_types(const sim::World& world) {
+    if (m_cycle_all.empty()) {
+        m_cycle_all = m_units;
+        m_cycle_step = 0;
+    }
+    std::erase_if(m_cycle_all, [&](const UnitRef& r) { return !valid(world, r); });
+    std::vector<std::uint16_t> types;
+    for (const UnitRef& r : m_cycle_all) {
+        types.push_back(figure_of(world, r));
+    }
+    std::sort(types.begin(), types.end());
+    types.erase(std::unique(types.begin(), types.end()), types.end());
+    if (types.size() < 2) {
+        m_cycle_all.clear();
+        m_cycle_step = 0;
+        return false;
+    }
+    m_cycle_step = (m_cycle_step + 1) % (types.size() + 1);
+    std::vector<UnitRef> units;
+    for (const UnitRef& r : m_cycle_all) {
+        if (m_cycle_step == 0 || figure_of(world, r) == types[m_cycle_step - 1]) {
+            units.push_back(r);
+        }
+    }
+    m_cycling = true;
+    set(world, std::move(units));
+    m_cycling = false;
+    if (m_cycle_step == 0) {
+        m_cycle_all.clear();
+    }
+    return true;
 }
 
 void UnitSelection::select(const sim::World& world, const UnitRef& ref) {
@@ -430,11 +469,12 @@ std::optional<std::size_t> UnitSelection::group_of(const UnitRef& ref) const {
 }
 
 std::vector<sim::Command> UnitSelection::move_orders(const sim::World& world, sim::PlayerId local, double x, double y,
-                                                     bool queue) const {
+                                                     bool queue, bool attack_move) const {
     std::vector<sim::Command> out;
     sim::SoldierOrder soldiers;
     soldiers.player = local;
     soldiers.queue = queue;
+    soldiers.attack_move = attack_move;
     soldiers.target = sim::Target::spot(static_cast<std::uint32_t>(floor_tile(2.0 * x, 2 * world.width())),
                                         static_cast<std::uint32_t>(floor_tile(2.0 * y, 2 * world.height())));
     for (std::size_t i = 0; i < m_units.size(); ++i) {
@@ -448,6 +488,7 @@ std::vector<sim::Command> UnitSelection::move_orders(const sim::World& world, si
             o.player = local;
             o.ship = r.id;
             o.queue = queue;
+            o.attack_move = attack_move;
             o.target =
                 sim::Target::position(static_cast<std::uint32_t>(floor_tile(x + off.first / 8.0, world.width())),
                                       static_cast<std::uint32_t>(floor_tile(y + off.second / 8.0, world.height())));
@@ -492,6 +533,29 @@ std::vector<sim::Command> UnitSelection::target_orders(const sim::World& world, 
     }
     if (!soldiers.soldiers.empty()) {
         out.emplace_back(std::move(soldiers));
+    }
+    return out;
+}
+
+std::vector<sim::Command> UnitSelection::hold_orders(const sim::World& world, sim::PlayerId local) const {
+    std::vector<sim::Command> out;
+    for (const UnitRef& r : m_units) {
+        if (!valid(world, r) || unit_owner(world, r) != local) {
+            continue;
+        }
+        if (r.kind == UnitRef::Kind::Ship) {
+            sim::ShipCommand c;
+            c.player = local;
+            c.ship = r.id;
+            c.op = sim::ShipCommand::Op::Hold;
+            out.emplace_back(c);
+        } else {
+            sim::SoldierCommand c;
+            c.player = local;
+            c.soldier = r.id;
+            c.op = sim::SoldierCommand::Op::Hold;
+            out.emplace_back(c);
+        }
     }
     return out;
 }

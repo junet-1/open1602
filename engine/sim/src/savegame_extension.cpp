@@ -66,6 +66,8 @@ constexpr std::uint32_t kCityState = tag("CSTA");
 constexpr std::uint32_t kOrigin = tag("ORIG");
 /// Orders waiting behind the current one of ships and units (Shift + right click).
 constexpr std::uint32_t kQueues = tag("QUEU");
+/// Attack move and hold position of ships and units (Open1602, ADR 0010).
+constexpr std::uint32_t kStances = tag("STNC");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -2311,6 +2313,33 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
             }
         }
     });
+    section(out, kStances, [&](Out& o) {
+        const auto flags = [](bool attack_move, bool hold) {
+            return static_cast<std::uint8_t>((attack_move ? 1U : 0U) | (hold ? 2U : 0U));
+        };
+        std::uint32_t n = 0;
+        for (const Ship& sh : world.ships()) {
+            n += flags(sh.attack_move, sh.hold) != 0 ? 1U : 0U;
+        }
+        o.u32(n);
+        for (const Ship& sh : world.ships()) {
+            if (const std::uint8_t f = flags(sh.attack_move, sh.hold); f != 0) {
+                o.u32(sh.id);
+                o.u8(f);
+            }
+        }
+        n = 0;
+        for (const Soldier& so : world.soldiers()) {
+            n += flags(so.attack_move, so.hold) != 0 ? 1U : 0U;
+        }
+        o.u32(n);
+        for (const Soldier& so : world.soldiers()) {
+            if (const std::uint8_t f = flags(so.attack_move, so.hold); f != 0) {
+                o.u32(so.id);
+                o.u8(f);
+            }
+        }
+    });
     if (tiles == TileMode::Full && world.source() != nullptr) {
         section(out, kOrigin, [&](Out& o) {
             assets::ChunkWriter chunks;
@@ -2397,6 +2426,8 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
     core::Bytes origin;
     std::vector<std::pair<std::uint32_t, std::vector<Target>>> ship_queues;
     std::vector<std::pair<std::uint32_t, std::vector<Target>>> soldier_queues;
+    std::vector<std::pair<std::uint32_t, std::uint8_t>> ship_stances;
+    std::vector<std::pair<std::uint32_t, std::uint8_t>> soldier_stances;
     bool damaged = false;
     const bool ok = for_each_section(sections, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
         core::ByteReader sr(body);
@@ -2480,6 +2511,15 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
             case kOrigin:
                 origin.assign(body.begin(), body.end());
                 break;
+            case kStances:
+                for (auto* list : {&ship_stances, &soldier_stances}) {
+                    const std::uint32_t n = in.u32();
+                    for (std::uint32_t k = 0; k < n && in.ok(); ++k) {
+                        const std::uint32_t unit = in.u32();
+                        list->emplace_back(unit, in.u8());
+                    }
+                }
+                break;
             case kQueues:
                 for (auto* list : {&ship_queues, &soldier_queues}) {
                     const std::uint32_t n = in.u32();
@@ -2518,6 +2558,18 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
     for (auto& [id, queue] : soldier_queues) {
         if (Soldier* soldier = world.soldier(id)) {
             soldier->queue = std::move(queue);
+        }
+    }
+    for (const auto& [id, f] : ship_stances) {
+        if (Ship* ship = world.ship(id)) {
+            ship->attack_move = (f & 1U) != 0;
+            ship->hold = (f & 2U) != 0;
+        }
+    }
+    for (const auto& [id, f] : soldier_stances) {
+        if (Soldier* soldier = world.soldier(id)) {
+            soldier->attack_move = (f & 1U) != 0;
+            soldier->hold = (f & 2U) != 0;
         }
     }
     if (!origin.empty() && world.source() == nullptr) {

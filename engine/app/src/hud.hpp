@@ -13,9 +13,11 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "options_panel.hpp"
 #include "selection_panels.hpp"
 #include "side_panels.hpp"
 
@@ -49,6 +51,7 @@ public:
             OrientToRoad,  ///< buildings with a door turn to the road (`step` 1) or not (0)
             FoundKontor,   ///< the building tool places a Kontor paid from `ship`
             Answer,        ///< the question was answered: `step` 1 yes, 0 no
+            SelectShip,    ///< select `ship` and look at it (the ship list)
         };
         Kind kind = Kind::RotateLeft;
         double tile_x = 0.0;  ///< Minimap and Message: the world tile to look at
@@ -112,6 +115,9 @@ public:
     void set_units(ui::UnitSelection* units) noexcept { m_units = units; }
     /// What the player selected on the map; its window shows in the info mode.
     void set_selection(const Selection& selection) { m_selection = selection; }
+    /// Opens the ship or city list or the diplomacy window in the info mode (the buttons of the
+    /// player status, L, Shift+L, V), or closes it if it is open; returns what the tool should do.
+    std::optional<Action> toggle_window(Selection::Kind kind);
     [[nodiscard]] const Selection& selection() const noexcept { return m_selection; }
     /// Whether a window waits for a click on the map (the info mode).
     [[nodiscard]] bool picking();
@@ -135,6 +141,34 @@ public:
     void ask(std::string question) { m_question = std::move(question); }
     [[nodiscard]] bool asking() const noexcept { return m_question.has_value(); }
     void close_question() noexcept { m_question.reset(); }
+    /// The key overview over the map (F1, ADR 0010): lines of keys and what they do; a heading has
+    /// no keys. Any click closes it.
+    struct HelpLine {
+        std::string keys;
+        std::string text;
+    };
+    void show_help(std::vector<HelpLine> lines) { m_help = std::move(lines); }
+    [[nodiscard]] bool helping() const noexcept { return m_help.has_value(); }
+    /// A question or the key overview is open: it takes every click.
+    [[nodiscard]] bool modal() const noexcept { return m_question.has_value() || m_help.has_value(); }
+    void close_help() noexcept { m_help.reset(); }
+    /// Another game was loaded: messages, selection, questions and the minimap of the old one go.
+    void reset_game();
+    /// The settings (mode 30014): what they show, and what they asked for since the last call.
+    [[nodiscard]] OptionsModel& options_model() noexcept { return m_options_model; }
+    [[nodiscard]] std::vector<OptionsEvent> take_option_events() { return std::exchange(m_option_events, {}); }
+    /// A savegame's name is being typed: the keys go there (Windows-1252 text, Backspace 8, Enter 13).
+    [[nodiscard]] bool typing() const noexcept { return m_options && m_mode == kModeOptions && m_options->editing(); }
+    void type_text(std::string_view text) {
+        if (m_options) {
+            m_options->type(text);
+        }
+    }
+    void type_key(int key) {
+        if (m_options) {
+            m_options->key(key);
+        }
+    }
 
     /// Draws the frame. `view` are the corners of the visible map in world tiles (the minimap's
     /// frame), `world` the game for the minimap (redrawn every few seconds).
@@ -196,10 +230,19 @@ private:
     bool m_minimap_dirty = true;
     std::uint32_t m_world_w = 0;
     std::uint32_t m_world_h = 0;
+    std::unique_ptr<OptionsPanel> m_options;
+    OptionsModel m_options_model;
+    std::vector<OptionsEvent> m_option_events;
+    std::optional<ui::Panel> m_tutor;  ///< the mission's window
+    std::int32_t m_tutor_line = 0;     ///< first line of its text shown
     std::optional<std::string> m_question;
+    std::optional<std::vector<HelpLine>> m_help;
     ui::Rect m_yes;  ///< the buttons of the question as last drawn
     ui::Rect m_no;
     void draw_question();
+    /// "Auftrag ansehen": the mission's text in the window above the status bar (TUTOR.GAD).
+    void draw_mission(const sim::World& world);
+    void draw_help();
 };
 
 }  // namespace o1602::app

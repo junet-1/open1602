@@ -1546,6 +1546,17 @@ SelectionPanels::SelectionPanels(const assets::GameDirectory& game) {
     if (auto l = load("SIEDLER.GAD")) {
         m_panels["SIEDLER"] = std::make_unique<SettlerPanel>(std::move(*l));
     }
+    if (auto l = load("SHIPLIST.GAD")) {
+        m_panels["SHIPLIST"] = make_list_panel(std::move(*l), true);
+    }
+    if (auto l = load("STADTLST.GAD")) {
+        m_panels["STADTLST"] = make_list_panel(std::move(*l), false);
+    }
+    if (auto vertrag = load("VERTRAG.GAD")) {
+        if (auto tribut = load("TRIBUT.GAD")) {
+            m_panels["VERTRAG"] = make_diplomacy_panel(std::move(*vertrag), std::move(*tribut));
+        }
+    }
     if (auto l = load("INFRA.GAD")) {
         const std::int32_t bauhaus = l->constant("GFXBAUHAUS").value_or(81);
         m_panels["INFRA"] = std::make_unique<InfraPanel>(std::move(*l), bauhaus);
@@ -1575,6 +1586,15 @@ SelectionPanel* SelectionPanels::panel_for(const Selection& s, const PanelContex
     };
     if (s.kind == Selection::Kind::Ship) {
         return c.world().ship(s.ship) != nullptr ? get("SHIP") : nullptr;
+    }
+    if (s.kind == Selection::Kind::ShipList) {
+        return get("SHIPLIST");
+    }
+    if (s.kind == Selection::Kind::CityList) {
+        return get("STADTLST");
+    }
+    if (s.kind == Selection::Kind::Diplomacy) {
+        return get("VERTRAG");
     }
     if (s.kind != Selection::Kind::Building) {
         return nullptr;

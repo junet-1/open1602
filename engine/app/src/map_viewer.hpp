@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "app_settings.hpp"
 #include "build_tool.hpp"
 #include "game_sound.hpp"
 #include "hud.hpp"
@@ -30,6 +31,7 @@
 #include "o1602/render/land_figures.hpp"
 #include "o1602/render/sdl_sprite_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/sprite_hit_mask.hpp"
 #include "o1602/render/walker_figures.hpp"
 #include "o1602/render/world_graphics.hpp"
 #include "o1602/sim/new_game.hpp"
@@ -75,6 +77,9 @@ struct ViewerOptions {
     bool original_mouse = false;
     /// Ask before scuttling, disbanding and declaring war by an attack (ADR 0010).
     bool confirm = true;
+    /// The key settings (ADR 0010); empty: keys.cfg in the user's data folder, written with the
+    /// defaults if it is not there yet.
+    std::filesystem::path keys_file;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
     struct ScriptedInput {
         enum class Kind : std::uint8_t { Move, Down, Up, Key };
@@ -82,8 +87,9 @@ struct ViewerOptions {
         std::uint32_t frame = 0;
         float x = 0.0F;
         float y = 0.0F;
-        std::int32_t key = 0;  ///< Key: SDL key code
-        bool right = false;    ///< Down/Up: the right button
+        std::int32_t key = 0;   ///< Key: SDL key code
+        std::uint16_t mod = 0;  ///< Key: SDL_KMOD_CTRL, SDL_KMOD_SHIFT
+        bool right = false;     ///< Down/Up: the right button
     };
     std::vector<ScriptedInput> input;
     /// Select the building on this island tile at the start (island index, x, y) and look at it.
@@ -111,11 +117,20 @@ private:
     struct ZoomGraphics {
         render::WorldGraphics graphics;
         std::unique_ptr<render::SdlSpriteRenderer> renderer;
+        render::SpriteHitMask hit_mask;  ///< visible pixels of the figures, for picking units
     };
     core::Status ensure_graphics(render::Zoom zoom);
+    /// The parts of the world's layers that do not change within a frame (graphics of the zoom
+    /// level, figures, banners).
+    [[nodiscard]] render::WorldLayers world_layers(const ZoomGraphics& graphics) const;
+    /// The pictures of a unit as drawn (ship: hull and flag; land unit: body), with the row and
+    /// depth that order them; nothing if it is not drawn.
+    [[nodiscard]] std::optional<render::FigureSprites> unit_sprites(const ui::UnitRef& ref) const;
 
     void handle_event(const SDL_Event& event);
     void handle_key(int key, std::uint16_t mod);
+    /// F1: the keys as they are bound now, over the map.
+    void show_key_help();
     void update(std::uint32_t delta_ms);
     void render();
     void update_title(double fps);
@@ -126,6 +141,14 @@ private:
     /// Saves the game: Open1602's own savegame, or a .GAM the original loads if the path ends in
     /// .gam. Never into the game's installation.
     core::Status save_game(const std::filesystem::path& path);
+    /// The settings and savegame names of the user's data folder into the panel (at the start).
+    void load_options();
+    /// What the settings panel asked for this frame (save, load, quit, sounds, window size).
+    void apply_options();
+    void save_settings();
+    /// Replaces the running game by a savegame (Open1602's own or the original's) while the
+    /// program runs (F9); the game goes on as it was if the file cannot be read.
+    core::Status load_game(const std::filesystem::path& path);
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
     [[nodiscard]] static std::filesystem::path save_folder();
 
@@ -135,6 +158,10 @@ private:
     // ---- Input (map_input.cpp, ADR 0010) ----
     /// The keys of ADR 0010.
     void setup_keys();
+    /// Applies the key settings file over the defaults (or writes it with them).
+    void load_key_settings();
+    /// The user's data folder of Open1602 (settings; the savegames in "saves" below it).
+    [[nodiscard]] static std::filesystem::path data_folder();
     [[nodiscard]] ui::KeyContext key_context() const;
     void run_action(const ui::KeyBinding& binding);
     /// The map scrolls while its keys are held.
@@ -215,6 +242,8 @@ private:
     render::BannerTable m_banners;  ///< colours and flags of the players (ADR 0007)
     /// Flags, smoke and icons: buildings do not move, so they are collected once at load.
     std::vector<render::BuildingFigure> m_building_figures;
+    std::vector<std::string> m_city_names;  ///< Text.cod [STAEDTE], [SHIPS]: for every game loaded
+    std::vector<std::string> m_ship_names;
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters
@@ -242,6 +271,10 @@ private:
     std::optional<std::pair<double, double>> m_press;  ///< left button pressed on the map, screen
     bool m_rubber_band = false;                        ///< the press became a selection rectangle
     std::vector<sim::Command> m_pending_orders;        ///< waiting for the answer to a question
+    bool m_quit_pending = false;                       ///< "Ende" waits for the answer to its question
+    AppSettings m_app_settings;                        ///< settings.cfg in the user's data folder
+    SaveSlots m_slots;                                 ///< names of the savegames of the panel DISK
+    bool m_text_input = false;                         ///< the platform's text input is on (a name is typed)
     std::size_t m_last_group = 0xFF;                   ///< the group key pressed last (twice: go there)
     std::uint64_t m_last_group_ms = 0;
     std::size_t m_formation = 0;  ///< the next formation of the F key

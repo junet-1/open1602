@@ -888,6 +888,8 @@ bool Fleet::order(const ShipOrder& o) {
         return true;
     }
     ship->queue.clear();
+    ship->attack_move = o.attack_move && !o.target.empty();
+    ship->hold = false;
     ShipMotion& m = ship->motion;
     // The running run (at most two tiles) ends; then the ship plans (0x00448A10, 0x0044EBA0).
     m.path.clear();

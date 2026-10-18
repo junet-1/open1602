@@ -151,6 +151,8 @@ bool Military::order(const SoldierOrder& o) {
             continue;
         }
         s.queue.clear();
+        s.attack_move = o.attack_move;
+        s.hold = false;
         // Soldier_SetTarget 0x004497C0: the running cell ends, then the soldier plans.
         s.target = targets[u];
         s.motion.path.clear();
@@ -187,8 +189,11 @@ bool Military::command(const SoldierCommand& c) {
     }
     switch (c.op) {
         case SoldierCommand::Op::Stop:
+        case SoldierCommand::Op::Hold:
             s->target = {};
             s->queue.clear();
+            s->attack_move = false;
+            s->hold = c.op == SoldierCommand::Op::Hold;
             s->patrol.active = false;
             s->motion.path.clear();
             s->motion.path_index = 0;

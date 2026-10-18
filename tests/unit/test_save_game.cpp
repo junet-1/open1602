@@ -84,6 +84,7 @@ sim::World make_world(const assets::BuildingTable& buildings) {
         if (k == 3) {
             ship.target = sim::Target::position(60, 60);
             ship.queue = {sim::Target::position(70, 60), sim::Target::position(70, 70)};
+            ship.attack_move = true;
         }
         world.add_ship(ship);
     }
@@ -96,6 +97,7 @@ sim::World make_world(const assets::BuildingTable& buildings) {
         soldier.figure = 1;
         if (k == 7) {
             soldier.queue = {sim::Target::spot(220, 600)};
+            soldier.hold = true;
         }
         world.add_soldier(soldier);
     }
@@ -136,6 +138,10 @@ TEST_CASE("save game: a world beyond the original's limits comes back whole") {
     CHECK(loaded->ships()[3].queue == world.ships()[3].queue);
     CHECK(loaded->ships()[3].queue.size() == 2);
     CHECK(loaded->soldiers()[7].queue.size() == 1);
+    // Attack move and hold position (STNC).
+    CHECK(loaded->ships()[3].attack_move);
+    CHECK(!loaded->ships()[4].attack_move);
+    CHECK(loaded->soldiers()[7].hold);
     // Both layers of every tile.
     const sim::IslandMap& a = world.islands()[0].map;
     const sim::IslandMap& b = loaded->islands()[0].map;

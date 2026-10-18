@@ -82,6 +82,10 @@ public:
     void formation(const sim::World& world, const assets::FigureTable& figures, std::size_t n);
     /// The group spreads out to 1.67 times its size (0x0044C8B0).
     void scatter(const sim::World& world);
+    /// Tab (Open1602): narrows the selection to one type of unit after the other (FIGUR: infantry,
+    /// cavalry, ...; kinds of ship), in the order of their numbers, then back to all of them. False
+    /// if the selection has only one type.
+    bool cycle_types(const sim::World& world);
 
     /// Ctrl + number: the group is the selection (with its offsets); Shift + number adds it.
     void store_group(std::size_t g);
@@ -95,10 +99,12 @@ public:
     /// onto an object (everyone to it), or to stop. `queue`: behind their current orders. `attack`:
     /// an object of another player means war (military mode or attack order).
     [[nodiscard]] std::vector<sim::Command> move_orders(const sim::World& world, sim::PlayerId local, double x,
-                                                        double y, bool queue) const;
+                                                        double y, bool queue, bool attack_move = false) const;
     [[nodiscard]] std::vector<sim::Command> target_orders(const sim::World& world, sim::PlayerId local,
                                                           const sim::Target& target, bool queue, bool attack) const;
     [[nodiscard]] std::vector<sim::Command> stop_orders(const sim::World& world, sim::PlayerId local) const;
+    /// Stop and stay, fighting only what comes in range (ADR 0010).
+    [[nodiscard]] std::vector<sim::Command> hold_orders(const sim::World& world, sim::PlayerId local) const;
 
 private:
     struct Member {
@@ -112,6 +118,9 @@ private:
     std::vector<Offset> m_offsets;
     std::array<std::vector<Member>, kGroups> m_groups;
     bool m_changed = false;
+    std::vector<UnitRef> m_cycle_all;  ///< the whole selection while Tab narrows it
+    std::size_t m_cycle_step = 0;      ///< 0 = all, n = the n-th type
+    bool m_cycling = false;
 };
 
 /// Position of a unit in tiles; nothing if it is gone.

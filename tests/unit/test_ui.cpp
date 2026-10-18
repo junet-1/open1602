@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Interface layouts (GAD), fonts and text, panels at work (docs/formats/gad.md, docs/re/ui.md).
 
+#include <cctype>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -9,8 +12,8 @@
 
 #include "o1602/assets/gad.hpp"
 #include "o1602/ui/build_menu.hpp"
-#include "o1602/ui/key_bindings.hpp"
 #include "o1602/ui/font.hpp"
+#include "o1602/ui/key_bindings.hpp"
 #include "o1602/ui/panel.hpp"
 #include "o1602/ui/resources.hpp"
 #include "o1602/ui/text_format.hpp"
@@ -316,4 +319,60 @@ TEST_CASE("ui: key bindings: the context's own keys first, then the general ones
     CHECK(!keys.find(ui::KeyContext::General, {'w'}));
     CHECK(ui::KeyBindings::action_named("group_recall") == ui::KeyAction::GroupRecall);
     CHECK(ui::KeyBindings::name(ui::KeyAction::Delete) == "delete");
+}
+
+TEST_CASE("ui: key bindings: the settings file changes only the actions it names") {
+    const auto name = [](std::int32_t key) {
+        return key == 0x40000000 ? std::string("F1") : std::string(1, static_cast<char>(std::toupper(key)));
+    };
+    const auto from_name = [](std::string_view n) -> std::optional<std::int32_t> {
+        if (n == "F1") {
+            return 0x40000000;
+        }
+        if (n.size() == 1 && std::isalnum(static_cast<unsigned char>(n[0])) != 0) {
+            return std::tolower(static_cast<unsigned char>(n[0]));
+        }
+        return std::nullopt;
+    };
+    CHECK(ui::KeyBindings::chord_text({'c', false, true}, name) == "Shift+C");
+    CHECK((ui::KeyBindings::parse_chord("ctrl+Shift+c", from_name) == ui::KeyChord{'c', true, true}));
+    CHECK(!ui::KeyBindings::parse_chord("Ctrl+", from_name));
+
+    ui::KeyBindings keys;
+    keys.bind(ui::KeyContext::General, {'w'}, ui::KeyAction::ScrollUp);
+    keys.bind(ui::KeyContext::Units, {'f'}, ui::KeyAction::AttackMove);
+    keys.bind(ui::KeyContext::Units, {'h'}, ui::KeyAction::Stop);
+    keys.bind(ui::KeyContext::General, {'1', true}, ui::KeyAction::GroupStore, 0);
+    keys.bind(ui::KeyContext::General, {0x40000000}, ui::KeyAction::Help);
+    const std::string text = keys.write_text(name);
+    CHECK(text.find("units attack_move = F\n") != std::string::npos);
+    CHECK(text.find("general group_store 0 = Ctrl+1\n") != std::string::npos);
+    // Written and read back: the same table.
+    ui::KeyBindings copy;
+    CHECK(copy.read_text(text, from_name).empty());
+    CHECK(copy.all().size() == keys.all().size());
+    CHECK(copy.find(ui::KeyContext::Units, {'f'})->action == ui::KeyAction::AttackMove);
+    // As comments it changes nothing.
+    ui::KeyBindings same = keys;
+    CHECK(same.read_text(keys.write_text(name, true), from_name).empty());
+    CHECK(same.all().size() == keys.all().size());
+
+    // Attack on A and Q, stop without a key; the rest keeps its defaults. Errors are reported by line.
+    const auto warnings = keys.read_text(
+        "# comment\n"
+        "units attack_move = A\n"
+        "units attack_move = Q\n"
+        "units stop = none\n"
+        "units nonsense = X\n"
+        "general group_store 12 = Ctrl+2\n"
+        "general help = Ctrl+?\n",
+        from_name);
+    CHECK(warnings.size() == 3);
+    CHECK(warnings[0].rfind("line 5", 0) == 0);
+    CHECK(keys.find(ui::KeyContext::Units, {'a'})->action == ui::KeyAction::AttackMove);
+    CHECK(keys.find(ui::KeyContext::Units, {'q'})->action == ui::KeyAction::AttackMove);
+    CHECK(!keys.find(ui::KeyContext::Units, {'f'}));
+    CHECK(keys.keys(ui::KeyAction::Stop).empty());
+    CHECK(keys.find(ui::KeyContext::Units, {'w'})->action == ui::KeyAction::ScrollUp);
+    CHECK(keys.find(ui::KeyContext::General, {0x40000000})->action == ui::KeyAction::Help);
 }

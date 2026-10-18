@@ -164,3 +164,30 @@ TEST_CASE("diplomacy: the panel's orders") {
     CHECK(sim::apply_diplomacy(world, Order{0, 2, Order::Kind::Peace, Treaty::None}));
     CHECK(world.diplomacy().hostile(2, 0));
 }
+
+TEST_CASE("diplomacy: a withdrawn offer is no declaration of war (S-113)") {
+    sim::World world(64, 64);
+    world.set_players(original_players());
+    sim::Diplomacy& d = world.diplomacy();
+    const auto count = [&](sim::PlayerId a, DiplomacyEventType type) {
+        int n = 0;
+        for (const auto& e : d.events(a)) {
+            n += e.type == type && e.partner == 0 ? 1 : 0;
+        }
+        return n;
+    };
+    CHECK(d.set_peace(world, 0, 1, Treaty::None, 1000));
+    CHECK(count(1, DiplomacyEventType::WarDeclared) == 1);
+    // Offered and withdrawn: back at war, nothing new to remember.
+    CHECK(d.set_peace(world, 0, 1, Treaty::Offered, 2000));
+    CHECK(d.set_peace(world, 0, 1, Treaty::None, 3000));
+    CHECK(d.relation(0, 1).peace == Treaty::None);
+    CHECK(d.relation(1, 0).peace == Treaty::None);
+    CHECK(count(1, DiplomacyEventType::WarDeclared) == 1);
+    CHECK(d.relation(1, 1).war_time_ms == 1000);
+    // The same for a trade offer.
+    CHECK(d.set_trade(world, 0, 2, Treaty::Offered, 4000));
+    CHECK(d.set_trade(world, 0, 2, Treaty::None, 5000));
+    CHECK(d.relation(2, 0).trade == Treaty::None);
+    CHECK(count(2, DiplomacyEventType::TradeCancelled) == 0);
+}

@@ -92,12 +92,12 @@ Informationen Platz finden und die Bedienung heutigen Echtzeitstrategiespielen f
 |---|---|
 | Rechtsklick (auch auf der Minikarte) | Befehl je nach Ziel |
 | Shift + Rechtsklick | Befehl anhängen |
-| A + Klick | Angriffsbewegung (greift unterwegs an) |
-| S | Stopp |
-| H | Stellung halten (verfolgt nicht) |
+| F + Klick | Angriffsbewegung (greift unterwegs an; „Feuer“) |
+| H | Stopp („Halt“) |
+| G | Stellung halten (verfolgt nicht) |
 | P + Klick | Patrouille |
-| F | Formation wechseln (Linie, Reihe, Block) |
-| G | verteilen |
+| C | Formation wechseln (Linie, Reihe, Block) |
+| Shift+C | verteilen |
 | Y | weiße Flagge hissen / streichen |
 | X | Insel erkunden |
 | T | Handel / Umladen am Kontor |
@@ -106,15 +106,24 @@ Informationen Platz finden und die Bedienung heutigen Echtzeitstrategiespielen f
 
 Angriffsbewegung, Stellung halten und das Springen zu untätigen Einheiten gibt es im Original nicht.
 
-W A S D verschieben die Karte. Sind eigene Einheiten ausgewählt, sind A (Angriffsbewegung) und S (Stopp)
-Befehle und verschieben nicht; die Pfeiltasten verschieben immer. Eine Taste verschiebt nur, wenn sie im
-geltenden Zusammenhang nichts anderes bedeutet.
+Keine Taste der Einheiten ist zugleich eine allgemeine Taste (18.10.2026: Angriff von A auf F, Stopp von
+S auf H, dafür Stellung halten auf G, Formation auf C, verteilen auf Shift+C), W A S D verschieben also
+immer. Doppelt belegt sind nur Tasten in Zusammenhängen, die nie zugleich gelten: R und Entf (Bauen:
+drehen, abreißen; Einheiten: Route, auflösen), C (Bauen: Pipette; Einheiten: Formation) und Tab.
 
-Umgesetzt (18.10.2026): Tabelle `ui::KeyBindings` mit dieser Vorgabe (noch ohne Einstellungsdatei),
-Auswahl mit Rahmen, Gruppen, Formationen und Filtern (`ui::UnitSelection`), Rechtsklick- und
-Minikartenbefehle, Befehlsketten in der Simulation, die Rückfragen, die Fenster des Kampfmodus und die
-Meldungsvideos im Minikartenfenster. Noch nicht: Angriffsbewegung (A wählt bisher ein Angriffsziel),
-Stellung halten, Spielmenü, Listen, Diplomatie, Schnellladen, Hilfe, Einstellungsdatei der Tasten.
+Umgesetzt (18.10.2026): Tabelle `ui::KeyBindings` mit dieser Vorgabe und der Einstellungsdatei
+`keys.cfg` im Datenordner des Benutzers (bis zum Einstellungsmenü von Hand zu ändern; F1 zeigt die
+Belegung), Auswahl mit Rahmen, bildpunktgenau wie das Original, Gruppen mit der Ziffer des Originals,
+Formationen, Filtern und Tab (Arten der Auswahl nacheinander; `ui::UnitSelection`), Rechtsklick- und
+Minikartenbefehle, Befehlsketten in der Simulation, die Rückfragen, die Fenster des Kampfmodus, die
+Meldungsvideos im Minikartenfenster, Angriffsbewegung (Schiffe und Soldaten greifen Feinde in
+Reichweite an, verfolgen sie und fahren danach weiter; im Spielstand `STNC`), Stellung halten (sie
+schießen nur auf Feinde in Reichweite, verfolgen nicht), Schnellspeichern und -laden (F5, F9) und der
+Erkunden-Knopf neben Reparieren und Piraten im Schiffsfenster (U-013), Schiffs- und Städteliste (L,
+Shift+L), Diplomatiefenster mit Tribut (V; Rückfrage vor dem Bruch eines Friedensvertrags). Noch nicht:
+Hauptmenü und ein eigenes Spielmenü (Escape) mit Speichern, Laden, Einstellungen und Beenden. Das Original
+hat kein Spielmenü: Speichern, Laden und Beenden liegen in den Einstellungen der Seitenleiste (umgesetzt
+mit Rückfrage vor „Ende“).
 
 ## Folgen
 - Die Eingabe läuft über eine Tabelle Aktion → Taste (Einstellungsdatei), nicht über feste Tasten im
