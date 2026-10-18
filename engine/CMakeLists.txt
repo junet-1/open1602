@@ -17,6 +17,7 @@ add_subdirectory(render)
 add_subdirectory(audio)
 add_subdirectory(video)
 add_subdirectory(ui)
+add_subdirectory(app/menus)
 
 if(O1602_BUILD_GAME)
     add_subdirectory(platform)

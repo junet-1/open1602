@@ -18,6 +18,7 @@
 #include "build_tool.hpp"
 #include "game_sound.hpp"
 #include "hud.hpp"
+#include "multiplayer_menu.hpp"
 #include "video_player.hpp"
 
 #include "o1602/assets/building_table.hpp"
@@ -26,6 +27,7 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/net/enet_transport.hpp"
+#include "o1602/net/lan.hpp"
 #include "o1602/net/session.hpp"
 #include "o1602/platform/window.hpp"
 #include "o1602/render/ambient.hpp"
@@ -108,6 +110,7 @@ struct ViewerOptions {
         std::string address;  ///< Join: the host's name or IPv4 address
         std::uint16_t port = net::kDefaultPort;
         std::string name = "Spieler";  ///< the player's name for the others
+        std::string password;          ///< Join: the game's password, if it has one
     };
     std::optional<Multiplayer> multiplayer;
 };
@@ -179,6 +182,8 @@ private:
     /// Replaces the running game by a savegame (Open1602's own or the original's) while the
     /// program runs (F9); the game goes on as it was if the file cannot be read.
     core::Status load_game(const std::filesystem::path& path);
+    /// A savegame or scenario as a world, not started.
+    [[nodiscard]] core::Result<sim::World> read_world(const std::filesystem::path& path) const;
     /// The game goes on in another world (a savegame, a scenario, a new game): everything of the old
     /// one goes, the simulation starts anew on it. noexcept: m_simulation is rebuilt in place, and
     /// a failure halfway (out of memory) must end the program, not leave a destroyed simulation.
@@ -231,15 +236,38 @@ private:
     /// A command of the local player: to the simulation, or in a multiplayer game to the session,
     /// which carries it out on every computer at the same frame.
     void submit(sim::Command command);
-    /// Hosts or joins the multiplayer game of the options.
+
+    // ---- Multiplayer (multiplayer.cpp, ADR 0011) ----
+    /// Hosts or joins the multiplayer game of the command line.
     core::Status start_multiplayer();
-    /// What the multiplayer session reported this frame, for the player (on stderr for now).
+    /// What the multiplayer session reported this frame: lines of the chat, the menu's screens.
     void apply_session_events();
     /// The game a host sent: replaces the world (also after a desync); nullptr if it cannot be read.
     sim::Simulation* load_from_host(std::span<const std::uint8_t> save);
     /// Fingerprint of the game data the simulation depends on: computers of a multiplayer game
     /// must have the same.
     [[nodiscard]] std::uint64_t content_fingerprint() const;
+    /// The multiplayer menu was opened from the main menu: the search starts.
+    void open_multiplayer_menu();
+    /// The multiplayer menu: its model, what it asked for, the search on the local network.
+    void apply_multiplayer_menu();
+    void handle_multiplayer(const MultiplayerEvent& e);
+    /// Answers searches for the hosted game, in the menu and in the game.
+    void update_lan_beacon();
+    /// Opens a lobby for `setup` on its port.
+    core::Status host_lobby(const HostSetup& setup);
+    /// The host starts the game of its lobby: makes the world, gives the slots their players.
+    core::Status start_hosted_game();
+    core::Status join_game(const std::string& address, std::uint16_t port, const std::string& password);
+    /// Out of the session, back to the search (with `notice`, why).
+    void leave_session(std::string notice = {});
+    /// A line for the chat: a player's (`name` given) or a notice of the session.
+    void chat_line(std::string name, std::string text, sim::PlayerId seat = sim::kNoPlayer);
+    [[nodiscard]] net::HostSession* host_session() const noexcept;
+    [[nodiscard]] net::ClientSession* client_session() const noexcept;
+    [[nodiscard]] std::string mp(MpText id) const { return mp_text(id, m_language); }
+    [[nodiscard]] std::string mp(MpText id, std::string_view value) const { return mp_text(id, m_language, value); }
+
     [[nodiscard]] std::optional<std::string> question_for(const sim::Command& command) const;
     /// Health bars over the selected units and the selection rectangle.
     void draw_selection_overlay();
@@ -318,6 +346,13 @@ private:
     sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
     /// A multiplayer game: drives m_simulation in place of Simulation::advance().
     std::unique_ptr<net::Session> m_session;
+    Language m_language = Language::English;         ///< of the installation: the texts of Open1602's own windows
+    std::unique_ptr<net::LanBrowser> m_lan_browser;  ///< while the multiplayer menu looks for games
+    std::unique_ptr<net::LanBeacon> m_lan_beacon;    ///< while this computer hosts a game shown on the network
+    std::uint64_t m_lan_search_ms = 0;               ///< real time of the last search
+    std::uint64_t m_lan_update_ms = 0;               ///< real time of the last look at the answers
+    std::optional<HostSetup> m_hosted;               ///< the game this computer hosts
+    std::optional<sim::World> m_hosted_world;        ///< its scenario or savegame until the start
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
     std::unique_ptr<platform::Window> m_window;

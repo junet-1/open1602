@@ -4,6 +4,7 @@
 add_library(o1602_ui
     src/build_menu.cpp
     src/font.cpp
+    src/form.cpp
     src/key_bindings.cpp
     src/panel.cpp
     src/text_format.cpp

@@ -76,6 +76,7 @@ int usage() {
         "  --host             host a multiplayer game of the game named (UDP port 16020, --port N); others join\n"
         "                     into the free human slots, or watch\n"
         "  --join HOST[:PORT] join the multiplayer game of a host (name or IPv4 address); the game comes from it\n"
+        "  --password TEXT    the password of the game to join (--join)\n"
         "  --name NAME        the player's name (multiplayer, new endless game)\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
@@ -361,6 +362,8 @@ int main(int argc, char** argv) {
             if (!multiplayer_given) {
                 return usage();
             }
+        } else if (arg == "--password" && has_value) {
+            multiplayer.password = argv[++i];
         } else if (arg == "--port" && has_value) {
             std::int32_t port = 0;
             if (!parse_number(argv[++i], port) || port <= 0 || port > 65535) {

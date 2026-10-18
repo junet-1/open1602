@@ -24,6 +24,9 @@ struct AppSettings {
     /// Whales, dolphins and krakens: on average one per screen of sea every this many seconds
     /// (the original: 5); 0 turns them off. Only the picture, the game does not depend on it.
     std::int32_t sea_creatures_every = 60;
+    /// Multiplayer hosts joined by address, the latest first ("name[:port]"); at most kMaxHosts.
+    std::vector<std::string> remembered_hosts;
+    static constexpr std::size_t kMaxHosts = 8;
 };
 
 /// "key = value" lines; unknown keys are passed over, missing ones keep `defaults`.

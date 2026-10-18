@@ -153,10 +153,6 @@ MainMenu::MainMenu(const assets::GameDirectory& game, const assets::TextTable* t
       m_host(load_panel(game, "HOST.GAD")),
       m_mission(load_panel(game, "MISSION.GAD")),
       m_colour(load_panel(game, "FARBWAHL.GAD")) {
-    if (m_base) {
-        // A game of several players comes with the network (M-003).
-        m_base->set_disabled(kMulti, true);
-    }
     if (m_host) {
         m_host->set_selected(kNewGame, true);
     }
@@ -408,6 +404,8 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                         }
                     }
                     m_screen = Screen::Host;
+                } else if (e.id == kMulti) {
+                    out.push_back(MenuEvent{MenuEvent::Kind::Multiplayer});
                 } else if (e.id == kCredits) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Credits});
                 } else if (e.id == kIntro) {

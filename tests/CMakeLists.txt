@@ -37,6 +37,7 @@ add_executable(o1602_tests
     unit/test_unit_selection.cpp
     unit/test_video.cpp
     unit/test_net.cpp
+    unit/test_multiplayer_menu.cpp
     data/test_original_data.cpp
     data/test_new_game.cpp
     data/test_ai_data.cpp
@@ -49,7 +50,7 @@ add_executable(o1602_tests
     data/test_save_continuity.cpp
     data/test_net_data.cpp
 )
-target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render o1602::audio o1602::ui o1602::video o1602::net)
+target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render o1602::audio o1602::ui o1602::video o1602::net o1602::menus)
 o1602_set_warnings(o1602_tests)
 # Tests dereference lookup results (world.player(0)->money) right after creating them; a null there
 # crashes the test, which reports it as failed. GCC's -Wnull-dereference flags every such line at -O2,

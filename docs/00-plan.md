@@ -340,7 +340,7 @@ kommt, werden sie abgehakt.
 **Mehrspieler**
 - Wie andere Rechner einen Hausaufstieg übernehmen (Nachricht 0x835, [houses.md](re/houses.md)).
 - ~~Befehle über das Netz, Zustands-Hash~~: erledigt (18.10.2026, ADR 0011; Fingerabdruck alle 100 Rahmen).
-- Lobby und Menüs; mehr als vier Spieler beim Start.
+- ~~Lobby and menus~~: done (2026-10-18, ADR 0011: Open1602's own multiplayer menu, LAN search). Still open: more than four players at the start, choosing banners in the lobby.
 
 **Nur Analyse**
 - Bits +0x0F/4 und /6 der Produktion ([production.md](re/production.md)).

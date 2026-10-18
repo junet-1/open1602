@@ -2,9 +2,9 @@
 //
 // The main menu and the screens before a game (docs/re/ui.md "Hauptmenü"; Menu_OnClick 0x0048B590,
 // Menu_Redraw 0x0048ABD0): BASE (main menu), HOST (list of scenarios or savegames), MISSION
-// (briefing, choice of level or part, high scores) and FARBWAHL (name and banner). Single player
-// only for now. The menu shows the screens and answers with MenuEvents; loading and starting is
-// the viewer's.
+// (briefing, choice of level or part, high scores) and FARBWAHL (name and banner). The button
+// "Mehrspieler" opens Open1602's own multiplayer menu instead of the original's screens. The menu shows the screens and
+// answers with MenuEvents; loading and starting is the viewer's.
 #pragma once
 
 #include <array>
@@ -51,7 +51,8 @@ struct MenuEvent {
         Scenario,      ///< start `path` with `name`
         LoadSlot,      ///< savegame `slot`
         ContinueLast,  ///< lastgame
-        NameEntered    ///< the name is confirmed (Enter): "Wählt Euer Banner" and the like
+        NameEntered,   ///< the name is confirmed (Enter): "Wählt Euer Banner" and the like
+        Multiplayer    ///< the multiplayer menu (Open1602's own, multiplayer_menu.hpp)
     };
     Kind kind = Kind::Quit;
     std::uint8_t level = 0;

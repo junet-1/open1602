@@ -7,10 +7,9 @@ add_executable(open1602
     src/game_sound.cpp
     src/hud.cpp
     src/selection_panels.cpp
-    src/app_settings.cpp
     src/diplomacy_panel.cpp
     src/list_panels.cpp
-    src/main_menu.cpp
+    src/multiplayer.cpp
     src/options_panel.cpp
     src/ship_panel.cpp
     src/panel_common.cpp
@@ -20,7 +19,7 @@ add_executable(open1602
     src/map_input.cpp
     src/video_player.cpp
 )
-target_link_libraries(open1602 PRIVATE o1602::sim o1602::render_sdl o1602::platform o1602::audio o1602::ui o1602::video o1602::net)
+target_link_libraries(open1602 PRIVATE o1602::sim o1602::render_sdl o1602::platform o1602::audio o1602::ui o1602::video o1602::net o1602::menus)
 o1602_set_warnings(open1602)
 
 if(WIN32)
