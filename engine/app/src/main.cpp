@@ -12,6 +12,7 @@
 // a savegame of Open1602 (.o1602, docs/formats/o1602-save.md) or any file of the original by its path.
 
 #include <SDL3/SDL_main.h>
+#include <array>
 #include <charconv>
 #include <cstdio>
 #include <cstdlib>
@@ -42,7 +43,7 @@ int usage() {
         "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--starts spread|together]\n"
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
-        "                [--video N] [--input EVENTS]\n"
+        "                [--video N] [--input EVENTS] [--select ISLAND,X,Y]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
@@ -61,6 +62,7 @@ int usage() {
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
         "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\"\n"
+        "  --select I,X,Y     select the building at tile X,Y of island I (index) and look at it\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
@@ -166,6 +168,20 @@ int main(int argc, char** argv) {
             if (!parse_input(argv[++i], options.input)) {
                 return usage();
             }
+        } else if (arg == "--select" && has_value) {
+            std::array<std::int32_t, 3> v{};
+            std::string_view rest = argv[++i];
+            bool ok = true;
+            for (std::size_t k = 0; k < 3; ++k) {
+                const std::size_t comma = rest.find(',');
+                ok = ok && parse_number(rest.substr(0, comma), v[k]) && v[k] >= 0 && v[k] <= 0xFFFF;
+                rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1);
+            }
+            if (!ok) {
+                return usage();
+            }
+            options.select = std::array<std::uint16_t, 3>{
+                static_cast<std::uint16_t>(v[0]), static_cast<std::uint16_t>(v[1]), static_cast<std::uint16_t>(v[2])};
         } else if (arg == "--no-videos") {
             options.videos = false;
         } else if (arg == "--intro") {

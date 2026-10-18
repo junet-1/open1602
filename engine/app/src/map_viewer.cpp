@@ -226,6 +226,20 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_simulation.set_tick_observer(
         [self](const sim::World& now) { self->m_ambient.tick(now, self->m_buildings, self->m_figures); });
     viewer->m_ambient.tick(viewer->m_world, viewer->m_buildings, viewer->m_figures);
+    if (options.select && viewer->m_hud && (*options.select)[0] < viewer->m_world.islands().size()) {
+        const auto& [isl, sx, sy] = *options.select;
+        const sim::WorldIsland& island = viewer->m_world.islands()[isl];
+        if (island.map.contains(sx, sy)) {
+            const sim::SubTile t = island.map.sub_tile(viewer->m_buildings, sx, sy);
+            Selection sel;
+            sel.kind = Selection::Kind::Building;
+            sel.island = isl;
+            sel.x = static_cast<std::uint16_t>(t.building != nullptr ? t.origin_x : sx);
+            sel.y = static_cast<std::uint16_t>(t.building != nullptr ? t.origin_y : sy);
+            viewer->m_hud->set_selection(sel);
+            viewer->m_camera.center_on(render::TilePos{island.x + sx, island.y + sy});
+        }
+    }
     if (auto status = viewer->ensure_graphics(viewer->m_camera.view().zoom); !status) {
         return status.error();
     }
@@ -461,6 +475,13 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 }
                 break;  // the map does not see clicks on the frame
             }
+            if (event.button.button == SDL_BUTTON_LEFT && m_hud && m_hud->picking()) {
+                // A window waits for a place on the map (a unit's destination).
+                if (const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y)) {
+                    m_hud->map_click(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y));
+                }
+                break;
+            }
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 m_dragging = true;
                 m_drag_distance = 0.0;
@@ -654,6 +675,9 @@ void MapViewer::handle_key(int key, bool shift) {
     const double cy = h / 2.0;
     switch (key) {
         case SDLK_ESCAPE:
+            if (m_hud && m_hud->back()) {
+                break;  // a window went back a page
+            }
             if (m_hud && m_hud->mode() == Hud::kModeBuild) {
                 if (const auto a = m_hud->set_mode(Hud::kModeInfo)) {
                     apply_hud(*a);

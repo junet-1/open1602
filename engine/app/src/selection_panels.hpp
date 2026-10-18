@@ -67,6 +67,13 @@ public:
     /// Help text of the gadget under the mouse.
     [[nodiscard]] virtual std::optional<std::string> help(std::int32_t id, const Selection& selection,
                                                           const PanelContext& context) const = 0;
+    /// Whether the window waits for a click on the map (a unit's destination, a route stop).
+    [[nodiscard]] virtual bool picking() const { return false; }
+    /// The click on the map while picking, world tile.
+    virtual void picked(std::uint32_t /*x*/, std::uint32_t /*y*/, const Selection& /*selection*/,
+                        const PanelContext& /*context*/, std::vector<sim::Command>& /*out*/) {}
+    /// Escape: back one page or out of picking; false if there is nothing to go back from.
+    virtual bool back() { return false; }
 };
 
 /// A window of one layout.

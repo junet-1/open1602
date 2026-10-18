@@ -64,6 +64,19 @@ void Panel::set_hidden(std::int32_t id, bool on) {
     }
 }
 
+void Panel::set_no_select(std::int32_t id, bool on) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_state[*i].no_select = on;
+    }
+}
+
+void Panel::set_visible(std::int32_t id, bool on) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_state[*i].hidden = !on;
+        m_state[*i].no_select = !on;
+    }
+}
+
 void Panel::set_disabled(std::int32_t id, bool on) {
     if (const auto i = m_layout.index_of(id)) {
         m_state[*i].disabled = on;
@@ -111,7 +124,7 @@ std::optional<std::size_t> Panel::hit(std::int32_t x, std::int32_t y) const {
     std::optional<std::size_t> found;
     for (std::size_t i = 0; i < m_layout.gadgets.size(); ++i) {
         const assets::Gadget& g = m_layout.gadgets[i];
-        if (g.kind == GadgetKind::Unused || g.no_select) {
+        if (g.kind == GadgetKind::Unused || g.no_select || m_state[i].no_select) {
             continue;
         }
         if (x >= g.pos[0] && y >= g.pos[1] && x < g.pos[0] + g.size[0] && y < g.pos[1] + g.size[1]) {

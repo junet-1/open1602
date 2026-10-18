@@ -166,7 +166,7 @@ public:
         const std::string tons = c.text("GAME", kGameTons);
         const auto show = [&](const auto& group, bool on) {
             for (const std::int32_t id : group) {
-                m_panel.set_hidden(id, !on);
+                m_panel.set_visible(id, on);
             }
         };
         const auto ware = [&](std::int32_t icon, std::int32_t amount, std::uint8_t w, std::int64_t stock) {
@@ -284,9 +284,9 @@ public:
         if (const ui::BuildCategory* cat = menu.category_of(b->id)) {
             const auto index = static_cast<std::int32_t>(cat->index_of(b->id).value_or(0));
             m_panel.set_graphic(62021, m_gfx_bauhaus + cat->icon_offset + index, 0);
-            m_panel.set_hidden(62021, false);
+            m_panel.set_visible(62021, true);
         } else {
-            m_panel.set_hidden(62021, true);
+            m_panel.set_visible(62021, false);
         }
     }
     void clicked(const ui::PanelEvent&, const Selection&, const PanelContext&, std::vector<sim::Command>&) override {}
@@ -361,10 +361,10 @@ public:
         }
         // No handler in the original: the Kontor picture. The free trader can not be called yet.
         m_stadt.set_disabled(city_ids::kKontorPicture, true);
-        m_stadt.set_hidden(city_ids::kTrader, true);
-        m_lager.set_hidden(city_ids::kLDeadSlider, true);
-        m_lager.set_hidden(44134, true);  // marker and corner of the 24th place: never shown
-        m_lager.set_hidden(44164, true);
+        m_stadt.set_visible(city_ids::kTrader, false);
+        m_lager.set_visible(city_ids::kLDeadSlider, false);
+        m_lager.set_visible(44134, false);  // marker and corner of the 24th place: never shown
+        m_lager.set_visible(44164, false);
     }
 
     void set_scale(double scale) override {
@@ -661,9 +661,9 @@ private:
         for (std::int32_t k = 0; k < city_ids::kKSlots; ++k) {
             const bool ware = k < static_cast<std::int32_t>(list.size());
             const bool slot = ware || k < slots;
-            m_kontor.set_hidden(city_ids::kKIcon + k, !slot);
-            m_kontor.set_hidden(city_ids::kKFrame + k, !slot);
-            m_kontor.set_hidden(city_ids::kKBar + k, !ware);
+            m_kontor.set_visible(city_ids::kKIcon + k, slot);
+            m_kontor.set_visible(city_ids::kKFrame + k, slot);
+            m_kontor.set_visible(city_ids::kKBar + k, ware);
             m_kontor.set_selected(city_ids::kKFrame + k, k == m_slot);
             if (ware) {
                 const std::uint8_t w = list[static_cast<std::size_t>(k)];
@@ -675,7 +675,7 @@ private:
         }
         const bool chosen = m_slot < static_cast<std::int32_t>(list.size());
         for (const std::int32_t id : {city_ids::kKName, city_ids::kKPrice}) {
-            m_kontor.set_hidden(id, !chosen);
+            m_kontor.set_visible(id, chosen);
         }
         for (const std::int32_t id : {city_ids::kKPriceDown, city_ids::kKPriceUp, city_ids::kKPriceSlider,
                                       city_ids::kKLimit, city_ids::kKStop}) {
@@ -722,8 +722,8 @@ private:
             m_lager.set_slider(city_ids::kLBar + w, 1, static_cast<std::int32_t>(city.stock(w)), cap);
             const bool buy = t != nullptr && t->buy;
             const bool sell = t != nullptr && t->sell;
-            m_lager.set_hidden(city_ids::kLMarker + w, !buy && !sell);
-            m_lager.set_hidden(city_ids::kLCorner + w, !buy && !sell);
+            m_lager.set_visible(city_ids::kLMarker + w, !(!buy && !sell));
+            m_lager.set_visible(city_ids::kLCorner + w, !(!buy && !sell));
             if (buy || sell) {
                 m_lager.set_slider(city_ids::kLMarker + w, 1, static_cast<std::int32_t>(buy ? t->limit : t->keep), cap);
                 // Price level 0 (cheapest) .. 4 (base price).
@@ -736,8 +736,8 @@ private:
         }
         // The 24th place: the empty frame that closes the picker.
         const std::int32_t last = kLastTradeWare + 1;
-        m_lager.set_hidden(city_ids::kLIcon + last, !picker);
-        m_lager.set_hidden(city_ids::kLFrame + last, !picker);
+        m_lager.set_visible(city_ids::kLIcon + last, picker);
+        m_lager.set_visible(city_ids::kLFrame + last, picker);
         if (picker) {
             m_lager.set_graphic(city_ids::kLIcon + last, m_gfx_empty, 0);
         }
@@ -833,9 +833,9 @@ public:
         for (std::size_t k = 0; k < kDemandSlots; ++k) {
             const auto id = static_cast<std::int32_t>(k);
             const bool on = k < m_demand.size();
-            m_panel.set_hidden(kDemandIcon + id, !on);
-            m_panel.set_hidden(kDemandBar + id, !on);
-            m_panel.set_hidden(kDemandFrame + id, !on);
+            m_panel.set_visible(kDemandIcon + id, on);
+            m_panel.set_visible(kDemandBar + id, on);
+            m_panel.set_visible(kDemandFrame + id, on);
             if (on) {
                 m_panel.set_graphic(kDemandIcon + id, m_gfx_ware + m_demand[k].first, 0);
                 m_panel.set_slider(kDemandBar + id, 1, m_demand[k].second, 128);
@@ -877,8 +877,8 @@ public:
         for (std::size_t k = 0; k < kServices; ++k) {
             const auto id = kService + static_cast<std::int32_t>(k);
             const bool on = k < m_missing.size();
-            m_panel.set_hidden(id, !on);
-            m_panel.set_hidden(kServiceHover + static_cast<std::int32_t>(k), !on);
+            m_panel.set_visible(id, on);
+            m_panel.set_visible(kServiceHover + static_cast<std::int32_t>(k), on);
             if (!on) {
                 continue;
             }
@@ -1075,6 +1075,532 @@ private:
     bool m_lacks_now = false;
 };
 
+// ---- Shipyards -----------------------------------------------------------------------------------
+
+const sim::CostBuilding* cost_building_at(const Selection& s, const PanelContext& c, sim::CostBuilding::Kind kind) {
+    for (const sim::CostBuilding& b : c.world().cost_buildings()) {
+        if (b.kind == kind && b.island == s.island && b.x == s.x && b.y == s.y) {
+            return &b;
+        }
+    }
+    return nullptr;
+}
+
+constexpr std::uint16_t kFirstShipFigure = 21;  // HANDEL1; the four types are 21, 23, 25, 27
+
+/// WERFT (the yard and its order) and BAUSHIP (the choice of the ship type)
+/// (ShipyardPanel_Refresh 0x00435B40, ShipTypePanel_Refresh 0x00435EF0).
+class ShipyardPanel final : public SelectionPanel {
+public:
+    ShipyardPanel(assets::GadgetLayout werft, assets::GadgetLayout bauship)
+        : m_werft(std::move(werft), 1.0), m_bauship(std::move(bauship), 1.0) {
+        m_gfx_ware = m_werft.layout().constant("GFXWARE").value_or(192);
+        for (std::int32_t k = 0; k < 4; ++k) {
+            if (const assets::Gadget* g = m_bauship.layout().find(kType + k)) {
+                m_type_x[static_cast<std::size_t>(k)] = g->offset[0];
+            }
+        }
+    }
+    void set_scale(double scale) override {
+        m_werft.set_scale(scale);
+        m_bauship.set_scale(scale);
+    }
+    ui::Panel& panel() override { return m_choose ? m_bauship : m_werft; }
+
+    void refresh(const Selection& s, const PanelContext& c) override {
+        Selection key = s;
+        key.again = false;
+        if (key != m_last) {
+            m_last = key;
+            m_choose = false;
+        }
+        const assets::BuildingType* b = building_at(s, c);
+        const sim::CostBuilding* yard = cost_building_at(s, c, sim::CostBuilding::Kind::Shipyard);
+        const sim::City* city = city_at(s, c);
+        if (b == nullptr || yard == nullptr) {
+            return;
+        }
+        const std::string tons = c.text("GAME", kGameTons);
+        const auto ware_row = [&](ui::Panel& p, std::int32_t icon, std::int32_t amount, std::uint8_t w,
+                                  std::uint32_t stock) {
+            p.set_graphic(icon, m_gfx_ware + w, 0);
+            p.set_text(amount, ui::format_text(tons, {std::int64_t{stock >> 5U}}));
+        };
+        if (m_choose) {
+            m_bauship.set_text(60002, city != nullptr ? city->name : std::string());
+            // A small yard (three tiles wide) builds the small types only, moved to the middle.
+            const bool small = b->size_x == 3;
+            for (std::int32_t k = 0; k < 4; ++k) {
+                const bool big = k == 1 || k == 3;
+                m_bauship.set_visible(kType + k, !(small && big));
+                m_bauship.set_offset(kType + k, m_type_x[static_cast<std::size_t>(k)] + (small && !big ? 40 : 0), 0);
+            }
+            if (small && (m_type == 1 || m_type == 3)) {
+                m_type = static_cast<std::uint8_t>(m_type - 1);
+            }
+            for (std::int32_t k = 0; k < 4; ++k) {
+                m_bauship.set_selected(kType + k, k == m_type);
+            }
+            if (const assets::FigureType* f = c.figures.get(kFirstShipFigure + 2U * m_type)) {
+                m_bauship.set_text(60015, ui::format_text(tons, {std::int64_t{f->ship.cargo_slots} * 50}));
+                m_bauship.set_text(60017, std::to_string(f->ship.max_cannons));
+                m_bauship.set_text(60019, ui::format_text(c.text("GAME", 47), {std::int64_t{f->speed / 20}}));
+                const std::uint32_t wood = f->ship.build_amount;
+                m_bauship.set_text(60020, std::to_string(wood >> 5U));
+                const std::uint64_t cloth =
+                    b->raw_amount != 0 ? std::uint64_t{b->raw2_amount} * wood / (std::uint64_t{b->raw_amount} * 32) : 0;
+                m_bauship.set_text(60021, std::to_string(cloth));
+            }
+            ware_row(m_bauship, 60031, 60041, b->raw_ware, yard->wood);
+            ware_row(m_bauship, 60032, 60042, b->raw2_ware, yard->cloth);
+            return;
+        }
+        m_werft.set_text(39002, city != nullptr ? city->name : std::string());
+        m_werft.set_text(39006, building_name(*b, c));
+        m_werft.set_text(39003, c.text("GAME", kGameRunningCost));
+        m_werft.set_text(39004, std::to_string(yard->enabled ? b->running_cost : b->idle_cost));
+        ware_row(m_werft, 39021, 39031, b->raw_ware, yard->wood);
+        ware_row(m_werft, 39022, 39032, b->raw2_ware, yard->cloth);
+        const bool order = yard->order != sim::CostBuilding::kNoOrder;
+        for (const std::int32_t id : {39011, 39012, 39014, 39015}) {
+            m_werft.set_visible(id, order);
+        }
+        m_werft.set_visible(39016, !(order));
+        m_werft.set_visible(39017, order);
+        m_werft.set_selected(39018, !yard->enabled);
+        if (order) {
+            const assets::FigureType* f = c.figures.get(kFirstShipFigure + 2U * yard->order);
+            const std::uint32_t need = f != nullptr ? std::max<std::uint32_t>(f->ship.build_amount, 1) : 1;
+            m_werft.set_slider(
+                39012, 1,
+                static_cast<std::int32_t>(std::min<std::uint64_t>(std::uint64_t{yard->progress} * 1024 / need, 1024)),
+                1024);
+            for (const std::int32_t id : {39014, 39015}) {
+                m_werft.set_graphic(id, yard->order, 0);
+            }
+        }
+    }
+
+    void clicked(const ui::PanelEvent& e, const Selection& s, const PanelContext& c,
+                 std::vector<sim::Command>& out) override {
+        if (e.kind != ui::PanelEvent::Kind::Clicked) {
+            return;
+        }
+        const sim::CostBuilding* yard = cost_building_at(s, c, sim::CostBuilding::Kind::Shipyard);
+        if (yard == nullptr) {
+            return;
+        }
+        sim::ShipyardOrder o;
+        o.player = c.local;
+        o.island = s.island;
+        o.x = s.x;
+        o.y = s.y;
+        if (m_choose) {
+            if (e.id >= kType && e.id < kType + 4) {
+                m_type = static_cast<std::uint8_t>(e.id - kType);
+            } else if (e.id == 60022) {
+                o.op = sim::ShipyardOrder::Op::Build;
+                o.ship_type = m_type;
+                out.emplace_back(o);
+                m_choose = false;
+            }
+            return;
+        }
+        switch (e.id) {
+            case 39016:  // order a ship: the type choice, the first type picked
+                m_choose = true;
+                m_type = 0;
+                break;
+            case 39017:
+                o.op = sim::ShipyardOrder::Op::Cancel;
+                out.emplace_back(o);
+                break;
+            case 39018:
+                o.op = sim::ShipyardOrder::Op::Enable;
+                o.on = !yard->enabled;
+                out.emplace_back(o);
+                break;
+            default:
+                break;
+        }
+    }
+
+    [[nodiscard]] std::optional<std::string> help(std::int32_t id, const Selection& s,
+                                                  const PanelContext& c) const override {
+        const auto line = [&](std::size_t n) { return std::optional<std::string>(help_line(c, n)); };
+        const sim::CostBuilding* yard = cost_building_at(s, c, sim::CostBuilding::Kind::Shipyard);
+        if (m_choose) {
+            if (id >= kType && id < kType + 4) {
+                return line(static_cast<std::size_t>(95 + id - kType));
+            }
+            switch (id) {
+                case 60002:
+                    return line(kHelpCityName);
+                case 60015:
+                    return line(89);
+                case 60017:
+                    return line(90);
+                case 60019:
+                    return line(91);
+                case 60020:
+                    return line(93);
+                case 60021:
+                    return line(92);
+                case 60022:
+                    return line(87);
+                case 60051:
+                    return line(101);
+                case 60052:
+                    return line(102);
+                default:
+                    return std::nullopt;
+            }
+        }
+        switch (id) {
+            case 39002:
+                return line(kHelpCityName);
+            case 39013:
+                return line(94);
+            case 39015:
+                return yard != nullptr && yard->order < 4 ? line(95U + yard->order) : std::nullopt;
+            case 39016:
+                return line(87);
+            case 39017:
+                return line(88);
+            case 39018:
+                return line(yard != nullptr && yard->enabled ? 99 : 100);
+            case 39041:
+                return line(101);
+            case 39042:
+                return line(102);
+            default:
+                return std::nullopt;
+        }
+    }
+
+    bool back() override {
+        if (!m_choose) {
+            return false;
+        }
+        m_choose = false;
+        return true;
+    }
+
+private:
+    static constexpr std::int32_t kType = 60003;
+    ui::Panel m_werft;
+    ui::Panel m_bauship;
+    std::int32_t m_gfx_ware = 192;
+    std::array<std::int32_t, 4> m_type_x{};
+    bool m_choose = false;
+    std::uint8_t m_type = 0;
+    Selection m_last;
+};
+
+// ---- Castles -------------------------------------------------------------------------------------
+
+/// MILITAR: training places, the unit to train, its pay and weapons (CastlePanel_Refresh 0x004385E0).
+class CastlePanel final : public SimplePanel {
+public:
+    explicit CastlePanel(assets::GadgetLayout layout) : SimplePanel(std::move(layout)) {
+        const assets::GadgetLayout& l = m_panel.layout();
+        m_gfx_ware = l.constant("GFXWARE").value_or(192);
+        m_gfx_empty = l.constant("GFXWARELEER").value_or(188) + 1;
+        if (const assets::Gadget* g = l.find(40007)) {
+            m_weapon_icon = g->gfx;
+        }
+    }
+
+    void refresh(const Selection& s, const PanelContext& c) override {
+        const assets::BuildingType* b = building_at(s, c);
+        const sim::CostBuilding* castle = cost_building_at(s, c, sim::CostBuilding::Kind::Castle);
+        const sim::City* city = city_at(s, c);
+        const sim::Player* owner = city != nullptr ? c.world().player(city->owner) : nullptr;
+        if (b == nullptr || castle == nullptr || owner == nullptr) {
+            return;
+        }
+        m_panel.set_text(40002, city->name);
+        const std::int32_t places = std::min<std::int32_t>(b->max_wares, 9);
+        const std::int32_t colour = std::min<std::int32_t>(owner->banner, 3);
+        for (std::int32_t k = 0; k < 9; ++k) {
+            const bool place = k < places;
+            const bool used = place && static_cast<std::size_t>(k) < castle->slots.size();
+            m_panel.set_visible(40091 + k, place);
+            m_panel.set_visible(40031 + k, place);
+            m_panel.set_visible(40071 + k, used);
+            m_panel.set_visible(40051 + k, used);
+            m_panel.set_selected(40091 + k, k == m_slot);
+            if (!place) {
+                continue;
+            }
+            if (!used) {
+                m_panel.set_graphic(40031 + k, m_gfx_empty, 0);
+                m_panel.set_disabled(40031 + k, false);
+                continue;
+            }
+            const sim::CastleSlot& slot = castle->slots[static_cast<std::size_t>(k)];
+            const assets::FigureType* f = c.figures.get(slot.figure);
+            const std::int32_t kind = f != nullptr ? f->kind : 1;
+            // The soldier icons follow the wares: four colours per kind of unit.
+            m_panel.set_graphic(40031 + k, m_gfx_ware + 21 + colour + 4 * kind, 0);
+            m_panel.set_disabled(40031 + k, slot.training);
+            m_panel.set_text(40071 + k, std::to_string(std::min<std::uint32_t>(slot.progress, 320) * 10 / 320));
+            const std::uint32_t max = f != nullptr ? std::max<std::uint32_t>(f->combat.max_health, 1) : 1;
+            m_panel.set_slider(40051 + k, 1, static_cast<std::int32_t>(std::min(slot.health, max)),
+                               static_cast<std::int32_t>(max));
+        }
+        for (std::int32_t u = 0; u < 4; ++u) {
+            m_panel.set_selected(40021 + u, u == m_unit);
+        }
+        const assets::FigureType* unit = c.figures.get(unit_figure(colour));
+        if (unit != nullptr) {
+            m_panel.set_text(40006, std::to_string(c.figures.unit_upkeep(unit->kind)));
+            m_panel.set_graphic(40007, m_weapon_icon + unit->combat.weapon_ware - 11, 0);
+            m_panel.set_text(40008, std::to_string(unit->combat.weapon_amount >> 5U));
+        }
+        for (std::int32_t w = 0; w < 3; ++w) {
+            m_panel.set_graphic(40111 + w, m_gfx_ware + 11 + w, 0);
+            m_panel.set_text(40121 + w,
+                             ui::format_text(c.text("GAME", kGameTons),
+                                             {std::int64_t{castle->weapons[static_cast<std::size_t>(w)] >> 5U}}));
+        }
+        const bool free = static_cast<std::int32_t>(castle->slots.size()) < places;
+        m_panel.set_disabled(40009, !free);
+        const bool chosen = static_cast<std::size_t>(m_slot) < castle->slots.size();
+        m_panel.set_visible(40003, chosen);
+        m_panel.set_visible(40004, !(!chosen || castle->slots[static_cast<std::size_t>(std::max(m_slot, 0))].training));
+    }
+
+    void clicked(const ui::PanelEvent& e, const Selection& s, const PanelContext& c,
+                 std::vector<sim::Command>& out) override {
+        if (e.kind != ui::PanelEvent::Kind::Clicked) {
+            return;
+        }
+        const sim::CostBuilding* castle = cost_building_at(s, c, sim::CostBuilding::Kind::Castle);
+        const sim::City* city = city_at(s, c);
+        const sim::Player* owner = city != nullptr ? c.world().player(city->owner) : nullptr;
+        if (castle == nullptr || owner == nullptr) {
+            return;
+        }
+        if (e.id >= 40091 && e.id < 40100) {
+            m_slot = e.id - 40091;
+            return;
+        }
+        if (e.id >= 40021 && e.id <= 40024) {
+            m_unit = e.id - 40021;
+            return;
+        }
+        sim::CastleOrder o;
+        o.player = c.local;
+        o.island = s.island;
+        o.x = s.x;
+        o.y = s.y;
+        o.slot = static_cast<std::uint8_t>(std::max(m_slot, 0));
+        switch (e.id) {
+            case 40009:
+                o.op = sim::CastleOrder::Op::Recruit;
+                o.figure = unit_figure(std::min<std::int32_t>(owner->banner, 3));
+                out.emplace_back(o);
+                break;
+            case 40003:
+                o.op = sim::CastleOrder::Op::Cancel;
+                out.emplace_back(o);
+                break;
+            case 40004:
+                m_picking = true;  // the unit's destination: the next click on the map
+                break;
+            default:
+                break;
+        }
+    }
+
+    [[nodiscard]] bool picking() const override { return m_picking; }
+    void picked(std::uint32_t x, std::uint32_t y, const Selection& s, const PanelContext& c,
+                std::vector<sim::Command>& out) override {
+        m_picking = false;
+        sim::CastleOrder o;
+        o.player = c.local;
+        o.island = s.island;
+        o.x = s.x;
+        o.y = s.y;
+        o.op = sim::CastleOrder::Op::Release;
+        o.slot = static_cast<std::uint8_t>(std::max(m_slot, 0));
+        o.spot = sim::Target::spot(2 * x + 1, 2 * y + 1);
+        out.emplace_back(o);
+    }
+    bool back() override {
+        const bool was = m_picking;
+        m_picking = false;
+        return was;
+    }
+
+    [[nodiscard]] std::optional<std::string> help(std::int32_t id, const Selection& s,
+                                                  const PanelContext& c) const override {
+        const auto line = [&](std::size_t n) { return std::optional<std::string>(help_line(c, n)); };
+        switch (id) {
+            case 40003:
+                return line(85);
+            case 40004:
+                return line(84);
+            case 40006:
+                return line(83);
+            case 40009:
+                return line(86);
+            default:
+                break;
+        }
+        if (id >= 40021 && id <= 40024) {
+            return line(82);
+        }
+        const sim::CostBuilding* castle = cost_building_at(s, c, sim::CostBuilding::Kind::Castle);
+        if (castle == nullptr) {
+            return std::nullopt;
+        }
+        if (id == 40008) {
+            const sim::City* city = city_at(s, c);
+            const sim::Player* owner = city != nullptr ? c.world().player(city->owner) : nullptr;
+            const assets::FigureType* unit =
+                owner != nullptr ? c.figures.get(unit_figure(std::min<std::int32_t>(owner->banner, 3))) : nullptr;
+            if (unit == nullptr) {
+                return std::nullopt;
+            }
+            return ui::format_text(c.text("GAME", 73), {std::int64_t{unit->combat.weapon_amount >> 5U},
+                                                        std::string_view(c.text("WARE", unit->combat.weapon_ware))});
+        }
+        if (id >= 40091 && id < 40100) {
+            const auto k = static_cast<std::size_t>(id - 40091);
+            if (k >= castle->slots.size()) {
+                return std::nullopt;
+            }
+            const sim::CastleSlot& slot = castle->slots[k];
+            std::string text = slot.progress >= 320
+                                   ? c.text("GAME", 75)
+                                   : ui::format_text(c.text("GAME", 74), {std::int64_t{slot.progress * 100 / 320}});
+            if (!slot.armed) {
+                text += c.text("GAME", 76);
+            }
+            return text;
+        }
+        if (id >= 40131 && id <= 40133) {
+            const auto w = static_cast<std::uint8_t>(11 + id - 40131);
+            return ui::format_text(c.text("GAME", 50),
+                                   {std::int64_t{castle->weapons[static_cast<std::size_t>(w - 11)] >> 5U},
+                                    std::string_view(c.text("WARE", w))});
+        }
+        return std::nullopt;
+    }
+
+private:
+    /// SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1 of a colour: 1 + colour + 4 * unit.
+    [[nodiscard]] std::uint16_t unit_figure(std::int32_t colour) const noexcept {
+        return static_cast<std::uint16_t>(1 + colour + 4 * m_unit);
+    }
+    std::int32_t m_gfx_ware = 192;
+    std::int32_t m_gfx_empty = 189;
+    std::int32_t m_weapon_icon = 432;
+    std::int32_t m_slot = 0;
+    std::int32_t m_unit = 0;
+    bool m_picking = false;
+};
+
+// ---- A foreign Kontor --------------------------------------------------------------------------
+
+/// HANDEL: what a foreign Kontor with a trade treaty wants and offers (ForeignKontorPanel_Refresh
+/// 0x004357D0).
+class ForeignKontorPanel final : public SimplePanel {
+public:
+    explicit ForeignKontorPanel(assets::GadgetLayout layout) : SimplePanel(std::move(layout)) {
+        m_gfx_ware = m_panel.layout().constant("GFXWARE").value_or(192);
+        m_gfx_empty = m_panel.layout().constant("GFXWARELEER").value_or(188) + 1;
+    }
+
+    void refresh(const Selection& s, const PanelContext& c) override {
+        const sim::City* city = city_at(s, c);
+        if (city == nullptr) {
+            return;
+        }
+        m_panel.set_text(53002, city->name);
+        m_panel.set_text(53003, c.text("GAME", 36));
+        m_panel.set_text(53004, c.text("GAME", 35));
+        const assets::BuildingType* k = sim::kontor_of(c.world(), c.buildings, *city);
+        fill(*city, true, 53011, 53031, 53051, 11, k != nullptr ? k->max_wares2 : 0);
+        fill(*city, false, 53071, 53081, 53091, 8, k != nullptr ? k->max_wares : 0);
+    }
+    void clicked(const ui::PanelEvent&, const Selection&, const PanelContext&, std::vector<sim::Command>&) override {}
+
+    [[nodiscard]] std::optional<std::string> help(std::int32_t id, const Selection& s,
+                                                  const PanelContext& c) const override {
+        const sim::City* city = city_at(s, c);
+        if (city == nullptr) {
+            return std::nullopt;
+        }
+        const auto row = [&](bool buy, std::size_t k) -> std::optional<std::string> {
+            const auto& list = buy ? m_buy : m_sell;
+            if (k >= list.size()) {
+                return std::nullopt;
+            }
+            const std::uint8_t w = list[k];
+            const sim::City::Trade* t = city->trade_of(w);
+            const std::int64_t price = t == nullptr ? 0 : (buy ? t->buy_price : t->sell_price);
+            return ui::format_text(c.text("GAME", 58), {std::int64_t{amount(*city, w, buy) >> 5U},
+                                                        std::string_view(c.text("WARE", w)), price});
+        };
+        if (id >= 53051 && id <= 53061) {
+            return row(true, static_cast<std::size_t>(id - 53051));
+        }
+        if (id >= 53091 && id <= 53098) {
+            return row(false, static_cast<std::size_t>(id - 53091));
+        }
+        return std::nullopt;
+    }
+
+private:
+    /// What the city still buys (up to its limit) or sells (above what it keeps), 0 below 1 t.
+    static std::uint32_t amount(const sim::City& city, std::uint8_t w, bool buy) {
+        const sim::City::Trade* t = city.trade_of(w);
+        if (t == nullptr) {
+            return 0;
+        }
+        const std::int64_t stock = city.stock(w);
+        const std::int64_t reserved = city.reserved_of(w);
+        const std::int64_t n =
+            buy ? std::int64_t{t->limit} - stock + reserved : stock - std::int64_t{t->keep} - reserved;
+        return n < 32 ? 0 : static_cast<std::uint32_t>(n);
+    }
+    void fill(const sim::City& city, bool buy, std::int32_t icon, std::int32_t bar, std::int32_t frame,
+              std::int32_t gadgets, std::int32_t places) {
+        auto& list = buy ? m_buy : m_sell;
+        list.clear();
+        for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
+            const sim::City::Trade* t = city.trade_of(w);
+            if (t != nullptr && (buy ? t->buy : t->sell)) {
+                list.push_back(w);
+            }
+        }
+        const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city.capacity, 1));
+        for (std::int32_t k = 0; k < gadgets; ++k) {
+            const bool ware = k < static_cast<std::int32_t>(list.size());
+            const bool place = ware || k < places;
+            m_panel.set_visible(icon + k, place);
+            m_panel.set_visible(frame + k, place);
+            m_panel.set_visible(bar + k, ware);
+            if (ware) {
+                const std::uint8_t w = list[static_cast<std::size_t>(k)];
+                m_panel.set_graphic(icon + k, m_gfx_ware + w, 0);
+                m_panel.set_slider(
+                    bar + k, 1, static_cast<std::int32_t>(std::min<std::uint32_t>(amount(city, w, buy), city.capacity)),
+                    cap);
+            } else if (place) {
+                m_panel.set_graphic(icon + k, m_gfx_empty, 0);
+            }
+        }
+    }
+    std::int32_t m_gfx_ware = 192;
+    std::int32_t m_gfx_empty = 189;
+    std::vector<std::uint8_t> m_buy;
+    std::vector<std::uint8_t> m_sell;
+};
+
 }  // namespace
 
 // ---- The set -------------------------------------------------------------------------------------
@@ -1102,6 +1628,17 @@ SelectionPanels::SelectionPanels(const assets::GameDirectory& game) {
         if (kontor && lager) {
             m_panels["STADT"] = std::make_unique<CityPanel>(std::move(*stadt), std::move(*kontor), std::move(*lager));
         }
+    }
+    if (auto werft = load("WERFT.GAD")) {
+        if (auto bauship = load("BAUSHIP.GAD")) {
+            m_panels["WERFT"] = std::make_unique<ShipyardPanel>(std::move(*werft), std::move(*bauship));
+        }
+    }
+    if (auto l = load("MILITAR.GAD")) {
+        m_panels["MILITAR"] = std::make_unique<CastlePanel>(std::move(*l));
+    }
+    if (auto l = load("HANDEL.GAD")) {
+        m_panels["HANDEL"] = std::make_unique<ForeignKontorPanel>(std::move(*l));
     }
     if (auto l = load("SIEDLER.GAD")) {
         m_panels["SIEDLER"] = std::make_unique<SettlerPanel>(std::move(*l));
@@ -1132,7 +1669,13 @@ SelectionPanel* SelectionPanels::panel_for(const Selection& s, const PanelContex
     }
     const sim::MapCell& top = c.world().islands()[s.island].map.top(s.x, s.y);
     if (top.owner != c.local) {
-        return nullptr;  // foreign buildings: only Kontor and market with a trade treaty (HANDEL, later)
+        // Foreign buildings: only Kontor and market, and only with a trade treaty.
+        const sim::City* city = city_at(s, c);
+        if ((b->prod_kind == 7 || b->prod_kind == 8) && city != nullptr && c.local != sim::kNoPlayer &&
+            c.world().diplomacy().may_trade(c.local, city->owner)) {
+            return get("HANDEL");
+        }
+        return nullptr;
     }
     // Panel_UpdateSelection 0x0043AA00: the building's HAUS_PRODTYP Kind decides.
     switch (b->prod_kind) {
@@ -1150,6 +1693,13 @@ SelectionPanel* SelectionPanels::panel_for(const Selection& s, const PanelContex
     }
     if (b->prod_kind >= 0x11 && b->prod_kind <= 0x1B) {
         return get("INFRA");
+    }
+    if (b->prod_kind == 14 && cost_building_at(s, c, sim::CostBuilding::Kind::Shipyard) != nullptr) {
+        return get("WERFT");
+    }
+    if (b->prod_kind == 15 && cost_building_at(s, c, sim::CostBuilding::Kind::Castle) != nullptr &&
+        city_at(s, c) != nullptr) {
+        return get("MILITAR");
     }
     if (b->prod_kind == 13 && c.world().house(s.island, s.x, s.y) != nullptr && city_at(s, c) != nullptr) {
         return get("SIEDLER");

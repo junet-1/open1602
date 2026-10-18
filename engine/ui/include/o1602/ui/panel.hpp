@@ -99,6 +99,11 @@ public:
     void set_selected(std::int32_t id, bool on);
     [[nodiscard]] bool selected(std::int32_t id) const;
     void set_hidden(std::int32_t id, bool on);
+    /// Not clickable (Gad_SetNoSel 0x004072D0).
+    void set_no_select(std::int32_t id, bool on);
+    /// Hidden and not clickable, or both undone: what the original's windows do with gadgets that
+    /// do not apply (hidden ones would still answer the mouse).
+    void set_visible(std::int32_t id, bool on);
     void set_disabled(std::int32_t id, bool on);
     /// Slider value scaled to `range` (0x004074F0: (value * range + size / 2) / size) and back.
     [[nodiscard]] std::int32_t slider(std::int32_t id, std::size_t axis, std::int32_t range) const;
@@ -125,6 +130,7 @@ private:
         bool selected = false;
         bool hidden = false;
         bool disabled = false;
+        bool no_select = false;
         std::array<std::int32_t, 2> slider{};
         std::int32_t scroll = 0;
         std::string text;

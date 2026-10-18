@@ -220,23 +220,23 @@ void BuildPanel::draw(render::SdlUiRenderer& renderer, const assets::BuildingTab
     if (category != nullptr && category->demolish) {
         const auto& names = m_texts != nullptr ? m_texts->section("ABRISS") : std::vector<std::string>{};
         m_bau.set_text(kTitle, names.empty() ? std::string() : names[0]);
-        m_bau.set_hidden(kTitle, false);
+        m_bau.set_visible(kTitle, true);
     } else if (b != nullptr && category != nullptr) {
         m_bau.set_text(kTitle, name_of(*category, category->index_of(*id).value_or(0)));
-        m_bau.set_hidden(kTitle, false);
+        m_bau.set_visible(kTitle, true);
     } else {
-        m_bau.set_hidden(kTitle, true);
+        m_bau.set_visible(kTitle, false);
     }
     // Costs: goods in tons, gold, running cost while working.
     const bool show = b != nullptr;
     for (std::int32_t k = 0; k < kCosts; ++k) {
-        m_bau.set_hidden(kFirstCost + k, !show);
-        m_bau.set_hidden(kFirstCostIcon + k, !show);
+        m_bau.set_visible(kFirstCost + k, show);
+        m_bau.set_visible(kFirstCostIcon + k, show);
     }
-    m_bau.set_hidden(kPreview, !show);
-    m_bau.set_hidden(kPreviewShadow, !show);
+    m_bau.set_visible(kPreview, show);
+    m_bau.set_visible(kPreviewShadow, show);
     for (std::int32_t g = kChainFirst; g <= kChainLast; ++g) {
-        m_bau.set_hidden(g, true);
+        m_bau.set_visible(g, false);
     }
     if (b != nullptr) {
         const auto& c = b->build_cost;
@@ -263,7 +263,7 @@ void BuildPanel::draw(render::SdlUiRenderer& renderer, const assets::BuildingTab
                     continue;
                 }
                 m_bau.set_offset(g, original->offset[0] - shift, original->offset[1]);
-                m_bau.set_hidden(g, false);
+                m_bau.set_visible(g, true);
             }
             m_bau.set_graphic(gadget, m_gfx_ware + ware, 0);
         };
@@ -329,8 +329,8 @@ InfoPanel::InfoPanel(assets::GadgetLayout info, const assets::TextTable* texts) 
     }
     // Points (0x00474F90) and the lists behind the buttons come with the windows of the
     // interface; until then they are not offered.
-    m_panel.set_hidden(kInfoPointsLabel, true);
-    m_panel.set_hidden(kInfoPoints, true);
+    m_panel.set_visible(kInfoPointsLabel, false);
+    m_panel.set_visible(kInfoPoints, false);
     m_panel.set_disabled(kInfoRating, true);
     for (const std::int32_t id : kInfoLists) {
         m_panel.set_disabled(id, true);

@@ -108,6 +108,12 @@ public:
     /// What the player selected on the map; its window shows in the info mode.
     void set_selection(const Selection& selection) { m_selection = selection; }
     [[nodiscard]] const Selection& selection() const noexcept { return m_selection; }
+    /// Whether a window waits for a click on the map (the info mode).
+    [[nodiscard]] bool picking();
+    /// That click, world tile.
+    void map_click(std::uint32_t x, std::uint32_t y);
+    /// Escape: a window goes back a page or stops picking; false if nothing did.
+    bool back();
     /// Commands the windows gave since the last call.
     [[nodiscard]] std::vector<sim::Command> take_commands() { return std::exchange(m_commands, {}); }
     /// Switches the mode (also from the keys); returns what the tool should do.

@@ -78,6 +78,8 @@ struct ViewerOptions {
         std::int32_t key = 0;  ///< Key: SDL key code
     };
     std::vector<ScriptedInput> input;
+    /// Select the building on this island tile at the start (island index, x, y) and look at it.
+    std::optional<std::array<std::uint16_t, 3>> select;
 };
 
 class MapViewer {

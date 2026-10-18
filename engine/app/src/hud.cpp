@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/pathfinding.hpp"
@@ -171,6 +172,31 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
     }
     context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local});
     return m_selection_panels->panel_for(m_selection, *context);
+}
+
+bool Hud::picking() {
+    if (m_mode != kModeInfo) {
+        return false;
+    }
+    std::optional<PanelContext> context;
+    SelectionPanel* p = selection_panel(context);
+    return p != nullptr && p->picking();
+}
+
+void Hud::map_click(std::uint32_t x, std::uint32_t y) {
+    std::optional<PanelContext> context;
+    if (SelectionPanel* p = selection_panel(context); p != nullptr && p->picking()) {
+        p->picked(x, y, m_selection, *context, m_commands);
+    }
+}
+
+bool Hud::back() {
+    if (m_mode != kModeInfo) {
+        return false;
+    }
+    std::optional<PanelContext> context;
+    SelectionPanel* p = selection_panel(context);
+    return p != nullptr && p->back();
 }
 
 std::optional<Hud::Action> Hud::build_tool_action() {
