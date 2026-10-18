@@ -1,6 +1,6 @@
 # Was Open1602 von dir braucht
 
-Stand: 17.10.2026 (Schiffe, Militär, Piraten, eigene Welten und die Computergegner sind da; als Nächstes Ereignisse und die Oberfläche). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
+Stand: 18.10.2026 (Schiffe, Militär, Piraten, eigene Welten und die Computergegner sind da; als Nächstes Ereignisse und die Oberfläche). Wofür eine Beobachtung im Original noch fehlt, steht gesammelt in [stand.md](stand.md#13-klärung-nötig-verhalten-des-originals-nicht-belegt). Diese Liste sammelt alles, was ich (Claude) von dir an Spielständen, Bildern,
 Videos und Beobachtungen im Original brauche oder schon bekommen habe. Sie wird fortgeschrieben,
 sobald etwas dazukommt oder erledigt ist.
 
@@ -113,17 +113,23 @@ Nach Nutzen geordnet. Nichts davon ist dringend; alles läuft auch ohne weiter.
 | Wann | Was | Wofür |
 |---|---|---|
 | Militär (über Punkt 9 hinaus) | ein Stand mit einem zerstörten Kontor und einem Wachturm daneben (S-018), ein Video eines Seegefechts mit Kriegsschiffen | Gebietsverlust, Breitseite und Tempo des Seekampfs |
-| Computergegner (jetzt nützlich) | Stände eines Endlosspiels nach etwa einer und nach drei Stunden, damit ich sehe, wie weit die Computer im Original kommen; dazu kurz, wie stark du selbst gebaut hast (die Computer bekommen Zuschüsse, wenn sie hinter dir liegen) | Tempo und Stärke der KI abgleichen |
+| Computergegner (jetzt nützlich) | Stände eines Endlosspiels nach etwa einer und nach drei Stunden, damit ich sehe, wie weit die Computer im Original kommen; dazu kurz, wie stark du selbst gebaut hast (die Computer bekommen Zuschüsse, wenn sie hinter dir liegen); gern auch ein kurzes Video fahrender Computerschiffe | Tempo und Stärke der KI abgleichen |
 | Mehrspieler | erst wenn Open1602 Netzwerk kann | – |
 
 ## Nur bei Gelegenheit
 
-Punkte, die aus dem Code gefolgert und im Spiel nie gesehen wurden. Eine Beobachtung im Original
-würde sie bestätigen oder widerlegen; Open1602 vermeidet sie ohnehin.
+Punkte, die aus dem Code gefolgert oder im Spiel nie gesehen wurden. Eine Beobachtung im Original
+würde sie bestätigen oder widerlegen; dringend ist keiner (die Fehler unter ihnen vermeidet Open1602
+ohnehin).
 
 - **U-007 (alter Weg beim Ziehen):** Auf einer Insel mit zwei eigenen Städten: in Stadt A eine Straße
   ziehen, dann in Stadt B mit dem Ziehen beginnen und die Maus nach Stadt A bewegen. Beginnt der
   angezeigte Weg am alten Startpunkt in A?
+- **Gedrehte Ansicht:** ein Bildschirmfoto des Originals in einer der drei gedrehten Ansichten (gleiche
+  Stelle wie das erste Foto), um die Drehung im Betrachter zu prüfen.
+- **Einheiten in Ausbildung:** Lässt das Burgfenster des Originals eine Einheit aussenden, bevor ihre
+  Ausbildung fertig ist? Open1602 tut es nicht.
+- **Brand an einer Werft:** Baut eine brennende Werft weiter an ihrem Schiff?
 - **S-018 (Wachturm hält Gebiet):** aus dem Code geklärt und beibehalten: Eine Stadt ist erst
   eroberbar, wenn Kontor, Märkte und Türme gefallen sind. Ein Stand mit zerstörtem Kontor und
   stehendem Turm würde es im Spiel bestätigen.

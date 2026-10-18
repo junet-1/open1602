@@ -1,6 +1,6 @@
 # Anno 1602 – Open-Source-Engine: Projektplan
 
-Stand: 16.10.2026 · Grundlage: GOG-Installation „Anno 1602 – Königsedition“ (de-DE)
+Stand: 18.10.2026 · Grundlage: GOG-Installation „Anno 1602 – Königsedition“ (de-DE)
 
 ## 1. Ziel
 
@@ -171,6 +171,13 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 | M7 | Verbesserungen | Bugfixes, beliebige Auflösungen, freier Zoom, Hotkeys, UI-Skalierung, Editor |
 | M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, eigene Inselformen (Weltengenerator Stufe 2, ADR 0007) |
 
+**Stand der Meilensteine (18.10.2026)**, Einzelheiten in [stand.md](stand.md): M0 ✅ · M1 🟡 (offen:
+`.ZEI`-Schriften, `.GAD`-Oberflächen, Smacker-Videos, Teile von Inselkopf und Szenario-Chunks) · M2 ✅ ·
+M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel und Spielstände fertig; es fehlt die Oberfläche) · M5 🟡
+(Militär, Piraten, Weltengenerator Stufe 1 und KI fertig; offen: Ereignisse und Missionsziele der
+Szenarien, Kampagnen) · M6 ⬜ (Grundlagen: Befehle, Determinismus) · M7 ⬜ (einzelne Verbesserungen
+schon da: Mausrad-Zoom, Bildschirmfoto, behobene Fehler) · M8 ⬜ (Banner mit eingefärbten Flaggen schon da).
+
 ## 7. Nächste Schritte
 
 **Vereinbarte Reihenfolge (17.10.2026):** erst die Spielinhalte vervollständigen, dann der Mehrspieler.
@@ -206,6 +213,10 @@ darauf aufsetzt.
    aktiven Menschen erreichen die Computer nach sechs Stunden Kaufleute mit 500–870 Einwohnern. Offen:
    KI-Schalter der Szenarien und die Schiffsaufträge aus Originalständen. Als Nächstes Ereignisse
    (Vulkanausbrüche der Szenarien), Baumenü, Startdialog mit allen Einstellungen, übrige Oberfläche.
+   **Vorschlag aus der Bestandsaufnahme (18.10.2026), vor der Oberfläche:** Spielstände über die
+   Grenzen des Originals (7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme; mit den Standardregeln
+   erreichbar, dann schlägt das Speichern fehl), dringende Waren (Wunsch 2), teureres Wasser bei
+   feindlichen Türmen, fehlende Spielerbefehle (Steuersatz, Kanonen laden, Schiffsverkauf, Umbenennen).
 6. **Mehrspieler** einschließlich Endlosspiel (`.szm`).
 7. **Weltengenerator, Stufe 2** (zurückgestellt, wenn alles andere fertig ist und läuft): eigene Inselformen,
    auch größer als die Vorlagen, mit Küsten-, Strand-, Berg- und Flussübergängen.
@@ -223,7 +234,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M0: Git-Repository, CMake-Presets, CI (Linux/Windows/macOS, ASan), ADRs | ✅ erledigt |
 | M0: rea + Ghidra Machbarkeitstest | ✅ bestanden (rea 6.5.0, Ghidra 12.1.2) – `re/notes/rea-smoke-test-result.md` |
 | M1: Chunk-Container, `.cod`, Palette, BSH-Sprites | ✅ dokumentiert, implementiert, gegen Originaldaten getestet |
-| M1: Inseln (`.SCP`) | 🟡 Kopf (Größe, Position) und Feldliste; Attribut-Bits offen |
+| M1: Inseln (`.SCP`) | 🟡 Kopf (Größe, Position, Klima, Lagerstätten, Schalter) und Feldlisten beider Ebenen; offen: Attributbits 26–31 und Rest des Kopfes (roh mitgeführt) |
 | M1: `.cod`-Interpreter (Grammatik aus der Exe, 685 Vordefinitionen, Parser + Tests) | ✅ `docs/formats/cod.md` |
 | M1: Gebäudedatensatz (`haeuser.cod` → `g_haeuser`), Inselattribute, Platzierungsalgorithmus | ✅ `docs/re/haus-record.md` |
 | M2: Renderer-Grundlage: Sprite-Formel, Maleralgorithmus, Software-Renderer, `render-island` | ✅ `docs/re/rendering.md` |
@@ -261,61 +272,68 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M2: Alle Figuren pixelgenau zu den Feldern (Abschneiden wie im Original, eine Zeile Versatz der Feldzeilen ausgeglichen), mit Bildschirmfoto geprüft; Symbol „abgeschaltet“ über Werften | ✅ `docs/re/rendering.md` |
 | M4: Schiffe: Fahren von Feldmitte zu Feldmitte mit Drehen im Stand, Tempo nach Schaden und Ladung, Wegsuche auf See im Fenster mit Umwegen um andere Schiffe, Ankunft am Kontor im Radius 5, Entdecken von Inseln; Laden und Entladen am eigenen und an fremden Kontoren mit Preisen und Grenzen, Handel mit Eingeborenen gegen Zuneigung; Handelsrouten mit vier Stationen; freier Händler (Ankunft am Kartenrand, Zielwahl nach Gewinn, Kauf und Verkauf, Altern, Werkzeug aus dem Nichts); Werften mit Packesel, Bau und Reparatur; alles gespeichert (SHIP4, HANDLER, WERFT, KONTOR2, eigener Chunk); Fahrbefehl im Betrachter; S-005, S-013, S-070–S-083 | ✅ `docs/re/ships.md` |
 | M2: Arbeiter und Tiere von Feldern und Bäumen verdeckt wie im Original (Holzfäller beim Fällen unsichtbar, Mäher bis zu den Knien im Getreide); Schiff mit Bildschirmfoto geprüft | ✅ `docs/re/figures.md` |
-| Fehlerkatalog der GOG-Ausgabe (51 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
+| Fehlerkatalog der GOG-Ausgabe (anfangs 51, jetzt 164 Einträge), ADR 0006, `sim::Rules`, CI-Prüfung der Verweise | ✅ `docs/re/bugs.md` |
+| M5: Diplomatie und Militär (Verträge, Soldaten, Kampf, Türme, Burgen, Seekampf, Eroberung) | ✅ `docs/re/military.md`, `docs/re/diplomacy.md` |
+| M5: Piraten und Eingeborene, Einheiten- und Flottengrenze als Regeln | ✅ `docs/re/pirates.md` |
+| M5: Weltengenerator Stufe 1 (eigene Welten 200–2000 Felder, `O1602MAP`) | ✅ `docs/re/worldgen.md` |
+| M5: Computergegner (deterministisch, gespeichert, S-095 bis S-102) | ✅ `docs/re/ai.md` |
+| Bestandsaufnahme: was umgesetzt, offen und unklar ist, im Original und bei den Erweiterungen | ✅ `docs/stand.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
 
 ## 9. Offene Punkte nach Abhängigkeit
 
-Was ich dafür an Spielständen, Videos und Beobachtungen brauche: [eingaben.md](eingaben.md).
-
-Was wir bewusst zurückgestellt haben, weil ein anderes System fehlt. Wenn das System kommt, werden
-seine Punkte hier abgehakt. Die Einzelheiten stehen jeweils im Abschnitt „Offen“ des genannten
-Dokuments.
+Die vollständige Übersicht (umgesetzt, offen, Klärung nötig, Erweiterungen) steht in
+[stand.md](stand.md); was ich dafür an Spielständen, Videos und Beobachtungen brauche, in
+[eingaben.md](eingaben.md). Hier nur die Punkte, die auf ein anderes System warten. Wenn das System
+kommt, werden sie abgehakt.
 
 **Speichern**
-- Mehr Inseln, Städte, Spieler, Schiffe und Waren, als das Original fasst, im eigenen Chunk, sobald
-  Open1602 sie anlegen kann ([o1602-chunk.md](formats/o1602-chunk.md)).
-- Originalspielstände laden mit `Rules::original()` für die Wahlpunkte ([ADR 0008](architecture/0008-spieleinstellungen.md));
-  Spielstände von Open1602 bringen ihre Einstellungen mit.
+- Mehr Spieler, Schiffe, Soldaten und Türme, als das Original fasst (7, 150, 400, 350), im eigenen
+  Chunk ([savegame-writer.md](re/savegame-writer.md#offen)). Ohne Abhängigkeit, Vorrang.
+- Originalspielstände nehmen für die Wahlpunkte die Werte des Originals: erfüllt, weil der Standard
+  der Wahlpunkte das Original ist ([ADR 0008](architecture/0008-spieleinstellungen.md)); Stände von
+  Open1602 bringen ihre Einstellungen mit.
 
-**Militär und Kampf**
-- Wasser bei feindlichen Türmen teurer in der Wegsuche der Schiffe; Kanonen auf- und abladen
-  ([ships.md](re/ships.md)).
-- Darstellung von Schussrauch, Treffern, Sinken und Wrack; Fenster für Burg, Diplomatie, Einheiten.
-- Piratenschiffe: Beute, Rückkehr zum Nest, Jagd auf Handelsschiffe.
-
-**Inselereignisse und Katastrophen**
-- Vulkanausbrüche und andere Ereignisse der Szenarien.
+**Szenarien**
+- Missionsziele (`AUFTRAG4`), Sieg und Niederlage (auch die der Piraten), Kampagnenfolge.
+- Ereignisse der Szenarien (Vulkanausbrüche), KI-Schalter (Spieler +0x70), Szenario-Haltung der
+  Diplomatie (`PLAYER4` +0x1C/+0x20).
 
 **Oberfläche (Baumenü, Fenster, Meldungen)**
 - Baumenü des Originals (GAD) mit Gebäudenamen aus Text.cod, Freischaltung als ausgegraute
   Knöpfe ([construction.md](re/construction.md)).
-- Entdeckte Inseln: die Meldung eines Ausbruchs nur für Spieler, die die Insel kennen
-  ([volcanoes.md](re/volcanoes.md)).
+- Fenster für Kontor, Laderäume, Handelsrouten, Werft, Burg, Diplomatie, Einheiten, Statistik;
+  Lebensbalken; Formationswahl.
 - Warnung beim Abriss eines Markts, der Häuser die Grundlage nimmt (S-035).
 - Startdialog für das Endlosspiel mit allen Spieleinstellungen ([ADR 0008](architecture/0008-spieleinstellungen.md)).
+- U-013 noch einmal ansehen (Erkunden an Werft und Piratenkontor).
 - Idee: volle Rückerstattung für wenige Sekunden nach dem Bau (Schutz vor Fehlklicks); dafür
   braucht jedes Gebäude seinen Bauzeitpunkt.
 - Idee: eigenes Verhalten der Straßen-Wegsuche neben dem des Originals.
 
-**Schiffe und Handel**
-- Handelsgrenzen beim Kontor-Ausbau (`0x00481EE0`) ([logistics.md](re/logistics.md)).
-- Fenster für Kontor, Laderäume, Handelsrouten und Werft (Oberfläche).
-- Bugwelle und beschädigte Schiffsbilder in der Darstellung.
+**Darstellung**
+- Mündungs- und Schussrauch, Treffer, Wrack (SHIPSUNK); Werftsymbole „Material fehlt“ und „Brand“;
+  Zierfiguren nur auf entdeckten Inseln; Helligkeits- und Farbstich-Tabellen.
 
-**Computergegner, Eingeborene, Piraten**
-- Piraten nehmen Waren mit der Piraten-KI ([consumption.md](re/consumption.md)).
-- Reaktion der KI auf eine Gründung (Ereignis 0x0E).
-- KI-Schalter der Szenarien (Spieler +0x70) und Auftragsfelder der Schiffe aus `SHIP4` übernehmen.
+**Ton und Videos**
+- Geräusche, Musik, Sprache (die Geräuschquellen werden schon bestimmt), Smacker-Videos.
+
+**Ohne Abhängigkeit**
+- Handelsgrenzen beim Kontor-Ausbau (`0x00481EE0`) ([logistics.md](re/logistics.md)).
+- Dringende Waren (Wunsch 2) brechen die Welle der Träger ab ([logistics.md](re/logistics.md)).
+- Wasser bei feindlichen Türmen teurer in der Wegsuche der Schiffe ([ships.md](re/ships.md)).
+- Spielerbefehle für Steuersatz, Kanonen auf- und abladen, Schiffsverkauf, Umbenennen.
+- Auftragsfelder der Schiffe aus `SHIP4` übernehmen; Reaktion der KI auf eine Gründung (Ereignis 0x0E).
+- Gebäude mit `Grundflg`: Das Original öffnet für die Wegesuche nur Wald, Boden und Ruinen unter
+  dem Gebäude ([logistics.md](re/logistics.md)).
+- Symboltabelle `re/symbols/` um die Adressen aus Militär, Piraten und KI ergänzen.
 
 **Mehrspieler**
 - Wie andere Rechner einen Hausaufstieg übernehmen (Nachricht 0x835, [houses.md](re/houses.md)).
-- Zustands-Hash je Tick, Befehle über das Netz (ADR 0004).
+- Zustands-Hash je Tick, Befehle über das Netz, Lobby (ADR 0004); mehr als vier Spieler beim Start.
 
-**Ohne Abhängigkeit, nur Analyse**
+**Nur Analyse**
 - Bits +0x0F/4 und /6 der Produktion ([production.md](re/production.md)).
 - Zweite Liste bei Insel +0x30 ([growth.md](re/growth.md)).
-- Gebäude mit `Grundflg`: Das Original öffnet für die Wegesuche nur Wald, Boden und Ruinen unter
-  dem Gebäude ([logistics.md](re/logistics.md)).
-
+- Weitere Punkte in [stand.md](stand.md#13-klärung-nötig-verhalten-des-originals-nicht-belegt).

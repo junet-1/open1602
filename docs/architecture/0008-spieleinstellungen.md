@@ -32,10 +32,14 @@ ebenfalls können. Bisher gab es mit `sim::Rules` nur Schalter für Abweichungen
 | höchste Spielgeschwindigkeit (`max_game_speed`, L-004) | Faktor | 4 | 8 |
 | Dürren (`droughts`) | wie das Spiel (Schwierigkeit), aus, selten, normal, häufig | wie das Spiel | wie das Spiel |
 | Vulkane (`volcanoes`) | wie das Spiel (Einstellung), aus, an | wie das Spiel | wie das Spiel |
+| Preise des freien Händlers (`trader_prices`, S-077) | wie gewohnt (etwa halber Grundpreis), nach dem Markt (wie das Original es meint) | wie gewohnt | wie gewohnt |
 | Eigene Welt (`WorldSettings`, neues Spiel) | Größe 200–2000 je Seite, Spieler, Inselzahl, Inselgrößen, Dörfer, Vulkaninseln, Startgebiete getrennt/gemeinsam | die drei festen Pläne | aus; an: 500 × 350, 4 Spieler, normal, gemischt, getrennt |
 
 ## Folgen
-Der Spielstand von Open1602 braucht einen eigenen Abschnitt für die Einstellungen; Spielstände des
-Originals bekommen beim Laden `Rules::original()` für die Wahlpunkte. Der Spielstart-Dialog wird
+Der Spielstand von Open1602 hat einen eigenen Abschnitt für die Einstellungen (`RULE` im Chunk
+`O1602`, umgesetzt). Spielstände des Originals bekommen für die Wahlpunkte die Werte des Originals; das
+ist erfüllt, weil der Standard jeder freien Wahl das Original ist. Offen ist der Spielstart-Dialog; bis
+dahin setzt der Betrachter die Einstellungen über die Kommandozeile (`--refund`, `--droughts`,
+`--volcanoes`). Der Spielstart-Dialog wird
 eine Liste von Einstellungen mit Gruppen (Wirtschaft, Gegner, Katastrophen …), wie in späteren
 Anno-Teilen.

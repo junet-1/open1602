@@ -1,0 +1,138 @@
+# Stand der Umsetzung
+
+Stand: 18.10.2026 (Commit nach `eac8113`, Computergegner). Diese Seite ist die Übersicht. Die
+Einzelheiten stehen in den verlinkten Dokumenten, jeweils im Abschnitt „Offen“. Sie wird bei jedem
+abgeschlossenen Schritt fortgeschrieben.
+
+Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Originals nicht belegt (Klärung nötig).
+
+## Kurzfassung
+
+- **Die Simulation des Originals ist weitgehend vollständig**: Bauen, Wirtschaft, Häuser und Verbrauch,
+  Katastrophen, Vulkane, Schiffe und Handel, Militär, Diplomatie, Piraten, Eingeborene, Computergegner,
+  neues Endlosspiel, Spielstände lesen und schreiben. Sie läuft in festen Ticks, deterministisch und
+  befehlsbasiert, mit 250 Tests (davon viele gegen die Originaldaten und echte Spielstände).
+- **Spielbar ist sie heute nur im Kartenbetrachter**: Start über die Kommandozeile, Bauen, Abreißen,
+  Schiffe und Soldaten mit der Maus, Rückmeldungen im Fenstertitel und im Terminal.
+- **Die großen offenen Blöcke** sind die Oberfläche (Menüs, Fenster, Baumenü, Minimap, Meldungen),
+  Ton, Musik, Sprache und Videos, Szenarien mit Missionszielen und Kampagnen, der Mehrspieler und die
+  Modding-Grundlagen (Inhaltspakete, Fraktionen als Daten, Lua).
+- **Ein Punkt hat Vorrang**, weil er bei langen Spielen trifft: Spielstände fassen höchstens 7 Spieler,
+  150 Schiffe, 400 Soldaten und 350 Türme. Mit den Standardregeln von Open1602 (100 Schiffe und
+  250 Einheiten je Spieler) ist das erreichbar; dann schlägt das Speichern fehl
+  ([savegame-writer.md](re/savegame-writer.md#offen)). Abhilfe: was nicht ins Originalformat passt,
+  kommt in den eigenen Chunk.
+
+## 1. Originalspiel
+
+### 1.1 Simulation
+
+| Bereich | Stand | Offen | Dokument |
+|---|---|---|---|
+| Bauen und Abreißen | ✅ Prüfungen, Kosten, Ziehen von Straßen und Mauern, Strand, Brücken, Stege, Freischaltung, Gebiet, Stadtgründung vom Schiff, Übernahme wehrloser Städte | Baumenü (Oberfläche) | [construction.md](re/construction.md) |
+| Produktion | ✅ Zyklus, Rohstoffe, Lager, Leerlauf, Statistik, Ein/Aus | – | [production.md](re/production.md) |
+| Logistik | ✅ Träger, Marktkarren, Bauern, Herden, Fischerboote, Minen und Lagerstätten, Packesel, Steinmetz am Steinbruch | dringende Waren (Wunsch 2) brechen die Welle nicht ab; Kontor-Ausbau kürzt die Handelsgrenzen nicht (`0x00481EE0`); `Grundflg`-Gebäude öffnen für die Wegsuche die ganze Fläche | [logistics.md](re/logistics.md) |
+| Wachstum, Dürre, Jagd | ✅ Klassenuhren, Ernte, Dürre, Hirsche und Jäger (Feld für Feld gegen Merlin02 → Merlin03) | – | [growth.md](re/growth.md), [deer.md](re/deer.md) |
+| Häuser, Verbrauch, Steuern | ✅ Hausliste, Versorgung, Auf- und Abstieg, Ruinen, Verbrauch, Zufriedenheit, Stolz, Steuern, Betriebskosten, Sold | Steuersatz ändern (es gibt noch keinen Befehl dafür) | [houses.md](re/houses.md), [consumption.md](re/consumption.md) |
+| Brand, Pest, Räuber | ✅ mit Arzt, Feuerwehr, Galgen | – | [disasters.md](re/disasters.md) |
+| Vulkane | ✅ Krater, Wurf, Lava, Brand, Zerstörung, Meldung nur für Entdecker | Vulkanereignisse der Szenarien | [volcanoes.md](re/volcanoes.md) |
+| Schiffe und Handel | ✅ Fahren und Wegsuche, Laden, Handel am Kontor, Routen, freier Händler, Werften mit Bau und Reparatur, Erkunden mit Erz- und Goldsymbolen (gegen Video geprüft) | Kanonen auf- und abladen und Schiffe zum Verkauf anbieten (kein Befehl; die KI rüstet direkt); feindliche Türme machen Wasser in der Wegsuche nicht teurer | [ships.md](re/ships.md) |
+| Militär | ✅ Einheiten, Kanonentürme, Burgen und Ausbildung, Bewegung, Land- und Seekampf, Einschiffen, Eroberung, Fluch der Eingeborenen | Formationswahl (Simulation kann es, Bedienung fehlt) | [military.md](re/military.md) |
+| Diplomatie | ✅ Verträge, Ereignisse, Stimmung, Tribut, Gesten, Entscheidungen der Computer | Szenario-Haltung (`PLAYER4` +0x1C/+0x20) | [diplomacy.md](re/diplomacy.md) |
+| Piraten, Eingeborene | ✅ Piratenschiffe, Beute, Plünderung, Nest mit Gründung und Ausbau, Frieden kaufen, Bestechung; Eingeborene mit Wohlwollen, Verbrauch, Kriegern | Niederlage der Piraten (Missionsziele) | [pirates.md](re/pirates.md) |
+| Computergegner | ✅ Aufgabenstapel, Stufen und Bedarfe, Bauplatzsuche, Wartung, Siedeln, Kolonien, Versorgung, Flotte, Handel, Militär, Diplomatie | KI-Schalter der Szenarien (Spieler +0x70), Auftragsfelder der Schiffe aus Originalständen, Reaktion auf eine Gründung (Ereignis 0x0E) | [ai.md](re/ai.md) |
+| Neues Endlosspiel | ✅ wie das Original, Byte für Byte gegen zwei Endlosstarts geprüft | Mehrspieler-Endlosspiel (`.szm`) | [newgame.md](re/newgame.md), [worldgen.md](re/worldgen.md) |
+| Szenarien und Kampagnen | 🟡 Szenarien laden und laufen | Missionsziele (`AUFTRAG4`, nicht untersucht), Sieg und Niederlage, Kampagnenfolge, Ereignisse und KI-Schalter der Szenarien | [gam.md](formats/gam.md) |
+| Spielstände | ✅ alle Chunks lesen und schreiben, unverändert Byte für Byte zurück, vom Original geladen und weitergespielt; eigener Chunk für den vollen Zustand | Grenze 7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme (siehe Kurzfassung) | [savegame-writer.md](re/savegame-writer.md), [o1602-chunk.md](formats/o1602-chunk.md) |
+
+### 1.2 Darstellung, Oberfläche, Ton
+
+| Bereich | Stand | Offen | Dokument |
+|---|---|---|---|
+| Inseln, Gebäude, Weltkarte | ✅ drei Zoomstufen, vier Drehungen, Flaggen, Rauch, Statussymbole, Besitzansicht (Bildvergleich 0,967) | Helligkeits- und Farbstich-Tabellen; Werftsymbole „Material fehlt“ und „Brand“ | [rendering.md](re/rendering.md) |
+| Figuren | ✅ alle Figuren der Wirtschaft, Soldaten in jeder Bannerfarbe, Schiffe mit Schaden, Bugwelle, weißer Flagge, Sinken, Zierfiguren (Spaziergänger, Gaukler, Wale, Delfine, Kraken) | Mündungs- und Schussrauch, Treffer, Wrack (SHIPSUNK), Lebensbalken; Zierfiguren auch auf unentdeckten Inseln | [figures.md](re/figures.md), [flavor.md](re/flavor.md) |
+| Oberfläche | ⬜ nur der Betrachter (Titelzeile, Terminal) | Hauptmenü, Startdialog, Laden/Speichern, Optionen, Baumenü, alle Fenster (Stadt, Kontor, Schiff, Route, Werft, Burg, Diplomatie, Statistik, Inselinfo), Minimap, Meldungen, Highscore; dazu `.GAD`-Layouts und `.ZEI`-Schriften lesen | [00-plan.md](00-plan.md) |
+| Ton, Musik, Sprache | ⬜ Geräuschquellen werden bestimmt und verworfen | Wiedergabe von `SAMPLES`, `MUSIC8`, `Speech8` | [flavor.md](re/flavor.md) |
+| Videos | ⬜ | Smacker (`VideoSmk`) | – |
+| Mehrspieler | 🟡 Grundlage: Befehle, feste Ticks, Zufallsströme, KI auf jedem Rechner, Einstellungen im Zustand | Netz (Lockstep), Zustands-Hash je Tick, Lobby, Spielerzuordnung, Wiederverbinden (M-003) | [ADR 0004](architecture/0004-deterministische-simulation.md) |
+| Editor | ⬜ | `1602Edit.exe` nachbauen (später) | – |
+
+### 1.3 Klärung nötig (Verhalten des Originals nicht belegt)
+
+Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich dafür brauche, steht in
+[eingaben.md](eingaben.md).
+
+| Punkt | Wo | Weg zur Klärung |
+|---|---|---|
+| Tempo und Stärke der Computergegner im Vergleich | [ai.md](re/ai.md) | Beobachtung: Endlos-Stände nach 1 und 3 Stunden |
+| Fahrverhalten der Computerschiffe | [ships.md](re/ships.md) | Beobachtung (Video) |
+| Ansichtsdrehung 1–3 gegen das laufende Original | [rendering.md](re/rendering.md) | Beobachtung: Bildschirmfoto in gedrehter Ansicht |
+| Dürre: Stärke, Ende, verdorrte Felder | [growth.md](re/growth.md) | Beobachtung: Stände „Duerre“, „NachDuerre“ |
+| Vulkanausbruch im laufenden Spiel | [volcanoes.md](re/volcanoes.md) | Beobachtung: Stände vor und nach dem Ausbruch |
+| Brand, Pest, Räuber in großen Städten | [disasters.md](re/disasters.md) | Beobachtung: größere Stadt, Video |
+| Wirkung eines Brands auf den Schiffbau einer Werft | [disasters.md](re/disasters.md) | Beobachtung |
+| Ob Einheiten in Ausbildung ausgesandt werden können | [military.md](re/military.md) | Beobachtung |
+| Wer die Meldung 0x48 („protestiert“) schickt | [diplomacy.md](re/diplomacy.md) | Analyse |
+| TIMERS +0xA5 („Computer untätig“): wer es setzt | [ai.md](re/ai.md) | Analyse |
+| Stadt-Felder +2/+4/+8, HAUS +0x6A Bit 7 (vermutlich `Destroyflg`) | [logistics.md](re/logistics.md) | Analyse |
+| Produktions-Bits +0x0F/4 und /6 | [production.md](re/production.md) | Analyse |
+| Zweite Liste bei Insel +0x30, Zufallsklasse geladener Felder | [growth.md](re/growth.md) | Analyse |
+| Leitschalter des Laders (`0x0060912C`, `0x005E6AA8`) | [deer.md](re/deer.md) | Analyse |
+| Sonderfiguren der Zweige 9/10/11/13 | [rendering.md](re/rendering.md) | Analyse |
+| Inselkopf (Rest), Attributbits 26–31, BSH-Feld `type`, Palettenanimation | [scp.md](formats/scp.md), [bsh.md](formats/bsh.md), [col.md](formats/col.md) | Analyse |
+| `AUFTRAG4`, Teile von `TIMERS`, übrige `SZENE`-Chunks | [gam.md](formats/gam.md) | Analyse (mit den Szenarien) |
+| U-007, S-088 (Teil), S-094 (Teil) | [bugs.md](re/bugs.md) | aus dem Code gefolgert; Open1602 vermeidet sie ohnehin |
+| Wiedergabe der Meldungen, Zeichenzuordnung der Schriften | [cod.md](formats/cod.md) | mit der Oberfläche |
+
+## 2. Open1602-Erweiterungen
+
+### 2.1 Umgesetzt
+
+| Was | Wo |
+|---|---|
+| **Fehler des Originals**: 164 Einträge im Katalog, davon 89 behoben, 41 vermieden, 6 als Regel umstellbar, 18 beibehalten | [bugs.md](re/bugs.md) |
+| **Einstellungen** (`sim::Rules`, im Spielstand): Rückerstattung beim Abriss, Schiffe je Spieler (100, Original 33), Einheiten je Spieler (250, Original 100), Rohstoffgarantie, höchstes Spieltempo (8, Original 4), Dürren, Vulkane, Händlerpreise | [ADR 0008](architecture/0008-spieleinstellungen.md) |
+| **Eigene Welten** (Weltengenerator Stufe 1): 200–2000 Felder je Seite, Inselzahl, Größenmischung, Dörfer, Vulkaninseln, Startgebiete; Chunk `O1602MAP` | [worldgen.md](re/worldgen.md) |
+| **Eigener Chunk `O1602`**: voller Zustand (Uhren, Zufall, Figuren, Brände, Lava, Diplomatie, Erkunden, Schiffe, Soldaten, KI); ein gespeichertes Spiel läuft genau weiter | [o1602-chunk.md](formats/o1602-chunk.md) |
+| **Determinismus**: feste Ticks, Zufallsströme je Teilsystem, KI und Zierfiguren auf jedem Rechner gleich | [ADR 0004](architecture/0004-deterministische-simulation.md) |
+| **Banner**: beliebig viele Spieler im Modell, eingefärbte Einheitsflagge, Einheiten in jeder Farbe | [ADR 0007](architecture/0007-erweiterbarkeit-und-modding.md), [flags.md](modding/flags.md) |
+| **Keine technischen Grenzen** der Originaltabellen in der Simulation (Pools mit stabilen IDs), keine Grenze von 250 Anzeigefiguren | [bugs.md](re/bugs.md) (L-002, L-007) |
+| **Computergegner**: Tempo unabhängig von der Bildrate, breitere Steinbruchsuche, Felder nachpflanzen statt abreißen, Mitschrift mit `O1602_AI_LOG` | [ai.md](re/ai.md) |
+| **Darstellung und Bedienung**: Figuren auch in der kleinsten Zoomstufe, Zoom mit dem Mausrad, Pixelskalierung, Bildschirmfoto als PNG, eigener Speicherordner (nie in die Installation) | [setup-arch.md](setup-arch.md) |
+
+### 2.2 Offen oder geplant
+
+| Was | Abhängigkeit | Quelle |
+|---|---|---|
+| Speichern über die Grenzen des Originals (mehr als 7 Spieler, 150 Schiffe, 400 Soldaten, 350 Türme) | ohne; **Vorrang** | [savegame-writer.md](re/savegame-writer.md) |
+| Startdialog mit allen Einstellungen in Gruppen | Oberfläche | [ADR 0008](architecture/0008-spieleinstellungen.md) |
+| Flaggenmenü mit freier RGB-Farbe wie in Anno 1503 | Oberfläche | [ADR 0007](architecture/0007-erweiterbarkeit-und-modding.md) |
+| Mehr als vier Spieler beim Spielstart (Plan kann 16), Piraten und Händler skalieren mit | Mehrspieler, Fraktionen als Daten | [worldgen.md](re/worldgen.md) |
+| Fraktionen als Daten (heute festes `PlayerRole`) | – | ADR 0007 |
+| Inhaltspakete mit Manifest und Kennungen, freie Warenliste, PNG- und OGG-Import | M8 | ADR 0007 |
+| Lua-Skripte, eigene Szenarien und Kampagnen | M8, Szenarien | ADR 0007 |
+| Weltengenerator Stufe 2 (eigene Inselformen, auch größer als die Vorlagen) | zurückgestellt bis alles läuft | [00-plan.md](00-plan.md) |
+| Daten-Patches für `.cod`-Fehler (D-001, D-002 als Kandidaten), abschaltbar | Mechanismus fehlt | [bugs.md](re/bugs.md), ADR 0006 |
+| Beliebige Auflösung, freier Zoom, UI-Skalierung, frei belegbare Tasten | M7, Oberfläche | [00-plan.md](00-plan.md) |
+| Mehrspieler mit Lobby, Desync-Erkennung, Wiederverbinden, Wiederholungen | M6 | ADR 0004 |
+| Ideen: volle Rückerstattung kurz nach dem Bau; eigene Straßen-Wegsuche neben der des Originals; Piratenabstand des Schwierigkeitsgrads als Einstellung (S-068) | offen, Entscheidung nötig | [00-plan.md](00-plan.md) |
+
+### 2.3 Entscheidungen, die noch anstehen
+
+- **Speichern über die Originalgrenzen**: was nicht passt, nur im eigenen Chunk (das Original lädt
+  solche Stände dann nicht oder ohne diese Teile) oder Speichern im eigenen Format ganz ohne
+  Originalchunks.
+- **U-013** (Erkunden an Werft und Piratenkontor): mit der Oberfläche noch einmal ansehen.
+- **S-035** (Markt-Abriss zerstört Häuser): beibehalten, Warnung mit der Oberfläche.
+- **Dringende Waren (Wunsch 2)** und **Turm-Kostenklasse** der Schiffswegsuche: beide ohne
+  Abhängigkeit umsetzbar; Vorschlag, sie vor der Oberfläche nachzuziehen.
+
+## 3. Technik und Qualität
+
+| Punkt | Stand |
+|---|---|
+| Tests | 250 Fälle (27 Unit-Dateien, 5 mit Originaldaten). Ohne eigene Unit-Tests: KI (nur zwei Datentests), See- und Landwege (nur indirekt), Weltengenerator (über das neue Spiel), eigener Chunk (über die Datentests), Betrachter |
+| Builds | lokal unter Linux: debug, game, game-rel, asan, game-asan ohne Warnungen; CI für Linux (GCC, Clang, ASan), Windows (MSVC 2022), macOS 14 und das Spiel mit SDL3 auf allen drei. Windows und macOS sind lokal nie gelaufen |
+| Fehlende Spielerbefehle | Steuersatz, Kanonen auf- und abladen, Schiff zum Verkauf anbieten oder kaufen, Städte und Schiffe umbenennen |
+| Symboltabelle `re/symbols/` | zuletzt mit den Schiffen nachgetragen (319 Funktionen); die Adressen aus Militär, Piraten und KI stehen nur in den Dokumenten |
+| Lokaler Spieler | der erste Mensch, bis es eine Lobby gibt |

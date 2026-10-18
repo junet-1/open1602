@@ -24,7 +24,10 @@ Werte rundet, Bits zusammenfasst oder Listen ordnet:
   Position, Tiere;
 - Brände und Seuchen (S-001), laufende Vulkanausbrüche und Lava im Flug (S-062);
 - die Uhren der Simulation und alle Figuren: Träger, Karren, Bauern, Herden, Fischer, Hirsche, Jäger,
-  Ärzte, Feuerwehr, Räuber, mit Weg, Ladung und Reservierungen, dazu die Statistik der Logistik.
+  Ärzte, Feuerwehr, Räuber, mit Weg, Ladung und Reservierungen, dazu die Statistik der Logistik;
+- Diplomatie, Erkunden, Schiffe mit Kurs und Route, Soldaten, Türme und Burgen;
+- der Zustand der Computergegner (Aufgabenstapel, Pläne je Stadt, Suche, Reservierungen, Siedlung,
+  Schiffsaufträge, Angriffe; [ai.md](../re/ai.md)), den das Original gar nicht speichert.
 
 **Felder** stehen nur dort darin, wo das Laden der Chunks des Originals etwas anderes ergäbe:
 reifes Gras und Fischgründe außerhalb der Städte, die das Original nicht speichert. Dazu prüft der
@@ -61,8 +64,10 @@ Spielstände ungültig zu machen.
 | `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `SHIP` `ANIM` `DISA` `VOLC` | die Listen der Welt, vollständig (`SOLD`, die Soldaten älterer Fassungen, wird noch gelesen) |
 | `FLEE` | Schiffe vollständig (Lage in 1/4096 Feld, Kurs, Laderäume mit Preis, Handelsroute, Ziele mit dem Verweis des Originals, Waren des Händlers), nächste Schiffsnummer, entdeckte Inseln, Handelseinstellungen und Zuneigung der Städte, Felder der Werften (Auftrag, Baupunkte, Holz, Stoffe, Takt, Reparatur); `SHIP` bleibt für ältere Leser |
 | `ARMY` | Soldaten vollständig (Lage in 1/4096 Feld, Lebenspunkte, Heimat, Ziel, Planung, Uhren, Streife, Weg), nächste Soldatennummer, Kanonentürme, Gebäudeschaden, Schüsse im Flug, Waffen und Plätze der Burgen |
+| `EPOC` | Phase der Inselepochen und je Insel die zuletzt gesehene Phase |
+| `XPLR` | Erkunden: je Insel „Anbau erkundet“ je Spieler und je Lagerstätte die Spielermaske (32 Bit) ([ships.md](../re/ships.md#erkunden)) |
 | `DIPL` | Diplomatie: je Spielerpaar Frieden, Handel, Kriegszeit, Tribut, Handel und Schaden, je Spieler alle 32 Ereignisse und der Schuldige ([diplomacy.md](../re/diplomacy.md)) |
-| `SIMU` | Uhren der Simulation und Figuren (eigene Versionsnummer am Anfang; ab Version 2 mit den Packeseln der Werften und den Uhren der Flotte) |
+| `SIMU` | Uhren der Simulation und Figuren (eigene Versionsnummer am Anfang; ab Version 2 mit den Packeseln der Werften und den Uhren der Flotte, ab 3 mit dem Militär, ab 4 mit dem Zustand der Computergegner, selbst mit Versionsnummer) |
 
 Gebäude stehen als **Id** (aus `haeuser.cod`) und Teilfeld, nicht als Bildnummer, damit ein Spielstand
 auch mit geänderten Grafiken passt; eine unbekannte Id macht den Chunk ungültig.
@@ -78,7 +83,10 @@ auch mit geänderten Grafiken passt; eine unbekannte Id macht den Chunk ungülti
 
 ## Grenzen dieser Fassung
 
-- Mehr Inseln, Städte, Spieler oder Schiffe, als das Original fasst, kann Open1602 noch nicht anlegen;
-  der Schreiber lehnt solche Welten ab, bis der Chunk sie selbst tragen kann.
+- Eine größere Karte als die des Originals (eigene Welt) trägt ihre Größe im Chunk `O1602MAP`
+  (u32 Breite, u32 Höhe; hinter `WIFF`, vor `O1602`), mit bis zu 255 Inseln. Solche Stände lädt nur Open1602.
+- Mehr als 7 Spieler, 150 Schiffe, 400 Soldaten oder 350 Türme kann der Chunk noch nicht tragen; der
+  Schreiber lehnt solche Welten ab. Mit den Regeln von Open1602 (Flottengrenze 100 je Spieler,
+  Einheitenlimit 250) ist das erreichbar ([savegame-writer.md](../re/savegame-writer.md#offen)).
 - Befehle, die zwischen zwei Takten noch nicht ausgeführt sind, werden nicht gespeichert (gespeichert
   wird zwischen den Takten).

@@ -5,6 +5,12 @@ Farbe braucht deshalb keine Grafik: Im Flaggenmenü wählt man eine der zwölf v
 (`render::BannerTable::kDefaultColors`) oder eine beliebige RGB-Farbe. So wächst die Zahl der möglichen
 Spieler ohne neue Bilder ([ADR 0007](../architecture/0007-erweiterbarkeit-und-modding.md), Abschnitt 4).
 
+**Stand:** Umgesetzt sind das Einfärben (`render/flag_tint.hpp`), die zwölf Vorgaben und die Vorlage aus
+der weißen Originalflagge (`render::BannerTable`), eigene Bilder je Banner (`FlagStyle::Sprites`, so für
+den Totenkopf) und Einheiten in Spielerfarbe (`render/unit_tint.hpp`). Noch offen: das Flaggenmenü und
+die freie RGB-Farbe (Oberfläche; bis dahin `--colour 0–3` beim neuen Spiel im Betrachter) sowie eigene Flaggen als PNG
+(Inhaltspakete, Meilenstein M8).
+
 ## Wie gefärbt wird
 
 Jedes Pixel der Flaggenvorlage mit **R = G = B** (reines Grau) gehört zum Tuch und nimmt die
@@ -39,9 +45,9 @@ Wappen oder Schrift in festen Farben zeichnen.
 Ein Mod kann außerdem für einzelne Banner eigene, fertig gefärbte Bilder liefern (`FlagStyle::Sprites`),
 wenn ein Motiv nicht einfärbbar sein soll – so behalten die Piraten ihren Totenkopf.
 
-Dieselben Regeln gelten später für Einheiten in Spielerfarbe (Soldaten, Reiter, Kanoniere): Tuch in
-reinem Grau, alles andere mit mindestens einem Wert Abweichung. Für die Originaleinheiten erzeugt
-Open1602 die Vorlage selbst ([figures.md](../re/figures.md#soldaten-und-spielerfarben)).
+Dieselben Regeln sollen für eigene Einheiten in Spielerfarbe gelten (Soldaten, Reiter, Kanoniere): Tuch
+in reinem Grau, alles andere mit mindestens einem Wert Abweichung. Für die Originaleinheiten erzeugt
+Open1602 die Vorlage schon jetzt selbst ([figures.md](../re/figures.md#soldaten-und-spielerfarben)).
 
 ## Die Originalflaggen
 

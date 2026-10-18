@@ -42,7 +42,7 @@ struct SoldierOrder {
 struct SoldierCommand {
     enum class Op : std::uint8_t {
         Stop,
-        Disband,      ///< "Einheit auflösen": dies without fight (Rules::disband_cost decides the gold)
+        Disband,      ///< "Einheit auflösen": dies without fight; costs the third value of its Soldat: line
         SetWaypoint,  ///< `index` 0 or 1 becomes `point`
         Patrol,       ///< `on`: walk between the waypoints (once with `one_way`), or stop doing so
     };

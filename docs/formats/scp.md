@@ -15,7 +15,7 @@ Gesicherte Felder (gemeinsam für beide Versionen):
 | 0 | u8 | Inselnummer | |
 | 1 | u8 | Breite (Felder) | alle `INSELHAUS`-x < Breite |
 | 2 | u8 | Höhe (Felder) | alle `INSELHAUS`-y < Höhe |
-| 3 | u8 | Flags? | bisher immer 0 |
+| 3 | u8 | Schalter (Fluch, Vulkan; siehe `0x03` unten) | in allen Vorlagen 0 |
 | 4 | u16 | Position x auf der Weltkarte | Werte < 500 |
 | 6 | u16 | Position y auf der Weltkarte | Werte < 350 |
 
@@ -41,8 +41,10 @@ Inselvorlage:
 | `0x65` | u8 | ≠ 0: Insel ist vollständig gespeichert, keine Vorlage laden | Sprung bei `0x00469BB0` |
 
 Die Weltkarte ist **500 × 350** Felder groß: `Game_Init` übergibt `0x1F4, 0x15E` an eine
-Initialisierungsfunktion (`0x004860C0`). Der Rest des Kopfes (Rohstoffe, Fruchtbarkeit, Besitzer …)
-ist noch nicht entschlüsselt und wird roh mitgeführt (`IslandHeader::raw`).
+Initialisierungsfunktion (`0x004860C0`); eigene Welten von Open1602 können größer sein
+([worldgen.md](../re/worldgen.md)). Die übrigen Bytes des Kopfes (darunter die Besitzer der acht
+Stadtplätze ab `0x0C`, [savegame-writer.md](../re/savegame-writer.md)) sind nicht alle entschlüsselt
+und werden roh mitgeführt (`IslandHeader::raw`).
 
 ## INSELHAUS (8 Byte je Eintrag)
 

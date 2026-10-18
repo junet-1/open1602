@@ -6,13 +6,14 @@ Status-Legende: ✅ verifiziert (Code + Test gegen Originaldaten) · 🟡 teilwe
 |---|---|---|---|---|
 | Chunk-Container | `.BSH .ZEI .COL .SCP .SZS .SZM .GAM` | ✅ | [chunks.md](chunks.md) | `engine/assets/chunk_file.*` |
 | COD-Skripte | `haeuser.cod figuren.cod` | ✅ Kodierung, Grammatik, Objekte | [cod.md](cod.md) | `engine/assets/cod.*`, `cod_parser.*` |
-| Texte | `Text.cod Editor.cod` | 🟡 Kodierung, Abschnitte | [cod.md](cod.md#7-textcod--editorcod) | – |
+| Texte | `Text.cod Editor.cod` | 🟡 Kodierung, Abschnitte; Zuordnung der Zeilen nur, wo gebraucht (Stadtnamen, Spielernamen) | [cod.md](cod.md#7-textcod--editorcod) | `engine/assets/text_table.*` |
 | Palette | `TOOLGFX/STADTFLD.COL` | ✅ | [col.md](col.md) | `engine/assets/palette.*` |
 | Sprites | `GFX/ MGFX/ SGFX/ TOOLGFX/ *.BSH` | ✅ | [bsh.md](bsh.md) | `engine/assets/sprite_sheet.*` |
 | Schriften | `TOOLGFX/*.ZEI` | 🟡 | [bsh.md](bsh.md#zei-schriften) | `engine/assets/sprite_sheet.*` |
 | Inseln | `NORD/ SUED/ NORDNAT/ SUEDNAT/ NOKLIMA/ *.SCP` | ✅ Felder, Attribute · 🟡 Inselkopf | [scp.md](scp.md) | `engine/assets/island.*`, `engine/sim/island_map.*` |
-| Szenarien / Spielstände | `Szenes/*.SZS *.SZM`, `SAVEGAME/*.GAM` | 🟡 Inseln, Spieler, Schiffe (Grunddaten) | [gam.md](gam.md) | `engine/assets/scenario.*`, `engine/sim/world.*` |
-| Figuren | `figuren.cod` (FIGUR) | 🟡 Zeichendaten | [gam.md](gam.md#darstellung-der-schiffe) | `engine/assets/figure_table.*` |
+| Szenarien / Spielstände | `Szenes/*.SZS *.SZM`, `SAVEGAME/*.GAM` | 🟡 alle Chunks des Spielstands gelesen und geschrieben (Byte für Byte zurück); offen: `AUFTRAG4` (Missionsziele, durchgereicht), Szenario-Haltung in `PLAYER4`, KI-Auftragsfelder in `SHIP4`, Teile von `TIMERS`, die `SZENE`-Chunks der Szenarien (gelesen: Inselliste, `RANDTAB`, Missionsnummer) | [gam.md](gam.md), [savegame-writer.md](../re/savegame-writer.md) | `engine/assets/scenario.*`, `savegame.*`, `engine/sim/world.*`, `savegame_writer.*` |
+| Eigener Chunk | `O1602`, `O1602MAP` in `.GAM` | ✅ (Open1602) | [o1602-chunk.md](o1602-chunk.md) | `engine/sim/savegame_extension.*` |
+| Figuren | `figuren.cod` (FIGUR) | 🟡 Zeichen-, Lauf- und Kampfdaten, `FORMATION` (die Oberfläche wählt noch keine) | [gam.md](gam.md#darstellung-der-schiffe), [figures.md](../re/figures.md) | `engine/assets/figure_table.*` |
 | UI-Gadgets | `GADDATA/*.GAD`, `Gadedit/*.GAD`, `*.INC` | ⬜ (Klartext) | – | – |
 | Videos | `VideoSmk/*.SMK`, `TOOLGFX/6s.smk` | ⬜ (Smacker, extern dokumentiert) | – | – |
 | Audio | `SAMPLES/ Speech8/ MUSIC8/ *.wav` | ✅ (Standard-WAV) | – | – |
