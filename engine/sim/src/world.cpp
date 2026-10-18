@@ -633,6 +633,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     if (state->city_name_index) {
         world.set_city_name_index(*state->city_name_index);
     }
+    const bool scenario = file.find("SZENE") != nullptr;
     for (std::size_t i = 0; i < world.islands().size(); ++i) {
         WorldIsland& island = world.island(i);
         island.deer_phase = island.header.deer_phase;
@@ -648,9 +649,11 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
                 island.explore(p);
             }
         }
-        // Craters: the list of the savegame, searched only for islands without one (INSEL3/4).
+        // Craters: the list of the savegame. The original searches them when it builds a world from
+        // a scenario (SZENE chunk, 0x0048C5C0), whose list may be empty (Bündnispolitik), and for
+        // islands without a list (INSEL3/4).
         constexpr std::size_t kCraterFields = 0x4C;
-        if (island.header.raw.size() >= kCraterFields) {
+        if (island.header.raw.size() >= kCraterFields && !scenario) {
             for (const auto& c : island.header.craters) {
                 island.craters.push_back(Crater{c.x, c.y, c.steps_left});
             }
