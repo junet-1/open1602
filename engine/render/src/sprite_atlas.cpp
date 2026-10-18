@@ -123,9 +123,10 @@ void SpriteAtlas::drop_pixels() noexcept {
 
 namespace {
 
-/// Translucent tile diamond: width w, height w/2, bounding box left = x, bottom = y.
+/// Translucent tile diamond: width w, height w/2, bounding box left = x, bottom = y. Hatched, only
+/// every second pixel (hatch_pixel at the draw list's x + dx, y + dy) is filled.
 void fill_diamond(RgbaImage& target, std::int32_t x, std::int32_t y, std::int32_t w, assets::Rgba color,
-                  std::uint8_t alpha) {
+                  std::uint8_t alpha, bool hatched = false, std::int32_t dx = 0, std::int32_t dy = 0) {
     const std::int32_t h = w / 2;
     const std::int32_t top = y - h;
     for (std::int32_t row = 0; row < h; ++row) {
@@ -140,6 +141,9 @@ void fill_diamond(RgbaImage& target, std::int32_t x, std::int32_t y, std::int32_
         const std::int32_t x0 = std::max(0, cx - half);
         const std::int32_t x1 = std::min(static_cast<std::int32_t>(target.width), cx + half);
         for (std::int32_t tx = x0; tx < x1; ++tx) {
+            if (hatched && !hatch_pixel(tx + dx, ty + dy)) {
+                continue;
+            }
             std::uint8_t* p =
                 &target.pixels[(static_cast<std::size_t>(ty) * target.width + static_cast<std::size_t>(tx)) * 4];
             p[0] = static_cast<std::uint8_t>((p[0] * (255 - alpha) + color.r * alpha) / 255);
@@ -159,6 +163,11 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
     for (const DrawCommand& c : commands) {
         if (c.sprite == DrawCommand::kOverlayDiamond) {
             fill_diamond(target, c.x - origin_x, c.y - origin_y, c.tint_size, c.tint, c.tint.a);
+            continue;
+        }
+        if (c.sprite == DrawCommand::kOverlayHatch) {
+            fill_diamond(target, c.x - origin_x, c.y - origin_y, c.tint_size, c.tint, c.tint.a, true, origin_x,
+                         origin_y);
             continue;
         }
         if (c.sprite == DrawCommand::kOverlayOutline) {

@@ -34,6 +34,7 @@ public:
 
 private:
     static constexpr std::uint16_t kUntextured = 0xFFFF;  ///< batch of overlay diamonds
+    static constexpr std::uint16_t kHatched = 0xFFFE;     ///< batch of hatched diamonds (m_hatch)
 
     void release();
     void flush(std::uint16_t page);
@@ -41,6 +42,8 @@ private:
     SDL_Renderer* m_renderer;
     const SpriteAtlas* m_atlas = nullptr;
     std::vector<SDL_Texture*> m_pages;
+    /// 2 x 2 checkerboard, white and clear, repeated over hatched diamonds and tinted by them.
+    SDL_Texture* m_hatch = nullptr;
     std::vector<SDL_Vertex> m_vertices;
     std::vector<int> m_indices;
 };

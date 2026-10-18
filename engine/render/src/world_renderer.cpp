@@ -965,12 +965,13 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
 
     // Ownership view: a translucent diamond on the tile surface, after the flat pass of the row.
     std::vector<DrawCommand> overlays;
-    // Marked tiles go on top of everything, so buildings do not hide them.
-    std::unordered_map<std::uint64_t, assets::Rgba> marks;
+    // Marked tiles go on top of everything, so buildings do not hide them; hatched ones lie on the
+    // ground like the ownership view.
+    std::unordered_map<std::uint64_t, TileMark> marks;
     std::vector<DrawCommand> marked;
     if (layers.tile_marks != nullptr) {
         for (const TileMark& m : *layers.tile_marks) {
-            marks[(std::uint64_t{m.island} << 32U) | (std::uint64_t{m.x} << 16U) | m.y] = m.color;
+            marks[(std::uint64_t{m.island} << 32U) | (std::uint64_t{m.x} << 16U) | m.y] = m;
         }
     }
     const auto add_overlay = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom,
@@ -987,8 +988,10 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         if (!marks.empty()) {
             if (const auto it = marks.find((std::uint64_t{island} << 32U) | (std::uint64_t{lx} << 16U) | ly);
                 it != marks.end()) {
-                marked.push_back(DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation, it->second,
-                                             static_cast<std::uint8_t>(tw)});
+                const TileMark& m = it->second;
+                (m.hatched ? overlays : marked)
+                    .push_back(DrawCommand{m.hatched ? DrawCommand::kOverlayHatch : DrawCommand::kOverlayDiamond, sx,
+                                           row_bottom - elevation, m.color, static_cast<std::uint8_t>(tw)});
             }
         }
     };

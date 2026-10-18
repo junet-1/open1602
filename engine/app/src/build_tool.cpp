@@ -118,6 +118,11 @@ const assets::BuildingType* BuildTool::selected() const noexcept {
     return m_list.empty() ? nullptr : m_list[m_selected];
 }
 
+bool BuildTool::hatched_drag() const noexcept {
+    const assets::BuildingType* b = selected();
+    return m_mode == Mode::Build && m_drag_start && b != nullptr && b->prod_kind == kProdGrowing;
+}
+
 std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, sim::PlayerId player,
                                                       const Spot& spot) const {
     const assets::BuildingType* b = selected();
