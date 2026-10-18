@@ -277,9 +277,16 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     double screen_x = 0.0;
     double screen_y = 0.0;
     // Ships move between tile centres; one built without a position lies on its tile's centre.
-    const bool placed = ship.pos_x != 0 || ship.pos_y != 0;
-    const double fx = placed ? static_cast<double>(ship.pos_x) / sim::kShipUnit : ship.x + 0.5;
-    const double fy = placed ? static_cast<double>(ship.pos_y) / sim::kShipUnit : ship.y + 0.5;
+    // Between two ticks the trail puts it on its way (ADR 0004).
+    double fx = 0.0;
+    double fy = 0.0;
+    if (layers.ship_trail != nullptr) {
+        layers.ship_trail->position(ship, fx, fy);
+    } else {
+        const bool placed = ship.pos_x != 0 || ship.pos_y != 0;
+        fx = placed ? static_cast<double>(ship.pos_x) / sim::kShipUnit : ship.x + 0.5;
+        fy = placed ? static_cast<double>(ship.pos_y) / sim::kShipUnit : ship.y + 0.5;
+    }
     project_point(view, fx, fy, screen_x, screen_y);
 
     // The original keeps figures at Y = y + Posoffs[1] * w/64 (0x00451CC5), each term truncated, and

@@ -2,6 +2,7 @@
 // Production state: building animation frames, smoke and status icons (docs/re/production.md).
 
 #include <algorithm>
+#include <cmath>
 
 #include "../test_framework.hpp"
 #include "test_support.hpp"
@@ -387,6 +388,39 @@ TEST_CASE("simulation: fixed ticks, production once per game second, speed and p
     CHECK(simulation.game_time_ms() == before + sim::Simulation::kTickMs);
     simulation.set_speed(100);
     CHECK(simulation.speed() == sim::Rules{}.max_game_speed);
+}
+
+TEST_CASE("simulation: a slow computer runs a budget of ticks per frame, the game slower (review point 20)") {
+    const auto buildings = make_buildings();
+    sim::World world;
+    const assets::FigureTable no_figures;
+    sim::Simulation simulation(world, buildings, no_figures);
+    constexpr std::uint64_t kBudget = sim::Simulation::kMaxTicksPerAdvance;
+    simulation.set_speed(8);
+    // A frame of 400 ms at speed 8 is no stall: it asks for 64 ticks and gets the budget.
+    simulation.advance(400);
+    CHECK(simulation.game_time_ms() == kBudget * sim::Simulation::kTickMs);
+    CHECK(simulation.behind());
+    // The rest follows in the next frame; more than one budget owed is dropped.
+    simulation.advance(0);
+    CHECK(simulation.game_time_ms() == 2 * kBudget * sim::Simulation::kTickMs);
+    CHECK(!simulation.behind());
+    simulation.advance(2000);  // 320 ticks asked: one budget now, one more owed, the rest dropped
+    simulation.advance(0);
+    simulation.advance(0);
+    CHECK(simulation.game_time_ms() == 4 * kBudget * sim::Simulation::kTickMs);
+    CHECK(!simulation.behind());
+
+    // The caller may end a frame early (its time is up); the rest is owed.
+    std::uint32_t asked = 0;
+    const std::uint64_t before = simulation.game_time_ms();
+    simulation.set_speed(1);
+    simulation.advance(500, [&] { return ++asked <= 3; });
+    CHECK(simulation.game_time_ms() == before + 3 * sim::Simulation::kTickMs);
+    CHECK(simulation.behind());
+    simulation.advance(20);  // 7 ticks owed and 20 ms more
+    CHECK(simulation.game_time_ms() == before + 10 * sim::Simulation::kTickMs);
+    CHECK(std::abs(simulation.tick_fraction() - 0.4) < 1e-9);
 }
 
 TEST_CASE("sim: pool with stable handles") {

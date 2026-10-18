@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
@@ -28,6 +29,8 @@ namespace {
 
 /// Ground under a building that cannot be built there.
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
+/// Real time a frame may spend on ticks; the rest of the frame draws.
+constexpr int kTickBudgetMs = 25;
 
 /// What the help bar of the original shows over grass and trees of an explored island
 /// (0x0040A3D0): the three crops of the climate (north sugar cane, grapes, tobacco; south spices,
@@ -666,7 +669,20 @@ void MapViewer::update(std::uint32_t delta_ms) {
         selection_changed(false);
     }
     // While the game is paused this only carries out the commands (building is possible then).
-    m_simulation.advance(delta_ms);
+    // Ticks run while the frame has time (at least one); before each, the ships' positions are
+    // kept so that they move smoothly between ticks. A computer too slow for the speed runs the
+    // game slower instead of stalling (review point 20).
+    const auto frame_end = std::chrono::steady_clock::now() + std::chrono::milliseconds(kTickBudgetMs);
+    bool first = true;
+    m_simulation.advance(delta_ms, [&] {
+        if (!first && std::chrono::steady_clock::now() >= frame_end) {
+            return false;
+        }
+        first = false;
+        m_ship_trail.capture(m_world);
+        return true;
+    });
+    m_ship_trail.set_fraction(m_simulation.tick_fraction());
     if (!m_simulation.paused()) {
         place_listener();
         apply_production_events();
@@ -835,6 +851,7 @@ render::WorldLayers MapViewer::world_layers(const ZoomGraphics& graphics) const 
     layers.figures = &m_figures;
     layers.atlas = &atlas;
     layers.ship_base = graphics.graphics.sheet_base(assets::FigureSheet::Ship).value_or(0);
+    layers.ship_trail = &m_ship_trail;
     layers.sheet_base = graphics.graphics.base;
     // The deer walk as figures of the simulation (m_walkers).
     layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances(), &m_ambient.walkers()};

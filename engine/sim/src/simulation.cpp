@@ -130,24 +130,32 @@ void Simulation::set_speed(std::uint32_t speed) noexcept {
     m_speed = std::min(speed, m_rules.max_game_speed);
 }
 
-void Simulation::advance(std::uint32_t real_ms) {
+void Simulation::advance(std::uint32_t real_ms, const BeforeTick& before_tick) {
+    m_behind = false;
     if (m_speed == 0 || m_paused) {
         apply_commands();
         return;
     }
-    std::uint64_t game_ms = std::uint64_t{real_ms} * m_speed;
-    if (game_ms > kMaxCatchUpMs) {
-        game_ms = kTickMs;
-    }
-    m_pending_ms += static_cast<std::uint32_t>(game_ms);
+    // The limit is on real time, before the speed: at speed 8 a frame of 400 ms is no stall.
+    const std::uint64_t game_ms = real_ms > kMaxCatchUpMs ? kTickMs : std::uint64_t{real_ms} * m_speed;
+    constexpr std::uint64_t kMaxOwedMs = std::uint64_t{kTickMs} * kMaxTicksPerAdvance;
+    m_pending_ms = static_cast<std::uint32_t>(std::min<std::uint64_t>(m_pending_ms + game_ms, 2 * kMaxOwedMs));
+    std::uint32_t ran = 0;
     while (m_pending_ms >= kTickMs) {
+        if (ran == kMaxTicksPerAdvance || (before_tick && !before_tick())) {
+            m_behind = true;
+            break;
+        }
         m_pending_ms -= kTickMs;
         tick();
+        ++ran;
         if (m_paused) {
             m_pending_ms = 0;  // a pause from the commands of this tick: the rest of the time is dropped
             break;
         }
     }
+    // Owed is at most one more step; beyond that the game runs slower instead of ever catching up.
+    m_pending_ms = static_cast<std::uint32_t>(std::min<std::uint64_t>(m_pending_ms, kMaxOwedMs));
 }
 
 namespace {

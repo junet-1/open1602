@@ -6,6 +6,7 @@
 // Open1602 uses fixed ticks so that every computer of a multiplayer game computes the same.
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -116,13 +117,29 @@ public:
     /// Real time beyond this is dropped instead of caught up (the original: frames longer than
     /// 3 s count as 50 ms, so a stalled computer does not fast-forward the game).
     static constexpr std::uint32_t kMaxCatchUpMs = 3000;
+    /// At most this many ticks per advance(); a computer too slow for the speed lets the game run
+    /// slower instead of spending ever longer frames on catching up (review point 20).
+    static constexpr std::uint32_t kMaxTicksPerAdvance = 32;
+    /// Called before each tick advance() runs (to remember positions for drawing between ticks);
+    /// false ends this advance() early, e.g. when the frame's time is up.
+    using BeforeTick = std::function<bool()>;
 
     Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
                Rules rules = Rules::open1602());
 
-    /// Advances by `real_ms` of real time at the current speed; runs whole ticks and keeps the rest.
-    /// Commands are applied even while the game is paused (the player may build then).
-    void advance(std::uint32_t real_ms);
+    /// Advances by `real_ms` of real time at the current speed; runs whole ticks and keeps the rest,
+    /// at most kMaxTicksPerAdvance and only while `before_tick` agrees. Time owed beyond one more
+    /// such step is dropped. Commands are applied even while the game is paused (the player may
+    /// build then).
+    void advance(std::uint32_t real_ms, const BeforeTick& before_tick = {});
+    /// How far the game time is between the last tick and the next, 0 to below 1: for drawing
+    /// moving figures between their positions of two ticks (ADR 0004).
+    [[nodiscard]] double tick_fraction() const noexcept {
+        return std::min(0.999, static_cast<double>(m_pending_ms) / kTickMs);
+    }
+    /// The last advance() could not run all the ticks its time asked for: the game runs slower
+    /// than its speed on this computer.
+    [[nodiscard]] bool behind() const noexcept { return m_behind; }
 
     /// Queues a command for the start of the next tick; returns its sequence number. This is the
     /// way in for the players (interface, later the network): a command must name the player who
@@ -230,6 +247,7 @@ private:
     std::uint32_t m_speed = 1;
     bool m_paused = false;
     bool m_state_damaged = false;
+    bool m_behind = false;
     std::uint64_t m_time_ms = 0;
     std::uint32_t m_pending_ms = 0;     ///< game time not yet run as a tick
     std::uint32_t m_production_ms = 0;  ///< game time since the last production second
