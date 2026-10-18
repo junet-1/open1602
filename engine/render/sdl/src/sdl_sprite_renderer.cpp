@@ -2,6 +2,7 @@
 #include "o1602/render/sdl_sprite_renderer.hpp"
 
 #include <SDL3/SDL.h>
+#include <algorithm>
 
 namespace o1602::render {
 
@@ -88,6 +89,24 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
             m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
             continue;
         }
+        if (c.sprite == DrawCommand::kOverlayOutline) {  // dashed tile edges, 2 x 1 pixel steps
+            if (current != kUntextured) {
+                flush(current);
+                current = kUntextured;
+            }
+            const SDL_FColor color{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, 1.0F};
+            for_each_outline_step(c, [&](std::int32_t x, std::int32_t y) {
+                const float x0 = static_cast<float>((c.x + x) * scale - origin_x);
+                const float y0 = static_cast<float>((c.y + y) * scale - origin_y);
+                const int base = static_cast<int>(m_vertices.size());
+                m_vertices.push_back(SDL_Vertex{{x0, y0}, color, {0, 0}});
+                m_vertices.push_back(SDL_Vertex{{x0 + 2.0F * s, y0}, color, {0, 0}});
+                m_vertices.push_back(SDL_Vertex{{x0 + 2.0F * s, y0 + s}, color, {0, 0}});
+                m_vertices.push_back(SDL_Vertex{{x0, y0 + s}, color, {0, 0}});
+                m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+            });
+            continue;
+        }
         const AtlasRect& r = m_atlas->rect(c.sprite);
         if (r.empty()) {
             continue;
@@ -110,12 +129,14 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
         const float u1 = static_cast<float>(r.x + r.width) * inv_page;
         const float v1 = static_cast<float>(r.y + height) * inv_page;
         // Shadows: the texture colour multiplied by the (black, translucent) vertex colour;
-        // translucent sprites: white with the opacity as alpha.
+        // translucent sprites: white with the opacity as alpha; dimmed ones: a grey vertex colour.
         SDL_FColor color = white;
         if (c.mode == DrawCommand::Mode::Shadow) {
             color = SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, c.tint.a / 255.0F};
         } else if (c.mode == DrawCommand::Mode::Translucent) {
             color.a = c.tint.a / 255.0F;
+        } else if (c.mode == DrawCommand::Mode::Dimmed) {
+            color = SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, 1.0F};
         }
         const int base = static_cast<int>(m_vertices.size());
         m_vertices.push_back(SDL_Vertex{{x0, y0}, color, {u0, v0}});

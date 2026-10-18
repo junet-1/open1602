@@ -2,6 +2,7 @@
 #include "panel_common.hpp"
 
 #include <algorithm>
+#include <string_view>
 
 #include "o1602/sim/ships.hpp"
 #include "o1602/ui/text_format.hpp"
@@ -22,7 +23,7 @@ constexpr std::int32_t kLDeadSlider = 44171;
 StockList::StockList(assets::GadgetLayout layout) : m_panel(std::move(layout), 1.0) {
     const assets::GadgetLayout& l = m_panel.layout();
     m_gfx_ware = l.constant("GFXWARE").value_or(192);
-    m_gfx_empty = l.constant("GFXWARELEER").value_or(188) + 1;
+    m_gfx_empty = l.constant("GFXWARELEER").value_or(188) + kEmptyHold;
     if (const assets::Gadget* g = l.find(kLCorner + 2)) {
         m_corner = g->gfx;
     }
@@ -74,7 +75,7 @@ std::optional<std::uint8_t> StockList::ware_of(std::int32_t id) const {
 
 TradeLists::TradeLists(assets::GadgetLayout layout) : m_panel(std::move(layout), 1.0) {
     m_gfx_ware = m_panel.layout().constant("GFXWARE").value_or(192);
-    m_gfx_empty = m_panel.layout().constant("GFXWARELEER").value_or(188) + 1;
+    m_gfx_empty = m_panel.layout().constant("GFXWARELEER").value_or(188) + kEmptyHold;
 }
 
 void TradeLists::refresh(const sim::City& city, const PanelContext& c) {

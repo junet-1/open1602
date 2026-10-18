@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Interface layouts (GAD), fonts and text, panels at work (docs/formats/gad.md, docs/re/ui.md).
 
+#include <array>
 #include <cctype>
 #include <optional>
 #include <string>
@@ -176,6 +177,31 @@ TEST_CASE("ui: a panel draws by state and answers the mouse") {
     panel.set_disabled(500, true);
     items = panel.draw(fonts);
     CHECK(items[1].kind == ui::DrawItem::Kind::SpriteRaster);
+}
+
+TEST_CASE("ui: a graphic set by the code also replaces the layout's in its shadow") {
+    // The build menu: the preview (GAD_GFX) and its shadow (GAD_GFXFILL) show the chosen building,
+    // never the layout's first graphic (the wooden wall).
+    const auto shadow = assets::parse_gad(
+        "  Objekt: GADGET\n"
+        "    @Nummer:    0\n"
+        "    Id:         31031\n"
+        "    Kind:       GAD_GFXFILL\n"
+        "    Gfxnr:      7\n"
+        "    @Nummer:    +1\n"
+        "    Id:         31032\n"
+        "    Kind:       GAD_GFX\n"
+        "    Gfxnr:      7\n"
+        "  EndObj\n",
+        [](std::string_view) -> std::optional<std::string> { return std::nullopt; });
+    ui::Panel panel(shadow, 1.0);
+    panel.set_graphic(31031, 42, 0);
+    panel.set_graphic(31032, 42, 0);
+    const auto items = panel.draw({});
+    REQUIRE(items.size() == 2);
+    CHECK(items[0].kind == ui::DrawItem::Kind::SpriteMask);
+    CHECK(items[0].gfx == 42);
+    CHECK(items[1].gfx == 42);
 }
 
 TEST_CASE("ui: text width, colours, wrapping with hyphens and hard breaks") {

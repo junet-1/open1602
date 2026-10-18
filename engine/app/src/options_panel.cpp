@@ -25,6 +25,11 @@ constexpr std::int32_t kQuit = 48013;
 constexpr std::int32_t kSlotName = 48021;    ///< + slot
 constexpr std::int32_t kSlotHumans = 48041;  ///< + slot
 constexpr std::int32_t kSlotFrame = 48061;   ///< + slot
+constexpr std::size_t kSlotRows = 12;        ///< rows of the layout
+/// Open1602: the savegames scroll; the last row gives its place to the arrows of MUSIK.GAD.
+constexpr std::size_t kSlotRowsShown = kSlotRows - 1;
+constexpr std::int32_t kSlotsDown = 48081;  ///< added to DISK.GAD
+constexpr std::int32_t kSlotsUp = 48082;
 // MUSIK.GAD
 constexpr std::int32_t kMusikTitle = 49002;
 constexpr std::int32_t kListDown = 49011;
@@ -59,6 +64,29 @@ constexpr std::int32_t kVideoLabel = 66051;
 constexpr std::int32_t kMinVolume = -4000;  ///< 1/100 dB
 constexpr std::int32_t kVolumeStep = 50;
 
+/// DISK.GAD with the list arrows of MUSIK.GAD (their pictures and sizes) in the place of the last
+/// savegame row.
+assets::GadgetLayout with_slot_arrows(assets::GadgetLayout disk, const assets::GadgetLayout& musik) {
+    const assets::Gadget* last_row = disk.find(kSlotName + static_cast<std::int32_t>(kSlotRows - 1));
+    const assets::Gadget* down = musik.find(kListDown);
+    if (last_row == nullptr || down == nullptr) {
+        return disk;
+    }
+    const std::int32_t row_y = last_row->pos[1];  // copied: the gadgets grow below
+    for (const auto& [from, to] : {std::pair{kListDown, kSlotsDown}, std::pair{kListUp, kSlotsUp}}) {
+        const assets::Gadget* g = musik.find(from);
+        if (g == nullptr) {
+            continue;
+        }
+        assets::Gadget arrow = *g;
+        arrow.id = to;
+        arrow.base = static_cast<std::int32_t>(disk.gadgets.size());
+        arrow.pos[1] = row_y + (g->pos[1] - down->pos[1]);
+        disk.gadgets.push_back(arrow);
+    }
+    return disk;
+}
+
 bool track_enabled(const audio::AudioSettings& a, const std::string& title) {
     return std::find(a.disabled_songs.begin(), a.disabled_songs.end(), title) == a.disabled_songs.end();
 }
@@ -75,7 +103,7 @@ void set_track_enabled(audio::AudioSettings& a, const std::string& title, bool o
 OptionsPanel::OptionsPanel(assets::GadgetLayout option, assets::GadgetLayout disk, assets::GadgetLayout musik,
                            assets::GadgetLayout anno, const assets::TextTable* texts)
     : m_option(std::move(option), 1.0),
-      m_disk(std::move(disk), 1.0),
+      m_disk(with_slot_arrows(std::move(disk), musik), 1.0),
       m_musik(std::move(musik), 1.0),
       m_anno(std::move(anno), 1.0),
       m_texts(texts) {
@@ -176,13 +204,23 @@ void OptionsPanel::refresh(const OptionsModel& model) {
 }
 
 void OptionsPanel::refresh_disk(const OptionsModel& model) {
-    for (std::size_t i = 0; i < OptionsModel::kSlots; ++i) {
-        const auto k = static_cast<std::int32_t>(i);
+    const std::size_t count = model.slot_names.size();
+    m_slot_first = std::min(m_slot_first, count > kSlotRowsShown ? count - kSlotRowsShown : 0);
+    for (std::size_t r = 0; r < kSlotRows; ++r) {
+        const auto k = static_cast<std::int32_t>(r);
+        const std::size_t i = m_slot_first + r;
+        const bool shown = r < kSlotRowsShown && i < count;
+        m_disk.set_visible(kSlotName + k, shown);
+        m_disk.set_visible(kSlotFrame + k, shown);
+        if (!shown) {
+            m_disk.set_visible(kSlotHumans + k, false);
+            continue;
+        }
         // The name being typed shows with the cursor; it is kept only when saved (U-037).
         const bool typing = m_editing && i == m_slot;
         const bool renamed = m_renamed && i == m_slot;
         m_disk.set_text(kSlotName + k, typing ? m_name + "_" : renamed ? m_name : model.slot_names[i]);
-        const std::uint8_t humans = model.slot_humans[i];
+        const std::uint8_t humans = i < model.slot_humans.size() ? model.slot_humans[i] : 0;
         m_disk.set_visible(kSlotHumans + k, humans >= 2);
         if (humans >= 2) {
             m_disk.set_graphic(kSlotHumans + k, m_humans_icon - 1 + std::min<std::int32_t>(humans, 4), 0);
@@ -190,6 +228,11 @@ void OptionsPanel::refresh_disk(const OptionsModel& model) {
         m_disk.set_selected(kSlotFrame + k, i == m_slot);
         m_disk.set_hidden(kSlotFrame + k, i != m_slot);
     }
+    const bool scrolls = count > kSlotRowsShown;
+    m_disk.set_visible(kSlotsUp, scrolls);
+    m_disk.set_visible(kSlotsDown, scrolls);
+    m_disk.set_disabled(kSlotsUp, m_slot_first == 0);
+    m_disk.set_disabled(kSlotsDown, m_slot_first + kSlotRowsShown >= count);
     // A client of a game of several players cannot load (0x00439630).
     m_disk.set_visible(kLoad, !model.multiplayer);
 }
@@ -280,12 +323,21 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
                 }
                 break;
             case Page::Disk:
-                if (e.id >= kSlotFrame && e.id < kSlotFrame + static_cast<std::int32_t>(OptionsModel::kSlots)) {
+                if (e.id >= kSlotFrame && e.id < kSlotFrame + static_cast<std::int32_t>(kSlotRowsShown)) {
                     // Choosing a slot starts typing its name (0x0043F7F4).
-                    m_slot = static_cast<std::size_t>(e.id - kSlotFrame);
+                    const std::size_t slot = m_slot_first + static_cast<std::size_t>(e.id - kSlotFrame);
+                    if (slot >= model.slot_names.size()) {
+                        break;
+                    }
+                    m_slot = slot;
                     m_name = model.slot_names[m_slot];
+                    m_new_slot = m_name.empty();
                     m_editing = true;
                     m_renamed = true;
+                } else if (e.id == kSlotsUp && m_slot_first > 0) {
+                    --m_slot_first;
+                } else if (e.id == kSlotsDown && m_slot_first + kSlotRowsShown < model.slot_names.size()) {
+                    ++m_slot_first;
                 } else if (e.id == kSave) {
                     const std::string name = m_renamed ? m_name : model.slot_names[m_slot];
                     stop_editing();
@@ -398,6 +450,8 @@ std::optional<std::string> OptionsPanel::help(const std::vector<std::string>& le
                 line = 176;
             } else if (*id >= kSlotFrame && *id < kSlotFrame + 12) {
                 line = 175;
+            } else if (*id == kSlotsUp || *id == kSlotsDown) {
+                line = 182;  // the music list's "scroll the list"
             }
             break;
         case Page::Musik:
@@ -452,15 +506,24 @@ void OptionsPanel::type(std::string_view text) {
     }
 }
 
-void OptionsPanel::key(int key) {
+std::optional<OptionsEvent> OptionsPanel::key(int key) {
     if (!m_editing) {
-        return;
+        return std::nullopt;
     }
     if (key == 8 && !m_name.empty()) {
         m_name.pop_back();
     } else if (key == 13) {
-        m_editing = false;  // the name waits for "Sichern"
+        m_editing = false;
+        if (m_new_slot && !m_name.empty()) {
+            // Open1602: a new savegame is saved with its name; a renamed one waits for "Sichern".
+            m_renamed = false;
+            return OptionsEvent{OptionsEvent::Kind::Save, m_slot, m_name};
+        }
+    } else if (key == 27) {
+        m_editing = false;  // the name typed is dropped
+        m_renamed = false;
     }
+    return std::nullopt;
 }
 
 }  // namespace o1602::app

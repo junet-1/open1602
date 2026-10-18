@@ -17,6 +17,10 @@ namespace panel_detail {
 
 inline constexpr std::uint8_t kFirstTradeWare = 2;
 inline constexpr std::uint8_t kLastTradeWare = 24;
+/// An empty hold or stock slot shows the ware "Leer" (GFXWARE + 0 = GFXWARELEER + 4: sand). The
+/// four pictures from GFXWARELEER are frames (green, yellow, black, wide yellow): the yellow one
+/// marks the chosen ware and is no picture of its own.
+inline constexpr std::int32_t kEmptyHold = 4;
 
 /// A help line (LEISTE section of Text.cod).
 inline std::string help_line(const PanelContext& c, std::size_t line) {

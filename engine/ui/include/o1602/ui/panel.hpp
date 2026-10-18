@@ -116,6 +116,8 @@ public:
     void set_offset(std::int32_t id, std::int32_t x, std::int32_t y);
     /// Moves a gadget, click area and picture (Open1602 rearranges a few windows, e.g. U-013).
     void set_position(std::int32_t id, std::int32_t x, std::int32_t y);
+    /// Another size for a gadget (a flowing text in a window that grew with the screen).
+    void set_size(std::int32_t id, std::int32_t w, std::int32_t h);
     /// Top left of a gadget's click area, nothing if the layout has no such gadget.
     [[nodiscard]] std::optional<std::array<std::int32_t, 2>> position(std::int32_t id) const;
 

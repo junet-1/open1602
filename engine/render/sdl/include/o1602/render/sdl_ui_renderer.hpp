@@ -46,9 +46,9 @@ public:
     /// Draws the items with their region's top left at (x, y); `scale` is the region's scale
     /// (screen width / 1024), the art is stretched from its own size to it.
     void draw(const std::vector<ui::DrawItem>& items, std::int32_t x, std::int32_t y, double scale);
-    /// Fills `rect` with copies of the middle third of a sprite (left to right, clipped): a bar's art
-    /// continued for a wider window.
-    void fill_with_middle(std::int32_t block, std::int32_t gfx, const ui::Rect& rect, double scale);
+    /// A window's art made as wide as `rect`: its left two thirds, copies of its middle third and its
+    /// right third at the right edge, so the frame closes there (status bar, mission window).
+    void draw_widened(std::int32_t block, std::int32_t gfx, const ui::Rect& rect, double scale);
     /// A rectangle of a palette colour (backgrounds).
     void fill(const ui::Rect& rect, std::uint8_t colour);
     /// An RGBA image as a texture at (x, y), size (w, h) on screen (the minimap). The texture is

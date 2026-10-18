@@ -13,6 +13,7 @@
 // They follow game time, so they stop when the game is paused.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <unordered_map>
@@ -57,6 +58,13 @@ inline constexpr std::uint16_t kFigureKraken = 103;   ///< KRAKE
 /// HAUS_PRODTYP Kinds a walker may go to, by the roll 0..3 (0x00480370).
 [[nodiscard]] std::vector<std::int32_t> walker_targets(std::uint32_t roll);
 
+/// How often the scenery shows itself; a setting of the player, not of the game.
+struct AmbientConfig {
+    /// Sea creatures: on average one per sea block (about one screen of sea) every this many ms.
+    /// Ambient::kSeaPeriodMs is the original's rate (a chance every 5 s); 0 turns them off.
+    std::uint32_t sea_interval_ms = 60'000;
+};
+
 class Ambient {
 public:
     static constexpr std::uint32_t kCityPeriodMs = 10'000;    ///< walkers: one round per city per 10 s
@@ -64,8 +72,15 @@ public:
     static constexpr std::uint32_t kSeaBlock = 28;            ///< sea creatures: tiles per side of a sea block
     static constexpr std::uint32_t kJugglerPeriodMs = 1'000;  ///< markets are looked at once a second
 
-    /// All computers of a game must use the same seed.
-    explicit Ambient(std::uint64_t seed = 1602) noexcept : m_seed(seed) {}
+    using Config = AmbientConfig;
+    static constexpr std::uint32_t kSeaIntervalMaxMs = 3'600'000;  ///< an hour: settings are clamped to this
+
+    /// All computers of a game must use the same seed (and the same Config to see the same sea).
+    explicit Ambient(std::uint64_t seed = 1602, Config config = {}) noexcept : m_seed(seed), m_config(config) {}
+
+    /// Takes effect from the next chance on; what is already in the picture stays.
+    void set_config(const Config& config) noexcept { m_config = config; }
+    [[nodiscard]] const Config& config() const noexcept { return m_config; }
 
     /// Decisions up to the world's time: call after every tick of the simulation, with the world
     /// as that tick left it. What happened between two calls is decided on the world of the later.
@@ -140,6 +155,7 @@ private:
                                      std::uint64_t c = 0) const noexcept;
 
     std::uint64_t m_seed;
+    Config m_config;
     bool m_started = false;
     std::uint64_t m_tick_ms = 0;   ///< game time decided up to
     std::uint64_t m_frame_ms = 0;  ///< game time of the last pictures (sounds)

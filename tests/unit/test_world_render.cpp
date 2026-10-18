@@ -2,6 +2,8 @@
 // World map, animation clock, world draw list and sprite atlas.
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <set>
 #include <tuple>
 
@@ -225,6 +227,72 @@ TEST_CASE("world renderer: marked tiles get a diamond on top of everything") {
     }
 }
 
+TEST_CASE("world renderer: a catchment circle lights the land, its border is dashed over land and sea") {
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 2, 2);
+    REQUIRE(island.map.place(*table.by_id(20100), 0, 0, 0, 0, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+    sim::Catchment area;  // around the island's corner: half on land, half on the open sea
+    area.centre = sim::TilePos{10, 20};
+    area.radius = 3;
+    const render::TileLighting lighting = render::TileLighting::circle(0, area);
+    CHECK(!lighting.outlined());  // a clicked building: only the lit land shows its circle
+    CHECK(lighting.in_circle(10, 17));
+    CHECK(!lighting.in_circle(10, 16));
+    sim::MapCell own;
+    own.sprite = 100;
+    own.owner = 0;
+    sim::MapCell other = own;
+    other.owner = 2;
+    CHECK(!lighting.dimmed(10, 20, &own));
+    CHECK(lighting.dimmed(10, 20, &other));   // not the player's land
+    CHECK(lighting.dimmed(10, 21, nullptr));  // water, no harbour
+    CHECK(lighting.dimmed(10, 16, &own));     // outside the circle
+    CHECK(!render::TileLighting::territory(0).dimmed(10, 16, &own));
+    CHECK(!render::TileLighting::territory(0).outline(area).dimmed(10, 16, &own));  // only the border
+
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        render::WorldView view;
+        view.zoom = render::Zoom::Small;
+        view.rotation = rotation;
+        render::Viewport all;
+        render::world_pixel_size(view, all.width, all.height);
+        render::WorldLayers layers;
+        layers.extent = render::SpriteExtent{16, 8};
+        render::TileLighting placing = lighting;  // as while placing: the border too
+        placing.outline(area);
+        layers.lighting = &placing;
+        std::vector<render::DrawCommand> commands;
+        render::build_world_draw_list(world, table, clock, view, all, layers, commands);
+        // One edge for each pair of a tile inside and its neighbour outside.
+        std::size_t expected = 0;
+        for (std::int32_t y = 10; y < 30; ++y) {
+            for (std::int32_t x = 0; x < 20; ++x) {
+                if (lighting.in_circle(x, y)) {
+                    expected += static_cast<std::size_t>(!lighting.in_circle(x - 1, y)) +
+                                static_cast<std::size_t>(!lighting.in_circle(x + 1, y)) +
+                                static_cast<std::size_t>(!lighting.in_circle(x, y - 1)) +
+                                static_cast<std::size_t>(!lighting.in_circle(x, y + 1));
+                }
+            }
+        }
+        std::size_t edges = 0;
+        std::size_t dimmed = 0;
+        for (const auto& c : commands) {
+            if (c.sprite == render::DrawCommand::kOverlayOutline) {
+                edges += static_cast<std::size_t>(std::popcount(static_cast<unsigned>(c.edges)));
+                CHECK(c.tint.r == render::kCircleOutline.r);
+            } else if (c.mode == render::DrawCommand::Mode::Dimmed) {
+                ++dimmed;
+            }
+        }
+        CHECK(edges == expected);
+        CHECK(dimmed == std::size_t{500} * 350 - 4);  // all but the player's building
+    }
+}
+
 TEST_CASE("world renderer: viewport culling keeps exactly the visible tiles (all rotations)") {
     const auto table = make_table();
     const sim::World world;
@@ -381,17 +449,30 @@ TEST_CASE("camera: zoom, rotation and pixel scale keep the anchored tile in plac
 TEST_CASE("camera: scrolling is clamped to the map") {
     render::Camera camera;
     camera.set_screen(800, 600, 1);
-    camera.center_on(render::TilePos{0, 0});
-    camera.scroll(-1e6, -1e6);
-    const render::Viewport vp = camera.viewport();
-    CHECK(vp.left == -400);
-    CHECK(vp.top == -300);
-    camera.scroll(1e7, 1e7);
-    std::int32_t w = 0;
-    std::int32_t h = 0;
-    render::world_pixel_size(camera.view(), w, h);
-    CHECK(camera.viewport().left == w - 400);
-    CHECK(camera.viewport().top == h - 300);
+    camera.center_on(render::TilePos{250, 175});
+    // Whichever way the view is pushed, the screen centre stays on the map's diamond, not in the
+    // black corners of its bounding box.
+    const std::array<std::pair<double, double>, 8> pushes = {
+        std::make_pair(-1e6, 0.0),  std::make_pair(1e6, 0.0), std::make_pair(0.0, -1e6), std::make_pair(0.0, 1e6),
+        std::make_pair(-1e6, -1e6), std::make_pair(1e6, 1e6), std::make_pair(1e6, -1e6), std::make_pair(-1e6, 1e6)};
+    for (const auto& [dx, dy] : pushes) {
+        for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+            camera.set_rotation(rotation, 400, 300);
+            camera.center_on(render::TilePos{250, 175});
+            camera.scroll(dx, dy);
+            const auto [x, y] = camera.point_at_screen(400, 300);
+            CHECK(x >= -1e-6);
+            CHECK(y >= -1e-6);
+            CHECK(x <= 500 + 1e-6);
+            CHECK(y <= 350 + 1e-6);
+        }
+    }
+    // Straight up from the middle ends at the top corner of the map.
+    camera.set_rotation(0, 400, 300);
+    camera.center_on(render::TilePos{250, 175});
+    camera.scroll(0, -1e6);
+    const auto [x, y] = camera.point_at_screen(400, 300);
+    CHECK(x + y < 2.0);
 }
 
 TEST_CASE("rules: defaults fix the original, original() restores it (ADR 0006)") {

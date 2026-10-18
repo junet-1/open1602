@@ -108,13 +108,16 @@ std::optional<std::uint32_t> BuildPanel::current(const Available& available) {
     return std::nullopt;
 }
 
-void BuildPanel::show(std::uint32_t id) {
-    if (const ui::BuildCategory* c = m_menu->category_of(id)) {
-        m_bau.set_selected(m_category, false);
-        m_category = c->button;
-        m_bau.set_selected(m_category, true);
-        m_picked[m_category] = c->index_of(id).value_or(0);
+bool BuildPanel::show(std::uint32_t id) {
+    const ui::BuildCategory* c = m_menu->category_of(id);
+    if (c == nullptr) {
+        return false;
     }
+    m_bau.set_selected(m_category, false);
+    m_category = c->button;
+    m_bau.set_selected(m_category, true);
+    m_picked[m_category] = c->index_of(id).value_or(0);
+    return true;
 }
 
 void BuildPanel::open_popup(const ui::BuildCategory& category, const Available& available, std::int32_t x,

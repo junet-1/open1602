@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The original's layouts and fonts (docs/formats/gad.md, docs/re/ui.md).
 
+#include <array>
 #include <cstdio>
+#include <optional>
 #include <string>
 
 #include "../test_framework.hpp"

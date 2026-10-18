@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <optional>
 
 #include "../test_framework.hpp"
 

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/assets/cod.hpp"
 
+#include <string_view>
+
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
 

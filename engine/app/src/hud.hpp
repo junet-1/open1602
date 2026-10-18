@@ -97,6 +97,9 @@ public:
     void set_resources(Resources r) { m_resources = std::move(r); }
     /// Text of the status line when the mouse is on no gadget (the build tool's report).
     void set_status(std::string text) { m_status = std::move(text); }
+    /// The status line over grass and trees of an explored island (0x0040A3D0, Text.cod GAME 22):
+    /// "Geeignet für: Tabak: 100% - ...", for the climate's three crops (ware, fertility in percent).
+    [[nodiscard]] std::string crops_line(const std::array<std::pair<std::uint8_t, std::uint32_t>, 3>& crops) const;
     /// The view rotation for the compass, 0..3.
     void set_rotation(std::uint8_t r) noexcept { m_rotation = r; }
     /// The rotation of the building to place (the preview turns with it).
@@ -116,6 +119,9 @@ public:
     void set_units(ui::UnitSelection* units) noexcept { m_units = units; }
     /// What the player selected on the map; its window shows in the info mode.
     void set_selection(const Selection& selection) { m_selection = selection; }
+    /// The build menu opens next with this building picked in its category (a farm's field after
+    /// looking at the farm, 0x004331B0). False if the menu has no such building.
+    bool show_in_build_menu(std::uint32_t id) { return m_build && m_build->show(id); }
     /// Opens the ship or city list or the diplomacy window in the info mode (the buttons of the
     /// player status, L, Shift+L, V), or closes it if it is open; returns what the tool should do.
     std::optional<Action> toggle_window(Selection::Kind kind);
@@ -139,9 +145,15 @@ public:
     [[nodiscard]] std::optional<std::pair<double, double>> last_message_tile() const;
     /// A question over the map with yes and no (ADR 0010: before scuttling, disbanding, war); the
     /// answer comes as Action::Answer from mouse() or answer().
-    void ask(std::string question) { m_question = std::move(question); }
+    void ask(std::string question) {
+        m_question = std::move(question);
+        m_modal_press = ModalPress::None;
+    }
     [[nodiscard]] bool asking() const noexcept { return m_question.has_value(); }
-    void close_question() noexcept { m_question.reset(); }
+    void close_question() noexcept {
+        m_question.reset();
+        m_modal_press = ModalPress::None;
+    }
     /// The key overview over the map (F1, ADR 0010): lines of keys and what they do; a heading has
     /// no keys. Any click closes it.
     struct HelpLine {
@@ -153,6 +165,14 @@ public:
     /// A question or the key overview is open: it takes every click.
     [[nodiscard]] bool modal() const noexcept { return m_question.has_value() || m_help.has_value(); }
     void close_help() noexcept { m_help.reset(); }
+    /// Closes the build menu's pop-up of a category (public buildings ...); false if none was open.
+    bool close_build_popup() noexcept {
+        if (m_build && m_build->popup_open()) {
+            m_build->close_popup();
+            return true;
+        }
+        return false;
+    }
     /// Another game was loaded: messages, selection, questions and the minimap of the old one go.
     void reset_game();
     /// The settings (mode 30014): what they show, and what they asked for since the last call.
@@ -173,9 +193,13 @@ public:
     }
     void type_key(int key) {
         if (m_menu_active && m_menu) {
-            m_menu->key(key);
+            if (auto e = m_menu->key(key)) {
+                m_menu_events.push_back(std::move(*e));
+            }
         } else if (m_options) {
-            m_options->key(key);
+            if (auto e = m_options->key(key)) {
+                m_option_events.push_back(std::move(*e));
+            }
         }
     }
 
@@ -264,11 +288,18 @@ private:
     OptionsModel m_options_model;
     std::vector<OptionsEvent> m_option_events;
     std::optional<ui::Panel> m_tutor;  ///< the mission's window
-    std::int32_t m_tutor_line = 0;     ///< first line of its text shown
+    /// Its gadgets at the right end with their places in the layout, and the text's size there.
+    std::vector<std::pair<std::int32_t, std::array<std::int32_t, 2>>> m_tutor_right;
+    std::array<std::int32_t, 2> m_tutor_text_size{};
+    std::int32_t m_tutor_line = 0;  ///< first line of its text shown
     std::optional<std::string> m_question;
     std::optional<std::vector<HelpLine>> m_help;
     ui::Rect m_yes;  ///< the buttons of the question as last drawn
     ui::Rect m_no;
+    /// Where the left button went down while the question or the key overview was shown: they
+    /// answer to a click (press and release), never to the pointer merely passing over a button.
+    enum class ModalPress : std::uint8_t { None, Yes, No, Elsewhere };
+    ModalPress m_modal_press = ModalPress::None;
     void draw_question();
     /// "Auftrag ansehen": the mission's text in the window above the status bar (TUTOR.GAD).
     void draw_mission(const sim::World& world);

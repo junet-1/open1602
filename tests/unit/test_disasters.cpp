@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Fires and plagues, doctors and firemen (docs/re/disasters.md).
 
+#include <algorithm>
+
 #include "../test_framework.hpp"
 
 #include "o1602/assets/cod_parser.hpp"

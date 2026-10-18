@@ -2,6 +2,7 @@
 #include "o1602/assets/savegame.hpp"
 
 #include <algorithm>
+#include <span>
 
 namespace o1602::assets {
 

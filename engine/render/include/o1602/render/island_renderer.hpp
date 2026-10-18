@@ -61,6 +61,15 @@ struct DrawCommand {
     /// in the colour `tint` (alpha = opacity), e.g. for the ownership view. (x, y) is its
     /// left / bottom corner box.
     static constexpr std::uint32_t kOverlayDiamond = 0xFFFFFFFF;
+    /// Not a sprite but a dashed outline along the edges `edges` of the same tile
+    /// diamond, in the colour `tint`: the border of a catchment circle.
+    static constexpr std::uint32_t kOverlayOutline = 0xFFFFFFFE;
+
+    /// Edges of a tile diamond (bits of `edges`), named by their side on screen.
+    static constexpr std::uint8_t kTopLeft = 1;
+    static constexpr std::uint8_t kTopRight = 2;
+    static constexpr std::uint8_t kBottomRight = 4;
+    static constexpr std::uint8_t kBottomLeft = 8;
 
     /// How a sprite is drawn.
     enum class Mode : std::uint8_t {
@@ -72,6 +81,9 @@ struct DrawCommand {
         /// The sprite with opacity `tint.a`: chimney smoke. The original dithers it like the
         /// shadows (0x004048E0).
         Translucent,
+        /// The sprite darkened: its colours times `tint` (r, g, b / 255). The original dims the
+        /// tiles the player cannot build on through a shading table (tile bit 27, colour 0xD7).
+        Dimmed,
     };
 
     std::uint32_t sprite = 0;
@@ -83,7 +95,37 @@ struct DrawCommand {
     /// Rows at the bottom of the sprite left out: workers and animals standing in crops and young
     /// trees (0x00401B70 with 0x00451250).
     std::uint16_t cut_bottom = 0;
+    std::uint8_t edges = 0;  ///< edges of an outline (kTopLeft ...)
+
+    /// Whether this is an untextured overlay, not a sprite.
+    [[nodiscard]] bool overlay() const noexcept { return sprite >= kOverlayOutline; }
 };
+
+/// The pixels of an outline command: calls `f(x, y)` for the left pixel of each lit two-pixel
+/// step, relative to the command's (x, y). The diamond is the one of kOverlayDiamond (rows
+/// y - w/2 .. y - 1); every other two rows are left out (the dashes), counted on the world's
+/// pixel rows so the dashes of neighbouring tiles line up and stay put while scrolling.
+template <class F>
+void for_each_outline_step(const DrawCommand& c, F&& f) {
+    const std::int32_t w = c.tint_size;
+    const std::int32_t h = w / 2;
+    for (std::int32_t row = 0; row < h; ++row) {
+        const std::int32_t y = row - h;
+        if (((c.y + y) / 2) % 2 != 0) {
+            continue;
+        }
+        const bool upper = row < h / 2;
+        const std::int32_t d = upper ? row : h - 1 - row;
+        const std::int32_t half = (d + 1) * 2;
+        const std::int32_t cx = w / 2;
+        if ((c.edges & (upper ? DrawCommand::kTopLeft : DrawCommand::kBottomLeft)) != 0) {
+            f(cx - half, y);
+        }
+        if ((c.edges & (upper ? DrawCommand::kTopRight : DrawCommand::kBottomRight)) != 0) {
+            f(cx + half - 2, y);
+        }
+    }
+}
 
 /// Sprite of a building tile showing animation frame `frame`: base sprite + frame * AnimAdd +
 /// rotation step (0x00489C90).

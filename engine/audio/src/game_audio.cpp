@@ -244,20 +244,28 @@ std::uint16_t Voices::message(std::uint16_t message, bool visible) {
         }
     }
     const bool allowed = m_settings.speech[0] && (m->kind >= m_settings.speech.size() || m_settings.speech[m->kind]);
-    if (m->voices > 0 && allowed && (!visible || (m->flags & kMessageVoiceHidden) == 0)) {
-        for (std::size_t i = 0; i < kSlots; ++i) {
-            std::uint16_t& slot = m_queue[(m_cursor + i) % kSlots];
-            if (slot == 0) {
-                const auto pick =
-                    static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, m->voices - 1)(m_random));
-                slot = static_cast<std::uint16_t>(m->base + 2 * pick);
-                return m->flags;
-            }
-        }
+    if (m->voices > 0 && allowed && (!visible || (m->flags & kMessageVoiceHidden) == 0) && queue(m->base, m->voices)) {
+        return m->flags;
     }
     // No voice, or no room: the message sound in the middle.
     m_effects->request(kWavEvent, 0.0F, 0.0F);
     return m->flags;
+}
+
+bool Voices::queue(std::uint16_t base, std::uint8_t count) {
+    for (std::size_t i = 0; i < kSlots; ++i) {
+        std::uint16_t& slot = m_queue[(m_cursor + i) % kSlots];
+        if (slot == 0) {
+            const auto pick = static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, count - 1)(m_random));
+            slot = static_cast<std::uint16_t>(base + 2 * pick);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Voices::speak(std::uint16_t base, std::uint8_t count) {
+    return count > 0 && m_settings.speech[0] && queue(base, count);
 }
 
 void Voices::update() {

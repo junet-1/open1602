@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <array>
 #include <map>
+#include <optional>
 #include <span>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 

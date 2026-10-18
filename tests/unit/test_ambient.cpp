@@ -255,7 +255,7 @@ TEST_CASE("ambient: every computer sees the same, wherever it looks and however 
 TEST_CASE("ambient: sea creatures come up all over the open sea, away from islands and ships") {
     Scene s;
     s.world.add_ship(sim::make_ship("Sea Lion", 40, 40, 21, 0, 0));
-    render::Ambient ambient(9);
+    render::Ambient ambient(9, render::Ambient::Config{render::Ambient::kSeaPeriodMs});  // the original's rate
     std::set<std::uint16_t> species;
     std::set<std::pair<int, int>> blocks;
     s.run(ambient, 400'000, [&] {  // 80 chances
@@ -285,6 +285,22 @@ TEST_CASE("ambient: sea creatures come up all over the open sea, away from islan
     CHECK(species.count(render::kFigureKraken) == 1);
 }
 
+TEST_CASE("ambient: the setting thins the sea creatures out, the same on every computer") {
+    const auto count = [](std::uint32_t interval_ms, std::uint64_t seed) {
+        Scene s;
+        render::Ambient ambient(seed, render::Ambient::Config{interval_ms});
+        s.run(ambient, 1'200'000);  // 20 minutes
+        return ambient.stats().creatures;
+    };
+    const std::uint64_t original = count(render::Ambient::kSeaPeriodMs, 5);
+    const std::uint64_t calm = count(60'000, 5);
+    CHECK(original > 0);
+    CHECK(calm > 0);
+    CHECK(calm * 6 < original);  // about a twelfth
+    CHECK(calm == count(60'000, 5));
+    CHECK(count(0, 5) == 0);  // off
+}
+
 TEST_CASE("ambient: a juggler on the market of a city with more than 59 citizens") {
     Scene s;
     sim::Production market;
@@ -306,8 +322,9 @@ TEST_CASE("ambient: a juggler on the market of a city with more than 59 citizens
     CHECK(jugglers().empty());
     s.city().inhabitants = {0, 0, 30, 30, 0};
     s.run(ambient, 1000);  // markets are looked at once a second
-    REQUIRE(jugglers().size() == 1);
-    const render::EffectFigure j = jugglers()[0];
+    const std::vector<render::EffectFigure> all = jugglers();
+    REQUIRE(all.size() == 1);
+    const render::EffectFigure& j = all.front();
     CHECK(j.figure == render::kFigureJuggler);
     CHECK(j.anim == (20 + 2) % 5);       // the act follows the market's position
     CHECK(j.x == 100 + 20 + 2.0 + 2.1);  // centre of the 4 x 3 market and Fahnoffs 2.1

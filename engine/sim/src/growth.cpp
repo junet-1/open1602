@@ -2,6 +2,7 @@
 #include "o1602/sim/growth.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <unordered_set>
 
 #include "o1602/sim/construction.hpp"

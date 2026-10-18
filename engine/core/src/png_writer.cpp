@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/core/png_writer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <string_view>

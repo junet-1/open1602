@@ -2,6 +2,8 @@
 // Figure animations (ANIM), land figures with shadows, half-size sheets (docs/re/figures.md).
 
 #include <algorithm>
+#include <optional>
+#include <span>
 
 #include "../test_framework.hpp"
 #include "test_support.hpp"

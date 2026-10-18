@@ -119,6 +119,12 @@ void Panel::set_position(std::int32_t id, std::int32_t x, std::int32_t y) {
     }
 }
 
+void Panel::set_size(std::int32_t id, std::int32_t w, std::int32_t h) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_layout.gadgets[*i].size = {w, h};
+    }
+}
+
 std::optional<std::array<std::int32_t, 2>> Panel::position(std::int32_t id) const {
     if (const auto i = m_layout.index_of(id)) {
         return m_layout.gadgets[*i].pos;
@@ -248,6 +254,9 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
         y += trunc_scaled((g.slider_size[1] - s.slider[1] + g.slider_offset[1]) * k);
     }
     const std::int32_t colour = g.color[state];
+    // The graphic set by the code (set_graphic) replaces the layout's for every graphic kind: the
+    // build menu's preview and its shadow (GraphicFill) show the same building.
+    const std::int32_t gfx = s.graphic ? s.graphic->first + s.graphic->second * state : g.gfx + g.press_offset * state;
     DrawItem item;
     item.x = x;
     item.y = y;
@@ -260,17 +269,17 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
             break;
         case GadgetKind::Graphic:
             item.kind = DrawItem::Kind::Sprite;
-            item.gfx = s.graphic ? s.graphic->first + s.graphic->second * state : g.gfx + g.press_offset * state;
+            item.gfx = gfx;
             out.push_back(item);
             break;
         case GadgetKind::GraphicRaster:
             item.kind = DrawItem::Kind::SpriteRaster;
-            item.gfx = g.gfx;
+            item.gfx = s.graphic ? s.graphic->first : g.gfx;
             out.push_back(item);
             break;
         case GadgetKind::GraphicFill:
             item.kind = DrawItem::Kind::SpriteMask;
-            item.gfx = g.gfx;
+            item.gfx = s.graphic ? s.graphic->first : g.gfx;
             out.push_back(item);
             break;
         case GadgetKind::TextLeft:
@@ -317,8 +326,10 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
             if (font == nullptr || g.offset[1] <= 0 || s.text.empty()) {
                 break;
             }
-            const auto lines =
-                wrap_text(*font, s.text, static_cast<std::uint32_t>(std::max(0, trunc_scaled(g.size[0] * k))));
+            // The width in the font's own pixels: the renderer stretches glyphs to the screen
+            // itself, so the panel's scale must not widen the lines (they ran past the window).
+            const auto lines = wrap_text(
+                *font, s.text, static_cast<std::uint32_t>(std::max(0, trunc_scaled(g.size[0] * font->design_scale()))));
             const std::int32_t shown = g.size[1] / g.offset[1];
             for (std::int32_t n = 0; n < shown; ++n) {
                 const auto line = static_cast<std::size_t>(s.scroll + n);
@@ -339,7 +350,7 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
         DrawItem r = item;
         if (g.kind == GadgetKind::Graphic) {
             r.kind = DrawItem::Kind::SpriteRaster;
-            r.gfx = g.gfx + g.press_offset * state;
+            r.gfx = gfx;
             r.colour = 0;
         } else {
             r.kind = DrawItem::Kind::Raster;

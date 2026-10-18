@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "o1602/render/world_renderer.hpp"
 
@@ -22,6 +23,9 @@ struct TilePos {
 
 /// World tile whose diamond contains the world pixel (px, py), or nothing outside the map.
 [[nodiscard]] std::optional<TilePos> world_tile_at(const WorldView& view, double px, double py);
+/// The same point in world tiles as fractions (tile (x, y) covers x..x+1, y..y+1), also outside
+/// the map: for the frame of the visible part on the minimap.
+[[nodiscard]] std::pair<double, double> world_point_at(const WorldView& view, double px, double py);
 
 class Camera {
 public:
@@ -54,6 +58,8 @@ public:
 
     /// World tile under a screen point.
     [[nodiscard]] std::optional<TilePos> tile_at_screen(double sx, double sy) const;
+    /// World point (in fractional tiles) under a screen point, also beyond the map's edge.
+    [[nodiscard]] std::pair<double, double> point_at_screen(double sx, double sy) const;
     /// Screen point of a world pixel (units drawn over the map).
     void world_to_screen(double px, double py, double& sx, double& sy) const;
 

@@ -51,7 +51,8 @@ public:
     [[nodiscard]] std::optional<std::uint32_t> current(const Available& available);
     [[nodiscard]] bool demolish() const noexcept;
     /// Shows a building's category with it picked (a plantation's field, 0x004331B0).
-    void show(std::uint32_t id);
+    /// False if the menu has no such building.
+    bool show(std::uint32_t id);
 
     /// Help text of the gadget under the mouse, nothing if none.
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste) const;

@@ -13,7 +13,9 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
+#include <string_view>
 #include <tuple>
 
 #include "../test_framework.hpp"

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <set>
+#include <span>
 #include <string>
 #include <vector>
 

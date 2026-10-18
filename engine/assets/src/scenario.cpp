@@ -5,6 +5,7 @@
 #include <array>
 #include <charconv>
 #include <cstring>
+#include <span>
 
 namespace o1602::assets {
 

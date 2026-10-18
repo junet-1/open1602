@@ -2,6 +2,7 @@
 // Soldiers: savegame records, colour variants and tinted units (docs/re/figures.md).
 
 #include <cstring>
+#include <optional>
 
 #include "../test_framework.hpp"
 #include "test_support.hpp"

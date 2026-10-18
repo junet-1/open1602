@@ -232,6 +232,23 @@ TEST_CASE("audio: effects play inside the view only, pan with x, and ten per fra
     CHECK(mixer.playing_count(audio::Group::Effects) == 10);
 }
 
+TEST_CASE("audio: a voice without a message (the menu's banner choice), not when speech is off") {
+    FakeGame fake;
+    auto game = assets::GameDirectory::open(fake.root);
+    REQUIRE(game.ok());
+    audio::SoundBank bank(*game);
+    audio::Mixer mixer(22050, 8);
+    audio::Effects effects(mixer, bank);
+    audio::Voices voices(mixer, bank, effects);
+    CHECK(voices.speak(107, 5));
+    CHECK(voices.waiting() == 1);
+    audio::AudioSettings s;
+    s.speech[0] = false;
+    voices.set_settings(s);
+    CHECK(!voices.speak(107, 5));
+    CHECK(voices.waiting() == 1);
+}
+
 TEST_CASE("audio: voice messages wait in four slots and speak one at a time") {
     FakeGame fake;
     auto game = assets::GameDirectory::open(fake.root);

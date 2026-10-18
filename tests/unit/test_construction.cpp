@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Building and demolishing (docs/re/construction.md).
 
+#include <optional>
+
 #include "../test_framework.hpp"
 
 #include "o1602/assets/cod_parser.hpp"

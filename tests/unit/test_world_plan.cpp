@@ -2,6 +2,7 @@
 // Own worlds (docs/re/worldgen.md, "Eigene Welten"): the plan of islands and start areas.
 
 #include <algorithm>
+#include <array>
 #include <map>
 #include <set>
 #include <tuple>

@@ -2,6 +2,7 @@
 #include "selection_panels.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 #include "panel_common.hpp"
@@ -335,7 +336,7 @@ public:
         : m_stadt(std::move(stadt), 1.0), m_kontor(std::move(kontor), 1.0), m_lager(std::move(lager)) {
         const assets::GadgetLayout& k = m_kontor.layout();
         m_gfx_ware = k.constant("GFXWARE").value_or(192);
-        m_gfx_empty = k.constant("GFXWARELEER").value_or(188) + 1;
+        m_gfx_empty = k.constant("GFXWARELEER").value_or(188) + kEmptyHold;
         if (const assets::Gadget* g = m_stadt.layout().find(city_ids::kBalanceIcon)) {
             m_balance_icon = g->gfx;
         }
@@ -695,7 +696,7 @@ private:
     ui::Panel m_kontor;
     StockList m_lager;
     std::int32_t m_gfx_ware = 192;
-    std::int32_t m_gfx_empty = 189;
+    std::int32_t m_gfx_empty = 192;
     std::int32_t m_balance_icon = 0;
     Page m_page = Page::City;
     bool m_sell = true;
@@ -1252,7 +1253,7 @@ public:
     explicit CastlePanel(assets::GadgetLayout layout) : SimplePanel(std::move(layout)) {
         const assets::GadgetLayout& l = m_panel.layout();
         m_gfx_ware = l.constant("GFXWARE").value_or(192);
-        m_gfx_empty = l.constant("GFXWARELEER").value_or(188) + 1;
+        m_gfx_empty = l.constant("GFXWARELEER").value_or(188) + kEmptyHold;
         if (const assets::Gadget* g = l.find(40007)) {
             m_weapon_icon = g->gfx;
         }
@@ -1443,7 +1444,7 @@ private:
         return static_cast<std::uint16_t>(1 + colour + 4 * m_unit);
     }
     std::int32_t m_gfx_ware = 192;
-    std::int32_t m_gfx_empty = 189;
+    std::int32_t m_gfx_empty = 192;
     std::int32_t m_weapon_icon = 432;
     std::int32_t m_slot = 0;
     std::int32_t m_unit = 0;

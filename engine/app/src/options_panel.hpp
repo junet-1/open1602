@@ -22,14 +22,14 @@ namespace o1602::app {
 
 /// What the settings show; the viewer fills it, the panel changes `audio` and `mission_window`.
 struct OptionsModel {
-    static constexpr std::size_t kSlots = 12;
     audio::AudioSettings audio;
     std::vector<std::string> tracks;  ///< music titles in the order of the list
     std::string playing;              ///< title playing now
-    std::array<std::string, kSlots> slot_names{};
-    std::array<std::uint8_t, kSlots> slot_humans{};  ///< human players in the savegame (icon from 2)
-    std::size_t resolution = 2;                      ///< 0 640 x 480, 1 800 x 600, 2 1024 x 768
-    bool mission_window = false;                     ///< "Auftrag ansehen"
+    /// The savegames by slot (empty name: free), as many as there are; the list scrolls.
+    std::vector<std::string> slot_names;
+    std::vector<std::uint8_t> slot_humans;  ///< human players in the savegame (icon from 2)
+    std::size_t resolution = 2;             ///< 0 640 x 480, 1 800 x 600, 2 1024 x 768
+    bool mission_window = false;            ///< "Auftrag ansehen"
     bool multiplayer = false;
 };
 
@@ -52,6 +52,7 @@ struct OptionsEvent {
 
 class OptionsPanel {
 public:
+    /// DISK gets the scroll arrows of MUSIK for its list of savegames.
     OptionsPanel(assets::GadgetLayout option, assets::GadgetLayout disk, assets::GadgetLayout musik,
                  assets::GadgetLayout anno, const assets::TextTable* texts);
 
@@ -70,9 +71,10 @@ public:
 
     /// A savegame's name is being typed (clicking a slot starts it, 0x00409910 mode 3).
     [[nodiscard]] bool editing() const noexcept { return m_editing; }
-    /// Typed text (Windows-1252); Backspace and Enter as `key` 8 and 13.
+    /// Typed text (Windows-1252); Backspace, Enter and Escape as `key` 8, 13 and 27. Enter on a
+    /// free slot saves the new game at once; Escape drops the name typed.
     void type(std::string_view text);
-    void key(int key);
+    [[nodiscard]] std::optional<OptionsEvent> key(int key);
 
 private:
     enum class Page : std::uint8_t { Root, Disk, Musik, Anno };
@@ -88,8 +90,10 @@ private:
     ui::Panel m_anno;
     const assets::TextTable* m_texts;
     Page m_page = Page::Root;
-    std::size_t m_slot = 0;  ///< the selected savegame
+    std::size_t m_slot = 0;        ///< the selected savegame
+    std::size_t m_slot_first = 0;  ///< first savegame shown
     bool m_editing = false;
+    bool m_new_slot = false;       ///< the name is typed into a free slot (Enter saves)
     std::string m_name;            ///< the name being typed
     bool m_renamed = false;        ///< m_name is the new name of the selected slot (until saved)
     std::size_t m_list_first = 0;  ///< first music title shown

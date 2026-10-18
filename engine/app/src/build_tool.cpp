@@ -11,6 +11,7 @@ namespace {
 constexpr std::int32_t kKindRoad = 1;
 constexpr std::int32_t kKindWall = 4;
 constexpr std::int32_t kKindWallBeach = 5;
+constexpr std::int32_t kKindForest = 10;
 constexpr std::int32_t kKindGround = 11;
 constexpr std::int32_t kKindSquare = 13;
 constexpr std::int32_t kKindHq = 35;
@@ -28,6 +29,18 @@ std::optional<sim::DragLine> line_kind(const assets::BuildingType& b) noexcept {
 }
 bool area_kind(const assets::BuildingType& b) noexcept {
     return b.prod_kind == kProdGrowing || b.kind == kKindGround || b.kind == kKindSquare;
+}
+
+/// A well mixed number for a tile (splitmix64 finaliser): the same tile and seed always give the
+/// same number, so a tree keeps its look while the drag is shown.
+std::uint32_t tile_hash(std::uint32_t seed, std::uint16_t island, std::int32_t x, std::int32_t y) noexcept {
+    std::uint64_t z = (std::uint64_t{seed} << 32U) ^ (std::uint64_t{island} << 24U) ^
+                      (static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) << 12U) ^
+                      static_cast<std::uint32_t>(y);
+    z += 0x9E3779B97F4A7C15ULL;
+    z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+    return static_cast<std::uint32_t>(z ^ (z >> 31U));
 }
 
 }  // namespace
@@ -116,9 +129,19 @@ std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, s
     order.player = player;
     order.island = spot.island;
     const Spot start = m_drag_start && m_drag_start->island == spot.island ? *m_drag_start : spot;
+    // Trees come in RandAnz variants RandAdd records apart; the original's menu draws one per tile
+    // with rand() (docs/re/construction.md: the variant is part of the order).
+    const auto variant = [&](std::int32_t x, std::int32_t y) {
+        if (b->kind != kKindForest || b->rand_count <= 1) {
+            return b->id;
+        }
+        const std::uint32_t pick = tile_hash(m_variant_seed, spot.island, x, y) % b->rand_count;
+        const assets::BuildingType* v = m_buildings->by_record(b->record + pick * b->rand_add);
+        return v != nullptr ? v->id : b->id;
+    };
     const auto add = [&](std::int32_t x, std::int32_t y) {
         if (order.items.size() < kMaxItems) {
-            order.items.push_back(sim::BuildItem{b->id, x, y, m_rotation, 0});
+            order.items.push_back(sim::BuildItem{variant(x, y), x, y, m_rotation, 0});
         }
     };
     if (const auto line = line_kind(*b); m_drag_start && line) {

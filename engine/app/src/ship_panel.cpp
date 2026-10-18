@@ -3,6 +3,8 @@
 // The ship's window (docs/re/ui.md#auswahlfenster): the ship, transfer with the own Kontor, trade
 // with a foreign one.
 #include <algorithm>
+#include <array>
+#include <string_view>
 #include <utility>
 
 #include "panel_common.hpp"
@@ -41,7 +43,7 @@ public:
           m_lists(std::move(l.handel)) {
         const assets::GadgetLayout& sl = m_ship.layout();
         m_gfx_ware = sl.constant("GFXWARE").value_or(192);
-        m_gfx_empty = sl.constant("GFXWARELEER").value_or(188) + 1;
+        m_gfx_empty = sl.constant("GFXWARELEER").value_or(188) + kEmptyHold;
         m_gfx_ship = sl.constant("GFXSHIP").value_or(363);
         // Where the buttons of the left column stand in SHIP.GAD, and the bottom of the name.
         for (std::size_t i = 0; i < m_column.size(); ++i) {
@@ -1357,7 +1359,7 @@ private:
     std::int32_t m_hire_choice = 0;  ///< whom, among the other players
     std::vector<sim::PlayerId> m_opponents;
     std::int32_t m_gfx_ware = 192;
-    std::int32_t m_gfx_empty = 189;
+    std::int32_t m_gfx_empty = 192;
     std::int32_t m_gfx_ship = 363;
     static constexpr std::int32_t kNameFrame = 38001;
     /// The left column: repair, pirates, explore and its ring (arrange_column).

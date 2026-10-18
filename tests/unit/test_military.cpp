@@ -2,6 +2,7 @@
 // Soldiers, towers and building damage (docs/re/military.md).
 
 #include <algorithm>
+#include <memory>
 
 #include "../test_framework.hpp"
 

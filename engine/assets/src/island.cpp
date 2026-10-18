@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <span>
 
 #include "o1602/core/byte_reader.hpp"
 

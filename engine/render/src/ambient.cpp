@@ -547,9 +547,18 @@ void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& 
     // The original tries 3 random tiles of the screen (0x00487F10), so where the player looks
     // decides where creatures come up. Here each block of 28 x 28 tiles, about one screen of
     // 1024 x 768 at the nearest zoom, has the 3 tries: the same sea everywhere.
+    // At the original's rate a creature comes up in nearly every block every 5 s, which over the
+    // whole sea is far too busy; Config::sea_interval_ms thins the chances out (flavor.md).
+    const std::uint32_t interval = std::min(m_config.sea_interval_ms, kSeaIntervalMaxMs);
+    if (interval == 0) {
+        return;
+    }
     for (std::uint32_t by = 0; by * kSeaBlock < world.height(); ++by) {
         for (std::uint32_t bx = 0; bx * kSeaBlock < world.width(); ++bx) {
             sim::Random random = stream(kTagSea, slot, bx, by);
+            if (interval > kSeaPeriodMs && random.below(interval) >= kSeaPeriodMs) {
+                continue;  // this block's chance is not taken this time
+            }
             sea_block(world, figures, random, bx * kSeaBlock, by * kSeaBlock, at_ms);
         }
     }

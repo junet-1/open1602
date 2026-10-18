@@ -56,11 +56,16 @@ public:
     void play_track(const std::string& title);
     /// The test sound of the effects' volume, in the middle of the view.
     void test_effects();
-    /// A message for the local player at a world tile (nothing: no place). Returns its flags.
-    std::uint16_t message(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt);
-    /// Hears every message with its flags (the status bar's icons, normal speed).
+    /// A message for the local player at a world tile (nothing: no place), about another player
+    /// (a rival's new city or ship; nothing: the local player). Returns its flags.
+    std::uint16_t message(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt,
+                          std::optional<sim::PlayerId> about = std::nullopt);
+    /// One of `count` voices from `base` (every second file), without a message (the menu).
+    void speak(std::uint16_t base, std::uint8_t count);
+    /// Hears every message with its flags (the status bar's icons in the colour of `about`, normal speed).
     using Listener =
-        std::function<void(std::uint16_t message, std::uint16_t flags, std::optional<std::pair<double, double>> tile)>;
+        std::function<void(std::uint16_t message, std::uint16_t flags, std::optional<std::pair<double, double>> tile,
+                           std::optional<sim::PlayerId> about)>;
     void set_listener(Listener listener) { m_listener = std::move(listener); }
 
     /// Messages pick their videos when `check` says the number can be played (without: never).

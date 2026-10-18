@@ -207,19 +207,23 @@ ui::Panel* MainMenu::panel() {
 void MainMenu::refresh_host() {
     ui::Panel& p = *m_host;
     if (m_mode == ListMode::Load) {
-        // The twelve savegames, without stars and arrows (0x0048AC70).
+        // The savegames without stars (0x0048AC70: the original's twelve fit without arrows; Open1602
+        // keeps any number, so the list scrolls like the scenarios).
+        const std::size_t count = m_slots.size();
+        m_first = std::min(m_first, count > kRows ? count - kRows : 0);
         for (std::size_t r = 0; r < kRows; ++r) {
             const auto k = static_cast<std::int32_t>(r);
-            const bool shown = r < SaveSlots::kCount;
+            const std::size_t i = m_first + r;
+            const bool shown = i < count;
             p.set_visible(kRowText + k, shown);
             p.set_visible(kRowStars + k, false);
             p.set_visible(kRowPlug + k, false);
             if (shown) {
-                p.set_text(kRowText + k, m_slots.names[r].empty() ? std::string("-") : m_slots.names[r]);
+                p.set_text(kRowText + k, m_slots.names[i].empty() ? std::string("-") : m_slots.names[i]);
             }
         }
-        p.set_visible(kListUp, false);
-        p.set_visible(kListDown, false);
+        p.set_visible(kListUp, m_first > 0);
+        p.set_visible(kListDown, m_first + kRows < count);
         return;
     }
     m_first = std::min(m_first, m_scenarios.size() > kRows ? m_scenarios.size() - kRows : 0);
@@ -415,8 +419,10 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
             case Screen::Host:
                 if (e.id == kNewGame) {
                     m_mode = ListMode::New;
+                    m_first = 0;
                 } else if (e.id == kLoadGame) {
                     m_mode = ListMode::Load;
+                    m_first = 0;
                 } else if (e.id == kContinue) {
                     out.push_back(MenuEvent{MenuEvent::Kind::ContinueLast});
                 } else if (e.id == kMainMenu) {
@@ -428,8 +434,10 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                 } else if (e.id >= kRowText && e.id < kRowText + static_cast<std::int32_t>(kRows)) {
                     const auto r = static_cast<std::size_t>(e.id - kRowText);
                     if (m_mode == ListMode::Load) {
-                        if (r < SaveSlots::kCount && !m_slots.names[r].empty()) {
-                            out.push_back(MenuEvent{MenuEvent::Kind::LoadSlot, static_cast<std::uint8_t>(r)});
+                        if (const std::size_t i = m_first + r; i < m_slots.size() && !m_slots.names[i].empty()) {
+                            MenuEvent load{MenuEvent::Kind::LoadSlot};
+                            load.slot = i;
+                            out.push_back(std::move(load));
                         }
                     } else if (m_first + r < m_scenarios.size() && !m_scenarios[m_first + r].separator && m_mission) {
                         select_scenario(m_first + r);
@@ -454,6 +462,13 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     const MenuScenario& s = m_scenarios[m_chosen];
                     if (s.header.mission_number == kEndless && m_colour) {
                         m_screen = Screen::Colour;  // name and banner first (0x0048A680)
+                        // The name can be typed at once (as the original, mode 5 of 0x00409910);
+                        // the last one, or "Namenlos", stands there until the first key.
+                        if (m_name.empty()) {
+                            m_name = kDefaultName;
+                        }
+                        m_typing = true;
+                        m_name_fresh = true;
                     } else {
                         MenuEvent ev{MenuEvent::Kind::Scenario};
                         ev.path = chosen_file();
@@ -512,6 +527,9 @@ void MainMenu::type(std::string_view text) {
         return;
     }
     constexpr std::size_t kMaxName = 19;  // 0x0048A680
+    if (std::exchange(m_name_fresh, false) && !text.empty()) {
+        m_name.clear();
+    }
     for (const char c : text) {
         if (static_cast<unsigned char>(c) >= 0x20 && m_name.size() < kMaxName) {
             m_name.push_back(c);
@@ -519,15 +537,27 @@ void MainMenu::type(std::string_view text) {
     }
 }
 
-void MainMenu::key(int key) {
+std::optional<MenuEvent> MainMenu::key(int key) {
     if (!m_typing) {
-        return;
+        return std::nullopt;
     }
-    if (key == 8 && !m_name.empty()) {
-        m_name.pop_back();
+    if (key == 8) {
+        if (std::exchange(m_name_fresh, false)) {
+            m_name.clear();
+        } else if (!m_name.empty()) {
+            m_name.pop_back();
+        }
     } else if (key == 13) {
         m_typing = false;
+        m_name_fresh = false;
+        if (m_name.empty()) {
+            m_name = kDefaultName;
+        }
+        return MenuEvent{MenuEvent::Kind::NameEntered};
+    } else if (key == 27) {
+        back();  // straight back to the choice of the game, as Escape outside the field
     }
+    return std::nullopt;
 }
 
 }  // namespace o1602::app

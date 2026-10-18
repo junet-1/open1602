@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace o1602::render {
 
@@ -14,6 +15,7 @@ constexpr int kModeMask = 1;
 constexpr int kModeRaster = 2;
 constexpr std::size_t kMaxTexts = 512;  // cached text textures before the cache starts over
 constexpr std::int32_t kCheckerSize = 64;
+constexpr std::uint8_t kMaskAlpha = 110;  // opacity of a GraphicFill shadow
 
 }  // namespace
 
@@ -29,6 +31,7 @@ SdlUiRenderer::SdlUiRenderer(SDL_Renderer* renderer, const assets::GameDirectory
     }
     for (std::int32_t f = 0; f < static_cast<std::int32_t>(m_fonts.size()); ++f) {
         if (auto font = ui::Font::load(game, ui::font_file(f, size))) {
+            font->set_design_scale(ui::art_scale(size));
             m_fonts[static_cast<std::size_t>(f)] = std::move(font).value();
         }
     }
@@ -67,7 +70,7 @@ std::array<const ui::Font*, 3> SdlUiRenderer::fonts() const noexcept {
 
 double SdlUiRenderer::art_scale() const noexcept {
     // The art of the three sizes is drawn for screens 640, 800 and 1024 wide.
-    return m_size == ui::ArtSize::Small ? 0.625 : m_size == ui::ArtSize::Medium ? 0.78125 : 1.0;
+    return ui::art_scale(m_size);
 }
 
 std::optional<std::pair<std::int32_t, std::int32_t>> SdlUiRenderer::sprite_size(std::int32_t block,
@@ -167,7 +170,7 @@ SdlUiRenderer::Texture SdlUiRenderer::text(const std::string& s, std::int32_t fo
     return t;
 }
 
-void SdlUiRenderer::fill_with_middle(std::int32_t block, std::int32_t gfx, const ui::Rect& rect, double scale) {
+void SdlUiRenderer::draw_widened(std::int32_t block, std::int32_t gfx, const ui::Rect& rect, double scale) {
     const Texture t = sprite(block, gfx, kModeSprite, 0);
     if (t.texture == nullptr || t.w < 3) {
         return;
@@ -176,13 +179,34 @@ void SdlUiRenderer::fill_with_middle(std::int32_t block, std::int32_t gfx, const
     const SDL_Rect clip{rect.x, rect.y, rect.w, rect.h};
     SDL_SetRenderClipRect(m_renderer, &clip);
     SDL_SetTextureAlphaMod(t.texture, 255);
-    const float third = static_cast<float>(t.w / 3);
-    const SDL_FRect src{third, 0.0F, third, static_cast<float>(t.h)};
-    const auto step = static_cast<float>(static_cast<double>(third) * stretch);
-    for (float x = static_cast<float>(rect.x); x < static_cast<float>(rect.x + rect.w) && step > 0.0F; x += step) {
-        const SDL_FRect dst{x, static_cast<float>(rect.y), step, static_cast<float>(t.h * stretch)};
-        SDL_RenderTexture(m_renderer, t.texture, &src, &dst);
+    const auto h = static_cast<float>(t.h * stretch);
+    const auto y = static_cast<float>(rect.y);
+    const auto part = [&](float src_x, float src_w, float x, bool mirrored = false) {
+        const SDL_FRect src{src_x, 0.0F, src_w, static_cast<float>(t.h)};
+        const SDL_FRect dst{x, y, static_cast<float>(static_cast<double>(src_w) * stretch), h};
+        SDL_RenderTextureRotated(m_renderer, t.texture, &src, &dst, 0.0, nullptr,
+                                 mirrored ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+    };
+    if (rect.w <= t.w * stretch) {
+        part(0.0F, static_cast<float>(t.w), static_cast<float>(rect.x));  // as wide as the art: as it is
+        SDL_SetRenderClipRect(m_renderer, nullptr);
+        return;
     }
+    // The left two thirds as they are, the middle third repeated, the right third (with the
+    // frame's end) at the right edge: one frame, however wide. Every other copy is mirrored, so
+    // neighbours meet at the same column of the art and no seam shows.
+    const auto third = static_cast<float>(t.w / 3);
+    const auto left_w = static_cast<float>(t.w) - third;
+    const auto right_x = static_cast<float>(rect.x + rect.w) - static_cast<float>(static_cast<double>(third) * stretch);
+    part(0.0F, left_w, static_cast<float>(rect.x));
+    const auto step = static_cast<float>(static_cast<double>(third) * stretch);
+    bool mirrored = true;  // the first copy starts where the left part ends: at the third's right column
+    for (float x = static_cast<float>(rect.x + static_cast<double>(left_w) * stretch); x < right_x && step > 0.0F;
+         x += step) {
+        part(third, third, x, mirrored);
+        mirrored = !mirrored;
+    }
+    part(left_w, third, right_x);
     SDL_SetRenderClipRect(m_renderer, nullptr);
 }
 
@@ -216,12 +240,12 @@ void SdlUiRenderer::image(int key, const std::vector<std::uint8_t>& rgba, std::i
 
 void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox, std::int32_t oy, double scale) {
     const double stretch = scale / art_scale();
-    const auto blit = [&](const Texture& t, double x, double y, bool half) {
+    const auto blit = [&](const Texture& t, double x, double y, bool half, std::uint8_t alpha = 255) {
         if (t.texture == nullptr) {
             return;
         }
         // Alphaflg: the original's 50 % checkerboard as real half transparency.
-        SDL_SetTextureAlphaMod(t.texture, half ? 128 : 255);
+        SDL_SetTextureAlphaMod(t.texture, half ? static_cast<std::uint8_t>(alpha / 2) : alpha);
         const SDL_FRect dst{static_cast<float>(ox + x), static_cast<float>(oy + y),
                             static_cast<float>(std::round(t.w * stretch)),
                             static_cast<float>(std::round(t.h * stretch))};
@@ -233,7 +257,9 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
                 blit(sprite(d.block, d.gfx, kModeSprite, 0), d.x, d.y, d.half);
                 break;
             case ui::DrawItem::Kind::SpriteMask:
-                blit(sprite(d.block, d.gfx, kModeMask, d.colour), d.x, d.y, d.half);
+                // The shadow of the build menu's building: the original fills it solid black, which
+                // looks harsh today; translucent like the figures' shadows (as the History Edition).
+                blit(sprite(d.block, d.gfx, kModeMask, d.colour), d.x, d.y, d.half, kMaskAlpha);
                 break;
             case ui::DrawItem::Kind::SpriteRaster:
                 blit(sprite(d.block, d.gfx, kModeRaster, d.colour), d.x, d.y, false);

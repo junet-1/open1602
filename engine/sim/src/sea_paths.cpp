@@ -2,6 +2,7 @@
 #include "o1602/sim/sea_paths.hpp"
 
 #include <algorithm>
+#include <optional>
 
 #include "o1602/sim/pathfinding.hpp"
 

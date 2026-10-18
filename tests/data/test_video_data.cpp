@@ -2,6 +2,7 @@
 // Smacker videos of the original data (docs/formats/smk.md).
 
 #include <filesystem>
+#include <optional>
 
 #include "../test_framework.hpp"
 

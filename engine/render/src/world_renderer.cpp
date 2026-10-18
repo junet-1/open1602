@@ -3,10 +3,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <numbers>
 #include <unordered_map>
 
 #include "o1602/sim/houses.hpp"
+#include "o1602/sim/ships.hpp"
 
 namespace o1602::render {
 
@@ -164,6 +166,80 @@ std::vector<DrawCommand> build_world_draw_list(const sim::World& world, const as
     std::vector<DrawCommand> commands;
     build_world_draw_list(world, buildings, clock, view, viewport, extent, commands);
     return commands;
+}
+
+TileLighting TileLighting::territory(sim::PlayerId player) {
+    TileLighting l;
+    l.m_kind = Kind::Territory;
+    l.m_player = player;
+    return l;
+}
+
+TileLighting TileLighting::circle(sim::PlayerId player, const sim::Catchment& area) {
+    TileLighting l;
+    l.m_kind = Kind::Circle;
+    l.m_player = player;
+    l.set_circle(area);
+    return l;
+}
+
+TileLighting& TileLighting::outline(const sim::Catchment& area) {
+    set_circle(area);
+    m_outlined = true;
+    return *this;
+}
+
+TileLighting& TileLighting::harbour(const sim::World& world, const assets::BuildingTable& buildings,
+                                    std::uint16_t island, std::uint32_t x, std::uint32_t y) {
+    m_world = &world;
+    m_buildings = &buildings;
+    m_island = island;
+    m_x = x;
+    m_y = y;
+    return *this;
+}
+
+void TileLighting::set_circle(const sim::Catchment& area) {
+    m_area = area;
+    m_half = sim::circle_half_widths(area.radius);
+    if (area.radius <= 1) {
+        std::fill(m_half.begin(), m_half.end(), area.radius);  // a square, as the figures' search
+    }
+}
+
+bool TileLighting::in_circle(std::int64_t x, std::int64_t y) const noexcept {
+    if (m_half.empty()) {
+        return false;
+    }
+    // As the catchment of the figures (pathfinding.cpp): an even size doubles the centre row/column.
+    std::int64_t dy = y - m_area.centre.y;
+    if (dy > 0) {
+        dy -= m_area.parity_y;
+    }
+    if (std::abs(dy) > m_area.radius) {
+        return false;
+    }
+    std::int64_t dx = x - m_area.centre.x;
+    if (dx > 0) {
+        dx -= m_area.parity_x;
+    }
+    return std::abs(dx) <= m_half[static_cast<std::size_t>(std::abs(dy))];
+}
+
+bool TileLighting::dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* cell) const noexcept {
+    if (m_kind == Kind::None) {
+        return false;
+    }
+    // The harbour: water and the unclaimed coast, as far as the ships reach.
+    if (m_world != nullptr && (cell == nullptr || cell->owner == sim::kNoPlayer || cell->owner == m_player) &&
+        sim::building_in_reach(*m_world, *m_buildings, m_island, m_x, m_y, static_cast<std::int32_t>(x),
+                               static_cast<std::int32_t>(y))) {
+        return false;
+    }
+    if (cell == nullptr || cell->owner != m_player) {
+        return true;
+    }
+    return m_kind == Kind::Circle && !in_circle(x, y);
 }
 
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
@@ -916,6 +992,39 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             }
         }
     };
+    // The border of a catchment circle: the edges of its tiles towards tiles outside, on top of
+    // everything, so neither buildings nor the island's edge cut it off.
+    const bool circle = layers.lighting != nullptr && layers.lighting->outlined();
+    std::vector<DrawCommand> outline;
+    const auto add_outline = [&](std::int32_t vx, std::int32_t vy, std::uint32_t wx, std::uint32_t wy,
+                                 std::int32_t sx, std::int32_t row_bottom, const sim::MapCell* cell) {
+        if (!layers.lighting->in_circle(wx, wy)) {
+            return;
+        }
+        const auto outside = [&](std::int32_t nx, std::int32_t ny) {
+            if (nx < 0 || ny < 0 || nx >= view_w || ny >= view_h) {
+                return true;
+            }
+            std::uint32_t ox = 0;
+            std::uint32_t oy = 0;
+            rw.to_world(static_cast<std::uint32_t>(nx), static_cast<std::uint32_t>(ny), ox, oy);
+            return !layers.lighting->in_circle(ox, oy);
+        };
+        std::uint32_t edges = 0;
+        edges |= outside(vx - 1, vy) ? std::uint32_t{DrawCommand::kTopLeft} : 0U;
+        edges |= outside(vx, vy - 1) ? std::uint32_t{DrawCommand::kTopRight} : 0U;
+        edges |= outside(vx + 1, vy) ? std::uint32_t{DrawCommand::kBottomRight} : 0U;
+        edges |= outside(vx, vy + 1) ? std::uint32_t{DrawCommand::kBottomLeft} : 0U;
+        if (edges == 0) {
+            return;
+        }
+        const assets::BuildingType* b = cell != nullptr && !cell->empty() ? buildings.by_sprite(cell->sprite) : nullptr;
+        const std::int32_t elevation = b != nullptr ? b->posoffs * tw / 64 : sea_elevation;
+        DrawCommand c{DrawCommand::kOverlayOutline, sx, row_bottom - elevation, kCircleOutline,
+                      static_cast<std::uint8_t>(tw)};
+        c.edges = static_cast<std::uint8_t>(edges);
+        outline.push_back(c);
+    };
     // Tiles of production buildings take their frame from the building's state (0x00489C90);
     // `island` is kSea for tiles without such state (the ground layer).
     const auto emit = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom, std::uint16_t island,
@@ -961,10 +1070,36 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     map = &world.islands()[wc.island].map;
                     cell = &map->top(wc.local_x, wc.local_y);
                 }
+                if (!high_pass && circle) {
+                    add_outline(vx, vy, wx, wy, sx, row_bottom, cell);
+                }
+                const std::size_t first = commands.size();
+                // A dimmed tile: everything drawn for it (ground and building) darker.
+                const auto dim = [&] {
+                    if (layers.lighting == nullptr || !layers.lighting->active()) {
+                        return;
+                    }
+                    // Water, the island's shallows and surf included, is never land to build on.
+                    const assets::BuildingType* t = cell != nullptr && !cell->empty() ? buildings.by_sprite(cell->sprite)
+                                                                                      : nullptr;
+                    const bool land = t != nullptr && t->kind != sim::building_kind::kSea &&
+                                      t->kind != sim::building_kind::kSurf &&
+                                      t->kind != sim::building_kind::kSurfCorner;
+                    if (!layers.lighting->dimmed(wx, wy, land ? cell : nullptr)) {
+                        return;
+                    }
+                    for (std::size_t k = first; k < commands.size(); ++k) {
+                        if (commands[k].mode == DrawCommand::Mode::Normal) {
+                            commands[k].mode = DrawCommand::Mode::Dimmed;
+                            commands[k].tint = assets::Rgba{kDimBrightness, kDimBrightness, kDimBrightness, 255};
+                        }
+                    }
+                };
                 if (cell == nullptr || cell->empty()) {  // open sea, always flat
                     if (!high_pass && sea != nullptr) {
                         commands.push_back(
                             DrawCommand{sea_sprite(*sea, sea_frame, wx, wy), sx, row_bottom - sea_elevation});
+                        dim();
                     }
                     continue;
                 }
@@ -982,6 +1117,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     }
                 }
                 emit(*cell, sx, row_bottom, wc.island, map, wc.local_x, wc.local_y);
+                dim();
             }
             if (!high_pass) {
                 commands.insert(commands.end(), overlays.begin(), overlays.end());
@@ -996,6 +1132,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         }
     }
     commands.insert(commands.end(), marked.begin(), marked.end());
+    commands.insert(commands.end(), outline.begin(), outline.end());
 }
 
 }  // namespace o1602::render

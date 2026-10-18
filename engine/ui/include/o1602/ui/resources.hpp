@@ -20,6 +20,11 @@ enum class ArtSize : std::uint8_t { Small, Medium, Large };  ///< 640, 800, 1024
     return width >= 1024 ? ArtSize::Large : width >= 800 ? ArtSize::Medium : ArtSize::Small;
 }
 
+/// Pixels of the art (and fonts) of a size per pixel of the 1024 x 768 design.
+[[nodiscard]] constexpr double art_scale(ArtSize size) noexcept {
+    return size == ArtSize::Small ? 0.625 : size == ArtSize::Medium ? 0.78125 : 1.0;
+}
+
 /// Sprite sheet of a Blocknr: 0 TOOLS, 1 START, 2 SYMBOL (one size), 3 BAUHAUS, 4 BAUSHIP; empty for others.
 [[nodiscard]] constexpr std::string_view sheet_file(std::int32_t block, ArtSize size) noexcept {
     constexpr std::string_view kFiles[5][3] = {

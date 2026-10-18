@@ -6,6 +6,7 @@
 // asked about by the map view (ADR 0010).
 #include <SDL3/SDL.h>
 #include <algorithm>
+#include <string_view>
 
 #include "panel_common.hpp"
 
@@ -45,7 +46,7 @@ class ShipUnitPanel final : public SimplePanel {
 public:
     explicit ShipUnitPanel(assets::GadgetLayout layout) : SimplePanel(std::move(layout)) {
         m_gfx_ware = m_panel.layout().constant("GFXWARE").value_or(192);
-        m_gfx_empty = m_panel.layout().constant("GFXWARELEER").value_or(188) + 1;
+        m_gfx_empty = m_panel.layout().constant("GFXWARELEER").value_or(188) + kEmptyHold;
     }
 
     void refresh(const Selection&, const PanelContext& c) override {
@@ -218,7 +219,7 @@ private:
     static constexpr std::int32_t kHoldBar = 51071;
     static constexpr std::int32_t kHoldButton = 51091;
     std::int32_t m_gfx_ware = 192;
-    std::int32_t m_gfx_empty = 189;
+    std::int32_t m_gfx_empty = 192;
     bool m_picking = false;
 };
 

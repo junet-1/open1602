@@ -19,6 +19,7 @@
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/unit_tint.hpp"
+#include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::render {
@@ -168,6 +169,57 @@ struct TileMark {
     assets::Rgba color;  ///< alpha = opacity
 };
 
+/// Brightness of a dimmed tile (of 255).
+inline constexpr std::uint8_t kDimBrightness = 120;
+
+/// Colour of the dashed border of a catchment circle.
+inline constexpr assets::Rgba kCircleOutline{255, 230, 0, 255};
+
+/// Tiles drawn darker, as the original does while the player builds (tile bit 27, drawn through
+/// a shading table with colour 0xD7): only the land the player can build on stays lit. A clicked
+/// building with a catchment narrows that to the land inside its circle, a clicked Kontor adds
+/// the water its ships trade from. A building being placed shows its circle as a dashed border
+/// instead, drawn whole, over land and water alike.
+class TileLighting {
+public:
+    /// Nothing dimmed.
+    TileLighting() = default;
+    /// Only the land of `player` stays lit.
+    [[nodiscard]] static TileLighting territory(sim::PlayerId player);
+    /// Only the land of `player` inside the circle `area` (world tiles) stays lit.
+    [[nodiscard]] static TileLighting circle(sim::PlayerId player, const sim::Catchment& area);
+
+    /// Adds the border of the circle `area` (world tiles) without narrowing the lit land.
+    TileLighting& outline(const sim::Catchment& area);
+    /// Keeps the water lit that ships reach the building at tile (x, y) of `island` from.
+    TileLighting& harbour(const sim::World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                          std::uint32_t x, std::uint32_t y);
+
+    [[nodiscard]] bool active() const noexcept { return m_kind != Kind::None; }
+    /// Whether the circle gets a dashed border.
+    [[nodiscard]] bool outlined() const noexcept { return m_outlined; }
+    /// Whether world tile (x, y) lies in the circle.
+    [[nodiscard]] bool in_circle(std::int64_t x, std::int64_t y) const noexcept;
+    /// Whether world tile (x, y) is dimmed; `cell` is its top island cell, nullptr for water.
+    [[nodiscard]] bool dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* cell) const noexcept;
+
+private:
+    enum class Kind : std::uint8_t { None, Territory, Circle };
+    void set_circle(const sim::Catchment& area);
+
+    Kind m_kind = Kind::None;
+    sim::PlayerId m_player = sim::kNoPlayer;
+    sim::Catchment m_area;
+    std::vector<std::uint8_t> m_half;  ///< half widths of the circle's rows, empty without a circle
+    bool m_outlined = false;
+    // The building whose harbour water stays lit (world == nullptr: none).
+    const sim::World* m_world = nullptr;
+    const assets::BuildingTable* m_buildings = nullptr;
+    std::uint16_t m_island = 0;
+    std::uint32_t m_x = 0;
+    std::uint32_t m_y = 0;
+};
+
 /// Everything besides the tiles that goes into the world draw list.
 struct WorldLayers {
     SpriteExtent extent;
@@ -184,6 +236,8 @@ struct WorldLayers {
     bool owner_tint = false;
     /// Single marked tiles, drawn on top of everything.
     const std::vector<TileMark>* tile_marks = nullptr;
+    /// Tiles drawn darker (while building, or around a clicked building).
+    const TileLighting* lighting = nullptr;
     /// Flags, smoke and status icons of buildings (collect_building_figures). Smoke and icons need
     /// the atlas bases of their sheets (`sheet_base`) and follow the buildings' production state.
     const std::vector<BuildingFigure>* building_figures = nullptr;

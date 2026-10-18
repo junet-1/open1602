@@ -161,6 +161,24 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
             fill_diamond(target, c.x - origin_x, c.y - origin_y, c.tint_size, c.tint, c.tint.a);
             continue;
         }
+        if (c.sprite == DrawCommand::kOverlayOutline) {
+            for_each_outline_step(c, [&](std::int32_t x, std::int32_t y) {
+                const std::int32_t ty = c.y - origin_y + y;
+                if (ty < 0 || ty >= th) {
+                    return;
+                }
+                for (std::int32_t tx = c.x - origin_x + x; tx < c.x - origin_x + x + 2; ++tx) {
+                    if (tx >= 0 && tx < tw) {
+                        std::uint8_t* p = &target.pixels[(static_cast<std::size_t>(ty) * target.width +
+                                                          static_cast<std::size_t>(tx)) * 4];
+                        p[0] = c.tint.r;
+                        p[1] = c.tint.g;
+                        p[2] = c.tint.b;
+                    }
+                }
+            });
+            continue;
+        }
         const AtlasRect& r = atlas.rect(c.sprite);
         if (r.empty()) {
             continue;
@@ -178,6 +196,7 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
         }
         const bool shadow = c.mode == DrawCommand::Mode::Shadow;
         const bool translucent = c.mode == DrawCommand::Mode::Translucent;
+        const bool dimmed = c.mode == DrawCommand::Mode::Dimmed;
         const std::uint32_t alpha = c.tint.a;
         for (std::int32_t y = y0; y < y1; ++y) {
             const std::uint8_t* src = &page[((std::size_t{r.y} + static_cast<std::size_t>(y)) * ps + r.x) * 4];
@@ -196,6 +215,11 @@ void blit_draw_list(const std::vector<DrawCommand>& commands, const SpriteAtlas&
                     for (int k = 0; k < 3; ++k) {
                         d[k] = static_cast<std::uint8_t>((d[k] * (255 - alpha) + s[k] * alpha) / 255);
                     }
+                } else if (dimmed) {
+                    d[0] = static_cast<std::uint8_t>(s[0] * c.tint.r / 255);
+                    d[1] = static_cast<std::uint8_t>(s[1] * c.tint.g / 255);
+                    d[2] = static_cast<std::uint8_t>(s[2] * c.tint.b / 255);
+                    d[3] = s[3];
                 } else {
                     std::copy_n(s, 4, d);
                 }

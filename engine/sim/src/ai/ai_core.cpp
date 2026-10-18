@@ -6,6 +6,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 
 #include "ai_archive.hpp"
 #include "ai_engine.hpp"

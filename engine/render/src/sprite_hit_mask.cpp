@@ -59,7 +59,7 @@ bool SpriteHitMask::visible(std::uint32_t sprite, std::int32_t x, std::int32_t y
 }
 
 std::optional<std::array<std::int32_t, 4>> command_bounds(const DrawCommand& command, const SpriteAtlas& atlas) {
-    if (command.sprite == DrawCommand::kOverlayDiamond) {
+    if (command.overlay()) {
         return std::nullopt;
     }
     const AtlasRect& r = atlas.rect(command.sprite);

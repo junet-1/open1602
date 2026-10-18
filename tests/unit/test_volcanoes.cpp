@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Volcanoes: craters, the eruption roll, lava (docs/re/volcanoes.md).
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 

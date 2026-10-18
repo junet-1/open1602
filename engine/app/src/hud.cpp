@@ -5,9 +5,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <string_view>
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/pathfinding.hpp"
+#include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
 
@@ -28,6 +30,12 @@ constexpr std::size_t kEvents = 3;
 constexpr std::int32_t kGfxParchment = 17;
 constexpr std::int32_t kGfxCompass = 18;
 constexpr std::int32_t kGfxLeiste = 253;
+constexpr std::int32_t kLeistArt = 101001;   // the status bar's art (drawn widened instead)
+constexpr std::int32_t kLeistTextX = 750;    // its line ends here, 18 before the art's right edge
+constexpr std::int32_t kTutorArt = 111001;   // the mission window's art (drawn widened instead)
+constexpr std::int32_t kGfxTutor = 645;      // GFXTUTOR of TOOLS.INC
+constexpr std::int32_t kTutorText = 110002;  // its flowing text
+constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
 constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
 constexpr std::uint64_t kMinimapMs = 2'000;  // the minimap is redrawn this often
 
@@ -102,6 +110,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     for (std::size_t i = 0; i < kEvents; ++i) {
         m_leist.set_hidden(kFirstEvent + static_cast<std::int32_t>(i), true);
     }
+    m_leist.set_hidden(kLeistArt, true);
     // The panels of the modes; without their layouts the head stays alone.
     if (auto bau = assets::load_gad(game, "BAU.GAD")) {
         m_build = std::make_unique<BuildPanel>(std::move(bau).value(), ui::original_build_menu(), own);
@@ -126,6 +135,16 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     }
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);
+        m_tutor->set_hidden(kTutorArt, true);
+        // The gadgets at the window's right end (the scroll arrows) move with it on wide screens.
+        for (const assets::Gadget& g : m_tutor->layout().gadgets) {
+            if (g.kind != assets::GadgetKind::Unused && g.id != kTutorArt && g.pos[0] >= kDesignViewW / 2) {
+                m_tutor_right.emplace_back(g.id, g.pos);
+            }
+        }
+        if (const assets::Gadget* text = m_tutor->layout().find(kTutorText)) {
+            m_tutor_text_size = text->size;
+        }
     }
     m_ctrl.set_selected(m_mode, true);
     m_gfx_baumat = m_ctrl.layout().constant("GFXBAUMAT").value_or(m_gfx_baumat);
@@ -441,6 +460,15 @@ void Hud::draw_mission(const sim::World& world) {
     // The window of the original (region above the status bar, 0x0043B53F): its art, the text
     // flowing in 110002; the lines and buttons of the tutorial stay hidden.
     m_tutor->set_scale(m_regions.scale);
+    // As wide as the game view (the original's art is 768 wide): the art widened, the text wider,
+    // the arrows at the right end.
+    const ui::Rect& window = m_regions.tutor;
+    const std::int32_t extra = std::max(0, static_cast<std::int32_t>(window.w / m_regions.scale) - kDesignViewW);
+    for (const auto& [id, pos] : m_tutor_right) {
+        m_tutor->set_position(id, pos[0] + extra, pos[1]);
+    }
+    m_tutor->set_size(kTutorText, m_tutor_text_size[0] + extra, m_tutor_text_size[1]);
+    m_renderer->draw_widened(0, kGfxTutor, window, m_regions.scale);
     m_tutor->set_text(110002, mission != nullptr && !mission->text.empty() ? mission->text : std::string("-"));
     for (std::int32_t id = 110011; id <= 110016; ++id) {
         m_tutor->set_visible(id, false);
@@ -455,9 +483,30 @@ void Hud::reset_game() {
     m_selection = Selection{};
     m_question.reset();
     m_help.reset();
+    m_modal_press = ModalPress::None;
     m_commands.clear();
     m_minimap_dirty = true;
     m_tutor_line = 0;
+}
+
+std::string Hud::crops_line(const std::array<std::pair<std::uint8_t, std::uint32_t>, 3>& crops) const {
+    constexpr std::size_t kGameSuited = 22;
+    constexpr std::uint8_t kFirstRaw = 45;  // [ROHST] starts with grain (ware 45)
+    if (!m_texts) {
+        return {};
+    }
+    const std::vector<std::string>& game = m_texts->section("GAME");
+    const std::vector<std::string>& raw = m_texts->section("ROHST");
+    const auto name = [&](std::uint8_t ware) -> std::string_view {
+        const std::size_t i = ware >= kFirstRaw ? std::size_t{ware} - kFirstRaw : raw.size();
+        return i < raw.size() ? std::string_view(raw[i]) : std::string_view();
+    };
+    if (game.size() <= kGameSuited) {
+        return {};
+    }
+    return ui::format_text(game[kGameSuited],
+                           {name(crops[0].first), std::int64_t{crops[0].second}, name(crops[1].first),
+                            std::int64_t{crops[1].second}, name(crops[2].first), std::int64_t{crops[2].second}});
 }
 
 void Hud::draw_help() {
@@ -513,10 +562,14 @@ void Hud::draw_help() {
 
 std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down) {
     std::optional<Action> action;
+    // Mouse motion also comes here with down == false: only a release after a press is a click.
     if (m_help) {
         // The key overview takes the click that closes it.
-        if (!down) {
+        if (down) {
+            m_modal_press = ModalPress::Elsewhere;
+        } else if (m_modal_press != ModalPress::None) {
             m_help.reset();
+            m_modal_press = ModalPress::None;
         }
         return std::nullopt;
     }
@@ -538,10 +591,24 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         return std::nullopt;
     }
     if (m_question) {
-        // The question takes every click until it is answered.
-        if (!down && (m_yes.contains(x, y) || m_no.contains(x, y))) {
+        // The question takes every click until it is answered: pressed and released on the same
+        // button (as the original's buttons), so passing over "Ja" answers nothing.
+        const ModalPress at = m_yes.contains(x, y)  ? ModalPress::Yes
+                              : m_no.contains(x, y) ? ModalPress::No
+                                                    : ModalPress::Elsewhere;
+        if (down) {
+            if (m_modal_press == ModalPress::None) {
+                m_modal_press = at;
+            }
+            return std::nullopt;
+        }
+        const ModalPress pressed = std::exchange(m_modal_press, ModalPress::None);
+        if (pressed == ModalPress::None) {
+            return std::nullopt;  // the pointer only moved
+        }
+        if (at == pressed && at != ModalPress::Elsewhere) {
             Action a{Action::Kind::Answer};
-            a.step = m_yes.contains(x, y) ? 1 : 0;
+            a.step = at == ModalPress::Yes ? 1 : 0;
             m_question.reset();
             return a;
         }
@@ -817,8 +884,12 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         SDL_RenderLines(m_sdl, points.data(), static_cast<int>(points.size()));
         SDL_SetRenderClipRect(m_sdl, nullptr);
     }
-    // A status bar wider than its art (wide windows): the art's plain middle continues it.
-    m_renderer->fill_with_middle(0, kGfxLeiste, m_regions.status_bar, s);
+    // A status bar wider than its art (wide windows): the art widened, the line at its right end.
+    m_renderer->draw_widened(0, kGfxLeiste, m_regions.status_bar, s);
+    const std::int32_t extra = std::max(0, static_cast<std::int32_t>(m_regions.status_bar.w / s) - kDesignViewW);
+    if (const assets::Gadget* line = m_leist.layout().find(kStatusLine)) {
+        m_leist.set_offset(kStatusLine, kLeistTextX + extra, line->offset[1]);
+    }
     m_leist.set_text(kStatusLine, status);
     m_renderer->draw(m_leist.draw(m_renderer->fonts()), m_regions.status_bar.x, m_regions.status_bar.y, s);
     draw_question();

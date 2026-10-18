@@ -3,11 +3,15 @@
 
 #include <SDL3/SDL.h>
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <random>
+#include <span>
+#include <string_view>
+#include <utility>
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
@@ -26,20 +30,27 @@ namespace {
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
 
 /// What the help bar of the original shows over grass and trees of an explored island
-/// (0x0040A3D0): the three crops of the climate with their fertility in percent.
+/// (0x0040A3D0): the three crops of the climate (north sugar cane, grapes, tobacco; south spices,
+/// cotton, cocoa) with their fertility in percent.
+std::array<std::pair<std::uint8_t, std::uint32_t>, 3> island_crops(const sim::WorldIsland& island) {
+    static constexpr std::array<std::uint8_t, 3> kNorth = {48, 50, 46};
+    static constexpr std::array<std::uint8_t, 3> kSouth = {47, 49, 51};
+    std::array<std::pair<std::uint8_t, std::uint32_t>, 3> crops{};
+    const std::array<std::uint8_t, 3>& wares = island.header.climate == 1 ? kSouth : kNorth;
+    for (std::size_t i = 0; i < crops.size(); ++i) {
+        crops[i] = {wares[i], sim::island_fertility(island, wares[i]) * 100 / 128};
+    }
+    return crops;
+}
+
+/// The same for the console and the window title.
 std::string crops_text(const sim::WorldIsland& island) {
-    struct Crop {
-        std::uint8_t ware;
-        const char* name;
-    };
-    static constexpr Crop kNorth[] = {{48, "sugar cane"}, {50, "grapes"}, {46, "tobacco"}};
-    static constexpr Crop kSouth[] = {{47, "spices"}, {49, "cotton"}, {51, "cocoa"}};
     std::string text;
-    for (const Crop& c : island.header.climate == 1 ? kSouth : kNorth) {
+    for (const auto& [ware, percent] : island_crops(island)) {
         if (!text.empty()) {
             text += ", ";
         }
-        text += std::string(c.name) + " " + std::to_string(sim::island_fertility(island, c.ware) * 100 / 128) + " %";
+        text += "#" + std::to_string(ware) + " " + std::to_string(percent) + " %";
     }
     return text;
 }
@@ -186,12 +197,14 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
     }
     viewer->m_sound->set_listener([self = viewer.get()](std::uint16_t message, std::uint16_t flags,
-                                                        std::optional<std::pair<double, double>> tile) {
+                                                        std::optional<std::pair<double, double>> tile,
+                                                        std::optional<sim::PlayerId> about) {
         if ((flags & audio::kMessageNormalSpeed) != 0 && self->m_simulation.speed() > 1) {
             self->m_simulation.set_speed(1);  // fires, plagues and attacks: back to normal speed (0x004893F0)
         }
         if (self->m_hud) {
-            const sim::Player* p = self->m_world.player(self->m_local_player);
+            // The icon in the colour of the player the message is about (a rival's new city).
+            const sim::Player* p = self->m_world.player(about.value_or(self->m_local_player));
             self->m_hud->message(message, p != nullptr ? static_cast<std::uint8_t>(std::min<int>(p->banner, 4)) : 0,
                                  tile, platform::ticks_ms());
         }
@@ -399,6 +412,7 @@ int MapViewer::run() {
             m_video->draw(w, h);
             SDL_RenderPresent(m_window->sdl_renderer());
         } else {
+            sync_text_input();
             if (m_hud && m_hud->menu_active()) {
                 apply_menu();  // no game runs behind the menu
                 render();
@@ -477,9 +491,10 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 // A savegame's name is typed: the keys go there, not to the key table.
                 if (event.key.key == SDLK_BACKSPACE) {
                     m_hud->type_key(8);
-                } else if (event.key.key == SDLK_RETURN || event.key.key == SDLK_KP_ENTER ||
-                           event.key.key == SDLK_ESCAPE) {
+                } else if (event.key.key == SDLK_RETURN || event.key.key == SDLK_KP_ENTER) {
                     m_hud->type_key(13);
+                } else if (event.key.key == SDLK_ESCAPE) {
+                    m_hud->type_key(27);
                 }
                 break;
             }
@@ -531,10 +546,16 @@ void MapViewer::handle_event(const SDL_Event& original) {
                         apply_hud(*a);
                     }
                 } else if (event.button.button == SDL_BUTTON_RIGHT) {
-                    // A right click on the minimap sends the selection there (ADR 0010).
+                    if (!m_options.original_mouse && cancel_build_step()) {
+                        break;
+                    }
+                    // A right click on the minimap sends the selection there (ADR 0010), elsewhere on
+                    // the panel it goes back towards the player status.
                     if (const auto t = m_hud->minimap_tile(static_cast<std::int32_t>(event.button.x),
                                                            static_cast<std::int32_t>(event.button.y))) {
                         order_to_tile(t->first, t->second, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+                    } else {
+                        (void)back_to_status();
                     }
                 }
                 break;  // the map does not see clicks on the frame
@@ -580,7 +601,9 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && !(m_hud && m_hud->modal())) {
                     if (m_options.original_mouse) {
                         cancel_action();
-                    } else {
+                    } else if (cancel_build_step()) {
+                        // the pop-up or the building in hand went; the build menu stays open
+                    } else if (!m_units.empty() || !back_to_status()) {
                         map_order(event.button.x, event.button.y, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
                     }
                 }
@@ -662,6 +685,91 @@ std::optional<BuildTool::Spot> MapViewer::spot_at_mouse() const {
     return BuildTool::Spot{cell.island, cell.local_x, cell.local_y};
 }
 
+std::string MapViewer::crops_status() const {
+    constexpr std::uint8_t kWareGrass = 52;
+    constexpr std::uint8_t kWareTree = 53;
+    if (!m_hud ||
+        !m_hud->game_view().contains(static_cast<std::int32_t>(m_mouse_x), static_cast<std::int32_t>(m_mouse_y))) {
+        return {};
+    }
+    const auto spot = spot_at_mouse();
+    if (!spot) {
+        return {};
+    }
+    const sim::WorldIsland& island = m_world.islands()[spot->island];
+    if (!island.explored_by(m_local_player)) {
+        return {};
+    }
+    const assets::BuildingType* b = m_buildings.by_sprite(
+        island.map.top(static_cast<std::uint32_t>(spot->x), static_cast<std::uint32_t>(spot->y)).sprite);
+    if (b == nullptr || (b->ware != kWareGrass && b->ware != kWareTree)) {
+        return {};
+    }
+    return m_hud->crops_line(island_crops(island));
+}
+
+sim::Catchment MapViewer::world_catchment(std::uint16_t island, sim::Catchment area) const {
+    const sim::WorldIsland& i = m_world.islands()[island];  // island tiles -> world tiles
+    area.centre.x += static_cast<std::int32_t>(i.x);
+    area.centre.y += static_cast<std::int32_t>(i.y);
+    return area;
+}
+
+std::optional<render::TileLighting> MapViewer::building_lighting(std::uint16_t island, std::uint16_t x,
+                                                                 std::uint16_t y) const {
+    // A catchment worth showing: production and public buildings, not houses (their Radius is
+    // only how far they look for a market).
+    constexpr std::int32_t kProdHouse = 13;
+    if (island >= m_world.islands().size() || !m_world.islands()[island].map.contains(x, y)) {
+        return std::nullopt;
+    }
+    const sim::IslandMap& map = m_world.islands()[island].map;
+    const sim::MapCell& cell = map.top(x, y);
+    const sim::SubTile t = map.sub_tile(m_buildings, x, y);
+    if (t.building == nullptr || cell.owner != m_local_player || t.building->radius <= 0 ||
+        t.building->prod_kind == kProdHouse) {
+        return std::nullopt;
+    }
+    render::TileLighting l = render::TileLighting::circle(
+        m_local_player, world_catchment(island, sim::catchment_of(*t.building, cell.rotation, sim::TilePos{x, y})));
+    for (const sim::City& c : m_world.cities()) {
+        if (c.island == island && c.warehouse_x == x && c.warehouse_y == y) {
+            l.harbour(m_world, m_buildings, island, x, y);  // the Kontor: the water of its ships too
+        }
+    }
+    return l;
+}
+
+render::TileLighting MapViewer::tile_lighting() const {
+    const bool building = m_tool.mode() == BuildTool::Mode::Build || (m_hud && m_hud->mode() == Hud::kModeBuild);
+    if (building) {
+        // The field of a building looked at before opening the build menu: that building's
+        // circle stays lit, to see where its fields go.
+        const assets::BuildingType* b = m_tool.mode() == BuildTool::Mode::Build ? m_tool.selected() : nullptr;
+        if (m_field_source && b != nullptr && b->id == m_field_source->field) {
+            if (auto l = building_lighting(m_field_source->island, m_field_source->x, m_field_source->y)) {
+                return *l;
+            }
+        }
+        render::TileLighting l = render::TileLighting::territory(m_local_player);
+        // A building with a catchment being placed: the border of its circle at the mouse.
+        constexpr std::int32_t kProdHouse = 13;
+        const auto spot = spot_at_mouse();
+        if (b != nullptr && spot && b->radius > 0 && b->prod_kind != kProdHouse) {
+            l.outline(world_catchment(spot->island, sim::catchment_of(*b, m_tool.rotation(),
+                                                                      sim::TilePos{spot->x, spot->y})));
+        }
+        return l;
+    }
+    if (m_hud && m_hud->mode() == Hud::kModeInfo && m_hud->selection().kind == Selection::Kind::Building) {
+        const Selection& sel = m_hud->selection();
+        if (auto l = building_lighting(sel.island, sel.x, sel.y)) {
+            return *l;
+        }
+    }
+    return {};
+}
+
 void MapViewer::apply_construction() {
     for (const sim::CommandResult& r : m_simulation.take_command_results()) {
         if (!r.build) {
@@ -690,7 +798,7 @@ void MapViewer::apply_construction() {
                 std::fprintf(stderr, "a new city was founded: %s\n", c->name.c_str());
                 if (c->owner != m_local_player) {
                     const sim::WorldIsland& i = m_world.islands()[e.island];
-                    announce(0x0E, std::make_pair(i.x + i.map.width() / 2.0, i.y + i.map.height() / 2.0));
+                    announce(0x0E, std::make_pair(i.x + i.map.width() / 2.0, i.y + i.map.height() / 2.0), c->owner);
                 }
             }
         }
@@ -751,6 +859,8 @@ void MapViewer::render() {
         m_pending_bill.reset();
         m_tile_marks.clear();
         layers.tile_marks = &m_tile_marks;
+        m_lighting = tile_lighting();
+        layers.lighting = &m_lighting;
         if (m_tool.mode() == BuildTool::Mode::Build) {
             if (const auto spot = spot_at_mouse()) {
                 if (const auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
@@ -831,20 +941,18 @@ void MapViewer::render() {
         draw_selection_overlay();
     }
     if (m_hud) {
-        // The corners of the visible map in world tiles, for the minimap's frame.
+        // The corners of the visible map in world tiles, for the minimap's frame. A corner beyond
+        // the map's edge stays where it is (the minimap clips the frame), so the frame keeps its shape.
         const ui::Rect& v = m_hud->game_view();
         std::array<std::pair<double, double>, 4> corners{};
         const std::array<std::pair<double, double>, 4> screen = {
             std::make_pair(0.0, 0.0), std::make_pair(static_cast<double>(v.w), 0.0),
             std::make_pair(static_cast<double>(v.w), static_cast<double>(v.h)),
             std::make_pair(0.0, static_cast<double>(v.h))};
-        const render::TilePos centre = home_or_centre();
         for (std::size_t i = 0; i < 4; ++i) {
-            const auto t = m_camera.tile_at_screen(screen[i].first, screen[i].second);
-            corners[i] = t ? std::make_pair(static_cast<double>(t->x), static_cast<double>(t->y))
-                           : std::make_pair(static_cast<double>(centre.x), static_cast<double>(centre.y));
+            corners[i] = m_camera.point_at_screen(screen[i].first, screen[i].second);
         }
-        m_hud->set_status(m_tool_status);
+        m_hud->set_status(m_tool_status.empty() && !m_tool.active() ? crops_status() : m_tool_status);
         m_hud->set_rotation(m_camera.view().rotation);
         m_hud->set_building_rotation(m_tool.rotation());
         const std::uint64_t now = platform::ticks_ms();
@@ -1072,8 +1180,9 @@ void MapViewer::place_listener() {
         static_cast<float>(v.width), static_cast<float>(v.height));
 }
 
-void MapViewer::announce(std::uint16_t message, std::optional<std::pair<double, double>> tile) {
-    m_sound->message(message, tile);  // the listener puts it into the status bar
+void MapViewer::announce(std::uint16_t message, std::optional<std::pair<double, double>> tile,
+                         std::optional<sim::PlayerId> about) {
+    m_sound->message(message, tile, about);  // the listener puts it into the status bar
     if (const auto n = m_sound->take_video()) {
         request_video(*n);
     }
@@ -1189,10 +1298,6 @@ void MapViewer::lay_out() {
     m_camera.set_screen(view.w, view.h, m_camera.pixel_scale());
 }
 
-render::TilePos MapViewer::home_or_centre() const {
-    return render::TilePos{m_world.width() / 2, m_world.height() / 2};
-}
-
 void MapViewer::select_building_at_mouse() {
     if (!m_hud) {
         return;
@@ -1231,6 +1336,23 @@ void MapViewer::select_building_at_mouse() {
     sel.again = sel.kind == Selection::Kind::Building && old.kind == Selection::Kind::Building &&
                 old.island == sel.island && old.x == sel.x && old.y == sel.y;
     m_hud->set_selection(sel);
+    m_field_source.reset();
+    if (sel.kind == Selection::Kind::Building) {
+        // Looking at a farm, a plantation or a forester picks its field in the build menu
+        // (BuildMenu_SelectFarmByWare 0x004331B0): the field whose grown stage gives the raw material.
+        const sim::SubTile t = m_world.islands()[sel.island].map.sub_tile(m_buildings, sel.x, sel.y);
+        if (t.building != nullptr && t.building->raw_ware != 0) {
+            constexpr std::int32_t kProdGrowing = 10;
+            for (const assets::BuildingType& field : m_buildings.types()) {
+                const assets::BuildingType* ripe =
+                    field.prod_kind == kProdGrowing ? sim::ripe_record(m_buildings, field) : nullptr;
+                if (ripe != nullptr && ripe->ware == t.building->raw_ware && m_hud->show_in_build_menu(field.id)) {
+                    m_field_source = FieldSource{sel.island, sel.x, sel.y, field.id};
+                    break;
+                }
+            }
+        }
+    }
 }
 
 Hud::Resources MapViewer::resources() const {
@@ -1611,6 +1733,7 @@ void MapViewer::load_options() {
             m_sound->set_settings(m_app_settings.audio);
         }
     }
+    m_ambient.set_config(ambient_config());
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
     }
@@ -1640,6 +1763,62 @@ void MapViewer::save_settings() {
     }
 }
 
+bool MapViewer::cancel_build_step() {
+    if (m_hud && m_hud->close_build_popup()) {
+        return true;
+    }
+    if (m_tool.active()) {
+        m_tool.set_mode(BuildTool::Mode::Off);
+        return true;
+    }
+    return false;
+}
+
+bool MapViewer::back_to_status() {
+    if (!m_hud || m_hud->menu_active()) {
+        return false;
+    }
+    if (m_hud->back()) {
+        return true;  // a page back (tribute -> treaties, a ship's trade page), or a window stops picking
+    }
+    if (m_hud->mode() != Hud::kModeInfo) {
+        if (const auto a = m_hud->set_mode(Hud::kModeInfo)) {
+            apply_hud(*a);
+        }
+        return true;
+    }
+    if (!m_units.empty()) {
+        m_units.clear();
+        selection_changed(false);
+        return true;
+    }
+    if (m_hud->selection().kind != Selection::Kind::None) {
+        m_hud->set_selection(Selection{});
+        return true;
+    }
+    return false;
+}
+
+void MapViewer::sync_text_input() {
+    // Every frame, in the menu as in the game: SDL sends no text (SDL_EVENT_TEXT_INPUT) without it.
+    const bool typing = m_hud && m_hud->typing();
+    if (typing == m_text_input) {
+        return;
+    }
+    m_text_input = typing;
+    if (typing) {
+        SDL_StartTextInput(m_window->sdl_window());
+    } else {
+        SDL_StopTextInput(m_window->sdl_window());
+    }
+}
+
+render::Ambient::Config MapViewer::ambient_config() const {
+    render::Ambient::Config config;
+    config.sea_interval_ms = static_cast<std::uint32_t>(std::max(m_app_settings.sea_creatures_every, 0)) * 1000U;
+    return config;
+}
+
 void MapViewer::apply_options() {
     if (!m_hud) {
         return;
@@ -1652,15 +1831,6 @@ void MapViewer::apply_options() {
     std::int32_t h = 0;
     m_window->output_size(w, h);
     model.resolution = w >= 1024 ? 2 : (w >= 800 ? 1 : 0);
-    // The platform's text input runs while a savegame's name is typed.
-    if (m_hud->typing() != m_text_input) {
-        m_text_input = m_hud->typing();
-        if (m_text_input) {
-            SDL_StartTextInput(m_window->sdl_window());
-        } else {
-            SDL_StopTextInput(m_window->sdl_window());
-        }
-    }
     for (const OptionsEvent& e : m_hud->take_option_events()) {
         switch (e.kind) {
             case OptionsEvent::Kind::Save: {
@@ -1674,13 +1844,14 @@ void MapViewer::apply_options() {
                 for (const sim::Player& p : m_world.players()) {
                     humans = static_cast<std::uint8_t>(humans + (p.role == sim::PlayerRole::Human ? 1 : 0));
                 }
-                m_slots.names[e.value] = name;
-                m_slots.humans[e.value] = humans;
+                m_slots.set(e.value, name, humans);
                 model.slot_names = m_slots.names;
                 model.slot_humans = m_slots.humans;
                 const std::string text = write_slots(m_slots);
                 const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
                 (void)core::write_file(save_folder() / "slots.cfg", std::span<const std::uint8_t>(data, text.size()));
+                // The voice confirms it (0x0043F71E: Speech_Queue(0x79, 2): files 121 or 123).
+                m_sound->speak(121, 2);
                 // As the original: after saving, the info mode (0x0043F751).
                 if (const auto a = m_hud->set_mode(Hud::kModeInfo)) {
                     apply_hud(*a);
@@ -1794,7 +1965,7 @@ void MapViewer::replace_world(sim::World world) {
     m_building_figures = render::collect_building_figures(m_world, m_buildings, m_figures);
     m_soldiers.reset(m_world, m_buildings, m_figures);
     m_walkers = render::WalkerFigures{};
-    m_ambient = render::Ambient{};
+    m_ambient = render::Ambient{1602, ambient_config()};
     m_ambient.tick(m_world, m_buildings, m_figures);
     m_effects.clear();
     m_player_figures = sim::PlayerFigures{};
@@ -1886,11 +2057,16 @@ void MapViewer::apply_menu() {
                 }
                 break;
             case MenuEvent::Kind::LoadSlot:
-                started = load_game(slot_file(save_folder(), e.level));
+                started = load_game(slot_file(save_folder(), e.slot));
                 break;
             case MenuEvent::Kind::ContinueLast:
                 started = load_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
                 break;
+            case MenuEvent::Kind::NameEntered:
+                // "Unter welcher Flagge wollt Ihr segeln?" and four more, one at random (Speech8
+                // 107..115). The original speaks on entering the screen; Open1602 once the name is in.
+                m_sound->speak(107, 5);
+                continue;
         }
         if (!started) {
             std::fprintf(stderr, "menu: %s\n", started.error().message.c_str());

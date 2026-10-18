@@ -44,19 +44,21 @@ struct MenuScenario {
 
 struct MenuEvent {
     enum class Kind : std::uint8_t {
-        Quit,         ///< leave the program (after a question)
-        Credits,      ///< video 10 in the picture frame
-        Intro,        ///< video 58
-        NewEndless,   ///< endless game of `level` with `colour` and `name`
-        Scenario,     ///< start `path` with `name`
-        LoadSlot,     ///< savegame slot `level`
-        ContinueLast  ///< lastgame
+        Quit,          ///< leave the program (after a question)
+        Credits,       ///< video 10 in the picture frame
+        Intro,         ///< video 58
+        NewEndless,    ///< endless game of `level` with `colour` and `name`
+        Scenario,      ///< start `path` with `name`
+        LoadSlot,      ///< savegame `slot`
+        ContinueLast,  ///< lastgame
+        NameEntered    ///< the name is confirmed (Enter): "Wählt Euer Banner" and the like
     };
     Kind kind = Kind::Quit;
     std::uint8_t level = 0;
     std::uint8_t colour = 0;
     std::string name{};
     std::filesystem::path path{};
+    std::size_t slot = 0;
 };
 
 class MainMenu {
@@ -84,7 +86,10 @@ public:
 
     [[nodiscard]] bool typing() const noexcept { return m_typing; }
     void type(std::string_view text);
-    void key(int key);
+    /// Backspace 8, Enter 13 (confirms: NameEntered), Escape 27 (back to the choice of the game).
+    std::optional<MenuEvent> key(int key);
+    /// The name the field shows when none was typed yet.
+    static constexpr std::string_view kDefaultName = "Namenlos";
 
 private:
     enum class ListMode : std::uint8_t { New, Load };
@@ -116,6 +121,7 @@ private:
     std::int32_t m_briefing_line = 0;
     SaveSlots m_slots;
     std::string m_name;
+    bool m_name_fresh = false;  ///< the name was put in, not typed: the first key replaces it
     bool m_typing = false;
 };
 

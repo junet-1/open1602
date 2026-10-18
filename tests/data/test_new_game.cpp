@@ -3,8 +3,10 @@
 // a world plan gets, the start state, and the savegame of a new game.
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <set>
+#include <span>
 #include <string>
 #include <vector>
 

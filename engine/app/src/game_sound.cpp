@@ -180,12 +180,13 @@ void GameSound::click() {
     }
 }
 
-std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<double, double>> tile) {
+std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<double, double>> tile,
+                                 std::optional<sim::PlayerId> about) {
     if (m_output == nullptr) {
         const audio::MessageAudio* m = audio::message_audio(message);
         const std::uint16_t flags = m != nullptr ? m->flags : 0;
         if (m_listener) {
-            m_listener(message, flags, tile);
+            m_listener(message, flags, tile, about);
         }
         return flags;
     }
@@ -196,9 +197,15 @@ std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<
     }
     const std::uint16_t flags = m_voices.message(message, visible);
     if (m_listener) {
-        m_listener(message, flags, tile);
+        m_listener(message, flags, tile, about);
     }
     return flags;
+}
+
+void GameSound::speak(std::uint16_t base, std::uint8_t count) {
+    if (m_output != nullptr) {
+        (void)m_voices.speak(base, count);
+    }
 }
 
 void GameSound::construction(const sim::World& world, const std::vector<sim::ConstructionEvent>& events) {
@@ -307,7 +314,11 @@ void GameSound::ships(const sim::World& world, const assets::FigureTable& figure
                 }
                 break;
             case sim::ShipEvent::Kind::ShipLaunched:
-                message(e.player == local ? kMsgShipLaunched : kMsgRivalShip, ship_tile);
+                if (e.player == local) {
+                    message(kMsgShipLaunched, ship_tile);
+                } else {
+                    message(kMsgRivalShip, ship_tile, e.player);  // the icon in the rival's colour
+                }
                 break;
             case sim::ShipEvent::Kind::ShipRepaired:
                 if (e.player == local) {

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/sim/world.hpp"

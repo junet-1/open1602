@@ -49,7 +49,11 @@ public:
         std::int32_t y = 0;
     };
     void press(const Spot& spot) noexcept;
-    void release() noexcept { m_drag_start.reset(); }
+    /// The mouse button is let go (the order went out): the next trees get new variants.
+    void release() noexcept {
+        m_drag_start.reset();
+        ++m_variant_seed;
+    }
     [[nodiscard]] bool dragging() const noexcept { return m_drag_start.has_value(); }
 
     [[nodiscard]] const assets::BuildingType* selected() const noexcept;
@@ -71,6 +75,7 @@ private:
     bool m_orient_to_road = false;
     std::optional<std::uint32_t> m_ship;  ///< the ship that founds, chosen in its window
     std::optional<Spot> m_drag_start;
+    std::uint32_t m_variant_seed = 0;  ///< picks the trees' variants, the same for every frame of a drag
 };
 
 }  // namespace o1602::app

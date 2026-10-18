@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <span>
+#include <string_view>
 
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/sim/savegame_extension.hpp"

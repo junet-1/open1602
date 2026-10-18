@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 namespace o1602::app {
@@ -103,6 +104,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             s.player_name = std::string(value);
         } else if (key == "mission_window") {
             s.mission_window = flag(value, s.mission_window);
+        } else if (key == "sea_creatures_every") {
+            s.sea_creatures_every = std::clamp(number(value, s.sea_creatures_every), 0, 3600);
         }
     });
     return s;
@@ -122,10 +125,34 @@ std::string write_settings(const AppSettings& s) {
         out += "disabled_song = " + t + "\n";
     }
     out += std::string("mission_window = ") + (s.mission_window ? "on" : "off") + "\n";
+    out += "# Wale, Delfine, Kraken: im Mittel einer je Bildschirm Meer alle so viele Sekunden (Original 5, 0 = aus)\n";
+    out += "sea_creatures_every = " + std::to_string(s.sea_creatures_every) + "\n";
     if (!s.player_name.empty()) {
         out += "player_name = " + s.player_name + "\n";
     }
     return out;
+}
+
+void SaveSlots::set(std::size_t slot, std::string name, std::uint8_t human_players) {
+    if (slot >= kMaxCount) {
+        return;
+    }
+    if (slot >= names.size()) {
+        names.resize(slot + 1);
+        humans.resize(slot + 1);
+    }
+    names[slot] = std::move(name);
+    humans[slot] = human_players;
+    // At least twelve, and one free slot after the last used one.
+    std::size_t used = 0;
+    for (std::size_t i = 0; i < names.size(); ++i) {
+        if (!names[i].empty()) {
+            used = i + 1;
+        }
+    }
+    const std::size_t count = std::min(std::max(kMinCount, used + 1), kMaxCount);
+    names.resize(count);
+    humans.resize(count);
 }
 
 SaveSlots parse_slots(std::string_view text) {
@@ -141,18 +168,18 @@ SaveSlots parse_slots(std::string_view text) {
         }
         const std::int32_t slot = number(line.substr(0, a), -1);
         const std::int32_t humans = number(line.substr(a + 1, b - a - 1), 0);
-        if (slot < 0 || static_cast<std::size_t>(slot) >= SaveSlots::kCount) {
+        if (slot < 0 || static_cast<std::size_t>(slot) >= SaveSlots::kMaxCount) {
             return;
         }
-        slots.names[static_cast<std::size_t>(slot)] = std::string(line.substr(b + 1));
-        slots.humans[static_cast<std::size_t>(slot)] = static_cast<std::uint8_t>(std::clamp(humans, 0, 255));
+        slots.set(static_cast<std::size_t>(slot), std::string(line.substr(b + 1)),
+                  static_cast<std::uint8_t>(std::clamp(humans, 0, 255)));
     });
     return slots;
 }
 
 std::string write_slots(const SaveSlots& slots) {
     std::string out = "# Open1602: Namen der Spielstaende (Platz, Menschen, Name)\n";
-    for (std::size_t i = 0; i < SaveSlots::kCount; ++i) {
+    for (std::size_t i = 0; i < slots.size(); ++i) {
         if (!slots.names[i].empty()) {
             out += std::to_string(i) + " " + std::to_string(slots.humans[i]) + " " + slots.names[i] + "\n";
         }

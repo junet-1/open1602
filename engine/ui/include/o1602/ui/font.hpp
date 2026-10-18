@@ -43,6 +43,10 @@ public:
     static core::Result<Font> load(const assets::GameDirectory& game, std::string_view file);
     static core::Result<Font> from_sheet(const assets::SpriteSheet& sheet);
 
+    /// Font pixels per pixel of the 1024 x 768 design the layouts are made for: 1 for the large
+    /// screen's fonts, 0.625 / 0.78125 for the small and medium ones (set by who loads the font).
+    [[nodiscard]] double design_scale() const noexcept { return m_design_scale; }
+    void set_design_scale(double scale) noexcept { m_design_scale = scale; }
     /// Height of the cell (the same for every glyph).
     [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
     /// Whether the font has a glyph for the byte (the large fonts have only codes 32..64).
@@ -61,6 +65,7 @@ private:
     };
     std::vector<Glyph> m_glyphs;
     std::uint32_t m_height = 0;
+    double m_design_scale = 1.0;
 };
 
 /// Draws text aligned left, centred on x or with its right edge at x (0x004014F0 / 0x00401530 /

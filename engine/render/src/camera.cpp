@@ -50,6 +50,31 @@ std::optional<TilePos> world_tile_at(const WorldView& view, double px, double py
     return view_to_world(view, vx, vy);
 }
 
+std::pair<double, double> world_point_at(const WorldView& view, double px, double py) {
+    std::int32_t vw = 0;
+    std::int32_t vh = 0;
+    view_size(view, vw, vh);
+    const double half_w = tile_width(view.zoom) / 2.0;
+    const double half_h = tile_height(view.zoom) / 2.0;
+    // As world_tile_at, without rounding: view tile (vx, vy) covers vx..vx+1.
+    const double s = px / half_w - vh;
+    const double t = py / half_h - 1.0;
+    const double vx = (s + t) / 2.0 + 0.5;
+    const double vy = (t - s) / 2.0 + 0.5;
+    const auto W = static_cast<double>(view.world_width);
+    const auto H = static_cast<double>(view.world_height);
+    switch (view.rotation & 3U) {
+        case 0:
+            return {vx, vy};
+        case 1:
+            return {vy, H - vx};
+        case 2:
+            return {W - vx, H - vy};
+        default:
+            return {W - vy, vx};
+    }
+}
+
 void Camera::set_world_size(std::uint32_t width, std::uint32_t height) {
     m_view.world_width = std::max<std::uint32_t>(1, width);
     m_view.world_height = std::max<std::uint32_t>(1, height);
@@ -112,6 +137,13 @@ std::optional<TilePos> Camera::tile_at_screen(double sx, double sy) const {
     return world_tile_at(m_view, px, py);
 }
 
+std::pair<double, double> Camera::point_at_screen(double sx, double sy) const {
+    double px = 0;
+    double py = 0;
+    screen_to_world(sx, sy, px, py);
+    return world_point_at(m_view, px, py);
+}
+
 template <class Change>
 void Camera::change_view(double sx, double sy, Change change) {
     // Remember the anchor as a tile plus the sub-tile offset of the point from the tile centre
@@ -169,11 +201,20 @@ void Camera::set_pixel_scale(std::int32_t scale, double sx, double sy) {
 }
 
 void Camera::clamp() {
-    std::int32_t w = 0;
-    std::int32_t h = 0;
-    world_pixel_size(m_view, w, h);
-    m_center_x = std::clamp(m_center_x, 0.0, static_cast<double>(w));
-    m_center_y = std::clamp(m_center_y, 0.0, static_cast<double>(h));
+    // The screen centre stays on the map's diamond (not its bounding box), so the view never
+    // drifts into the black corners beyond the end of the world: the centre in view tiles
+    // (as world_point_at, before the rotation) is kept in 0..width, 0..height.
+    std::int32_t vw = 0;
+    std::int32_t vh = 0;
+    view_size(m_view, vw, vh);
+    const double half_w = tile_width(m_view.zoom) / 2.0;
+    const double half_h = tile_height(m_view.zoom) / 2.0;
+    const double s = m_center_x / half_w - vh;
+    const double t = m_center_y / half_h - 1.0;
+    const double vx = std::clamp((s + t) / 2.0 + 0.5, 0.0, static_cast<double>(vw));
+    const double vy = std::clamp((t - s) / 2.0 + 0.5, 0.0, static_cast<double>(vh));
+    m_center_x = (vx - vy + vh) * half_w;
+    m_center_y = (vx + vy) * half_h;
 }
 
 }  // namespace o1602::render

@@ -147,6 +147,16 @@ private:
     void load_options();
     /// What the settings panel asked for this frame (save, load, quit, sounds, window size).
     void apply_options();
+    /// The platform's text input runs exactly while a name is typed (in the menu or the settings).
+    void sync_text_input();
+    /// The right click while building: first the open pop-up of a category goes, then the
+    /// building in hand. False if there was neither (the click is an order then).
+    bool cancel_build_step();
+    /// A right click on the panel, or on the map with nothing to order: a step back towards the
+    /// player status, the general status page (a window's page, then any other mode or window).
+    bool back_to_status();
+    /// How often the scenery shows itself, from the settings.
+    [[nodiscard]] render::Ambient::Config ambient_config() const;
     void save_settings();
     /// Replaces the running game by a savegame (Open1602's own or the original's) while the
     /// program runs (F9); the game goes on as it was if the file cannot be read.
@@ -208,12 +218,13 @@ private:
     void apply_hud(const Hud::Action& action);
     /// The resource bar: money, and goods and inhabitants of the city under the mouse.
     [[nodiscard]] Hud::Resources resources() const;
-    [[nodiscard]] render::TilePos home_or_centre() const;
     /// Shots, hits, victory and defeat: sounds, messages and lines in the terminal.
     void apply_game_events();
     /// A message for the local player with its voice; a message that asks for it slows the game
     /// to normal speed (flag 0x02).
-    void announce(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt);
+    /// `about`: the player the message is about, if not the local one (the icon's colour).
+    void announce(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt,
+                  std::optional<sim::PlayerId> about = std::nullopt);
     /// The same with the tracks of its video (bit i = track i, 0 = all): the messages 0x6B..0x6E
     /// speak to the winner on track 1 and to the others on track 2.
     void announce_with_tracks(std::uint16_t message, std::uint8_t tracks);
@@ -232,6 +243,17 @@ private:
     void zoom_by(int steps, double sx, double sy);
     /// Island tile under the mouse, nullopt over the sea.
     [[nodiscard]] std::optional<BuildTool::Spot> spot_at_mouse() const;
+    /// What the world dims: while building the land the player cannot build on, or everything
+    /// outside the circle of the building being placed or of the player's clicked building.
+    [[nodiscard]] render::TileLighting tile_lighting() const;
+    /// A catchment given in tiles of `island` in world tiles.
+    [[nodiscard]] sim::Catchment world_catchment(std::uint16_t island, sim::Catchment area) const;
+    /// Lighting of the local player's building at tile (x, y) of `island`: the land inside its
+    /// circle (and a Kontor's harbour); none for other buildings and those without a circle.
+    [[nodiscard]] std::optional<render::TileLighting> building_lighting(std::uint16_t island, std::uint16_t x,
+                                                                        std::uint16_t y) const;
+    /// The status line over grass and trees of an island the player explored: its crops.
+    [[nodiscard]] std::string crops_status() const;
     /// Results of building and demolishing (messages, flags of new buildings).
     void apply_construction();
     /// Animation phases of buildings that started or stopped work (presentation only).
@@ -298,6 +320,16 @@ private:
     std::unique_ptr<Hud> m_hud;                   ///< panel and status bar (after the window), may be null
     bool m_left_down = false;                     ///< the left mouse button, for the frame's buttons
     std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
+    render::TileLighting m_lighting;              ///< tiles drawn darker this frame
+    /// The building looked at when the build menu picked its field: its circle stays lit while
+    /// that field is placed.
+    struct FieldSource {
+        std::uint16_t island = 0;
+        std::uint16_t x = 0;
+        std::uint16_t y = 0;
+        std::uint32_t field = 0;  ///< id of the field
+    };
+    std::optional<FieldSource> m_field_source;
     struct VideoRequest {
         std::uint16_t number = 0;
         std::uint8_t tracks = 0;

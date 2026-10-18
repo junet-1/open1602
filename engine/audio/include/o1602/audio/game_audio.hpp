@@ -132,6 +132,9 @@ public:
     /// instead of a voice when videos of its kind are on and its place is off screen, or always
     /// (flag 0x01), or at a quarter of the times (flag 0x08) (Msg_Audio 0x00488E80).
     std::uint16_t message(std::uint16_t message, bool visible);
+    /// One of `count` voice files base, base + 2, ... at random, without a message (the menu's
+    /// "Wählt Euer Banner": Speech_Queue(0x6B, 5, 2) 0x0048C008). False if muted or no room.
+    bool speak(std::uint16_t base, std::uint8_t count);
     /// The video the last messages asked for (the latest wins), once.
     [[nodiscard]] std::optional<std::uint16_t> take_video() noexcept { return std::exchange(m_video, std::nullopt); }
     /// Starts the next voice when the last one has ended.
@@ -142,6 +145,8 @@ public:
 
 private:
     static constexpr std::size_t kSlots = 4;
+    /// One of `count` files from `base` (every second number) into a free slot.
+    bool queue(std::uint16_t base, std::uint8_t count);
     Mixer* m_mixer;
     SoundBank* m_bank;
     Effects* m_effects;

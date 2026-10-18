@@ -2,6 +2,7 @@
 #include "o1602/sim/world_generator.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <memory>
