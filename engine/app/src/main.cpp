@@ -64,6 +64,7 @@ int usage() {
         "  --original-mouse   the original's mouse: orders with the left button, the right one cancels\n"
         "  --no-confirm       no questions before scuttling, disbanding and declaring war\n"
         "  --keys FILE        key settings (default: keys.cfg in the user's data folder; F1 shows the keys)\n"
+        "  --language CODE    language of Open1602's own texts, e.g. en, de (default: the installation's)\n"
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
         "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\";\n"
@@ -233,6 +234,8 @@ int main(int argc, char** argv) {
             options.confirm = false;
         } else if (arg == "--keys" && has_value) {
             options.keys_file = std::filesystem::path(argv[++i]);
+        } else if (arg == "--language" && has_value) {
+            options.language = argv[++i];
         } else if (arg == "--no-videos") {
             options.videos = false;
         } else if (arg == "--intro") {

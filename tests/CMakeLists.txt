@@ -34,6 +34,7 @@ add_executable(o1602_tests
     unit/test_missions.cpp
     unit/test_audio.cpp
     unit/test_ui.cpp
+    unit/test_localization.cpp
     unit/test_unit_selection.cpp
     unit/test_video.cpp
     data/test_original_data.cpp

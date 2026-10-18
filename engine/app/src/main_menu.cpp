@@ -8,6 +8,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/core/file.hpp"
+#include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
 
@@ -144,6 +145,10 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder,
         }
     }
     return out;
+}
+
+const std::string& MainMenu::default_name() {
+    return ui::tr("menu.default_name");
 }
 
 MainMenu::MainMenu(const assets::GameDirectory& game, const assets::TextTable* texts)
@@ -329,7 +334,7 @@ void MainMenu::refresh_mission() {
             label = text("TUTORKIND", digits[i]);
         }
         if (label.empty()) {
-            label = "Teil " + std::to_string(digits[i] + 1);
+            label = ui::tr("menu.part", {std::to_string(digits[i] + 1)});
         }
         p.set_text(kChoiceLabel + k, label);
         p.set_selected(kChoice + k, digits[i] == m_variant);
@@ -465,7 +470,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                         // The name can be typed at once (as the original, mode 5 of 0x00409910);
                         // the last one, or "Namenlos", stands there until the first key.
                         if (m_name.empty()) {
-                            m_name = kDefaultName;
+                            m_name = default_name();
                         }
                         m_typing = true;
                         m_name_fresh = true;
@@ -551,7 +556,7 @@ std::optional<MenuEvent> MainMenu::key(int key) {
         m_typing = false;
         m_name_fresh = false;
         if (m_name.empty()) {
-            m_name = kDefaultName;
+            m_name = default_name();
         }
         return MenuEvent{MenuEvent::Kind::NameEntered};
     } else if (key == 27) {

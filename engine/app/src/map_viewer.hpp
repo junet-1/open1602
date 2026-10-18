@@ -80,6 +80,9 @@ struct ViewerOptions {
     /// The key settings (ADR 0010); empty: keys.cfg in the user's data folder, written with the
     /// defaults if it is not there yet.
     std::filesystem::path keys_file;
+    /// The language of Open1602's own texts ("de", "en", ...); empty: settings.cfg, else the
+    /// language of the installation (ui/localization.hpp).
+    std::string language;
     /// Start in the main menu instead of a game (no game was named on the command line).
     bool menu = false;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
@@ -145,6 +148,9 @@ private:
     core::Status save_game(const std::filesystem::path& path);
     /// The settings and savegame names of the user's data folder into the panel (at the start).
     void load_options();
+    /// Chooses the language of Open1602's own texts: --language, else settings.cfg, else the
+    /// installation's; catalogues in <data folder>/locale extend the built-in ones.
+    void apply_language();
     /// What the settings panel asked for this frame (save, load, quit, sounds, window size).
     void apply_options();
     /// The platform's text input runs exactly while a name is typed (in the menu or the settings).

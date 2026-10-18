@@ -1,0 +1,108 @@
+# Open1602's own texts in English: menus, questions and messages the original game does not have.
+# The original's texts come from its data files. Every key needs a line here; other languages fall
+# back to this file for keys they lack. Format: docs/modding/languages.md.
+
+language.name = English
+# A line of [PLAYCOL] in Text.cod that only an installation in this language has (several: a|b).
+language.detect = Red Player|Red player
+
+# Questions
+dialog.yes = Yes
+dialog.no = No
+dialog.quit_game = Quit the game?\nIt is saved as “lastgame”.
+dialog.quit_anno = Quit Anno 1602?
+# {1}: the cost in gold
+dialog.disband_unit = Disband the unit?\nThis costs {1} gold.
+# {1}: the other player's name
+dialog.break_peace = Break the peace treaty with {1}?\nThis means war.
+# {1}: the other player's name
+dialog.declare_war = An attack means war with {1}.\nDeclare war?
+# {1}: the ship's name
+dialog.scuttle_ship = Scuttle the ship “{1}”?\nIts cargo is lost.
+
+# Menus and savegames
+# {1}: the number of the scenario's variant
+menu.part = Part {1}
+menu.default_name = Nameless
+# {1}: the number of the slot
+save.default_name = Savegame {1}
+
+# Key overview (F1)
+keys.title = Keys (click or F1 closes)
+keys.heading.general = General
+keys.heading.building = While building
+keys.heading.units = Ships and units selected
+# Replaces the digit of a group key ("Ctrl+1" becomes "Ctrl+1 .. 0")
+keys.group_digits = 1 .. 0
+keys.modifier.ctrl = Ctrl+
+keys.modifier.shift = Shift+
+keys.modifier.alt = Alt+
+keys.name.space = Space
+keys.name.delete = Del
+keys.name.escape = Esc
+keys.name.page_up = PgUp
+keys.name.page_down = PgDn
+keys.name.home = Home
+keys.name.up = Up
+keys.name.down = Down
+keys.name.left = Left
+keys.name.right = Right
+keys.name.return = Enter
+keys.name.print_screen = Print
+keys.name.keypad_plus = Num +
+keys.name.keypad_minus = Num -
+keys.name.tab = Tab
+keys.name.pause = Pause
+
+# What each action of keys.cfg does (keys.action.<name in keys.cfg>)
+keys.action.scroll_up = Map up
+keys.action.scroll_down = Map down
+keys.action.scroll_left = Map left
+keys.action.scroll_right = Map right
+keys.action.rotate_view_left = Rotate view left
+keys.action.rotate_view_right = Rotate view right
+keys.action.zoom_in = Zoom in
+keys.action.zoom_out = Zoom out
+keys.action.jump_to_message = To the last message
+keys.action.centre_on_selection = To the selection / the warehouse
+keys.action.pause = Pause
+keys.action.speed_up = Faster
+keys.action.speed_down = Slower
+keys.action.quick_save = Quick save
+keys.action.quick_load = Quick load
+keys.action.game_menu = Game menu
+keys.action.screenshot = Screenshot
+keys.action.help = This overview
+keys.action.cancel = Cancel, back
+keys.action.mode_build = Build
+keys.action.mode_military = Military
+keys.action.mode_info = Status
+keys.action.mode_options = Options
+keys.action.ship_list = Ship list
+keys.action.city_list = City list
+keys.action.diplomacy = Diplomacy
+keys.action.rotate_building = Rotate building
+keys.action.pick_building = Pick the building under the mouse
+keys.action.demolish_tool = Demolish
+keys.action.next_building = Next building
+keys.action.group_store = Store group
+keys.action.group_add = Add to group
+keys.action.group_recall = Select group (twice: go there)
+keys.action.next_idle_ship = Next idle ship
+keys.action.next_idle_unit = Next idle unit
+keys.action.next_kind_in_selection = Next kind in the selection
+keys.action.attack_move = Attack (click a target)
+keys.action.stop = Stop
+keys.action.hold_position = Hold position
+keys.action.patrol = Patrol (click a target)
+keys.action.formation = Formation
+keys.action.scatter = Scatter
+keys.action.white_flag = White flag
+keys.action.explore = Explore island
+keys.action.trade = Trade / transfer
+keys.action.edit_route = Trade route
+keys.action.delete = Disband / scuttle
+keys.action.pixel_scale_up = Larger pixels
+keys.action.pixel_scale_down = Smaller pixels
+keys.action.show_owners = Show ownership
+keys.action.quit = Quit
