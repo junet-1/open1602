@@ -227,6 +227,38 @@ TEST_CASE("world renderer: marked tiles get a diamond on top of everything") {
     }
 }
 
+TEST_CASE("world renderer: a hatched tile lies on the ground, under what stands on it") {
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 2, 2);
+    REQUIRE(island.map.place(*table.by_id(20100), 0, 0, 0, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+    render::WorldView view;
+    view.zoom = render::Zoom::Small;
+    render::Viewport all;
+    render::world_pixel_size(view, all.width, all.height);
+    render::TileMark hatched{0, 1, 1, render::kDragHatch};
+    hatched.hatched = true;
+    const std::vector<render::TileMark> marks{hatched, {0, 0, 0, assets::Rgba{220, 30, 30, 140}}};
+    render::WorldLayers layers;
+    layers.extent = render::SpriteExtent{16, 8};
+    layers.tile_marks = &marks;
+    std::vector<render::DrawCommand> commands;
+    render::build_world_draw_list(world, table, clock, view, all, layers, commands);
+    REQUIRE(commands.size() == std::size_t{500} * 350 + 2);
+    // Only the red mark goes last; the hatched one follows its row's ground.
+    CHECK(commands.back().sprite == render::DrawCommand::kOverlayDiamond);
+    const auto it = std::find_if(commands.begin(), commands.end(), [](const render::DrawCommand& c) {
+        return c.sprite == render::DrawCommand::kOverlayHatch;
+    });
+    REQUIRE(it != commands.end());
+    CHECK(it < commands.end() - 1);
+    CHECK(it->tint == render::kDragHatch);
+    CHECK(it->tint_size == 16);
+    CHECK(it->overlay());
+}
+
 TEST_CASE("world renderer: a catchment circle lights the land, its border is dashed over land and sea") {
     const auto table = make_table();
     sim::World world;
@@ -386,6 +418,27 @@ TEST_CASE("sprite atlas: packs sprites without overlap, splits pages, blits back
     // target (4, 4) = world (7, 7) = sprite pixel (5, 5) -> 32 + 10
     CHECK(target.pixels[(4 * 5 + 4) * 4] == 42);
     CHECK(target.pixels[(4 * 5 + 4) * 4 + 3] == 255);
+
+    // A hatched diamond 16 wide lights every second of its 80 pixels, on the world's checkerboard,
+    // wherever the target's origin is.
+    for (const std::int32_t origin : {0, 1}) {
+        render::RgbaImage hatch;
+        hatch.width = 16;
+        hatch.height = 8;
+        hatch.pixels.assign(16 * 8 * 4, 0);
+        render::DrawCommand c{render::DrawCommand::kOverlayHatch, origin, 8 + origin, render::kDragHatch, 16};
+        render::blit_draw_list({c}, *atlas, hatch, origin, origin);
+        int lit = 0;
+        for (std::int32_t y = 0; y < 8; ++y) {
+            for (std::int32_t x = 0; x < 16; ++x) {
+                if (hatch.pixels[static_cast<std::size_t>(y * 16 + x) * 4] == 202) {
+                    ++lit;
+                    CHECK(render::hatch_pixel(x + origin, y + origin));
+                }
+            }
+        }
+        CHECK(lit == 40);
+    }
 }
 
 TEST_CASE("camera: world_tile_at inverts world_tile_center for all zooms and rotations") {
