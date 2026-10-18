@@ -1735,7 +1735,8 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     // Open1602's own savegame, or with the ending .gam one the original loads (as long as the game
     // fits its limits; without the file the game came from, the fields Open1602 does not keep are 0).
     std::string ending = target.extension().string();
-    std::transform(ending.begin(), ending.end(), ending.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(ending.begin(), ending.end(), ending.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     auto bytes = ending == ".gam" ? sim::write_savegame(m_world, m_buildings, &m_simulation)
                                   : sim::write_game(m_world, m_buildings, &m_simulation);
     if (!bytes) {

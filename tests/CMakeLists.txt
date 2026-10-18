@@ -52,8 +52,12 @@ o1602_set_warnings(o1602_tests)
 # Tests dereference lookup results (world.player(0)->money) right after creating them; a null there
 # crashes the test, which reports it as failed. GCC's -Wnull-dereference flags every such line at -O2,
 # so it stays on for the engine but is off for the tests.
+# MSVC's C4242 fires inside std::optional and std::pair when tests assign int literals to small
+# fields (city.warehouse_x = 20); the engine keeps it.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(o1602_tests PRIVATE -Wno-null-dereference)
+elseif(MSVC)
+    target_compile_options(o1602_tests PRIVATE /wd4242)
 endif()
 
 add_test(NAME unit COMMAND o1602_tests)

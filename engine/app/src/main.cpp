@@ -122,8 +122,11 @@ bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::S
         if (verb == "key") {
             in.kind = Input::Kind::Key;
             std::string_view key = args;
-            for (const auto& [suffix, mod] :
-                 {std::pair<std::string_view, std::uint16_t>{"+ctrl", SDL_KMOD_LCTRL}, {"+shift", SDL_KMOD_LSHIFT}}) {
+            struct Suffix {
+                std::string_view text;
+                std::uint16_t mod;
+            };
+            for (const auto& [suffix, mod] : {Suffix{"+ctrl", SDL_KMOD_LCTRL}, Suffix{"+shift", SDL_KMOD_LSHIFT}}) {
                 if (const std::size_t p = key.find(suffix); p != std::string_view::npos) {
                     in.mod = static_cast<std::uint16_t>(in.mod | mod);
                     key = key.substr(0, p);

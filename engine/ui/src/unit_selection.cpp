@@ -263,7 +263,7 @@ bool UnitSelection::prune(const sim::World& world) {
 }
 
 void UnitSelection::recentre(const sim::World& world) {
-    m_offsets.assign(m_units.size(), Offset{0, 0});
+    m_offsets.assign(m_units.size(), Offset{});
     const auto c = centre(world);
     if (!c) {
         return;
