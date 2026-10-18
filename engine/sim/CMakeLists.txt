@@ -24,6 +24,7 @@ add_library(o1602_sim
     src/land_paths.cpp
     src/logistics.cpp
     src/military.cpp
+    src/missions.cpp
     src/naval.cpp
     src/pathfinding.cpp
     src/pirates.cpp

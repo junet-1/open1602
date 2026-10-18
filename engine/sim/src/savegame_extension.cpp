@@ -57,6 +57,8 @@ constexpr std::uint32_t kExplored = tag("XPLR");
 constexpr std::uint32_t kMap = tag("MAPW");
 constexpr std::uint32_t kWorld2 = tag("WRL2");
 constexpr std::uint32_t kMeta = tag("META");
+constexpr std::uint32_t kMissions = tag("MISN");
+constexpr std::uint32_t kPlayerState = tag("PSTA");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -249,6 +251,14 @@ struct Decoded {
     };
     std::optional<std::vector<TileOverride>> tiles;
     std::optional<std::vector<Player>> players;
+    /// Missions and the end of the game (MISN).
+    struct MissionPart {
+        std::vector<Mission> missions;
+        std::optional<World::GameEnd> end;
+    };
+    std::optional<MissionPart> missions;
+    /// What players have of the missions and the defeat rules (PSTA), in the order of PLAY.
+    std::optional<std::vector<Player>> player_state;
     std::optional<std::vector<City>> cities;
     std::optional<std::pair<std::vector<Production>, std::vector<std::uint32_t>>> productions;
     std::optional<std::vector<House>> houses;
@@ -602,6 +612,71 @@ void write_players(Out& out, const World& w) {
         out.u16(p.arches_built);
         out.u16(p.monuments_allowed);
         out.u16(p.monuments_built);
+    }
+}
+
+void put_city_goal(Out& out, const Mission::CityGoal& g) {
+    out.i32(g.inhabitants);
+    out.u8(g.resident_class);
+    out.u32(g.count);
+}
+
+void write_missions(Out& out, const World& w) {
+    out.u32(static_cast<std::uint32_t>(w.missions().size()));
+    for (const Mission& m : w.missions()) {
+        out.u32(m.goals);
+        out.u32(m.losses);
+        out.u8(m.target);
+        out.u16(m.min_defeated);
+        out.u32(static_cast<std::uint32_t>(m.defeat.size()));
+        for (const PlayerId p : m.defeat) {
+            out.u8(p);
+        }
+        out.i32(m.min_cities);
+        out.i32(m.min_inhabitants);
+        out.i32(m.min_balance);
+        out.i32(m.min_trade_balance);
+        out.i32(m.protected_min_cities);
+        out.u16(m.success_message);
+        out.string(m.text);
+        for (const Mission::GoodsGoal& g : m.goods) {
+            out.u8(g.ware);
+            out.u32(g.amount);
+        }
+        for (const Mission::IslandGoal& g : m.islands) {
+            out.u8(g.resource);
+            out.u32(static_cast<std::uint32_t>(g.islands.size()));
+            for (const std::uint16_t i : g.islands) {
+                out.u16(i);
+            }
+        }
+        for (const Mission::CityGoal& g : m.cities) {
+            put_city_goal(out, g);
+        }
+        put_city_goal(out, m.every_city);
+        put_city_goal(out, m.target_city);
+        put_city_goal(out, m.protected_city);
+        out.i32(m.unused_48);
+        out.i32(m.unused_58);
+    }
+    out.boolean(w.game_end().has_value());
+    if (w.game_end()) {
+        out.u64(w.game_end()->time_ms);
+        out.u8(w.game_end()->winner);
+    }
+}
+
+void write_player_state(Out& out, const World& w) {
+    out.u32(static_cast<std::uint32_t>(w.players().size()));
+    for (const Player& p : w.players()) {
+        out.u8(p.mission);
+        out.u8(static_cast<std::uint8_t>(p.status));
+        out.boolean(p.won);
+        out.u16(p.opponents_defeated);
+        out.u8(p.bankrupt_checks);
+        out.u8(p.empty_checks);
+        out.i64(p.purchases);
+        out.i64(p.sales);
     }
 }
 
@@ -1468,6 +1543,87 @@ std::vector<Player> read_players(StateIn& in) {
     return list;
 }
 
+Mission::CityGoal get_city_goal(StateIn& in) {
+    Mission::CityGoal g;
+    g.inhabitants = in.i32();
+    g.resident_class = in.u8();
+    g.count = in.u32();
+    return g;
+}
+
+Decoded::MissionPart read_missions(StateIn& in, std::size_t islands) {
+    Decoded::MissionPart part;
+    part.missions.resize(in.count(40));
+    for (Mission& m : part.missions) {
+        m.goals = in.u32();
+        m.losses = in.u32();
+        m.target = in.u8();
+        m.min_defeated = in.u16();
+        m.defeat.resize(in.count(1));
+        for (PlayerId& p : m.defeat) {
+            p = in.u8();
+        }
+        m.min_cities = in.i32();
+        m.min_inhabitants = in.i32();
+        m.min_balance = in.i32();
+        m.min_trade_balance = in.i32();
+        m.protected_min_cities = in.i32();
+        m.success_message = in.u16();
+        m.text = in.string();
+        for (Mission::GoodsGoal& g : m.goods) {
+            g.ware = in.u8();
+            g.amount = in.u32();
+        }
+        for (Mission::IslandGoal& g : m.islands) {
+            g.resource = in.u8();
+            g.islands.resize(in.count(2));
+            for (std::uint16_t& i : g.islands) {
+                i = in.u16();
+                if (i >= islands) {
+                    in.fail();  // the island list and the islands do not belong together
+                }
+            }
+        }
+        for (Mission::CityGoal& g : m.cities) {
+            g = get_city_goal(in);
+        }
+        m.every_city = get_city_goal(in);
+        m.target_city = get_city_goal(in);
+        m.protected_city = get_city_goal(in);
+        m.unused_48 = in.i32();
+        m.unused_58 = in.i32();
+        if ((m.goals & ~(goal::kKnown | goal::kComputers)) != 0 || (m.losses & ~loss::kKnown) != 0) {
+            in.fail();  // goals of a later version
+        }
+    }
+    if (in.boolean()) {
+        World::GameEnd end;
+        end.time_ms = in.u64();
+        end.winner = in.u8();
+        part.end = end;
+    }
+    return part;
+}
+
+std::vector<Player> read_player_state(StateIn& in) {
+    std::vector<Player> list(in.count(23));
+    for (Player& p : list) {
+        p.mission = in.u8();
+        const std::uint8_t status = in.u8();
+        if (status > static_cast<std::uint8_t>(PlayerStatus::Absent)) {
+            in.fail();
+        }
+        p.status = static_cast<PlayerStatus>(status);
+        p.won = in.boolean();
+        p.opponents_defeated = in.u16();
+        p.bankrupt_checks = in.u8();
+        p.empty_checks = in.u8();
+        p.purchases = in.i64();
+        p.sales = in.i64();
+    }
+    return list;
+}
+
 std::vector<City> read_cities(StateIn& in) {
     std::vector<City> list(in.count(16));
     for (City& c : list) {
@@ -1835,7 +1991,33 @@ core::Status apply_decoded(World& world, Decoded& d) {
         }
     }
     if (d.players) {
+        // Files of an earlier version have no PSTA: what the original's chunks gave stays.
+        if (!d.player_state && d.players->size() == world.players().size()) {
+            d.player_state = world.players();
+        }
         world.set_players(std::move(*d.players));
+    }
+    if (d.missions) {
+        world.set_missions(std::move(d.missions->missions));
+        world.set_game_end(d.missions->end);
+    }
+    if (d.player_state && d.player_state->size() == world.players().size()) {
+        for (std::size_t i = 0; i < d.player_state->size(); ++i) {
+            const Player& from = (*d.player_state)[i];
+            Player* pp = world.player(static_cast<PlayerId>(i));
+            if (pp == nullptr) {
+                continue;
+            }
+            Player& p = *pp;
+            p.mission = from.mission < world.missions().size() ? from.mission : kNoMission;
+            p.status = from.status;
+            p.won = from.won;
+            p.opponents_defeated = from.opponents_defeated;
+            p.bankrupt_checks = from.bankrupt_checks;
+            p.empty_checks = from.empty_checks;
+            p.purchases = from.purchases;
+            p.sales = from.sales;
+        }
     }
     if (d.cities) {
         // Files of an earlier version have no trade settings: those of the original's chunks stay.
@@ -2034,6 +2216,8 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
         section(out, kTiles, [&](Out& o) { write_tiles(o, world, buildings, before); });
     }
     section(out, kPlayers, [&](Out& o) { write_players(o, world); });
+    section(out, kPlayerState, [&](Out& o) { write_player_state(o, world); });
+    section(out, kMissions, [&](Out& o) { write_missions(o, world); });
     section(out, kCities, [&](Out& o) { write_cities(o, world); });
     section(out, kProductions, [&](Out& o) { write_productions(o, world); });
     section(out, kHouses, [&](Out& o) { write_houses(o, world); });
@@ -2144,6 +2328,12 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 break;
             case kPlayers:
                 d.players = read_players(in);
+                break;
+            case kPlayerState:
+                d.player_state = read_player_state(in);
+                break;
+            case kMissions:
+                d.missions = read_missions(in, world.islands().size());
                 break;
             case kCities:
                 d.cities = read_cities(in);

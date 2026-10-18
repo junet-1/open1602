@@ -1,6 +1,6 @@
 # Stand der Umsetzung
 
-Stand: 18.10.2026 (eigenes Speicherformat und die kleinen Lücken der Simulation geschlossen). Diese Seite ist die Übersicht. Die
+Stand: 18.10.2026 (eigenes Speicherformat, die kleinen Lücken der Simulation, Aufträge mit Sieg und Niederlage). Diese Seite ist die Übersicht. Die
 Einzelheiten stehen in den verlinkten Dokumenten, jeweils im Abschnitt „Offen“. Sie wird bei jedem
 abgeschlossenen Schritt fortgeschrieben.
 
@@ -10,13 +10,14 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 
 - **Die Simulation des Originals ist weitgehend vollständig**: Bauen, Wirtschaft, Häuser und Verbrauch,
   Katastrophen, Vulkane, Schiffe und Handel, Militär, Diplomatie, Piraten, Eingeborene, Computergegner,
-  neues Endlosspiel, Spielstände des Originals lesen und exportieren, eigenes Speicherformat. Sie läuft
-  in festen Ticks, deterministisch und befehlsbasiert, mit 259 Tests (davon viele gegen die Originaldaten
+  neues Endlosspiel, Aufträge der Szenarien mit Sieg und Niederlage, Spielstände des Originals lesen
+  und exportieren, eigenes Speicherformat. Sie läuft in festen Ticks, deterministisch und befehlsbasiert,
+  mit 276 Tests (davon viele gegen die Originaldaten
   und echte Spielstände).
 - **Spielbar ist sie heute nur im Kartenbetrachter**: Start über die Kommandozeile, Bauen, Abreißen,
   Schiffe und Soldaten mit der Maus, Rückmeldungen im Fenstertitel und im Terminal.
 - **Die großen offenen Blöcke** sind die Oberfläche (Menüs, Fenster, Baumenü, Minimap, Meldungen),
-  Ton, Musik, Sprache und Videos, Szenarien mit Missionszielen und Kampagnen, der Mehrspieler und die
+  Ton, Musik, Sprache und Videos, Kampagnenfortschritt und Bestenliste, der Mehrspieler und die
   Modding-Grundlagen (Inhaltspakete, Fraktionen als Daten, Lua).
 - **Spielstände** speichert Open1602 seit dem 18.10.2026 im eigenen Format `.o1602`
   ([o1602-save.md](formats/o1602-save.md), [ADR 0009](architecture/0009-eigenes-speicherformat.md)): ohne
@@ -39,10 +40,10 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 | Schiffe und Handel | ✅ Fahren und Wegsuche (Wasser bei feindlichen Türmen teurer), Laden, Handel am Kontor, Routen, freier Händler, Werften mit Bau und Reparatur, Erkunden mit Erz- und Goldsymbolen (gegen Video geprüft); Schiffsfenster als Befehl (Kanonen, über Bord, Name, Verkauf und Kauf zwischen Spielern) | – | [ships.md](re/ships.md) |
 | Militär | ✅ Einheiten, Kanonentürme, Burgen und Ausbildung, Bewegung, Land- und Seekampf, Einschiffen, Eroberung, Fluch der Eingeborenen | Formationswahl (Simulation kann es, Bedienung fehlt) | [military.md](re/military.md) |
 | Diplomatie | ✅ Verträge, Ereignisse, Stimmung, Tribut, Gesten, Entscheidungen der Computer | Szenario-Haltung (`PLAYER4` +0x1C/+0x20) | [diplomacy.md](re/diplomacy.md) |
-| Piraten, Eingeborene | ✅ Piratenschiffe, Beute, Plünderung, Nest mit Gründung und Ausbau, Frieden kaufen, Bestechung; Eingeborene mit Wohlwollen, Verbrauch, Kriegern | Niederlage der Piraten (Missionsziele) | [pirates.md](re/pirates.md) |
+| Piraten, Eingeborene | ✅ Piratenschiffe, Beute, Plünderung, Nest mit Gründung und Ausbau, Frieden kaufen, Bestechung; Eingeborene mit Wohlwollen, Verbrauch, Kriegern; Niederlage der Piraten, wenn ein Auftrag sie verlangt | – | [pirates.md](re/pirates.md) |
 | Computergegner | ✅ Aufgabenstapel, Stufen und Bedarfe, Bauplatzsuche, Wartung, Siedeln, Kolonien, Versorgung, Flotte, Handel, Militär, Diplomatie, Aufträge der Schiffe aus Originalständen, Reaktion auf eine Gründung (Ereignis 0x0E) | KI-Schalter der Szenarien (Spieler +0x70) | [ai.md](re/ai.md) |
 | Neues Endlosspiel | ✅ wie das Original, Byte für Byte gegen zwei Endlosstarts geprüft | Mehrspieler-Endlosspiel (`.szm`) | [newgame.md](re/newgame.md), [worldgen.md](re/worldgen.md) |
-| Szenarien und Kampagnen | 🟡 Szenarien laden und laufen | Missionsziele (`AUFTRAG4`, nicht untersucht), Sieg und Niederlage, Kampagnenfolge, Ereignisse und KI-Schalter der Szenarien | [gam.md](formats/gam.md) |
+| Szenarien und Aufträge | ✅ Szenarien laden und laufen; Aufträge (`AUFTRAG4`, alle 18 Ziele, Verlustbedingungen), Sieg, Niederlage (ohne Stadt und Schiff, Bankrott, Computer, Piraten), Triumphbogen für den Schuldigen, Handelsstatistik, abwesende Plätze; Szenarien haben keine Ereignisse (belegt) | Kampagnenfortschritt (Original: `Game.dat`), Bestenliste und Punkte, Endbildschirm, Meldungen und Videos (Oberfläche); KI-Schalter der Szenarien | [missions.md](re/missions.md) |
 | Spielstände | ✅ Originalstände lesen; eigenes Format `.o1602` ohne Grenzen, kanonisch, mit Prüfsumme; Export als `.GAM` (unverändert Byte für Byte zurück, vom Original geladen und weitergespielt) | Export eines aus `.o1602` geladenen Spiels im Original ungeprüft | [o1602-save.md](formats/o1602-save.md), [savegame-writer.md](re/savegame-writer.md) |
 
 ### 1.2 Darstellung, Oberfläche, Ton
@@ -80,7 +81,7 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 | Leitschalter des Laders (`0x0060912C`, `0x005E6AA8`) | [deer.md](re/deer.md) | Analyse |
 | Sonderfiguren der Zweige 9/10/11/13 | [rendering.md](re/rendering.md) | Analyse |
 | Inselkopf (Rest), Attributbits 26–31, BSH-Feld `type`, Palettenanimation | [scp.md](formats/scp.md), [bsh.md](formats/bsh.md), [col.md](formats/col.md) | Analyse |
-| `AUFTRAG4`, Teile von `TIMERS`, übrige `SZENE`-Chunks | [gam.md](formats/gam.md) | Analyse (mit den Szenarien) |
+| Teile von `TIMERS`, übrige `SZENE`-Chunks; `AUFTRAG4` +0x48/+0x58 (nie gelesen); TIMERS +0xA5 (wohl das Tutorial) | [gam.md](formats/gam.md), [missions.md](re/missions.md) | Analyse |
 | U-007, S-088 (Teil), S-094 (Teil) | [bugs.md](re/bugs.md) | aus dem Code gefolgert; Open1602 vermeidet sie ohnehin |
 | Wiedergabe der Meldungen, Zeichenzuordnung der Schriften | [cod.md](formats/cod.md) | mit der Oberfläche |
 
@@ -90,10 +91,11 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 
 | Was | Wo |
 |---|---|
-| **Fehler des Originals**: 166 Einträge im Katalog, davon 90 behoben, 42 vermieden, 6 als Regel umstellbar, 18 beibehalten | [bugs.md](re/bugs.md) |
+| **Fehler des Originals**: 173 Einträge im Katalog, davon 96 behoben, 43 vermieden, 6 als Regel umstellbar, 18 beibehalten | [bugs.md](re/bugs.md) |
 | **Einstellungen** (`sim::Rules`, im Spielstand): Rückerstattung beim Abriss, Schiffe je Spieler (100, Original 33), Einheiten je Spieler (250, Original 100), Rohstoffgarantie, höchstes Spieltempo (8, Original 4), Dürren, Vulkane, Händlerpreise | [ADR 0008](architecture/0008-spieleinstellungen.md) |
 | **Eigene Welten** (Weltengenerator Stufe 1): 200–2000 Felder je Seite, Inselzahl, Größenmischung, Dörfer, Vulkaninseln, Startgebiete; Chunk `O1602MAP` | [worldgen.md](re/worldgen.md) |
 | **Eigenes Speicherformat `.o1602`**: voller Zustand (Karte, Uhren, Zufall, Figuren, Brände, Lava, Diplomatie, Erkunden, Schiffe, Soldaten, KI) ohne Grenzen, kanonisch, CRC-32, zlib; ein gespeichertes Spiel läuft genau weiter. Exportierte `.GAM` tragen denselben Zustand im Chunk `O1602` | [o1602-save.md](formats/o1602-save.md), [o1602-chunk.md](formats/o1602-chunk.md) |
+| **Aufträge auf jedem Rechner gleich geprüft** (S-105), nur mit dem eigenen Auftrag (S-106), Bankrott nur nach 200 s am Stück (S-107), beste Zuordnung der Stadtziele (S-108), Inselziele mit beim Start festgehaltenen Inseln (S-110), geprüfte Auftragsdaten (S-111); nach dem Sieg kann weitergespielt werden | [missions.md](re/missions.md) |
 | **Determinismus**: feste Ticks, Zufallsströme je Teilsystem, KI und Zierfiguren auf jedem Rechner gleich | [ADR 0004](architecture/0004-deterministische-simulation.md) |
 | **Banner**: beliebig viele Spieler im Modell, eingefärbte Einheitsflagge, Einheiten in jeder Farbe | [ADR 0007](architecture/0007-erweiterbarkeit-und-modding.md), [flags.md](modding/flags.md) |
 | **Keine technischen Grenzen** der Originaltabellen in der Simulation (Pools mit stabilen IDs), keine Grenze von 250 Anzeigefiguren | [bugs.md](re/bugs.md) (L-002, L-007) |
@@ -127,7 +129,7 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 
 | Punkt | Stand |
 |---|---|
-| Tests | 250 Fälle (27 Unit-Dateien, 5 mit Originaldaten). Ohne eigene Unit-Tests: KI (nur zwei Datentests), See- und Landwege (nur indirekt), Weltengenerator (über das neue Spiel), eigener Chunk (über die Datentests), Betrachter |
+| Tests | 276 Fälle (28 Unit-Dateien, 6 mit Originaldaten). Ohne eigene Unit-Tests: KI (nur zwei Datentests), See- und Landwege (nur indirekt), Weltengenerator (über das neue Spiel), eigener Chunk (über die Datentests), Betrachter |
 | Builds | lokal unter Linux: debug, game, game-rel, asan, game-asan ohne Warnungen; CI für Linux (GCC, Clang, ASan), Windows (MSVC 2022), macOS 14 und das Spiel mit SDL3 auf allen drei. Windows und macOS sind lokal nie gelaufen |
 | Spielerbefehle | vollständig für die Simulation (seit 18.10.2026 auch Stadtfenster und Schiffsfenster); es fehlt nur die Oberfläche, die sie auslöst |
 | Symboltabelle `re/symbols/` | zuletzt mit den Schiffen nachgetragen (319 Funktionen); die Adressen aus Militär, Piraten und KI stehen nur in den Dokumenten |

@@ -112,8 +112,8 @@ void Engine::tick(std::uint32_t dt_ms) {
     island_controller();
     for (AiPlayer& p : m_state.players) {
         const Player* pl = m_world.player(p.player);
-        if (pl == nullptr) {
-            continue;
+        if (pl == nullptr || !pl->active()) {
+            continue;  // defeated players do nothing (controller 9)
         }
         if (p.pirates) {
             if (pl->role != PlayerRole::Pirates) {
@@ -389,7 +389,7 @@ void Engine::root(AiPlayer& p) {
     if (!p.has_city) {
         const std::vector<Ship*> ships = own_ships(p);
         if (ships.empty()) {
-            // The original retires the computer (0x00476290); Open1602 leaves it be.
+            // Retired by the players' check every 5 s (Simulation::players_tick, 0x00476290).
             return;
         }
         if (p.settle.active) {

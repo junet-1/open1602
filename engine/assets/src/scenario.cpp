@@ -65,6 +65,8 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file) {
         p.monuments_allowed = read_u16(data, o + 0x38);
         p.monuments_built = read_u16(data, o + 0x3A);
         p.blamed = data[o + 0x08];
+        p.defeat_counter = read_u16(data, o + 0x0A);
+        p.mission = data[o + 0x0C];
         for (std::size_t b = 0; b < 7; ++b) {
             p.peace[b] = data[o + 0xC0 + 8 * b];
             p.war_time[b] = read_u32(data, o + 0xC4 + 8 * b);
@@ -77,6 +79,113 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file) {
         players.push_back(std::move(p));
     }
     return players;
+}
+
+namespace {
+
+MissionRecord::CityGoal read_city_goal(std::span<const std::uint8_t> d, std::size_t o) {
+    return {read_i32(d, o), read_u32(d, o + 4), read_u32(d, o + 8)};
+}
+
+void put_u32(std::vector<std::uint8_t>& d, std::size_t o, std::uint32_t v) {
+    for (std::size_t i = 0; i < 4; ++i) {
+        d[o + i] = static_cast<std::uint8_t>(v >> (8 * i));
+    }
+}
+
+void put_u16(std::vector<std::uint8_t>& d, std::size_t o, std::uint16_t v) {
+    d[o] = static_cast<std::uint8_t>(v);
+    d[o + 1] = static_cast<std::uint8_t>(v >> 8);
+}
+
+void put_city_goal(std::vector<std::uint8_t>& d, std::size_t o, const MissionRecord::CityGoal& g) {
+    put_u32(d, o, static_cast<std::uint32_t>(g.size));
+    put_u32(d, o + 4, g.resident_class);
+    put_u32(d, o + 8, g.count);
+}
+
+}  // namespace
+
+core::Result<std::vector<MissionRecord>> load_missions(const ChunkFile& file) {
+    std::vector<MissionRecord> missions;
+    const Chunk* chunk = file.find("AUFTRAG4");
+    if (chunk == nullptr) {
+        return missions;
+    }
+    const auto data = file.payload(*chunk);
+    if (data.size() % MissionRecord::kSize != 0) {
+        return make_error(ErrorCode::InvalidFormat, "AUFTRAG4 size is not a multiple of 0x8C4");
+    }
+    for (std::size_t o = 0; o < data.size(); o += MissionRecord::kSize) {
+        MissionRecord m;
+        m.slot = read_u32(data, o);
+        m.goals = read_u32(data, o + 0x04);
+        m.losses = read_u32(data, o + 0x08);
+        m.island_resource = {data[o + 0x20], data[o + 0x22]};
+        m.island_count = {data[o + 0x21], data[o + 0x23]};
+        m.target = data[o + 0x24];
+        m.min_defeated = data[o + 0x2B];
+        for (std::size_t i = 0; i < m.defeat.size(); ++i) {
+            m.defeat[i] = data[o + 0x2C + i];
+        }
+        m.min_cities = read_i32(data, o + 0x40);
+        m.min_inhabitants = read_i32(data, o + 0x44);
+        m.unused_48 = read_i32(data, o + 0x48);
+        m.min_balance = read_i32(data, o + 0x4C);
+        m.success_message = read_i32(data, o + 0x50);
+        m.min_trade_balance = read_i32(data, o + 0x54);
+        m.unused_58 = read_i32(data, o + 0x58);
+        m.protected_min_cities = static_cast<std::int16_t>(read_u16(data, o + 0x5C));
+        // The original copies with strcpy and runs into the following fields without a 0 byte.
+        m.text = read_string(data, o + 0x68, MissionRecord::kTextSize - 1);
+        m.goods[0] = {data[o + 0x868], read_u16(data, o + 0x86A)};
+        m.goods[1] = {data[o + 0x86C], read_u16(data, o + 0x86E)};
+        for (std::size_t i = 0; i < m.cities.size(); ++i) {
+            m.cities[i] = read_city_goal(data, o + 0x870 + 12 * i);
+        }
+        m.protected_city = read_city_goal(data, o + 0x8A0);
+        m.every_city = read_city_goal(data, o + 0x8AC);
+        m.target_city = read_city_goal(data, o + 0x8B8);
+        missions.push_back(std::move(m));
+    }
+    return missions;
+}
+
+std::vector<std::uint8_t> encode_mission(const MissionRecord& m) {
+    std::vector<std::uint8_t> d(MissionRecord::kSize, 0);
+    put_u32(d, 0, m.slot);
+    put_u32(d, 0x04, m.goals);
+    put_u32(d, 0x08, m.losses);
+    d[0x20] = m.island_resource[0];
+    d[0x21] = m.island_count[0];
+    d[0x22] = m.island_resource[1];
+    d[0x23] = m.island_count[1];
+    d[0x24] = m.target;
+    d[0x2B] = m.min_defeated;
+    for (std::size_t i = 0; i < m.defeat.size(); ++i) {
+        d[0x2C + i] = m.defeat[i];
+    }
+    put_u32(d, 0x40, static_cast<std::uint32_t>(m.min_cities));
+    put_u32(d, 0x44, static_cast<std::uint32_t>(m.min_inhabitants));
+    put_u32(d, 0x48, static_cast<std::uint32_t>(m.unused_48));
+    put_u32(d, 0x4C, static_cast<std::uint32_t>(m.min_balance));
+    put_u32(d, 0x50, static_cast<std::uint32_t>(m.success_message));
+    put_u32(d, 0x54, static_cast<std::uint32_t>(m.min_trade_balance));
+    put_u32(d, 0x58, static_cast<std::uint32_t>(m.unused_58));
+    put_u16(d, 0x5C, static_cast<std::uint16_t>(m.protected_min_cities));
+    const std::size_t n = std::min(m.text.size(), MissionRecord::kTextSize - 1);
+    std::copy_n(m.text.begin(), n, d.begin() + 0x68);
+    for (std::size_t i = 0; i < m.goods.size(); ++i) {
+        d[0x868 + 4 * i] = m.goods[i].ware;
+        put_u16(d, 0x86A + 4 * i, m.goods[i].amount);
+    }
+    for (std::size_t i = 0; i < m.cities.size(); ++i) {
+        put_city_goal(d, 0x870 + 12 * i, m.cities[i]);
+    }
+    put_city_goal(d, 0x8A0, m.protected_city);
+    put_city_goal(d, 0x8AC, m.every_city);
+    put_city_goal(d, 0x8B8, m.target_city);
+    return d;
 }
 
 core::Result<std::vector<ShipRecord>> load_ships(const ChunkFile& file) {

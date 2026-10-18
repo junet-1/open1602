@@ -1005,9 +1005,9 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
                     return 0;
                 }
                 const std::int64_t value = std::int64_t{price} * n / kTon;
-                buyer->money = static_cast<std::int32_t>(buyer->money - value);
+                pay_for_trade(*buyer, value);
                 if (Player* seller = m_world->player(city.owner); seller != nullptr && !natives) {
-                    seller->money = static_cast<std::int32_t>(seller->money + value);
+                    earn_from_trade(*seller, value);
                 }
             }
         }
@@ -1059,10 +1059,10 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
                     return 0;
                 }
                 const std::int64_t value = std::int64_t{price} * n / kTon;
-                buyer->money = static_cast<std::int32_t>(buyer->money - value);
+                pay_for_trade(*buyer, value);
             }
             if (Player* seller = m_world->player(ship.owner); seller != nullptr && !ship.trader) {
-                seller->money = static_cast<std::int32_t>(seller->money + std::int64_t{price} * n / kTon);
+                earn_from_trade(*seller, std::int64_t{price} * n / kTon);
             }
         }
         if (natives && limits && ship.owner < city.goodwill.size()) {

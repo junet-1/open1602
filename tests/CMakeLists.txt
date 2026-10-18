@@ -30,11 +30,13 @@ add_executable(o1602_tests
     unit/test_ambient.cpp
     unit/test_units.cpp
     unit/test_save_game.cpp
+    unit/test_missions.cpp
     data/test_original_data.cpp
     data/test_new_game.cpp
     data/test_ai_data.cpp
     data/test_ships_data.cpp
     data/test_military_data.cpp
+    data/test_missions_data.cpp
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render)
 o1602_set_warnings(o1602_tests)

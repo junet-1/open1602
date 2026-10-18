@@ -23,6 +23,10 @@ enum class PlayerKind : std::uint8_t {
     Computer = 0x0C,
     Trader = 0x0D,  ///< free trader
     Pirate = 0x0E,
+    /// Set by the game, not by scenarios: a player who lost (op 3 sub 9) or a slot nobody plays
+    /// (no city and no ship at the start, 0x0048C0F0; docs/re/missions.md).
+    Defeated = 0x09,
+    Absent = 0x0A,
 };
 
 /// Colour of a player (PLAYER4 byte +7). Selects the flag figure (table at 0x00498F2C):
@@ -74,7 +78,59 @@ struct PlayerRecord {
     };
     std::array<Event, 7> events{};   ///< +0x1C0 + 8i
     std::uint8_t blamed = kNoOwner;  ///< +0x08: last player who destroyed a Kontor or market of it
+    /// +0x0C (runtime +0x7C): the AUFTRAG4 slot of the player's mission, 0xFF = none.
+    std::uint8_t mission = 0xFF;
+    /// +0x0A (runtime +0x9E): bad 5-s checks so far (bankrupt, or nothing left in a multiplayer game).
+    std::uint16_t defeat_counter = 0;
 };
+
+/// One mission (AUFTRAG4 record, 0x8C4 bytes; loader 0x00477B70, writer 0x00478380,
+/// docs/re/missions.md). The original keeps 4 slots; each player picks one (PlayerRecord::mission).
+/// Values are as stored; the checks and the load-time steps of the original are the simulation's.
+struct MissionRecord {
+    static constexpr std::size_t kSize = 0x8C4;
+    static constexpr std::size_t kTextSize = 0x800;
+    /// A city: at least `size` Einwohner (inhabitants and workers) and `count` inhabitants of
+    /// class `resident_class` or higher.
+    struct CityGoal {
+        std::int32_t size = 0;
+        std::uint32_t resident_class = 0;
+        std::uint32_t count = 0;
+    };
+    struct GoodsGoal {
+        std::uint8_t ware = 0;
+        std::uint16_t amount = 0;  ///< 1/32 t
+    };
+    std::uint32_t slot = 0;                         ///< +0x000
+    std::uint32_t goals = 0;                        ///< +0x004: bit mask of goals
+    std::uint32_t losses = 0;                       ///< +0x008: bit 0 protected city, bit 1 protected city count
+    std::array<std::uint8_t, 2> island_resource{};  ///< +0x020, +0x022 (goals 0x4000, 0x8000)
+    std::array<std::uint8_t, 2> island_count{};     ///< +0x021, +0x023 (recomputed at load)
+    std::uint8_t target = kNoOwner;                 ///< +0x024: target or protected player, 7 = any other
+    std::uint8_t min_defeated = 0;                  ///< +0x02B (goal 0x200)
+    std::array<std::uint8_t, 7> defeat{};           ///< +0x02C: != 0 = must be defeated (goal 0x400)
+    std::int32_t min_cities = 0;                    ///< +0x040 (goal 0x20)
+    std::int32_t min_inhabitants = 0;               ///< +0x044 (goal 0x80)
+    std::int32_t unused_48 = 0;                     ///< +0x048: loaded and saved, never read
+    std::int32_t min_balance = 0;                   ///< +0x04C (goal 0x100)
+    std::int32_t success_message = 0;               ///< +0x050: MELDUNG number
+    std::int32_t min_trade_balance = 0;             ///< +0x054 (goal 0x10000)
+    std::int32_t unused_58 = 0;                     ///< +0x058: loaded and saved, never read
+    std::int16_t protected_min_cities = 0;          ///< +0x05C (loss bit 1)
+    std::string text;                               ///< +0x068: Windows-1252, at most 0x7FF bytes
+    std::array<GoodsGoal, 2> goods{};               ///< +0x868, +0x86C (goals 0x1000, 0x2000)
+    std::array<CityGoal, 3> cities{};               ///< +0x870 (goals 0x1, 0x2, 0x4), as stored
+    CityGoal protected_city;                        ///< +0x8A0 (loss bit 0)
+    CityGoal every_city;                            ///< +0x8AC (goal 0x8)
+    CityGoal target_city;                           ///< +0x8B8 (goal 0x10)
+};
+
+/// AUFTRAG4 chunk, in file order. Files without it yield an empty list. The older chunks
+/// AUFTRAG and AUFTRAG2 are not read (no shipped file has them).
+core::Result<std::vector<MissionRecord>> load_missions(const ChunkFile& file);
+
+/// The record as the original writes it (0x00478380): fields it does not read are 0.
+[[nodiscard]] std::vector<std::uint8_t> encode_mission(const MissionRecord& record);
 
 /// Number of PLAYER4 records in the original files (4 players, free trader, pirates, natives).
 /// Only the file format is limited to this; the engine is not (ADR 0007).

@@ -212,7 +212,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         city.ensure_ware(w);
         city.goods[w] -= std::min(n, city.goods[w]);
         if (owner != nullptr) {
-            owner->money = static_cast<std::int32_t>(owner->money + std::int64_t{price} * n / kTon);
+            earn_from_trade(*owner, std::int64_t{price} * n / kTon);
         }
         add_good(ship, w, n, price);
         traded = true;
@@ -229,7 +229,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         city.ensure_ware(w);
         city.goods[w] += n;
         if (owner != nullptr) {
-            owner->money = static_cast<std::int32_t>(owner->money - std::int64_t{price} * n / kTon);
+            pay_for_trade(*owner, std::int64_t{price} * n / kTon);
         }
         TraderGood* g = good_of(ship, w);
         g->amount -= std::min(n, g->amount);

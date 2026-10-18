@@ -174,8 +174,8 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 **Stand der Meilensteine (18.10.2026)**, Einzelheiten in [stand.md](stand.md): M0 ✅ · M1 🟡 (offen:
 `.ZEI`-Schriften, `.GAD`-Oberflächen, Smacker-Videos, Teile von Inselkopf und Szenario-Chunks) · M2 ✅ ·
 M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel und Spielstände fertig; es fehlt die Oberfläche) · M5 🟡
-(Militär, Piraten, Weltengenerator Stufe 1 und KI fertig; offen: Ereignisse und Missionsziele der
-Szenarien, Kampagnen) · M6 ⬜ (Grundlagen: Befehle, Determinismus) · M7 ⬜ (einzelne Verbesserungen
+(Militär, Piraten, Weltengenerator Stufe 1, KI und Aufträge mit Sieg und Niederlage fertig; offen:
+Kampagnenfortschritt, Bestenliste, KI-Schalter der Szenarien; Ereignisse haben Szenarien nicht) · M6 ⬜ (Grundlagen: Befehle, Determinismus) · M7 ⬜ (einzelne Verbesserungen
 schon da: Mausrad-Zoom, Bildschirmfoto, behobene Fehler) · M8 ⬜ (Banner mit eingefärbten Flaggen schon da).
 
 ## 7. Nächste Schritte
@@ -217,8 +217,11 @@ darauf aufsetzt.
    des Originals ([ADR 0009](architecture/0009-eigenes-speicherformat.md)); teureres Wasser bei feindlichen
    Türmen; Stadt- und Schiffsfenster als Befehle (Steuersatz, Name, Material, Kanonen, über Bord,
    Schiffsverkauf); Handelseinstellungen nach `Maxware`; `Grundflg` in der Wegsuche; Aufträge der
-   Computerschiffe aus Originalständen; Reaktion der Computer auf eine Gründung. Als Nächstes die
-   Missionsziele der Szenarien.
+   Computerschiffe aus Originalständen; Reaktion der Computer auf eine Gründung. Danach die
+   **Aufträge der Szenarien** ([missions.md](re/missions.md)): alle 18 Ziele und beide
+   Verlustbedingungen, Sieg für alle Rechner gleich, Niederlage ohne Stadt und Schiff, Bankrott,
+   Computer und Piraten, Triumphbogen für den Schuldigen, Handelsstatistik (S-105 bis S-111).
+   Szenarien haben keine Ereignisse oder Skripte (belegt).
 6. **Mehrspieler** einschließlich Endlosspiel (`.szm`).
 7. **Weltengenerator, Stufe 2** (zurückgestellt, wenn alles andere fertig ist und läuft): eigene Inselformen,
    auch größer als die Vorlagen, mit Küsten-, Strand-, Berg- und Flussübergängen.
@@ -280,6 +283,7 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M5: Weltengenerator Stufe 1 (eigene Welten 200–2000 Felder, `O1602MAP`) | ✅ `docs/re/worldgen.md` |
 | M5: Computergegner (deterministisch, gespeichert, S-095 bis S-102) | ✅ `docs/re/ai.md` |
 | Bestandsaufnahme: was umgesetzt, offen und unklar ist, im Original und bei den Erweiterungen | ✅ `docs/stand.md` |
+| M5: Aufträge der Szenarien, Sieg und Niederlage (S-105 bis S-111) | ✅ `docs/re/missions.md` |
 | M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
 
@@ -299,9 +303,11 @@ kommt, werden sie abgehakt.
   Open1602 bringen ihre Einstellungen mit.
 
 **Szenarien**
-- Missionsziele (`AUFTRAG4`), Sieg und Niederlage (auch die der Piraten), Kampagnenfolge.
-- Ereignisse der Szenarien (Vulkanausbrüche), KI-Schalter (Spieler +0x70), Szenario-Haltung der
-  Diplomatie (`PLAYER4` +0x1C/+0x20).
+- ~~Missionsziele, Sieg und Niederlage~~: erledigt ([missions.md](re/missions.md)). Ereignisse haben die
+  Szenarien des Originals nicht.
+- Kampagnenfortschritt (eigene Datei statt `Game.dat`), Bestenliste und Punkte, Endbildschirm mit Meldung
+  und Video: mit der Oberfläche.
+- KI-Schalter (Spieler +0x70), Szenario-Haltung der Diplomatie (`PLAYER4` +0x1C/+0x20).
 
 **Oberfläche (Baumenü, Fenster, Meldungen)**
 - Baumenü des Originals (GAD) mit Gebäudenamen aus Text.cod, Freischaltung als ausgegraute

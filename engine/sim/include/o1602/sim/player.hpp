@@ -29,6 +29,17 @@ enum class PlayerRole : std::uint8_t {
     Natives,
 };
 
+/// Whether a player is still in the game (the original's controller 9 and 10).
+enum class PlayerStatus : std::uint8_t {
+    Playing,
+    Defeated,  ///< lost: no city and no ship, bankrupt, or a mission's loss condition
+    Absent,    ///< nobody plays the slot: it had no city and no ship when the game started
+};
+
+/// Index into World::missions().
+using MissionId = std::uint8_t;
+inline constexpr MissionId kNoMission = 0xFF;
+
 struct Player {
     PlayerRole role = PlayerRole::Human;
     BannerId banner = 0;
@@ -46,6 +57,28 @@ struct Player {
     std::uint16_t monuments_allowed = 0;
     std::uint16_t monuments_built = 0;
 
+    /// The player's mission (scenarios; docs/re/missions.md), kNoMission for none.
+    MissionId mission = kNoMission;
+    PlayerStatus status = PlayerStatus::Playing;
+    /// Accomplished the mission (or met it when someone else did); doubles the score.
+    bool won = false;
+    /// Opponents this player defeated (goal 0x200). The original counts the triumphal arch
+    /// allowances (player + 0x8E) instead, which a scenario may preset; loading such a file takes
+    /// that value.
+    std::uint16_t opponents_defeated = 0;
+    /// 5-s checks in a row with money below -1000 and no positive balance (40 = bankrupt) and
+    /// with no city and no ship in a multiplayer game (40 = defeated). The original keeps one
+    /// counter for both and never resets it (S-107).
+    std::uint8_t bankrupt_checks = 0;
+    std::uint8_t empty_checks = 0;
+    /// Trade statistics (player + 0x74, + 0x78): every purchase and sale with a Kontor adds 32
+    /// times its value, every 5 s they shrink by 1/180. Divided by 480 they are a moving
+    /// average per minute (the trade balance of missions and of the status bar).
+    std::int64_t purchases = 0;
+    std::int64_t sales = 0;
+
+    [[nodiscard]] bool active() const noexcept { return status == PlayerStatus::Playing; }
+
     [[nodiscard]] bool unlocked(std::uint32_t infra) const noexcept {
         return infra == 0 || (infra <= 32 && (infra_mask >> (infra - 1) & 1U) != 0);
     }
@@ -59,6 +92,9 @@ struct Player {
 
 [[nodiscard]] constexpr PlayerRole role_from_original(assets::PlayerKind kind) noexcept {
     switch (kind) {
+        case assets::PlayerKind::Defeated:
+        case assets::PlayerKind::Absent:
+            break;  // the role is lost; status_from_original() tells the rest
         case assets::PlayerKind::Computer:
             return PlayerRole::Computer;
         case assets::PlayerKind::Trader:
@@ -71,6 +107,23 @@ struct Player {
             break;
     }
     return PlayerRole::Human;
+}
+
+[[nodiscard]] constexpr PlayerStatus status_from_original(assets::PlayerKind kind) noexcept {
+    return kind == assets::PlayerKind::Defeated ? PlayerStatus::Defeated
+           : kind == assets::PlayerKind::Absent ? PlayerStatus::Absent
+                                                : PlayerStatus::Playing;
+}
+
+/// Money a player gets from or pays for a trade with a Kontor (0x00475AB0, 0x00475A20): it
+/// counts in the trade statistics, unlike taxes, costs or tributes.
+inline void earn_from_trade(Player& p, std::int64_t value) noexcept {
+    p.money = static_cast<std::int32_t>(p.money + value);
+    p.sales += 32 * value;
+}
+inline void pay_for_trade(Player& p, std::int64_t value) noexcept {
+    p.money = static_cast<std::int32_t>(p.money - value);
+    p.purchases += 32 * value;
 }
 
 /// Original colours map 1:1 to the banners of the base game.

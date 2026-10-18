@@ -156,10 +156,15 @@ public:
 
     /// Eruptions and what the lava hit since the last call.
     [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events();
+    /// Missions accomplished, players defeated and the end of the game since the last call.
+    [[nodiscard]] std::vector<GameEvent> take_game_events();
 
 private:
     friend class ai::Engine;
     void pay_upkeep();
+    void players_tick();
+    void accomplish(PlayerId winner);
+    void defeat(PlayerId player, GameEvent::Reason reason, bool blame);
     bool switch_production(const ProductionSwitch& s);
     bool city_order(const CityOrder& order);
     bool restore_state(const std::vector<std::uint8_t>& state);
@@ -179,6 +184,7 @@ private:
     std::vector<IslandEvent> m_island_events;
     std::vector<DisasterEvent> m_disaster_events;
     std::vector<VolcanoEvent> m_volcano_events;
+    std::vector<GameEvent> m_game_events;
     std::vector<RobberSpawn> m_robbers;
     std::uint32_t m_disaster_ms = 0;  ///< game time since the last disaster epoch
     const assets::FigureTable* m_figures;

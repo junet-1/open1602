@@ -877,6 +877,57 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     }
     add_missing_growth(world, buildings);
     // Open1602's own chunk: the state the original's chunks cannot hold.
+    // Missions (AUFTRAG4, docs/re/missions.md): the record of slot s goes to mission s; players
+    // name theirs by slot.
+    if (auto records = assets::load_missions(file); !records) {
+        warn(records.error().message);
+    } else {
+        std::vector<Mission> missions;
+        for (const auto& r : *records) {
+            if (r.slot >= 0xFF) {
+                warn("mission slot " + std::to_string(r.slot) + " out of range");
+                continue;
+            }
+            if (r.slot >= missions.size()) {
+                missions.resize(std::size_t{r.slot} + 1);
+            }
+            missions[r.slot] = mission_from_record(r, warnings);
+        }
+        world.set_missions(std::move(missions));
+    }
+    // The original always has its 4 slots (empty ones zeroed): a player may name one the file
+    // does not fill.
+    constexpr std::uint8_t kOriginalMissionSlots = 4;
+    for (const auto& r : *players) {
+        if (r.mission < kOriginalMissionSlots && r.mission >= world.missions().size()) {
+            auto missions = world.missions();
+            missions.resize(std::size_t{r.mission} + 1);
+            world.set_missions(std::move(missions));
+        }
+    }
+    for (std::size_t i = 0; i < players->size() && i < world.players().size(); ++i) {
+        const auto& r = (*players)[i];
+        Player* pp = world.player(static_cast<PlayerId>(i));
+        if (pp == nullptr) {
+            continue;
+        }
+        Player& p = *pp;
+        p.status = status_from_original(r.kind);
+        // Only humans and computers have missions (Player_Tick reads the slot for controller 0, 0x0C).
+        if (r.mission < world.missions().size() && (p.role == PlayerRole::Human || p.role == PlayerRole::Computer)) {
+            p.mission = r.mission;
+        } else if (r.mission != 0xFF && (p.role == PlayerRole::Human || p.role == PlayerRole::Computer)) {
+            warn("player " + std::to_string(i) + ": mission " + std::to_string(r.mission) + " not in the file");
+        }
+        p.opponents_defeated = r.arches_allowed;
+        p.bankrupt_checks = static_cast<std::uint8_t>(std::min<std::uint16_t>(r.defeat_counter, 39));
+        // A human or computer with no city and no ship is a slot nobody plays (0x0048C0F0).
+        if (p.status == PlayerStatus::Playing && (p.role == PlayerRole::Human || p.role == PlayerRole::Computer) &&
+            !owns_city(world, static_cast<PlayerId>(i)) && !owns_ship(world, static_cast<PlayerId>(i))) {
+            p.status = PlayerStatus::Absent;
+        }
+    }
+    prepare_missions(world);
     for (const assets::Chunk& c : file.chunks()) {
         if (c.name == kExtensionChunk) {
             constexpr std::size_t kHeader = 20;

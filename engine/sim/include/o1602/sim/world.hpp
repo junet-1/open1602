@@ -17,6 +17,7 @@
 #include "o1602/core/result.hpp"
 #include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/mission.hpp"
 #include "o1602/sim/player.hpp"
 #include "o1602/sim/production.hpp"
 #include "o1602/sim/random.hpp"
@@ -551,6 +552,23 @@ public:
     /// Frees the entry of the building at (x, y); returns its index.
     std::optional<std::uint32_t> remove_production(std::uint16_t island, std::uint16_t x, std::uint16_t y);
 
+    /// Missions of the game (AUFTRAG4 in the original, which has 4 slots): each player names one
+    /// or none (Player::mission).
+    [[nodiscard]] const std::vector<Mission>& missions() const noexcept { return m_missions; }
+    void set_missions(std::vector<Mission> missions) { m_missions = std::move(missions); }
+    [[nodiscard]] const Mission* mission_of(const Player& player) const noexcept {
+        return player.mission < m_missions.size() ? &m_missions[player.mission] : nullptr;
+    }
+    /// The end of the game: a player accomplished the mission (docs/re/missions.md). Missions are
+    /// not checked any more afterwards; whether the game goes on is the frontend's choice.
+    struct GameEnd {
+        std::uint64_t time_ms = 0;
+        PlayerId winner = kNoPlayer;
+        friend bool operator==(const GameEnd&, const GameEnd&) = default;
+    };
+    [[nodiscard]] const std::optional<GameEnd>& game_end() const noexcept { return m_game_end; }
+    void set_game_end(std::optional<GameEnd> end) noexcept { m_game_end = end; }
+
     /// Index into islands() of the island with this number (INSEL5 header), if it is placed.
     [[nodiscard]] std::optional<std::uint16_t> island_index(std::uint32_t number) const noexcept;
 
@@ -591,6 +609,8 @@ private:
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x
     std::vector<std::uint32_t> m_free_productions;                        ///< free slots, reused last first
     std::vector<Cell> m_cells;
+    std::vector<Mission> m_missions;
+    std::optional<GameEnd> m_game_end;
 };
 
 /// The Kontor building of a city (at its warehouse position), nullptr if it has none.

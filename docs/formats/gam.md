@@ -56,10 +56,12 @@ Eingeborenen. Die Nummer des Platzes ist zugleich die **Besitzernummer** in den 
 | Offset | Typ | Inhalt |
 |---|---|---|
 | 0x000 | int32 | Geld |
-| 0x004 | u8 | Steuerung: 0 Mensch, 0x0B Eingeborene, 0x0C Computer, 0x0D freier Händler, 0x0E Piraten |
+| 0x004 | u8 | Steuerung: 0 Mensch, 0x0B Eingeborene, 0x0C Computer, 0x0D freier Händler, 0x0E Piraten; im Spiel gesetzt 9 besiegt, 10 abwesend ([missions.md](../re/missions.md)) |
 | 0x005 | u8 | Platznummer (0–6) |
 | 0x006 | u8 | immer 1 (Bedeutung offen) |
 | 0x007 | u8 | **Spielerfarbe** (siehe unten) |
+| 0x00A | u16 | Zähler der Niederlageregeln (Bankrott, im Mehrspieler ohne Stadt und Schiff; Laufzeit +0x9E) |
+| 0x00C | u8 | **Auftrag**: Platz in `AUFTRAG4`, 0xFF keiner (Laufzeit +0x7C) |
 | 0x00D | u8 | im Netzwerkspiel ausgewertet (`0x00473C50`) |
 | 0x00E | u8 | Schlösser gebaut (Laufzeit +0x87, höchstens eines) |
 | 0x00F | u8 | Kathedralen gebaut (+0x88) |
@@ -204,7 +206,7 @@ ist die Anzahl in Merlin01 nach einigen Minuten Spielzeit.
 | `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | Wohnhäuser: Insel, x, y, Epochen, Klasse, Marktentfernung, Einwohner · 64, Zeitgruppe, Markt- und Dienstbits ([houses.md](../re/houses.md)) (132) |
 | `ROHWACHS2` | 8 | `0x00485C20` | `0x00562DC8`, 32860 × 8 | Wachstum von Feldern, Bäumen, Plantagen, Fischgründen: Insel, x, y, Klasse, gesehener Zählerstand, Stufe, 2 Byte 0 ([growth.md](../re/growth.md)) |
 | `TIMERS` | 0x298 | `0x00485D10` | verstreute Zähler (`0x005A77E0`, `0x005DBAB0`, …) | globale Zähler und Zeitgeber; +0x00: Phase des Stadttakts (10 s), +0x01: Phase des Inseltakts (30 s), +0x02–0x04: Sekundenphasen (Werft, Militär, Produktion), +0x84/+0x88/+0x8C/+0x90/+0x94: deren Zeitspeicher in ms; +0x64: 32 Zähler der Wachstumsklassen (0–7), +0x218: 32 Klassenuhren in ms, +0x44: 16 Epochen der Hauszeitgruppen, +0x198: 16 Hauszeitgeber in ms, +0xA0: Spielzeit in 1/10 s, +0xA6: Schwierigkeit 0–3 (`0x005B6304`, Dürretabelle), +0xA8: Spieleinstellungen (`0x005B706C`; Bit 2 keine Dürren, Bit 8 keine Vulkane), +0xB0: nächster Stadtname aus `[STAEDTE]` (`0x005B3168`), +0xB4: frühester nächster Dürrewurf in 1/10 s (neues Spiel 54000; eine gespeicherte 0 wird 36000), +0xC4: laufender Vulkanausbruch, +0xC8: letzter (Verweise `{0x33, Insel, x, y}`), +0xCC: frühester nächster Vulkanausbruch in 1/10 s, +0xD0: Krater der Welt, höchstens 20 ([volcanoes.md](../re/volcanoes.md)); +0xA5: Computer untätig (`0x005B62FC`, gesetzt von wem, ist offen; Open1602 wertet es nicht aus), +0xA7: Missionsnummer (Endlosspiel 1), +0xAC: Spielkennung (`sim::new_game_id`), +0xB8: Abstand neuer Piratenschiffe in 1/10 s, +0xBC: Schwierigkeit (so setzt sie das neue Spiel), +0xC0: Flottengrenze je Spieler (0 = 33, L-001); +0x98/+0x9C und der Rest: Bedeutung offen |
-| `AUFTRAG4` | – | `0x00478558` | – | Aufträge/Ziele des Szenarios (2244 Byte, noch nicht untersucht; Open1602 reicht ihn unverändert durch) |
+| `AUFTRAG4` | – | `0x00478558` | – | Aufträge des Szenarios, je Platz 0x8C4 Byte; Aufbau, Ziele und Ablauf in [missions.md](../re/missions.md) |
 | `WIFF` | 4 | `0x00485EE0` | u32 `0x005B3160` | Prüfsumme: Summe der 32-Bit-Wörter aller Daten davor (`0x00490730`), wird nie gelesen |
 
 Alle Koordinaten in `STADT4` … `ROHWACHS2` sind Inselfelder; die Insel steht als Inselnummer im ersten

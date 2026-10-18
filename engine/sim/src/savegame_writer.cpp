@@ -30,6 +30,7 @@ constexpr std::size_t kMaxShips = 150;
 constexpr std::size_t kMaxSoldiers = 400;
 constexpr std::size_t kMaxTowers = 350;
 constexpr std::size_t kTowerSize = 0x24;
+constexpr std::size_t kOriginalMissionSlots = 4;  // 0x005B8A80: 4 x 0x88C
 constexpr std::size_t kCityNameMax = 23;
 constexpr std::size_t kShipNameMax = 23;
 constexpr std::uint8_t kNoOwner = 7;
@@ -157,7 +158,7 @@ public:
         growth();
         cities();
         players();
-        passthrough("AUFTRAG4", true);
+        missions();
         traders();
         ships();
         soldiers();
@@ -835,6 +836,16 @@ private:
                 put16(r, 0x12, player->arches_built);
                 put16(r, 0x38, player->monuments_allowed);
                 put16(r, 0x3A, player->monuments_built);
+                if (player->role == PlayerRole::Human || player->role == PlayerRole::Computer) {
+                    // The others keep what the file had: their slot is never read.
+                    r[0x0C] = player->mission < kOriginalMissionSlots ? player->mission : std::uint8_t{0xFF};
+                    put16(r, 0x0A, player->bankrupt_checks);
+                }
+                // An absent slot keeps its controller: the original retires it again when loading
+                // (0x0048C0F0), and so a file written back unchanged stays the same.
+                if (player->status == PlayerStatus::Defeated) {
+                    r[4] = static_cast<std::uint8_t>(assets::PlayerKind::Defeated);
+                }
                 const Diplomacy& d = m_world.diplomacy();
                 const auto a = static_cast<PlayerId>(p);
                 r[0x08] = owner_byte(d.blamed(a));
@@ -868,6 +879,20 @@ private:
             out.insert(out.end(), r.begin(), r.end());
         }
         add("PLAYER4", std::move(out));
+    }
+
+    /// AUFTRAG4 (0x00478380): the first four missions; a slot is written if it has goals, slot 0
+    /// also if it has a text (the endless games).
+    void missions() {
+        core::Bytes out;
+        const auto& missions = m_world.missions();
+        for (std::size_t i = 0; i < missions.size() && i < kOriginalMissionSlots; ++i) {
+            if (missions[i].goals != 0 || (i == 0 && !missions[i].text.empty())) {
+                const auto r = assets::encode_mission(mission_to_record(missions[i], static_cast<std::uint32_t>(i)));
+                out.insert(out.end(), r.begin(), r.end());
+            }
+        }
+        add("AUFTRAG4", std::move(out));
     }
 
     /// HANDLER: the free trader's goods, one record per trader ship (0x004600C0).

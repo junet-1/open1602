@@ -13,6 +13,10 @@ constexpr std::uint32_t kProductionPeriodMs = 1000;  // 0x0047DAF0: once per gam
 constexpr std::size_t kMaxPendingEvents = 8192;      // events nobody takes are dropped, oldest first
 constexpr std::uint32_t kUpkeepPeriodMs = 5000;      // 0x00476350: each player once per 5 s
 constexpr std::uint32_t kDiplomacyTickMs = 5000;     // 0x00476350: the diplomacy counters fade
+constexpr std::uint32_t kPirateGoalFlag = 1U << 5;   // game settings: defeat the pirates
+constexpr std::uint8_t kDefeatChecks = 40;           // 0x00476350: 40 checks of 5 s
+constexpr std::size_t kArchClass = 2;                // 0x004805D0(K, 2): inhabitants of class 2 and up
+constexpr std::uint64_t kArchInhabitants = 200;      // more than 199
 
 }  // namespace
 
@@ -150,6 +154,11 @@ void Simulation::apply_commands() {
 
 CommandResult Simulation::execute(const Command& command) {
     CommandResult result;
+    // A defeated player or a slot nobody plays gives no orders (the original's controller 9, 10).
+    const PlayerId from = std::visit([](const auto& c) { return c.player; }, command);
+    if (const Player* p = m_world->player(from); p != nullptr && !p->active()) {
+        return result;
+    }
     const std::size_t first = m_construction_events.size();
     if (const auto* build = std::get_if<BuildOrder>(&command)) {
         result.build = execute_build(*m_world, *m_buildings, *build, m_city_names, &m_construction_events);
@@ -319,6 +328,7 @@ void Simulation::tick() {
             m_world->diplomacy().decay(static_cast<PlayerId>(p));
         }
         pirates_reconsider(*m_world);
+        players_tick();
     }
     // Growth first, as in the original (0x0047CA80 is the first subsystem of 0x00489670).
     advance_growth(*m_world, *m_buildings, kTickMs);
@@ -490,49 +500,142 @@ void Simulation::tick() {
 }
 
 void Simulation::pay_upkeep() {
-    std::vector<std::uint32_t> upkeep(m_world->players().size(), 0);
-    for (const Soldier& s : m_world->soldiers()) {
-        const assets::FigureType* type = m_figures->get(s.figure);
-        if (type != nullptr && s.owner < upkeep.size() && !s.dying()) {
-            upkeep[s.owner] += m_figures->unit_upkeep(type->kind);
-        }
-    }
-    // Units in training or waiting in a castle count too (player + 0xA6 from recruiting on).
-    for (const CostBuilding& b : m_world->cost_buildings()) {
-        if (b.kind != CostBuilding::Kind::Castle || b.island >= m_world->islands().size()) {
-            continue;
-        }
-        const PlayerId owner = m_world->islands()[b.island].map.top(b.x, b.y).owner;
-        for (const CastleSlot& slot : b.slots) {
-            const assets::FigureType* type = m_figures->get(slot.figure);
-            if (type != nullptr && owner < upkeep.size()) {
-                upkeep[owner] += m_figures->unit_upkeep(type->kind);
-            }
-        }
-    }
-    // Soldiers on board ships (cargo wares 25..44 = figure + 24).
-    for (const Ship& ship : m_world->ships()) {
-        for (const CargoSlot& c : ship.cargo) {
-            if (c.ware >= 25 && c.ware <= 44 && ship.owner < upkeep.size()) {
-                if (const assets::FigureType* type = m_figures->get(static_cast<std::uint32_t>(c.ware - 24))) {
-                    upkeep[ship.owner] += m_figures->unit_upkeep(type->kind);
-                }
-            }
-        }
-    }
-    // Cannon towers (Turm: line of figuren.cod, player + 0xA4).
-    for (const Tower& t : m_world->towers()) {
-        if (t.owner < upkeep.size()) {
-            upkeep[t.owner] += m_figures->tower_upkeep();
-        }
-    }
+    const std::vector<std::uint32_t> upkeep = military_upkeep(*m_world, *m_figures);
     for (std::size_t p = 0; p < upkeep.size(); ++p) {
-        Player* player = m_world->player(static_cast<PlayerId>(p));
         // Computer players pay nothing, as in the original (0x00475B00).
+        Player* player = m_world->player(static_cast<PlayerId>(p));
         if (player != nullptr && player->role == PlayerRole::Human) {
             player->money -= static_cast<std::int32_t>(upkeep[p] / 12);
         }
     }
+}
+
+void Simulation::players_tick() {
+    // Player_Tick 0x00476350: each player once per 5 s; nothing more once the game is over.
+    if (m_world->game_end()) {
+        return;
+    }
+    std::size_t humans = 0;
+    for (const Player& p : m_world->players()) {
+        humans += p.role == PlayerRole::Human && p.status != PlayerStatus::Absent ? 1 : 0;
+    }
+    const bool multiplayer = humans > 1;
+    for (std::size_t i = 0; i < m_world->players().size(); ++i) {
+        const auto id = static_cast<PlayerId>(i);
+        Player* player = m_world->player(id);
+        if (player == nullptr || !player->active()) {
+            continue;
+        }
+        Player& p = *player;
+        p.purchases = p.purchases * 179 / 180;
+        p.sales = p.sales * 179 / 180;
+        const MissionCheck check = check_mission(*m_world, *m_buildings, *m_figures, id);
+        if (check.won) {
+            accomplish(id);
+            return;
+        }
+        const bool city = owns_city(*m_world, id);
+        const bool ship = owns_ship(*m_world, id);
+        switch (p.role) {
+            case PlayerRole::Pirates:
+                // Only when a mission asks to defeat them (settings bit 5).
+                if ((m_world->game_settings().flags & kPirateGoalFlag) != 0 && !city && !ship) {
+                    defeat(id, GameEvent::Reason::Retired, true);
+                }
+                break;
+            case PlayerRole::Computer:
+                // The AI root retires a computer with no city and no ship (0x00429070).
+                if (!city && !ship) {
+                    defeat(id, GameEvent::Reason::Retired, true);
+                }
+                break;
+            case PlayerRole::Human:
+                if (check.lost) {
+                    defeat(id, GameEvent::Reason::MissionFailed, true);
+                } else if (city || ship) {
+                    p.empty_checks = 0;
+                    // Bankrupt after 40 checks in a row; the original never resets the counter,
+                    // so 40 bad checks over the whole game are enough (S-107).
+                    if (p.money <= -1001 && player_balance(*m_world, *m_buildings, *m_figures, id) <= 0) {
+                        if (++p.bankrupt_checks >= kDefeatChecks) {
+                            defeat(id, GameEvent::Reason::Bankrupt, false);
+                        }
+                    } else {
+                        p.bankrupt_checks = 0;
+                    }
+                } else if (!multiplayer || ++p.empty_checks >= kDefeatChecks) {
+                    // Nothing left: at once alone, after 200 s with other humans in the game.
+                    defeat(id, GameEvent::Reason::NoPossessions, true);
+                }
+                break;
+            case PlayerRole::Trader:
+            case PlayerRole::Natives:
+                break;
+        }
+    }
+}
+
+void Simulation::accomplish(PlayerId winner) {
+    // Op 0x3E (0x00476950): the winner, and every other human or computer who meets his own
+    // mission at this moment; the original checks players without a mission against mission 0
+    // (S-106). The game is over for everybody.
+    const auto win = [&](PlayerId id) {
+        Player* p = m_world->player(id);
+        if (p == nullptr) {
+            return;
+        }
+        p->won = true;
+        const Mission* m = m_world->mission_of(*p);
+        m_game_events.push_back(GameEvent{GameEvent::Kind::MissionAccomplished, id, kNoPlayer, GameEvent::Reason::None,
+                                          m != nullptr ? m->success_message : std::uint16_t{0}});
+    };
+    win(winner);
+    for (std::size_t i = 0; i < m_world->players().size(); ++i) {
+        const auto id = static_cast<PlayerId>(i);
+        if (id != winner && m_world->players()[i].active() &&
+            check_mission(*m_world, *m_buildings, *m_figures, id).won) {
+            win(id);
+        }
+    }
+    m_world->set_game_end(World::GameEnd{m_time_ms, winner});
+    m_game_events.push_back(GameEvent{GameEvent::Kind::GameOver, winner});
+}
+
+void Simulation::defeat(PlayerId id, GameEvent::Reason reason, bool blame) {
+    // Op 3 sub 9 (0x004766A0): the player is out. Unless he went bankrupt, the player blamed for
+    // it (who last destroyed his Kontor or market) counts him as defeated and, with 200
+    // inhabitants of the third class or higher, may build a triumphal arch. The original does
+    // not credit him on the defeated player's computer (S-105).
+    Player* p = m_world->player(id);
+    if (p == nullptr) {
+        return;
+    }
+    p->status = PlayerStatus::Defeated;
+    const PlayerId by = blame ? m_world->diplomacy().blamed(id) : kNoPlayer;
+    m_game_events.push_back(GameEvent{GameEvent::Kind::PlayerDefeated, id, by, reason});
+    Player* k = by != id ? m_world->player(by) : nullptr;
+    if (k == nullptr || p->role == PlayerRole::Natives) {
+        return;
+    }
+    k->opponents_defeated = static_cast<std::uint16_t>(std::min(k->opponents_defeated + 1, 0xFFFF));
+    std::uint64_t upper = 0;
+    for (const City& c : m_world->cities()) {
+        if (c.owner == by) {
+            for (std::size_t r = kArchClass; r < c.inhabitants.size(); ++r) {
+                upper += c.inhabitants[r];
+            }
+        }
+    }
+    if (upper >= kArchInhabitants) {
+        k->arches_allowed = static_cast<std::uint16_t>(std::min(k->arches_allowed + 1, 0xFFFF));
+        m_game_events.push_back(GameEvent{GameEvent::Kind::ArchAllowed, by, id});
+    }
+}
+
+std::vector<GameEvent> Simulation::take_game_events() {
+    std::vector<GameEvent> events;
+    events.swap(m_game_events);
+    return events;
 }
 
 std::vector<ShipEvent> Simulation::take_ship_events() {
