@@ -506,7 +506,8 @@ void Simulation::tick() {
         m_world->set_island_phase(static_cast<std::uint8_t>(m_world->island_phase() + 1U));
         epoch = true;
     }
-    std::vector<bool> due(m_world->islands().size(), false);
+    std::vector<bool>& due = m_islands_due;
+    due.assign(m_world->islands().size(), false);
     bool any = false;
     for (std::uint16_t i = 0; i < m_world->islands().size(); ++i) {
         WorldIsland& island = m_world->island(i);

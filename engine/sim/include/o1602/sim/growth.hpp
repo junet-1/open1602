@@ -12,8 +12,10 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
@@ -67,12 +69,20 @@ bool harvest_tile(World& world, const assets::BuildingTable& buildings, std::uin
 
 /// A ripe field withers (0x0047C920): it becomes its withered record. False if the tile is no ripe
 /// crop with a withered record.
+/// With `forgotten`, the tile's old growth entries are not looked for here: the tile goes into the
+/// list, and forget_growth removes the entries of all of them in one pass (a drought withers
+/// hundreds of fields at once, review point 19).
 bool wither_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
-                 std::uint16_t y);
+                 std::uint16_t y, std::vector<TilePos>* forgotten = nullptr);
 
 /// A withered field comes back (0x0047C920): it becomes the growing record and starts growing.
 /// Unlike the original, which adds a second growth entry, the tile keeps only the new one.
 bool recover_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
-                  std::uint16_t y);
+                  std::uint16_t y, std::vector<TilePos>* forgotten = nullptr);
+
+/// Removes the growth entries of island `island` at the tiles of `tiles` in one pass; entries from
+/// index `first_new` on were added after the tiles were collected and stay. The order of the
+/// others stays too, so this ends as one removal per tile would.
+void forget_growth(World& world, std::uint16_t island, std::vector<TilePos>& tiles, std::size_t first_new);
 
 }  // namespace o1602::sim

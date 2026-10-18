@@ -385,13 +385,12 @@ bool Fleet::at_target(const Ship& ship, const Target& target) const {
 
 void Fleet::tick(std::uint32_t dt_ms) {
     const std::uint32_t budget = dt_ms * 1000U;
-    // Ships may be added (launch, trader) while others move; iterate by id.
-    std::vector<std::uint32_t> ids;
-    ids.reserve(m_world->ships().size());
+    // By id, so that a ship added on the way could not break the loop.
+    m_ids.clear();
     for (const Ship& s : m_world->ships()) {
-        ids.push_back(s.id);
+        m_ids.push_back(s.id);
     }
-    for (const std::uint32_t id : ids) {
+    for (const std::uint32_t id : m_ids) {
         if (Ship* s = m_world->ship(id)) {
             advance(*s, budget);
         }

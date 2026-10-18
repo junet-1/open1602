@@ -52,6 +52,8 @@ std::uint32_t wither_scan(World& world, const assets::BuildingTable& buildings, 
     const std::uint8_t strength = world.islands()[i].drought.strength;
     Random& random = world.random(RandomStream::Islands);
     std::uint32_t withered = 0;
+    std::vector<TilePos> forgotten;
+    const std::size_t first_new = world.growth().entries.size();
     const auto w = static_cast<std::int32_t>(map.width());
     for (std::uint32_t y = 0; y < map.height(); ++y) {
         for (std::int32_t x = w - 1 - static_cast<std::int32_t>(random.below(3)); x >= 0; x -= 3) {
@@ -66,9 +68,10 @@ std::uint32_t wither_scan(World& world, const assets::BuildingTable& buildings, 
             }
             const auto ux = static_cast<std::uint16_t>(x);
             const auto uy = static_cast<std::uint16_t>(y);
-            withered += wither_tile(world, buildings, i, ux, uy) ? 1U : 0U;
+            withered += wither_tile(world, buildings, i, ux, uy, &forgotten) ? 1U : 0U;
         }
     }
+    forget_growth(world, i, forgotten, first_new);
     return withered;
 }
 
@@ -77,6 +80,8 @@ std::uint32_t recovery_scan(World& world, const assets::BuildingTable& buildings
     const IslandMap& map = world.islands()[i].map;
     const std::uint8_t strength = world.islands()[i].drought.strength;
     std::uint32_t recovered = 0;
+    std::vector<TilePos> forgotten;
+    const std::size_t first_new = world.growth().entries.size();
     for (std::uint32_t y = 0; y < map.height(); ++y) {
         for (std::uint32_t x = map.width(); x-- > 0;) {
             const MapCell& cell = map.top(x, y);
@@ -89,11 +94,13 @@ std::uint32_t recovery_scan(World& world, const assets::BuildingTable& buildings
                                               static_cast<std::int32_t>(y), strength)) {
                 continue;
             }
-            recovered += recover_tile(world, buildings, i, static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y))
+            recovered += recover_tile(world, buildings, i, static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y),
+                                      &forgotten)
                              ? 1U
                              : 0U;
         }
     }
+    forget_growth(world, i, forgotten, first_new);
     return recovered;
 }
 

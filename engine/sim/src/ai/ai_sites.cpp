@@ -879,7 +879,7 @@ bool Engine::search_public(AiPlayer& p) {
         return true;
     }
     const auto& houses = m_world.houses();
-    const std::vector<std::uint8_t> circle = circle_half_widths(b->radius);
+    const std::vector<std::uint8_t>& circle = circle_table(b->radius);
     const auto gap = [](std::int32_t origin, std::int32_t size, std::int32_t house) {
         const std::int32_t w = size - 1;
         const std::int32_t first = origin + w / 2;

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <tuple>
 #include <unordered_set>
 
 #include "o1602/sim/construction.hpp"
@@ -224,8 +225,27 @@ void forget_growth(World& world, std::uint16_t island, std::uint16_t x, std::uin
 
 }  // namespace
 
+void forget_growth(World& world, std::uint16_t island, std::vector<TilePos>& tiles, std::size_t first_new) {
+    if (tiles.empty()) {
+        return;
+    }
+    const auto before = [](const TilePos& a, const TilePos& b) { return std::tie(a.y, a.x) < std::tie(b.y, b.x); };
+    std::sort(tiles.begin(), tiles.end(), before);
+    auto& entries = world.growth().entries;
+    std::size_t kept = 0;
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        const GrowthEntry& e = entries[i];
+        const bool gone = i < first_new && e.island == island &&
+                          std::binary_search(tiles.begin(), tiles.end(), TilePos{e.x, e.y}, before);
+        if (!gone) {
+            entries[kept++] = e;
+        }
+    }
+    entries.resize(kept);
+}
+
 bool wither_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
-                 std::uint16_t y) {
+                 std::uint16_t y, std::vector<TilePos>* forgotten) {
     const assets::BuildingType* ripe = tile_record(world, buildings, island, x, y);
     const assets::BuildingType* withered = ripe != nullptr ? withered_record(buildings, *ripe) : nullptr;
     if (withered == nullptr) {
@@ -237,12 +257,16 @@ bool wither_tile(World& world, const assets::BuildingTable& buildings, std::uint
     }
     // The original gives the withered field a growth entry that ends where it started (a withered
     // field stays withered); Open1602 keeps none.
-    forget_growth(world, island, x, y);
+    if (forgotten != nullptr) {
+        forgotten->push_back({x, y});
+    } else {
+        forget_growth(world, island, x, y);
+    }
     return true;
 }
 
 bool recover_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
-                  std::uint16_t y) {
+                  std::uint16_t y, std::vector<TilePos>* forgotten) {
     const assets::BuildingType* withered = tile_record(world, buildings, island, x, y);
     const assets::BuildingType* ripe = withered != nullptr ? ripe_of_withered(buildings, *withered) : nullptr;
     const assets::BuildingType* growing = ripe != nullptr ? growing_record(buildings, *ripe) : nullptr;
@@ -253,7 +277,11 @@ bool recover_tile(World& world, const assets::BuildingTable& buildings, std::uin
     if (growing->anim_time == 0) {
         world.island(island).map.set_anim_phase(x, y, 0);
     }
-    forget_growth(world, island, x, y);
+    if (forgotten != nullptr) {
+        forgotten->push_back({x, y});
+    } else {
+        forget_growth(world, island, x, y);
+    }
     GrowthState& g = world.growth();
     GrowthEntry e;
     e.island = island;

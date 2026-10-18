@@ -346,6 +346,7 @@ private:
     SeaMap m_sea;
     SeaPlanner m_planner;
     std::vector<ShipEvent> m_events;
+    std::vector<std::uint32_t> m_ids;  ///< scratch of tick(): the ships in their order
     std::vector<FetchRequest> m_fetch;
     std::vector<std::string> m_ship_names;
     std::uint32_t m_name_index = 0;

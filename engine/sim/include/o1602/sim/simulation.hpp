@@ -234,6 +234,7 @@ private:
     std::uint32_t m_pending_ms = 0;     ///< game time not yet run as a tick
     std::uint32_t m_production_ms = 0;  ///< game time since the last production second
     std::uint32_t m_city_ms = 0;        ///< game time since the cities last consumed
+    std::vector<bool> m_islands_due;    ///< scratch of the island epochs
     std::vector<ProductionEvent> m_production_events;
     std::vector<CityEvent> m_city_events;
     std::vector<HouseEvent> m_house_events;

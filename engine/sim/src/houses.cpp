@@ -500,7 +500,7 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
         std::int32_t y;
         std::uint32_t w;
         std::uint32_t h;
-        std::uint32_t radius;
+        std::uint8_t radius;
         std::uint16_t bit;  // 0 for markets
     };
     std::vector<Source> sources;
@@ -549,7 +549,7 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
             if (dx > r || dy > r) {
                 continue;
             }
-            const std::vector<std::uint8_t> circle = circle_half_widths(s.radius);
+            const std::vector<std::uint8_t>& circle = circle_table(s.radius);
             if (dx > circle[static_cast<std::size_t>(dy)]) {
                 continue;
             }

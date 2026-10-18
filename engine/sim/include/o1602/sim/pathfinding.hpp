@@ -40,6 +40,8 @@ struct TilePos {
 /// the midpoint circle algorithm like the original's table at 0x005B7460 (0x00404D70).
 /// Radius 10: 10, 10, 10, 10, 9, 9, 8, 7, 6, 5, 3.
 [[nodiscard]] std::vector<std::uint8_t> circle_half_widths(std::uint32_t radius);
+/// The same for radius 0..255 from a table built once: no allocation in the tick.
+[[nodiscard]] const std::vector<std::uint8_t>& circle_table(std::uint8_t radius);
 
 /// The circle a building's figures stay in: Radius tiles around its centre tile. Buildings of even
 /// width or depth have no centre tile; their circle is one tile wider in that direction.
@@ -187,6 +189,7 @@ private:
     std::uint32_t m_width = 0;
     std::uint32_t m_height = 0;
     std::vector<Cell> m_cells;
+    std::vector<std::uint8_t> m_half;   ///< scratch of begin(): half widths of the window
     std::vector<bool> m_circle;         ///< tile lies in the circle and on the island
     std::vector<std::uint8_t> m_cost;   ///< Wegspeed class of the tile (32 = road)
     std::vector<std::uint32_t> m_dist;  ///< cost of the best route found so far
