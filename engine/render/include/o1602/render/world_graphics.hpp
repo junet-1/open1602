@@ -24,9 +24,10 @@ namespace o1602::render {
 [[nodiscard]] std::string sheet_path(assets::FigureSheet sheet, Zoom zoom);
 
 struct GraphicsOptions {
-    /// The original has no animals, carriers or soldiers at the smallest zoom level (SGFX has no
-    /// TIERE.BSH, TRAEGER.BSH, SOLDAT.BSH, ...). If set, such sheets are made from the next larger
-    /// level at half size, so these figures stay visible when zoomed out.
+    /// Some editions of the original have no animals, carriers or soldiers at the smallest zoom
+    /// level (SGFX without TIERE.BSH, TRAEGER.BSH, SOLDAT.BSH, ...; the GOG edition has them). If
+    /// set, missing sheets are made from the next larger level at half size, so these figures stay
+    /// visible when zoomed out.
     bool derive_missing_sheets = true;
     std::uint32_t page_size = 2048;
 };

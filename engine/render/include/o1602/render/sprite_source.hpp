@@ -2,7 +2,7 @@
 //
 // Where the sprites of an atlas come from: a BSH sheet of the original, or a sheet of the next
 // larger zoom level reduced to half size for zoom levels the original has no graphics for
-// (SGFX lacks animals, carriers and soldiers). Mods will add sources for their own images.
+// (the SGFX of some editions lacks animals, carriers and soldiers). Mods will add sources for their own images.
 #pragma once
 
 #include <cstdint>

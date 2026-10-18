@@ -66,7 +66,11 @@ macht den Spielstand unlesbar (statt falscher Gebäude).
   vergleichen (die Tests tun das).
 - **Robust:** Erst prüft der Lader Kopf, Größe und CRC-32, dann liest er alle Abschnitte und prüft sie
   gegen die Welt (Inseln, Felder innerhalb ihrer Insel, Schiffe in der Welt, Einheiten auf bekannten
-  Inseln, Zufallsgeneratoren). Nur wenn alles stimmt, entsteht die Welt; ein beschädigter, abgeschnittener
+  Inseln, Zufallsgeneratoren). Danach prüft `validate(World)` (`validate.hpp`) die fertige Welt als Ganzes,
+  wie nach jedem Laden auch einer Datei des Originals: Inseln auf der Karte, Städte, Gebäude, Einheiten und
+  Krater auf bekannten Inseln und innerhalb ihrer Felder, Besitzer, die es gibt. Bekommt der Lader die
+  Figurentabelle mit (das Spiel tut das), liest er auch `SIMU` schon zur Probe
+  (`Simulation::state_readable`). Nur wenn alles stimmt, entsteht die Welt; ein beschädigter, abgeschnittener
   oder neuerer Spielstand lädt nichts. Jede Anzahl wird gegen die verbleibende Länge geprüft, bevor
   Speicher reserviert wird. Geschrieben wird erst in eine Nebendatei, die dann umbenannt wird.
 - **Klein:** Merlin04 (130 Minuten, zwei Städte) braucht 248 KB statt 885 KB als `.GAM` mit Zusatz-Chunk.

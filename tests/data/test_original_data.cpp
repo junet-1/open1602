@@ -557,25 +557,30 @@ TEST_CASE("data: figure animations and sheets of all zoom levels") {
 
     auto palette = assets::Palette::load(*game.resolve(render::kTerrainPalettePath));
     REQUIRE(palette.ok());
+    // Some editions have no animals at the smallest zoom level (SGFX/Tiere.bsh); the GOG edition has them.
+    const bool small_animals =
+        game.resolve(render::sheet_path(assets::FigureSheet::Tiere, render::Zoom::Small)).has_value();
     for (int z = 0; z < 3; ++z) {
         const auto zoom = static_cast<render::Zoom>(z);
-        if (!game.resolve(render::sheet_path(assets::FigureSheet::Tiere,
-                                             zoom == render::Zoom::Small ? render::Zoom::Medium : zoom))) {
+        if (!game.resolve(render::sheet_path(assets::FigureSheet::Tiere, zoom == render::Zoom::Small && !small_animals
+                                                                             ? render::Zoom::Medium
+                                                                             : zoom))) {
             SKIP("animal sheets not available");
         }
         auto g = render::load_world_graphics(game, *palette, zoom, render::kWorldFigureSheets);
         REQUIRE(g.ok());
         CHECK(g->sheet_base(assets::FigureSheet::Ship).has_value());
         CHECK(g->sheet_base(assets::FigureSheet::Tiere).has_value());
-        // The original has no animals at the smallest zoom level; they come from MGFX at half size.
-        CHECK(g->derived[static_cast<std::size_t>(assets::FigureSheet::Tiere)] == (zoom == render::Zoom::Small));
+        // Missing animals at the smallest zoom level come from MGFX at half size.
+        CHECK(g->derived[static_cast<std::size_t>(assets::FigureSheet::Tiere)] ==
+              (zoom == render::Zoom::Small && !small_animals));
         CHECK(!g->derived[static_cast<std::size_t>(assets::FigureSheet::Ship)]);
     }
     render::GraphicsOptions original;
     original.derive_missing_sheets = false;
     auto small = render::load_world_graphics(game, *palette, render::Zoom::Small, render::kWorldFigureSheets, original);
     REQUIRE(small.ok());
-    CHECK(!small->sheet_base(assets::FigureSheet::Tiere).has_value());
+    CHECK(small->sheet_base(assets::FigureSheet::Tiere).has_value() == small_animals);
     CHECK(small->sheet_base(assets::FigureSheet::Ship).has_value());
 }
 
@@ -1070,6 +1075,25 @@ std::vector<bool> traders(const sim::World& a, const sim::World& b) {
     return traded;
 }
 
+/// Players who paid for something between two saves of the same game: building materials left
+/// one of their cities (game02 -> game03_BAK: a computer player spent 200 gold, 4 t tools and
+/// 10 t wood without a tile changing yet). No production uses up these wares.
+std::vector<bool> builders(const sim::World& a, const sim::World& b, const assets::BuildingTable& buildings) {
+    std::vector<bool> built(a.players().size(), false);
+    const auto& m = buildings.materials();
+    for (std::size_t c = 0; c < a.cities().size(); ++c) {
+        const sim::City& before = a.cities()[c];
+        const sim::City& after = b.cities()[c];
+        for (const std::uint8_t ware : {m.tools, m.wood, m.bricks, m.cannons}) {
+            if (ware < before.goods.size() && ware < after.goods.size() && after.goods[ware] < before.goods[ware] &&
+                before.owner < built.size()) {
+                built[before.owner] = true;
+            }
+        }
+    }
+    return built;
+}
+
 }  // namespace
 
 TEST_CASE("data: money of the next city tick matches the original (pairs of savegames)") {
@@ -1101,9 +1125,11 @@ TEST_CASE("data: money of the next city tick matches the original (pairs of save
             delta[city.owner] += (sim::tax_income(city, *buildings) - costs[c]) / 6;
         }
         // A trade in between moves money too (game08 -> game09: the free trader sold tools).
+        // So does building something.
         const std::vector<bool> traded = traders(world, later);
+        const std::vector<bool> built = builders(world, later, *buildings);
         for (std::size_t p = 0; p < 4; ++p) {
-            if (traded[p]) {
+            if (traded[p] || built[p]) {
                 continue;
             }
             CHECK(world.players()[p].money + delta[p] == later.players()[p].money);
@@ -1783,23 +1809,23 @@ TEST_CASE("data: craters of scenarios and savegames are the volcano mountains (0
         REQUIRE(file.ok());
         auto world = sim::load_world(*file, *buildings, game);
         REQUIRE(world.ok());
-        const bool generated = endless_start(*file);
+        const bool scenario = file->find("SZENE") != nullptr;
         for (const sim::WorldIsland& island : world->islands()) {
-            // The list the original stored equals the search on the island's tiles.
+            // A scenario's list is searched anew when its SZENE chunk loads (Bündnispolitik stores
+            // none). Other files keep the list they store: craters on volcano mountains, in the
+            // order of the search, perhaps fewer (the tutorial Einführungsspiel0 stores none for
+            // its volcano, so it never erupts). An ore deposit may lie on a volcano (Auf zu neuen
+            // Ufern, and the big iron veins of the endless games).
             const std::vector<sim::Crater> found = sim::find_craters(island.map, *buildings);
-            REQUIRE(found.size() == island.craters.size());
-            for (std::size_t i = 0; i < found.size(); ++i) {
+            if (scenario) {
+                CHECK(found.size() == island.craters.size());
+            }
+            REQUIRE(island.craters.size() <= found.size());
+            for (std::size_t i = 0; i < island.craters.size(); ++i) {
                 CHECK(found[i].x == island.craters[i].x);
                 CHECK(found[i].y == island.craters[i].y);
             }
             craters += found.size();
-            // No ore deposit lies on a volcano (the deposit removal never finds one), except in
-            // the worlds of the endless games: the generator may put a big iron vein there.
-            for (const auto& d : generated ? std::vector<assets::IslandHeader::Deposit>{} : island.header.deposits) {
-                for (const sim::Crater& c : found) {
-                    CHECK(!(d.x == c.x && d.y == c.y));
-                }
-            }
         }
         CHECK(world->volcanoes().eruptions.empty());
         if (f.extension() == ".gam" || f.extension() == ".GAM") {
