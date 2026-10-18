@@ -1,67 +1,67 @@
-# BSH – Sprite-Sammlungen
+# BSH – sprite collections
 
-Ein Chunk `BSH` (bzw. `ZEI` für Schriften). Nutzdaten:
+One chunk `BSH` (or `ZEI` for fonts). Payload:
 
 ```c
-uint32_t offsets[n];      // Offset jedes Sprites relativ zum Beginn der Nutzdaten
-                          // n ist nicht gespeichert: Die Tabelle endet dort, wo der
-                          // erste (niedrigste) Sprite-Datensatz beginnt -> n = min(offsets)/4
-// danach die Datensätze:
+uint32_t offsets[n];      // offset of each sprite relative to the start of the payload
+                          // n is not stored: the table ends where the
+                          // first (lowest) sprite record begins -> n = min(offsets)/4
+// followed by the records:
 struct SpriteRecord {
     uint32_t width;
     uint32_t height;
-    uint32_t type;        // in allen untersuchten Dateien 1; Bedeutung unbekannt
-    uint32_t length;      // Größe des Datensatzes inkl. dieser 16 Byte, auf 4 Byte aufgerundet
-    uint8_t  rle[];       // siehe unten
+    uint32_t type;        // 1 in all examined files; meaning unknown
+    uint32_t length;      // size of the record incl. these 16 bytes, rounded up to 4 bytes
+    uint8_t  rle[];       // see below
 };
 ```
 
-Mehrere Tabelleneinträge können auf denselben Datensatz zeigen (z. B. die ersten vier Einträge von
-`GFX/STADTFLD.BSH`), und die Offsets sind nicht monoton steigend.
+Several table entries can point to the same record (e.g. the first four entries of
+`GFX/STADTFLD.BSH`), and the offsets are not monotonically increasing.
 
-## RLE-Kodierung
+## RLE encoding
 
 ```
 loop:
     b = next byte
-    0xFF        -> Bildende
-    0xFE        -> neue Zeile (x = 0, y += 1)
-    sonst       -> b transparente Pixel überspringen,
-                   n = next byte, dann n Palettenindizes (deckende Pixel)
+    0xFF        -> end of image
+    0xFE        -> new row (x = 0, y += 1)
+    otherwise   -> skip b transparent pixels,
+                   n = next byte, then n palette indices (opaque pixels)
 ```
 
-Eine Zeile kann mehrere `[skip][n][pixel…]`-Folgen enthalten. Pixel außerhalb von
-`width × height` kommen bei BSH nie vor; bei einigen ZEI-Glyphen schon (siehe unten).
+A row can contain several `[skip][n][pixel…]` sequences. Pixels outside
+`width × height` never occur in BSH; in some ZEI glyphs they do (see below).
 
-## Zoomstufen und Inhalte
+## Zoom levels and contents
 
-| Ordner | Zoom | Bodenkachel |
+| Folder | Zoom | Ground tile |
 |---|---|---|
-| `GFX/` | groß | 64 × 31 |
-| `MGFX/` | mittel | (halbiert) |
-| `SGFX/` | klein | (geviertelt) |
+| `GFX/` | large | 64 × 31 |
+| `MGFX/` | medium | (halved) |
+| `SGFX/` | small | (quartered) |
 
-`STADTFLD.BSH` enthält in allen drei Stufen 5964 Sprites (Gelände, Küsten, Flüsse, Gebäude in allen
-Ausbaustufen/Rotationen). Die Indizes entsprechen den `Gfx`-Werten aus `haeuser.cod`
-(`GFXBODEN = 0`, `GFXHANG = GFXBODEN+432`, …). Weitere Dateien: `SHIP` (368), `TRAEGER` (1784),
+`STADTFLD.BSH` contains 5964 sprites in all three levels (terrain, coasts, rivers, buildings in all
+build levels/rotations). The indices correspond to the `Gfx` values from `haeuser.cod`
+(`GFXBODEN = 0`, `GFXHANG = GFXBODEN+432`, …). Further files: `SHIP` (368), `TRAEGER` (1784),
 `SOLDAT`, `TIERE`, `FISCHE`, `EFFEKTE`, `GAUKLER`, `MAEHER`, `SCHATTEN`, `NUMBERS`;
-in `TOOLGFX/`: `START` (Hauptmenü, 90), `TOOLS` (Interface), `BAUHAUS`, `BAUSHIP`, `EDITOR`, `SYMBOL`
-mit Varianten `*6`/`*8` (vermutlich für 640×480 bzw. 800×600).
+in `TOOLGFX/`: `START` (main menu, 90), `TOOLS` (interface), `BAUHAUS`, `BAUSHIP`, `EDITOR`, `SYMBOL`
+with variants `*6`/`*8` (presumably for 640×480 and 800×600 respectively).
 
-Verifiziert durch: C++-Dekoder dekodiert alle Sprites von `GFX/MGFX/SGFX STADTFLD`, `SHIP`, `TRAEGER`,
-`START` ohne Fehler (`tests/data/test_original_data.cpp`); Sichtprüfung der exportierten PNGs.
+Verified by: the C++ decoder decodes all sprites of `GFX/MGFX/SGFX STADTFLD`, `SHIP`, `TRAEGER`,
+`START` without errors (`tests/data/test_original_data.cpp`); visual check of the exported PNGs.
 
-## ZEI (Schriften)
+## ZEI (fonts)
 
-Gleiches Format, Chunk-Name `ZEI`. **Zeichen = Code − 0x20** (Windows-1252, 224 Zeichen; die großen Schriften
-ZEI28V/ZEI24V nur 33: Codes 32–64). Alle Zeichen einer Schrift sind gleich hoch (die Zeilenhöhe); der
-Vorschub ist die Breite, ohne Abstand. Einzelne Zeichen (z. B. Index 14 in `ZEI20V.ZEI`) setzen ein, zwei
-Bildpunkte jenseits von `width`: Sie überlappen das nächste Zeichen (das Original schneidet nichts ab;
-`SpriteSheet::decode(i, extra_width)` behält sie). Die Bildpunkte haben nur die Palettenindizes 1 (Körper)
-und 7 (Schatten), die beim Zeichnen umgefärbt werden. Schriften je Auflösung, Farben und Umbruch:
-[ui.md](../re/ui.md#schriften). Open1602: `ui::Font`.
+Same format, chunk name `ZEI`. **Glyph = code − 0x20** (Windows-1252, 224 glyphs; the large fonts
+ZEI28V/ZEI24V only 33: codes 32–64). All glyphs of a font have the same height (the line height); the
+advance is the width, without spacing. Individual glyphs (e.g. index 14 in `ZEI20V.ZEI`) set one or two
+pixels beyond `width`: they overlap the next glyph (the original clips nothing;
+`SpriteSheet::decode(i, extra_width)` keeps them). The pixels only use palette indices 1 (body)
+and 7 (shadow), which are recoloured when drawing. Fonts per resolution, colours and line wrapping:
+[ui.md](../re/ui.md#fonts). Open1602: `ui::Font`.
 
-## Werkzeuge
+## Tools
 
 ```sh
 o1602-tool bsh-info GFX/SHIP.BSH

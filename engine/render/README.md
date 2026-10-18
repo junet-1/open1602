@@ -1,10 +1,10 @@
 # engine/render
 
-Isometrische Darstellung nach dem Originalverfahren ([docs/re/rendering.md](../../docs/re/rendering.md)).
+Isometric rendering following the original's method ([docs/re/rendering.md](../../docs/re/rendering.md)).
 
-| Header | Inhalt |
+| Header | Contents |
 |---|---|
-| `island_renderer.hpp` | Zeichenliste (Sprite, Position, Maleralgorithmus) + Software-Rasterizer |
+| `island_renderer.hpp` | Draw list (sprite, position, painter's algorithm) + software rasteriser |
 
-Geplant: GPU-Backend über SDL3 (Sprite-Atlanten, Batching), stufenloser Zoom, beliebige Auflösungen.
-Liest den Simulationszustand nur.
+Planned: GPU backend via SDL3 (sprite atlases, batching), continuous zoom, arbitrary resolutions.
+Only reads the simulation state.

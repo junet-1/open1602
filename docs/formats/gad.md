@@ -1,24 +1,24 @@
-# GAD – Layouts der Oberfläche
+# GAD – UI layouts
 
-`GADDATA/*.GAD` (52 Dateien, 45 davon lädt das Spiel) und `GADDATA/TOOLS.INC`. **Klartext** in der Sprache
-der `.cod`-Dateien ([cod.md](cod.md)): Symbole, `@` für relative Werte, `ObjFill`, `Nummer`, `[n]` für einen
-Wert eines Symbols, `Include: "Datei"`. Anders als `haeuser.cod` sind sie **nicht verschlüsselt**. Lader
-`Gad_LoadFile 0x00405480`. Was das Spiel mit den Layouts macht, steht in [ui.md](../re/ui.md).
+`GADDATA/*.GAD` (52 files, 45 of which the game loads) and `GADDATA/TOOLS.INC`. **Plain text** in the language
+of the `.cod` files ([cod.md](cod.md)): symbols, `@` for relative values, `ObjFill`, `Nummer`, `[n]` for one
+value of a symbol, `Include: "file"`. Unlike `haeuser.cod` they are **not encrypted**. Loader
+`Gad_LoadFile 0x00405480`. What the game does with the layouts is described in [ui.md](../re/ui.md).
 
-Open1602: `assets::parse_gad`, `assets::load_gad` (`engine/assets/src/gad.cpp`), im Betrieb `ui::Panel`.
+Open1602: `assets::parse_gad`, `assets::load_gad` (`engine/assets/src/gad.cpp`), at runtime `ui::Panel`.
 
-## Aufbau
+## Structure
 
 ```
-  Include: "TOOLS.INC"          ; Konstanten: Blöcke, Farben, Bildnummern (GFXTAFEL = 0, …)
+  Include: "TOOLS.INC"          ; constants: blocks, colours, image numbers (GFXTAFEL = 0, …)
   Objekt: GADGET
-    @Nummer:  0                 ; Vorgaben für alle Gadgets
+    @Nummer:  0                 ; defaults for all gadgets
     Id:       0
     Blocknr:  BLK_TOOL
     Kind:     GAD_UNUSED
     ObjFill:  0,MAXGADGET
     IDHAUPT = 30001
-    @Nummer:  +1                ; jedes weitere Gadget
+    @Nummer:  +1                ; each further gadget
     Id:       IDHAUPT+0
     Kind:     GAD_GFX
     Gfxnr:    GFXPFEIL
@@ -29,59 +29,59 @@ Open1602: `assets::parse_gad`, `assets::load_gad` (`engine/assets/src/gad.cpp`),
   EndObj
 ```
 
-- Vordefiniert: `GADGET = 1`, `MAXGADGET = 300` und die Arten `GAD_UNUSED` … `GAD_TEXTFL` (0–10).
-- `Include` liest die Datei an dieser Stelle in dieselbe Symboltabelle (Pfad relativ zum Layout).
-- Die Zahl der Gadgets ist die **höchste `Nummer` + 1**; die 300 Vorgabesätze von `ObjFill` zählen nicht.
-- **Wertpaare behalten ihren zweiten Wert:** Der Lader kopiert die Wertplätze des Symbols, nicht was die Zeile
-  schrieb. `Color: 5` übernimmt den zweiten Wert der letzten `Color:`-Zeile, `@Pos: +30` ändert nur x.
-- Unbekannte Schlüssel werden übergangen (`Moveselflg` in `CHAT.GAD`); unbekannte Symbole sind 0 (in
-  `FARBWAHL`, `HOST`, `MISSION` fehlt `ZEINR`, in `MILITAR`, `STADT` `IDNIX`; D-013).
+- Predefined: `GADGET = 1`, `MAXGADGET = 300` and the kinds `GAD_UNUSED` … `GAD_TEXTFL` (0–10).
+- `Include` reads the file at this point into the same symbol table (path relative to the layout).
+- The number of gadgets is the **highest `Nummer` + 1**; the 300 default records of `ObjFill` do not count.
+- **Value pairs keep their second value:** the loader copies the value slots of the symbol, not what the line
+  wrote. `Color: 5` takes over the second value of the last `Color:` line, `@Pos: +30` changes only x.
+- Unknown keys are skipped (`Moveselflg` in `CHAT.GAD`); unknown symbols are 0 (in
+  `FARBWAHL`, `HOST`, `MISSION` `ZEINR` is missing, in `MILITAR`, `STADT` `IDNIX`; D-013).
 
-## Schlüssel (Satz von 0x4C Byte)
+## Keys (record of 0x4C bytes)
 
-| Schlüssel | Satz | Bedeutung |
+| Key | Record | Meaning |
 |---|---|---|
-| `Id` | +0x00 | Kennung, die der Code benutzt (`IDHAUPT+n`; `IDNIX` = Zierde) |
-| `Kind` | +0x04 | Art (unten) |
-| `Basenr` | +0x08 | Gadget der Gruppe bzw. Hintergrund |
-| `Color` | +0x10, +0x14 | Textfarbe 0–9 (oder Palettenindex bei FILL/BALKEN) für Zustand 0 / 1 |
-| `Reiheflg` | +0x18 Bit 0 | Glied einer Gruppe (gleiche `Basenr`), genau eins gewählt |
-| `Flipflg` | Bit 2 | Umschalter: ein Klick kehrt den Zustand um |
-| `Noselflg` | Bit 3 | nicht anklickbar |
-| `Selmoveflg` | Bit 5 | Drücken oder Hinüberziehen wählt es (Farbwahl) |
-| `Menuflg` | Bit 6 | der Code hört schon das Drücken |
-| `Baseflg` / `Baseselflg` | Bit 7 / +0x19 Bit 0 | erst das Gadget `Basenr` zeichnen / nur im Zustand ≠ 0 |
-| `Clipflg` | +0x19 Bit 1 | ohne Leser |
-| `Nodrawflg` | Bit 2 | nicht gezeichnet, **aber anklickbar** |
-| `Rasterflg` | Bit 3 | gesperrt: Schachbrett darüber |
-| `Alphaflg` | Bit 4 | halb durchsichtig (Schachbrett) |
-| `Sliderflg`, `Slidhorflg`, `Slidverflg` | Bit 5–7 | Schieber (waagrecht, senkrecht) |
-| `Slidoffs`, `Slidsize` | +0x20, +0x24 | Ursprung und Weg des Schiebers (0 = `Size`) |
-| `Posoffs` | +0x28 | Zeichenversatz (Textanker; bei TEXTFL y = Zeilenhöhe) |
-| `Pressoff` | +0x2C | Bildschritt für Zustand 1 |
-| `Pos`, `Size` | +0x30, +0x38 | Klickfläche (nicht die Bildgröße) |
-| `Blocknr` | +0x40 | Bildblock (0 TOOLS, 1 START, 2 SYMBOL, 3 BAUHAUS, 4 BAUSHIP) **oder Schrift** bei Text |
-| `Gfxnr` | +0x44 | Bild im Block (Konstanten aus `TOOLS.INC`) |
+| `Id` | +0x00 | identifier the code uses (`IDHAUPT+n`; `IDNIX` = decoration) |
+| `Kind` | +0x04 | kind (below) |
+| `Basenr` | +0x08 | gadget of the group or background |
+| `Color` | +0x10, +0x14 | text colour 0–9 (or palette index for FILL/BALKEN) for state 0 / 1 |
+| `Reiheflg` | +0x18 bit 0 | member of a group (same `Basenr`), exactly one selected |
+| `Flipflg` | bit 2 | toggle: a click inverts the state |
+| `Noselflg` | bit 3 | not clickable |
+| `Selmoveflg` | bit 5 | pressing or dragging over it selects it (colour choice) |
+| `Menuflg` | bit 6 | the code already reacts to the press |
+| `Baseflg` / `Baseselflg` | bit 7 / +0x19 bit 0 | draw the gadget `Basenr` first / only in state ≠ 0 |
+| `Clipflg` | +0x19 bit 1 | no reader |
+| `Nodrawflg` | bit 2 | not drawn, **but clickable** |
+| `Rasterflg` | bit 3 | disabled: checkerboard over it |
+| `Alphaflg` | bit 4 | semi-transparent (checkerboard) |
+| `Sliderflg`, `Slidhorflg`, `Slidverflg` | bits 5–7 | slider (horizontal, vertical) |
+| `Slidoffs`, `Slidsize` | +0x20, +0x24 | origin and travel of the slider (0 = `Size`) |
+| `Posoffs` | +0x28 | drawing offset (text anchor; for TEXTFL y = line height) |
+| `Pressoff` | +0x2C | image step for state 1 |
+| `Pos`, `Size` | +0x30, +0x38 | click area (not the image size) |
+| `Blocknr` | +0x40 | image block (0 TOOLS, 1 START, 2 SYMBOL, 3 BAUHAUS, 4 BAUSHIP) **or font** for text |
+| `Gfxnr` | +0x44 | image in the block (constants from `TOOLS.INC`) |
 
-Der Text eines Gadgets steht nie im Layout; der Code setzt ihn.
+The text of a gadget is never in the layout; the code sets it.
 
-## Arten
+## Kinds
 
-| Art | Nr. | Zeichnen |
+| Kind | No. | Drawing |
 |---|---|---|
-| GAD_UNUSED | 0 | nichts, nicht anklickbar |
-| GAD_NIX | 1 | nichts: unsichtbare Fläche (Weltkarte, Teile von Knöpfen) |
-| GAD_GFX | 2 | Bild `Gfxnr + Pressoff · Zustand` |
-| GAD_GFXRAST | 3 | Umriss des Bildes als Schachbrett in `Color` |
-| GAD_GFXFILL | 4 | Umriss in `Color` |
-| GAD_TEXTL / TEXTZ / TEXTR | 5 / 6 / 7 | Text links / mittig / rechts am Anker, y = Unterkante der Zeile |
-| GAD_FILL | 8 | Rechteck `Pos`/`Size` in Palettenfarbe `Color` |
-| GAD_BALKEN | 9 | Balken, der einem Schieber folgt (waagrecht) oder nach oben wächst (senkrecht) |
-| GAD_TEXTFL | 10 | umbrochener Text: Breite `Size.x`, Zeilenhöhe `Posoffs.y`, `Size.y / Posoffs.y` Zeilen |
+| GAD_UNUSED | 0 | nothing, not clickable |
+| GAD_NIX | 1 | nothing: invisible area (world map, parts of buttons) |
+| GAD_GFX | 2 | image `Gfxnr + Pressoff · state` |
+| GAD_GFXRAST | 3 | outline of the image as a checkerboard in `Color` |
+| GAD_GFXFILL | 4 | outline in `Color` |
+| GAD_TEXTL / TEXTZ / TEXTR | 5 / 6 / 7 | text left / centred / right at the anchor, y = bottom edge of the line |
+| GAD_FILL | 8 | rectangle `Pos`/`Size` in palette colour `Color` |
+| GAD_BALKEN | 9 | bar that follows a slider (horizontal) or grows upwards (vertical) |
+| GAD_TEXTFL | 10 | wrapped text: width `Size.x`, line height `Posoffs.y`, `Size.y / Posoffs.y` lines |
 
-## Koordinaten
+## Coordinates
 
-Immer Einheiten eines **1024 × 768**-Bildschirms, relativ zum Bereich des Layouts (Seitenleiste,
-Statusleiste, Tutorfenster, ganzer Bildschirm). Bildpunkt = `trunc((v + 0,5) · Breite / 1024)`. Die Layouts
-gelten für alle drei Auflösungen (640, 800, 1024); die Bilder dazu sind vorskaliert (`TOOLS6`, `TOOLS8`, …,
-gleiche Nummern).
+Always units of a **1024 × 768** screen, relative to the area of the layout (side panel,
+status bar, tutor window, whole screen). Pixel = `trunc((v + 0.5) · width / 1024)`. The layouts
+apply to all three resolutions (640, 800, 1024); the matching images are prescaled (`TOOLS6`, `TOOLS8`, …,
+same numbers).

@@ -107,7 +107,7 @@ struct ExploreOrder {
     std::uint32_t ship = 0;
 };
 
-/// Further orders of the ship panel (docs/re/ships.md#schiffsfenster): cannons, cargo overboard, the
+/// Further orders of the ship panel (docs/re/ships.md#ship-window): cannons, cargo overboard, the
 /// name, offering the ship for sale and buying a ship another player offers.
 struct ShipCommand {
     enum class Op : std::uint8_t {

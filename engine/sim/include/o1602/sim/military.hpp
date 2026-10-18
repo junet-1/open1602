@@ -65,7 +65,7 @@ struct SoldierCommand {
     bool one_way = false;
 };
 
-/// Orders to a castle (building ops 0x10, 0x4C; docs/re/military.md, "Ausbildung").
+/// Orders to a castle (building ops 0x10, 0x4C; docs/re/military.md, "Training").
 struct CastleOrder {
     enum class Op : std::uint8_t {
         Recruit,  ///< train a unit of `figure` (SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1)

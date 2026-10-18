@@ -9,6 +9,7 @@
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/pathfinding.hpp"
+#include "o1602/ui/localization.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -137,7 +138,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         style.field = ui::nearest_colour(palette, 12, 8, 4);
         style.hover = ui::nearest_colour(palette, 72, 50, 24);
         style.selected = ui::nearest_colour(palette, 112, 80, 30);
-        m_multiplayer = std::make_unique<MultiplayerMenu>(language_of(own), style);
+        m_multiplayer = std::make_unique<MultiplayerMenu>(style);
         // The banners of the slots: red, blue, yellow, white, and grey for any further one.
         m_multiplayer->set_banner_colours(
             {ui::nearest_colour(palette, 200, 30, 30), ui::nearest_colour(palette, 40, 70, 200),
@@ -437,8 +438,8 @@ void Hud::draw_question() {
         m_renderer->fill(*b, kGold);
         m_renderer->fill(ui::Rect{b->x + px(2), b->y + px(2), b->w - px(4), b->h - px(4)}, kDark);
     }
-    text("Ja", m_yes.x - box.x + m_yes.w / 2, m_yes.y - box.y + px(28));
-    text("Nein", m_no.x - box.x + m_no.w / 2, m_no.y - box.y + px(28));
+    text(ui::tr("dialog.yes"), m_yes.x - box.x + m_yes.w / 2, m_yes.y - box.y + px(28));
+    text(ui::tr("dialog.no"), m_no.x - box.x + m_no.w / 2, m_no.y - box.y + px(28));
     m_renderer->draw(items, box.x, box.y, s);
 }
 
@@ -561,10 +562,7 @@ void Hud::draw_help() {
         d.text = t;
         items.push_back(d);
     };
-    text(
-        "Tastenbelegung (Klick oder F1 schlie\xDF"
-        "t)",
-        box.w / 2, px(28), ui::Align::Centre, 0);
+    text(ui::tr("keys.title"), box.w / 2, px(28), ui::Align::Centre, 0);
     const std::int32_t column = box.w / 2;
     for (std::size_t i = 0; i < m_help->size(); ++i) {
         const HelpLine& l = (*m_help)[i];

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Ways of soldiers on land (docs/re/military.md, "Bewegung").
+// Ways of soldiers on land (docs/re/military.md, "Movement").
 //
 // Soldiers walk on a grid of half tiles: every island tile is 2 x 2 cells with the walking cost of
 // its building. They walk only on roads, gates, open ground, ruins, squares, bridges and piers, never

@@ -207,11 +207,11 @@ std::optional<KeyChord> KeyBindings::parse_chord(std::string_view text, const Ke
 
 std::string KeyBindings::write_text(const KeyName& key_name, bool as_comments) const {
     std::string out =
-        "# Open1602: Tastenbelegung (ADR 0010). Zeilen: Zusammenhang Aktion [Nummer] = Taste\n"
-        "# Zusammenhang: general (immer), building (beim Bauen), units (Einheiten ausgewaehlt).\n"
-        "# Eine Aktion, die hier steht, hat nur die Tasten ihrer Zeilen; \"= none\" nimmt ihr jede Taste.\n"
-        "# Aktionen, die fehlen, behalten ihre Vorgabe. Tasten: Namen wie F, Space, PageUp, Keypad +,\n"
-        "# davor Ctrl+, Shift+, Alt+. Zeilen mit # am Anfang gelten nicht.\n";
+        "# Open1602: key bindings (ADR 0010). Lines: context action [number] = key\n"
+        "# Context: general (always), building (while building), units (units selected).\n"
+        "# An action listed here has only the keys of its lines; \"= none\" takes every key from it.\n"
+        "# Actions that are missing keep their default. Keys: names like F, Space, PageUp, Keypad +,\n"
+        "# preceded by Ctrl+, Shift+, Alt+. Lines starting with # are ignored.\n";
     for (const KeyBinding& b : m_bindings) {
         if (as_comments) {
             out += "# ";

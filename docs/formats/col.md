@@ -1,18 +1,18 @@
-# COL – Palette
+# COL – palette
 
-`TOOLGFX/STADTFLD.COL` (1044 Byte) = ein Chunk `COL` mit 1024 Byte Nutzdaten:
+`TOOLGFX/STADTFLD.COL` (1044 bytes) = one chunk `COL` with 1024 bytes of payload:
 
 ```c
-struct ColEntry { uint8_t r, g, b, unused; };   // unused ist immer 0
+struct ColEntry { uint8_t r, g, b, unused; };   // unused is always 0
 ColEntry palette[256];
 ```
 
-Eintrag 0 ist Schwarz. Dieselbe Palette gilt für alle Sprites aus `GFX/`, `MGFX/`, `SGFX/`
-und `TOOLGFX/` (visuell geprüft: Gelände, Gebäude, Schiffe, Träger, Hauptmenü).
-Das Spiel lädt sie in `Game_Init` (`0x00494870`, String `stadtfld.col` @ `0x0049C4B0`).
+Entry 0 is black. The same palette applies to all sprites from `GFX/`, `MGFX/`, `SGFX/`
+and `TOOLGFX/` (checked visually: terrain, buildings, ships, carriers, main menu).
+The game loads it in `Game_Init` (`0x00494870`, string `stadtfld.col` @ `0x0049C4B0`).
 
-Transparenz wird nicht über einen Paletteneintrag, sondern über die RLE-Kodierung der Sprites
-abgebildet (siehe [bsh.md](bsh.md)).
+Transparency is not represented by a palette entry but by the RLE encoding of the sprites
+(see [bsh.md](bsh.md)).
 
-**Offen:** Palettenanimation (Wasser, Feuer?) – prüfen, ob das Spiel zur Laufzeit Einträge rotiert
+**Open:** palette animation (water, fire?) – check whether the game rotates entries at runtime
 (`IDirectDrawPalette::SetEntries`).

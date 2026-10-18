@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The building tasks of the computer players (docs/re/ai.md, "Bauaufgaben"): each runs its site
+// The building tasks of the computer players (docs/re/ai.md, "Stages"): each runs its site
 // search step by step and builds the best site through the normal build order; roads, fields,
 // the survey of a city (task 8) and the maintenance sweep.
 #include <algorithm>

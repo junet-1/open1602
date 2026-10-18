@@ -2,7 +2,7 @@
 
 Status: accepted · 2026-10-18
 
-Builds on [ADR 0004](0004-deterministische-simulation.md): the simulation is deterministic and driven
+Builds on [ADR 0004](0004-deterministic-simulation.md): the simulation is deterministic and driven
 by commands, so only the commands have to travel over the network. Implemented in `engine/net`; the
 menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
 
@@ -30,7 +30,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    `Simulation::state_hash()`. The host compares it with its own; not every tick, because each
    fingerprint costs a savegame in memory.
 6. **One way for the start, joining, reconnecting and desyncs: the savegame.** The host sends a
-   computer its game as an `.o1602` savegame ([ADR 0009](0009-eigenes-speicherformat.md)) together
+   computer its game as an `.o1602` savegame ([ADR 0009](0009-own-save-format.md)) together
    with the speed, the pause and the frames already closed after it. That is how a computer comes into
    the game at the start, into a running game, back after a lost connection, and back into step after
    a desync (M-003). The host is always right. A computer that diverges again right after loading

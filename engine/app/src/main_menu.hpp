@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The main menu and the screens before a game (docs/re/ui.md "Hauptmenü"; Menu_OnClick 0x0048B590,
+// The main menu and the screens before a game (docs/re/ui.md "Main menu"; Menu_OnClick 0x0048B590,
 // Menu_Redraw 0x0048ABD0): BASE (main menu), HOST (list of scenarios or savegames), MISSION
 // (briefing, choice of level or part, high scores) and FARBWAHL (name and banner). The button
 // "Mehrspieler" opens Open1602's own multiplayer menu instead of the original's screens. The menu shows the screens and
@@ -89,8 +89,8 @@ public:
     void type(std::string_view text);
     /// Backspace 8, Enter 13 (confirms: NameEntered), Escape 27 (back to the choice of the game).
     std::optional<MenuEvent> key(int key);
-    /// The name the field shows when none was typed yet.
-    static constexpr std::string_view kDefaultName = "Namenlos";
+    /// The name the field shows when none was typed yet ("Namenlos" in German).
+    [[nodiscard]] static const std::string& default_name();
 
 private:
     enum class ListMode : std::uint8_t { New, Load };

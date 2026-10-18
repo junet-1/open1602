@@ -9,6 +9,10 @@ namespace o1602::core {
 /// Converts Windows-1252 (the encoding of all original text files) to UTF-8.
 std::string cp1252_to_utf8(std::string_view input);
 
+/// UTF-8 (typed text, Open1602's own texts) to the Windows-1252 of the game's fonts; what it cannot
+/// show is left out.
+[[nodiscard]] std::string utf8_to_cp1252(std::string_view utf8);
+
 /// Compares two strings, ignoring the case of ASCII letters (file and savegame names).
 [[nodiscard]] constexpr bool equals_ignore_case(std::string_view a, std::string_view b) noexcept {
     if (a.size() != b.size()) {

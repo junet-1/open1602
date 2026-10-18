@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -12,6 +13,7 @@
 #include "multiplayer_texts.hpp"
 
 #include "o1602/net/loopback.hpp"
+#include "o1602/ui/localization.hpp"
 
 using namespace o1602;
 using app::MpText;
@@ -50,9 +52,13 @@ std::vector<MultiplayerEvent> click_at(MultiplayerMenu& menu, const app::Multipl
     return menu.mouse(model, x, y, false);
 }
 
-std::string de(MpText id) {
-    return app::mp_text(id, app::Language::German);
-}
+/// Puts English back for the tests that follow.
+struct LanguageGuard {
+    explicit LanguageGuard(std::string_view code) { ui::set_language(code); }
+    ~LanguageGuard() { ui::set_language(ui::kFallbackLanguage); }
+    LanguageGuard(const LanguageGuard&) = delete;
+    LanguageGuard& operator=(const LanguageGuard&) = delete;
+};
 
 }  // namespace
 
@@ -74,29 +80,33 @@ TEST_CASE("multiplayer menu: addresses with and without a port") {
 }
 
 TEST_CASE("multiplayer menu: every text in both languages, with its value") {
+    const ui::Catalogue english = ui::builtin_catalogue("en");
+    const ui::Catalogue german = ui::builtin_catalogue("de");
     for (std::size_t i = 0; i <= static_cast<std::size_t>(MpText::StartFailed); ++i) {
-        const auto id = static_cast<MpText>(i);
-        CHECK(!app::mp_text(id, app::Language::English).empty());
-        CHECK(!app::mp_text(id, app::Language::German).empty());
+        const std::string_view key = app::mp_key(static_cast<MpText>(i));
+        CHECK(english.find(key) != nullptr);
+        CHECK(german.find(key) != nullptr);
     }
-    CHECK(app::mp_text(MpText::PlayerJoined, app::Language::English, "Anna") == "Anna joined.");
-    CHECK(app::mp_text(MpText::PlayerJoined, app::Language::German, "Anna") == "Anna ist beigetreten.");
+    CHECK(app::mp_text(MpText::PlayerJoined, "Anna") == "Anna joined.");
+    CHECK(!app::mp_text(net::RefuseReason::Kicked).empty());
+    CHECK(!app::mp_text(net::EndReason::HostLeft).empty());
+    const LanguageGuard german_game("de");
+    CHECK(app::mp_text(MpText::PlayerJoined, "Anna") == "Anna ist beigetreten.");
     // The fonts' Windows-1252: "Zurück" with 0xFC.
-    CHECK(de(MpText::Back) ==
+    CHECK(app::mp_text(MpText::Back) ==
           "Zur\xFC"
           "ck");
-    CHECK(!app::mp_text(net::RefuseReason::Password, app::Language::German).empty());
-    CHECK(!app::mp_text(net::EndReason::HostLeft, app::Language::English).empty());
-    CHECK(app::language_of(nullptr) == app::Language::English);
+    CHECK(app::mp_text(net::RefuseReason::Password) == "Falsches Kennwort.");
 }
 
 TEST_CASE("multiplayer menu: searching, joining by address and back") {
-    MultiplayerMenu menu(app::Language::German, ui::FormStyle{});
+    const LanguageGuard german_game("de");
+    MultiplayerMenu menu(ui::FormStyle{});
     app::MultiplayerModel model;
     model.name = "Anna";
     menu.open();
     CHECK(menu.screen() == MultiplayerMenu::Screen::Browse);
-    CHECK(find_text(menu, model, de(MpText::NoGamesFound)).has_value());
+    CHECK(find_text(menu, model, app::mp_text(MpText::NoGamesFound)).has_value());
     CHECK(menu.name() == "Anna");
 
     // A game that answered the search: one click chooses it, the button joins it.
@@ -109,7 +119,7 @@ TEST_CASE("multiplayer menu: searching, joining by address and back") {
     found.ping_ms = 12;
     model.found.push_back(found);
     CHECK(click(menu, model, "Annas Spiel").empty());
-    auto events = click(menu, model, de(MpText::Join));
+    auto events = click(menu, model, app::mp_text(MpText::Join));
     REQUIRE(events.size() == 1);
     CHECK(events[0].kind == MultiplayerEvent::Kind::Join);
     CHECK(events[0].address == "192.168.1.20");
@@ -136,7 +146,7 @@ TEST_CASE("multiplayer menu: searching, joining by address and back") {
 }
 
 TEST_CASE("multiplayer menu: creating a game: endless, scenario, settings") {
-    MultiplayerMenu menu(app::Language::English, ui::FormStyle{});
+    MultiplayerMenu menu(ui::FormStyle{});
     app::MultiplayerModel model;
     model.name = "Bernd";
     model.level_names = {"Easy", "Medium", "Hard", "Very hard"};
@@ -145,7 +155,7 @@ TEST_CASE("multiplayer menu: creating a game: endless, scenario, settings") {
     scenario.files = {{0xFF, "Szenes/Insel.szs"}};
     model.scenarios.push_back(scenario);
     menu.open();
-    CHECK(click(menu, model, app::mp_text(MpText::CreateGame, app::Language::English)).empty());
+    CHECK(click(menu, model, app::mp_text(MpText::CreateGame)).empty());
     CHECK(menu.screen() == MultiplayerMenu::Screen::Create);
     // Escape goes back to the search by itself: nothing for the viewer.
     CHECK(!menu.back().has_value());
@@ -185,7 +195,7 @@ TEST_CASE("multiplayer menu: the host's lobby: slots, chat and the start") {
     net::HostSession host(network.listen(), lobby, 0, "Anna", 1);
     host.update(0);
 
-    MultiplayerMenu menu(app::Language::English, ui::FormStyle{});
+    MultiplayerMenu menu(ui::FormStyle{});
     app::MultiplayerModel model;
     model.name = "Anna";
     model.session = &host;

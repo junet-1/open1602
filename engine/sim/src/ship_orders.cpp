@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Orders of the ship panel beyond sailing and trade (docs/re/ships.md#schiffsfenster): mounting
+// Orders of the ship panel beyond sailing and trade (docs/re/ships.md#ship-window): mounting
 // and taking off cannons, goods overboard, the name, and selling ships between players.
 #include <algorithm>
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Ships in a fight (docs/re/military.md, "Seekampf").
+// Ships in a fight (docs/re/military.md, "Naval combat").
 
 #include <algorithm>
 #include <memory>

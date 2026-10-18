@@ -105,7 +105,7 @@ std::optional<std::pair<std::string, std::uint16_t>> parse_address(std::string_v
     return std::pair{std::string(text), port};
 }
 
-MultiplayerMenu::MultiplayerMenu(Language language, ui::FormStyle style) : m_language(language), m_form(style) {
+MultiplayerMenu::MultiplayerMenu(ui::FormStyle style) : m_form(style) {
     m_setup.seed = random_seed();
     m_seed_text = std::to_string(m_setup.seed);
     m_port_text = std::to_string(m_setup.port);

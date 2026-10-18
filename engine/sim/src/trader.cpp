@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The free trader (docs/re/ships.md, "Freier Händler"): ships of the trader player that sail from
+// The free trader (docs/re/ships.md, "Free trader"): ships of the trader player that sail from
 // Kontor to Kontor, buy what the players sell cheaply and sell what they want dearer than they
 // bought it. His goods are kept apart from the holds (the original's HANDLER table).
 #include <algorithm>

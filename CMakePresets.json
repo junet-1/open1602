@@ -41,20 +41,24 @@
     },
     {
       "name": "vcpkg",
-      "displayName": "Release with vcpkg (Windows/macOS)",
+      "displayName": "Release game with vcpkg (Windows/macOS)",
       "inherits": "release",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": { "O1602_BUILD_GAME": "ON", "VCPKG_MANIFEST_FEATURES": "game" }
     }
   ],
   "buildPresets": [
     { "name": "debug",   "configurePreset": "debug" },
     { "name": "release", "configurePreset": "release" },
     { "name": "asan",    "configurePreset": "asan" },
-    { "name": "ci",      "configurePreset": "ci" }
+    { "name": "ci",      "configurePreset": "ci" },
+    { "name": "vcpkg",   "configurePreset": "vcpkg" }
   ],
   "testPresets": [
-    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
-    { "name": "asan",  "configurePreset": "asan",  "output": { "outputOnFailure": true } },
-    { "name": "ci",    "configurePreset": "ci",    "output": { "outputOnFailure": true } }
+    { "name": "debug",   "configurePreset": "debug",   "output": { "outputOnFailure": true } },
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    { "name": "asan",    "configurePreset": "asan",    "output": { "outputOnFailure": true } },
+    { "name": "ci",      "configurePreset": "ci",      "output": { "outputOnFailure": true } },
+    { "name": "vcpkg",   "configurePreset": "vcpkg",   "output": { "outputOnFailure": true } }
   ]
 }

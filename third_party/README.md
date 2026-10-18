@@ -1,8 +1,8 @@
-# Fremdcode
+# Third-party code
 
-Hier eingebundener Fremdcode (falls nicht über System/vcpkg bezogen) mit Herkunft, Version und Lizenz.
-Nur GPL-3.0-kompatible Lizenzen.
+Third-party code included here (if not obtained via the system/vcpkg) with origin, version and licence.
+Only GPL-3.0-compatible licences.
 
-| Bibliothek | Version | Lizenz | Herkunft | Zweck |
+| Library | Version | Licence | Origin | Purpose |
 |---|---|---|---|---|
 | – | | | | |

@@ -85,6 +85,9 @@ struct ViewerOptions {
     /// The key settings (ADR 0010); empty: keys.cfg in the user's data folder, written with the
     /// defaults if it is not there yet.
     std::filesystem::path keys_file;
+    /// The language of Open1602's own texts ("de", "en", ...); empty: settings.cfg, else the
+    /// language of the installation (ui/localization.hpp).
+    std::string language;
     /// Start in the main menu instead of a game (no game was named on the command line).
     bool menu = false;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
@@ -109,8 +112,8 @@ struct ViewerOptions {
         Role role = Role::Host;
         std::string address;  ///< Join: the host's name or IPv4 address
         std::uint16_t port = net::kDefaultPort;
-        std::string name = "Spieler";  ///< the player's name for the others
-        std::string password;          ///< Join: the game's password, if it has one
+        std::string name = "Player";  ///< the player's name for the others
+        std::string password;         ///< Join: the game's password, if it has one
     };
     std::optional<Multiplayer> multiplayer;
 };
@@ -160,6 +163,9 @@ private:
     core::Status save_game(const std::filesystem::path& path);
     /// The settings and savegame names of the user's data folder into the panel (at the start).
     void load_options();
+    /// Chooses the language of Open1602's own texts: --language, else settings.cfg, else the
+    /// installation's; catalogues in <data folder>/locale extend the built-in ones.
+    void apply_language();
     /// What the settings panel asked for this frame (save, load, quit, sounds, window size).
     void apply_options();
     /// The platform's text input runs exactly while a name is typed (in the menu or the settings).
@@ -265,8 +271,6 @@ private:
     void chat_line(std::string name, std::string text, sim::PlayerId seat = sim::kNoPlayer);
     [[nodiscard]] net::HostSession* host_session() const noexcept;
     [[nodiscard]] net::ClientSession* client_session() const noexcept;
-    [[nodiscard]] std::string mp(MpText id) const { return mp_text(id, m_language); }
-    [[nodiscard]] std::string mp(MpText id, std::string_view value) const { return mp_text(id, m_language, value); }
 
     [[nodiscard]] std::optional<std::string> question_for(const sim::Command& command) const;
     /// Health bars over the selected units and the selection rectangle.
@@ -346,7 +350,6 @@ private:
     sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
     /// A multiplayer game: drives m_simulation in place of Simulation::advance().
     std::unique_ptr<net::Session> m_session;
-    Language m_language = Language::English;         ///< of the installation: the texts of Open1602's own windows
     std::unique_ptr<net::LanBrowser> m_lan_browser;  ///< while the multiplayer menu looks for games
     std::unique_ptr<net::LanBeacon> m_lan_beacon;    ///< while this computer hosts a game shown on the network
     std::uint64_t m_lan_search_ms = 0;               ///< real time of the last search

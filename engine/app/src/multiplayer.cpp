@@ -12,6 +12,7 @@
 #include "o1602/assets/text_table.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/platform/window.hpp"
+#include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
 
@@ -123,24 +124,23 @@ void MapViewer::apply_session_events() {
                 }
                 break;
             case net::SessionEvent::Kind::Joined:
-                chat_line({}, mp(MpText::PlayerJoined, who(e)), e.seat);
+                chat_line({}, mp_text(MpText::PlayerJoined, who(e)), e.seat);
                 break;
             case net::SessionEvent::Kind::Left:
-                chat_line({}, mp(MpText::PlayerLeft, who(e)), e.seat);
+                chat_line({}, mp_text(MpText::PlayerLeft, who(e)), e.seat);
                 break;
             case net::SessionEvent::Kind::Lagging:
-                chat_line({}, mp(MpText::Lagging, who(e)), e.seat);
+                chat_line({}, mp_text(MpText::Lagging, who(e)), e.seat);
                 break;
             case net::SessionEvent::Kind::Desync:
                 std::fprintf(stderr, "multiplayer: player %u diverged after frame %llu\n",
                              static_cast<unsigned>(e.seat), static_cast<unsigned long long>(e.frame));
-                chat_line({}, mp(MpText::Desync, who(e)), e.seat);
+                chat_line({}, mp_text(MpText::Desync, who(e)), e.seat);
                 break;
             case net::SessionEvent::Kind::Ended:
                 std::fprintf(stderr, "multiplayer: %s\n",
                              e.reason == net::EndReason::Refused ? net::describe(e.refused) : net::describe(e.reason));
-                ended = e.reason == net::EndReason::Refused ? mp_text(e.refused, m_language)
-                                                            : mp_text(e.reason, m_language);
+                ended = e.reason == net::EndReason::Refused ? mp_text(e.refused) : mp_text(e.reason);
                 break;
             case net::SessionEvent::Kind::LobbyChanged:
                 break;  // the menu shows the lobby as it is
@@ -211,7 +211,7 @@ void MapViewer::apply_multiplayer_menu() {
     }
 
     MultiplayerModel& model = m_hud->multiplayer_model();
-    model.name = m_app_settings.player_name.empty() ? std::string(MainMenu::kDefaultName) : m_app_settings.player_name;
+    model.name = m_app_settings.player_name.empty() ? ui::tr("menu.default_name") : m_app_settings.player_name;
     model.found = m_lan_browser ? m_lan_browser->games() : std::vector<net::FoundGame>{};
     model.remembered = m_app_settings.remembered_hosts;
     model.savegames.clear();
@@ -262,13 +262,13 @@ void MapViewer::handle_multiplayer(const MultiplayerEvent& e) {
         case MultiplayerEvent::Kind::Join:
             keep_name();
             if (auto status = join_game(e.address, e.port, e.password); !status) {
-                menu->open(mp(MpText::CannotConnect, status.error().message));
+                menu->open(mp_text(MpText::CannotConnect, status.error().message));
             }
             break;
         case MultiplayerEvent::Kind::Host:
             keep_name();
             if (auto status = host_lobby(e.setup); !status) {
-                leave_session(mp(MpText::CannotHost, status.error().message));
+                leave_session(mp_text(MpText::CannotHost, status.error().message));
             }
             break;
         case MultiplayerEvent::Kind::Leave:
@@ -276,7 +276,7 @@ void MapViewer::handle_multiplayer(const MultiplayerEvent& e) {
             break;
         case MultiplayerEvent::Kind::Start:
             if (auto status = start_hosted_game(); !status) {
-                chat_line({}, mp(MpText::StartFailed, status.error().message));
+                chat_line({}, mp_text(MpText::StartFailed, status.error().message));
             }
             break;
         case MultiplayerEvent::Kind::TakeSeat:
@@ -525,7 +525,7 @@ core::Status MapViewer::join_game(const std::string& address, std::uint16_t port
     if (name.empty()) {
         name = m_options.multiplayer ? m_options.multiplayer->name : m_app_settings.player_name;
     }
-    hello.name = name.empty() ? std::string(MainMenu::kDefaultName) : name;
+    hello.name = name.empty() ? ui::tr("menu.default_name") : name;
     hello.password = password;
     m_local_player = sim::kNoPlayer;  // until the host sends the game
     m_session = std::make_unique<net::ClientSession>(

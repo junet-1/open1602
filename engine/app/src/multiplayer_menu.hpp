@@ -104,7 +104,7 @@ class MultiplayerMenu {
 public:
     enum class Screen : std::uint8_t { Browse, Create, Lobby, Connecting };
 
-    MultiplayerMenu(Language language, ui::FormStyle style);
+    explicit MultiplayerMenu(ui::FormStyle style);
 
     [[nodiscard]] Screen screen() const noexcept { return m_screen; }
     /// The search screen; `notice` in red below the list (why a session ended).
@@ -131,8 +131,8 @@ public:
     std::vector<MultiplayerEvent> key(const MultiplayerModel& model, int key);
 
 private:
-    [[nodiscard]] std::string tr(MpText id) const { return mp_text(id, m_language); }
-    [[nodiscard]] std::string tr(MpText id, std::string_view value) const { return mp_text(id, m_language, value); }
+    [[nodiscard]] static std::string tr(MpText id) { return mp_text(id); }
+    [[nodiscard]] static std::string tr(MpText id, std::string_view value) { return mp_text(id, value); }
     void layout(const MultiplayerModel& model);
     void layout_browse(const MultiplayerModel& model);
     void layout_create(const MultiplayerModel& model);
@@ -151,7 +151,6 @@ private:
     std::optional<MultiplayerEvent> join_event(const std::string& address) const;
     [[nodiscard]] std::string state_text(const net::GameInfo& info) const;
 
-    Language m_language;
     ui::Form m_form;
     Screen m_screen = Screen::Browse;
     std::array<std::uint8_t, 5> m_banners{};

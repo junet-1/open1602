@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Ships in a fight (docs/re/military.md, "Seekampf"): target choice, the broadside and firing.
+// Ships in a fight (docs/re/military.md, "Naval combat"): target choice, the broadside and firing.
 #include <algorithm>
 
 #include "o1602/sim/combat.hpp"

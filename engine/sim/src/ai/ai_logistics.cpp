@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The ships of the computer players (docs/re/ai.md, "Schiffe"): every 10 s the repair at the own
+// The ships of the computer players (docs/re/ai.md, "Ships and trade"): every 10 s the repair at the own
 // shipyard, one supply run that brings goods home, the size of the fleet and new ships, and the
 // patrols around the own islands (AI_Logistics 0x00424BF0).
 #include <algorithm>
