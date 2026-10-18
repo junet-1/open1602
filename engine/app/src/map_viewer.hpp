@@ -149,12 +149,15 @@ private:
     void apply_options();
     /// The platform's text input runs exactly while a name is typed (in the menu or the settings).
     void sync_text_input();
-    /// The right click while building: first the open pop-up of a category goes, then the
-    /// building in hand. False if there was neither (the click is an order then).
+    /// Closes the open pop-up of a build category, else lays the building in hand away (the
+    /// original's right click). False if there was neither.
     bool cancel_build_step();
-    /// A right click on the panel, or on the map with nothing to order: a step back towards the
-    /// player status, the general status page (a window's page, then any other mode or window).
+    /// A right click on the panel, or on the map with nothing to order: straight back to the
+    /// player status, the general status page, from any mode, window or page of one. False if it
+    /// was showing already (the click is an order then).
     bool back_to_status();
+    /// Pages a window or the settings go back at most in one click (a guard against a loop).
+    static constexpr int kMaxBackSteps = 8;
     /// How often the scenery shows itself, from the settings.
     [[nodiscard]] render::Ambient::Config ambient_config() const;
     void save_settings();
