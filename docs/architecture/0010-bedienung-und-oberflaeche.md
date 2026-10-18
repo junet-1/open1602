@@ -70,7 +70,8 @@ Informationen Platz finden und die Bedienung heutigen Echtzeitstrategiespielen f
 | Shift halten | weiter bauen nach dem Setzen |
 | C | Pipette: das Gebäude unter der Maus als Bauauftrag |
 | Entf | Abreißwerkzeug |
-| Escape, Rechtsklick | Werkzeug weglegen |
+| Escape | Werkzeug weglegen |
+| Rechtsklick | Werkzeug weglegen und zurück zum Spielerstatus |
 
 **Auswahl**
 

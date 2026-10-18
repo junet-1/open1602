@@ -560,11 +560,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
                         apply_hud(*a);
                     }
                 } else if (event.button.button == SDL_BUTTON_RIGHT) {
-                    if (!m_options.original_mouse && cancel_build_step()) {
-                        break;
-                    }
                     // A right click on the minimap sends the selection there (ADR 0010), elsewhere on
-                    // the panel it goes back towards the player status.
+                    // the panel it goes back to the player status.
                     if (const auto t = m_hud->minimap_tile(static_cast<std::int32_t>(event.button.x),
                                                            static_cast<std::int32_t>(event.button.y))) {
                         order_to_tile(t->first, t->second, (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
@@ -615,8 +612,6 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 if (event.button.button == SDL_BUTTON_RIGHT && m_drag_distance < 4.0 && !(m_hud && m_hud->modal())) {
                     if (m_options.original_mouse) {
                         cancel_action();
-                    } else if (cancel_build_step()) {
-                        // the pop-up or the building in hand went; the build menu stays open
                     } else if (!m_units.empty() || !back_to_status()) {
                         map_order(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
                                   (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
@@ -1810,25 +1805,32 @@ bool MapViewer::back_to_status() {
     if (!m_hud || m_hud->menu_active()) {
         return false;
     }
-    if (m_hud->back()) {
-        return true;  // a page back (tribute -> treaties, a ship's trade page), or a window stops picking
+    // Everything at once, so one click is enough: the build menu's pop-up and the building in
+    // hand, the pages of a window (tribute -> treaties, a ship's trade page) or of the settings,
+    // another mode, the selection.
+    bool changed = false;
+    while (cancel_build_step()) {
+        changed = true;
+    }
+    for (int page = 0; page < kMaxBackSteps && m_hud->back(); ++page) {
+        changed = true;
     }
     if (m_hud->mode() != Hud::kModeInfo) {
         if (const auto a = m_hud->set_mode(Hud::kModeInfo)) {
             apply_hud(*a);
         }
-        return true;
+        changed = true;
     }
     if (!m_units.empty()) {
         m_units.clear();
         selection_changed(false);
-        return true;
+        changed = true;
     }
     if (m_hud->selection().kind != Selection::Kind::None) {
         m_hud->set_selection(Selection{});
-        return true;
+        changed = true;
     }
-    return false;
+    return changed;
 }
 
 void MapViewer::sync_text_input() {
