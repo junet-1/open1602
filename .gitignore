@@ -40,6 +40,23 @@ __pycache__/
 *.exe
 *.dll
 *.DLL
+*.COD
+*.WAV
+*.EXE
+*.dat
+*.DAT
+*.gad
+*.GAD
+*.inc
+*.INC
+*.hss
+*.HSS
+*.pdf
+*.PDF
+*.rtf
+*.lnk
+# Open1602's own savegames carry the original file they came from (section ORIG)
+*.o1602
 /gamedata/
 /export/
 /exports/
