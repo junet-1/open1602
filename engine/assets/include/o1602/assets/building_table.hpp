@@ -116,6 +116,8 @@ struct BuildingType {
     std::uint8_t infra = 0;
     /// HAUS_PRODTYP/Arbeiter (record +0x34): workers (city statistics).
     std::uint16_t workers = 0;
+    /// Bausample (record +0x5E): WAV_* number of the sound when it is built, 0 = none.
+    std::uint16_t build_sound = 0;
     /// HAUS_BAUKOST: what building costs (goods in 1/32 t, record +0x4C..+0x54).
     struct BuildCost {
         std::uint32_t tools = 0;    ///< Werkzeug

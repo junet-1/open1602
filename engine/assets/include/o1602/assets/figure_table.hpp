@@ -59,7 +59,18 @@ struct FigureAnim {
     std::uint32_t speed_ms = 100;    ///< AnimSpeed: duration of one frame
     std::uint32_t rotate = 0;        ///< sprite step per direction (Rotate, default: the figure's)
     std::vector<std::uint8_t> next;  ///< AnimNr
+    /// AnimSmp: sound at the end of a cycle (WAV_* number, 0 = none); with `range` > 1 the sound
+    /// + rand() % range, played only when below `chance` (one value: 1, 1; two: chance = range).
+    std::uint16_t sound = 0;
+    std::uint8_t sound_range = 1;
+    std::uint8_t sound_chance = 1;
     bool defined = false;
+};
+
+/// A sound with variants (Shotsample, Hitsample): `sample` + rand() % `variants`.
+struct FigureSound {
+    std::uint16_t sample = 0;  ///< WAV_* number, 0 = none
+    std::uint8_t variants = 1;
 };
 
 struct FigureType {
@@ -74,6 +85,8 @@ struct FigureType {
     std::array<double, 3> fahnoffs{};
     std::uint32_t shadow = 0;    ///< Schatten: figure number of the shadow, 0 = none
     std::uint32_t bow_wave = 0;  ///< Bugfignr (ships, the same slot +0x44): bow wave figure, 0 = none
+    FigureSound shot_sound;      ///< Shotsample (+0x4C, +0x2F): when it fires
+    FigureSound hit_sound;       ///< Hitsample (+0x42, +0x2E): where its shot or blow lands
     /// Speed (record +0x10, the original stores Speed * 0.0001): walking speed. On a tile with
     /// Wegspeed w (32 = road) a figure covers 0.16 * speed / w tiles per second (0x0044A690).
     std::uint32_t speed = 0;

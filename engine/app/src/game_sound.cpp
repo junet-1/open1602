@@ -1,0 +1,344 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "game_sound.hpp"
+
+#include <algorithm>
+#include <cstdio>
+#include <string>
+
+#include "o1602/core/file.hpp"
+
+namespace o1602::app {
+
+namespace {
+
+constexpr std::uint32_t kRate = 44100;
+constexpr std::uint32_t kQueueMs = 120;  // what the device holds: little delay, no gaps at 8 fps
+constexpr double kPosUnit = sim::kPosUnit;
+constexpr audio::SampleId kWavBirds = 27;  // WAV_VOGEL1 .. 6
+constexpr audio::SampleId kWavSurf = 33;   // WAV_WELLEN
+
+// Messages (MELDUNG numbers, docs/re/audio.md).
+constexpr std::uint16_t kMsgCurse = 0x04;
+constexpr std::uint16_t kMsgPiratesAttack = 0x05;
+constexpr std::uint16_t kMsgShipLaunched = 0x06;
+constexpr std::uint16_t kMsgShipRepaired = 0x07;
+constexpr std::uint16_t kMsgShipAttacked = 0x08;
+constexpr std::uint16_t kMsgShipSunk = 0x09;
+constexpr std::uint16_t kMsgShipForSale = 0x0A;
+constexpr std::uint16_t kMsgRivalShip = 0x0B;
+constexpr std::uint16_t kMsgUnitTrained = 0x0C;
+constexpr std::uint16_t kMsgHealed = 0x0D;
+constexpr std::uint16_t kMsgShelled = 0x0F;
+constexpr std::uint16_t kMsgLanded = 0x10;
+constexpr std::uint16_t kMsgCrops = 0x2A;
+constexpr std::uint16_t kMsgOre = 0x2B;
+constexpr std::uint16_t kMsgGold = 0x2C;
+constexpr std::uint16_t kMsgNatives = 0x2F;
+constexpr std::uint16_t kMsgPirates = 0x30;
+constexpr std::uint16_t kMsgArmyFull = 0x45;
+constexpr std::uint16_t kMsgFleetFull = 0x47;
+constexpr std::uint16_t kMsgRoutes = 0x5D;
+
+std::optional<std::pair<double, double>> unit_tile(const sim::World& world, const sim::Target& t) {
+    if (t.kind == sim::Target::Kind::Soldier) {
+        if (const sim::Soldier* s = world.soldier(t.ship)) {
+            return std::make_pair(s->pos_x / kPosUnit, s->pos_y / kPosUnit);
+        }
+    } else if (t.kind == sim::Target::Kind::Ship) {
+        if (const sim::Ship* s = world.ship(t.ship)) {
+            return std::make_pair(s->pos_x / kPosUnit, s->pos_y / kPosUnit);
+        }
+    } else if (t.kind == sim::Target::Kind::Building && t.island < world.islands().size()) {
+        const sim::WorldIsland& i = world.islands()[t.island];
+        return std::make_pair(static_cast<double>(i.x + t.x), static_cast<double>(i.y + t.y));
+    }
+    return std::nullopt;
+}
+
+std::uint16_t unit_figure(const sim::World& world, const sim::Target& t) {
+    if (t.kind == sim::Target::Kind::Soldier) {
+        if (const sim::Soldier* s = world.soldier(t.ship)) {
+            return s->figure;
+        }
+    } else if (t.kind == sim::Target::Kind::Ship) {
+        if (const sim::Ship* s = world.ship(t.ship)) {
+            return s->figure;
+        }
+    }
+    return 0;
+}
+
+}  // namespace
+
+GameSound::GameSound(const assets::GameDirectory& game, bool effects, bool music)
+    : m_mixer(kRate, 48), m_bank(game), m_effects(m_mixer, m_bank), m_voices(m_mixer, m_bank, m_effects) {
+    // The settings of the original's Game.dat, read only (Open1602 never writes it).
+    if (const auto path = game.resolve("Game.dat")) {
+        if (auto text = core::read_file(*path)) {
+            m_settings = audio::parse_audio_settings(std::string(text->begin(), text->end()));
+        }
+    }
+    m_settings.effects = m_settings.effects && effects;
+    m_settings.music = m_settings.music && music;
+    if (!m_settings.effects && !m_settings.music) {
+        return;
+    }
+    auto output = platform::AudioOutput::open(kRate);
+    if (!output) {
+        std::fprintf(stderr, "no sound: %s\n", output.error().message.c_str());
+        return;
+    }
+    m_output = std::move(output).value();
+    m_effects.set_enabled(m_settings.effects);
+    m_effects.set_volume(m_settings.effect_volume);
+    m_voices.set_settings(m_settings);
+    std::vector<std::string> tracks;
+    std::vector<std::string> fights;
+    audio::Music::scan(game, tracks, fights);
+    m_music = std::make_unique<audio::Music>(m_mixer, m_bank, tracks, fights);
+    m_music->set_settings(m_settings);
+    if (tracks.empty() && m_settings.music) {
+        std::fprintf(stderr, "no music: MUSIC8 is empty or missing\n");
+    }
+}
+
+GameSound::~GameSound() = default;
+
+void GameSound::set_view(Locator locate, float width_px, float height_px) {
+    m_locate = std::move(locate);
+    m_view_w = width_px;
+    m_view_h = height_px;
+}
+
+void GameSound::at(audio::SampleId sample, double tile_x, double tile_y) {
+    if (m_output == nullptr || !m_locate || sample == audio::kWavNothing) {
+        return;
+    }
+    const auto [x, y] = m_locate(tile_x, tile_y);
+    m_effects.request(sample, x, y);
+}
+
+void GameSound::at(audio::SampleId sample, std::uint8_t variants, double tile_x, double tile_y) {
+    const std::uint32_t pick = variants > 1 ? (m_variant++ * 2654435761U >> 16) % variants : 0;
+    at(static_cast<audio::SampleId>(sample + pick), tile_x, tile_y);
+}
+
+void GameSound::click() {
+    if (m_output != nullptr) {
+        m_effects.request(audio::kWavSelect, 0.0F, 0.0F);
+    }
+}
+
+std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<double, double>> tile) {
+    if (m_output == nullptr) {
+        const audio::MessageAudio* m = audio::message_audio(message);
+        return m != nullptr ? m->flags : 0;
+    }
+    bool visible = false;
+    if (tile && m_locate) {
+        const auto [x, y] = m_locate(tile->first, tile->second);
+        visible = std::abs(x) < 1.0F && std::abs(y) < 1.0F;
+    }
+    return m_voices.message(message, visible);
+}
+
+void GameSound::construction(const sim::World& world, const std::vector<sim::ConstructionEvent>& events) {
+    // One sound per batch, the first building that has one (Build_PlaceBuildings 0x004090E2): a
+    // dragged road or a row of houses sounds once.
+    for (const sim::ConstructionEvent& e : events) {
+        if (e.kind == sim::ConstructionEvent::Kind::Placed && e.type != nullptr && e.type->build_sound != 0 &&
+            e.island < world.islands().size()) {
+            const sim::WorldIsland& i = world.islands()[e.island];
+            at(e.type->build_sound, static_cast<double>(i.x) + e.x + e.type->size_x / 2.0,
+               static_cast<double>(i.y) + e.y + e.type->size_y / 2.0);
+            return;
+        }
+    }
+}
+
+void GameSound::combat(const sim::World& world, const assets::FigureTable& figures,
+                       const std::vector<sim::MilitaryEvent>& events, sim::PlayerId local, std::uint64_t game_ms) {
+    for (const sim::MilitaryEvent& e : events) {
+        const double tx = e.x / kPosUnit;
+        const double ty = e.y / kPosUnit;
+        switch (e.kind) {
+            case sim::MilitaryEvent::Kind::Shot:
+                if (const assets::FigureType* f = figures.get(e.figure)) {
+                    at(f->shot_sound.sample, f->shot_sound.variants, tx, ty);
+                }
+                if (m_music && m_locate) {
+                    const auto [x, y] = m_locate(tx, ty);
+                    m_music->shot(x, y, m_view_w, m_view_h, game_ms);
+                }
+                break;
+            case sim::MilitaryEvent::Kind::Hit: {
+                // The shooter's Hitsample, else the effect's (Projectile_Hit 0x00445EEE).
+                const assets::FigureType* f = figures.get(unit_figure(world, e.unit));
+                if (f == nullptr || f->hit_sound.sample == 0) {
+                    f = figures.get(e.figure);
+                }
+                if (f != nullptr) {
+                    at(f->hit_sound.sample, f->hit_sound.variants, tx, ty);
+                }
+                break;
+            }
+            case sim::MilitaryEvent::Kind::SoldierKilled:
+                at(audio::kWavDeadGuy, tx, ty);
+                break;
+            case sim::MilitaryEvent::Kind::SettlementShelled:
+                if (e.owner == local) {
+                    message(kMsgShelled, unit_tile(world, e.target));
+                }
+                break;
+            case sim::MilitaryEvent::Kind::TroopsLanded:
+                if (e.owner == local) {
+                    message(kMsgLanded, unit_tile(world, e.unit));
+                }
+                break;
+            case sim::MilitaryEvent::Kind::UnitTrained:
+                if (e.player == local) {
+                    message(kMsgUnitTrained, unit_tile(world, e.unit));
+                }
+                break;
+            case sim::MilitaryEvent::Kind::SoldierHealed:
+                if (e.player == local || e.owner == local) {
+                    message(kMsgHealed, unit_tile(world, e.target));
+                }
+                break;
+            case sim::MilitaryEvent::Kind::ArmyFull:
+                if (e.player == local) {
+                    message(kMsgArmyFull);
+                }
+                break;
+            case sim::MilitaryEvent::Kind::NativesCurse:
+                if (e.player == local) {
+                    message(kMsgCurse);
+                }
+                break;
+            default:
+                break;  // ships attacked and sunk come with the ship events
+        }
+    }
+}
+
+void GameSound::ships(const sim::World& world, const assets::FigureTable& figures,
+                      const std::vector<sim::ShipEvent>& events, sim::PlayerId local, std::uint64_t game_ms) {
+    for (const sim::ShipEvent& e : events) {
+        const sim::Ship* ship = world.ship(e.ship);
+        const auto ship_tile = ship != nullptr ? std::optional<std::pair<double, double>>(
+                                                     std::make_pair(ship->pos_x / kPosUnit, ship->pos_y / kPosUnit))
+                                               : std::nullopt;
+        const auto island_tile = [&]() -> std::optional<std::pair<double, double>> {
+            if (e.island >= world.islands().size()) {
+                return std::nullopt;
+            }
+            const sim::WorldIsland& i = world.islands()[e.island];
+            return std::make_pair(static_cast<double>(i.x + e.x), static_cast<double>(i.y + e.y));
+        };
+        switch (e.kind) {
+            case sim::ShipEvent::Kind::Fired:
+                if (ship != nullptr && ship_tile) {
+                    if (const assets::FigureType* f = figures.get(ship->figure)) {
+                        at(f->shot_sound.sample, f->shot_sound.variants, ship_tile->first, ship_tile->second);
+                    }
+                    if (m_music && m_locate) {
+                        const auto [x, y] = m_locate(ship_tile->first, ship_tile->second);
+                        m_music->shot(x, y, m_view_w, m_view_h, game_ms);
+                    }
+                }
+                break;
+            case sim::ShipEvent::Kind::ShipLaunched:
+                message(e.player == local ? kMsgShipLaunched : kMsgRivalShip, ship_tile);
+                break;
+            case sim::ShipEvent::Kind::ShipRepaired:
+                if (e.player == local) {
+                    message(kMsgShipRepaired, ship_tile);
+                }
+                break;
+            case sim::ShipEvent::Kind::FleetFull:
+                if (e.player == local) {
+                    message(kMsgFleetFull);
+                }
+                break;
+            case sim::ShipEvent::Kind::Attacked:
+                if (e.player == local) {
+                    message(e.amount == 1 ? kMsgPiratesAttack : kMsgShipAttacked, ship_tile);
+                }
+                break;
+            case sim::ShipEvent::Kind::Sunk:
+                if (e.player == local) {
+                    message(kMsgShipSunk, ship_tile);
+                }
+                break;
+            case sim::ShipEvent::Kind::RouteWarning:
+                if (e.player == local) {
+                    message(kMsgRoutes, ship_tile);
+                }
+                break;
+            case sim::ShipEvent::Kind::OfferedForSale:
+                if (e.player != local) {
+                    message(kMsgShipForSale, ship_tile);
+                }
+                break;
+            case sim::ShipEvent::Kind::CropsExplored:
+                if (e.player == local) {
+                    message(kMsgCrops, island_tile());
+                }
+                break;
+            case sim::ShipEvent::Kind::DepositFound:
+                if (e.player == local) {
+                    message(e.ware == 3 ? kMsgGold : kMsgOre, island_tile());
+                }
+                break;
+            case sim::ShipEvent::Kind::NativesFound:
+                if (e.player == local) {
+                    message(kMsgNatives, ship_tile);
+                }
+                break;
+            case sim::ShipEvent::Kind::PiratesFound:
+                if (e.player == local) {
+                    message(kMsgPirates, ship_tile);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+void GameSound::scenery(const std::vector<render::AmbientSound>& sounds) {
+    for (const render::AmbientSound& s : sounds) {
+        at(s.kind == render::AmbientSound::Kind::Birds ? static_cast<audio::SampleId>(kWavBirds + s.variant) : kWavSurf,
+           s.x, s.y);
+    }
+}
+
+void GameSound::order(bool ship, bool attack, double tile_x, double tile_y) {
+    // Order_Move 0x0044D540: a voice of the unit; ships attacking ships have four, others two.
+    if (ship) {
+        attack ? at(audio::kWavShipAttack, 4, tile_x, tile_y) : at(audio::kWavShipMove, 5, tile_x, tile_y);
+    } else {
+        attack ? at(audio::kWavSoldierAttack, 6, tile_x, tile_y) : at(audio::kWavSoldierMove, 4, tile_x, tile_y);
+    }
+}
+
+void GameSound::frame(std::uint64_t game_ms, std::uint32_t real_ms) {
+    if (m_output == nullptr) {
+        return;
+    }
+    m_effects.flush();
+    m_voices.update();
+    if (m_music) {
+        m_music->update(game_ms, real_ms);
+    }
+    const std::size_t target = kRate * kQueueMs / 1000;
+    const std::size_t queued = m_output->queued_frames();
+    if (queued < target) {
+        const std::size_t n = target - queued;
+        m_buffer.resize(n * 2);
+        m_mixer.mix(m_buffer.data(), n);
+        m_output->push(m_buffer.data(), n);
+    }
+}
+
+}  // namespace o1602::app

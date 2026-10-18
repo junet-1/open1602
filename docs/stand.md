@@ -12,12 +12,12 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
   Katastrophen, Vulkane, Schiffe und Handel, Militär, Diplomatie, Piraten, Eingeborene, Computergegner,
   neues Endlosspiel, Aufträge der Szenarien mit Sieg und Niederlage, Spielstände des Originals lesen
   und exportieren, eigenes Speicherformat. Sie läuft in festen Ticks, deterministisch und befehlsbasiert,
-  mit 276 Tests (davon viele gegen die Originaldaten
+  mit 286 Tests (davon viele gegen die Originaldaten
   und echte Spielstände).
 - **Spielbar ist sie heute nur im Kartenbetrachter**: Start über die Kommandozeile, Bauen, Abreißen,
   Schiffe und Soldaten mit der Maus, Rückmeldungen im Fenstertitel und im Terminal.
 - **Die großen offenen Blöcke** sind die Oberfläche (Menüs, Fenster, Baumenü, Minimap, Meldungen),
-  Ton, Musik, Sprache und Videos, Kampagnenfortschritt und Bestenliste, der Mehrspieler und die
+  Videos, Kampagnenfortschritt und Bestenliste, der Mehrspieler und die
   Modding-Grundlagen (Inhaltspakete, Fraktionen als Daten, Lua).
 - **Spielstände** speichert Open1602 seit dem 18.10.2026 im eigenen Format `.o1602`
   ([o1602-save.md](formats/o1602-save.md), [ADR 0009](architecture/0009-eigenes-speicherformat.md)): ohne
@@ -53,7 +53,7 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 | Inseln, Gebäude, Weltkarte | ✅ drei Zoomstufen, vier Drehungen, Flaggen, Rauch, Statussymbole, Besitzansicht (Bildvergleich 0,967) | Helligkeits- und Farbstich-Tabellen; Werftsymbole „Material fehlt“ und „Brand“ | [rendering.md](re/rendering.md) |
 | Figuren | ✅ alle Figuren der Wirtschaft, Soldaten in jeder Bannerfarbe, Schiffe mit Schaden, Bugwelle, weißer Flagge, Sinken, Zierfiguren (Spaziergänger, Gaukler, Wale, Delfine, Kraken) | Mündungs- und Schussrauch, Treffer, Wrack (SHIPSUNK), Lebensbalken; Zierfiguren auch auf unentdeckten Inseln | [figures.md](re/figures.md), [flavor.md](re/flavor.md) |
 | Oberfläche | ⬜ nur der Betrachter (Titelzeile, Terminal) | Hauptmenü, Startdialog, Laden/Speichern, Optionen, Baumenü, alle Fenster (Stadt, Kontor, Schiff, Route, Werft, Burg, Diplomatie, Statistik, Inselinfo), Minimap, Meldungen, Highscore; dazu `.GAD`-Layouts und `.ZEI`-Schriften lesen | [00-plan.md](00-plan.md) |
-| Ton, Musik, Sprache | ⬜ Geräuschquellen werden bestimmt und verworfen | Wiedergabe von `SAMPLES`, `MUSIC8`, `Speech8` | [flavor.md](re/flavor.md) |
+| Ton, Musik, Sprache | ✅ Geräusche (Bauen, Schüsse, Treffer, Befehle, Vögel, Brandung) räumlich wie im Original, Sprachmeldungen mit Warteschlange, Musik mit Zufall, Kampfmusik und Ausblenden, 4-Bit-Musik entpackt; Lautstärken aus `Game.dat` (nur gelesen) | Arbeitsgeräusche und Tierlaute der Figuren, Klicks der Oberfläche, Tutorial-Sprache, Einwohner- und Warenmeldungen, Optionsfenster | [audio.md](re/audio.md) |
 | Videos | ⬜ | Smacker (`VideoSmk`) | – |
 | Mehrspieler | 🟡 Grundlage: Befehle, feste Ticks, Zufallsströme, KI auf jedem Rechner, Einstellungen im Zustand | Netz (Lockstep), Zustands-Hash je Tick, Lobby, Spielerzuordnung, Wiederverbinden (M-003) | [ADR 0004](architecture/0004-deterministische-simulation.md) |
 | Editor | ⬜ | `1602Edit.exe` nachbauen (später) | – |
@@ -129,7 +129,7 @@ Eine Beobachtung im Original würde helfen, wo „Beobachtung“ steht; was ich 
 
 | Punkt | Stand |
 |---|---|
-| Tests | 276 Fälle (28 Unit-Dateien, 6 mit Originaldaten). Ohne eigene Unit-Tests: KI (nur zwei Datentests), See- und Landwege (nur indirekt), Weltengenerator (über das neue Spiel), eigener Chunk (über die Datentests), Betrachter |
+| Tests | 286 Fälle (29 Unit-Dateien, 7 mit Originaldaten). Ohne eigene Unit-Tests: KI (nur zwei Datentests), See- und Landwege (nur indirekt), Weltengenerator (über das neue Spiel), eigener Chunk (über die Datentests), Betrachter |
 | Builds | lokal unter Linux: debug, game, game-rel, asan, game-asan ohne Warnungen; CI für Linux (GCC, Clang, ASan), Windows (MSVC 2022), macOS 14 und das Spiel mit SDL3 auf allen drei. Windows und macOS sind lokal nie gelaufen |
 | Spielerbefehle | vollständig für die Simulation (seit 18.10.2026 auch Stadtfenster und Schiffsfenster); es fehlt nur die Oberfläche, die sie auslöst |
 | Symboltabelle `re/symbols/` | 532 Funktionen (18.10.2026 um die Adressen aus Militär, Piraten, Diplomatie, KI, Aufträgen, Katastrophen und Neuem Spiel ergänzt; Beleg verweist auf das Dokument) |

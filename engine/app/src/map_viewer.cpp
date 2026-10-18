@@ -67,6 +67,23 @@ std::string player_label(const sim::Player& p, sim::PlayerId slot, const render:
 
 }  // namespace
 
+namespace {
+
+/// Whether a ship or unit target belongs to another player (an attack order).
+bool world_owner_differs(const sim::World& world, const sim::Target& t, sim::PlayerId local) {
+    if (t.kind == sim::Target::Kind::Ship) {
+        const sim::Ship* s = world.ship(t.ship);
+        return s != nullptr && s->owner != local;
+    }
+    if (t.kind == sim::Target::Kind::Soldier) {
+        const sim::Soldier* s = world.soldier(t.ship);
+        return s != nullptr && s->owner != local;
+    }
+    return false;
+}
+
+}  // namespace
+
 core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDirectory& game,
                                                            const ViewerOptions& options) {
     auto buildings = assets::BuildingTable::load(game);
@@ -149,6 +166,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         return window.error();
     }
     viewer->m_window = std::move(window).value();
+    viewer->m_sound = std::make_unique<GameSound>(game, options.effects, options.music);
     std::fprintf(stderr, "renderer: %s, max texture %d\n", viewer->m_window->renderer_name().c_str(),
                  viewer->m_window->max_texture_size());
 
@@ -189,6 +207,7 @@ MapViewer::~MapViewer() {
     for (auto& g : m_graphics) {
         g.reset();
     }
+    m_sound.reset();
     m_window.reset();
     m_sdl.reset();
 }
@@ -239,6 +258,7 @@ int MapViewer::run() {
         last = now;
         update(delta);
         render();
+        m_sound->frame(m_world.time_ms(), delta);
 
         ++frames;
         ++fps_frames;
@@ -407,6 +427,8 @@ void MapViewer::order_ship_to_mouse() {
         }
     }
     m_simulation.submit(sim::ShipOrder{m_local_player, ship->id, target});
+    m_sound->order(true, target.kind == sim::Target::Kind::Ship && world_owner_differs(m_world, target, m_local_player),
+                   ship->pos_x / static_cast<double>(sim::kPosUnit), ship->pos_y / static_cast<double>(sim::kPosUnit));
 }
 
 std::uint32_t MapViewer::soldier_at_mouse(bool own_only) const {
@@ -454,8 +476,11 @@ void MapViewer::order_soldier_to_mouse() {
                                                  static_cast<std::uint32_t>(b->origin.y));
         }
     }
+    const bool attack = order.attack || (order.target.kind == sim::Target::Kind::Soldier &&
+                                         world_owner_differs(m_world, order.target, m_local_player));
     m_simulation.submit(std::move(order));
     m_attack_mode = false;
+    m_sound->order(false, attack, soldier->x(), soldier->y());
 }
 
 void MapViewer::zoom_by(int steps, double sx, double sy) {
@@ -588,7 +613,9 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_simulation.apply_commands();  // building is possible while paused
     } else {
         m_simulation.advance(delta_ms);
+        place_listener();
         apply_production_events();
+        apply_game_events();
         m_clock.advance(delta_ms);
         m_soldiers.sync(m_world, m_buildings, m_figures);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
@@ -630,12 +657,17 @@ void MapViewer::apply_construction() {
         }
         std::fprintf(stderr, "\n");
     }
-    bool changed = false;
-    for (const sim::ConstructionEvent& e : m_simulation.take_construction_events()) {
-        changed = true;
+    const std::vector<sim::ConstructionEvent> events = m_simulation.take_construction_events();
+    const bool changed = !events.empty();
+    m_sound->construction(m_world, events);
+    for (const sim::ConstructionEvent& e : events) {
         if (e.kind == sim::ConstructionEvent::Kind::CityFounded) {
             if (const sim::City* c = m_world.city(e.island, e.city)) {
                 std::fprintf(stderr, "a new city was founded: %s\n", c->name.c_str());
+                if (c->owner != m_local_player) {
+                    const sim::WorldIsland& i = m_world.islands()[e.island];
+                    announce(0x0E, std::make_pair(i.x + i.map.width() / 2.0, i.y + i.map.height() / 2.0));
+                }
             }
         }
     }
@@ -781,6 +813,7 @@ void MapViewer::apply_production_events() {
         const std::string name = city != nullptr ? city->name : std::string("?");
         if (e.kind == sim::CityEvent::Kind::Hunger) {
             std::fprintf(stderr, "%s: the people are starving\n", name.c_str());
+            announce(0x33);
         } else if (e.kind == sim::CityEvent::Kind::Unlocked) {
             std::fprintf(stderr, "%s: build level %u reached\n", name.c_str(), e.infra);
         } else {
@@ -788,7 +821,9 @@ void MapViewer::apply_production_events() {
         }
     }
     // Ships of the local player: discoveries and exploring (MELDUNG 0x2A-0x30).
-    for (const sim::ShipEvent& e : m_simulation.take_ship_events()) {
+    const std::vector<sim::ShipEvent> ship_events = m_simulation.take_ship_events();
+    m_sound->ships(m_world, m_figures, ship_events, m_local_player, m_world.time_ms());
+    for (const sim::ShipEvent& e : ship_events) {
         if (e.player != m_local_player || e.island >= m_world.islands().size()) {
             continue;
         }
@@ -826,6 +861,9 @@ void MapViewer::apply_production_events() {
         if (e.kind == sim::DisasterEvent::Kind::Started && !e.spread) {
             std::fprintf(stderr, "%s: %s (%u,%u)\n", name,
                          fire ? "a fire broke out!" : "the plague haunts your settlement!", e.x, e.y);
+            const sim::WorldIsland& isl = m_world.islands()[e.island];
+            announce(fire ? 0x02 : 0x01,
+                     std::make_pair(static_cast<double>(isl.x + e.x), static_cast<double>(isl.y + e.y)));
         } else if (e.kind == sim::DisasterEvent::Kind::BurnedDown) {
             std::fprintf(stderr, "%s: a building burned down (%u,%u)\n", name, e.x, e.y);
         }
@@ -844,6 +882,7 @@ void MapViewer::apply_production_events() {
         switch (e.kind) {
             case sim::IslandEvent::Kind::DroughtStarted:
                 std::fprintf(stderr, "%s: the drought destroys your harvest!\n", own->name.c_str());
+                announce(0x03);
                 break;
             case sim::IslandEvent::Kind::Withered:
                 std::fprintf(stderr, "%s: %u fields withered\n", own->name.c_str(), e.count);
@@ -862,6 +901,8 @@ void MapViewer::apply_production_events() {
             m_world.islands()[e.island].discovered_by(m_local_player)) {
             std::fprintf(stderr, "a volcano has erupted! (island %u)\n",
                          static_cast<unsigned>(m_world.islands()[e.island].header.number));
+            const sim::WorldIsland& isl = m_world.islands()[e.island];
+            announce(0x5E, std::make_pair(isl.x + isl.map.width() / 2.0, isl.y + isl.map.height() / 2.0));
         }
     }
 }
@@ -924,7 +965,95 @@ void MapViewer::update_ambient() {
                           island.y + island.map.height() > y0;
     }
     m_ambient.frame(m_world, m_buildings, m_figures, view);
-    (void)m_ambient.take_sounds();  // no sound output yet
+    m_sound->scenery(m_ambient.take_sounds());
+}
+
+void MapViewer::place_listener() {
+    const render::Viewport v = m_camera.viewport();
+    const render::WorldView view = m_camera.view();
+    const double cx = v.left + v.width / 2.0;
+    const double cy = v.top + v.height / 2.0;
+    const double hw = std::max(1.0, v.width / 2.0);
+    const double hh = std::max(1.0, v.height / 2.0);
+    m_sound->set_view(
+        [view, cx, cy, hw, hh](double tx, double ty) {
+            // World pixels of the point: the tile centres around it, in between by its fraction.
+            const auto x0 = static_cast<std::uint32_t>(std::max(0.0, std::floor(tx)));
+            const auto y0 = static_cast<std::uint32_t>(std::max(0.0, std::floor(ty)));
+            std::int32_t ax = 0;
+            std::int32_t ay = 0;
+            std::int32_t bx = 0;
+            std::int32_t by = 0;
+            std::int32_t c_x = 0;
+            std::int32_t c_y = 0;
+            render::world_tile_center(view, x0, y0, ax, ay);
+            render::world_tile_center(view, x0 + 1, y0, bx, by);
+            render::world_tile_center(view, x0, y0 + 1, c_x, c_y);
+            const double fx = tx - x0;
+            const double fy = ty - y0;
+            const double px = ax + fx * (bx - ax) + fy * (c_x - ax);
+            const double py = ay + fx * (by - ay) + fy * (c_y - ay);
+            return std::make_pair(static_cast<float>((px - cx) / hw), static_cast<float>((py - cy) / hh));
+        },
+        static_cast<float>(v.width), static_cast<float>(v.height));
+}
+
+void MapViewer::announce(std::uint16_t message, std::optional<std::pair<double, double>> tile) {
+    const std::uint16_t flags = m_sound->message(message, tile);
+    if ((flags & audio::kMessageNormalSpeed) != 0 && m_simulation.speed() > 1) {
+        m_simulation.set_speed(1);  // fires, plagues and attacks: back to normal speed (0x004893F0)
+    }
+}
+
+void MapViewer::apply_game_events() {
+    const std::vector<sim::MilitaryEvent> military = m_simulation.take_military_events();
+    m_sound->combat(m_world, m_figures, military, m_local_player, m_world.time_ms());
+    for (const sim::DiplomacyNotice& n : m_simulation.take_diplomacy_notices()) {
+        if (n.to != m_local_player) {
+            continue;
+        }
+        static constexpr std::array<std::uint16_t, 6> kMessages = {0x4D, 0x4E, 0x4F, 0x50, 0x51, 0x52};
+        announce(kMessages[static_cast<std::size_t>(n.kind)]);
+    }
+    const auto& banners = m_banners;
+    for (const sim::GameEvent& e : m_simulation.take_game_events()) {
+        const sim::Player* p = m_world.player(e.player);
+        const std::string who =
+            p != nullptr ? player_label(*p, e.player, banners) : std::string("player ") + std::to_string(e.player);
+        switch (e.kind) {
+            case sim::GameEvent::Kind::MissionAccomplished:
+                std::fprintf(stderr, "%s accomplished the mission!\n", who.c_str());
+                if (e.player == m_local_player) {
+                    // 0x6B is the multiplayer message with the winner's colour (0x6B..0x6E).
+                    const std::uint16_t m = e.message == audio::kMessageMultiplayerWin && p != nullptr
+                                                ? static_cast<std::uint16_t>(e.message + std::min<int>(p->banner, 3))
+                                                : e.message;
+                    announce(m);
+                }
+                break;
+            case sim::GameEvent::Kind::GameOver:
+                std::fprintf(stderr, "the game is over\n");
+                if (e.player != m_local_player && m_world.player(m_local_player) != nullptr &&
+                    !m_world.player(m_local_player)->won) {
+                    announce(0x53);  // "Ihr wurdet besiegt!"
+                }
+                break;
+            case sim::GameEvent::Kind::PlayerDefeated:
+                std::fprintf(stderr, "%s is defeated\n", who.c_str());
+                if (e.player == m_local_player) {
+                    announce(0x53);
+                } else {
+                    announce(e.reason == sim::GameEvent::Reason::Bankrupt ? 0x59 : 0x5A);
+                }
+                break;
+            case sim::GameEvent::Kind::ArchAllowed:
+                if (e.player == m_local_player) {
+                    std::fprintf(stderr, "you may build a triumphal arch\n");
+                    announce(0x32);
+                }
+                break;
+        }
+    }
 }
 
 render::TilePos MapViewer::home_tile() const {

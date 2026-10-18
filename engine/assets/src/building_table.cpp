@@ -82,6 +82,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         b.coastal = (r.integer("Strandflg") & 1) != 0;
         b.upgrade = (r.integer("Ausbauflg") & 1) != 0;
         b.destroyed = (r.integer("Destroyflg") & 1) != 0;
+        b.build_sound = static_cast<std::uint16_t>(std::clamp(r.integer("Bausample"), 0, 0xFFFF));
         b.beach_offset = static_cast<std::uint8_t>(std::clamp(r.integer("Strandoff"), 0, 255));
         b.mouth_offset = static_cast<std::uint8_t>(std::clamp(r.integer("Mundoff"), 0, 255));
         // Stored as value * 128 / 100 (record +0x40).

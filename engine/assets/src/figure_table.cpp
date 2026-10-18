@@ -34,6 +34,10 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
         f.gfx = static_cast<std::uint32_t>(std::max(0, r.integer("Gfx")));
         f.sheet = static_cast<FigureSheet>(std::clamp(r.integer("Blocknr"), 0, 6));
         f.shadow = static_cast<std::uint32_t>(std::max(0, r.integer("Schatten")));
+        for (auto [key, sound] : {std::pair{"Shotsample", &f.shot_sound}, std::pair{"Hitsample", &f.hit_sound}}) {
+            sound->sample = static_cast<std::uint16_t>(std::clamp(r.integer(key, 0), 0, 0xFFFF));
+            sound->variants = static_cast<std::uint8_t>(std::clamp(r.integer(key, 1, 1), 1, 255));
+        }
         f.bow_wave = static_cast<std::uint32_t>(std::max(0, r.integer("Bugfignr")));
         f.rotate = static_cast<std::uint32_t>(std::max(0, r.integer("Rotate")));
         f.posoffs = {r.integer("Posoffs", 0), r.integer("Posoffs", 1)};
@@ -107,6 +111,13 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
                     for (const cod::Value& v : next->values) {
                         anim.next.push_back(static_cast<std::uint8_t>(std::clamp(v.integer, 0, 255)));
                     }
+                }
+                if (const cod::Field* smp = a.field("AnimSmp"); smp != nullptr && !smp->values.empty()) {
+                    anim.sound = static_cast<std::uint16_t>(std::clamp(smp->values[0].integer, 0, 0xFFFF));
+                    const std::int32_t range = smp->values.size() > 1 ? smp->values[1].integer : 1;
+                    anim.sound_range = static_cast<std::uint8_t>(std::clamp(range, 1, 255));
+                    anim.sound_chance = static_cast<std::uint8_t>(
+                        std::clamp(smp->values.size() > 2 ? smp->values[2].integer : range, 1, 255));
                 }
                 anim.defined = true;
                 f.anims[static_cast<std::size_t>(index)] = std::move(anim);

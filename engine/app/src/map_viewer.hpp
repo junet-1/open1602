@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "build_tool.hpp"
+#include "game_sound.hpp"
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
@@ -58,6 +59,8 @@ struct ViewerOptions {
     /// How the islands of a scenario that makes them at the start are drawn (also --scenario
     /// Szenes/Endlosspiel00.szs).
     sim::WorldStart world;
+    bool effects = true;  ///< sounds and voice messages (also off in the original's Game.dat)
+    bool music = true;
 };
 
 class MapViewer {
@@ -102,6 +105,13 @@ private:
     /// A unit under the mouse: an own soldier is selected first.
     [[nodiscard]] std::uint32_t soldier_at_mouse(bool own_only) const;
     void order_soldier_to_mouse();
+    /// Tells the sound where the view is (every frame, before events are heard).
+    void place_listener();
+    /// Shots, hits, victory and defeat: sounds, messages and lines in the terminal.
+    void apply_game_events();
+    /// A message for the local player with its voice; a message that asks for it slows the game
+    /// to normal speed (flag 0x02).
+    void announce(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt);
     void zoom_by(int steps, double sx, double sy);
     /// Island tile under the mouse, nullopt over the sea.
     [[nodiscard]] std::optional<BuildTool::Spot> spot_at_mouse() const;
@@ -151,6 +161,7 @@ private:
     std::string m_tool_status;                    ///< what the build tool would do at the mouse
     std::vector<render::EffectFigure> m_effects;  ///< volcano fire, lava, sea creatures, jugglers of this frame
     render::Ambient m_ambient;                    ///< life in the picture, no part of the game
+    std::unique_ptr<GameSound> m_sound;           ///< effects, voices and music (after the window)
     std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built
 };
 
