@@ -110,6 +110,13 @@ struct ShipCommand {
         OfferForSale,   ///< at Preis * `factor` / 128 (factor 0..384; op 0x20/0x21)
         WithdrawSale,
         Buy,  ///< `player` buys the ship at its price from its owner (0x84D)
+        /// The white flag up (`on`: the ship stops and decides nothing more, never fires) or down
+        /// (op 0x23, `Ship_SetHold 0x0044E980`).
+        WhiteFlag,
+        Scuttle,  ///< "Schiff versenken": it sinks without an attacker (op 0x0C, attacker 7)
+        /// Back and forth between where it lies and the world tile `x`, `y`, fighting what it
+        /// meets (two position stops and the route on, 0x00440BD0).
+        Patrol,
     };
     static constexpr std::size_t kMaxNameLength = 40;
     static constexpr std::uint16_t kMaxSaleFactor = 384;
@@ -119,6 +126,9 @@ struct ShipCommand {
     std::uint8_t hold = 0xFF;  ///< MountCannon and Dump: the hold, 0xFF = the first fitting / all
     std::uint16_t factor = 128;
     std::string name;
+    bool on = true;       ///< WhiteFlag
+    std::uint16_t x = 0;  ///< Patrol: world tile
+    std::uint16_t y = 0;
 };
 
 /// Whether and why a ship can explore an island now (the button of the ship panel).

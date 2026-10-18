@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "panel_common.hpp"
+
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/mission.hpp"
@@ -23,6 +25,8 @@ std::string PanelContext::text(std::string_view section, std::size_t line) const
 
 namespace {
 
+using namespace panel_detail;
+
 // LEISTE lines.
 constexpr std::size_t kHelpCityName = 11;
 constexpr std::size_t kHelpProduct = 146;
@@ -35,10 +39,6 @@ constexpr std::size_t kGameStock = 21;
 constexpr std::size_t kGamePercent = 48;
 constexpr std::size_t kGameTons = 49;
 
-std::string help_line(const PanelContext& c, std::size_t line) {
-    return c.text("LEISTE", line);
-}
-
 /// The building at a selection, nothing if it is gone.
 const assets::BuildingType* building_at(const Selection& s, const PanelContext& c) {
     if (s.kind != Selection::Kind::Building || s.island >= c.world().islands().size()) {
@@ -50,14 +50,6 @@ const assets::BuildingType* building_at(const Selection& s, const PanelContext& 
     }
     const sim::MapCell& top = map.top(s.x, s.y);
     return top.empty() ? nullptr : c.buildings.by_sprite(top.sprite);
-}
-
-const sim::City* city_at(const Selection& s, const PanelContext& c) {
-    if (s.island >= c.world().islands().size()) {
-        return nullptr;
-    }
-    const sim::IslandMap& map = c.world().islands()[s.island].map;
-    return map.contains(s.x, s.y) ? c.world().city(s.island, map.top(s.x, s.y).city) : nullptr;
 }
 
 /// The name of a building as the build menu calls it (Haus_GetMenuName 0x0042D230).
@@ -330,17 +322,8 @@ constexpr std::int32_t kKIcon = 34031;   // + slot, 11
 constexpr std::int32_t kKBar = 34051;    // + slot
 constexpr std::int32_t kKFrame = 34071;  // + slot
 constexpr std::int32_t kKSlots = 11;
-// LAGER.GAD: + ware number
-constexpr std::int32_t kLIcon = 44019;
-constexpr std::int32_t kLBar = 44049;
-constexpr std::int32_t kLFrame = 44079;
-constexpr std::int32_t kLMarker = 44109;
-constexpr std::int32_t kLCorner = 44139;
-constexpr std::int32_t kLDeadSlider = 44171;
 }  // namespace city_ids
 
-constexpr std::uint8_t kFirstTradeWare = 2;
-constexpr std::uint8_t kLastTradeWare = 24;
 constexpr std::int32_t kPriceSteps = 1024;
 
 /// STADT (the city), KONTOR (the buy or sell list, with the LAGER layout as the ware picker) and
@@ -349,35 +332,29 @@ constexpr std::int32_t kPriceSteps = 1024;
 class CityPanel final : public SelectionPanel {
 public:
     CityPanel(assets::GadgetLayout stadt, assets::GadgetLayout kontor, assets::GadgetLayout lager)
-        : m_stadt(std::move(stadt), 1.0), m_kontor(std::move(kontor), 1.0), m_lager(std::move(lager), 1.0) {
+        : m_stadt(std::move(stadt), 1.0), m_kontor(std::move(kontor), 1.0), m_lager(std::move(lager)) {
         const assets::GadgetLayout& k = m_kontor.layout();
         m_gfx_ware = k.constant("GFXWARE").value_or(192);
         m_gfx_empty = k.constant("GFXWARELEER").value_or(188) + 1;
         if (const assets::Gadget* g = m_stadt.layout().find(city_ids::kBalanceIcon)) {
             m_balance_icon = g->gfx;
         }
-        if (const assets::Gadget* g = m_lager.layout().find(city_ids::kLCorner + 2)) {
-            m_corner = g->gfx;
-        }
         // No handler in the original: the Kontor picture. The free trader can not be called yet.
         m_stadt.set_disabled(city_ids::kKontorPicture, true);
         m_stadt.set_visible(city_ids::kTrader, false);
-        m_lager.set_visible(city_ids::kLDeadSlider, false);
-        m_lager.set_visible(44134, false);  // marker and corner of the 24th place: never shown
-        m_lager.set_visible(44164, false);
     }
 
     void set_scale(double scale) override {
         m_stadt.set_scale(scale);
         m_kontor.set_scale(scale);
-        m_lager.set_scale(scale);
+        m_lager.panel().set_scale(scale);
     }
     ui::Panel& panel() override {
         switch (m_page) {
             case Page::Kontor:
-                return m_picker ? m_lager : m_kontor;
+                return m_picker ? m_lager.panel() : m_kontor;
             case Page::Stock:
-                return m_lager;
+                return m_lager.panel();
             default:
                 return m_stadt;
         }
@@ -407,13 +384,13 @@ public:
                 break;
             case Page::Kontor:
                 if (m_picker) {
-                    refresh_stock(*city, true);
+                    m_lager.refresh(*city, true);
                 } else {
                     refresh_kontor(*city, c);
                 }
                 break;
             case Page::Stock:
-                refresh_stock(*city, false);
+                m_lager.refresh(*city, false);
                 break;
         }
     }
@@ -452,7 +429,8 @@ public:
             if (e.kind != ui::PanelEvent::Kind::Clicked) {
                 return;
             }
-            const std::int32_t w = e.id - city_ids::kLFrame;
+            const std::optional<std::uint8_t> picked = m_lager.ware_of(e.id);
+            const std::int32_t w = picked ? (*picked == 0 ? kLastTradeWare + 1 : *picked) : -1;
             if (w >= kFirstTradeWare && w <= kLastTradeWare) {
                 out.emplace_back(setting(*city, c, static_cast<std::uint8_t>(w), mode()));
                 // The new ware's place in the sorted list.
@@ -548,9 +526,9 @@ public:
             }
         }
         if (m_page == Page::Stock || m_picker) {
-            const std::int32_t w = id - city_ids::kLFrame;
-            if (w >= kFirstTradeWare && w <= kLastTradeWare) {
-                return stock_text(static_cast<std::uint8_t>(w));
+            const std::optional<std::uint8_t> w = m_lager.ware_of(id);
+            if (w && *w != 0) {
+                return stock_text(*w);
             }
             return std::nullopt;
         }
@@ -713,43 +691,12 @@ private:
                           ui::format_text(c.text("GAME", 49), {std::int64_t{city.stock(w) >> 5U}}));
     }
 
-    void refresh_stock(const sim::City& city, bool picker) {
-        m_lager.set_text(44002, city.name);
-        const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city.capacity, 1));
-        for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
-            const sim::City::Trade* t = city.trade_of(w);
-            m_lager.set_graphic(city_ids::kLIcon + w, m_gfx_ware + w, 0);
-            m_lager.set_slider(city_ids::kLBar + w, 1, static_cast<std::int32_t>(city.stock(w)), cap);
-            const bool buy = t != nullptr && t->buy;
-            const bool sell = t != nullptr && t->sell;
-            m_lager.set_visible(city_ids::kLMarker + w, !(!buy && !sell));
-            m_lager.set_visible(city_ids::kLCorner + w, !(!buy && !sell));
-            if (buy || sell) {
-                m_lager.set_slider(city_ids::kLMarker + w, 1, static_cast<std::int32_t>(buy ? t->limit : t->keep), cap);
-                // Price level 0 (cheapest) .. 4 (base price).
-                const std::int32_t base = sim::base_price(w);
-                const auto min = static_cast<std::int32_t>(static_cast<std::uint32_t>(base) * 300U >> 10U);
-                const std::int32_t price = buy ? t->buy_price : t->sell_price;
-                const std::int32_t level = std::clamp(((price - min) * 5 - 1) / std::max(1, base - min), 0, 4);
-                m_lager.set_graphic(city_ids::kLCorner + w, m_corner + (buy ? 0 : 5) + level, 0);
-            }
-        }
-        // The 24th place: the empty frame that closes the picker.
-        const std::int32_t last = kLastTradeWare + 1;
-        m_lager.set_visible(city_ids::kLIcon + last, picker);
-        m_lager.set_visible(city_ids::kLFrame + last, picker);
-        if (picker) {
-            m_lager.set_graphic(city_ids::kLIcon + last, m_gfx_empty, 0);
-        }
-    }
-
     ui::Panel m_stadt;
     ui::Panel m_kontor;
-    ui::Panel m_lager;
+    StockList m_lager;
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 189;
     std::int32_t m_balance_icon = 0;
-    std::int32_t m_corner = 634;
     Page m_page = Page::City;
     bool m_sell = true;
     bool m_picker = false;
@@ -1507,910 +1454,27 @@ private:
 
 /// HANDEL: what a foreign Kontor with a trade treaty wants and offers (ForeignKontorPanel_Refresh
 /// 0x004357D0).
-class ForeignKontorPanel final : public SimplePanel {
+class ForeignKontorPanel final : public SelectionPanel {
 public:
-    explicit ForeignKontorPanel(assets::GadgetLayout layout) : SimplePanel(std::move(layout)) {
-        m_gfx_ware = m_panel.layout().constant("GFXWARE").value_or(192);
-        m_gfx_empty = m_panel.layout().constant("GFXWARELEER").value_or(188) + 1;
-    }
+    explicit ForeignKontorPanel(assets::GadgetLayout layout) : m_lists(std::move(layout)) {}
+    void set_scale(double scale) override { m_lists.panel().set_scale(scale); }
+    ui::Panel& panel() override { return m_lists.panel(); }
 
     void refresh(const Selection& s, const PanelContext& c) override {
-        const sim::City* city = city_at(s, c);
-        if (city == nullptr) {
-            return;
+        if (const sim::City* city = city_at(s, c)) {
+            m_lists.refresh(*city, c);
         }
-        m_panel.set_text(53002, city->name);
-        m_panel.set_text(53003, c.text("GAME", 36));
-        m_panel.set_text(53004, c.text("GAME", 35));
-        const assets::BuildingType* k = sim::kontor_of(c.world(), c.buildings, *city);
-        fill(*city, true, 53011, 53031, 53051, 11, k != nullptr ? k->max_wares2 : 0);
-        fill(*city, false, 53071, 53081, 53091, 8, k != nullptr ? k->max_wares : 0);
     }
     void clicked(const ui::PanelEvent&, const Selection&, const PanelContext&, std::vector<sim::Command>&) override {}
 
     [[nodiscard]] std::optional<std::string> help(std::int32_t id, const Selection& s,
                                                   const PanelContext& c) const override {
         const sim::City* city = city_at(s, c);
-        if (city == nullptr) {
-            return std::nullopt;
-        }
-        const auto row = [&](bool buy, std::size_t k) -> std::optional<std::string> {
-            const auto& list = buy ? m_buy : m_sell;
-            if (k >= list.size()) {
-                return std::nullopt;
-            }
-            const std::uint8_t w = list[k];
-            const sim::City::Trade* t = city->trade_of(w);
-            const std::int64_t price = t == nullptr ? 0 : (buy ? t->buy_price : t->sell_price);
-            return ui::format_text(c.text("GAME", 58), {std::int64_t{amount(*city, w, buy) >> 5U},
-                                                        std::string_view(c.text("WARE", w)), price});
-        };
-        if (id >= 53051 && id <= 53061) {
-            return row(true, static_cast<std::size_t>(id - 53051));
-        }
-        if (id >= 53091 && id <= 53098) {
-            return row(false, static_cast<std::size_t>(id - 53091));
-        }
-        return std::nullopt;
+        return city != nullptr ? m_lists.help(id, *city, c) : std::nullopt;
     }
 
 private:
-    /// What the city still buys (up to its limit) or sells (above what it keeps), 0 below 1 t.
-    static std::uint32_t amount(const sim::City& city, std::uint8_t w, bool buy) {
-        const sim::City::Trade* t = city.trade_of(w);
-        if (t == nullptr) {
-            return 0;
-        }
-        const std::int64_t stock = city.stock(w);
-        const std::int64_t reserved = city.reserved_of(w);
-        const std::int64_t n =
-            buy ? std::int64_t{t->limit} - stock + reserved : stock - std::int64_t{t->keep} - reserved;
-        return n < 32 ? 0 : static_cast<std::uint32_t>(n);
-    }
-    void fill(const sim::City& city, bool buy, std::int32_t icon, std::int32_t bar, std::int32_t frame,
-              std::int32_t gadgets, std::int32_t places) {
-        auto& list = buy ? m_buy : m_sell;
-        list.clear();
-        for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
-            const sim::City::Trade* t = city.trade_of(w);
-            if (t != nullptr && (buy ? t->buy : t->sell)) {
-                list.push_back(w);
-            }
-        }
-        const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city.capacity, 1));
-        for (std::int32_t k = 0; k < gadgets; ++k) {
-            const bool ware = k < static_cast<std::int32_t>(list.size());
-            const bool place = ware || k < places;
-            m_panel.set_visible(icon + k, place);
-            m_panel.set_visible(frame + k, place);
-            m_panel.set_visible(bar + k, ware);
-            if (ware) {
-                const std::uint8_t w = list[static_cast<std::size_t>(k)];
-                m_panel.set_graphic(icon + k, m_gfx_ware + w, 0);
-                m_panel.set_slider(
-                    bar + k, 1, static_cast<std::int32_t>(std::min<std::uint32_t>(amount(city, w, buy), city.capacity)),
-                    cap);
-            } else if (place) {
-                m_panel.set_graphic(icon + k, m_gfx_empty, 0);
-            }
-        }
-    }
-    std::int32_t m_gfx_ware = 192;
-    std::int32_t m_gfx_empty = 189;
-    std::vector<std::uint8_t> m_buy;
-    std::vector<std::uint8_t> m_sell;
-};
-
-// ---- Ships ---------------------------------------------------------------------------------------
-
-constexpr std::uint8_t kCannonWare = 13;  // KANONEN
-constexpr std::uint8_t kFirstSoldierWare = 25;
-constexpr std::uint8_t kLastSoldierWare = 44;
-constexpr std::array<std::uint32_t, 4> kSteps{32, 5 * 32, 10 * 32, 50 * 32};  // 1, 5, 10, 50 t
-
-/// SHIP (the ship), TRANSFER (with the own Kontor) and TRADE (with a foreign one)
-/// (ShipPanel_Refresh 0x00436170, TransferPanel_Refresh 0x004372C0, TradePanel_Refresh 0x004377F0).
-class ShipPanel final : public SelectionPanel {
-public:
-    ShipPanel(assets::GadgetLayout ship, assets::GadgetLayout transfer, assets::GadgetLayout trade)
-        : m_ship(std::move(ship), 1.0), m_transfer(std::move(transfer), 1.0), m_trade(std::move(trade), 1.0) {
-        const assets::GadgetLayout& l = m_ship.layout();
-        m_gfx_ware = l.constant("GFXWARE").value_or(192);
-        m_gfx_empty = l.constant("GFXWARELEER").value_or(188) + 1;
-        m_gfx_ship = l.constant("GFXSHIP").value_or(363);
-        // Not in Open1602 yet: the route editor, scuttling, the pirates' offers.
-        for (const std::int32_t id : {kRouteEditor, kScuttle, kPirates, kDeadSlider}) {
-            m_ship.set_visible(id, false);
-        }
-        m_transfer.set_selected(45003, true);
-        m_transfer.set_selected(45141, true);
-        m_trade.set_selected(33003, true);
-    }
-    void set_scale(double scale) override {
-        m_ship.set_scale(scale);
-        m_transfer.set_scale(scale);
-        m_trade.set_scale(scale);
-    }
-    ui::Panel& panel() override {
-        return m_page == Page::Transfer ? m_transfer : m_page == Page::Trade ? m_trade : m_ship;
-    }
-
-    void refresh(const Selection& s, const PanelContext& c) override {
-        if (s.ship != m_last_ship) {
-            m_last_ship = s.ship;
-            m_page = Page::Root;
-            m_hold = 0;
-            m_offer = 0;
-        }
-        const sim::Ship* ship = c.world().ship(s.ship);
-        if (ship == nullptr) {
-            return;
-        }
-        const Context k = context(*ship, c);
-        // Transfer and trade end when the ship sails off (0x0043AA00).
-        if (k.moving || (m_page == Page::Transfer && !k.own_kontor) || (m_page == Page::Trade && !k.foreign_kontor)) {
-            m_page = Page::Root;
-        }
-        switch (m_page) {
-            case Page::Root:
-                refresh_root(*ship, k, c);
-                break;
-            case Page::Transfer:
-                refresh_transfer(*ship, k, c);
-                break;
-            case Page::Trade:
-                refresh_trade(*ship, k, c);
-                break;
-        }
-    }
-
-    void clicked(const ui::PanelEvent& e, const Selection& s, const PanelContext& c,
-                 std::vector<sim::Command>& out) override {
-        const sim::Ship* ship = c.world().ship(s.ship);
-        if (ship == nullptr || ship->owner != c.local) {
-            // Somebody else's ship: only buying it, if it is offered.
-            if (ship != nullptr && e.kind == ui::PanelEvent::Kind::Clicked && e.id == kSale && ship->for_sale) {
-                out.emplace_back(ship_command(*ship, c, sim::ShipCommand::Op::Buy));
-            }
-            return;
-        }
-        if (m_page == Page::Transfer) {
-            clicked_transfer(e, *ship, c, out);
-        } else if (m_page == Page::Trade) {
-            clicked_trade(e, *ship, c, out);
-        } else {
-            clicked_root(e, *ship, c, out);
-        }
-    }
-
-    [[nodiscard]] std::optional<std::string> help(std::int32_t id, const Selection& s,
-                                                  const PanelContext& c) const override {
-        const sim::Ship* ship = c.world().ship(s.ship);
-        if (ship == nullptr) {
-            return std::nullopt;
-        }
-        const auto line = [&](std::size_t n) { return std::optional<std::string>(help_line(c, n)); };
-        // Holds: their goods, the soldiers' kind, or empty.
-        const auto hold_text = [&](std::size_t h) -> std::optional<std::string> {
-            if (h >= ship->cargo.size()) {
-                return std::nullopt;
-            }
-            const sim::CargoSlot& slot = ship->cargo[h];
-            if (slot.ware == 0 || slot.amount == 0) {
-                return c.text("WARE", 0);
-            }
-            if (slot.ware >= kFirstSoldierWare && slot.ware <= kLastSoldierWare) {
-                return c.text("WARE", slot.ware);
-            }
-            return ui::format_text(c.text("GAME", 50),
-                                   {std::int64_t{slot.amount >> 5U}, std::string_view(c.text("WARE", slot.ware))});
-        };
-        if (m_page == Page::Root) {
-            switch (id) {
-                case kName:
-                    return line(10);
-                case kRepair:
-                    return line(103);
-                case kSale:
-                    return line(ship->owner != c.local ? 107 : ship->for_sale ? 106 : 105);
-                case kTrade:
-                    return line(108);
-                case kCannonsDown:
-                    return line(119);
-                case kCannons:
-                    return ship->cannons > 0 ? ui::format_text(c.text("GAME", 23), {std::int64_t{ship->cannons}})
-                                             : c.text("GAME", 24);
-                case kHealthHover:
-                    return line(121);
-                case kPriceSlider:
-                    return line(118);
-                case kPriceDown:
-                    return line(116);
-                case kPriceUp:
-                    return line(117);
-                case kFound:
-                    return line(122);
-                case kTransfer:
-                    return line(123);
-                case kRoute:
-                    return line(ship->route.active ? 110 : 111);
-                case kStop:
-                    return line(127);
-                case kExplore:
-                    return line(125);
-                default:
-                    break;
-            }
-            if (id >= kHoldButton && id < kHoldButton + 8) {
-                return hold_text(static_cast<std::size_t>(id - kHoldButton));
-            }
-            return std::nullopt;
-        }
-        const sim::City* city = m_city ? c.world().city(m_city->first, m_city->second) : nullptr;
-        if (m_page == Page::Transfer) {
-            switch (id) {
-                case 45001:
-                    return line(158);
-                case 45002:
-                    return line(160);
-                case 45007:
-                case 45008:
-                    return line(165);
-                case 45122:
-                    return line(10);
-                case 45124:
-                    return line(11);
-                default:
-                    break;
-            }
-            if (id >= 45003 && id <= 45006) {
-                return line(static_cast<std::size_t>(49 + id - 45003));
-            }
-            if (id >= 45141 && id <= 45144) {
-                return line(static_cast<std::size_t>(161 + id - 45141));
-            }
-            if (id >= 45071 && id <= 45078) {
-                return hold_text(static_cast<std::size_t>(id - 45071));
-            }
-            if (id >= 45031 && id <= 45034 && city != nullptr) {
-                const std::uint8_t w = kontor_ware(static_cast<std::int32_t>(id - 45031));
-                if (w == 0) {
-                    return std::nullopt;
-                }
-                const std::uint32_t t = city->stock(w) >> 5U;
-                return t >= 1
-                           ? ui::format_text(c.text("GAME", 50), {std::int64_t{t}, std::string_view(c.text("WARE", w))})
-                           : c.text("WARE", w);
-            }
-            return std::nullopt;
-        }
-        // Trade.
-        const bool natives = city != nullptr && is_natives(*city, c);
-        switch (id) {
-            case 33001:
-                return line(natives ? 47 : 45);
-            case 33002:
-                return line(natives ? 48 : 46);
-            case 33122:
-                return line(10);
-            case 33124:
-                return line(11);
-            default:
-                break;
-        }
-        if (id >= 33003 && id <= 33006) {
-            return line(static_cast<std::size_t>(49 + id - 33003));
-        }
-        if (id >= 33031 && id <= 33038 && city != nullptr) {
-            const auto k = static_cast<std::size_t>(id - 33031);
-            if (k >= m_offers.size()) {
-                return std::nullopt;
-            }
-            const std::uint8_t w = m_offers[k];
-            return ui::format_text(c.text("GAME", 50),
-                                   {std::int64_t{sellable(*city, w) >> 5U}, std::string_view(c.text("WARE", w))});
-        }
-        if (id >= 33071 && id <= 33078 && city != nullptr) {
-            const auto h = static_cast<std::size_t>(id - 33071);
-            if (h >= ship->cargo.size()) {
-                return std::nullopt;
-            }
-            const sim::CargoSlot& slot = ship->cargo[h];
-            if (slot.ware == 0 || slot.amount == 0 ||
-                (slot.ware >= kFirstSoldierWare && slot.ware <= kLastSoldierWare)) {
-                return hold_text(h);
-            }
-            const std::uint32_t wanted = buyable(*city, slot.ware);
-            const sim::City::Trade* t = city->trade_of(slot.ware);
-            if (wanted == 0) {
-                return ui::format_text(c.text("GAME", t != nullptr && t->buy ? 67 : 68),
-                                       {std::int64_t{slot.amount >> 5U}, std::string_view(c.text("WARE", slot.ware))});
-            }
-            return ui::format_text(c.text("GAME", natives ? 69 : 70),
-                                   {std::int64_t{slot.amount >> 5U}, std::string_view(c.text("WARE", slot.ware)),
-                                    std::int64_t{wanted >> 5U}, std::int64_t{t != nullptr ? t->buy_price : 0}});
-        }
-        return std::nullopt;
-    }
-
-    bool back() override {
-        if (m_page == Page::Root) {
-            return false;
-        }
-        m_page = Page::Root;
-        return true;
-    }
-    std::optional<Request> take_request() override { return std::exchange(m_request, std::nullopt); }
-
-private:
-    enum class Page : std::uint8_t { Root, Transfer, Trade };
-    static constexpr std::int32_t kName = 38002;
-    static constexpr std::int32_t kRepair = 38003;
-    static constexpr std::int32_t kSale = 38004;
-    static constexpr std::int32_t kTrade = 38005;
-    static constexpr std::int32_t kCannonsDown = 38006;
-    static constexpr std::int32_t kCannons = 38007;
-    static constexpr std::int32_t kHealthFrame = 38008;
-    static constexpr std::int32_t kHealth = 38009;
-    static constexpr std::int32_t kHealthHover = 38010;
-    static constexpr std::int32_t kPriceTrack = 38011;
-    static constexpr std::int32_t kPriceSlider = 38012;
-    static constexpr std::int32_t kPriceDown = 38013;
-    static constexpr std::int32_t kPriceUp = 38014;
-    static constexpr std::int32_t kPriceLabel = 38015;
-    static constexpr std::int32_t kPrice = 38016;
-    static constexpr std::int32_t kFound = 38017;
-    static constexpr std::int32_t kTransfer = 38018;
-    static constexpr std::int32_t kPirates = 38019;
-    static constexpr std::int32_t kRoute = 38020;
-    static constexpr std::int32_t kRouteEditor = 38021;
-    static constexpr std::int32_t kStop = 38022;
-    static constexpr std::int32_t kExplore = 38023;
-    static constexpr std::int32_t kExploreRing = 38024;
-    static constexpr std::int32_t kScuttle = 38025;
-    static constexpr std::int32_t kHoldIcon = 38051;
-    static constexpr std::int32_t kHoldBar = 38071;
-    static constexpr std::int32_t kHoldButton = 38091;
-    static constexpr std::int32_t kDeadSlider = 38111;
-
-    /// What the ship can do where it lies (Ship_ContextActions 0x0044E630).
-    struct Context {
-        bool foreign = true;  ///< not the local player's ship
-        bool moving = false;
-        bool own_kontor = false;                ///< at an own Kontor: transfer
-        bool foreign_kontor = false;            ///< at another's Kontor with a trade treaty: trade
-        bool found = false;                     ///< an island within 4 tiles without an own city
-        std::optional<sim::CostBuilding> yard;  ///< an own shipyard in reach
-        sim::ExploreState explore = sim::ExploreState::NotAllowed;
-        std::optional<std::pair<std::uint16_t, std::uint8_t>> city;  ///< the Kontor's city
-    };
-
-    Context context(const sim::Ship& ship, const PanelContext& c) {
-        Context k;
-        const sim::World& w = c.world();
-        k.foreign = ship.owner != c.local;
-        const sim::ShipMotion& m = ship.motion;
-        k.moving = m.phase == sim::ShipMotion::Phase::Run || m.phase == sim::ShipMotion::Phase::Turn ||
-                   (m.path_index < m.path.size());
-        k.explore = c.simulation.fleet().explore_state(ship, c.local);
-        if (k.foreign || k.moving) {
-            return k;
-        }
-        if (const auto index = sim::kontor_in_reach(w, c.buildings, ship.x, ship.y)) {
-            const sim::City& city = w.cities()[*index];
-            k.city = std::make_pair(city.island, city.index);
-            if (city.owner == ship.owner) {
-                k.own_kontor = true;
-            } else if (w.diplomacy().may_trade(ship.owner, city.owner)) {  // natives too: by treaty
-                k.foreign_kontor = true;
-            }
-        } else {
-            // An island within 4 tiles where the player has no city yet.
-            for (int dy = -4; dy <= 4 && !k.found; ++dy) {
-                for (int dx = -4; dx <= 4 && !k.found; ++dx) {
-                    const std::int32_t x = ship.x + dx;
-                    const std::int32_t y = ship.y + dy;
-                    if (x < 0 || y < 0 || x >= static_cast<std::int32_t>(w.width()) ||
-                        y >= static_cast<std::int32_t>(w.height())) {
-                        continue;
-                    }
-                    const sim::World::Cell& cell = w.cell(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
-                    if (cell.island == sim::World::kSea) {
-                        continue;
-                    }
-                    const bool own_city = std::any_of(w.cities().begin(), w.cities().end(), [&](const sim::City& ct) {
-                        return ct.island == cell.island && ct.owner == ship.owner;
-                    });
-                    k.found = !own_city;
-                }
-            }
-        }
-        for (const sim::CostBuilding& b : w.cost_buildings()) {
-            if (b.kind != sim::CostBuilding::Kind::Shipyard || b.island >= w.islands().size()) {
-                continue;
-            }
-            const sim::MapCell& top = w.islands()[b.island].map.top(b.x, b.y);
-            if (top.owner == ship.owner && sim::building_in_reach(w, c.buildings, b.island, b.x, b.y, ship.x, ship.y)) {
-                k.yard = b;
-                break;
-            }
-        }
-        return k;
-    }
-
-    [[nodiscard]] static bool is_natives(const sim::City& city, const PanelContext& c) {
-        const sim::Player* p = c.world().player(city.owner);
-        return p != nullptr && p->role == sim::PlayerRole::Natives;
-    }
-    [[nodiscard]] static sim::ShipCommand ship_command(const sim::Ship& ship, const PanelContext& c,
-                                                       sim::ShipCommand::Op op) {
-        sim::ShipCommand o;
-        o.player = c.local;
-        o.ship = ship.id;
-        o.op = op;
-        return o;
-    }
-    [[nodiscard]] std::uint32_t step(const ui::Panel& p, std::int32_t first) const {
-        for (std::size_t k = 0; k < kSteps.size(); ++k) {
-            if (p.selected(first + static_cast<std::int32_t>(k))) {
-                return kSteps[k];
-            }
-        }
-        return kSteps[0];
-    }
-
-    void holds(ui::Panel& p, const sim::Ship& ship, const PanelContext& c, std::int32_t icon, std::int32_t bar,
-               std::int32_t button, bool shown) {
-        const assets::FigureType* f = c.figures.get(ship.figure);
-        const std::size_t n = f != nullptr && f->ship.cargo_slots != 0 ? f->ship.cargo_slots : ship.cargo.size();
-        for (std::size_t h = 0; h < 8; ++h) {
-            const auto k = static_cast<std::int32_t>(h);
-            const bool hold = shown && h < n && h < ship.cargo.size();
-            p.set_visible(icon + k, hold);
-            p.set_visible(button + k, hold);
-            const bool filled = hold && ship.cargo[h].ware != 0 && ship.cargo[h].amount != 0;
-            p.set_visible(bar + k, filled);
-            if (!hold) {
-                continue;
-            }
-            const sim::CargoSlot& slot = ship.cargo[h];
-            p.set_graphic(icon + k, filled ? m_gfx_ware + slot.ware : m_gfx_empty, 0);
-            if (filled) {
-                p.set_slider(bar + k, 1, static_cast<std::int32_t>(std::min(slot.amount, sim::kHoldCapacity)),
-                             static_cast<std::int32_t>(sim::kHoldCapacity));
-            }
-        }
-    }
-
-    void refresh_root(const sim::Ship& ship, const Context& k, const PanelContext& c) {
-        m_ship.set_text(kName, ship.name);
-        const bool own = !k.foreign;
-        const bool idle = own && !k.moving;
-        m_ship.set_visible(kTrade, idle && k.foreign_kontor);
-        m_ship.set_visible(kTransfer, idle && k.own_kontor);
-        const assets::FigureType* f = c.figures.get(ship.figure);
-        const std::uint32_t max_health = f != nullptr ? std::max<std::uint32_t>(f->ship.max_health, 1) : 1;
-        const std::uint32_t health = ship.health == 0 ? max_health : ship.health;
-        m_ship.set_visible(kRepair, idle && k.yard.has_value() && health < max_health);
-        m_ship.set_selected(kRepair, ship.repairing);
-        m_ship.set_visible(kFound, idle && k.found);
-        m_ship.set_visible(kStop, own && k.moving);
-        const bool running = k.explore == sim::ExploreState::Running;
-        m_ship.set_visible(kExplore, own && (k.explore == sim::ExploreState::Possible || running));
-        m_ship.set_visible(kExploreRing, own && running);
-        if (running) {
-            m_ship.set_graphic(kExploreRing, m_gfx_ship + 28 + (11 - std::min<std::int32_t>(ship.explore_steps, 11)),
-                               0);
-        }
-        // Sale: an own ship can be offered; another's only shows its price, and can be bought.
-        m_ship.set_visible(kSale, own || ship.for_sale);
-        m_ship.set_selected(kSale, ship.for_sale && own);
-        for (const std::int32_t id : {kPriceTrack, kPriceSlider, kPriceDown, kPriceUp}) {
-            m_ship.set_visible(id, ship.for_sale && own);
-        }
-        m_ship.set_visible(kPriceLabel, ship.for_sale);
-        m_ship.set_visible(kPrice, ship.for_sale);
-        if (ship.for_sale) {
-            m_ship.set_text(kPriceLabel, c.text("GAME", 10));
-            m_ship.set_text(kPrice, "$ " + std::to_string(c.simulation.fleet().sale_price(ship)));
-            if (m_ship.held() != kPriceSlider) {
-                m_ship.set_slider(kPriceSlider, 0, ship.sale_factor, sim::ShipCommand::kMaxSaleFactor);
-            }
-        }
-        for (const std::int32_t id : {kHealthFrame, kHealth, kHealthHover, kCannonsDown, kCannons}) {
-            m_ship.set_visible(id, own);
-        }
-        m_ship.set_slider(kHealth, 0, static_cast<std::int32_t>(std::uint64_t{health} * 1000 / max_health), 1000);
-        m_ship.set_text(kCannons, std::to_string(ship.cannons));
-        m_ship.set_disabled(kCannonsDown, ship.cannons == 0);
-        m_ship.set_visible(kRoute, own && !ship.for_sale && ship.route.has_stops());
-        m_ship.set_selected(kRoute, !ship.route.active);
-        holds(m_ship, ship, c, kHoldIcon, kHoldBar, kHoldButton, own || ship.for_sale);
-    }
-
-    void clicked_root(const ui::PanelEvent& e, const sim::Ship& ship, const PanelContext& c,
-                      std::vector<sim::Command>& out) {
-        if (e.kind == ui::PanelEvent::Kind::Slid && e.id == kPriceSlider) {
-            const auto factor =
-                static_cast<std::uint16_t>(m_ship.slider(kPriceSlider, 0, sim::ShipCommand::kMaxSaleFactor));
-            if (factor != ship.sale_factor) {
-                sim::ShipCommand o = ship_command(ship, c, sim::ShipCommand::Op::OfferForSale);
-                o.factor = factor;
-                out.emplace_back(o);
-            }
-            return;
-        }
-        if (e.kind != ui::PanelEvent::Kind::Clicked) {
-            return;
-        }
-        const Context k = context(ship, c);
-        switch (e.id) {
-            case kStop: {
-                sim::ShipOrder o;
-                o.player = c.local;
-                o.ship = ship.id;
-                out.emplace_back(o);
-                break;
-            }
-            case kExplore: {
-                sim::ExploreOrder o;
-                o.player = c.local;
-                o.ship = ship.id;
-                out.emplace_back(o);
-                break;
-            }
-            case kRoute: {
-                sim::RouteEdit o;
-                o.player = c.local;
-                o.ship = ship.id;
-                o.op = ship.route.active ? sim::RouteEdit::Op::Stop : sim::RouteEdit::Op::Start;
-                out.emplace_back(o);
-                break;
-            }
-            case kRepair:
-                if (k.yard) {
-                    sim::ShipyardOrder o;
-                    o.player = c.local;
-                    o.island = k.yard->island;
-                    o.x = k.yard->x;
-                    o.y = k.yard->y;
-                    o.op = sim::ShipyardOrder::Op::Repair;
-                    o.ship = ship.id;
-                    o.on = !ship.repairing;
-                    out.emplace_back(o);
-                }
-                break;
-            case kSale:
-                out.emplace_back(ship_command(
-                    ship, c, ship.for_sale ? sim::ShipCommand::Op::WithdrawSale : sim::ShipCommand::Op::OfferForSale));
-                break;
-            case kPriceDown:
-            case kPriceUp: {
-                sim::ShipCommand o = ship_command(ship, c, sim::ShipCommand::Op::OfferForSale);
-                o.factor = static_cast<std::uint16_t>(std::clamp<int>(ship.sale_factor + (e.id == kPriceUp ? 1 : -1), 0,
-                                                                      sim::ShipCommand::kMaxSaleFactor));
-                out.emplace_back(o);
-                break;
-            }
-            case kCannonsDown:
-                if (ship.cannons > 0) {
-                    out.emplace_back(ship_command(ship, c, sim::ShipCommand::Op::UnmountCannon));
-                }
-                break;
-            case kTrade:
-            case kTransfer:
-                if (k.city) {
-                    m_city = k.city;
-                    m_page = e.id == kTrade ? Page::Trade : Page::Transfer;
-                    // The fullest hold is chosen first (0x0044E390).
-                    m_hold = 0;
-                    for (std::size_t h = 0; h < ship.cargo.size(); ++h) {
-                        if (ship.cargo[h].amount >= ship.cargo[static_cast<std::size_t>(m_hold)].amount) {
-                            m_hold = static_cast<std::int32_t>(h);
-                        }
-                    }
-                    m_offer = 0;
-                }
-                break;
-            case kFound:
-                m_request = Request{Request::Kind::FoundKontor, ship.id};
-                break;
-            default:
-                if (e.id >= kHoldButton && e.id < kHoldButton + 8) {
-                    const auto h = static_cast<std::size_t>(e.id - kHoldButton);
-                    if (h >= ship.cargo.size()) {
-                        break;
-                    }
-                    const sim::CargoSlot& slot = ship.cargo[h];
-                    if (slot.ware >= kFirstSoldierWare && slot.ware <= kLastSoldierWare && slot.amount != 0) {
-                        // Soldiers in the hold go ashore (0x00448F90).
-                        sim::UnloadOrder o;
-                        o.player = c.local;
-                        o.ship = ship.id;
-                        o.hold = static_cast<std::uint8_t>(h);
-                        out.emplace_back(o);
-                    } else if (slot.ware == kCannonWare && slot.amount >= 32) {
-                        sim::ShipCommand o = ship_command(ship, c, sim::ShipCommand::Op::MountCannon);
-                        o.hold = static_cast<std::uint8_t>(h);
-                        out.emplace_back(o);
-                    }
-                }
-                break;
-        }
-    }
-
-    // Transfer: the wares of the Kontor in four groups, four at a time.
-    static std::pair<std::uint8_t, std::uint8_t> category_range(std::int32_t cat) {
-        switch (cat) {
-            case 0:
-                return {22, 24};  // Baumaterial
-            case 1:
-                return {11, 13};  // Waffen
-            case 2:
-                return {14, 21};  // Bedarfsgüter
-            default:
-                return {2, 10};  // Rohstoffe
-        }
-    }
-    static std::int32_t category_of(std::uint8_t w) {
-        for (std::int32_t c = 0; c < 4; ++c) {
-            const auto [first, last] = category_range(c);
-            if (w >= first && w <= last) {
-                return c;
-            }
-        }
-        return 0;
-    }
-    [[nodiscard]] std::int32_t category() const {
-        for (std::int32_t k = 0; k < 4; ++k) {
-            if (m_transfer.selected(45141 + k)) {
-                return k;
-            }
-        }
-        return 0;
-    }
-    /// The ware on Kontor button k (0..3), 0 if none.
-    [[nodiscard]] std::uint8_t kontor_ware(std::int32_t k) const {
-        const std::int32_t cat = category();
-        const auto [first, last] = category_range(cat);
-        const std::int32_t w = first + m_scroll[static_cast<std::size_t>(cat)] + k;
-        return w <= last ? static_cast<std::uint8_t>(w) : 0;
-    }
-    void show_ware(std::uint8_t w) {
-        const std::int32_t cat = category_of(w);
-        for (std::int32_t k = 0; k < 4; ++k) {
-            m_transfer.set_selected(45141 + k, k == cat);
-        }
-        const auto [first, last] = category_range(cat);
-        std::int32_t& scroll = m_scroll[static_cast<std::size_t>(cat)];
-        if (last - first + 1 > 4) {
-            scroll = std::clamp<std::int32_t>(w - first - 1, 0, last - first - 3);
-        }
-        for (std::int32_t k = 0; k < 4; ++k) {
-            m_transfer.set_selected(45031 + k, kontor_ware(k) == w);
-        }
-    }
-
-    void refresh_transfer(const sim::Ship& ship, const Context&, const PanelContext& c) {
-        const sim::City* city = m_city ? c.world().city(m_city->first, m_city->second) : nullptr;
-        if (city == nullptr) {
-            m_page = Page::Root;
-            return;
-        }
-        m_transfer.set_text(45122, ship.name);
-        m_transfer.set_text(45124, city->name);
-        const std::int32_t cat = category();
-        const auto [first, last] = category_range(cat);
-        const bool scrolls = last - first + 1 > 4;
-        const std::int32_t scroll = m_scroll[static_cast<std::size_t>(cat)];
-        m_transfer.set_visible(45007, scrolls && scroll > 0);
-        m_transfer.set_visible(45008, scrolls && scroll < last - first - 3);
-        const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city->capacity, 1));
-        for (std::int32_t k = 0; k < 4; ++k) {
-            const std::uint8_t w = kontor_ware(k);
-            m_transfer.set_visible(45011 + k, w != 0);
-            m_transfer.set_visible(45031 + k, w != 0);
-            m_transfer.set_visible(45131 + k, w != 0);
-            if (w == 0) {
-                continue;
-            }
-            m_transfer.set_graphic(45011 + k, m_gfx_ware + w, 0);
-            m_transfer.set_disabled(45011 + k, city->stock(w) == 0);
-            m_transfer.set_slider(
-                45131 + k, 1, static_cast<std::int32_t>(std::min<std::uint32_t>(city->stock(w), city->capacity)), cap);
-        }
-        holds(m_transfer, ship, c, 45051, 45091, 45071, true);
-        for (std::int32_t h = 0; h < 8; ++h) {
-            m_transfer.set_selected(45071 + h, h == m_hold);
-        }
-    }
-
-    void clicked_transfer(const ui::PanelEvent& e, const sim::Ship& ship, const PanelContext& c,
-                          std::vector<sim::Command>& out) {
-        if (e.kind != ui::PanelEvent::Kind::Clicked) {
-            return;
-        }
-        const std::uint32_t amount = step(m_transfer, 45003);
-        const std::int32_t cat = category();
-        const auto [first, last] = category_range(cat);
-        std::int32_t& scroll = m_scroll[static_cast<std::size_t>(cat)];
-        if (e.id == 45007) {
-            scroll = std::max(0, scroll - 1);
-        } else if (e.id == 45008) {
-            scroll = std::min(scroll + 1, std::max(0, last - first - 3));
-        } else if (e.id >= 45071 && e.id <= 45078) {
-            m_hold = e.id - 45071;
-            const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && ship.cargo[h].ware >= 2 && ship.cargo[h].ware <= 24 &&
-                ship.cargo[h].amount != 0) {
-                show_ware(ship.cargo[h].ware);  // the Kontor shows the same ware
-            }
-        } else if (e.id == 45001) {
-            std::uint8_t w = 0;
-            for (std::int32_t k = 0; k < 4; ++k) {
-                if (m_transfer.selected(45031 + k)) {
-                    w = kontor_ware(k);
-                }
-            }
-            if (w >= 2 && w <= 24) {
-                sim::CargoTransfer o;
-                o.player = c.local;
-                o.ship = ship.id;
-                o.ware = w;
-                o.to_ship = true;
-                o.amount = amount;
-                out.emplace_back(o);
-            }
-        } else if (e.id == 45002) {
-            const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && ship.cargo[h].ware >= 2 && ship.cargo[h].ware <= 24 &&
-                ship.cargo[h].amount != 0) {
-                show_ware(ship.cargo[h].ware);
-                sim::CargoTransfer o;
-                o.player = c.local;
-                o.ship = ship.id;
-                o.ware = ship.cargo[h].ware;
-                o.to_ship = false;
-                o.amount = std::min(amount, ship.cargo[h].amount);
-                o.hold = static_cast<std::uint8_t>(h);
-                out.emplace_back(o);
-            }
-        }
-    }
-
-    // Trade.
-    [[nodiscard]] static std::uint32_t sellable(const sim::City& city, std::uint8_t w) {
-        const sim::City::Trade* t = city.trade_of(w);
-        if (t == nullptr || !t->sell) {
-            return 0;
-        }
-        const std::int64_t n = std::int64_t{city.stock(w)} - t->keep - city.reserved_of(w);
-        return n < 32 ? 0 : static_cast<std::uint32_t>(n);
-    }
-    [[nodiscard]] static std::uint32_t buyable(const sim::City& city, std::uint8_t w) {
-        const sim::City::Trade* t = city.trade_of(w);
-        if (t == nullptr || !t->buy) {
-            return 0;
-        }
-        const std::int64_t n = std::int64_t{t->limit} - city.stock(w) + city.reserved_of(w);
-        return n < 32 ? 0 : static_cast<std::uint32_t>(n);
-    }
-
-    void refresh_trade(const sim::Ship& ship, const Context&, const PanelContext& c) {
-        const sim::City* city = m_city ? c.world().city(m_city->first, m_city->second) : nullptr;
-        if (city == nullptr) {
-            m_page = Page::Root;
-            return;
-        }
-        const bool natives = is_natives(*city, c);
-        m_trade.set_text(33122, ship.name);
-        m_trade.set_text(33124, city->name);
-        const assets::BuildingType* kontor = sim::kontor_of(c.world(), c.buildings, *city);
-        const std::int32_t places = std::min<std::int32_t>(kontor != nullptr ? kontor->max_wares : 8, 8);
-        m_offers.clear();
-        for (std::uint8_t w = 2; w <= 24; ++w) {
-            if (sellable(*city, w) >= 32) {
-                m_offers.push_back(w);
-            }
-        }
-        const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city->capacity, 1));
-        for (std::int32_t k = 0; k < 8; ++k) {
-            const bool place = k < places;
-            const bool ware = place && k < static_cast<std::int32_t>(m_offers.size());
-            m_trade.set_visible(33011 + k, place);
-            m_trade.set_visible(33031 + k, place);
-            m_trade.set_visible(33131 + k, ware);
-            m_trade.set_selected(33031 + k, k == m_offer);
-            if (ware) {
-                const std::uint8_t w = m_offers[static_cast<std::size_t>(k)];
-                m_trade.set_graphic(33011 + k, m_gfx_ware + w, 0);
-                m_trade.set_slider(
-                    33131 + k, 1,
-                    static_cast<std::int32_t>(std::min<std::uint32_t>(sellable(*city, w), city->capacity)), cap);
-            } else if (place) {
-                m_trade.set_graphic(33011 + k, m_gfx_empty, 0);
-            }
-        }
-        const bool offer = m_offer < static_cast<std::int32_t>(m_offers.size());
-        m_trade.set_visible(33111, offer);
-        m_trade.set_visible(33112, offer && !natives);
-        m_trade.set_visible(33113, offer && !natives);
-        m_trade.set_disabled(33001, !offer);
-        if (offer) {
-            const std::uint8_t w = m_offers[static_cast<std::size_t>(m_offer)];
-            m_trade.set_text(33111, c.text("WARE", w));
-            const sim::City::Trade* t = city->trade_of(w);
-            m_trade.set_text(33112, std::to_string(t != nullptr ? t->sell_price : 0));
-        }
-        holds(m_trade, ship, c, 33051, 33091, 33071, true);
-        if (m_hold >= static_cast<std::int32_t>(ship.cargo.size())) {
-            m_hold = 0;
-        }
-        for (std::int32_t h = 0; h < 8; ++h) {
-            m_trade.set_selected(33071 + h, h == m_hold);
-        }
-        const auto h = static_cast<std::size_t>(m_hold);
-        const std::uint8_t hw = h < ship.cargo.size() && ship.cargo[h].amount != 0 ? ship.cargo[h].ware : 0;
-        const bool wanted = hw >= 2 && hw <= 24 && buyable(*city, hw) >= 32;
-        m_trade.set_visible(33114, wanted);
-        m_trade.set_visible(33115, wanted && !natives);
-        m_trade.set_visible(33116, wanted && !natives);
-        m_trade.set_disabled(33002, !wanted);
-        if (wanted) {
-            const sim::City::Trade* t = city->trade_of(hw);
-            m_trade.set_text(33114, c.text("WARE", hw));
-            m_trade.set_text(33115, std::to_string(t != nullptr ? t->buy_price : 0));
-        }
-    }
-
-    void clicked_trade(const ui::PanelEvent& e, const sim::Ship& ship, const PanelContext& c,
-                       std::vector<sim::Command>& out) {
-        if (e.kind != ui::PanelEvent::Kind::Clicked) {
-            return;
-        }
-        const std::uint32_t amount = step(m_trade, 33003);
-        if (e.id >= 33031 && e.id <= 33038) {
-            m_offer = e.id - 33031;
-        } else if (e.id >= 33071 && e.id <= 33078) {
-            m_hold = e.id - 33071;
-        } else if (e.id == 33001 && m_offer < static_cast<std::int32_t>(m_offers.size())) {
-            sim::CargoTransfer o;
-            o.player = c.local;
-            o.ship = ship.id;
-            o.ware = m_offers[static_cast<std::size_t>(m_offer)];
-            o.to_ship = true;
-            o.amount = amount;  // the simulation takes what fits, what is offered and what is paid for
-            out.emplace_back(o);
-        } else if (e.id == 33002) {
-            const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && ship.cargo[h].ware >= 2 && ship.cargo[h].ware <= 24 &&
-                ship.cargo[h].amount != 0) {
-                sim::CargoTransfer o;
-                o.player = c.local;
-                o.ship = ship.id;
-                o.ware = ship.cargo[h].ware;
-                o.to_ship = false;
-                o.amount = std::min(amount, ship.cargo[h].amount);
-                o.hold = static_cast<std::uint8_t>(h);
-                out.emplace_back(o);
-            }
-        }
-    }
-
-    ui::Panel m_ship;
-    ui::Panel m_transfer;
-    ui::Panel m_trade;
-    std::int32_t m_gfx_ware = 192;
-    std::int32_t m_gfx_empty = 189;
-    std::int32_t m_gfx_ship = 363;
-    Page m_page = Page::Root;
-    std::uint32_t m_last_ship = 0;
-    std::int32_t m_hold = 0;
-    std::int32_t m_offer = 0;
-    std::array<std::int32_t, 4> m_scroll{};
-    std::vector<std::uint8_t> m_offers;
-    std::optional<std::pair<std::uint16_t, std::uint8_t>> m_city;
-    std::optional<Request> m_request;
+    TradeLists m_lists;
 };
 
 }  // namespace
@@ -2441,11 +1505,19 @@ SelectionPanels::SelectionPanels(const assets::GameDirectory& game) {
             m_panels["STADT"] = std::make_unique<CityPanel>(std::move(*stadt), std::move(*kontor), std::move(*lager));
         }
     }
-    if (auto ship = load("SHIP.GAD")) {
+    {
+        auto ship = load("SHIP.GAD");
         auto transfer = load("TRANSFER.GAD");
         auto trade = load("TRADE.GAD");
-        if (transfer && trade) {
-            m_panels["SHIP"] = std::make_unique<ShipPanel>(std::move(*ship), std::move(*transfer), std::move(*trade));
+        auto route = load("ROUTE.GAD");
+        auto lager = load("LAGER.GAD");
+        auto handel = load("HANDEL.GAD");
+        auto pirat = load("PIRAT.GAD");
+        auto piratord = load("PIRATORD.GAD");
+        if (ship && transfer && trade && route && lager && handel && pirat && piratord) {
+            m_panels["SHIP"] = make_ship_panel(ShipLayouts{std::move(*ship), std::move(*transfer), std::move(*trade),
+                                                           std::move(*route), std::move(*lager), std::move(*handel),
+                                                           std::move(*pirat), std::move(*piratord)});
         }
     }
     if (auto werft = load("WERFT.GAD")) {

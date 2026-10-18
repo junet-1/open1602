@@ -56,6 +56,17 @@ struct TradeRoute {
         }
         return false;
     }
+    /// A patrol: a route of positions only (`Ship_IsPatrolling 0x0044EA90`).
+    [[nodiscard]] bool patrol() const noexcept {
+        bool any = false;
+        for (const RouteStop& s : stops) {
+            if (!s.target.empty() && s.target.kind != Target::Kind::Position) {
+                return false;
+            }
+            any = any || !s.target.empty();
+        }
+        return active && any;
+    }
 };
 
 /// A ware the free trader carries (the original's HANDLER record; not in the holds).

@@ -523,6 +523,44 @@ TEST_CASE("ships: a ship offered for sale changes hands for its price") {
     CHECK(!fleet.command(cmd(0, id, Op::Buy)));
 }
 
+TEST_CASE("ships: white flag, scuttling and patrols") {
+    Sea sea;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    const std::uint32_t id = sea.add(10, 10).id;
+    using Op = sim::ShipCommand::Op;
+    // The white flag stops the ship and holds it; only the owner raises it.
+    CHECK(fleet.order(sim::ShipOrder{0, id, sim::Target::position(30, 10)}));
+    CHECK(!fleet.command(cmd(1, id, Op::WhiteFlag)));
+    CHECK(fleet.command(cmd(0, id, Op::WhiteFlag)));
+    CHECK(sea.world.ship(id)->held);
+    CHECK(sea.world.ship(id)->target.empty());
+    CHECK(count(fleet.take_events(), sim::ShipEvent::Kind::WhiteFlag) == 1);
+    sim::ShipCommand lower = cmd(0, id, Op::WhiteFlag);
+    lower.on = false;
+    CHECK(fleet.command(lower));
+    CHECK(!sea.world.ship(id)->held);
+    // A patrol: from here to the point and back, the route on.
+    sim::ShipCommand patrol = cmd(0, id, Op::Patrol);
+    patrol.x = 20;
+    patrol.y = 10;
+    CHECK(fleet.command(patrol));
+    const sim::Ship& s = *sea.world.ship(id);
+    CHECK(s.route.patrol());
+    CHECK(s.route.stops[0].target == sim::Target::position(10, 10));
+    CHECK(s.route.stops[1].target == sim::Target::position(20, 10));
+    run(fleet, sea.world, 20000);
+    CHECK(sea.world.ship(id)->x > 10);
+    patrol.x = 60000;  // outside the world
+    CHECK(!fleet.command(patrol));
+    // Scuttled: it sinks and is gone after the sinking time.
+    CHECK(!fleet.command(cmd(1, id, Op::Scuttle)));
+    CHECK(fleet.command(cmd(0, id, Op::Scuttle)));
+    CHECK(sea.world.ship(id)->sinking);
+    CHECK(!sea.world.ship(id)->route.active);
+    run(fleet, sea.world, 20000);
+    CHECK(sea.world.ship(id) == nullptr);
+}
+
 TEST_CASE("ships: a Kontor trades in no more wares than its Maxware allows") {
     Sea sea(true);
     sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);

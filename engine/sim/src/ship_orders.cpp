@@ -159,6 +159,45 @@ bool Fleet::command(const ShipCommand& c) {
             m_events.push_back(ShipEvent{ShipEvent::Kind::Sold, ship->id, old_owner, 0, c.player, 0, 0, price});
             return true;
         }
+        case ShipCommand::Op::WhiteFlag:
+            if (!own) {
+                return false;
+            }
+            if (c.on) {
+                // Raising it stops the ship like the stop button (0x0044EBA0), then holds it.
+                if (!ship->held) {
+                    order(ShipOrder{c.player, ship->id, Target{}});
+                    ship->held = true;
+                    m_events.push_back(ShipEvent{ShipEvent::Kind::WhiteFlag, ship->id, ship->owner});
+                }
+            } else {
+                ship->held = false;
+            }
+            return true;
+        case ShipCommand::Op::Scuttle:
+            if (!own) {
+                return false;
+            }
+            sink(*ship, kNoPlayer);
+            return true;
+        case ShipCommand::Op::Patrol: {
+            const Target point = Target::position(c.x, c.y);
+            if (!own || !target_valid(point)) {
+                return false;
+            }
+            order(ShipOrder{c.player, ship->id, Target{}});
+            TradeRoute& route = ship->route;
+            route.stops = {};
+            route.stops[0].target = Target::position(ship->x, ship->y);
+            route.stops[1].target = point;
+            route.current = 0;
+            route.one_way = false;
+            RouteEdit start;
+            start.player = c.player;
+            start.ship = ship->id;
+            start.op = RouteEdit::Op::Start;
+            return edit_route(start);
+        }
     }
     return false;
 }
