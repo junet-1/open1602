@@ -285,6 +285,8 @@ private:
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters
     render::ShipTrail m_ship_trail;                 ///< ships drawn between two ticks
+    std::uint64_t m_title_real_ms = 0;              ///< real and game time of the last title (the speed reached)
+    std::uint64_t m_title_game_ms = 0;
     ViewerOptions m_options;
     sim::Simulation m_simulation;  ///< runs the economy on m_world (after m_world, m_buildings, m_figures)
 

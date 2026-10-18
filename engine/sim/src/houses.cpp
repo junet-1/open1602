@@ -523,6 +523,10 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
         rotated_size(*b, cell.rotation, w, h);
         sources.push_back(Source{cell.city, p.x, p.y, w, h, b->radius, bit});
     }
+    // By city: a house looks only at its own city's (review point 19). The result does not depend
+    // on the order (bits are or-ed, the market distance is a minimum).
+    std::sort(sources.begin(), sources.end(), [](const Source& a, const Source& b) { return a.city < b.city; });
+    const auto by_city = [](const Source& s, std::uint8_t c) { return s.city < c; };
     const Tables& t = tables();
     for (House& house : world.houses()) {
         if (house.island != island) {
@@ -539,10 +543,9 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
         house.services &= hs::kDisasterMask;
         house.market = false;
         house.market_distance = kNoMarket;
-        for (const Source& s : sources) {
-            if (s.city != house.city) {
-                continue;
-            }
+        for (auto it = std::lower_bound(sources.begin(), sources.end(), house.city, by_city);
+             it != sources.end() && it->city == house.city; ++it) {
+            const Source& s = *it;
             const std::int32_t dx = gap(s.x, s.w, house.x, hw);
             const std::int32_t dy = gap(s.y, s.h, house.y, hh);
             const auto r = static_cast<std::int32_t>(s.radius);

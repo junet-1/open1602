@@ -451,15 +451,23 @@ void attach_point(const sim::WorldIsland& island, const assets::BuildingType& b,
 
 std::vector<BuildingFigure> collect_building_figures(const sim::World& world, const assets::BuildingTable& buildings,
                                                      const assets::FigureTable& figures) {
+    std::vector<BuildingFigure> out;
+    for (std::size_t index = 0; index < world.islands().size(); ++index) {
+        collect_island_building_figures(world, buildings, figures, static_cast<std::uint16_t>(index), out);
+    }
+    return out;
+}
+
+void collect_island_building_figures(const sim::World& world, const assets::BuildingTable& buildings,
+                                     const assets::FigureTable& figures, std::uint16_t index,
+                                     std::vector<BuildingFigure>& out) {
     constexpr std::int32_t kProdMarkt = 7;      // HAUS_PRODTYP Kind MARKT
     constexpr std::int32_t kProdKontor = 8;     // KONTOR
     constexpr std::int32_t kProdWachturm = 16;  // WACHTURM: same branch in 0x00486B60
     constexpr std::int32_t kProdHouse = 13;     // WOHNUNG
     constexpr std::int32_t kProdWerft = 14;     // WERFT
-    std::vector<BuildingFigure> out;
-    const auto& islands = world.islands();
-    for (std::size_t index = 0; index < islands.size(); ++index) {
-        const sim::WorldIsland& island = islands[index];
+    {
+        const sim::WorldIsland& island = world.islands()[index];
         const sim::IslandMap& map = island.map;
         for (std::uint32_t y = 0; y < map.height(); ++y) {
             for (std::uint32_t x = 0; x < map.width(); ++x) {
@@ -542,7 +550,6 @@ std::vector<BuildingFigure> collect_building_figures(const sim::World& world, co
             out.push_back(f);
         }
     }
-    return out;
 }
 
 namespace {

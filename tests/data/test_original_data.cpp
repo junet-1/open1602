@@ -489,6 +489,19 @@ TEST_CASE("data: warehouse, market and tower flags of a scenario") {
     REQUIRE(world.ok());
 
     const auto figures_on_buildings = render::collect_building_figures(*world, *buildings, *figures);
+    // Island by island, as the game collects them again after building: the same list in order.
+    std::vector<render::BuildingFigure> by_island;
+    for (std::uint16_t i = 0; i < world->islands().size(); ++i) {
+        render::collect_island_building_figures(*world, *buildings, *figures, i, by_island);
+    }
+    REQUIRE(by_island.size() == figures_on_buildings.size());
+    for (std::size_t i = 0; i < by_island.size(); ++i) {
+        CHECK(by_island[i].island == figures_on_buildings[i].island);
+        CHECK(by_island[i].origin_x == figures_on_buildings[i].origin_x);
+        CHECK(by_island[i].origin_y == figures_on_buildings[i].origin_y);
+        CHECK(by_island[i].figure == figures_on_buildings[i].figure);
+        CHECK((i == 0 || by_island[i - 1].island <= by_island[i].island));
+    }
     // "Das Atoll": the three computer players start with warehouses and markets, the pirates
     // with a fortress full of towers; the natives' buildings and the pirate warehouse fly none.
     std::size_t per_owner[8] = {};
