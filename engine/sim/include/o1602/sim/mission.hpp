@@ -141,6 +141,19 @@ void prepare_missions(World& world);
 [[nodiscard]] std::int32_t player_balance(const World& world, const assets::BuildingTable& buildings,
                                           const assets::FigureTable& figures, PlayerId player);
 
+/// The figures of the info panel "Spielerstatus" (InfoPanel_Refresh 0x00434420), per minute.
+struct PlayerFigures {
+    std::uint32_t inhabitants = 0;  ///< Einwohner of all own cities
+    std::int64_t taxes = 0;
+    std::int64_t running_costs = 0;
+    std::int64_t military = 0;
+    std::int64_t sales = 0;
+    std::int64_t purchases = 0;
+    std::int64_t balance = 0;  ///< taxes - running costs - military + sales - purchases
+};
+[[nodiscard]] PlayerFigures player_figures(const World& world, const assets::BuildingTable& buildings,
+                                           const assets::FigureTable& figures, PlayerId player);
+
 /// Whether a player owns a city, a ship that is not sinking (the original's player + 0x86, + 0x9A).
 [[nodiscard]] bool owns_city(const World& world, PlayerId player);
 [[nodiscard]] bool owns_ship(const World& world, PlayerId player);

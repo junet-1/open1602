@@ -68,6 +68,16 @@ void BuildTool::rotate(int step) noexcept {
     m_rotation = static_cast<std::uint8_t>((m_rotation + step) & 3);
 }
 
+bool BuildTool::select(std::uint32_t id) noexcept {
+    for (std::size_t i = 0; i < m_list.size(); ++i) {
+        if (m_list[i]->id == id) {
+            m_selected = i;
+            return true;
+        }
+    }
+    return false;
+}
+
 void BuildTool::press(const Spot& spot) noexcept {
     m_drag_start = spot;
 }

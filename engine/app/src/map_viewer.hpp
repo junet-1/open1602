@@ -68,6 +68,16 @@ struct ViewerOptions {
     bool videos = true;                  ///< the videos of messages, victory, defeat and pause
     bool intro = false;                  ///< the logos and the intro before the game (the original always shows them)
     std::optional<std::uint16_t> video;  ///< one video before the game (VideoSmk number)
+    /// Mouse input played at given frames (smoke tests of the interface without a person).
+    struct ScriptedInput {
+        enum class Kind : std::uint8_t { Move, Down, Up, Key };
+        Kind kind = Kind::Move;
+        std::uint32_t frame = 0;
+        float x = 0.0F;
+        float y = 0.0F;
+        std::int32_t key = 0;  ///< Key: SDL key code
+    };
+    std::vector<ScriptedInput> input;
 };
 
 class MapViewer {
@@ -118,6 +128,8 @@ private:
     void lay_out();
     /// What a click on the frame asked for.
     void apply_hud(const Hud::Action& action);
+    /// The resource bar: money, and goods and inhabitants of the city under the mouse.
+    [[nodiscard]] Hud::Resources resources() const;
     [[nodiscard]] render::TilePos home_or_centre() const;
     /// Shots, hits, victory and defeat: sounds, messages and lines in the terminal.
     void apply_game_events();
@@ -198,6 +210,9 @@ private:
         bool loop = false;
         bool intro = false;
     };
+    std::optional<sim::BuildBill> m_pending_bill;  ///< costs of the order the build tool shows
+    sim::PlayerFigures m_player_figures;           ///< the info panel's figures, refreshed once a second
+    std::uint64_t m_figures_ms = 0;
     std::unique_ptr<VideoPlayer> m_video;  ///< after the window; null without videos
     std::deque<VideoRequest> m_videos;     ///< waiting
     VideoRequest m_video_now;              ///< playing

@@ -93,12 +93,106 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
       m_ctrl(std::move(ctrl), 1.0),
       m_leist(std::move(leist), 1.0) {
     if (texts != nullptr) {
+        m_texts = *texts;
         m_leiste = texts->section("LEISTE");
         m_meldung = texts->section("MELDUNG");
     }
+    const assets::TextTable* own = m_texts ? &*m_texts : nullptr;
     for (std::size_t i = 0; i < kEvents; ++i) {
         m_leist.set_hidden(kFirstEvent + static_cast<std::int32_t>(i), true);
     }
+    // The panels of the modes; without their layouts the head stays alone.
+    if (auto bau = assets::load_gad(game, "BAU.GAD")) {
+        m_build = std::make_unique<BuildPanel>(std::move(bau).value(), ui::original_build_menu(), own);
+    }
+    if (auto info = assets::load_gad(game, "INFO.GAD")) {
+        m_info = std::make_unique<InfoPanel>(std::move(info).value(), own);
+    }
+    m_ctrl.set_selected(m_mode, true);
+    m_gfx_baumat = m_ctrl.layout().constant("GFXBAUMAT").value_or(m_gfx_baumat);
+}
+
+void Hud::draw_resources() {
+    // Design units from the top left of the map, icons at the top, text cells ending at 30.
+    const double s = m_regions.scale;
+    const ui::Rect& v = m_regions.game_view;
+    const std::int32_t x0 = v.x + static_cast<std::int32_t>(5.5 * s);
+    std::vector<ui::DrawItem> items;
+    const auto icon = [&](std::int32_t gfx, std::int32_t x) {
+        ui::DrawItem d;
+        d.kind = ui::DrawItem::Kind::Sprite;
+        d.gfx = gfx;
+        d.x = ui::to_pixels(x, s);
+        d.y = 0;
+        items.push_back(d);
+    };
+    const auto text = [&](std::string t, std::int32_t x) {
+        ui::DrawItem d;
+        d.kind = ui::DrawItem::Kind::Text;
+        d.block = 0;   // ZEINR
+        d.colour = 4;  // light grey (240, 240, 240)
+        d.x = ui::to_pixels(x, s);
+        d.y = ui::to_pixels(30, s);
+        d.text = std::move(t);
+        items.push_back(d);
+    };
+    const auto with_cost = [](std::int64_t value, const std::optional<std::int64_t>& cost) {
+        return cost ? std::to_string(value) + " (" + std::to_string(*cost) + ")" : std::to_string(value);
+    };
+    const Resources& r = m_resources;
+    icon(m_gfx_baumat + 11, 16);
+    text(r.money ? with_cost(*r.money, r.money_cost) : std::string("???"), 46);
+    if (r.goods) {
+        // Werkzeug, Holz, Ziegel: GFXBAUMAT + 13, 14, 12.
+        const std::array<std::int32_t, 3> icons{m_gfx_baumat + 13, m_gfx_baumat + 14, m_gfx_baumat + 12};
+        for (std::size_t i = 0; i < 3; ++i) {
+            const auto x = static_cast<std::int32_t>(296 + 110 * i);
+            icon(icons[i], x);
+            const auto cost = r.goods_cost ? std::optional<std::int64_t>((*r.goods_cost)[i]) : std::nullopt;
+            text(with_cost((*r.goods)[i], cost), x + 30);
+        }
+    }
+    if (r.inhabitants) {
+        if (r.shield >= 0) {
+            icon(m_gfx_baumat + 17 + std::min(r.shield, 3), 666);
+        } else {
+            icon(m_gfx_baumat + 15, 646);
+        }
+        text(std::to_string(*r.inhabitants), 696);
+    }
+    m_renderer->draw(items, x0, v.y, s);
+}
+
+std::optional<Hud::Action> Hud::build_tool_action() {
+    if (!m_build) {
+        return std::nullopt;
+    }
+    if (m_build->demolish()) {
+        return Action{Action::Kind::Demolish};
+    }
+    const BuildPanel::Available available =
+        m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
+    if (const auto id = m_build->current(available)) {
+        Action a{Action::Kind::Build};
+        a.building = *id;
+        return a;
+    }
+    return Action{Action::Kind::ToolOff};
+}
+
+std::optional<Hud::Action> Hud::set_mode(std::int32_t mode) {
+    if (mode < kModeBuild || mode > kModeOptions) {
+        return std::nullopt;
+    }
+    m_ctrl.set_selected(m_mode, false);
+    m_mode = mode;
+    m_ctrl.set_selected(m_mode, true);
+    if (m_build) {
+        m_build->close_popup();
+    }
+    // Hud_SetMode 0x0043B660: the build mode arms the remembered building again, the others put
+    // the tool away.
+    return mode == kModeBuild ? build_tool_action() : std::optional<Action>(Action{Action::Kind::ToolOff});
 }
 
 ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
@@ -108,6 +202,12 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
     m_regions = ui::screen_regions(width, height, scale);
     m_ctrl.set_scale(scale);
     m_leist.set_scale(scale);
+    if (m_build) {
+        m_build->set_scale(scale);
+    }
+    if (m_info) {
+        m_info->set_scale(scale);
+    }
     return m_regions.game_view;
 }
 
@@ -129,6 +229,33 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
     std::optional<Action> action;
     const ui::Rect& panel = m_regions.side_panel;
     const ui::Rect& bar = m_regions.status_bar;
+    // The mode's panel first: an open pop-up takes every press on the side panel.
+    if (m_mode == kModeBuild && m_build) {
+        const BuildPanel::Available available =
+            m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
+        const bool popup = m_build->popup_open();
+        bool consumed = false;
+        if (const auto a = m_build->mouse(x - panel.x, y - panel.y, down, available, consumed)) {
+            switch (a->kind) {
+                case BuildPanel::Action::Kind::Pick:
+                    action = Action{Action::Kind::Build};
+                    action->building = a->building;
+                    break;
+                case BuildPanel::Action::Kind::Demolish:
+                    action = Action{Action::Kind::Demolish};
+                    break;
+                case BuildPanel::Action::Kind::Rotate:
+                    action = Action{Action::Kind::TurnBuilding};
+                    action->step = a->step;
+                    break;
+            }
+        }
+        if (popup && consumed) {
+            return action;
+        }
+    } else if (m_mode == kModeInfo && m_info) {
+        m_info->mouse(x - panel.x, y - panel.y, down);
+    }
     const auto ctrl = m_ctrl.mouse(x - panel.x, y - panel.y, down);
     const auto leist = m_leist.mouse(x - bar.x, y - bar.y, down);
     for (const ui::PanelEvent& e : ctrl) {
@@ -149,6 +276,9 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
                 action = Action{Action::Kind::ZoomOut};
                 break;
             default:
+                if (e.id >= kModeBuild && e.id <= kModeOptions) {
+                    action = set_mode(e.id);
+                }
                 break;
         }
     }
@@ -226,8 +356,10 @@ void Hud::build_minimap(const sim::World& world, const assets::BuildingTable& bu
 }
 
 void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, const render::BannerTable& banners,
-               const std::array<std::pair<double, double>, 4>& view, std::uint64_t now_ms) {
+               const std::array<std::pair<double, double>, 4>& view, std::uint64_t now_ms,
+               const sim::PlayerFigures& figures, std::uint8_t colour) {
     const double s = m_regions.scale;
+    draw_resources();
     // Black under the art where the window is larger than it.
     m_renderer->fill(m_regions.side_panel, 0);
     m_renderer->fill(m_regions.status_bar, 0);
@@ -260,6 +392,21 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     }
     m_ctrl.set_graphic(kCompass, kGfxCompass + m_rotation, 0);
     m_renderer->draw(m_ctrl.draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+    // The mode's panel below the head, and its help texts.
+    const BuildPanel::Available available =
+        m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
+    if (m_mode == kModeBuild && m_build) {
+        m_build->draw(*m_renderer, buildings, available,
+                      static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U), m_regions.side_panel, s);
+        if (const auto text = m_build->help(m_leiste)) {
+            status = *text;
+        }
+    } else if (m_mode == kModeInfo && m_info) {
+        m_info->draw(*m_renderer, figures, colour, m_regions.side_panel, s);
+        if (const auto text = m_info->help(m_leiste)) {
+            status = *text;
+        }
+    }
     // The minimap on the parchment.
     if (m_minimap_dirty || now_ms >= m_minimap_ms + kMinimapMs || world.width() != m_world_w ||
         world.height() != m_world_h) {

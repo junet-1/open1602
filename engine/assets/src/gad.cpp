@@ -87,6 +87,11 @@ std::optional<std::size_t> GadgetLayout::index_of(std::int32_t id) const noexcep
     return std::nullopt;
 }
 
+std::optional<std::int32_t> GadgetLayout::constant(std::string_view name) const {
+    const auto it = constants.find(name);
+    return it != constants.end() ? std::optional<std::int32_t>(it->second) : std::nullopt;
+}
+
 GadgetLayout parse_gad(std::string_view text,
                        const std::function<std::optional<std::string>(std::string_view)>& include) {
     GadgetLayout layout;
@@ -96,6 +101,11 @@ GadgetLayout parse_gad(std::string_view text,
     const cod::Document doc = cod::parse(expanded, kPredefined, options);
     for (const auto& d : doc.diagnostics) {
         layout.warnings.push_back("line " + std::to_string(d.line) + ": " + d.message);
+    }
+    for (const auto& [name, symbol] : doc.symbols.all()) {
+        if (symbol.defined && symbol.count >= 1 && symbol.values[0].type == cod::ValueType::Number) {
+            layout.constants.emplace(name, symbol.values[0].integer);
+        }
     }
     const auto* records = doc.root.records("GADGET");
     const auto highest = doc.highest_nummer.find("GADGET");

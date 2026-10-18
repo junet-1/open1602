@@ -94,6 +94,12 @@ void Panel::set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_of
     }
 }
 
+void Panel::set_offset(std::int32_t id, std::int32_t x, std::int32_t y) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_layout.gadgets[*i].offset = {static_cast<std::int16_t>(x), static_cast<std::int16_t>(y)};
+    }
+}
+
 void Panel::set_scroll(std::int32_t id, std::int32_t line) {
     if (const auto i = m_layout.index_of(id)) {
         m_state[*i].scroll = std::max(0, line);

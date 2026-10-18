@@ -57,6 +57,11 @@ enum class BuildRefusal : std::uint8_t {
 
 [[nodiscard]] const char* refusal_name(BuildRefusal refusal) noexcept;
 
+/// Whether a player may pick a building in the build menu (Haus_IsAvailableForPlayer 0x0042D530):
+/// its level is unlocked, castle and cathedral are not built yet, monuments and arches lie within
+/// their allowance. Money and goods are not asked; the order checks everything again (S-014).
+[[nodiscard]] bool building_available(const Player& player, const assets::BuildingType& type) noexcept;
+
 /// Costs of buildings: goods in 1/32 t, gold.
 struct BuildBill {
     std::uint32_t tools = 0;

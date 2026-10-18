@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Building and demolishing with the mouse until the original's build menu exists: picks a
-// building, turns it, and turns a click or a drag into a build or demolish order of the local
+// Building and demolishing with the mouse: holds the building the build menu (or the keys) picked
+// and its rotation, and turns a click or a drag into a build or demolish order of the local
 // player (docs/re/construction.md). Roads and walls are dragged along a line, fields and squares
 // over a rectangle, everything else is placed where the mouse is let go.
 #pragma once
@@ -32,6 +32,9 @@ public:
     void cycle(int step) noexcept;
     /// Turns the building by a quarter.
     void rotate(int step) noexcept;
+    [[nodiscard]] std::uint8_t rotation() const noexcept { return m_rotation; }
+    /// Picks a building by its Id (the build menu); false if it is none the tool can place.
+    bool select(std::uint32_t id) noexcept;
 
     /// Where the mouse is (island tile), nullopt over the sea.
     struct Spot {

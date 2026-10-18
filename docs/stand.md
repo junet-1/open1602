@@ -12,11 +12,11 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
   Katastrophen, Vulkane, Schiffe und Handel, Militär, Diplomatie, Piraten, Eingeborene, Computergegner,
   neues Endlosspiel, Aufträge der Szenarien mit Sieg und Niederlage, Spielstände des Originals lesen
   und exportieren, eigenes Speicherformat. Sie läuft in festen Ticks, deterministisch und befehlsbasiert,
-  mit 292 Tests (davon viele gegen die Originaldaten
+  mit 302 Tests (davon viele gegen die Originaldaten
   und echte Spielstände).
-- **Spielbar ist sie heute nur im Kartenbetrachter**: Start über die Kommandozeile, Bauen, Abreißen,
+- **Spielbar ist sie heute nur im Kartenbetrachter**: Start über die Kommandozeile, Bauen über das Baumenü des Originals, Abreißen,
   Schiffe und Soldaten mit der Maus, Rückmeldungen im Fenstertitel und im Terminal.
-- **Die großen offenen Blöcke** sind die Oberfläche (Menüs, Fenster, Baumenü, Minimap, Meldungen),
+- **Die großen offenen Blöcke** sind die Oberfläche (Menüs, die Fenster der Auswahl, Optionen),
   Kampagnenfortschritt und Bestenliste, der Mehrspieler und die
   Modding-Grundlagen (Inhaltspakete, Fraktionen als Daten, Lua).
 - **Spielstände** speichert Open1602 seit dem 18.10.2026 im eigenen Format `.o1602`
@@ -30,7 +30,7 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 
 | Bereich | Stand | Offen | Dokument |
 |---|---|---|---|
-| Bauen und Abreißen | ✅ Prüfungen, Kosten, Ziehen von Straßen und Mauern, Strand, Brücken, Stege, Freischaltung, Gebiet, Stadtgründung vom Schiff, Übernahme wehrloser Städte | Baumenü (Oberfläche) | [construction.md](re/construction.md) |
+| Bauen und Abreißen | ✅ Prüfungen, Kosten, Ziehen von Straßen und Mauern, Strand, Brücken, Stege, Freischaltung, Gebiet, Stadtgründung vom Schiff, Übernahme wehrloser Städte; Baumenü | automatische Ausrichtung zur Straße | [construction.md](re/construction.md) |
 | Produktion | ✅ Zyklus, Rohstoffe, Lager, Leerlauf, Statistik, Ein/Aus | – | [production.md](re/production.md) |
 | Logistik | ✅ Träger, Marktkarren, Bauern, Herden, Fischerboote, Minen und Lagerstätten, Packesel, Steinmetz am Steinbruch, `Grundflg`-Gebäude in der Wegsuche, Handelseinstellungen nach `Maxware` des Kontors (`0x00481EE0`) | – (dringende Waren bevorzugt auch das Original nicht, S-104) | [logistics.md](re/logistics.md) |
 | Wachstum, Dürre, Jagd | ✅ Klassenuhren, Ernte, Dürre, Hirsche und Jäger (Feld für Feld gegen Merlin02 → Merlin03) | – | [growth.md](re/growth.md), [deer.md](re/deer.md) |
@@ -52,7 +52,7 @@ Zeichen: ✅ umgesetzt · 🟡 teilweise · ⬜ offen · ❓ Verhalten des Origi
 |---|---|---|---|
 | Inseln, Gebäude, Weltkarte | ✅ drei Zoomstufen, vier Drehungen, Flaggen, Rauch, Statussymbole, Besitzansicht (Bildvergleich 0,967) | Helligkeits- und Farbstich-Tabellen; Werftsymbole „Material fehlt“ und „Brand“ | [rendering.md](re/rendering.md) |
 | Figuren | ✅ alle Figuren der Wirtschaft, Soldaten in jeder Bannerfarbe, Schiffe mit Schaden, Bugwelle, weißer Flagge, Sinken, Zierfiguren (Spaziergänger, Gaukler, Wale, Delfine, Kraken) | Mündungs- und Schussrauch, Treffer, Wrack (SHIPSUNK), Lebensbalken; Zierfiguren auch auf unentdeckten Inseln | [figures.md](re/figures.md), [flavor.md](re/flavor.md) |
-| Oberfläche | 🟡 Grundlagen: alle 45 Layouts (`.GAD`) gelesen, Schriften (`.ZEI`) mit Farben und Umbruch, Bereiche des Bildschirms, Gadgets im Betrieb (Zustände, Klick, Umschalter, Gruppen, Schieber, Zeichenliste); im Betrachter der Rahmen des Originals: Kopf der Seitenleiste mit Weltkarte, Kompass, Drehen und Zoom, Statusleiste mit Hilfetexten und Meldungssymbolen | Hauptmenü, Startdialog, Laden/Speichern, Optionen, Baumenü und die übrigen Felder der Seitenleiste (Modusknöpfe ohne Wirkung), alle Fenster, Highscore, Mauszeiger | [ui.md](re/ui.md) |
+| Oberfläche | 🟡 Grundlagen: alle 45 Layouts (`.GAD`) gelesen, Schriften (`.ZEI`) mit Farben und Umbruch, Bereiche des Bildschirms, Gadgets im Betrieb (Zustände, Klick, Umschalter, Gruppen, Schieber, Zeichenliste); im Betrachter der Rahmen des Originals: Kopf der Seitenleiste mit Weltkarte, Kompass, Drehen und Zoom, Statusleiste mit Hilfetexten und Meldungssymbolen; Modi Bauen und Info: **Baumenü** (Gruppen als Daten, Aufklappfeld, Verfügbarkeit, Kosten, Vorschau, Produktionskette, Abreißen, Drehen) und Spielerstatus; Geld und Waren oben auf der Karte | Hauptmenü, Startdialog, Laden/Speichern, Optionen, Kampfmodus, die Fenster der Auswahl (Schiff, Haus, Betriebe, Kontor, Werft, Burg …), Listen und Diplomatie, Highscore, Mauszeiger, Ausrichtung zur Straße | [ui.md](re/ui.md) |
 | Ton, Musik, Sprache | ✅ Geräusche (Bauen, Schüsse, Treffer, Befehle, Vögel, Brandung, Arbeit und Tiere, Klicks) räumlich wie im Original, Sprachmeldungen mit Warteschlange, Musik mit Zufall, Kampfmusik und Ausblenden, 4-Bit-Musik entpackt; Lautstärken aus `Game.dat` (nur gelesen) | Tutorial-Sprache, Einwohner- und Warenmeldungen, Optionsfenster | [audio.md](re/audio.md) |
 | Videos | ✅ eigener Smacker-Decoder, Meldungs-, Sieg-, Niederlage- und Pausenvideos, Startfolge (`--intro`), Ton über den Mischer | Hauptmenü (Intro-Knopf, Abspann im Bilderrahmen), Video 2990 (Kampagnenfortschritt), Optionsfenster; im Mehrspieler nicht anhalten (M-018) | [videos.md](re/videos.md), [smk.md](formats/smk.md) |
 | Mehrspieler | 🟡 Grundlage: Befehle, feste Ticks, Zufallsströme, KI auf jedem Rechner, Einstellungen im Zustand | Netz (Lockstep), Zustands-Hash je Tick, Lobby, Spielerzuordnung, Wiederverbinden (M-003) | [ADR 0004](architecture/0004-deterministische-simulation.md) |

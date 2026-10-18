@@ -374,6 +374,31 @@ std::int32_t player_balance(const World& world, const assets::BuildingTable& bui
                                                               std::numeric_limits<std::int32_t>::max()));
 }
 
+PlayerFigures player_figures(const World& world, const assets::BuildingTable& buildings,
+                             const assets::FigureTable& figures, PlayerId player) {
+    PlayerFigures f;
+    const std::vector<std::int32_t> costs = running_costs(world, buildings);
+    const std::vector<std::uint32_t> workers = city_workers(world, buildings);
+    for (std::size_t i = 0; i < world.cities().size(); ++i) {
+        const City& c = world.cities()[i];
+        if (c.owner == player) {
+            f.inhabitants += city_einwohner(c, i < workers.size() ? workers[i] : 0);
+            f.taxes += tax_income(c, buildings);
+            f.running_costs += costs[i];
+        }
+    }
+    const std::vector<std::uint32_t> upkeep = military_upkeep(world, figures);
+    if (player < upkeep.size()) {
+        f.military = upkeep[player];
+    }
+    if (const Player* p = world.player(player)) {
+        f.sales = p->sales / 480;
+        f.purchases = p->purchases / 480;
+    }
+    f.balance = f.taxes - f.running_costs - f.military + f.sales - f.purchases;
+    return f;
+}
+
 MissionCheck check_mission(const World& world, const assets::BuildingTable& buildings,
                            const assets::FigureTable& figures, PlayerId player) {
     MissionCheck check;

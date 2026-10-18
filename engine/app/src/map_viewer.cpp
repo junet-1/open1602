@@ -187,6 +187,12 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             Hud::create(viewer->m_window->sdl_renderer(), game, viewer->m_palette, texts ? &texts.value() : nullptr);
         if (!viewer->m_hud) {
             std::fprintf(stderr, "no panel: the interface's files are missing\n");
+        } else {
+            viewer->m_hud->set_available([self = viewer.get()](std::uint32_t id) {
+                const sim::Player* p = self->m_world.player(self->m_local_player);
+                const assets::BuildingType* b = self->m_buildings.by_id(id);
+                return p != nullptr && b != nullptr && sim::building_available(*p, *b);
+            });
         }
     }
     viewer->m_sound->set_listener([self = viewer.get()](std::uint16_t message, std::uint16_t flags,
@@ -284,6 +290,34 @@ int MapViewer::run() {
     update_title(0.0);
     while (m_running) {
         SDL_Event event;
+        for (const ViewerOptions::ScriptedInput& in : m_options.input) {
+            if (in.frame != frames) {
+                continue;
+            }
+            SDL_Event e{};
+            switch (in.kind) {
+                case ViewerOptions::ScriptedInput::Kind::Move:
+                    e.type = SDL_EVENT_MOUSE_MOTION;
+                    e.motion.x = in.x;
+                    e.motion.y = in.y;
+                    break;
+                case ViewerOptions::ScriptedInput::Kind::Down:
+                case ViewerOptions::ScriptedInput::Kind::Up:
+                    e.type = in.kind == ViewerOptions::ScriptedInput::Kind::Down ? SDL_EVENT_MOUSE_BUTTON_DOWN
+                                                                                 : SDL_EVENT_MOUSE_BUTTON_UP;
+                    e.button.button = SDL_BUTTON_LEFT;
+                    e.button.down = in.kind == ViewerOptions::ScriptedInput::Kind::Down;
+                    e.button.x = in.x;
+                    e.button.y = in.y;
+                    break;
+                case ViewerOptions::ScriptedInput::Kind::Key:
+                    e.type = SDL_EVENT_KEY_DOWN;
+                    e.key.key = static_cast<SDL_Keycode>(in.key);
+                    e.key.down = true;
+                    break;
+            }
+            SDL_PushEvent(&e);
+        }
         while (SDL_PollEvent(&event)) {
             if (m_video && m_video->playing()) {
                 handle_video_event(event);
@@ -611,7 +645,11 @@ void MapViewer::handle_key(int key, bool shift) {
     const double cy = h / 2.0;
     switch (key) {
         case SDLK_ESCAPE:
-            if (m_tool.active()) {
+            if (m_hud && m_hud->mode() == Hud::kModeBuild) {
+                if (const auto a = m_hud->set_mode(Hud::kModeInfo)) {
+                    apply_hud(*a);
+                }
+            } else if (m_tool.active()) {
                 m_tool.set_mode(BuildTool::Mode::Off);
             } else {
                 m_running = false;
@@ -621,6 +659,14 @@ void MapViewer::handle_key(int key, bool shift) {
             m_running = false;
             break;
         case SDLK_B:
+            if (m_hud) {
+                // The build mode of the panel, or back to the info mode.
+                if (const auto a =
+                        m_hud->set_mode(m_hud->mode() == Hud::kModeBuild ? Hud::kModeInfo : Hud::kModeBuild)) {
+                    apply_hud(*a);
+                }
+                break;
+            }
             m_tool.set_mode(m_tool.mode() == BuildTool::Mode::Build ? BuildTool::Mode::Off : BuildTool::Mode::Build);
             break;
         case SDLK_X:
@@ -821,12 +867,14 @@ void MapViewer::render() {
         };
         std::vector<Saved> saved;
         m_tool_status.clear();
+        m_pending_bill.reset();
         m_tile_marks.clear();
         layers.tile_marks = &m_tile_marks;
         if (m_tool.mode() == BuildTool::Mode::Build) {
             if (const auto spot = spot_at_mouse()) {
                 if (const auto order = m_tool.build_order(m_world, m_local_player, *spot)) {
                     const sim::BuildPlan plan = sim::plan_build(m_world, m_buildings, *order);
+                    m_pending_bill = plan.bill;
                     sim::IslandMap& map = m_world.island(order->island).map;
                     for (const sim::PlannedBuild& item : plan.items) {
                         if (!item.ok() && m_tool_status.empty()) {
@@ -916,7 +964,17 @@ void MapViewer::render() {
         }
         m_hud->set_status(m_tool_status);
         m_hud->set_rotation(m_camera.view().rotation);
-        m_hud->draw(m_world, m_buildings, m_banners, corners, platform::ticks_ms());
+        m_hud->set_building_rotation(m_tool.rotation());
+        const std::uint64_t now = platform::ticks_ms();
+        if (m_hud->mode() == Hud::kModeInfo && (now >= m_figures_ms + 1000 || now < m_figures_ms)) {
+            // The player status: sums over all cities and units, once a second is enough.
+            m_player_figures = sim::player_figures(m_world, m_buildings, m_figures, m_local_player);
+            m_figures_ms = now;
+        }
+        const sim::Player* local = m_world.player(m_local_player);
+        m_hud->set_resources(resources());
+        m_hud->draw(m_world, m_buildings, m_banners, corners, now, m_player_figures,
+                    static_cast<std::uint8_t>(local != nullptr ? std::min<int>(local->banner, 255) : 0));
     }
     SDL_RenderPresent(r);
 }
@@ -1236,6 +1294,53 @@ render::TilePos MapViewer::home_or_centre() const {
     return render::TilePos{m_world.width() / 2, m_world.height() / 2};
 }
 
+Hud::Resources MapViewer::resources() const {
+    Hud::Resources r;
+    const sim::Player* local = m_world.player(m_local_player);
+    if (local != nullptr && local->role == sim::PlayerRole::Human) {
+        r.money = local->money;
+    }
+    if (m_pending_bill) {
+        r.money_cost = m_pending_bill->money;
+    }
+    // The city on the tile under the mouse.
+    const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y);
+    if (!tile || tile->x >= m_world.width() || tile->y >= m_world.height()) {
+        return r;
+    }
+    const sim::World::Cell& cell = m_world.cell(tile->x, tile->y);
+    if (cell.island == sim::World::kSea) {
+        return r;
+    }
+    const sim::WorldIsland& island = m_world.islands()[cell.island];
+    const sim::City* city = m_world.city(cell.island, island.map.top(cell.local_x, cell.local_y).city);
+    if (city == nullptr || !island.discovered_by(m_local_player)) {
+        return r;
+    }
+    if (city->owner == m_local_player) {
+        constexpr std::array<std::uint8_t, 3> kWares{22, 23, 24};  // WERKZEUG, HOLZ, ZIEGEL
+        std::array<std::int64_t, 3> goods{};
+        for (std::size_t i = 0; i < 3; ++i) {
+            goods[i] = city->stock(kWares[i]) >> 5U;
+        }
+        r.goods = goods;
+        if (m_pending_bill) {
+            r.goods_cost = std::array<std::int64_t, 3>{m_pending_bill->tools >> 5U, m_pending_bill->wood >> 5U,
+                                                       m_pending_bill->bricks >> 5U};
+        }
+    }
+    std::int64_t people = 0;
+    for (const std::uint32_t n : city->inhabitants) {
+        people += n;
+    }
+    r.inhabitants = people;
+    const sim::Player* owner = m_world.player(city->owner);
+    if (owner != nullptr && owner->role == sim::PlayerRole::Human) {
+        r.shield = owner->banner;
+    }
+    return r;
+}
+
 void MapViewer::apply_hud(const Hud::Action& action) {
     const ui::Rect view = m_hud->game_view();
     const double cx = view.w / 2.0;
@@ -1257,6 +1362,20 @@ void MapViewer::apply_hud(const Hud::Action& action) {
         case Hud::Action::Kind::Message:
             m_camera.center_on(render::TilePos{static_cast<std::uint32_t>(std::max(0.0, action.tile_x)),
                                                static_cast<std::uint32_t>(std::max(0.0, action.tile_y))});
+            break;
+        case Hud::Action::Kind::Build:
+            if (m_tool.select(action.building)) {
+                m_tool.set_mode(BuildTool::Mode::Build);
+            }
+            break;
+        case Hud::Action::Kind::Demolish:
+            m_tool.set_mode(BuildTool::Mode::Demolish);
+            break;
+        case Hud::Action::Kind::TurnBuilding:
+            m_tool.rotate(action.step);
+            break;
+        case Hud::Action::Kind::ToolOff:
+            m_tool.set_mode(BuildTool::Mode::Off);
             break;
     }
 }

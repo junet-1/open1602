@@ -107,6 +107,8 @@ public:
     void set_scroll(std::int32_t id, std::int32_t line);
     /// Another sprite and pressed step for a gadget (0x004077C0, 0x00407840): message icons.
     void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset);
+    /// Another draw offset (Posoffs) for a gadget: art centred in its box, groups moved together.
+    void set_offset(std::int32_t id, std::int32_t x, std::int32_t y);
 
     /// The mouse at (x, y) in pixels relative to the region, button down or up.
     std::vector<PanelEvent> mouse(std::int32_t x, std::int32_t y, bool down);

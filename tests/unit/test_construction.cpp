@@ -452,3 +452,35 @@ TEST_CASE("construction: walls and towers on the beach, piers in front of a new 
     CHECK(island.demolish({4, 18}, {4, 18}) == 1);
     CHECK(island.at(4, 18)->id == kBeach);
 }
+
+TEST_CASE("construction: what the build menu offers (Haus_IsAvailableForPlayer 0x0042D530)") {
+    sim::Player p;
+    assets::BuildingType house;
+    CHECK(sim::building_available(p, house));  // level 0: always
+    assets::BuildingType school;
+    school.infra = 3;
+    CHECK(!sim::building_available(p, school));
+    p.infra_mask = 1U << 2U;
+    CHECK(sim::building_available(p, school));
+    // Castle and cathedral once, monument and arch by allowance; the level is needed as well.
+    assets::BuildingType castle;
+    castle.infra = 11;
+    p.infra_mask |= 1U << 10U;
+    CHECK(sim::building_available(p, castle));
+    p.castles_built = 1;
+    CHECK(!sim::building_available(p, castle));
+    assets::BuildingType arch;
+    arch.infra = 13;
+    p.infra_mask |= 1U << 12U;
+    CHECK(!sim::building_available(p, arch));
+    p.arches_allowed = 1;
+    CHECK(sim::building_available(p, arch));
+    p.arches_built = 1;
+    CHECK(!sim::building_available(p, arch));
+    assets::BuildingType monument;
+    monument.infra = 14;
+    p.monuments_allowed = 2;
+    CHECK(!sim::building_available(p, monument));  // level 14 not unlocked
+    p.infra_mask |= 1U << 13U;
+    CHECK(sim::building_available(p, monument));
+}

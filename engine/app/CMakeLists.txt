@@ -6,6 +6,7 @@ add_executable(open1602
     src/build_tool.cpp
     src/game_sound.cpp
     src/hud.cpp
+    src/side_panels.cpp
     src/map_viewer.cpp
     src/video_player.cpp
 )

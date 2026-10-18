@@ -8,6 +8,7 @@
 #include "test_support.hpp"
 
 #include "o1602/assets/gad.hpp"
+#include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/font.hpp"
 #include "o1602/ui/panel.hpp"
 #include "o1602/ui/resources.hpp"
@@ -198,4 +199,80 @@ TEST_CASE("ui: text width, colours, wrapping with hyphens and hard breaks") {
     CHECK(ui::draw_text(canvas, font, "ab", 10, 8, colour, ui::Align::Centre) == 8);
     CHECK(canvas.indices[2 * 20 + 6] == 42);  // top row 8 - 6 = 2, left 10 - 4
     CHECK(canvas.opaque[2 * 20 + 5] == 0);
+}
+
+TEST_CASE("ui: the build menu's categories and the pop-up of a category") {
+    const ui::BuildMenuDefinition& menu = ui::original_build_menu();
+    CHECK(menu.categories.size() == 8);
+    CHECK(menu.default_category == 31006);
+    const ui::BuildCategory* farms = menu.category(31006);
+    REQUIRE(farms != nullptr);
+    CHECK(farms->names == "FARM");
+    CHECK(farms->size() == 19);
+    CHECK(farms->at(0) == std::optional<std::uint32_t>(22003));   // Jagdhütte
+    CHECK(farms->at(18) == std::optional<std::uint32_t>(21337));  // Kakaofeld
+    CHECK(!farms->at(19));
+    CHECK(farms->index_of(21515) == std::optional<std::size_t>(5));  // Schaffarm
+    CHECK(menu.category_of(20805) == menu.category(31008));          // Kirche: Öffentliche Gebäude
+    CHECK(menu.category(31004)->demolish);
+    CHECK(menu.category(31004)->size() == 0);
+    // Every building is listed once.
+    std::size_t total = 0;
+    for (const auto& c : menu.categories) {
+        total += c.size();
+    }
+    CHECK(total == 10 + 8 + 4 + 16 + 19 + 8 + 16);
+
+    // The pop-up of the farms: the first three and the sheep farm are available.
+    std::vector<bool> ok(farms->size(), false);
+    ok[0] = ok[1] = ok[2] = ok[5] = true;
+    assets::Gadget button;
+    button.id = 31006;
+    button.pos = {72, 692};
+    const auto layout = ui::build_popup(*farms, ok, button, 81, 43);
+    // Two rows (the others have nothing to pick), the first next to the button.
+    const assets::Gadget* backdrop = layout.find(ui::kPopupBackdrop);
+    REQUIRE(backdrop != nullptr);
+    CHECK(backdrop->menu);
+    CHECK(layout.find(32901) != nullptr);
+    CHECK(layout.find(32902) != nullptr);
+    CHECK(layout.find(32903) == nullptr);
+    CHECK(layout.find(32901)->pos[1] == 692 - 59);
+    CHECK(layout.find(32902)->pos[1] == 692 - 2 * 59);
+    CHECK(layout.find(32953)->pos[1] == 692 - 2 * 59 - 5);  // the strip above
+    CHECK(layout.find(32952)->kind == assets::GadgetKind::GraphicRaster);
+    // Icons: the category's sprites, "?" where nothing can be picked; frames only for those.
+    const assets::Gadget* hunter = layout.find(ui::kPopupIcon + 0);
+    REQUIRE(hunter != nullptr);
+    CHECK(hunter->gfx == 81 + 44);
+    CHECK(hunter->pos == (std::array<std::int32_t, 2>{16, 692 - 59 + 5}));
+    CHECK(layout.find(ui::kPopupIcon + 3)->gfx == 81 + 43);  // grain farm: not yet
+    CHECK(layout.find(ui::kPopupIcon + 5)->gfx == 81 + 44 + 5);
+    CHECK(layout.find(ui::kPopupIcon + 5)->pos[0] == 16 + 2 * 57);
+    CHECK(layout.find(ui::kPopupIcon + 7) == nullptr);  // row 3 is not shown
+    const assets::Gadget* slot = layout.find(ui::kPopupSlot + 1);
+    REQUIRE(slot != nullptr);
+    CHECK(!slot->no_select);
+    CHECK(slot->select_on_move);
+    CHECK(slot->press_offset == 1);
+    CHECK(layout.find(ui::kPopupSlot + 3)->no_select);
+
+    // A click on a frame: the panel says which.
+    ui::Panel popup(layout, 1.0);
+    (void)popup.mouse(16 + 57 + 10, 692 - 59 + 20, true);
+    const auto events = popup.mouse(16 + 57 + 10, 692 - 59 + 20, false);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].id == ui::kPopupSlot + 1);
+    // A press beside the icons: the backdrop.
+    const auto beside = popup.mouse(5, 100, true);
+    REQUIRE(beside.size() == 1);
+    CHECK(beside[0].id == ui::kPopupBackdrop);
+    CHECK(beside[0].kind == ui::PanelEvent::Kind::Pressed);
+
+    // Nothing available: the last row, all "?".
+    const auto none = ui::build_popup(*farms, std::vector<bool>(farms->size(), false), button, 81, 43);
+    CHECK(none.find(32901) != nullptr);
+    CHECK(none.find(32902) == nullptr);
+    CHECK(none.find(ui::kPopupIcon + 15)->gfx == 81 + 43);
+    CHECK(none.find(ui::kPopupIcon + 0) == nullptr);
 }

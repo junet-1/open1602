@@ -588,6 +588,24 @@ std::uint32_t usable(std::uint32_t stock) noexcept {
 
 }  // namespace
 
+bool building_available(const Player& player, const assets::BuildingType& type) noexcept {
+    if (!player.unlocked(type.infra)) {
+        return false;
+    }
+    switch (type.infra) {
+        case kInfraCastle:
+            return player.castles_built == 0;
+        case kInfraCathedral:
+            return player.cathedrals_built == 0;
+        case kInfraArch:
+            return player.arches_allowed > player.arches_built;
+        case kInfraMonument:
+            return player.monuments_allowed > player.monuments_built;
+        default:
+            return true;
+    }
+}
+
 const char* refusal_name(BuildRefusal r) noexcept {
     switch (r) {
         case BuildRefusal::None:

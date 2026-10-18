@@ -53,6 +53,7 @@ public:
     /// Equivalent of Cod_DefineSymbol(name, value, slot) @ 0x004020D0.
     void define(std::string_view name, std::int32_t value, std::size_t slot = 0);
     [[nodiscard]] std::size_t size() const noexcept { return m_symbols.size(); }
+    [[nodiscard]] const std::unordered_map<std::string, Symbol>& all() const noexcept { return m_symbols; }
 
 private:
     std::unordered_map<std::string, Symbol> m_symbols;

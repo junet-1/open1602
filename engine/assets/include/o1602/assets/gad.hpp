@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -74,10 +75,15 @@ struct Gadget {
 struct GadgetLayout {
     std::vector<Gadget> gadgets;
     std::vector<std::string> warnings;
+    /// The constants the file and its includes define (TOOLS.INC: GFXBAUHAUS, GFXWARE, ...); the code
+    /// of the original uses the same numbers for what it draws itself.
+    std::map<std::string, std::int32_t, std::less<>> constants;
 
     /// First gadget with this Id, nullptr if none (Ids repeat between files, not within one).
     [[nodiscard]] const Gadget* find(std::int32_t id) const noexcept;
     [[nodiscard]] std::optional<std::size_t> index_of(std::int32_t id) const noexcept;
+    /// A constant of the file, nothing if it does not define it.
+    [[nodiscard]] std::optional<std::int32_t> constant(std::string_view name) const;
 };
 
 /// Most gadgets of one file in the original (MAXGADGET); Open1602 takes more (L-010).

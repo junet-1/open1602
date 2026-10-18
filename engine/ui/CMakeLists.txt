@@ -2,6 +2,7 @@
 # The interface without platform dependency: fonts and text, gadget layouts at work, regions.
 
 add_library(o1602_ui
+    src/build_menu.cpp
     src/font.cpp
     src/panel.cpp
 )

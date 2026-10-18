@@ -76,6 +76,22 @@ TEST_CASE("data: the layouts of GADDATA load; the panel's minimap area and butto
     REQUIRE(status != nullptr);
     CHECK(status->kind == assets::GadgetKind::TextRight);
     CHECK(status->color[0] == 5);
+    // The constants of TOOLS.INC the code uses for what it draws itself.
+    CHECK(leist->constant("GFXLEISTE") == std::optional<std::int32_t>(253));
+    auto bau = assets::load_gad(game, "BAU.GAD");
+    REQUIRE(bau.ok());
+    CHECK(bau->constant("GFXBAUHAUS") == std::optional<std::int32_t>(81));
+    CHECK(bau->constant("GFXBAUMAT") == std::optional<std::int32_t>(46));
+    CHECK(bau->constant("GFXWARE") == std::optional<std::int32_t>(192));
+    CHECK(bau->constant("IDHAUPT") == std::optional<std::int32_t>(31001));
+    CHECK(!bau->constant("NOSUCHTHING"));
+    // The build menu's categories are its first eight gadgets, radio buttons that answer the press.
+    for (std::int32_t id = 31001; id <= 31008; ++id) {
+        const assets::Gadget* g = bau->find(id);
+        REQUIRE(g != nullptr);
+        CHECK(g->menu);
+        CHECK(g->radio);
+    }
 }
 
 TEST_CASE("data: the fonts of the three screen sizes, umlauts and the text colours") {

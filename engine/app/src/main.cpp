@@ -19,6 +19,7 @@
 #include <optional>
 #include <random>
 #include <string_view>
+#include <vector>
 
 #include "map_viewer.hpp"
 
@@ -41,7 +42,7 @@ int usage() {
         "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--starts spread|together]\n"
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
-        "                [--video N]\n"
+        "                [--video N] [--input EVENTS]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
@@ -59,6 +60,7 @@ int usage() {
         "  --no-videos        no videos of messages, victory, defeat and pause\n"
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
+        "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\"\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
@@ -81,6 +83,51 @@ int usage() {
 
 bool parse_number(std::string_view text, std::int32_t& value) {
     return std::from_chars(text.data(), text.data() + text.size(), value).ec == std::errc{};
+}
+
+/// "move X,Y@F;down X,Y@F;up X,Y@F;key K@F" (K: SDL key code).
+bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::ScriptedInput>& out) {
+    using Input = o1602::app::ViewerOptions::ScriptedInput;
+    while (!text.empty()) {
+        const std::size_t end = text.find(';');
+        std::string_view item = text.substr(0, end);
+        text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1);
+        const std::size_t space = item.find(' ');
+        const std::size_t at = item.find('@');
+        if (space == std::string_view::npos || at == std::string_view::npos || at < space) {
+            return false;
+        }
+        const std::string_view verb = item.substr(0, space);
+        const std::string_view args = item.substr(space + 1, at - space - 1);
+        Input in;
+        std::int32_t frame = 0;
+        if (!parse_number(item.substr(at + 1), frame) || frame < 0) {
+            return false;
+        }
+        in.frame = static_cast<std::uint32_t>(frame);
+        if (verb == "key") {
+            in.kind = Input::Kind::Key;
+            if (!parse_number(args, in.key)) {
+                return false;
+            }
+        } else {
+            in.kind = verb == "down" ? Input::Kind::Down : verb == "up" ? Input::Kind::Up : Input::Kind::Move;
+            if (verb != "down" && verb != "up" && verb != "move") {
+                return false;
+            }
+            const std::size_t comma = args.find(',');
+            std::int32_t x = 0;
+            std::int32_t y = 0;
+            if (comma == std::string_view::npos || !parse_number(args.substr(0, comma), x) ||
+                !parse_number(args.substr(comma + 1), y)) {
+                return false;
+            }
+            in.x = static_cast<float>(x);
+            in.y = static_cast<float>(y);
+        }
+        out.push_back(in);
+    }
+    return true;
 }
 
 }  // namespace
@@ -115,6 +162,10 @@ int main(int argc, char** argv) {
             options.effects = false;
         } else if (arg == "--no-music") {
             options.music = false;
+        } else if (arg == "--input" && has_value) {
+            if (!parse_input(argv[++i], options.input)) {
+                return usage();
+            }
         } else if (arg == "--no-videos") {
             options.videos = false;
         } else if (arg == "--intro") {
