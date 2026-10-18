@@ -25,7 +25,6 @@ constexpr std::uint32_t kKontor = 22001;
 constexpr std::uint32_t kKontor2 = 22002;
 constexpr std::uint32_t kMarket = 20701;
 constexpr std::uint32_t kHouse = 20801;
-constexpr std::uint32_t kMeadow = 22722;
 constexpr std::uint32_t kField = 21301;
 constexpr std::uint32_t kCastle = 21501;
 constexpr std::uint32_t kWall = 22501;

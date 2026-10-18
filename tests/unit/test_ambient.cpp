@@ -22,7 +22,6 @@ constexpr std::uint32_t kRoad = 20401;
 constexpr std::uint32_t kHouse = 20605;
 constexpr std::uint32_t kTavern = 20907;
 constexpr std::uint32_t kMarket = 20801;
-constexpr std::uint32_t kSea = 21201;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}};

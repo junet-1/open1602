@@ -15,7 +15,6 @@ using namespace o1602;
 namespace {
 
 constexpr std::uint32_t kGround = 20101;
-constexpr std::uint32_t kRoad = 20401;
 constexpr std::uint32_t kWheatGrowing = 21501;   // record 2
 constexpr std::uint32_t kWheatRipe = 21502;      // record 3
 constexpr std::uint32_t kWheatWithered = 21503;  // record 4

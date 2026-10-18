@@ -11,7 +11,6 @@ namespace o1602::sim {
 
 namespace {
 
-constexpr std::uint32_t kSecondMs = 1000;
 constexpr std::uint16_t kTrained = 320;     // training points of a finished unit
 constexpr std::uint16_t kTickSeconds = 10;  // Interval of the castles; 11 s when nothing was trained
 constexpr std::uint8_t kFirstWeapon = 11;   // SCHWERTER, MUSKETEN, KANONEN

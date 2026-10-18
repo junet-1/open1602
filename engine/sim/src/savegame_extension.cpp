@@ -535,9 +535,7 @@ std::vector<Decoded::ExplorePart> read_explored(StateIn& in) {
         for (std::size_t p = 0; p < part.explored.size(); ++p) {
             part.explored[p] = in.boolean();
         }
-        in.list(part.deposit_masks, 4, [&](auto& m) {
-            m = in.u32();
-        });
+        in.list(part.deposit_masks, 4, [&](auto& m) { m = in.u32(); });
     });
     return list;
 }
@@ -999,9 +997,7 @@ Ship get_ship(StateIn& in) {
     m.duration_us = in.u32();
     m.from_x = in.i32();
     m.from_y = in.i32();
-    in.list(m.path, 1, [&](std::uint8_t& c) {
-        c = in.u8();
-    });
+    in.list(m.path, 1, [&](std::uint8_t& c) { c = in.u8(); });
     m.path_index = in.u8();
     m.radius = in.u8();
     m.failures = in.u8();
@@ -1077,9 +1073,7 @@ Decoded::FleetPart read_fleet(StateIn& in) {
             t.keep = in.u32();
             t.limit = in.u32();
         });
-        in.list(c.goodwill, 4, [&](std::uint32_t& g) {
-            g = in.u32();
-        });
+        in.list(c.goodwill, 4, [&](std::uint32_t& g) { g = in.u32(); });
         c.trader_inbound = in.boolean();
     });
     in.list(f.yards, 23, [&](CostBuilding& b) {
@@ -1094,9 +1088,7 @@ Decoded::FleetPart read_fleet(StateIn& in) {
         b.idle_cycles = in.u8();
         b.fetching = in.boolean();
     });
-    in.list(f.ships, 40, [&](Ship& s) {
-        s = get_ship(in);
-    });
+    in.list(f.ships, 40, [&](Ship& s) { s = get_ship(in); });
     return f;
 }
 
@@ -1253,9 +1245,7 @@ void write_army(Out& out, const World& w) {
 Decoded::ArmyPart read_army(StateIn& in) {
     Decoded::ArmyPart a;
     a.next_soldier_id = in.u32();
-    in.list(a.soldiers, 60, [&](Soldier& s) {
-        s = get_soldier(in);
-    });
+    in.list(a.soldiers, 60, [&](Soldier& s) { s = get_soldier(in); });
     in.list(a.towers, 24, [&](Tower& t) {
         t.island = in.u16();
         t.x = in.u16();
@@ -1447,17 +1437,13 @@ void write_volcanoes(Out& out, const World& w) {
 template <class T>
 std::vector<T> get_u32s(StateIn& in) {
     std::vector<T> v;
-    in.list(v, 4, [&](T& x) {
-        x = static_cast<T>(in.u32());
-    });
+    in.list(v, 4, [&](T& x) { x = static_cast<T>(in.u32()); });
     return v;
 }
 template <class T>
 std::vector<T> get_u8s(StateIn& in) {
     std::vector<T> v;
-    in.list(v, 1, [&](T& x) {
-        x = static_cast<T>(in.u8());
-    });
+    in.list(v, 1, [&](T& x) { x = static_cast<T>(in.u8()); });
     return v;
 }
 
@@ -1568,9 +1554,7 @@ Decoded::MissionPart read_missions(StateIn& in, std::size_t islands) {
         m.losses = in.u32();
         m.target = in.u8();
         m.min_defeated = in.u16();
-        in.list(m.defeat, 1, [&](PlayerId& p) {
-            p = in.u8();
-        });
+        in.list(m.defeat, 1, [&](PlayerId& p) { p = in.u8(); });
         m.min_cities = in.i32();
         m.min_inhabitants = in.i32();
         m.min_balance = in.i32();

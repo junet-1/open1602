@@ -285,8 +285,9 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
 
 void MapViewer::warn_if_state_damaged() const {
     if (m_simulation.state_damaged()) {
-        std::fprintf(stderr, "warning: the savegame's running state could not be read; the game continues "
-                             "from the world alone (computer players, walkers and clocks start anew)\n");
+        std::fprintf(stderr,
+                     "warning: the savegame's running state could not be read; the game continues "
+                     "from the world alone (computer players, walkers and clocks start anew)\n");
     }
 }
 
@@ -768,8 +769,8 @@ render::TileLighting MapViewer::tile_lighting() const {
         constexpr std::int32_t kProdHouse = 13;
         const auto spot = spot_at_mouse();
         if (b != nullptr && spot && b->radius > 0 && b->prod_kind != kProdHouse) {
-            l.outline(world_catchment(spot->island, sim::catchment_of(*b, m_tool.rotation(),
-                                                                      sim::TilePos{spot->x, spot->y})));
+            l.outline(world_catchment(spot->island,
+                                      sim::catchment_of(*b, m_tool.rotation(), sim::TilePos{spot->x, spot->y})));
         }
         return l;
     }

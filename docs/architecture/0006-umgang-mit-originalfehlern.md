@@ -32,8 +32,9 @@ können und das Spielgefühl erhalten.
 5. **Datenfehler (D):** Der `.cod`-Interpreter bleibt originalgetreu. Korrekturen kommen als
    abschaltbare Daten-Patches, die nach dem Laden angewendet werden.
 6. **Nachvollziehbarkeit:** Code, der einen Eintrag behebt, nennt seine Kennung (`// Fix S-002: …`).
-   Jede Korrektur bekommt einen Test. `re/scripts/check_bug_refs.py` prüft in CI, dass jede im Code
-   genannte Kennung im Katalog existiert.
+   Jede Korrektur bekommt einen Test. `re/scripts/check_bug_refs.py` prüft, dass jede im Code genannte
+   Kennung im Katalog existiert. Der Katalog liegt im privaten Repository `open1602-re`, daher läuft
+   die Prüfung lokal (mit verlinktem `docs/re`) und nicht in der öffentlichen CI.
 
 ## Originalspielstände
 Originale `.GAM`-Dateien können Zustände enthalten, die nur durch einen Fehler entstanden sind,
