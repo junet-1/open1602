@@ -172,8 +172,8 @@ Originaldaten werden **nicht** ins Repository kopiert; die Engine bekommt den Pf
 | M8 | Inhalte und Modding | Inhaltspakete mit Manifest, Inhaltsregister mit Kennungen, PNG/OGG-Import, Lua-Skripte, Kampagnen, eigene Inselformen (Weltengenerator Stufe 2, ADR 0007) |
 
 **Stand der Meilensteine (18.10.2026)**, Einzelheiten in [stand.md](stand.md): M0 ✅ · M1 🟡 (offen:
-`.ZEI`-Schriften, `.GAD`-Oberflächen, Smacker-Videos, Teile von Inselkopf und Szenario-Chunks) · M2 ✅ ·
-M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel und Spielstände fertig; es fehlt die Oberfläche) · M5 🟡
+Smacker-Videos, Teile von Inselkopf und Szenario-Chunks; Schriften, Layouts und Ton fertig) · M2 ✅ ·
+M3 ✅ · M4 🟡 (Simulation, Schiffe, Handel, Spielstände und Ton fertig; Grundlagen der Oberfläche da, es fehlt ihr Zeichnen und die Fenster) · M5 🟡
 (Militär, Piraten, Weltengenerator Stufe 1, KI und Aufträge mit Sieg und Niederlage fertig; offen:
 Kampagnenfortschritt, Bestenliste, KI-Schalter der Szenarien; Ereignisse haben Szenarien nicht) · M6 ⬜ (Grundlagen: Befehle, Determinismus) · M7 ⬜ (einzelne Verbesserungen
 schon da: Mausrad-Zoom, Bildschirmfoto, behobene Fehler) · M8 ⬜ (Banner mit eingefärbten Flaggen schon da).
@@ -284,7 +284,8 @@ Projektname *Open1602* (Namensraum `o1602`) · Details in [docs/architecture](ar
 | M5: Computergegner (deterministisch, gespeichert, S-095 bis S-102) | ✅ `docs/re/ai.md` |
 | Bestandsaufnahme: was umgesetzt, offen und unklar ist, im Original und bei den Erweiterungen | ✅ `docs/stand.md` |
 | M5: Aufträge der Szenarien, Sieg und Niederlage (S-105 bis S-111) | ✅ `docs/re/missions.md` |
-| M1: ZEI-Schriften, GAD, restliche Szenario-Chunks | ⬜ |
+| M1: ZEI-Schriften, GAD | ✅ `docs/re/ui.md`, `docs/formats/gad.md` |
+| M1: restliche Szenario-Chunks | ⬜ |
 | RE: erste Symbole (`WinMain`, `Game_Init`, `.cod`-Lader, `Text.cod`-Entschlüsselung) | ✅ `re/symbols/` |
 
 ## 9. Offene Punkte nach Abhängigkeit

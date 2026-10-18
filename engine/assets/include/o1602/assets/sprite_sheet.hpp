@@ -42,8 +42,9 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return m_infos.size(); }
     [[nodiscard]] const SpriteInfo& info(std::size_t index) const { return m_infos.at(index); }
 
-    /// Decodes the RLE data of one sprite.
-    [[nodiscard]] core::Result<IndexedImage> decode(std::size_t index) const;
+    /// Decodes the RLE data of one sprite. `extra_width` widens the image to keep pixels right of the
+    /// record's width (font glyphs overhang into the next one).
+    [[nodiscard]] core::Result<IndexedImage> decode(std::size_t index, std::uint32_t extra_width = 0) const;
 
 private:
     ChunkFile m_file;

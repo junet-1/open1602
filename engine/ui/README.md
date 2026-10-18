@@ -1,5 +1,8 @@
 # engine/ui
 
-Oberfläche auf Basis der GAD-Definitionen (GADDATA/*.GAD), später skalierbar und erweiterbar. **Meilenstein:** M4.
+Die Oberfläche ohne Plattformabhängigkeit: Schriften (`.ZEI`) und Textregeln (`font.hpp`), die
+Gadget-Layouts des Originals im Betrieb (`panel.hpp`: Bereiche des Bildschirms, Zeichnen je Zustand,
+Maus mit Umschaltern, Gruppen, Schiebern) und die Grafiken je Bildschirmgröße (`resources.hpp`).
+Gelesen werden die Layouts in `engine/assets` (`gad.hpp`).
 
-Noch nicht angelegt – siehe [docs/00-plan.md](../../docs/00-plan.md) und [ADR 0005](../../docs/architecture/0005-modulstruktur.md).
+Beschreibung: [docs/re/ui.md](../../docs/re/ui.md), [docs/formats/gad.md](../../docs/formats/gad.md).

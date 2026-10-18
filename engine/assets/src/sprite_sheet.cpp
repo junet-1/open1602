@@ -91,7 +91,7 @@ core::Result<SpriteSheet> SpriteSheet::load(const std::filesystem::path& path) {
     return sheet;
 }
 
-core::Result<IndexedImage> SpriteSheet::decode(std::size_t index) const {
+core::Result<IndexedImage> SpriteSheet::decode(std::size_t index, std::uint32_t extra_width) const {
     if (index >= m_infos.size()) {
         return make_error(ErrorCode::OutOfRange, "sprite index out of range");
     }
@@ -99,9 +99,9 @@ core::Result<IndexedImage> SpriteSheet::decode(std::size_t index) const {
     const auto data = m_file.payload(m_chunk);
 
     IndexedImage image;
-    image.width = info.width;
+    image.width = info.width + extra_width;
     image.height = info.height;
-    const std::size_t pixel_count = std::size_t{info.width} * info.height;
+    const std::size_t pixel_count = std::size_t{image.width} * info.height;
     image.indices.assign(pixel_count, 0);
     image.opaque.assign(pixel_count, 0);
 
@@ -133,8 +133,8 @@ core::Result<IndexedImage> SpriteSheet::decode(std::size_t index) const {
             return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(index) + ": truncated pixels");
         }
         for (const std::uint8_t color : *pixels) {
-            if (x < info.width && y < info.height) {
-                const std::size_t i = std::size_t{y} * info.width + x;
+            if (x < image.width && y < info.height) {
+                const std::size_t i = std::size_t{y} * image.width + x;
                 image.indices[i] = color;
                 image.opaque[i] = 1;
             } else {

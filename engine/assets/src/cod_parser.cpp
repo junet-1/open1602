@@ -420,7 +420,10 @@ struct Level {
 
 class Builder {
 public:
-    Builder(Document& doc, Parser& parser) : m_doc(doc), m_parser(parser) { m_levels.push_back(Level{}); }
+    Builder(Document& doc, Parser& parser, std::size_t min_values)
+        : m_doc(doc), m_parser(parser), m_min_values(std::min(min_values, kMaxValues)) {
+        m_levels.push_back(Level{});
+    }
 
     void handle(const Statement& st) {
         const Symbol& sym = *m_doc.symbols.find(st.lhs);
@@ -447,11 +450,18 @@ public:
             m_doc.symbols.define("Nummer", m_levels.back().nummer);
         } else if (st.lhs == "Nummer") {
             m_levels.back().nummer = sym.values[0].integer;
+            if (!m_levels.back().type.empty()) {
+                auto [it, fresh] = m_doc.highest_nummer.try_emplace(m_levels.back().type, m_levels.back().nummer);
+                if (!fresh) {
+                    it->second = std::max(it->second, m_levels.back().nummer);
+                }
+            }
         } else if (st.lhs == "ObjFill") {
             obj_fill(st, sym);
         } else {
             Field& field = current_record().set_field(st.lhs);
-            const std::size_t n = std::min<std::size_t>(kMaxValues, st.lhs_slot + std::max<std::uint32_t>(st.count, 1));
+            const std::size_t n = std::max(
+                m_min_values, std::min<std::size_t>(kMaxValues, st.lhs_slot + std::max<std::uint32_t>(st.count, 1)));
             field.values.assign(sym.values.begin(), sym.values.begin() + static_cast<std::ptrdiff_t>(n));
             field.assigned_with_equals = st.used_equals;
             field.line = st.line;
@@ -496,18 +506,23 @@ private:
 
     Document& m_doc;
     Parser& m_parser;
+    std::size_t m_min_values;
     std::vector<Level> m_levels;
 };
 
 }  // namespace
 
 Document parse(std::string_view text, std::span<const CodPredefinedSymbol> predefined) {
+    return parse(text, predefined, ParseOptions{});
+}
+
+Document parse(std::string_view text, std::span<const CodPredefinedSymbol> predefined, const ParseOptions& options) {
     Document doc;
     for (const auto& p : predefined) {
         doc.symbols.define(p.name, p.value);
     }
     Parser parser(text, doc);
-    Builder builder(doc, parser);
+    Builder builder(doc, parser, options.min_values);
     std::uint32_t last_line = 1;
     while (!parser.at_end()) {
         const Statement st = parser.read_statement();

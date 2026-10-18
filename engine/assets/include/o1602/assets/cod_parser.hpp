@@ -93,6 +93,8 @@ struct Diagnostic {
 struct Document {
     Object root;
     SymbolTable symbols;
+    /// Highest Nummer set in the blocks of each type (records ObjFill made beyond it do not count).
+    std::map<std::string, std::int32_t> highest_nummer;
     std::vector<Diagnostic> diagnostics;
 };
 
@@ -103,5 +105,13 @@ struct Document {
 /// Never fails: problems the original would silently accept (or crash on) are reported as
 /// diagnostics and handled conservatively.
 Document parse(std::string_view text, std::span<const CodPredefinedSymbol> predefined = {});
+
+struct ParseOptions {
+    /// Every field keeps at least this many value slots of its symbol, also those an assignment did
+    /// not write. The GAD loader (0x405480) copies whole slots: "Color: 5" keeps the second value of
+    /// the last "Color:" line.
+    std::size_t min_values = 0;
+};
+Document parse(std::string_view text, std::span<const CodPredefinedSymbol> predefined, const ParseOptions& options);
 
 }  // namespace o1602::assets::cod

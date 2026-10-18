@@ -9,6 +9,7 @@ add_library(o1602_assets
     src/cod_parser.cpp
     src/cod_predefined.cpp
     src/figure_table.cpp
+    src/gad.cpp
     src/game_directory.cpp
     src/island.cpp
     src/palette.cpp

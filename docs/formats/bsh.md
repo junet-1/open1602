@@ -53,10 +53,13 @@ Verifiziert durch: C++-Dekoder dekodiert alle Sprites von `GFX/MGFX/SGFX STADTFL
 
 ## ZEI (Schriften)
 
-Gleiches Format, Chunk-Name `ZEI`. Einzelne Glyphen (z. B. Index 14 in `ZEI20V.ZEI`) setzen Pixel
-jenseits von `width` – vermutlich Überhang/Kerning. Der Dekoder schneidet diese ab und zählt sie
-(`IndexedImage::clipped_pixels`). **Offen:** Zeichen-Mapping (Index → Zeichen), Bedeutung des
-Überhangs, Zeichenabstand.
+Gleiches Format, Chunk-Name `ZEI`. **Zeichen = Code − 0x20** (Windows-1252, 224 Zeichen; die großen Schriften
+ZEI28V/ZEI24V nur 33: Codes 32–64). Alle Zeichen einer Schrift sind gleich hoch (die Zeilenhöhe); der
+Vorschub ist die Breite, ohne Abstand. Einzelne Zeichen (z. B. Index 14 in `ZEI20V.ZEI`) setzen ein, zwei
+Bildpunkte jenseits von `width`: Sie überlappen das nächste Zeichen (das Original schneidet nichts ab;
+`SpriteSheet::decode(i, extra_width)` behält sie). Die Bildpunkte haben nur die Palettenindizes 1 (Körper)
+und 7 (Schatten), die beim Zeichnen umgefärbt werden. Schriften je Auflösung, Farben und Umbruch:
+[ui.md](../re/ui.md#schriften). Open1602: `ui::Font`.
 
 ## Werkzeuge
 
