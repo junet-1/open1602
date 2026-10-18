@@ -104,8 +104,17 @@ Informationen Platz finden und die Bedienung heutigen Echtzeitstrategiespielen f
 | R | Handelsroute bearbeiten (Schiff ausgewählt) |
 | Entf | Einheit auflösen / Schiff versenken (mit Rückfrage) |
 
-Angriffsbewegung, Stellung halten und das Springen zu untätigen Einheiten gibt es im Original nicht;
-sie kommen mit dem Kampfmodus dazu.
+Angriffsbewegung, Stellung halten und das Springen zu untätigen Einheiten gibt es im Original nicht.
+
+W A S D verschieben die Karte. Sind eigene Einheiten ausgewählt, sind A (Angriffsbewegung) und S (Stopp)
+Befehle und verschieben nicht; die Pfeiltasten verschieben immer. Eine Taste verschiebt nur, wenn sie im
+geltenden Zusammenhang nichts anderes bedeutet.
+
+Umgesetzt (18.10.2026): Tabelle `ui::KeyBindings` mit dieser Vorgabe (noch ohne Einstellungsdatei),
+Auswahl mit Rahmen, Gruppen, Formationen und Filtern (`ui::UnitSelection`), Rechtsklick- und
+Minikartenbefehle, Befehlsketten in der Simulation, die Rückfragen und die Fenster des Kampfmodus. Noch
+nicht: Angriffsbewegung (A wählt bisher ein Angriffsziel), Stellung halten, Videos im Minikartenfenster,
+Spielmenü, Listen, Diplomatie, Schnellladen, Hilfe.
 
 ## Folgen
 - Die Eingabe läuft über eine Tabelle Aktion → Taste (Einstellungsdatei), nicht über feste Tasten im

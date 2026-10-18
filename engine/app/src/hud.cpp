@@ -166,16 +166,24 @@ void Hud::draw_resources() {
 }
 
 SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
-    if (m_simulation == nullptr || m_buildings == nullptr || m_figure_table == nullptr || !m_selection_panels ||
-        m_selection.kind == Selection::Kind::None) {
+    if (m_simulation == nullptr || m_buildings == nullptr || m_figure_table == nullptr || !m_selection_panels) {
         return nullptr;
     }
-    context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local});
+    if (m_mode == kModeMilitary) {
+        context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr,
+                                     m_local, m_units});
+        return m_selection_panels->military_panel_for(*context);
+    }
+    if (m_mode != kModeInfo || m_selection.kind == Selection::Kind::None) {
+        return nullptr;
+    }
+    context.emplace(
+        PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local, m_units});
     return m_selection_panels->panel_for(m_selection, *context);
 }
 
 bool Hud::picking() {
-    if (m_mode != kModeInfo) {
+    if (m_mode != kModeInfo && m_mode != kModeMilitary) {
         return false;
     }
     std::optional<PanelContext> context;
@@ -191,7 +199,7 @@ void Hud::map_click(std::uint32_t x, std::uint32_t y) {
 }
 
 bool Hud::back() {
-    if (m_mode != kModeInfo) {
+    if (m_mode != kModeInfo && m_mode != kModeMilitary) {
         return false;
     }
     std::optional<PanelContext> context;
@@ -264,8 +272,85 @@ ui::Rect Hud::minimap_rect() const {
             static_cast<std::int32_t>(g->size[0] * s), static_cast<std::int32_t>(g->size[1] * s)};
 }
 
+std::optional<std::pair<double, double>> Hud::minimap_tile(std::int32_t x, std::int32_t y) const {
+    const ui::Rect map = minimap_rect();
+    if (!map.contains(x, y) || m_world_w == 0 || m_world_h == 0) {
+        return std::nullopt;
+    }
+    const double fit = std::min(static_cast<double>(map.w) / m_world_w, static_cast<double>(map.h) / m_world_h);
+    const double ox = map.x + (map.w - m_world_w * fit) / 2.0;
+    const double oy = map.y + (map.h - m_world_h * fit) / 2.0;
+    const double tx = (x - ox) / fit;
+    const double ty = (y - oy) / fit;
+    if (tx < 0.0 || ty < 0.0 || tx >= m_world_w || ty >= m_world_h) {
+        return std::nullopt;
+    }
+    return std::make_pair(tx, ty);
+}
+
+std::optional<std::pair<double, double>> Hud::last_message_tile() const {
+    for (const Event& e : m_events) {
+        if (e.tile) {
+            return e.tile;
+        }
+    }
+    return std::nullopt;
+}
+
+void Hud::draw_question() {
+    if (!m_question) {
+        return;
+    }
+    const double s = m_regions.scale;
+    const ui::Rect& v = m_regions.game_view;
+    const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
+    const ui::Rect box{v.x + (v.w - px(520)) / 2, v.y + (v.h - px(130)) / 2, px(520), px(130)};
+    constexpr std::uint8_t kGold = 215;  // (202, 172, 52) in STADTFLD.COL
+    constexpr std::uint8_t kDark = 28;   // (35, 23, 12)
+    m_renderer->fill(ui::Rect{box.x - px(3), box.y - px(3), box.w + px(6), box.h + px(6)}, kGold);
+    m_renderer->fill(box, kDark);
+    m_yes = ui::Rect{box.x + px(90), box.y + px(80), px(140), px(34)};
+    m_no = ui::Rect{box.x + box.w - px(230), box.y + px(80), px(140), px(34)};
+    std::vector<ui::DrawItem> items;
+    const auto text = [&](const std::string& t, std::int32_t x, std::int32_t y) {
+        ui::DrawItem d;
+        d.kind = ui::DrawItem::Kind::Text;
+        d.block = 0;
+        d.colour = 4;
+        d.align = ui::Align::Centre;
+        d.x = x;
+        d.y = y;
+        d.text = t;
+        items.push_back(d);
+    };
+    // Up to two lines, broken at '\n'.
+    const std::string& q = *m_question;
+    const std::size_t nl = q.find('\n');
+    text(q.substr(0, nl), box.w / 2, px(36));
+    if (nl != std::string::npos) {
+        text(q.substr(nl + 1), box.w / 2, px(62));
+    }
+    for (const ui::Rect* b : {&m_yes, &m_no}) {
+        m_renderer->fill(*b, kGold);
+        m_renderer->fill(ui::Rect{b->x + px(2), b->y + px(2), b->w - px(4), b->h - px(4)}, kDark);
+    }
+    text("Ja", m_yes.x - box.x + m_yes.w / 2, m_yes.y - box.y + px(28));
+    text("Nein", m_no.x - box.x + m_no.w / 2, m_no.y - box.y + px(28));
+    m_renderer->draw(items, box.x, box.y, s);
+}
+
 std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down) {
     std::optional<Action> action;
+    if (m_question) {
+        // The question takes every click until it is answered.
+        if (!down && (m_yes.contains(x, y) || m_no.contains(x, y))) {
+            Action a{Action::Kind::Answer};
+            a.step = m_yes.contains(x, y) ? 1 : 0;
+            m_question.reset();
+            return a;
+        }
+        return std::nullopt;
+    }
     const ui::Rect& panel = m_regions.side_panel;
     const ui::Rect& bar = m_regions.status_bar;
     // The mode's panel first: an open pop-up takes every press on the side panel.
@@ -296,7 +381,7 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         if (popup && consumed) {
             return action;
         }
-    } else if (m_mode == kModeInfo) {
+    } else if (m_mode == kModeInfo || m_mode == kModeMilitary) {
         std::optional<PanelContext> context;
         if (SelectionPanel* p = selection_panel(context)) {
             for (const ui::PanelEvent& e : p->panel().mouse(x - panel.x, y - panel.y, down)) {
@@ -306,7 +391,7 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
                 action = Action{Action::Kind::FoundKontor};
                 action->ship = r->ship;
             }
-        } else if (m_info) {
+        } else if (m_info && m_mode == kModeInfo) {
             m_info->mouse(x - panel.x, y - panel.y, down);
         }
     }
@@ -343,15 +428,9 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         }
     }
     // The minimap: pressing or dragging on it moves the view there.
-    const ui::Rect map = minimap_rect();
-    if (down && map.contains(x, y) && m_world_w > 0 && m_world_h > 0) {
-        const double fit = std::min(static_cast<double>(map.w) / m_world_w, static_cast<double>(map.h) / m_world_h);
-        const double ox = map.x + (map.w - m_world_w * fit) / 2.0;
-        const double oy = map.y + (map.h - m_world_h * fit) / 2.0;
-        const double tx = (x - ox) / fit;
-        const double ty = (y - oy) / fit;
-        if (tx >= 0.0 && ty >= 0.0 && tx < m_world_w && ty < m_world_h) {
-            action = Action{Action::Kind::Minimap, tx, ty};
+    if (down) {
+        if (const auto t = minimap_tile(x, y)) {
+            action = Action{Action::Kind::Minimap, t->first, t->second};
         }
     }
     return action;
@@ -455,7 +534,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         if (const auto text = m_build->help(m_leiste)) {
             status = *text;
         }
-    } else if (m_mode == kModeInfo) {
+    } else if (m_mode == kModeInfo || m_mode == kModeMilitary) {
         std::optional<PanelContext> context;
         if (SelectionPanel* p = selection_panel(context)) {
             p->refresh(m_selection, *context);
@@ -465,7 +544,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
                     status = *text;
                 }
             }
-        } else if (m_info) {
+        } else if (m_info && m_mode == kModeInfo) {
             m_info->draw(*m_renderer, figures, colour, m_regions.side_panel, s);
             if (const auto text = m_info->help(m_leiste)) {
                 status = *text;
@@ -512,6 +591,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     m_renderer->fill_with_middle(0, kGfxLeiste, m_regions.status_bar, s);
     m_leist.set_text(kStatusLine, status);
     m_renderer->draw(m_leist.draw(m_renderer->fonts()), m_regions.status_bar.x, m_regions.status_bar.y, s);
+    draw_question();
 }
 
 }  // namespace o1602::app

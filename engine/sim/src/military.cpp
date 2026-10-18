@@ -94,15 +94,8 @@ bool Military::order(const SoldierOrder& o) {
     if (units.empty() || (!o.target.empty() && !target_valid(o.target))) {
         return false;
     }
-    // The attack cursor on an object of another player means war (0x0044D540); not on the trader.
-    const PlayerId other = owner_of(o.target);
-    const PlayerId self = units.front()->owner;
-    if (o.attack && other != kNoPlayer && other != self) {
-        const Player* p = m_world->player(other);
-        if (p != nullptr && p->role != PlayerRole::Trader && !m_world->diplomacy().hostile(self, other)) {
-            m_world->diplomacy().set_peace(*m_world, self, other, Treaty::None, m_world->time_ms());
-            m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::WarDeclared, {}, o.target, self, other});
-        }
+    if (o.attack) {
+        declare_war_by_attack(units.front()->owner, o.target);
     }
     // Formation (0x0044C6D0): slots one tile apart around the spot; each unit in order takes the
     // nearest free slot.
@@ -135,8 +128,29 @@ bool Military::order(const SoldierOrder& o) {
                 static_cast<std::uint32_t>(std::max(0, static_cast<std::int32_t>(o.target.y) + 2 * slots[best].y)));
         }
     }
+    // The shape of the group: each unit to the spot plus its offset (1/8 tile = 1/4 cell).
+    if (o.target.kind == Target::Kind::Spot && o.offsets.size() == o.soldiers.size() && o.formation == 0xFF) {
+        for (std::size_t u = 0; u < units.size(); ++u) {
+            const auto it = std::find(o.soldiers.begin(), o.soldiers.end(), units[u]->id);
+            const auto& off = o.offsets[static_cast<std::size_t>(it - o.soldiers.begin())];
+            const auto floor_div = [](std::int32_t a, std::int32_t b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
+            const std::int32_t x = static_cast<std::int32_t>(o.target.x) + floor_div(off.first, 4);
+            const std::int32_t y = static_cast<std::int32_t>(o.target.y) + floor_div(off.second, 4);
+            const auto max_x = static_cast<std::int32_t>(2 * m_world->width()) - 1;
+            const auto max_y = static_cast<std::int32_t>(2 * m_world->height()) - 1;
+            targets[u] = Target::spot(static_cast<std::uint32_t>(std::clamp(x, 0, max_x)),
+                                      static_cast<std::uint32_t>(std::clamp(y, 0, max_y)));
+        }
+    }
     for (std::size_t u = 0; u < units.size(); ++u) {
         Soldier& s = *units[u];
+        if (o.queue && (!s.target.empty() || !s.queue.empty()) && !s.patrol.active && !targets[u].empty()) {
+            if (s.queue.size() < kMaxQueuedOrders) {
+                s.queue.push_back(targets[u]);
+            }
+            continue;
+        }
+        s.queue.clear();
         // Soldier_SetTarget 0x004497C0: the running cell ends, then the soldier plans.
         s.target = targets[u];
         s.motion.path.clear();
@@ -150,6 +164,22 @@ bool Military::order(const SoldierOrder& o) {
     return true;
 }
 
+bool Military::declare_war_by_attack(PlayerId self, const Target& target) {
+    const PlayerId other = owner_of(target);
+    if (self == kNoPlayer || other == kNoPlayer || other == self) {
+        return false;
+    }
+    const Player* p = m_world->player(other);
+    // SetRelation(self, other, 0) (0x004760E0): also an offer of peace on either side ends.
+    if (p == nullptr || p->role == PlayerRole::Trader || self >= m_world->diplomacy().size() ||
+        other >= m_world->diplomacy().size() || m_world->diplomacy().relation(self, other).peace == Treaty::None) {
+        return false;
+    }
+    m_world->diplomacy().set_peace(*m_world, self, other, Treaty::None, m_world->time_ms());
+    m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::WarDeclared, {}, target, self, other});
+    return true;
+}
+
 bool Military::command(const SoldierCommand& c) {
     Soldier* s = m_world->soldier(c.soldier);
     if (s == nullptr || s->away() || (c.player != kNoPlayer && s->owner != c.player)) {
@@ -158,6 +188,7 @@ bool Military::command(const SoldierCommand& c) {
     switch (c.op) {
         case SoldierCommand::Op::Stop:
             s->target = {};
+            s->queue.clear();
             s->patrol.active = false;
             s->motion.path.clear();
             s->motion.path_index = 0;

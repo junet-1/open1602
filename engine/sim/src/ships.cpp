@@ -438,6 +438,7 @@ void Fleet::sink(Ship& ship, PlayerId attacker) {
     // Op 0x0C: the ship stops, turns to the nearest odd heading and goes down (0x0044A9A0).
     ship.sinking = true;
     ship.held = false;
+    ship.queue.clear();
     ship.route.active = false;
     ship.repairing = false;
     ship.explore_steps = 0;
@@ -706,6 +707,15 @@ void Fleet::finish_order(Ship& ship) {
     ship.previous = ship.target;
     ship.target = {};
     ship.motion.failures = 0;
+    // The next order waiting (Shift + right click) that still makes sense.
+    while (!ship.queue.empty() && ship.target.empty() && !ship.route.active) {
+        const Target t = ship.queue.front();
+        ship.queue.erase(ship.queue.begin());
+        if (target_valid(t)) {
+            ship.target = t;
+            ship.order = t;
+        }
+    }
 }
 
 void Fleet::decide(Ship& ship) {
@@ -869,6 +879,15 @@ bool Fleet::order(const ShipOrder& o) {
     if (!o.target.empty() && !target_valid(o.target)) {
         return false;
     }
+    if (o.queue && !o.target.empty() && !ship->route.active && !ship->held &&
+        (!ship->target.empty() || !ship->queue.empty())) {
+        if (ship->queue.size() >= kMaxQueuedOrders) {
+            return false;
+        }
+        ship->queue.push_back(o.target);
+        return true;
+    }
+    ship->queue.clear();
     ShipMotion& m = ship->motion;
     // The running run (at most two tiles) ends; then the ship plans (0x00448A10, 0x0044EBA0).
     m.path.clear();
@@ -935,6 +954,7 @@ bool Fleet::edit_route(const RouteEdit& e) {
             }
             route.active = true;
             route.problem_rounds = 0;
+            ship->queue.clear();
             const RouteStop& stop = route.stops[route.current % TradeRoute::kStops];
             ship->target = target_valid(stop.target) ? stop.target : Target{};
             return true;

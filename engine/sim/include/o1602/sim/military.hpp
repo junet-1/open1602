@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -36,6 +37,11 @@ struct SoldierOrder {
     bool attack = false;
     /// FORMATION of figuren.cod to take up around a Spot, 0xFF = none (everyone walks to the spot).
     std::uint8_t formation = 0xFF;
+    /// With a Spot: where each unit goes relative to it, in 1/8 tile, in the order of `soldiers`
+    /// (the shape of the group kept, 0x0044D540). Ignored unless there is one per unit.
+    std::vector<std::pair<std::int16_t, std::int16_t>> offsets{};
+    /// Waits behind the unit's orders (Shift + right click).
+    bool queue = false;
 };
 
 /// Further commands to one unit (soldier ops 0x0C, 0x28, 0x29, 0x2B).
@@ -120,6 +126,10 @@ public:
     void tick(std::uint32_t dt_ms, std::vector<ConstructionEvent>* construction);
 
     bool order(const SoldierOrder& order);
+    /// An attack by `self` on `target` (military mode, 0x0044D540): war with its owner unless that
+    /// is `self`, nobody or the free trader; pending peace offers end too. Returns whether the
+    /// relation changed.
+    bool declare_war_by_attack(PlayerId self, const Target& target);
     bool command(const SoldierCommand& command);
     bool castle(const CastleOrder& order);
     bool unload(const UnloadOrder& order);
@@ -182,6 +192,8 @@ private:
     bool attack(Soldier& s, const assets::FigureType& type, const Target& t);
     bool arrived(Soldier& s);
     bool wander(Soldier& s);
+    /// The next of the queued orders that is still valid becomes the target (or none).
+    void next_queued(Soldier& s);
     [[nodiscard]] const assets::FigureType* type_of(const Soldier& s) const;
     [[nodiscard]] std::uint32_t run_us(const Soldier& s, std::uint8_t direction, std::uint8_t cells) const;
     void kill(Soldier& s, PlayerId killer, bool disband);

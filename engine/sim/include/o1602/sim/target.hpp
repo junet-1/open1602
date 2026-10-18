@@ -4,6 +4,7 @@
 // (the original's 4-byte object references, docs/re/ships.md and docs/re/military.md).
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace o1602::sim {
@@ -11,6 +12,9 @@ namespace o1602::sim {
 /// Positions of ships and soldiers in 1/4096 tile; a tile centre is tile * 4096 + 2048.
 inline constexpr std::int32_t kShipUnit = 4096;
 inline constexpr std::int32_t kPosUnit = kShipUnit;
+
+/// Most orders a ship or a unit keeps waiting behind its current one (Shift + right click, ADR 0010).
+inline constexpr std::size_t kMaxQueuedOrders = 16;
 
 struct Target {
     enum class Kind : std::uint8_t {

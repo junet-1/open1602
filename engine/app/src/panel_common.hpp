@@ -91,4 +91,9 @@ struct ShipLayouts {
 /// The ship's window with its pages (ship_panel.cpp).
 std::unique_ptr<SelectionPanel> make_ship_panel(ShipLayouts layouts);
 
+/// The windows of the military mode (unit_panels.cpp): SKSHIP, SKSOLDAT, MKSHIP, MKSOLDAT.
+std::unique_ptr<SelectionPanel> make_ship_unit_panel(assets::GadgetLayout layout);
+std::unique_ptr<SelectionPanel> make_soldier_unit_panel(assets::GadgetLayout layout);
+std::unique_ptr<SelectionPanel> make_group_panel(assets::GadgetLayout layout, bool ships);
+
 }  // namespace o1602::app

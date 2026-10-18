@@ -478,3 +478,47 @@ TEST_CASE("military: natives curse who destroyed their village") {
     CHECK(curse->player == 0);
     CHECK(curse->pirates == f.world.islands()[0].drought.curse_pending);
 }
+
+TEST_CASE("military: a group keeps its shape; queued orders follow one after another") {
+    Field f;
+    f.start();
+    const std::uint32_t a = f.add(kSword, 0, 2 * 12, 2 * 15).id;
+    const std::uint32_t b = f.add(kSword, 0, 2 * 12, 2 * 17).id;
+    // b one tile below a: offsets in 1/8 tile around the spot.
+    sim::SoldierOrder order{0, {a, b}, sim::Target::spot(2 * 20, 2 * 15)};
+    order.offsets = {{0, -4}, {0, 4}};
+    REQUIRE(f.military->order(order));
+    CHECK(f.world.soldier(a)->target == sim::Target::spot(40, 29));
+    CHECK(f.world.soldier(b)->target == sim::Target::spot(40, 31));
+    // Two more places queued for a: it walks to them in turn.
+    sim::SoldierOrder next{0, {a}, sim::Target::spot(2 * 20, 2 * 20)};
+    next.queue = true;
+    REQUIRE(f.military->order(next));
+    next.target = sim::Target::spot(2 * 14, 2 * 20);
+    REQUIRE(f.military->order(next));
+    CHECK(f.world.soldier(a)->queue.size() == 2);
+    CHECK(f.world.soldier(a)->target == sim::Target::spot(40, 29));
+    f.run(40'000);
+    const sim::Soldier* s = f.world.soldier(a);
+    CHECK(s->queue.empty());
+    CHECK(s->cell_x() == 28);
+    CHECK(s->cell_y() == 40);
+    // A plain order clears the queue.
+    REQUIRE(f.military->order(next));
+    REQUIRE(f.military->order(next));
+    CHECK(!f.world.soldier(a)->queue.empty());
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {a}, sim::Target::spot(2 * 12, 2 * 15)}));
+    CHECK(f.world.soldier(a)->queue.empty());
+}
+
+TEST_CASE("military: an attack ends a pending offer of peace too") {
+    Field f;
+    f.start();
+    f.war(0, 1);
+    f.world.diplomacy().relation(0, 1).peace = sim::Treaty::Offered;
+    f.world.diplomacy().relation(1, 0).peace = sim::Treaty::Received;
+    const sim::Soldier& enemy = f.add(kSword, 1, 2 * 25, 2 * 15);
+    CHECK(f.military->declare_war_by_attack(0, sim::Target::soldier(enemy.id)));
+    CHECK(f.world.diplomacy().relation(0, 1).peace == sim::Treaty::None);
+    CHECK(!f.military->declare_war_by_attack(0, sim::Target::soldier(enemy.id)));  // at war already
+}

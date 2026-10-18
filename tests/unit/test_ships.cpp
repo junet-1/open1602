@@ -581,3 +581,29 @@ TEST_CASE("ships: a Kontor trades in no more wares than its Maxware allows") {
     CHECK(!sim::trim_trade_settings(city, kontor));  // three are allowed
     CHECK(city.trade[2].sell);
 }
+
+TEST_CASE("ships: queued orders are sailed one after another; any other order clears them") {
+    Sea sea;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    const std::uint32_t id = sea.add(10, 10).id;
+    CHECK(fleet.order(sim::ShipOrder{0, id, sim::Target::position(16, 10)}));
+    sim::ShipOrder next{0, id, sim::Target::position(16, 16)};
+    next.queue = true;
+    CHECK(fleet.order(next));
+    next.target = sim::Target::position(10, 16);
+    CHECK(fleet.order(next));
+    CHECK(sea.world.ship(id)->queue.size() == 2);
+    run(fleet, sea.world, 60000);
+    const sim::Ship& s = *sea.world.ship(id);
+    CHECK(s.queue.empty());
+    CHECK(s.x == 10);
+    CHECK(s.y == 16);
+    // A queued order to an idle ship is taken at once; a plain one clears the queue.
+    CHECK(fleet.order(next));
+    CHECK(sea.world.ship(id)->queue.empty());
+    next.target = sim::Target::position(20, 20);
+    CHECK(fleet.order(next));
+    CHECK(sea.world.ship(id)->queue.size() == 1);
+    CHECK(fleet.order(sim::ShipOrder{0, id, sim::Target::position(12, 12)}));
+    CHECK(sea.world.ship(id)->queue.empty());
+}

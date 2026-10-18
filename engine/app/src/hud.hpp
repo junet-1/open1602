@@ -48,6 +48,7 @@ public:
             ToolOff,       ///< another mode: no building tool
             OrientToRoad,  ///< buildings with a door turn to the road (`step` 1) or not (0)
             FoundKontor,   ///< the building tool places a Kontor paid from `ship`
+            Answer,        ///< the question was answered: `step` 1 yes, 0 no
         };
         Kind kind = Kind::RotateLeft;
         double tile_x = 0.0;  ///< Minimap and Message: the world tile to look at
@@ -107,6 +108,8 @@ public:
         m_figure_table = &figures;
         m_local = local;
     }
+    /// The selected ships and land units: their windows show in the military mode.
+    void set_units(ui::UnitSelection* units) noexcept { m_units = units; }
     /// What the player selected on the map; its window shows in the info mode.
     void set_selection(const Selection& selection) { m_selection = selection; }
     [[nodiscard]] const Selection& selection() const noexcept { return m_selection; }
@@ -120,6 +123,16 @@ public:
     [[nodiscard]] std::vector<sim::Command> take_commands() { return std::exchange(m_commands, {}); }
     /// Switches the mode (also from the keys); returns what the tool should do.
     std::optional<Action> set_mode(std::int32_t mode);
+
+    /// The world tile of a point on the minimap, nothing elsewhere.
+    [[nodiscard]] std::optional<std::pair<double, double>> minimap_tile(std::int32_t x, std::int32_t y) const;
+    /// The place of the newest message that has one (Space jumps there).
+    [[nodiscard]] std::optional<std::pair<double, double>> last_message_tile() const;
+    /// A question over the map with yes and no (ADR 0010: before scuttling, disbanding, war); the
+    /// answer comes as Action::Answer from mouse() or answer().
+    void ask(std::string question) { m_question = std::move(question); }
+    [[nodiscard]] bool asking() const noexcept { return m_question.has_value(); }
+    void close_question() noexcept { m_question.reset(); }
 
     /// Draws the frame. `view` are the corners of the visible map in world tiles (the minimap's
     /// frame), `world` the game for the minimap (redrawn every few seconds).
@@ -164,6 +177,7 @@ private:
     Resources m_resources;
     std::unique_ptr<SelectionPanels> m_selection_panels;
     Selection m_selection;
+    ui::UnitSelection* m_units = nullptr;
     const sim::Simulation* m_simulation = nullptr;
     const assets::BuildingTable* m_buildings = nullptr;
     const assets::FigureTable* m_figure_table = nullptr;
@@ -180,6 +194,10 @@ private:
     bool m_minimap_dirty = true;
     std::uint32_t m_world_w = 0;
     std::uint32_t m_world_h = 0;
+    std::optional<std::string> m_question;
+    ui::Rect m_yes;  ///< the buttons of the question as last drawn
+    ui::Rect m_no;
+    void draw_question();
 };
 
 }  // namespace o1602::app

@@ -169,6 +169,11 @@ CommandResult Simulation::execute(const Command& command) {
         result.refund = d.refund;
     } else if (const auto* order = std::get_if<ShipOrder>(&command)) {
         result.accepted = m_fleet.order(*order);
+        if (result.accepted && order->attack) {
+            if (const Ship* ship = m_world->ship(order->ship)) {
+                m_military.declare_war_by_attack(ship->owner, order->target);
+            }
+        }
     } else if (const auto* transfer = std::get_if<CargoTransfer>(&command)) {
         result.moved = m_fleet.transfer(*transfer);
         result.accepted = result.moved != 0;

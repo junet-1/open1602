@@ -47,6 +47,12 @@ struct ShipOrder {
     PlayerId player = kNoPlayer;
     std::uint32_t ship = 0;  ///< Ship::id
     Target target;           ///< none = stop
+    /// Given in the military mode (or as an attack): an object of another player (not the free
+    /// trader) means war with him (0x0044D540).
+    bool attack = false;
+    /// Waits behind the orders the ship has (Shift + right click); a ship without an order (or on
+    /// its trade route) takes it at once.
+    bool queue = false;
 };
 
 /// Goods between a ship and the Kontor it lies at: the player's own (no money) or another's at the

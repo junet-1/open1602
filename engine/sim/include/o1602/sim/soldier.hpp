@@ -72,6 +72,8 @@ struct Soldier {
     std::uint64_t next_follow_ms = 0;  ///< next re-plan towards a moving target
     std::uint64_t last_attack_ms = 0;  ///< idle units wander or patrol 2 s after their last attack
     Patrol patrol;
+    /// Orders waiting behind `target` (Open1602: Shift + right click); any other order clears them.
+    std::vector<Target> queue;
     bool disbanded = false;  ///< dying without the death animation
     SoldierMotion motion;
     /// Slot of the unit in the file it was loaded from (SOLDAT3 +0x08), so the savegame writer keeps

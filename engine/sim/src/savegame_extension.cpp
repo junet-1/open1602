@@ -64,6 +64,8 @@ constexpr std::uint32_t kCityState = tag("CSTA");
 /// The original's file the game came from, without the island tiles (Open1602's own savegame only):
 /// the export to a .GAM takes the bytes Open1602 does not model from it (savegame_writer.cpp).
 constexpr std::uint32_t kOrigin = tag("ORIG");
+/// Orders waiting behind the current one of ships and units (Shift + right click).
+constexpr std::uint32_t kQueues = tag("QUEU");
 
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
@@ -2280,6 +2282,35 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kArmy, [&](Out& o) { write_army(o, world); });
     section(out, kDiplomacy, [&](Out& o) { write_diplomacy(o, world); });
     section(out, kExplored, [&](Out& o) { write_explored(o, world); });
+    section(out, kQueues, [&](Out& o) {
+        const auto put = [&](std::uint32_t id, const std::vector<Target>& queue) {
+            o.u32(id);
+            o.u8(static_cast<std::uint8_t>(queue.size()));
+            for (const Target& t : queue) {
+                put_target(o, t);
+            }
+        };
+        std::uint32_t ships = 0;
+        for (const Ship& s : world.ships()) {
+            ships += s.queue.empty() ? 0U : 1U;
+        }
+        o.u32(ships);
+        for (const Ship& s : world.ships()) {
+            if (!s.queue.empty()) {
+                put(s.id, s.queue);
+            }
+        }
+        std::uint32_t soldiers = 0;
+        for (const Soldier& s : world.soldiers()) {
+            soldiers += s.queue.empty() ? 0U : 1U;
+        }
+        o.u32(soldiers);
+        for (const Soldier& s : world.soldiers()) {
+            if (!s.queue.empty()) {
+                put(s.id, s.queue);
+            }
+        }
+    });
     if (tiles == TileMode::Full && world.source() != nullptr) {
         section(out, kOrigin, [&](Out& o) {
             assets::ChunkWriter chunks;
@@ -2364,6 +2395,8 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                             std::span<const std::uint8_t> sections) {
     Decoded d;
     core::Bytes origin;
+    std::vector<std::pair<std::uint32_t, std::vector<Target>>> ship_queues;
+    std::vector<std::pair<std::uint32_t, std::vector<Target>>> soldier_queues;
     bool damaged = false;
     const bool ok = for_each_section(sections, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
         core::ByteReader sr(body);
@@ -2447,6 +2480,23 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
             case kOrigin:
                 origin.assign(body.begin(), body.end());
                 break;
+            case kQueues:
+                for (auto* list : {&ship_queues, &soldier_queues}) {
+                    const std::uint32_t n = in.u32();
+                    for (std::uint32_t k = 0; k < n && in.ok(); ++k) {
+                        const std::uint32_t unit = in.u32();
+                        const std::uint8_t count = in.u8();
+                        std::vector<Target> queue;
+                        for (std::uint8_t q = 0; q < count && in.ok(); ++q) {
+                            queue.push_back(get_target(in));
+                        }
+                        if (queue.size() > kMaxQueuedOrders) {
+                            queue.resize(kMaxQueuedOrders);
+                        }
+                        list->emplace_back(unit, std::move(queue));
+                    }
+                }
+                break;
             default:
                 return true;  // META, MAPW (read before), or a part of a later version
         }
@@ -2459,6 +2509,16 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
     }
     if (auto status = apply_decoded(world, d); !status) {
         return status;
+    }
+    for (auto& [id, queue] : ship_queues) {
+        if (Ship* ship = world.ship(id)) {
+            ship->queue = std::move(queue);
+        }
+    }
+    for (auto& [id, queue] : soldier_queues) {
+        if (Soldier* soldier = world.soldier(id)) {
+            soldier->queue = std::move(queue);
+        }
     }
     if (!origin.empty() && world.source() == nullptr) {
         if (auto file = assets::ChunkFile::from_bytes(std::move(origin))) {

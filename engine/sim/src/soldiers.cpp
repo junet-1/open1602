@@ -413,8 +413,19 @@ bool Military::arrived(Soldier& s) {
         }
         return true;
     }
-    s.target = {};
+    next_queued(s);
     return true;
+}
+
+void Military::next_queued(Soldier& s) {
+    s.target = {};
+    while (!s.queue.empty() && s.target.empty()) {
+        const Target t = s.queue.front();
+        s.queue.erase(s.queue.begin());
+        if (target_valid(t)) {
+            s.target = t;
+        }
+    }
 }
 
 bool Military::wander(Soldier& s) {
@@ -461,6 +472,7 @@ void Military::kill(Soldier& s, PlayerId killer, bool disband) {
     s.motion.duration_us = (disband ? kDisbandMs : (type != nullptr ? type->combat.die_ms : 2500U)) * 1000U;
     s.disbanded = disband;
     s.target = {};
+    s.queue.clear();
     if (!disband) {
         s.anim = kAnimDie;
     }
@@ -489,7 +501,7 @@ void Military::decide(Soldier& s) {
         s.island = island;
     }
     if (!s.target.empty() && !target_valid(s.target)) {
-        s.target = {};
+        next_queued(s);
         m.path.clear();
         m.path_index = 0;
     }
@@ -549,7 +561,7 @@ void Military::decide(Soldier& s) {
         if (!plan_to(s, enemy, kPlanRadius, true)) {
             ++s.failures;
             if (s.failures > kMaxFailures && enemy == s.target) {
-                s.target = {};
+                next_queued(s);
                 s.failures = 0;
             }
             start_wait(s, kIdleMs);
@@ -575,7 +587,7 @@ void Military::decide(Soldier& s) {
             if (!plan(s, kPlanRadius, attackable(s, s.target))) {
                 ++s.failures;
                 if (s.failures > kMaxFailures) {
-                    s.target = {};
+                    next_queued(s);
                     s.failures = 0;
                 }
                 start_wait(s, kIdleMs);

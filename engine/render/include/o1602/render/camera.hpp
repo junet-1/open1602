@@ -54,6 +54,8 @@ public:
 
     /// World tile under a screen point.
     [[nodiscard]] std::optional<TilePos> tile_at_screen(double sx, double sy) const;
+    /// Screen point of a world pixel (units drawn over the map).
+    void world_to_screen(double px, double py, double& sx, double& sy) const;
 
 private:
     void screen_to_world(double sx, double sy, double& px, double& py) const;

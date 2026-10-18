@@ -1531,6 +1531,18 @@ SelectionPanels::SelectionPanels(const assets::GameDirectory& game) {
     if (auto l = load("HANDEL.GAD")) {
         m_panels["HANDEL"] = std::make_unique<ForeignKontorPanel>(std::move(*l));
     }
+    if (auto l = load("SKSHIP.GAD")) {
+        m_panels["SKSHIP"] = make_ship_unit_panel(std::move(*l));
+    }
+    if (auto l = load("SKSOLDAT.GAD")) {
+        m_panels["SKSOLDAT"] = make_soldier_unit_panel(std::move(*l));
+    }
+    if (auto l = load("MKSHIP.GAD")) {
+        m_panels["MKSHIP"] = make_group_panel(std::move(*l), true);
+    }
+    if (auto l = load("MKSOLDAT.GAD")) {
+        m_panels["MKSOLDAT"] = make_group_panel(std::move(*l), false);
+    }
     if (auto l = load("SIEDLER.GAD")) {
         m_panels["SIEDLER"] = std::make_unique<SettlerPanel>(std::move(*l));
     }
@@ -1544,6 +1556,16 @@ void SelectionPanels::set_scale(double scale) {
     for (auto& [name, panel] : m_panels) {
         panel->set_scale(scale);
     }
+}
+
+SelectionPanel* SelectionPanels::military_panel_for(const PanelContext& c) {
+    if (c.units == nullptr || c.units->empty()) {
+        return nullptr;
+    }
+    const auto it =
+        m_panels.find(c.units->kind() == ui::UnitRef::Kind::Ship ? (c.units->size() == 1 ? "SKSHIP" : "MKSHIP")
+                                                                 : (c.units->size() == 1 ? "SKSOLDAT" : "MKSOLDAT"));
+    return it != m_panels.end() ? it->second.get() : nullptr;
 }
 
 SelectionPanel* SelectionPanels::panel_for(const Selection& s, const PanelContext& c) {

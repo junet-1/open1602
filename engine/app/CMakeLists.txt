@@ -9,8 +9,10 @@ add_executable(open1602
     src/selection_panels.cpp
     src/ship_panel.cpp
     src/panel_common.cpp
+    src/unit_panels.cpp
     src/side_panels.cpp
     src/map_viewer.cpp
+    src/map_input.cpp
     src/video_player.cpp
 )
 target_link_libraries(open1602 PRIVATE o1602::sim o1602::render_sdl o1602::platform o1602::audio o1602::ui o1602::video)

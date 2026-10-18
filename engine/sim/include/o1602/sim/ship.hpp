@@ -118,9 +118,12 @@ struct Ship {
     /// Holds; as many as the ship type has (8 in every original file). Empty holds have ware 0.
     std::vector<CargoSlot> cargo;
     TradeRoute route;
-    Target target;                   ///< what it sails to now
-    Target order;                    ///< what the player or computer last ordered
-    Target previous;                 ///< where it came from (the trader does not visit it again)
+    Target target;    ///< what it sails to now
+    Target order;     ///< what the player or computer last ordered
+    Target previous;  ///< where it came from (the trader does not visit it again)
+    /// Orders waiting behind `target` (Open1602: Shift + right click); each becomes the target when
+    /// the one before it ends. Any other order clears them.
+    std::vector<Target> queue;
     bool held = false;               ///< white flag: no decisions of its own
     bool sinking = false;            ///< hit fatally: turns, sinks and is removed
     std::uint64_t next_shot_ms = 0;  ///< game time of the next shot allowed (reload)

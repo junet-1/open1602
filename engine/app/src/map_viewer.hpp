@@ -37,6 +37,8 @@
 #include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
+#include "o1602/ui/key_bindings.hpp"
+#include "o1602/ui/unit_selection.hpp"
 
 union SDL_Event;
 
@@ -68,6 +70,11 @@ struct ViewerOptions {
     bool videos = true;                  ///< the videos of messages, victory, defeat and pause
     bool intro = false;                  ///< the logos and the intro before the game (the original always shows them)
     std::optional<std::uint16_t> video;  ///< one video before the game (VideoSmk number)
+    /// The original's mouse: the left button gives orders too, the right one only cancels
+    /// (ADR 0010: Open1602 orders with the right button).
+    bool original_mouse = false;
+    /// Ask before scuttling, disbanding and declaring war by an attack (ADR 0010).
+    bool confirm = true;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
     struct ScriptedInput {
         enum class Kind : std::uint8_t { Move, Down, Up, Key };
@@ -81,7 +88,8 @@ struct ViewerOptions {
     std::vector<ScriptedInput> input;
     /// Select the building on this island tile at the start (island index, x, y) and look at it.
     std::optional<std::array<std::uint16_t, 3>> select;
-    std::optional<std::uint32_t> select_ship;  ///< index into the game's ships
+    std::optional<std::uint32_t> select_ship;     ///< index into the game's ships
+    std::optional<std::uint32_t> select_soldier;  ///< index into the game's land units
 };
 
 class MapViewer {
@@ -107,7 +115,7 @@ private:
     core::Status ensure_graphics(render::Zoom zoom);
 
     void handle_event(const SDL_Event& event);
-    void handle_key(int key, bool shift);
+    void handle_key(int key, std::uint16_t mod);
     void update(std::uint32_t delta_ms);
     void render();
     void update_title(double fps);
@@ -121,13 +129,41 @@ private:
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
     [[nodiscard]] static std::filesystem::path save_folder();
 
-    void select_ship_at_mouse();
-    /// Tells the panel what was clicked on the map (ship or building) for its windows.
-    void select_for_panel();
-    void order_ship_to_mouse();
-    /// A unit under the mouse: an own soldier is selected first.
-    [[nodiscard]] std::uint32_t soldier_at_mouse(bool own_only) const;
-    void order_soldier_to_mouse();
+    /// Tells the panel which building is under the mouse for its window (none: the player status).
+    void select_building_at_mouse();
+
+    // ---- Input (map_input.cpp, ADR 0010) ----
+    /// The keys of ADR 0010.
+    void setup_keys();
+    [[nodiscard]] ui::KeyContext key_context() const;
+    void run_action(const ui::KeyBinding& binding);
+    /// The map scrolls while its keys are held.
+    void scroll_with_keys(std::uint32_t delta_ms);
+    /// Screen position of a world position in tiles.
+    [[nodiscard]] std::pair<double, double> screen_of(double tx, double ty) const;
+    /// Where a unit is drawn on screen: its box (x, y, w, h).
+    [[nodiscard]] std::optional<std::array<double, 4>> unit_box(const ui::UnitRef& ref) const;
+    /// Ships and land units whose picture lies in the rectangle (screen), with the part inside.
+    [[nodiscard]] std::vector<ui::UnitCandidate> units_in(double x0, double y0, double x1, double y1) const;
+    /// The unit under a screen point, the local player's first.
+    [[nodiscard]] std::optional<ui::UnitRef> unit_at(double sx, double sy) const;
+    /// Left button released on the map (no tool): a click or the end of a rectangle.
+    void map_left_up(double x, double y, std::uint16_t mod, int clicks);
+    /// An order of the selection to the screen point (right button; the left one with the
+    /// original's mouse); `queue` with Shift.
+    void map_order(double x, double y, bool queue);
+    /// An order of the selection to a world position (the minimap).
+    void order_to_tile(double tx, double ty, bool queue);
+    /// Escape or the right button (original mouse): out of a pick, back a page, deselect.
+    void cancel_action();
+    /// The selection changed: the windows follow (a single ship in the info mode, groups and land
+    /// units in the military mode).
+    void selection_changed(bool box);
+    /// Orders to the simulation; those that cannot be taken back wait for an answer (ADR 0010).
+    void submit_orders(std::vector<sim::Command> orders, bool sound = true);
+    [[nodiscard]] std::optional<std::string> question_for(const sim::Command& command) const;
+    /// Health bars over the selected units and the selection rectangle.
+    void draw_selection_overlay();
     /// Tells the sound where the view is (every frame, before events are heard).
     void place_listener();
     /// Gives the map the window without the frame.
@@ -169,6 +205,8 @@ private:
     /// Townsfolk, sea creatures and jugglers of the game time since the last frame.
     void update_ambient();
 
+    static constexpr std::int32_t kMaxPixelScale = 4;
+
     assets::GameDirectory m_game;
     assets::BuildingTable m_buildings;
     sim::World m_world;
@@ -195,11 +233,19 @@ private:
     bool m_paused = false;
     bool m_show_owners = false;  ///< ownership overlay (key O)
     bool m_dragging = false;
-    double m_drag_distance = 0.0;          ///< mouse travel while the right button is held (a click if small)
-    std::uint32_t m_selected_ship = 0;     ///< Ship::id, 0 = none
-    std::uint32_t m_selected_soldier = 0;  ///< Soldier::id, 0 = none
-    bool m_attack_mode = false;            ///< key K: the attack cursor of the original
-    double m_mouse_x = 0.0;                ///< in output pixels
+    double m_drag_distance = 0.0;  ///< mouse travel while the right button is held (a click if small)
+    ui::UnitSelection m_units;     ///< the selected ships or land units
+    ui::KeyBindings m_keys;
+    /// A pick the next click on the map answers: an attack (A) or a patrol (P).
+    enum class Pick : std::uint8_t { None, Attack, Patrol };
+    Pick m_pick = Pick::None;
+    std::optional<std::pair<double, double>> m_press;  ///< left button pressed on the map, screen
+    bool m_rubber_band = false;                        ///< the press became a selection rectangle
+    std::vector<sim::Command> m_pending_orders;        ///< waiting for the answer to a question
+    std::size_t m_last_group = 0xFF;                   ///< the group key pressed last (twice: go there)
+    std::uint64_t m_last_group_ms = 0;
+    std::size_t m_formation = 0;  ///< the next formation of the F key
+    double m_mouse_x = 0.0;       ///< in output pixels
     double m_mouse_y = 0.0;
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;

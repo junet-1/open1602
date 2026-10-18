@@ -59,28 +59,33 @@ int usage() {
         "  --no-sound         no effects and voice messages; --no-music: no music (the original's Game.dat\n"
         "                     is read for the volumes, never written)\n"
         "  --no-videos        no videos of messages, victory, defeat and pause\n"
+        "  --original-mouse   the original's mouse: orders with the left button, the right one cancels\n"
+        "  --no-confirm       no questions before scuttling, disbanding and declaring war\n"
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
         "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\";\n"
         "                     rdown/rup: the right button\n"
         "  --select I,X,Y     select the building at tile X,Y of island I (index) and look at it\n"
-        "  --select ship:N    select the N-th ship of the game (index) and look at it\n"
+        "  --select ship:N    select the N-th ship of the game (index) and look at it; unit:N a land unit\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
         "\n"
-        "  arrows/WASD    scroll (Shift: faster)      right/middle mouse drag  scroll\n"
-        "  mouse wheel    zoom at cursor              1 / 2 / 3                zoom level\n"
-        "  R / Shift+R    rotate view                 + / -                    pixel scale\n"
-        "  Space          pause the game              Home                     own city\n"
-        "  Pause          the original's pause (its video; Esc or Pause ends it)\n"
-        "  PageUp/PageDn  game speed x2 / /2\n"
-        "  O              ownership view              F12                      screenshot\n"
-        "  F5             quick save (own folder, quicksave.o1602)\n"
-        "  B              build tool                  X                        demolish tool\n"
-        "  Tab / Shift+Tab next / previous building   , / .                    turn the building\n"
-        "  left mouse     build or demolish (drag: roads, walls, fields, areas)\n"
-        "  Esc            leave the tool, else quit   Q                        quit\n",
+        "Keys (docs/architecture/0010-bedienung-und-oberflaeche.md):\n"
+        "  WASD, arrows   scroll (Shift: faster)      right/middle mouse drag  scroll\n"
+        "  Q / E          rotate view                 wheel, PageUp/PageDn     zoom\n"
+        "  Space          to the last message         Home                     to the selection\n"
+        "  F3, Pause      pause                       Num+ / Num-              game speed\n"
+        "  F5             quick save                  F12, Print               screenshot\n"
+        "  B K I O        build, military, info, options\n"
+        "  left mouse     select (drag: rectangle, Shift: add, Ctrl/double: all alike on screen)\n"
+        "  right mouse    order (also on the minimap; Shift: queued)\n"
+        "  Ctrl+1..0      store a group  Shift+1..0 add to it  1..0 select it (twice: go there)\n"
+        "  . / ,          next idle ship / unit\n"
+        "  units:         A attack, S stop, P patrol, F formation, G scatter, Y white flag,\n"
+        "                 X explore, Del disband/scuttle\n"
+        "  building:      R rotate, C pick the building under the mouse, Del demolish, Tab next\n"
+        "  Esc            back, out of a tool, deselect   Ctrl+Q quit   Ctrl+O ownership view\n",
         stderr);
     return 2;
 }
@@ -179,6 +184,12 @@ int main(int argc, char** argv) {
                 return usage();
             }
             options.select_ship = static_cast<std::uint32_t>(n);
+        } else if (arg == "--select" && has_value && std::string_view(argv[i + 1]).starts_with("unit:")) {
+            std::int32_t n = 0;
+            if (!parse_number(std::string_view(argv[++i]).substr(5), n) || n < 0) {
+                return usage();
+            }
+            options.select_soldier = static_cast<std::uint32_t>(n);
         } else if (arg == "--select" && has_value) {
             std::array<std::int32_t, 3> v{};
             std::string_view rest = argv[++i];
@@ -193,6 +204,10 @@ int main(int argc, char** argv) {
             }
             options.select = std::array<std::uint16_t, 3>{
                 static_cast<std::uint16_t>(v[0]), static_cast<std::uint16_t>(v[1]), static_cast<std::uint16_t>(v[2])};
+        } else if (arg == "--original-mouse") {
+            options.original_mouse = true;
+        } else if (arg == "--no-confirm") {
+            options.confirm = false;
         } else if (arg == "--no-videos") {
             options.videos = false;
         } else if (arg == "--intro") {

@@ -150,6 +150,7 @@ bool Fleet::command(const ShipCommand& c) {
             ship->for_sale = false;
             ship->sale_factor = 128;
             ship->held = false;
+            ship->queue.clear();
             ship->repairing = false;
             ship->route.active = false;
             ship->target = Target{};

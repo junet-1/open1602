@@ -95,6 +95,11 @@ void Camera::screen_to_world(double sx, double sy, double& px, double& py) const
     py = m_center_y + (sy - m_height / 2.0) / m_scale;
 }
 
+void Camera::world_to_screen(double px, double py, double& sx, double& sy) const {
+    sx = (px - m_center_x) * m_scale + m_width / 2.0;
+    sy = (py - m_center_y) * m_scale + m_height / 2.0;
+}
+
 void Camera::place(double px, double py, double sx, double sy) {
     m_center_x = px - (sx - m_width / 2.0) / m_scale;
     m_center_y = py - (sy - m_height / 2.0) / m_scale;

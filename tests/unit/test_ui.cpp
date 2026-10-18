@@ -9,6 +9,7 @@
 
 #include "o1602/assets/gad.hpp"
 #include "o1602/ui/build_menu.hpp"
+#include "o1602/ui/key_bindings.hpp"
 #include "o1602/ui/font.hpp"
 #include "o1602/ui/panel.hpp"
 #include "o1602/ui/resources.hpp"
@@ -292,4 +293,27 @@ TEST_CASE("ui: the printf patterns of Text.cod, filled without printf") {
     CHECK(format_text("%d", {2.7}) == "2");
     CHECK(format_text("%s", {std::int64_t{7}}) == "7");
     CHECK(format_text("100%", {}) == "100%");
+}
+
+TEST_CASE("ui: key bindings: the context's own keys first, then the general ones") {
+    ui::KeyBindings keys;
+    keys.bind(ui::KeyContext::General, {'w'}, ui::KeyAction::ScrollUp);
+    keys.bind(ui::KeyContext::Building, {'r'}, ui::KeyAction::RotateBuilding);
+    keys.bind(ui::KeyContext::Units, {'r'}, ui::KeyAction::EditRoute);
+    keys.bind(ui::KeyContext::General, {'1', true}, ui::KeyAction::GroupStore, 1);
+    keys.bind(ui::KeyContext::General, {'1'}, ui::KeyAction::GroupRecall, 1);
+    CHECK(keys.find(ui::KeyContext::Building, {'r'})->action == ui::KeyAction::RotateBuilding);
+    CHECK(keys.find(ui::KeyContext::Units, {'r'})->action == ui::KeyAction::EditRoute);
+    CHECK(!keys.find(ui::KeyContext::General, {'r'}));
+    CHECK(keys.find(ui::KeyContext::Units, {'w'})->action == ui::KeyAction::ScrollUp);
+    CHECK(keys.find(ui::KeyContext::General, {'1', true})->action == ui::KeyAction::GroupStore);
+    CHECK(keys.find(ui::KeyContext::General, {'1'})->param == 1);
+    CHECK(!keys.find(ui::KeyContext::General, {'1', false, true}));
+    // Rebinding replaces; unbinding frees.
+    keys.bind(ui::KeyContext::General, {'w'}, ui::KeyAction::WhiteFlag);
+    CHECK(keys.keys(ui::KeyAction::ScrollUp).empty());
+    keys.unbind(ui::KeyAction::WhiteFlag);
+    CHECK(!keys.find(ui::KeyContext::General, {'w'}));
+    CHECK(ui::KeyBindings::action_named("group_recall") == ui::KeyAction::GroupRecall);
+    CHECK(ui::KeyBindings::name(ui::KeyAction::Delete) == "delete");
 }

@@ -81,6 +81,10 @@ sim::World make_world(const assets::BuildingTable& buildings) {
         ship.cargo.resize(8);
         ship.cargo[0].ware = 23;
         ship.cargo[0].amount = 32 * (k % 50);
+        if (k == 3) {
+            ship.target = sim::Target::position(60, 60);
+            ship.queue = {sim::Target::position(70, 60), sim::Target::position(70, 70)};
+        }
         world.add_ship(ship);
     }
     for (std::uint32_t k = 0; k < 500; ++k) {
@@ -90,6 +94,9 @@ sim::World make_world(const assets::BuildingTable& buildings) {
         soldier.island = 0;
         soldier.owner = static_cast<sim::PlayerId>(k % 9);
         soldier.figure = 1;
+        if (k == 7) {
+            soldier.queue = {sim::Target::spot(220, 600)};
+        }
         world.add_soldier(soldier);
     }
     world.set_time_ms(123'456'789);
@@ -125,6 +132,10 @@ TEST_CASE("save game: a world beyond the original's limits comes back whole") {
     CHECK(loaded->cities()[0].purchases == 480 * 75);  // CSTA
     CHECK(loaded->cities()[0].sales == 480 * 1234);
     CHECK(loaded->time_ms() == 123'456'789);
+    // Queued orders (QUEU).
+    CHECK(loaded->ships()[3].queue == world.ships()[3].queue);
+    CHECK(loaded->ships()[3].queue.size() == 2);
+    CHECK(loaded->soldiers()[7].queue.size() == 1);
     // Both layers of every tile.
     const sim::IslandMap& a = world.islands()[0].map;
     const sim::IslandMap& b = loaded->islands()[0].map;

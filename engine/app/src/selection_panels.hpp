@@ -20,6 +20,7 @@
 #include "o1602/render/sdl_ui_renderer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/ui/panel.hpp"
+#include "o1602/ui/unit_selection.hpp"
 
 namespace o1602::app {
 
@@ -43,6 +44,9 @@ struct PanelContext {
     const assets::FigureTable& figures;
     const assets::TextTable* texts;
     sim::PlayerId local = sim::kNoPlayer;
+    /// The selected ships and land units (the military mode's windows change it: filters,
+    /// formations).
+    ui::UnitSelection* units = nullptr;
     [[nodiscard]] const sim::World& world() const noexcept { return simulation.world(); }
     /// A line of a Text.cod section, empty if there is none.
     [[nodiscard]] std::string text(std::string_view section, std::size_t line) const;
@@ -102,6 +106,9 @@ public:
     /// The window for a selection, nothing if it has none (the info mode then shows the player
     /// status).
     [[nodiscard]] SelectionPanel* panel_for(const Selection& selection, const PanelContext& context);
+    /// The window of the military mode for the selected units (Panel_UpdateSelection 0x0043AA00):
+    /// one ship, one land unit, a group of ships or of land units; nothing without a selection.
+    [[nodiscard]] SelectionPanel* military_panel_for(const PanelContext& context);
     void set_scale(double scale);
 
 private:
