@@ -599,12 +599,19 @@ TEST_CASE("net: over real UDP on this computer (ENet)") {
     hello.name = "Anna";
     net::ClientSession client(std::move(connecting).value(), hello,
                               [&game](std::span<const std::uint8_t> save) { return game.load(save); });
+    // Both sides get the real time that passed: a slow machine (or one whose sleeps run long) runs
+    // as many frames per second as a fast one.
     const auto start = std::chrono::steady_clock::now();
-    while (std::chrono::steady_clock::now() - start < std::chrono::seconds(5) &&
+    auto last = start;
+    while (std::chrono::steady_clock::now() - start < std::chrono::seconds(15) &&
            !(client.playing() && client.frames() > 20)) {
-        host.update(5);
-        client.update(5);
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        const auto now = std::chrono::steady_clock::now();
+        const auto ms = static_cast<std::uint32_t>(
+            std::min<std::int64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now - last).count(), 100));
+        last = now;
+        host.update(ms);
+        client.update(ms);
     }
     REQUIRE(client.playing());
     CHECK(client.local_seat() == 1);
