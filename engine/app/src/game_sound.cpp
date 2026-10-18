@@ -321,6 +321,54 @@ void GameSound::scenery(const std::vector<render::AmbientSound>& sounds) {
     }
 }
 
+void GameSound::figures(const std::vector<const std::vector<render::FigureInstance>*>& lists,
+                        const std::vector<render::EffectFigure>& effects, const assets::FigureTable& table,
+                        std::uint64_t game_ms, std::uint32_t speed) {
+    if (m_output == nullptr || !m_locate || speed != 1) {
+        return;
+    }
+    std::vector<std::pair<std::uint16_t, std::uint8_t>> heard;
+    const auto consider = [&](std::uint16_t figure, std::uint8_t anim_index, double x, double y) {
+        const assets::FigureType* type = table.get(figure);
+        const assets::FigureAnim* anim = type != nullptr ? type->anim(anim_index) : nullptr;
+        if (anim == nullptr || anim->sound == 0) {
+            return;
+        }
+        const auto key = std::make_pair(figure, anim_index);
+        if (std::find(heard.begin(), heard.end(), key) != heard.end()) {
+            return;  // one per type and frame: the original's trigger sits in the type
+        }
+        const auto [vx, vy] = m_locate(x, y);
+        if (std::abs(vx) >= 1.0F || std::abs(vy) >= 1.0F) {
+            return;
+        }
+        heard.push_back(key);
+        const std::uint64_t cycle_ms = std::max<std::uint64_t>(1, std::uint64_t{anim->count} * anim->speed_ms);
+        const std::uint64_t cycle = game_ms / cycle_ms;
+        const auto [it, fresh] = m_cycles.try_emplace(key, cycle);
+        if (fresh || it->second == cycle) {
+            return;
+        }
+        it->second = cycle;
+        // n = 1: always; else r = rand() % n, played only for r < k.
+        const std::uint32_t r = anim->sound_range > 1 ? (m_variant++ * 2654435761U >> 16) % anim->sound_range : 0;
+        if (r < anim->sound_chance) {
+            at(static_cast<audio::SampleId>(anim->sound + r), x, y);
+        }
+    };
+    for (const auto* list : lists) {
+        if (list == nullptr) {
+            continue;
+        }
+        for (const render::FigureInstance& f : *list) {
+            consider(f.figure, f.anim, f.x + 0.5, f.y + 0.5);
+        }
+    }
+    for (const render::EffectFigure& e : effects) {
+        consider(e.figure, e.anim, e.x, e.y);
+    }
+}
+
 void GameSound::order(bool ship, bool attack, double tile_x, double tile_y) {
     // Order_Move 0x0044D540: a voice of the unit; ships attacking ships have four, others two.
     if (ship) {

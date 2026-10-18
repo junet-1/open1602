@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -57,6 +58,12 @@ public:
     void ships(const sim::World& world, const assets::FigureTable& figures, const std::vector<sim::ShipEvent>& events,
                sim::PlayerId local, std::uint64_t game_ms);
     void scenery(const std::vector<render::AmbientSound>& sounds);
+    /// Work and animal sounds (AnimSmp) of the figures on screen: once per cycle of an animation
+    /// and figure type, at the first figure of that type in view, only at normal speed
+    /// (Figure_PlayAnimSound 0x0044F970).
+    void figures(const std::vector<const std::vector<render::FigureInstance>*>& lists,
+                 const std::vector<render::EffectFigure>& effects, const assets::FigureTable& table,
+                 std::uint64_t game_ms, std::uint32_t speed);
     /// Move or attack order for a ship (true) or soldiers at a tile.
     void order(bool ship, bool attack, double tile_x, double tile_y);
 
@@ -77,6 +84,7 @@ private:
     float m_view_h = 768.0F;
     std::uint32_t m_variant = 0;  ///< own counter for the variants: no game random numbers (S-112)
     std::vector<std::int16_t> m_buffer;
+    std::map<std::pair<std::uint16_t, std::uint8_t>, std::uint64_t> m_cycles;  ///< figure, anim -> last cycle heard
 };
 
 }  // namespace o1602::app

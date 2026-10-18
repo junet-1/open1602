@@ -672,6 +672,8 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_walkers.update(m_simulation.logistics(), m_world, m_buildings, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_simulation.speed());
         update_ambient();
+        m_sound->figures({&m_walkers.instances(), &m_soldiers.instances(), &m_ambient.walkers()}, m_effects, m_figures,
+                         m_world.time_ms(), m_simulation.speed());
     }
     apply_construction();
 }

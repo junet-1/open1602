@@ -327,7 +327,7 @@ kommt, werden sie abgehakt.
   Zierfiguren nur auf entdeckten Inseln; Helligkeits- und Farbstich-Tabellen.
 
 **Ton und Videos**
-- ~~Geräusche, Musik, Sprache~~: erledigt ([audio.md](re/audio.md)); offen die Arbeitsgeräusche der Figuren und Smacker-Videos.
+- ~~Geräusche, Musik, Sprache~~: erledigt ([audio.md](re/audio.md)); offen Smacker-Videos.
 
 **Ohne Abhängigkeit**
 - ~~Symboltabelle `re/symbols/` ergänzen~~: erledigt (532 Funktionen).
