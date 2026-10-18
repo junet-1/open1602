@@ -17,6 +17,7 @@
 #include "o1602/core/file.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/sim/construction.hpp"
+#include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
 
@@ -51,147 +52,44 @@ sim::PlayerId target_owner(const sim::World& world, const sim::Target& t) {
     }
 }
 
-/// What an action does, for the key overview (Windows-1252, as the fonts of the game have it).
-const char* action_label(ui::KeyAction a) {
-    using ui::KeyAction;
-    switch (a) {
-        case KeyAction::ScrollUp:
-            return "Karte nach oben";
-        case KeyAction::ScrollDown:
-            return "Karte nach unten";
-        case KeyAction::ScrollLeft:
-            return "Karte nach links";
-        case KeyAction::ScrollRight:
-            return "Karte nach rechts";
-        case KeyAction::RotateViewLeft:
-            return "Ansicht nach links drehen";
-        case KeyAction::RotateViewRight:
-            return "Ansicht nach rechts drehen";
-        case KeyAction::ZoomIn:
-            return "Heranzoomen";
-        case KeyAction::ZoomOut:
-            return "Herauszoomen";
-        case KeyAction::JumpToMessage:
-            return "Zur letzten Meldung";
-        case KeyAction::CentreOnSelection:
-            return "Zur Auswahl / zum Kontor";
-        case KeyAction::Pause:
-            return "Pause";
-        case KeyAction::SpeedUp:
-            return "Schneller";
-        case KeyAction::SpeedDown:
-            return "Langsamer";
-        case KeyAction::QuickSave:
-            return "Schnellspeichern";
-        case KeyAction::QuickLoad:
-            return "Schnellladen";
-        case KeyAction::GameMenu:
-            return "Spielmen\xFC";
-        case KeyAction::Screenshot:
-            return "Bildschirmfoto";
-        case KeyAction::Help:
-            return "Diese \xDC"
-                   "bersicht";
-        case KeyAction::Cancel:
-            return "Abbrechen, zur\xFC"
-                   "ck";
-        case KeyAction::ModeBuild:
-            return "Bauen";
-        case KeyAction::ModeMilitary:
-            return "Kampf";
-        case KeyAction::ModeInfo:
-            return "Status";
-        case KeyAction::ModeOptions:
-            return "Optionen";
-        case KeyAction::ShipList:
-            return "Schiffsliste";
-        case KeyAction::CityList:
-            return "St\xE4"
-                   "dteliste";
-        case KeyAction::Diplomacy:
-            return "Diplomatie";
-        case KeyAction::RotateBuilding:
-            return "Geb\xE4"
-                   "ude drehen";
-        case KeyAction::PickBuilding:
-            return "Geb\xE4"
-                   "ude unter der Maus w\xE4hlen";
-        case KeyAction::DemolishTool:
-            return "Abrei\xDF"
-                   "en";
-        case KeyAction::NextBuilding:
-            return "N\xE4"
-                   "chstes Geb\xE4ude";
-        case KeyAction::GroupStore:
-            return "Gruppe festlegen";
-        case KeyAction::GroupAdd:
-            return "Zur Gruppe hinzuf\xFC"
-                   "gen";
-        case KeyAction::GroupRecall:
-            return "Gruppe w\xE4hlen (zweimal: hin)";
-        case KeyAction::NextIdleShip:
-            return "N\xE4"
-                   "chstes unt\xE4tiges Schiff";
-        case KeyAction::NextIdleUnit:
-            return "N\xE4"
-                   "chste unt\xE4tige Einheit";
-        case KeyAction::NextKindInSelection:
-            return "Art in der Auswahl wechseln";
-        case KeyAction::AttackMove:
-            return "Angriff (Ziel klicken)";
-        case KeyAction::Stop:
-            return "Halt";
-        case KeyAction::HoldPosition:
-            return "Stellung halten";
-        case KeyAction::Patrol:
-            return "Patrouille (Ziel klicken)";
-        case KeyAction::Formation:
-            return "Formation";
-        case KeyAction::Scatter:
-            return "Verteilen";
-        case KeyAction::WhiteFlag:
-            return "Wei\xDF"
-                   "e Flagge";
-        case KeyAction::Explore:
-            return "Insel erkunden";
-        case KeyAction::Trade:
-            return "Handeln / Umladen";
-        case KeyAction::EditRoute:
-            return "Handelsroute";
-        case KeyAction::Delete:
-            return "Aufl\xF6sen / versenken";
-        case KeyAction::PixelScaleUp:
-            return "Gr\xF6\xDF"
-                   "ere Pixel";
-        case KeyAction::PixelScaleDown:
-            return "Kleinere Pixel";
-        case KeyAction::ShowOwners:
-            return "Besitz zeigen";
-        case KeyAction::Quit:
-            return "Beenden";
-    }
-    return "";
+/// What an action does, for the key overview: keys.action.<its name in keys.cfg>.
+const std::string& action_label(ui::KeyAction a) {
+    return ui::tr("keys.action." + std::string(ui::KeyBindings::name(a)));
 }
 
-/// A key as the overview shows it: German names of the usual keys.
+/// A key as the overview shows it: the usual keys by the names of the language.
 std::string key_label(const ui::KeyChord& c) {
-    static constexpr std::pair<SDL_Keycode, const char*> kNames[] = {
-        {SDLK_SPACE, "Leertaste"},  {SDLK_DELETE, "Entf"},        {SDLK_ESCAPE, "Esc"},     {SDLK_PAGEUP, "Bild auf"},
-        {SDLK_PAGEDOWN, "Bild ab"}, {SDLK_HOME, "Pos1"},          {SDLK_UP, "Pfeil hoch"},  {SDLK_DOWN, "Pfeil runter"},
-        {SDLK_LEFT, "Pfeil links"}, {SDLK_RIGHT, "Pfeil rechts"}, {SDLK_RETURN, "Eingabe"}, {SDLK_PRINTSCREEN, "Druck"},
-        {SDLK_KP_PLUS, "Num +"},    {SDLK_KP_MINUS, "Num -"},     {SDLK_TAB, "Tab"},        {SDLK_PAUSE, "Pause"},
+    static constexpr std::pair<SDL_Keycode, std::string_view> kNames[] = {
+        {SDLK_SPACE, "space"},
+        {SDLK_DELETE, "delete"},
+        {SDLK_ESCAPE, "escape"},
+        {SDLK_PAGEUP, "page_up"},
+        {SDLK_PAGEDOWN, "page_down"},
+        {SDLK_HOME, "home"},
+        {SDLK_UP, "up"},
+        {SDLK_DOWN, "down"},
+        {SDLK_LEFT, "left"},
+        {SDLK_RIGHT, "right"},
+        {SDLK_RETURN, "return"},
+        {SDLK_PRINTSCREEN, "print_screen"},
+        {SDLK_KP_PLUS, "keypad_plus"},
+        {SDLK_KP_MINUS, "keypad_minus"},
+        {SDLK_TAB, "tab"},
+        {SDLK_PAUSE, "pause"},
     };
     std::string name;
     for (const auto& [key, label] : kNames) {
         if (static_cast<std::int32_t>(key) == c.key) {
-            name = label;
+            name = ui::tr("keys.name." + std::string(label));
         }
     }
     if (name.empty()) {
         const char* n = SDL_GetKeyName(static_cast<SDL_Keycode>(c.key));
         name = n != nullptr ? n : "?";
     }
-    return std::string(c.ctrl ? "Strg+" : "") + (c.shift ? "Umschalt+" : "") + (c.alt ? "Alt+" : "") + name;
+    return (c.ctrl ? ui::tr("keys.modifier.ctrl") : std::string()) +
+           (c.shift ? ui::tr("keys.modifier.shift") : std::string()) +
+           (c.alt ? ui::tr("keys.modifier.alt") : std::string()) + name;
 }
 
 ui::KeyChord chord(SDL_Keycode key, bool ctrl = false, bool shift = false) {
@@ -326,13 +224,14 @@ void MapViewer::show_key_help() {
     using ui::KeyAction;
     using ui::KeyContext;
     std::vector<Hud::HelpLine> lines;
-    for (const auto& [context, heading] : {std::pair<KeyContext, const char*>{KeyContext::General, "Allgemein"},
-                                           {KeyContext::Building, "Beim Bauen"},
-                                           {KeyContext::Units, "Schiffe und Einheiten ausgew\xE4hlt"}}) {
+    for (const auto& [context, heading] :
+         {std::pair<KeyContext, const char*>{KeyContext::General, "keys.heading.general"},
+          {KeyContext::Building, "keys.heading.building"},
+          {KeyContext::Units, "keys.heading.units"}}) {
         if (!lines.empty()) {
             lines.push_back(Hud::HelpLine{});  // a blank line before the next heading
         }
-        lines.push_back(Hud::HelpLine{"", heading});
+        lines.push_back(Hud::HelpLine{"", ui::tr(heading)});
         std::vector<std::pair<KeyAction, std::string>> seen;  // one line per action, its keys joined
         for (const ui::KeyBinding& b : m_keys.all()) {
             if (b.context != context) {
@@ -345,7 +244,7 @@ void MapViewer::show_key_help() {
                 if (b.param != 0) {
                     continue;
                 }
-                key = key.substr(0, key.size() - 1) + "1 .. 0";  // the digits, 1 for group 1
+                key = key.substr(0, key.size() - 1) + ui::tr("keys.group_digits");  // the digits, 1 for group 1
             }
             const auto it = std::find_if(seen.begin(), seen.end(), [&](const auto& s) { return s.first == b.action; });
             if (it == seen.end()) {
@@ -1117,14 +1016,14 @@ std::optional<std::string> MapViewer::question_for(const sim::Command& command) 
         c != nullptr && c->op == sim::ShipCommand::Op::Scuttle) {
         const sim::Ship* s = m_world.ship(c->ship);
         // Windows-1252, as the fonts of the game have it.
-        return "Schiff \x84" + (s != nullptr ? s->name : std::string()) + "\x93 versenken?\nDie Ladung geht verloren.";
+        return ui::tr("dialog.scuttle_ship", {s != nullptr ? std::string_view(s->name) : std::string_view()});
     }
     if (const auto* c = std::get_if<sim::SoldierCommand>(&command);
         c != nullptr && c->op == sim::SoldierCommand::Op::Disband) {
         const sim::Soldier* s = m_world.soldier(c->soldier);
         const assets::FigureType* t = s != nullptr ? m_figures.get(s->figure) : nullptr;
         const std::uint32_t cost = t != nullptr ? m_figures.unit_cost(t->kind) : 0;
-        return "Einheit aufl\xF6sen?\nDas kostet " + std::to_string(cost) + " Taler.";
+        return ui::tr("dialog.disband_unit", {std::to_string(cost)});
     }
     if (const auto* o = std::get_if<sim::DiplomacyOrder>(&command);
         o != nullptr && o->kind == sim::DiplomacyOrder::Kind::Peace && o->value == sim::Treaty::None) {
@@ -1133,7 +1032,7 @@ std::optional<std::string> MapViewer::question_for(const sim::Command& command) 
         const sim::Player* p = m_world.player(o->partner);
         if (p != nullptr && o->player < d.size() && o->partner < d.size() &&
             d.relation(o->player, o->partner).peace == sim::Treaty::Signed) {
-            return "Friedensvertrag mit " + p->name + " brechen?\nDas bedeutet Krieg.";
+            return ui::tr("dialog.break_peace", {p->name});
         }
     }
     sim::Target target;
@@ -1156,7 +1055,7 @@ std::optional<std::string> MapViewer::question_for(const sim::Command& command) 
         other >= d.size() || d.relation(m_local_player, other).peace == sim::Treaty::None) {
         return std::nullopt;
     }
-    return "Ein Angriff bedeutet Krieg mit " + p->name + ".\nKrieg erkl\xE4ren?";
+    return ui::tr("dialog.declare_war", {p->name});
 }
 
 void MapViewer::submit_orders(std::vector<sim::Command> orders, bool sound) {

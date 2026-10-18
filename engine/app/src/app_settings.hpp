@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "o1602/audio/game_audio.hpp"
+#include "o1602/core/text.hpp"
 
 namespace o1602::app {
 
@@ -21,6 +22,8 @@ struct AppSettings {
     audio::AudioSettings audio;
     bool mission_window = false;  ///< "Auftrag ansehen"
     std::string player_name;      ///< the name typed in the menu (Windows-1252)
+    /// The language of Open1602's own texts ("de", "en", ...); "auto": the installation's.
+    std::string language = "auto";
     /// Whales, dolphins and krakens: on average one per screen of sea every this many seconds
     /// (the original: 5); 0 turns them off. Only the picture, the game does not depend on it.
     std::int32_t sea_creatures_every = 60;
@@ -49,7 +52,6 @@ struct SaveSlots {
 /// File of a slot in the savegame folder: spiel00.o1602, spiel01.o1602, ..., spiel100.o1602, ...
 [[nodiscard]] std::filesystem::path slot_file(const std::filesystem::path& folder, std::size_t slot);
 
-/// UTF-8 (typed text) to the Windows-1252 of the game's fonts; what it cannot show is left out.
-[[nodiscard]] std::string utf8_to_cp1252(std::string_view utf8);
+using core::utf8_to_cp1252;
 
 }  // namespace o1602::app
