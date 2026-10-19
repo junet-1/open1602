@@ -12,29 +12,15 @@ namespace o1602::sim::ai {
 
 namespace {
 
-constexpr std::array<std::uint32_t, 4> kFamilies{1, 5, 9, 13};  // SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1
-constexpr std::uint8_t kFirstSoldierWare = 25;                  // wSOLDAT1: soldiers in a ship's hold
-constexpr std::uint8_t kLastSoldierWare = 44;
-
-bool soldier_ware(std::uint8_t w) {
-    return w >= kFirstSoldierWare && w <= kLastSoldierWare;
-}
-
 std::uint32_t family_index(std::uint32_t figure) {
     const auto v = assets::FigureTable::unit_variant(figure);
     const std::uint32_t family = v ? v->family : figure;
-    for (std::uint32_t i = 0; i < kFamilies.size(); ++i) {
-        if (kFamilies[i] == family) {
+    for (std::uint32_t i = 0; i < figure::kUnitFamilies.size(); ++i) {
+        if (figure::kUnitFamilies[i] == family) {
             return i;
         }
     }
     return 0;
-}
-
-std::int32_t sea_dist(std::int32_t dx, std::int32_t dy) {
-    const std::int32_t ax = std::abs(dx);
-    const std::int32_t ay = std::abs(dy);
-    return std::max(ax, ay) + std::min(ax, ay) / 4;
 }
 
 std::uint32_t city_param(const City& c) {
@@ -73,8 +59,8 @@ std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
             continue;
         }
         for (const CargoSlot& c : s.cargo) {
-            if (soldier_ware(c.ware)) {
-                ++n[family_index(static_cast<std::uint32_t>(c.ware - 24))];
+            if (is_soldier_ware(c.ware)) {
+                ++n[family_index(static_cast<std::uint32_t>(c.ware - ware::kSoldierOffset))];
             }
         }
     }
@@ -84,8 +70,8 @@ std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
 std::array<std::uint32_t, 4> Engine::unit_weights() const {
     // Damage per second of each unit: Hitpoint / Worktime (sword 40, cavalry 51, musket 38, cannon 49).
     std::array<std::uint32_t, 4> w{};
-    for (std::size_t i = 0; i < kFamilies.size(); ++i) {
-        const assets::FigureType* t = m_sim.m_figures->get(kFamilies[i]);
+    for (std::size_t i = 0; i < figure::kUnitFamilies.size(); ++i) {
+        const assets::FigureType* t = m_sim.m_figures->get(figure::kUnitFamilies[i]);
         if (t != nullptr && t->work_time_ms != 0) {
             w[i] = static_cast<std::uint32_t>(std::uint64_t{t->combat.hit} * 1000U / (32U * t->work_time_ms));
         }
@@ -165,7 +151,7 @@ std::vector<Soldier*> Engine::soldiers_near(PlayerId owner, const City& c, std::
         if (s.owner != owner || s.island != c.island || s.away() || out.size() >= max) {
             continue;
         }
-        if (sea_dist(s.pos_x / kPosUnit - kx, s.pos_y / kPosUnit - ky) <= range) {
+        if (sea_distance(s.pos_x / kPosUnit - kx, s.pos_y / kPosUnit - ky) <= range) {
             out.push_back(&s);
         }
     }
@@ -175,7 +161,7 @@ std::vector<Soldier*> Engine::soldiers_near(PlayerId owner, const City& c, std::
 std::uint32_t Engine::soldiers_aboard(const Ship& s) const {
     std::uint32_t n = 0;
     for (const CargoSlot& c : s.cargo) {
-        n += soldier_ware(c.ware) ? 1U : 0U;
+        n += is_soldier_ware(c.ware) ? 1U : 0U;
     }
     return n;
 }
@@ -443,16 +429,16 @@ void Engine::recruit(AiPlayer& p) {
         if (p.castle_cursor < p.castles.size() && weighted_army(p.player) <= target) {
             const CastleEntry& e = p.castles[p.castle_cursor];
             if (r.slots[kSlotMuskets].count != 0 && c->stock(ware::kMuskets) > 31) {
-                queue_unit(p, e, kFamilies[2]);
+                queue_unit(p, e, figure::kUnitFamilies[2]);
             }
             if (r.slots[kSlotCannons].count != 0 && c->stock(ware::kCannons) > 127) {
-                queue_unit(p, e, kFamilies[3]);
+                queue_unit(p, e, figure::kUnitFamilies[3]);
             }
             if (r.slots[kSlotSwords].count != 0) {
-                queue_unit(p, e, kFamilies[1]);
+                queue_unit(p, e, figure::kUnitFamilies[1]);
                 if (r.slots[kSlotMuskets].count == 0 && r.slots[kSlotCannons].count == 0) {
-                    queue_unit(p, e, kFamilies[0]);
-                    queue_unit(p, e, kFamilies[1]);
+                    queue_unit(p, e, figure::kUnitFamilies[0]);
+                    queue_unit(p, e, figure::kUnitFamilies[1]);
                 }
             }
         }
@@ -715,7 +701,8 @@ void Engine::plan_landing(AiPlayer& p, Ship& s, ShipNote& n) {
             }
             std::int32_t near = 1000;
             for (const auto& [tx, ty] : targets) {
-                near = std::min(near, sea_dist(static_cast<std::int32_t>(x) - tx, static_cast<std::int32_t>(y) - ty));
+                near =
+                    std::min(near, sea_distance(static_cast<std::int32_t>(x) - tx, static_cast<std::int32_t>(y) - ty));
             }
             if (near > 24) {
                 continue;
@@ -725,19 +712,19 @@ void Engine::plan_landing(AiPlayer& p, Ship& s, ShipNote& n) {
             const std::int32_t wy = static_cast<std::int32_t>(isl.y + y);
             for (const Soldier& o : m_world.soldiers()) {
                 if (o.island == island && m_world.diplomacy().hostile(p.player, o.owner) &&
-                    sea_dist(o.pos_x / kPosUnit - wx, o.pos_y / kPosUnit - wy) <= 16) {
+                    sea_distance(o.pos_x / kPosUnit - wx, o.pos_y / kPosUnit - wy) <= 16) {
                     score += 10;
                 }
             }
             for (const Tower& tw : m_world.towers()) {
                 if (tw.island == island && m_world.diplomacy().hostile(p.player, tw.owner) &&
-                    sea_dist(static_cast<std::int32_t>(tw.x) - static_cast<std::int32_t>(x),
-                             static_cast<std::int32_t>(tw.y) - static_cast<std::int32_t>(y)) <= 10) {
+                    sea_distance(static_cast<std::int32_t>(tw.x) - static_cast<std::int32_t>(x),
+                                 static_cast<std::int32_t>(tw.y) - static_cast<std::int32_t>(y)) <= 10) {
                     score += 100;
                 }
             }
             for (const Ship& o : m_world.ships()) {
-                if (m_world.diplomacy().hostile(p.player, o.owner) && sea_dist(o.x - wx, o.y - wy) <= 16) {
+                if (m_world.diplomacy().hostile(p.player, o.owner) && sea_distance(o.x - wx, o.y - wy) <= 16) {
                     score += 30;
                 }
             }
@@ -897,6 +884,177 @@ void Engine::target_scan(AiPlayer& p) {
 // ---------------------------------------------------------------------------------------------
 // The soldiers on one island per tick (0x0042B430)
 
+std::vector<PlayerId> Engine::island_enemies(const AiPlayer& a, std::uint16_t island) const {
+    // Hostile humans or natives here: soldiers of theirs or a city.
+    std::vector<PlayerId> enemies;
+    for (std::size_t b = 0; b < m_world.players().size(); ++b) {
+        const PlayerRole role = m_world.players()[b].role;
+        const auto pb = static_cast<PlayerId>(b);
+        if ((role != PlayerRole::Human && role != PlayerRole::Natives) ||
+            m_world.diplomacy().relation(a.player, pb).peace == Treaty::Signed) {
+            continue;
+        }
+        bool present = soldiers_on_island(pb, island) != 0;
+        for (const City& c : m_world.cities()) {
+            present = present || (c.owner == pb && c.island == island);
+        }
+        if (present) {
+            enemies.push_back(pb);
+        }
+    }
+    return enemies;
+}
+
+void Engine::peacetime_orders(AiPlayer& a, std::uint16_t island) {
+    // Peacetime: soldiers without a city here are disbanded, the others gather at the
+    // Kontor or go to the doctor.
+    const City* own = nullptr;
+    for (const City& c : m_world.cities()) {
+        if (c.owner == a.player && c.island == island) {
+            own = &c;
+        }
+    }
+    if (own == nullptr) {
+        for (const Soldier& s : m_world.soldiers()) {
+            if (s.owner == a.player && s.island == island && !s.away()) {
+                SoldierCommand cmd;
+                cmd.player = a.player;
+                cmd.soldier = s.id;
+                cmd.op = SoldierCommand::Op::Disband;
+                execute(cmd);
+                break;
+            }
+        }
+        return;
+    }
+    if (!own->warehouse_x || !own->warehouse_y) {
+        return;
+    }
+    const CityPlan& r = plan_of(a, own->island, own->index);
+    const WorldIsland& isl = island_of(island);
+    const Target kontor = Target::spot(2 * (isl.x + *own->warehouse_x) + 1, 2 * (isl.y + *own->warehouse_y) + 1);
+    SoldierOrder to_kontor;
+    to_kontor.player = a.player;
+    to_kontor.target = kontor;
+    for (const Soldier& s : m_world.soldiers()) {
+        if (s.owner != a.player || s.island != island || s.away() || s.motion.phase == SoldierMotion::Phase::Run) {
+            continue;
+        }
+        const assets::FigureType* ft = m_sim.m_figures->get(s.figure);
+        const std::uint32_t max = ft != nullptr && ft->combat.max_health != 0 ? ft->combat.max_health : 1;
+        if (r.doctor && s.health != 0 && s.health * 128U / max < 96U) {
+            SoldierOrder heal;
+            heal.player = a.player;
+            heal.soldiers.push_back(s.id);
+            heal.target = Target::building(island, r.doctor->first, r.doctor->second);
+            execute(heal);
+            continue;
+        }
+        if (s.target.empty() || s.target.kind == Target::Kind::Position) {
+            to_kontor.soldiers.push_back(s.id);
+        }
+    }
+    if (!to_kontor.soldiers.empty()) {
+        execute(to_kontor);
+    }
+}
+
+bool Engine::attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<PlayerId>& enemies) {
+    bool ordered = false;
+    // A hostile city: the group with the most soldiers goes for its markets, its Kontor,
+    // its houses. Without one: the soldiers meet the largest enemy group with a quarter more.
+    const City* hostile = nullptr;
+    for (const City& c : m_world.cities()) {
+        if (c.island == island && std::find(enemies.begin(), enemies.end(), c.owner) != enemies.end()) {
+            hostile = &c;
+            break;
+        }
+    }
+    std::vector<std::uint32_t> mine;
+    for (const Soldier& s : m_world.soldiers()) {
+        if (s.owner == a.player && s.island == island && !s.away() &&
+            (s.target.empty() || s.target.kind == Target::Kind::Position || s.target.kind == Target::Kind::Spot)) {
+            mine.push_back(s.id);
+        }
+    }
+    if (mine.empty()) {
+        return false;
+    }
+    if (hostile != nullptr) {
+        std::vector<std::pair<std::int32_t, std::int32_t>> goals;
+        const IslandMap& map = island_of(island).map;
+        for (const Production& pr : m_world.productions()) {
+            if (!pr.used || pr.island != island || !map.contains(pr.x, pr.y)) {
+                continue;
+            }
+            const Tile t = tile(island, pr.x, pr.y);
+            if (t.valid() && t.city == hostile->index && (t.prod == prod::kMarket || t.prod == prod::kKontor) &&
+                !t.type->destroyed) {
+                goals.emplace_back(pr.x, pr.y);
+            }
+        }
+        for (const House& h : m_world.houses()) {
+            if (h.island == island && h.city == hostile->index && goals.size() < 16) {
+                goals.emplace_back(h.x, h.y);
+            }
+        }
+        std::size_t next = 0;
+        for (std::size_t g = 0; g < goals.size() && next < mine.size(); ++g) {
+            const std::size_t count = g == 0 ? 4 : 2;
+            SoldierOrder order;
+            order.player = a.player;
+            order.attack = true;
+            order.target = Target::building(island, static_cast<std::uint32_t>(goals[g].first),
+                                            static_cast<std::uint32_t>(goals[g].second));
+            for (std::size_t k = 0; k < count && next < mine.size(); ++k) {
+                order.soldiers.push_back(mine[next++]);
+            }
+            if (execute(order).accepted) {
+                ordered = true;
+            }
+        }
+    } else {
+        // The enemy soldier nearest to the middle of ours.
+        const Soldier* enemy = nullptr;
+        std::int64_t cx = 0;
+        std::int64_t cy = 0;
+        for (const std::uint32_t id : mine) {
+            const Soldier* s = m_world.soldier(id);
+            cx += s->pos_x;
+            cy += s->pos_y;
+        }
+        cx /= static_cast<std::int64_t>(mine.size());
+        cy /= static_cast<std::int64_t>(mine.size());
+        std::int64_t best = -1;
+        std::uint32_t enemy_count = 0;
+        for (const Soldier& o : m_world.soldiers()) {
+            if (o.island != island || o.away() || std::find(enemies.begin(), enemies.end(), o.owner) == enemies.end()) {
+                continue;
+            }
+            ++enemy_count;
+            const std::int64_t d = std::abs(o.pos_x - cx) + std::abs(o.pos_y - cy);
+            if (best < 0 || d < best) {
+                best = d;
+                enemy = &o;
+            }
+        }
+        if (enemy != nullptr) {
+            SoldierOrder order;
+            order.player = a.player;
+            order.attack = true;
+            order.target = Target::soldier(enemy->id);
+            const std::uint32_t need = enemy_count + enemy_count / 4;
+            for (std::size_t k = 0; k < mine.size() && k < need; ++k) {
+                order.soldiers.push_back(mine[k]);
+            }
+            if (execute(order).accepted) {
+                ordered = true;
+            }
+        }
+    }
+    return ordered;
+}
+
 void Engine::island_controller() {
     const auto n = static_cast<std::uint32_t>(m_world.islands().size());
     if (n == 0 || m_state.islands.size() != n) {
@@ -918,172 +1076,13 @@ void Engine::island_controller() {
         if (pa == nullptr || pa->role != PlayerRole::Computer) {
             continue;
         }
-        // Hostile humans or natives here: soldiers of theirs or a city.
-        std::vector<PlayerId> enemies;
-        for (std::size_t b = 0; b < m_world.players().size(); ++b) {
-            const PlayerRole role = m_world.players()[b].role;
-            const auto pb = static_cast<PlayerId>(b);
-            if ((role != PlayerRole::Human && role != PlayerRole::Natives) ||
-                m_world.diplomacy().relation(a.player, pb).peace == Treaty::Signed) {
-                continue;
-            }
-            bool present = soldiers_on_island(pb, island) != 0;
-            for (const City& c : m_world.cities()) {
-                present = present || (c.owner == pb && c.island == island);
-            }
-            if (present) {
-                enemies.push_back(pb);
-            }
-        }
+        const std::vector<PlayerId> enemies = island_enemies(a, island);
         if (enemies.empty()) {
-            // Peacetime: soldiers without a city here are disbanded, the others gather at the
-            // Kontor or go to the doctor.
-            const City* own = nullptr;
-            for (const City& c : m_world.cities()) {
-                if (c.owner == a.player && c.island == island) {
-                    own = &c;
-                }
-            }
-            if (own == nullptr) {
-                for (const Soldier& s : m_world.soldiers()) {
-                    if (s.owner == a.player && s.island == island && !s.away()) {
-                        SoldierCommand cmd;
-                        cmd.player = a.player;
-                        cmd.soldier = s.id;
-                        cmd.op = SoldierCommand::Op::Disband;
-                        execute(cmd);
-                        break;
-                    }
-                }
-                continue;
-            }
-            if (!own->warehouse_x || !own->warehouse_y) {
-                continue;
-            }
-            const CityPlan& r = plan_of(a, own->island, own->index);
-            const WorldIsland& isl = island_of(island);
-            const Target kontor =
-                Target::spot(2 * (isl.x + *own->warehouse_x) + 1, 2 * (isl.y + *own->warehouse_y) + 1);
-            SoldierOrder to_kontor;
-            to_kontor.player = a.player;
-            to_kontor.target = kontor;
-            for (const Soldier& s : m_world.soldiers()) {
-                if (s.owner != a.player || s.island != island || s.away() ||
-                    s.motion.phase == SoldierMotion::Phase::Run) {
-                    continue;
-                }
-                const assets::FigureType* ft = m_sim.m_figures->get(s.figure);
-                const std::uint32_t max = ft != nullptr && ft->combat.max_health != 0 ? ft->combat.max_health : 1;
-                if (r.doctor && s.health != 0 && s.health * 128U / max < 96U) {
-                    SoldierOrder heal;
-                    heal.player = a.player;
-                    heal.soldiers.push_back(s.id);
-                    heal.target = Target::building(island, r.doctor->first, r.doctor->second);
-                    execute(heal);
-                    continue;
-                }
-                if (s.target.empty() || s.target.kind == Target::Kind::Position) {
-                    to_kontor.soldiers.push_back(s.id);
-                }
-            }
-            if (!to_kontor.soldiers.empty()) {
-                execute(to_kontor);
-            }
+            peacetime_orders(a, island);
             continue;
         }
         conflict = true;
-        // A hostile city: the group with the most soldiers goes for its markets, its Kontor,
-        // its houses. Without one: the soldiers meet the largest enemy group with a quarter more.
-        const City* hostile = nullptr;
-        for (const City& c : m_world.cities()) {
-            if (c.island == island && std::find(enemies.begin(), enemies.end(), c.owner) != enemies.end()) {
-                hostile = &c;
-                break;
-            }
-        }
-        std::vector<std::uint32_t> mine;
-        for (const Soldier& s : m_world.soldiers()) {
-            if (s.owner == a.player && s.island == island && !s.away() &&
-                (s.target.empty() || s.target.kind == Target::Kind::Position || s.target.kind == Target::Kind::Spot)) {
-                mine.push_back(s.id);
-            }
-        }
-        if (mine.empty()) {
-            continue;
-        }
-        if (hostile != nullptr) {
-            std::vector<std::pair<std::int32_t, std::int32_t>> goals;
-            const IslandMap& map = island_of(island).map;
-            for (const Production& pr : m_world.productions()) {
-                if (!pr.used || pr.island != island || !map.contains(pr.x, pr.y)) {
-                    continue;
-                }
-                const Tile t = tile(island, pr.x, pr.y);
-                if (t.valid() && t.city == hostile->index && (t.prod == prod::kMarket || t.prod == prod::kKontor) &&
-                    !t.type->destroyed) {
-                    goals.emplace_back(pr.x, pr.y);
-                }
-            }
-            for (const House& h : m_world.houses()) {
-                if (h.island == island && h.city == hostile->index && goals.size() < 16) {
-                    goals.emplace_back(h.x, h.y);
-                }
-            }
-            std::size_t next = 0;
-            for (std::size_t g = 0; g < goals.size() && next < mine.size(); ++g) {
-                const std::size_t count = g == 0 ? 4 : 2;
-                SoldierOrder order;
-                order.player = a.player;
-                order.attack = true;
-                order.target = Target::building(island, static_cast<std::uint32_t>(goals[g].first),
-                                                static_cast<std::uint32_t>(goals[g].second));
-                for (std::size_t k = 0; k < count && next < mine.size(); ++k) {
-                    order.soldiers.push_back(mine[next++]);
-                }
-                if (execute(order).accepted) {
-                    ordered = true;
-                }
-            }
-        } else {
-            // The enemy soldier nearest to the middle of ours.
-            const Soldier* enemy = nullptr;
-            std::int64_t cx = 0;
-            std::int64_t cy = 0;
-            for (const std::uint32_t id : mine) {
-                const Soldier* s = m_world.soldier(id);
-                cx += s->pos_x;
-                cy += s->pos_y;
-            }
-            cx /= static_cast<std::int64_t>(mine.size());
-            cy /= static_cast<std::int64_t>(mine.size());
-            std::int64_t best = -1;
-            std::uint32_t enemy_count = 0;
-            for (const Soldier& o : m_world.soldiers()) {
-                if (o.island != island || o.away() ||
-                    std::find(enemies.begin(), enemies.end(), o.owner) == enemies.end()) {
-                    continue;
-                }
-                ++enemy_count;
-                const std::int64_t d = std::abs(o.pos_x - cx) + std::abs(o.pos_y - cy);
-                if (best < 0 || d < best) {
-                    best = d;
-                    enemy = &o;
-                }
-            }
-            if (enemy != nullptr) {
-                SoldierOrder order;
-                order.player = a.player;
-                order.attack = true;
-                order.target = Target::soldier(enemy->id);
-                const std::uint32_t need = enemy_count + enemy_count / 4;
-                for (std::size_t k = 0; k < mine.size() && k < need; ++k) {
-                    order.soldiers.push_back(mine[k]);
-                }
-                if (execute(order).accepted) {
-                    ordered = true;
-                }
-            }
-        }
+        ordered = attack_orders(a, island, enemies) || ordered;
     }
     w.next_ms = now_ms() + (conflict && ordered ? 0 : conflict ? 3'000 : 8'000);
 }
@@ -1213,20 +1212,8 @@ void Engine::pirate_step(AiPlayer& p) {
     if ((m_world.game_settings().flags & 1U) != 0) {
         return;  // no pirates
     }
-    // Only once some player has grown (Pirates_MaxShips 0x0040F310 > 1).
-    std::uint32_t level = 0;
-    for (const Player& pl : m_world.players()) {
-        if (pl.role != PlayerRole::Human && pl.role != PlayerRole::Computer) {
-            continue;
-        }
-        const std::uint32_t m = (pl.infra_mask >> 30 & 1U) != 0   ? 4U
-                                : (pl.infra_mask >> 29 & 1U) != 0 ? 3U
-                                : (pl.infra_mask >> 24 & 1U) != 0 ? 2U
-                                : (pl.infra_mask >> 18 & 1U) != 0 ? 1U
-                                                                  : 0U;
-        level = std::max(level, m);
-    }
-    if (level <= 1) {
+    // Only once some player has grown.
+    if (pirate_max_ships(m_world) <= 1) {
         return;
     }
     const std::vector<Ship*> ships = own_ships(p);

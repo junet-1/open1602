@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "o1602/sim/combat.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/sea_paths.hpp"
 #include "o1602/sim/ships.hpp"
 
@@ -11,7 +12,6 @@ namespace o1602::sim {
 namespace {
 
 constexpr std::uint32_t kPirateStepMs = 10'000;  // the pirates' AI step (0x0042B4B0)
-constexpr std::uint16_t kPirateShip = 31;        // PIRAT
 constexpr std::uint8_t kMaxPirateCannons = 10;   // Maxkanon of PIRAT
 constexpr std::int32_t kWanderRange = 90;        // tiles: random places at sea (0x004455F0)
 constexpr std::uint32_t kNestFoodMin = 25 * 32;  // the nest sells when it holds more food
@@ -33,11 +33,11 @@ PlayerId Fleet::pirates() const {
     return kNoPlayer;
 }
 
-std::uint32_t Fleet::pirate_max_ships() const {
+std::uint32_t pirate_max_ships(const World& world) noexcept {
     // Pirates_MaxShips 0x0040F310: by the highest level any player reached. Bit 18 (75 settlers)
     // would allow one ship, but the pirates need at least two to start (original).
     std::uint32_t best = 0;
-    for (const Player& p : m_world->players()) {
+    for (const Player& p : world.players()) {
         if (p.role != PlayerRole::Human && p.role != PlayerRole::Computer) {
             continue;
         }
@@ -77,7 +77,7 @@ void Fleet::pirates_step() {
     // Pirates_Step 0x00429FD0.
     const PlayerId p = pirates();
     const World::GameSettings& settings = m_world->game_settings();
-    const std::uint32_t max = pirate_max_ships();
+    const std::uint32_t max = pirate_max_ships(*m_world);
     if (p == kNoPlayer || (settings.flags & kNoPirates) != 0 || max <= 1) {
         return;
     }
@@ -116,8 +116,8 @@ void Fleet::pirates_step() {
                 continue;
             }
             Ship pirate = make_ship(next_ship_name(), static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y),
-                                    kPirateShip, p, static_cast<std::uint8_t>(random.below(8)));
-            if (const assets::FigureType* t = m_figures->get(kPirateShip)) {
+                                    figure::kPirate, p, static_cast<std::uint8_t>(random.below(8)));
+            if (const assets::FigureType* t = m_figures->get(figure::kPirate)) {
                 pirate.cargo.resize(t->ship.cargo_slots);
             }
             m_world->add_ship(std::move(pirate));
@@ -146,7 +146,7 @@ void Fleet::pirates_step() {
                 cannons = 2 * max + 4;
                 break;
         }
-        const assets::FigureType* t = m_figures->get(kPirateShip);
+        const assets::FigureType* t = m_figures->get(figure::kPirate);
         const std::uint32_t cap = t != nullptr && t->ship.max_cannons != 0 ? t->ship.max_cannons : kMaxPirateCannons;
         for (Ship& s : m_world->ships()) {
             if (s.owner == p && s.cannons == 0 && !s.sinking) {
@@ -288,7 +288,7 @@ bool Fleet::plunder(Ship& pirate, Ship& victim) {
         route.stops[3].target = Target::city_of(base.island, base.index);
         std::size_t n = 0;
         for (const CargoSlot& c : victim.cargo) {
-            if (n >= 6 || c.ware == 0 || c.ware > 24 || base_price(c.ware) < kValuable) {
+            if (n >= 6 || c.ware == 0 || c.ware > ware::kLastTrade || base_price(c.ware) < kValuable) {
                 continue;  // soldiers on board are not loot (the original reads past its table)
             }
             const std::size_t stop = n / 3;

@@ -13,6 +13,7 @@
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/island.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/savegame_extension.hpp"
@@ -542,13 +543,11 @@ private:
         const assets::BuildingType* a = t.empty() ? nullptr : m_buildings.by_sprite(t.sprite);
         const assets::BuildingType* b = g.empty() ? nullptr : m_buildings.by_sprite(g.sprite);
         const auto ripe = [&](const assets::BuildingType* r) {
-            return r != nullptr && r->prod_kind == kProdKindGrowing ? m_buildings.by_record(r->record + 1) : r;
+            return r != nullptr && r->prod_kind == prod::kGrowing ? m_buildings.by_record(r->record + 1) : r;
         };
         a = ripe(a);
         b = ripe(b);
-        constexpr std::int32_t kSea = 19;
-        constexpr std::uint8_t kGrass = 52;
-        return a != nullptr && b != nullptr && (a->kind == kSea || a->ware == kGrass) && a->ware == b->ware;
+        return a != nullptr && b != nullptr && (a->kind == kind::kSea || a->ware == ware::kGrass) && a->ware == b->ware;
     }
 
     core::Bytes deer(std::uint16_t i) const {

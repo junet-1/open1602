@@ -5,6 +5,8 @@
 #include <array>
 #include <optional>
 
+#include "o1602/sim/game_data.hpp"
+
 namespace o1602::sim {
 
 namespace {
@@ -16,9 +18,7 @@ constexpr std::uint32_t kNativeKeep = 96;   // natives keep 96/128 of their stor
 constexpr std::uint32_t kNativeGoodwillFloor = 49;
 constexpr std::uint32_t kStockUnitsPerTon = 32;
 // Natives' few needs (0x0047EB30): one unit of cloth, alcohol and jewellery per tick.
-constexpr std::array<std::uint8_t, 3> kNativeGoods = {19, 18, 21};
-constexpr std::uint8_t kFirstWare = 2;
-constexpr std::uint8_t kLastWare = 24;
+constexpr std::array<std::uint8_t, 3> kNativeGoods = {ware::kCloth, ware::kAlcohol, ware::kJewellery};
 // Pirates (0x0047EEF0): twice per tick, up to 3 t of a random ware with at least 10 t.
 constexpr std::uint32_t kPirateMin = 10 * 32;
 constexpr std::uint32_t kPirateTake = 3 * 32;
@@ -184,7 +184,7 @@ void consume(City& city, const assets::BuildingTable& buildings, std::vector<Cit
 
 void consume_natives(City& city) {
     const std::uint32_t keep = city.capacity * kNativeKeep / kFull;
-    for (std::uint8_t w = kFirstWare; w <= kLastWare && w < city.goods.size(); ++w) {
+    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade && w < city.goods.size(); ++w) {
         if (city.goods[w] >= keep && city.goods[w] >= kStockUnitsPerTon) {
             take(city, w, std::min(city.goods[w], keep / 4));
         }
@@ -202,8 +202,8 @@ void consume_natives(City& city) {
 
 void consume_pirates(City& city, Random& random) {
     for (int i = 0; i < 2; ++i) {
-        const auto w = static_cast<std::uint8_t>(random.below(kLastWare + 1));
-        if (w >= kFirstWare && city.stock(w) >= kPirateMin) {
+        const auto w = static_cast<std::uint8_t>(random.below(ware::kLastTrade + 1));
+        if (w >= ware::kFirstTrade && city.stock(w) >= kPirateMin) {
             take(city, w, std::min(city.stock(w), kPirateTake));
         }
     }

@@ -5,6 +5,7 @@
 // the ship or become its health.
 #include <algorithm>
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/ships.hpp"
 
 namespace o1602::sim {
@@ -17,11 +18,11 @@ constexpr std::uint32_t kFetchThreshold = 0x180;  // material for three cycles o
 constexpr std::uint8_t kMaxIdle = 15;
 constexpr std::uint8_t kLaunchRetries = 100;
 constexpr std::uint8_t kSmallYardSize = 3;
-constexpr std::uint16_t kFirstShipFigure = 21;  // HANDEL1; types 0..3 are 21, 23, 25, 27
-constexpr std::uint8_t kShipTypes = 4;
+constexpr auto kShipTypes = static_cast<std::uint8_t>(figure::kShips.size());
 
+/// The figure of a ship type, 0 (none) for a type a damaged savegame may carry.
 std::uint16_t figure_of_type(std::uint8_t type) noexcept {
-    return static_cast<std::uint16_t>(kFirstShipFigure + 2U * type);
+    return type < figure::kShips.size() ? figure::kShips[type] : 0;
 }
 
 std::uint32_t scaled(std::uint32_t amount, std::uint8_t rate) noexcept {

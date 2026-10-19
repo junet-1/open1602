@@ -17,8 +17,10 @@ using core::make_error;
 
 namespace {
 
-constexpr std::uint32_t kMaxId = 23500;        // Haus_GetById (0x004630F0) accepts 20000..23500
-constexpr std::uint32_t kMaxSprite = 0x2000;   // 13 bits in the island grid
+constexpr std::uint32_t kMaxId = 23500;  // Haus_GetById (0x004630F0) accepts 20000..23500
+// Sprites of the island map are 16 bit, 0xFFFF marks an empty tile (sim::MapCell). The original's
+// grid word has only 13 bits, but savegames store buildings, not sprites, so mods may go beyond.
+constexpr std::uint32_t kMaxSprite = 0xFFFF;
 constexpr std::int32_t kProdKindGrowing = 10;  // HAUS_PRODTYP Kind ROHSTWACHS
 
 std::uint32_t non_negative(std::int32_t v) {
@@ -35,7 +37,6 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
 
     BuildingTable table;
     table.m_by_id.assign(kMaxId - kIdOffset + 1, -1);
-    table.m_by_sprite.assign(kMaxSprite, -1);
 
     for (const auto& [nummer, r] : *records) {
         const std::int32_t id = r.integer("Id");
@@ -163,8 +164,16 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         if (table.m_by_id[slot] < 0) {
             table.m_by_id[slot] = index;
         }
+        if (std::uint64_t{b.gfx} + b.tile_count() > kMaxSprite) {
+            return make_error(ErrorCode::InvalidFormat,
+                              "building " + std::to_string(b.id) + ": sprites " + std::to_string(b.gfx) + " + " +
+                                  std::to_string(b.tile_count()) + " reach beyond sprite 65534");
+        }
+        if (b.gfx + b.tile_count() > table.m_by_sprite.size()) {
+            table.m_by_sprite.resize(b.gfx + b.tile_count(), -1);
+        }
         for (std::uint32_t k = 0; k < b.tile_count(); ++k) {
-            if (b.gfx + k < kMaxSprite && table.m_by_sprite[b.gfx + k] < 0) {
+            if (table.m_by_sprite[b.gfx + k] < 0) {
                 table.m_by_sprite[b.gfx + k] = index;
             }
         }

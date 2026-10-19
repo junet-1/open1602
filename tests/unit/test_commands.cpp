@@ -4,6 +4,7 @@
 // whether two computers still compute the same.
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -257,4 +258,31 @@ TEST_CASE("commands: the fingerprint of the game is the same for the same game, 
     a.simulation.tick();
     b.simulation.tick();
     CHECK(a.simulation.state_hash() == b.simulation.state_hash());  // the same game again
+}
+
+TEST_CASE("simulation: the steps of a tick run in the original's order (review point 28)") {
+    const std::vector<std::string_view> expected = {"diplomacy", "growth", "production", "cities",   "city events",
+                                                    "houses",    "upkeep", "disasters",  "islands",  "volcanoes",
+                                                    "computers", "combat", "ships",      "soldiers", "logistics"};
+    CHECK(sim::Simulation::tick_step_names() == expected);
+}
+
+TEST_CASE("simulation: events nobody takes are dropped beyond the bound, the oldest first") {
+    sim::EventBuffer<std::uint32_t> buffer;
+    for (std::uint32_t i = 0; i < 3 * sim::EventBuffer<std::uint32_t>::kMaxPending; ++i) {
+        buffer.push(i);
+        REQUIRE(buffer.size() <= sim::EventBuffer<std::uint32_t>::kMaxPending + 1);
+    }
+    const std::vector<std::uint32_t> events = buffer.take();
+    REQUIRE(!events.empty());
+    CHECK(events.back() == 3 * sim::EventBuffer<std::uint32_t>::kMaxPending - 1);
+    for (std::size_t i = 1; i < events.size(); ++i) {
+        CHECK(events[i] == events[i - 1] + 1);
+    }
+    CHECK(buffer.size() == 0);
+
+    // What a subsystem wrote into the buffer is bounded by trim().
+    buffer.sink()->resize(sim::EventBuffer<std::uint32_t>::kMaxPending + 10);
+    buffer.trim();
+    CHECK(buffer.size() == sim::EventBuffer<std::uint32_t>::kMaxPending / 2);
 }

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/logistics.hpp"
 
 namespace o1602::sim {
@@ -161,7 +162,8 @@ Ground ground_at(const World& world, const assets::BuildingTable& buildings, std
 /// Whether lava sets the building on fire (0x00479FE0): HAUS_PRODTYP Kind 1..7 (workshops to
 /// markets), 13 (houses) and 14 (shipyards).
 bool catches_fire(const assets::BuildingType& b) noexcept {
-    return (b.prod_kind >= 1 && b.prod_kind <= 7) || b.prod_kind == 13 || b.prod_kind == 14;
+    return (b.prod_kind >= prod::kWorkshop && b.prod_kind <= prod::kMarket) || b.prod_kind == prod::kHouse ||
+           b.prod_kind == prod::kShipyard;
 }
 
 /// Whether lava destroys the building (0x00464A80): by its Kind.

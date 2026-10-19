@@ -2,6 +2,7 @@
 // Castles: recruiting, training, sending units out; soldiers on board ships (docs/re/military.md).
 #include <algorithm>
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/sea_paths.hpp"
@@ -11,18 +12,11 @@ namespace o1602::sim {
 
 namespace {
 
-constexpr std::uint16_t kTrained = 320;     // training points of a finished unit
-constexpr std::uint16_t kTickSeconds = 10;  // Interval of the castles; 11 s when nothing was trained
-constexpr std::uint8_t kFirstWeapon = 11;   // SCHWERTER, MUSKETEN, KANONEN
-constexpr std::uint8_t kFirstSoldierWare = 25;
-constexpr std::uint8_t kLastSoldierWare = 44;
-constexpr std::uint8_t kSoldierWareOffset = 24;  // ware = figure + 24 (wSOLDAT1 = 25)
-constexpr std::uint32_t kFullHold = 1600;        // a soldier at full health fills a hold ("50 t")
-constexpr std::int32_t kUnloadRange = 6;         // tiles from the ship
-
-bool soldier_ware(std::uint8_t ware) noexcept {
-    return ware >= kFirstSoldierWare && ware <= kLastSoldierWare;
-}
+constexpr std::uint16_t kTrained = 320;               // training points of a finished unit
+constexpr std::uint16_t kTickSeconds = 10;            // Interval of the castles; 11 s when nothing was trained
+constexpr std::uint8_t kFirstWeapon = ware::kSwords;  // SCHWERTER, MUSKETEN, KANONEN
+constexpr std::uint32_t kFullHold = 1600;             // a soldier at full health fills a hold ("50 t")
+constexpr std::int32_t kUnloadRange = 6;              // tiles from the ship
 
 }  // namespace
 
@@ -49,7 +43,7 @@ std::uint32_t Military::army_size(PlayerId player) const {
     for (const Ship& ship : m_world->ships()) {
         if (ship.owner == player) {
             for (const CargoSlot& c : ship.cargo) {
-                n += soldier_ware(c.ware) ? 1U : 0U;
+                n += is_soldier_ware(c.ware) ? 1U : 0U;
             }
         }
     }
@@ -364,7 +358,7 @@ bool Military::board(Soldier& s, Ship& ship) {
         }
         const std::uint32_t max = std::max<std::uint32_t>(1, type->combat.max_health);
         const std::uint32_t health = s.health != 0 ? s.health : max;
-        c.ware = static_cast<std::uint8_t>(s.figure + kSoldierWareOffset);
+        c.ware = static_cast<std::uint8_t>(s.figure + ware::kSoldierOffset);
         c.amount = std::max<std::uint32_t>(1, health * kFullHold / max);
         c.price = 0;
         m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::Boarded, Target::soldier(s.id),
@@ -405,10 +399,10 @@ bool Military::unload(const UnloadOrder& o) {
     bool any = false;
     for (std::size_t h = 0; h < ship->cargo.size(); ++h) {
         CargoSlot& c = ship->cargo[h];
-        if (!soldier_ware(c.ware) || (o.hold != 0xFF && h != o.hold)) {
+        if (!is_soldier_ware(c.ware) || (o.hold != 0xFF && h != o.hold)) {
             continue;
         }
-        const auto figure = static_cast<std::uint16_t>(c.ware - kSoldierWareOffset);
+        const auto figure = static_cast<std::uint16_t>(c.ware - ware::kSoldierOffset);
         const assets::FigureType* type = m_figures->get(figure);
         if (type == nullptr) {
             continue;

@@ -10,14 +10,7 @@ namespace o1602::sim {
 
 namespace {
 
-constexpr std::uint8_t kCannonWare = 13;  // KANONEN
-constexpr std::uint8_t kFirstSoldierWare = 25;
-constexpr std::uint8_t kLastSoldierWare = 44;
 constexpr std::uint32_t kTon = 32;
-
-bool is_soldier(std::uint8_t ware) noexcept {
-    return ware >= kFirstSoldierWare && ware <= kLastSoldierWare;
-}
 
 }  // namespace
 
@@ -36,6 +29,7 @@ bool Fleet::command(const ShipCommand& c) {
     }
     const bool own = c.player == kNoPlayer || ship->owner == c.player;
     const assets::FigureType* type = type_of(*ship);
+    const std::uint8_t cannons = m_buildings->materials().cannons;
     switch (c.op) {
         case ShipCommand::Op::MountCannon: {
             // A hold with at least 1 t of cannons, while the ship has room for another (Maxkanon).
@@ -44,7 +38,7 @@ bool Fleet::command(const ShipCommand& c) {
             }
             for (std::size_t h = 0; h < ship->cargo.size(); ++h) {
                 CargoSlot& slot = ship->cargo[h];
-                if ((c.hold != 0xFF && h != c.hold) || slot.ware != kCannonWare || slot.amount < kTon) {
+                if ((c.hold != 0xFF && h != c.hold) || slot.ware != cannons || slot.amount < kTon) {
                     continue;
                 }
                 slot.amount -= kTon;
@@ -63,7 +57,7 @@ bool Fleet::command(const ShipCommand& c) {
             }
             CargoSlot* target = nullptr;
             for (CargoSlot& slot : ship->cargo) {
-                if (slot.ware == kCannonWare && slot.amount + kTon <= kHoldCapacity) {
+                if (slot.ware == cannons && slot.amount + kTon <= kHoldCapacity) {
                     target = &slot;
                     break;
                 }
@@ -79,7 +73,7 @@ bool Fleet::command(const ShipCommand& c) {
             if (target == nullptr) {
                 return false;
             }
-            target->ware = kCannonWare;
+            target->ware = cannons;
             target->amount += kTon;
             --ship->cannons;
             return true;
@@ -92,7 +86,7 @@ bool Fleet::command(const ShipCommand& c) {
             bool dumped = false;
             for (std::size_t h = 0; h < ship->cargo.size(); ++h) {
                 CargoSlot& slot = ship->cargo[h];
-                if ((c.hold != 0xFF && h != c.hold) || slot.ware == 0 || is_soldier(slot.ware)) {
+                if ((c.hold != 0xFF && h != c.hold) || slot.ware == 0 || is_soldier_ware(slot.ware)) {
                     continue;
                 }
                 slot = CargoSlot{};
@@ -140,7 +134,7 @@ bool Fleet::command(const ShipCommand& c) {
                 return false;
             }
             if (std::any_of(ship->cargo.begin(), ship->cargo.end(),
-                            [](const CargoSlot& slot) { return is_soldier(slot.ware); })) {
+                            [](const CargoSlot& slot) { return is_soldier_ware(slot.ware); })) {
                 return false;
             }
             const PlayerId old_owner = ship->owner;

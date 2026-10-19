@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include "o1602/sim/game_data.hpp"
+
 namespace o1602::sim {
 
 using core::ErrorCode;
@@ -67,9 +69,9 @@ core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std
         } else if (mode == Mode::Place && !m_top[i].empty()) {
             m_ground[i] = m_top[i];
         }
-        m_top[i] = MapCell{
-            static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation, static_cast<std::uint8_t>(anim_phase & 0xFU), o, c,
-            static_cast<std::uint8_t>(random & 0x1FU)};
+        const auto phase = static_cast<std::uint8_t>(anim_phase & 0xFU);
+        const auto bits = static_cast<std::uint8_t>(random & 0x1FU);
+        m_top[i] = MapCell{static_cast<std::uint16_t>(sprite), rotation, phase, o, c, bits};
         if (mode == Mode::LoadGround) {
             m_ground[i] = m_top[i];
         }
@@ -203,28 +205,26 @@ IslandMap IslandMap::from_island(const assets::Island& island, const assets::Bui
 
 bool territory_building(const assets::BuildingTable& buildings, const assets::BuildingType& b) noexcept {
     // HAUS_PRODTYP Kind (0x00480B70 -> 0x00480B40 -> 0x00480AF0).
-    constexpr std::uint8_t kGrass = 52;
-    constexpr std::uint8_t kTree = 53;
-    constexpr std::uint8_t kFish = 57;
     const auto crop = [](const assets::BuildingType* t) {
-        return t != nullptr && t->ware != kGrass && t->ware != kTree && t->ware != kFish;
+        return t != nullptr && t->ware != ware::kGrass && t->ware != ware::kTree && t->ware != ware::kFish;
     };
     const std::int32_t p = b.prod_kind;
     switch (p) {
         case 0:
-            return b.kind == 1 || b.kind == 30;  // STRASSE, PIER
-        case 9:                                  // ROHSTOFF: a ripe field, unless grass, a tree or fish
+            return b.kind == kind::kRoad || b.kind == kind::kPier;
+        case prod::kRipe:  // a ripe field, unless grass, a tree or fish
             return crop(&b);
-        case 10:  // ROHSTWACHS: by the ripe record that follows
+        case prod::kGrowing:  // by the ripe record that follows
             return crop(buildings.by_record(b.record + 1));
-        case 16:  // WACHTURM
+        case prod::kTower:
         case 32:
             return true;
         default:
             break;
     }
-    // Production entries (1..8, 17..27, 30) and houses, shipyards, military (13..15, 31).
-    return (p >= 1 && p <= 8) || (p >= 13 && p <= 15) || (p >= 17 && p <= 27) || p == 30 || p == 31;
+    // Production entries, houses, shipyards, military, public buildings, HAUPT and pirate houses.
+    return (p >= prod::kWorkshop && p <= prod::kKontor) || (p >= prod::kHouse && p <= prod::kMilitary) ||
+           (p >= prod::kPublicFirst && p <= prod::kPublicLast) || p == prod::kHaupt || p == prod::kPirateHouse;
 }
 
 }  // namespace o1602::sim

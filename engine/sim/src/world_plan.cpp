@@ -10,6 +10,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/island.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/volcanoes.hpp"
@@ -39,9 +40,6 @@ constexpr std::uint32_t kPlanIslands = 18;       // islands the original's resou
 constexpr std::uint32_t kPlanPlayers = 4;
 
 // Ore, crop and treasure entries of the original's plans per level (Endlosspiel<D><V>.szs).
-constexpr std::uint32_t kIronMine = 22401;
-constexpr std::uint32_t kGoldMine = 22405;
-constexpr std::uint32_t kGoldsmith = 20533;  // marks the treasure entries
 constexpr std::array<std::uint32_t, 6> kCropBuildings = {21336, 21342, 21340, 21332, 21344, 21338};
 constexpr std::array<std::array<std::uint16_t, 6>, 4> kCropCounts = {
     {{5, 5, 3, 5, 4, 5}, {4, 4, 3, 4, 3, 4}, {3, 3, 2, 3, 2, 3}, {3, 2, 2, 3, 2, 2}}};
@@ -687,13 +685,13 @@ WorldPlan Planner::finish() {
     plan.max_crops = 2;
     plan.gold_min_size = 1;
     plan.gold_max_size = 2;
-    plan.ores[0] = ScenarioPlan::Resource{kIronMine, scaled(kBigIron[d]), 0};
-    plan.ores[1] = ScenarioPlan::Resource{kIronMine, scaled(kSmallIron[d]), 1};
-    plan.ores[2] = ScenarioPlan::Resource{kGoldMine, scaled(kGold[d]), 2};
+    plan.ores[0] = ScenarioPlan::Resource{id::kOreMine, scaled(kBigIron[d]), 0};
+    plan.ores[1] = ScenarioPlan::Resource{id::kOreMine, scaled(kSmallIron[d]), 1};
+    plan.ores[2] = ScenarioPlan::Resource{id::kGoldMine, scaled(kGold[d]), 2};
     for (std::size_t c = 0; c < kCropBuildings.size(); ++c) {
         plan.crops[c] = ScenarioPlan::Resource{kCropBuildings[c], scaled(kCropCounts[d][c]), 0};
     }
-    plan.treasures[0] = ScenarioPlan::Resource{kGoldsmith, scaled(kTreasures[d]), 0};
+    plan.treasures[0] = ScenarioPlan::Resource{id::kGoldsmith, scaled(kTreasures[d]), 0};
 
     // Starts: all at one place with the original's offsets, or one area per player.
     static constexpr std::array<Point, 8> kTogether = {
@@ -763,8 +761,6 @@ core::Result<WorldPlan> Planner::run() {
 }  // namespace
 
 std::vector<TemplateInfo> island_templates(const assets::GameDirectory& game, const assets::BuildingTable& buildings) {
-    constexpr std::int32_t kProdOreMountain = 12;
-    constexpr std::uint8_t kOre = 55;
     std::vector<TemplateInfo> out;
     for (std::uint8_t climate = 0; climate < 2; ++climate) {
         for (std::uint8_t size = 0; size < 5; ++size) {
@@ -813,7 +809,7 @@ std::vector<TemplateInfo> island_templates(const assets::GameDirectory& game, co
                         if (b->id == kVolcanoRecordId) {
                             t.volcano = true;
                         }
-                        if (b->prod_kind == kProdOreMountain && b->ware == kOre) {
+                        if (b->prod_kind == prod::kOreMountain && b->ware == ware::kOreMountain) {
                             if (b->ore_mountain == 0) {
                                 ++t.big_mountains;
                             } else if (b->ore_mountain == 1) {
