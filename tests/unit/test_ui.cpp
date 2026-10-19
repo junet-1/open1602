@@ -348,10 +348,18 @@ TEST_CASE("ui: key bindings: the context's own keys first, then the general ones
 }
 
 TEST_CASE("ui: key bindings: the settings file changes only the actions it names") {
-    const auto name = [](std::int32_t key) {
+    // Keycodes are the letters themselves; physical keys (scancodes) count from 4 = A.
+    const auto name = [](std::int32_t key, bool physical) {
+        if (physical) {
+            return std::string(1, static_cast<char>('A' + key - 4));
+        }
         return key == 0x40000000 ? std::string("F1") : std::string(1, static_cast<char>(std::toupper(key)));
     };
-    const auto from_name = [](std::string_view n) -> std::optional<std::int32_t> {
+    const auto from_name = [](std::string_view n, bool physical) -> std::optional<std::int32_t> {
+        if (physical) {
+            return n.size() == 1 && n[0] >= 'A' && n[0] <= 'Z' ? std::optional<std::int32_t>(n[0] - 'A' + 4)
+                                                               : std::nullopt;
+        }
         if (n == "F1") {
             return 0x40000000;
         }
@@ -363,6 +371,10 @@ TEST_CASE("ui: key bindings: the settings file changes only the actions it names
     CHECK(ui::KeyBindings::chord_text({'c', false, true}, name) == "Shift+C");
     CHECK((ui::KeyBindings::parse_chord("ctrl+Shift+c", from_name) == ui::KeyChord{'c', true, true}));
     CHECK(!ui::KeyBindings::parse_chord("Ctrl+", from_name));
+    // A key by its place stands in brackets.
+    CHECK(ui::KeyBindings::chord_text({26, true, false, false, true}, name) == "Ctrl+[W]");
+    CHECK((ui::KeyBindings::parse_chord("Ctrl+[W]", from_name) == ui::KeyChord{26, true, false, false, true}));
+    CHECK(!ui::KeyBindings::parse_chord("[1]", from_name));
 
     ui::KeyBindings keys;
     keys.bind(ui::KeyContext::General, {'w'}, ui::KeyAction::ScrollUp);
@@ -370,8 +382,10 @@ TEST_CASE("ui: key bindings: the settings file changes only the actions it names
     keys.bind(ui::KeyContext::Units, {'h'}, ui::KeyAction::Stop);
     keys.bind(ui::KeyContext::General, {'1', true}, ui::KeyAction::GroupStore, 0);
     keys.bind(ui::KeyContext::General, {0x40000000}, ui::KeyAction::Help);
+    keys.bind(ui::KeyContext::General, {7, false, false, false, true}, ui::KeyAction::ScrollRight);
     const std::string text = keys.write_text(name);
     CHECK(text.find("units attack_move = F\n") != std::string::npos);
+    CHECK(text.find("general scroll_right = [D]\n") != std::string::npos);
     CHECK(text.find("general group_store 0 = Ctrl+1\n") != std::string::npos);
     // Written and read back: the same table.
     ui::KeyBindings copy;
@@ -401,4 +415,24 @@ TEST_CASE("ui: key bindings: the settings file changes only the actions it names
     CHECK(keys.keys(ui::KeyAction::Stop).empty());
     CHECK(keys.find(ui::KeyContext::Units, {'w'})->action == ui::KeyAction::ScrollUp);
     CHECK(keys.find(ui::KeyContext::General, {0x40000000})->action == ui::KeyAction::Help);
+}
+
+TEST_CASE("ui: key bindings: a key by its place works on every layout, by meaning where it is printed") {
+    // SDL numbers: scancode 26 is the key at W on a US keyboard; on AZERTY it prints Z.
+    constexpr std::int32_t kScanW = 26;
+    ui::KeyBindings keys;
+    keys.bind(ui::KeyContext::General, {kScanW, false, false, false, true}, ui::KeyAction::ScrollUp);
+    keys.bind(ui::KeyContext::General, {'b'}, ui::KeyAction::ModeBuild);
+    keys.bind(ui::KeyContext::General, {'z'}, ui::KeyAction::ShowOwners);
+    keys.bind(ui::KeyContext::Units, {'w'}, ui::KeyAction::WhiteFlag);
+    // QWERTY: the key at W prints w; AZERTY: z. Both scroll; the place comes before the meaning.
+    CHECK(keys.find_pressed(ui::KeyContext::General, ui::KeyPress{'w', kScanW})->action == ui::KeyAction::ScrollUp);
+    CHECK(keys.find_pressed(ui::KeyContext::General, ui::KeyPress{'z', kScanW})->action == ui::KeyAction::ScrollUp);
+    // B means building wherever it lies (scancode 5 on QWERTY, any other elsewhere).
+    CHECK(keys.find_pressed(ui::KeyContext::General, ui::KeyPress{'b', 5})->action == ui::KeyAction::ModeBuild);
+    CHECK(keys.find_pressed(ui::KeyContext::General, ui::KeyPress{'b', 40})->action == ui::KeyAction::ModeBuild);
+    // Modifiers must agree; the context's own keys still come first.
+    CHECK(!keys.find_pressed(ui::KeyContext::General, ui::KeyPress{'w', kScanW, true}));
+    CHECK(keys.find_pressed(ui::KeyContext::Units, ui::KeyPress{'w', kScanW})->action == ui::KeyAction::WhiteFlag);
+    CHECK(keys.find_pressed(ui::KeyContext::Units, ui::KeyPress{'z', kScanW})->action == ui::KeyAction::ScrollUp);
 }

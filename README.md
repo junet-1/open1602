@@ -85,7 +85,10 @@ cmake --build --preset vcpkg
 ctest --preset vcpkg
 ```
 
-The `vcpkg` preset builds the game and copies `SDL3.dll` next to it.
+The `vcpkg` preset builds the game and copies `SDL3.dll` next to it; `vcpkg.json` pins the versions
+with its `builtin-baseline`. Started by a double click, the game shows fatal errors in a message box
+and writes its other messages to `open1602.log` in the data folder; started from a console, it writes
+them there.
 
 ## Running
 
@@ -105,8 +108,11 @@ open1602 --load path/to/game.o1602                 # a savegame of Open1602
 open1602 --help                                    # every option
 ```
 
-In the game **F1** shows the keys (they can be changed in `keys.cfg`). Savegames, settings and key
-settings are kept in the user's data folder, never in the installation:
+In the game **F1** shows the keys (they can be changed in `keys.cfg`). W A S D, Q, E and the group
+digits work by their place on the keyboard, so they lie the same on QWERTY, QWERTZ and AZERTY; the
+other letters go by what is printed on the key (B builds). **F12** saves a screenshot in
+`screenshots/` of the data folder. Savegames, settings and key settings are kept in the user's data
+folder, never in the installation:
 
 | Platform | Data folder |
 |---|---|

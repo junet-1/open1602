@@ -2,7 +2,6 @@
 #include "o1602/assets/game_directory.hpp"
 
 #include <array>
-#include <cstdlib>
 #include <string>
 
 #include "o1602/core/file.hpp"
@@ -17,8 +16,9 @@ core::Result<GameDirectory> GameDirectory::open(const std::filesystem::path& roo
     constexpr std::array kRequired = {"haeuser.cod", "figuren.cod", "toolgfx/stadtfld.col", "gfx/stadtfld.bsh"};
     for (const char* file : kRequired) {
         if (!core::find_case_insensitive(root, file)) {
-            return make_error(ErrorCode::NotFound,
-                              root.string() + " does not look like an Anno 1602 installation (missing " + file + ")");
+            return make_error(
+                ErrorCode::NotFound,
+                core::path_to_utf8(root) + " does not look like an Anno 1602 installation (missing " + file + ")");
         }
     }
     GameDirectory dir;
@@ -27,11 +27,11 @@ core::Result<GameDirectory> GameDirectory::open(const std::filesystem::path& roo
 }
 
 core::Result<GameDirectory> GameDirectory::from_environment() {
-    const char* value = std::getenv(kEnvVar);  // NOLINT(concurrency-mt-unsafe)
-    if (value == nullptr || *value == '\0') {
+    const auto value = core::environment_variable(kEnvVar);
+    if (!value) {
         return make_error(ErrorCode::NotFound, std::string("environment variable ") + kEnvVar + " is not set");
     }
-    return open(value);
+    return open(core::path_from_utf8(*value));
 }
 
 std::optional<std::filesystem::path> GameDirectory::resolve(std::string_view relative) const {

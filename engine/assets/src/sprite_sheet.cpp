@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "o1602/core/byte_reader.hpp"
+#include "o1602/core/file.hpp"
 
 namespace o1602::assets {
 
@@ -86,7 +87,7 @@ core::Result<SpriteSheet> SpriteSheet::load(const std::filesystem::path& path) {
     }
     auto sheet = from_chunk_file(std::move(file).value());
     if (!sheet) {
-        return make_error(sheet.error().code, path.string() + ": " + sheet.error().message);
+        return make_error(sheet.error().code, core::path_to_utf8(path) + ": " + sheet.error().message);
     }
     return sheet;
 }

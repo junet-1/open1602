@@ -112,6 +112,51 @@ jobs:
       - name: Build
         run: cmake --build --preset ci -- -k 0
 
+      - name: Start the game once
+        shell: bash
+        run: .github/workflows/start-game.sh build/ci/engine/app/open1602
+
+  vcpkg:
+    name: Game (vcpkg preset, Windows)
+    runs-on: windows-2022
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Set up vcpkg at the manifest's baseline
+        shell: bash
+        run: |
+          root="$VCPKG_INSTALLATION_ROOT"
+          baseline=$(jq -r '."builtin-baseline"' vcpkg.json)
+          git -C "$root" cat-file -e "$baseline^{commit}" 2>/dev/null || git -C "$root" fetch --quiet origin
+          echo "VCPKG_ROOT=$root" >> "$GITHUB_ENV"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg-cache
+          key: vcpkg-${{ hashFiles('vcpkg.json') }}-windows-2022
+
+      - name: Configure
+        run: cmake --preset vcpkg
+
+      - name: Build
+        run: cmake --build --preset vcpkg
+
+      - name: Test
+        run: ctest --preset vcpkg
+
+      - name: Start the game once
+        shell: bash
+        run: .github/workflows/start-game.sh build/vcpkg/engine/app/open1602
+
   checks:
     name: Formatting
     runs-on: ubuntu-24.04

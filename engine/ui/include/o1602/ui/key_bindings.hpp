@@ -2,8 +2,8 @@
 //
 // Which key does what (ADR 0010): a table of actions and keys, freely assignable. A key may mean
 // different things where the contexts never apply together (building, units selected); the general
-// context applies everywhere else. Key codes are those of the platform layer (SDL keycodes); this
-// table only compares them.
+// context applies everywhere else. Key codes are those of the platform layer (SDL keycodes and
+// scancodes); this table only compares them.
 #pragma once
 
 #include <cstdint>
@@ -77,12 +77,31 @@ enum class KeyAction : std::uint16_t {
 
 enum class KeyContext : std::uint8_t { General, Building, Units };
 
+/// A key as it was pressed: what it means in the keyboard layout (`key`, a keycode) and where it
+/// sits on the keyboard (`scancode`).
+struct KeyPress {
+    std::int32_t key = 0;
+    std::int32_t scancode = 0;
+    bool ctrl = false;
+    bool shift = false;
+    bool alt = false;
+};
+
+/// A key with its modifiers. `physical`: `key` is a scancode, the key at that place on every
+/// layout (W A S D and the digits stay where they are on AZERTY); otherwise a keycode, the key
+/// that means this letter (B for building wherever B is).
 struct KeyChord {
     std::int32_t key = 0;
     bool ctrl = false;
     bool shift = false;
     bool alt = false;
+    bool physical = false;
     friend bool operator==(const KeyChord&, const KeyChord&) = default;
+
+    [[nodiscard]] bool matches(const KeyPress& press) const noexcept {
+        return (physical ? press.scancode : press.key) == key && press.ctrl == ctrl && press.shift == shift &&
+               press.alt == alt;
+    }
 };
 
 struct KeyBinding {
@@ -100,6 +119,9 @@ public:
     void unbind(KeyAction action, std::uint8_t param = 0);
     /// What a key does in `context` (its own bindings first, then the general ones).
     [[nodiscard]] std::optional<KeyBinding> find(KeyContext context, const KeyChord& chord) const;
+    /// What a pressed key does in `context`: its own bindings first, then the general ones; on
+    /// each level a key bound by its place comes before one bound by its meaning.
+    [[nodiscard]] std::optional<KeyBinding> find_pressed(KeyContext context, const KeyPress& press) const;
     /// The keys of an action, for holding keys down (scrolling) and for the settings.
     [[nodiscard]] std::vector<KeyChord> keys(KeyAction action, std::uint8_t param = 0) const;
     [[nodiscard]] const std::vector<KeyBinding>& all() const noexcept { return m_bindings; }
@@ -110,10 +132,12 @@ public:
     [[nodiscard]] static std::string_view context_name(KeyContext context) noexcept;
     [[nodiscard]] static std::optional<KeyContext> context_named(std::string_view name) noexcept;
 
-    /// Names of keys come from the platform (SDL_GetKeyName / SDL_GetKeyFromName).
-    using KeyName = std::function<std::string(std::int32_t)>;
-    using KeyFromName = std::function<std::optional<std::int32_t>(std::string_view)>;
-    /// "Ctrl+Shift+F" and back; modifiers first, the rest is the key's name.
+    /// Names of keys come from the platform (SDL_GetKeyName / SDL_GetKeyFromName, for a physical
+    /// key SDL_GetScancodeName / SDL_GetScancodeFromName).
+    using KeyName = std::function<std::string(std::int32_t key, bool physical)>;
+    using KeyFromName = std::function<std::optional<std::int32_t>(std::string_view name, bool physical)>;
+    /// "Ctrl+Shift+F" and back; modifiers first, the rest is the key's name. A physical key's name
+    /// stands in brackets: "Ctrl+[1]".
     [[nodiscard]] static std::string chord_text(const KeyChord& chord, const KeyName& key_name);
     [[nodiscard]] static std::optional<KeyChord> parse_chord(std::string_view text, const KeyFromName& key_from_name);
 
