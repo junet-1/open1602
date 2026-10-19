@@ -6,6 +6,8 @@
 #include <map>
 #include <utility>
 
+#include "end_screen.hpp"
+
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/ui/localization.hpp"
@@ -254,6 +256,35 @@ void MainMenu::refresh_host() {
     p.set_visible(kListDown, m_first + kRows < m_scenarios.size());
 }
 
+void MainMenu::load_scenarios() {
+    if (!m_scenarios.empty() || m_texts == nullptr) {
+        return;
+    }
+    std::array<std::string, 4> headings;
+    for (std::size_t g = 0; g < headings.size(); ++g) {
+        headings[g] = text("GAME", 85 + g);
+    }
+    if (const auto folder = m_game->resolve("Szenes")) {
+        m_scenarios = scenario_list(*folder, headings);
+    }
+}
+
+bool MainMenu::open_mission(std::string_view name) {
+    open();
+    if (!m_host || !m_mission || name.empty()) {
+        return false;
+    }
+    load_scenarios();
+    for (std::size_t i = 0; i < m_scenarios.size(); ++i) {
+        if (!m_scenarios[i].separator && lower(m_scenarios[i].name) == lower(name)) {
+            select_scenario(i);
+            m_screen = Screen::Mission;
+            return true;
+        }
+    }
+    return false;
+}
+
 void MainMenu::select_scenario(std::size_t index) {
     m_chosen = index;
     const MenuScenario& s = m_scenarios[index];
@@ -267,8 +298,10 @@ void MainMenu::load_details() {
     m_briefing_line = 0;
     // The briefing: the mission of the human in the file (AUFTRAG4 of the player record).
     m_briefing.clear();
+    std::uint32_t part = s.header.ranking;
     if (auto bytes = core::read_file(chosen_file())) {
         if (auto file = assets::ChunkFile::from_bytes(std::move(bytes).value())) {
+            part = assets::load_scenario_header(*file).ranking;
             const auto players = assets::load_players(*file);
             const auto missions = assets::load_missions(*file);
             if (missions && !missions->empty()) {
@@ -287,10 +320,20 @@ void MainMenu::load_details() {
     }
     m_scores.clear();
     if (!s.files.empty()) {
-        std::filesystem::path hss = s.files.front().second.parent_path() / s.base;
-        hss += ".hss";
-        std::filesystem::path own = m_score_folder / s.base;
-        own += ".hss";
+        // A campaign part has a list of its own, named by its label (HighScore_Insert 0x0048E540).
+        std::filesystem::path name = s.base;
+        name += ".hss";
+        if (s.header.campaign != assets::ScenarioHeader::kNone && m_texts != nullptr) {
+            sim::GameIdentity part_of;
+            part_of.name = s.name;
+            part_of.campaign = s.header.campaign;
+            part_of.ranking = part;
+            if (auto label = high_score_file(part_of, m_texts->section("KAMPAGNE"), false); !label.empty()) {
+                name = std::move(label);
+            }
+        }
+        const std::filesystem::path hss = s.files.front().second.parent_path() / name;
+        const std::filesystem::path own = m_score_folder / name;
         auto bytes = m_score_folder.empty() ? core::read_file(hss) : core::read_file(own);
         if (!bytes && !m_score_folder.empty()) {
             bytes = core::read_file(hss);
@@ -409,15 +452,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
         switch (m_screen) {
             case Screen::Base:
                 if (e.id == kSingle && m_host) {
-                    if (m_scenarios.empty() && m_texts != nullptr) {
-                        std::array<std::string, 4> headings;
-                        for (std::size_t g = 0; g < headings.size(); ++g) {
-                            headings[g] = text("GAME", 85 + g);
-                        }
-                        if (const auto folder = m_game->resolve("Szenes")) {
-                            m_scenarios = scenario_list(*folder, headings);
-                        }
-                    }
+                    load_scenarios();
                     m_screen = Screen::Host;
                 } else if (e.id == kCredits) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Credits});

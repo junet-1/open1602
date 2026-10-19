@@ -21,17 +21,19 @@ namespace o1602::assets {
 
 /// Lines of a list in the original's files.
 inline constexpr std::size_t kHighScoreLines = 12;
+/// Bytes of a name: the original copies it into 32 bytes without a check.
+inline constexpr std::size_t kHighScoreNameLength = 31;
 
-/// The text of a .hss file: "Objekt: HISCORE", one "Entry: i, \"name\", points, stars, game id"
-/// per line, padded with empty lines to kHighScoreLines, "EndObj;".
+/// The text of a .hss file as the original writes it: "Objekt: HISCORE", one "Entry: i, \"name\",
+/// points, stars, game id" per line, padded with empty lines to kHighScoreLines, "EndObj;".
 [[nodiscard]] std::string write_high_scores(const std::vector<HighScore>& scores);
 
-/// Puts `entry` into the list, best first, after lines with the same points, and keeps
-/// kHighScoreLines. A line of the same game and name (the same game ended again after loading a
-/// savegame) is replaced when the new points are higher and stays otherwise, so one game holds
-/// one line [Open1602; how the original treats it is open]. The index of the entry's line, or
-/// nothing if it did not make the list.
-std::optional<std::size_t> insert_high_score(std::vector<HighScore>& scores, const HighScore& entry);
+/// Puts `entry` into the list as HighScore_Insert (0x0048E540) does: above the first line with
+/// as many points or fewer. A line of the same game id and name keeps the better result of the
+/// two, so a game ended again after loading a savegame holds one line. The list then has
+/// kHighScoreLines lines (empty ones at the end). The index of the line that holds the result,
+/// or nothing if it did not make the list.
+std::optional<std::size_t> insert_high_score(std::vector<HighScore>& scores, HighScore entry);
 
 /// Which missions a player has opened: per campaign the next part, and the next numbered
 /// mission of the original scenarios (Game.dat lines "Kampagne: k, n" and the third value of
@@ -42,9 +44,9 @@ struct CampaignProgress {
     std::map<std::uint32_t, std::uint32_t> campaigns;  ///< campaign -> next part
     std::uint32_t numbered = kFirstNumbered;
 
-    /// A single player game won (GameDat_Write 0x00487FB0): a campaign opens `part + 1` if that
-    /// is further than before; a numbered mission n opens n + 1 when it was the furthest
-    /// (at most kLastNumbered). True if something changed.
+    /// A single player game won (GameDat_Write 0x00487FB0): a numbered mission n (or 0, 1) that
+    /// was the furthest opens n + 1 (at most kLastNumbered); otherwise a campaign opens `part + 1`
+    /// if that is further than before. True if something changed.
     bool record_win(std::uint32_t campaign, std::uint32_t part, std::uint32_t mission_number);
 };
 /// Lines "campaign k n" and "numbered n"; unknown lines are passed over.

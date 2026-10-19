@@ -176,6 +176,11 @@ public:
             return;
         }
         const std::int32_t rate = growth_rate(city, *h);
+        // What the city remembers for its monuments (city + 0x1F8, + 0x1E4).
+        if (rate > 0 && city.house_growth <= 0) {
+            city.growing_since_ms = m_world.time_ms();
+        }
+        city.house_growth = rate;
         if (rate == 0) {
             return;
         }

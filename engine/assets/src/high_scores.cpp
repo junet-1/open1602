@@ -8,7 +8,7 @@ namespace o1602::assets {
 
 namespace {
 
-constexpr std::uint32_t kNoCampaign = 0xFF;
+constexpr std::uint32_t kNoCampaign = 0xFF;  // also: no mission number
 
 /// The numbers of a line after its key, separated by blanks.
 std::vector<std::int64_t> numbers(std::string_view s) {
@@ -33,56 +33,72 @@ std::vector<std::int64_t> numbers(std::string_view s) {
 }  // namespace
 
 std::string write_high_scores(const std::vector<HighScore>& scores) {
+    // The layout of HighScore_Write (0x0048E7A0).
     std::string out = "\n  Objekt:   HISCORE\n\n";
     for (std::size_t i = 0; i < std::max(scores.size(), kHighScoreLines); ++i) {
         const HighScore h = i < scores.size() ? scores[i] : HighScore{};
-        std::string name = h.name;
+        std::string name = h.name.substr(0, kHighScoreNameLength);
         std::replace(name.begin(), name.end(), '"', '\'');  // the reader stops at the next quote
-        out += "    Entry:    " + std::to_string(i) + ", \"" + name + "\", " + std::to_string(h.points) + ", " +
+        // "%2d": the index right-aligned in two places.
+        const std::string index = (i < 10 ? " " : "") + std::to_string(i);
+        out += "    Entry:   " + index + ", \"" + name + "\", " + std::to_string(h.points) + ", " +
                std::to_string(h.stars) + ", " + std::to_string(h.game_id) + "\n";
     }
-    out += "  EndObj;\n";
+    out += "  \n  EndObj;\n\n";
     return out;
 }
 
-std::optional<std::size_t> insert_high_score(std::vector<HighScore>& scores, const HighScore& entry) {
-    std::erase_if(scores, [](const HighScore& h) { return h.name.empty(); });
-    const auto same = std::find_if(scores.begin(), scores.end(), [&](const HighScore& h) {
-        return entry.game_id != 0 && h.game_id == entry.game_id && h.name == entry.name;
-    });
-    if (same != scores.end()) {
-        if (same->points >= entry.points) {
-            return static_cast<std::size_t>(same - scores.begin());
-        }
-        scores.erase(same);
-    }
-    const auto at =
-        std::find_if(scores.begin(), scores.end(), [&](const HighScore& h) { return h.points < entry.points; });
-    const auto index = static_cast<std::size_t>(at - scores.begin());
-    if (index >= kHighScoreLines) {
-        return std::nullopt;
-    }
-    scores.insert(at, entry);
-    if (scores.size() > kHighScoreLines) {
+std::optional<std::size_t> insert_high_score(std::vector<HighScore>& scores, HighScore entry) {
+    // Fix S-115: the original copies the name into 32 bytes unchecked.
+    entry.name.resize(std::min(entry.name.size(), kHighScoreNameLength));
+    if (scores.size() < kHighScoreLines) {
         scores.resize(kHighScoreLines);
     }
-    return index;
+    const auto same = [&](const HighScore& h) { return h.game_id == entry.game_id && h.name == entry.name; };
+    // HighScore_Insert (0x0048E540): above the first line with as many points or fewer; a better
+    // line of the same game and player stays.
+    std::size_t at = 0;
+    while (at < kHighScoreLines && (scores[at].name.empty() ? 0 : scores[at].points) > entry.points) {
+        if (same(scores[at])) {
+            return at;
+        }
+        ++at;
+    }
+    if (at >= kHighScoreLines) {
+        return std::nullopt;
+    }
+    // The lines below move down by one, up to a worse line of the same game and player or the last.
+    std::size_t end = kHighScoreLines - 1;
+    for (std::size_t j = kHighScoreLines; j-- > at;) {
+        if (same(scores[j])) {
+            end = j;
+            break;
+        }
+    }
+    std::move_backward(scores.begin() + static_cast<std::ptrdiff_t>(at),
+                       scores.begin() + static_cast<std::ptrdiff_t>(end),
+                       scores.begin() + static_cast<std::ptrdiff_t>(end) + 1);
+    scores[at] = std::move(entry);
+    scores.resize(kHighScoreLines);
+    return at;
 }
 
 bool CampaignProgress::record_win(std::uint32_t campaign, std::uint32_t part, std::uint32_t mission_number) {
-    bool changed = false;
+    // GameDat_Write (0x00487FB0): the numbered missions first, else the campaign.
+    if (mission_number != kNoCampaign && numbered <= mission_number) {
+        const std::uint32_t next = std::min(mission_number + 1, kLastNumbered);
+        const bool changed = next != numbered;
+        numbered = next;
+        return changed;
+    }
     if (campaign != kNoCampaign) {
         std::uint32_t& next = campaigns[campaign];
         if (part + 1 > next) {
             next = part + 1;
-            changed = true;
+            return true;
         }
-    } else if (mission_number >= kFirstNumbered && mission_number <= kLastNumbered && numbered <= mission_number) {
-        const std::uint32_t next = std::min(mission_number + 1, kLastNumbered);
-        changed = next != numbered;
-        numbered = next;
     }
-    return changed;
+    return false;
 }
 
 CampaignProgress parse_progress(std::string_view text) {

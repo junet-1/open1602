@@ -303,6 +303,33 @@ void unlock_levels(World& world, const assets::BuildingTable& buildings, const C
     }
 }
 
+void allow_monument(World& world, City& city, std::vector<CityEvent>* events) {
+    constexpr std::uint64_t kInterval = 30ULL * 60 * 1000;
+    constexpr std::size_t kFirstClass = 2;  // Bürger and higher
+    constexpr std::uint32_t kMinInhabitants = 200;
+    Player* owner = world.player(city.owner);
+    if (owner == nullptr || city.house_growth <= 0) {
+        return;
+    }
+    std::uint32_t inhabitants = 0;
+    for (std::size_t c = kFirstClass; c < city.inhabitants.size(); ++c) {
+        inhabitants += city.inhabitants[c];
+    }
+    if (inhabitants < kMinInhabitants || world.time_ms() < city.growing_since_ms + kInterval) {
+        return;
+    }
+    city.growing_since_ms = world.time_ms();
+    add_count(owner->monuments_allowed, 1);
+    if (events != nullptr) {
+        CityEvent e;
+        e.kind = CityEvent::Kind::Monument;
+        e.island = city.island;
+        e.city = city.index;
+        e.owner = city.owner;
+        events->push_back(e);
+    }
+}
+
 void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
     const std::vector<std::int32_t> costs = running_costs(world, buildings);
     for (std::size_t i = 0; i < world.cities().size(); ++i) {
@@ -320,6 +347,7 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
                 // every 10 s (kept: small balances cost nothing, as in the original).
                 owner->money += (tax_income(*city, buildings) - costs[i]) / 6;
                 unlock_levels(world, buildings, *city, events);
+                allow_monument(world, *city, events);
                 break;
             case PlayerRole::Natives:
                 consume_natives(*city);

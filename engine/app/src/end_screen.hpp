@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The end screen after a game (docs/re/ui.md "Endbildschirm"; ENDE.GAD): how the game ended, the
-// players' figures and points, and the scenario's high score list with the new line.
-//
-// PROVISIONAL LAYOUT: what each gadget of ENDE.GAD shows and how the original fills it is not
-// analysed yet. Until then the screen draws the layout as its background (its pictures, no
-// texts) and lays out its own lines over it, in the original's fonts and colours, with
-// Open1602's texts (data/locale "end.*"). Once the gadgets are known, refresh() fills them and the
-// own lines go.
+// The players' score sheets (Screen_PlayerStatus; ENDE.GAD, docs/re/ui.md "Endbildschirm"): after
+// a game is decided, and from the info panel's "Bewertung" while it runs. The labels are part of
+// the background picture; the screen fills in a player's figures and points, the total, the name
+// and the coat of arms, and offers the coats of arms of the other players to look at theirs.
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "o1602/assets/gad.hpp"
-#include "o1602/assets/scenario.hpp"
 #include "o1602/render/sdl_ui_renderer.hpp"
 #include "o1602/sim/score.hpp"
 #include "o1602/ui/panel.hpp"
@@ -27,47 +25,48 @@ class EndScreen {
 public:
     /// What the player chose.
     enum class Choice : std::uint8_t {
-        MainMenu,  ///< back to the main menu
-        Continue,  ///< keep playing the won game (Open1602; the original ends it)
+        MainMenu,  ///< "Hauptmenü"
+        NewGame,   ///< "Neues Spiel": the same scenario's mission screen (single player)
+        Resume,    ///< Escape: back to the game (the sheet while it runs; Open1602 after a win)
     };
 
-    /// `ende`: the layout ENDE.GAD, nothing if the installation lacks it (the screen is then black
-    /// behind its lines).
+    /// `ende`: the layout ENDE.GAD, nothing if the installation lacks it (the screen is black).
     explicit EndScreen(std::optional<assets::GadgetLayout> ende);
 
-    /// Shows a finished game. `scores` is the scenario's list after the game's line went in at
-    /// `rank` (nothing: not in the list, or no list).
-    void open(sim::EndScreenSummary summary, std::vector<assets::HighScore> scores, std::optional<std::size_t> rank);
+    /// Shows a decided game (`view_only` false: the buttons, no way back) or the sheets of a
+    /// running one (Escape goes back). Starts with the local player's sheet.
+    void open(sim::EndScreenSummary summary, bool view_only);
     void set_scale(double scale);
 
     /// Draws over the whole 1024 x 768 design, its top left at (x, y).
     void draw(render::SdlUiRenderer& renderer, std::int32_t x, std::int32_t y);
-    /// The mouse relative to the design's top left, in pixels: a click on a button chooses.
+    /// The mouse relative to the design's top left, in pixels.
     std::optional<Choice> mouse(std::int32_t x, std::int32_t y, bool down);
-    /// Escape and Enter: the main menu.
-    [[nodiscard]] static Choice back() noexcept { return Choice::MainMenu; }
+    /// Escape: back to a running game, or into a won one (Open1602: the original has no keys on
+    /// its final screen and ends the game).
+    [[nodiscard]] std::optional<Choice> back() const noexcept;
 
     [[nodiscard]] const sim::EndScreenSummary& summary() const noexcept { return m_summary; }
+    [[nodiscard]] bool view_only() const noexcept { return m_view_only; }
 
 private:
-    struct Button {
-        ui::Rect rect;  ///< design units
-        Choice choice = Choice::MainMenu;
-        std::string label;
-    };
-    [[nodiscard]] ui::Rect pixels(const ui::Rect& design) const noexcept;
+    void show(std::size_t row);
 
     std::optional<ui::Panel> m_panel;
     double m_scale = 1.0;
+    std::int32_t m_arms = 0;  ///< sprite of the coat of arms of colour 0 (gadget 36005)
     sim::EndScreenSummary m_summary;
-    std::vector<assets::HighScore> m_scores;
-    std::optional<std::size_t> m_rank;
-    std::vector<Button> m_buttons;
-    std::optional<std::size_t> m_pressed;
-    bool m_down = false;
+    bool m_view_only = false;
+    /// The row of each colour's button, nothing for a colour nobody plays.
+    std::array<std::optional<std::size_t>, 4> m_by_colour{};
 };
 
-/// "h:mm" of a game time.
-[[nodiscard]] std::string game_time_text(std::uint64_t time_ms);
+/// Where a game's high score list lives, relative to the scores folder: the scenario's name (a
+/// campaign part's label, [KAMPAGNE] line 5 * campaign + part), in "Eigene Szenarien" for the
+/// player's own scenarios, .hss for one player and .hsm for several. Empty without a name.
+[[nodiscard]] std::filesystem::path high_score_file(const sim::GameIdentity& game,
+                                                    const std::vector<std::string>& campaign_labels, bool multiplayer);
+/// A name of Windows-1252 as a file name (UTF-8), without characters a file system refuses.
+[[nodiscard]] std::filesystem::path file_name_of(std::string_view cp1252);
 
 }  // namespace o1602::app

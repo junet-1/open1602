@@ -258,8 +258,10 @@ std::optional<Hud::Action> Hud::toggle_window(Selection::Kind kind) {
 
 bool Hud::back() {
     if (m_end_active) {
-        m_end_choice = EndScreen::back();
-        return true;
+        if (const auto choice = m_end.back()) {
+            m_end_choice = choice;
+        }
+        return true;  // no keys on the final screen of a lost game
     }
     if (m_menu_active) {
         return m_menu && m_menu->back();
@@ -463,9 +465,8 @@ void Hud::draw_menu() {
     draw_help();
 }
 
-void Hud::open_end_screen(sim::EndScreenSummary summary, std::vector<assets::HighScore> scores,
-                          std::optional<std::size_t> rank) {
-    m_end.open(std::move(summary), std::move(scores), rank);
+void Hud::open_end_screen(sim::EndScreenSummary summary, bool view_only) {
+    m_end.open(std::move(summary), view_only);
     m_end_choice.reset();
     m_end_active = true;
     m_menu_active = true;
@@ -474,7 +475,7 @@ void Hud::open_end_screen(sim::EndScreenSummary summary, std::vector<assets::Hig
 void Hud::close_end_screen(EndScreen::Choice choice) {
     m_end_active = false;
     m_end_choice.reset();
-    if (choice == EndScreen::Choice::MainMenu && m_menu) {
+    if (choice != EndScreen::Choice::Resume && m_menu) {
         open_menu();
     } else {
         m_menu_active = false;
@@ -716,6 +717,8 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         } else if (m_info && m_mode == kModeInfo) {
             if (const auto list = m_info->mouse(x - panel.x, y - panel.y, down)) {
                 action = toggle_window(*list);
+            } else if (m_info->take_rating()) {
+                action = Action{Action::Kind::Rating};
             }
         }
     } else if (m_mode == kModeOptions && m_options) {

@@ -78,6 +78,9 @@ public:
     /// instead of the original's once a game has added a line.
     void set_score_folder(std::filesystem::path folder) { m_score_folder = std::move(folder); }
     [[nodiscard]] const std::string& name() const noexcept { return m_name; }
+    /// "Neues Spiel" on the end screen: the mission screen of the scenario called `name`
+    /// (Windows-1252), else the main menu. True if the scenario was found.
+    bool open_mission(std::string_view name);
 
     /// The screen's gadgets, relative to the full screen region.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts);
@@ -101,6 +104,7 @@ private:
     void refresh_host();
     void refresh_mission();
     void refresh_colour();
+    void load_scenarios();
     void select_scenario(std::size_t index);
     /// Briefing and high scores of the chosen scenario and part.
     void load_details();

@@ -4,6 +4,9 @@
 #include "o1602/sim/score.hpp"
 
 #include <algorithm>
+#include <array>
+#include <set>
+#include <span>
 
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/byte_reader.hpp"
@@ -16,30 +19,167 @@ namespace {
 
 constexpr std::size_t kTimersMission = 0xA7;  // TIMERS: mission number (endless game 1)
 constexpr std::size_t kTimersGameId = 0xAC;   // TIMERS: game id
+constexpr std::size_t kTimersRanking = 0xBC;  // TIMERS: SZENE_RANKING of the scenario
+
+constexpr std::size_t kCityCurve = 1000;  // last index of the city curve: 20,000 Einwohner
+constexpr std::size_t kFightCurve = 200;  // last index of the fight curve
+
+/// A table of straight segments as 0x00474F90 builds them: from a to b in steps of 1/256,
+/// truncated, the end value exactly.
+struct Segment {
+    std::int32_t a;
+    std::int32_t b;
+    std::int32_t from;
+    std::int32_t to;
+};
+void fill(std::span<std::int32_t> table, const Segment& s) {
+    const std::int32_t step = (s.to * 256 - s.from * 256) / (s.b - s.a);
+    std::int32_t acc = s.from * 256;
+    for (std::int32_t i = s.a; i < s.b; ++i) {
+        table[static_cast<std::size_t>(i)] = acc >> 8;
+        acc += step;
+    }
+    table[static_cast<std::size_t>(s.b)] = s.to;
+}
+
+const std::array<std::int32_t, kCityCurve + 1>& city_table() {
+    static const auto table = [] {
+        std::array<std::int32_t, kCityCurve + 1> t{};
+        for (const Segment& s : {Segment{0, 10, 12, 12}, Segment{10, 25, 12, 19}, Segment{25, 50, 19, 32},
+                                 Segment{50, 100, 32, 51}, Segment{100, 200, 51, 76}, Segment{200, 400, 76, 102},
+                                 Segment{400, 500, 102, 160}, Segment{500, 1000, 160, 254}}) {
+            fill(t, s);
+        }
+        for (std::int32_t& v : t) {
+            v = std::min(v, 255);  // a byte table
+        }
+        return t;
+    }();
+    return table;
+}
+
+const std::array<std::int32_t, kFightCurve + 1>& fight_table() {
+    static const auto table = [] {
+        std::array<std::int32_t, kFightCurve + 1> t{};
+        for (const Segment& s : {Segment{0, 1, 0, 0}, Segment{1, 4, 100, 400}, Segment{4, 10, 400, 1000},
+                                 Segment{10, 20, 1000, 2000}, Segment{20, 40, 2000, 3000}, Segment{40, 80, 3000, 5000},
+                                 Segment{80, 140, 5000, 7000}, Segment{140, 200, 7000, 10000}}) {
+            fill(t, s);
+        }
+        t[0] = 0;
+        return t;
+    }();
+    return table;
+}
+
+std::int64_t money_points(std::int64_t money) {
+    constexpr std::array<std::pair<std::int64_t, std::int64_t>, 7> kSteps{{{10'000'000, 5000},
+                                                                           {5'000'000, 4000},
+                                                                           {1'000'000, 3000},
+                                                                           {500'000, 2500},
+                                                                           {250'000, 2000},
+                                                                           {100'000, 1500},
+                                                                           {50'000, 1000}}};
+    for (const auto& [limit, points] : kSteps) {
+        if (money >= limit) {
+            return points;
+        }
+    }
+    return 0;
+}
+
+/// Points of fights: by the number of wins `n` on the curve, times the share of won fights.
+std::int64_t fight_points(std::int64_t won, std::int64_t lost, std::int64_t n) {
+    if (won + lost == 0) {
+        return 0;
+    }
+    const std::int64_t share = won * 128 / (won + lost);
+    return std::int64_t{fight_curve(static_cast<std::size_t>(std::min<std::int64_t>(n, kFightCurve)))} * share >> 7;
+}
 
 }  // namespace
 
-ScoreParts score_parts(const World& world, const assets::BuildingTable& buildings, PlayerId player) {
-    ScoreParts s;
+std::uint8_t city_curve(std::size_t index) noexcept {
+    return static_cast<std::uint8_t>(city_table()[std::min(index, kCityCurve)]);
+}
+
+std::int32_t fight_curve(std::size_t index) noexcept {
+    return fight_table()[std::min(index, kFightCurve)];
+}
+
+ScoreSheet score_sheet(const World& world, const assets::BuildingTable& buildings, PlayerId player) {
+    ScoreSheet s;
+    s.player = player;
     const Player* p = world.player(player);
     if (p == nullptr) {
         return s;
     }
-    // PROVISIONAL (0x00474F90 not analysed): inhabitants weighted with the Hiscore of their class.
+    const auto t = static_cast<std::int64_t>(world.time_ms() / 100);  // the original's 1/10 s
+
+    s.money = p->money;
+    s.money_points = money_points(s.money);
+
+    // The cities: Einwohner, the inhabitants per class, the size of each city, the islands and
+    // the land they cover. The land is sampled on every 8th tile of each row and column.
+    const std::vector<std::uint32_t> workers = city_workers(world, buildings);
     const auto& classes = buildings.resident_classes();
-    for (const City& c : world.cities()) {
+    std::vector<std::int64_t> per_class(classes.size(), 0);
+    std::set<std::uint16_t> islands;
+    std::int64_t land = 0;
+    for (std::size_t i = 0; i < world.cities().size(); ++i) {
+        const City& c = world.cities()[i];
         if (c.owner != player) {
             continue;
         }
-        for (std::size_t k = 0; k < c.inhabitants.size(); ++k) {
-            const std::uint32_t weight = k < classes.size() ? classes[k].hiscore : 0;
-            s.inhabitants += std::int64_t{c.inhabitants[k]} * weight;
+        ++s.cities;
+        const std::int64_t e = city_einwohner(c, i < workers.size() ? workers[i] : 0);
+        s.inhabitants += e;
+        s.city_points += std::int64_t{city_curve(static_cast<std::size_t>(e / 20))} * e / 64;
+        for (std::size_t k = 0; k < c.inhabitants.size() && k < per_class.size(); ++k) {
+            per_class[k] += c.inhabitants[k];
+        }
+        if (c.island < world.islands().size()) {
+            islands.insert(c.island);
+            const IslandMap& map = world.islands()[c.island].map;
+            for (std::uint32_t y = 0; y < map.height(); y += 8) {
+                for (std::uint32_t x = 0; x < map.width(); x += 8) {
+                    land += map.top(x, y).city == c.index ? 64 : 0;
+                }
+            }
         }
     }
-    s.subtotal = s.inhabitants;
+    for (std::size_t k = 0; k < per_class.size(); ++k) {
+        s.subjects_points += per_class[k] * classes[k].hiscore / 50;
+    }
+    s.islands = static_cast<std::int64_t>(islands.size());
+    std::int64_t area = 0;
+    for (const WorldIsland& isl : world.islands()) {
+        area += std::int64_t{isl.map.width()} * isl.map.height();
+    }
+    s.land_points = area != 0 ? land * 10000 / area : 0;
+
+    // Monuments the people wanted, per hour of game time from the tenth minute on.
+    s.monuments = p->monuments_allowed;
+    s.monument_points = t <= 6000 ? 0 : s.monuments * 90'000'000 / t;
+
+    // Opponents defeated: the original counts the triumphal arch allowances (player + 0x8E).
+    s.opponents_defeated = p->arches_allowed;
+    s.defeat_points = s.opponents_defeated * 1500;
+
+    s.soldiers_killed = p->soldiers_killed;
+    s.soldiers_lost = p->soldiers_lost;
+    s.soldier_points = fight_points(s.soldiers_killed, s.soldiers_lost, (s.soldiers_killed + 4) / 5);
+    s.ships_sunk = p->ships_sunk;
+    s.ships_lost = p->ships_lost;
+    s.ship_points = fight_points(s.ships_sunk, s.ships_lost, (s.ships_sunk + 1) / 2);
+
+    const std::int64_t sum = s.ship_points + s.city_points + s.money_points + s.monument_points + s.land_points +
+                             s.soldier_points + s.defeat_points + s.subjects_points;
+    // A winner's points count twice (HighScore_UpdateAllHumans 0x00475990).
     s.won = p->won;
-    // A winner's points count twice (HighScore_UpdateAllHumans 0x00475990, confirmed).
-    s.total = s.won ? 2 * s.subtotal : s.subtotal;
+    s.bonus_percent = s.won ? 100 : 0;
+    s.bonus = s.won ? sum : 0;
+    s.total = sum + s.bonus;
     return s;
 }
 
@@ -54,23 +194,27 @@ GameIdentity game_identity(const World& world) {
         const auto end = std::find(bytes.begin(), bytes.end(), std::uint8_t{0});
         id.name.assign(bytes.begin(), end);
     }
+    id.custom = file->find("CUSTOM") != nullptr;
     const assets::ScenarioHeader header = assets::load_scenario_header(*file);
-    id.stars = header.ranking;
+    const bool has_ranking = file->find("SZENE_RANKING") != nullptr;
+    id.ranking = has_ranking ? header.ranking : 0;
     id.mission_number = header.mission_number;
     id.campaign = header.campaign;
     id.game_id = header.game_id;
+    // A savegame keeps what the scenario said in TIMERS (the SZENE_* chunks are gone).
     if (const assets::Chunk* timers = file->find("TIMERS")) {
         const auto t = file->payload(*timers);
-        if (t.size() >= kTimersGameId + 4) {
-            core::ByteReader r(t);
-            if (r.seek(kTimersGameId)) {
-                if (const auto game = r.u32(); game && *game != 0) {
-                    id.game_id = *game;
-                }
+        core::ByteReader r(t);
+        if (r.seek(kTimersGameId)) {
+            if (const auto game = r.u32(); game && *game != 0) {
+                id.game_id = *game;
             }
         }
         if (id.mission_number == GameIdentity::kNone && t.size() > kTimersMission) {
             id.mission_number = t[kTimersMission];
+        }
+        if (!has_ranking && r.seek(kTimersRanking)) {
+            id.ranking = r.u32().value_or(0);
         }
     }
     return id;
@@ -83,7 +227,6 @@ EndScreenSummary end_screen_summary(const World& world, const assets::BuildingTa
     s.local = local;
     s.time_ms = world.game_end() ? world.game_end()->time_ms : world.time_ms();
     s.game = game_identity(world);
-    const std::vector<std::uint32_t> workers = city_workers(world, buildings);
     for (std::size_t i = 0; i < world.players().size(); ++i) {
         const Player& p = world.players()[i];
         if ((p.role != PlayerRole::Human && p.role != PlayerRole::Computer) || p.status == PlayerStatus::Absent) {
@@ -95,26 +238,10 @@ EndScreenSummary end_screen_summary(const World& world, const assets::BuildingTa
         r.banner = p.banner;
         r.role = p.role;
         r.status = p.status;
-        r.won = p.won;
-        r.money = p.money;
-        for (std::size_t c = 0; c < world.cities().size(); ++c) {
-            if (world.cities()[c].owner == r.player) {
-                ++r.cities;
-                r.inhabitants += city_einwohner(world.cities()[c], c < workers.size() ? workers[c] : 0);
-            }
-        }
-        for (const Ship& ship : world.ships()) {
-            r.ships += ship.owner == r.player && !ship.sinking ? 1U : 0U;
-        }
-        r.score = player_score(world, buildings, r.player);
+        r.sheet = score_sheet(world, buildings, r.player);
         s.rows.push_back(std::move(r));
     }
-    std::stable_sort(s.rows.begin(), s.rows.end(), [local](const EndScreenRow& a, const EndScreenRow& b) {
-        if ((a.player == local) != (b.player == local)) {
-            return a.player == local;
-        }
-        return a.score > b.score;
-    });
+    std::stable_partition(s.rows.begin(), s.rows.end(), [local](const EndScreenRow& r) { return r.player == local; });
     return s;
 }
 

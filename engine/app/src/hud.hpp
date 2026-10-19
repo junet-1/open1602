@@ -54,6 +54,7 @@ public:
             FoundKontor,   ///< the building tool places a Kontor paid from `ship`
             Answer,        ///< the question was answered: `step` 1 yes, 0 no
             SelectShip,    ///< select `ship` and look at it (the ship list)
+            Rating,        ///< the score sheets of the running game ("Bewertung")
         };
         Kind kind = Kind::RotateLeft;
         double tile_x = 0.0;  ///< Minimap and Message: the world tile to look at
@@ -96,6 +97,12 @@ public:
         std::int32_t shield = -1;                 ///< colour of a human owner, -1 the plain shield
     };
     void set_resources(Resources r) { m_resources = std::move(r); }
+    /// The local player's points for the info panel, and whether its "Bewertung" may be pressed.
+    void set_points(std::int64_t points, bool rating) {
+        if (m_info) {
+            m_info->set_points(points, rating);
+        }
+    }
     /// Text of the status line when the mouse is on no gadget (the build tool's report).
     void set_status(std::string text) { m_status = std::move(text); }
     /// The status line over grass and trees of an explored island (0x0040A3D0, Text.cod GAME 22):
@@ -216,13 +223,13 @@ public:
     }
     void close_menu() noexcept { m_menu_active = false; }
     [[nodiscard]] std::vector<MenuEvent> take_menu_events() { return std::exchange(m_menu_events, {}); }
-    /// The end screen over the whole window, like the menu (menu_active() holds meanwhile, so the
-    /// game stands still behind it). The player's choice comes back through take_end_choice().
-    void open_end_screen(sim::EndScreenSummary summary, std::vector<assets::HighScore> scores,
-                         std::optional<std::size_t> rank);
+    /// The score sheets over the whole window, like the menu (menu_active() holds meanwhile, so
+    /// the game stands still behind them, as in the original). The player's choice comes back
+    /// through take_end_choice().
+    void open_end_screen(sim::EndScreenSummary summary, bool view_only);
     [[nodiscard]] bool end_screen_active() const noexcept { return m_end_active; }
     [[nodiscard]] std::optional<EndScreen::Choice> take_end_choice() { return std::exchange(m_end_choice, {}); }
-    /// Leaves the end screen for the main menu (or the game if there is no menu).
+    /// Leaves the end screen: the main menu (Resume, or no menu: the game).
     void close_end_screen(EndScreen::Choice choice);
     /// The menu's picture frame on the screen (the credits play there).
     [[nodiscard]] ui::Rect menu_video_rect() const;
