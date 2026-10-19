@@ -89,3 +89,21 @@ keys.action.pixel_scale_up = Größere Pixel
 keys.action.pixel_scale_down = Kleinere Pixel
 keys.action.show_owners = Besitz zeigen
 keys.action.quit = Beenden
+
+# End screen
+end.title.won = Sieg! Ihr habt Euren Auftrag erfüllt.
+end.title.lost = Niederlage
+end.title.left = Das Spiel ist beendet
+end.game_time = Spielzeit {1}
+end.column.player = Spieler
+end.column.inhabitants = Einwohner
+end.column.cities = Städte
+end.column.ships = Schiffe
+end.column.money = Taler
+end.column.points = Punkte
+end.player = Spieler {1}
+end.state.won = siegreich
+end.state.defeated = besiegt
+end.high_scores = Bestenliste
+end.main_menu = Hauptmenü
+end.continue = Weiterspielen

@@ -106,3 +106,23 @@ keys.action.pixel_scale_up = Larger pixels
 keys.action.pixel_scale_down = Smaller pixels
 keys.action.show_owners = Show ownership
 keys.action.quit = Quit
+
+# End screen (provisional texts until the original's ENDE.GAD texts are known)
+end.title.won = Victory! You have accomplished your task.
+end.title.lost = Defeat
+end.title.left = The game is over
+# {1}: game time as h:mm
+end.game_time = Game time {1}
+end.column.player = Player
+end.column.inhabitants = Inhabitants
+end.column.cities = Cities
+end.column.ships = Ships
+end.column.money = Gold
+end.column.points = Points
+# {1}: the number of the player's slot
+end.player = Player {1}
+end.state.won = victorious
+end.state.defeated = defeated
+end.high_scores = High scores
+end.main_menu = Main menu
+end.continue = Keep playing

@@ -122,8 +122,10 @@ range, pursue them and then continue; in the savegame `STNC`), hold position (th
 only shoot at enemies in range, do not pursue), quicksave and quickload (F5, F9) and the
 explore button next to repair and pirates in the ship window (U-013), ship and city list (L,
 Shift+L), diplomacy window with tribute (V; confirmation before breaking a peace treaty), the
-settings of the side panel and the main menu for single player (scenarios, endless game, savegames).
-Not yet: end screen with rating and our own game menu (Escape) with save, load, settings and quit. The original
+settings of the side panel and the main menu for single player (scenarios, endless game, savegames),
+the end screen after victory, defeat or „Ende“ (players' figures, points, high score list; after a
+victory „Keep playing“ goes on with the game, which the original ends; the layout is provisional
+until ENDE.GAD is analysed). Not yet: our own game menu (Escape) with save, load, settings and quit. The original
 has no game menu: save, load and quit are in the settings of the side panel (done
 with a confirmation before „Ende“ ("Quit")).
 

@@ -74,6 +74,9 @@ public:
     /// Savegame names for the list "Spiel laden" and the player's name for the next game.
     void set_slots(const SaveSlots& slots) { m_slots = slots; }
     void set_name(std::string name) { m_name = std::move(name); }
+    /// Open1602's own high score lists (<folder>/<scenario>.hss); the mission screen shows them
+    /// instead of the original's once a game has added a line.
+    void set_score_folder(std::filesystem::path folder) { m_score_folder = std::move(folder); }
     [[nodiscard]] const std::string& name() const noexcept { return m_name; }
 
     /// The screen's gadgets, relative to the full screen region.
@@ -120,6 +123,7 @@ private:
     std::size_t m_scores_first = 0;
     std::int32_t m_briefing_line = 0;
     SaveSlots m_slots;
+    std::filesystem::path m_score_folder;
     std::string m_name;
     bool m_name_fresh = false;  ///< the name was put in, not typed: the first key replaces it
     bool m_typing = false;

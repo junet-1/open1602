@@ -289,7 +289,13 @@ void MainMenu::load_details() {
     if (!s.files.empty()) {
         std::filesystem::path hss = s.files.front().second.parent_path() / s.base;
         hss += ".hss";
-        if (auto bytes = core::read_file(hss)) {
+        std::filesystem::path own = m_score_folder / s.base;
+        own += ".hss";
+        auto bytes = m_score_folder.empty() ? core::read_file(hss) : core::read_file(own);
+        if (!bytes && !m_score_folder.empty()) {
+            bytes = core::read_file(hss);
+        }
+        if (bytes) {
             m_scores = assets::parse_high_scores(
                 std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
         }

@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "end_screen.hpp"
 #include "main_menu.hpp"
 #include "options_panel.hpp"
 #include "selection_panels.hpp"
@@ -215,6 +216,14 @@ public:
     }
     void close_menu() noexcept { m_menu_active = false; }
     [[nodiscard]] std::vector<MenuEvent> take_menu_events() { return std::exchange(m_menu_events, {}); }
+    /// The end screen over the whole window, like the menu (menu_active() holds meanwhile, so the
+    /// game stands still behind it). The player's choice comes back through take_end_choice().
+    void open_end_screen(sim::EndScreenSummary summary, std::vector<assets::HighScore> scores,
+                         std::optional<std::size_t> rank);
+    [[nodiscard]] bool end_screen_active() const noexcept { return m_end_active; }
+    [[nodiscard]] std::optional<EndScreen::Choice> take_end_choice() { return std::exchange(m_end_choice, {}); }
+    /// Leaves the end screen for the main menu (or the game if there is no menu).
+    void close_end_screen(EndScreen::Choice choice);
     /// The menu's picture frame on the screen (the credits play there).
     [[nodiscard]] ui::Rect menu_video_rect() const;
     void draw_menu();
@@ -287,6 +296,9 @@ private:
     std::unique_ptr<MainMenu> m_menu;
     bool m_menu_active = false;
     std::vector<MenuEvent> m_menu_events;
+    EndScreen m_end;
+    bool m_end_active = false;
+    std::optional<EndScreen::Choice> m_end_choice;
     std::unique_ptr<OptionsPanel> m_options;
     OptionsModel m_options_model;
     std::vector<OptionsEvent> m_option_events;

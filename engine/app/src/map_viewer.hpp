@@ -37,6 +37,7 @@
 #include "o1602/sim/new_game.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/savegame_writer.hpp"
+#include "o1602/sim/score.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 #include "o1602/ui/key_bindings.hpp"
@@ -181,6 +182,13 @@ private:
     void warn_if_state_damaged() const;
     /// What the main menu asked for this frame.
     void apply_menu();
+    /// The end screen follows a decided game: right after the message's video, else after 5 s
+    /// (docs/re/missions.md "Sieg"). Called every frame the game runs.
+    void check_end_screen(std::uint64_t now);
+    /// Opens the end screen; a won or lost game first enters the high score list and the progress.
+    void show_end_screen(sim::GameOutcome outcome);
+    /// How the game stands for the local player now.
+    [[nodiscard]] sim::GameOutcome local_outcome() const;
     /// A new endless game of `level` (from the menu): name and banner of the human.
     core::Status start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name);
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
@@ -370,7 +378,14 @@ private:
     std::deque<VideoRequest> m_videos;     ///< waiting
     VideoRequest m_video_now;              ///< playing
     bool m_pause_video = false;            ///< the original's pause is on
-    std::uint32_t m_defeat_variant = 0;    ///< own counter for 1010/2020 (no game random numbers)
+    struct EndPending {
+        sim::GameOutcome outcome = sim::GameOutcome::Lost;
+        std::uint64_t due_ms = 0;  ///< real time
+        bool saw_video = false;    ///< a video played since: the screen follows when it ends
+    };
+    std::optional<EndPending> m_end_pending;
+    bool m_end_shown = false;            ///< once per game (a won game may go on)
+    std::uint32_t m_defeat_variant = 0;  ///< own counter for 1010/2020 (no game random numbers)
 };
 
 }  // namespace o1602::app
