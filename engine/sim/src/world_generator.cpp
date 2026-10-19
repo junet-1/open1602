@@ -1064,7 +1064,9 @@ std::vector<std::uint8_t> Generator::village_records(const Slot& slot, const Sta
             }
             record[0x86] = record[0x86] == 0 ? std::uint8_t{0x80} : record[0x86];
         }
-        if (store && record.size() >= 4 && (record[3] & 0xFU) < natives.size() && natives[record[3] & 0xFU]) {
+        constexpr std::size_t kStoreRecord = 4 + 20U * 19 + 12;  // up to the cloth slot
+        if (store && record.size() >= kStoreRecord && (record[3] & 0xFU) < natives.size() &&
+            natives[record[3] & 0xFU]) {
             // 0x0047F5E0: the village sells tobacco goods (north) or spices (south) and buys alcohol
             // and cloth up to 10 t, all for nothing.
             const auto slot_at = [](std::uint8_t ware) { return std::size_t{4} + 20U * ware; };

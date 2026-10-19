@@ -521,15 +521,19 @@ TEST_CASE("data: an own world with six players, all ships at one place, nobody o
     // A ship for each of the six players, in slots 0-3 and 7-8, all at the same place; the factions
     // keep theirs where the level has them.
     std::set<sim::PlayerId> owners;
-    std::set<std::pair<std::uint32_t, std::uint32_t>> places;
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> places;
     for (const sim::Ship& ship : world->ships()) {
         if (ship.owner < 4 || ship.owner >= 7) {
             owners.insert(ship.owner);
-            places.emplace(ship.x, ship.y);
+            places.emplace_back(ship.x, ship.y);
         }
     }
     CHECK((owners == std::set<sim::PlayerId>{0, 1, 2, 3, 7, 8}));
-    CHECK(places.size() == 1);
+    // Together, as the original: a few tiles apart around one place.
+    for (const auto& [x, y] : places) {
+        CHECK(std::max(x, places[0].first) - std::min(x, places[0].first) <= 20);
+        CHECK(std::max(y, places[0].second) - std::min(y, places[0].second) <= 20);
+    }
     CHECK(world->players()[7].role == sim::PlayerRole::Computer);
     CHECK(world->players()[7].banner == sim::kFirstExtraBanner);
     CHECK(world->players()[8].banner == sim::kFirstExtraBanner + 1);
