@@ -20,6 +20,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/construction.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -32,155 +33,8 @@
 
 namespace o1602::sim::ai {
 
-// Ware numbers of haeuser.cod the AI refers to.
-namespace ware {
-inline constexpr std::uint8_t kAll = 1;
-inline constexpr std::uint8_t kOre = 2;
-inline constexpr std::uint8_t kGold = 3;
-inline constexpr std::uint8_t kWool = 4;
-inline constexpr std::uint8_t kSugar = 5;
-inline constexpr std::uint8_t kTobacco = 6;
-inline constexpr std::uint8_t kMeat = 7;
-inline constexpr std::uint8_t kGrain = 8;
-inline constexpr std::uint8_t kFlour = 9;
-inline constexpr std::uint8_t kIron = 10;
-inline constexpr std::uint8_t kSwords = 11;
-inline constexpr std::uint8_t kMuskets = 12;
-inline constexpr std::uint8_t kCannons = 13;
-inline constexpr std::uint8_t kFood = 14;
-inline constexpr std::uint8_t kTobaccoGoods = 15;
-inline constexpr std::uint8_t kSpices = 16;
-inline constexpr std::uint8_t kCocoa = 17;
-inline constexpr std::uint8_t kAlcohol = 18;
-inline constexpr std::uint8_t kCloth = 19;
-inline constexpr std::uint8_t kClothes = 20;
-inline constexpr std::uint8_t kJewellery = 21;
-inline constexpr std::uint8_t kTools = 22;
-inline constexpr std::uint8_t kWood = 23;
-inline constexpr std::uint8_t kBricks = 24;
-inline constexpr std::uint8_t kCornField = 45;
-inline constexpr std::uint8_t kTobaccoField = 46;
-inline constexpr std::uint8_t kSpiceField = 47;
-inline constexpr std::uint8_t kSugarField = 48;
-inline constexpr std::uint8_t kCottonField = 49;
-inline constexpr std::uint8_t kWineField = 50;
-inline constexpr std::uint8_t kCocoaField = 51;
-inline constexpr std::uint8_t kGrass = 52;
-inline constexpr std::uint8_t kTree = 53;
-inline constexpr std::uint8_t kStone = 54;
-inline constexpr std::uint8_t kGame = 56;
-inline constexpr std::uint8_t kFish = 57;
-}  // namespace ware
-
-// HAUS Kind values (record +0x04).
-namespace kind {
-inline constexpr std::int32_t kRoad = 1;
-inline constexpr std::int32_t kGate = 3;
-inline constexpr std::int32_t kWall = 4;
-inline constexpr std::int32_t kWallBeach = 5;
-inline constexpr std::int32_t kTower = 6;
-inline constexpr std::int32_t kTowerBeach = 7;
-inline constexpr std::int32_t kForest = 10;
-inline constexpr std::int32_t kGround = 11;
-inline constexpr std::int32_t kRuin = 12;
-inline constexpr std::int32_t kSquare = 13;
-inline constexpr std::int32_t kBuilding = 14;
-inline constexpr std::int32_t kRock = 15;
-inline constexpr std::int32_t kRiver = 16;
-inline constexpr std::int32_t kRiverCorner = 17;
-inline constexpr std::int32_t kBridge = 18;
-inline constexpr std::int32_t kSea = 19;
-inline constexpr std::int32_t kSurf = 20;
-inline constexpr std::int32_t kSurfCorner = 21;
-inline constexpr std::int32_t kMouth = 22;
-inline constexpr std::int32_t kBeach = 23;
-inline constexpr std::int32_t kBeachMouth = 24;
-inline constexpr std::int32_t kBeachOuter = 25;
-inline constexpr std::int32_t kBeachInner = 26;
-inline constexpr std::int32_t kBeachVariant = 27;
-inline constexpr std::int32_t kBeachHouse = 28;
-inline constexpr std::int32_t kBeachRuin = 29;
-inline constexpr std::int32_t kPier = 30;
-inline constexpr std::int32_t kSlope = 31;
-inline constexpr std::int32_t kSlopeCorner = 32;
-inline constexpr std::int32_t kMine = 34;
-inline constexpr std::int32_t kHq = 35;
-}  // namespace kind
-
-// HAUS_PRODTYP Kind values.
-namespace prod {
-inline constexpr std::int32_t kWorkshop = 1;
-inline constexpr std::int32_t kFarm = 2;
-inline constexpr std::int32_t kMine = 3;
-inline constexpr std::int32_t kPasture = 4;
-inline constexpr std::int32_t kHunter = 5;
-inline constexpr std::int32_t kFisher = 6;
-inline constexpr std::int32_t kMarket = 7;
-inline constexpr std::int32_t kKontor = 8;
-inline constexpr std::int32_t kRipe = 9;
-inline constexpr std::int32_t kGrowing = 10;
-inline constexpr std::int32_t kQuarry = 11;
-inline constexpr std::int32_t kHouse = 13;
-inline constexpr std::int32_t kShipyard = 14;
-inline constexpr std::int32_t kMilitary = 15;
-inline constexpr std::int32_t kTower = 16;
-inline constexpr std::int32_t kWirt = 17;
-inline constexpr std::int32_t kKapelle = 18;
-inline constexpr std::int32_t kKirche = 19;
-inline constexpr std::int32_t kBadehaus = 20;
-inline constexpr std::int32_t kTheater = 21;
-inline constexpr std::int32_t kKlinik = 22;
-inline constexpr std::int32_t kSchule = 23;
-inline constexpr std::int32_t kHochschule = 24;
-inline constexpr std::int32_t kGalgen = 25;
-inline constexpr std::int32_t kBrunnen = 26;
-inline constexpr std::int32_t kPirateHouse = 31;
-}  // namespace prod
-
-// Buildings of the base game the original AI names by Id.
-namespace id {
-inline constexpr std::uint32_t kRoadStone = 20401;
-inline constexpr std::uint32_t kRoadDirt = 20411;
-inline constexpr std::uint32_t kSquare = 20421;
-inline constexpr std::uint32_t kHouse = 20605;
-inline constexpr std::uint32_t kKapelle = 20803;
-inline constexpr std::uint32_t kKirche = 20805;
-inline constexpr std::uint32_t kWirt = 20807;
-inline constexpr std::uint32_t kMarket = 20809;
-inline constexpr std::uint32_t kBrunnen = 20811;
-inline constexpr std::uint32_t kBadehaus = 20813;
-inline constexpr std::uint32_t kTheater = 20815;
-inline constexpr std::uint32_t kKlinik = 20817;
-inline constexpr std::uint32_t kHochschule = 20819;
-inline constexpr std::uint32_t kSchule = 20821;
-inline constexpr std::uint32_t kGalgen = 20841;
-inline constexpr std::uint32_t kDenkmal = 20851;
-inline constexpr std::uint32_t kGate = 20304;
-inline constexpr std::uint32_t kStoneTower = 20305;
-inline constexpr std::uint32_t kCastle1 = 20311;
-inline constexpr std::uint32_t kCastle2 = 20313;
-inline constexpr std::uint32_t kCastle3 = 20315;
-inline constexpr std::uint32_t kWebstube = 20507;
-inline constexpr std::uint32_t kWeberei = 20531;
-inline constexpr std::uint32_t kWoodTower = 21405;
-inline constexpr std::uint32_t kBridgeWood = 21601;
-inline constexpr std::uint32_t kBridgeStone = 21603;
-inline constexpr std::uint32_t kPier = 21073;
-inline constexpr std::uint32_t kHunter = 22003;
-inline constexpr std::uint32_t kKontor1 = 22101;
-inline constexpr std::uint32_t kShipyardBig = 22111;
-inline constexpr std::uint32_t kShipyardSmall = 22115;
-inline constexpr std::uint32_t kPirateKontor = 22221;
-inline constexpr std::uint32_t kPirateHouse1 = 22222;
-inline constexpr std::uint32_t kPirateHouse2 = 22223;
-inline constexpr std::uint32_t kPirateHouse3 = 22224;
-inline constexpr std::uint32_t kPirateTower = 22241;
-inline constexpr std::uint32_t kOreMine = 22401;
-inline constexpr std::uint32_t kOreMineDeep = 22403;
-inline constexpr std::uint32_t kGoldMine = 22405;
-inline constexpr std::uint32_t kQuarry = 22407;
-inline constexpr std::uint32_t kWall = 22501;
-}  // namespace id
+// The ware, Kind and production numbers and the building Ids the AI refers to are in
+// o1602/sim/game_data.hpp.
 
 /// Game ms between two steps of a computer player (the original's 50 ms main timer).
 inline constexpr std::int32_t kStepMs = 50;

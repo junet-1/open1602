@@ -7,6 +7,7 @@
 
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/disasters.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/logistics.hpp"
@@ -14,58 +15,6 @@
 namespace o1602::sim {
 
 namespace {
-
-// HAUS Kind values (record +0x04).
-namespace kind {
-constexpr std::int32_t kRoad = 1;
-constexpr std::int32_t kGate = 3;
-constexpr std::int32_t kWall = 4;
-constexpr std::int32_t kWallBeach = 5;
-constexpr std::int32_t kTower = 6;
-constexpr std::int32_t kTowerBeach = 7;
-constexpr std::int32_t kForest = 10;
-constexpr std::int32_t kGround = 11;
-constexpr std::int32_t kRuin = 12;
-constexpr std::int32_t kSquare = 13;
-constexpr std::int32_t kBuilding = 14;
-constexpr std::int32_t kRock = 15;
-constexpr std::int32_t kRiver = 16;
-constexpr std::int32_t kRiverCorner = 17;
-constexpr std::int32_t kBridge = 18;
-constexpr std::int32_t kSea = 19;
-constexpr std::int32_t kMouthWater = 22;
-constexpr std::int32_t kBeach = 23;
-constexpr std::int32_t kBeachMouth = 24;
-constexpr std::int32_t kBeachOuter = 25;
-constexpr std::int32_t kBeachInner = 26;
-constexpr std::int32_t kBeachLast = 27;
-constexpr std::int32_t kBeachVariant = 27;
-constexpr std::int32_t kBeachHouse = 28;
-constexpr std::int32_t kBeachRuin = 29;
-constexpr std::int32_t kPier = 30;
-constexpr std::int32_t kSlope = 31;
-constexpr std::int32_t kSlopeLast = 33;
-constexpr std::int32_t kMine = 34;
-constexpr std::int32_t kHq = 35;
-constexpr std::int32_t kHarbour = 36;
-constexpr std::int32_t kMill = 37;
-}  // namespace kind
-
-// HAUS_PRODTYP Kind values.
-namespace prod {
-constexpr std::int32_t kWorkshop = 1;
-[[maybe_unused]] constexpr std::int32_t kMineWork = 3;
-[[maybe_unused]] constexpr std::int32_t kFisher = 6;
-constexpr std::int32_t kMarket = 7;
-constexpr std::int32_t kKontor = 8;
-constexpr std::int32_t kHouse = 13;
-constexpr std::int32_t kShipyard = 14;
-constexpr std::int32_t kMilitary = 15;
-constexpr std::int32_t kTower = 16;
-constexpr std::int32_t kPublicFirst = 0x11;
-constexpr std::int32_t kPublicLast = 0x1B;
-constexpr std::int32_t kHaupt = 0x1E;
-}  // namespace prod
 
 // Unlock levels with a count limit (record Bauinfra).
 constexpr std::uint8_t kInfraCastle = 11;
@@ -75,10 +24,6 @@ constexpr std::uint8_t kInfraMonument = 14;
 /// A castle or cathedral makes its city proud: city + 0x200 += 25 * 32 (command 0x4B of 0x004084D0).
 constexpr std::uint32_t kPrideBonus = 25 * 32;
 
-constexpr std::uint8_t kWareGrass = 52;     // GRAS
-constexpr std::uint8_t kWareTree = 53;      // BAUM
-constexpr std::uint8_t kWareFish = 57;      // FISCHE
-constexpr std::uint8_t kWareTreasure = 58;  // SCHATZ
 constexpr std::uint32_t kMaxCitiesPerIsland = 7;
 constexpr std::int32_t kShipRange = 16;       // founding from a ship: circle of radius 16
 constexpr std::int32_t kRoadSearch = 4;       // doors turn to roads within 4 tiles
@@ -87,7 +32,7 @@ constexpr std::uint8_t kTowerRadius = 8;      // towers protect the land within 
 constexpr std::uint32_t kMeadowId = 22722;    // IDWEIDE + 21: what demolished forest becomes
 
 bool is_beach(std::int32_t k) noexcept {
-    return k >= kind::kBeach && k <= kind::kBeachLast;
+    return k >= kind::kBeach && k <= kind::kBeachVariant;
 }
 
 /// Coast a Kontor stands at (0x00467E10).
@@ -161,7 +106,7 @@ bool tile_accepts(const assets::BuildingTable& buildings, const assets::Building
             return open || beach_like();
         case kind::kTower:
             return (o >= kind::kWall && o <= kind::kTowerBeach) || open || o == kind::kBeach ||
-                   (o >= 25 && o <= kind::kBeachLast) || o == kind::kBeachRuin;
+                   (o >= kind::kBeachOuter && o <= kind::kBeachVariant) || o == kind::kBeachRuin;
         case kind::kSquare:
             return o == kind::kRoad || open;
         case kind::kBridge:
@@ -169,7 +114,7 @@ bool tile_accepts(const assets::BuildingTable& buildings, const assets::Building
         case kind::kBeachHouse:
             return o == kind::kBeach || o == kind::kBeachVariant;
         case kind::kPier:
-            return o == kind::kBeach || (o >= 25 && o <= kind::kBeachLast) || o == kind::kBeachRuin ||
+            return o == kind::kBeach || (o >= kind::kBeachOuter && o <= kind::kBeachVariant) || o == kind::kBeachRuin ||
                    (o == kind::kPier && old.id != b.id);
         case kind::kMine:
             return o == kind::kSlope;
@@ -177,21 +122,21 @@ bool tile_accepts(const assets::BuildingTable& buildings, const assets::Building
             return o == kind::kRoad || open || o == kind::kSquare;
         case kind::kHarbour:
             return o == kind::kRoad || o == kind::kWall || o == kind::kWallBeach || open || o == kind::kSquare ||
-                   o == kind::kBeach || (o >= 25 && o <= kind::kBeachLast) || o == kind::kBeachRuin;
+                   o == kind::kBeach || (o >= kind::kBeachOuter && o <= kind::kBeachVariant) || o == kind::kBeachRuin;
         case kind::kMill:
             return open || o == kind::kRiver;
         default:
-            if (b.kind >= kind::kSlope && b.kind <= kind::kSlopeLast) {
+            if (b.kind >= kind::kSlope && b.kind <= kind::kSlopeSpring) {
                 return false;  // editor terrain
             }
             if (!open) {
                 return false;
             }
-            if (b.prod_kind == kProdKindGrowing) {
+            if (b.prod_kind == prod::kGrowing) {
                 // Not on a field of the same crop, growing or ripe.
                 const std::uint8_t crop = crop_ware(buildings, b);
                 if (crop != 0 && crop_ware(buildings, old) == crop &&
-                    (old.prod_kind == kProdKindGrowing || old.prod_kind == kProdKindRipe)) {
+                    (old.prod_kind == prod::kGrowing || old.prod_kind == prod::kRipe)) {
                     return false;
                 }
             }
@@ -344,7 +289,7 @@ struct Planner {
         if (city_of_tiles == MapCell::kNoCity && !b.place_outside) {
             return BuildRefusal::Territory;
         }
-        if (b.kind == kind::kMine && b.ware != 54 /* STEINE */ &&
+        if (b.kind == kind::kMine && b.ware != ware::kStone &&
             !mine_has_deposit(world, buildings, order.island, b, x, y, rotation)) {
             return BuildRefusal::NoDeposit;
         }
@@ -522,7 +467,7 @@ struct Planner {
 /// The palm of a southern island for a tree (record + RandAnz * RandAdd).
 const assets::BuildingType* palm_or_self(const assets::BuildingTable& buildings, const WorldIsland& island,
                                          const assets::BuildingType& b) {
-    if ((island.header.climate & 1U) == 0 || crop_ware(buildings, b) != kWareTree) {
+    if ((island.header.climate & 1U) == 0 || crop_ware(buildings, b) != ware::kTree) {
         return &b;
     }
     const assets::BuildingType* palm = buildings.by_record(b.record + std::uint32_t{b.rand_count} * b.rand_add);
@@ -720,7 +665,7 @@ bool tile_fertile_at(const World& world, const assets::BuildingTable& buildings,
     const std::uint32_t edge = g != nullptr ? g->edge_growth : 128;
     std::uint32_t f = std::min<std::uint32_t>(island_fertility(island, ware) * edge >> 7, 128);
     // A drought takes its share, except from grass, trees and fish.
-    if (drought != 0 && ware != kWareGrass && ware != kWareTree && ware != kWareFish) {
+    if (drought != 0 && ware != ware::kGrass && ware != ware::kTree && ware != ware::kFish) {
         f -= drought * f / 128;
     }
     // Pattern by value (table 0x0054697C): 0..18, 19..41, 42..75, 76..107, 108..128.
@@ -922,7 +867,7 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
                 out.rotation = v.rotation;
             }
             out.type = final_type;
-            if (final_type->prod_kind == kProdKindGrowing) {
+            if (final_type->prod_kind == prod::kGrowing) {
                 // S-003: crops are checked when planted (the original planted them withered).
                 // During a drought a field that will bear afterwards is planted withered and grows
                 // once the drought is over, as in the original.
@@ -1045,7 +990,7 @@ public:
             e.type = old.type;
             emit(e);
         }
-        if (p == kProdKindGrowing) {
+        if (p == prod::kGrowing) {
             auto& entries = m_world.growth().entries;
             std::erase_if(entries,
                           [&](const GrowthEntry& g) { return g.island == m_island && g.x == ox && g.y == oy; });
@@ -1135,7 +1080,7 @@ public:
                 m_services = true;
             }
         }
-        if (p == kProdKindGrowing && !b.withered) {  // a withered field waits for the end of the drought
+        if (p == prod::kGrowing && !b.withered) {  // a withered field waits for the end of the drought
             GrowthEntry g;
             g.island = m_island;
             g.x = ux;
@@ -1275,7 +1220,7 @@ public:
         const IslandMap& m = m_world.islands()[m_island].map;
         const auto water = [&](std::int32_t tx, std::int32_t ty) {
             const std::int32_t k = kind_at(m, m_buildings, tx, ty);  // outside the island: land
-            return k >= kind::kSea && k <= kind::kMouthWater;
+            return k >= kind::kSea && k <= kind::kRiverMouth;
         };
         constexpr std::uint32_t W = 0x01, S = 0x02, E = 0x04, N = 0x08, NW = 0x10, SW = 0x20, SE = 0x40, NE = 0x80;
         const std::uint32_t mask = (water(x - 1, y) ? W : 0U) | (water(x, y + 1) ? S : 0U) |
@@ -1565,7 +1510,7 @@ public:
                 // The ground tile as it was (multi-tile terrain keeps its sub-tile).
                 m.restore_ground(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
                 m.set_city(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty), city, top.owner);
-                if (g->prod_kind == kProdKindGrowing) {
+                if (g->prod_kind == prod::kGrowing) {
                     GrowthEntry e;
                     e.island = m_island;
                     e.x = static_cast<std::uint16_t>(tx);
@@ -1873,7 +1818,7 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
         // A treasure in the ground (deposit SCHATZ) goes to the builder, on every computer (M-008).
         auto& deposits = world.island(order.island).header.deposits;
         for (auto it = deposits.begin(); it != deposits.end(); ++it) {
-            if (it->ware == kWareTreasure && f.contains(it->x, it->y)) {
+            if (it->ware == ware::kTreasure && f.contains(it->x, it->y)) {
                 if (Player* p = world.player(order.player)) {
                     p->money += it->amount;
                 }

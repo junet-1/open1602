@@ -36,7 +36,7 @@ void emit(std::vector<IslandEvent>* events, IslandEvent::Kind kind, std::uint16_
 /// The ware whose fertility decides about a field: of its ripe record, or of the ripe record
 /// before a withered one.
 std::uint8_t field_ware(const assets::BuildingTable& buildings, const assets::BuildingType& b) {
-    if (b.prod_kind == kProdKindRipe) {
+    if (b.prod_kind == prod::kRipe) {
         return b.ware;
     }
     const assets::BuildingType* ripe = ripe_of_withered(buildings, b);
@@ -59,7 +59,7 @@ std::uint32_t wither_scan(World& world, const assets::BuildingTable& buildings, 
         for (std::int32_t x = w - 1 - static_cast<std::int32_t>(random.below(3)); x >= 0; x -= 3) {
             const MapCell& cell = map.top(static_cast<std::uint32_t>(x), y);
             const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
-            if (b == nullptr || b->prod_kind != kProdKindRipe || withered_record(buildings, *b) == nullptr) {
+            if (b == nullptr || b->prod_kind != prod::kRipe || withered_record(buildings, *b) == nullptr) {
                 continue;
             }
             const TilePos tile{x, static_cast<std::int32_t>(y)};

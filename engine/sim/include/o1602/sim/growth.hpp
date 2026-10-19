@@ -15,14 +15,11 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
-
-/// HAUS_PRODTYP Kind values of crops.
-inline constexpr std::int32_t kProdKindRipe = 9;      ///< ROHSTOFF: ripe, can be harvested
-inline constexpr std::int32_t kProdKindGrowing = 10;  ///< ROHSTWACHS: growing (or withered)
 
 /// Duration of one growth stage of class `growth_class`.
 [[nodiscard]] constexpr std::uint32_t growth_period_ms(std::uint32_t growth_class) noexcept {

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/logistics.hpp"
 
@@ -14,10 +15,6 @@ namespace {
 namespace hs = house_service;
 
 // HAUS_PRODTYP Kind values.
-constexpr std::int32_t kProdFirstWorking = 1;  // HANDWERK .. MARKT have a production state
-constexpr std::int32_t kProdLastWorking = 7;
-constexpr std::int32_t kProdHouse = 13;
-constexpr std::int32_t kProdShipyard = 14;
 
 // The original's tables (0x0049AED8, 0x0049AF08, 0x0049AF18): one bit per random value.
 constexpr std::array<std::array<std::uint8_t, 16>, 3> kPlagueTakes = {{
@@ -78,8 +75,9 @@ Production* production_at(World& world, std::uint16_t island, std::uint16_t x, s
     return index ? &world.productions()[*index] : nullptr;
 }
 
+/// HANDWERK .. MARKT have a production state.
 bool working_kind(std::int32_t p) noexcept {
-    return p >= kProdFirstWorking && p <= kProdLastWorking;
+    return p >= prod::kWorkshop && p <= prod::kMarket;
 }
 
 /// Wooden buildings (Holz >= Ziegel) and the others take fire differently.
@@ -197,7 +195,7 @@ void spread_plague(World& world, const assets::BuildingTable& buildings, const D
     const std::uint8_t city = h->city;
     const std::vector<TilePos> tiles = reach(
         world, buildings, d.island, *source, kPlagueRadius,
-        [&](const assets::BuildingType& b, const MapCell& c) { return b.prod_kind == kProdHouse && c.city == city; },
+        [&](const assets::BuildingType& b, const MapCell& c) { return b.prod_kind == prod::kHouse && c.city == city; },
         [&](const assets::BuildingType& b, const MapCell& c) { return walkable(b, c, WalkClass::Land); });
     if (tiles.empty()) {
         return;
@@ -274,11 +272,11 @@ void spread_fire(World& world, const assets::BuildingTable& buildings, const Dis
     if (working_kind(p)) {
         const Production* state = production_at(world, d.island, tx, ty);
         catches = state != nullptr && !state->burning();
-    } else if (p == kProdHouse) {
+    } else if (p == prod::kHouse) {
         // A house with the plague catches fire, a burning one does not catch it again (the original
         // starts its count anew, so wooden quarters burn far longer, S-050).
         catches = world.house(d.island, tx, ty) != nullptr && !burning;
-    } else if (p == kProdShipyard) {
+    } else if (p == prod::kShipyard) {
         catches = !burning;
     }
     if (catches) {
@@ -390,7 +388,7 @@ bool start_disaster(World& world, const assets::BuildingTable& buildings, std::u
                 state->flags = static_cast<std::uint8_t>(state->flags | Production::kBurningFlag);
             }
         }
-    } else if (p == kProdHouse) {
+    } else if (p == prod::kHouse) {
         if (House* h = world.house(island, x, y)) {
             h->services =
                 static_cast<std::uint16_t>((h->services & ~hs::kDisasterMask) | static_cast<std::uint16_t>(kind));

@@ -20,7 +20,7 @@ bool moving(const Ship& s) {
 
 bool carries_goods(const Ship& s) {
     for (const CargoSlot& c : s.cargo) {
-        if (c.ware != 0 && c.ware <= 24 && c.amount != 0) {
+        if (c.ware != 0 && c.ware <= ware::kLastTrade && c.amount != 0) {
             return true;
         }
     }
@@ -607,8 +607,7 @@ void Engine::order_ship(AiPlayer& p) {
     const Tile t = tile(p.yard_island, p.yard_x, p.yard_y);
     const bool small = !t.valid() || t.type->size_x <= 3;
     const auto type = static_cast<std::uint8_t>((rng().next() & 1U) * 2U + (small ? 0U : 1U));
-    static constexpr std::array<std::uint16_t, 4> kFigures{21, 23, 25, 27};  // HANDEL1, HANDEL2, KRIEG1, KRIEG2
-    const assets::FigureType* f = m_sim.m_figures->get(kFigures[type]);
+    const assets::FigureType* f = m_sim.m_figures->get(figure::kShips[type]);
     const std::int64_t price = f != nullptr ? f->ship.price : 0;
     if (std::int64_t{player(p).money} <= price / 2) {
         return;

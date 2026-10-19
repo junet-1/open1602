@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/island_map.hpp"
 
 namespace o1602::sim {
@@ -67,22 +68,8 @@ struct Catchment {
 /// - Water: the sea, surf and river mouths (fishing boats, 0x0046FB50), also beyond the island.
 enum class WalkClass : std::uint8_t { Roads, Land, Water };
 
-/// HAUS Kind values (record +0x04) that matter for walking.
-namespace building_kind {
-inline constexpr std::int32_t kRoad = 1;         // STRASSE
-inline constexpr std::int32_t kGate = 3;         // TOR
-inline constexpr std::int32_t kForest = 10;      // WALD
-inline constexpr std::int32_t kGround = 11;      // BODEN
-inline constexpr std::int32_t kRuin = 12;        // RUINE
-inline constexpr std::int32_t kSquare = 13;      // PLATZ
-inline constexpr std::int32_t kBridge = 18;      // BRUECKE
-inline constexpr std::int32_t kSea = 19;         // MEER
-inline constexpr std::int32_t kSurf = 20;        // BRANDUNG
-inline constexpr std::int32_t kSurfCorner = 21;  // BRANDECK
-inline constexpr std::int32_t kRiverMouth = 22;  // MUENDUNG
-inline constexpr std::int32_t kBeachRuin = 29;   // STRANDRUINE
-inline constexpr std::int32_t kPier = 30;        // PIER
-}  // namespace building_kind
+/// HAUS Kind values under the name the walking code, the renderer and the interface use.
+namespace building_kind = kind;
 
 /// Whether a figure of `walk` class may walk on this tile (without a building it enters).
 [[nodiscard]] bool walkable(const assets::BuildingType& building, const MapCell& cell, WalkClass walk) noexcept;

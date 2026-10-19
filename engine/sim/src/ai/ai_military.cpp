@@ -12,29 +12,15 @@ namespace o1602::sim::ai {
 
 namespace {
 
-constexpr std::array<std::uint32_t, 4> kFamilies{1, 5, 9, 13};  // SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1
-constexpr std::uint8_t kFirstSoldierWare = 25;                  // wSOLDAT1: soldiers in a ship's hold
-constexpr std::uint8_t kLastSoldierWare = 44;
-
-bool soldier_ware(std::uint8_t w) {
-    return w >= kFirstSoldierWare && w <= kLastSoldierWare;
-}
-
 std::uint32_t family_index(std::uint32_t figure) {
     const auto v = assets::FigureTable::unit_variant(figure);
     const std::uint32_t family = v ? v->family : figure;
-    for (std::uint32_t i = 0; i < kFamilies.size(); ++i) {
-        if (kFamilies[i] == family) {
+    for (std::uint32_t i = 0; i < figure::kUnitFamilies.size(); ++i) {
+        if (figure::kUnitFamilies[i] == family) {
             return i;
         }
     }
     return 0;
-}
-
-std::int32_t sea_dist(std::int32_t dx, std::int32_t dy) {
-    const std::int32_t ax = std::abs(dx);
-    const std::int32_t ay = std::abs(dy);
-    return std::max(ax, ay) + std::min(ax, ay) / 4;
 }
 
 std::uint32_t city_param(const City& c) {
@@ -73,8 +59,8 @@ std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
             continue;
         }
         for (const CargoSlot& c : s.cargo) {
-            if (soldier_ware(c.ware)) {
-                ++n[family_index(static_cast<std::uint32_t>(c.ware - 24))];
+            if (is_soldier_ware(c.ware)) {
+                ++n[family_index(static_cast<std::uint32_t>(c.ware - ware::kSoldierOffset))];
             }
         }
     }
@@ -84,8 +70,8 @@ std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
 std::array<std::uint32_t, 4> Engine::unit_weights() const {
     // Damage per second of each unit: Hitpoint / Worktime (sword 40, cavalry 51, musket 38, cannon 49).
     std::array<std::uint32_t, 4> w{};
-    for (std::size_t i = 0; i < kFamilies.size(); ++i) {
-        const assets::FigureType* t = m_sim.m_figures->get(kFamilies[i]);
+    for (std::size_t i = 0; i < figure::kUnitFamilies.size(); ++i) {
+        const assets::FigureType* t = m_sim.m_figures->get(figure::kUnitFamilies[i]);
         if (t != nullptr && t->work_time_ms != 0) {
             w[i] = static_cast<std::uint32_t>(std::uint64_t{t->combat.hit} * 1000U / (32U * t->work_time_ms));
         }
@@ -165,7 +151,7 @@ std::vector<Soldier*> Engine::soldiers_near(PlayerId owner, const City& c, std::
         if (s.owner != owner || s.island != c.island || s.away() || out.size() >= max) {
             continue;
         }
-        if (sea_dist(s.pos_x / kPosUnit - kx, s.pos_y / kPosUnit - ky) <= range) {
+        if (sea_distance(s.pos_x / kPosUnit - kx, s.pos_y / kPosUnit - ky) <= range) {
             out.push_back(&s);
         }
     }
@@ -175,7 +161,7 @@ std::vector<Soldier*> Engine::soldiers_near(PlayerId owner, const City& c, std::
 std::uint32_t Engine::soldiers_aboard(const Ship& s) const {
     std::uint32_t n = 0;
     for (const CargoSlot& c : s.cargo) {
-        n += soldier_ware(c.ware) ? 1U : 0U;
+        n += is_soldier_ware(c.ware) ? 1U : 0U;
     }
     return n;
 }
@@ -443,16 +429,16 @@ void Engine::recruit(AiPlayer& p) {
         if (p.castle_cursor < p.castles.size() && weighted_army(p.player) <= target) {
             const CastleEntry& e = p.castles[p.castle_cursor];
             if (r.slots[kSlotMuskets].count != 0 && c->stock(ware::kMuskets) > 31) {
-                queue_unit(p, e, kFamilies[2]);
+                queue_unit(p, e, figure::kUnitFamilies[2]);
             }
             if (r.slots[kSlotCannons].count != 0 && c->stock(ware::kCannons) > 127) {
-                queue_unit(p, e, kFamilies[3]);
+                queue_unit(p, e, figure::kUnitFamilies[3]);
             }
             if (r.slots[kSlotSwords].count != 0) {
-                queue_unit(p, e, kFamilies[1]);
+                queue_unit(p, e, figure::kUnitFamilies[1]);
                 if (r.slots[kSlotMuskets].count == 0 && r.slots[kSlotCannons].count == 0) {
-                    queue_unit(p, e, kFamilies[0]);
-                    queue_unit(p, e, kFamilies[1]);
+                    queue_unit(p, e, figure::kUnitFamilies[0]);
+                    queue_unit(p, e, figure::kUnitFamilies[1]);
                 }
             }
         }
@@ -715,7 +701,8 @@ void Engine::plan_landing(AiPlayer& p, Ship& s, ShipNote& n) {
             }
             std::int32_t near = 1000;
             for (const auto& [tx, ty] : targets) {
-                near = std::min(near, sea_dist(static_cast<std::int32_t>(x) - tx, static_cast<std::int32_t>(y) - ty));
+                near =
+                    std::min(near, sea_distance(static_cast<std::int32_t>(x) - tx, static_cast<std::int32_t>(y) - ty));
             }
             if (near > 24) {
                 continue;
@@ -725,19 +712,19 @@ void Engine::plan_landing(AiPlayer& p, Ship& s, ShipNote& n) {
             const std::int32_t wy = static_cast<std::int32_t>(isl.y + y);
             for (const Soldier& o : m_world.soldiers()) {
                 if (o.island == island && m_world.diplomacy().hostile(p.player, o.owner) &&
-                    sea_dist(o.pos_x / kPosUnit - wx, o.pos_y / kPosUnit - wy) <= 16) {
+                    sea_distance(o.pos_x / kPosUnit - wx, o.pos_y / kPosUnit - wy) <= 16) {
                     score += 10;
                 }
             }
             for (const Tower& tw : m_world.towers()) {
                 if (tw.island == island && m_world.diplomacy().hostile(p.player, tw.owner) &&
-                    sea_dist(static_cast<std::int32_t>(tw.x) - static_cast<std::int32_t>(x),
-                             static_cast<std::int32_t>(tw.y) - static_cast<std::int32_t>(y)) <= 10) {
+                    sea_distance(static_cast<std::int32_t>(tw.x) - static_cast<std::int32_t>(x),
+                                 static_cast<std::int32_t>(tw.y) - static_cast<std::int32_t>(y)) <= 10) {
                     score += 100;
                 }
             }
             for (const Ship& o : m_world.ships()) {
-                if (m_world.diplomacy().hostile(p.player, o.owner) && sea_dist(o.x - wx, o.y - wy) <= 16) {
+                if (m_world.diplomacy().hostile(p.player, o.owner) && sea_distance(o.x - wx, o.y - wy) <= 16) {
                     score += 30;
                 }
             }
@@ -1213,20 +1200,8 @@ void Engine::pirate_step(AiPlayer& p) {
     if ((m_world.game_settings().flags & 1U) != 0) {
         return;  // no pirates
     }
-    // Only once some player has grown (Pirates_MaxShips 0x0040F310 > 1).
-    std::uint32_t level = 0;
-    for (const Player& pl : m_world.players()) {
-        if (pl.role != PlayerRole::Human && pl.role != PlayerRole::Computer) {
-            continue;
-        }
-        const std::uint32_t m = (pl.infra_mask >> 30 & 1U) != 0   ? 4U
-                                : (pl.infra_mask >> 29 & 1U) != 0 ? 3U
-                                : (pl.infra_mask >> 24 & 1U) != 0 ? 2U
-                                : (pl.infra_mask >> 18 & 1U) != 0 ? 1U
-                                                                  : 0U;
-        level = std::max(level, m);
-    }
-    if (level <= 1) {
+    // Only once some player has grown.
+    if (pirate_max_ships(m_world) <= 1) {
         return;
     }
     const std::vector<Ship*> ships = own_ships(p);

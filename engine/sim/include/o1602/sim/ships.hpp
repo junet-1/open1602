@@ -20,15 +20,16 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/sea_paths.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
 
-/// Base prices of the wares per ton (the original's table at 0x0049AE50): the default prices of a
-/// Kontor (sell 50 %, buy 75 %) and what the free trader pays. Indexed by ware number.
-[[nodiscard]] std::uint16_t base_price(std::uint8_t ware) noexcept;
+/// Ships the pirates may have (Pirates_MaxShips 0x0040F310): 0 to 4, by the highest level a human
+/// or computer player reached.
+[[nodiscard]] std::uint32_t pirate_max_ships(const World& world) noexcept;
 
 /// Room of one hold of a ship (0x00446A60).
 inline constexpr std::uint32_t kHoldCapacity = 50 * 32;
@@ -312,7 +313,6 @@ private:
 
     // Pirates (pirates.cpp)
     [[nodiscard]] PlayerId pirates() const;
-    [[nodiscard]] std::uint32_t pirate_max_ships() const;
     [[nodiscard]] std::vector<std::size_t> pirate_bases() const;
     void pirates_tick(std::uint32_t dt_ms);
     void pirates_step();

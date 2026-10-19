@@ -33,14 +33,6 @@ constexpr std::size_t kMaxSteps = 64;  // decisions of one ship in one tick (a g
 constexpr std::uint64_t kStraightUs = 6'250'000;
 constexpr std::uint64_t kDiagonalUs = 8'838'835;
 
-// Wares 2..24; base prices of the original (0x0049AE50).
-constexpr std::array<std::uint16_t, 25> kBasePrices = {0,   0,  90,  700, 24, 30, 35, 10,  5,   10,  130, 180, 250,
-                                                       500, 26, 100, 60,  50, 80, 50, 200, 900, 140, 30,  45};
-constexpr std::uint8_t kFirstTradeWare = 2;
-constexpr std::uint8_t kLastTradeWare = 24;
-constexpr std::uint8_t kFirstSoldierWare = 25;
-constexpr std::uint8_t kLastSoldierWare = 44;
-
 /// Piecewise linear table of the original's speed factors (0x00442A90).
 std::uint32_t interpolate(std::uint32_t i, std::initializer_list<std::pair<std::uint32_t, std::uint32_t>> points) {
     auto prev = *points.begin();
@@ -71,15 +63,7 @@ std::int32_t tile_of(std::int32_t pos) noexcept {
     return pos >= 0 ? pos / kShipUnit : -1;
 }
 
-bool is_soldier(std::uint8_t ware) noexcept {
-    return ware >= kFirstSoldierWare && ware <= kLastSoldierWare;
-}
-
 }  // namespace
-
-std::uint16_t base_price(std::uint8_t ware) noexcept {
-    return ware < kBasePrices.size() ? kBasePrices[ware] : 0;
-}
 
 bool building_in_reach(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                        std::uint32_t bx, std::uint32_t by, std::int32_t wx, std::int32_t wy) {
@@ -235,7 +219,7 @@ std::uint32_t Fleet::run_us(const Ship& ship, std::uint8_t direction, std::uint8
     for (std::size_t i = 0; i < n; ++i) {
         const CargoSlot& c = ship.cargo[i];
         if (c.ware != 0) {
-            load += is_soldier(c.ware) ? c.amount / 2 : c.amount;  // soldiers weigh half
+            load += is_soldier_ware(c.ware) ? c.amount / 2 : c.amount;  // soldiers weigh half
         }
     }
     const std::uint64_t capacity = std::max<std::uint64_t>(1, n * std::uint64_t{kHoldCapacity});
@@ -749,7 +733,7 @@ void Fleet::decide(Ship& ship) {
                 // A pirate at its base unloads everything at price 0 and stays 8 s (0x0044E120).
                 if (City* c = m_world->city(arrived.island, arrived.city); c != nullptr && c->owner == ship.owner) {
                     for (CargoSlot& slot : ship.cargo) {
-                        if (slot.ware != 0 && slot.ware <= 24) {
+                        if (slot.ware != 0 && slot.ware <= ware::kLastTrade) {
                             c->ensure_ware(slot.ware);
                             const std::uint32_t n = std::min(slot.amount, c->free_space(slot.ware));
                             c->goods[slot.ware] += n;
@@ -1108,8 +1092,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
 
 std::uint32_t Fleet::transfer(const CargoTransfer& t) {
     Ship* ship = m_world->ship(t.ship);
-    if (ship == nullptr || (t.player != kNoPlayer && ship->owner != t.player) || t.ware < kFirstTradeWare ||
-        t.ware > kLastTradeWare) {
+    if (ship == nullptr || (t.player != kNoPlayer && ship->owner != t.player) || !is_trade_ware(t.ware)) {
         return 0;
     }
     // The Kontor the ship lies at: the player's own first, else one it may trade with.
@@ -1148,8 +1131,7 @@ std::uint32_t Fleet::transfer(const CargoTransfer& t) {
 
 bool Fleet::set_trade(const TradeSetting& s) {
     City* city = m_world->city(s.island, s.city);
-    if (city == nullptr || (s.player != kNoPlayer && city->owner != s.player) || s.ware < kFirstTradeWare ||
-        s.ware > kLastTradeWare) {
+    if (city == nullptr || (s.player != kNoPlayer && city->owner != s.player) || !is_trade_ware(s.ware)) {
         return false;
     }
     if (city->trade.size() <= s.ware) {

@@ -1107,7 +1107,7 @@ std::int32_t Engine::coast_walk(AiPlayer& p, std::int32_t x, std::int32_t y, std
                 const Tile w2 = tile(p.island, x + 2 * d[0], y + 2 * d[1]);
                 const auto wet = [](const Tile& w) {
                     return w.valid() && (w.kind == kind::kSea || w.kind == kind::kSurf || w.kind == kind::kSurfCorner ||
-                                         w.kind == kind::kMouth);
+                                         w.kind == kind::kRiverMouth);
                 };
                 if (!wet(w1) && !wet(w2)) {
                     return -1;

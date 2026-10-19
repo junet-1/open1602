@@ -200,7 +200,7 @@ std::uint32_t Engine::free_land(std::uint16_t island, std::uint8_t own, std::uin
                 case kind::kSea:
                 case kind::kSurf:
                 case kind::kSurfCorner:
-                case kind::kMouth:
+                case kind::kRiverMouth:
                 case kind::kBeach:
                 case kind::kBeachVariant:
                 case kind::kBeachRuin:
