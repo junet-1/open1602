@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -54,8 +55,10 @@ inline constexpr std::string_view kMapChunk = "O1602MAP";
                                            const Simulation* simulation, std::span<const std::uint8_t> before);
 
 /// Applies the chunk to a world loaded from the original's chunks in front of it (`before`).
-/// Unchanged world and an error if it does not belong to them or is damaged.
+/// Unchanged world and an error if it does not belong to them, is damaged or has a required section
+/// of a later version; other sections of a later version are skipped and reported in `warnings`.
 core::Status apply_extension(World& world, const assets::BuildingTable& buildings,
-                             std::span<const std::uint8_t> payload, std::span<const std::uint8_t> before);
+                             std::span<const std::uint8_t> payload, std::span<const std::uint8_t> before,
+                             std::vector<std::string>* warnings = nullptr);
 
 }  // namespace o1602::sim
