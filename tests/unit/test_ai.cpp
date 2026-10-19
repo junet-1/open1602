@@ -364,8 +364,8 @@ TEST_CASE("ai: damaged state is refused and leaves the computers as they were") 
         CHECK(!copy.load(in));
     }
     for (const std::uint8_t fill : {std::uint8_t{0xFF}, std::uint8_t{0x7F}, std::uint8_t{0x01}}) {
-        std::vector<std::uint8_t> garbage(bytes.begin(), bytes.begin() + 4);
-        garbage.resize(4096, fill);
+        std::vector<std::uint8_t> garbage(4096, fill);
+        std::copy_n(bytes.begin(), 4, garbage.begin());
         core::ByteReader in(garbage);
         CHECK(!copy.load(in));
     }
