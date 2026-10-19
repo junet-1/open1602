@@ -4,6 +4,7 @@
 
 add_library(o1602_menus
     ../src/app_settings.cpp
+    ../src/high_score_file.cpp
     ../src/main_menu.cpp
     ../src/multiplayer_menu.cpp
     ../src/multiplayer_texts.cpp

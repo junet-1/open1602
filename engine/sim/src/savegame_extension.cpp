@@ -63,6 +63,8 @@ constexpr std::uint32_t kMeta = tag("META");
 constexpr std::uint32_t kMissions = tag("MISN");
 constexpr std::uint32_t kPlayerState = tag("PSTA");
 constexpr std::uint32_t kCityState = tag("CSTA");
+/// The score's counters of the players and the monument clocks of the cities.
+constexpr std::uint32_t kScores = tag("SCOR");
 /// The original's file the game came from, without the island tiles (Open1602's own savegame only):
 /// the export to a .GAM takes the bytes Open1602 does not model from it (savegame_writer.cpp).
 constexpr std::uint32_t kOrigin = tag("ORIG");
@@ -73,9 +75,10 @@ constexpr std::uint32_t kStances = tag("STNC");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
-    kRules,    kWorld,    kIslands, kTiles,     kPlayers,   kCities,      kProductions, kHouses, kGrowth, kCosts,
-    kShips,    kSoldiers, kAnimals, kDisasters, kVolcanoes, kSimulation,  kFleet,       kEpochs, kArmy,   kDiplomacy,
-    kExplored, kMap,      kWorld2,  kMeta,      kMissions,  kPlayerState, kCityState,   kOrigin, kQueues, kStances};
+    kRules,    kWorld,       kIslands,   kTiles,     kPlayers,  kCities,    kProductions, kHouses,
+    kGrowth,   kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
+    kFleet,    kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
+    kMissions, kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -293,6 +296,24 @@ struct Decoded {
         std::int64_t sales = 0;
     };
     std::optional<std::vector<CityStats>> city_state;
+    /// The score's counters (SCOR), in the order of PLAY, and the cities' monument clocks.
+    struct ScorePart {
+        struct Counters {
+            std::uint16_t soldiers_killed = 0;
+            std::uint16_t soldiers_lost = 0;
+            std::uint16_t ships_sunk = 0;
+            std::uint16_t ships_lost = 0;
+        };
+        struct CityClock {
+            std::uint16_t island = 0;
+            std::uint8_t index = 0;
+            std::int32_t house_growth = 0;
+            std::uint64_t growing_since_ms = 0;
+        };
+        std::vector<Counters> players;
+        std::vector<CityClock> cities;
+    };
+    std::optional<ScorePart> scores;
     std::optional<std::pair<std::vector<Production>, std::vector<std::uint32_t>>> productions;
     std::optional<std::vector<House>> houses;
     std::optional<std::vector<GrowthEntry>> growth;
@@ -773,6 +794,23 @@ void write_city_state(Out& out, const World& w) {
         out.u8(c.index);
         out.i64(c.purchases);
         out.i64(c.sales);
+    }
+}
+
+void write_scores(Out& out, const World& w) {
+    out.u32(static_cast<std::uint32_t>(w.players().size()));
+    for (const Player& p : w.players()) {
+        out.u16(p.soldiers_killed);
+        out.u16(p.soldiers_lost);
+        out.u16(p.ships_sunk);
+        out.u16(p.ships_lost);
+    }
+    out.u32(static_cast<std::uint32_t>(w.cities().size()));
+    for (const City& c : w.cities()) {
+        out.u16(c.island);
+        out.u8(c.index);
+        out.i32(c.house_growth);
+        out.u64(c.growing_since_ms);
     }
 }
 
@@ -1630,6 +1668,23 @@ std::vector<Player> read_player_state(StateIn& in) {
     return list;
 }
 
+Decoded::ScorePart read_scores(StateIn& in) {
+    Decoded::ScorePart part;
+    in.list(part.players, 8, [&](Decoded::ScorePart::Counters& p) {
+        p.soldiers_killed = in.u16();
+        p.soldiers_lost = in.u16();
+        p.ships_sunk = in.u16();
+        p.ships_lost = in.u16();
+    });
+    in.list(part.cities, 15, [&](Decoded::ScorePart::CityClock& c) {
+        c.island = in.u16();
+        c.index = in.u8();
+        c.house_growth = in.i32();
+        c.growing_since_ms = in.u64();
+    });
+    return part;
+}
+
 std::vector<Decoded::CityStats> read_city_state(StateIn& in) {
     std::vector<Decoded::CityStats> list;
     in.list(list, 19, [&](Decoded::CityStats& c) {
@@ -2007,6 +2062,13 @@ core::Status apply_decoded(World& world, Decoded& d) {
         if (!d.player_state && d.players->size() == world.players().size()) {
             d.player_state = world.players();
         }
+        // Nor SCOR: the counters of the original's chunks stay.
+        if (!d.scores && d.players->size() == world.players().size()) {
+            Decoded::ScorePart& part = d.scores.emplace();
+            for (const Player& p : world.players()) {
+                part.players.push_back({p.soldiers_killed, p.soldiers_lost, p.ships_sunk, p.ships_lost});
+            }
+        }
         world.set_players(std::move(*d.players));
     }
     if (d.missions) {
@@ -2031,6 +2093,20 @@ core::Status apply_decoded(World& world, Decoded& d) {
             p.sales = from.sales;
         }
     }
+    if (d.scores && d.scores->players.size() == world.players().size()) {
+        for (std::size_t i = 0; i < d.scores->players.size(); ++i) {
+            Player* pp = world.player(static_cast<PlayerId>(i));
+            if (pp == nullptr) {
+                continue;
+            }
+            Player& p = *pp;
+            const Decoded::ScorePart::Counters& from = d.scores->players[i];
+            p.soldiers_killed = from.soldiers_killed;
+            p.soldiers_lost = from.soldiers_lost;
+            p.ships_sunk = from.ships_sunk;
+            p.ships_lost = from.ships_lost;
+        }
+    }
     if (d.cities) {
         // Files of an earlier version have no trade settings: those of the original's chunks stay.
         for (City& c : *d.cities) {
@@ -2040,6 +2116,8 @@ core::Status apply_decoded(World& world, Decoded& d) {
                 // Files of an earlier version have no CSTA: the statistics of the original's chunks stay.
                 c.purchases = old->purchases;
                 c.sales = old->sales;
+                c.house_growth = old->house_growth;
+                c.growing_since_ms = old->growing_since_ms;
             }
         }
         world.set_cities(std::move(*d.cities));
@@ -2048,6 +2126,14 @@ core::Status apply_decoded(World& world, Decoded& d) {
                 if (City* c = world.city(st.island, st.index)) {
                     c->purchases = st.purchases;
                     c->sales = st.sales;
+                }
+            }
+        }
+        if (d.scores) {
+            for (const Decoded::ScorePart::CityClock& st : d.scores->cities) {
+                if (City* c = world.city(st.island, st.index)) {
+                    c->house_growth = st.house_growth;
+                    c->growing_since_ms = st.growing_since_ms;
                 }
             }
         }
@@ -2246,6 +2332,7 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kMissions, [&](Out& o) { write_missions(o, world); });
     section(out, kCities, [&](Out& o) { write_cities(o, world); });
     section(out, kCityState, [&](Out& o) { write_city_state(o, world); });
+    section(out, kScores, [&](Out& o) { write_scores(o, world); });
     section(out, kProductions, [&](Out& o) { write_productions(o, world); });
     section(out, kHouses, [&](Out& o) { write_houses(o, world); });
     section(out, kGrowth, [&](Out& o) { write_growth(o, world); });
@@ -2462,6 +2549,9 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 break;
             case kCityState:
                 d.city_state = read_city_state(in);
+                break;
+            case kScores:
+                d.scores = read_scores(in);
                 break;
             case kProductions:
                 d.productions = read_productions(in);

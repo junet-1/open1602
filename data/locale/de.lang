@@ -203,3 +203,7 @@ player.colour.light_blue = Hellblauer Spieler
 player.colour.green = Grüner Spieler
 player.colour.lime = Hellgrüner Spieler
 player.colour.brown = Brauner Spieler
+
+# End screen
+end.player = Spieler {1}
+end.continue_hint = Esc: Weiterspielen

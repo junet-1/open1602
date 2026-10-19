@@ -500,6 +500,10 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         player.arches_built = p.arches_built;
         player.monuments_allowed = p.monuments_allowed;
         player.monuments_built = p.monuments_built;
+        player.soldiers_killed = p.soldiers_killed;
+        player.soldiers_lost = p.soldiers_lost;
+        player.ships_sunk = p.ships_sunk;
+        player.ships_lost = p.ships_lost;
         slots.push_back(std::move(player));
     }
     world.set_players(std::move(slots));

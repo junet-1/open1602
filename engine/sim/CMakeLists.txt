@@ -31,6 +31,7 @@ add_library(o1602_sim
     src/pirates.cpp
     src/explore.cpp
     src/savegame_extension.cpp
+    src/score.cpp
     src/save_game.cpp
     src/savegame_writer.cpp
     src/world_generator.cpp

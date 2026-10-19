@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -349,23 +350,36 @@ TEST_CASE("save fuzz: random damage to a packed file never gets past the checks"
     sim::World world = game.world;
     auto packed = sim::write_game(world, game.buildings);
     REQUIRE(packed.ok());
+    const auto unpack = [](const core::Bytes& file) {
+        const auto size = static_cast<std::size_t>(get_u32(file, 16));
+        return core::zlib_inflate(std::span<const std::uint8_t>(file).subspan(kHeader), size);
+    };
+    const auto sections = unpack(*packed);
+    REQUIRE(sections.ok());
     sim::Random random(7, 0xF022);
+    std::uint32_t refused = 0;
     for (std::uint32_t i = 0; i < 200; ++i) {
         core::Bytes file = *packed;
         const std::uint32_t n = 1 + random.below(4);
         for (std::uint32_t k = 0; k < n; ++k) {
-            file[kHeader + random.below(static_cast<std::uint32_t>(file.size() - kHeader))] ^=
-                static_cast<std::uint8_t>(1 + random.below(255));
+            const auto value = static_cast<std::uint8_t>(1 + random.below(255));
+            file[kHeader + random.below(static_cast<std::uint32_t>(file.size() - kHeader))] ^= value;
         }
-        // A change the unpacking does not see (the deflate stream's padding bits, a zlib header
-        // level that keeps its check) is no damage: then the very same game must come out.
-        auto loaded = sim::read_game(file, game.buildings, nullptr, &game.figures);
-        if (loaded.ok()) {
-            auto again = sim::write_game(*loaded, game.buildings);
-            REQUIRE(again.ok());
-            CHECK(*again == *packed);
+        if (!sim::read_game(file, game.buildings, nullptr, &game.figures).ok()) {
+            ++refused;
+            continue;
+        }
+        // Deflate has bits that do not change what it unpacks to: a match that reaches back to an
+        // equal run, the padding after the last block. Which bytes those are depends on the zlib
+        // that packed the file (zlib and zlib-ng pack differently). Such damage changed nothing,
+        // so loading it is right; anything else must have been refused.
+        const auto unpacked = unpack(file);
+        if (!unpacked.ok() || *unpacked != *sections) {
+            std::fprintf(stderr, "  damage %u got past the checks\n", i);
+            CHECK(false);
         }
     }
+    CHECK(refused > 190);
 }
 
 TEST_CASE("save fuzz: the writer marks the sections the game cannot do without as required") {

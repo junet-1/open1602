@@ -65,6 +65,10 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file) {
         p.cathedrals_built = data[o + 0x0F];
         p.arches_allowed = read_u16(data, o + 0x10);
         p.arches_built = read_u16(data, o + 0x12);
+        p.soldiers_killed = read_u16(data, o + 0x14);
+        p.soldiers_lost = read_u16(data, o + 0x16);
+        p.ships_lost = read_u16(data, o + 0x18);
+        p.ships_sunk = read_u16(data, o + 0x1A);
         p.monuments_allowed = read_u16(data, o + 0x38);
         p.monuments_built = read_u16(data, o + 0x3A);
         p.blamed = data[o + 0x08];

@@ -443,6 +443,20 @@ void Fleet::sink(Ship& ship, PlayerId attacker) {
     m.phase = ShipMotion::Phase::Sinking;
     m.elapsed_us = 0;
     m.duration_us = (steps * turn + sink_ms) * 1000U;
+    // The score's counters (0x0044A9A0): the soldiers aboard go down with the ship.
+    std::uint32_t soldiers = 0;
+    for (const CargoSlot& c : ship.cargo) {
+        soldiers += is_soldier_ware(c.ware) ? 1U : 0U;
+    }
+    if (Player* owner = m_world->player(ship.owner)) {
+        add_count(owner->ships_lost, 1);
+        add_count(owner->soldiers_lost, soldiers);
+    }
+    Player* by = m_world->player(attacker);
+    if (by != nullptr && (by->role == PlayerRole::Human || by->role == PlayerRole::Computer)) {
+        add_count(by->ships_sunk, 1);
+        add_count(by->soldiers_killed, soldiers);
+    }
     m_events.push_back(ShipEvent{ShipEvent::Kind::Sunk, ship.id, ship.owner, 0, attacker});
 }
 
