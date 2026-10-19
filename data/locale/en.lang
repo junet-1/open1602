@@ -20,6 +20,16 @@ dialog.declare_war = An attack means war with {1}.\nDeclare war?
 # {1}: the ship's name
 dialog.scuttle_ship = Scuttle the ship “{1}”?\nIts cargo is lost.
 
+# Notes in the status line
+# {1}: the file's name
+notice.game_saved = Game saved: {1}
+notice.game_loaded = Game loaded: {1}
+notice.screenshot_saved = Screenshot saved: {1}
+# {1}: what went wrong
+notice.save_failed = Saving failed: {1}
+notice.load_failed = Loading failed: {1}
+notice.screenshot_failed = Screenshot failed: {1}
+
 # Menus and savegames
 # {1}: the number of the scenario's variant
 menu.part = Part {1}

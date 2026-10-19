@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "o1602/assets/savegame.hpp"
+#include "o1602/sim/game_data.hpp"
 
 namespace o1602::sim {
 
@@ -12,8 +13,6 @@ namespace {
 constexpr std::uint32_t kRateShift = 7;                          // rates are x/128
 constexpr std::uint8_t kSpecialFlag = Production::kBurningFlag;  // +0x0F bit 7: burning, no new cycle
 constexpr std::uint8_t kMaxIdleCycles = 15;
-constexpr std::int32_t kProdKlinik = 22;      // doctor
-constexpr std::int32_t kProdBrunnen = 26;     // fire brigade
 constexpr std::uint32_t kNoRaw2Fill = 0x180;  // fill of a missing second raw material
 constexpr std::uint32_t kFullFill = 0x100;    // asks for more up to twice a cycle
 
@@ -108,7 +107,7 @@ void finish_cycle(Production& p, const assets::BuildingType& b, std::uint32_t in
 
     // The doctor and the fire brigade look for work at the end of every cycle, i.e. every 11 s
     // (0x0047DF07: 0x0044AF90, 0x0044B470).
-    if (b.prod_kind == kProdKlinik || b.prod_kind == kProdBrunnen) {
+    if (b.prod_kind == prod::kKlinik || b.prod_kind == prod::kBrunnen) {
         emit(events, ProductionEvent::Kind::NeedsRawGoods, index, 0, 0);
         return;
     }

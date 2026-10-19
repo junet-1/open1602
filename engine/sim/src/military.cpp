@@ -3,6 +3,7 @@
 
 #include <algorithm>
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/sea_paths.hpp"
 #include "o1602/sim/ships.hpp"
@@ -16,9 +17,6 @@ constexpr std::uint32_t kRegenAmount = 32;       // by 1 HP
 constexpr std::uint32_t kTowerThinkUs = 1'000'000;
 constexpr std::uint32_t kCastleSecondMs = 1000;  // castles count their training in seconds
 constexpr std::int32_t kTowerSight8 = 0x60;      // towers score entries within 12 tiles
-constexpr std::int32_t kProdTower = 16;          // HAUS_PRODTYP WACHTURM
-constexpr std::int32_t kProdMarket = 7;
-constexpr std::int32_t kProdKontor = 8;
 
 /// HAUS kinds that take only 51/128 of the damage of a shot that is not a cannon's (0x0047A650).
 bool sturdy(std::int32_t kind) noexcept {
@@ -245,7 +243,7 @@ void Military::update_towers(std::uint16_t island) {
             return false;
         }
         const auto b = building_at(*m_world, *m_buildings, island, {t.x, t.y});
-        return !b || b->type->prod_kind != kProdTower || b->origin.x != t.x || b->origin.y != t.y;
+        return !b || b->type->prod_kind != prod::kTower || b->origin.x != t.x || b->origin.y != t.y;
     });
     for (Tower& t : m_world->towers()) {
         if (t.island == island) {
@@ -264,7 +262,7 @@ void Military::update_towers(std::uint16_t island) {
                 continue;
             }
             const assets::BuildingType* type = m_buildings->by_sprite(c.sprite);
-            if (type == nullptr || type->prod_kind != kProdTower) {
+            if (type == nullptr || type->prod_kind != prod::kTower) {
                 continue;
             }
             const auto b = building_at(*m_world, *m_buildings, island,
@@ -322,7 +320,7 @@ void Military::tower_think(Tower& t) {
             if (ship != nullptr && ship->cannons == 0 && !ship->trader) {
                 bool troops = false;
                 for (const CargoSlot& slot : ship->cargo) {
-                    troops = troops || (slot.ware >= 25 && slot.ware <= 44);
+                    troops = troops || is_soldier_ware(slot.ware);
                 }
                 if (!troops) {
                     continue;
@@ -484,7 +482,7 @@ void Military::damage_building(std::uint16_t island, std::uint16_t x, std::uint1
     list.erase(it);
     const PlayerId victim = cell.owner;
     // A destroyed market or Kontor blames the attacker (op 0x52; the natives' curse looks at it).
-    if ((b->type->prod_kind == kProdMarket || b->type->prod_kind == kProdKontor) && acts(*m_world, attacker)) {
+    if ((b->type->prod_kind == prod::kMarket || b->type->prod_kind == prod::kKontor) && acts(*m_world, attacker)) {
         m_world->diplomacy().set_blamed(victim, attacker);
     }
     const Target what = Target::building(island, ox, oy);

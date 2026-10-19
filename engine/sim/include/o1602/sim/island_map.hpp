@@ -14,7 +14,9 @@ namespace o1602::sim {
 
 /// One tile of an island. Mirrors the original grid word (island + 0xAF4, 32 bit per tile):
 /// bits 0-12 base sprite, 13-14 rotation, 15-18 animation phase; plus the owner (the original's
-/// INSELHAUS attribute bits 22-25, translated to a PlayerId when loading).
+/// INSELHAUS attribute bits 22-25, translated to a PlayerId when loading). The sprite has 16 bits
+/// here, not 13, so that buildings of mods may use sprites from 8192 on; savegames store the
+/// buildings, not their sprites, and so are not limited by it.
 struct MapCell {
     static constexpr std::uint16_t kEmpty = 0xFFFF;
     static constexpr std::uint8_t kNoCity = 0xFF;

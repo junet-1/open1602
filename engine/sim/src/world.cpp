@@ -6,6 +6,7 @@
 
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/savegame.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/savegame_extension.hpp"
 #include "o1602/sim/validate.hpp"
@@ -122,8 +123,6 @@ constexpr std::uint32_t soldier_id_of_slot(std::uint32_t slot) noexcept {
 }  // namespace
 
 namespace {
-
-constexpr std::int32_t kProdKindKontor = 8;  // HAUS_PRODTYP KONTOR
 
 Target decode_ref(const World& world, std::uint32_t ref) {
     const auto type = static_cast<std::uint8_t>(ref);
@@ -581,7 +580,6 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
     load_ships(world, file, buildings, warn);
     // Houses: only on a dwelling (HAUS_PRODTYP Kind WOHNUNG); the class is the building's, as in
     // the loader of the original (0x00483EE0).
-    constexpr std::int32_t kProdKindHouse = 13;
     for (const auto& r : state->houses) {
         const auto island = world.island_index(r.island);
         if (!island || !world.islands()[*island].map.contains(r.x, r.y)) {
@@ -590,7 +588,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         }
         const MapCell& cell = world.islands()[*island].map.top(r.x, r.y);
         const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
-        if (b == nullptr || b->prod_kind != kProdKindHouse) {
+        if (b == nullptr || b->prod_kind != prod::kHouse) {
             continue;
         }
         House h;
@@ -928,7 +926,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         if (c.name == kExtensionChunk) {
             constexpr std::size_t kHeader = 20;
             const auto before = file.data().subspan(0, c.offset - kHeader);
-            if (auto status = apply_extension(world, buildings, file.payload(c), before); !status) {
+            if (auto status = apply_extension(world, buildings, file.payload(c), before, warnings); !status) {
                 warn(status.error().message + " (loaded without it)");
             }
             break;
@@ -940,7 +938,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         const Player* owner = world.player(c.owner);
         const assets::BuildingType* kontor = kontor_of(world, buildings, c);
         if (owner != nullptr && (owner->role == PlayerRole::Human || owner->role == PlayerRole::Computer) &&
-            kontor != nullptr && kontor->prod_kind == kProdKindKontor) {
+            kontor != nullptr && kontor->prod_kind == prod::kKontor) {
             trim_trade_settings(*world.city(c.island, c.index), *kontor);
         }
     }

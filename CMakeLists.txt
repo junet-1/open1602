@@ -34,6 +34,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 include(Sanitizers)
 include(EmbedFiles)
+include(WindowsUtf8)
 
 option(O1602_BUILD_TESTS  "Build unit tests"                         ON)
 option(O1602_BUILD_TOOLS  "Build command line tools (o1602-tool)"    ON)

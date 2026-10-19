@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "o1602/core/byte_reader.hpp"
+#include "o1602/core/file.hpp"
 
 namespace o1602::assets {
 
@@ -22,7 +23,7 @@ core::Result<ChunkFile> ChunkFile::load(const std::filesystem::path& path) {
     }
     auto file = from_bytes(std::move(bytes).value());
     if (!file) {
-        return make_error(file.error().code, path.string() + ": " + file.error().message);
+        return make_error(file.error().code, core::path_to_utf8(path) + ": " + file.error().message);
     }
     return file;
 }

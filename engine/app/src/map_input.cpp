@@ -57,7 +57,8 @@ const std::string& action_label(ui::KeyAction a) {
     return ui::tr("keys.action." + std::string(ui::KeyBindings::name(a)));
 }
 
-/// A key as the overview shows it: the usual keys by the names of the language.
+/// A key as the overview shows it: the usual keys by the names of the language, a key bound by
+/// its place by what the keyboard's layout puts there.
 std::string key_label(const ui::KeyChord& c) {
     static constexpr std::pair<SDL_Keycode, std::string_view> kNames[] = {
         {SDLK_SPACE, "space"},
@@ -77,14 +78,17 @@ std::string key_label(const ui::KeyChord& c) {
         {SDLK_TAB, "tab"},
         {SDLK_PAUSE, "pause"},
     };
+    const SDL_Keycode keycode = c.physical
+                                    ? SDL_GetKeyFromScancode(static_cast<SDL_Scancode>(c.key), SDL_KMOD_NONE, true)
+                                    : static_cast<SDL_Keycode>(c.key);
     std::string name;
     for (const auto& [key, label] : kNames) {
-        if (static_cast<std::int32_t>(key) == c.key) {
+        if (key == keycode) {
             name = ui::tr("keys.name." + std::string(label));
         }
     }
     if (name.empty()) {
-        const char* n = SDL_GetKeyName(static_cast<SDL_Keycode>(c.key));
+        const char* n = SDL_GetKeyName(keycode);
         name = n != nullptr ? n : "?";
     }
     return (c.ctrl ? ui::tr("keys.modifier.ctrl") : std::string()) +
@@ -94,6 +98,32 @@ std::string key_label(const ui::KeyChord& c) {
 
 ui::KeyChord chord(SDL_Keycode key, bool ctrl = false, bool shift = false) {
     return ui::KeyChord{static_cast<std::int32_t>(key), ctrl, shift, false};
+}
+
+/// A key by its place on the keyboard: the same on QWERTY, QWERTZ and AZERTY.
+ui::KeyChord place(SDL_Scancode key, bool ctrl = false, bool shift = false) {
+    return ui::KeyChord{static_cast<std::int32_t>(key), ctrl, shift, false, true};
+}
+
+std::string key_name(std::int32_t key, bool physical) {
+    const char* name =
+        physical ? SDL_GetScancodeName(static_cast<SDL_Scancode>(key)) : SDL_GetKeyName(static_cast<SDL_Keycode>(key));
+    return std::string(name != nullptr ? name : "");
+}
+
+std::optional<std::int32_t> key_from_name(std::string_view name, bool physical) {
+    const std::string text(name);
+    if (physical) {
+        const SDL_Scancode sc = SDL_GetScancodeFromName(text.c_str());
+        return sc == SDL_SCANCODE_UNKNOWN ? std::nullopt : std::optional<std::int32_t>(static_cast<std::int32_t>(sc));
+    }
+    const SDL_Keycode key = SDL_GetKeyFromName(text.c_str());
+    return key == SDLK_UNKNOWN ? std::nullopt : std::optional<std::int32_t>(static_cast<std::int32_t>(key));
+}
+
+ui::KeyPress key_press(int key, int scancode, std::uint16_t mod) {
+    return ui::KeyPress{key, scancode, (mod & SDL_KMOD_CTRL) != 0, (mod & SDL_KMOD_SHIFT) != 0,
+                        (mod & SDL_KMOD_ALT) != 0};
 }
 
 }  // namespace
@@ -107,17 +137,18 @@ void MapViewer::setup_keys() {
         k.bind(KeyContext::Building, c, a, p);
     };
     const auto units = [&](ui::KeyChord c, KeyAction a) { k.bind(KeyContext::Units, c, a); };
-    // Camera and game
-    general(chord(SDLK_W), KeyAction::ScrollUp);
+    // Camera and game. W A S D, Q and E by their place, as the digits of the groups: on AZERTY they
+    // lie where Z Q S D, A and E are. Keys that stand for a word (B for building) go by meaning.
+    general(place(SDL_SCANCODE_W), KeyAction::ScrollUp);
     general(chord(SDLK_UP), KeyAction::ScrollUp);
-    general(chord(SDLK_S), KeyAction::ScrollDown);
+    general(place(SDL_SCANCODE_S), KeyAction::ScrollDown);
     general(chord(SDLK_DOWN), KeyAction::ScrollDown);
-    general(chord(SDLK_A), KeyAction::ScrollLeft);
+    general(place(SDL_SCANCODE_A), KeyAction::ScrollLeft);
     general(chord(SDLK_LEFT), KeyAction::ScrollLeft);
-    general(chord(SDLK_D), KeyAction::ScrollRight);
+    general(place(SDL_SCANCODE_D), KeyAction::ScrollRight);
     general(chord(SDLK_RIGHT), KeyAction::ScrollRight);
-    general(chord(SDLK_Q), KeyAction::RotateViewLeft);
-    general(chord(SDLK_E), KeyAction::RotateViewRight);
+    general(place(SDL_SCANCODE_Q), KeyAction::RotateViewLeft);
+    general(place(SDL_SCANCODE_E), KeyAction::RotateViewRight);
     general(chord(SDLK_PAGEUP), KeyAction::ZoomIn);
     general(chord(SDLK_PAGEDOWN), KeyAction::ZoomOut);
     general(chord(SDLK_SPACE), KeyAction::JumpToMessage);
@@ -143,13 +174,14 @@ void MapViewer::setup_keys() {
     general(chord(SDLK_V), KeyAction::Diplomacy);
     general(chord(SDLK_DELETE), KeyAction::DemolishTool);
     // Groups: keys 1 .. 9, 0 are groups 0 .. 9.
-    const std::array<SDL_Keycode, 10> digits{SDLK_1, SDLK_2, SDLK_3, SDLK_4, SDLK_5,
-                                             SDLK_6, SDLK_7, SDLK_8, SDLK_9, SDLK_0};
+    const std::array<SDL_Scancode, 10> digits{SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
+                                              SDL_SCANCODE_5, SDL_SCANCODE_6, SDL_SCANCODE_7, SDL_SCANCODE_8,
+                                              SDL_SCANCODE_9, SDL_SCANCODE_0};
     for (std::size_t g = 0; g < digits.size(); ++g) {
         const auto p = static_cast<std::uint8_t>(g);
-        general(chord(digits[g], true), KeyAction::GroupStore, p);
-        general(chord(digits[g], false, true), KeyAction::GroupAdd, p);
-        general(chord(digits[g]), KeyAction::GroupRecall, p);
+        general(place(digits[g], true), KeyAction::GroupStore, p);
+        general(place(digits[g], false, true), KeyAction::GroupAdd, p);
+        general(place(digits[g]), KeyAction::GroupRecall, p);
     }
     general(chord(SDLK_PERIOD), KeyAction::NextIdleShip);
     general(chord(SDLK_COMMA), KeyAction::NextIdleUnit);
@@ -186,16 +218,11 @@ void MapViewer::load_key_settings() {
     std::error_code ec;
     if (!std::filesystem::exists(path, ec)) {
         if (!m_options.keys_file.empty()) {
-            std::fprintf(stderr, "keys: %s not found, defaults used\n", path.string().c_str());
+            std::fprintf(stderr, "keys: %s not found, defaults used\n", core::path_to_utf8(path).c_str());
             return;
         }
         // The defaults as a file to edit (in the user's folder, never in the installation).
-        const std::string text = m_keys.write_text(
-            [](std::int32_t key) {
-                const char* name = SDL_GetKeyName(static_cast<SDL_Keycode>(key));
-                return std::string(name != nullptr ? name : "");
-            },
-            true);
+        const std::string text = m_keys.write_text(key_name, true);
         std::filesystem::create_directories(path.parent_path(), ec);
         const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
         if (auto status = core::write_file(path, std::span<const std::uint8_t>(data, text.size())); !status) {
@@ -209,11 +236,8 @@ void MapViewer::load_key_settings() {
         return;
     }
     const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-    for (const std::string& w : m_keys.read_text(text, [](std::string_view name) -> std::optional<std::int32_t> {
-             const SDL_Keycode key = SDL_GetKeyFromName(std::string(name).c_str());
-             return key == SDLK_UNKNOWN ? std::nullopt : std::optional<std::int32_t>(static_cast<std::int32_t>(key));
-         })) {
-        std::fprintf(stderr, "keys: %s: %s\n", path.string().c_str(), w.c_str());
+    for (const std::string& w : m_keys.read_text(text, key_from_name)) {
+        std::fprintf(stderr, "keys: %s: %s\n", core::path_to_utf8(path).c_str(), w.c_str());
     }
 }
 
@@ -271,15 +295,15 @@ ui::KeyContext MapViewer::key_context() const {
     return ui::KeyContext::General;
 }
 
-void MapViewer::handle_key(int key, std::uint16_t mod) {
+void MapViewer::handle_key(int key, int scancode, std::uint16_t mod) {
+    const ui::KeyPress press = key_press(key, scancode, mod);
     if (m_hud && m_hud->menu_active() && !m_hud->modal()) {
         // The menu knows Escape (a screen back) and the program's keys, nothing of the game.
         if (key == SDLK_ESCAPE) {
             (void)m_hud->back();
             return;
         }
-        const ui::KeyChord c{key, (mod & SDL_KMOD_CTRL) != 0, (mod & SDL_KMOD_SHIFT) != 0, (mod & SDL_KMOD_ALT) != 0};
-        if (const auto b = m_keys.find(ui::KeyContext::General, c);
+        if (const auto b = m_keys.find_pressed(ui::KeyContext::General, press);
             b && (b->action == ui::KeyAction::Screenshot || b->action == ui::KeyAction::Quit ||
                   b->action == ui::KeyAction::Help)) {
             run_action(*b);
@@ -300,9 +324,7 @@ void MapViewer::handle_key(int key, std::uint16_t mod) {
         }
         return;
     }
-    const ui::KeyChord c{static_cast<std::int32_t>(key), (mod & SDL_KMOD_CTRL) != 0, (mod & SDL_KMOD_SHIFT) != 0,
-                         (mod & SDL_KMOD_ALT) != 0};
-    if (const auto b = m_keys.find(key_context(), c)) {
+    if (const auto b = m_keys.find_pressed(key_context(), press)) {
         run_action(*b);
     }
 }
@@ -318,11 +340,14 @@ void MapViewer::scroll_with_keys(std::uint32_t delta_ms) {
     const auto held = [&](ui::KeyAction action) {
         for (const ui::KeyChord& k : m_keys.keys(action)) {
             // A key that means something else here does not scroll (none does with the defaults).
-            const auto b = m_keys.find(context, ui::KeyChord{k.key});
+            const SDL_Scancode sc = k.physical ? static_cast<SDL_Scancode>(k.key)
+                                               : SDL_GetScancodeFromKey(static_cast<SDL_Keycode>(k.key), nullptr);
+            const auto b = m_keys.find_pressed(
+                context,
+                key_press(static_cast<int>(SDL_GetKeyFromScancode(sc, SDL_KMOD_NONE, true)), static_cast<int>(sc), 0));
             if (b && b->action != action) {
                 continue;
             }
-            const SDL_Scancode sc = SDL_GetScancodeFromKey(static_cast<SDL_Keycode>(k.key), nullptr);
             if (sc != SDL_SCANCODE_UNKNOWN && state[sc] && (mod & SDL_KMOD_CTRL) == 0) {
                 return true;
             }
@@ -405,26 +430,24 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
         case KeyAction::QuickSave: {
             const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));
             const auto status = save_game(path);
-            std::fprintf(stderr, "%s%s\n", status ? "game saved: " : "",
-                         status ? path.string().c_str() : status.error().message.c_str());
+            notify(status ? ui::tr("notice.game_saved", {utf8_to_cp1252(core::path_to_utf8(path.filename()))})
+                          : ui::tr("notice.save_failed", {utf8_to_cp1252(status.error().message)}));
             break;
         }
         case KeyAction::QuickLoad: {
             const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));
             const auto status = load_game(path);
-            std::fprintf(stderr, "%s%s\n", status ? "game loaded: " : "",
-                         status ? path.string().c_str() : status.error().message.c_str());
+            notify(status ? ui::tr("notice.game_loaded", {utf8_to_cp1252(core::path_to_utf8(path.filename()))})
+                          : ui::tr("notice.load_failed", {utf8_to_cp1252(status.error().message)}));
             break;
         }
         case KeyAction::GameMenu:
             not_yet("game menu");
             break;
-        case KeyAction::Screenshot: {  // U-002: the original's screenshot key does not work
-            const auto status = save_screenshot("open1602-screenshot.png");
-            std::fprintf(stderr, "%s\n",
-                         status ? "screenshot saved: open1602-screenshot.png" : status.error().message.c_str());
+        case KeyAction::Screenshot:  // U-002: the original's screenshot key does not work
+            // Read in the next present(), when the frame is complete.
+            m_screenshot = ScreenshotRequest{next_screenshot_path(), true};
             break;
-        }
         case KeyAction::Help:
             show_key_help();
             break;

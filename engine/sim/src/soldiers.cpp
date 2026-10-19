@@ -2,6 +2,7 @@
 // Soldiers: walking, choosing targets, attacking, dying (docs/re/military.md).
 #include <algorithm>
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/sea_paths.hpp"
@@ -27,9 +28,8 @@ constexpr std::int32_t kFriendlyGoal = 7;  // cells around an object a soldier m
 constexpr std::int32_t kOthersRange = 8;   // cells: other figures block planning within 4 tiles
 constexpr std::int32_t kCrowded = 3;       // cells: walking slower next to another figure
 constexpr std::uint8_t kMaxFailures = 3;
-constexpr std::int32_t kWanderRange = 9;    // tiles around home
-constexpr std::int32_t kBoardRange = 9;     // cells from an own ship: the soldier goes on board
-constexpr std::int32_t kProdDoctor = 0x16;  // HAUS_PRODTYP KLINIK
+constexpr std::int32_t kWanderRange = 9;  // tiles around home
+constexpr std::int32_t kBoardRange = 9;   // cells from an own ship: the soldier goes on board
 constexpr std::uint8_t kAnimWalk = 0;
 constexpr std::uint8_t kAnimStand = 1;
 constexpr std::uint8_t kAnimAttack = 2;
@@ -372,7 +372,7 @@ bool Military::arrived(Soldier& s) {
     if (s.target.kind == Target::Kind::Building && owner_of(s.target) == s.owner) {
         const auto b = building_at(*m_world, *m_buildings, s.target.island,
                                    {static_cast<std::int32_t>(s.target.x), static_cast<std::int32_t>(s.target.y)});
-        if (b && b->type->prod_kind == kProdDoctor) {
+        if (b && b->type->prod_kind == prod::kKlinik) {
             if (d > 1) {
                 return false;
             }

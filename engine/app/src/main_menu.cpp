@@ -83,7 +83,7 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder,
     std::map<std::string, MenuScenario> by_name;
     std::error_code ec;
     for (const auto& entry : std::filesystem::directory_iterator(folder, ec)) {
-        if (!entry.is_regular_file(ec) || lower(entry.path().extension().string()) != ".szs") {
+        if (!entry.is_regular_file(ec) || lower(core::path_to_utf8(entry.path().extension())) != ".szs") {
             continue;
         }
         // The names in the list in the fonts' Windows-1252, whatever the file system uses.

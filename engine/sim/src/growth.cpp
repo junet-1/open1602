@@ -44,42 +44,42 @@ void swap_record(World& world, std::uint16_t island, std::uint16_t x, std::uint1
 
 const assets::BuildingType* ripe_record(const assets::BuildingTable& buildings,
                                         const assets::BuildingType& growing) noexcept {
-    if (growing.prod_kind != kProdKindGrowing || growing.withered) {
+    if (growing.prod_kind != prod::kGrowing || growing.withered) {
         return nullptr;
     }
     const assets::BuildingType* next = buildings.by_record(growing.record + 1);
-    return next != nullptr && next->prod_kind == kProdKindRipe ? next : nullptr;
+    return next != nullptr && next->prod_kind == prod::kRipe ? next : nullptr;
 }
 
 const assets::BuildingType* growing_record(const assets::BuildingTable& buildings,
                                            const assets::BuildingType& ripe) noexcept {
-    if (ripe.prod_kind != kProdKindRipe || ripe.record == 0) {
+    if (ripe.prod_kind != prod::kRipe || ripe.record == 0) {
         return nullptr;
     }
     const assets::BuildingType* prev = buildings.by_record(ripe.record - 1);
-    return prev != nullptr && prev->prod_kind == kProdKindGrowing ? prev : nullptr;
+    return prev != nullptr && prev->prod_kind == prod::kGrowing ? prev : nullptr;
 }
 
 const assets::BuildingType* withered_record(const assets::BuildingTable& buildings,
                                             const assets::BuildingType& ripe) noexcept {
-    if (ripe.prod_kind != kProdKindRipe) {
+    if (ripe.prod_kind != prod::kRipe) {
         return nullptr;
     }
     const assets::BuildingType* next = buildings.by_record(ripe.record + 1);
-    return next != nullptr && next->prod_kind == kProdKindGrowing && next->withered ? next : nullptr;
+    return next != nullptr && next->prod_kind == prod::kGrowing && next->withered ? next : nullptr;
 }
 
 const assets::BuildingType* ripe_of_withered(const assets::BuildingTable& buildings,
                                              const assets::BuildingType& withered) noexcept {
-    if (withered.prod_kind != kProdKindGrowing || !withered.withered || withered.record == 0) {
+    if (withered.prod_kind != prod::kGrowing || !withered.withered || withered.record == 0) {
         return nullptr;
     }
     const assets::BuildingType* prev = buildings.by_record(withered.record - 1);
-    return prev != nullptr && prev->prod_kind == kProdKindRipe ? prev : nullptr;
+    return prev != nullptr && prev->prod_kind == prod::kRipe ? prev : nullptr;
 }
 
 std::uint8_t crop_ware(const assets::BuildingTable& buildings, const assets::BuildingType& b) noexcept {
-    if (b.prod_kind == kProdKindRipe) {
+    if (b.prod_kind == prod::kRipe) {
         return b.ware;
     }
     const assets::BuildingType* ripe = ripe_record(buildings, b);
@@ -113,7 +113,7 @@ std::size_t advance_growth(World& world, const assets::BuildingTable& buildings,
             // At most one stage per tick, even if the entry missed several.
             e.seen = counter;
             const assets::BuildingType* b = tile_record(world, buildings, e.island, e.x, e.y);
-            if (b == nullptr || b->prod_kind != kProdKindGrowing) {
+            if (b == nullptr || b->prod_kind != prod::kGrowing) {
                 keep = false;  // the tile was built over or harvested otherwise
             } else {
                 ++e.stage;
@@ -142,7 +142,7 @@ std::optional<GrowthEntry> missing_growth_entry(const GrowthState& growth, const
                                                 std::uint16_t island, std::uint16_t x, std::uint16_t y,
                                                 const MapCell& cell) {
     const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
-    if (b == nullptr || b->prod_kind != kProdKindGrowing || b->withered) {
+    if (b == nullptr || b->prod_kind != prod::kGrowing || b->withered) {
         return std::nullopt;
     }
     GrowthEntry e;
@@ -180,7 +180,7 @@ void add_missing_growth(World& world, const assets::BuildingTable& buildings) {
 bool harvest_tile(World& world, const assets::BuildingTable& buildings, std::uint16_t island, std::uint16_t x,
                   std::uint16_t y, std::uint8_t ware) {
     const assets::BuildingType* ripe = tile_record(world, buildings, island, x, y);
-    if (ripe == nullptr || ripe->prod_kind != kProdKindRipe || ripe->ware != ware) {
+    if (ripe == nullptr || ripe->prod_kind != prod::kRipe || ripe->ware != ware) {
         return false;
     }
     const assets::BuildingType* growing = growing_record(buildings, *ripe);

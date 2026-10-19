@@ -135,7 +135,8 @@ core::Result<World> read_game(std::span<const std::uint8_t> bytes, const assets:
     if (!world) {
         return world.error();
     }
-    if (auto status = detail::apply_sections(*world, buildings, sections); !status) {
+    // world_from_sections already reported the sections it skipped.
+    if (auto status = detail::apply_sections(*world, buildings, sections, nullptr); !status) {
         return status.error();
     }
     if (auto status = validate(*world); !status) {

@@ -10,6 +10,7 @@
 
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/island.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/volcanoes.hpp"
@@ -30,26 +31,12 @@ constexpr std::array<const char*, 2> kClimateDir = {"Nord", "Sued"};
 constexpr std::array<const char*, 2> kNativeDir = {"NordNat", "SuedNat"};
 constexpr std::array<const char*, 5> kSizeName = {"lit", "mit", "med", "big", "lar"};
 
-// Wares.
-constexpr std::uint8_t kIron = 2;
-constexpr std::uint8_t kGold = 3;
-constexpr std::uint8_t kJewellery = 21;  // SCHMUCK: marks the treasure entries of the plan
-constexpr std::uint8_t kFirstCrop = 45;  // fertility bit 0
-constexpr std::uint8_t kTobacco = 46;
-constexpr std::uint8_t kSpices = 47;
-constexpr std::uint8_t kSugar = 48;
-constexpr std::uint8_t kCotton = 49;
-constexpr std::uint8_t kWine = 50;
-constexpr std::uint8_t kCocoa = 51;
-constexpr std::uint8_t kOre = 55;       // ERZE: the ware of ore mountains
-constexpr std::uint8_t kTreasure = 58;  // SCHATZ: deposit of a treasure
-constexpr std::uint8_t kLastCrop = 58;
+// Fertility bit 0 is the first crop, the treasure the last ware with a bit.
+constexpr std::uint8_t kFirstCrop = ware::kCornField;
+constexpr std::uint8_t kLastCrop = ware::kTreasure;
 
 // Every generated island grows grain, grass, trees and fish (0x0048C8F0).
 constexpr std::uint32_t kBaseFertility = 0x1181;
-
-// HAUS_PRODTYP Kind of ore mountains.
-constexpr std::int32_t kProdOreMountain = 12;
 
 // Amounts of a new deposit (0x0046BE60), 1/32 t; a treasure is money.
 constexpr std::uint16_t kBigIron = 0x1E00;     // 240 t
@@ -366,7 +353,7 @@ std::vector<Mountain> Generator::mountains(const Slot& slot, int type, bool free
         for (std::uint32_t x = map.width(); x-- > 0 && out.size() < kMaxMountains;) {
             const MapCell& cell = map.top(x, y);
             const assets::BuildingType* b = cell.empty() ? nullptr : m_buildings.by_sprite(cell.sprite);
-            if (b == nullptr || b->prod_kind != kProdOreMountain || b->ware != kOre ||
+            if (b == nullptr || b->prod_kind != prod::kOreMountain || b->ware != ware::kOreMountain ||
                 (type != 2 && b->ore_mountain != type)) {
                 continue;
             }
@@ -398,19 +385,19 @@ std::vector<Slot*> Generator::crop_candidates(std::uint8_t ware, std::uint8_t mi
         const bool north = s->plan.climate == 0;
         bool ok = false;
         switch (ware) {
-            case kTobacco:
+            case ware::kTobaccoField:
                 ok = north;
                 break;
-            case kSpices:
-            case kCotton:
-            case kCocoa:
+            case ware::kSpiceField:
+            case ware::kCottonField:
+            case ware::kCocoaField:
                 ok = !north;
                 break;
-            case kSugar:
-                ok = north && (s->fertility & (1U << (kWine - kFirstCrop))) == 0;
+            case ware::kSugarField:
+                ok = north && (s->fertility & (1U << (ware::kWineField - kFirstCrop))) == 0;
                 break;
-            case kWine:
-                ok = north && (s->fertility & (1U << (kSugar - kFirstCrop))) == 0;
+            case ware::kWineField:
+                ok = north && (s->fertility & (1U << (ware::kSugarField - kFirstCrop))) == 0;
                 break;
             default:
                 break;
@@ -475,7 +462,7 @@ void Generator::hand_out_crops() {
             }
         }
     }
-    for (std::uint8_t ware = kTobacco; ware <= kLastCrop; ++ware) {
+    for (std::uint8_t ware = ware::kTobaccoField; ware <= kLastCrop; ++ware) {
         if (auto c = crop_candidates(ware, 0, 0, 2); !c.empty()) {
             give(ware, std::move(c));
         }
@@ -535,16 +522,16 @@ void Generator::place_ores() {
         int search = 2;
         std::uint8_t kind = 1;
         std::uint16_t amount = 0;
-        if (ware == kIron && r.type == 1) {
+        if (ware == ware::kOre && r.type == 1) {
             tries = {{2, 2, 3, 2, 4, mc, 1},  {2, 2, 2, 2, 4, mc, 1},  {2, 2, 2, 2, 4, 255, 1},
                      {2, 2, 1, 1, 4, 255, 1}, {2, 2, 3, 1, 4, 255, 2}, {2, 2, 2, 1, 4, 255, 2}};
             amount = kSmallIron;
-        } else if (ware == kIron && r.type == 0) {
+        } else if (ware == ware::kOre && r.type == 0) {
             tries = {{0, 0, 3, 1, 4, mc, 1}, {0, 0, 2, 1, 4, mc, 1}, {0, 0, 2, 1, 4, 255, 1}, {0, 0, 1, 1, 4, 255, 1}};
             search = 0;
             kind = 0;
             amount = kBigIron;
-        } else if (ware == kGold) {
+        } else if (ware == ware::kGold) {
             tries = {{3, 2, 3, g1, g2, mc, 1},  {3, 2, 2, g1, g2, mc, 1}, {3, 2, 2, g1, g2, 255, 1},
                      {3, 2, 1, g1, g2, 255, 1}, {3, 2, 3, g1, 4, 255, 1}, {3, 2, 2, g1, 4, 255, 1},
                      {3, 2, 2, g1, 4, 255, 2},  {3, 2, 1, g1, 4, 255, 2}};
@@ -647,7 +634,7 @@ void Generator::place_treasures() {
     // 0x0048D116: treasures on middle islands without one, up to 4 tries for a spot.
     constexpr std::uint32_t kTries = 4;
     for (const ScenarioPlan::Resource& r : m_plan.treasures) {
-        if (r.building == 0 || ware_of(r.building) != kJewellery) {
+        if (r.building == 0 || ware_of(r.building) != ware::kJewellery) {
             continue;
         }
         for (std::uint32_t unit = 0; unit < r.count; ++unit) {
@@ -670,7 +657,7 @@ void Generator::place_treasures() {
                 }
                 const Mountain& spot = spots[m_random.below(static_cast<std::uint32_t>(spots.size()))];
                 const std::size_t i = s.deposits.count++;
-                s.deposits.write(i, kTreasure, spot.x, spot.y, kTreasureMoney);
+                s.deposits.write(i, ware::kTreasure, spot.x, spot.y, kTreasureMoney);
                 s.treasure = true;
                 placed = true;
             }
@@ -687,7 +674,7 @@ void Generator::guarantee() {
     };
     for (const ScenarioPlan::Resource& r : m_plan.crops) {
         const std::uint8_t ware = r.building != 0 ? ware_of(r.building) : 0;
-        if (r.count == 0 || ware < kTobacco || ware > kCocoa || has_crop(ware)) {
+        if (r.count == 0 || ware < ware::kTobaccoField || ware > ware::kCocoaField || has_crop(ware)) {
             continue;
         }
         if (auto c = crop_candidates(ware, 0, 4, 255); !c.empty()) {
@@ -705,7 +692,7 @@ void Generator::guarantee() {
             return false;
         });
     };
-    for (const auto& [ware, amount] : {std::pair{kIron, kSmallIron}, {kGold, kGoldAmount}}) {
+    for (const auto& [ware, amount] : {std::pair{ware::kOre, kSmallIron}, {ware::kGold, kGoldAmount}}) {
         const bool asked = std::any_of(m_plan.ores.begin(), m_plan.ores.end(), [&](const ScenarioPlan::Resource& r) {
             return r.count > 0 && r.building != 0 && ware_of(r.building) == ware;
         });
@@ -716,16 +703,16 @@ void Generator::guarantee() {
         // island makes room (gold is rarer than iron).
         std::vector<std::pair<Slot*, Mountain>> spots;
         for (Slot* s : m_by_number) {
-            if (s->deposits.count >= 2 || (ware == kGold && s->plan.size == 0)) {
+            if (s->deposits.count >= 2 || (ware == ware::kGold && s->plan.size == 0)) {
                 continue;
             }
             for (const Mountain& m : mountains(*s, 2, true)) {
                 spots.emplace_back(s, m);
             }
         }
-        if (spots.empty() && ware == kGold) {
+        if (spots.empty() && ware == ware::kGold) {
             for (Slot* s : m_by_number) {
-                if (s->deposits.count == 2 && s->deposits.ware(0) == kIron && s->deposits.ware(1) == kIron) {
+                if (s->deposits.count == 2 && s->deposits.ware(0) == ware::kOre && s->deposits.ware(1) == ware::kOre) {
                     spots.emplace_back(s, Mountain{s->deposits.x(1), s->deposits.y(1)});
                 }
             }
@@ -775,11 +762,11 @@ void Generator::reserve_home_iron() {
             continue;
         }
         const Mountain& m = free[m_random.below(static_cast<std::uint32_t>(free.size()))];
-        if (!home->deposits.place(kIron, m.x, m.y, big ? 0 : 1, big ? kBigIron : kSmallIron)) {
+        if (!home->deposits.place(ware::kOre, m.x, m.y, big ? 0 : 1, big ? kBigIron : kSmallIron)) {
             continue;
         }
         for (ScenarioPlan::Resource& r : m_plan.ores) {
-            if (r.building != 0 && ware_of(r.building) == kIron && r.type == (big ? 0U : 1U) && r.count > 0) {
+            if (r.building != 0 && ware_of(r.building) == ware::kOre && r.type == (big ? 0U : 1U) && r.count > 0) {
                 --r.count;
                 break;
             }
@@ -793,7 +780,7 @@ void Generator::fair_starts() {
     for (const StartArea& start : m_starts) {
         const std::vector<Slot*> near = in_reach(start);
         const auto reachable = [&](const Slot* s) { return std::find(near.begin(), near.end(), s) != near.end(); };
-        for (std::uint8_t ware = kTobacco; ware <= kCocoa; ++ware) {
+        for (std::uint8_t ware = ware::kTobaccoField; ware <= ware::kCocoaField; ++ware) {
             const std::uint32_t bit = 1U << (ware - kFirstCrop);
             if (std::any_of(near.begin(), near.end(), [&](const Slot* s) { return (s->fertility & bit) != 0; })) {
                 continue;
@@ -809,10 +796,10 @@ void Generator::fair_starts() {
                     break;
                 }
             }
-            if (candidates.empty() && (ware == kSugar || ware == kWine)) {
+            if (candidates.empty() && (ware == ware::kSugarField || ware == ware::kWineField)) {
                 // Sugar and wine never share an island: one of two islands with the other one
                 // grows this one instead.
-                const std::uint8_t other = ware == kSugar ? kWine : kSugar;
+                const std::uint8_t other = ware == ware::kSugarField ? ware::kWineField : ware::kSugarField;
                 const std::uint32_t other_bit = 1U << (other - kFirstCrop);
                 std::vector<Slot*> with_other;
                 for (Slot* s : near) {
@@ -857,7 +844,7 @@ void Generator::fair_starts() {
         }
         const auto has_gold = std::any_of(near.begin(), near.end(), [](const Slot* s) {
             for (std::size_t i = 0; i < s->deposits.count; ++i) {
-                if (s->deposits.ware(i) == kGold) {
+                if (s->deposits.ware(i) == ware::kGold) {
                     return true;
                 }
             }
@@ -883,7 +870,7 @@ void Generator::fair_starts() {
         if (spots.empty()) {
             // The second iron vein of a near island makes room.
             for (Slot* s : near) {
-                if (s->deposits.count == 2 && s->deposits.ware(0) == kIron && s->deposits.ware(1) == kIron) {
+                if (s->deposits.count == 2 && s->deposits.ware(0) == ware::kOre && s->deposits.ware(1) == ware::kOre) {
                     spots.emplace_back(s, Mountain{s->deposits.x(1), s->deposits.y(1)});
                 }
             }
@@ -906,7 +893,7 @@ void Generator::fair_starts() {
             continue;
         }
         const auto& [s, m] = spots[m_random.below(static_cast<std::uint32_t>(spots.size()))];
-        if (s->deposits.place(kGold, m.x, m.y, 1, kGoldAmount)) {
+        if (s->deposits.place(ware::kGold, m.x, m.y, 1, kGoldAmount)) {
             ++m_guaranteed;
         }
     }
@@ -980,8 +967,6 @@ std::vector<std::uint8_t> Generator::village_tiles(const Slot& slot, const std::
     constexpr std::uint8_t kNatives = 6;
     constexpr std::uint8_t kNoCity = 7;
     constexpr std::uint8_t kMinKontorRadius = 8;
-    constexpr std::int32_t kProdMarket = 7;
-    constexpr std::int32_t kProdKontor = 8;
     std::vector<std::uint8_t> out;
     if (!slot.village || slot.village->layers.empty()) {
         return out;
@@ -997,11 +982,11 @@ std::vector<std::uint8_t> Generator::village_tiles(const Slot& slot, const std::
     std::vector<Anchor> anchors;
     for (const assets::IslandTile& t : slot.village->layers.front()) {
         const assets::BuildingType* b = m_buildings.by_id(t.cod_id());
-        if (b == nullptr || (b->prod_kind != kProdMarket && b->prod_kind != kProdKontor)) {
+        if (b == nullptr || (b->prod_kind != prod::kMarket && b->prod_kind != prod::kKontor)) {
             continue;
         }
-        const auto radius =
-            static_cast<std::uint8_t>(b->prod_kind == kProdKontor ? std::max(b->radius, kMinKontorRadius) : b->radius);
+        const auto radius = static_cast<std::uint8_t>(
+            b->prod_kind == prod::kKontor ? std::max(b->radius, kMinKontorRadius) : b->radius);
         anchors.push_back(
             Anchor{catchment_of(*b, static_cast<std::uint8_t>(t.bits & 3U), {t.x, t.y}), radius, t.city()});
     }

@@ -407,6 +407,7 @@ int MapViewer::run() {
                 case ViewerOptions::ScriptedInput::Kind::Key:
                     e.type = SDL_EVENT_KEY_DOWN;
                     e.key.key = static_cast<SDL_Keycode>(in.key);
+                    e.key.scancode = SDL_GetScancodeFromKey(e.key.key, nullptr);
                     e.key.mod = in.mod;
                     e.key.down = true;
                     break;
@@ -461,7 +462,7 @@ int MapViewer::run() {
             std::int32_t h = 0;
             m_window->output_size(w, h);
             m_video->draw(w, h);
-            SDL_RenderPresent(m_window->sdl_renderer());
+            present();
         } else {
             sync_text_input();
             if (m_hud && m_hud->menu_active()) {
@@ -504,20 +505,22 @@ int MapViewer::run() {
             std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
             return 1;
         }
-        std::fprintf(stderr, "game saved: %s\n", m_options.save.string().c_str());
+        std::fprintf(stderr, "game saved: %s\n", core::path_to_utf8(m_options.save).c_str());
     }
     if (!m_options.screenshot.empty()) {
         // Read back a complete frame.
+        m_screenshot = ScreenshotRequest{m_options.screenshot};
         if (m_video && m_video->playing() && !video_windowed()) {
             std::int32_t w = 0;
             std::int32_t h = 0;
             m_window->output_size(w, h);
             m_video->draw(w, h);
+            present();
         } else {
             render();
         }
-        if (auto status = save_screenshot(m_options.screenshot); !status) {
-            std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
+        if (m_screenshot_error) {
+            std::fprintf(stderr, "error: %s\n", m_screenshot_error->c_str());
             return 1;
         }
     }
@@ -554,7 +557,8 @@ void MapViewer::handle_event(const SDL_Event& original) {
                 }
                 break;
             }
-            handle_key(static_cast<int>(event.key.key), static_cast<std::uint16_t>(event.key.mod));
+            handle_key(static_cast<int>(event.key.key), static_cast<int>(event.key.scancode),
+                       static_cast<std::uint16_t>(event.key.mod));
             break;
         case SDL_EVENT_TEXT_INPUT:
             if (m_hud && m_hud->typing() && event.text.text != nullptr) {
@@ -960,7 +964,7 @@ void MapViewer::render() {
             const ui::Rect f = m_hud->menu_video_rect();
             m_video->draw_in(f.x, f.y, f.w, f.h);
         }
-        SDL_RenderPresent(r);
+        present();
         return;
     }
 
@@ -1120,10 +1124,14 @@ void MapViewer::render() {
         for (std::size_t i = 0; i < 4; ++i) {
             corners[i] = m_camera.point_at_screen(screen[i].first, screen[i].second);
         }
-        m_hud->set_status(m_tool_status.empty() && !m_tool.active() ? crops_status() : m_tool_status);
+        const std::uint64_t now = platform::ticks_ms();
+        if (!m_tool.active() && now < m_notice_until_ms) {
+            m_hud->set_status(m_notice);
+        } else {
+            m_hud->set_status(m_tool_status.empty() && !m_tool.active() ? crops_status() : m_tool_status);
+        }
         m_hud->set_rotation(m_camera.view().rotation);
         m_hud->set_building_rotation(m_tool.rotation());
-        const std::uint64_t now = platform::ticks_ms();
         if (m_hud->mode() == Hud::kModeInfo && (now >= m_figures_ms + 1000 || now < m_figures_ms)) {
             // The player status: sums over all cities and units, once a second is enough.
             m_player_figures = sim::player_figures(m_world, m_buildings, m_figures, m_local_player);
@@ -1139,7 +1147,7 @@ void MapViewer::render() {
             m_video->draw_in(a.x, a.y, a.w, a.h);
         }
     }
-    SDL_RenderPresent(r);
+    present();
 }
 
 void MapViewer::apply_production_events() {
@@ -1753,8 +1761,8 @@ render::TilePos MapViewer::home_tile() const {
 
 void MapViewer::update_title(double fps) {
     const auto& view = m_camera.view();
-    std::string title = "Open1602 - " + m_options.scenario.stem().string() + " | " + zoom_name(view.zoom) + " x" +
-                        std::to_string(m_camera.pixel_scale()) + " | rotation " + std::to_string(view.rotation);
+    std::string title = "Open1602 - " + core::path_to_utf8(m_options.scenario.stem()) + " | " + zoom_name(view.zoom) +
+                        " x" + std::to_string(m_camera.pixel_scale()) + " | rotation " + std::to_string(view.rotation);
     if (const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y)) {
         title += " | tile " + std::to_string(tile->x) + "," + std::to_string(tile->y);
         const auto& cell = m_world.cell(tile->x, tile->y);
@@ -1875,7 +1883,7 @@ void MapViewer::update_title(double fps) {
 std::filesystem::path MapViewer::data_folder() {
     std::filesystem::path folder;
     if (char* pref = SDL_GetPrefPath(nullptr, "Open1602")) {
-        folder = std::filesystem::path(pref);
+        folder = core::path_from_utf8(pref);
         SDL_free(pref);
     } else {
         folder = std::filesystem::current_path();
@@ -1895,11 +1903,11 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     const auto rel = target.lexically_relative(root);
     if (!rel.empty() && *rel.begin() != "..") {
         return core::make_error(core::ErrorCode::Unsupported,
-                                "will not write into the game's installation: " + target.string());
+                                "will not write into the game's installation: " + core::path_to_utf8(target));
     }
     // Open1602's own savegame, or with the ending .gam one the original loads (as long as the game
     // fits its limits; without the file the game came from, the fields Open1602 does not keep are 0).
-    std::string ending = target.extension().string();
+    std::string ending = core::path_to_utf8(target.extension());
     std::transform(ending.begin(), ending.end(), ending.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     auto bytes = ending == ".gam" ? sim::write_savegame(m_world, m_buildings, &m_simulation)
@@ -2063,7 +2071,7 @@ void MapViewer::apply_options() {
                     e.text.empty() ? ui::tr("save.default_name", {std::to_string(e.value + 1)}) : e.text;
                 const auto status = save_game(slot_file(save_folder(), e.value));
                 if (!status) {
-                    std::fprintf(stderr, "save: %s\n", status.error().message.c_str());
+                    notify(ui::tr("notice.save_failed", {utf8_to_cp1252(status.error().message)}));
                     break;
                 }
                 std::uint8_t humans = 0;
@@ -2091,9 +2099,11 @@ void MapViewer::apply_options() {
                     std::fprintf(stderr, "load: slot %zu is empty\n", e.value + 1);
                     break;
                 }
-                const auto status = load_game(path);
-                std::fprintf(stderr, "%s%s\n", status ? "game loaded: " : "",
-                             status ? path.string().c_str() : status.error().message.c_str());
+                if (const auto status = load_game(path); !status) {
+                    notify(ui::tr("notice.load_failed", {utf8_to_cp1252(status.error().message)}));
+                } else {
+                    std::fprintf(stderr, "game loaded: %s\n", core::path_to_utf8(path).c_str());
+                }
                 break;
             }
             case OptionsEvent::Kind::Quit:
@@ -2338,6 +2348,43 @@ void MapViewer::apply_menu() {
     }
 }
 
+void MapViewer::present() {
+    if (auto request = std::exchange(m_screenshot, std::nullopt)) {
+        const auto status = save_screenshot(request->path);
+        m_screenshot_error.reset();
+        if (!status) {
+            m_screenshot_error = status.error().message;
+        }
+        if (request->notify) {
+            notify(status ? ui::tr("notice.screenshot_saved",
+                                   {utf8_to_cp1252(core::path_to_utf8(request->path.filename()))})
+                          : ui::tr("notice.screenshot_failed", {utf8_to_cp1252(status.error().message)}));
+        }
+    }
+    SDL_RenderPresent(m_window->sdl_renderer());
+}
+
+std::filesystem::path MapViewer::next_screenshot_path() {
+    const std::filesystem::path folder = data_folder() / "screenshots";
+    const std::time_t now = std::time(nullptr);
+    char stamp[32] = "open1602";
+    if (const std::tm* local = std::localtime(&now)) {
+        std::strftime(stamp, sizeof stamp, "open1602-%Y%m%d-%H%M%S", local);
+    }
+    std::filesystem::path path = folder / (std::string(stamp) + ".png");
+    std::error_code ec;
+    for (int n = 2; std::filesystem::exists(path, ec) && n < 1000; ++n) {
+        path = folder / (std::string(stamp) + "-" + std::to_string(n) + ".png");
+    }
+    return path;
+}
+
+void MapViewer::notify(const std::string& text) {
+    std::fprintf(stderr, "%s\n", core::cp1252_to_utf8(text).c_str());
+    m_notice = text;
+    m_notice_until_ms = platform::ticks_ms() + 4000;
+}
+
 core::Status MapViewer::save_screenshot(const std::filesystem::path& path) {
     SDL_Surface* surface = SDL_RenderReadPixels(m_window->sdl_renderer(), nullptr);
     if (surface == nullptr) {
@@ -2360,6 +2407,10 @@ core::Status MapViewer::save_screenshot(const std::filesystem::path& path) {
     SDL_DestroySurface(rgba);
     for (std::size_t i = 3; i < pixels.size(); i += 4) {
         pixels[i] = 255;
+    }
+    if (path.has_parent_path()) {
+        std::error_code ec;
+        std::filesystem::create_directories(path.parent_path(), ec);
     }
     return core::write_png_rgba(path, width, height, pixels);
 }

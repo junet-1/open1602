@@ -34,8 +34,9 @@ enum class TileMode : std::uint8_t { Full, Differences };
                                                       std::vector<std::string>* warnings);
 
 /// Reads every section and, only if all of them are sound and fit the world, applies them.
+/// Sections of a later version that are not required are skipped and reported in `warnings`.
 core::Status apply_sections(World& world, const assets::BuildingTable& buildings,
-                            std::span<const std::uint8_t> sections);
+                            std::span<const std::uint8_t> sections, std::vector<std::string>* warnings);
 
 }  // namespace detail
 }  // namespace o1602::sim

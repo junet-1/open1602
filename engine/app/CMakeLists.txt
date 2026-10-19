@@ -3,6 +3,7 @@
 
 add_executable(open1602
     src/main.cpp
+    src/diagnostics.cpp
     src/build_tool.cpp
     src/game_sound.cpp
     src/hud.cpp
@@ -24,6 +25,14 @@ o1602_set_warnings(open1602)
 
 if(WIN32)
     set_target_properties(open1602 PROPERTIES WIN32_EXECUTABLE ON)
+    # Windows finds DLLs next to the program: SDL3.dll goes there after every build and install.
+    set(runtime_dlls $<TARGET_RUNTIME_DLLS:open1602>)
+    add_custom_command(TARGET open1602 POST_BUILD
+        COMMAND "$<IF:$<BOOL:${runtime_dlls}>,${CMAKE_COMMAND};-E;copy_if_different;${runtime_dlls};$<TARGET_FILE_DIR:open1602>,${CMAKE_COMMAND};-E;true>"
+        COMMAND_EXPAND_LISTS
+        VERBATIM)
+    install(FILES ${runtime_dlls} DESTINATION bin)
 endif()
+o1602_utf8_manifest(open1602)
 
 install(TARGETS open1602 RUNTIME DESTINATION bin)

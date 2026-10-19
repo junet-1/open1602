@@ -5,6 +5,7 @@
 // the survey of a city (task 8) and the maintenance sweep.
 #include <algorithm>
 #include <array>
+#include <optional>
 
 #include "ai_engine.hpp"
 
@@ -86,6 +87,75 @@ bool is_farm_task(std::uint8_t task) {
             return true;
         default:
             return false;
+    }
+}
+
+/// The slot a producer counts for in the survey, by its ware and raw material (task 8).
+std::optional<std::uint8_t> producer_slot(std::uint8_t w, std::uint8_t raw, std::uint32_t building_id) noexcept {
+    switch (w) {
+        case ware::kWood:
+            return kSlotWoodcutter;
+        case ware::kFood:
+            if (raw == ware::kGame) {
+                return kSlotHunter;
+            }
+            if (raw == ware::kFlour) {
+                return kSlotBakery;
+            }
+            if (raw == ware::kFish) {
+                return kSlotFisher;  // the original counts them as hunters too (S-098)
+            }
+            if (raw == ware::kMeat) {
+                return kSlotButcher;
+            }
+            return std::nullopt;
+        case ware::kGrain:
+            return kSlotGrain;
+        case ware::kFlour:
+            return kSlotMill;
+        case ware::kStone:
+            return kSlotQuarry;
+        case ware::kBricks:
+            return kSlotStonemason;
+        case ware::kWool:
+            return raw == ware::kCottonField ? kSlotCotton : kSlotSheep;
+        case ware::kCloth:
+            return building_id == id::kWebstube ? kSlotWebstube : kSlotWeberei;
+        case ware::kAlcohol:
+            // The original counts every alcohol producer as a cocoa plantation too (S-098).
+            return raw == ware::kWineField ? kSlotWine : kSlotRum;
+        case ware::kSpices:
+            return kSlotSpices;
+        case ware::kCocoa:
+            return kSlotCocoa;
+        case ware::kTobacco:
+            return kSlotTobacco;
+        case ware::kTobaccoGoods:
+            return kSlotTobaccoGoods;
+        case ware::kSugar:
+            return kSlotSugar;
+        case ware::kMeat:
+            return kSlotCattle;
+        case ware::kOre:
+            return kSlotIronMine;
+        case ware::kGold:
+            return kSlotGoldMine;
+        case ware::kIron:
+            return kSlotSmelter;
+        case ware::kTools:
+            return kSlotToolsmith;
+        case ware::kClothes:
+            return kSlotTailor;
+        case ware::kSwords:
+            return kSlotSwords;
+        case ware::kMuskets:
+            return kSlotMuskets;
+        case ware::kCannons:
+            return kSlotCannons;
+        case ware::kJewellery:
+            return kSlotGoldsmith;
+        default:
+            return std::nullopt;
     }
 }
 
@@ -1008,225 +1078,28 @@ void Engine::task_survey(AiPlayer& p) {
     const bool cotton_island = fertility(p.island, ware::kCottonField) == 128;
     const assets::BuildingType* weberei = by_id(id::kWeberei);
     const bool weberei_ok = weberei != nullptr && unlocked(p, *weberei);
-    std::vector<std::pair<std::int32_t, std::int32_t>> starved_mines;
-    std::vector<std::pair<std::int32_t, std::int32_t>> sheep;
-    std::vector<std::pair<std::int32_t, std::int32_t>> webstuben;
-    const auto count = [&](std::uint8_t k) {
-        ++r->slots[k].count;
-        p.present[k] = true;
-    };
+    SurveyFinds finds;
     for (std::uint32_t y = 0; y < map.height(); ++y) {
         for (std::uint32_t x = 0; x < map.width(); ++x) {
-            const auto ix = static_cast<std::int32_t>(x);
-            const auto iy = static_cast<std::int32_t>(y);
-            const Tile t = tile(p.island, ix, iy);
-            if (!t.valid() || !t.origin || t.city != p.city || t.prod == prod::kRipe || t.prod == prod::kGrowing) {
-                continue;
-            }
-            const std::uint8_t w = t.ware;
-            const std::uint8_t raw = t.raw;
-            switch (t.prod) {
-                case prod::kHouse:
-                    count(kSlotHouses);
-                    continue;
-                case prod::kKapelle:
-                    count(kSlotKapelle);
-                    continue;
-                case prod::kWirt:
-                    count(kSlotWirt);
-                    continue;
-                case prod::kSchule:
-                    count(kSlotSchule);
-                    continue;
-                case prod::kKlinik:
-                    count(kSlotKlinik);
-                    r->doctor = std::pair{static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y)};
-                    continue;
-                case prod::kKirche:
-                    count(kSlotKirche);
-                    continue;
-                case prod::kBadehaus:
-                    count(kSlotBadehaus);
-                    continue;
-                case prod::kHochschule:
-                    count(kSlotHochschule);
-                    continue;
-                case prod::kTheater:
-                    count(kSlotTheater);
-                    continue;
-                case prod::kGalgen:
-                    count(kSlotGalgen);
-                    continue;
-                case prod::kBrunnen:
-                    count(kSlotBrunnen);
-                    continue;
-                case prod::kPirateHouse:
-                    count(kSlotPirateHouses);
-                    continue;
-                case prod::kShipyard:
-                    r->slots[kSlotShipyard].count = t.type->id == id::kShipyardBig ? 2 : 1;
-                    p.present[kSlotShipyard] = true;
-                    p.yard_valid = true;
-                    p.yard_island = p.island;
-                    p.yard_x = static_cast<std::uint16_t>(x);
-                    p.yard_y = static_cast<std::uint16_t>(y);
-                    continue;
-                case prod::kMilitary:
-                    if (p.castles.size() < 3) {
-                        CastleEntry e;
-                        e.x = static_cast<std::uint16_t>(x);
-                        e.y = static_cast<std::uint16_t>(y);
-                        e.rally_x = c->warehouse_x.value_or(e.x);
-                        e.rally_y = c->warehouse_y.value_or(e.y);
-                        p.castles.push_back(e);
-                        p.castle_island = p.island;
-                    }
-                    count(kSlotCastle);
-                    continue;
-                case prod::kMarket:
-                    count(kSlotMarket);
-                    continue;
-                default:
-                    break;
-            }
-            if (t.kind == kind::kTower || t.kind == kind::kTowerBeach || t.prod == prod::kTower) {
-                const std::uint32_t idv = t.type->id;
-                if (idv == id::kWoodTower || idv == id::kWoodTower + 1) {
-                    count(kSlotWoodTower);
-                } else if (idv == id::kStoneTower || idv == id::kStoneTower + 1) {
-                    count(kSlotStoneTower);
-                } else if (idv == id::kPirateTower || idv == id::kPirateTower + 1) {
-                    count(kSlotPirateTower);
-                }
-                continue;
-            }
-            if (w <= 1 || ((t.prod < prod::kWorkshop || t.prod > prod::kFisher) && t.prod != prod::kQuarry)) {
-                continue;
-            }
-            // Producers by ware and raw material.
-            if (w == m_buildings.food_ware()) {
-                count(kSlotFood);
-            }
-            if (w == ware::kAlcohol) {
-                count(kSlotAlcohol);
-            }
-            switch (w) {
-                case ware::kWood:
-                    count(kSlotWoodcutter);
-                    break;
-                case ware::kFood:
-                    if (raw == ware::kGame) {
-                        count(kSlotHunter);
-                    } else if (raw == ware::kFlour) {
-                        count(kSlotBakery);
-                    } else if (raw == ware::kFish) {
-                        count(kSlotFisher);  // the original counts them as hunters too (S-098)
-                    } else if (raw == ware::kMeat) {
-                        count(kSlotButcher);
-                    }
-                    break;
-                case ware::kGrain:
-                    count(kSlotGrain);
-                    break;
-                case ware::kFlour:
-                    count(kSlotMill);
-                    break;
-                case ware::kStone:
-                    count(kSlotQuarry);
-                    break;
-                case ware::kBricks:
-                    count(kSlotStonemason);
-                    break;
-                case ware::kWool:
-                    if (raw == ware::kCottonField) {
-                        count(kSlotCotton);
-                    } else {
-                        count(kSlotSheep);
-                        sheep.emplace_back(ix, iy);
-                    }
-                    break;
-                case ware::kCloth:
-                    if (t.type->id == id::kWebstube) {
-                        count(kSlotWebstube);
-                        webstuben.emplace_back(ix, iy);
-                    } else {
-                        count(kSlotWeberei);
-                    }
-                    break;
-                case ware::kAlcohol:
-                    // The original counts every alcohol producer as a cocoa plantation too (S-098).
-                    count(raw == ware::kWineField ? kSlotWine : kSlotRum);
-                    break;
-                case ware::kSpices:
-                    count(kSlotSpices);
-                    break;
-                case ware::kCocoa:
-                    count(kSlotCocoa);
-                    break;
-                case ware::kTobacco:
-                    count(kSlotTobacco);
-                    break;
-                case ware::kTobaccoGoods:
-                    count(kSlotTobaccoGoods);
-                    break;
-                case ware::kSugar:
-                    count(kSlotSugar);
-                    break;
-                case ware::kMeat:
-                    count(kSlotCattle);
-                    break;
-                case ware::kOre:
-                case ware::kGold: {
-                    count(w == ware::kOre ? kSlotIronMine : kSlotGoldMine);
-                    const Production* pr =
-                        m_world.production(p.island, static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y));
-                    if (pr != nullptr && t.type->max_idle_cycles != 0 && pr->idle_cycles >= t.type->max_idle_cycles) {
-                        starved_mines.emplace_back(ix, iy);
-                    }
-                    break;
-                }
-                case ware::kIron:
-                    count(kSlotSmelter);
-                    break;
-                case ware::kTools:
-                    count(kSlotToolsmith);
-                    break;
-                case ware::kClothes:
-                    count(kSlotTailor);
-                    break;
-                case ware::kSwords:
-                    count(kSlotSwords);
-                    break;
-                case ware::kMuskets:
-                    count(kSlotMuskets);
-                    break;
-                case ware::kCannons:
-                    count(kSlotCannons);
-                    break;
-                case ware::kJewellery:
-                    count(kSlotGoldsmith);
-                    break;
-                default:
-                    break;
-            }
+            survey_tile(p, *c, *r, x, y, finds);
         }
     }
     r->slots[kSlotKontor].count = static_cast<std::uint16_t>(kontor_level(*c));
     // Cleanup (docs/re/demolish.md): exhausted mines; sheep and small weavers where cotton grows.
-    for (const auto& [x, y] : starved_mines) {
+    for (const auto& [x, y] : finds.starved_mines) {
         demolish_tile(p, x, y);
     }
     if (cotton_island && weberei_ok) {
         std::uint32_t n = 0;
         if (r->slots[kSlotCotton].count >= 2) {
-            for (const auto& [x, y] : sheep) {
+            for (const auto& [x, y] : finds.sheep) {
                 if (n++ < 20) {
                     demolish_tile(p, x, y);
                 }
             }
         }
         if (r->slots[kSlotWeberei].count >= 1) {
-            for (const auto& [x, y] : webstuben) {
+            for (const auto& [x, y] : finds.webstuben) {
                 if (n++ < 20) {
                     demolish_tile(p, x, y);
                 }
@@ -1237,6 +1110,123 @@ void Engine::task_survey(AiPlayer& p) {
         ++p.surveyed;
     }
     r->flags |= city_flag::kSurveyed;
+}
+
+void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t x, std::uint32_t y,
+                         SurveyFinds& finds) {
+    const auto count = [&](std::uint8_t k) {
+        ++r.slots[k].count;
+        p.present[k] = true;
+    };
+    const auto ix = static_cast<std::int32_t>(x);
+    const auto iy = static_cast<std::int32_t>(y);
+    const Tile t = tile(p.island, ix, iy);
+    if (!t.valid() || !t.origin || t.city != p.city || t.prod == prod::kRipe || t.prod == prod::kGrowing) {
+        return;
+    }
+    const std::uint8_t w = t.ware;
+    const std::uint8_t raw = t.raw;
+    switch (t.prod) {
+        case prod::kHouse:
+            count(kSlotHouses);
+            return;
+        case prod::kKapelle:
+            count(kSlotKapelle);
+            return;
+        case prod::kWirt:
+            count(kSlotWirt);
+            return;
+        case prod::kSchule:
+            count(kSlotSchule);
+            return;
+        case prod::kKlinik:
+            count(kSlotKlinik);
+            r.doctor = std::pair{static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y)};
+            return;
+        case prod::kKirche:
+            count(kSlotKirche);
+            return;
+        case prod::kBadehaus:
+            count(kSlotBadehaus);
+            return;
+        case prod::kHochschule:
+            count(kSlotHochschule);
+            return;
+        case prod::kTheater:
+            count(kSlotTheater);
+            return;
+        case prod::kGalgen:
+            count(kSlotGalgen);
+            return;
+        case prod::kBrunnen:
+            count(kSlotBrunnen);
+            return;
+        case prod::kPirateHouse:
+            count(kSlotPirateHouses);
+            return;
+        case prod::kShipyard:
+            r.slots[kSlotShipyard].count = t.type->id == id::kShipyardBig ? 2 : 1;
+            p.present[kSlotShipyard] = true;
+            p.yard_valid = true;
+            p.yard_island = p.island;
+            p.yard_x = static_cast<std::uint16_t>(x);
+            p.yard_y = static_cast<std::uint16_t>(y);
+            return;
+        case prod::kMilitary:
+            if (p.castles.size() < 3) {
+                CastleEntry e;
+                e.x = static_cast<std::uint16_t>(x);
+                e.y = static_cast<std::uint16_t>(y);
+                e.rally_x = c.warehouse_x.value_or(e.x);
+                e.rally_y = c.warehouse_y.value_or(e.y);
+                p.castles.push_back(e);
+                p.castle_island = p.island;
+            }
+            count(kSlotCastle);
+            return;
+        case prod::kMarket:
+            count(kSlotMarket);
+            return;
+        default:
+            break;
+    }
+    if (t.kind == kind::kTower || t.kind == kind::kTowerBeach || t.prod == prod::kTower) {
+        const std::uint32_t idv = t.type->id;
+        if (idv == id::kWoodTower || idv == id::kWoodTower + 1) {
+            count(kSlotWoodTower);
+        } else if (idv == id::kStoneTower || idv == id::kStoneTower + 1) {
+            count(kSlotStoneTower);
+        } else if (idv == id::kPirateTower || idv == id::kPirateTower + 1) {
+            count(kSlotPirateTower);
+        }
+        return;
+    }
+    if (w <= 1 || ((t.prod < prod::kWorkshop || t.prod > prod::kFisher) && t.prod != prod::kQuarry)) {
+        return;
+    }
+    // Producers by ware and raw material.
+    if (w == m_buildings.food_ware()) {
+        count(kSlotFood);
+    }
+    if (w == ware::kAlcohol) {
+        count(kSlotAlcohol);
+    }
+    const std::optional<std::uint8_t> slot = producer_slot(w, raw, t.type->id);
+    if (!slot) {
+        return;
+    }
+    count(*slot);
+    if (*slot == kSlotSheep) {
+        finds.sheep.emplace_back(ix, iy);
+    } else if (*slot == kSlotWebstube) {
+        finds.webstuben.emplace_back(ix, iy);
+    } else if (*slot == kSlotIronMine || *slot == kSlotGoldMine) {
+        const Production* pr =
+            m_world.production(p.island, static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y));
+        if (pr != nullptr && t.type->max_idle_cycles != 0 && pr->idle_cycles >= t.type->max_idle_cycles) {
+            finds.starved_mines.emplace_back(ix, iy);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
