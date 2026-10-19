@@ -119,6 +119,7 @@ void Fleet::pirates_step() {
                                     figure::kPirate, p, static_cast<std::uint8_t>(random.below(8)));
             if (const assets::FigureType* t = m_figures->get(figure::kPirate)) {
                 pirate.cargo.resize(t->ship.cargo_slots);
+                pirate.health = t->ship.max_health;  // a loaded game would fill 0 to full (Fleet), the running one not
             }
             m_world->add_ship(std::move(pirate));
             m_events.push_back(ShipEvent{ShipEvent::Kind::PirateAppeared, m_world->ships().back().id, p});
