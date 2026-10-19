@@ -13,6 +13,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include "ai_state.hpp"
@@ -35,6 +36,44 @@ namespace o1602::sim::ai {
 
 // The ware, Kind and production numbers and the building Ids the AI refers to are in
 // o1602/sim/game_data.hpp.
+
+/// What the survey of a city (task 8) found to clear away: exhausted mines, and sheep farms and
+/// small weavers for when cotton grows on the island.
+struct SurveyFinds {
+    std::vector<std::pair<std::int32_t, std::int32_t>> starved_mines;
+    std::vector<std::pair<std::int32_t, std::int32_t>> sheep;
+    std::vector<std::pair<std::int32_t, std::int32_t>> webstuben;
+};
+
+/// One entry of the build order of a city's stage (run_stage): something the city may need, tried
+/// in the order of the stage's table.
+struct StageNeed {
+    enum class Kind : std::uint8_t {
+        Building,      ///< need(slot, n)
+        Market,        ///< need_market(n)
+        Houses,        ///< need_houses(n)
+        Public,        ///< need_public(slot, n, flag)
+        Kontor,        ///< need_kontor(n): the Kontor's level
+        Castle,        ///< need_castle()
+        Monument,      ///< need_denkmal()
+        Shipyard,      ///< need_shipyard()
+        Processing,    ///< processing()
+        IronTools,     ///< iron_tools()
+        Weapons,       ///< weapons()
+        Luxury,        ///< luxury(n, flag)
+        ColonyLuxury,  ///< colony_luxury(): one luxury field per n tiles of land
+        Tower,         ///< need_tower(1, n)
+        RoadsIfMason,  ///< roads_if_mason()
+        Colony,        ///< want_colony(n): n is the mode
+    };
+    /// A condition on the gold the player had when the stage ran.
+    enum class When : std::uint8_t { Never, Always, Gold4000, Gold5000, Gold8000 };
+    Kind kind = Kind::Building;
+    std::uint8_t slot = 0;
+    std::uint32_t n = 0;
+    When flag = When::Never;   ///< Public: `cov`; Luxury: `exclusive`
+    When when = When::Always;  ///< the entry is tried only then
+};
 
 /// Game ms between two steps of a computer player (the original's 50 ms main timer).
 inline constexpr std::int32_t kStepMs = 50;
@@ -202,6 +241,11 @@ private:
     void set_stage(AiPlayer& p, CityPlan& r, std::uint8_t s);
     void nothing_to_do(AiPlayer& p);
     void run_stage(AiPlayer& p, City& c, CityPlan& r);
+    bool first_need(AiPlayer& p, const City& c, const CityPlan& r, std::int32_t money,
+                    std::span<const StageNeed> needs);
+    void unload_ship(AiPlayer& p, City& c);
+    bool colony_luxury(AiPlayer& p, const City& c, const CityPlan& r, std::uint32_t tiles_per_field);
+    bool farm_animals(AiPlayer& p, const CityPlan& r);
     bool need(AiPlayer& p, std::uint8_t which, std::uint32_t n, bool cov = false);
     bool need_houses(AiPlayer& p, std::uint32_t n);
     bool need_market(AiPlayer& p, std::uint32_t n);
@@ -311,6 +355,9 @@ private:
     void start_attack(AiPlayer& p, const City& t);
     void raid_outpost(AiPlayer& p, const City& t);
     void target_scan(AiPlayer& p);
+    [[nodiscard]] std::vector<PlayerId> island_enemies(const AiPlayer& a, std::uint16_t island) const;
+    void peacetime_orders(AiPlayer& a, std::uint16_t island);
+    bool attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<PlayerId>& enemies);
     void island_controller();
     void diplomacy(AiPlayer& p);
     void pirate_step(AiPlayer& p);
@@ -341,6 +388,7 @@ private:
     void task_roads(AiPlayer& p);
     void task_layout(AiPlayer& p);
     void task_survey(AiPlayer& p);
+    void survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t x, std::uint32_t y, SurveyFinds& finds);
     void sweep(AiPlayer& p);
     void kontor_restore(AiPlayer& p);
     std::size_t build(AiPlayer& p, std::vector<BuildItem> items, bool orient);

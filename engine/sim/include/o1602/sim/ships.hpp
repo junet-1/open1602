@@ -282,6 +282,11 @@ private:
     struct Decision;
     void advance(Ship& ship, std::uint32_t budget_us);
     void decide(Ship& ship);
+    /// Arrival at the target (unloading, trading, the stop of a route); how long the ship stays.
+    std::optional<std::uint32_t> arrive_at_target(Ship& ship);
+    /// The next target of a ship without an order: its route, the trader's or the pirates' choice.
+    void choose_next_target(Ship& ship);
+    [[nodiscard]] bool ship_ahead(const Ship& ship) const;
     void start_wait(Ship& ship, std::uint32_t ms);
     bool start_next_run(Ship& ship);
     bool plan(Ship& ship, std::int32_t radius);
