@@ -357,7 +357,14 @@ TEST_CASE("save fuzz: random damage to a packed file never gets past the checks"
             file[kHeader + random.below(static_cast<std::uint32_t>(file.size() - kHeader))] ^=
                 static_cast<std::uint8_t>(1 + random.below(255));
         }
-        CHECK(!sim::read_game(file, game.buildings, nullptr, &game.figures).ok());
+        // A change the unpacking does not see (the deflate stream's padding bits, a zlib header
+        // level that keeps its check) is no damage: then the very same game must come out.
+        auto loaded = sim::read_game(file, game.buildings, nullptr, &game.figures);
+        if (loaded.ok()) {
+            auto again = sim::write_game(*loaded, game.buildings);
+            REQUIRE(again.ok());
+            CHECK(*again == *packed);
+        }
     }
 }
 
