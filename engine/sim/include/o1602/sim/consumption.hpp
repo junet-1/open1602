@@ -26,6 +26,7 @@ struct CityEvent {
         Shortage,  ///< the supply of `ware` fell twice in a row after it was complete ("Es fehlt an ...")
         Hunger,    ///< the food supply fell twice in a row and is at most 76 ("Euer Volk hungert")
         Unlocked,  ///< the city reached build level `infra` for its owner ("Das Volk wünscht ...")
+        Monument,  ///< the owner may build one more monument ("Das treue Volk will Euch ein Denkmal setzen!")
     };
     Kind kind = Kind::Shortage;
     std::uint16_t island = 0;  ///< index into World::islands()
@@ -39,6 +40,11 @@ struct CityEvent {
 /// at least Minwohn inhabitants of class BGruppe or higher. Levels stay unlocked.
 void unlock_levels(World& world, const assets::BuildingTable& buildings, const City& city,
                    std::vector<CityEvent>* events);
+
+/// The people want a monument (op 0x55 from the city tick 0x0047FD18): a growing city with at
+/// least 200 inhabitants of class 2 or higher allows its owner one more monument every 30
+/// minutes of game time it keeps growing.
+void allow_monument(World& world, City& city, std::vector<CityEvent>* events);
 
 /// The tax curve (0x0055E780): how much supply a class asks for at a tax rate (128 = normal ->
 /// 128; lower taxes ask for less, higher ones for more).

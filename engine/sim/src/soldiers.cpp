@@ -476,10 +476,20 @@ void Military::kill(Soldier& s, PlayerId killer, bool disband) {
     if (!disband) {
         s.anim = kAnimDie;
     }
-    // The last human or computer player who killed a unit (player + 0x81; the natives' curse).
-    const Player* k = m_world->player(killer);
-    if (k != nullptr && (k->role == PlayerRole::Human || k->role == PlayerRole::Computer)) {
+    // The last human or computer player who killed a unit (player + 0x81; the natives' curse),
+    // and the score's counters.
+    Player* k = m_world->player(killer);
+    const bool counts = k != nullptr && (k->role == PlayerRole::Human || k->role == PlayerRole::Computer);
+    if (counts) {
         m_world->diplomacy().set_blamed(s.owner, killer);
+    }
+    if (!disband) {
+        if (Player* victim = m_world->player(s.owner)) {
+            add_count(victim->soldiers_lost, 1);
+        }
+        if (counts) {
+            add_count(k->soldiers_killed, 1);
+        }
     }
     if (!disband) {
         m_events.push_back(MilitaryEvent{

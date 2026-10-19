@@ -97,3 +97,7 @@ keys.action.pixel_scale_up = Größere Pixel
 keys.action.pixel_scale_down = Kleinere Pixel
 keys.action.show_owners = Besitz zeigen
 keys.action.quit = Beenden
+
+# End screen
+end.player = Spieler {1}
+end.continue_hint = Esc: Weiterspielen

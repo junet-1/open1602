@@ -19,6 +19,7 @@
 
 #include "o1602/assets/gad.hpp"
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/high_scores.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/ui/panel.hpp"
@@ -74,7 +75,16 @@ public:
     /// Savegame names for the list "Spiel laden" and the player's name for the next game.
     void set_slots(const SaveSlots& slots) { m_slots = slots; }
     void set_name(std::string name) { m_name = std::move(name); }
+    /// Open1602's own high score lists (<folder>/<scenario>.hss); the mission screen shows them
+    /// instead of the original's once a game has added a line.
+    void set_score_folder(std::filesystem::path folder) { m_score_folder = std::move(folder); }
+    /// Open1602's own record of opened missions (progress.cfg; the original keeps it in Game.dat):
+    /// the list leaves out numbered missions above it, the mission screen disables campaign parts.
+    void set_progress_file(std::filesystem::path file) { m_progress_file = std::move(file); }
     [[nodiscard]] const std::string& name() const noexcept { return m_name; }
+    /// "Neues Spiel" on the end screen: the mission screen of the scenario called `name`
+    /// (Windows-1252), else the main menu. True if the scenario was found.
+    bool open_mission(std::string_view name);
 
     /// The screen's gadgets, relative to the full screen region.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts);
@@ -98,6 +108,9 @@ private:
     void refresh_host();
     void refresh_mission();
     void refresh_colour();
+    void load_scenarios();
+    /// Parts of a campaign that may be played (all for other scenarios).
+    [[nodiscard]] std::size_t campaign_parts_open(const MenuScenario& s) const;
     void select_scenario(std::size_t index);
     /// Briefing and high scores of the chosen scenario and part.
     void load_details();
@@ -120,6 +133,9 @@ private:
     std::size_t m_scores_first = 0;
     std::int32_t m_briefing_line = 0;
     SaveSlots m_slots;
+    std::filesystem::path m_score_folder;
+    std::filesystem::path m_progress_file;
+    assets::CampaignProgress m_progress;
     std::string m_name;
     bool m_name_fresh = false;  ///< the name was put in, not typed: the first key replaces it
     bool m_typing = false;

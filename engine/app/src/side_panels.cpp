@@ -297,7 +297,6 @@ constexpr std::int32_t kInfoTitle = 57002;
 constexpr std::int32_t kInfoArmsShadow = 57003;
 constexpr std::int32_t kInfoArms = 57004;
 constexpr std::int32_t kInfoBalanceIcon = 57025;
-constexpr std::int32_t kInfoPointsLabel = 57026;
 constexpr std::int32_t kInfoPoints = 57027;
 constexpr std::int32_t kInfoRating = 57028;
 constexpr std::array<std::int32_t, 3> kInfoLists = {57031, 57032, 57033};  // diplomacy, ships, cities
@@ -330,11 +329,11 @@ InfoPanel::InfoPanel(assets::GadgetLayout info, const assets::TextTable* texts) 
     if (const assets::Gadget* g = info.find(kInfoBalanceIcon)) {
         m_balance_icon = g->gfx;
     }
-    // Points (0x00474F90) and the lists behind the buttons come with the windows of the
-    // interface; until then they are not offered.
-    m_panel.set_visible(kInfoPointsLabel, false);
-    m_panel.set_visible(kInfoPoints, false);
-    m_panel.set_disabled(kInfoRating, true);
+}
+
+void InfoPanel::set_points(std::int64_t points, bool rating) {
+    m_panel.set_text(kInfoPoints, std::to_string(points));
+    m_panel.set_disabled(kInfoRating, !rating);
 }
 
 std::optional<Selection::Kind> InfoPanel::mouse(std::int32_t x, std::int32_t y, bool down) {
@@ -346,6 +345,8 @@ std::optional<Selection::Kind> InfoPanel::mouse(std::int32_t x, std::int32_t y, 
             list = Selection::Kind::ShipList;
         } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kInfoLists[2]) {
             list = Selection::Kind::CityList;
+        } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kInfoRating) {
+            m_rating_clicked = true;
         }
     }
     return list;

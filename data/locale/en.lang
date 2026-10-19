@@ -116,3 +116,8 @@ keys.action.pixel_scale_up = Larger pixels
 keys.action.pixel_scale_down = Smaller pixels
 keys.action.show_owners = Show ownership
 keys.action.quit = Quit
+
+# End screen (ENDE.GAD shows the original's own texts; these are Open1602's additions)
+# {1}: the number of the player's slot, for a player without a name
+end.player = Player {1}
+end.continue_hint = Esc: keep playing

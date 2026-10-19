@@ -32,6 +32,7 @@ add_executable(o1602_tests
     unit/test_units.cpp
     unit/test_save_game.cpp
     unit/test_missions.cpp
+    unit/test_scores.cpp
     unit/test_audio.cpp
     unit/test_ui.cpp
     unit/test_localization.cpp

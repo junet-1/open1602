@@ -15,10 +15,12 @@
 #include <utility>
 
 #include "o1602/assets/chunk_file.hpp"
+#include "o1602/assets/high_scores.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
+#include "o1602/core/text.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/growth.hpp"
@@ -32,6 +34,11 @@ namespace {
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
 /// Real time a frame may spend on ticks; the rest of the frame draws.
 constexpr int kTickBudgetMs = 25;
+/// The end screen comes this long after the message of a decided game when it has no video,
+/// after an own defeat without one the shorter time (docs/re/missions.md "Sieg"; with a video it
+/// comes when the video ends).
+constexpr std::uint64_t kEndScreenDelayMs = 5000;
+constexpr std::uint64_t kDefeatDelayMs = 500;
 
 /// What the help bar of the original shows over grass and trees of an explored island
 /// (0x0040A3D0): the three crops of the climate (north sugar cane, grapes, tobacco; south spices,
@@ -148,6 +155,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (auto texts = assets::TextTable::load(game)) {
         viewer->m_city_names = texts->section("STAEDTE");
         viewer->m_ship_names = texts->section("SHIPS");
+        viewer->m_campaign_labels = texts->section("KAMPAGNE");
         viewer->m_simulation.set_city_names(viewer->m_city_names);
         viewer->m_simulation.set_ship_names(viewer->m_ship_names);
     }
@@ -442,6 +450,7 @@ int MapViewer::run() {
                     apply_options();
                 }
                 update(delta);
+                check_end_screen(now);
                 render();
             }
         }
@@ -1087,10 +1096,13 @@ void MapViewer::render() {
         if (m_hud->mode() == Hud::kModeInfo && (now >= m_figures_ms + 1000 || now < m_figures_ms)) {
             // The player status: sums over all cities and units, once a second is enough.
             m_player_figures = sim::player_figures(m_world, m_buildings, m_figures, m_local_player);
+            m_player_points = sim::player_score(m_world, m_buildings, m_local_player);
             m_figures_ms = now;
         }
         const sim::Player* local = m_world.player(m_local_player);
         m_hud->set_resources(resources());
+        // "Bewertung" would stop the game on one computer only: alone only (Screen_PlayerStatus).
+        m_hud->set_points(m_player_points, humans() <= 1);
         m_hud->draw(m_world, m_buildings, m_banners, corners, now, m_player_figures,
                     static_cast<std::uint8_t>(local != nullptr ? std::min<int>(local->banner, 255) : 0));
         if (video_in_minimap()) {
@@ -1128,6 +1140,8 @@ void MapViewer::apply_production_events() {
         if (e.kind == sim::CityEvent::Kind::Hunger) {
             std::fprintf(stderr, "%s: the people are starving\n", name.c_str());
             announce(0x33);
+        } else if (e.kind == sim::CityEvent::Kind::Monument) {
+            announce(0x31);
         } else if (e.kind == sim::CityEvent::Kind::Unlocked) {
             std::fprintf(stderr, "%s: build level %u reached\n", name.c_str(), e.infra);
         } else {
@@ -1556,6 +1570,10 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             m_camera.center_on(render::TilePos{static_cast<std::uint32_t>(std::max(0.0, action.tile_x)),
                                                static_cast<std::uint32_t>(std::max(0.0, action.tile_y))});
             break;
+        case Hud::Action::Kind::Rating:
+            // "Bewertung" (INFO.GAD 57028): the score sheets while the game stands still.
+            show_end_screen(local_outcome(), true);
+            break;
         case Hud::Action::Kind::SelectShip:
             // The ship list (0x00434020): look at the ship and select it.
             m_camera.center_on(render::TilePos{static_cast<std::uint32_t>(std::max(0.0, action.tile_x)),
@@ -1594,12 +1612,13 @@ void MapViewer::apply_hud(const Hud::Action& action) {
                     break;
                 }
                 // "Ende": the game is kept as lastgame (0x0043BCF0), then back to the main menu
-                // (the score sheet comes later), or the end without one.
+                // (no score sheet, no high score), or the end without one.
                 const auto status = save_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
                 if (!status) {
                     std::fprintf(stderr, "lastgame: %s\n", status.error().message.c_str());
                 }
                 if (m_hud && m_hud->menu()) {
+                    m_end_pending.reset();
                     m_hud->open_menu();
                 } else {
                     m_running = false;
@@ -1641,6 +1660,9 @@ void MapViewer::apply_game_events() {
         switch (e.kind) {
             case sim::GameEvent::Kind::MissionAccomplished:
                 std::fprintf(stderr, "%s accomplished the mission!\n", who.c_str());
+                if (e.player == m_local_player && !m_end_pending && !m_end_shown) {
+                    m_end_pending = EndPending{sim::GameOutcome::Won, kEndScreenDelayMs, platform::ticks_ms(), false};
+                }
                 if (e.player == m_local_player) {
                     // 0x6B is the multiplayer message with the winner's colour (0x6B..0x6E); its
                     // video speaks to the winner on track 1.
@@ -1653,8 +1675,14 @@ void MapViewer::apply_game_events() {
                 break;
             case sim::GameEvent::Kind::GameOver:
                 std::fprintf(stderr, "the game is over\n");
+                update_high_scores(sim::kNoPlayer);  // op 0x3E, after the winners are known
+                record_progress();
                 if (e.player != m_local_player && m_world.player(m_local_player) != nullptr &&
                     !m_world.player(m_local_player)->won) {
+                    if (!m_end_pending && !m_end_shown) {
+                        m_end_pending =
+                            EndPending{sim::GameOutcome::Lost, kEndScreenDelayMs, platform::ticks_ms(), false};
+                    }
                     const sim::Mission* m = p != nullptr ? m_world.mission_of(*p) : nullptr;
                     if (m != nullptr && m->success_message == audio::kMessageMultiplayerWin) {
                         // A race: "the red player fulfilled his task", the others' voice (track 2).
@@ -1668,7 +1696,11 @@ void MapViewer::apply_game_events() {
                 break;
             case sim::GameEvent::Kind::PlayerDefeated:
                 std::fprintf(stderr, "%s is defeated\n", who.c_str());
+                update_high_scores(e.player);  // op 3 sub 9, the defeated one still counted
                 if (e.player == m_local_player) {
+                    if (!m_end_pending && !m_end_shown) {
+                        m_end_pending = EndPending{sim::GameOutcome::Lost, kDefeatDelayMs, platform::ticks_ms(), false};
+                    }
                     announce(0x53);
                     // The defeat videos come directly, whatever the video switches say (0x004766A0):
                     // bankruptcy 998, otherwise 1010 or 2020.
@@ -1891,6 +1923,8 @@ void MapViewer::load_options() {
     model.slot_humans = m_slots.humans;
     if (MainMenu* menu = m_hud->menu()) {
         menu->set_slots(m_slots);
+        menu->set_score_folder(data_folder() / "scores");
+        menu->set_progress_file(data_folder() / "progress.cfg");
         menu->set_name(m_app_settings.player_name);
     }
 }
@@ -2122,6 +2156,8 @@ void MapViewer::replace_world(sim::World world) noexcept {
     stop_video();
     m_videos.clear();
     m_pause_video = false;
+    m_end_pending.reset();
+    m_end_shown = false;
     m_units.clear();
     m_pending_orders.clear();
     m_pick = Pick::None;
@@ -2191,6 +2227,17 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
 }
 
 void MapViewer::apply_menu() {
+    if (m_hud && m_hud->end_screen_active()) {
+        if (const auto choice = m_hud->take_end_choice()) {
+            m_hud->close_end_screen(*choice);
+            // "Neues Spiel": the mission screen of the same scenario alone, the main menu with
+            // several players.
+            if (*choice == EndScreen::Choice::NewGame && humans() == 1 && m_hud->menu() != nullptr) {
+                m_hud->menu()->open_mission(sim::game_identity(m_world).name);
+            }
+        }
+        return;
+    }
     MainMenu* menu = m_hud ? m_hud->menu() : nullptr;
     if (menu == nullptr) {
         return;
@@ -2325,6 +2372,130 @@ core::Status MapViewer::save_screenshot(const std::filesystem::path& path) {
         std::filesystem::create_directories(path.parent_path(), ec);
     }
     return core::write_png_rgba(path, width, height, pixels);
+}
+
+sim::GameOutcome MapViewer::local_outcome() const {
+    const sim::Player* p = m_world.player(m_local_player);
+    if (p != nullptr && p->won) {
+        return sim::GameOutcome::Won;
+    }
+    if ((p != nullptr && p->status == sim::PlayerStatus::Defeated) || m_world.game_end()) {
+        return sim::GameOutcome::Lost;
+    }
+    return sim::GameOutcome::Left;
+}
+
+std::size_t MapViewer::humans() const {
+    std::size_t n = 0;
+    for (const sim::Player& p : m_world.players()) {
+        n += p.role == sim::PlayerRole::Human && p.status != sim::PlayerStatus::Absent ? 1U : 0U;
+    }
+    return n;
+}
+
+void MapViewer::check_end_screen(std::uint64_t now) {
+    if (!m_end_pending || !m_hud) {
+        return;
+    }
+    EndPending& e = *m_end_pending;
+    const std::uint64_t step = now >= e.last_ms ? now - e.last_ms : 0;
+    e.last_ms = now;
+    // WinMain runs no game frame while a video plays, the next video of a chain included.
+    if ((m_video && m_video->playing()) || !m_videos.empty()) {
+        e.after_video = true;
+        return;
+    }
+    if (!m_simulation.paused()) {
+        e.left_ms -= std::min(e.left_ms, step);
+    }
+    if (!e.after_video && e.left_ms > 0) {
+        return;
+    }
+    const sim::GameOutcome outcome = e.outcome;
+    m_end_pending.reset();
+    // Never in the tutorial (mission 0): it goes on.
+    if (sim::game_identity(m_world).mission_number == 0) {
+        return;
+    }
+    show_end_screen(outcome, false);
+}
+
+void MapViewer::show_end_screen(sim::GameOutcome outcome, bool view_only) {
+    if (!m_hud) {
+        return;
+    }
+    if (!view_only) {
+        m_end_shown = true;
+    }
+    m_hud->open_end_screen(sim::end_screen_summary(m_world, m_buildings, m_local_player, outcome), view_only);
+}
+
+void MapViewer::update_high_scores(sim::PlayerId defeated) {
+    const sim::GameIdentity game = sim::game_identity(m_world);
+    const std::filesystem::path name = high_score_file(game, m_campaign_labels, humans() > 1);
+    if (name.empty()) {
+        return;
+    }
+    // Open1602's own list in the data folder; the first line starts from the original's (only read).
+    const std::filesystem::path own = data_folder() / "scores" / name;
+    auto bytes = core::read_file(own);
+    if (!bytes) {
+        const std::u8string relative = (std::filesystem::path(u8"Szenes") / name).generic_u8string();
+        if (const auto original = m_game.resolve(std::string(relative.begin(), relative.end()))) {
+            bytes = core::read_file(*original);
+        }
+    }
+    std::vector<assets::HighScore> scores;
+    if (bytes) {
+        scores =
+            assets::parse_high_scores(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
+    }
+    bool changed = false;
+    for (std::size_t i = 0; i < m_world.players().size(); ++i) {
+        const sim::Player& p = m_world.players()[i];
+        const auto id = static_cast<sim::PlayerId>(i);
+        if (p.role != sim::PlayerRole::Human || (p.status != sim::PlayerStatus::Playing && id != defeated)) {
+            continue;  // computers never enter the list
+        }
+        assets::HighScore entry;
+        entry.name = p.name;
+        entry.points = sim::player_score(m_world, m_buildings, id);
+        entry.stars = game.ranking == sim::GameIdentity::kNone ? 0 : game.ranking;
+        entry.game_id = game.game_id;
+        changed = assets::insert_high_score(scores, std::move(entry)).has_value() || changed;
+    }
+    if (!changed) {
+        return;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(own.parent_path(), ec);
+    const std::string text = assets::write_high_scores(scores);
+    const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
+    if (auto status = core::write_file_atomic(own, std::span<const std::uint8_t>(data, text.size())); !status) {
+        std::fprintf(stderr, "high scores: %s\n", status.error().message.c_str());
+    }
+}
+
+void MapViewer::record_progress() {
+    const sim::Player* local = m_world.player(m_local_player);
+    if (local == nullptr || !local->won || humans() != 1) {
+        return;
+    }
+    // Open1602 keeps it in its own file instead of Game.dat.
+    const std::filesystem::path file = data_folder() / "progress.cfg";
+    assets::CampaignProgress progress;
+    if (auto bytes = core::read_file(file)) {
+        progress =
+            assets::parse_progress(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
+    }
+    const sim::GameIdentity game = sim::game_identity(m_world);
+    if (progress.record_win(game.campaign, game.ranking, game.mission_number)) {
+        const std::string text = assets::write_progress(progress);
+        const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
+        if (auto status = core::write_file_atomic(file, std::span<const std::uint8_t>(data, text.size())); !status) {
+            std::fprintf(stderr, "progress: %s\n", status.error().message.c_str());
+        }
+    }
 }
 
 }  // namespace o1602::app

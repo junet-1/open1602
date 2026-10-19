@@ -62,6 +62,10 @@ struct PlayerRecord {
     std::uint16_t monuments_built = 0;    ///< +0x3A (+0x8C)
     std::uint16_t arches_allowed = 0;     ///< +0x10 (+0x8E): Triumphbogen allowances
     std::uint16_t arches_built = 0;       ///< +0x12 (+0x90)
+    std::uint16_t soldiers_killed = 0;    ///< +0x14: for the score
+    std::uint16_t soldiers_lost = 0;      ///< +0x16
+    std::uint16_t ships_lost = 0;         ///< +0x18
+    std::uint16_t ships_sunk = 0;         ///< +0x1A
     /// Diplomacy towards the 7 slots (saver 0x00478160, docs/re/diplomacy.md): treaty states 0..3,
     /// the time of the last war declaration (1/10 s, only the own entry is used), the decaying
     /// tribute, trade and damage counters, and the first 7 of 32 remembered events.

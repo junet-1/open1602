@@ -37,6 +37,7 @@
 #include "o1602/sim/new_game.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/savegame_writer.hpp"
+#include "o1602/sim/score.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 #include "o1602/ui/key_bindings.hpp"
@@ -189,6 +190,21 @@ private:
     void warn_if_state_damaged() const;
     /// What the main menu asked for this frame.
     void apply_menu();
+    /// The end screen follows a decided game when the videos of its messages are over and the
+    /// delay ran out while the game was not paused (docs/re/missions.md "Sieg"). Called every
+    /// frame the game runs.
+    void check_end_screen(std::uint64_t now);
+    /// The score sheets: the final screen of a decided game, or the "Bewertung" of a running one.
+    void show_end_screen(sim::GameOutcome outcome, bool view_only);
+    /// HighScore_UpdateAllHumans (0x00475990): every human still playing, and `defeated` (who is
+    /// out at this moment), enters the scenario's high score list.
+    void update_high_scores(sim::PlayerId defeated);
+    /// A won single player game opens the next mission (GameDat_Write 0x00487FB0).
+    void record_progress();
+    /// Humans that take part: more than one is a multiplayer game.
+    [[nodiscard]] std::size_t humans() const;
+    /// How the game stands for the local player now.
+    [[nodiscard]] sim::GameOutcome local_outcome() const;
     /// A new endless game of `level` (from the menu): name and banner of the human.
     core::Status start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name);
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
@@ -298,6 +314,7 @@ private:
     std::vector<render::BuildingFigure> m_building_figures;
     std::vector<std::string> m_city_names;  ///< Text.cod [STAEDTE], [SHIPS]: for every game loaded
     std::vector<std::string> m_ship_names;
+    std::vector<std::string> m_campaign_labels;     ///< [KAMPAGNE]: the high score lists of campaign parts
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters
@@ -381,12 +398,22 @@ private:
     [[nodiscard]] bool video_windowed() const { return video_in_minimap() || video_in_frame(); }
     std::optional<sim::BuildBill> m_pending_bill;  ///< costs of the order the build tool shows
     sim::PlayerFigures m_player_figures;           ///< the info panel's figures, refreshed once a second
+    std::int64_t m_player_points = 0;              ///< the info panel's "Punkte", refreshed with them
     std::uint64_t m_figures_ms = 0;
     std::unique_ptr<VideoPlayer> m_video;  ///< after the window; null without videos
     std::deque<VideoRequest> m_videos;     ///< waiting
     VideoRequest m_video_now;              ///< playing
     bool m_pause_video = false;            ///< the original's pause is on
-    std::uint32_t m_defeat_variant = 0;    ///< own counter for 1010/2020 (no game random numbers)
+    struct EndPending {
+        sim::GameOutcome outcome = sim::GameOutcome::Lost;
+        /// Real time left while the game runs: the original waits game speed * 5 s of game time.
+        std::uint64_t left_ms = 0;
+        std::uint64_t last_ms = 0;  ///< real time of the last check
+        bool after_video = false;   ///< a video played since: the screen follows when it ends
+    };
+    std::optional<EndPending> m_end_pending;
+    bool m_end_shown = false;            ///< once per game (a won game may go on)
+    std::uint32_t m_defeat_variant = 0;  ///< own counter for 1010/2020 (no game random numbers)
 };
 
 }  // namespace o1602::app

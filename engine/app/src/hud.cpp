@@ -100,7 +100,11 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
       m_palette(palette),
       m_renderer(std::make_unique<render::SdlUiRenderer>(renderer, game, palette, ui::ArtSize::Large)),
       m_ctrl(std::move(ctrl), 1.0),
-      m_leist(std::move(leist), 1.0) {
+      m_leist(std::move(leist), 1.0),
+      m_end([&]() -> std::optional<assets::GadgetLayout> {
+          auto ende = assets::load_gad(game, "ENDE.GAD");
+          return ende ? std::optional<assets::GadgetLayout>(std::move(ende).value()) : std::nullopt;
+      }()) {
     if (texts != nullptr) {
         m_texts = *texts;
         m_leiste = texts->section("LEISTE");
@@ -253,6 +257,12 @@ std::optional<Hud::Action> Hud::toggle_window(Selection::Kind kind) {
 }
 
 bool Hud::back() {
+    if (m_end_active) {
+        if (const auto choice = m_end.back()) {
+            m_end_choice = choice;
+        }
+        return true;  // no keys on the final screen of a lost game
+    }
     if (m_menu_active) {
         return m_menu && m_menu->back();
     }
@@ -332,6 +342,7 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
     if (m_menu) {
         m_menu->set_scale(scale);
     }
+    m_end.set_scale(scale);
     if (m_selection_panels) {
         m_selection_panels->set_scale(scale);
     }
@@ -439,7 +450,12 @@ ui::Rect Hud::menu_video_rect() const {
 
 void Hud::draw_menu() {
     m_renderer->fill(m_regions.full, 0);
-    if (m_menu) {
+    if (m_end_active) {
+        std::int32_t ox = 0;
+        std::int32_t oy = 0;
+        menu_origin(ox, oy);
+        m_end.draw(*m_renderer, ox, oy);
+    } else if (m_menu) {
         std::int32_t ox = 0;
         std::int32_t oy = 0;
         menu_origin(ox, oy);
@@ -447,6 +463,23 @@ void Hud::draw_menu() {
     }
     draw_question();
     draw_help();
+}
+
+void Hud::open_end_screen(sim::EndScreenSummary summary, bool view_only) {
+    m_end.open(std::move(summary), view_only);
+    m_end_choice.reset();
+    m_end_active = true;
+    m_menu_active = true;
+}
+
+void Hud::close_end_screen(EndScreen::Choice choice) {
+    m_end_active = false;
+    m_end_choice.reset();
+    if (choice != EndScreen::Choice::Resume && m_menu) {
+        open_menu();
+    } else {
+        m_menu_active = false;
+    }
 }
 
 void Hud::draw_mission(const sim::World& world) {
@@ -612,6 +645,15 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         }
         return std::nullopt;
     }
+    if (m_end_active) {
+        std::int32_t ox = 0;
+        std::int32_t oy = 0;
+        menu_origin(ox, oy);
+        if (const auto choice = m_end.mouse(x - ox, y - oy, down)) {
+            m_end_choice = choice;
+        }
+        return std::nullopt;
+    }
     if (m_menu_active && m_menu) {
         std::int32_t ox = 0;
         std::int32_t oy = 0;
@@ -675,6 +717,8 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         } else if (m_info && m_mode == kModeInfo) {
             if (const auto list = m_info->mouse(x - panel.x, y - panel.y, down)) {
                 action = toggle_window(*list);
+            } else if (m_info->take_rating()) {
+                action = Action{Action::Kind::Rating};
             }
         }
     } else if (m_mode == kModeOptions && m_options) {

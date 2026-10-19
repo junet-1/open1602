@@ -416,6 +416,10 @@ TEST_CASE("missions: missions and the players' standing survive the own savegame
     g.world.player(0)->opponents_defeated = 3;
     g.world.player(0)->sales = 12345;
     g.world.player(0)->bankrupt_checks = 7;
+    g.world.player(0)->soldiers_killed = 11;
+    g.world.player(0)->soldiers_lost = 12;
+    g.world.player(1)->ships_sunk = 13;
+    g.world.player(1)->ships_lost = 14;
     g.world.set_game_end(sim::World::GameEnd{60'000, 0});
     auto bytes = sim::write_game(g.world, g.buildings);
     REQUIRE(bytes.ok());
@@ -427,5 +431,9 @@ TEST_CASE("missions: missions and the players' standing survive the own savegame
     CHECK(back->players()[0].opponents_defeated == 3);
     CHECK(back->players()[0].sales == 12345);
     CHECK(back->players()[0].bankrupt_checks == 7);
+    CHECK(back->players()[0].soldiers_killed == 11);
+    CHECK(back->players()[0].soldiers_lost == 12);
+    CHECK(back->players()[1].ships_sunk == 13);
+    CHECK(back->players()[1].ships_lost == 14);
     CHECK(back->game_end() == g.world.game_end());
 }
