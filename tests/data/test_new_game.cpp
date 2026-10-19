@@ -18,6 +18,7 @@
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/sim/new_game.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/savegame_extension.hpp"
 #include "o1602/sim/savegame_writer.hpp"
 #include "o1602/sim/simulation.hpp"
@@ -491,8 +492,68 @@ TEST_CASE("data: an own world larger than the original's, with two players, play
     auto rewritten = sim::write_savegame(*again, *buildings);
     REQUIRE(rewritten.ok());
     CHECK(*rewritten == *bytes);
-    // More than four players come with the multiplayer.
-    settings.players = 5;
+}
+
+TEST_CASE("data: an own world with six players, all ships at one place, nobody out after ten minutes") {
+    const auto game = game_or_skip();
+    auto buildings = assets::BuildingTable::load(game);
+    auto figures = assets::FigureTable::load(game);
+    auto text = assets::TextTable::load(game);
+    REQUIRE(buildings.ok());
+    REQUIRE(figures.ok());
+    REQUIRE(text.ok());
+    sim::NewGameOptions options;
+    options.difficulty = 1;
+    options.world.seed = 1602;
+    sim::WorldSettings settings;
+    settings.width = 612;  // as the multiplayer menu sizes it for six
+    settings.height = 429;
+    settings.players = 6;
+    settings.starts = sim::WorldSettings::Starts::Together;
     options.custom = settings;
-    CHECK(!sim::start_new_game(game, *buildings, *text, options).ok());
+    std::vector<std::string> warnings;
+    auto world = sim::start_new_game(game, *buildings, *text, options, &warnings);
+    REQUIRE(world.ok());
+    for (const auto& w : warnings) {
+        std::fprintf(stderr, "  warning: %s\n", w.c_str());
+    }
+    REQUIRE(world->players().size() == 9);
+    // A ship for each of the six players, in slots 0-3 and 7-8, all at the same place; the factions
+    // keep theirs where the level has them.
+    std::set<sim::PlayerId> owners;
+    std::set<std::pair<std::uint32_t, std::uint32_t>> places;
+    for (const sim::Ship& ship : world->ships()) {
+        if (ship.owner < 4 || ship.owner >= 7) {
+            owners.insert(ship.owner);
+            places.emplace(ship.x, ship.y);
+        }
+    }
+    CHECK((owners == std::set<sim::PlayerId>{0, 1, 2, 3, 7, 8}));
+    CHECK(places.size() == 1);
+    CHECK(world->players()[7].role == sim::PlayerRole::Computer);
+    CHECK(world->players()[7].banner == sim::kFirstExtraBanner);
+    CHECK(world->players()[8].banner == sim::kFirstExtraBanner + 1);
+
+    // As the multiplayer host makes it: the human in slot 0, the computer plays the rest.
+    world->player(0)->role = sim::PlayerRole::Human;
+    {
+        sim::Simulation s(*world, *buildings, *figures);
+        s.set_speed(8);
+        for (int i = 0; i < 750; ++i) {
+            s.advance(100);
+        }
+        for (const sim::PlayerId p : owners) {
+            if (!world->players()[p].active()) {
+                std::fprintf(stderr, "  player %d is out of the game\n", int{p});
+            }
+            CHECK(world->players()[p].active());
+        }
+        // Saved and loaded in Open1602's format: all nine slots come back.
+        auto bytes = sim::write_game(*world, *buildings, &s);
+        REQUIRE(bytes.ok());
+        auto again = sim::read_game(*bytes, *buildings, nullptr, &*figures);
+        REQUIRE(again.ok());
+        CHECK(again->players().size() == 9);
+        CHECK(again->players()[8].banner == sim::kFirstExtraBanner + 1);
+    }
 }
