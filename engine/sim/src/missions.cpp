@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include "o1602/sim/consumption.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/mission.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -324,11 +325,12 @@ std::vector<std::uint32_t> military_upkeep(const World& world, const assets::Fig
             }
         }
     }
-    // Soldiers on board ships (cargo wares 25..44 = figure + 24).
+    // Soldiers on board ships (cargo wares wSOLDAT1..wPIONIER4 = figure + 24).
     for (const Ship& ship : world.ships()) {
         for (const CargoSlot& c : ship.cargo) {
-            if (c.ware >= 25 && c.ware <= 44 && ship.owner < upkeep.size()) {
-                if (const assets::FigureType* type = figures.get(static_cast<std::uint32_t>(c.ware - 24))) {
+            if (is_soldier_ware(c.ware) && ship.owner < upkeep.size()) {
+                if (const assets::FigureType* type =
+                        figures.get(static_cast<std::uint32_t>(c.ware - ware::kSoldierOffset))) {
                     upkeep[ship.owner] += figures.unit_upkeep(type->kind);
                 }
             }

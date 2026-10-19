@@ -1,0 +1,884 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// The islands of a world plan (world_generator.hpp, docs/re/worldgen.md) on a synthetic game
+// directory: island templates of every climate and size class, small enough to write in a moment.
+
+#include <algorithm>
+#include <array>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <random>
+#include <set>
+#include <string>
+#include <tuple>
+
+#include "../test_framework.hpp"
+#include "test_support.hpp"
+
+#include "o1602/assets/building_table.hpp"
+#include "o1602/assets/cod.hpp"
+#include "o1602/assets/island.hpp"
+#include "o1602/assets/scenario.hpp"
+#include "o1602/sim/validate.hpp"
+#include "o1602/sim/world.hpp"
+#include "o1602/sim/world_generator.hpp"
+#include "o1602/sim/world_plan.hpp"
+
+using namespace o1602;
+
+namespace {
+
+// Wares and buildings the plans name (the ids of the original's plans, world_plan.cpp).
+constexpr std::uint8_t kIron = 2;
+constexpr std::uint8_t kGold = 3;
+constexpr std::uint8_t kTreasure = 58;
+constexpr std::uint8_t kFirstCrop = 45;  // fertility bit 0
+constexpr std::uint8_t kTobacco = 46;
+constexpr std::uint8_t kSugar = 48;
+constexpr std::uint8_t kWine = 50;
+constexpr std::uint8_t kCocoa = 51;
+constexpr std::uint32_t kIronMine = 22401;
+constexpr std::uint32_t kGoldMine = 22405;
+constexpr std::uint32_t kGoldsmith = 20533;
+// Plantations of tobacco, spices, sugar, cotton, wine and cocoa (wares 46..51).
+constexpr std::array<std::uint32_t, 6> kCrops = {21336, 21342, 21340, 21332, 21344, 21338};
+constexpr std::uint32_t kBaseFertility = 0x1181;  // grain, grass, trees, fish on every island
+
+// Island tiles (haeuser.cod id - 20000).
+constexpr std::uint16_t kGroundTile = 101;
+constexpr std::uint16_t kBigMountainTile = 1101;
+constexpr std::uint16_t kSmallMountainTile = 1102;
+
+// Template files per climate and size class, as the original draws them.
+constexpr std::array<std::array<std::uint16_t, 5>, 2> kTemplateCount = {{{51, 48, 36, 67, 5}, {49, 45, 48, 63, 6}}};
+constexpr std::array<const char*, 2> kClimateDir = {"Nord", "Sued"};
+constexpr std::array<const char*, 2> kNativeDir = {"NordNat", "SuedNat"};
+constexpr std::array<const char*, 5> kSizeName = {"lit", "mit", "med", "big", "lar"};
+
+/// Ground, forest, a big and a small ore mountain (2 x 2), the mines, the goldsmith and the six
+/// plantations.
+assets::BuildingTable make_buildings() {
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    std::string text =
+        "Objekt: HAUS\n"
+        "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"  // ground
+        "  @Nummer: 1\n  Id: 20102\n  Kind: 10\n  Gfx: 1\n  Size: 1, 1\n"  // forest
+        "  @Nummer: 2\n  Id: 21101\n  Kind: 14\n  Gfx: 2\n  Size: 2, 2\n"  // big ore mountain
+        "  Objekt: HAUS_PRODTYP\n    Kind: 12\n    Ware: 55\n    Erzbergnr: 0\n  EndObj\n"
+        "  @Nummer: 3\n  Id: 21102\n  Kind: 14\n  Gfx: 6\n  Size: 2, 2\n"  // small ore mountain
+        "  Objekt: HAUS_PRODTYP\n    Kind: 12\n    Ware: 55\n    Erzbergnr: 1\n  EndObj\n"
+        "  @Nummer: 4\n  Id: 22401\n  Kind: 14\n  Gfx: 10\n  Size: 2, 2\n"  // iron mine
+        "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Ware: 2\n  EndObj\n"
+        "  @Nummer: 5\n  Id: 22405\n  Kind: 14\n  Gfx: 14\n  Size: 2, 2\n"  // gold mine
+        "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Ware: 3\n  EndObj\n"
+        "  @Nummer: 6\n  Id: 20533\n  Kind: 14\n  Gfx: 18\n  Size: 1, 1\n"  // goldsmith
+        "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Ware: 21\n  EndObj\n";
+    for (std::size_t i = 0; i < kCrops.size(); ++i) {
+        text += "  @Nummer: " + std::to_string(7 + i) + "\n  Id: " + std::to_string(kCrops[i]) +
+                "\n  Kind: 14\n  Gfx: " + std::to_string(19 + i) + "\n  Size: 1, 1\n" +
+                "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: " + std::to_string(kTobacco + i) + "\n  EndObj\n";
+    }
+    text += "EndObj\n";
+    const auto doc = assets::cod::parse(text, types);
+    auto table = assets::BuildingTable::from_cod(doc);
+    REQUIRE(table.ok());
+    return std::move(table).value();
+}
+
+const assets::BuildingTable& buildings() {
+    static const assets::BuildingTable table = make_buildings();
+    return table;
+}
+
+std::uint32_t side(std::uint8_t size) {
+    return 16U + 4U * size;  // lit 16 x 16 .. lar 32 x 32
+}
+
+struct Spot {
+    std::uint8_t x = 0;
+    std::uint8_t y = 0;
+    auto operator<=>(const Spot&) const = default;
+};
+
+/// Origins of the two ore mountains of a template (they move with the template number).
+std::array<Spot, 2> mountain_spots(std::uint8_t size, std::uint16_t number) {
+    const auto s = static_cast<std::uint8_t>(side(size));
+    return {Spot{static_cast<std::uint8_t>(3 + number % 4), 3},
+            Spot{static_cast<std::uint8_t>(s - 6), static_cast<std::uint8_t>(s - 6 - number % 3)}};
+}
+
+std::string template_path(std::uint8_t climate, std::uint8_t size, std::uint16_t number, bool natives) {
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%s/%s%02u.scp", (natives ? kNativeDir : kClimateDir)[climate], kSizeName[size],
+                  static_cast<unsigned>(number));
+    return buf;
+}
+
+void put_u16(std::vector<std::uint8_t>& d, std::size_t o, std::uint32_t v) {
+    d[o] = static_cast<std::uint8_t>(v);
+    d[o + 1] = static_cast<std::uint8_t>(v >> 8);
+}
+
+void put_u32(std::vector<std::uint8_t>& d, std::size_t o, std::uint32_t v) {
+    put_u16(d, o, v);
+    put_u16(d, o + 2, v >> 16);
+}
+
+void add_tile(std::vector<std::uint8_t>& tiles, std::uint16_t id, std::uint32_t x, std::uint32_t y) {
+    // City 7 and owner 7: terrain of nobody.
+    const std::uint32_t bits = (7U << 14) | (7U << 22);
+    tiles.insert(tiles.end(), {static_cast<std::uint8_t>(id), static_cast<std::uint8_t>(id >> 8),
+                               static_cast<std::uint8_t>(x), static_cast<std::uint8_t>(y)});
+    o1602::test::put_u32(tiles, bits);
+}
+
+/// A template (.scp): INSEL5 and one INSELHAUS layer of ground with, if wanted, the two mountains.
+std::vector<std::uint8_t> template_file(std::uint8_t climate, std::uint8_t size, std::uint16_t number, bool mountains) {
+    const std::uint32_t s = side(size);
+    std::vector<std::uint8_t> header(116, 0);
+    header[1] = static_cast<std::uint8_t>(s);
+    header[2] = static_cast<std::uint8_t>(s);
+    put_u16(header, 0x60, number);
+    put_u16(header, 0x62, size);
+    header[0x64] = climate;
+    header[0x65] = 1;  // stored complete
+    std::vector<std::uint8_t> tiles;
+    for (std::uint32_t y = 0; y < s; ++y) {
+        for (std::uint32_t x = 0; x < s; ++x) {
+            add_tile(tiles, kGroundTile, x, y);
+        }
+    }
+    if (mountains) {
+        const auto spots = mountain_spots(size, number);
+        add_tile(tiles, kBigMountainTile, spots[0].x, spots[0].y);
+        add_tile(tiles, kSmallMountainTile, spots[1].x, spots[1].y);
+    }
+    std::vector<std::uint8_t> file;
+    o1602::test::put_chunk(file, "INSEL5", header);
+    o1602::test::put_chunk(file, "INSELHAUS", tiles);
+    return file;
+}
+
+/// What a synthetic game directory holds.
+struct Contents {
+    /// Template classes written (climate, size); all if empty.
+    std::set<std::pair<std::uint8_t, std::uint8_t>> classes;
+    bool mountains = true;
+    /// A native version (same size) for every template whose number is a multiple of this, 0 = none.
+    std::uint16_t natives_every = 3;
+};
+
+/// A game directory of its own under the system's temporary folder, removed again at the end:
+/// what GameDirectory::open looks for, and the island templates.
+struct FakeGame {
+    std::filesystem::path root;
+    assets::GameDirectory game;
+
+    explicit FakeGame(const Contents& contents) {
+        root = std::filesystem::temp_directory_path() /
+               ("o1602_worldgen_" + std::to_string(std::random_device{}()) + "_" +
+                std::to_string(reinterpret_cast<std::uintptr_t>(this) & 0xFFFFFU));
+        std::filesystem::remove_all(root);
+        for (const char* dir : {"toolgfx", "gfx", "Nord", "Sued", "NordNat", "SuedNat"}) {
+            std::filesystem::create_directories(root / dir);
+        }
+        for (const char* file : {"haeuser.cod", "figuren.cod", "toolgfx/stadtfld.col", "gfx/stadtfld.bsh"}) {
+            std::ofstream(root / file, std::ios::binary) << "x";
+        }
+        for (std::uint8_t climate = 0; climate < 2; ++climate) {
+            for (std::uint8_t size = 0; size < 5; ++size) {
+                if (!contents.classes.empty() && contents.classes.count({climate, size}) == 0) {
+                    continue;
+                }
+                for (std::uint16_t n = 0; n < kTemplateCount[climate][size]; ++n) {
+                    const auto bytes = template_file(climate, size, n, contents.mountains);
+                    write(template_path(climate, size, n, false), bytes);
+                    if (contents.natives_every != 0 && n % contents.natives_every == 0) {
+                        write(template_path(climate, size, n, true), bytes);
+                    }
+                }
+            }
+        }
+        auto opened = assets::GameDirectory::open(root);
+        REQUIRE(opened.ok());
+        game = std::move(opened).value();
+    }
+    ~FakeGame() {
+        std::error_code ec;
+        std::filesystem::remove_all(root, ec);
+    }
+    FakeGame(const FakeGame&) = delete;
+    FakeGame& operator=(const FakeGame&) = delete;
+
+    void write(const std::string& relative, const std::vector<std::uint8_t>& bytes) const {
+        std::ofstream out(root / relative, std::ios::binary);
+        out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    }
+};
+
+/// Every template of every class, shared by the tests that need no special directory.
+const FakeGame& full_game() {
+    static const FakeGame game{Contents{}};
+    return game;
+}
+
+/// SZENE as the original stores it (0x494 bytes, scenario.cpp load_scenario_plan).
+std::vector<std::uint8_t> encode_plan(const assets::ScenarioPlan& p) {
+    std::vector<std::uint8_t> d(0x494, 0);
+    put_u32(d, 0x40, p.natives[0]);
+    put_u32(d, 0x44, p.natives[1]);
+    put_u32(d, 0x60, p.max_crops);
+    put_u32(d, 0x64, static_cast<std::uint32_t>(p.islands.size()));
+    put_u32(d, 0x68, p.gold_min_size);
+    put_u32(d, 0x6C, p.gold_max_size);
+    const auto resource = [&](std::size_t o, const assets::ScenarioPlan::Resource& r) {
+        if (r.building != 0) {
+            put_u16(d, o, r.building - 20000U);
+            put_u16(d, o + 2, r.count);
+            put_u32(d, o + 4, r.type);
+        }
+    };
+    for (std::size_t k = 0; k < p.ores.size(); ++k) {
+        resource(0x94 + 8 * k, p.ores[k]);
+    }
+    for (std::size_t k = 0; k < p.crops.size(); ++k) {
+        resource(0xB4 + 8 * k, p.crops[k]);
+    }
+    for (std::size_t k = 0; k < p.treasures.size(); ++k) {
+        resource(0x114 + 8 * k, p.treasures[k]);
+    }
+    for (std::size_t i = 0; i < p.islands.size(); ++i) {
+        const auto& e = p.islands[i];
+        const std::size_t o = 0x174 + 16 * i;
+        d[o] = e.climate;
+        d[o + 1] = e.size;
+        d[o + 2] = e.flags;
+        d[o + 3] = e.number;
+        put_u16(d, o + 4, e.template_number);
+        put_u32(d, o + 8, e.x);
+        put_u32(d, o + 12, e.y);
+    }
+    return d;
+}
+
+/// A saved rand() table: 512 numbers of 0..32767.
+std::vector<std::uint8_t> random_table() {
+    std::vector<std::uint8_t> d;
+    std::uint32_t state = 1602;
+    for (int i = 0; i < 512; ++i) {
+        state = state * 214013U + 2531011U;
+        const std::uint32_t v = (state >> 16) & 0x7FFFU;
+        d.push_back(static_cast<std::uint8_t>(v));
+        d.push_back(static_cast<std::uint8_t>(v >> 8));
+    }
+    return d;
+}
+
+/// A scenario of the endless kind: the plan, the table (if wanted) and a chunk of its own that the
+/// generator must keep.
+assets::ChunkFile scenario(const assets::ScenarioPlan& plan, bool table = true) {
+    std::vector<std::uint8_t> bytes;
+    o1602::test::put_chunk(bytes, "SZENE", encode_plan(plan));
+    if (table) {
+        o1602::test::put_chunk(bytes, "RANDTAB", random_table());
+    }
+    o1602::test::put_chunk(bytes, "O1602TEST", {1, 6, 0, 2});
+    auto file = assets::ChunkFile::from_bytes(bytes);
+    REQUIRE(file.ok());
+    return std::move(file).value();
+}
+
+assets::ScenarioPlan::Island island(std::uint8_t number, std::uint8_t climate, std::uint8_t size, std::uint32_t x,
+                                    std::uint32_t y) {
+    assets::ScenarioPlan::Island e;
+    e.number = number;
+    e.climate = climate;
+    e.size = size;
+    e.x = x;
+    e.y = y;
+    return e;
+}
+
+/// The original's resource lists: big and small iron, gold, every crop twice, two treasures.
+void add_resources(assets::ScenarioPlan& p) {
+    p.ores[0] = {kIronMine, 2, 0};
+    p.ores[1] = {kIronMine, 3, 1};
+    p.ores[2] = {kGoldMine, 2, 1};
+    for (std::size_t i = 0; i < kCrops.size(); ++i) {
+        p.crops[i] = {kCrops[i], 2, 0};
+    }
+    p.treasures[0] = {kGoldsmith, 2, 0};
+    p.max_crops = 2;
+    p.gold_min_size = 1;
+    p.gold_max_size = 3;
+}
+
+/// Sixteen islands of all classes on the original's map, two of them climate by position (one at
+/// the top, one at the bottom), listed against the order of their numbers.
+assets::ScenarioPlan standard_plan() {
+    assets::ScenarioPlan p;
+    p.natives = {1, 1};
+    add_resources(p);
+    struct Entry {
+        std::uint8_t climate;
+        std::uint8_t size;
+    };
+    const std::array<Entry, 16> entries = {{{2, 0},
+                                            {0, 0},
+                                            {0, 0},
+                                            {1, 0},
+                                            {1, 1},
+                                            {0, 1},
+                                            {0, 2},
+                                            {1, 2},
+                                            {0, 3},
+                                            {1, 3},
+                                            {0, 4},
+                                            {1, 4},
+                                            {0, 1},
+                                            {1, 1},
+                                            {0, 2},
+                                            {2, 0}}};
+    for (std::size_t i = entries.size(); i-- > 0;) {
+        // Rows at y 20, 120, 220 and 300: the first island lies in the north, the last in the south.
+        const auto x = static_cast<std::uint32_t>(20 + (i % 4) * 110);
+        const auto y = static_cast<std::uint32_t>(i < 12 ? 20 + (i / 4) * 100 : 300);
+        p.islands.push_back(island(static_cast<std::uint8_t>(i), entries[i].climate, entries[i].size, x, y));
+    }
+    return p;
+}
+
+bool has_crop(std::uint32_t fertility, std::uint8_t ware) {
+    return (fertility & (1U << (ware - kFirstCrop))) != 0;
+}
+
+std::uint32_t crop_count(std::uint32_t fertility) {
+    std::uint32_t n = 0;
+    for (std::uint8_t w = kTobacco; w <= kCocoa; ++w) {
+        n += has_crop(fertility, w) ? 1U : 0U;
+    }
+    return n;
+}
+
+std::size_t deposits_of(const sim::GeneratedWorld& w, std::uint8_t ware) {
+    std::size_t n = 0;
+    for (const auto& g : w.islands) {
+        n += static_cast<std::size_t>(
+            std::count_if(g.deposits.begin(), g.deposits.end(), [&](const auto& d) { return d.ware == ware; }));
+    }
+    return n;
+}
+
+bool same_world(const sim::GeneratedWorld& a, const sim::GeneratedWorld& b) {
+    return a.draws == b.draws && a.lost == b.lost && a.guaranteed == b.guaranteed &&
+           std::equal(a.file.data().begin(), a.file.data().end(), b.file.data().begin(), b.file.data().end());
+}
+
+/// The rules every generated island keeps, whatever the draws. Own worlds may give sugar and wine
+/// to one island when it is the only northern one near a start.
+void check_islands(const sim::GeneratedWorld& w, const assets::ScenarioPlan& plan, bool own_world = false) {
+    std::map<std::uint8_t, assets::ScenarioPlan::Island> planned;
+    for (const auto& e : plan.islands) {
+        planned[e.number] = e;
+    }
+    std::set<std::tuple<int, int, int>> templates;
+    for (std::size_t i = 0; i < w.islands.size(); ++i) {
+        const sim::GeneratedIsland& g = w.islands[i];
+        if (i > 0) {
+            CHECK(w.islands[i - 1].number < g.number);  // in the order of the island numbers
+        }
+        REQUIRE(planned.count(g.number) == 1);
+        const auto& e = planned[g.number];
+        CHECK(g.size == e.size);
+        if (e.climate < 2) {
+            CHECK(g.climate == e.climate);
+        }
+        CHECK(g.climate < 2);
+        CHECK(g.template_number < kTemplateCount[g.climate][g.size]);
+        templates.insert({g.climate, g.size, g.template_number});
+        CHECK((g.fertility & kBaseFertility) == kBaseFertility);
+        // Crops of the island's climate only, sugar and wine not together.
+        for (std::uint8_t ware = kTobacco; ware <= kCocoa; ++ware) {
+            const bool north_crop = ware == kTobacco || ware == kSugar || ware == kWine;
+            if (has_crop(g.fertility, ware)) {
+                CHECK(north_crop == (g.climate == 0));
+            }
+        }
+        CHECK((own_world || !(has_crop(g.fertility, kSugar) && has_crop(g.fertility, kWine))));
+        // At most two deposits, each on a mountain of its own; treasures on open ground of middle
+        // islands.
+        CHECK(g.deposits.size() <= 2);
+        std::set<Spot> used;
+        const auto mountains = mountain_spots(g.size, g.template_number);
+        for (const auto& d : g.deposits) {
+            CHECK(used.insert(Spot{d.x, d.y}).second);
+            if (d.ware == kIron || d.ware == kGold) {
+                CHECK(std::find(mountains.begin(), mountains.end(), Spot{d.x, d.y}) != mountains.end());
+                CHECK(d.amount > 0);
+            } else {
+                CHECK(d.ware == kTreasure);
+                CHECK((g.size == 1 || g.size == 2));
+                const bool on_mountain = std::any_of(mountains.begin(), mountains.end(), [&](const Spot& m) {
+                    return d.x >= m.x && d.x < m.x + 2 && d.y >= m.y && d.y < m.y + 2;
+                });
+                CHECK(!on_mountain);
+                CHECK((d.x >= 1 && d.x + 1U < side(g.size) && d.y >= 1 && d.y + 1U < side(g.size)));
+            }
+        }
+    }
+    // Templates differ within a class (every class has more templates than the plan islands).
+    CHECK(templates.size() == w.islands.size());
+}
+
+}  // namespace
+
+TEST_CASE("world generator: table draws are Rnd() % n from the start index, wrapping at 512") {
+    std::array<std::uint16_t, 512> table{};
+    for (std::size_t i = 0; i < table.size(); ++i) {
+        table[i] = static_cast<std::uint16_t>(i * 7 + 3);
+    }
+    sim::PlanRandom random(table, 510);
+    CHECK(random.draws() == 0);
+    CHECK(random.below(1000) == (510 * 7 + 3) % 1000);
+    CHECK(random.below(10) == (511 * 7 + 3) % 10);
+    CHECK(random.below(100) == 3);  // index 0 after 511
+    CHECK(random.below(5) == 10 % 5);
+    CHECK(random.draws() == 4);
+    CHECK(random.below(1) == 0);
+    CHECK(random.draws() == 5);
+
+    // The start index is taken modulo 512.
+    sim::PlanRandom a(table, 3);
+    sim::PlanRandom b(table, 512 + 3);
+    for (std::uint32_t n = 1; n < 40; ++n) {
+        CHECK(a.below(n) == b.below(n));
+    }
+
+    // A number above 0x7FFF is a negative Rnd(); the result stays in 0..n-1.
+    table.fill(0xFFFF);
+    sim::PlanRandom negative(table, 0);
+    const std::uint32_t r = negative.below(10);
+    CHECK(r < 10);
+    CHECK(negative.below(0) == 0);  // nothing to choose from
+}
+
+TEST_CASE("world generator: seeded draws repeat for the same seed and stay below n") {
+    sim::PlanRandom a(std::uint64_t{0x1602});
+    sim::PlanRandom b(std::uint64_t{0x1602});
+    sim::PlanRandom c(std::uint64_t{0x1603});
+    bool differs = false;
+    for (std::uint32_t i = 0; i < 200; ++i) {
+        const std::uint32_t n = 1 + i % 37;
+        const std::uint32_t va = a.below(n);
+        CHECK(va < n);
+        CHECK(va == b.below(n));
+        differs = differs || va != c.below(n);
+    }
+    CHECK(differs);
+    CHECK(a.draws() == 200);
+}
+
+TEST_CASE("world generator: plans_islands only for a plan of islands and no islands of its own") {
+    CHECK(sim::plans_islands(scenario(standard_plan())));
+
+    // No SZENE, or one without islands.
+    std::vector<std::uint8_t> bytes;
+    o1602::test::put_chunk(bytes, "O1602TEST", {1});
+    CHECK(!sim::plans_islands(*assets::ChunkFile::from_bytes(bytes)));
+    CHECK(!sim::plans_islands(scenario(assets::ScenarioPlan{})));
+
+    // A scenario with islands of its own keeps them, whatever plan it carries.
+    bytes.clear();
+    o1602::test::put_chunk(bytes, "SZENE", encode_plan(standard_plan()));
+    o1602::test::put_chunk(bytes, "INSEL5", std::vector<std::uint8_t>(116, 0));
+    CHECK(!sim::plans_islands(*assets::ChunkFile::from_bytes(bytes)));
+
+    // A file without a plan cannot be generated.
+    bytes.clear();
+    o1602::test::put_chunk(bytes, "O1602TEST", {1});
+    CHECK(!sim::generate_islands(*assets::ChunkFile::from_bytes(bytes), full_game().game, buildings(), {}).ok());
+}
+
+TEST_CASE("world generator: every planned island gets an unused template of its climate and size") {
+    const auto& fake = full_game();
+    auto plan = standard_plan();
+    // A fixed template is kept, and no other island of its class draws it.
+    plan.islands[3].template_number = 7;
+    const auto fixed = plan.islands[3];
+    const auto file = scenario(plan);
+    std::vector<std::string> warnings;
+    auto w = sim::generate_islands(file, fake.game, buildings(), sim::WorldStart{}, &warnings);
+    REQUIRE(w.ok());
+    CHECK(warnings.empty());
+    REQUIRE(w->islands.size() == plan.islands.size());
+    check_islands(*w, plan);
+    CHECK(w->draws > 0);
+    // The mountains and the open ground of the templates take ore and treasures.
+    CHECK(deposits_of(*w, kIron) > 0);
+    CHECK(deposits_of(*w, kGold) > 0);
+    CHECK(deposits_of(*w, kTreasure) > 0);
+    for (const auto& g : w->islands) {
+        CHECK(fake.game.resolve(template_path(g.climate, g.size, g.template_number, false)).has_value());
+        if (g.number == fixed.number) {
+            CHECK(g.template_number == 7);
+        }
+    }
+    // Climate by position: the north at the top of the map, the south at the bottom.
+    CHECK(w->islands.front().number == 0);
+    CHECK(w->islands.front().climate == 0);
+    CHECK(w->islands.back().number == 15);
+    CHECK(w->islands.back().climate == 1);
+    // One village per climate, on islands that have a native template.
+    std::array<std::uint32_t, 2> villages{};
+    for (const auto& g : w->islands) {
+        if (g.natives) {
+            ++villages[g.climate];
+            CHECK(fake.game.resolve(template_path(g.climate, g.size, g.template_number, true)).has_value());
+        }
+    }
+    CHECK(villages[0] == 1);
+    CHECK(villages[1] == 1);
+
+    // The scenario with these islands: an INSEL5 per island pointing to its template, the plan and
+    // the table gone, the scenario's other chunks kept.
+    CHECK(!sim::plans_islands(w->file));
+    CHECK(w->file.find("SZENE") == nullptr);
+    CHECK(w->file.find("RANDTAB") == nullptr);
+    REQUIRE(w->file.find("O1602TEST") != nullptr);
+    CHECK(w->file.payload(*w->file.find("O1602TEST")).size() == 4);
+    auto headers = assets::load_islands(w->file);
+    REQUIRE(headers.ok());
+    REQUIRE(headers->size() == w->islands.size());
+    std::map<std::uint8_t, assets::ScenarioPlan::Island> planned;
+    for (const auto& e : plan.islands) {
+        planned[e.number] = e;
+    }
+    for (std::size_t i = 0; i < headers->size(); ++i) {
+        const assets::IslandHeader& h = (*headers)[i].header;
+        const sim::GeneratedIsland& g = w->islands[i];
+        CHECK(h.number == g.number);
+        CHECK(h.pos_x == planned[g.number].x);
+        CHECK(h.pos_y == planned[g.number].y);
+        CHECK(h.width == side(g.size));
+        CHECK(h.template_path() == template_path(g.climate, g.size, g.template_number, false));
+        CHECK(h.fertility == g.fertility);
+        REQUIRE(h.deposits.size() == g.deposits.size());
+        for (std::size_t k = 0; k < h.deposits.size(); ++k) {
+            CHECK(h.deposits[k].ware == g.deposits[k].ware);
+            CHECK(h.deposits[k].x == g.deposits[k].x);
+            CHECK(h.deposits[k].y == g.deposits[k].y);
+            CHECK(h.deposits[k].amount == g.deposits[k].amount);
+        }
+    }
+}
+
+TEST_CASE("world generator: the table start decides the world, the same start gives the same bytes") {
+    const auto& fake = full_game();
+    const auto plan = standard_plan();
+    const auto file = scenario(plan);
+    sim::WorldStart start;
+    start.seed = 5;
+    auto a = sim::generate_islands(file, fake.game, buildings(), start);
+    auto b = sim::generate_islands(file, fake.game, buildings(), start);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    CHECK(same_world(*a, *b));
+    // The table has 512 starts: seed 5 + 512 is seed 5.
+    start.seed = 5 + 512;
+    auto c = sim::generate_islands(file, fake.game, buildings(), start);
+    REQUIRE(c.ok());
+    CHECK(same_world(*a, *c));
+    // Other starts give other worlds (most of them other templates).
+    std::size_t other = 0;
+    for (std::uint64_t seed = 6; seed < 16; ++seed) {
+        start.seed = seed;
+        auto d = sim::generate_islands(file, fake.game, buildings(), start);
+        REQUIRE(d.ok());
+        check_islands(*d, plan);
+        other += same_world(*a, *d) ? 0U : 1U;
+    }
+    CHECK(other == 10);
+}
+
+TEST_CASE("world generator: seeded draws: the same seed the same world; no table falls back to the seed") {
+    const auto& fake = full_game();
+    const auto plan = standard_plan();
+    const auto with_table = scenario(plan);
+    sim::WorldStart start;
+    start.draws = sim::WorldStart::Draws::Seeded;
+    start.seed = 0x1602'0000'1234ULL;
+    auto a = sim::generate_islands(with_table, fake.game, buildings(), start);
+    auto b = sim::generate_islands(with_table, fake.game, buildings(), start);
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    CHECK(same_world(*a, *b));
+    check_islands(*a, plan);
+    // Seeded draws use all 64 bits: seed + 512 is another world.
+    start.seed += 512;
+    auto c = sim::generate_islands(with_table, fake.game, buildings(), start);
+    REQUIRE(c.ok());
+    CHECK(!same_world(*a, *c));
+
+    // A scenario without RANDTAB draws from the seed even when the table is asked for.
+    const auto without_table = scenario(plan, false);
+    start.seed = 0x1602'0000'1234ULL;
+    auto seeded = sim::generate_islands(without_table, fake.game, buildings(), start);
+    start.draws = sim::WorldStart::Draws::Table;
+    auto fallback = sim::generate_islands(without_table, fake.game, buildings(), start);
+    REQUIRE(seeded.ok());
+    REQUIRE(fallback.ok());
+    CHECK(same_world(*seeded, *fallback));
+    CHECK(same_world(*a, *seeded));  // the table of the first file was not used either
+}
+
+TEST_CASE("world generator: an island kept free of villages never gets one") {
+    const auto& fake = full_game();
+    // Four north islands whose templates all have a native version, three villages to place: the
+    // three islands without the flag get them.
+    assets::ScenarioPlan plan;
+    plan.natives = {3, 0};
+    for (std::uint8_t i = 0; i < 4; ++i) {
+        plan.islands.push_back(island(i, 0, 1, 20 + 60U * i, 40));
+        plan.islands.back().template_number = static_cast<std::uint16_t>(3 * i);
+    }
+    plan.islands[2].flags = sim::kPlanNoVillage;
+    for (std::uint64_t seed = 0; seed < 8; ++seed) {
+        sim::WorldStart start;
+        start.seed = seed;
+        auto w = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+        REQUIRE(w.ok());
+        REQUIRE(w->islands.size() == 4);
+        for (const auto& g : w->islands) {
+            CHECK(g.natives == (g.number != 2));
+        }
+    }
+    // Templates without a native version get no village, however many the plan asks for.
+    for (auto& e : plan.islands) {
+        e.template_number = static_cast<std::uint16_t>(e.template_number + 1);
+        e.flags = 0;
+    }
+    auto w = sim::generate_islands(scenario(plan), fake.game, buildings(), sim::WorldStart{});
+    REQUIRE(w.ok());
+    for (const auto& g : w->islands) {
+        CHECK(!g.natives);
+    }
+}
+
+TEST_CASE("world generator: a missing template is reported and its island left out") {
+    // Only the little northern templates exist.
+    const FakeGame fake(Contents{{{0, 0}}, true, 0});
+    assets::ScenarioPlan plan;
+    plan.natives = {1, 1};
+    add_resources(plan);
+    plan.islands = {island(0, 0, 0, 20, 20), island(1, 1, 3, 100, 20), island(2, 0, 0, 200, 20)};
+    std::vector<std::string> warnings;
+    auto w = sim::generate_islands(scenario(plan), fake.game, buildings(), sim::WorldStart{}, &warnings);
+    REQUIRE(w.ok());
+    REQUIRE(w->islands.size() == 2);
+    CHECK(w->islands[0].number == 0);
+    CHECK(w->islands[1].number == 2);
+    const bool reported = std::any_of(warnings.begin(), warnings.end(), [](const std::string& s) {
+        return s.find("island template not found") != std::string::npos && s.find("Sued/big") != std::string::npos;
+    });
+    CHECK(reported);
+    check_islands(*w, plan);
+    // What is left loads as any scenario.
+    std::vector<std::string> load_warnings;
+    auto world = sim::load_world(w->file, buildings(), fake.game, &load_warnings);
+    REQUIRE(world.ok());
+    CHECK(world->islands().size() == 2);
+
+    // A directory without a template of the plan's classes: no islands, each one reported.
+    const FakeGame empty(Contents{{{1, 4}}, true, 0});
+    warnings.clear();
+    plan.islands = {island(0, 0, 0, 20, 20), island(1, 0, 1, 100, 20)};
+    auto none = sim::generate_islands(scenario(plan), empty.game, buildings(), sim::WorldStart{}, &warnings);
+    REQUIRE(none.ok());
+    CHECK(none->islands.empty());
+    CHECK(warnings.size() >= 2);
+}
+
+TEST_CASE("world generator: guarantee_resources places the crop the main passes left out") {
+    // One northern island that may grow one crop; the plan asks for tobacco and sugar.
+    const FakeGame fake(Contents{{{0, 1}}, false, 0});
+    assets::ScenarioPlan plan;
+    plan.max_crops = 1;
+    plan.crops[0] = {kCrops[0], 1, 0};  // tobacco
+    plan.crops[1] = {kCrops[2], 1, 0};  // sugar
+    plan.islands = {island(0, 0, 1, 40, 40)};
+    sim::WorldStart start;
+    auto off = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+    REQUIRE(off.ok());
+    REQUIRE(off->islands.size() == 1);
+    CHECK(crop_count(off->islands[0].fertility) == 1);
+    CHECK(off->guaranteed == 0);
+
+    start.guarantee_resources = true;
+    auto on = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+    REQUIRE(on.ok());
+    REQUIRE(on->islands.size() == 1);
+    CHECK(has_crop(on->islands[0].fertility, kTobacco));
+    CHECK(has_crop(on->islands[0].fertility, kSugar));
+    CHECK(crop_count(on->islands[0].fertility) == 2);
+    CHECK(on->guaranteed == 1);
+    CHECK(on->draws > off->draws);
+
+    // Nothing to place where the main passes found everything a place.
+    plan.max_crops = 2;
+    auto full = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+    REQUIRE(full.ok());
+    CHECK(crop_count(full->islands[0].fertility) == 2);
+    CHECK(full->guaranteed == 0);
+}
+
+TEST_CASE("world generator: units without a place count as lost; guarantee_resources places iron and gold") {
+    // Little islands only: no pass of the original puts small iron, gold or a treasure there.
+    const FakeGame fake(Contents{{{0, 0}, {0, 1}}, true, 0});
+    assets::ScenarioPlan plan;
+    plan.ores[0] = {kIronMine, 1, 1};
+    plan.ores[1] = {kGoldMine, 1, 1};
+    plan.treasures[0] = {kGoldsmith, 1, 0};
+    plan.gold_min_size = 1;
+    plan.gold_max_size = 4;
+    plan.islands = {island(0, 0, 0, 20, 20), island(1, 0, 0, 100, 20), island(2, 0, 0, 200, 20)};
+    sim::WorldStart start;
+    auto off = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+    REQUIRE(off.ok());
+    CHECK(off->lost == 3);
+    CHECK(off->guaranteed == 0);
+    CHECK(deposits_of(*off, kIron) + deposits_of(*off, kGold) + deposits_of(*off, kTreasure) == 0);
+
+    // The guarantee finds the iron a mountain; gold never goes to a little island.
+    start.guarantee_resources = true;
+    auto on = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+    REQUIRE(on.ok());
+    CHECK(on->lost == 3);  // the original's passes lost as much as before
+    CHECK(on->guaranteed == 1);
+    CHECK(deposits_of(*on, kIron) == 1);
+    CHECK(deposits_of(*on, kGold) == 0);
+    check_islands(*on, plan);
+
+    // With a middle island but gold asked for on the largest class only: the main passes lose
+    // it, the guarantee puts it on the middle island.
+    plan.ores[0] = {};
+    plan.treasures[0] = {};
+    plan.gold_min_size = 4;
+    plan.gold_max_size = 4;
+    plan.islands.push_back(island(3, 0, 1, 300, 20));
+    start.guarantee_resources = false;
+    auto lost_gold = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+    REQUIRE(lost_gold.ok());
+    CHECK(lost_gold->lost == 1);
+    CHECK(deposits_of(*lost_gold, kGold) == 0);
+    start.guarantee_resources = true;
+    auto gold = sim::generate_islands(scenario(plan), fake.game, buildings(), start);
+    REQUIRE(gold.ok());
+    CHECK(gold->guaranteed == 1);
+    REQUIRE(deposits_of(*gold, kGold) == 1);
+    for (const auto& g : gold->islands) {
+        for (const auto& d : g.deposits) {
+            CHECK(g.number == 3);
+            CHECK(d.ware == kGold);
+        }
+    }
+    check_islands(*gold, plan);
+}
+
+TEST_CASE("world generator: the islands load with load_world and pass validate") {
+    const auto& fake = full_game();
+    const auto plan = standard_plan();
+    const auto file = scenario(plan);
+    for (const auto draws : {sim::WorldStart::Draws::Table, sim::WorldStart::Draws::Seeded}) {
+        sim::WorldStart start;
+        start.draws = draws;
+        start.seed = 77;
+        start.guarantee_resources = draws == sim::WorldStart::Draws::Seeded;
+        auto generated = sim::generate_islands(file, fake.game, buildings(), start);
+        REQUIRE(generated.ok());
+        std::vector<std::string> warnings;
+        auto world = sim::load_world(generated->file, buildings(), fake.game, &warnings, start);
+        REQUIRE(world.ok());
+        CHECK(warnings.empty());
+        CHECK(sim::validate(*world).ok());
+        REQUIRE(world->islands().size() == generated->islands.size());
+        for (std::size_t i = 0; i < generated->islands.size(); ++i) {
+            const sim::WorldIsland& wi = world->islands()[i];
+            const sim::GeneratedIsland& g = generated->islands[i];
+            CHECK(wi.header.number == g.number);
+            CHECK(wi.map.width() == side(g.size));
+            CHECK(wi.header.fertility == g.fertility);
+            CHECK(wi.header.deposits.size() == g.deposits.size());
+        }
+        // load_world makes the islands itself from the plan: the same world.
+        auto direct = sim::load_world(file, buildings(), fake.game, nullptr, start);
+        REQUIRE(direct.ok());
+        REQUIRE(direct->islands().size() == world->islands().size());
+        for (std::size_t i = 0; i < world->islands().size(); ++i) {
+            CHECK(direct->islands()[i].header.raw == world->islands()[i].header.raw);
+            CHECK(direct->islands()[i].x == world->islands()[i].x);
+            CHECK(direct->islands()[i].y == world->islands()[i].y);
+        }
+    }
+}
+
+TEST_CASE("world generator: an own world gives every start home iron, all crops and gold within reach") {
+    const auto& fake = full_game();
+    const auto templates = sim::island_templates(fake.game, buildings());
+    REQUIRE(!templates.empty());
+    for (std::uint64_t seed = 1; seed <= 4; ++seed) {
+        sim::WorldSettings settings;
+        settings.seed = seed;
+        std::vector<std::string> warnings;
+        auto plan = sim::plan_world(settings, templates, &warnings);
+        REQUIRE(plan.ok());
+        REQUIRE(!plan->shared_start);
+        // The scenario's own plan is replaced by the world plan.
+        const auto file = scenario(standard_plan());
+        sim::WorldStart start;
+        start.seed = seed;
+        auto w = sim::generate_islands(file, *plan, fake.game, buildings(), start, &warnings);
+        REQUIRE(w.ok());
+        CHECK(warnings.empty());
+        REQUIRE(w->islands.size() == plan->plan.islands.size());
+        check_islands(*w, plan->plan, true);
+        std::map<std::uint8_t, assets::ScenarioPlan::Island> planned;
+        for (const auto& e : plan->plan.islands) {
+            planned[e.number] = e;
+        }
+        for (const auto& g : w->islands) {
+            CHECK(g.template_number == planned[g.number].template_number);
+        }
+        for (const sim::StartArea& st : plan->starts) {
+            const auto home = std::find_if(w->islands.begin(), w->islands.end(),
+                                           [&](const sim::GeneratedIsland& g) { return g.number == st.home_island; });
+            REQUIRE(home != w->islands.end());
+            CHECK(!home->natives);
+            CHECK(std::any_of(home->deposits.begin(), home->deposits.end(),
+                              [](const auto& d) { return d.ware == kIron; }));
+            std::uint32_t crops = 0;
+            bool gold = false;
+            for (const auto& g : w->islands) {
+                const auto& e = planned[g.number];
+                const std::int64_t dx = std::int64_t{e.x} + side(g.size) / 2 - st.x;
+                const std::int64_t dy = std::int64_t{e.y} + side(g.size) / 2 - st.y;
+                if (dx * dx + dy * dy > std::int64_t{st.reach} * st.reach && g.number != st.home_island) {
+                    continue;
+                }
+                crops |= g.fertility;
+                gold = gold ||
+                       std::any_of(g.deposits.begin(), g.deposits.end(), [](const auto& d) { return d.ware == kGold; });
+            }
+            CHECK(crop_count(crops) == 6);
+            CHECK(gold);
+        }
+        // The same seed, the same world; and it loads.
+        auto again = sim::generate_islands(file, *plan, fake.game, buildings(), start);
+        REQUIRE(again.ok());
+        CHECK(same_world(*w, *again));
+        auto world = sim::load_world(w->file, buildings(), fake.game, &warnings, start);
+        REQUIRE(world.ok());
+        CHECK(warnings.empty());
+        CHECK(world->islands().size() == w->islands.size());
+        CHECK(sim::validate(*world).ok());
+    }
+}

@@ -133,7 +133,7 @@ An observation in the original would help where it says "observation"; what I ne
 
 | Point | Status |
 |---|---|
-| Tests | 313 cases (30 unit files, 8 with original data). Without their own unit tests: AI (only two data tests), sea and land routes (only indirectly), world generator (via the new game), own chunk (via the data tests), viewer |
+| Tests | 406 cases (35 unit files, 10 with original data), all unit tests without original data: sea and land routes, world generator, AI and a fuzz test over the own savegame (`O1602_FUZZ_ITERATIONS` for longer runs) have their own. Without their own unit tests: viewer |
 | Builds | locally under Linux: debug, game, game-rel, asan, game-asan without warnings; CI for Linux (GCC, Clang, ASan), Windows (MSVC 2022), macOS 14 and the game with SDL3 on all three. Windows and macOS have never run locally |
 | Player commands | complete for the simulation (since 2026-10-18 also the town window and ship window); the selection windows trigger them; white flag, scuttling, patrol, command chains and group commands with offset have been added |
 | Symbol table `re/symbols/` | 532 functions (on 2026-10-18 extended with the addresses from military, pirates, diplomacy, AI, missions, disasters and new game; evidence refers to the document) |

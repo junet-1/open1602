@@ -2,6 +2,7 @@
 // "Insel erkunden": a ship explores the crops and deposits of the island it stands in
 // (docs/re/ships.md#exploring). Part of sim::Fleet.
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/ships.hpp"
 
 namespace o1602::sim {
@@ -14,8 +15,6 @@ constexpr std::uint8_t kCropsStep = 10;         // 3.0 s after the click
 constexpr std::uint8_t kFirstOreStep = 7;       // 7.5 s
 constexpr std::uint8_t kSecondOreStep = 5;      // 10.5 s
 constexpr std::uint8_t kGoldStep = 2;           // 15.0 s
-constexpr std::uint8_t kIronOre = 2;
-constexpr std::uint8_t kGold = 3;
 
 bool moving(const Ship& ship) noexcept {
     return ship.motion.phase == ShipMotion::Phase::Run || ship.motion.phase == ShipMotion::Phase::Turn;
@@ -56,7 +55,7 @@ ExploreState Fleet::explore_state(const Ship& ship, PlayerId player) const {
         return ExploreState::Possible;
     }
     for (const auto& d : isl.header.deposits) {
-        if ((d.ware == kIronOre || d.ware == kGold) && !deposit_known(d, ship.owner)) {
+        if ((d.ware == ware::kOre || d.ware == ware::kGold) && !deposit_known(d, ship.owner)) {
             return ExploreState::Possible;
         }
     }
@@ -115,7 +114,7 @@ void Fleet::explore_step(Ship& ship) {
         m_events.push_back(e);
     } else if (n == kFirstOreStep || n == kSecondOreStep || n == kGoldStep) {
         // 0x0046C100: deposits from the end of the list; one ore deposit, or up to two gold veins.
-        const std::uint8_t ware = n == kGoldStep ? kGold : kIronOre;
+        const std::uint8_t ware = n == kGoldStep ? ware::kGold : ware::kOre;
         std::uint32_t left = n == kGoldStep ? 2U : 1U;
         auto& deposits = isl.header.deposits;
         for (auto it = deposits.rbegin(); it != deposits.rend() && left != 0; ++it) {

@@ -112,6 +112,12 @@ S to H, and in exchange hold position on G, formation on C, spread out on Shift+
 scroll. Only keys in contexts that never apply at the same time are bound twice: R and Delete (building:
 rotate, demolish; units: route, disband), C (building: pipette; units: formation) and Tab.
 
+Keys that matter by their place are bound by scancode (2026-10-19, review point 25): W A S D, Q and E
+and the digits of the groups lie where they are on a US keyboard on every layout (AZERTY: Z Q S D, A
+and E; the number row without Shift). Keys that stand for a word stay bound by keycode, where the
+layout prints them (B building, K military, F attack). In `keys.cfg` a key by its place is written in
+brackets, `general scroll_up = [W]`; where a press matches both kinds, the one by place wins.
+
 Done (2026-10-18): table `ui::KeyBindings` with this default and the settings file
 `keys.cfg` in the user's data folder (to be edited by hand until the settings menu exists; F1 shows the
 bindings), box selection, pixel-exact like the original, groups with the original's number key,

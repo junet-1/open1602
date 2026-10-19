@@ -218,3 +218,26 @@ TEST_CASE("file: a full disk is an error, and an atomic write keeps the old file
     CHECK(!fs::exists(dir / "folder.o1602.tmp"));
     fs::remove_all(dir, ec);
 }
+
+TEST_CASE("file: paths go to and from UTF-8 unchanged (a user named Juergen)") {
+    namespace fs = std::filesystem;
+    const std::string name = "J\xC3\xBCrgen";  // "Jürgen" in UTF-8
+    CHECK(core::path_to_utf8(core::path_from_utf8(name)) == name);
+    const fs::path dir = fs::temp_directory_path() / "o1602_test_utf8";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    const fs::path folder = dir / core::path_from_utf8(name);
+    REQUIRE(fs::create_directories(folder));
+    const std::vector<std::uint8_t> data = {1, 2, 3};
+    REQUIRE(core::write_file(folder / "keys.cfg", data).ok());
+    CHECK(*core::read_file(folder / "keys.cfg") == data);
+    CHECK(core::path_to_utf8(folder.filename()) == name);
+    // The case-insensitive lookup compares the names as UTF-8 as well.
+    const auto found = core::find_case_insensitive(dir, "j\xC3\xBCrgen/KEYS.CFG");
+    REQUIRE(found.has_value());
+    CHECK(*core::read_file(*found) == data);
+    fs::remove_all(dir, ec);
+
+    CHECK(core::environment_variable("PATH").has_value());
+    CHECK(!core::environment_variable("O1602_TEST_VARIABLE_THAT_IS_NOT_SET").has_value());
+}

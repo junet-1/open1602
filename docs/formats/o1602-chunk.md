@@ -55,10 +55,18 @@ All numbers little-endian.
 | Fingerprint | u64 | FNV-1a (64 bit) over all bytes of the file before the chunk (i.e. chunks of the original and `WIFF`) |
 | Sections | … | up to the end of the chunk |
 
-**Section:** u32 identifier (four characters), u16 version, u16 0, u32 length, data. A reader
-skips sections it does not know and versions it cannot read; for that part, what the chunks of the original
-say then applies. Later versions can thus add parts without invalidating older
+**Section:** u32 identifier (four characters), u16 version, u16 flags, u32 length, data. A reader
+skips sections it does not know and versions it cannot read and reports them; for that part, what the
+chunks of the original say then applies. Later versions can thus add parts without invalidating older
 savegames.
+
+Flag bit 0 (**required**): the section holds state the game cannot do without. A reader that cannot
+read it (unknown identifier or later version) does not apply the chunk at all, and the game loads from
+the original's chunks alone, with a warning. Open1602 sets it on every section except `META`, `ORIG`
+and `SHIP` (the copy for readers older than `FLEE`). Files written before the flags existed have 0
+there; every section of theirs is known. A section that changes in a way an older reader cannot follow
+gets the next version number (not a new identifier); the old version can be written next to it for
+older readers, marked optional.
 
 | Identifier | Contents |
 |---|---|

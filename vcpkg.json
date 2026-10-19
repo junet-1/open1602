@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Open-source engine reimplementation for Anno 1602",
   "license": "GPL-3.0-or-later",
+  "builtin-baseline": "9e593bb18ea69cc5095e012465dcd675a822ed0d",
   "dependencies": [
     "zlib"
   ],

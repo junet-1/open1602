@@ -775,7 +775,7 @@ TEST_CASE("data: growth classes, growing tiles and deposits of a savegame") {
     // fish shoals 5, forest 20, meadows 31.
     std::set<std::uint32_t> classes;
     for (const auto& b : buildings->types()) {
-        if (b.prod_kind == sim::kProdKindGrowing && !b.withered) {
+        if (b.prod_kind == sim::prod::kGrowing && !b.withered) {
             classes.insert(b.growth_class);
             CHECK(sim::ripe_record(*buildings, b) != nullptr);
         }
@@ -820,8 +820,8 @@ TEST_CASE("data: growth classes, growing tiles and deposits of a savegame") {
         const sim::MapCell& cell = world->islands()[*island].map.top(r.x, r.y);
         const assets::BuildingType* b = buildings->by_sprite(cell.sprite);
         REQUIRE(b != nullptr);
-        CHECK((b->prod_kind == sim::kProdKindGrowing || b->prod_kind == sim::kProdKindRipe));
-        if (b->prod_kind != sim::kProdKindGrowing) {
+        CHECK((b->prod_kind == sim::prod::kGrowing || b->prod_kind == sim::prod::kRipe));
+        if (b->prod_kind != sim::prod::kGrowing) {
             continue;
         }
         CHECK(r.growth_class >= b->growth_class);
@@ -836,7 +836,7 @@ TEST_CASE("data: growth classes, growing tiles and deposits of a savegame") {
             for (std::uint32_t x = 0; x < island.map.width(); ++x) {
                 const assets::BuildingType* b =
                     island.map.top(x, y).empty() ? nullptr : buildings->by_sprite(island.map.top(x, y).sprite);
-                growing += b != nullptr && b->prod_kind == sim::kProdKindGrowing && !b->withered ? 1U : 0U;
+                growing += b != nullptr && b->prod_kind == sim::prod::kGrowing && !b->withered ? 1U : 0U;
             }
         }
     }
@@ -1327,7 +1327,7 @@ TEST_CASE("data: a hunting lodge set into a savegame hunts with the original dat
                         }
                         const sim::MapCell& c = map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
                         const assets::BuildingType* t = buildings->by_sprite(c.sprite);
-                        if (t == nullptr || t->kind != 11 || t->prod_kind == sim::kProdKindGrowing ||
+                        if (t == nullptr || t->kind != 11 || t->prod_kind == sim::prod::kGrowing ||
                             c.city != centre.city) {
                             continue;
                         }
@@ -1718,8 +1718,7 @@ TEST_CASE("data: a drought withers the fields of an island and returns them (0x0
                 const sim::MapCell& c = map.top(x, y);
                 const assets::BuildingType* b = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
                 const assets::BuildingType* ripe =
-                    b == nullptr ? nullptr
-                                 : (b->prod_kind == sim::kProdKindRipe ? b : sim::ripe_record(*buildings, *b));
+                    b == nullptr ? nullptr : (b->prod_kind == sim::prod::kRipe ? b : sim::ripe_record(*buildings, *b));
                 const sim::City* city = world.city(i, c.city);
                 if (ripe != nullptr && sim::withered_record(*buildings, *ripe) != nullptr && settler(city)) {
                     ++fields;
@@ -2009,7 +2008,7 @@ TEST_CASE("data: a game played on in Open1602 saves and loads to the same state"
                 }
                 const auto ware = [&](const sim::MapCell& c) -> std::uint8_t {
                     const assets::BuildingType* t = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
-                    if (t != nullptr && t->prod_kind == sim::kProdKindGrowing) {
+                    if (t != nullptr && t->prod_kind == sim::prod::kGrowing) {
                         t = buildings->by_record(t->record + 1);
                     }
                     return t != nullptr ? t->ware : 0;

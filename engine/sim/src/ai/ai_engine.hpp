@@ -13,6 +13,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include "ai_state.hpp"
@@ -20,6 +21,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/construction.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -32,155 +34,46 @@
 
 namespace o1602::sim::ai {
 
-// Ware numbers of haeuser.cod the AI refers to.
-namespace ware {
-inline constexpr std::uint8_t kAll = 1;
-inline constexpr std::uint8_t kOre = 2;
-inline constexpr std::uint8_t kGold = 3;
-inline constexpr std::uint8_t kWool = 4;
-inline constexpr std::uint8_t kSugar = 5;
-inline constexpr std::uint8_t kTobacco = 6;
-inline constexpr std::uint8_t kMeat = 7;
-inline constexpr std::uint8_t kGrain = 8;
-inline constexpr std::uint8_t kFlour = 9;
-inline constexpr std::uint8_t kIron = 10;
-inline constexpr std::uint8_t kSwords = 11;
-inline constexpr std::uint8_t kMuskets = 12;
-inline constexpr std::uint8_t kCannons = 13;
-inline constexpr std::uint8_t kFood = 14;
-inline constexpr std::uint8_t kTobaccoGoods = 15;
-inline constexpr std::uint8_t kSpices = 16;
-inline constexpr std::uint8_t kCocoa = 17;
-inline constexpr std::uint8_t kAlcohol = 18;
-inline constexpr std::uint8_t kCloth = 19;
-inline constexpr std::uint8_t kClothes = 20;
-inline constexpr std::uint8_t kJewellery = 21;
-inline constexpr std::uint8_t kTools = 22;
-inline constexpr std::uint8_t kWood = 23;
-inline constexpr std::uint8_t kBricks = 24;
-inline constexpr std::uint8_t kCornField = 45;
-inline constexpr std::uint8_t kTobaccoField = 46;
-inline constexpr std::uint8_t kSpiceField = 47;
-inline constexpr std::uint8_t kSugarField = 48;
-inline constexpr std::uint8_t kCottonField = 49;
-inline constexpr std::uint8_t kWineField = 50;
-inline constexpr std::uint8_t kCocoaField = 51;
-inline constexpr std::uint8_t kGrass = 52;
-inline constexpr std::uint8_t kTree = 53;
-inline constexpr std::uint8_t kStone = 54;
-inline constexpr std::uint8_t kGame = 56;
-inline constexpr std::uint8_t kFish = 57;
-}  // namespace ware
+// The ware, Kind and production numbers and the building Ids the AI refers to are in
+// o1602/sim/game_data.hpp.
 
-// HAUS Kind values (record +0x04).
-namespace kind {
-inline constexpr std::int32_t kRoad = 1;
-inline constexpr std::int32_t kGate = 3;
-inline constexpr std::int32_t kWall = 4;
-inline constexpr std::int32_t kWallBeach = 5;
-inline constexpr std::int32_t kTower = 6;
-inline constexpr std::int32_t kTowerBeach = 7;
-inline constexpr std::int32_t kForest = 10;
-inline constexpr std::int32_t kGround = 11;
-inline constexpr std::int32_t kRuin = 12;
-inline constexpr std::int32_t kSquare = 13;
-inline constexpr std::int32_t kBuilding = 14;
-inline constexpr std::int32_t kRock = 15;
-inline constexpr std::int32_t kRiver = 16;
-inline constexpr std::int32_t kRiverCorner = 17;
-inline constexpr std::int32_t kBridge = 18;
-inline constexpr std::int32_t kSea = 19;
-inline constexpr std::int32_t kSurf = 20;
-inline constexpr std::int32_t kSurfCorner = 21;
-inline constexpr std::int32_t kMouth = 22;
-inline constexpr std::int32_t kBeach = 23;
-inline constexpr std::int32_t kBeachMouth = 24;
-inline constexpr std::int32_t kBeachOuter = 25;
-inline constexpr std::int32_t kBeachInner = 26;
-inline constexpr std::int32_t kBeachVariant = 27;
-inline constexpr std::int32_t kBeachHouse = 28;
-inline constexpr std::int32_t kBeachRuin = 29;
-inline constexpr std::int32_t kPier = 30;
-inline constexpr std::int32_t kSlope = 31;
-inline constexpr std::int32_t kSlopeCorner = 32;
-inline constexpr std::int32_t kMine = 34;
-inline constexpr std::int32_t kHq = 35;
-}  // namespace kind
+/// What the survey of a city (task 8) found to clear away: exhausted mines, and sheep farms and
+/// small weavers for when cotton grows on the island.
+struct SurveyFinds {
+    std::vector<std::pair<std::int32_t, std::int32_t>> starved_mines;
+    std::vector<std::pair<std::int32_t, std::int32_t>> sheep;
+    std::vector<std::pair<std::int32_t, std::int32_t>> webstuben;
+};
 
-// HAUS_PRODTYP Kind values.
-namespace prod {
-inline constexpr std::int32_t kWorkshop = 1;
-inline constexpr std::int32_t kFarm = 2;
-inline constexpr std::int32_t kMine = 3;
-inline constexpr std::int32_t kPasture = 4;
-inline constexpr std::int32_t kHunter = 5;
-inline constexpr std::int32_t kFisher = 6;
-inline constexpr std::int32_t kMarket = 7;
-inline constexpr std::int32_t kKontor = 8;
-inline constexpr std::int32_t kRipe = 9;
-inline constexpr std::int32_t kGrowing = 10;
-inline constexpr std::int32_t kQuarry = 11;
-inline constexpr std::int32_t kHouse = 13;
-inline constexpr std::int32_t kShipyard = 14;
-inline constexpr std::int32_t kMilitary = 15;
-inline constexpr std::int32_t kTower = 16;
-inline constexpr std::int32_t kWirt = 17;
-inline constexpr std::int32_t kKapelle = 18;
-inline constexpr std::int32_t kKirche = 19;
-inline constexpr std::int32_t kBadehaus = 20;
-inline constexpr std::int32_t kTheater = 21;
-inline constexpr std::int32_t kKlinik = 22;
-inline constexpr std::int32_t kSchule = 23;
-inline constexpr std::int32_t kHochschule = 24;
-inline constexpr std::int32_t kGalgen = 25;
-inline constexpr std::int32_t kBrunnen = 26;
-inline constexpr std::int32_t kPirateHouse = 31;
-}  // namespace prod
-
-// Buildings of the base game the original AI names by Id.
-namespace id {
-inline constexpr std::uint32_t kRoadStone = 20401;
-inline constexpr std::uint32_t kRoadDirt = 20411;
-inline constexpr std::uint32_t kSquare = 20421;
-inline constexpr std::uint32_t kHouse = 20605;
-inline constexpr std::uint32_t kKapelle = 20803;
-inline constexpr std::uint32_t kKirche = 20805;
-inline constexpr std::uint32_t kWirt = 20807;
-inline constexpr std::uint32_t kMarket = 20809;
-inline constexpr std::uint32_t kBrunnen = 20811;
-inline constexpr std::uint32_t kBadehaus = 20813;
-inline constexpr std::uint32_t kTheater = 20815;
-inline constexpr std::uint32_t kKlinik = 20817;
-inline constexpr std::uint32_t kHochschule = 20819;
-inline constexpr std::uint32_t kSchule = 20821;
-inline constexpr std::uint32_t kGalgen = 20841;
-inline constexpr std::uint32_t kDenkmal = 20851;
-inline constexpr std::uint32_t kGate = 20304;
-inline constexpr std::uint32_t kStoneTower = 20305;
-inline constexpr std::uint32_t kCastle1 = 20311;
-inline constexpr std::uint32_t kCastle2 = 20313;
-inline constexpr std::uint32_t kCastle3 = 20315;
-inline constexpr std::uint32_t kWebstube = 20507;
-inline constexpr std::uint32_t kWeberei = 20531;
-inline constexpr std::uint32_t kWoodTower = 21405;
-inline constexpr std::uint32_t kBridgeWood = 21601;
-inline constexpr std::uint32_t kBridgeStone = 21603;
-inline constexpr std::uint32_t kPier = 21073;
-inline constexpr std::uint32_t kHunter = 22003;
-inline constexpr std::uint32_t kKontor1 = 22101;
-inline constexpr std::uint32_t kShipyardBig = 22111;
-inline constexpr std::uint32_t kShipyardSmall = 22115;
-inline constexpr std::uint32_t kPirateKontor = 22221;
-inline constexpr std::uint32_t kPirateHouse1 = 22222;
-inline constexpr std::uint32_t kPirateHouse2 = 22223;
-inline constexpr std::uint32_t kPirateHouse3 = 22224;
-inline constexpr std::uint32_t kPirateTower = 22241;
-inline constexpr std::uint32_t kOreMine = 22401;
-inline constexpr std::uint32_t kOreMineDeep = 22403;
-inline constexpr std::uint32_t kGoldMine = 22405;
-inline constexpr std::uint32_t kQuarry = 22407;
-inline constexpr std::uint32_t kWall = 22501;
-}  // namespace id
+/// One entry of the build order of a city's stage (run_stage): something the city may need, tried
+/// in the order of the stage's table.
+struct StageNeed {
+    enum class Kind : std::uint8_t {
+        Building,      ///< need(slot, n)
+        Market,        ///< need_market(n)
+        Houses,        ///< need_houses(n)
+        Public,        ///< need_public(slot, n, flag)
+        Kontor,        ///< need_kontor(n): the Kontor's level
+        Castle,        ///< need_castle()
+        Monument,      ///< need_denkmal()
+        Shipyard,      ///< need_shipyard()
+        Processing,    ///< processing()
+        IronTools,     ///< iron_tools()
+        Weapons,       ///< weapons()
+        Luxury,        ///< luxury(n, flag)
+        ColonyLuxury,  ///< colony_luxury(): one luxury field per n tiles of land
+        Tower,         ///< need_tower(1, n)
+        RoadsIfMason,  ///< roads_if_mason()
+        Colony,        ///< want_colony(n): n is the mode
+    };
+    /// A condition on the gold the player had when the stage ran.
+    enum class When : std::uint8_t { Never, Always, Gold4000, Gold5000, Gold8000 };
+    Kind kind = Kind::Building;
+    std::uint8_t slot = 0;
+    std::uint32_t n = 0;
+    When flag = When::Never;   ///< Public: `cov`; Luxury: `exclusive`
+    When when = When::Always;  ///< the entry is tried only then
+};
 
 /// Game ms between two steps of a computer player (the original's 50 ms main timer).
 inline constexpr std::int32_t kStepMs = 50;
@@ -348,6 +241,11 @@ private:
     void set_stage(AiPlayer& p, CityPlan& r, std::uint8_t s);
     void nothing_to_do(AiPlayer& p);
     void run_stage(AiPlayer& p, City& c, CityPlan& r);
+    bool first_need(AiPlayer& p, const City& c, const CityPlan& r, std::int32_t money,
+                    std::span<const StageNeed> needs);
+    void unload_ship(AiPlayer& p, City& c);
+    bool colony_luxury(AiPlayer& p, const City& c, const CityPlan& r, std::uint32_t tiles_per_field);
+    bool farm_animals(AiPlayer& p, const CityPlan& r);
     bool need(AiPlayer& p, std::uint8_t which, std::uint32_t n, bool cov = false);
     bool need_houses(AiPlayer& p, std::uint32_t n);
     bool need_market(AiPlayer& p, std::uint32_t n);
@@ -457,6 +355,9 @@ private:
     void start_attack(AiPlayer& p, const City& t);
     void raid_outpost(AiPlayer& p, const City& t);
     void target_scan(AiPlayer& p);
+    [[nodiscard]] std::vector<PlayerId> island_enemies(const AiPlayer& a, std::uint16_t island) const;
+    void peacetime_orders(AiPlayer& a, std::uint16_t island);
+    bool attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<PlayerId>& enemies);
     void island_controller();
     void diplomacy(AiPlayer& p);
     void pirate_step(AiPlayer& p);
@@ -487,6 +388,7 @@ private:
     void task_roads(AiPlayer& p);
     void task_layout(AiPlayer& p);
     void task_survey(AiPlayer& p);
+    void survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t x, std::uint32_t y, SurveyFinds& finds);
     void sweep(AiPlayer& p);
     void kontor_restore(AiPlayer& p);
     std::size_t build(AiPlayer& p, std::vector<BuildItem> items, bool orient);

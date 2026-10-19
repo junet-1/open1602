@@ -33,14 +33,6 @@ constexpr std::size_t kMaxSteps = 64;  // decisions of one ship in one tick (a g
 constexpr std::uint64_t kStraightUs = 6'250'000;
 constexpr std::uint64_t kDiagonalUs = 8'838'835;
 
-// Wares 2..24; base prices of the original (0x0049AE50).
-constexpr std::array<std::uint16_t, 25> kBasePrices = {0,   0,  90,  700, 24, 30, 35, 10,  5,   10,  130, 180, 250,
-                                                       500, 26, 100, 60,  50, 80, 50, 200, 900, 140, 30,  45};
-constexpr std::uint8_t kFirstTradeWare = 2;
-constexpr std::uint8_t kLastTradeWare = 24;
-constexpr std::uint8_t kFirstSoldierWare = 25;
-constexpr std::uint8_t kLastSoldierWare = 44;
-
 /// Piecewise linear table of the original's speed factors (0x00442A90).
 std::uint32_t interpolate(std::uint32_t i, std::initializer_list<std::pair<std::uint32_t, std::uint32_t>> points) {
     auto prev = *points.begin();
@@ -71,15 +63,7 @@ std::int32_t tile_of(std::int32_t pos) noexcept {
     return pos >= 0 ? pos / kShipUnit : -1;
 }
 
-bool is_soldier(std::uint8_t ware) noexcept {
-    return ware >= kFirstSoldierWare && ware <= kLastSoldierWare;
-}
-
 }  // namespace
-
-std::uint16_t base_price(std::uint8_t ware) noexcept {
-    return ware < kBasePrices.size() ? kBasePrices[ware] : 0;
-}
 
 bool building_in_reach(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                        std::uint32_t bx, std::uint32_t by, std::int32_t wx, std::int32_t wy) {
@@ -235,7 +219,7 @@ std::uint32_t Fleet::run_us(const Ship& ship, std::uint8_t direction, std::uint8
     for (std::size_t i = 0; i < n; ++i) {
         const CargoSlot& c = ship.cargo[i];
         if (c.ware != 0) {
-            load += is_soldier(c.ware) ? c.amount / 2 : c.amount;  // soldiers weigh half
+            load += is_soldier_ware(c.ware) ? c.amount / 2 : c.amount;  // soldiers weigh half
         }
     }
     const std::uint64_t capacity = std::max<std::uint64_t>(1, n * std::uint64_t{kHoldCapacity});
@@ -731,6 +715,94 @@ void Fleet::finish_order(Ship& ship) {
     }
 }
 
+std::optional<std::uint32_t> Fleet::arrive_at_target(Ship& ship) {
+    // What a ship does where it was going; how long it then stays.
+    std::optional<std::uint32_t> wait;
+    const Target arrived = ship.target;
+    m_events.push_back(ShipEvent{ShipEvent::Kind::Arrived, ship.id, ship.owner});
+    if (!ship.route.active && arrived.kind == Target::Kind::City && ship.owner == pirates() &&
+        ship.owner != kNoPlayer) {
+        // A pirate at its base unloads everything at price 0 and stays 8 s (0x0044E120).
+        if (City* c = m_world->city(arrived.island, arrived.city); c != nullptr && c->owner == ship.owner) {
+            for (CargoSlot& slot : ship.cargo) {
+                if (slot.ware != 0 && slot.ware <= ware::kLastTrade) {
+                    c->ensure_ware(slot.ware);
+                    const std::uint32_t n = std::min(slot.amount, c->free_space(slot.ware));
+                    c->goods[slot.ware] += n;
+                    slot.amount -= n;
+                    if (slot.amount == 0) {
+                        slot = CargoSlot{};
+                    }
+                }
+            }
+            wait = 8000;
+        }
+    } else if (ship.trader && arrived.kind == Target::Kind::City && !ship.route.active) {
+        if (City* c = m_world->city(arrived.island, arrived.city)) {
+            c->trader_inbound = false;
+            if (trader_trade(ship, *c)) {
+                wait = 8000;  // the trader stays 8 s after trading (0x00452370)
+            }
+        }
+    } else if (ship.route.active) {
+        const RouteStop& stop = ship.route.stops[ship.route.current % TradeRoute::kStops];
+        if (stop.target == arrived) {
+            if (arrived.kind == Target::Kind::City) {
+                if (route_city_stop(ship, stop)) {
+                    wait = kKontorStopMs;
+                }
+            } else if (arrived.kind == Target::Kind::Ship) {
+                if (route_ship_stop(ship, stop)) {
+                    wait = kShipStopMs;
+                }
+            }
+        }
+        if (ship.route.one_way) {
+            bool later = false;
+            for (std::size_t s = ship.route.current + 1U; s < TradeRoute::kStops; ++s) {
+                later = later || !ship.route.stops[s].target.empty();
+            }
+            if (!later) {
+                ship.route.active = false;
+                ship.order = arrived;
+            }
+        }
+    }
+    finish_order(ship);
+    return wait;
+}
+
+void Fleet::choose_next_target(Ship& ship) {
+    // A ship without an order sails on by its route, as the free trader or as a pirate.
+    if (ship.route.active) {
+        route_next_stop(ship);
+    } else if (ship.trader) {
+        trader_choose(ship);
+    } else if (ship.owner == pirates() && ship.owner != kNoPlayer && !(m_directed && m_directed(ship.id))) {
+        pirate_choose(ship);
+    }
+}
+
+bool Fleet::ship_ahead(const Ship& ship) const {
+    // Another ship within kLookAhead in the direction the ship sails (0x004538A0).
+    for (const Ship& o : m_world->ships()) {
+        if (o.id == ship.id) {
+            continue;
+        }
+        const std::int32_t dx = o.x - ship.x;
+        const std::int32_t dy = o.y - ship.y;
+        if (std::abs(dx) >= kLookAhead || std::abs(dy) >= kLookAhead || (dx == 0 && dy == 0)) {
+            continue;
+        }
+        const std::int32_t sx = step_x(ship.direction);
+        const std::int32_t sy = step_y(ship.direction);
+        if ((sx != 0 && dx * sx > 0) || (sy != 0 && dy * sy > 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Fleet::decide(Ship& ship) {
     ShipMotion& m = ship.motion;
     if (ship.sinking) {
@@ -756,66 +828,10 @@ void Fleet::decide(Ship& ship) {
     std::int32_t radius = kPlanRadius;
     if (path_done) {
         if (!ship.target.empty() && at_target(ship, ship.target)) {
-            const Target arrived = ship.target;
-            m_events.push_back(ShipEvent{ShipEvent::Kind::Arrived, ship.id, ship.owner});
-            if (!ship.route.active && arrived.kind == Target::Kind::City && ship.owner == pirates() &&
-                ship.owner != kNoPlayer) {
-                // A pirate at its base unloads everything at price 0 and stays 8 s (0x0044E120).
-                if (City* c = m_world->city(arrived.island, arrived.city); c != nullptr && c->owner == ship.owner) {
-                    for (CargoSlot& slot : ship.cargo) {
-                        if (slot.ware != 0 && slot.ware <= 24) {
-                            c->ensure_ware(slot.ware);
-                            const std::uint32_t n = std::min(slot.amount, c->free_space(slot.ware));
-                            c->goods[slot.ware] += n;
-                            slot.amount -= n;
-                            if (slot.amount == 0) {
-                                slot = CargoSlot{};
-                            }
-                        }
-                    }
-                    wait = 8000;
-                }
-            } else if (ship.trader && arrived.kind == Target::Kind::City && !ship.route.active) {
-                if (City* c = m_world->city(arrived.island, arrived.city)) {
-                    c->trader_inbound = false;
-                    if (trader_trade(ship, *c)) {
-                        wait = 8000;  // the trader stays 8 s after trading (0x00452370)
-                    }
-                }
-            } else if (ship.route.active) {
-                const RouteStop& stop = ship.route.stops[ship.route.current % TradeRoute::kStops];
-                if (stop.target == arrived) {
-                    if (arrived.kind == Target::Kind::City) {
-                        if (route_city_stop(ship, stop)) {
-                            wait = kKontorStopMs;
-                        }
-                    } else if (arrived.kind == Target::Kind::Ship) {
-                        if (route_ship_stop(ship, stop)) {
-                            wait = kShipStopMs;
-                        }
-                    }
-                }
-                if (ship.route.one_way) {
-                    bool later = false;
-                    for (std::size_t s = ship.route.current + 1U; s < TradeRoute::kStops; ++s) {
-                        later = later || !ship.route.stops[s].target.empty();
-                    }
-                    if (!later) {
-                        ship.route.active = false;
-                        ship.order = arrived;
-                    }
-                }
-            }
-            finish_order(ship);
+            wait = arrive_at_target(ship);
         }
         if (ship.target.empty() && !wait) {
-            if (ship.route.active) {
-                route_next_stop(ship);
-            } else if (ship.trader) {
-                trader_choose(ship);
-            } else if (ship.owner == pirates() && ship.owner != kNoPlayer && !(m_directed && m_directed(ship.id))) {
-                pirate_choose(ship);
-            }
+            choose_next_target(ship);
         }
         if (!ship.target.empty() && !wait && !at_target(ship, ship.target)) {
             want_plan = true;
@@ -828,31 +844,12 @@ void Fleet::decide(Ship& ship) {
             want_plan = true;
             radius = kFollowRadius;
         }
-    } else {
-        // Another ship ahead (0x004538A0): wait a moment (1 in 16) or sail round it.
-        bool ahead = false;
-        for (const Ship& o : m_world->ships()) {
-            if (o.id == ship.id) {
-                continue;
-            }
-            const std::int32_t dx = o.x - ship.x;
-            const std::int32_t dy = o.y - ship.y;
-            if (std::abs(dx) >= kLookAhead || std::abs(dy) >= kLookAhead || (dx == 0 && dy == 0)) {
-                continue;
-            }
-            const std::int32_t sx = step_x(ship.direction);
-            const std::int32_t sy = step_y(ship.direction);
-            if ((sx != 0 && dx * sx > 0) || (sy != 0 && dy * sy > 0)) {
-                ahead = true;
-                break;
-            }
-        }
-        if (ahead) {
-            if ((m_world->random(RandomStream::Ships).next() & 15U) == 0) {
-                wait = kAheadWaitMs;
-            } else {
-                local_detour(ship);
-            }
+    } else if (ship_ahead(ship)) {
+        // Another ship ahead: wait a moment (1 in 16) or sail round it.
+        if ((m_world->random(RandomStream::Ships).next() & 15U) == 0) {
+            wait = kAheadWaitMs;
+        } else {
+            local_detour(ship);
         }
     }
     if (want_plan) {
@@ -1122,8 +1119,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
 
 std::uint32_t Fleet::transfer(const CargoTransfer& t) {
     Ship* ship = m_world->ship(t.ship);
-    if (ship == nullptr || (t.player != kNoPlayer && ship->owner != t.player) || t.ware < kFirstTradeWare ||
-        t.ware > kLastTradeWare) {
+    if (ship == nullptr || (t.player != kNoPlayer && ship->owner != t.player) || !is_trade_ware(t.ware)) {
         return 0;
     }
     // The Kontor the ship lies at: the player's own first, else one it may trade with.
@@ -1162,8 +1158,7 @@ std::uint32_t Fleet::transfer(const CargoTransfer& t) {
 
 bool Fleet::set_trade(const TradeSetting& s) {
     City* city = m_world->city(s.island, s.city);
-    if (city == nullptr || (s.player != kNoPlayer && city->owner != s.player) || s.ware < kFirstTradeWare ||
-        s.ware > kLastTradeWare) {
+    if (city == nullptr || (s.player != kNoPlayer && city->owner != s.player) || !is_trade_ware(s.ware)) {
         return false;
     }
     if (city->trade.size() <= s.ware) {

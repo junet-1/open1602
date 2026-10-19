@@ -8,23 +8,24 @@
 #include <cstdint>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/sim/game_data.hpp"
 
 namespace o1602::sim {
 
 /// HAUS_PRODTYP Kind values with production state (the original keeps a PRODLIST entry for them).
 enum class ProductionKind : std::int32_t {
-    Handwerk = 1,   ///< workshops (bakery, smelter, ...)
-    Plantage = 2,   ///< farms and plantations
-    Bergwerk = 3,   ///< mines
-    Weidetier = 4,  ///< cattle and sheep farms
-    Jagdhaus = 5,   ///< hunters
-    Fischerei = 6,  ///< fishers
-    Markt = 7,      ///< market place
-    Kontor = 8,     ///< warehouse (Kontor)
+    Handwerk = prod::kWorkshop,  ///< workshops (bakery, smelter, ...)
+    Plantage = prod::kFarm,      ///< farms and plantations
+    Bergwerk = prod::kMine,      ///< mines
+    Weidetier = prod::kPasture,  ///< cattle and sheep farms
+    Jagdhaus = prod::kHunter,    ///< hunters
+    Fischerei = prod::kFisher,   ///< fishers
+    Markt = prod::kMarket,       ///< market place
+    Kontor = prod::kKontor,      ///< warehouse (Kontor)
 };
 
 /// Ware number of markets and warehouses (ALLWARE): they hold every good.
-inline constexpr std::uint8_t kAllWares = 1;
+inline constexpr std::uint8_t kAllWares = ware::kAll;
 
 /// Workshops, farms, mines, hunters and fishers: kinds 1..6. These have smoke and status icons.
 [[nodiscard]] constexpr bool is_producer(const assets::BuildingType& b) noexcept {

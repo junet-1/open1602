@@ -5,6 +5,7 @@
 #include <array>
 
 #include "o1602/sim/disasters.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
 
 namespace o1602::sim {
@@ -17,9 +18,6 @@ constexpr std::uint32_t kInhabitantUnits = 64;  // inhabitants are counted in 1/
 constexpr std::uint8_t kFull = 128;
 constexpr std::uint8_t kNoMarket = 6;  // market distance class without (or far from) a market
 constexpr std::size_t kMaxNeighbourTiles = 40;
-constexpr std::int32_t kProdKindMarket = 7;
-constexpr std::int32_t kProdKindKontor = 8;
-constexpr std::int32_t kProdKindHouse = 13;
 
 // ---- Tables of 0x00478630 -------------------------------------------------------------------
 
@@ -75,32 +73,48 @@ const Tables& tables() {
     return kTables;
 }
 
+/// What a class of inhabitants needs to live in a house (0x0047BFA0): one of the services of
+/// every entry. The market is no service bit of House::services; kMarketNeed stands for it.
+constexpr std::uint16_t kMarketNeed = 1U << 15;
+using ServiceNeeds = std::array<std::uint16_t, 6>;
+constexpr std::array<ServiceNeeds, 5> kServiceNeeds = {{
+    {kMarketNeed | hs::kKontor},                                                               // pioneers
+    {kMarketNeed, hs::kKapelle | hs::kKirche},                                                 // settlers
+    {kMarketNeed, hs::kWirtshaus, hs::kKapelle | hs::kKirche, hs::kSchule | hs::kHochschule},  // citizens
+    {kMarketNeed, hs::kWirtshaus, hs::kKirche, hs::kSchule | hs::kHochschule, hs::kBadehaus},  // merchants
+    {kMarketNeed, hs::kWirtshaus, hs::kKirche, hs::kHochschule, hs::kBadehaus, hs::kTheater},  // aristocrats
+}};
+static_assert((kMarketNeed &
+               (hs::kDisasterMask | hs::kKapelle | hs::kKirche | hs::kWirtshaus | hs::kSchule | hs::kBadehaus |
+                hs::kTheater | hs::kHochschule | hs::kKlinik | hs::kKontor | hs::kGalgen | hs::kBrunnen)) == 0,
+              "kMarketNeed must not be a bit of House::services");
+
 /// Decline for plague and fire on the house (P7).
 constexpr std::array<std::int32_t, 4> kDisasterLoss = {0, 256, 192, 0};
 
 std::uint16_t service_bit(std::int32_t prod_kind) noexcept {
     switch (prod_kind) {
-        case 17:
+        case prod::kWirt:
             return hs::kWirtshaus;
-        case 18:
+        case prod::kKapelle:
             return hs::kKapelle;
-        case 19:
+        case prod::kKirche:
             return hs::kKirche;  // also the cathedral
-        case 20:
+        case prod::kBadehaus:
             return hs::kBadehaus;
-        case 21:
+        case prod::kTheater:
             return hs::kTheater;
-        case 22:
+        case prod::kKlinik:
             return hs::kKlinik;
-        case 23:
+        case prod::kSchule:
             return hs::kSchule;
-        case 24:
+        case prod::kHochschule:
             return hs::kHochschule;
-        case 25:
+        case prod::kGalgen:
             return hs::kGalgen;
-        case 26:
+        case prod::kBrunnen:
             return hs::kBrunnen;
-        case kProdKindKontor:
+        case prod::kKontor:
             return hs::kKontor;
         default:
             return 0;
@@ -219,7 +233,7 @@ private:
                 }
                 const MapCell& c = map.top(static_cast<std::uint32_t>(t.x), static_cast<std::uint32_t>(t.y));
                 const assets::BuildingType* b = c.empty() ? nullptr : m_buildings.by_sprite(c.sprite);
-                if (b != nullptr && b->prod_kind == kProdKindHouse && c.city == h.city) {
+                if (b != nullptr && b->prod_kind == prod::kHouse && c.city == h.city) {
                     m_finder.set(t, PathFinder::Cell::Goal, 32);
                 }
             }
@@ -477,25 +491,10 @@ private:
 }  // namespace
 
 bool has_services(const House& house, std::uint8_t resident_class) noexcept {
-    const std::uint16_t s = house.services;
-    const bool market = house.market;
-    const bool chapel = (s & (hs::kKapelle | hs::kKirche)) != 0;
-    const bool school = (s & (hs::kSchule | hs::kHochschule)) != 0;
-    const bool tavern = (s & hs::kWirtshaus) != 0;
-    const bool church = (s & hs::kKirche) != 0;
-    switch (resident_class) {
-        case 0:
-            return market || (s & hs::kKontor) != 0;
-        case 1:
-            return market && chapel;
-        case 2:
-            return market && tavern && chapel && school;
-        case 3:
-            return market && tavern && church && school && (s & hs::kBadehaus) != 0;
-        default:
-            return market && tavern && church && (s & hs::kHochschule) != 0 && (s & hs::kBadehaus) != 0 &&
-                   (s & hs::kTheater) != 0;
-    }
+    // The needs of 0x0047BFA0 by class; classes beyond the table need what the last one needs.
+    const auto s = static_cast<std::uint16_t>(house.services | (house.market ? kMarketNeed : 0U));
+    const ServiceNeeds& needs = kServiceNeeds[std::min<std::size_t>(resident_class, kServiceNeeds.size() - 1)];
+    return std::all_of(needs.begin(), needs.end(), [s](std::uint16_t any) { return any == 0 || (s & any) != 0; });
 }
 
 void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island) {
@@ -520,7 +519,7 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
             continue;
         }
         const std::uint16_t bit = service_bit(b->prod_kind);
-        if (bit == 0 && b->prod_kind != kProdKindMarket) {
+        if (bit == 0 && b->prod_kind != prod::kMarket) {
             continue;
         }
         std::uint32_t w = 1;

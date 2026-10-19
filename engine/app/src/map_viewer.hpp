@@ -134,7 +134,7 @@ private:
     [[nodiscard]] std::optional<render::FigureSprites> unit_sprites(const ui::UnitRef& ref) const;
 
     void handle_event(const SDL_Event& event);
-    void handle_key(int key, std::uint16_t mod);
+    void handle_key(int key, int scancode, std::uint16_t mod);
     /// F1: the keys as they are bound now, over the map.
     void show_key_help();
     void update(std::uint32_t delta_ms);
@@ -144,6 +144,14 @@ private:
     /// else the first island.
     [[nodiscard]] render::TilePos home_tile() const;
     core::Status save_screenshot(const std::filesystem::path& path);
+    /// Shows the drawn frame. A screenshot asked for since the last one is read first: SDL can read
+    /// the picture back only before it is presented.
+    void present();
+    /// Where F12 puts the next screenshot: screenshots/open1602-YYYYMMDD-HHMMSS.png in the user's
+    /// data folder, never over an older one.
+    [[nodiscard]] static std::filesystem::path next_screenshot_path();
+    /// A short note in the status line for a few seconds and on stderr (Windows-1252, from ui::tr).
+    void notify(const std::string& text);
     /// Saves the game: Open1602's own savegame, or a .GAM the original loads if the path ends in
     /// .gam. Never into the game's installation.
     core::Status save_game(const std::filesystem::path& path);
@@ -348,14 +356,22 @@ private:
     double m_mouse_y = 0.0;
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;
-    std::string m_tool_status;                    ///< what the build tool would do at the mouse
-    std::vector<render::EffectFigure> m_effects;  ///< volcano fire, lava, sea creatures, jugglers of this frame
-    render::Ambient m_ambient;                    ///< life in the picture, no part of the game
-    std::unique_ptr<GameSound> m_sound;           ///< effects, voices and music (after the window)
-    std::unique_ptr<Hud> m_hud;                   ///< panel and status bar (after the window), may be null
-    bool m_left_down = false;                     ///< the left mouse button, for the frame's buttons
-    std::vector<render::TileMark> m_tile_marks;   ///< red ground under what cannot be built, a dragged field
-    render::TileLighting m_lighting;              ///< tiles drawn darker this frame
+    std::string m_tool_status;  ///< what the build tool would do at the mouse
+    std::string m_notice;       ///< notify(): quick save, screenshot, their errors
+    std::uint64_t m_notice_until_ms = 0;
+    struct ScreenshotRequest {
+        std::filesystem::path path;
+        bool notify = false;  ///< say in the status line how it went (F12)
+    };
+    std::optional<ScreenshotRequest> m_screenshot;  ///< read in the next present()
+    std::optional<std::string> m_screenshot_error;  ///< why the last one failed
+    std::vector<render::EffectFigure> m_effects;    ///< volcano fire, lava, sea creatures, jugglers of this frame
+    render::Ambient m_ambient;                      ///< life in the picture, no part of the game
+    std::unique_ptr<GameSound> m_sound;             ///< effects, voices and music (after the window)
+    std::unique_ptr<Hud> m_hud;                     ///< panel and status bar (after the window), may be null
+    bool m_left_down = false;                       ///< the left mouse button, for the frame's buttons
+    std::vector<render::TileMark> m_tile_marks;     ///< red ground under what cannot be built, a dragged field
+    render::TileLighting m_lighting;                ///< tiles drawn darker this frame
     /// The building looked at when the build menu picked its field: its circle stays lit while
     /// that field is placed.
     struct FieldSource {

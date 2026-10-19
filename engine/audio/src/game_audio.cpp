@@ -6,6 +6,8 @@
 #include <cmath>
 #include <filesystem>
 
+#include "o1602/core/file.hpp"
+
 namespace o1602::audio {
 
 namespace {
@@ -325,7 +327,7 @@ void Music::scan(const assets::GameDirectory& game, std::vector<std::string>& tr
         return;
     }
     for (const auto& entry : std::filesystem::directory_iterator(*dir, ec)) {
-        const std::string name = entry.path().filename().string();
+        const std::string name = core::path_to_utf8(entry.path().filename());
         if (name.size() < 5 || lower(name.substr(name.size() - 4)) != ".wav") {
             continue;
         }

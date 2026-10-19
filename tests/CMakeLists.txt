@@ -38,6 +38,11 @@ add_executable(o1602_tests
     unit/test_localization.cpp
     unit/test_unit_selection.cpp
     unit/test_video.cpp
+    unit/test_sea_paths.cpp
+    unit/test_land_paths.cpp
+    unit/test_world_generator.cpp
+    unit/test_ai.cpp
+    unit/test_save_fuzz.cpp
     data/test_original_data.cpp
     data/test_new_game.cpp
     data/test_ai_data.cpp

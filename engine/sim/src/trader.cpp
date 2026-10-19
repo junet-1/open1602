@@ -6,13 +6,13 @@
 #include <algorithm>
 #include <array>
 
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/ships.hpp"
 
 namespace o1602::sim {
 
 namespace {
 
-constexpr std::uint16_t kTraderFigure = 29;  // HANDLER
 constexpr std::uint32_t kTon = 32;
 constexpr std::uint32_t kTraderCheckMs = 10'000;  // one pass over the cities (city epoch)
 constexpr std::uint32_t kRestockMs = 60'000;      // S-078: the original counts run ends
@@ -20,10 +20,6 @@ constexpr std::uint32_t kMaxHeld = 50 * kTon;     // per ware
 constexpr std::uint32_t kMaxBuy = 10 * kTon;      // per ware and visit
 constexpr std::uint8_t kAgeLimit = 5;
 constexpr std::size_t kCandidates = 12;
-constexpr std::uint8_t kFirstWare = 2;
-constexpr std::uint8_t kLastWare = 24;
-constexpr std::uint8_t kTools = 22;               // WERKZEUG
-constexpr std::uint8_t kIronOre = 2;              // EISENERZ
 constexpr std::uint32_t kNoTraderFlag = 1U << 6;  // TIMERS +0xA8 bit 6
 
 TraderGood* good_of(Ship& ship, std::uint8_t ware) {
@@ -156,7 +152,7 @@ void Fleet::trader_choose(Ship& ship) {
     for (const Candidate& cand : candidates) {
         const City& c = m_world->cities()[cand.city];
         std::int64_t score = 0;
-        for (std::uint8_t w = kFirstWare; w <= kLastWare; ++w) {
+        for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
             const City::Trade* t = c.trade_of(w);
             if (t == nullptr) {
                 continue;
@@ -202,7 +198,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
     // trader's own money never changes. Afterwards his goods age.
     bool traded = false;
     Player* owner = m_world->player(city.owner);
-    for (std::uint8_t w = kFirstWare; w <= kLastWare; ++w) {
+    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
         std::uint32_t n = trader_buy_amount(ship, city, w);
         n -= n % kTon;
         if (n == 0) {
@@ -220,7 +216,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         m_events.push_back(ShipEvent{ShipEvent::Kind::Traded, ship.id, ship.owner, city.island, city.index, w,
                                      std::int64_t{n}, std::int64_t{price} * n / kTon});
     }
-    for (std::uint8_t w = kFirstWare; w <= kLastWare; ++w) {
+    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
         std::uint32_t n = trader_sell_amount(ship, city, w);
         n -= n % kTon;
         if (n == 0) {
@@ -240,7 +236,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         m_events.push_back(ShipEvent{ShipEvent::Kind::Traded, ship.id, ship.owner, city.island, city.index, w,
                                      -std::int64_t{n}, -std::int64_t{price} * n / kTon});
     }
-    for (std::uint8_t w = kFirstWare; w <= kLastWare && w < ship.trader_goods.size(); ++w) {
+    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade && w < ship.trader_goods.size(); ++w) {
         TraderGood& g = ship.trader_goods[w];
         if (g.amount == 0) {
             continue;
@@ -266,22 +262,22 @@ void Fleet::trader_restock(Ship& ship, std::uint32_t dt_ms) {
         return m.offer >= 4 * kTon && m.offer > m.demand * 85 / 128 && m.offer != 0 &&
                m.offer_value / m.offer < max_price;
     };
-    if (held(ship, kTools) < 7 * kTon) {
+    if (held(ship, ware::kTools) < 7 * kTon) {
         ship.trader_tools_ms += dt_ms;
         if (ship.trader_tools_ms >= kRestockMs) {
             ship.trader_tools_ms = 0;
-            if (!supplied(kTools, base_price(kTools) * 115U / 128U)) {
+            if (!supplied(ware::kTools, base_price(ware::kTools) * 115U / 128U)) {
                 const std::uint32_t n = m_tools_given < m_tools_quota ? 4 * kTon : kTon;
                 if (m_tools_given < m_tools_quota) {
                     m_tools_given += 4 * kTon;
                 }
-                add_good(ship, kTools, n, static_cast<std::uint16_t>(base_price(kTools) * 64U / 128U));
+                add_good(ship, ware::kTools, n, static_cast<std::uint16_t>(base_price(ware::kTools) * 64U / 128U));
             }
         }
     } else {
         ship.trader_tools_ms = 0;
     }
-    if (held(ship, kIronOre) < 5 * kTon) {
+    if (held(ship, ware::kOre) < 5 * kTon) {
         ship.trader_ore_ms += dt_ms;
         if (ship.trader_ore_ms >= kRestockMs) {
             ship.trader_ore_ms = 0;
@@ -301,15 +297,15 @@ void Fleet::trader_restock(Ship& ship, std::uint32_t dt_ms) {
                 }
                 const MapCell& c = map.top(p.x, p.y);
                 const assets::BuildingType* b = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite);
-                if (b != nullptr && b->ware == kIronOre && b->prod_kind == 3) {
+                if (b != nullptr && b->ware == ware::kOre && b->prod_kind == prod::kMine) {
                     iron_mined = true;
                     World::GameSettings settings = m_world->game_settings();
                     settings.flags |= kIronMinedFlag;
                     m_world->set_game_settings(settings);
                 }
             }
-            if (iron_mined && !supplied(kIronOre, base_price(kIronOre) * 115U / 128U)) {
-                add_good(ship, kIronOre, 2 * kTon, static_cast<std::uint16_t>(base_price(kIronOre) / 2));
+            if (iron_mined && !supplied(ware::kOre, base_price(ware::kOre) * 115U / 128U)) {
+                add_good(ship, ware::kOre, 2 * kTon, static_cast<std::uint16_t>(base_price(ware::kOre) / 2));
             }
         }
     } else {
@@ -325,7 +321,7 @@ void Fleet::spawn_trader() {
             break;
         }
     }
-    const assets::FigureType* type = m_figures->get(kTraderFigure);
+    const assets::FigureType* type = m_figures->get(figure::kTrader);
     if (trader == kNoPlayer || type == nullptr) {
         return;
     }
@@ -361,12 +357,12 @@ void Fleet::spawn_trader() {
         Ship s;
         s.name = next_ship_name();
         s.place(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
-        s.figure = kTraderFigure;
+        s.figure = figure::kTrader;
         s.owner = trader;
         s.health = type->ship.max_health;
         s.cargo.resize(std::max<std::size_t>(1, type->ship.cargo_slots));
         s.trader = true;
-        s.trader_goods.resize(kLastWare + 1U);
+        s.trader_goods.resize(ware::kLastTrade + 1U);
         m_world->add_ship(std::move(s));
         m_events.push_back(ShipEvent{ShipEvent::Kind::TraderArrived, m_world->ships().back().id, trader});
         return;
@@ -385,14 +381,14 @@ void Fleet::trader_tick(std::uint32_t dt_ms) {
     }
     m_trader_ms -= kTraderCheckMs;
     // Market statistics and the number of Kontors (0x004802A0, 0x004801C0).
-    m_market.assign(kLastWare + 1U, Market{});
+    m_market.assign(ware::kLastTrade + 1U, Market{});
     std::uint32_t kontors = 0;
     for (const City& c : m_world->cities()) {
         if (!c.warehouse_x || !c.warehouse_y) {
             continue;
         }
         ++kontors;
-        for (std::uint8_t w = kFirstWare; w <= kLastWare; ++w) {
+        for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
             const City::Trade* t = c.trade_of(w);
             if (t == nullptr) {
                 continue;
