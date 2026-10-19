@@ -71,7 +71,7 @@ core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std
         }
         const auto phase = static_cast<std::uint8_t>(anim_phase & 0xFU);
         const auto bits = static_cast<std::uint8_t>(random & 0x1FU);
-        m_top[i] = MapCell{static_cast<std::uint16_t>(sprite & 0x1FFFU), rotation, phase, o, c, bits};
+        m_top[i] = MapCell{static_cast<std::uint16_t>(sprite), rotation, phase, o, c, bits};
         if (mode == Mode::LoadGround) {
             m_ground[i] = m_top[i];
         }

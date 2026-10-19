@@ -485,3 +485,30 @@ TEST_CASE("construction: what the build menu offers (Haus_IsAvailableForPlayer 0
     p.infra_mask |= 1U << 13U;
     CHECK(sim::building_available(p, monument));
 }
+
+TEST_CASE("construction: buildings of mods may use sprites from 8192 on (review point 30)") {
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: HAUS\n"
+        "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 8\n  Size: 1, 1\n"
+        "  @Nummer: 1\n  Id: 20702\n  Kind: 1\n  Gfx: 8200\n  Size: 2, 2\n"
+        "EndObj\n",
+        types);
+    auto table = assets::BuildingTable::from_cod(doc);
+    REQUIRE(table.ok());
+    const assets::BuildingType* mod = table->by_id(20702);
+    REQUIRE(mod != nullptr);
+    sim::IslandMap map(4, 4);
+    REQUIRE(map.place(*mod, 1, 1, 0, 0).ok());
+    // The masked sprite of the original's grid (8200 & 0x1FFF = 8) would be the ground.
+    CHECK(map.top(1, 1).sprite >= 8200);
+    const sim::SubTile tile = map.sub_tile(*table, 2, 2);
+    CHECK(tile.building == mod);
+    CHECK(tile.origin_x == 1);
+    CHECK(tile.origin_y == 1);
+
+    // Sprites must stay below the empty tile's 0xFFFF.
+    const auto too_far = assets::cod::parse(
+        "Objekt: HAUS\n  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 65534\n  Size: 1, 2\nEndObj\n", types);
+    CHECK(!assets::BuildingTable::from_cod(too_far).ok());
+}
