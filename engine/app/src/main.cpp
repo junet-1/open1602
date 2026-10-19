@@ -24,6 +24,7 @@
 #include <string_view>
 #include <vector>
 
+#include "diagnostics.hpp"
 #include "map_viewer.hpp"
 
 #include "o1602/assets/scenario.hpp"
@@ -162,6 +163,7 @@ bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::S
 }  // namespace
 
 int main(int argc, char** argv) {
+    app::setup_diagnostics();
     std::string_view game_dir;
     std::string_view scenario = "Szenes/Das Atoll.szs";
     std::string_view savegame;
@@ -233,7 +235,7 @@ int main(int argc, char** argv) {
         } else if (arg == "--no-confirm") {
             options.confirm = false;
         } else if (arg == "--keys" && has_value) {
-            options.keys_file = std::filesystem::path(argv[++i]);
+            options.keys_file = core::path_from_utf8(argv[++i]);
         } else if (arg == "--language" && has_value) {
             options.language = argv[++i];
         } else if (arg == "--no-videos") {
@@ -261,7 +263,7 @@ int main(int argc, char** argv) {
             }
             options.zoom = static_cast<render::Zoom>(zoom);
         } else if (arg == "--screenshot" && has_value) {
-            options.screenshot = argv[++i];
+            options.screenshot = core::path_from_utf8(argv[++i]);
         } else if (arg == "--refund" && has_value) {
             // Game setting: what demolishing gives back (none as in the original, partial[:N], full).
             const std::string_view mode = argv[++i];
@@ -298,7 +300,7 @@ int main(int argc, char** argv) {
                 return usage();
             }
         } else if (arg == "--save" && has_value) {
-            options.save = argv[++i];
+            options.save = core::path_from_utf8(argv[++i]);
         } else if (arg == "--volcanoes" && has_value) {
             // Game setting: whether volcanoes erupt.
             const std::string_view mode = argv[++i];
@@ -427,9 +429,9 @@ int main(int argc, char** argv) {
     }
 
     auto game = game_dir.empty() ? assets::GameDirectory::from_environment()
-                                 : assets::GameDirectory::open(std::filesystem::path(game_dir));
+                                 : assets::GameDirectory::open(core::path_from_utf8(game_dir));
     if (!game) {
-        std::fprintf(stderr, "error: %s\n(set ANNO1602_DIR or pass --game-dir)\n", game.error().message.c_str());
+        app::report_fatal(game.error().message + "\n(set ANNO1602_DIR or pass --game-dir)");
         return 1;
     }
     std::string savegame_path;
@@ -454,11 +456,11 @@ int main(int argc, char** argv) {
         scenario = savegame_path;
     }
     if (!load.empty()) {
-        options.scenario = std::filesystem::path(load);
+        options.scenario = core::path_from_utf8(load);
     } else if (const auto resolved = game->resolve(scenario)) {
         options.scenario = *resolved;
     } else {
-        options.scenario = std::filesystem::path(scenario);
+        options.scenario = core::path_from_utf8(scenario);
     }
 
     // What the original rolls with rand(): the map layout and where the island table starts; the
@@ -499,7 +501,7 @@ int main(int argc, char** argv) {
     options.menu = options.frame && (menu || (!game_named && !new_game));
     auto viewer = app::MapViewer::create(*game, options);
     if (!viewer) {
-        std::fprintf(stderr, "error: %s\n", viewer.error().message.c_str());
+        app::report_fatal(viewer.error().message);
         return 1;
     }
     return (*viewer)->run();

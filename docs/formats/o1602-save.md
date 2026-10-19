@@ -32,9 +32,12 @@ All numbers little-endian.
 Without zlib in the build, Open1602 writes the sections unpacked; such a build refuses to load a packed file
 with a clear message.
 
-**Section:** u32 identifier (four characters), u16 version, u16 0, u32 length, data. A reader skips
-sections it does not know and versions it cannot read. Later versions can thus
-add parts without invalidating older savegames.
+**Section:** u32 identifier (four characters), u16 version, u16 flags, u32 length, data. A reader skips
+sections it does not know and versions it cannot read, and reports each in the load's warnings. Later
+versions can thus add parts without invalidating older savegames. Flag bit 0 marks a section as
+**required**: a reader that cannot read such a section loads nothing (a game without it would run
+differently, e.g. desynchronise in multiplayer). All sections are required except `META` and `ORIG`;
+see [o1602-chunk.md](o1602-chunk.md) for the rules.
 
 | Identifier | Contents |
 |---|---|
@@ -72,7 +75,10 @@ makes the savegame unreadable (instead of wrong buildings).
   figure table (the game does that), it also reads `SIMU` as a trial run
   (`Simulation::state_readable`). Only if everything is correct is the world created; a damaged, truncated
   or newer savegame loads nothing. Every count is checked against the remaining length before
-  memory is reserved. Writing goes first to a side file, which is then renamed.
+  memory is reserved. Writing goes first to a side file, which is then renamed. A fuzz test
+  (`tests/unit/test_save_fuzz.cpp`) changes the sections of a saved game at random (bits, bytes, counts,
+  sizes, sections cut, left out, doubled or moved) with a correct checksum: every such file loads
+  nothing or a world that validates, saves again and runs.
 - **Small:** Merlin04 (130 minutes, two cities) needs 248 KB instead of 885 KB as a `.GAM` with the extra chunk.
 
 ## In the viewer

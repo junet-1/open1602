@@ -926,7 +926,7 @@ core::Result<World> load_world(const assets::ChunkFile& file, const assets::Buil
         if (c.name == kExtensionChunk) {
             constexpr std::size_t kHeader = 20;
             const auto before = file.data().subspan(0, c.offset - kHeader);
-            if (auto status = apply_extension(world, buildings, file.payload(c), before); !status) {
+            if (auto status = apply_extension(world, buildings, file.payload(c), before, warnings); !status) {
                 warn(status.error().message + " (loaded without it)");
             }
             break;

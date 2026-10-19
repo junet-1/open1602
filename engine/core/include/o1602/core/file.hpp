@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -13,6 +14,18 @@
 namespace o1602::core {
 
 using Bytes = std::vector<std::uint8_t>;
+
+/// A path from UTF-8 text (SDL, the command line, settings files). On Windows the narrow
+/// constructor of `std::filesystem::path` reads the ANSI code page instead, which turns a user
+/// named "Jürgen" into "JÃ¼rgen"; elsewhere the bytes stay as they are.
+std::filesystem::path path_from_utf8(std::string_view text);
+
+/// A path as UTF-8 text for messages, SDL and settings files. Never throws: on Windows
+/// `path::string()` does for characters outside the ANSI code page.
+std::string path_to_utf8(const std::filesystem::path& path);
+
+/// The value of an environment variable as UTF-8 text; nothing if it is unset or empty.
+std::optional<std::string> environment_variable(const char* name);
 
 /// Reads a whole file into memory.
 Result<Bytes> read_file(const std::filesystem::path& path);

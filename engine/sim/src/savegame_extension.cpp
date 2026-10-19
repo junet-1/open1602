@@ -32,7 +32,8 @@ constexpr std::uint32_t tag(const char (&s)[5]) noexcept {
            static_cast<std::uint32_t>(static_cast<unsigned char>(s[3])) << 24;
 }
 
-// Sections (each with version 1 so far).
+// Sections (each with version 1 so far). A section that changes in a way older readers cannot
+// follow gets the next version; a reader skips what it cannot read unless the section is required.
 constexpr std::uint32_t kRules = tag("RULE");
 constexpr std::uint32_t kWorld = tag("WRLD");
 constexpr std::uint32_t kIslands = tag("ISLE");
@@ -70,6 +71,20 @@ constexpr std::uint32_t kQueues = tag("QUEU");
 /// Attack move and hold position of ships and units (Open1602, ADR 0010).
 constexpr std::uint32_t kStances = tag("STNC");
 
+/// Every section this version reads; others are of a later version.
+constexpr std::array kKnownSections = {
+    kRules,    kWorld,    kIslands, kTiles,     kPlayers,   kCities,      kProductions, kHouses, kGrowth, kCosts,
+    kShips,    kSoldiers, kAnimals, kDisasters, kVolcanoes, kSimulation,  kFleet,       kEpochs, kArmy,   kDiplomacy,
+    kExplored, kMap,      kWorld2,  kMeta,      kMissions,  kPlayerState, kCityState,   kOrigin, kQueues, kStances};
+
+/// Section flag (the u16 after the version): the section holds state the game cannot do without, so
+/// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
+/// sections it skips with a warning. Files of earlier versions have no flags: all sections optional.
+constexpr std::uint16_t kRequired = 1;
+
+/// Whether a section is required (kRequired) when written.
+enum class Need : std::uint8_t { Required, Optional };
+
 // Keys of the rules (RULE): a key per setting, so settings can be added and old files keep theirs.
 enum RuleKey : std::uint16_t {
     kRefund = 1,
@@ -85,12 +100,12 @@ enum RuleKey : std::uint16_t {
 
 using Out = core::ByteWriter;
 
-/// Writes a section: tag, version, size, payload.
+/// Writes a section: tag, version, flags, size, payload.
 template <class Fn>
-void section(Out& out, std::uint32_t id, Fn&& body) {
+void section(Out& out, std::uint32_t id, Fn&& body, Need need = Need::Required) {
     out.u32(id);
     out.u16(1);
-    out.u16(0);
+    out.u16(need == Need::Required ? kRequired : 0);
     const std::size_t size_at = out.size();
     out.u32(0);
     const std::size_t start = out.size();
@@ -2199,15 +2214,18 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
                             TileMode tiles, std::span<const std::uint8_t> before) {
     Out out;
     if (tiles == TileMode::Full) {
-        section(out, kMeta, [&](Out& o) {
-            o.u32(world.width());
-            o.u32(world.height());
-            o.u64(world.time_ms());
-            o.u64(buildings_fingerprint(buildings));
-            const PlayerId local = first_human_player(world);
-            const Player* p = world.player(local);
-            o.string(p != nullptr ? p->name : std::string());
-        });
+        section(
+            out, kMeta,
+            [&](Out& o) {
+                o.u32(world.width());
+                o.u32(world.height());
+                o.u64(world.time_ms());
+                o.u64(buildings_fingerprint(buildings));
+                const PlayerId local = first_human_player(world);
+                const Player* p = world.player(local);
+                o.string(p != nullptr ? p->name : std::string());
+            },
+            Need::Optional);  // for a list of savegames
         section(out, kMap, [&](Out& o) { write_map(o, world, buildings); });
     }
     // The settings: those of the running game, or those the world was loaded with.
@@ -2233,7 +2251,7 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kGrowth, [&](Out& o) { write_growth(o, world); });
     section(out, kCosts, [&](Out& o) { write_costs(o, world); });
     if (tiles == TileMode::Differences) {
-        section(out, kShips, [&](Out& o) { write_ships(o, world); });  // for readers older than FLEE
+        section(out, kShips, [&](Out& o) { write_ships(o, world); }, Need::Optional);  // for readers older than FLEE
     }
     section(out, kAnimals, [&](Out& o) { write_animals(o, world); });
     section(out, kDisasters, [&](Out& o) { write_disasters(o, world); });
@@ -2300,15 +2318,18 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
         }
     });
     if (tiles == TileMode::Full && world.source() != nullptr) {
-        section(out, kOrigin, [&](Out& o) {
-            assets::ChunkWriter chunks;
-            for (const assets::Chunk& c : world.source()->chunks()) {
-                if (c.name != "INSELHAUS") {
-                    chunks.add(c.name, world.source()->payload(c));
+        section(
+            out, kOrigin,
+            [&](Out& o) {
+                assets::ChunkWriter chunks;
+                for (const assets::Chunk& c : world.source()->chunks()) {
+                    if (c.name != "INSELHAUS") {
+                        chunks.add(c.name, world.source()->payload(c));
+                    }
                 }
-            }
-            o.bytes(chunks.bytes());
-        });
+                o.bytes(chunks.bytes());
+            },
+            Need::Optional);  // only for the export as .GAM
     }
     if (simulation != nullptr) {
         section(out, kSimulation, [&](Out& o) { simulation->save_state(o); });
@@ -2321,30 +2342,50 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
 
 namespace {
 
-/// Calls `fn(id, body)` for every section of version 1; false if the sections are damaged.
+/// The identifier of a section as text, for messages.
+std::string tag_name(std::uint32_t id) {
+    std::string name;
+    for (std::uint32_t i = 0; i < 4; ++i) {
+        const auto c = static_cast<char>((id >> (8 * i)) & 0xFFU);
+        name.push_back(c >= ' ' && c <= '~' ? c : '?');
+    }
+    return name;
+}
+
+/// Calls `fn(id, body)` for every section this version reads (version 1 of a known identifier);
+/// an error if the sections are damaged or `fn` returns false. A section of a later version is
+/// skipped and reported in `warnings`, or fails the load if it is required (kRequired).
 template <class Fn>
-bool for_each_section(std::span<const std::uint8_t> data, Fn&& fn) {
+core::Status for_each_section(std::span<const std::uint8_t> data, std::vector<std::string>* warnings, Fn&& fn) {
     core::ByteReader reader(data);
     while (!reader.at_end()) {
         const auto id = reader.u32();
         const auto section_version = reader.u16();
-        const auto reserved = reader.u16();
+        const auto flags = reader.u16();
         const auto size = reader.u32();
-        if (!id || !section_version || !reserved || !size) {
-            return false;
+        if (!id || !section_version || !flags || !size) {
+            return make_error(ErrorCode::InvalidFormat, "O1602: damaged section header");
         }
         const auto body = reader.bytes(*size);
         if (!body) {
-            return false;
+            return make_error(ErrorCode::InvalidFormat, "O1602: damaged section header");
         }
-        if (*section_version != 1) {
-            continue;  // a later version of this part: skipped
+        if (*section_version != 1 ||
+            std::find(kKnownSections.begin(), kKnownSections.end(), *id) == kKnownSections.end()) {
+            const std::string what = "section " + tag_name(*id) + " (version " + std::to_string(*section_version) + ")";
+            if ((*flags & kRequired) != 0) {
+                return make_error(ErrorCode::Unsupported, "O1602: " + what + " needs a newer Open1602");
+            }
+            if (warnings != nullptr) {
+                warnings->push_back(what + " is of a newer Open1602 and was skipped");
+            }
+            continue;
         }
         if (!fn(*id, *body)) {
-            return false;
+            return make_error(ErrorCode::InvalidFormat, "O1602: damaged section " + tag_name(*id));
         }
     }
-    return true;
+    return core::Ok{};
 }
 
 }  // namespace
@@ -2353,7 +2394,7 @@ core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, 
                                         std::vector<std::string>* warnings) {
     std::optional<core::Result<World>> world;
     bool meta_ok = true;
-    const bool ok = for_each_section(sections, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
+    const auto status = for_each_section(sections, warnings, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
         core::ByteReader sr(body);
         StateIn in(sr);
         if (id == kMeta) {
@@ -2367,8 +2408,8 @@ core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, 
         }
         return true;
     });
-    if (!ok) {
-        return make_error(ErrorCode::InvalidFormat, "save: damaged section header");
+    if (!status) {
+        return status.error();
     }
     if (!world) {
         return make_error(ErrorCode::InvalidFormat, "save: no map");
@@ -2380,7 +2421,7 @@ core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, 
 }
 
 core::Status apply_sections(World& world, const assets::BuildingTable& buildings,
-                            std::span<const std::uint8_t> sections) {
+                            std::span<const std::uint8_t> sections, std::vector<std::string>* warnings) {
     Decoded d;
     core::Bytes origin;
     std::vector<std::pair<std::uint32_t, std::vector<Target>>> ship_queues;
@@ -2388,7 +2429,7 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
     std::vector<std::pair<std::uint32_t, std::uint8_t>> ship_stances;
     std::vector<std::pair<std::uint32_t, std::uint8_t>> soldier_stances;
     bool damaged = false;
-    const bool ok = for_each_section(sections, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
+    const auto status = for_each_section(sections, warnings, [&](std::uint32_t id, std::span<const std::uint8_t> body) {
         core::ByteReader sr(body);
         StateIn in(sr);
         switch (id) {
@@ -2497,17 +2538,16 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 }
                 break;
             default:
-                return true;  // META, MAPW (read before), or a part of a later version
+                return true;  // META, MAPW (read before)
         }
         damaged = damaged || !in.ok();
         return !damaged;
     });
-    if (!ok || damaged) {
-        return make_error(ErrorCode::InvalidFormat,
-                          damaged ? "O1602: damaged section" : "O1602: damaged section header");
-    }
-    if (auto status = apply_decoded(world, d); !status) {
+    if (!status) {
         return status;
+    }
+    if (auto applied = apply_decoded(world, d); !applied) {
+        return applied;
     }
     for (auto& [id, queue] : ship_queues) {
         if (Ship* ship = world.ship(id)) {
@@ -2553,7 +2593,8 @@ core::Bytes encode_extension(const World& world, const assets::BuildingTable& bu
 }
 
 core::Status apply_extension(World& world, const assets::BuildingTable& buildings,
-                             std::span<const std::uint8_t> payload, std::span<const std::uint8_t> before) {
+                             std::span<const std::uint8_t> payload, std::span<const std::uint8_t> before,
+                             std::vector<std::string>* warnings) {
     core::ByteReader reader(payload);
     const auto magic = reader.bytes(kMagic.size());
     if (!magic || !std::equal(magic->begin(), magic->end(), kMagic.begin())) {
@@ -2571,7 +2612,7 @@ core::Status apply_extension(World& world, const assets::BuildingTable& building
     if (*fingerprint != savegame_fingerprint(before)) {
         return make_error(ErrorCode::InvalidFormat, "O1602: the original's chunks were changed since");
     }
-    return detail::apply_sections(world, buildings, payload.subspan(payload.size() - reader.remaining()));
+    return detail::apply_sections(world, buildings, payload.subspan(payload.size() - reader.remaining()), warnings);
 }
 
 }  // namespace o1602::sim
