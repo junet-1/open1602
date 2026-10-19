@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "o1602/sim/event_buffer.hpp"
 #include "o1602/sim/player.hpp"
 
 namespace o1602::sim {
@@ -125,11 +126,7 @@ public:
     /// The 5-second decay of the counters of player a (Player_Tick 0x00476350): x 255/256.
     void decay(PlayerId a) noexcept;
 
-    [[nodiscard]] std::vector<DiplomacyNotice> take_notices() {
-        std::vector<DiplomacyNotice> n;
-        n.swap(m_notices);
-        return n;
-    }
+    [[nodiscard]] std::vector<DiplomacyNotice> take_notices() { return m_notices.take(); }
 
     friend bool operator==(const Diplomacy& a, const Diplomacy& b) noexcept;
 
@@ -138,7 +135,7 @@ private:
     std::vector<Relation> m_pairs;  ///< a * count + b
     std::vector<std::array<DiplomacyEvent, kEvents>> m_events;
     std::vector<PlayerId> m_blamed;  ///< the original's +0x81: last player who destroyed a's Kontor/market
-    std::vector<DiplomacyNotice> m_notices;
+    EventBuffer<DiplomacyNotice> m_notices;
 };
 
 /// A player's diplomatic action (the diplomacy panel 0x0043CE00, docs/re/diplomacy.md).

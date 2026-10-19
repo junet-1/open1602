@@ -2,6 +2,7 @@
 #include "o1602/sim/simulation.hpp"
 
 #include <algorithm>
+#include <array>
 
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/save_game.hpp"
@@ -12,7 +13,6 @@ namespace o1602::sim {
 namespace {
 
 constexpr std::uint32_t kProductionPeriodMs = 1000;  // 0x0047DAF0: once per game second
-constexpr std::size_t kMaxPendingEvents = 8192;      // events nobody takes are dropped, oldest first
 constexpr std::uint32_t kUpkeepPeriodMs = 5000;      // 0x00476350: each player once per 5 s
 constexpr std::uint32_t kDiplomacyTickMs = 5000;     // 0x00476350: the diplomacy counters fade
 constexpr std::uint32_t kPirateGoalFlag = 1U << 5;   // game settings: defeat the pirates
@@ -214,16 +214,9 @@ void Simulation::apply_commands() {
             result = execute(q.command);
         }
         result.sequence = q.sequence;
-        m_command_results.push_back(std::move(result));
+        m_command_results.push(std::move(result));
     }
-    if (m_construction_events.size() > kMaxPendingEvents) {
-        m_construction_events.erase(m_construction_events.begin(),
-                                    m_construction_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-    }
-    if (m_command_results.size() > kMaxPendingEvents) {
-        m_command_results.erase(m_command_results.begin(),
-                                m_command_results.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-    }
+    trim_events();  // also while the game is paused
 }
 
 CommandResult Simulation::execute(const Command& command) {
@@ -235,10 +228,10 @@ CommandResult Simulation::execute(const Command& command) {
     }
     const std::size_t first = m_construction_events.size();
     if (const auto* build = std::get_if<BuildOrder>(&command)) {
-        result.build = execute_build(*m_world, *m_buildings, *build, m_city_names, &m_construction_events);
+        result.build = execute_build(*m_world, *m_buildings, *build, m_city_names, m_construction_events.sink());
     } else if (const auto* demolish = std::get_if<DemolishOrder>(&command)) {
         const DemolishResult d =
-            execute_demolish(*m_world, *m_buildings, *demolish, &m_construction_events, m_rules.refund_share());
+            execute_demolish(*m_world, *m_buildings, *demolish, m_construction_events.sink(), m_rules.refund_share());
         result.demolished = d.removed;
         result.refund = d.refund;
     } else if (const auto* order = std::get_if<ShipOrder>(&command)) {
@@ -280,7 +273,7 @@ CommandResult Simulation::execute(const Command& command) {
     } else if (const auto* rename = std::get_if<PlayerRename>(&command)) {
         result.accepted = rename_player(*rename);
     }
-    handle(m_construction_events, first);
+    handle(m_construction_events.events(), first);
     return result;
 }
 
@@ -428,22 +421,37 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
     }
 }
 
-std::vector<MilitaryEvent> Simulation::take_military_events() {
-    std::vector<MilitaryEvent> events;
-    events.swap(m_military_events);
-    return events;
+std::span<const Simulation::TickStep> Simulation::tick_steps() noexcept {
+    // The original runs its subsystems in this order (0x00489670): growth first (0x0047CA80),
+    // production (0x0047DAF0), then the cities (0x0047F8A0) and houses (0x0047B9C0), ..., the
+    // computer players after the players' tick (AI_Tick 0x0042B4B0) and the figures last
+    // (0x00451890). Changing the order changes the game.
+    static constexpr std::array<TickStep, 15> kSteps = {{
+        {"diplomacy", &Simulation::diplomacy_step},
+        {"growth", &Simulation::growth_step},
+        {"production", &Simulation::production_step},
+        {"cities", &Simulation::cities_step},
+        {"city events", &Simulation::city_events_step},
+        {"houses", &Simulation::houses_step},
+        {"upkeep", &Simulation::upkeep_step},
+        {"disasters", &Simulation::disasters_step},
+        {"islands", &Simulation::islands_step},
+        {"volcanoes", &Simulation::volcanoes_step},
+        {"computers", &Simulation::computers_step},
+        {"combat", &Simulation::combat_step},
+        {"ships", &Simulation::ships_step},
+        {"soldiers", &Simulation::soldiers_step},
+        {"logistics", &Simulation::logistics_step},
+    }};
+    return kSteps;
 }
 
-std::vector<CommandResult> Simulation::take_command_results() {
-    std::vector<CommandResult> results;
-    results.swap(m_command_results);
-    return results;
-}
-
-std::vector<ConstructionEvent> Simulation::take_construction_events() {
-    std::vector<ConstructionEvent> events;
-    events.swap(m_construction_events);
-    return events;
+std::vector<std::string_view> Simulation::tick_step_names() {
+    std::vector<std::string_view> names;
+    for (const TickStep& step : tick_steps()) {
+        names.push_back(step.name);
+    }
+    return names;
 }
 
 void Simulation::tick() {
@@ -453,80 +461,112 @@ void Simulation::tick() {
     }
     m_time_ms += kTickMs;
     m_world->set_time_ms(m_time_ms);
+    for (const TickStep& step : tick_steps()) {
+        (this->*step.run)();
+    }
+    trim_events();
+    if (m_tick_observer) {
+        m_tick_observer(*m_world);
+    }
+}
+
+bool Simulation::elapsed(std::uint32_t& clock, std::uint32_t period) noexcept {
+    clock += kTickMs;
+    if (clock < period) {
+        return false;
+    }
+    clock -= period;
+    return true;
+}
+
+void Simulation::trim_events() {
+    m_command_results.trim();
+    m_construction_events.trim();
+    m_production_events.trim();
+    m_city_events.trim();
+    m_house_events.trim();
+    m_island_events.trim();
+    m_disaster_events.trim();
+    m_volcano_events.trim();
+    m_game_events.trim();
+    m_ship_events.trim();
+    m_military_events.trim();
+}
+
+void Simulation::diplomacy_step() {
     // Every 5 s the diplomacy counters fade (Player_Tick 0x00476350; the original takes one
     // player per call, each once in 5 s).
-    if (m_time_ms % kDiplomacyTickMs == 0) {
-        for (std::size_t p = 0; p < m_world->players().size(); ++p) {
-            m_world->diplomacy().decay(static_cast<PlayerId>(p));
-        }
-        pirates_reconsider(*m_world);
-        players_tick();
+    if (m_time_ms % kDiplomacyTickMs != 0) {
+        return;
     }
-    // Growth first, as in the original (0x0047CA80 is the first subsystem of 0x00489670).
+    for (std::size_t p = 0; p < m_world->players().size(); ++p) {
+        m_world->diplomacy().decay(static_cast<PlayerId>(p));
+    }
+    pirates_reconsider(*m_world);
+    players_tick();
+}
+
+void Simulation::growth_step() {
     advance_growth(*m_world, *m_buildings, kTickMs);
-    m_production_ms += kTickMs;
-    if (m_production_ms >= kProductionPeriodMs) {
-        m_production_ms -= kProductionPeriodMs;
-        const std::size_t first = m_production_events.size();
-        advance_production(*m_world, *m_buildings, &m_production_events);
-        for (std::size_t i = first; i < m_production_events.size(); ++i) {
-            m_logistics.handle(m_production_events[i]);
-        }
-        if (m_production_events.size() > kMaxPendingEvents) {
-            m_production_events.erase(m_production_events.begin(),
-                                      m_production_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-        }
+}
+
+void Simulation::production_step() {
+    if (!elapsed(m_production_ms, kProductionPeriodMs)) {
+        return;
     }
+    const std::size_t first = m_production_events.size();
+    advance_production(*m_world, *m_buildings, m_production_events.sink());
+    for (std::size_t i = first; i < m_production_events.size(); ++i) {
+        m_logistics.handle(m_production_events.events()[i]);
+    }
+}
+
+void Simulation::cities_step() {
     // The cities consume every 10 s (0x0047F8A0 comes after the production in the original).
-    m_city_ms += kTickMs;
-    if (m_city_ms >= kCityTickMs) {
-        m_city_ms -= kCityTickMs;
-        advance_cities(*m_world, *m_buildings, &m_city_events);
-        m_military.natives_tick();
-        if (m_city_events.size() > kMaxPendingEvents) {
-            m_city_events.erase(m_city_events.begin(),
-                                m_city_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-        }
+    if (!elapsed(m_city_ms, kCityTickMs)) {
+        return;
     }
+    advance_cities(*m_world, *m_buildings, m_city_events.sink());
+    m_military.natives_tick();
+}
+
+void Simulation::city_events_step() {
     // Every 60-67 s a city may catch the plague, send out a robber or catch fire (0x0047F8A0).
-    advance_city_events(*m_world, *m_buildings, &m_disaster_events, &m_robbers);
+    advance_city_events(*m_world, *m_buildings, m_disaster_events.sink(), &m_robbers);
     for (const RobberSpawn& r : m_robbers) {
         m_logistics.spawn_robber(r);
     }
     m_robbers.clear();
-    // Houses after the cities (0x0047B9C0).
-    advance_houses(*m_world, *m_buildings, kTickMs, &m_house_events);
-    if (m_house_events.size() > kMaxPendingEvents) {
-        m_house_events.erase(m_house_events.begin(),
-                             m_house_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-    }
+}
+
+void Simulation::houses_step() {
+    advance_houses(*m_world, *m_buildings, kTickMs, m_house_events.sink());
+}
+
+void Simulation::upkeep_step() {
     // Soldiers' upkeep of human players every 5 s (0x00476350): a twelfth of the upkeep per minute.
-    m_upkeep_ms += kTickMs;
-    if (m_upkeep_ms >= kUpkeepPeriodMs) {
-        m_upkeep_ms -= kUpkeepPeriodMs;
+    if (elapsed(m_upkeep_ms, kUpkeepPeriodMs)) {
         pay_upkeep();
     }
+}
+
+void Simulation::disasters_step() {
     // Disasters in epochs of 10 s (0x0047A020): they spread, end or burn the building down.
-    m_disaster_ms += kTickMs;
-    if (m_disaster_ms >= kDisasterEpochMs) {
-        m_disaster_ms -= kDisasterEpochMs;
-        const std::size_t first = m_construction_events.size();
-        advance_disasters(*m_world, *m_buildings, &m_disaster_events, &m_construction_events);
-        handle(m_construction_events, first);
-        if (m_disaster_events.size() > kMaxPendingEvents) {
-            m_disaster_events.erase(m_disaster_events.begin(),
-                                    m_disaster_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-        }
+    if (!elapsed(m_disaster_ms, kDisasterEpochMs)) {
+        return;
     }
+    const std::size_t first = m_construction_events.size();
+    advance_disasters(*m_world, *m_buildings, m_disaster_events.sink(), m_construction_events.sink());
+    handle(m_construction_events.events(), first);
+}
+
+void Simulation::islands_step() {
     // Island epochs of 30 s (0x0046B3E0): droughts, then deer come back and settle. The phase
     // steps every 30 s; an island whose last phase differs is ticked. In a new game that happens
     // at once for islands whose template says so (docs/re/newgame.md).
-    m_island_ms += kTickMs;
-    bool epoch = false;
-    if (m_island_ms >= Logistics::kIslandEpochMs) {
-        m_island_ms -= Logistics::kIslandEpochMs;
+    const bool epoch = elapsed(m_island_ms, Logistics::kIslandEpochMs);
+    if (epoch) {
         m_world->set_island_phase(static_cast<std::uint8_t>(m_world->island_phase() + 1U));
-        epoch = true;
     }
     std::vector<bool>& due = m_islands_due;
     due.assign(m_world->islands().size(), false);
@@ -543,95 +583,79 @@ void Simulation::tick() {
         advance_island_events(
             *m_world, *m_buildings, m_rules,
             [this](std::uint16_t island, TilePos tile) { return m_logistics.field_reserved(island, tile); },
-            &m_island_events, &due);
-        if (m_island_events.size() > kMaxPendingEvents) {
-            m_island_events.erase(m_island_events.begin(),
-                                  m_island_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-        }
+            m_island_events.sink(), &due);
     }
     if (epoch) {
         // The eruption roll; the original makes it only while no drought roll is due (S-042).
-        roll_eruptions(*m_world, m_rules, &m_volcano_events);
+        roll_eruptions(*m_world, m_rules, m_volcano_events.sink());
     }
     if (any) {
         m_logistics.advance_islands(&due);
     }
+}
+
+void Simulation::volcanoes_step() {
     // Eruptions and lava (figures of the original, kinds 0x20 and 0x21).
-    {
-        const std::size_t first = m_construction_events.size();
-        const assets::FigureType* lava = m_figures->get(kFigureLava);
-        advance_volcanoes(*m_world, *m_buildings, lava != nullptr && lava->speed != 0 ? lava->speed : kLavaSpeed,
-                          &m_volcano_events, &m_disaster_events, &m_construction_events);
-        handle(m_construction_events, first);
-        if (m_volcano_events.size() > kMaxPendingEvents) {
-            m_volcano_events.erase(m_volcano_events.begin(),
-                                   m_volcano_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-        }
-    }
-    // The computer players (AI_Tick 0x0042B4B0 runs after the players' tick in each slice).
+    const std::size_t first = m_construction_events.size();
+    const assets::FigureType* lava = m_figures->get(kFigureLava);
+    advance_volcanoes(*m_world, *m_buildings, lava != nullptr && lava->speed != 0 ? lava->speed : kLavaSpeed,
+                      m_volcano_events.sink(), m_disaster_events.sink(), m_construction_events.sink());
+    handle(m_construction_events.events(), first);
+}
+
+void Simulation::computers_step() {
     m_ai.tick(kTickMs);
-    // Figures last, as in the original (0x00451890 is the last subsystem of 0x00489670): first who
-    // sees whom, then ships and shipyards, then soldiers, towers and the shots that land.
+}
+
+void Simulation::combat_step() {
+    // Figures last: first who sees whom, then ships and shipyards, then soldiers, towers and the
+    // shots that land.
     m_combat.update();
+}
+
+void Simulation::ships_step() {
     m_fleet.tick(kTickMs);
-    {
-        const std::size_t first = m_construction_events.size();
-        m_military.tick(kTickMs, &m_construction_events);
-        handle(m_construction_events, first);
-        for (MilitaryEvent& e : m_military.take_events()) {
-            m_military_events.push_back(e);
-        }
-        // Castles fetch their weapons with a pack donkey, like shipyards their wood.
-        for (const Military::FetchRequest& r : m_military.take_fetch_requests()) {
-            const assets::BuildingType* castle = nullptr;
-            if (r.island < m_world->islands().size()) {
-                const MapCell& c = m_world->islands()[r.island].map.top(r.x, r.y);
-                castle = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite);
-            }
-            if (castle == nullptr ||
-                !m_logistics.send_yard_carrier(r.island, TilePos{r.x, r.y}, r.ware, castle->worker_figure)) {
-                m_military.castle_delivery(r.island, r.x, r.y, r.ware, 0);
-            }
-        }
-        if (m_military_events.size() > kMaxPendingEvents) {
-            m_military_events.erase(m_military_events.begin(),
-                                    m_military_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
+}
+
+void Simulation::soldiers_step() {
+    const std::size_t first = m_construction_events.size();
+    m_military.tick(kTickMs, m_construction_events.sink());
+    handle(m_construction_events.events(), first);
+    m_military_events.append(m_military.take_events());
+    // Castles fetch their weapons with a pack donkey, like shipyards their wood.
+    for (const Military::FetchRequest& r : m_military.take_fetch_requests()) {
+        if (!send_yard_carrier(r.island, r.x, r.y, r.ware)) {
+            m_military.castle_delivery(r.island, r.x, r.y, r.ware, 0);
         }
     }
     for (const Fleet::FetchRequest& r : m_fleet.take_fetch_requests()) {
-        const assets::BuildingType* yard = nullptr;
-        if (r.island < m_world->islands().size()) {
-            const MapCell& c = m_world->islands()[r.island].map.top(r.x, r.y);
-            yard = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite);
-        }
-        if (yard == nullptr ||
-            !m_logistics.send_yard_carrier(r.island, TilePos{r.x, r.y}, r.ware, yard->worker_figure)) {
+        if (!send_yard_carrier(r.island, r.x, r.y, r.ware)) {
             m_fleet.yard_delivery(r.island, r.x, r.y, r.ware, 0);
         }
     }
-    for (ShipEvent& e : m_fleet.take_events()) {
-        m_ship_events.push_back(e);
+    m_ship_events.append(m_fleet.take_events());
+}
+
+bool Simulation::send_yard_carrier(std::uint16_t island, std::uint16_t x, std::uint16_t y, std::uint8_t ware) {
+    const assets::BuildingType* building = nullptr;
+    if (island < m_world->islands().size()) {
+        const MapCell& c = m_world->islands()[island].map.top(x, y);
+        building = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite);
     }
-    if (m_ship_events.size() > kMaxPendingEvents) {
-        m_ship_events.erase(m_ship_events.begin(),
-                            m_ship_events.end() - static_cast<std::ptrdiff_t>(kMaxPendingEvents / 2));
-    }
+    return building != nullptr && m_logistics.send_yard_carrier(island, TilePos{x, y}, ware, building->worker_figure);
+}
+
+void Simulation::logistics_step() {
     m_logistics.tick();
     for (const Logistics::YardDelivery& d : m_logistics.take_yard_deliveries()) {
         // Shipyards and castles (each ignores what is not its own).
-        m_fleet.yard_delivery(d.island, static_cast<std::uint16_t>(d.origin.x), static_cast<std::uint16_t>(d.origin.y),
-                              d.ware, d.amount);
-        m_military.castle_delivery(d.island, static_cast<std::uint16_t>(d.origin.x),
-                                   static_cast<std::uint16_t>(d.origin.y), d.ware, d.amount);
+        const auto x = static_cast<std::uint16_t>(d.origin.x);
+        const auto y = static_cast<std::uint16_t>(d.origin.y);
+        m_fleet.yard_delivery(d.island, x, y, d.ware, d.amount);
+        m_military.castle_delivery(d.island, x, y, d.ware, d.amount);
     }
-    for (const DisasterEvent& e : m_logistics.take_disaster_events()) {
-        m_disaster_events.push_back(e);
-    }
-    if (m_tick_observer) {
-        m_tick_observer(*m_world);
-    }
+    m_disaster_events.append(m_logistics.take_disaster_events());
 }
-
 void Simulation::pay_upkeep() {
     const std::vector<std::uint32_t> upkeep = military_upkeep(*m_world, *m_figures);
     for (std::size_t p = 0; p < upkeep.size(); ++p) {
@@ -719,8 +743,8 @@ void Simulation::accomplish(PlayerId winner) {
         }
         p->won = true;
         const Mission* m = m_world->mission_of(*p);
-        m_game_events.push_back(GameEvent{GameEvent::Kind::MissionAccomplished, id, kNoPlayer, GameEvent::Reason::None,
-                                          m != nullptr ? m->success_message : std::uint16_t{0}});
+        m_game_events.push(GameEvent{GameEvent::Kind::MissionAccomplished, id, kNoPlayer, GameEvent::Reason::None,
+                                     m != nullptr ? m->success_message : std::uint16_t{0}});
     };
     win(winner);
     for (std::size_t i = 0; i < m_world->players().size(); ++i) {
@@ -731,7 +755,7 @@ void Simulation::accomplish(PlayerId winner) {
         }
     }
     m_world->set_game_end(World::GameEnd{m_time_ms, winner});
-    m_game_events.push_back(GameEvent{GameEvent::Kind::GameOver, winner});
+    m_game_events.push(GameEvent{GameEvent::Kind::GameOver, winner});
 }
 
 void Simulation::defeat(PlayerId id, GameEvent::Reason reason, bool blame) {
@@ -745,7 +769,7 @@ void Simulation::defeat(PlayerId id, GameEvent::Reason reason, bool blame) {
     }
     p->status = PlayerStatus::Defeated;
     const PlayerId by = blame ? m_world->diplomacy().blamed(id) : kNoPlayer;
-    m_game_events.push_back(GameEvent{GameEvent::Kind::PlayerDefeated, id, by, reason});
+    m_game_events.push(GameEvent{GameEvent::Kind::PlayerDefeated, id, by, reason});
     Player* k = by != id ? m_world->player(by) : nullptr;
     if (k == nullptr || p->role == PlayerRole::Natives) {
         return;
@@ -761,59 +785,13 @@ void Simulation::defeat(PlayerId id, GameEvent::Reason reason, bool blame) {
     }
     if (upper >= kArchInhabitants) {
         k->arches_allowed = static_cast<std::uint16_t>(std::min(k->arches_allowed + 1, 0xFFFF));
-        m_game_events.push_back(GameEvent{GameEvent::Kind::ArchAllowed, by, id});
+        m_game_events.push(GameEvent{GameEvent::Kind::ArchAllowed, by, id});
     }
-}
-
-std::vector<GameEvent> Simulation::take_game_events() {
-    std::vector<GameEvent> events;
-    events.swap(m_game_events);
-    return events;
 }
 
 std::vector<ShipEvent> Simulation::take_ship_events() {
-    for (ShipEvent& e : m_fleet.take_events()) {
-        m_ship_events.push_back(e);  // events of commands applied outside a tick
-    }
-    std::vector<ShipEvent> events;
-    events.swap(m_ship_events);
-    return events;
-}
-
-std::vector<HouseEvent> Simulation::take_house_events() {
-    std::vector<HouseEvent> events;
-    events.swap(m_house_events);
-    return events;
-}
-
-std::vector<DisasterEvent> Simulation::take_disaster_events() {
-    std::vector<DisasterEvent> events;
-    events.swap(m_disaster_events);
-    return events;
-}
-
-std::vector<VolcanoEvent> Simulation::take_volcano_events() {
-    std::vector<VolcanoEvent> events;
-    events.swap(m_volcano_events);
-    return events;
-}
-
-std::vector<IslandEvent> Simulation::take_island_events() {
-    std::vector<IslandEvent> events;
-    events.swap(m_island_events);
-    return events;
-}
-
-std::vector<CityEvent> Simulation::take_city_events() {
-    std::vector<CityEvent> events;
-    events.swap(m_city_events);
-    return events;
-}
-
-std::vector<ProductionEvent> Simulation::take_production_events() {
-    std::vector<ProductionEvent> events;
-    events.swap(m_production_events);
-    return events;
+    m_ship_events.append(m_fleet.take_events());  // events of commands applied outside a tick
+    return m_ship_events.take();
 }
 
 }  // namespace o1602::sim

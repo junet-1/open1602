@@ -10,7 +10,9 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -20,6 +22,7 @@
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/disasters.hpp"
+#include "o1602/sim/event_buffer.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/island_events.hpp"
 #include "o1602/sim/logistics.hpp"
@@ -167,13 +170,15 @@ public:
     /// it takes kNoPlayer as acting for every owner (tools, tests).
     CommandResult execute(const Command& command);
     /// Results of the applied commands since the last call.
-    [[nodiscard]] std::vector<CommandResult> take_command_results();
+    [[nodiscard]] std::vector<CommandResult> take_command_results() { return m_command_results.take(); }
     /// What building and demolishing changed since the last call.
-    [[nodiscard]] std::vector<ConstructionEvent> take_construction_events();
+    [[nodiscard]] std::vector<ConstructionEvent> take_construction_events() { return m_construction_events.take(); }
     /// Names for new cities (Text.cod [STAEDTE]).
     void set_city_names(std::vector<std::string> names) { m_city_names = std::move(names); }
-    /// One tick of game time.
+    /// One tick of game time: the commands that are due, then the steps of tick_step_names().
     void tick();
+    /// The steps of a tick in the order they run (documentation and tests).
+    [[nodiscard]] static std::vector<std::string_view> tick_step_names();
     /// Called at the end of every tick: for what has to follow the game tick by tick without
     /// being part of it, such as the townsfolk of render::Ambient. It must not change the world.
     void set_tick_observer(std::function<void(const World&)> observer) { m_tick_observer = std::move(observer); }
@@ -198,7 +203,7 @@ public:
     /// The computer players.
     [[nodiscard]] const ComputerPlayers& computers() const noexcept { return m_ai; }
     /// Shots, hits, deaths and destroyed buildings since the last call.
-    [[nodiscard]] std::vector<MilitaryEvent> take_military_events();
+    [[nodiscard]] std::vector<MilitaryEvent> take_military_events() { return m_military_events.take(); }
     /// Treaties offered, signed or broken since the last call.
     [[nodiscard]] std::vector<DiplomacyNotice> take_diplomacy_notices() { return m_world->diplomacy().take_notices(); }
     /// What happened to ships since the last call.
@@ -207,15 +212,15 @@ public:
     void set_ship_names(std::vector<std::string> names) { m_fleet.set_ship_names(std::move(names)); }
 
     /// Production events since the last call (floating texts, animation phases, later logistics).
-    [[nodiscard]] std::vector<ProductionEvent> take_production_events();
+    [[nodiscard]] std::vector<ProductionEvent> take_production_events() { return m_production_events.take(); }
     /// Shortages and hunger since the last call (messages for the player).
-    [[nodiscard]] std::vector<CityEvent> take_city_events();
+    [[nodiscard]] std::vector<CityEvent> take_city_events() { return m_city_events.take(); }
     /// Houses that rose, fell back or were abandoned since the last call.
-    [[nodiscard]] std::vector<HouseEvent> take_house_events();
+    [[nodiscard]] std::vector<HouseEvent> take_house_events() { return m_house_events.take(); }
     /// Droughts and withered fields since the last call.
-    [[nodiscard]] std::vector<IslandEvent> take_island_events();
+    [[nodiscard]] std::vector<IslandEvent> take_island_events() { return m_island_events.take(); }
     /// Fires and plagues that broke out, spread, ended or burned a building down since the last call.
-    [[nodiscard]] std::vector<DisasterEvent> take_disaster_events();
+    [[nodiscard]] std::vector<DisasterEvent> take_disaster_events() { return m_disaster_events.take(); }
     /// Clocks and figures for Open1602's own savegame chunk (savegame_extension.hpp). A Simulation
     /// built on a world that carries such state continues from it.
     void save_state(core::ByteWriter& out) const;
@@ -230,9 +235,9 @@ public:
     [[nodiscard]] std::optional<std::uint64_t> state_hash() const;
 
     /// Eruptions and what the lava hit since the last call.
-    [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events();
+    [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events() { return m_volcano_events.take(); }
     /// Missions accomplished, players defeated and the end of the game since the last call.
-    [[nodiscard]] std::vector<GameEvent> take_game_events();
+    [[nodiscard]] std::vector<GameEvent> take_game_events() { return m_game_events.take(); }
 
 private:
     friend class ai::Engine;
@@ -251,6 +256,34 @@ private:
     bool restore_state(const std::vector<std::uint8_t>& state);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 
+    /// A step of tick(); see tick_steps() for the order and why.
+    struct TickStep {
+        std::string_view name;
+        void (Simulation::*run)();
+    };
+    [[nodiscard]] static std::span<const TickStep> tick_steps() noexcept;
+    /// Adds a tick to `clock`; true once per `period`, which `clock` then starts anew.
+    static bool elapsed(std::uint32_t& clock, std::uint32_t period) noexcept;
+    void diplomacy_step();
+    void growth_step();
+    void production_step();
+    void cities_step();
+    void city_events_step();
+    void houses_step();
+    void upkeep_step();
+    void disasters_step();
+    void islands_step();
+    void volcanoes_step();
+    void computers_step();
+    void combat_step();
+    void ships_step();
+    void soldiers_step();
+    void logistics_step();
+    /// Sends a carrier with `ware` to the shipyard or castle at (x, y); false if it cannot go.
+    bool send_yard_carrier(std::uint16_t island, std::uint16_t x, std::uint16_t y, std::uint8_t ware);
+    /// Keeps every event buffer within EventBuffer::kMaxPending.
+    void trim_events();
+
     World* m_world;
     const assets::BuildingTable* m_buildings;
     Rules m_rules;
@@ -263,13 +296,13 @@ private:
     std::uint32_t m_production_ms = 0;  ///< game time since the last production second
     std::uint32_t m_city_ms = 0;        ///< game time since the cities last consumed
     std::vector<bool> m_islands_due;    ///< scratch of the island epochs
-    std::vector<ProductionEvent> m_production_events;
-    std::vector<CityEvent> m_city_events;
-    std::vector<HouseEvent> m_house_events;
-    std::vector<IslandEvent> m_island_events;
-    std::vector<DisasterEvent> m_disaster_events;
-    std::vector<VolcanoEvent> m_volcano_events;
-    std::vector<GameEvent> m_game_events;
+    EventBuffer<ProductionEvent> m_production_events;
+    EventBuffer<CityEvent> m_city_events;
+    EventBuffer<HouseEvent> m_house_events;
+    EventBuffer<IslandEvent> m_island_events;
+    EventBuffer<DisasterEvent> m_disaster_events;
+    EventBuffer<VolcanoEvent> m_volcano_events;
+    EventBuffer<GameEvent> m_game_events;
     std::vector<RobberSpawn> m_robbers;
     std::uint32_t m_disaster_ms = 0;  ///< game time since the last disaster epoch
     const assets::FigureTable* m_figures;
@@ -277,10 +310,10 @@ private:
     std::uint32_t m_island_ms = 0;  ///< game time since the last island epoch
     Logistics m_logistics;
     Fleet m_fleet;
-    std::vector<ShipEvent> m_ship_events;
+    EventBuffer<ShipEvent> m_ship_events;
     Combat m_combat;
     Military m_military;
-    std::vector<MilitaryEvent> m_military_events;
+    EventBuffer<MilitaryEvent> m_military_events;
     ComputerPlayers m_ai;
     struct Queued {
         std::uint64_t tick;
@@ -289,8 +322,8 @@ private:
     };
     std::vector<Queued> m_commands;  ///< sorted by tick, then player, then as scheduled
     std::uint64_t m_next_command = 1;
-    std::vector<CommandResult> m_command_results;
-    std::vector<ConstructionEvent> m_construction_events;
+    EventBuffer<CommandResult> m_command_results;
+    EventBuffer<ConstructionEvent> m_construction_events;
     std::vector<std::string> m_city_names;
     std::function<void(const World&)> m_tick_observer;
 };

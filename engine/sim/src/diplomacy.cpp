@@ -188,12 +188,12 @@ bool Diplomacy::set_peace(const World& world, PlayerId a, PlayerId b, Treaty v, 
                 ab.trade = Treaty::None;
                 ba.trade = Treaty::None;
                 if (acts_diplomatically(ra)) {
-                    m_notices.push_back({DiplomacyNotice::Kind::TradeEnded, b, a});
+                    m_notices.push({DiplomacyNotice::Kind::TradeEnded, b, a});
                 }
                 add_event(b, a, DiplomacyEventType::TradeCancelled, now_ms);
             }
             if (acts_diplomatically(ra) && ab.peace == Treaty::Signed) {
-                m_notices.push_back({DiplomacyNotice::Kind::PeaceBroken, b, a});
+                m_notices.push({DiplomacyNotice::Kind::PeaceBroken, b, a});
             }
             // Fix S-113: withdrawing one's own offer goes back to the war there was; the original
             // sends the same value as a declaration of war and b remembers one.
@@ -205,7 +205,7 @@ bool Diplomacy::set_peace(const World& world, PlayerId a, PlayerId b, Treaty v, 
             ba.peace = Treaty::None;
             break;
         case Treaty::Offered:
-            m_notices.push_back({DiplomacyNotice::Kind::PeaceOffered, b, a});
+            m_notices.push({DiplomacyNotice::Kind::PeaceOffered, b, a});
             add_event(b, a, DiplomacyEventType::PeaceOffered, now_ms);
             ab.peace = Treaty::Offered;
             ba.peace = Treaty::Received;
@@ -217,7 +217,7 @@ bool Diplomacy::set_peace(const World& world, PlayerId a, PlayerId b, Treaty v, 
                 ba.trade = Treaty::Signed;
             }
             if (acts_diplomatically(ra)) {
-                m_notices.push_back({DiplomacyNotice::Kind::PeaceSigned, b, a});
+                m_notices.push({DiplomacyNotice::Kind::PeaceSigned, b, a});
             }
             ab.peace = Treaty::Signed;
             ba.peace = Treaty::Signed;
@@ -238,7 +238,7 @@ bool Diplomacy::set_trade(const World& world, PlayerId a, PlayerId b, Treaty v, 
     switch (v) {
         case Treaty::None:
             if (ab.trade == Treaty::Signed) {
-                m_notices.push_back({DiplomacyNotice::Kind::TradeEnded, b, a});
+                m_notices.push({DiplomacyNotice::Kind::TradeEnded, b, a});
             }
             if (ab.trade != Treaty::Offered) {  // Fix S-113: a withdrawn offer ends nothing
                 add_event(b, a, DiplomacyEventType::TradeCancelled, now_ms);
@@ -247,13 +247,13 @@ bool Diplomacy::set_trade(const World& world, PlayerId a, PlayerId b, Treaty v, 
             ba.trade = Treaty::None;
             break;
         case Treaty::Offered:
-            m_notices.push_back({DiplomacyNotice::Kind::TradeOffered, b, a});
+            m_notices.push({DiplomacyNotice::Kind::TradeOffered, b, a});
             add_event(b, a, DiplomacyEventType::TradeOffered, now_ms);
             ab.trade = Treaty::Offered;
             ba.trade = Treaty::Received;
             break;
         case Treaty::Signed:
-            m_notices.push_back({DiplomacyNotice::Kind::TradeSigned, b, a});
+            m_notices.push({DiplomacyNotice::Kind::TradeSigned, b, a});
             ab.trade = Treaty::Signed;
             ba.trade = Treaty::Signed;
             break;
