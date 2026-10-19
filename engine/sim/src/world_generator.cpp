@@ -1079,10 +1079,16 @@ std::vector<std::uint8_t> Generator::village_records(const Slot& slot, const Sta
             }
             record[0x86] = record[0x86] == 0 ? std::uint8_t{0x80} : record[0x86];
         }
-        if (store && record.size() >= 4 && (record[3] & 0xFU) < natives.size() && natives[record[3] & 0xFU]) {
-            // 0x0047F5E0: the village sells tobacco goods (north) or spices (south) and buys alcohol
-            // and cloth up to 10 t, all for nothing.
-            const auto slot_at = [](std::uint8_t ware) { return std::size_t{4} + 20U * ware; };
+        // 0x0047F5E0: a native village sells tobacco goods (north) or spices (south) and buys
+        // alcohol and cloth up to 10 t, all for nothing. The ware slots (20 bytes each, from +4)
+        // must lie within the record.
+        constexpr std::uint8_t kTobaccoGoods = 15;
+        constexpr std::uint8_t kSpiceGoods = 16;
+        constexpr std::uint8_t kAlcohol = 18;
+        constexpr std::uint8_t kCloth = 19;
+        const auto slot_at = [](std::uint8_t ware) { return std::size_t{4} + 20U * ware; };
+        if (store && record.size() >= slot_at(kCloth) + 20 && (record[3] & 0xFU) < natives.size() &&
+            natives[record[3] & 0xFU]) {
             const auto set_flags = [&](std::uint8_t ware, std::uint32_t clear, std::uint32_t set) {
                 const std::size_t o = slot_at(ware);
                 std::uint32_t v = std::uint32_t{record[o]} | (std::uint32_t{record[o + 1]} << 8) |
@@ -1092,10 +1098,6 @@ std::vector<std::uint8_t> Generator::village_records(const Slot& slot, const Sta
                     record[o + i] = static_cast<std::uint8_t>(v >> (8 * i));
                 }
             };
-            constexpr std::uint8_t kTobaccoGoods = 15;
-            constexpr std::uint8_t kSpiceGoods = 16;
-            constexpr std::uint8_t kAlcohol = 18;
-            constexpr std::uint8_t kCloth = 19;
             const std::uint8_t sold = slot.plan.climate == 0 ? kTobaccoGoods : kSpiceGoods;
             set_flags(sold, 0x3FFU, 1U << 20);
             record[slot_at(sold) + 8] = 0;
