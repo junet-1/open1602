@@ -45,19 +45,21 @@ constexpr Id kOpenLobby = 49;
 constexpr Id kCreateBack = 50;
 constexpr Id kListUp = 51;
 constexpr Id kListDown = 52;
+constexpr Id kFewerPlayers = 53;
+constexpr Id kMorePlayers = 54;
 constexpr Id kListRow = 200;  ///< + row
 constexpr std::size_t kListRows = 11;
 // The lobby
-constexpr Id kSeatKind = 300;  ///< + slot
-constexpr Id kSeatTake = 400;  ///< + slot
-constexpr Id kSeatKick = 500;  ///< + slot
-constexpr std::size_t kSeatRows = 8;
+constexpr Id kSeatKind = 300;           ///< + slot
+constexpr Id kSeatTake = 400;           ///< + slot
+constexpr Id kSeatKick = 500;           ///< + slot
+constexpr std::size_t kMaxSeats = 100;  ///< slot numbers the ids above leave room for
 constexpr Id kChat = 60;
 constexpr Id kLeave = 61;
 constexpr Id kReady = 62;
 constexpr Id kStart = 63;
 constexpr Id kWatch = 64;
-constexpr std::size_t kChatLines = 7;
+constexpr std::size_t kChatLines = 12;
 // Connecting
 constexpr Id kCancel = 70;
 
@@ -302,7 +304,11 @@ void MultiplayerMenu::layout_create(const MultiplayerModel& model) {
             f.label(Rect{52, 300, 300, 30}, tr(MpText::WorldNumber), Align::Left, Tone::Heading);
             f.field(kSeed, Rect{56, 336, 200, 36}, m_seed_text);
             f.button(kRoll, Rect{264, 336, 140, 36}, tr(MpText::Roll));
-            f.paragraph(Rect{52, 392, 576, 80}, tr(MpText::EndlessHint), Tone::Dim);
+            f.label(Rect{52, 392, 300, 30}, tr(MpText::Players), Align::Left, Tone::Heading);
+            f.button(kFewerPlayers, Rect{56, 428, 44, 36}, "-", m_setup.players > HostSetup::kMinPlayers);
+            f.label(Rect{100, 428, 80, 36}, std::to_string(m_setup.players), Align::Centre);
+            f.button(kMorePlayers, Rect{180, 428, 44, 36}, "+", m_setup.players < sim::kMaxPlayers);
+            f.paragraph(Rect{52, 484, 576, 80}, tr(MpText::EndlessHint), Tone::Dim);
             break;
         }
         case Kind::Scenario:
@@ -377,13 +383,25 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
     f.label(Rect{560, 32, 424, 32}, model.hosting ? tr(MpText::HostPort, std::to_string(model.port)) : lobby.game,
             Align::Right, Tone::Dim);
 
-    // The slots.
-    f.panel(Rect{40, 84, 620, 316});
-    for (std::size_t s = 0; s < kSeatRows && s < lobby.seats.size(); ++s) {
+    // The slots of the players (the factions' are left out), closer together when there are many;
+    // the chat below gets what they leave.
+    std::vector<std::size_t> shown;
+    for (std::size_t s = 0; s < lobby.seats.size() && s < kMaxSeats; ++s) {
+        if (lobby.seats[s].kind != net::LobbySeat::Kind::Reserved) {
+            shown.push_back(s);
+        }
+    }
+    const std::int32_t row_h = shown.size() <= 8 ? 36 : 30;
+    const auto rows_end = static_cast<std::int32_t>(96 + shown.size() * static_cast<std::size_t>(row_h));
+    const std::int32_t chat_top = rows_end + 50;
+    f.panel(Rect{40, 84, 620, chat_top - 96});
+    for (std::size_t r = 0; r < shown.size(); ++r) {
+        const std::size_t s = shown[r];
         const net::LobbySeat& seat = lobby.seats[s];
-        const auto y = static_cast<std::int32_t>(96 + s * 36);
+        const auto y = static_cast<std::int32_t>(96 + r * static_cast<std::size_t>(row_h));
+        const std::int32_t h = row_h - 2;
         const Id k = static_cast<Id>(s);
-        f.swatch(Rect{52, y + 4, 22, 26}, m_banners[std::min<std::size_t>(s, m_banners.size() - 1)]);
+        f.swatch(Rect{52, y + 4, 22, h - 8}, banner_colour(s));
         std::string who;
         std::string state;
         Tone tone = Tone::Normal;
@@ -411,6 +429,7 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
                 state = tr(MpText::Ready);
                 break;
             case net::LobbySeat::Kind::Closed:
+            case net::LobbySeat::Kind::Reserved:
                 who = tr(MpText::SeatClosed);
                 tone = Tone::Dim;
                 break;
@@ -418,15 +437,15 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
         const bool human = seat.kind == net::LobbySeat::Kind::Human;
         if (model.hosting && !human) {
             // The host sets who plays a slot by clicking through the kinds.
-            f.button(kSeatKind + k, Rect{84, y, 250, 34}, who);
+            f.button(kSeatKind + k, Rect{84, y, 250, h}, who);
         } else {
-            f.label(Rect{80, y, 260, 34}, who, Align::Left, human ? Tone::Normal : Tone::Dim);
+            f.label(Rect{80, y, 260, h}, who, Align::Left, human ? Tone::Normal : Tone::Dim);
         }
-        f.label(Rect{344, y, 150, 34}, state, Align::Left, tone);
+        f.label(Rect{344, y, 150, h}, state, Align::Left, tone);
         if (model.hosting && human && s != me) {
-            f.button(kSeatKick + k, Rect{500, y, 150, 34}, tr(MpText::Kick));
+            f.button(kSeatKick + k, Rect{500, y, 150, h}, tr(MpText::Kick));
         } else if (seat.kind == net::LobbySeat::Kind::Open && s != me && !lobby.started) {
-            f.button(kSeatTake + k, Rect{500, y, 150, 34}, tr(MpText::Take));
+            f.button(kSeatTake + k, Rect{500, y, 150, h}, tr(MpText::Take));
         }
     }
     std::string watchers;
@@ -435,15 +454,16 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
             watchers += (watchers.empty() ? "" : ", ") + m.name;
         }
     }
-    f.label(Rect{48, 362, 600, 30}, tr(MpText::Watchers, watchers.empty() ? tr(MpText::Nobody) : watchers), Align::Left,
-            Tone::Dim);
+    f.label(Rect{48, rows_end + 4, 600, 30}, tr(MpText::Watchers, watchers.empty() ? tr(MpText::Nobody) : watchers),
+            Align::Left, Tone::Dim);
 
     // The chat.
-    f.panel(Rect{40, 412, 620, 258});
-    const std::size_t shown = std::min(model.chat.size(), kChatLines);
-    for (std::size_t i = 0; i < shown; ++i) {
-        const ChatLine& line = model.chat[model.chat.size() - shown + i];
-        const auto y = static_cast<std::int32_t>(420 + i * 28);
+    f.panel(Rect{40, chat_top, 620, 670 - chat_top});
+    const auto chat_lines = static_cast<std::size_t>(std::max(0, (622 - 8 - (chat_top + 8)) / 28));
+    const std::size_t lines = std::min({model.chat.size(), kChatLines, chat_lines});
+    for (std::size_t i = 0; i < lines; ++i) {
+        const ChatLine& line = model.chat[model.chat.size() - lines + i];
+        const std::int32_t y = chat_top + 8 + static_cast<std::int32_t>(i) * 28;
         if (line.name.empty()) {
             f.label(Rect{48, y, 604, 28}, line.text, Align::Left, Tone::Dim);
         } else {
@@ -564,6 +584,10 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                 }
             } else if (id >= kLevel && id < kLevel + static_cast<Id>(sim::NewGameOptions::kDifficulties)) {
                 m_setup.level = static_cast<std::uint8_t>(id - kLevel);
+            } else if (id == kFewerPlayers && m_setup.players > HostSetup::kMinPlayers) {
+                --m_setup.players;
+            } else if (id == kMorePlayers && m_setup.players < sim::kMaxPlayers) {
+                ++m_setup.players;
             } else if (id == kRoll) {
                 m_setup.seed = random_seed();
                 m_seed_text = std::to_string(m_setup.seed);
@@ -608,8 +632,9 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                     std::string level = setup.level < model.level_names.size()
                                             ? model.level_names[setup.level]
                                             : tr(MpText::LevelN, std::to_string(setup.level + 1));
-                    setup.file_name = tr(MpText::EndlessGame) + ", " + level + ", " + tr(MpText::WorldNumber) + " " +
-                                      std::to_string(setup.seed);
+                    setup.file_name = tr(MpText::EndlessGame) + ", " + level + ", " +
+                                      tr(MpText::PlayerCount, std::to_string(setup.players)) + ", " +
+                                      tr(MpText::WorldNumber) + " " + std::to_string(setup.seed);
                 }
                 event(MultiplayerEvent::Kind::Host)->setup = std::move(setup);
             }
@@ -627,21 +652,20 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
             } else if (id == kWatch) {
                 event(MultiplayerEvent::Kind::TakeSeat)->seat = sim::kNoPlayer;
                 m_ready = false;
-            } else if (id >= kSeatTake && id < kSeatTake + static_cast<Id>(kSeatRows)) {
+            } else if (id >= kSeatTake && id < kSeatTake + static_cast<Id>(kMaxSeats)) {
                 event(MultiplayerEvent::Kind::TakeSeat)->seat = static_cast<sim::PlayerId>(id - kSeatTake);
                 m_ready = false;
-            } else if (id >= kSeatKick && id < kSeatKick + static_cast<Id>(kSeatRows)) {
+            } else if (id >= kSeatKick && id < kSeatKick + static_cast<Id>(kMaxSeats)) {
                 event(MultiplayerEvent::Kind::Kick)->seat = static_cast<sim::PlayerId>(id - kSeatKick);
-            } else if (id >= kSeatKind && id < kSeatKind + static_cast<Id>(kSeatRows) && session != nullptr) {
+            } else if (id >= kSeatKind && id < kSeatKind + static_cast<Id>(kMaxSeats) && session != nullptr) {
                 const auto s = static_cast<std::size_t>(id - kSeatKind);
                 if (s < session->lobby().seats.size()) {
                     using SeatKind = net::LobbySeat::Kind;
                     const SeatKind now = session->lobby().seats[s].kind;
                     MultiplayerEvent* e = event(MultiplayerEvent::Kind::SetSeat);
                     e->seat = static_cast<sim::PlayerId>(s);
-                    e->seat_kind = now == SeatKind::Open       ? SeatKind::Computer
-                                   : now == SeatKind::Computer ? SeatKind::Closed
-                                                               : SeatKind::Open;
+                    // Every game has all its players: a slot is a person's or the computer's.
+                    e->seat_kind = now == SeatKind::Open ? SeatKind::Computer : SeatKind::Open;
                 }
             }
             break;

@@ -48,6 +48,8 @@ constexpr std::array kTexts = {
     Entry{MpText::Level, "net.level"},
     Entry{MpText::WorldNumber, "net.world_number"},
     Entry{MpText::Roll, "net.roll"},
+    Entry{MpText::Players, "net.players"},
+    Entry{MpText::PlayerCount, "net.player_count"},
     Entry{MpText::EndlessHint, "net.endless_hint"},
     Entry{MpText::ScenarioHint, "net.scenario_hint"},
     Entry{MpText::SavegameHint, "net.savegame_hint"},

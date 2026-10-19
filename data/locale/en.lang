@@ -140,7 +140,9 @@ net.savegame = Savegame
 net.level = Level
 net.world_number = World no.
 net.roll = Roll
-net.endless_hint = The same number makes the same world.
+net.players = Players
+net.player_count = {1} players
+net.endless_hint = The same number makes the same world. From five players on, the world is made for them, with room for everyone.
 net.scenario_hint = The others do not need the file: the game comes from the host.
 net.savegame_hint = Whoever comes back takes a free slot of the game.
 net.no_savegames = No savegames.
@@ -201,3 +203,13 @@ net.refused.desync = This computer keeps diverging from the host.
 net.refused.invalid = This computer sent what makes no sense.
 net.refused.password = Wrong password.
 net.refused.kicked = The host sent you away.
+
+# Players five to twelve of a new world, named after their colours
+player.colour.orange = Orange player
+player.colour.purple = Purple player
+player.colour.teal = Teal player
+player.colour.pink = Pink player
+player.colour.light_blue = Light blue player
+player.colour.green = Green player
+player.colour.lime = Lime player
+player.colour.brown = Brown player

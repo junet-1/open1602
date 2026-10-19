@@ -230,3 +230,44 @@ TEST_CASE("multiplayer menu: the host's lobby: slots, chat and the start") {
     REQUIRE(back.has_value());
     CHECK(back->kind == MultiplayerEvent::Kind::Leave);
 }
+
+TEST_CASE("multiplayer menu: four to twelve players, the factions' slots left out of the lobby") {
+    MultiplayerMenu menu(ui::FormStyle{});
+    app::MultiplayerModel model;
+    model.name = "Bernd";
+    model.level_names = {"Easy", "Medium", "Hard", "Very hard"};
+    menu.open();
+    CHECK(click(menu, model, "Create game").empty());
+    CHECK(find_text(menu, model, "4").has_value());
+    CHECK(click(menu, model, "-").empty());  // never fewer than four
+    CHECK(find_text(menu, model, "4").has_value());
+    CHECK(click(menu, model, "+").empty());
+    CHECK(click(menu, model, "+").empty());
+    auto events = click(menu, model, "Open lobby");
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].setup.players == 6);
+    CHECK(events[0].setup.file_name.find("6 players") != std::string::npos);
+
+    // Six players: slots 0-3 and 7-8; the free trader's, pirates' and natives' are not shown.
+    net::LoopbackNetwork network;
+    net::Lobby lobby;
+    lobby.seats.resize(9);
+    for (std::size_t s = 4; s < 7; ++s) {
+        lobby.seats[s].kind = net::LobbySeat::Kind::Reserved;
+    }
+    net::HostSession host(network.listen(), lobby, 0, "Bernd", 1);
+    host.set_seat(5, net::LobbySeat::Kind::Open);  // the pirates' slot stays out of the game
+    CHECK(host.lobby().seats[5].kind == net::LobbySeat::Kind::Reserved);
+    model.session = &host;
+    model.hosting = true;
+    menu.show_lobby();
+    std::size_t open = 0;
+    for (const ui::DrawItem& d : menu.draw(model, kNoFonts)) {
+        open += d.kind == ui::DrawItem::Kind::Text && d.text == "Open" ? 1U : 0U;
+    }
+    CHECK(open == 5);
+    // The host clicks a slot between computer and open: every game has all its players.
+    events = click(menu, model, "Open");
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].seat_kind == net::LobbySeat::Kind::Computer);
+}

@@ -193,9 +193,6 @@ core::Result<World> start_new_game(const assets::GameDirectory& game, const asse
     }
     // An own world: plan it, put the players' ships at their starts, make the islands.
     WorldSettings settings = *options.custom;
-    if (settings.players > kOriginalColours) {
-        return core::make_error(core::ErrorCode::OutOfRange, "more than four players come with the multiplayer");
-    }
     settings.difficulty = options.difficulty;
     settings.seed = options.world.seed;
     const std::vector<TemplateInfo> templates = island_templates(game, buildings);
@@ -213,7 +210,54 @@ core::Result<World> start_new_game(const assets::GameDirectory& game, const asse
     if (!generated) {
         return generated.error();
     }
-    return load_world(generated->file, buildings, game, warnings, start);
+    auto world = load_world(generated->file, buildings, game, warnings, start);
+    if (!world) {
+        return world.error();
+    }
+    if (auto status = add_players(*world, *plan, settings.players); !status) {
+        return status.error();
+    }
+    return world;
+}
+
+core::Status add_players(World& world, const WorldPlan& plan, std::uint8_t players) {
+    if (players <= kOriginalPlayers) {
+        return core::Ok{};
+    }
+    std::vector<Player> slots = world.players();
+    if (players > kMaxPlayers || slots.size() < 2 || slots.size() > kFirstExtraPlayer || plan.starts.size() < players) {
+        return core::make_error(core::ErrorCode::OutOfRange, "no room for " + std::to_string(players) + " players");
+    }
+    // The second slot is a computer as the level's file has it: money, unlocks, its ship.
+    const Player model = slots[1];
+    const auto model_ship =
+        std::find_if(world.ships().begin(), world.ships().end(), [](const Ship& s) { return s.owner == 1; });
+    if (model_ship == world.ships().end()) {
+        return core::make_error(core::ErrorCode::NotFound, "the level has no ship of a computer player to copy");
+    }
+    const Ship ship = *model_ship;
+    while (slots.size() < kFirstExtraPlayer) {
+        Player absent;
+        absent.status = PlayerStatus::Absent;
+        slots.push_back(std::move(absent));
+    }
+    for (std::size_t n = kOriginalPlayers; n < players; ++n) {
+        Player p = model;
+        p.role = PlayerRole::Computer;
+        p.banner = static_cast<BannerId>(kFirstExtraBanner + (n - kOriginalPlayers));
+        p.name = "Player " + std::to_string(n + 1);  // the game names it in the player's language
+        slots.push_back(std::move(p));
+    }
+    // A different number of players starts the diplomacy as in a new game.
+    world.set_players(std::move(slots));
+    for (std::size_t n = kOriginalPlayers; n < players; ++n) {
+        Ship s = ship;
+        s.id = 0;
+        s.owner = player_slot(n);
+        s.place(plan.starts[n].x, plan.starts[n].y);
+        world.add_ship(std::move(s));
+    }
+    return core::Ok{};
 }
 
 core::Result<assets::ChunkFile> own_world_scenario(const assets::ChunkFile& scenario, const WorldPlan& plan,

@@ -245,7 +245,7 @@ Lobby get_lobby(In& in) {
     for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
         LobbySeat seat;
         const std::uint8_t kind = in.u8();
-        if (kind > static_cast<std::uint8_t>(LobbySeat::Kind::Closed)) {
+        if (kind > static_cast<std::uint8_t>(LobbySeat::Kind::Reserved)) {
             in.fail();
         }
         seat.kind = static_cast<LobbySeat::Kind>(kind);

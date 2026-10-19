@@ -4,6 +4,7 @@
 // of players and banners is open (ADR 0007); the original values are translated when loading.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -124,6 +125,21 @@ inline void earn_from_trade(Player& p, std::int64_t value) noexcept {
 inline void pay_for_trade(Player& p, std::int64_t value) noexcept {
     p.money = static_cast<std::int32_t>(p.money - value);
     p.purchases += 32 * value;
+}
+
+/// The original has seven slots: four players (red, blue, yellow, white), then the free trader,
+/// the pirates and the natives. A new world with more players puts the fifth and those after it
+/// behind them, with banners of their own from kFirstExtraBanner on (render::BannerTable).
+inline constexpr PlayerId kOriginalPlayers = 4;
+inline constexpr PlayerId kFirstExtraPlayer = 7;
+inline constexpr BannerId kFirstExtraBanner = 7;
+/// Players with a start in a new world: as many as there are banner colours that stay apart
+/// (render::BannerTable::kDefaultColors).
+inline constexpr std::size_t kMaxPlayers = 12;
+
+/// The slot of the n-th player with a start (0-based): 0-3, then 7 on.
+[[nodiscard]] constexpr PlayerId player_slot(std::size_t n) noexcept {
+    return static_cast<PlayerId>(n < kOriginalPlayers ? n : kFirstExtraPlayer + (n - kOriginalPlayers));
 }
 
 /// Original colours map 1:1 to the banners of the base game.

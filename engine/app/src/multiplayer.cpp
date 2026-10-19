@@ -3,6 +3,7 @@
 // The viewer's side of a multiplayer game (ADR 0011): the session, its menu (multiplayer_menu.hpp),
 // the search on the local network, and the games the host makes from its lobby.
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <random>
@@ -350,8 +351,16 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
     lobby.game = setup.file_name;
     std::optional<sim::World> world;
     if (setup.kind == HostSetup::Kind::Endless) {
-        // The four banners of the endless game; the world is made at the start.
-        lobby.seats.resize(4);
+        // A slot per player, the world is made at the start. Players five on sit behind the
+        // free trader, the pirates and the natives (sim::player_slot), whose slots are left out.
+        const std::size_t players = std::clamp<std::size_t>(setup.players, HostSetup::kMinPlayers, sim::kMaxPlayers);
+        lobby.seats.resize(std::max<std::size_t>(sim::player_slot(players - 1) + 1U, sim::kOriginalPlayers));
+        for (std::size_t s = 0; s < lobby.seats.size(); ++s) {
+            const bool used = s < players || s >= sim::kFirstExtraPlayer;
+            if (!used) {
+                lobby.seats[s].kind = net::LobbySeat::Kind::Reserved;
+            }
+        }
     } else {
         const std::filesystem::path path =
             setup.kind == HostSetup::Kind::Scenario ? setup.file : slot_file(save_folder(), setup.slot);
@@ -372,7 +381,7 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
         }
         for (std::size_t s = 0; s < count; ++s) {
             net::LobbySeat seat;
-            seat.kind = !playable(s)                                   ? net::LobbySeat::Kind::Closed
+            seat.kind = !playable(s)                                   ? net::LobbySeat::Kind::Reserved
                         : players[s].role == sim::PlayerRole::Computer ? net::LobbySeat::Kind::Computer
                                                                        : net::LobbySeat::Kind::Open;
             lobby.seats.push_back(std::move(seat));
@@ -436,10 +445,20 @@ core::Status MapViewer::start_hosted_game() {
         sim::NewGameOptions o;
         o.difficulty = std::min<std::uint8_t>(setup.level, sim::NewGameOptions::kDifficulties - 1);
         o.layout = static_cast<std::uint8_t>(setup.seed % sim::NewGameOptions::kLayouts);
-        o.colour = own < 4 ? own : 0;
+        o.colour = own < sim::kOriginalPlayers ? own : 0;
         o.name = own < lobby.seats.size() ? lobby.seats[own].name : std::string{};
         o.world = m_options.world;
         o.world.seed = setup.seed;
+        if (setup.players > sim::kOriginalPlayers) {
+            // More players than the original's maps have starts for: an own world, as much sea
+            // and land per player as the original's 500 x 350 for four.
+            sim::WorldSettings custom;
+            custom.players = static_cast<std::uint8_t>(std::min<std::size_t>(setup.players, sim::kMaxPlayers));
+            const double scale = std::sqrt(static_cast<double>(custom.players) / sim::kOriginalPlayers);
+            custom.width = static_cast<std::uint32_t>(std::lround(custom.width * scale));
+            custom.height = static_cast<std::uint32_t>(std::lround(custom.height * scale));
+            o.custom = custom;
+        }
         std::random_device device;
         const std::time_t now = std::time(nullptr);
         if (const std::tm* t = std::localtime(&now)) {
@@ -457,15 +476,15 @@ core::Status MapViewer::start_hosted_game() {
             std::fprintf(stderr, "warning: %s\n", w.c_str());
         }
         world = std::move(made).value();
+        name_more_players(*world);
     } else if (m_hosted_world) {
         world = std::move(*m_hosted_world);
         m_hosted_world.reset();
     } else {
         return core::make_error(core::ErrorCode::NotFound, "the game of the lobby is gone");
     }
-    // The slots as the lobby has them. Nobody plays an open slot yet: the computer holds it for
-    // whoever comes into the running game (the host hands it over then), or, when nobody may
-    // come, it is closed like the others nobody plays.
+    // The slots as the lobby has them. Nobody plays an open slot yet: the computer plays it, and
+    // when people may come into the running game, the host hands it to whoever comes.
     for (std::size_t s = 0; s < lobby.seats.size(); ++s) {
         sim::Player* p = world->player(static_cast<sim::PlayerId>(s));
         if (p == nullptr) {
@@ -473,7 +492,11 @@ core::Status MapViewer::start_hosted_game() {
         }
         const net::LobbySeat& seat = lobby.seats[s];
         net::LobbySeat::Kind kind = seat.kind;
-        if (kind == net::LobbySeat::Kind::Open && !lobby.join_running) {
+        if (kind == net::LobbySeat::Kind::Reserved) {
+            // Not a player's slot (the factions), or one beyond the number of players.
+            if (p->role != sim::PlayerRole::Human && p->role != sim::PlayerRole::Computer) {
+                continue;
+            }
             kind = net::LobbySeat::Kind::Closed;
         }
         switch (kind) {
@@ -491,6 +514,8 @@ core::Status MapViewer::start_hosted_game() {
                 std::erase_if(world->ships(), [s](const sim::Ship& ship) { return ship.owner == s; });
                 break;
             }
+            case net::LobbySeat::Kind::Reserved:
+                break;  // made closed above
         }
     }
     replace_world(std::move(*world));

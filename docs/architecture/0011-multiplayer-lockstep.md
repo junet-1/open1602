@@ -56,10 +56,18 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     second each). The host sets the kinds of the slots, removes players and starts when it wants;
     the game is made from the lobby and every computer gets it as it would get a running one
     (point 6). The lobby travels as a whole whenever it changes. A slot's index is the player of the
-    world, and with it the banner colour.
+    world, and with it the banner colour; the slots of the free trader, the pirates and the natives
+    are reserved and not shown. Every game has all its players: a slot nobody takes is played by
+    the computer, and the host hands it to whoever comes into the running game (the command
+    `PlayerControl`) and back to the computer when that player leaves.
+14. **Players.** A new endless game has four to twelve players. Four play on the original's maps;
+    more get a world of their own (ADR 0008), as much sea and land per player as the original's
+    500 × 350 for four. Players five on sit behind the original's seven slots (slot 7 on) with
+    banners of their own colours (`BannerTable::add_more_players`), named after them.
 12. **Finding games.** A host answers searches on UDP port 16021 with what the menu lists (title, host,
     game, players and slots, started, password, joining, spectators, protocol version). A computer
-    looking for games asks the local network by broadcast and the hosts it joined before directly,
+    looking for games asks every network of the computer by broadcast, the computer itself and the
+    hosts it joined before directly,
     every 3 s, and forgets a game that has not answered for 6 s. Nothing of this is needed to join:
     an address alone does it too, so games on the internet need no server in between.
 13. **The menu is Open1602's own.** The original's network screens (DirectPlay sessions, its lobby)
@@ -95,7 +103,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
 ## Open
 
 - Choosing banners in the lobby, the endless game's own world settings over the network.
-- Computer players taking over slots that were left, waiting for a disconnected player.
+- The computer taking over slots of players who began as humans, waiting for a disconnected player.
 - Changing the host when it leaves (today the game ends for everyone), a relay for hosts behind strict
   NAT, IPv6 (ENet 1.3 knows IPv4 only), searches beyond the local network.
 - Replays: the savegame plus the session's frames are already all one needs.

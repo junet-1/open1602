@@ -33,8 +33,13 @@ namespace o1602::app {
 struct HostSetup {
     enum class Kind : std::uint8_t { Endless, Scenario, Savegame };
     Kind kind = Kind::Endless;
-    std::uint8_t level = 1;      ///< endless game: the difficulty, 0..3 ([ENDLESSKIND])
-    std::uint32_t seed = 0;      ///< endless game: the world's number
+    std::uint8_t level = 1;  ///< endless game: the difficulty, 0..3 ([ENDLESSKIND])
+    std::uint32_t seed = 0;  ///< endless game: the world's number
+    /// Endless game: players with a start (kMinPlayers..sim::kMaxPlayers); the computer plays the
+    /// slots no person takes. Four play on the original's maps; more get a world of their own,
+    /// sized for them.
+    std::uint8_t players = 4;
+    static constexpr std::uint8_t kMinPlayers = 4;
     std::filesystem::path file;  ///< scenario
     std::size_t slot = 0;        ///< savegame: its slot
     std::string file_name;       ///< its name for the lobby (Windows-1252)
@@ -112,8 +117,12 @@ public:
     void show_connecting(std::string address);
     void show_lobby();
     void set_scale(double scale) { m_form.set_scale(scale); }
-    /// Banner colours of the slots (palette), from the viewer's palette.
-    void set_banner_colours(std::array<std::uint8_t, 5> colours) { m_banners = colours; }
+    /// Colours (palette) of the banners, by banner id: a player's slot shows the banner of the
+    /// same number (sim::kFirstExtraBanner); `other` for slots beyond them.
+    void set_banner_colours(std::vector<std::uint8_t> colours, std::uint8_t other) {
+        m_banners = std::move(colours);
+        m_other_banner = other;
+    }
 
     /// Everything to draw for the model, relative to the 1024 x 768 design's top left.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const MultiplayerModel& model,
@@ -153,7 +162,12 @@ private:
 
     ui::Form m_form;
     Screen m_screen = Screen::Browse;
-    std::array<std::uint8_t, 5> m_banners{};
+    [[nodiscard]] std::uint8_t banner_colour(std::size_t seat) const noexcept {
+        return seat < m_banners.size() ? m_banners[seat] : m_other_banner;
+    }
+
+    std::vector<std::uint8_t> m_banners;
+    std::uint8_t m_other_banner = 0;
     std::string m_notice;      ///< on the search screen, why the last session ended
     std::string m_connecting;  ///< the address being connected to
     // Search

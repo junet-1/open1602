@@ -123,7 +123,9 @@ net.savegame = Spielstand
 net.level = Stufe
 net.world_number = Welt Nr.
 net.roll = Würfeln
-net.endless_hint = Gleiche Nummer, gleiche Inselwelt.
+net.players = Spieler
+net.player_count = {1} Spieler
+net.endless_hint = Gleiche Nummer, gleiche Inselwelt. Ab fünf Spielern entsteht eine eigene Welt, so groß, dass jeder Platz hat.
 net.scenario_hint = Die Mitspieler brauchen die Datei nicht: Das Spiel kommt vom Gastgeber.
 net.savegame_hint = Wer zurückkommt, nimmt einen freien Platz des Spiels.
 net.no_savegames = Keine Spielstände.
@@ -184,3 +186,13 @@ net.refused.desync = Dieser Rechner weicht immer wieder vom Gastgeber ab.
 net.refused.invalid = Dieser Rechner hat Unverständliches geschickt.
 net.refused.password = Falsches Kennwort.
 net.refused.kicked = Der Gastgeber hat Euch entfernt.
+
+# Players five to twelve of a new world, named after their colours
+player.colour.orange = Oranger Spieler
+player.colour.purple = Violetter Spieler
+player.colour.teal = Türkiser Spieler
+player.colour.pink = Rosa Spieler
+player.colour.light_blue = Hellblauer Spieler
+player.colour.green = Grüner Spieler
+player.colour.lime = Hellgrüner Spieler
+player.colour.brown = Brauner Spieler

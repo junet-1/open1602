@@ -76,6 +76,10 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return m_banners.size(); }
     [[nodiscard]] const std::vector<Banner>& banners() const noexcept { return m_banners; }
     sim::BannerId add(Banner banner);
+    /// The banners of the fifth player on (sim::kFirstExtraBanner), after the original's seven:
+    /// the eight colours after the original's four, those furthest from the natives' brown and
+    /// the trader's green first. Nothing unless the table holds just the original's seven.
+    void add_more_players();
     /// A banner with the generic flag in `color`; its riders get a horse picked from `id`.
     sim::BannerId add_color(std::string id, assets::Rgba color);
 

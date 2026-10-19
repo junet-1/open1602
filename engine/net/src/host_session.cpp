@@ -68,12 +68,12 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, sim::Simulation& 
         LobbySeat lobby_seat;
         if (s == seat) {
             lobby_seat = LobbySeat{LobbySeat::Kind::Human, m_name, true};
+        } else if (players[s].role != sim::PlayerRole::Human && players[s].role != sim::PlayerRole::Computer) {
+            lobby_seat.kind = LobbySeat::Kind::Reserved;
         } else if (!players[s].active()) {
             lobby_seat.kind = LobbySeat::Kind::Closed;
         } else if (players[s].role == sim::PlayerRole::Computer) {
             lobby_seat.kind = LobbySeat::Kind::Computer;
-        } else if (players[s].role != sim::PlayerRole::Human) {
-            lobby_seat.kind = LobbySeat::Kind::Closed;
         }
         m_lobby.seats.push_back(std::move(lobby_seat));
     }
@@ -735,7 +735,8 @@ void HostSession::set_lobby_info(std::string title, std::string game, std::vecto
 }
 
 void HostSession::set_seat(Seat seat, LobbySeat::Kind kind) {
-    if (started() || seat >= m_lobby.seats.size() || seat == m_seat || kind == LobbySeat::Kind::Human) {
+    if (started() || seat >= m_lobby.seats.size() || seat == m_seat || kind == LobbySeat::Kind::Human ||
+        kind == LobbySeat::Kind::Reserved || m_lobby.seats[seat].kind == LobbySeat::Kind::Reserved) {
         return;
     }
     const auto holder =

@@ -47,6 +47,8 @@ enum class MpText : std::uint16_t {
     Level,
     WorldNumber,
     Roll,
+    Players,
+    PlayerCount,
     EndlessHint,
     ScenarioHint,
     SavegameHint,

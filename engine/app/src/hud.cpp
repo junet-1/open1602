@@ -139,11 +139,14 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         style.hover = ui::nearest_colour(palette, 72, 50, 24);
         style.selected = ui::nearest_colour(palette, 112, 80, 30);
         m_multiplayer = std::make_unique<MultiplayerMenu>(style);
-        // The banners of the slots: red, blue, yellow, white, and grey for any further one.
-        m_multiplayer->set_banner_colours(
-            {ui::nearest_colour(palette, 200, 30, 30), ui::nearest_colour(palette, 40, 70, 200),
-             ui::nearest_colour(palette, 230, 200, 40), ui::nearest_colour(palette, 235, 235, 235),
-             ui::nearest_colour(palette, 128, 128, 128)});
+        // The banners of the slots in the palette's nearest colours, grey for any further one.
+        render::BannerTable banners = render::BannerTable::original();
+        banners.add_more_players();
+        std::vector<std::uint8_t> colours;
+        for (const render::Banner& b : banners.banners()) {
+            colours.push_back(ui::nearest_colour(palette, b.color.r, b.color.g, b.color.b));
+        }
+        m_multiplayer->set_banner_colours(std::move(colours), ui::nearest_colour(palette, 128, 128, 128));
     }
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);

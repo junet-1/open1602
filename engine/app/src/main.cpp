@@ -42,7 +42,7 @@ int usage() {
         "                [--volcanoes MODE] [--frames N]\n"
         "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
         "                [--islands original|seed]\n"
-        "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
+        "                [--world WxH] [--players 1-12] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--starts spread|together]\n"
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
         "                [--video N] [--input EVENTS] [--select ISLAND,X,Y|ship:N]\n"
@@ -432,7 +432,8 @@ int main(int argc, char** argv) {
             custom_world = true;
         } else if (arg == "--players" && has_value) {
             std::int32_t players = 0;
-            if (!parse_number(argv[++i], players) || players < 1 || players > 4) {
+            if (!parse_number(argv[++i], players) || players < 1 ||
+                players > static_cast<std::int32_t>(sim::kMaxPlayers)) {
                 return usage();
             }
             custom.players = static_cast<std::uint8_t>(players);

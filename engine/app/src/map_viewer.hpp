@@ -118,6 +118,10 @@ struct ViewerOptions {
     std::optional<Multiplayer> multiplayer;
 };
 
+/// Players five on of a new world (sim::add_players) get the names of their colours in the
+/// game's language; players named otherwise keep their names.
+void name_more_players(sim::World& world);
+
 class MapViewer {
 public:
     static core::Result<std::unique_ptr<MapViewer>> create(const assets::GameDirectory& game,

@@ -160,6 +160,7 @@ struct LobbySeat {
         Human,     ///< `name` plays it
         Computer,  ///< a computer player of the game
         Closed,    ///< not in the game
+        Reserved,  ///< not a player's slot (free trader, pirates, natives); the lobby leaves it out
     };
     Kind kind = Kind::Open;
     std::string name;

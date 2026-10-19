@@ -49,6 +49,31 @@ BannerTable BannerTable::original(const assets::FigureTable* figures, const Bann
     return table;
 }
 
+static_assert(BannerTable::kDefaultColors.size() == sim::kMaxPlayers, "a colour of its own for every player");
+
+void BannerTable::add_more_players() {
+    if (m_banners.size() != sim::kFirstExtraBanner) {
+        return;
+    }
+    struct More {
+        const char* id;
+        std::size_t colour;  ///< in kDefaultColors
+    };
+    static constexpr std::array<More, sim::kMaxPlayers - sim::kOriginalPlayers> kMore = {{
+        {"open1602:orange", 5},
+        {"open1602:purple", 6},
+        {"open1602:teal", 7},
+        {"open1602:pink", 8},
+        {"open1602:light_blue", 9},
+        {"open1602:green", 4},
+        {"open1602:lime", 11},
+        {"open1602:brown", 10},
+    }};
+    for (const More& m : kMore) {
+        add_color(m.id, kDefaultColors[m.colour]);
+    }
+}
+
 sim::BannerId BannerTable::add(Banner banner) {
     m_banners.push_back(std::move(banner));
     return static_cast<sim::BannerId>(m_banners.size() - 1);

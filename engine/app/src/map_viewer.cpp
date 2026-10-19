@@ -81,6 +81,20 @@ std::string player_label(const sim::Player& p, sim::PlayerId slot, const render:
 
 }  // namespace
 
+void name_more_players(sim::World& world) {
+    // In the order of render::BannerTable::add_more_players.
+    static constexpr std::array<const char*, sim::kMaxPlayers - sim::kOriginalPlayers> kKeys = {
+        "player.colour.orange",     "player.colour.purple", "player.colour.teal", "player.colour.pink",
+        "player.colour.light_blue", "player.colour.green",  "player.colour.lime", "player.colour.brown"};
+    for (std::size_t n = sim::kOriginalPlayers; n < sim::kMaxPlayers; ++n) {
+        sim::Player* p = world.player(sim::player_slot(n));
+        if (p != nullptr && p->banner == sim::kFirstExtraBanner + (n - sim::kOriginalPlayers) &&
+            p->name == "Player " + std::to_string(n + 1)) {
+            p->name = ui::tr(kKeys[n - sim::kOriginalPlayers]);
+        }
+    }
+}
+
 core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDirectory& game,
                                                            const ViewerOptions& options) {
     auto buildings = assets::BuildingTable::load(game);
@@ -123,7 +137,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }
-    const auto banners = render::BannerTable::original();
+    auto banners = render::BannerTable::original();
+    banners.add_more_players();
     for (std::size_t i = 0; i < world->players().size(); ++i) {
         const auto& p = world->players()[i];
         std::fprintf(stderr, "%s, money %d\n", player_label(p, static_cast<sim::PlayerId>(i), banners).c_str(),
@@ -143,6 +158,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                                                     std::move(palette).value(), std::move(figures).value(), options));
     viewer->m_banners =
         render::BannerTable::original(&viewer->m_figures, render::BannerOptions{options.original_flags});
+    viewer->m_banners.add_more_players();
     viewer->m_building_figures =
         render::collect_building_figures(viewer->m_world, viewer->m_buildings, viewer->m_figures);
     viewer->m_local_player = sim::first_human_player(viewer->m_world);
@@ -218,6 +234,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     });
     viewer->load_key_settings();
     viewer->load_options();
+    name_more_players(viewer->m_world);  // in the language the options set
     if (options.menu && viewer->m_hud) {
         viewer->m_hud->open_menu();
     }
