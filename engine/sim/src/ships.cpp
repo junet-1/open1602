@@ -446,7 +446,7 @@ void Fleet::sink(Ship& ship, PlayerId attacker) {
     // The score's counters (0x0044A9A0): the soldiers aboard go down with the ship.
     std::uint32_t soldiers = 0;
     for (const CargoSlot& c : ship.cargo) {
-        soldiers += c.ware >= kFirstSoldierWare && c.ware <= kLastSoldierWare ? 1U : 0U;
+        soldiers += is_soldier_ware(c.ware) ? 1U : 0U;
     }
     if (Player* owner = m_world->player(ship.owner)) {
         add_count(owner->ships_lost, 1);
