@@ -1924,6 +1924,7 @@ void MapViewer::load_options() {
     if (MainMenu* menu = m_hud->menu()) {
         menu->set_slots(m_slots);
         menu->set_score_folder(data_folder() / "scores");
+        menu->set_progress_file(data_folder() / "progress.cfg");
         menu->set_name(m_app_settings.player_name);
     }
 }

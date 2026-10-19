@@ -61,6 +61,19 @@ constexpr std::int32_t kBanner = 35021;  ///< + colour 0..3
 
 constexpr std::uint32_t kTutorial = 0;
 constexpr std::uint32_t kEndless = 1;
+/// START.BSH: one star; the levels of the endless game add one each.
+constexpr std::int32_t kGfxStars = 21;
+
+/// The first digits of a scenario's files, in order: the choices of the mission screen.
+std::vector<std::uint8_t> choice_digits(const MenuScenario& s) {
+    std::vector<std::uint8_t> digits;
+    for (const auto& [digit, path] : s.files) {
+        if (digit != 0xFF && std::find(digits.begin(), digits.end(), digit) == digits.end()) {
+            digits.push_back(digit);
+        }
+    }
+    return digits;
+}
 
 std::string lower(std::string_view s) {
     std::string out(s);
@@ -248,8 +261,9 @@ void MainMenu::refresh_host() {
         }
         p.set_text(kRowText + k, m_scenarios[i].name);
         if (stars) {
-            p.set_graphic(kRowStars + k,
-                          21 + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scenarios[i].header.ranking, 4)), 0);
+            p.set_graphic(
+                kRowStars + k,
+                kGfxStars + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scenarios[i].header.ranking, 4)), 0);
         }
     }
     p.set_visible(kListUp, m_first > 0);
@@ -257,16 +271,41 @@ void MainMenu::refresh_host() {
 }
 
 void MainMenu::load_scenarios() {
-    if (!m_scenarios.empty() || m_texts == nullptr) {
+    if (m_texts == nullptr) {
         return;
+    }
+    // Read again every time: a won game may have opened a mission since.
+    m_progress = {};
+    if (!m_progress_file.empty()) {
+        if (auto bytes = core::read_file(m_progress_file)) {
+            m_progress =
+                assets::parse_progress(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
+        }
     }
     std::array<std::string, 4> headings;
     for (std::size_t g = 0; g < headings.size(); ++g) {
         headings[g] = text("GAME", 85 + g);
     }
+    m_scenarios.clear();
     if (const auto folder = m_game->resolve("Szenes")) {
         m_scenarios = scenario_list(*folder, headings);
     }
+    // The numbered missions above the progress are not offered (0x0048DC90).
+    std::erase_if(m_scenarios, [&](const MenuScenario& s) {
+        const std::uint32_t n = s.header.mission_number;
+        return !s.separator && n >= assets::CampaignProgress::kFirstNumbered &&
+               n <= assets::CampaignProgress::kLastNumbered && n > m_progress.numbered;
+    });
+}
+
+std::size_t MainMenu::campaign_parts_open(const MenuScenario& s) const {
+    // MISSION.GAD: a part above the campaign's progress is disabled; other scenarios have all.
+    constexpr std::size_t kAll = 4;
+    if (s.header.campaign == assets::ScenarioHeader::kNone) {
+        return kAll;
+    }
+    const auto it = m_progress.campaigns.find(s.header.campaign);
+    return it != m_progress.campaigns.end() ? it->second : 0;
 }
 
 bool MainMenu::open_mission(std::string_view name) {
@@ -289,6 +328,13 @@ void MainMenu::select_scenario(std::size_t index) {
     m_chosen = index;
     const MenuScenario& s = m_scenarios[index];
     m_variant = s.files.size() >= 2 ? s.files.front().first : 0xFF;
+    // A campaign starts at its furthest open part.
+    if (s.header.campaign != assets::ScenarioHeader::kNone) {
+        const std::vector<std::uint8_t> digits = choice_digits(s);
+        if (!digits.empty()) {
+            m_variant = digits[std::min(campaign_parts_open(s), digits.size() - 1)];
+        }
+    }
     m_scores_first = 0;
     load_details();
 }
@@ -362,12 +408,7 @@ void MainMenu::refresh_mission() {
     ui::Panel& p = *m_mission;
     const MenuScenario& s = m_scenarios[m_chosen];
     // The choices: the levels of the endless game, the parts of the tutorial, else the digits.
-    std::vector<std::uint8_t> digits;
-    for (const auto& [digit, path] : s.files) {
-        if (digit != 0xFF && std::find(digits.begin(), digits.end(), digit) == digits.end()) {
-            digits.push_back(digit);
-        }
-    }
+    const std::vector<std::uint8_t> digits = choice_digits(s);
     for (std::size_t i = 0; i < kChoices; ++i) {
         const auto k = static_cast<std::int32_t>(i);
         const bool shown = i < digits.size();
@@ -387,6 +428,7 @@ void MainMenu::refresh_mission() {
         }
         p.set_text(kChoiceLabel + k, label);
         p.set_selected(kChoice + k, digits[i] == m_variant);
+        p.set_disabled(kChoice + k, i > campaign_parts_open(s));
     }
     p.set_text(kBriefing, m_briefing);
     p.set_scroll(kBriefing, m_briefing_line);
@@ -405,7 +447,8 @@ void MainMenu::refresh_mission() {
         for (const std::int32_t id : {kScoreName, kScorePoints, kScoreRank}) {
             p.set_visible(id + k, shown);
         }
-        const bool stars = shown && s.header.mission_number == kEndless && m_scores[i].stars > 0;
+        // The level of an endless game as stars: sprite 21 + level, one star for "Einfach" (0x0048B0E0).
+        const bool stars = shown && s.header.mission_number == kEndless;
         p.set_visible(kScoreStars + k, stars);
         if (!shown) {
             continue;
@@ -415,7 +458,7 @@ void MainMenu::refresh_mission() {
         p.set_text(kScoreRank + k, std::to_string(i + 1) + ".");
         if (stars) {
             p.set_graphic(kScoreStars + k,
-                          20 + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scores[i].stars, 5)), 0);
+                          kGfxStars + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scores[i].stars, 4)), 0);
         }
     }
 }
@@ -493,14 +536,9 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                 break;
             case Screen::Mission:
                 if (e.id >= kChoice && e.id < kChoice + static_cast<std::int32_t>(kChoices)) {
-                    std::vector<std::uint8_t> digits;
-                    for (const auto& [digit, path] : m_scenarios[m_chosen].files) {
-                        if (digit != 0xFF && std::find(digits.begin(), digits.end(), digit) == digits.end()) {
-                            digits.push_back(digit);
-                        }
-                    }
+                    const std::vector<std::uint8_t> digits = choice_digits(m_scenarios[m_chosen]);
                     const auto i = static_cast<std::size_t>(e.id - kChoice);
-                    if (i < digits.size()) {
+                    if (i < digits.size() && i <= campaign_parts_open(m_scenarios[m_chosen])) {
                         m_variant = digits[i];
                         load_details();  // the briefing of the chosen part
                     }
