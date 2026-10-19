@@ -43,10 +43,11 @@ int usage() {
         "                [--volcanoes MODE] [--frames N]\n"
         "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
         "                [--islands original|seed]\n"
-        "                [--world WxH] [--players 1-4] [--island-count C] [--island-sizes S] [--villages C]\n"
+        "                [--world WxH] [--players 1-12] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--starts spread|together]\n"
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
         "                [--video N] [--input EVENTS] [--select ISLAND,X,Y|ship:N]\n"
+        "                [--host [--port N] | --join HOST[:PORT]] [--name NAME]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
@@ -74,6 +75,11 @@ int usage() {
         "  --select ship:N    select the N-th ship of the game (index) and look at it; unit:N a land unit\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
         "  --menu             start in the main menu (the default when no game is named)\n"
+        "  --host             host a multiplayer game of the game named (UDP port 16020, --port N); others join\n"
+        "                     into the free human slots, or watch\n"
+        "  --join HOST[:PORT] join the multiplayer game of a host (name or IPv4 address); the game comes from it\n"
+        "  --password TEXT    the password of the game to join (--join)\n"
+        "  --name NAME        the player's name (multiplayer, new endless game)\n"
         "  --save FILE        save the game when the viewer ends (never into the installation): Open1602's own\n"
         "                     savegame, or with the ending .gam a savegame the original loads (if the game fits)\n"
         "\n"
@@ -178,6 +184,9 @@ int main(int argc, char** argv) {
     std::optional<std::uint64_t> seed_given;
     sim::WorldSettings custom;
     bool custom_world = false;
+    app::ViewerOptions::Multiplayer multiplayer;
+    bool multiplayer_given = false;
+    bool name_given = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         const bool has_value = i + 1 < argc;
@@ -337,6 +346,35 @@ int main(int argc, char** argv) {
             seed_given = seed;
         } else if (arg == "--name" && has_value) {
             new_game_options.name = argv[++i];
+            name_given = true;
+        } else if (arg == "--host") {
+            multiplayer.role = app::ViewerOptions::Multiplayer::Role::Host;
+            multiplayer_given = true;
+        } else if (arg == "--join" && has_value) {
+            // HOST or HOST:PORT (IPv4 or a name).
+            const std::string_view to = argv[++i];
+            const std::size_t colon = to.rfind(':');
+            multiplayer.role = app::ViewerOptions::Multiplayer::Role::Join;
+            multiplayer.address = std::string(to.substr(0, colon));
+            if (colon != std::string_view::npos) {
+                std::int32_t port = 0;
+                if (!parse_number(to.substr(colon + 1), port) || port <= 0 || port > 65535) {
+                    return usage();
+                }
+                multiplayer.port = static_cast<std::uint16_t>(port);
+            }
+            multiplayer_given = !multiplayer.address.empty();
+            if (!multiplayer_given) {
+                return usage();
+            }
+        } else if (arg == "--password" && has_value) {
+            multiplayer.password = argv[++i];
+        } else if (arg == "--port" && has_value) {
+            std::int32_t port = 0;
+            if (!parse_number(argv[++i], port) || port <= 0 || port > 65535) {
+                return usage();
+            }
+            multiplayer.port = static_cast<std::uint16_t>(port);
         } else if (arg == "--colour" && has_value) {
             std::int32_t colour = 0;
             if (!parse_number(argv[++i], colour) || colour < 0 || colour > 3) {
@@ -396,7 +434,8 @@ int main(int argc, char** argv) {
             custom_world = true;
         } else if (arg == "--players" && has_value) {
             std::int32_t players = 0;
-            if (!parse_number(argv[++i], players) || players < 1 || players > 4) {
+            if (!parse_number(argv[++i], players) || players < 1 ||
+                players > static_cast<std::int32_t>(sim::kMaxPlayers)) {
                 return usage();
             }
             custom.players = static_cast<std::uint8_t>(players);
@@ -497,8 +536,16 @@ int main(int argc, char** argv) {
         return usage();  // an own world is a new game
     }
 
-    // No game named: the main menu, as the original starts (with --frame off there is none).
-    options.menu = options.frame && (menu || (!game_named && !new_game));
+    if (multiplayer_given) {
+        if (name_given) {
+            multiplayer.name = new_game_options.name;
+        }
+        options.multiplayer = multiplayer;
+    }
+    // No game named: the main menu, as the original starts (with --frame off there is none). A
+    // computer joining a host gets the game from it.
+    const bool joining = multiplayer_given && multiplayer.role == app::ViewerOptions::Multiplayer::Role::Join;
+    options.menu = options.frame && !joining && !multiplayer_given && (menu || (!game_named && !new_game));
     auto viewer = app::MapViewer::create(*game, options);
     if (!viewer) {
         app::report_fatal(viewer.error().message);

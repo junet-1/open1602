@@ -97,10 +97,18 @@ struct PlayerRename {
     std::string name;  ///< 1 to kMaxNameLength bytes (Windows-1252)
 };
 
+/// Who steers a player: a person or the computer. The multiplayer host gives it for a slot when
+/// someone comes into the running game and takes it over from the computer.
+struct PlayerControl {
+    PlayerId player = kNoPlayer;
+    bool computer = false;
+};
+
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
-using Command = std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting,
-                             ShipyardOrder, ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder,
-                             UnloadOrder, ProductionSwitch, CityOrder, ShipCommand, GameSpeedOrder, PlayerRename>;
+using Command =
+    std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting, ShipyardOrder,
+                 ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder, UnloadOrder, ProductionSwitch,
+                 CityOrder, ShipCommand, GameSpeedOrder, PlayerRename, PlayerControl>;
 
 /// What became of a command.
 struct CommandResult {
@@ -253,6 +261,7 @@ private:
     bool city_order(const CityOrder& order);
     bool game_speed(const GameSpeedOrder& order);
     bool rename_player(const PlayerRename& order);
+    bool control_player(const PlayerControl& order);
     bool restore_state(const std::vector<std::uint8_t>& state);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 

@@ -14,6 +14,8 @@
 #include <string_view>
 #include <vector>
 
+#include "high_score_file.hpp"
+
 #include "o1602/assets/gad.hpp"
 #include "o1602/render/sdl_ui_renderer.hpp"
 #include "o1602/sim/score.hpp"
@@ -60,13 +62,5 @@ private:
     /// The row of each colour's button, nothing for a colour nobody plays.
     std::array<std::optional<std::size_t>, 4> m_by_colour{};
 };
-
-/// Where a game's high score list lives, relative to the scores folder: the scenario's name (a
-/// campaign part's label, [KAMPAGNE] line 5 * campaign + part), in "Eigene Szenarien" for the
-/// player's own scenarios, .hss for one player and .hsm for several. Empty without a name.
-[[nodiscard]] std::filesystem::path high_score_file(const sim::GameIdentity& game,
-                                                    const std::vector<std::string>& campaign_labels, bool multiplayer);
-/// A name of Windows-1252 as a file name (UTF-8), without characters a file system refuses.
-[[nodiscard]] std::filesystem::path file_name_of(std::string_view cp1252);
 
 }  // namespace o1602::app

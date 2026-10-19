@@ -9,6 +9,8 @@
 
 #include "../test_framework.hpp"
 
+#include "o1602/sim/new_game.hpp"
+#include "o1602/sim/ship.hpp"
 #include "o1602/sim/world_plan.hpp"
 
 using namespace o1602;
@@ -242,4 +244,47 @@ TEST_CASE("world plan: together, all ships start at one place, as in the origina
         CHECK(std::abs(static_cast<std::int32_t>(st.y) - 175) <= 10);
         CHECK(st.home_island == 0xFF);
     }
+}
+
+TEST_CASE("world plan: players five on are computers behind the factions, each with a ship at its start") {
+    // The seven slots of a level's file: four players, free trader, pirates, natives.
+    sim::World world(600, 400);
+    std::vector<sim::Player> players(7);
+    players[1].role = sim::PlayerRole::Computer;
+    players[1].money = 30000;
+    players[4].role = sim::PlayerRole::Trader;
+    players[5].role = sim::PlayerRole::Pirates;
+    players[6].role = sim::PlayerRole::Natives;
+    world.set_players(players);
+    world.add_ship(sim::make_ship("Pinasse", 10, 10, 21, 1));
+    sim::WorldPlan plan;
+    for (std::uint32_t n = 0; n < 6; ++n) {
+        plan.starts.push_back(sim::StartArea{100 + 50 * n, 200, 0, 0});
+    }
+
+    REQUIRE(sim::add_players(world, plan, 6).ok());
+    REQUIRE(world.players().size() == 9);
+    CHECK(world.players()[5].role == sim::PlayerRole::Pirates);  // the factions keep their slots
+    for (std::size_t n = 4; n < 6; ++n) {
+        const sim::PlayerId slot = sim::player_slot(n);
+        CHECK(slot == 7 + (n - 4));
+        const sim::Player& p = world.players()[slot];
+        CHECK(p.role == sim::PlayerRole::Computer);
+        CHECK(p.money == 30000);
+        CHECK(p.banner == sim::kFirstExtraBanner + (n - 4));
+        const auto ship = std::find_if(world.ships().begin(), world.ships().end(),
+                                       [&](const sim::Ship& s) { return s.owner == slot; });
+        REQUIRE(ship != world.ships().end());
+        CHECK(ship->x == plan.starts[n].x);
+        CHECK(ship->y == plan.starts[n].y);
+    }
+    CHECK(world.diplomacy().size() == 9);
+
+    // Four players need nothing; more than the starts or twelve do not fit.
+    sim::World four(600, 400);
+    four.set_players(players);
+    CHECK(sim::add_players(four, plan, 4).ok());
+    CHECK(four.players().size() == 7);
+    CHECK(!sim::add_players(four, plan, 7).ok());
+    CHECK(!sim::add_players(four, plan, 13).ok());
 }

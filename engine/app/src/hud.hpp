@@ -19,6 +19,7 @@
 
 #include "end_screen.hpp"
 #include "main_menu.hpp"
+#include "multiplayer_menu.hpp"
 #include "options_panel.hpp"
 #include "selection_panels.hpp"
 #include "side_panels.hpp"
@@ -189,18 +190,26 @@ public:
     /// A name is being typed (a savegame's, the player's in the menu): the keys go there
     /// (Windows-1252 text, Backspace 8, Enter 13).
     [[nodiscard]] bool typing() const noexcept {
-        return (m_menu_active && m_menu && m_menu->typing()) ||
-               (m_options && m_mode == kModeOptions && m_options->editing());
+        if (m_menu_active) {
+            return multiplayer_open() ? m_multiplayer->typing() : m_menu && m_menu->typing();
+        }
+        return m_options && m_mode == kModeOptions && m_options->editing();
     }
     void type_text(std::string_view text) {
-        if (m_menu_active && m_menu) {
+        if (multiplayer_open()) {
+            m_multiplayer->type(text);
+        } else if (m_menu_active && m_menu) {
             m_menu->type(text);
         } else if (m_options) {
             m_options->type(text);
         }
     }
     void type_key(int key) {
-        if (m_menu_active && m_menu) {
+        if (multiplayer_open()) {
+            for (MultiplayerEvent& e : m_multiplayer->key(m_multiplayer_model, key)) {
+                m_multiplayer_events.push_back(std::move(e));
+            }
+        } else if (m_menu_active && m_menu) {
             if (auto e = m_menu->key(key)) {
                 m_menu_events.push_back(std::move(*e));
             }
@@ -218,10 +227,31 @@ public:
     void open_menu() {
         if (m_menu) {
             m_menu_active = true;
+            m_multiplayer_shown = false;
             m_menu->open();
         }
     }
-    void close_menu() noexcept { m_menu_active = false; }
+    void close_menu() noexcept {
+        m_menu_active = false;
+        m_multiplayer_shown = false;
+    }
+    /// The multiplayer menu over the whole window, in place of the main menu (`notice`: why the
+    /// last session ended). Its screens show m_multiplayer_model, which the viewer keeps up to date.
+    [[nodiscard]] MultiplayerMenu* multiplayer() noexcept { return m_multiplayer.get(); }
+    [[nodiscard]] bool multiplayer_open() const noexcept { return m_menu_active && m_multiplayer_shown; }
+    void open_multiplayer(std::string notice = {}) {
+        if (m_menu) {
+            m_menu_active = true;
+            m_multiplayer_shown = true;
+            m_multiplayer->open(std::move(notice));
+        }
+    }
+    /// Back to the main menu.
+    void close_multiplayer() noexcept { m_multiplayer_shown = false; }
+    [[nodiscard]] MultiplayerModel& multiplayer_model() noexcept { return m_multiplayer_model; }
+    [[nodiscard]] std::vector<MultiplayerEvent> take_multiplayer_events() {
+        return std::exchange(m_multiplayer_events, {});
+    }
     [[nodiscard]] std::vector<MenuEvent> take_menu_events() { return std::exchange(m_menu_events, {}); }
     /// The score sheets over the whole window, like the menu (menu_active() holds meanwhile, so
     /// the game stands still behind them, as in the original). The player's choice comes back
@@ -301,6 +331,10 @@ private:
     /// Top left of the menu's 1024 x 768 design on the screen (centred).
     void menu_origin(std::int32_t& x, std::int32_t& y) const;
     std::unique_ptr<MainMenu> m_menu;
+    std::unique_ptr<MultiplayerMenu> m_multiplayer;  ///< with the main menu
+    MultiplayerModel m_multiplayer_model;
+    bool m_multiplayer_shown = false;
+    std::vector<MultiplayerEvent> m_multiplayer_events;
     bool m_menu_active = false;
     std::vector<MenuEvent> m_menu_events;
     EndScreen m_end;

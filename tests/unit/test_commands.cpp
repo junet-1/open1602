@@ -75,6 +75,7 @@ std::vector<sim::Command> every_kind() {
     all.emplace_back(rename_ship);
     all.emplace_back(sim::GameSpeedOrder{1, sim::GameSpeedOrder::Op::SetSpeed, 4});
     all.emplace_back(sim::PlayerRename{1, "Merlin"});
+    all.emplace_back(sim::PlayerControl{1, true});
     return all;
 }
 
@@ -119,13 +120,17 @@ TEST_CASE("commands: every kind of command goes to bytes and back") {
     REQUIRE(build.items.size() == 2);
     CHECK(build.items[0].y == -2);
     CHECK(build.orient_to_road);
-    const auto rename = std::get<sim::PlayerRename>(*sim::decode_command(sim::encode_command(all.back())));
+    const sim::Command& named = all[all.size() - 2];
+    const auto rename = std::get<sim::PlayerRename>(*sim::decode_command(sim::encode_command(named)));
     CHECK(rename.name == "Merlin");
+    const auto control = std::get<sim::PlayerControl>(*sim::decode_command(sim::encode_command(all.back())));
+    CHECK(control.player == 1);
+    CHECK(control.computer);
 
     // With the tick, as the network carries them, one after another.
     core::ByteWriter out;
     sim::write_scheduled(out, {1234567890123ULL, all[0]});
-    sim::write_scheduled(out, {7, all.back()});
+    sim::write_scheduled(out, {7, named});
     const auto stream = out.take();
     core::ByteReader in(stream);
     const auto first = sim::read_scheduled(in);
@@ -258,6 +263,26 @@ TEST_CASE("commands: the fingerprint of the game is the same for the same game, 
     a.simulation.tick();
     b.simulation.tick();
     CHECK(a.simulation.state_hash() == b.simulation.state_hash());  // the same game again
+}
+
+TEST_CASE("commands: a slot changes hands between the computer and a person") {
+    Game g;
+    g.simulation.schedule(0, sim::PlayerControl{1, true});
+    g.simulation.tick();
+    CHECK(g.world.players()[1].role == sim::PlayerRole::Computer);
+    g.simulation.schedule(1, sim::PlayerControl{1, false});
+    g.simulation.tick();
+    CHECK(g.world.players()[1].role == sim::PlayerRole::Human);
+    (void)g.simulation.take_command_results();
+
+    // Nobody steers a slot that is out of the game.
+    g.world.player(0)->status = sim::PlayerStatus::Absent;
+    g.simulation.schedule(2, sim::PlayerControl{0, true});
+    g.simulation.tick();
+    CHECK(g.world.players()[0].role == sim::PlayerRole::Human);
+    const auto results = g.simulation.take_command_results();
+    REQUIRE(results.size() == 1);
+    CHECK(!results[0].accepted);
 }
 
 TEST_CASE("simulation: the steps of a tick run in the original's order (review point 28)") {

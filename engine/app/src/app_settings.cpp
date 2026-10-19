@@ -104,6 +104,10 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             s.language = value.empty() ? std::string("auto") : std::string(value);
         } else if (key == "player_name") {
             s.player_name = std::string(value);
+        } else if (key == "remembered_host") {
+            if (!value.empty() && s.remembered_hosts.size() < AppSettings::kMaxHosts) {
+                s.remembered_hosts.emplace_back(value);
+            }
         } else if (key == "mission_window") {
             s.mission_window = flag(value, s.mission_window);
         } else if (key == "sea_creatures_every") {
@@ -134,6 +138,9 @@ std::string write_settings(const AppSettings& s) {
     out += "sea_creatures_every = " + std::to_string(s.sea_creatures_every) + "\n";
     if (!s.player_name.empty()) {
         out += "player_name = " + s.player_name + "\n";
+    }
+    for (const std::string& host : s.remembered_hosts) {
+        out += "remembered_host = " + host + "\n";
     }
     return out;
 }

@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstring>
 #include <optional>
+#include <set>
+#include <tuple>
 
 #include "../test_framework.hpp"
 
@@ -550,4 +552,19 @@ TEST_CASE("scenario: high scores and the head of a scenario") {
     CHECK(h.ranking == 2);
     CHECK(h.player_min == 1);
     CHECK(h.player_max == 1);
+}
+
+TEST_CASE("banners: players five to twelve get colours of their own, apart from the factions'") {
+    auto banners = render::BannerTable::original();
+    banners.add_more_players();
+    REQUIRE(banners.size() == sim::kFirstExtraBanner + sim::kMaxPlayers - sim::kOriginalPlayers);
+    std::set<std::tuple<std::uint8_t, std::uint8_t, std::uint8_t>> colours;
+    for (const render::Banner& b : banners.banners()) {
+        colours.emplace(b.color.r, b.color.g, b.color.b);
+    }
+    CHECK(colours.size() == banners.size());  // no two alike
+    CHECK(banners.get(sim::kFirstExtraBanner)->id == "open1602:orange");
+    CHECK(banners.get(sim::kFirstExtraBanner)->flag == render::FlagStyle::Tinted);
+    banners.add_more_players();  // only once
+    CHECK(banners.size() == sim::kFirstExtraBanner + sim::kMaxPlayers - sim::kOriginalPlayers);
 }

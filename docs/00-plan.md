@@ -175,7 +175,7 @@ Original data is **not** copied into the repository; the engine gets the path to
 parts of the island header and scenario chunks; fonts, layouts, sound and videos done) · M2 ✅ ·
 M3 ✅ · M4 🟡 (simulation, ships, trade, savegames and sound done; foundations of the interface are in place, what is missing is drawing it and the windows) · M5 🟡
 (military, pirates, world generator stage 1, AI and missions with victory and defeat done; open:
-campaign progress, high score list, AI switches of the scenarios; scenarios have no events) · M6 ⬜ (foundations: commands, determinism) · M7 ⬜ (some improvements
+campaign progress, high score list, AI switches of the scenarios; scenarios have no events) · M6 🟡 (lockstep, desync detection with resync, reconnecting, lobby, LAN search, Open1602's own multiplayer menu, 4 to 12 players; open: banner choice) · M7 ⬜ (some improvements
 already in place: mouse-wheel zoom, screenshot, fixed bugs) · M8 ⬜ (banners with tinted flags already in place).
 
 ## 7. Next steps
@@ -205,7 +205,7 @@ without rework.
    neighbouring islands, climate by position with both climates in reach, iron on every home island, all
    plants and gold in reach, villages and volcanic islands by number of islands and players; larger worlds in
    their own chunk `O1602MAP` ([worldgen.md](re/worldgen.md#custom-worlds-world-generator-stage-1)). Open:
-   more than four players and pirate strength by number of players (with multiplayer), start dialogue (step 5).
+   pirate strength by number of players, start dialogue (step 5). Up to twelve players (2026-10-19).
 5. **Computer opponents (AI)** ✅: task stack, levels and needs as in the original, building site search with
    road plan, maintenance, settling and colonies, supply routes and patrols, fleet, trade, recruiting,
    towers and castles, attacks with landings, island soldiers, diplomacy, pirate nest; deterministic on
@@ -339,7 +339,7 @@ arrives, they are ticked off.
 
 **Multiplayer**
 - How other machines take over a house upgrade (message 0x835, [houses.md](re/houses.md)).
-- State hash per tick, commands over the network, lobby (ADR 0004); more than four players at the start.
+- ~~Commands over the network, state hash, lobby and menus~~: done (2026-10-18, ADR 0011; fingerprint every 100 frames, Open1602's own menu, LAN search). Still open: banner choice in the lobby. Up to twelve players since 2026-10-19.
 
 **Analysis only**
 - Bits +0x0F/4 and /6 of production ([production.md](re/production.md)).

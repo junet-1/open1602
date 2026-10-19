@@ -14,6 +14,7 @@
 #include "o1602/assets/gad.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/font.hpp"
+#include "o1602/ui/form.hpp"
 #include "o1602/ui/key_bindings.hpp"
 #include "o1602/ui/panel.hpp"
 #include "o1602/ui/resources.hpp"
@@ -415,6 +416,48 @@ TEST_CASE("ui: key bindings: the settings file changes only the actions it names
     CHECK(keys.keys(ui::KeyAction::Stop).empty());
     CHECK(keys.find(ui::KeyContext::Units, {'w'})->action == ui::KeyAction::ScrollUp);
     CHECK(keys.find(ui::KeyContext::General, {0x40000000})->action == ui::KeyAction::Help);
+}
+
+TEST_CASE("ui: a form of Open1602's own: clicks, focus, cut texts and the scale") {
+    ui::Form form;
+    form.set_scale(2.0);
+    form.panel(ui::Rect{0, 0, 300, 200});
+    form.button(1, ui::Rect{10, 10, 100, 30}, "Verbinden");
+    form.button(2, ui::Rect{10, 50, 100, 30}, "Starten", false);
+    form.field(3, ui::Rect{10, 90, 60, 30}, "eine sehr lange Adresse");
+    form.check(4, ui::Rect{10, 130, 200, 30}, "Zuschauer", true);
+    // Pressed and released on the button (pixels at scale 2).
+    CHECK(!form.mouse(40, 40, true));
+    CHECK(form.mouse(40, 40, false) == std::optional<ui::Form::Id>(1));
+    // Released elsewhere: no click; a disabled button takes none.
+    CHECK(!form.mouse(40, 40, true));
+    CHECK(!form.mouse(40, 400, false));
+    CHECK(!form.mouse(40, 120, true));
+    CHECK(!form.mouse(40, 120, false));
+    // Laid out anew, the press survives (by its Id).
+    CHECK(!form.mouse(40, 280, true));
+    form.clear();
+    form.check(4, ui::Rect{10, 130, 200, 30}, "Zuschauer", false);
+    CHECK(form.mouse(40, 280, false) == std::optional<ui::Form::Id>(4));
+    CHECK(form.hovered() == std::optional<ui::Form::Id>(4));
+
+    form.clear();
+    form.field(3, ui::Rect{10, 90, 60, 30}, "eine sehr lange Adresse");
+    form.field(5, ui::Rect{10, 130, 200, 30}, "geheim", true);
+    form.set_focus(3);
+    const auto items = form.draw({nullptr, nullptr, nullptr});
+    std::vector<std::string> texts;
+    for (const ui::DrawItem& d : items) {
+        if (d.kind == ui::DrawItem::Kind::Text) {
+            texts.push_back(d.text);
+            CHECK(d.x >= 20);  // design units times the scale
+        }
+    }
+    REQUIRE(texts.size() == 2);
+    // The focused field shows its end and the caret, cut to its box; a secret one only stars.
+    CHECK(texts[0].back() == '_');
+    CHECK(texts[0].size() < std::string("eine sehr lange Adresse_").size());
+    CHECK(texts[1] == "******");
 }
 
 TEST_CASE("ui: key bindings: a key by its place works on every layout, by meaning where it is printed") {

@@ -40,7 +40,7 @@ struct NewGameOptions {
     WorldStart world;
     /// An own world instead of the endless file's plan (world_plan.hpp): its size, islands and
     /// start areas, drawn from `world.seed`. Players, money and ships come from the level's file;
-    /// `layout` does not matter then. At most four players until the multiplayer.
+    /// `layout` does not matter then. Players beyond four are computers in slots 7 on (add_players).
     std::optional<WorldSettings> custom;
 };
 
@@ -57,6 +57,11 @@ struct NewGameOptions {
 [[nodiscard]] core::Result<assets::ChunkFile> new_game_scenario(const assets::ChunkFile& endless,
                                                                 const assets::TextTable& text,
                                                                 const NewGameOptions& options);
+
+/// Players five to `players` of an own world: computers as the level's second player, with its
+/// money and a copy of its ship at their starts, in the slots player_slot() names and with banners
+/// from kFirstExtraBanner on. Nothing for four players or fewer.
+core::Status add_players(World& world, const WorldPlan& plan, std::uint8_t players);
 
 /// The scenario of an own world: the players' ships at the plan's starts (none for players beyond
 /// `players`), the map size if it is not the original's. The islands are still to be made.

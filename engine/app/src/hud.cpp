@@ -136,6 +136,21 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     m_menu = std::make_unique<MainMenu>(game, own);
     if (!m_menu->usable()) {
         m_menu.reset();
+    } else {
+        // Open1602's own windows in the colours of its others (gold frame, dark ground).
+        ui::FormStyle style;
+        style.field = ui::nearest_colour(palette, 12, 8, 4);
+        style.hover = ui::nearest_colour(palette, 72, 50, 24);
+        style.selected = ui::nearest_colour(palette, 112, 80, 30);
+        m_multiplayer = std::make_unique<MultiplayerMenu>(style);
+        // The banners of the slots in the palette's nearest colours, grey for any further one.
+        render::BannerTable banners = render::BannerTable::original();
+        banners.add_more_players();
+        std::vector<std::uint8_t> colours;
+        for (const render::Banner& b : banners.banners()) {
+            colours.push_back(ui::nearest_colour(palette, b.color.r, b.color.g, b.color.b));
+        }
+        m_multiplayer->set_banner_colours(std::move(colours), ui::nearest_colour(palette, 128, 128, 128));
     }
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);
@@ -263,6 +278,12 @@ bool Hud::back() {
         }
         return true;  // no keys on the final screen of a lost game
     }
+    if (multiplayer_open()) {
+        if (auto e = m_multiplayer->back()) {
+            m_multiplayer_events.push_back(std::move(*e));
+        }
+        return true;
+    }
     if (m_menu_active) {
         return m_menu && m_menu->back();
     }
@@ -341,6 +362,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
     }
     if (m_menu) {
         m_menu->set_scale(scale);
+    }
+    if (m_multiplayer) {
+        m_multiplayer->set_scale(scale);
     }
     m_end.set_scale(scale);
     if (m_selection_panels) {
@@ -450,15 +474,14 @@ ui::Rect Hud::menu_video_rect() const {
 
 void Hud::draw_menu() {
     m_renderer->fill(m_regions.full, 0);
+    std::int32_t ox = 0;
+    std::int32_t oy = 0;
+    menu_origin(ox, oy);
     if (m_end_active) {
-        std::int32_t ox = 0;
-        std::int32_t oy = 0;
-        menu_origin(ox, oy);
         m_end.draw(*m_renderer, ox, oy);
+    } else if (multiplayer_open()) {
+        m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_regions.scale);
     } else if (m_menu) {
-        std::int32_t ox = 0;
-        std::int32_t oy = 0;
-        menu_origin(ox, oy);
         m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_regions.scale);
     }
     draw_question();
@@ -651,6 +674,15 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         menu_origin(ox, oy);
         if (const auto choice = m_end.mouse(x - ox, y - oy, down)) {
             m_end_choice = choice;
+        }
+        return std::nullopt;
+    }
+    if (multiplayer_open()) {
+        std::int32_t ox = 0;
+        std::int32_t oy = 0;
+        menu_origin(ox, oy);
+        for (MultiplayerEvent& e : m_multiplayer->mouse(m_multiplayer_model, x - ox, y - oy, down)) {
+            m_multiplayer_events.push_back(std::move(e));
         }
         return std::nullopt;
     }

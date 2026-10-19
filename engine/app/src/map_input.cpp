@@ -414,19 +414,18 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
             }
             break;
         case KeyAction::Pause:
-            m_simulation.submit(sim::GameSpeedOrder{
+            submit(sim::GameSpeedOrder{
                 m_local_player,
                 m_simulation.paused() ? sim::GameSpeedOrder::Op::Resume : sim::GameSpeedOrder::Op::Pause,
                 m_simulation.speed()});
             break;
         case KeyAction::SpeedUp:
-            m_simulation.submit(
-                sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::SetSpeed,
-                                    std::min(m_simulation.rules().max_game_speed, m_simulation.speed() * 2)});
+            submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::SetSpeed,
+                                       std::min(m_simulation.rules().max_game_speed, m_simulation.speed() * 2)});
             break;
         case KeyAction::SpeedDown:
-            m_simulation.submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::SetSpeed,
-                                                    std::max(1U, m_simulation.speed() / 2)});
+            submit(sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::SetSpeed,
+                                       std::max(1U, m_simulation.speed() / 2)});
             break;
         case KeyAction::QuickSave: {
             const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));
@@ -613,7 +612,7 @@ void MapViewer::run_action(const ui::KeyBinding& b) {
         }
         case KeyAction::Explore:
             if (m_units.size() == 1 && m_units.kind() == ui::UnitRef::Kind::Ship) {
-                m_simulation.submit(sim::ExploreOrder{m_local_player, m_units.units().front().id});
+                submit(sim::ExploreOrder{m_local_player, m_units.units().front().id});
             }
             break;
         case KeyAction::Trade:
@@ -1103,7 +1102,7 @@ void MapViewer::submit_orders(std::vector<sim::Command> orders, bool sound) {
         }
     }
     for (sim::Command& c : orders) {
-        m_simulation.submit(std::move(c));
+        submit(std::move(c));
     }
     // One acknowledgement of the first unit (0x0044D540).
     if (sound && !m_units.empty()) {
