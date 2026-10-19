@@ -265,6 +265,8 @@ private:
     /// The host starts the game of its lobby: makes the world, gives the slots their players.
     core::Status start_hosted_game();
     core::Status join_game(const std::string& address, std::uint16_t port, const std::string& password);
+    /// Drops the session, its beacon and the hosted game; the menus stay as they are.
+    void end_session();
     /// Out of the session, back to the search (with `notice`, why).
     void leave_session(std::string notice = {});
     /// A line for the chat: a player's (`name` given) or a notice of the session.

@@ -285,7 +285,9 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         peer.token = token_of(seat);
         m_lobby.seats[seat] = LobbySeat{LobbySeat::Kind::Human, peer.name, false};
         if (started()) {
-            // The player's name in the game, as a command of that player like any other.
+            // The player takes the slot over from the computer, under the player's name, as
+            // commands of that player like any other.
+            queue(seat, sim::PlayerControl{seat, false});
             queue(seat, sim::PlayerRename{seat, peer.name});
         }
     }
@@ -570,6 +572,12 @@ void HostSession::drop(Peer& peer, std::optional<RefuseReason> tell) {
         if (peer.seat != sim::kNoPlayer) {
             m_lobby.seats[peer.seat] = LobbySeat{};
             m_lobby_changed = true;
+            // A slot the computer held before the player came: the computer goes on with it.
+            // The host gives it in the player's stead (queue() takes orders only from those here).
+            if (started() && m_open.size() < kMaxCommandsPerMessage &&
+                std::find(m_computer_held.begin(), m_computer_held.end(), peer.seat) != m_computer_held.end()) {
+                m_open.emplace_back(sim::PlayerControl{peer.seat, true});
+            }
         }
         SessionEvent e;
         e.kind = SessionEvent::Kind::Left;
@@ -594,8 +602,11 @@ Seat HostSession::free_seat(Seat wanted) const {
         if (!started()) {
             return m_lobby.seats[s].kind == LobbySeat::Kind::Open;
         }
+        // A slot nobody plays: open in the lobby, still in the game, and steered by a person who
+        // left or by the computer that holds it for whoever comes.
         const auto& players = m_simulation->world().players();
-        return s < players.size() && players[s].role == sim::PlayerRole::Human && players[s].active();
+        return m_lobby.seats[s].kind == LobbySeat::Kind::Open && s < players.size() && players[s].active() &&
+               (players[s].role == sim::PlayerRole::Human || players[s].role == sim::PlayerRole::Computer);
     };
     if (free(wanted)) {
         return wanted;
@@ -762,6 +773,12 @@ void HostSession::start(sim::Simulation& simulation, const assets::BuildingTable
     m_buildings = &buildings;
     m_lobby.started = true;
     m_lobby_changed = true;
+    const auto& players = simulation.world().players();
+    for (std::size_t s = 0; s < m_lobby.seats.size() && s < players.size(); ++s) {
+        if (m_lobby.seats[s].kind == LobbySeat::Kind::Open && players[s].role == sim::PlayerRole::Computer) {
+            m_computer_held.push_back(static_cast<Seat>(s));
+        }
+    }
     for (const auto& p : m_peers) {
         if (p->gone || !p->welcomed) {
             continue;

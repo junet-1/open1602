@@ -279,6 +279,8 @@ CommandResult Simulation::execute(const Command& command) {
         result.accepted = game_speed(*speed);
     } else if (const auto* rename = std::get_if<PlayerRename>(&command)) {
         result.accepted = rename_player(*rename);
+    } else if (const auto* control = std::get_if<PlayerControl>(&command)) {
+        result.accepted = control_player(*control);
     }
     handle(m_construction_events, first);
     return result;
@@ -379,6 +381,17 @@ bool Simulation::rename_player(const PlayerRename& order) {
         return false;
     }
     p->name = order.name;
+    return true;
+}
+
+bool Simulation::control_player(const PlayerControl& order) {
+    Player* p = m_world->player(order.player);
+    // Only the two kinds of players change hands; the computer goes on from where the person was
+    // only for a slot it played before (its AI keeps a state for the slots that began as computers).
+    if (p == nullptr || !p->active() || (p->role != PlayerRole::Human && p->role != PlayerRole::Computer)) {
+        return false;
+    }
+    p->role = order.computer ? PlayerRole::Computer : PlayerRole::Human;
     return true;
 }
 

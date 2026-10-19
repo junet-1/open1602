@@ -316,7 +316,7 @@ void MapViewer::update_lan_beacon() {
     }
 }
 
-void MapViewer::leave_session(std::string notice) {
+void MapViewer::end_session() {
     m_session.reset();
     m_lan_beacon.reset();
     m_hosted.reset();
@@ -326,6 +326,12 @@ void MapViewer::leave_session(std::string notice) {
         m_hud->multiplayer_model().session = nullptr;
         m_hud->multiplayer_model().hosting = false;
         m_hud->multiplayer_model().chat.clear();
+    }
+}
+
+void MapViewer::leave_session(std::string notice) {
+    end_session();
+    if (m_hud) {
         m_hud->open_multiplayer(std::move(notice));
     }
 }
@@ -333,6 +339,9 @@ void MapViewer::leave_session(std::string notice) {
 // --- Hosting ---
 
 core::Status MapViewer::host_lobby(const HostSetup& setup) {
+    if (m_session && m_session->ended()) {
+        end_session();  // one that ended in its game stood only to show the game
+    }
     if (m_session) {
         return core::make_error(core::ErrorCode::Unsupported, "a multiplayer game runs already");
     }
@@ -454,8 +463,9 @@ core::Status MapViewer::start_hosted_game() {
     } else {
         return core::make_error(core::ErrorCode::NotFound, "the game of the lobby is gone");
     }
-    // The slots as the lobby has them. An open slot stays a human player for whoever comes into
-    // the running game; without that it is closed like the others nobody plays.
+    // The slots as the lobby has them. Nobody plays an open slot yet: the computer holds it for
+    // whoever comes into the running game (the host hands it over then), or, when nobody may
+    // come, it is closed like the others nobody plays.
     for (std::size_t s = 0; s < lobby.seats.size(); ++s) {
         sim::Player* p = world->player(static_cast<sim::PlayerId>(s));
         if (p == nullptr) {
@@ -472,8 +482,6 @@ core::Status MapViewer::start_hosted_game() {
                 p->name = seat.name;
                 break;
             case net::LobbySeat::Kind::Open:
-                p->role = sim::PlayerRole::Human;
-                break;
             case net::LobbySeat::Kind::Computer:
                 p->role = sim::PlayerRole::Computer;
                 break;
@@ -503,6 +511,9 @@ core::Status MapViewer::start_hosted_game() {
 // --- Joining ---
 
 core::Status MapViewer::join_game(const std::string& address, std::uint16_t port, const std::string& password) {
+    if (m_session && m_session->ended()) {
+        end_session();  // one that ended in its game stood only to show the game
+    }
     if (m_session) {
         return core::make_error(core::ErrorCode::Unsupported, "a multiplayer game runs already");
     }

@@ -796,3 +796,66 @@ TEST_CASE("net: a host is found by its address over real UDP") {
     browser.value()->update(7000);
     CHECK(browser.value()->games().empty());
 }
+
+TEST_CASE("net: a host on this computer is found without an address, once") {
+    constexpr std::uint16_t kPort = 46033;
+    auto beacon = net::LanBeacon::open(kPort);
+    REQUIRE(beacon.ok());
+    net::GameInfo info;
+    info.title = "Nebenan";
+    info.port = 46034;
+    beacon.value()->set_info(info);
+    auto browser = net::LanBrowser::open(kPort);
+    REQUIRE(browser.ok());
+    browser.value()->search();
+    // Every answer that arrives (loopback, each network's broadcast) names the same game.
+    for (int i = 0; i < 100; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        beacon.value()->update();
+        browser.value()->update(5);
+    }
+    REQUIRE(browser.value()->games().size() == 1);
+    CHECK(browser.value()->games().front().address == "127.0.0.1");
+    CHECK(browser.value()->games().front().info.title == "Nebenan");
+}
+
+TEST_CASE("net: the computer holds an open slot until someone comes, and takes it back") {
+    net::LoopbackNetwork network(30, 10);
+    net::Lobby setup;
+    setup.seats = {net::LobbySeat{}, net::LobbySeat{}};
+    net::HostSession host(network.listen(), setup, 0, "Merlin", kContent);
+    // As the game does at the start: the slot nobody took is the computer's.
+    Game host_game = Game::from_lobby(host.lobby());
+    host_game.world->player(1)->role = sim::PlayerRole::Computer;
+    host.start(*host_game.simulation, buildings());
+    const auto tick = [&](std::uint32_t ms, const std::vector<Computer*>& all) {
+        for (std::uint32_t t = 0; t < ms; t += kStepMs) {
+            network.advance(kStepMs);
+            host.update(kStepMs);
+            (void)host.take_events();
+            for (Computer* c : all) {
+                c->update(kStepMs);
+            }
+        }
+    };
+    tick(500, {});
+
+    auto anna = std::make_unique<Computer>(network, "Anna");
+    tick(3000, {anna.get()});
+    REQUIRE(anna->session->playing());
+    CHECK(anna->session->local_seat() == 1);
+    CHECK(host_game.world->player(1)->role == sim::PlayerRole::Human);
+    CHECK(host_game.world->player(1)->name == "Anna");
+    CHECK(anna->game.world->player(1)->role == sim::PlayerRole::Human);
+
+    anna.reset();  // she leaves: the computer goes on with her slot
+    tick(3000, {});
+    CHECK(host_game.world->player(1)->role == sim::PlayerRole::Computer);
+    CHECK(host.lobby().seats[1].kind == net::LobbySeat::Kind::Open);
+
+    // And the next one takes it over again.
+    Computer bernd(network, "Bernd");
+    tick(3000, {&bernd});
+    CHECK(bernd.session->local_seat() == 1);
+    CHECK(host_game.world->player(1)->role == sim::PlayerRole::Human);
+}

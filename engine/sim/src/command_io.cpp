@@ -274,6 +274,14 @@ void io(A& a, T& t)
     a(t.name);
 }
 
+template <class A, class T>
+void io(A& a, T& t)
+    requires std::is_same_v<std::remove_const_t<T>, PlayerControl>
+{
+    a(t.player);
+    a(t.computer);
+}
+
 class Writer {
 public:
     explicit Writer(core::ByteWriter& out) noexcept : m_out(out) {}

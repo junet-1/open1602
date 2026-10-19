@@ -3,9 +3,20 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <enet/enet.h>
 #include <map>
+#include <set>
 #include <utility>
+
+#ifdef _WIN32
+#include <ws2tcpip.h>  // SIO_GET_INTERFACE_LIST, INTERFACE_INFO
+#else
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#endif
 
 #include "enet_library.hpp"
 #include "wire.hpp"
@@ -65,6 +76,61 @@ std::optional<std::vector<std::uint8_t>> receive_from(ENetSocket socket, ENetAdd
     return std::vector<std::uint8_t>(data.begin(), data.begin() + n);
 }
 
+/// This computer's IPv4 networks: its own addresses and their broadcast addresses (both as ENet
+/// keeps hosts, in network byte order). The broadcast to 255.255.255.255 leaves through one
+/// network only (Windows with a second adapter, a VPN), so each network gets its own.
+struct LocalNetworks {
+    std::set<enet_uint32> own;
+    std::set<enet_uint32> broadcasts;
+};
+
+LocalNetworks local_networks([[maybe_unused]] ENetSocket socket) {
+    LocalNetworks n;
+    const auto add = [&n](enet_uint32 address, enet_uint32 mask) {
+        n.own.insert(address);
+        if (mask != 0 && mask != 0xFFFFFFFFU) {
+            n.broadcasts.insert(address | ~mask);
+        }
+    };
+#ifdef _WIN32
+    std::array<INTERFACE_INFO, 32> list{};
+    DWORD bytes = 0;
+    if (WSAIoctl(socket, SIO_GET_INTERFACE_LIST, nullptr, 0, list.data(), sizeof(list), &bytes, nullptr, nullptr) ==
+        0) {
+        for (std::size_t i = 0; i < bytes / sizeof(INTERFACE_INFO); ++i) {
+            const INTERFACE_INFO& f = list[i];
+            if ((f.iiFlags & IFF_UP) != 0 && (f.iiFlags & IFF_LOOPBACK) == 0 &&
+                f.iiAddress.Address.sa_family == AF_INET) {
+                add(f.iiAddress.AddressIn.sin_addr.s_addr,
+                    (f.iiFlags & IFF_BROADCAST) != 0 ? f.iiNetmask.AddressIn.sin_addr.s_addr : 0);
+            }
+        }
+    }
+#else
+    ifaddrs* all = nullptr;
+    if (getifaddrs(&all) == 0) {
+        for (const ifaddrs* f = all; f != nullptr; f = f->ifa_next) {
+            if (f->ifa_addr == nullptr || f->ifa_addr->sa_family != AF_INET || (f->ifa_flags & IFF_UP) == 0 ||
+                (f->ifa_flags & IFF_LOOPBACK) != 0) {
+                continue;
+            }
+            const auto ipv4 = [](const sockaddr* a) {
+                sockaddr_in in{};
+                std::memcpy(&in, a, sizeof(in));  // a sockaddr is not aligned as a sockaddr_in
+                return static_cast<enet_uint32>(in.sin_addr.s_addr);
+            };
+            const bool broadcast = (f->ifa_flags & IFF_BROADCAST) != 0 && f->ifa_netmask != nullptr;
+            add(ipv4(f->ifa_addr), broadcast ? ipv4(f->ifa_netmask) : 0);
+        }
+        freeifaddrs(all);
+    }
+#endif
+    return n;
+}
+
+/// 127.0.0.1, where a host on this computer always hears.
+const enet_uint32 kLoopback = ENET_HOST_TO_NET_32(0x7F000001U);
+
 /// Owns a socket and its share of the ENet library.
 class Socket {
 public:
@@ -120,10 +186,17 @@ public:
 
     void search(const std::vector<std::string>& addresses) override {
         const std::vector<std::uint8_t> bytes = encode_search(m_clock_ms);
-        ENetAddress everyone{};
-        everyone.host = ENET_HOST_BROADCAST;
-        everyone.port = m_port;
-        send_to(m_socket.get(), everyone, bytes);
+        // Everyone on every network of this computer, and this computer itself.
+        m_networks = local_networks(m_socket.get());
+        std::set<enet_uint32> targets = m_networks.broadcasts;
+        targets.insert(ENET_HOST_BROADCAST);
+        targets.insert(kLoopback);
+        for (const enet_uint32 host : targets) {
+            ENetAddress to{};
+            to.host = host;
+            to.port = m_port;
+            send_to(m_socket.get(), to, bytes);
+        }
         for (const std::string& name : addresses) {
             if (const auto to = resolve(name)) {
                 send_to(m_socket.get(), *to, bytes);
@@ -141,6 +214,10 @@ public:
             const auto answer = decode_answer(*bytes);
             if (!answer) {
                 continue;
+            }
+            // A host on this computer answers on each of its addresses: one game, at 127.0.0.1.
+            if (m_networks.own.contains(from.host)) {
+                from.host = kLoopback;
             }
             std::array<char, 64> text{};
             if (enet_address_get_host_ip(&from, text.data(), text.size()) != 0) {
@@ -184,6 +261,7 @@ private:
     std::uint32_t m_clock_ms = 0;
     std::vector<FoundGame> m_games;
     std::map<std::string, std::optional<ENetAddress>> m_resolved;
+    LocalNetworks m_networks;
 };
 
 }  // namespace

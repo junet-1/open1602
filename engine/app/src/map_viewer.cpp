@@ -1622,6 +1622,9 @@ void MapViewer::apply_hud(const Hud::Action& action) {
                 if (!status) {
                     std::fprintf(stderr, "lastgame: %s\n", status.error().message.c_str());
                 }
+                // Leaving a multiplayer game leaves its session: the others go on without us (or
+                // learn that the host left), and the menu can open or join the next one.
+                end_session();
                 if (m_hud && m_hud->menu()) {
                     m_hud->open_menu();
                 } else {
@@ -2122,6 +2125,9 @@ void MapViewer::apply_options() {
 }
 
 core::Status MapViewer::load_game(const std::filesystem::path& path) {
+    if (m_session && m_session->ended()) {
+        end_session();  // one that ended in its game stood only to show the game
+    }
     if (m_session) {
         return core::make_error(core::ErrorCode::Unsupported, "no other game while a multiplayer game runs");
     }
@@ -2199,6 +2205,9 @@ void MapViewer::replace_world(sim::World world) noexcept {
 }
 
 core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name) {
+    if (m_session && m_session->ended()) {
+        end_session();  // one that ended in its game stood only to show the game
+    }
     if (m_session) {
         return core::make_error(core::ErrorCode::Unsupported, "no other game while a multiplayer game runs");
     }

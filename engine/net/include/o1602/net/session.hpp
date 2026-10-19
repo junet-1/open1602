@@ -270,6 +270,7 @@ private:
     std::uint32_t m_held_ms = 0;                           ///< how long the host has been waiting for a computer
     std::optional<Snapshot> m_game;                        ///< the game as sent in this update
     std::vector<std::pair<Seat, std::uint64_t>> m_tokens;  ///< seat and token, to come back to it
+    std::vector<Seat> m_computer_held;  ///< open at the start: the computer plays it while nobody does
     std::uint64_t m_next_token;
     std::uint64_t m_compared = 0;
     std::uint64_t m_matched = 0;
