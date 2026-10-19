@@ -90,6 +90,23 @@ std::optional<KeyBinding> KeyBindings::find(KeyContext context, const KeyChord& 
     return general;
 }
 
+std::optional<KeyBinding> KeyBindings::find_pressed(KeyContext context, const KeyPress& press) const {
+    // 0: the context's own by place, 1: its own by meaning, 2 and 3: the general ones.
+    std::optional<KeyBinding> best;
+    int best_rank = 4;
+    for (const KeyBinding& b : m_bindings) {
+        if (!b.chord.matches(press) || (b.context != context && b.context != KeyContext::General)) {
+            continue;
+        }
+        const int rank = (b.context == context ? 0 : 2) + (b.chord.physical ? 0 : 1);
+        if (rank < best_rank) {
+            best = b;
+            best_rank = rank;
+        }
+    }
+    return best;
+}
+
 std::vector<KeyChord> KeyBindings::keys(KeyAction action, std::uint8_t param) const {
     std::vector<KeyChord> out;
     for (const KeyBinding& b : m_bindings) {
@@ -179,7 +196,8 @@ std::string KeyBindings::chord_text(const KeyChord& chord, const KeyName& key_na
     if (chord.alt) {
         out += "Alt+";
     }
-    return out + key_name(chord.key);
+    const std::string name = key_name(chord.key, chord.physical);
+    return chord.physical ? out + '[' + name + ']' : out + name;
 }
 
 std::optional<KeyChord> KeyBindings::parse_chord(std::string_view text, const KeyFromName& key_from_name) {
@@ -197,7 +215,12 @@ std::optional<KeyChord> KeyBindings::parse_chord(std::string_view text, const Ke
             }
         }
     }
-    const auto key = key_from_name(trim(text));
+    text = trim(text);
+    if (text.size() > 2 && text.front() == '[' && text.back() == ']') {
+        chord.physical = true;
+        text = trim(text.substr(1, text.size() - 2));
+    }
+    const auto key = key_from_name(text, chord.physical);
     if (!key) {
         return std::nullopt;
     }
@@ -211,7 +234,8 @@ std::string KeyBindings::write_text(const KeyName& key_name, bool as_comments) c
         "# Context: general (always), building (while building), units (units selected).\n"
         "# An action listed here has only the keys of its lines; \"= none\" takes every key from it.\n"
         "# Actions that are missing keep their default. Keys: names like F, Space, PageUp, Keypad +,\n"
-        "# preceded by Ctrl+, Shift+, Alt+. Lines starting with # are ignored.\n";
+        "# preceded by Ctrl+, Shift+, Alt+. A name in brackets, [W], is the key at the place of W on a\n"
+        "# US keyboard, whatever the layout prints on it. Lines starting with # are ignored.\n";
     for (const KeyBinding& b : m_bindings) {
         if (as_comments) {
             out += "# ";

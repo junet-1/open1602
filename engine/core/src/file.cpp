@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <string>
 #include <system_error>
@@ -18,20 +20,58 @@ namespace o1602::core {
 
 namespace fs = std::filesystem;
 
+fs::path path_from_utf8(std::string_view text) {
+#if defined(_WIN32)
+    return fs::path(std::u8string(reinterpret_cast<const char8_t*>(text.data()), text.size()));
+#else
+    return fs::path(std::string(text));
+#endif
+}
+
+std::string path_to_utf8(const fs::path& path) {
+#if defined(_WIN32)
+    try {
+        const std::u8string text = path.u8string();
+        return std::string(reinterpret_cast<const char*>(text.data()), text.size());
+    } catch (const std::exception&) {
+        return "(path not valid Unicode)";
+    }
+#else
+    return path.string();
+#endif
+}
+
+std::optional<std::string> environment_variable(const char* name) {
+#if defined(_WIN32)
+    const std::wstring wide_name = path_from_utf8(name).wstring();
+    const wchar_t* value = _wgetenv(wide_name.c_str());
+    if (value == nullptr || *value == L'\0') {
+        return std::nullopt;
+    }
+    return path_to_utf8(fs::path(value));
+#else
+    const char* value = std::getenv(name);  // NOLINT(concurrency-mt-unsafe)
+    if (value == nullptr || *value == '\0') {
+        return std::nullopt;
+    }
+    return std::string(value);
+#endif
+}
+
 Result<Bytes> read_file(const fs::path& path) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        return make_error(ErrorCode::NotFound, "cannot open file: " + path.string());
+        return make_error(ErrorCode::NotFound, "cannot open file: " + path_to_utf8(path));
     }
     in.seekg(0, std::ios::end);
     const auto end = in.tellg();
     if (end < 0) {
-        return make_error(ErrorCode::IoError, "cannot determine size: " + path.string());
+        return make_error(ErrorCode::IoError, "cannot determine size: " + path_to_utf8(path));
     }
     in.seekg(0, std::ios::beg);
     Bytes data(static_cast<std::size_t>(end));
     if (!data.empty() && !in.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(data.size()))) {
-        return make_error(ErrorCode::IoError, "cannot read file: " + path.string());
+        return make_error(ErrorCode::IoError, "cannot read file: " + path_to_utf8(path));
     }
     return data;
 }
@@ -39,13 +79,13 @@ Result<Bytes> read_file(const fs::path& path) {
 Status write_file(const fs::path& path, std::span<const std::uint8_t> data) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) {
-        return make_error(ErrorCode::IoError, "cannot create file: " + path.string());
+        return make_error(ErrorCode::IoError, "cannot create file: " + path_to_utf8(path));
     }
     out.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
     // The last part of the buffer reaches the disk only now; a full disk shows up here.
     out.close();
     if (out.fail()) {
-        return make_error(ErrorCode::IoError, "cannot write file: " + path.string());
+        return make_error(ErrorCode::IoError, "cannot write file: " + path_to_utf8(path));
     }
     return Ok{};
 }
@@ -61,7 +101,7 @@ Status write_durable(const fs::path& path, std::span<const std::uint8_t> data) {
     std::FILE* f = std::fopen(path.c_str(), "wb");
 #endif
     if (f == nullptr) {
-        return make_error(ErrorCode::IoError, "cannot create file: " + path.string());
+        return make_error(ErrorCode::IoError, "cannot create file: " + path_to_utf8(path));
     }
     bool ok = data.empty() || std::fwrite(data.data(), 1, data.size(), f) == data.size();
     ok = std::fflush(f) == 0 && ok;
@@ -72,7 +112,7 @@ Status write_durable(const fs::path& path, std::span<const std::uint8_t> data) {
 #endif
     ok = std::fclose(f) == 0 && ok;
     if (!ok) {
-        return make_error(ErrorCode::IoError, "cannot write file: " + path.string());
+        return make_error(ErrorCode::IoError, "cannot write file: " + path_to_utf8(path));
     }
     return Ok{};
 }
@@ -90,7 +130,7 @@ Status write_file_atomic(const fs::path& path, std::span<const std::uint8_t> dat
     fs::rename(temp, path, ec);
     if (ec) {
         fs::remove(temp, ec);
-        return make_error(ErrorCode::IoError, "cannot write " + path.string() + ": " + ec.message());
+        return make_error(ErrorCode::IoError, "cannot write " + path_to_utf8(path) + ": " + ec.message());
     }
     return Ok{};
 }
@@ -110,7 +150,7 @@ std::optional<fs::path> find_case_insensitive(const fs::path& root, std::string_
     std::replace(normalized.begin(), normalized.end(), '\\', '/');
 
     std::error_code ec;
-    if (fs::path exact = root / normalized; fs::exists(exact, ec)) {
+    if (fs::path exact = root / path_from_utf8(normalized); fs::exists(exact, ec)) {
         return exact;
     }
 
@@ -126,7 +166,7 @@ std::optional<fs::path> find_case_insensitive(const fs::path& root, std::string_
 
         bool found = false;
         for (fs::directory_iterator it(current, ec), last; !ec && it != last; it.increment(ec)) {
-            if (iequals(it->path().filename().string(), component)) {
+            if (iequals(path_to_utf8(it->path().filename()), component)) {
                 current = it->path();
                 found = true;
                 break;
