@@ -214,7 +214,6 @@ void MapViewer::apply_multiplayer_menu() {
     MultiplayerModel& model = m_hud->multiplayer_model();
     model.name = m_app_settings.player_name.empty() ? ui::tr("menu.default_name") : m_app_settings.player_name;
     model.found = m_lan_browser ? m_lan_browser->games() : std::vector<net::FoundGame>{};
-    model.remembered = m_app_settings.remembered_hosts;
     model.savegames.clear();
     for (std::size_t slot = 0; slot < m_slots.size(); ++slot) {
         if (!m_slots.names[slot].empty() && std::filesystem::exists(slot_file(save_folder(), slot))) {
@@ -457,6 +456,7 @@ core::Status MapViewer::start_hosted_game() {
             const double scale = std::sqrt(static_cast<double>(custom.players) / sim::kOriginalPlayers);
             custom.width = static_cast<std::uint32_t>(std::lround(custom.width * scale));
             custom.height = static_cast<std::uint32_t>(std::lround(custom.height * scale));
+            custom.starts = sim::WorldSettings::Starts::Together;  // all ships at one place, as the original
             o.custom = custom;
         }
         std::random_device device;

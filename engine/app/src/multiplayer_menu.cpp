@@ -187,19 +187,6 @@ std::vector<MultiplayerMenu::BrowseRow> MultiplayerMenu::browse_rows(const Multi
     for (const net::FoundGame& g : model.found) {
         rows.push_back(BrowseRow{g.address + ":" + std::to_string(g.info.port), &g});
     }
-    for (const std::string& r : model.remembered) {
-        const auto parsed = parse_address(r);
-        if (!parsed) {
-            continue;
-        }
-        const std::string address = parsed->first + ":" + std::to_string(parsed->second);
-        const bool answered = std::any_of(model.found.begin(), model.found.end(), [&](const net::FoundGame& g) {
-            return (g.address == parsed->first || g.info.host == parsed->first) && g.info.port == parsed->second;
-        });
-        if (!answered) {
-            rows.push_back(BrowseRow{address, nullptr});
-        }
-    }
     return rows;
 }
 
@@ -222,7 +209,8 @@ void MultiplayerMenu::layout_browse(const MultiplayerModel& model) {
     f.label(Rect{560, 32, 170, 32}, tr(MpText::YourName), Align::Right);
     f.field(kName, Rect{740, 32, 244, 32}, m_name);
 
-    // The games: found ones first, then remembered hosts that did not answer.
+    // The games that answered the search (hosts joined before are asked too, but only listed when
+    // they answer).
     f.panel(Rect{40, 84, 644, 586});
     const std::array<std::pair<std::int32_t, std::int32_t>, 5> cols = {
         {{48, 210}, {258, 140}, {398, 80}, {478, 130}, {608, 70}}};
@@ -240,12 +228,6 @@ void MultiplayerMenu::layout_browse(const MultiplayerModel& model) {
         const BrowseRow& row = rows[m_browse_first + r];
         const std::int32_t y = 124 + static_cast<std::int32_t>(r) * kRowH;
         f.row(kBrowseRow + static_cast<Id>(r), Rect{44, y, 636, kRowH}, m_selected == row.address);
-        if (row.game == nullptr) {
-            f.label(Rect{cols[0].first, y, cols[0].second + cols[1].second, kRowH}, row.address);
-            f.label(Rect{cols[3].first, y, cols[3].second + cols[4].second, kRowH}, tr(MpText::NoAnswer), Align::Left,
-                    Tone::Dim);
-            continue;
-        }
         const net::GameInfo& info = row.game->info;
         f.label(Rect{cols[0].first, y, cols[0].second, kRowH}, info.password ? "* " + info.title : info.title);
         f.label(Rect{cols[1].first, y, cols[1].second, kRowH}, info.host);

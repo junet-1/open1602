@@ -266,11 +266,14 @@ core::Result<assets::ChunkFile> own_world_scenario(const assets::ChunkFile& scen
     for (const assets::Chunk& c : scenario.chunks()) {
         const auto data = scenario.payload(c);
         if (c.name == "SHIP4") {
-            // The ship of each player at his start; players without a start get none.
+            // The ship of each of the first four players at his start; players without a start get
+            // none. The factions' ships (owners 4 to 6) are never moved to a player's start; the
+            // players five on get theirs from add_players.
             std::vector<std::uint8_t> ships;
+            const auto with_start = std::min<std::size_t>(players, kOriginalPlayers);
             for (std::size_t o = 0; o + kShipSize <= data.size(); o += kShipSize) {
                 const std::uint8_t owner = data[o + 0x4B];
-                if (owner >= players || owner >= plan.starts.size()) {
+                if (owner >= with_start || owner >= plan.starts.size()) {
                     continue;
                 }
                 std::vector<std::uint8_t> r(data.begin() + static_cast<std::ptrdiff_t>(o),

@@ -28,7 +28,6 @@ enum class MpText : std::uint16_t {
     StateRunningJoin,
     StateRunningWatch,
     StateOtherVersion,
-    NoAnswer,
     NoGamesFound,
     SearchHint,
     ConnectDirectly,

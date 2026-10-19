@@ -84,8 +84,8 @@ std::string player_label(const sim::Player& p, sim::PlayerId slot, const render:
 void name_more_players(sim::World& world) {
     // In the order of render::BannerTable::add_more_players.
     static constexpr std::array<const char*, sim::kMaxPlayers - sim::kOriginalPlayers> kKeys = {
-        "player.colour.orange",     "player.colour.purple", "player.colour.teal", "player.colour.pink",
-        "player.colour.light_blue", "player.colour.green",  "player.colour.lime", "player.colour.brown"};
+        "player.colour.orange",     "player.colour.green", "player.colour.teal",   "player.colour.pink",
+        "player.colour.light_blue", "player.colour.lime",  "player.colour.purple", "player.colour.brown"};
     for (std::size_t n = sim::kOriginalPlayers; n < sim::kMaxPlayers; ++n) {
         sim::Player* p = world.player(sim::player_slot(n));
         if (p != nullptr && p->banner == sim::kFirstExtraBanner + (n - sim::kOriginalPlayers) &&

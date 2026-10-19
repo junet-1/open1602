@@ -29,7 +29,6 @@ constexpr std::array kTexts = {
     Entry{MpText::StateRunningJoin, "net.state_running_join"},
     Entry{MpText::StateRunningWatch, "net.state_running_watch"},
     Entry{MpText::StateOtherVersion, "net.state_other_version"},
-    Entry{MpText::NoAnswer, "net.no_answer"},
     Entry{MpText::NoGamesFound, "net.no_games_found"},
     Entry{MpText::SearchHint, "net.search_hint"},
     Entry{MpText::ConnectDirectly, "net.connect_directly"},

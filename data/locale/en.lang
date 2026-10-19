@@ -131,7 +131,6 @@ net.state_running = running
 net.state_running_join = running, join
 net.state_running_watch = running, watch
 net.state_other_version = other version
-net.no_answer = no answer
 net.no_games_found = No games found yet.
 net.search_hint = Games on the local network appear by themselves.
 net.connect_directly = Connect directly

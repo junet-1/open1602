@@ -64,7 +64,6 @@ struct ChatLine {
 struct MultiplayerModel {
     std::string name;                                            ///< the player's name
     std::vector<net::FoundGame> found;                           ///< games that answered the search
-    std::vector<std::string> remembered;                         ///< hosts joined before ("name[:port]")
     std::vector<std::string> level_names;                        ///< [ENDLESSKIND]
     std::vector<MenuScenario> scenarios;                         ///< the scenario list of the main menu
     std::vector<std::pair<std::size_t, std::string>> savegames;  ///< slot and name
@@ -151,7 +150,7 @@ private:
     /// The text of a field by its Id, nullptr if the Id is no field.
     [[nodiscard]] std::string* field_text(ui::Form::Id id);
     [[nodiscard]] std::size_t field_limit(ui::Form::Id id) const;
-    /// The rows of the search list: games found, then remembered hosts that did not answer.
+    /// The rows of the search list: the games found.
     struct BrowseRow {
         std::string address;  ///< "host:port" to join
         const net::FoundGame* game = nullptr;

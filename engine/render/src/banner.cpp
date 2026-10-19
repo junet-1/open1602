@@ -10,7 +10,7 @@ const std::array<assets::Rgba, 12> BannerTable::kDefaultColors = {{
     {0, 0, 241, 255},      // blue (original)
     {255, 219, 57, 255},   // yellow (original)
     {255, 255, 255, 255},  // white (original)
-    {30, 170, 40, 255},    // green
+    {0, 230, 90, 255},     // green, brighter than the land on the minimap
     {255, 128, 0, 255},    // orange
     {130, 40, 190, 255},   // purple
     {0, 190, 190, 255},    // teal
@@ -61,12 +61,12 @@ void BannerTable::add_more_players() {
     };
     static constexpr std::array<More, sim::kMaxPlayers - sim::kOriginalPlayers> kMore = {{
         {"open1602:orange", 5},
-        {"open1602:purple", 6},
+        {"open1602:green", 4},
         {"open1602:teal", 7},
         {"open1602:pink", 8},
         {"open1602:light_blue", 9},
-        {"open1602:green", 4},
         {"open1602:lime", 11},
+        {"open1602:purple", 6},
         {"open1602:brown", 10},
     }};
     for (const More& m : kMore) {
