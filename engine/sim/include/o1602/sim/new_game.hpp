@@ -5,6 +5,8 @@
 // which carries the world plan, four start ships, the money and the settings of that difficulty,
 // makes the islands (world_generator.hpp) and resets what it does not take from the file: the
 // players' control, colour and names, the game time and the clocks of droughts and volcanoes.
+// A multiplayer endless game loads Endlosspiel<D><V>.szm instead: maps of their own, and every
+// player starts with the small trading cog.
 //
 // Open1602 builds the scenario as the original would have it after that reset and loads it like
 // any other, so the savegame writer has the right records to start from.
@@ -36,6 +38,9 @@ struct NewGameOptions {
     /// Identifier linking savegames and high scores (TIMERS +0xAC); new_game_id() makes one from
     /// the clock as the original does.
     std::uint32_t game_id = 0;
+    /// A multiplayer game: the level's .szm file, in which every player has the small trading cog
+    /// (the single player file gives the computers in slots 2 and 3 the large one).
+    bool multiplayer = false;
     /// How the islands are drawn; the original takes the RANDTAB from index rand() % 512.
     WorldStart world;
     /// An own world instead of the endless file's plan (world_plan.hpp): its size, islands and
@@ -48,8 +53,9 @@ struct NewGameOptions {
 [[nodiscard]] std::uint32_t new_game_id(std::uint32_t year, std::uint32_t month, std::uint32_t day, std::uint32_t hour,
                                         std::uint32_t minute, std::uint32_t random) noexcept;
 
-/// File of a difficulty and layout, relative to the game directory: Szenes/Endlosspiel<D><V>.szs.
-[[nodiscard]] std::string endless_file(std::uint8_t difficulty, std::uint8_t layout);
+/// File of a difficulty and layout, relative to the game directory: Szenes/Endlosspiel<D><V>.szs,
+/// or .szm for a multiplayer game.
+[[nodiscard]] std::string endless_file(std::uint8_t difficulty, std::uint8_t layout, bool multiplayer = false);
 
 /// The endless scenario as the original has it after the reset of a new game: control, colour and
 /// names of the players, the gated TIMERS fields, no editor leftovers in the ships, NAME

@@ -38,7 +38,8 @@ namespace {
 constexpr std::size_t kPlayerSize = 0x430;
 constexpr std::size_t kShipSize = 0x1B4;
 constexpr std::size_t kEndlessTimersSize = 0x294;
-constexpr std::uint16_t kShipFigure = 21;
+constexpr std::uint16_t kShipFigure = 21;       // HANDEL1, the small trading cog
+constexpr std::uint16_t kLargeShipFigure = 23;  // HANDEL2, the large one
 
 // Template files per climate and size class, as the original draws them.
 constexpr std::array<std::array<std::uint16_t, 5>, 2> kTemplateCount = {{{51, 48, 36, 67, 5}, {49, 45, 48, 63, 6}}};
@@ -108,7 +109,7 @@ std::vector<std::uint8_t> level_players() {
 
 /// SHIP4: a ship for each of the four players and one of the free trader, all on open sea in the
 /// east, with the editor's garbage at +0x30.
-std::vector<std::uint8_t> level_ships() {
+std::vector<std::uint8_t> level_ships(std::uint16_t large_from = 5) {
     std::vector<std::uint8_t> d;
     for (std::uint8_t owner = 0; owner < 5; ++owner) {
         std::vector<std::uint8_t> r(kShipSize, 0);
@@ -116,7 +117,7 @@ std::vector<std::uint8_t> level_ships() {
         put_u16(r, 0x1C, 470);
         put_u16(r, 0x1E, 40U + 40U * owner);
         put_u32(r, 0x30, 0xDEADBEEFU);
-        put_u16(r, 0x48, kShipFigure);
+        put_u16(r, 0x48, owner >= large_from ? kLargeShipFigure : kShipFigure);
         r[0x4B] = owner;
         r[0x4D] = 0xFF;  // at sea
         d.insert(d.end(), r.begin(), r.end());
@@ -160,8 +161,9 @@ std::vector<std::uint8_t> random_table() {
     return d;
 }
 
-/// An endless level as the editor saved it (Endlosspiel<D><V>.szs).
-std::vector<std::uint8_t> endless_bytes() {
+/// An endless level as the editor saved it (Endlosspiel<D><V>.szs); the ships of the slots from
+/// `large_from` on are large trading cogs.
+std::vector<std::uint8_t> endless_bytes(std::uint16_t large_from = 5) {
     std::vector<std::uint8_t> timers(kEndlessTimersSize, 0);
     timers[0x10] = 0x77;             // not reset: kept
     timers[0xA6] = 1;                // the level's difficulty: kept
@@ -173,7 +175,7 @@ std::vector<std::uint8_t> endless_bytes() {
     test::put_chunk(bytes, "SZENE", level_plan());
     test::put_chunk(bytes, "RANDTAB", random_table());
     test::put_chunk(bytes, "PLAYER4", level_players());
-    test::put_chunk(bytes, "SHIP4", level_ships());
+    test::put_chunk(bytes, "SHIP4", level_ships(large_from));
     test::put_chunk(bytes, "TIMERS", timers);
     return bytes;
 }
@@ -215,8 +217,9 @@ std::vector<std::uint8_t> template_file(std::uint8_t climate, std::uint8_t size,
 }
 
 /// An installation of its own in the temporary folder: what GameDirectory::open looks for, every
-/// island template (a native version of every third) and the endless level of difficulty 1,
-/// layout 2.
+/// island template (a native version of every third), the endless level of difficulty 1,
+/// layout 2, and that of difficulty 0, layout 0 for one player and for several as the original's
+/// files have them: large cogs for slots 2 and 3 in the .szs, small ones for all in the .szm.
 struct FakeInstallation {
     std::filesystem::path root;
     assets::GameDirectory game;
@@ -242,6 +245,8 @@ struct FakeInstallation {
             }
         }
         write(sim::endless_file(1, 2), endless_bytes());
+        write(sim::endless_file(0, 0), endless_bytes(2));
+        write(sim::endless_file(0, 0, true), endless_bytes());
         auto opened = assets::GameDirectory::open(root);
         REQUIRE(opened.ok());
         game = std::move(opened).value();
@@ -485,6 +490,36 @@ TEST_CASE("new game: settings without a level are refused") {
     CHECK(!sim::start_new_game(fake.game, buildings(), texts(), o).ok());
     o = options(1);
     o.layout = 0;  // Endlosspiel10.szs is not there
+    auto missing = sim::start_new_game(fake.game, buildings(), texts(), o);
+    REQUIRE(!missing.ok());
+    CHECK(missing.error().code == core::ErrorCode::NotFound);
+}
+
+TEST_CASE("new game: a multiplayer endless game starts every player with the small trading cog") {
+    CHECK(sim::endless_file(2, 1) == "Szenes/Endlosspiel21.szs");
+    CHECK(sim::endless_file(2, 1, true) == "Szenes/Endlosspiel21.szm");
+    const auto& fake = installation();
+    sim::NewGameOptions o = options(3);
+    o.difficulty = 0;
+    o.layout = 0;
+    auto single = sim::start_new_game(fake.game, buildings(), texts(), o);
+    REQUIRE(single.ok());
+    for (sim::PlayerId p = 0; p < 4; ++p) {
+        const sim::Ship* ship = ship_of(*single, p);
+        REQUIRE(ship != nullptr);
+        CHECK(ship->figure == (p < 2 ? kShipFigure : kLargeShipFigure));
+    }
+    // Human players may sit in any of the four slots: the original's .szm gives each the small one.
+    o.multiplayer = true;
+    auto multi = sim::start_new_game(fake.game, buildings(), texts(), o);
+    REQUIRE(multi.ok());
+    for (sim::PlayerId p = 0; p < 4; ++p) {
+        const sim::Ship* ship = ship_of(*multi, p);
+        REQUIRE(ship != nullptr);
+        CHECK(ship->figure == kShipFigure);
+    }
+    o.difficulty = 1;
+    o.layout = 2;  // Endlosspiel12.szm is not there
     auto missing = sim::start_new_game(fake.game, buildings(), texts(), o);
     REQUIRE(!missing.ok());
     CHECK(missing.error().code == core::ErrorCode::NotFound);

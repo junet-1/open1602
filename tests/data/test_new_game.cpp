@@ -52,6 +52,35 @@ TEST_CASE("new game: the game id of the original") {
     // game00 was started on 16 October 2026 at 14:06 (TIMERS +0xAC = 0x2A83867A).
     CHECK(sim::new_game_id(2026, 10, 16, 14, 6, 0x7A) == 0x2A83867AU);
     CHECK(sim::endless_file(2, 1) == "Szenes/Endlosspiel21.szs");
+    CHECK(sim::endless_file(2, 1, true) == "Szenes/Endlosspiel21.szm");
+}
+
+TEST_CASE("data: every player of a multiplayer endless game starts with the small trading cog") {
+    const auto game = game_or_skip();
+    if (!game.resolve("Szenes/Endlosspiel00.szm")) {
+        SKIP("no multiplayer endless game files");
+    }
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto text = assets::TextTable::load(game);
+    REQUIRE(text.ok());
+    constexpr std::uint16_t kSmallCog = 21;  // HANDEL1; the single player files give slots 2 and 3 HANDEL2
+    for (std::uint8_t d = 0; d < sim::NewGameOptions::kDifficulties; ++d) {
+        for (std::uint8_t v = 0; v < sim::NewGameOptions::kLayouts; ++v) {
+            sim::NewGameOptions options;
+            options.difficulty = d;
+            options.layout = v;
+            options.multiplayer = true;
+            options.world.seed = 5;
+            auto world = sim::start_new_game(game, *buildings, *text, options);
+            REQUIRE(world.ok());
+            REQUIRE(world->ships().size() == 4);
+            for (const sim::Ship& ship : world->ships()) {
+                CHECK(ship.owner < 4);
+                CHECK(ship.figure == kSmallCog);
+            }
+        }
+    }
 }
 
 TEST_CASE("data: the world plan of an endless game gives the original's islands") {
