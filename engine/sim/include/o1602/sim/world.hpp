@@ -145,6 +145,9 @@ struct City {
     /// Game time the lock was switched on or the people last complained about it (city + 0x1E8).
     std::uint64_t material_reminder_ms = 0;
     std::uint8_t worst_good = 0;  ///< the scarcest good whose supply keeps falling, 0 = none
+    /// The last population message of the city (city + 0x253, 0x11 = 100 inhabitants ... 0x1D =
+    /// 9000; 0 = none yet): each comes once, as the city first passes its mark.
+    std::uint8_t population_message = 0;
     /// Fires and plagues burning in the city now (city + 0x1FE, kept by recount_disasters): any
     /// of them stops the growth of every house.
     std::uint16_t disasters = 0;

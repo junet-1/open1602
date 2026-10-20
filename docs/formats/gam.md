@@ -227,7 +227,7 @@ cities too.
 | 0x01 | u8 | city number on the island (= attribute bits 14–16 of the island tiles) |
 | 0x02 | u8 | owner |
 | 0x04 | bit 0 | city + 0x257 bit 0 |
-| 0x05 | u8 | city rank (city + 0x253) |
+| 0x05 | u8 | the last population message (city + 0x253): 0x11 = 100 inhabitants … 0x1D = 9000 ([consumption.md](../re/consumption.md#population-messages)) |
 | 0x08, 0x0C | u32 | city + 0x1F0, + 0x1F4: trade statistics of the warehouse (purchases, sales; + 32 × value per trade, × 89/90 every 10 s; / 480 = per minute, the city window) |
 | 0x10 | u32 | city + 0x1FE: number of running fires and plagues, blocks growth; the loader skips it (S-001, [disasters.md](../re/disasters.md)) |
 | 0x18 | 7 × u32 | city + 0x206 … (natives: 49 per value, players: 0) |

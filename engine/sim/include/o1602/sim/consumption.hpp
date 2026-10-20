@@ -28,13 +28,15 @@ struct CityEvent {
         Unlocked,        ///< the city reached build level `infra` for its owner ("Das Volk wünscht ...")
         Monument,        ///< the owner may build one more monument ("Das treue Volk will Euch ein Denkmal setzen!")
         MaterialLocked,  ///< the owner still keeps the building material from the people (message 0x48)
+        Population,      ///< the city passed a mark of inhabitants: `message` 0x11 (100) .. 0x1D (9000)
     };
     Kind kind = Kind::Shortage;
     std::uint16_t island = 0;  ///< index into World::islands()
     std::uint8_t city = 0;     ///< city on the island
     PlayerId owner = kNoPlayer;
     std::uint8_t ware = 0;
-    std::uint8_t infra = 0;  ///< Unlocked: INFRA number
+    std::uint8_t infra = 0;    ///< Unlocked: INFRA number
+    std::uint8_t message = 0;  ///< Population: MELDUNG number for the owner
 };
 
 /// Unlocks the build levels a city reached for its owner (0x0047F8A0): level n once the city has
@@ -46,6 +48,15 @@ void unlock_levels(World& world, const assets::BuildingTable& buildings, const C
 /// least 200 inhabitants of class 2 or higher allows its owner one more monument every 30
 /// minutes of game time it keeps growing.
 void allow_monument(World& world, City& city, std::vector<CityEvent>* events);
+
+/// The population message for `einwohner` inhabitants (table 0x0054A200, by hundreds): 0x11 from
+/// 100, 0x12 from 200, 0x13 from 300, 0x14 from 500, then one more per thousand from 1000 (0x15)
+/// up to 0x1D from 9000; 0 below 100. The message for 10000 (0x1E) is never reached.
+[[nodiscard]] std::uint8_t population_message(std::uint32_t einwohner) noexcept;
+
+/// Announces a city's population once it passes its next mark (city tick 0x00480016, op 0x48):
+/// residents plus `workers` (the Einwohner of the city list). Each mark comes once per city.
+void announce_population(City& city, std::uint32_t workers, std::vector<CityEvent>* events);
 
 /// Game time between two complaints about the material lock (10800 in 1/10 s, 0x0047FD67).
 inline constexpr std::uint64_t kMaterialReminderMs = 18ULL * 60 * 1000;

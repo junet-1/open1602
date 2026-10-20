@@ -7,6 +7,7 @@
 
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/game_data.hpp"
+#include "o1602/sim/mission.hpp"
 
 namespace o1602::sim {
 
@@ -329,6 +330,37 @@ void allow_monument(World& world, City& city, std::vector<CityEvent>* events) {
     }
 }
 
+std::uint8_t population_message(std::uint32_t einwohner) noexcept {
+    const std::uint32_t hundreds = std::min<std::uint32_t>(einwohner / 100, 100);
+    if (hundreds >= 10) {
+        return static_cast<std::uint8_t>(0x15 + std::min<std::uint32_t>(hundreds / 10, 9) - 1);
+    }
+    if (hundreds >= 5) {
+        return 0x14;
+    }
+    if (hundreds >= 3) {
+        return 0x13;
+    }
+    return hundreds == 0 ? 0 : static_cast<std::uint8_t>(0x10 + hundreds);
+}
+
+void announce_population(City& city, std::uint32_t workers, std::vector<CityEvent>* events) {
+    const std::uint8_t message = population_message(city_einwohner(city, workers));
+    if (message <= city.population_message) {
+        return;
+    }
+    city.population_message = message;
+    if (events != nullptr) {
+        CityEvent e;
+        e.kind = CityEvent::Kind::Population;
+        e.island = city.island;
+        e.city = city.index;
+        e.owner = city.owner;
+        e.message = message;
+        events->push_back(e);
+    }
+}
+
 void remind_material_lock(const World& world, City& city, std::vector<CityEvent>* events) {
     if (!city.material_lock) {
         return;
@@ -354,6 +386,7 @@ void remind_material_lock(const World& world, City& city, std::vector<CityEvent>
 
 void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
     const std::vector<std::int32_t> costs = running_costs(world, buildings);
+    const std::vector<std::uint32_t> workers = city_workers(world, buildings);
     for (std::size_t i = 0; i < world.cities().size(); ++i) {
         const City& c = world.cities()[i];
         City* city = world.city(c.island, c.index);
@@ -370,6 +403,7 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
                 owner->money =
                     money_plus(owner->money, static_cast<std::int64_t>((tax_income(*city, buildings) - costs[i]) / 6));
                 unlock_levels(world, buildings, *city, events);
+                announce_population(*city, workers[i], events);
                 allow_monument(world, *city, events);
                 remind_material_lock(world, *city, events);
                 break;

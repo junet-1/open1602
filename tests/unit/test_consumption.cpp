@@ -208,3 +208,35 @@ TEST_CASE("consumption: the people complain every 18 minutes while the building 
     sim::remind_material_lock(world, city, &events);
     CHECK(events.size() == 1);  // unlocked: no more complaints
 }
+
+TEST_CASE("consumption: a city announces each mark of its inhabitants once") {
+    CHECK(sim::population_message(99) == 0);
+    CHECK(sim::population_message(100) == 0x11);
+    CHECK(sim::population_message(299) == 0x12);
+    CHECK(sim::population_message(499) == 0x13);
+    CHECK(sim::population_message(999) == 0x14);
+    CHECK(sim::population_message(1000) == 0x15);
+    CHECK(sim::population_message(8999) == 0x1C);
+    CHECK(sim::population_message(9000) == 0x1D);
+    CHECK(sim::population_message(50'000) == 0x1D);  // 10000 (0x1E) never comes
+
+    sim::City city = make_city(10, 0);
+    city.inhabitants.assign(5, 0);
+    city.inhabitants[0] = 180;
+    std::vector<sim::CityEvent> events;
+    sim::announce_population(city, 30, &events);  // workers count too
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == sim::CityEvent::Kind::Population);
+    CHECK(events[0].message == 0x12);
+    CHECK(city.population_message == 0x12);
+    sim::announce_population(city, 30, &events);
+    city.inhabitants[0] = 90;  // shrinking and growing again: no second time
+    sim::announce_population(city, 30, &events);
+    city.inhabitants[0] = 200;
+    sim::announce_population(city, 30, &events);
+    CHECK(events.size() == 1);
+    city.inhabitants[0] = 400;
+    sim::announce_population(city, 0, &events);
+    REQUIRE(events.size() == 2);
+    CHECK(events[1].message == 0x13);
+}

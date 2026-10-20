@@ -556,6 +556,7 @@ void load_cities(World& world, const assets::GameState& state, const WarningSink
         }
         city.food_ratio = c.food_ratio;
         city.material_lock = c.material_lock;
+        city.population_message = c.population_message;
         city.purchases = c.purchases;
         city.sales = c.sales;
         city.goodwill.assign(c.goodwill.begin(), c.goodwill.end());

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // The cities and their buildings: CITY, CSTA (trade statistics), MLCK (the clocks of the material
-// locks), PROD (the production list with its free slots), HOUS, GROW and COST (shipyards and castles).
+// locks), CPOP (the population messages), PROD (the production list with its free slots), HOUS, GROW and COST
+// (shipyards and castles).
 #include <utility>
 
 #include "section_io.hpp"
@@ -73,6 +74,14 @@ void io_material_clock(A& a, C& c) {
     a.u16(c.island);
     a.u8(c.index);
     a.u64(c.material_reminder_ms);
+}
+
+/// CPOP: the last population message of a City (writing) or of Decoded::PopulationMark (reading).
+template <class A, class C>
+void io_population_mark(A& a, C& c) {
+    a.u16(c.island);
+    a.u8(c.index);
+    a.u8(c.population_message);
 }
 
 template <class A, class P>
@@ -175,6 +184,16 @@ std::vector<Decoded::CityStats> read_city_state(Reader& in) {
 
 void write_material_clocks(Writer& out, const World& w) {
     out.list(w.cities(), 11, [&](const City& c) { io_material_clock(out, c); });
+}
+
+void write_population_marks(Writer& out, const World& w) {
+    out.list(w.cities(), 4, [&](const City& c) { io_population_mark(out, c); });
+}
+
+std::vector<Decoded::PopulationMark> read_population_marks(Reader& in) {
+    std::vector<Decoded::PopulationMark> list;
+    in.list(list, 4, [&](Decoded::PopulationMark& c) { io_population_mark(in, c); });
+    return list;
 }
 
 std::vector<Decoded::MaterialClock> read_material_clocks(Reader& in) {
