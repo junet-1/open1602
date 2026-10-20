@@ -227,7 +227,23 @@ bool TileLighting::in_circle(std::int64_t x, std::int64_t y) const noexcept {
     return std::abs(dx) <= m_half[static_cast<std::size_t>(std::abs(dy))];
 }
 
+bool TileLighting::in_circle(std::int64_t x, std::int64_t y, std::uint32_t width, std::uint32_t height) const noexcept {
+    for (std::int64_t ty = y; ty < y + height; ++ty) {
+        for (std::int64_t tx = x; tx < x + width; ++tx) {
+            if (in_circle(tx, ty)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 bool TileLighting::dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* cell) const noexcept {
+    return dimmed(x, y, cell, Footprint{x, y, 1, 1});
+}
+
+bool TileLighting::dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* cell,
+                          const Footprint& footprint) const noexcept {
     if (m_kind == Kind::None) {
         return false;
     }
@@ -240,7 +256,7 @@ bool TileLighting::dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* ce
     if (cell == nullptr || cell->owner != m_player) {
         return true;
     }
-    return m_kind == Kind::Circle && !in_circle(x, y);
+    return m_kind == Kind::Circle && !in_circle(footprint.x, footprint.y, footprint.width, footprint.height);
 }
 
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
@@ -1119,7 +1135,16 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     const bool land = t != nullptr && t->kind != sim::building_kind::kSea &&
                                       t->kind != sim::building_kind::kSurf &&
                                       t->kind != sim::building_kind::kSurfCorner;
-                    if (!layers.lighting->dimmed(wx, wy, land ? cell : nullptr)) {
+                    // A building is lit or dark as a whole, whichever of its tiles is drawn.
+                    TileLighting::Footprint footprint{wx, wy, 1, 1};
+                    if (t != nullptr && t->tile_count() > 1) {
+                        const sim::SubTile sub = map->sub_tile(buildings, wc.local_x, wc.local_y);
+                        const sim::WorldIsland& isl = world.islands()[wc.island];
+                        footprint.x = static_cast<std::int64_t>(isl.x) + sub.origin_x;
+                        footprint.y = static_cast<std::int64_t>(isl.y) + sub.origin_y;
+                        sim::rotated_size(*t, cell->rotation, footprint.width, footprint.height);
+                    }
+                    if (!layers.lighting->dimmed(wx, wy, land ? cell : nullptr, footprint)) {
                         return;
                     }
                     for (std::size_t k = first; k < commands.size(); ++k) {
