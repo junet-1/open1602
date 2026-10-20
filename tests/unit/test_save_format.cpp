@@ -654,6 +654,12 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
         v(b);
     }
     world.set_simulation_state(state);
+
+    // MLCK came later: its values are drawn last, so the other sections keep theirs.
+    for (std::size_t c = 0; c < world.cities().size(); ++c) {
+        const sim::City& city = world.cities()[c];
+        v(world.city(city.island, city.index)->material_reminder_ms);
+    }
     return world;
 }
 
@@ -717,6 +723,7 @@ constexpr Golden kSaveNarrow[] = {
     {"MISN", 1, 1, 302, 0xD6CFC995},
     {"CITY", 1, 1, 474, 0x37ECCCBD},
     {"CSTA", 1, 1, 42, 0x2AD09545},
+    {"MLCK", 1, 1, 26, 0x763D1485},
     {"SCOR", 1, 1, 70, 0x9488157B},
     {"PROD", 1, 1, 116, 0x24D09C54},
     {"HOUS", 1, 1, 64, 0x8D864860},
@@ -748,6 +755,7 @@ constexpr Golden kSaveWide[] = {
     {"MISN", 1, 1, 302, 0x93D421B5},
     {"CITY", 1, 1, 473, 0x2E7EAC9E},
     {"CSTA", 1, 1, 42, 0x70987BC5},
+    {"MLCK", 1, 1, 26, 0xC45417C3},
     {"SCOR", 1, 1, 70, 0xC46D7A86},
     {"PROD", 1, 1, 116, 0x4814F74A},
     {"HOUS", 1, 1, 64, 0x15190742},
@@ -777,6 +785,7 @@ constexpr Golden kChunkNarrow[] = {
     {"MISN", 1, 1, 302, 0xD6CFC995},
     {"CITY", 1, 1, 474, 0x37ECCCBD},
     {"CSTA", 1, 1, 42, 0x2AD09545},
+    {"MLCK", 1, 1, 26, 0x763D1485},
     {"SCOR", 1, 1, 70, 0x9488157B},
     {"PROD", 1, 1, 116, 0x24D09C54},
     {"HOUS", 1, 1, 64, 0x8D864860},
@@ -806,6 +815,7 @@ constexpr Golden kChunkWide[] = {
     {"MISN", 1, 1, 302, 0x93D421B5},
     {"CITY", 1, 1, 473, 0x2E7EAC9E},
     {"CSTA", 1, 1, 42, 0x70987BC5},
+    {"MLCK", 1, 1, 26, 0xC45417C3},
     {"SCOR", 1, 1, 70, 0xC46D7A86},
     {"PROD", 1, 1, 116, 0x4814F74A},
     {"HOUS", 1, 1, 64, 0x15190742},

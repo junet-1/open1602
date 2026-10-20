@@ -84,6 +84,9 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
             out.emplace_back(announce(0x33));
         } else if (e.kind == sim::CityEvent::Kind::Monument) {
             out.emplace_back(announce(0x31));
+        } else if (e.kind == sim::CityEvent::Kind::MaterialLocked) {
+            std::fprintf(stderr, "%s: the people get no building material\n", name.c_str());
+            out.emplace_back(announce(0x48));
         } else if (e.kind == sim::CityEvent::Kind::Unlocked) {
             std::fprintf(stderr, "%s: build level %u reached\n", name.c_str(), e.infra);
         } else {

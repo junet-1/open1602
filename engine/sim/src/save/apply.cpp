@@ -247,6 +247,8 @@ core::Status apply_decoded(World& world, Decoded& d) {
                 c.sales = old->sales;
                 c.house_growth = old->house_growth;
                 c.growing_since_ms = old->growing_since_ms;
+                // Files of an earlier version have no MLCK: the clock stays.
+                c.material_reminder_ms = old->material_reminder_ms;
             }
         }
         world.set_cities(std::move(*d.cities));
@@ -255,6 +257,13 @@ core::Status apply_decoded(World& world, Decoded& d) {
                 if (City* c = world.city(st.island, st.index)) {
                     c->purchases = st.purchases;
                     c->sales = st.sales;
+                }
+            }
+        }
+        if (d.material_clocks) {
+            for (const Decoded::MaterialClock& st : *d.material_clocks) {
+                if (City* c = world.city(st.island, st.index)) {
+                    c->material_reminder_ms = st.material_reminder_ms;
                 }
             }
         }
