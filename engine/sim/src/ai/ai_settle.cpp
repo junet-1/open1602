@@ -716,6 +716,10 @@ std::uint32_t Engine::colony_ship_candidate(AiPlayer& p) {
 }
 
 bool Engine::want_colony(AiPlayer& p, std::uint8_t mode, bool force, bool food) {
+    // A scenario can forbid further cities (player +0x70 bit 1, tested by 0x00426290 and its callers).
+    if (player(p).scenario.has(scenario_flag::kNoColonies)) {
+        return false;
+    }
     if (now_ms() - p.settle.last_ms < kColonyCooldownMs) {
         return false;
     }

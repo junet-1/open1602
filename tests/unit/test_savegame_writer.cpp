@@ -135,6 +135,7 @@ sim::World make_world(const assets::BuildingTable& buildings) {
     players[kComputer].money = -150;
     players[kComputer].name = "Rechner";
     players[kComputer].castles_built = 1;
+    players[kComputer].scenario = {sim::scenario_flag::kPassive | sim::scenario_flag::kOwnSize, 0, 2200, 0, 0};
     players[kTrader].role = sim::PlayerRole::Trader;
     players[kTrader].banner = 4;
     players[kPirates].role = sim::PlayerRole::Pirates;
@@ -324,6 +325,7 @@ void check_same(const sim::World& a, const sim::World& b) {
         CHECK(q.castles_built == p.castles_built);
         CHECK(q.soldiers_killed == p.soldiers_killed);
         CHECK(q.ships_sunk == p.ships_sunk);
+        CHECK(q.scenario == p.scenario);
         for (std::size_t k = 0; k < a.players().size(); ++k) {
             const sim::Relation& r =
                 a.diplomacy().relation(static_cast<sim::PlayerId>(i), static_cast<sim::PlayerId>(k));

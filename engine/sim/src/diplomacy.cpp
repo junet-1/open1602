@@ -2,6 +2,7 @@
 #include "o1602/sim/diplomacy.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <initializer_list>
 #include <utility>
@@ -40,6 +41,46 @@ bool acts_diplomatically(PlayerRole role) noexcept {
 PlayerRole role_of(const World& world, PlayerId p) noexcept {
     const Player* player = world.player(p);
     return player != nullptr ? player->role : PlayerRole::Human;
+}
+
+/// A byte table of the original filled piece by piece (Table_InterpByte 0x00403370, exactly: 8.8
+/// fixed point, the step rounded towards zero, the last value of a piece set at its end).
+struct Piece {
+    std::int32_t a;
+    std::int32_t b;
+    std::int32_t v0;
+    std::int32_t v1;
+};
+template <std::size_t N>
+constexpr std::array<std::uint8_t, 129> byte_table(const std::array<Piece, N>& pieces) {
+    std::array<std::uint8_t, 129> t{};
+    for (const Piece& p : pieces) {
+        const std::int32_t step = (p.v1 * 256 - p.v0 * 256) / (p.b - p.a);
+        std::int32_t acc = p.v0 * 256;
+        for (std::int32_t i = p.a; i < p.b; ++i) {
+            t[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(std::min(acc >> 8, 255));
+            acc += step;
+        }
+        t[static_cast<std::size_t>(p.b)] = static_cast<std::uint8_t>(p.v1);
+    }
+    return t;
+}
+
+/// The scenario attitude's penalties (Dipl_InitTables 0x00474600): by the share of its target a
+/// computer's own inhabitants reach (0x00548E38), and by how far a development misses its threshold
+/// (0x00549044).
+constexpr auto kOwnSizePenalty =
+    byte_table(std::array<Piece, 3>{{{0, 64, 170, 130}, {64, 102, 130, 80}, {102, 128, 80, 0}}});
+constexpr auto kDevelopmentPenalty =
+    byte_table(std::array<Piece, 3>{{{0, 25, 0, 70}, {25, 42, 70, 130}, {42, 128, 130, 170}}});
+/// A human beyond the rival threshold: the table 0x00548FC0 at its end. The original computes the share
+/// (at least 128 when the threshold is passed) and then always takes 128.
+constexpr std::int32_t kRivalSizePenalty = 170;
+
+/// Penalty of a development `missed` levels away from its threshold. The original reads past the
+/// table's end beyond 128 (S-118); Open1602 stays at its last value.
+std::int32_t development_penalty(std::int32_t missed) noexcept {
+    return kDevelopmentPenalty[static_cast<std::size_t>(std::clamp(missed, 0, 128))];
 }
 
 constexpr std::uint32_t kCounterMax = 0xFFFF;  // the original's u16 counters, saturating here (S-086)
@@ -343,6 +384,29 @@ void Diplomacy::decay(PlayerId a) noexcept {
     }
 }
 
+std::uint32_t city_development(const City& city) noexcept {
+    // 0x0047F220 with the scale 0x80: 32 per class above the first, plus the share of the highest
+    // class in 32nds, which counts as full (31) from two thirds on.
+    constexpr std::uint32_t kStep = 32;
+    const std::size_t classes = std::min<std::size_t>(city.inhabitants.size(), 5);
+    std::uint32_t total = 0;
+    std::size_t top = 0;
+    for (std::size_t c = 0; c < classes; ++c) {
+        total += city.inhabitants[c];
+        if (city.inhabitants[c] != 0) {
+            top = c;
+        }
+    }
+    if (total == 0) {
+        return 0;
+    }
+    std::uint32_t share = static_cast<std::uint32_t>(std::uint64_t{city.inhabitants[top]} * kStep / total);
+    if (share >= 2 * kStep / 3) {
+        share = kStep - 1;
+    }
+    return kStep * static_cast<std::uint32_t>(top) + share;
+}
+
 std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::uint32_t extra,
                              std::uint64_t now_ms) const {
     if (a >= m_count || b >= m_count) {
@@ -362,6 +426,8 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
     std::uint64_t size_a = 0;
     std::uint64_t size_b = 0;
     std::uint32_t cities_a = 0;
+    std::uint32_t development_a = 0;
+    std::uint32_t development_b = 0;
     for (const City& c : world.cities()) {
         std::uint64_t n = 0;
         for (const std::uint32_t i : c.inhabitants) {
@@ -370,8 +436,10 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
         if (c.owner == a) {
             size_a += n;
             ++cities_a;
+            development_a = std::max(development_a, city_development(c));
         } else if (c.owner == b) {
             size_b += n;
+            development_b = std::max(development_b, city_development(c));
         }
     }
     if (ra == PlayerRole::Computer || ra == PlayerRole::Pirates) {
@@ -408,6 +476,25 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
             }
         }
         m -= settle_penalty + troop_penalty;
+    }
+
+    // The scenario's attitude of a (player +0x70 with its thresholds, only set by scenarios).
+    if (const Player* pa = world.player(a); pa != nullptr) {
+        const ScenarioSwitches& s = pa->scenario;
+        const bool human_b = role_of(world, b) == PlayerRole::Human;
+        if (s.has(scenario_flag::kRivalSize) && human_b && size_b > s.rival_inhabitants) {
+            m -= kRivalSizePenalty;
+        }
+        // The original divides by the target even when it is 0 (S-118); no target, no penalty.
+        if (s.has(scenario_flag::kOwnSize) && human_b && s.own_inhabitants != 0 && size_a <= s.own_inhabitants) {
+            m -= kOwnSizePenalty[static_cast<std::size_t>(size_a * 128 / s.own_inhabitants)];
+        }
+        if (s.has(scenario_flag::kRivalDevelopment) && human_b && development_b > s.rival_development) {
+            m -= development_penalty(static_cast<std::int32_t>(development_b - s.rival_development));
+        }
+        if (s.has(scenario_flag::kOwnDevelopment) && development_a < s.own_development) {
+            m -= development_penalty(static_cast<std::int32_t>(s.own_development - development_a));
+        }
     }
 
     // Tribute and trade count less between big players.

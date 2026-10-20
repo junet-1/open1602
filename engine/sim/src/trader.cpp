@@ -130,6 +130,9 @@ void Fleet::trader_choose(Ship& ship) {
         if (owner == nullptr || (owner->role != PlayerRole::Human && owner->role != PlayerRole::Computer)) {
             continue;
         }
+        if (owner->scenario.has(scenario_flag::kNoTrader)) {
+            continue;  // a scenario keeps the trader away from this player (player +0x70 bit 2)
+        }
         if (ship.previous == Target::city_of(c.island, c.index)) {
             continue;
         }

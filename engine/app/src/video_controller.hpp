@@ -37,6 +37,8 @@ public:
     /// each other (VideoQueue::request).
     void request(std::uint16_t number, std::uint8_t tracks = 0, bool loop = false, bool intro = false,
                  bool in_frame = false);
+    /// Queues `number` to play after the running and the waiting videos (the original's chains).
+    void follow(std::uint16_t number);
     /// Every frame: the video the sound asked for, the next waiting one, the running one decoded up
     /// to `now_ms`. True while a video plays. `minimap_shown`: a minimap is on screen, for where a
     /// video that starts now plays.

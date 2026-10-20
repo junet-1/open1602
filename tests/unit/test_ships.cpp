@@ -386,6 +386,23 @@ TEST_CASE("ships: the free trader buys cheap goods and comes back with tools") {
     CHECK(sea.world.players()[4].money == 0);  // his own money never changes
 }
 
+TEST_CASE("ships: a scenario can keep the free trader away from a player (player +0x70 bit 2)") {
+    Sea sea(true);
+    sea.world.player(0)->scenario.flags = sim::scenario_flag::kNoTrader;
+    sim::City& city = *sea.world.city(0, 0);
+    city.goods[kWood] = 30 * kTon;
+    city.trade[kWood] = sim::City::Trade{true, false, 10, 0, 5 * kTon, 0};
+    sim::Ship& trader = sea.add(30, 25, 29, 4);
+    trader.trader = true;
+    trader.trader_goods.resize(25);
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    const std::int32_t money = sea.world.players()[0].money;
+    const auto events = run(fleet, sea.world, 30000);
+    CHECK(count(events, sim::ShipEvent::Kind::Traded) == 0);
+    CHECK(city.goods[kWood] == 30 * kTon);
+    CHECK(sea.world.players()[0].money == money);
+}
+
 TEST_CASE("ships: a shipyard builds a ship from wood and cloth and repairs one lying in reach") {
     Sea sea(true);
     // The small shipyard on the east coast of the island (tiles 3..5, 0..2).

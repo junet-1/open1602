@@ -335,3 +335,14 @@ TEST_CASE("campaign progress: wins open the next mission") {
     CHECK(odd.numbered == 17);
     CHECK(odd.campaigns.empty());
 }
+
+TEST_CASE("campaign progress: the last part of campaign 5 ends the campaigns (0x00487FB0)") {
+    const assets::CampaignProgress p;
+    CHECK(p.ends_campaigns(5, 3, 0xFF));
+    CHECK(p.ends_campaigns(5, 4, 0xFF));
+    CHECK(!p.ends_campaigns(5, 2, 0xFF));
+    CHECK(!p.ends_campaigns(4, 3, 0xFF));
+    CHECK(!p.ends_campaigns(0xFF, 0, 5));
+    // A numbered mission the progress still counts goes by the numbered rule.
+    CHECK(!p.ends_campaigns(5, 3, 2));
+}

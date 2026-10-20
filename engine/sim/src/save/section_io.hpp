@@ -73,6 +73,8 @@ struct Decoded {
     std::optional<MissionPart> missions;
     /// What players have of the missions and the defeat rules (PSTA), in the order of PLAY.
     std::optional<std::vector<Player>> player_state;
+    /// PSTA had the scenario's switches (kScenarioSwitches); else those of the original's chunks stay.
+    bool player_switches = false;
     std::optional<std::vector<City>> cities;
     /// Trade statistics of the cities (CSTA): island, index, purchases, sales.
     struct CityStats {
@@ -196,6 +198,10 @@ void io_target(A& a, T& t) {
 /// needs it, so a world that fits 8 bits writes the bytes of version 1 as before.
 inline constexpr std::uint16_t kWideCoordinates = 2;
 
+/// Version 2 of PSTA: each player also has the switches of its scenario (Player::scenario). The writer
+/// takes it only when a player has some, so other games write the bytes of version 1 as before.
+inline constexpr std::uint16_t kScenarioSwitches = 2;
+
 /// An island coordinate of ISLE and VOLC: 8 bit up to version 1, 16 bit from kWideCoordinates.
 template <class A, class T>
 void io_coordinate(A& a, T& v, std::uint16_t version) {
@@ -238,8 +244,9 @@ void write_explored(Writer& out, const World& w);
 // players.cpp: PLAY, PSTA, MISN, SCOR, DIPL.
 void write_players(Writer& out, const World& w);
 [[nodiscard]] std::vector<Player> read_players(Reader& in);
-void write_player_state(Writer& out, const World& w);
-[[nodiscard]] std::vector<Player> read_player_state(Reader& in);
+[[nodiscard]] std::uint16_t player_state_version(const World& w);
+void write_player_state(Writer& out, const World& w, std::uint16_t version);
+[[nodiscard]] std::vector<Player> read_player_state(Reader& in, std::uint16_t version);
 void write_missions(Writer& out, const World& w);
 [[nodiscard]] Decoded::MissionPart read_missions(Reader& in, std::size_t islands);
 void write_scores(Writer& out, const World& w);

@@ -33,6 +33,16 @@ void VideoController::request(std::uint16_t number, std::uint8_t tracks, bool lo
     }
 }
 
+void VideoController::follow(std::uint16_t number) {
+    if (!m_player) {
+        return;
+    }
+    VideoRequest r;
+    r.number = number;
+    r.follows = true;
+    m_queue.request(r);
+}
+
 bool VideoController::frame(std::uint64_t now_ms, bool minimap_shown) {
     // Messages of the scenery and the sound itself may ask for a video too.
     if (const auto n = m_sound.take_video()) {

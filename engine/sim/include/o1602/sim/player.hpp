@@ -41,6 +41,34 @@ enum class PlayerStatus : std::uint8_t {
     Absent,    ///< nobody plays the slot: it had no city and no ship when the game started
 };
 
+/// The switches a scenario sets for a computer player (PLAYER4 +0x1C, runtime +0x70;
+/// docs/re/ai.md and docs/re/diplomacy.md). New games and the endless game have none.
+namespace scenario_flag {
+inline constexpr std::uint32_t kNoColonies = 0x002;      ///< founds no further cities (0x00426290)
+inline constexpr std::uint32_t kNoTrader = 0x004;        ///< the free trader passes its Kontors by (0x004547E0)
+inline constexpr std::uint32_t kPassive = 0x008;         ///< no building while at peace with every human (0x0040EEF0)
+inline constexpr std::uint32_t kRivalSize = 0x010;       ///< minds humans with more inhabitants than rival_inhabitants
+inline constexpr std::uint32_t kFixedArmy = 0x020;       ///< recruits up to a fixed strength (0x00425580)
+inline constexpr std::uint32_t kNoFleet = 0x040;         ///< no supply and patrol ships (0x00424BF0)
+inline constexpr std::uint32_t kOwnSize = 0x080;         ///< sulks at humans while below own_inhabitants
+inline constexpr std::uint32_t kOwnDevelopment = 0x100;  ///< sulks at everyone while below own_development
+inline constexpr std::uint32_t kRivalDevelopment = 0x200;  ///< minds humans beyond rival_development
+}  // namespace scenario_flag
+
+/// A scenario's switches for a player and the thresholds of its attitude (PLAYER4 +0x1C .. +0x25).
+/// Inhabitants are those of all the player's cities; a development is the best city's, 32 per class
+/// reached plus the share of its highest class (0x0047F220, 0 .. 159).
+struct ScenarioSwitches {
+    std::uint32_t flags = 0;              ///< scenario_flag bits (+0x1C)
+    std::uint16_t rival_inhabitants = 0;  ///< +0x20, for kRivalSize
+    std::uint16_t own_inhabitants = 0;    ///< +0x22, for kOwnSize
+    std::uint8_t own_development = 0;     ///< +0x24, for kOwnDevelopment
+    std::uint8_t rival_development = 0;   ///< +0x25, for kRivalDevelopment
+
+    [[nodiscard]] bool has(std::uint32_t flag) const noexcept { return (flags & flag) != 0; }
+    friend bool operator==(const ScenarioSwitches&, const ScenarioSwitches&) = default;
+};
+
 /// Index into World::missions().
 using MissionId = std::uint8_t;
 inline constexpr MissionId kNoMission = 0xFF;
@@ -88,6 +116,9 @@ struct Player {
     /// average per minute (the trade balance of missions and of the status bar).
     std::int64_t purchases = 0;
     std::int64_t sales = 0;
+    /// What the scenario asks of this player. Only humans and computers have it; of a human only
+    /// kNoTrader counts.
+    ScenarioSwitches scenario{};
 
     [[nodiscard]] bool active() const noexcept { return status == PlayerStatus::Playing; }
 

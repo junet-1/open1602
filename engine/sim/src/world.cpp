@@ -495,6 +495,11 @@ void add_players(World& world, const std::vector<assets::PlayerRecord>& players)
         player.soldiers_lost = p.soldiers_lost;
         player.ships_sunk = p.ships_sunk;
         player.ships_lost = p.ships_lost;
+        if (p.kind == assets::PlayerKind::Human || p.kind == assets::PlayerKind::Computer) {
+            // The loader 0x00477911 takes the scenario's switches for these slots only.
+            player.scenario = {p.scenario_flags, p.rival_inhabitants, p.own_inhabitants, p.own_development,
+                               p.rival_development};
+        }
         slots.push_back(std::move(player));
     }
     world.set_players(std::move(slots));

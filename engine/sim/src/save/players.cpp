@@ -3,6 +3,7 @@
 // The players: PLAY (who they are), PSTA (missions and defeat), MISN (the missions themselves and
 // the end of the game), SCOR (the score's counters and the monument clocks of the cities) and DIPL
 // (treaties between them).
+#include <algorithm>
 #include <array>
 
 #include "section_io.hpp"
@@ -27,7 +28,7 @@ void io_player(A& a, P& p) {
 }
 
 template <class A, class P>
-void io_player_state(A& a, P& p) {
+void io_player_state(A& a, P& p, std::uint16_t version) {
     a.u8(p.mission);
     a.enum8(p.status, PlayerStatus::Absent);
     a.boolean(p.won);
@@ -36,6 +37,13 @@ void io_player_state(A& a, P& p) {
     a.u8(p.empty_checks);
     a.i64(p.purchases);
     a.i64(p.sales);
+    if (version >= kScenarioSwitches) {
+        a.u32(p.scenario.flags);
+        a.u16(p.scenario.rival_inhabitants);
+        a.u16(p.scenario.own_inhabitants);
+        a.u8(p.scenario.own_development);
+        a.u8(p.scenario.rival_development);
+    }
 }
 
 template <class A, class G>
@@ -191,13 +199,20 @@ std::vector<Player> read_players(Reader& in) {
     return list;
 }
 
-void write_player_state(Writer& out, const World& w) {
-    out.list(w.players(), 23, [&](const Player& p) { io_player_state(out, p); });
+std::uint16_t player_state_version(const World& w) {
+    const bool any = std::any_of(w.players().begin(), w.players().end(),
+                                 [](const Player& p) { return p.scenario != ScenarioSwitches{}; });
+    return any ? kScenarioSwitches : 1;
 }
 
-std::vector<Player> read_player_state(Reader& in) {
+void write_player_state(Writer& out, const World& w, std::uint16_t version) {
+    out.list(w.players(), version >= kScenarioSwitches ? 33 : 23,
+             [&](const Player& p) { io_player_state(out, p, version); });
+}
+
+std::vector<Player> read_player_state(Reader& in, std::uint16_t version) {
     std::vector<Player> list;
-    in.list(list, 23, [&](Player& p) { io_player_state(in, p); });
+    in.list(list, version >= kScenarioSwitches ? 33 : 23, [&](Player& p) { io_player_state(in, p, version); });
     return list;
 }
 

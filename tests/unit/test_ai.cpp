@@ -538,6 +538,34 @@ TEST_CASE("ai: a computer without a ship founds nothing and harms nobody") {
     CHECK(!s.computers().directs(12345));
 }
 
+TEST_CASE("ai: a computer a scenario keeps quiet stays so until a human breaks the peace (0x0040EEF0)") {
+    Game g;
+    g.add_ship(kHuman, 86, 10);  // a human still in the game
+    g.world.player(kComputer)->scenario.flags = sim::scenario_flag::kPassive | sim::scenario_flag::kNoTrader;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    found_city(g, s);
+    run(s, 120'000);
+    CHECK(g.world.players()[kComputer].scenario.has(sim::scenario_flag::kPassive));
+    // War with the human ends the switch for good; the others stay.
+    auto& d = g.world.diplomacy();
+    REQUIRE(d.set_peace(g.world, kHuman, kComputer, sim::Treaty::None, g.world.time_ms()));
+    CHECK(run_until(s, 600'000,
+                    [&] { return !g.world.players()[kComputer].scenario.has(sim::scenario_flag::kPassive); }));
+    CHECK(g.world.players()[kComputer].scenario.flags == sim::scenario_flag::kNoTrader);
+}
+
+TEST_CASE("ai: a computer the scenario forbids colonies founds its first city, wants no second") {
+    Game g;
+    g.world.player(kComputer)->scenario.flags = sim::scenario_flag::kNoColonies;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    found_city(g, s);
+    run(s, 600'000);
+    CHECK(g.cities_of(kComputer) == 1);
+    const auto view = s.computers().view();
+    REQUIRE(view.size() == 1);
+    CHECK(!view[0].settling);
+}
+
 TEST_CASE("ai: a computer without money founds its city all the same") {
     // The original gives a computer short of money its founding money (task 4).
     Game g(true, 0);

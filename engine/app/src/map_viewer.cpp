@@ -2287,6 +2287,9 @@ void MapViewer::record_progress() {
             assets::parse_progress(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
     }
     const sim::GameIdentity game = sim::game_identity(m_state->world);
+    if (progress.ends_campaigns(game.campaign, game.ranking, game.mission_number)) {
+        m_video->follow(assets::kCampaignsEndVideo);  // after the success video, whatever the switches
+    }
     if (progress.record_win(game.campaign, game.ranking, game.mission_number)) {
         const std::string text = assets::write_progress(progress);
         const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());

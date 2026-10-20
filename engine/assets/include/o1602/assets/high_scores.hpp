@@ -48,7 +48,13 @@ struct CampaignProgress {
     /// was the furthest opens n + 1 (at most kLastNumbered); otherwise a campaign opens `part + 1`
     /// if that is further than before. True if something changed.
     bool record_win(std::uint32_t campaign, std::uint32_t part, std::uint32_t mission_number);
+    /// Whether that win ends the campaigns, asked before record_win: the last part (3) of campaign 5
+    /// won by way of the campaign rule. The original then plays video 2990 after the success video.
+    [[nodiscard]] bool ends_campaigns(std::uint32_t campaign, std::uint32_t part,
+                                      std::uint32_t mission_number) const noexcept;
 };
+/// The video after the last campaign (VideoSmk/2990.smk).
+inline constexpr std::uint16_t kCampaignsEndVideo = 2990;
 /// Lines "campaign k n" and "numbered n"; unknown lines are passed over.
 [[nodiscard]] CampaignProgress parse_progress(std::string_view text);
 [[nodiscard]] std::string write_progress(const CampaignProgress& progress);

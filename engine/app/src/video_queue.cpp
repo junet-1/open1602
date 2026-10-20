@@ -6,7 +6,7 @@
 namespace o1602::app {
 
 bool VideoQueue::request(const VideoRequest& request) {
-    const bool replaces = !request.intro;
+    const bool replaces = !request.intro && !request.follows;
     if (replaces) {
         m_waiting.clear();
     }

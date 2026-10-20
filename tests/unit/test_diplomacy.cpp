@@ -191,3 +191,67 @@ TEST_CASE("diplomacy: a withdrawn offer is no declaration of war (S-113)") {
     CHECK(d.relation(2, 0).trade == Treaty::None);
     CHECK(count(2, DiplomacyEventType::TradeCancelled) == 0);
 }
+
+namespace {
+
+void add_city(sim::World& world, std::uint8_t index, sim::PlayerId owner, std::vector<std::uint32_t> inhabitants) {
+    sim::City c;
+    c.index = index;
+    c.owner = owner;
+    c.inhabitants = std::move(inhabitants);
+    world.add_city(c);
+}
+
+}  // namespace
+
+TEST_CASE("diplomacy: how far a city has come (0x0047F220)") {
+    const auto development = [](std::vector<std::uint32_t> inhabitants) {
+        sim::City c;
+        c.inhabitants = std::move(inhabitants);
+        return sim::city_development(c);
+    };
+    CHECK(development({}) == 0);
+    CHECK(development({0, 0}) == 0);
+    CHECK(development({100}) == 31);         // a whole class counts 31, not 32
+    CHECK(development({90, 10}) == 32 + 3);  // 10 % of the city in the second class
+    CHECK(development({50, 50}) == 32 + 16);
+    CHECK(development({30, 70}) == 32 + 31);                  // two thirds and more: full
+    CHECK(development({0, 0, 0, 0, 10, 99}) == 4 * 32 + 31);  // five classes, as the original
+}
+
+TEST_CASE("diplomacy: the attitude a scenario gives a computer (player +0x70)") {
+    namespace flag = sim::scenario_flag;
+    sim::World world(64, 64);
+    auto players = original_players();
+    world.set_players(players);
+    add_city(world, 0, 1, {250});       // the computer: 250 inhabitants, development 31
+    add_city(world, 1, 0, {300, 300});  // the human: 600, development 48
+    const auto mood = [&](const sim::ScenarioSwitches& switches, sim::PlayerId b = 0) {
+        world.player(1)->scenario = switches;
+        return world.diplomacy().mood(world, 1, b, 0, 0);
+    };
+    CHECK(mood({}) == 0);
+
+    // A human beyond 500 inhabitants: always the table's end (0x00548FC0[128]).
+    CHECK(mood({flag::kRivalSize, 500, 0, 0, 0}) == -170);
+    CHECK(mood({flag::kRivalSize, 600, 0, 0, 0}) == 0);
+    CHECK(mood({flag::kRivalSize, 0, 0, 0, 0}, 2) == 0);  // only towards humans
+
+    // Below its own target of 1000: 250 is a quarter, 0x00548E38[32] = 150.
+    CHECK(mood({flag::kOwnSize, 0, 1000, 0, 0}) == -150);
+    CHECK(mood({flag::kOwnSize, 0, 250, 0, 0}) == 0);  // reached: 0x00548E38[128]
+    CHECK(mood({flag::kOwnSize, 0, 200, 0, 0}) == 0);  // beyond
+    CHECK(mood({flag::kOwnSize, 0, 0, 0, 0}) == 0);    // no target (the original divides by 0, S-118)
+
+    // A human's city beyond development 40 by 8: 0x00549044[8] = 22.
+    CHECK(mood({flag::kRivalDevelopment, 0, 0, 0, 40}) == -22);
+    CHECK(mood({flag::kRivalDevelopment, 0, 0, 0, 48}) == 0);
+    // Its own best city 33 short of 64: 0x00549044[33] = 98; towards anyone.
+    CHECK(mood({flag::kOwnDevelopment, 0, 0, 64, 0}) == -98);
+    CHECK(mood({flag::kOwnDevelopment, 0, 0, 64, 0}, 2) == -98);
+    CHECK(mood({flag::kOwnDevelopment, 0, 0, 31, 0}) == 0);
+    // Further than the table reaches: its last value (S-118).
+    world.player(1)->scenario = {flag::kOwnDevelopment, 0, 0, 255, 0};
+    world.set_cities({});
+    CHECK(world.diplomacy().mood(world, 1, 0, 0, 0) == -170);
+}

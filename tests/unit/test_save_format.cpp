@@ -95,7 +95,8 @@ sim::Target target(Values& v) {
 }
 
 /// Islands of 12 x 10 tiles with ground, a road and a house; `wide` adds one of 260 x 3 tiles with
-/// a crater beyond 255 (version 2 of ISLE and VOLC).
+/// a crater beyond 255 (version 2 of ISLE and VOLC). The wide world's players also have a
+/// scenario's switches (version 2 of PSTA).
 void add_islands(sim::World& world, const assets::BuildingTable& buildings, bool wide) {
     struct Shape {
         std::uint32_t x, y, w, h;
@@ -225,6 +226,14 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
         v(pl.empty_checks);
         v(pl.purchases);
         v(pl.sales);
+        if (wide) {
+            // The scenario's switches (version 2 of PSTA), apart from the values above so that the
+            // narrow world keeps the bytes of version 1.
+            const auto n = static_cast<std::uint32_t>(p + 1);
+            pl.scenario = {0x3FEU & (n * 0x95U), static_cast<std::uint16_t>(n * 311),
+                           static_cast<std::uint16_t>(n * 977), static_cast<std::uint8_t>(n * 29),
+                           static_cast<std::uint8_t>(n * 41)};
+        }
     }
     world.set_players(players);
 
@@ -751,7 +760,7 @@ constexpr Golden kSaveWide[] = {
     {"WRL2", 1, 1, 4, 0x637B2D3C},
     {"ISLE", 2, 1, 469, 0x3F8E764F},
     {"PLAY", 1, 1, 143, 0x177E459C},
-    {"PSTA", 1, 1, 96, 0x96C3346A},
+    {"PSTA", 2, 1, 136, 0x25534BE0},
     {"MISN", 1, 1, 302, 0x93D421B5},
     {"CITY", 1, 1, 473, 0x2E7EAC9E},
     {"CSTA", 1, 1, 42, 0x70987BC5},
@@ -811,7 +820,7 @@ constexpr Golden kChunkWide[] = {
     {"ISLE", 2, 1, 469, 0x3F8E764F},
     {"TILE", 1, 1, 34684, 0x3991F216},
     {"PLAY", 1, 1, 143, 0x177E459C},
-    {"PSTA", 1, 1, 96, 0x96C3346A},
+    {"PSTA", 2, 1, 136, 0x25534BE0},
     {"MISN", 1, 1, 302, 0x93D421B5},
     {"CITY", 1, 1, 473, 0x2E7EAC9E},
     {"CSTA", 1, 1, 42, 0x70987BC5},

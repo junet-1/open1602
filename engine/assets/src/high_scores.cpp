@@ -103,6 +103,15 @@ bool CampaignProgress::record_win(std::uint32_t campaign, std::uint32_t part, st
     return false;
 }
 
+bool CampaignProgress::ends_campaigns(std::uint32_t campaign, std::uint32_t part,
+                                      std::uint32_t mission_number) const noexcept {
+    // GameDat_Write (0x00487FB0): in the campaign branch, campaign 5 with n = part + 1 > 3.
+    constexpr std::uint32_t kLastCampaign = 5;
+    constexpr std::uint32_t kLastParts = 3;
+    const bool numbered_rule = mission_number != kNoCampaign && numbered <= mission_number;
+    return !numbered_rule && campaign == kLastCampaign && part + 1 > kLastParts;
+}
+
 CampaignProgress parse_progress(std::string_view text) {
     CampaignProgress p;
     std::size_t pos = 0;

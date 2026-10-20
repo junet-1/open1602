@@ -87,6 +87,11 @@ std::uint32_t Engine::weighted_army(PlayerId owner) const {
 }
 
 std::uint32_t Engine::army_target(const AiPlayer& p) const {
+    // A scenario can ask for a fixed strength instead: a hundred cannons' worth (player +0x70
+    // bit 5, 0x004257BF), on every level.
+    if (player(p).scenario.has(scenario_flag::kFixedArmy)) {
+        return unit_weights()[3] * 100;
+    }
     // 1.5 times the strongest human army, more on harder levels.
     std::uint32_t best = 0;
     for (std::size_t h = 0; h < m_world.players().size(); ++h) {
@@ -110,7 +115,6 @@ std::uint32_t Engine::army_target(const AiPlayer& p) const {
             best *= 2;
             break;
     }
-    (void)p;
     return best;
 }
 
