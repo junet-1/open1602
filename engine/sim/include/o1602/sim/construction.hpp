@@ -118,6 +118,10 @@ struct BuildPlan {
     BuildBill bill;                        ///< costs of the items that are built
     std::uint8_t city = MapCell::kNoCity;  ///< city of the order; kNoCity founds one
     std::size_t placed = 0;                ///< items that are built
+    /// Costs the resource bar shows in brackets while building (Hud_DrawResourceBar 0x0040D160):
+    /// every item that could be placed, affordable or not; a single item (the building under
+    /// the mouse) also where it cannot be placed (0x004084D0).
+    BuildBill shown;
     /// A Kontor built over the destroyed Kontor of a defenceless city of another player: the city
     /// changes hands (build_effects 4.3, City_ChangeOwner).
     bool takeover = false;

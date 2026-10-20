@@ -237,6 +237,43 @@ TEST_CASE("construction: roads fit to their neighbours, a drag stops when the go
     CHECK(island.world.players()[0].money == 2);
 }
 
+TEST_CASE("construction: the preview shows what an order costs, affordable or not (0x0040D160)") {
+    Island island;
+    island.found();
+    const auto preview = [&](std::vector<sim::BuildItem> items) {
+        sim::BuildOrder order;
+        order.player = 0;
+        order.island = 0;
+        order.items = std::move(items);
+        return sim::plan_build(island.world, island.buildings, order);
+    };
+    const auto& house = island.buildings.by_id(kHouse)->build_cost;
+    // Enough of everything: what is shown is what is paid.
+    const sim::BuildPlan rich = preview({{kHouse, 8, 13, 0, 0}});
+    CHECK(rich.placed == 1);
+    CHECK(rich.shown.money == rich.bill.money);
+    CHECK(rich.shown.wood == rich.bill.wood);
+    // Without wood nothing is built, but the costs are still shown.
+    island.world.city(0, 0)->goods[island.buildings.materials().wood] = 0;
+    const sim::BuildPlan poor = preview({{kHouse, 8, 13, 0, 0}});
+    CHECK(poor.items[0].refusal == sim::BuildRefusal::Wood);
+    CHECK(poor.bill.money == 0);
+    CHECK(poor.shown.money == house.money);
+    CHECK(poor.shown.wood == house.wood);
+    // The building under the mouse shows its costs where it cannot stand, too.
+    const sim::BuildPlan outside = preview({{kHouse, 14, 11, 0, 0}});
+    CHECK(outside.items[0].refusal == sim::BuildRefusal::Territory);
+    CHECK(outside.shown.money == house.money);
+    // A drag counts every item that fits the ground, also those beyond the gold.
+    island.world.player(0)->money = 7;
+    const sim::BuildPlan road =
+        preview({{kRoad, 8, 17, 0, 0}, {kRoad, 9, 17, 0, 0}, {kRoad, 25, 25, 0, 0}, {kRoad, 10, 17, 0, 0}});
+    CHECK(road.placed == 1);
+    CHECK(road.items[2].refusal == sim::BuildRefusal::Territory);
+    CHECK(road.bill.money == 5);
+    CHECK(road.shown.money == 15);
+}
+
 TEST_CASE("construction: buildings stay inside their city, do not overlap and need their unlock") {
     Island island;
     island.found();

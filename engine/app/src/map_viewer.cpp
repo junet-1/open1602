@@ -963,7 +963,7 @@ void MapViewer::render() {
             if (const auto spot = m_input->spot_at_mouse()) {
                 if (const auto order = m_tool.build_order(m_state->world, m_local_player, *spot)) {
                     const sim::BuildPlan plan = sim::plan_build(m_state->world, m_buildings, *order);
-                    m_pending_bill = plan.bill;
+                    m_pending_bill = plan.shown;
                     sim::IslandMap& map = m_state->world.island(order->island).map;
                     // A field or forest being dragged: its whole rectangle hatched on the ground,
                     // with no crops or trees in it, as in the History Edition.
