@@ -373,6 +373,37 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
         }
     }
 
+    // Smoke of a broadside (0x0044FA90 with ship + 0x214): turned to the bearing; Fahnoffs[0]
+    // across the ship to the side it fired to and Fahnoffs[1] along it (0x00443180), projected,
+    // hanging down from Fahnoffs[2] above Y plus its Posoffs[0], like the flag. It goes under the
+    // hull when that side faces away from the viewer, over hull and flag otherwise.
+    out.has_smoke = false;
+    if (layers.ship_smoke != nullptr && !ship.sinking) {
+        const auto it = layers.ship_smoke->find(ship.id);
+        const assets::FigureType* smoke =
+            it != layers.ship_smoke->end() ? layers.figures->get(it->second.figure) : nullptr;
+        if (smoke != nullptr && smoke->sheet == assets::FigureSheet::Ship) {
+            const std::uint32_t side = it->second.side & 1U;
+            const auto smoke_dir = static_cast<std::uint8_t>((ship.direction + 8U - 4U * side - 2U) & 7U);
+            out.smoke.sprite =
+                layers.ship_base + assets::figure_sprite(*smoke, 0, it->second.frame, smoke_dir, rw.rotation);
+            const AtlasRect& sr = layers.atlas->rect(out.smoke.sprite);
+            const double across = static_cast<double>((dir + 4U * side) & 7U) * std::numbers::pi / 4.0;
+            const double along = static_cast<double>((dir + 4U * side + 2U) & 7U) * std::numbers::pi / 4.0;
+            const double ox = smoke->fahnoffs[0] * std::sin(across) + smoke->fahnoffs[1] * std::sin(along);
+            const double oy = smoke->fahnoffs[0] * std::cos(across) + smoke->fahnoffs[1] * std::cos(along);
+            const double px = (ox - oy) * hw;
+            const double py = (ox + oy) * hh;
+            out.smoke.x = static_cast<std::int32_t>(std::floor(screen_x + px)) - sr.width / 2;
+            const std::int32_t top = static_cast<std::int32_t>(std::floor(screen_y - py)) + fig->posoffs[1] * itw / 64 +
+                                     smoke->posoffs[0] * itw / 64 - static_cast<std::int32_t>(smoke->fahnoffs[2] * hw) -
+                                     1;
+            out.smoke.y = top + sr.height;
+            out.smoke_behind = (dir < 4U) == (side == 0U);
+            out.has_smoke = !sr.empty();
+        }
+    }
+
     // Flag of the owner's banner (original: figure from table 0x00498F2C). Offset: Fahnoffs[1]
     // along the ship axis, rotated by (direction + 2) * 45 degrees (0x00443180), projected; lifted
     // by Fahnoffs[2] * w/2 from Y and hanging down from there. (The original also adds the flag
@@ -978,9 +1009,15 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 if (s.has_wave) {
                     f.parts[f.count++] = s.wave;
                 }
+                if (s.has_smoke && s.smoke_behind) {
+                    f.parts[f.count++] = s.smoke;
+                }
                 f.parts[f.count++] = s.hull;
                 if (s.has_flag) {
                     f.parts[f.count++] = s.flag;
+                }
+                if (s.has_smoke && !s.smoke_behind) {
+                    f.parts[f.count++] = s.smoke;
                 }
                 if (s.has_sink) {
                     f.parts[f.count++] = s.sink;

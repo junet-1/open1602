@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -154,6 +155,14 @@ struct EffectFigure {
     std::uint8_t direction = 0;         ///< 0..7
     std::optional<std::uint8_t> frame;  ///< a frame of its own instead of one from the time
 };
+
+/// Smoke of a ship's broadside (KANONSHOT1, KANONSHOT2), drawn with the ship (0x00447880).
+struct ShipSmoke {
+    std::uint16_t figure = 0;  ///< the ship type's Shotfignr
+    std::uint8_t side = 0;     ///< 0: fired to the right of the ship's heading (bearing + 2), 1: to the left
+    std::uint8_t frame = 0;
+};
+using ShipSmokeMap = std::unordered_map<std::uint32_t, ShipSmoke>;  ///< by Ship::id
 
 /// Where a figure attached to a building stands (0x004466A0): the building centre plus the
 /// figure's Fahnoffs turned with the building, in world tiles.
@@ -313,18 +322,21 @@ struct WorldLayers {
     std::array<std::optional<std::uint32_t>, assets::kFigureSheetCount> sheet_base{};
     /// Tinted units for banners without drawn variants (WorldGraphics::unit_tint).
     const UnitTint* unit_tint = nullptr;
-    /// Volcano fire and lava. Needs `figures` and the atlas bases of EFFEKTE.BSH and SCHATTEN.BSH.
+    /// Volcano fire, lava, hits, wrecks and the scenery. Needs `figures` and the atlas bases of
+    /// their sheets (EFFEKTE.BSH, SCHATTEN.BSH, ...).
     const std::vector<EffectFigure>* effects = nullptr;
+    /// Smoke of the ships that just fired (CombatEffects::ship_smoke).
+    const ShipSmokeMap* ship_smoke = nullptr;
     /// Animation phases of the production buildings; without them the saved phases are shown.
     const ProductionPhases* production_phases = nullptr;
 };
 
-/// Up to two draw commands of one figure (shadow + body, hull + flag) and the tile row after
-/// whose flat pass they are drawn.
+/// The draw commands of one figure (shadow + body, a ship's wave, smoke, hull and flag) and the
+/// tile row after whose flat pass they are drawn.
 struct FigureSprites {
     std::int32_t row = 0;
     std::int32_t depth = 0;  ///< Y of the original (0x00451CC5): order within the row, smaller first
-    std::array<DrawCommand, 4> parts{};
+    std::array<DrawCommand, 5> parts{};
     std::uint8_t count = 0;
 };
 
@@ -366,13 +378,16 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
 struct ShipSprites {
     std::int32_t row = 0;  ///< tile row (view space) after whose flat pass the ship is drawn
     std::int32_t depth = 0;
-    DrawCommand wave;  ///< bow wave (BUGH) while sailing, under the hull
-    DrawCommand hull;  ///< the damaged hull below 50 % health
-    DrawCommand flag;  ///< the owner's flag, or the white flag of a surrendered ship
-    DrawCommand sink;  ///< UNTERGANG: the splash of a sinking ship
+    DrawCommand wave;   ///< bow wave (BUGH) while sailing, under the hull
+    DrawCommand hull;   ///< the damaged hull below 50 % health
+    DrawCommand flag;   ///< the owner's flag, or the white flag of a surrendered ship
+    DrawCommand sink;   ///< UNTERGANG: the splash of a sinking ship
+    DrawCommand smoke;  ///< smoke of a broadside (WorldLayers::ship_smoke)
     bool has_wave = false;
     bool has_flag = false;
     bool has_sink = false;
+    bool has_smoke = false;
+    bool smoke_behind = false;  ///< the smoke goes under the hull, else over hull and flag
 };
 [[nodiscard]] bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldView& view,
                                 const WorldLayers& layers, std::uint64_t time_ms, ShipSprites& out);
