@@ -195,6 +195,14 @@ inline constexpr assets::Rgba kCircleOutline{255, 230, 0, 255};
 /// instead, drawn whole, over land and water alike.
 class TileLighting {
 public:
+    /// The tiles a building covers, in world tiles.
+    struct Footprint {
+        std::int64_t x = 0;
+        std::int64_t y = 0;
+        std::uint32_t width = 1;
+        std::uint32_t height = 1;
+    };
+
     /// Nothing dimmed.
     TileLighting() = default;
     /// Only the land of `player` stays lit.
@@ -213,8 +221,17 @@ public:
     [[nodiscard]] bool outlined() const noexcept { return m_outlined; }
     /// Whether world tile (x, y) lies in the circle.
     [[nodiscard]] bool in_circle(std::int64_t x, std::int64_t y) const noexcept;
+    /// Whether any tile of the `width` x `height` world tiles from (x, y) lies in the circle.
+    [[nodiscard]] bool in_circle(std::int64_t x, std::int64_t y, std::uint32_t width,
+                                 std::uint32_t height) const noexcept;
     /// Whether world tile (x, y) is dimmed; `cell` is its top island cell, nullptr for water.
     [[nodiscard]] bool dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* cell) const noexcept;
+    /// The same for a tile of a building whose footprint covers `footprint` (world tiles): the
+    /// building is in the circle as a whole when any of its tiles is, as a house is supplied when its
+    /// nearest tile is (sim update_services). Tile by tile, a building on the circle's border would
+    /// be lit or dark depending on which of its tiles the view rotation draws its body on.
+    [[nodiscard]] bool dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* cell,
+                              const Footprint& footprint) const noexcept;
 
 private:
     enum class Kind : std::uint8_t { None, Territory, Circle };

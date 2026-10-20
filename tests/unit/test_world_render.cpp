@@ -389,6 +389,42 @@ TEST_CASE("world renderer: a catchment circle lights the land, its border is das
     }
 }
 
+TEST_CASE("world renderer: a building on the border of a catchment circle is lit as a whole (all rotations)") {
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 2, 2);
+    REQUIRE(island.map.place(*table.by_id(20100), 0, 0, 0, 0, 0).ok());  // the 2 x 2 building at world (10, 20)
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+    sim::Catchment area;  // reaches only the building's tile (11, 21), as a chapel a house at its edge
+    area.centre = sim::TilePos{12, 23};
+    area.radius = 2;
+    const render::TileLighting lighting = render::TileLighting::circle(0, area);
+    CHECK(lighting.in_circle(11, 21));
+    CHECK(!lighting.in_circle(10, 20));
+    CHECK(!lighting.in_circle(11, 20));
+    CHECK(!lighting.in_circle(10, 21));
+    CHECK(lighting.in_circle(10, 20, 2, 2));
+    CHECK(!lighting.in_circle(10, 20, 1, 1));
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        render::WorldView view;
+        view.zoom = render::Zoom::Small;
+        view.rotation = rotation;
+        render::Viewport all;
+        render::world_pixel_size(view, all.width, all.height);
+        render::WorldLayers layers;
+        layers.extent = render::SpriteExtent{16, 8};
+        layers.lighting = &lighting;
+        std::vector<render::DrawCommand> commands;
+        render::build_world_draw_list(world, table, clock, view, all, layers, commands);
+        std::size_t dimmed = 0;
+        for (const auto& c : commands) {
+            dimmed += static_cast<std::size_t>(c.mode == render::DrawCommand::Mode::Dimmed);
+        }
+        CHECK(dimmed == std::size_t{500} * 350 - 4);  // the sea dark, all four tiles of the building lit
+    }
+}
+
 TEST_CASE("world renderer: viewport culling keeps exactly the visible tiles (all rotations)") {
     const auto table = make_table();
     const sim::World world;
