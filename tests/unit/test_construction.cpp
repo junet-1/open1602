@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Building and demolishing (docs/re/construction.md).
 
+#include <algorithm>
 #include <optional>
 
 #include "../test_framework.hpp"
+#include "build_tool.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/sim/construction.hpp"
@@ -320,6 +322,36 @@ TEST_CASE("construction: houses get one inhabitant and leave nothing behind when
     CHECK(island.demolish({5, 10}, {5, 10}) == 1);
     CHECK(island.world.cities().empty());
     CHECK(island.city_at(8, 13) == sim::MapCell::kNoCity);
+}
+
+TEST_CASE("construction: the demolish preview marks only what the order removes") {
+    Island island;
+    island.found();
+    REQUIRE(island.build({{kHouse, 8, 13, 0, 0}}).placed == 1);
+    REQUIRE(island.build({{kRoad, 10, 12, 0, 0}}).placed == 1);
+    app::BuildTool tool(island.buildings);
+    const auto contains = [](const std::vector<sim::TilePos>& tiles, std::int32_t x, std::int32_t y) {
+        return std::ranges::find(tiles, sim::TilePos{x, y}) != tiles.end();
+    };
+    // Nothing unless demolishing.
+    CHECK(tool.demolish_preview(island.world, 0, {0, 9, 14}).empty());
+    tool.set_mode(app::BuildTool::Mode::Demolish);
+    // Hovering: the whole house a click there would remove; bare ground nothing.
+    const auto hover = tool.demolish_preview(island.world, 0, {0, 9, 14});
+    CHECK(hover.size() == 4);
+    CHECK(contains(hover, 8, 13));
+    CHECK(contains(hover, 9, 14));
+    CHECK(tool.demolish_preview(island.world, 0, {0, 20, 20}).empty());
+    // Dragging: only the road; the rectangle leaves the house standing.
+    tool.press({0, 7, 12});
+    const auto drag = tool.demolish_preview(island.world, 0, {0, 10, 15});
+    REQUIRE(drag.size() == 1);
+    CHECK((drag[0] == sim::TilePos{10, 12}));
+    const auto order = tool.demolish_order(0, {0, 10, 15});
+    REQUIRE(order.has_value());
+    CHECK(sim::plan_demolish(island.world, island.buildings, *order).size() == 1);
+    // Another player's view marks none of them.
+    CHECK(tool.demolish_preview(island.world, 1, {0, 10, 15}).empty());
 }
 
 TEST_CASE("construction: a market claims land; demolished, the land and what stands on it is lost") {

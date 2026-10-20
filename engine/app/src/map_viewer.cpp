@@ -90,6 +90,8 @@ std::string refusal_text(sim::BuildRefusal refusal) {
 
 /// Ground under a building that cannot be built there.
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
+/// What a demolish order would remove: hatched over the buildings.
+constexpr assets::Rgba kDemolishHatch{220, 40, 30, 255};
 /// Real time a frame may spend on ticks; the rest of the frame draws.
 constexpr int kTickBudgetMs = 25;
 const char* zoom_name(render::Zoom zoom) {
@@ -1055,6 +1057,19 @@ void MapViewer::render() {
                     if (m_tool_status.empty()) {
                         m_tool_status = ui::tr("build.cost", {std::to_string(plan.bill.money)});
                     }
+                }
+            }
+        }
+        if (m_tool.mode() == BuildTool::Mode::Demolish) {
+            // Only what the click or drag would really remove is hatched, over the buildings, so the
+            // player sees what changes before letting go.
+            if (const auto spot = m_input->spot_at_mouse()) {
+                for (const sim::TilePos& t : m_tool.demolish_preview(m_state->world, m_local_player, *spot)) {
+                    render::TileMark mark{spot->island, static_cast<std::uint16_t>(t.x),
+                                          static_cast<std::uint16_t>(t.y), kDemolishHatch};
+                    mark.hatched = true;
+                    mark.on_top = true;
+                    m_tile_marks.push_back(mark);
                 }
             }
         }
