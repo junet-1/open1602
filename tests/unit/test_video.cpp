@@ -9,6 +9,7 @@
 #include "../test_framework.hpp"
 #include "video_queue.hpp"
 
+#include "o1602/assets/high_scores.hpp"
 #include "o1602/video/smacker.hpp"
 
 using namespace o1602;
@@ -470,6 +471,15 @@ TEST_CASE("videos: the logos and the intro queue, any other request replaces wha
     CHECK(queue.request(queued(63)));
     CHECK(queue.request(queued(998)));
     CHECK((drain(queue) == std::vector<std::uint16_t>{998}));
+}
+
+TEST_CASE("videos: the end of the campaigns follows the success video (Video_Update 0x00492410)") {
+    app::VideoQueue queue;
+    CHECK(queue.request(queued(2510)));
+    app::VideoRequest end = queued(assets::kCampaignsEndVideo);
+    end.follows = true;
+    CHECK(!queue.request(end));  // stops nothing
+    CHECK((drain(queue) == std::vector<std::uint16_t>{2510, 2990}));
 }
 
 TEST_CASE("videos: Escape in a logo skips the whole start, in a message only that video") {

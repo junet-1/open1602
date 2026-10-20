@@ -86,6 +86,9 @@ enum class Need : std::uint8_t { Required, Optional };
 
 /// The highest version of a section this version reads.
 constexpr std::uint16_t max_version(std::uint32_t id) noexcept {
+    if (id == kPlayerState) {
+        return kScenarioSwitches;
+    }
     return id == kIslands || id == kVolcanoes ? kWideCoordinates : 1;
 }
 
@@ -190,7 +193,10 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
         section(out, kTiles, [&](Writer& o) { write_tiles(o, world, buildings, before); });
     }
     section(out, kPlayers, [&](Writer& o) { write_players(o, world); });
-    section(out, kPlayerState, [&](Writer& o) { write_player_state(o, world); });
+    const std::uint16_t player_state_at = player_state_version(world);
+    section(
+        out, kPlayerState, [&](Writer& o) { write_player_state(o, world, player_state_at); }, Need::Required,
+        player_state_at);
     section(out, kMissions, [&](Writer& o) { write_missions(o, world); });
     section(out, kCities, [&](Writer& o) { write_cities(o, world); });
     section(out, kCityState, [&](Writer& o) { write_city_state(o, world); });
@@ -298,7 +304,8 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 d.players = read_players(in);
                 break;
             case kPlayerState:
-                d.player_state = read_player_state(in);
+                d.player_state = read_player_state(in, version);
+                d.player_switches = version >= kScenarioSwitches;
                 break;
             case kMissions:
                 d.missions = read_missions(in, world.islands().size());

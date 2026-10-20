@@ -936,6 +936,11 @@ private:
                     // The others keep what the file had: their slot is never read.
                     r[0x0C] = player->mission < kOriginalMissionSlots ? player->mission : std::uint8_t{0xFF};
                     put16(r, 0x0A, player->bankrupt_checks);
+                    put32(r, 0x1C, player->scenario.flags);
+                    put16(r, 0x20, player->scenario.rival_inhabitants);
+                    put16(r, 0x22, player->scenario.own_inhabitants);
+                    r[0x24] = player->scenario.own_development;
+                    r[0x25] = player->scenario.rival_development;
                 }
                 // An absent slot keeps its controller: the original retires it again when loading
                 // (0x0048C0F0), and so a file written back unchanged stays the same.

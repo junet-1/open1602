@@ -216,6 +216,9 @@ private:
     /// Behind the leading human (0x0040E9B0), threatened (0x0040F1D0).
     [[nodiscard]] bool behind(const AiPlayer& p) const;
     [[nodiscard]] bool threatened(const AiPlayer& p) const;
+    /// A scenario keeps the computer from building while it is at peace with every human
+    /// (0x0040EEF0); ends the switch when it is not.
+    bool peaceful(AiPlayer& p);
     [[nodiscard]] std::uint32_t army_strength(PlayerId owner) const;
     [[nodiscard]] std::uint32_t total_population(PlayerId owner) const;
 

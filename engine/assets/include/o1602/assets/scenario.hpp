@@ -86,6 +86,14 @@ struct PlayerRecord {
     std::uint8_t mission = 0xFF;
     /// +0x0A (runtime +0x9E): bad 5-s checks so far (bankrupt, or nothing left in a multiplayer game).
     std::uint16_t defeat_counter = 0;
+    /// +0x1C (runtime +0x70): the switches a scenario sets for a computer (docs/re/ai.md), and
+    /// +0x20, +0x22, +0x24, +0x25 (runtime +0xA0, +0xA2, +0x7F, +0x80) the thresholds of its
+    /// attitude. The loader 0x00477911 takes them for human and computer slots only.
+    std::uint32_t scenario_flags = 0;
+    std::uint16_t rival_inhabitants = 0;
+    std::uint16_t own_inhabitants = 0;
+    std::uint8_t own_development = 0;
+    std::uint8_t rival_development = 0;
 };
 
 /// One mission (AUFTRAG4 record, 0x8C4 bytes; loader 0x00477B70, writer 0x00478380,

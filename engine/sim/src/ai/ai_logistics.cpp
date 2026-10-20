@@ -90,7 +90,8 @@ void Engine::arm_one(City& c, Ship& s) {
 // ---------------------------------------------------------------------------------------------
 
 void Engine::logistics(AiPlayer& p) {
-    if (p.pirates) {
+    // A scenario can keep the computer's ships out of supply and patrols (player +0x70 bit 6).
+    if (p.pirates || player(p).scenario.has(scenario_flag::kNoFleet)) {
         return;
     }
     forget_ships(p);

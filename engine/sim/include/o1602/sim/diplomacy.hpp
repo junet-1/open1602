@@ -17,6 +17,11 @@
 namespace o1602::sim {
 
 class World;
+struct City;
+
+/// How far a city has come (0x0047F220 with the scale 0x80): 32 per class above the first that has
+/// residents, plus the share of the highest one in 32nds (31 from two thirds on); 0 .. 159.
+[[nodiscard]] std::uint32_t city_development(const City& city) noexcept;
 
 /// State of a peace or trade treaty of player a towards player b (the original's values 0..3).
 enum class Treaty : std::uint8_t {
@@ -122,8 +127,9 @@ public:
     /// Kontor trade worth `gold` between them (op 0x4A): friendlier both ways.
     void add_trade(PlayerId a, PlayerId b, std::uint32_t value) noexcept;
 
-    /// How a feels about b (Dipl_Mood 0x00475C60): events, damage, territory, tribute and trade.
-    /// `extra` is tribute being offered (scaled like the counter).
+    /// How a feels about b (Dipl_Mood 0x00475C60): events, damage, territory, the attitude a
+    /// scenario gives a (Player::scenario), tribute and trade. `extra` is tribute being offered
+    /// (scaled like the counter).
     [[nodiscard]] std::int32_t mood(const World& world, PlayerId a, PlayerId b, std::uint32_t extra,
                                     std::uint64_t now_ms) const;
     /// The 5-second decay of the counters of player a (Player_Tick 0x00476350): x 255/256.

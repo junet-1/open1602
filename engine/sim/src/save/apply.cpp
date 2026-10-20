@@ -186,6 +186,7 @@ core::Status apply_decoded(World& world, Decoded& d) {
             }
         }
     }
+    std::vector<ScenarioSwitches> kept_switches;
     if (d.players) {
         // Files of an earlier version have no PSTA: what the original's chunks gave stays.
         if (!d.player_state && d.players->size() == world.players().size()) {
@@ -197,6 +198,10 @@ core::Status apply_decoded(World& world, Decoded& d) {
             for (const Player& p : world.players()) {
                 part.players.push_back({p.soldiers_killed, p.soldiers_lost, p.ships_sunk, p.ships_lost});
             }
+        }
+        // A PSTA without the scenario's switches (version 1) leaves those of the original's chunks.
+        for (const Player& p : world.players()) {
+            kept_switches.push_back(p.scenario);
         }
         world.set_players(std::move(*d.players));
     }
@@ -220,6 +225,11 @@ core::Status apply_decoded(World& world, Decoded& d) {
             p.empty_checks = from.empty_checks;
             p.purchases = from.purchases;
             p.sales = from.sales;
+            if (d.player_switches) {
+                p.scenario = from.scenario;
+            } else if (i < kept_switches.size()) {
+                p.scenario = kept_switches[i];
+            }
         }
     }
     if (d.scores) {

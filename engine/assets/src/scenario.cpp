@@ -74,6 +74,11 @@ core::Result<std::vector<PlayerRecord>> load_players(const ChunkFile& file) {
         p.blamed = data[o + 0x08];
         p.defeat_counter = read_u16(data, o + 0x0A);
         p.mission = data[o + 0x0C];
+        p.scenario_flags = read_u32(data, o + 0x1C);
+        p.rival_inhabitants = read_u16(data, o + 0x20);
+        p.own_inhabitants = read_u16(data, o + 0x22);
+        p.own_development = data[o + 0x24];
+        p.rival_development = data[o + 0x25];
         for (std::size_t b = 0; b < 7; ++b) {
             p.peace[b] = data[o + 0xC0 + 8 * b];
             p.war_time[b] = read_u32(data, o + 0xC4 + 8 * b);

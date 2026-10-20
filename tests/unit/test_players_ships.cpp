@@ -114,6 +114,13 @@ TEST_CASE("scenario: PLAYER4 and SHIP4 records") {
     players[6] = 1;
     players[7] = 1;  // blue
     std::memcpy(&players[0x3C0], "Anna", 4);
+    // A scenario's switches with their thresholds (as „Dunkle Wolken am Horizont“ has them).
+    players[0x1C] = 0x88;
+    players[0x1D] = 0x02;
+    put_u16(players, 0x20, 500);
+    put_u16(players, 0x22, 2200);
+    players[0x24] = 97;
+    players[0x25] = 96;
     players[0x430 + 0] = 0x50;  // 50000 = 0xC350
     players[0x430 + 1] = 0xC3;
     players[0x430 + 4] = 0x0E;  // pirate
@@ -142,6 +149,12 @@ TEST_CASE("scenario: PLAYER4 and SHIP4 records") {
     CHECK((*p)[0].kind == assets::PlayerKind::Human);
     CHECK((*p)[0].color == assets::PlayerColor::Blue);
     CHECK((*p)[0].name == "Anna");
+    CHECK((*p)[0].scenario_flags == 0x288);
+    CHECK((*p)[0].rival_inhabitants == 500);
+    CHECK((*p)[0].own_inhabitants == 2200);
+    CHECK((*p)[0].own_development == 97);
+    CHECK((*p)[0].rival_development == 96);
+    CHECK((*p)[1].scenario_flags == 0);
     CHECK((*p)[1].money == 50000);
     CHECK((*p)[1].kind == assets::PlayerKind::Pirate);
     CHECK((*p)[1].slot == 1);

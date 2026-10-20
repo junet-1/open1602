@@ -40,10 +40,34 @@ void Engine::task_develop(AiPlayer& p) {
     pop(p);
     City* c = current_city(p);
     CityPlan* r = current_plan(p);
-    if (c == nullptr || r == nullptr) {
+    if (c == nullptr || r == nullptr || peaceful(p)) {
         return;
     }
     run_stage(p, *c, *r);
+}
+
+bool Engine::peaceful(AiPlayer& p) {
+    // 0x0040EEF0: a computer a scenario keeps quiet (player +0x70 bit 3) builds nothing while every
+    // human holds a peace treaty with it and it likes each of them at least -30. Once one does not,
+    // the switch goes for good (op 0x3A).
+    Player& self = player(p);
+    if (!self.scenario.has(scenario_flag::kPassive)) {
+        return false;
+    }
+    const Diplomacy& d = m_world.diplomacy();
+    for (std::size_t h = 0; h < m_world.players().size(); ++h) {
+        const Player& other = m_world.players()[h];
+        if (other.role != PlayerRole::Human || other.status != PlayerStatus::Playing) {
+            continue;
+        }
+        const auto b = static_cast<PlayerId>(h);
+        if (d.relation(p.player, b).peace != Treaty::Signed || d.mood(m_world, p.player, b, 0, now_ms()) < -30) {
+            self.scenario.flags &= ~scenario_flag::kPassive;
+            log(p, "the scenario's peace is over");
+            return false;
+        }
+    }
+    return true;
 }
 
 void Engine::refresh_city(AiPlayer& p) {
@@ -984,10 +1008,10 @@ void Engine::run_stage(AiPlayer& p, City& c, CityPlan& r) {
                 (r.slots[kSlotHouses].count > 23 && population(c, 1) >= 95) || now_ms() - r.stage_ms > 3'000'000;
             if (grown) {
                 // A first colony before the city grows on (the original waits for it forever if no
-                // island is found, S-097; Open1602 goes on once the search has failed). The original
-                // also skips colonies when a scenario sets player +0x70 bit 1; that switch is not read
-                // from PLAYER4 yet (docs/re/ai.md), so colonies are always allowed.
-                if (kontor_level(c) == 1 && p.cities < 2 && !p.colony_failed) {
+                // island is found, S-097; Open1602 goes on once the search has failed). Not if the
+                // scenario forbids colonies (0x00426A7B).
+                if (kontor_level(c) == 1 && p.cities < 2 && !p.colony_failed &&
+                    !player(p).scenario.has(scenario_flag::kNoColonies)) {
                     want_colony(p, 1, true, true);
                 } else if (money > 8000 || incomes_ok(p, 11)) {
                     const std::int32_t rank = land_rank(p);

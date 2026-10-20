@@ -16,9 +16,9 @@ inline constexpr std::uint16_t kPauseVideo = 6;
 
 /// Whether a video plays in the minimap's window. Messages play there; the logos and the intro,
 /// the credits (10), the pause (6, looping) and the ends of the game (defeat 998, 1010, 2020;
-/// missions fulfilled from 2500) fill the screen. Without a minimap on screen (the main menu, a
-/// game without the panel) a message's video fills the screen too: else its sound would play
-/// without a picture.
+/// missions fulfilled from 2500, the end of the campaigns 2990) fill the screen. Without a minimap
+/// on screen (the main menu, a game without the panel) a message's video fills the screen too:
+/// else its sound would play without a picture.
 [[nodiscard]] constexpr bool video_plays_in_minimap(std::uint16_t number, bool loop, bool intro,
                                                     bool minimap_shown) noexcept {
     const bool full =
@@ -32,6 +32,9 @@ struct VideoRequest {
     bool loop = false;
     bool intro = false;     ///< the logos and the intro: they queue after each other
     bool in_frame = false;  ///< in the picture frame of the main menu (the credits)
+    /// Waits behind the videos before it instead of replacing them: the original's chain after the
+    /// running video (Video_Update 0x00492410, next video 0x005B7014), e.g. 2990 after the success.
+    bool follows = false;
     /// In the minimap's window while the game goes on (video_plays_in_minimap); set when the
     /// video starts, by whether there is a minimap on screen then.
     bool in_minimap = false;
@@ -41,8 +44,8 @@ struct VideoRequest {
 class VideoQueue {
 public:
     /// Video_Request 0x00488C00: the latest request wins, it replaces the waiting ones; the logos
-    /// and the intro (`intro`) only queue after each other. True if the running video must stop
-    /// for it.
+    /// and the intro (`intro`) and a chained video (`follows`) only queue after the others. True if
+    /// the running video must stop for it.
     bool request(const VideoRequest& request);
     /// The next waiting video, taken from the queue.
     [[nodiscard]] std::optional<VideoRequest> take_next();

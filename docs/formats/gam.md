@@ -66,7 +66,9 @@ natives. The slot number is also the **owner number** in the island tiles
 | 0x00E | u8 | palaces built (runtime +0x87, at most one) |
 | 0x00F | u8 | cathedrals built (+0x88) |
 | 0x010, 0x012 | u16, u16 | triumphal arches: allotments, built (+0x8E, +0x90) |
-| 0x01C, 0x020–0x025 | bits, u8 × 6 | scenario attitude towards the other players with thresholds, only set in scenarios ([diplomacy.md](../re/diplomacy.md#mood)); Open1602 does not read it yet |
+| 0x01C | u32 | scenario switches (runtime +0x70), only for humans and computers, only set in scenarios: bit 1 no further cities, 2 no free trader, 3 quiet while at peace, 4 minds a human above 0x020 inhabitants, 5 fixed army, 6 no supply or patrol ships, 7 minds its own size below 0x022, 8 minds its own development below 0x024, 9 minds a human above 0x025 ([ai.md](../re/ai.md), [diplomacy.md](../re/diplomacy.md#mood)); Open1602 reads and writes them (`Player::scenario`) |
+| 0x020, 0x022 | u16 × 2 | inhabitants: of a rival (bit 4), the computer's own (bit 7) |
+| 0x024, 0x025 | u8 × 2 | development (0..159, see `city_development`): own (bit 8), of a rival (bit 9) |
 | 0x034 | u32 | **build levels reached**: bit n − 1 = INFRA level n (runtime +0x6C, [construction.md](../re/construction.md#unlocking)) |
 | 0x008 | u8 | **culprit**: who last destroyed a warehouse or a marketplace of this player (runtime +0x81, 7 = nobody; curse of the natives) |
 | 0x038, 0x03A | u16, u16 | monuments: allotments, built (+0x8A, +0x8C) |
