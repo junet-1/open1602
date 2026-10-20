@@ -124,6 +124,18 @@ TEST_CASE("save game: a world beyond the original's limits comes back whole") {
     REQUIRE(info.ok());
     CHECK(info->version == 1);
     CHECK(info->compressed == core::has_zlib());
+    // The list of savegames reads META from the head of the file (without zlib, packed files have none).
+    REQUIRE(info->meta.has_value());
+    CHECK(info->meta->width == 900);
+    CHECK(info->meta->height == 600);
+    CHECK(info->meta->time_ms == 123'456'750);
+    CHECK(info->meta->player == "Spieler 0");
+    auto unpacked = sim::write_game(world, buildings, nullptr, sim::SaveOptions{false});
+    REQUIRE(unpacked.ok());
+    auto plain_info = sim::save_info(*unpacked);
+    REQUIRE(plain_info.ok());
+    REQUIRE(plain_info->meta.has_value());
+    CHECK(plain_info->meta->player == "Spieler 0");
     std::vector<std::string> warnings;
     auto loaded = sim::read_game(*bytes, buildings, &warnings);
     REQUIRE(loaded.ok());

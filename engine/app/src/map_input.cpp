@@ -758,7 +758,7 @@ void MapInput::handle_event(const SDL_Event& event) {
                             m_tool.set_mode(BuildTool::Mode::Off);
                         }
                     } else if (auto demolish = m_tool.demolish_order(local(), *spot)) {
-                        m_commands.submit(*demolish);
+                        submit({*demolish}, false, m_confirm);  // asks before land is lost (S-035)
                     }
                 }
                 m_tool.release();
@@ -1292,7 +1292,7 @@ void MapInput::submit(std::vector<sim::Command> orders, bool sound, bool ask) {
     }
     if (ask && m_hud) {
         for (const sim::Command& c : orders) {
-            if (const auto q = order_question(world(), m_figures, local(), c)) {
+            if (const auto q = order_question(world(), m_buildings, m_figures, local(), c)) {
                 m_pending_orders = std::move(orders);
                 m_hud->ask(*q);
                 return;

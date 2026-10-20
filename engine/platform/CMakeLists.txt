@@ -9,6 +9,7 @@ endif()
 
 add_library(o1602_platform
     src/audio_output.cpp
+    src/mouse_cursor.cpp
     src/window.cpp
 )
 add_library(o1602::platform ALIAS o1602_platform)

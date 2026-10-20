@@ -22,6 +22,7 @@ constexpr sim::PlayerId kTrader = 2;
 /// have a soldier.
 struct Game {
     sim::World world{64, 64};
+    assets::BuildingTable buildings;
     assets::FigureTable figures;
     std::uint32_t my_ship = 0;
     std::uint32_t other_ship = 0;
@@ -56,7 +57,7 @@ struct Game {
     }
 
     [[nodiscard]] std::optional<std::string> ask(const sim::Command& c) const {
-        return app::order_question(world, figures, kMe, c);
+        return app::order_question(world, buildings, figures, kMe, c);
     }
 };
 

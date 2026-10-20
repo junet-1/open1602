@@ -7,6 +7,9 @@
 #include <utility>
 #include <vector>
 
+#include "o1602/core/file.hpp"
+#include "o1602/ui/localization.hpp"
+
 namespace o1602::app {
 
 namespace {
@@ -119,6 +122,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             s.mission_window = flag(value, s.mission_window);
         } else if (key == "sea_creatures_every") {
             s.sea_creatures_every = std::clamp(number(value, s.sea_creatures_every), 0, 3600);
+        } else if (key.starts_with("endless.")) {
+            (void)read_setup_line(s.endless, key.substr(8), value);
         }
     });
     return s;
@@ -149,6 +154,8 @@ std::string write_settings(const AppSettings& s) {
     for (const std::string& host : s.remembered_hosts) {
         out += "remembered_host = " + core::cp1252_to_utf8(host) + "\n";
     }
+    out += "# The last settings of the start dialog of the endless game\n";
+    out += write_setup(s.endless);
     return out;
 }
 
@@ -159,6 +166,7 @@ void SaveSlots::set(std::size_t slot, std::string name, std::uint8_t human_playe
     if (slot >= names.size()) {
         names.resize(slot + 1);
         humans.resize(slot + 1);
+        meta.resize(slot + 1);
     }
     names[slot] = std::move(name);
     humans[slot] = human_players;
@@ -172,6 +180,7 @@ void SaveSlots::set(std::size_t slot, std::string name, std::uint8_t human_playe
     const std::size_t count = std::min(std::max(kMinCount, used + 1), kMaxCount);
     names.resize(count);
     humans.resize(count);
+    meta.resize(count);
 }
 
 SaveSlots parse_slots(std::string_view text) {
@@ -211,6 +220,44 @@ std::filesystem::path slot_file(const std::filesystem::path& folder, std::size_t
     char name[32];
     std::snprintf(name, sizeof name, "spiel%02zu.o1602", slot);
     return folder / name;
+}
+
+void read_slot_meta(SaveSlots& slots, const std::filesystem::path& folder, std::optional<std::size_t> only) {
+    for (std::size_t i = 0; i < slots.size(); ++i) {
+        if (only && *only != i) {
+            continue;
+        }
+        slots.meta[i].reset();
+        if (slots.names[i].empty()) {
+            continue;
+        }
+        if (const auto bytes = core::read_file(slot_file(folder, i))) {
+            if (const auto info = sim::save_info(*bytes)) {
+                slots.meta[i] = info->meta;
+            }
+        }
+    }
+}
+
+std::vector<std::string> slot_details(const SaveSlots& slots) {
+    std::vector<std::string> out(slots.size());
+    for (std::size_t i = 0; i < slots.size(); ++i) {
+        if (i < slots.meta.size() && slots.meta[i]) {
+            out[i] = save_details(*slots.meta[i]);
+        }
+    }
+    return out;
+}
+
+std::string save_time(std::uint64_t ms) {
+    const std::uint64_t minutes = ms / 60'000;
+    const std::uint64_t m = minutes % 60;
+    return ui::tr("save.time", {std::to_string(minutes / 60), (m < 10 ? "0" : "") + std::to_string(m)});
+}
+
+std::string save_details(const sim::SaveMeta& meta) {
+    return ui::tr("save.details", {meta.player.empty() ? std::string("-") : meta.player, save_time(meta.time_ms),
+                                   std::to_string(meta.width), std::to_string(meta.height)});
 }
 
 }  // namespace o1602::app

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -32,11 +33,20 @@ struct SaveOptions {
     bool compress = true;
 };
 
+/// What the section META of a savegame says (docs/formats/o1602-save.md), for a list of savegames.
+struct SaveMeta {
+    std::uint32_t width = 0;  ///< of the world, in tiles
+    std::uint32_t height = 0;
+    std::uint64_t time_ms = 0;  ///< game time
+    std::string player;         ///< name of the first human player (Windows-1252)
+};
+
 /// What the header of a savegame says, for a list of savegames.
 struct SaveInfo {
     std::uint16_t version = 0;
     bool compressed = false;
-    std::uint64_t size = 0;  ///< of the sections, uncompressed
+    std::uint64_t size = 0;        ///< of the sections, uncompressed
+    std::optional<SaveMeta> meta;  ///< missing in a file without META (or a build without zlib)
 };
 
 /// Whether the bytes start like an Open1602 savegame.
@@ -48,7 +58,8 @@ struct SaveInfo {
                                                    const Simulation* simulation = nullptr,
                                                    const SaveOptions& options = {});
 
-/// The header of a savegame (checks magic and version, not the data).
+/// The header of a savegame and its META section (checks magic and version, not the data; unpacks
+/// only the head of the sections).
 [[nodiscard]] core::Result<SaveInfo> save_info(std::span<const std::uint8_t> bytes);
 
 /// Loads a savegame. Fails (with nothing loaded) if the file is damaged, of a newer Open1602,

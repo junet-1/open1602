@@ -366,6 +366,28 @@ TEST_CASE("construction: a market claims land; demolished, the land and what sta
     CHECK(island.city_at(12, 11) == 0);       // the Kontor still covers this
 }
 
+TEST_CASE("construction: before a market goes, what would lose its land is counted (S-035)") {
+    Island island;
+    island.found();
+    REQUIRE(island.build({{kMarket, 11, 11, 0, 0}}).placed == 1);
+    REQUIRE(island.build({{kRoad, 16, 12, 0, 0}}).placed == 1);
+    const sim::DemolishOrder market{0, 0, {11, 11}, {11, 11}};
+    // Roads alone fall without asking: nothing worth a warning.
+    CHECK(!sim::demolish_loss(island.world, island.buildings, market).any());
+    REQUIRE(island.build({{kHouse, 15, 13, 0, 0}}).placed == 1);
+    CHECK(island.city_at(16, 14) == 0);
+    const sim::DemolishLoss loss = sim::demolish_loss(island.world, island.buildings, market);
+    CHECK(loss.houses == 1);
+    CHECK(loss.buildings == 0);
+    CHECK(loss.any());
+    // Demolishing the house itself takes no land from anything.
+    CHECK(!sim::demolish_loss(island.world, island.buildings, sim::DemolishOrder{0, 0, {15, 13}, {15, 13}}).any());
+    // Inside the Kontor's circle, nothing is lost with the market.
+    island.demolish({15, 13}, {15, 13});
+    REQUIRE(island.build({{kHouse, 8, 13, 0, 0}}).placed == 1);
+    CHECK(!sim::demolish_loss(island.world, island.buildings, market).any());
+}
+
 TEST_CASE("construction: fields grow where the island is fertile, forest becomes meadow") {
     Island fertile;  // fertile for ware 46, ground Randwachs 100: every tile carries
     fertile.found();

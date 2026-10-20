@@ -2,7 +2,8 @@
 //
 // The main menu and the screens before a game (docs/re/ui.md "Main menu"; Menu_OnClick 0x0048B590,
 // Menu_Redraw 0x0048ABD0): BASE (main menu), HOST (list of scenarios or savegames), MISSION
-// (briefing, choice of level or part, high scores) and FARBWAHL (name and banner). The button
+// (briefing, choice of level or part, high scores) and FARBWAHL (name and banner), and for the
+// endless game Open1602's own start dialog with the game's settings (ADR 0008). The button
 // "Mehrspieler" opens Open1602's own multiplayer menu instead of the original's screens. The menu shows the screens and
 // answers with MenuEvents; loading and starting is the viewer's.
 #pragma once
@@ -16,6 +17,8 @@
 #include <vector>
 
 #include "app_settings.hpp"
+#include "endless_setup.hpp"
+#include "game_settings_menu.hpp"
 
 #include "o1602/assets/gad.hpp"
 #include "o1602/assets/game_directory.hpp"
@@ -48,7 +51,7 @@ struct MenuEvent {
         Quit,          ///< leave the program (after a question)
         Credits,       ///< video 10 in the picture frame
         Intro,         ///< video 58
-        NewEndless,    ///< endless game of `level` with `colour` and `name`
+        NewEndless,    ///< endless game of `level` with `colour`, `name` and the settings `endless`
         Scenario,      ///< start `path` with `name`
         LoadSlot,      ///< savegame `slot`
         ContinueLast,  ///< lastgame
@@ -61,11 +64,12 @@ struct MenuEvent {
     std::string name{};
     std::filesystem::path path{};
     std::size_t slot = 0;
+    EndlessSetup endless{};
 };
 
 class MainMenu {
 public:
-    enum class Screen : std::uint8_t { Base, Host, Mission, Colour };
+    enum class Screen : std::uint8_t { Base, Host, Mission, Colour, Settings };
 
     MainMenu(const assets::GameDirectory& game, const assets::TextTable* texts);
 
@@ -83,6 +87,11 @@ public:
     /// the list leaves out numbered missions above it, the mission screen disables campaign parts.
     void set_progress_file(std::filesystem::path file) { m_progress_file = std::move(file); }
     [[nodiscard]] const std::string& name() const noexcept { return m_name; }
+    /// The settings the start dialog of the endless game offers first (the last ones chosen).
+    void set_endless_setup(const EndlessSetup& setup) { m_endless = setup; }
+    [[nodiscard]] const EndlessSetup& endless_setup() const noexcept { return m_endless; }
+    /// Colours of Open1602's own screens (the start dialog).
+    void set_form_style(const ui::FormStyle& style) { m_settings.set_style(style); }
     /// "Neues Spiel" on the end screen: the mission screen of the scenario called `name`
     /// (Windows-1252), else the main menu. True if the scenario was found.
     bool open_mission(std::string_view name);
@@ -138,6 +147,9 @@ private:
     std::filesystem::path m_progress_file;
     assets::CampaignProgress m_progress;
     std::string m_name;
+    GameSettingsMenu m_settings;
+    EndlessSetup m_endless;
+    std::uint8_t m_banner = 0;  ///< chosen on the colour screen, for the start dialog
     bool m_name_fresh = false;  ///< the name was put in, not typed: the first key replaces it
     bool m_typing = false;
 };

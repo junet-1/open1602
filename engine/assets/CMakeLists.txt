@@ -8,6 +8,7 @@ add_library(o1602_assets
     src/cod.cpp
     src/cod_parser.cpp
     src/cod_predefined.cpp
+    src/cursor_resource.cpp
     src/figure_table.cpp
     src/gad.cpp
     src/high_scores.cpp

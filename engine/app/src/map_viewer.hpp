@@ -34,6 +34,7 @@
 #include "o1602/net/enet_transport.hpp"
 #include "o1602/net/lan.hpp"
 #include "o1602/net/session.hpp"
+#include "o1602/platform/mouse_cursor.hpp"
 #include "o1602/platform/window.hpp"
 #include "o1602/render/ambient.hpp"
 #include "o1602/render/animation_clock.hpp"
@@ -212,7 +213,9 @@ private:
     /// The game goes on in another world (a savegame, a scenario, a new game): the new game is
     /// built whole, then everything of the old one goes. `source`: the file it came from, for the
     /// window title when the game has no name of its own. Out of memory leaves the old game running.
-    core::Status replace_world(sim::World world, const std::filesystem::path& source = {});
+    /// `rules`: the settings of a new game; else those of the command line (a loaded game brings its own).
+    core::Status replace_world(sim::World world, const std::filesystem::path& source = {},
+                               const sim::Rules* rules = nullptr);
     /// The name of the game for the window title (UTF-8).
     [[nodiscard]] std::string game_title() const;
     /// The multiplayer part of the window title (players, ended, waiting), or nothing.
@@ -239,7 +242,9 @@ private:
     /// How the game stands for the local player now.
     [[nodiscard]] sim::GameOutcome local_outcome() const;
     /// A new endless game of `level` (from the menu): name and banner of the human.
-    core::Status start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name);
+    /// A new endless game with the settings of the start dialog (rules, an own world).
+    core::Status start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name,
+                               const EndlessSetup& setup);
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
     [[nodiscard]] static std::filesystem::path save_folder();
 
@@ -257,6 +262,10 @@ private:
     /// must have the same.
     [[nodiscard]] std::uint64_t content_fingerprint() const;
     /// The multiplayer menu was opened from the main menu: the search starts.
+    /// The original's cursors from Language.dll (the system's where it has none).
+    void load_cursors();
+    /// Arrow, target while something waits for a click on the map, none during a full-screen video.
+    void update_cursor(bool video_full_screen);
     void open_multiplayer_menu();
     /// The multiplayer menu: its model, what it asked for, the search on the local network.
     void apply_multiplayer_menu();
@@ -375,6 +384,7 @@ private:
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
     std::unique_ptr<platform::Window> m_window;
+    platform::MouseCursors m_cursors;  ///< the original's arrow and target (after the window, before SDL quits)
     std::array<std::optional<ZoomGraphics>, 3> m_graphics;
     std::unique_ptr<render::GraphicsPreloader> m_preloader;  ///< the CPU side of the zoom levels
 

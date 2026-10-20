@@ -49,3 +49,15 @@ TEST_CASE("app settings: savegame names are written as UTF-8 and read back") {
     // A file of an older version.
     CHECK(app::parse_slots("1 1 M\xfchle\n").names[1] == "M\xfchle");
 }
+
+TEST_CASE("app settings: what a savegame's META says, as a line of the lists") {
+    app::SaveSlots slots;
+    slots.set(20, "late", 1);
+    CHECK(slots.meta.size() == slots.names.size());
+    CHECK(app::slot_details(slots)[20].empty());  // no META read yet
+    slots.meta[20] = sim::SaveMeta{500, 350, (2 * 60 + 5) * 60'000ULL + 59'999, "Merlin"};
+    CHECK(app::save_time(slots.meta[20]->time_ms) == "2:05 h");
+    CHECK(app::slot_details(slots)[20] == "Merlin, played 2:05 h, map 500 x 350");
+    slots.meta[20]->player.clear();
+    CHECK(app::save_details(*slots.meta[20]).starts_with("-, "));
+}

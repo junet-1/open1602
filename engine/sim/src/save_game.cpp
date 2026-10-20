@@ -106,7 +106,18 @@ core::Result<SaveInfo> save_info(std::span<const std::uint8_t> bytes) {
     if (!h) {
         return h.error();
     }
-    return SaveInfo{h->version, (h->flags & kCompressed) != 0, h->size};
+    SaveInfo info{h->version, (h->flags & kCompressed) != 0, h->size, std::nullopt};
+    // META comes first and is small; a list of savegames needs no more of the file.
+    constexpr std::size_t kHead = 4096;
+    const auto stored = bytes.subspan(kHeaderSize);
+    if (info.compressed) {
+        if (auto head = core::zlib_inflate_prefix(stored, kHead)) {
+            info.meta = save::read_meta(*head);
+        }
+    } else {
+        info.meta = save::read_meta(stored.subspan(0, std::min(stored.size(), kHead)));
+    }
+    return info;
 }
 
 core::Result<World> read_game(std::span<const std::uint8_t> bytes, const assets::BuildingTable& buildings,

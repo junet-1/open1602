@@ -19,6 +19,8 @@ dialog.break_peace = Break the peace treaty with {1}?\nThis means war.
 dialog.declare_war = An attack means war with {1}.\nDeclare war?
 # {1}: the ship's name
 dialog.scuttle_ship = Scuttle the ship “{1}”?\nIts cargo is lost.
+# {1}: houses, {2}: other buildings that lose their land
+dialog.demolish_land = Demolish it?\n{1} houses and {2} other buildings lose their land\nand fall to ruins.
 
 # Notes in the status line
 # {1}: the file's name
@@ -38,6 +40,10 @@ menu.part = Part {1}
 menu.default_name = Nameless
 # {1}: the number of the slot
 save.default_name = Savegame {1}
+# A savegame in the lists: {1} the player's name, {2} the time played, {3} x {4} the map's size
+save.details = {1}, played {2}, map {3} x {4}
+# {1} hours, {2} minutes (two digits)
+save.time = {1}:{2} h
 
 # Key overview (F1)
 keys.title = Keys (click or F1 closes)
@@ -278,3 +284,60 @@ error.not_found = the file does not exist
 error.damaged = the file is damaged or no savegame
 error.unsupported = the file needs a newer Open1602 or other game data
 error.platform = the system refused
+
+# Start dialog of the endless game (ADR 0008)
+setup.title = New endless game: settings
+setup.group.economy = Economy
+setup.group.limits = Limits
+setup.group.disasters = Disasters
+setup.group.world = World
+setup.refund = Refund on demolition
+setup.refund.none = None
+# {1}: the share of the costs in percent
+setup.refund.partial = {1} %
+setup.refund.full = Full costs
+setup.trader = Free trader's prices
+setup.trader.original = As usual
+setup.trader.market = By the market
+setup.ships = Ships per player
+setup.units = Units per player
+setup.unlimited = Unlimited
+setup.speed = Highest game speed
+# {1}: the factor
+setup.speed.value = {1} ×
+setup.droughts = Droughts
+setup.droughts.game = As the level
+setup.droughts.rare = Rare
+setup.droughts.normal = Normal
+setup.droughts.frequent = Frequent
+setup.volcanoes = Volcanoes
+setup.volcanoes.game = As the map
+setup.on = On
+setup.off = Off
+setup.map = Map
+setup.map.original = The original's
+setup.map.own = A world of its own
+setup.size = Size
+# {1}: width, {2}: height in tiles
+setup.size.value = {1} × {2}
+setup.players = Players
+setup.islands = Islands
+setup.island_sizes = Island sizes
+setup.island_sizes.small = Small
+setup.island_sizes.mixed = Mixed
+setup.island_sizes.large = Large
+setup.villages = Native villages
+setup.volcano_islands = Volcano islands
+setup.amount.none = None
+setup.amount.few = Few
+setup.amount.normal = Normal
+setup.amount.many = Many
+setup.starts = Starting places
+setup.starts.spread = Apart
+setup.starts.together = Together
+setup.resources = Every raw material
+setup.original = Original rules
+setup.defaults = Open1602 defaults
+setup.back = Back
+setup.start = Start game
+setup.hint = A click on a value chooses the next one. The settings stay with the game and its savegames. A world of its own is made for the players chosen; on the original's maps four play.

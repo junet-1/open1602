@@ -16,6 +16,7 @@
 #include <utility>
 
 #include "o1602/assets/chunk_file.hpp"
+#include "o1602/assets/cursor_resource.hpp"
 #include "o1602/assets/high_scores.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
@@ -224,6 +225,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         return window.error();
     }
     viewer->m_window = std::move(window).value();
+    viewer->load_cursors();
     // The viewer's own copy: GameSound keeps a pointer, and `game` may be a temporary (UI-15).
     viewer->m_sound = std::make_unique<GameSound>(viewer->m_game, options.effects, options.music);
     viewer->m_video = std::make_unique<VideoController>(
@@ -538,6 +540,7 @@ int MapViewer::run() {
         last = now;
         // A video that starts now plays in the minimap's window only while one is on screen.
         const bool video = m_video->frame(now, m_hud && !m_hud->menu_active());
+        update_cursor(video && m_video->full_screen());
         if (video && m_video->full_screen()) {
             // The game stands still while a video fills the screen (the original's main loop
             // 0x00408293); the time does not reach the simulation afterwards. Not in a multiplayer
@@ -1721,6 +1724,7 @@ void MapViewer::load_options() {
     m_ambient.set_config(ambient_config());
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
+        read_slot_meta(m_slots, save_folder());
     }
     if (!m_hud) {
         return;
@@ -1731,11 +1735,13 @@ void MapViewer::load_options() {
     model.tracks = m_sound ? m_sound->tracks() : std::vector<std::string>{};
     model.slot_names = m_slots.names;
     model.slot_humans = m_slots.humans;
+    model.slot_details = slot_details(m_slots);
     if (MainMenu* menu = m_hud->menu()) {
         menu->set_slots(m_slots);
         menu->set_score_folder(data_folder() / "scores");
         menu->set_progress_file(data_folder() / "progress.cfg");
         menu->set_name(m_app_settings.player_name);
+        menu->set_endless_setup(m_app_settings.endless);
     }
 }
 
@@ -1797,8 +1803,10 @@ void MapViewer::apply_options() {
                     humans = static_cast<std::uint8_t>(humans + (p.role == sim::PlayerRole::Human ? 1 : 0));
                 }
                 m_slots.set(e.value, name, humans);
+                read_slot_meta(m_slots, save_folder(), e.value);
                 model.slot_names = m_slots.names;
                 model.slot_humans = m_slots.humans;
+                model.slot_details = slot_details(m_slots);
                 const std::string text = write_slots(m_slots);
                 const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
                 if (auto written = core::write_file_atomic(save_folder() / "slots.cfg",
@@ -1928,12 +1936,13 @@ core::Result<sim::World> MapViewer::read_world(const std::filesystem::path& path
     return world;
 }
 
-core::Status MapViewer::replace_world(sim::World world, const std::filesystem::path& source) {
+core::Status MapViewer::replace_world(sim::World world, const std::filesystem::path& source, const sim::Rules* rules) {
     // The new game is built whole before anything of the old one goes: if memory runs out on the
     // way, the old game goes on.
     std::unique_ptr<GameState> next;
     try {
-        next = std::make_unique<GameState>(std::move(world), m_buildings, m_figures, m_options.rules);
+        next = std::make_unique<GameState>(std::move(world), m_buildings, m_figures,
+                                           rules != nullptr ? *rules : m_options.rules);
     } catch (const std::bad_alloc&) {
         return core::make_error(core::ErrorCode::PlatformError, "not enough memory for the game");
     }
@@ -1973,7 +1982,8 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     return core::Ok{};
 }
 
-core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name) {
+core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name,
+                                      const EndlessSetup& setup) {
     if (m_session && m_session->ended()) {
         end_session();  // one that ended in its game stood only to show the game
     }
@@ -1994,6 +2004,12 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
     o.name = name;
     o.world = m_options.world;
     o.world.seed = (std::uint64_t{device()} << 32U) | device();
+    o.world.guarantee_resources = setup.rules.guarantee_resources;
+    if (setup.own_world) {
+        sim::WorldSettings custom = setup.world;
+        custom.players = static_cast<std::uint8_t>(std::min<std::size_t>(custom.players, sim::kMaxPlayers));
+        o.custom = custom;
+    }
     const std::time_t now = std::time(nullptr);
     if (const std::tm* t = std::localtime(&now)) {
         o.game_id =
@@ -2009,7 +2025,8 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }
-    return replace_world(std::move(world).value());
+    name_more_players(*world);
+    return replace_world(std::move(world).value(), {}, &setup.rules);
 }
 
 void MapViewer::apply_menu() {
@@ -2061,7 +2078,11 @@ void MapViewer::apply_menu() {
                 open_multiplayer_menu();
                 return;  // the rest belongs to the main menu, which is gone
             case MenuEvent::Kind::NewEndless:
-                started = start_endless(e.level, e.colour, e.name);
+                started = start_endless(e.level, e.colour, e.name, e.endless);
+                if (started && !(e.endless == m_app_settings.endless)) {
+                    m_app_settings.endless = e.endless;
+                    save_settings();
+                }
                 break;
             case MenuEvent::Kind::Scenario:
                 started = load_game(e.path);
@@ -2096,6 +2117,42 @@ void MapViewer::apply_menu() {
         }
         break;  // the rest belongs to the menu that is gone
     }
+}
+
+void MapViewer::load_cursors() {
+    const auto dll = m_game.resolve("Language.dll");
+    if (!dll) {
+        std::fprintf(stderr, "cursors: Language.dll is missing\n");
+        return;
+    }
+    const auto bytes = core::read_file(*dll);
+    if (!bytes) {
+        std::fprintf(stderr, "cursors: %s\n", bytes.error().message.c_str());
+        return;
+    }
+    using Shape = platform::MouseCursors::Shape;
+    for (const auto& [shape, id] :
+         {std::pair{Shape::Arrow, assets::kArrowCursor}, std::pair{Shape::Target, assets::kTargetCursor}}) {
+        const auto image = assets::read_cursor(*bytes, id);
+        if (!image) {
+            std::fprintf(stderr, "cursors: %s\n", image.error().message.c_str());
+        } else if (!m_cursors.set_image(shape, image->width, image->height, image->hot_x, image->hot_y, image->rgba)) {
+            std::fprintf(stderr, "cursors: %s\n", SDL_GetError());
+        }
+    }
+}
+
+void MapViewer::update_cursor(bool video_full_screen) {
+    using Shape = platform::MouseCursors::Shape;
+    // Cursor_Apply (0x00489460): the arrow, the target in the modes where a window waits for a
+    // click on the map, none while a video plays.
+    Shape shape = Shape::Arrow;
+    if (video_full_screen) {
+        shape = Shape::Hidden;
+    } else if (m_hud && !m_hud->menu_active() && (m_hud->picking() || m_input->pick() != MapInput::Pick::None)) {
+        shape = Shape::Target;
+    }
+    m_cursors.show(shape);
 }
 
 void MapViewer::present() {
