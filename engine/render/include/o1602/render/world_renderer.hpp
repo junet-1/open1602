@@ -191,14 +191,15 @@ struct TileMark {
 /// Colour of the hatching over an area dragged out for fields or trees (History Edition).
 inline constexpr assets::Rgba kDragHatch{202, 172, 52, 255};
 
-/// Brightness of a dimmed tile (of 255).
-inline constexpr std::uint8_t kDimBrightness = 120;
+/// Brightness of a dimmed tile (of 255): the original's shading tables 1 and 2 map each colour
+/// to the palette colour nearest to 0.62 times it (0x004032F0); Open1602 scales the colours.
+inline constexpr std::uint8_t kDimBrightness = 158;
 
 /// Colour of the dashed border of a catchment circle.
 inline constexpr assets::Rgba kCircleOutline{255, 230, 0, 255};
 
-/// Tiles drawn darker, as the original does while the player builds (tile bit 27, drawn through
-/// a shading table with colour 0xD7): only the land the player can build on stays lit. A clicked
+/// Tiles drawn darker, as the original does while the player builds (the fourth byte of its world
+/// map cells picks a shading table, 0x00486B60): only the land the player can build on stays lit. A clicked
 /// building with a catchment narrows that to the land inside its circle, a clicked Kontor adds
 /// the water its ships trade from. A building being placed shows its circle as a dashed border
 /// instead, drawn whole, over land and water alike.
