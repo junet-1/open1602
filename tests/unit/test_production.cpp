@@ -48,6 +48,7 @@ assets::FigureTable make_figures() {
         "  Objekt: ANIM\n"
         "    Nummer: 0\n    Kind: 1\n    AnimOffs: 0\n    AnimAdd: 1\n    AnimAnz: 4\n    AnimSpeed: 50\n"
         "    Nummer: 1\n    Kind: 1\n    AnimOffs: 4\n    AnimAdd: 1\n    AnimAnz: 4\n    AnimSpeed: 50\n"
+        "    Nummer: 2\n    Kind: 1\n    AnimOffs: 8\n    AnimAdd: 1\n    AnimAnz: 4\n    AnimSpeed: 50\n"
         "  EndObj\n"
         "  Nummer: 48\n  Gfx: 20\n  Rotate: 0\n  Posoffs: -20, 20\n  Fahnoffs: -0.5, 0.25, 2.0\n"
         "  Objekt: ANIM\n"
@@ -250,9 +251,24 @@ TEST_CASE("production: smoke and status icons on buildings") {
     world.add_cost_building(sim::CostBuilding{sim::CostBuilding::Kind::Shipyard, 0, 4, 0, false});
     REQUIRE(render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
     CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10);  // ANIM 0: switched off
+    const std::int32_t off_y = s.parts[0].y;
     world.cost_buildings().back().enabled = true;
     CHECK(!render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
+    // Short of material: ANIM 1 once it has gone Maxnorohst (5) cycles without (0x004790C0).
+    world.cost_buildings().back().idle_cycles = 4;
+    CHECK(!render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
+    world.cost_buildings().back().idle_cycles = 5;
+    REQUIRE(render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
+    CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10 + 4);
+    CHECK(s.parts[0].y == off_y);
+    // On fire: ANIM 2, 0.4 tile heights lower, before the other two states.
     world.cost_buildings().back().enabled = false;
+    world.disasters().push_back(sim::Disaster{sim::Disaster::Kind::Fire, 0, 4, 0, 0, 20, 0});
+    REQUIRE(render::building_figure_sprites(yard, world, buildings, view, layers, 0, s));
+    CHECK(s.parts[0].sprite == atlas->sheet_base(1) + 10 + 8);
+    CHECK(s.parts[0].y > off_y);
+    world.disasters().clear();
+    world.cost_buildings().back().idle_cycles = 0;
 
     layers.local_player = sim::kNoPlayer;
     CHECK(!render::building_figure_sprites(icon, world, buildings, view, layers, 0, s));

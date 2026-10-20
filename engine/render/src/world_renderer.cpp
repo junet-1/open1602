@@ -8,6 +8,7 @@
 #include <numbers>
 
 #include "o1602/assets/game_data.hpp"
+#include "o1602/sim/disasters.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/ships.hpp"
 
@@ -420,6 +421,14 @@ constexpr std::uint16_t kFigureSensenmann = 56;  // SENSENMANN: plague and fire 
 constexpr std::uint16_t kFigureShowEisen = 57;   // SHOWEISEN: ore deposit symbol
 constexpr std::uint16_t kFigureShowGold = 58;    // SHOWGOLD: gold vein symbol
 
+const sim::CostBuilding* shipyard_at(const sim::World& world, std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+    const auto& yards = world.cost_buildings();
+    const auto yard = std::find_if(yards.begin(), yards.end(), [&](const sim::CostBuilding& b) {
+        return b.kind == sim::CostBuilding::Kind::Shipyard && b.island == island && b.x == x && b.y == y;
+    });
+    return yard != yards.end() ? &*yard : nullptr;
+}
+
 }  // namespace
 
 /// Building centre (0x00463A70) plus the figure's Fahnoffs turned with the building (0x004466A0,
@@ -690,16 +699,29 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
             }
             std::uint8_t anim = 0;
             if (state == nullptr && figure.role == BuildingFigureRole::Status) {
-                // A shipyard (kind 0x19, 0x004790C0): switched off -> ANIM 0. Short of material
-                // (ANIM 1) and on fire (ANIM 2) come from runtime bits Open1602 has no state for yet.
-                const auto& yards = world.cost_buildings();
-                const auto yard = std::find_if(yards.begin(), yards.end(), [&](const sim::CostBuilding& yard_state) {
-                    return yard_state.kind == sim::CostBuilding::Kind::Shipyard && yard_state.island == figure.island &&
-                           yard_state.x == figure.origin_x && yard_state.y == figure.origin_y;
-                });
-                if (yard == yards.end() || yard->enabled || figure.owner != layers.local_player ||
-                    figure.owner == sim::kNoPlayer) {
+                // A shipyard of the local player (kind 0x19, 0x004790C0): on fire -> ANIM 2, 0.4
+                // lower; switched off -> ANIM 0; Maxnorohst cycles without material -> ANIM 1.
+                if (figure.owner != layers.local_player || figure.owner == sim::kNoPlayer) {
                     return false;
+                }
+                const sim::CostBuilding* yard = shipyard_at(world, figure.island, figure.origin_x, figure.origin_y);
+                if (yard == nullptr) {
+                    return false;
+                }
+                const sim::Disaster* disaster =
+                    sim::disaster_at(world, figure.island, figure.origin_x, figure.origin_y);
+                if (disaster != nullptr && disaster->kind == sim::Disaster::Kind::Fire) {
+                    anim = 2;
+                    z -= 0.4;
+                } else if (!yard->enabled) {
+                    anim = 0;
+                } else {
+                    const sim::MapCell& cell = world.islands()[figure.island].map.top(figure.origin_x, figure.origin_y);
+                    const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
+                    if (b == nullptr || b->max_idle_cycles == 0 || yard->idle_cycles < b->max_idle_cycles) {
+                        return false;
+                    }
+                    anim = 1;
                 }
             } else if (state == nullptr) {
                 return false;

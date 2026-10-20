@@ -350,3 +350,37 @@ TEST_CASE("ambient: a juggler on the market of a city with more than 59 citizens
     CHECK(j.z == 0.6);
     CHECK(j.direction == 2);
 }
+
+TEST_CASE("ambient: townsfolk and jugglers only on islands the local player has discovered") {
+    Scene s;
+    sim::Production market;
+    market.x = 20;
+    market.y = 2;
+    s.world.set_production(market);
+    s.city().inhabitants = {0, 0, 30, 30, 0};
+    s.view.local_player = 0;
+    render::Ambient ambient(1);
+    const auto jugglers = [&] {
+        return std::count_if(ambient.effects().begin(), ambient.effects().end(),
+                             [](const render::EffectFigure& e) { return e.sheet == assets::FigureSheet::Gaukler; });
+    };
+    // Undiscovered: nothing in the picture, although the scenery goes on as on every computer.
+    bool walked = false;
+    s.run(ambient, 40'000'000, [&] {
+        walked = walked || !ambient.walkers().empty();
+        return !walked && jugglers() == 0;
+    });
+    CHECK(!walked);
+    CHECK(jugglers() == 0);
+    CHECK(ambient.stats().walkers > 0);
+    // Discovered: the same scenery shows.
+    s.world.island(0).discover(0);
+    s.run(ambient, 40'000'000, [&] { return ambient.walkers().empty(); });
+    CHECK(!ambient.walkers().empty());
+    CHECK(jugglers() == 1);
+    // Without a local player (no human at this computer) every island shows.
+    s.world.island(0).discovered.clear();
+    s.view.local_player = sim::kNoPlayer;
+    s.run(ambient, 1000);
+    CHECK(jugglers() == 1);
+}

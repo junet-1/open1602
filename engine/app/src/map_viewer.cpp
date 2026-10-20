@@ -1188,6 +1188,7 @@ void MapViewer::update_ambient() {
     render::AmbientView view;
     view.game_speed = m_state->simulation.speed();
     view.tick_fraction = m_tick_fraction;
+    view.local_player = m_local_player;
     // Islands on screen: those overlapping the box of the tiles at the screen's corners and edges.
     std::uint32_t x0 = m_state->world.width();
     std::uint32_t y0 = m_state->world.height();
