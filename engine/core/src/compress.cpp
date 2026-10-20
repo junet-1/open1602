@@ -80,6 +80,39 @@ Result<std::vector<std::uint8_t>> zlib_inflate(std::span<const std::uint8_t> str
 #endif
 }
 
+Result<std::vector<std::uint8_t>> zlib_inflate_prefix(std::span<const std::uint8_t> stream, std::size_t size) {
+#if defined(O1602_HAVE_ZLIB)
+    if (stream.size() > std::numeric_limits<uInt>::max() || size > std::numeric_limits<uInt>::max()) {
+        return make_error(ErrorCode::OutOfRange, "zlib: too large");
+    }
+    std::vector<std::uint8_t> out(size);
+    z_stream z{};
+    if (inflateInit(&z) != Z_OK) {
+        return make_error(ErrorCode::InvalidFormat, "zlib: cannot unpack");
+    }
+    std::uint8_t none = 0;
+    z.next_in = const_cast<Bytef*>(stream.data());  // zlib's API is not const; it does not write
+    z.avail_in = static_cast<uInt>(stream.size());
+    z.next_out = out.empty() ? &none : out.data();
+    z.avail_out = static_cast<uInt>(size);
+    int status = Z_OK;
+    while (status == Z_OK && z.avail_out > 0) {
+        status = inflate(&z, Z_NO_FLUSH);
+    }
+    const std::size_t got = size - z.avail_out;
+    inflateEnd(&z);
+    if (status != Z_OK && status != Z_STREAM_END && !(status == Z_BUF_ERROR && got == size)) {
+        return make_error(ErrorCode::InvalidFormat, "zlib: damaged stream");
+    }
+    out.resize(got);
+    return out;
+#else
+    (void)stream;
+    (void)size;
+    return make_error(ErrorCode::Unsupported, "zlib: this build of Open1602 has no zlib");
+#endif
+}
+
 namespace {
 
 constexpr std::array<std::uint32_t, 256> make_crc_table() noexcept {

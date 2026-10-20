@@ -145,6 +145,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         style.hover = ui::nearest_colour(palette, 72, 50, 24);
         style.selected = ui::nearest_colour(palette, 112, 80, 30);
         m_multiplayer = std::make_unique<MultiplayerMenu>(style);
+        m_menu->set_form_style(style);
         // The banners of the slots in the palette's nearest colours, grey for any further one.
         render::BannerTable banners = render::BannerTable::original();
         banners.add_more_players();

@@ -47,6 +47,8 @@ add_executable(o1602_tests
     unit/test_unit_selection.cpp
     unit/test_video.cpp
     unit/test_net.cpp
+    unit/test_cursor_resource.cpp
+    unit/test_endless_setup.cpp
     unit/test_multiplayer_menu.cpp
     unit/test_sea_paths.cpp
     unit/test_land_paths.cpp

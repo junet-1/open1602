@@ -15,8 +15,11 @@
 #include <string_view>
 #include <vector>
 
+#include "endless_setup.hpp"
+
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/core/text.hpp"
+#include "o1602/sim/save_game.hpp"
 
 namespace o1602::app {
 
@@ -32,6 +35,8 @@ struct AppSettings {
     /// Multiplayer hosts joined by address, the latest first ("name[:port]"); at most kMaxHosts.
     std::vector<std::string> remembered_hosts;
     static constexpr std::size_t kMaxHosts = 8;
+    /// The last settings chosen in the start dialog of the endless game.
+    EndlessSetup endless;
 };
 
 /// "key = value" lines; unknown keys are passed over, missing ones keep `defaults`.
@@ -46,6 +51,8 @@ struct SaveSlots {
     static constexpr std::size_t kMaxCount = 10'000;                       ///< a damaged file cannot ask for more
     std::vector<std::string> names = std::vector<std::string>(kMinCount);  ///< Windows-1252, empty = free
     std::vector<std::uint8_t> humans = std::vector<std::uint8_t>(kMinCount);
+    /// What each savegame's section META says (not in slots.cfg; read_slot_meta reads the files).
+    std::vector<std::optional<sim::SaveMeta>> meta = std::vector<std::optional<sim::SaveMeta>>(kMinCount);
 
     [[nodiscard]] std::size_t size() const noexcept { return names.size(); }
     /// Names a slot (beyond the list: the list grows) and keeps one free slot after the last used.
@@ -56,6 +63,16 @@ struct SaveSlots {
 [[nodiscard]] std::string write_slots(const SaveSlots& slots);
 /// File of a slot in the savegame folder: spiel00.o1602, spiel01.o1602, ..., spiel100.o1602, ...
 [[nodiscard]] std::filesystem::path slot_file(const std::filesystem::path& folder, std::size_t slot);
+/// The META sections of the savegames of the named slots (only the head of each file is unpacked);
+/// with `only`, of that slot alone.
+void read_slot_meta(SaveSlots& slots, const std::filesystem::path& folder,
+                    std::optional<std::size_t> only = std::nullopt);
+/// A savegame in the lists: the player, the time played and the size of the map.
+[[nodiscard]] std::string save_details(const sim::SaveMeta& meta);
+/// save_details of every slot ("" where META is unknown).
+[[nodiscard]] std::vector<std::string> slot_details(const SaveSlots& slots);
+/// Game time as hours and minutes.
+[[nodiscard]] std::string save_time(std::uint64_t ms);
 
 using core::utf8_to_cp1252;
 

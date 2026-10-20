@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -12,6 +13,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/result.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
@@ -32,6 +34,9 @@ enum class TileMode : std::uint8_t { Full, Differences };
 [[nodiscard]] core::Result<World> world_from_sections(std::span<const std::uint8_t> sections,
                                                       const assets::BuildingTable& buildings,
                                                       std::vector<std::string>* warnings);
+
+/// The META section, if the sections (or their head) begin with it.
+[[nodiscard]] std::optional<SaveMeta> read_meta(std::span<const std::uint8_t> sections);
 
 /// Reads every section and, only if all of them are sound and fit the world, applies them.
 /// Sections of a later version that are not required are skipped and reported in `warnings`.

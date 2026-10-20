@@ -245,6 +245,33 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     return out.take();
 }
 
+std::optional<SaveMeta> read_meta(std::span<const std::uint8_t> sections) {
+    core::ByteReader reader(sections);
+    const auto id = reader.u32();
+    const auto version = reader.u16();
+    (void)reader.u16();  // flags
+    const auto size = reader.u32();
+    if (id != kMeta || version != 1 || !size) {
+        return std::nullopt;
+    }
+    const auto body = reader.bytes(*size);
+    if (!body) {
+        return std::nullopt;
+    }
+    core::ByteReader sr(*body);
+    StateIn in(sr);
+    SaveMeta meta;
+    meta.width = in.u32();
+    meta.height = in.u32();
+    meta.time_ms = in.u64();
+    in.u64();  // fingerprint of the building data
+    meta.player = in.string();
+    if (!in.ok()) {
+        return std::nullopt;
+    }
+    return meta;
+}
+
 core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, const assets::BuildingTable& buildings,
                                         std::vector<std::string>* warnings) {
     std::optional<core::Result<World>> world;

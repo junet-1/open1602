@@ -28,8 +28,11 @@ struct OptionsModel {
     /// The savegames by slot (empty name: free), as many as there are; the list scrolls.
     std::vector<std::string> slot_names;
     std::vector<std::uint8_t> slot_humans;  ///< human players in the savegame (icon from 2)
-    std::size_t resolution = 2;             ///< 0 640 x 480, 1 800 x 600, 2 1024 x 768
-    bool mission_window = false;            ///< "Auftrag ansehen"
+    /// Per slot the player, time played and map size (save_details); empty if unknown. The status
+    /// bar shows it over the slot.
+    std::vector<std::string> slot_details;
+    std::size_t resolution = 2;   ///< 0 640 x 480, 1 800 x 600, 2 1024 x 768
+    bool mission_window = false;  ///< "Auftrag ansehen"
     bool multiplayer = false;
 };
 

@@ -4,6 +4,7 @@
 #include <string_view>
 #include <variant>
 
+#include "o1602/sim/construction.hpp"
 #include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
@@ -34,8 +35,18 @@ sim::PlayerId target_owner(const sim::World& world, const sim::Target& t) {
     }
 }
 
-std::optional<std::string> order_question(const sim::World& world, const assets::FigureTable& figures,
-                                          sim::PlayerId local, const sim::Command& command) {
+std::optional<std::string> order_question(const sim::World& world, const assets::BuildingTable& buildings,
+                                          const assets::FigureTable& figures, sim::PlayerId local,
+                                          const sim::Command& command) {
+    if (const auto* d = std::get_if<sim::DemolishOrder>(&command)) {
+        // A market, Kontor or tower whose land nothing else covers takes the buildings on it down
+        // with it; the original does so without a word (S-035).
+        const sim::DemolishLoss loss = sim::demolish_loss(world, buildings, *d);
+        if (loss.any()) {
+            return ui::tr("dialog.demolish_land", {std::to_string(loss.houses), std::to_string(loss.buildings)});
+        }
+        return std::nullopt;
+    }
     if (const auto* c = std::get_if<sim::ShipCommand>(&command);
         c != nullptr && c->op == sim::ShipCommand::Op::Scuttle) {
         const sim::Ship* s = world.ship(c->ship);

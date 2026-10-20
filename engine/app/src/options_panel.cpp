@@ -449,6 +449,10 @@ std::optional<std::string> OptionsPanel::help(const std::vector<std::string>& le
             } else if (*id >= kSlotHumans && *id < kSlotHumans + 12) {
                 line = 176;
             } else if (*id >= kSlotFrame && *id < kSlotFrame + 12) {
+                const std::size_t i = m_slot_first + static_cast<std::size_t>(*id - kSlotFrame);
+                if (i < model.slot_details.size() && !model.slot_details[i].empty()) {
+                    return model.slot_details[i];  // Open1602: what the savegame holds
+                }
                 line = 175;
             } else if (*id == kSlotsUp || *id == kSlotsDown) {
                 line = 182;  // the music list's "scroll the list"

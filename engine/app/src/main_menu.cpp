@@ -200,6 +200,7 @@ void MainMenu::set_scale(double scale) {
             (*p)->set_scale(scale);
         }
     }
+    m_settings.set_scale(scale);
 }
 
 ui::Panel* MainMenu::panel() {
@@ -212,6 +213,7 @@ ui::Panel* MainMenu::panel() {
             p = &m_mission;
             break;
         case Screen::Colour:
+        case Screen::Settings:  // drawn by its form; the colour screen stands behind it
             p = &m_colour;
             break;
         case Screen::Base:
@@ -234,9 +236,15 @@ void MainMenu::refresh_host() {
             p.set_visible(kRowText + k, shown);
             p.set_visible(kRowStars + k, false);
             p.set_visible(kRowPlug + k, false);
-            if (shown) {
-                p.set_text(kRowText + k, m_slots.names[i].empty() ? std::string("-") : m_slots.names[i]);
+            if (!shown) {
+                continue;
             }
+            // Open1602 adds the time played from the savegame's META (the full line in the settings).
+            std::string text = m_slots.names[i].empty() ? std::string("-") : m_slots.names[i];
+            if (!m_slots.names[i].empty() && i < m_slots.meta.size() && m_slots.meta[i]) {
+                text += "  (" + save_time(m_slots.meta[i]->time_ms) + ")";
+            }
+            p.set_text(kRowText + k, text);
         }
         p.set_visible(kListUp, m_first > 0);
         p.set_visible(kListDown, m_first + kRows < count);
@@ -476,12 +484,34 @@ std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, 3>& f
         p->set_scroll(kBriefing, m_briefing_line);
     } else if (m_screen == Screen::Colour) {
         refresh_colour();
+    } else if (m_screen == Screen::Settings) {
+        return m_settings.draw(fonts);
     }
     return p->draw(fonts);
 }
 
 std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down) {
     std::vector<MenuEvent> out;
+    if (m_screen == Screen::Settings) {
+        switch (m_settings.mouse(x, y, down)) {
+            case GameSettingsMenu::Result::Start: {
+                m_endless = m_settings.setup();
+                MenuEvent ev{MenuEvent::Kind::NewEndless};
+                ev.level = m_variant == 0xFF ? 0 : m_variant;
+                ev.colour = m_banner;
+                ev.name = m_name;
+                ev.endless = m_endless;
+                out.push_back(std::move(ev));
+                break;
+            }
+            case GameSettingsMenu::Result::Back:
+                back();
+                break;
+            case GameSettingsMenu::Result::None:
+                break;
+        }
+        return out;
+    }
     ui::Panel* p = panel();
     if (p == nullptr) {
         return out;
@@ -575,14 +605,15 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                 if (e.id == kNameBox) {
                     m_typing = true;
                 } else if (e.id >= kBanner && e.id < kBanner + 4) {
+                    // Then the game's settings (Open1602's own dialog; the original starts here).
                     m_typing = false;
-                    MenuEvent ev{MenuEvent::Kind::NewEndless};
-                    ev.level = m_variant == 0xFF ? 0 : m_variant;
-                    ev.colour = static_cast<std::uint8_t>(e.id - kBanner);
-                    ev.name = m_name;
-                    out.push_back(std::move(ev));
+                    m_banner = static_cast<std::uint8_t>(e.id - kBanner);
+                    m_settings.open(m_endless);
+                    m_screen = Screen::Settings;
                 }
                 break;
+            case Screen::Settings:
+                break;  // the form's, above
         }
     }
     return out;
@@ -601,6 +632,10 @@ bool MainMenu::back() {
             break;
         case Screen::Colour:
             m_screen = Screen::Mission;
+            break;
+        case Screen::Settings:
+            m_endless = m_settings.setup();  // kept for the next time
+            m_screen = Screen::Colour;
             break;
     }
     return true;

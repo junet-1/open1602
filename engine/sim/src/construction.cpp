@@ -29,7 +29,12 @@ constexpr std::int32_t kShipRange = 16;       // founding from a ship: circle of
 constexpr std::int32_t kRoadSearch = 4;       // doors turn to roads within 4 tiles
 constexpr std::uint8_t kMinKontorRadius = 8;  // territory of a Kontor
 constexpr std::uint8_t kTowerRadius = 8;      // towers protect the land within 8 tiles
-constexpr std::uint32_t kMeadowId = 22722;    // IDWEIDE + 21: what demolished forest becomes
+/// Real buildings, which a demolition rectangle leaves standing (0x00464AE0): not roads, walls,
+/// fields, trees or ruins.
+constexpr std::array<std::int32_t, 8> kRealBuildings = {kind::kTower,      kind::kTowerBeach, kind::kBuilding,
+                                                        kind::kBeachHouse, kind::kMine,       kind::kHq,
+                                                        kind::kHarbour,    kind::kMill};
+constexpr std::uint32_t kMeadowId = 22722;  // IDWEIDE + 21: what demolished forest becomes
 
 bool is_beach(std::int32_t k) noexcept {
     return k >= kind::kBeach && k <= kind::kBeachVariant;
@@ -938,6 +943,78 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
 
 namespace {
 
+/// Which cities' land reaches each tile of an island (0x00482120): a bit per city number, from the
+/// circles of the markets and Kontors of the city and within 8 tiles of the towers of its owner.
+/// Buildings with their origin in `gone` count as removed.
+std::vector<std::uint8_t> territory_coverage(const World& world, const assets::BuildingTable& buildings,
+                                             std::uint16_t island, const std::vector<TilePos>& gone) {
+    const IslandMap& m = world.islands()[island].map;
+    const std::uint32_t w = m.width();
+    const std::uint32_t h = m.height();
+    std::vector<std::uint8_t> covered(std::size_t{w} * h, 0);
+    const auto cover = [&](const Catchment& area, std::uint8_t radius, std::uint8_t bits) {
+        const std::vector<std::uint8_t> half = circle_half_widths(radius);
+        for (std::int32_t dy = 0; dy <= radius; ++dy) {
+            const std::int32_t hw = half[static_cast<std::size_t>(dy)];
+            for (const std::int32_t row : {area.centre.y - dy, area.centre.y + area.parity_y + dy}) {
+                for (std::int32_t tx = area.centre.x - hw; tx <= area.centre.x + area.parity_x + hw; ++tx) {
+                    if (m.contains(tx, row)) {
+                        covered[static_cast<std::size_t>(row) * w + static_cast<std::size_t>(tx)] |= bits;
+                    }
+                }
+            }
+        }
+    };
+    for (std::uint32_t y = 0; y < h; ++y) {
+        for (std::uint32_t x = 0; x < w; ++x) {
+            const MapCell& cell = m.top(x, y);
+            const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
+            if (b == nullptr || cell.city == MapCell::kNoCity) {
+                continue;
+            }
+            const SubTile sub = m.sub_tile(buildings, x, y);
+            if (sub.origin_x != static_cast<std::int32_t>(x) || sub.origin_y != static_cast<std::int32_t>(y) ||
+                std::find(gone.begin(), gone.end(), TilePos{sub.origin_x, sub.origin_y}) != gone.end()) {
+                continue;
+            }
+            const bool market = b->prod_kind == prod::kMarket;
+            const bool kontor = b->prod_kind == prod::kKontor;
+            const bool tower = b->kind == kind::kTower || b->kind == kind::kTowerBeach;
+            if (!market && !kontor && !tower) {
+                continue;
+            }
+            const Catchment area = catchment_of(*b, cell.rotation, {sub.origin_x, sub.origin_y});
+            if (tower) {
+                // A tower protects the land of every city of its owner.
+                const City* c = world.city(island, cell.city);
+                std::uint8_t bits = 0;
+                for (const City& other : world.cities()) {
+                    if (c != nullptr && other.island == island && other.owner == c->owner && other.index < 8) {
+                        bits = static_cast<std::uint8_t>(bits | (1U << other.index));
+                    }
+                }
+                cover(area, kTowerRadius, bits);
+            } else {
+                cover(area, std::max(b->radius, kMinKontorRadius),
+                      static_cast<std::uint8_t>(cell.city < 8 ? 1U << cell.city : 0U));
+            }
+        }
+    }
+    return covered;
+}
+
+/// The city of the same owner whose land still reaches a tile its own city lost, or none.
+std::uint8_t covering_city(const World& world, std::uint16_t island, std::uint8_t own_city, std::uint8_t bits) {
+    const City* own = world.city(island, own_city);
+    for (std::uint8_t c = 0; c < 8; ++c) {
+        const City* other = world.city(island, c);
+        if ((bits >> c & 1U) != 0 && other != nullptr && own != nullptr && other->owner == own->owner) {
+            return c;
+        }
+    }
+    return MapCell::kNoCity;
+}
+
 /// Changes of one island in the order of the original (0x00481450, 0x004653A0, 0x00482120).
 class Builder {
 public:
@@ -1598,55 +1675,7 @@ public:
         IslandMap& m = map();
         const std::uint32_t w = m.width();
         const std::uint32_t h = m.height();
-        // Coverage per tile: bit per city number.
-        std::vector<std::uint8_t> covered(std::size_t{w} * h, 0);
-        const auto cover = [&](const Catchment& area, std::uint8_t radius, std::uint8_t bits) {
-            const std::vector<std::uint8_t> half = circle_half_widths(radius);
-            for (std::int32_t dy = 0; dy <= radius; ++dy) {
-                const std::int32_t hw = half[static_cast<std::size_t>(dy)];
-                for (const std::int32_t row : {area.centre.y - dy, area.centre.y + area.parity_y + dy}) {
-                    for (std::int32_t tx = area.centre.x - hw; tx <= area.centre.x + area.parity_x + hw; ++tx) {
-                        if (m.contains(tx, row)) {
-                            covered[static_cast<std::size_t>(row) * w + static_cast<std::size_t>(tx)] |= bits;
-                        }
-                    }
-                }
-            }
-        };
-        for (std::uint32_t y = 0; y < h; ++y) {
-            for (std::uint32_t x = 0; x < w; ++x) {
-                const MapCell& cell = m.top(x, y);
-                const assets::BuildingType* b = cell.empty() ? nullptr : m_buildings.by_sprite(cell.sprite);
-                if (b == nullptr || cell.city == MapCell::kNoCity) {
-                    continue;
-                }
-                const SubTile sub = m.sub_tile(m_buildings, x, y);
-                if (sub.origin_x != static_cast<std::int32_t>(x) || sub.origin_y != static_cast<std::int32_t>(y)) {
-                    continue;
-                }
-                const bool market = b->prod_kind == prod::kMarket;
-                const bool kontor = b->prod_kind == prod::kKontor;
-                const bool tower = b->kind == kind::kTower || b->kind == kind::kTowerBeach;
-                if (!market && !kontor && !tower) {
-                    continue;
-                }
-                const Catchment area = catchment_of(*b, cell.rotation, {sub.origin_x, sub.origin_y});
-                if (tower) {
-                    // A tower protects the land of every city of its owner.
-                    const City* c = m_world.city(m_island, cell.city);
-                    std::uint8_t bits = 0;
-                    for (const City& other : m_world.cities()) {
-                        if (c != nullptr && other.island == m_island && other.owner == c->owner && other.index < 8) {
-                            bits = static_cast<std::uint8_t>(bits | (1U << other.index));
-                        }
-                    }
-                    cover(area, kTowerRadius, bits);
-                } else {
-                    cover(area, std::max(b->radius, kMinKontorRadius),
-                          static_cast<std::uint8_t>(cell.city < 8 ? 1U << cell.city : 0U));
-                }
-            }
-        }
+        const std::vector<std::uint8_t> covered = territory_coverage(m_world, m_buildings, m_island, {});
         // Tiles their city no longer covers.
         for (std::uint32_t y = 0; y < h; ++y) {
             for (std::uint32_t x = 0; x < w; ++x) {
@@ -1658,16 +1687,7 @@ public:
                 if ((bits >> cell.city & 1U) != 0) {
                     continue;
                 }
-                const City* own = m_world.city(m_island, cell.city);
-                std::uint8_t next = MapCell::kNoCity;
-                for (std::uint8_t c = 0; c < 8; ++c) {
-                    const City* other = m_world.city(m_island, c);
-                    if ((bits >> c & 1U) != 0 && other != nullptr && own != nullptr && other->owner == own->owner) {
-                        next = c;
-                        break;
-                    }
-                }
-                lose_tile(x, y, next);
+                lose_tile(x, y, covering_city(m_world, m_island, cell.city, bits));
             }
         }
         // Cities without their Kontor are dissolved (0x00468ED0).
@@ -2005,10 +2025,7 @@ std::vector<TilePos> plan_demolish(const World& world, const assets::BuildingTab
             }
             if (drag) {
                 // A rectangle leaves real buildings standing (0x00464AE0).
-                static constexpr std::array<std::int32_t, 8> kBig = {
-                    kind::kTower, kind::kTowerBeach, kind::kBuilding, kind::kBeachHouse,
-                    kind::kMine,  kind::kHq,         kind::kHarbour,  kind::kMill};
-                if (std::find(kBig.begin(), kBig.end(), t.kind) != kBig.end()) {
+                if (std::find(kRealBuildings.begin(), kRealBuildings.end(), t.kind) != kRealBuildings.end()) {
                     continue;
                 }
             }
@@ -2016,6 +2033,51 @@ std::vector<TilePos> plan_demolish(const World& world, const assets::BuildingTab
         }
     }
     return result;
+}
+
+DemolishLoss demolish_loss(const World& world, const assets::BuildingTable& buildings, const DemolishOrder& order) {
+    DemolishLoss loss;
+    const std::vector<TilePos> gone = plan_demolish(world, buildings, order);
+    // Only markets, Kontors and towers hold land.
+    const bool land = std::any_of(gone.begin(), gone.end(), [&](const TilePos& o) {
+        const auto b = building_at(world, buildings, order.island, o);
+        return b && (b->type->prod_kind == prod::kMarket || b->type->prod_kind == prod::kKontor ||
+                     b->type->kind == kind::kTower || b->type->kind == kind::kTowerBeach);
+    });
+    if (!land) {
+        return loss;
+    }
+    // The tiles recheck_territory would take from their city with nobody to give them to.
+    const IslandMap& m = world.islands()[order.island].map;
+    const std::vector<std::uint8_t> covered = territory_coverage(world, buildings, order.island, gone);
+    std::set<std::pair<std::int32_t, std::int32_t>> counted;
+    for (std::uint32_t y = 0; y < m.height(); ++y) {
+        for (std::uint32_t x = 0; x < m.width(); ++x) {
+            const MapCell& cell = m.top(x, y);
+            if (cell.city == MapCell::kNoCity || cell.city >= 8) {
+                continue;
+            }
+            const std::uint8_t bits = covered[std::size_t{y} * m.width() + x];
+            if ((bits >> cell.city & 1U) != 0 ||
+                covering_city(world, order.island, cell.city, bits) != MapCell::kNoCity) {
+                continue;
+            }
+            const auto b = building_at(world, buildings, order.island,
+                                       {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)});
+            if (!b || !territory_building(buildings, *b->type) ||
+                std::find(gone.begin(), gone.end(), b->origin) != gone.end() ||
+                !counted.insert({b->origin.x, b->origin.y}).second) {
+                continue;
+            }
+            if (world.house(order.island, static_cast<std::uint16_t>(b->origin.x),
+                            static_cast<std::uint16_t>(b->origin.y)) != nullptr) {
+                ++loss.houses;
+            } else if (std::find(kRealBuildings.begin(), kRealBuildings.end(), b->type->kind) != kRealBuildings.end()) {
+                ++loss.buildings;
+            }
+        }
+    }
+    return loss;
 }
 
 DemolishResult execute_demolish(World& world, const assets::BuildingTable& buildings, const DemolishOrder& order,

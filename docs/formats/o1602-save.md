@@ -46,7 +46,7 @@ see [o1602-chunk.md](o1602-chunk.md) for the rules.
 
 | Identifier | Contents |
 |---|---|
-| `META` | width, height, game time, fingerprint of the building data (FNV-1a over Id, image and size of every building from `haeuser.cod`), name of the first human player: for a later list of savegames |
+| `META` | width, height, game time, fingerprint of the building data (FNV-1a over Id, image and size of every building from `haeuser.cod`), name of the first human player: for the lists of savegames (`save_info` unpacks only the head of the file) |
 | `MAPW` | the whole map: world size, per island the header (identifier, number, size, position, template, climate), the position on the world map and **both layers of all tiles**. The values are ordered by kind (first the building ids of all tiles row by row, then all sub-tiles, rotation and phase, owner, city, random value); zlib packs that well |
 | `RULE` | settings (`sim::Rules`) as pairs (u16 key, u32 value); unknown keys are skipped |
 | `WRLD` | game time, city name counter, difficulty and settings word, drought date and seed, random generators, clocks of the houses and of growth, next disaster number |

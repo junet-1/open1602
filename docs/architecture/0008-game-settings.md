@@ -38,8 +38,9 @@ this as well. Until now, `sim::Rules` only had switches for deviations from the 
 ## Consequences
 The Open1602 savegame has its own section for the settings (`RULE` in the chunk
 `O1602`, done). Savegames of the original get the original's values for the choice points; this
-is satisfied because the default of every free choice is the original. The game start dialog is still open; until
-then the viewer sets the settings via the command line (`--refund`, `--droughts`,
-`--volcanoes`). The game start dialog will become
-a list of settings with groups (economy, opponents, disasters …), as in later
-Anno titles.
+is satisfied because the default of every free choice is the original. The endless game has a
+start dialog after name and banner (`engine/app/src/game_settings_menu.cpp`, since 2026-10-20): the
+settings in groups (economy, limits, disasters, world), as in later Anno titles, each a button that
+cycles its values, with presets for the original's rules and Open1602's defaults; the last choice is
+kept in `settings.cfg` (`endless.*`). The command line (`--refund`, `--droughts`, `--volcanoes`)
+still sets them for games started from it.

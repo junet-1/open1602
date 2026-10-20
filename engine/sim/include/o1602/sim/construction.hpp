@@ -174,6 +174,17 @@ struct DemolishOrder {
 [[nodiscard]] std::vector<TilePos> plan_demolish(const World& world, const assets::BuildingTable& buildings,
                                                  const DemolishOrder& order);
 
+/// What a demolition costs beyond its buildings (S-035): a market, Kontor or tower whose land
+/// nothing else of its owner covers takes the buildings on it down to ruins with it.
+struct DemolishLoss {
+    std::size_t houses = 0;     ///< houses that would fall to ruins
+    std::size_t buildings = 0;  ///< other real buildings (workshops, farms, mines, towers, ...)
+
+    [[nodiscard]] bool any() const noexcept { return houses + buildings != 0; }
+};
+[[nodiscard]] DemolishLoss demolish_loss(const World& world, const assets::BuildingTable& buildings,
+                                         const DemolishOrder& order);
+
 struct DemolishResult {
     std::size_t removed = 0;  ///< buildings removed
     BuildBill refund;         ///< what the player got back (Rules::demolish_refund)
