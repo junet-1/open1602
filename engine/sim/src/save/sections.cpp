@@ -251,7 +251,7 @@ std::optional<SaveMeta> read_meta(std::span<const std::uint8_t> sections) {
     const auto version = reader.u16();
     (void)reader.u16();  // flags
     const auto size = reader.u32();
-    if (id != kMeta || version != 1 || !size) {
+    if (id != kMeta || version != std::uint16_t{1} || !size) {
         return std::nullopt;
     }
     const auto body = reader.bytes(*size);

@@ -51,7 +51,7 @@ public:
 
     core::Status open() {
         const auto lfanew = m_bytes.u32(0x3C);
-        if (m_bytes.u16(0) != 0x5A4D || !lfanew || m_bytes.u32(*lfanew) != 0x4550) {
+        if (m_bytes.u16(0) != std::uint16_t{0x5A4D} || !lfanew || m_bytes.u32(*lfanew) != std::uint32_t{0x4550}) {
             return damaged("not a PE file");
         }
         const std::size_t coff = *lfanew + 4;
@@ -170,7 +170,7 @@ core::Result<CursorImage> read_cursor(std::span<const std::uint8_t> pe, std::uin
     const Bytes g{*dir};
     const auto count = g.u16(4);
     const auto image_id = g.u16(6 + 12);
-    if (g.u16(2) != 2 || !count || *count == 0 || !image_id) {
+    if (g.u16(2) != std::uint16_t{2} || !count || *count == 0 || !image_id) {
         return damaged("not a cursor group");
     }
     const auto data = res.find(kTypeCursor, *image_id);
