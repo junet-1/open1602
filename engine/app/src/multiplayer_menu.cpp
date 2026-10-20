@@ -87,6 +87,15 @@ std::optional<std::uint32_t> number(std::string_view text) {
 
 }  // namespace
 
+std::vector<net::LobbySeat> endless_seats(std::size_t players) {
+    players = std::clamp<std::size_t>(players, HostSetup::kMinPlayers, sim::kMaxPlayers);
+    std::vector<net::LobbySeat> seats(std::max<std::size_t>(sim::player_slot(players - 1) + 1U, sim::kOriginalPlayers));
+    for (std::size_t s = sim::kOriginalPlayers; s < std::min<std::size_t>(seats.size(), sim::kFirstExtraPlayer); ++s) {
+        seats[s].kind = net::LobbySeat::Kind::Reserved;
+    }
+    return seats;
+}
+
 std::optional<std::pair<std::string, std::uint16_t>> parse_address(std::string_view text) {
     while (!text.empty() && text.front() == ' ') {
         text.remove_prefix(1);

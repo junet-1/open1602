@@ -285,10 +285,7 @@ TEST_CASE("multiplayer menu: four to twelve players, the factions' slots left ou
     // Six players: slots 0-3 and 7-8; the free trader's, pirates' and natives' are not shown.
     net::LoopbackNetwork network;
     net::Lobby lobby;
-    lobby.seats.resize(9);
-    for (std::size_t s = 4; s < 7; ++s) {
-        lobby.seats[s].kind = net::LobbySeat::Kind::Reserved;
-    }
+    lobby.seats = app::endless_seats(6);
     net::HostSession host(network.listen(), lobby, 0, "Bernd", 1);
     host.set_seat(5, net::LobbySeat::Kind::Open);  // the pirates' slot stays out of the game
     CHECK(host.lobby().seats[5].kind == net::LobbySeat::Kind::Reserved);
@@ -304,4 +301,22 @@ TEST_CASE("multiplayer menu: four to twelve players, the factions' slots left ou
     events = click(menu, model, "Open");
     REQUIRE(events.size() == 1);
     CHECK(events[0].seat_kind == net::LobbySeat::Kind::Computer);
+}
+
+TEST_CASE("multiplayer menu: the factions' slots are reserved for every number of players") {
+    // Five players once took the free trader's slot for a computer, and six the pirates' too:
+    // both were out of the game at the first check.
+    for (std::size_t players = app::HostSetup::kMinPlayers; players <= sim::kMaxPlayers; ++players) {
+        const std::vector<net::LobbySeat> seats = app::endless_seats(players);
+        REQUIRE(seats.size() == std::size_t{sim::player_slot(players - 1)} + 1U);
+        std::size_t playable = 0;
+        for (std::size_t s = 0; s < seats.size(); ++s) {
+            const bool faction = s >= sim::kOriginalPlayers && s < sim::kFirstExtraPlayer;
+            CHECK((seats[s].kind == net::LobbySeat::Kind::Reserved) == faction);
+            playable += faction ? 0U : 1U;
+        }
+        CHECK(playable == players);
+    }
+    CHECK(app::endless_seats(4).size() == 4);
+    CHECK(app::endless_seats(5).size() == 8);
 }
