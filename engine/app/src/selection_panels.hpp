@@ -14,6 +14,8 @@
 #include <string_view>
 #include <vector>
 
+#include "selection.hpp"
+
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
@@ -24,20 +26,6 @@
 #include "o1602/ui/unit_selection.hpp"
 
 namespace o1602::app {
-
-/// What the player selected on the map.
-struct Selection {
-    /// ShipList, CityList, Diplomacy: the windows behind the player status (no object selected).
-    enum class Kind : std::uint8_t { None, Building, Ship, ShipList, CityList, Diplomacy };
-    Kind kind = Kind::None;
-    std::uint16_t island = 0;  ///< Building: its origin on the island
-    std::uint16_t x = 0;
-    std::uint16_t y = 0;
-    std::uint32_t ship = 0;  ///< Ship: Ship::id
-    /// Building: the same building was clicked again (a Kontor then shows its stock, 0x0043AA00).
-    bool again = false;
-    friend bool operator==(const Selection&, const Selection&) = default;
-};
 
 /// What the windows read.
 struct PanelContext {

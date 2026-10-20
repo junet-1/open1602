@@ -264,8 +264,9 @@ std::optional<Hud::Action> Hud::toggle_window(Selection::Kind kind) {
     if (m_mode != kModeInfo) {
         action = set_mode(kModeInfo);
     }
-    m_selection = Selection{};
-    m_selection.kind = kind;
+    Selection next;
+    next.kind = kind;
+    m_selection = stamped_selection(m_selection, next, m_selection_serial);
     std::optional<PanelContext> context;
     if (SelectionPanel* p = selection_panel(context)) {
         p->opened();

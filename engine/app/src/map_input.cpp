@@ -832,7 +832,7 @@ std::optional<BuildTool::Spot> MapInput::spot_at_mouse() const {
     return BuildTool::Spot{cell.island, cell.local_x, cell.local_y};
 }
 
-void MapInput::select_building_at_mouse() {
+void MapInput::select_building_at_mouse(const Selection& before) {
     if (!m_hud) {
         return;
     }
@@ -869,10 +869,7 @@ void MapInput::select_building_at_mouse() {
             sel.y = static_cast<std::uint16_t>(t.origin_y);
         }
     }
-    const Selection& old = m_hud->selection();
-    sel.again = sel.kind == Selection::Kind::Building && old.kind == Selection::Kind::Building &&
-                old.island == sel.island && old.x == sel.x && old.y == sel.y;
-    m_hud->set_selection(sel);
+    m_hud->set_selection(clicked_selection(before, sel));
     m_field_source.reset();
     if (sel.kind == Selection::Kind::Building) {
         // Looking at a farm, a plantation or a forester picks its field in the build menu
@@ -1124,9 +1121,14 @@ void MapInput::map_left_up(double x, double y, std::uint16_t mod, int clicks) {
         map_order(x, y, shift);
         return;
     }
-    m_units.clear();
-    selection_changed(false);
-    select_building_at_mouse();
+    // What was selected before the click: the same building clicked again shows more (a Kontor
+    // its stock). Taken before the units are dropped, which clears the selection.
+    const Selection before = m_hud ? m_hud->selection() : Selection{};
+    if (!m_units.empty()) {
+        m_units.clear();
+        selection_changed(false);
+    }
+    select_building_at_mouse(before);
 }
 
 void MapInput::map_order(double x, double y, bool queue) {

@@ -21,6 +21,7 @@
 #include "main_menu.hpp"
 #include "multiplayer_menu.hpp"
 #include "options_panel.hpp"
+#include "selection.hpp"
 #include "selection_panels.hpp"
 #include "side_panels.hpp"
 
@@ -126,8 +127,11 @@ public:
     }
     /// The selected ships and land units: their windows show in the military mode.
     void set_units(ui::UnitSelection* units) noexcept { m_units = units; }
-    /// What the player selected on the map; its window shows in the info mode.
-    void set_selection(const Selection& selection) { m_selection = selection; }
+    /// What the player selected on the map; its window shows in the info mode. An object selected
+    /// anew gets a new serial, so that its window starts on its first page.
+    void set_selection(const Selection& selection) {
+        m_selection = stamped_selection(m_selection, selection, m_selection_serial);
+    }
     /// The build menu opens next with this building picked in its category (a farm's field after
     /// looking at the farm, 0x004331B0). False if the menu has no such building.
     bool show_in_build_menu(std::uint32_t id) { return m_build && m_build->show(id); }
@@ -321,6 +325,7 @@ private:
     Resources m_resources;
     std::unique_ptr<SelectionPanels> m_selection_panels;
     Selection m_selection;
+    std::uint32_t m_selection_serial = 0;
     ui::UnitSelection* m_units = nullptr;
     const sim::Simulation* m_simulation = nullptr;
     const assets::BuildingTable* m_buildings = nullptr;

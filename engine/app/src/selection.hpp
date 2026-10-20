@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// What the player selected on the map, and how the windows tell a fresh selection from a repeated
+// click: a window always opens on its first page; a Kontor or market place clicked again shows its
+// stock (Panel_UpdateSelection 0x0043AA00). Needs no platform, so that the tests have it.
+#pragma once
+
+#include <cstdint>
+
+namespace o1602::app {
+
+/// What the player selected on the map.
+struct Selection {
+    /// ShipList, CityList, Diplomacy: the windows behind the player status (no object selected).
+    enum class Kind : std::uint8_t { None, Building, Ship, ShipList, CityList, Diplomacy };
+    Kind kind = Kind::None;
+    std::uint16_t island = 0;  ///< Building: its origin on the island
+    std::uint16_t x = 0;
+    std::uint16_t y = 0;
+    std::uint32_t ship = 0;  ///< Ship: Ship::id
+    /// Building: how often the same building was clicked again since it was selected (a Kontor
+    /// then shows its stock). 0 on the first click.
+    std::uint16_t again = 0;
+    /// Counts the selections: a new one for every object selected anew, also the same one after it
+    /// was deselected, so that its window starts on its first page again (Hud::set_selection).
+    std::uint32_t serial = 0;
+    friend bool operator==(const Selection&, const Selection&) = default;
+
+    /// The same object, however it was clicked.
+    [[nodiscard]] constexpr bool same_object(const Selection& o) const noexcept {
+        return kind == o.kind && island == o.island && x == o.x && y == o.y && ship == o.ship;
+    }
+};
+
+/// A click on the map picked `picked` (a building or nothing) while `before` was selected: the
+/// same building once more counts its repeated clicks.
+[[nodiscard]] constexpr Selection clicked_selection(const Selection& before, Selection picked) noexcept {
+    picked.again = 0;
+    if (picked.kind == Selection::Kind::Building && before.same_object(picked)) {
+        picked.again = static_cast<std::uint16_t>(before.again == UINT16_MAX ? 1 : before.again + 1);
+    }
+    return picked;
+}
+
+/// The selection the windows see after `next` replaced `before`: the serial stays for the same
+/// object and is new (`counter` counts up) for another one or after nothing was selected.
+[[nodiscard]] constexpr Selection stamped_selection(const Selection& before, Selection next,
+                                                    std::uint32_t& counter) noexcept {
+    if (next.kind != Selection::Kind::None && before.kind != Selection::Kind::None && before.same_object(next)) {
+        next.serial = before.serial;
+    } else {
+        next.serial = ++counter;
+    }
+    return next;
+}
+
+/// For a window with sub-pages: what a new frame's selection means for the page shown.
+class SelectionPages {
+public:
+    enum class Change : std::uint8_t {
+        None,    ///< the same selection as before: the page stays
+        Opened,  ///< selected anew: the first page
+        Again,   ///< the same building clicked again: the stock (Kontor, market place)
+    };
+
+    [[nodiscard]] constexpr Change update(const Selection& s) noexcept {
+        if (!m_seen || s.serial != m_last.serial || !s.same_object(m_last)) {
+            m_seen = true;
+            m_last = s;
+            return s.again > 0 ? Change::Again : Change::Opened;
+        }
+        const bool again = s.again != m_last.again && s.again > 0;
+        m_last = s;
+        return again ? Change::Again : Change::None;
+    }
+
+private:
+    Selection m_last;
+    bool m_seen = false;
+};
+
+}  // namespace o1602::app
