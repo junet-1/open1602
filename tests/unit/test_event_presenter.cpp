@@ -57,9 +57,15 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     sim::CityEvent shortage;
     shortage.kind = sim::CityEvent::Kind::Shortage;
     shortage.owner = kMe;
-    const auto city = g.presenter.city_events(g.world, kMe, {hunger, theirs, shortage});
-    REQUIRE(city.size() == 1);
+    sim::CityEvent locked = hunger;
+    locked.kind = sim::CityEvent::Kind::MaterialLocked;
+    sim::CityEvent their_lock = locked;
+    their_lock.owner = kRival;
+    their_lock.city = 1;
+    const auto city = g.presenter.city_events(g.world, kMe, {hunger, theirs, shortage, locked, their_lock});
+    REQUIRE(city.size() == 2);
     CHECK(announcement(city[0])->message == 0x33);
+    CHECK(announcement(city[1])->message == 0x48);  // "Das Volk bekommt kein Baumaterial"
 
     sim::DisasterEvent fire;
     fire.island = 0;

@@ -497,6 +497,33 @@ bool has_services(const House& house, std::uint8_t resident_class) noexcept {
     return std::all_of(needs.begin(), needs.end(), [s](std::uint16_t any) { return any == 0 || (s & any) != 0; });
 }
 
+std::uint32_t panel_services(const House& house) noexcept {
+    namespace ps = panel_service;
+    struct Map {
+        std::uint16_t house;
+        std::uint32_t panel;
+    };
+    static constexpr std::array<Map, 10> kMap{{
+        {hs::kKapelle, ps::kKapelle},
+        {hs::kSchule, ps::kSchule},
+        {hs::kWirtshaus, ps::kWirtshaus},
+        {hs::kTheater, ps::kTheater},
+        {hs::kKirche, ps::kKirche | ps::kKapelle},
+        {hs::kBadehaus, ps::kBadehaus},
+        {hs::kHochschule, ps::kHochschule | ps::kSchule},
+        {hs::kKlinik, ps::kKlinik},
+        {hs::kGalgen, ps::kGalgen},
+        {hs::kBrunnen, ps::kBrunnen},
+    }};
+    std::uint32_t panel = house.market ? ps::kMarkt : 0U;
+    for (const Map& m : kMap) {
+        if ((house.services & m.house) != 0) {
+            panel |= m.panel;
+        }
+    }
+    return panel;
+}
+
 void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island) {
     struct Source {
         std::uint8_t city;

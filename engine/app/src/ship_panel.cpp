@@ -121,8 +121,8 @@ public:
     }
 
     void refresh(const Selection& s, const PanelContext& c) override {
-        if (s.ship != m_last_ship) {
-            m_last_ship = s.ship;
+        // Selected anew (another ship, or the same after it was deselected): the first page.
+        if (m_pages.update(s) != SelectionPages::Change::None) {
             m_page = Page::Root;
             m_hold = 0;
             m_offer = 0;
@@ -1370,7 +1370,7 @@ private:
     std::array<std::array<std::int32_t, 2>, 4> m_column{};
     std::int32_t m_name_bottom = 384;
     Page m_page = Page::Root;
-    std::uint32_t m_last_ship = 0;
+    SelectionPages m_pages;
     std::int32_t m_hold = 0;
     std::int32_t m_offer = 0;
     std::array<std::int32_t, 4> m_scroll{};

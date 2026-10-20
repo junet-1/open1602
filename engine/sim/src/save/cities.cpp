@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The cities and their buildings: CITY, CSTA (trade statistics), PROD (the production list with its
-// free slots), HOUS, GROW and COST (shipyards and castles).
+// The cities and their buildings: CITY, CSTA (trade statistics), MLCK (the clocks of the material
+// locks), PROD (the production list with its free slots), HOUS, GROW and COST (shipyards and castles).
 #include <utility>
 
 #include "section_io.hpp"
@@ -65,6 +65,14 @@ void io_city_stats(A& a, C& c) {
     a.u8(c.index);
     a.i64(c.purchases);
     a.i64(c.sales);
+}
+
+/// MLCK: the clock of a City's material lock (writing) or of Decoded::MaterialClock (reading).
+template <class A, class C>
+void io_material_clock(A& a, C& c) {
+    a.u16(c.island);
+    a.u8(c.index);
+    a.u64(c.material_reminder_ms);
 }
 
 template <class A, class P>
@@ -162,6 +170,16 @@ void write_city_state(Writer& out, const World& w) {
 std::vector<Decoded::CityStats> read_city_state(Reader& in) {
     std::vector<Decoded::CityStats> list;
     in.list(list, 19, [&](Decoded::CityStats& c) { io_city_stats(in, c); });
+    return list;
+}
+
+void write_material_clocks(Writer& out, const World& w) {
+    out.list(w.cities(), 11, [&](const City& c) { io_material_clock(out, c); });
+}
+
+std::vector<Decoded::MaterialClock> read_material_clocks(Reader& in) {
+    std::vector<Decoded::MaterialClock> list;
+    in.list(list, 11, [&](Decoded::MaterialClock& c) { io_material_clock(in, c); });
     return list;
 }
 

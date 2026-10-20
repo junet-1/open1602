@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Building and demolishing (docs/re/construction.md).
 
+#include <algorithm>
 #include <optional>
 
 #include "../test_framework.hpp"
+#include "build_tool.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/sim/construction.hpp"
@@ -237,6 +239,43 @@ TEST_CASE("construction: roads fit to their neighbours, a drag stops when the go
     CHECK(island.world.players()[0].money == 2);
 }
 
+TEST_CASE("construction: the preview shows what an order costs, affordable or not (0x0040D160)") {
+    Island island;
+    island.found();
+    const auto preview = [&](std::vector<sim::BuildItem> items) {
+        sim::BuildOrder order;
+        order.player = 0;
+        order.island = 0;
+        order.items = std::move(items);
+        return sim::plan_build(island.world, island.buildings, order);
+    };
+    const auto& house = island.buildings.by_id(kHouse)->build_cost;
+    // Enough of everything: what is shown is what is paid.
+    const sim::BuildPlan rich = preview({{kHouse, 8, 13, 0, 0}});
+    CHECK(rich.placed == 1);
+    CHECK(rich.shown.money == rich.bill.money);
+    CHECK(rich.shown.wood == rich.bill.wood);
+    // Without wood nothing is built, but the costs are still shown.
+    island.world.city(0, 0)->goods[island.buildings.materials().wood] = 0;
+    const sim::BuildPlan poor = preview({{kHouse, 8, 13, 0, 0}});
+    CHECK(poor.items[0].refusal == sim::BuildRefusal::Wood);
+    CHECK(poor.bill.money == 0);
+    CHECK(poor.shown.money == house.money);
+    CHECK(poor.shown.wood == house.wood);
+    // The building under the mouse shows its costs where it cannot stand, too.
+    const sim::BuildPlan outside = preview({{kHouse, 14, 11, 0, 0}});
+    CHECK(outside.items[0].refusal == sim::BuildRefusal::Territory);
+    CHECK(outside.shown.money == house.money);
+    // A drag counts every item that fits the ground, also those beyond the gold.
+    island.world.player(0)->money = 7;
+    const sim::BuildPlan road =
+        preview({{kRoad, 8, 17, 0, 0}, {kRoad, 9, 17, 0, 0}, {kRoad, 25, 25, 0, 0}, {kRoad, 10, 17, 0, 0}});
+    CHECK(road.placed == 1);
+    CHECK(road.items[2].refusal == sim::BuildRefusal::Territory);
+    CHECK(road.bill.money == 5);
+    CHECK(road.shown.money == 15);
+}
+
 TEST_CASE("construction: buildings stay inside their city, do not overlap and need their unlock") {
     Island island;
     island.found();
@@ -283,6 +322,36 @@ TEST_CASE("construction: houses get one inhabitant and leave nothing behind when
     CHECK(island.demolish({5, 10}, {5, 10}) == 1);
     CHECK(island.world.cities().empty());
     CHECK(island.city_at(8, 13) == sim::MapCell::kNoCity);
+}
+
+TEST_CASE("construction: the demolish preview marks only what the order removes") {
+    Island island;
+    island.found();
+    REQUIRE(island.build({{kHouse, 8, 13, 0, 0}}).placed == 1);
+    REQUIRE(island.build({{kRoad, 10, 12, 0, 0}}).placed == 1);
+    app::BuildTool tool(island.buildings);
+    const auto contains = [](const std::vector<sim::TilePos>& tiles, std::int32_t x, std::int32_t y) {
+        return std::ranges::find(tiles, sim::TilePos{x, y}) != tiles.end();
+    };
+    // Nothing unless demolishing.
+    CHECK(tool.demolish_preview(island.world, 0, {0, 9, 14}).empty());
+    tool.set_mode(app::BuildTool::Mode::Demolish);
+    // Hovering: the whole house a click there would remove; bare ground nothing.
+    const auto hover = tool.demolish_preview(island.world, 0, {0, 9, 14});
+    CHECK(hover.size() == 4);
+    CHECK(contains(hover, 8, 13));
+    CHECK(contains(hover, 9, 14));
+    CHECK(tool.demolish_preview(island.world, 0, {0, 20, 20}).empty());
+    // Dragging: only the road; the rectangle leaves the house standing.
+    tool.press({0, 7, 12});
+    const auto drag = tool.demolish_preview(island.world, 0, {0, 10, 15});
+    REQUIRE(drag.size() == 1);
+    CHECK((drag[0] == sim::TilePos{10, 12}));
+    const auto order = tool.demolish_order(0, {0, 10, 15});
+    REQUIRE(order.has_value());
+    CHECK(sim::plan_demolish(island.world, island.buildings, *order).size() == 1);
+    // Another player's view marks none of them.
+    CHECK(tool.demolish_preview(island.world, 1, {0, 10, 15}).empty());
 }
 
 TEST_CASE("construction: a market claims land; demolished, the land and what stands on it is lost") {

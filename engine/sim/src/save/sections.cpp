@@ -59,6 +59,8 @@ constexpr std::uint32_t kMeta = tag("META");
 constexpr std::uint32_t kMissions = tag("MISN");
 constexpr std::uint32_t kPlayerState = tag("PSTA");
 constexpr std::uint32_t kCityState = tag("CSTA");
+/// The clocks of the cities' material locks: when the people last complained.
+constexpr std::uint32_t kMaterialClocks = tag("MLCK");
 /// The score's counters of the players and the monument clocks of the cities.
 constexpr std::uint32_t kScores = tag("SCOR");
 /// The original's file the game came from, without the island tiles (Open1602's own savegame only):
@@ -74,7 +76,7 @@ constexpr std::array kKnownSections = {
     kRules,    kWorld,       kIslands,   kTiles,     kPlayers,  kCities,    kProductions, kHouses,
     kGrowth,   kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
     kFleet,    kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
-    kMissions, kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores};
+    kMissions, kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -200,6 +202,7 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kMissions, [&](Writer& o) { write_missions(o, world); });
     section(out, kCities, [&](Writer& o) { write_cities(o, world); });
     section(out, kCityState, [&](Writer& o) { write_city_state(o, world); });
+    section(out, kMaterialClocks, [&](Writer& o) { write_material_clocks(o, world); });
     section(out, kScores, [&](Writer& o) { write_scores(o, world); });
     section(out, kProductions, [&](Writer& o) { write_productions(o, world); });
     section(out, kHouses, [&](Writer& o) { write_houses(o, world); });
@@ -315,6 +318,9 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 break;
             case kCityState:
                 d.city_state = read_city_state(in);
+                break;
+            case kMaterialClocks:
+                d.material_clocks = read_material_clocks(in);
                 break;
             case kScores:
                 d.scores = read_scores(in);

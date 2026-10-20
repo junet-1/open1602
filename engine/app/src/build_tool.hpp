@@ -66,6 +66,12 @@ public:
                                                              const Spot& spot) const;
     [[nodiscard]] std::optional<sim::DemolishOrder> demolish_order(sim::PlayerId player, const Spot& spot) const;
 
+    /// Every tile of the buildings the demolish order of the current drag (or a click at `spot`)
+    /// would remove, for the preview (sim::plan_demolish, so a drag leaves out the big buildings
+    /// as the order does).
+    [[nodiscard]] std::vector<sim::TilePos> demolish_preview(const sim::World& world, sim::PlayerId player,
+                                                             const Spot& spot) const;
+
     /// One line for the window title.
     [[nodiscard]] std::string describe() const;
 

@@ -168,13 +168,15 @@ inline constexpr std::uint8_t kSmokeAlpha = 128;
 
 /// A tile marked with a translucent diamond, e.g. the red ground under a building that cannot be
 /// built there, on top of everything; or hatched on the ground, under the buildings: the area
-/// dragged out for fields or trees.
+/// dragged out for fields or trees. A hatched mark `on_top` lies over the buildings instead: what
+/// a demolish order would remove.
 struct TileMark {
     std::uint16_t island = 0;  ///< index into World::islands()
     std::uint16_t x = 0;       ///< island tile
     std::uint16_t y = 0;
     assets::Rgba color;  ///< alpha = opacity
     bool hatched = false;
+    bool on_top = false;
 };
 
 /// Colour of the hatching over an area dragged out for fields or trees (History Edition).

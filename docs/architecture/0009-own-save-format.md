@@ -35,7 +35,7 @@ Open1602 savegames is not important to him (2026-10-18).
 - New parts are added as new sections. A section an older reader does not know is skipped only when
   it is optional (`META`, `ORIG`); every other section is marked required, and a reader that does not
   know it refuses the file instead of running a different game. Since the first version the writer has added
-  `PSTA`, `MISN`, `CSTA`, `SCOR`, `QUEU` and `STNC` this way; the full list is in
+  `PSTA`, `MISN`, `CSTA`, `SCOR`, `QUEU`, `STNC` and `MLCK` this way; the full list is in
   [o1602-save.md](../formats/o1602-save.md).
 - Strings (names of players, cities and ships) are stored as Windows-1252 bytes, the encoding of the
   original's files and fonts.

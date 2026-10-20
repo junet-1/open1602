@@ -144,11 +144,12 @@ void play(const Data& d, sim::World world, sim::PlayerId host_seat, std::uint32_
 
 TEST_CASE("data: a multiplayer endless game with computer players stays the same on every computer") {
     const Data d = data_or_skip();
-    if (!d.game.resolve("Szenes/Endlosspiel00.szs")) {
-        SKIP("no endless game files");
+    if (!d.game.resolve("Szenes/Endlosspiel00.szm")) {
+        SKIP("no multiplayer endless game files");
     }
     sim::NewGameOptions options;
     options.difficulty = 2;
+    options.multiplayer = true;
     options.world.seed = 11;
     auto world = sim::start_new_game(d.game, d.buildings, d.text, options);
     REQUIRE(world.ok());

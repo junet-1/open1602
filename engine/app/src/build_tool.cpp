@@ -5,6 +5,7 @@
 #include <cstdlib>
 
 #include "o1602/sim/game_data.hpp"
+#include "o1602/sim/logistics.hpp"
 
 namespace o1602::app {
 
@@ -202,6 +203,32 @@ std::optional<sim::DemolishOrder> BuildTool::demolish_order(sim::PlayerId player
     }
     const Spot start = m_drag_start && m_drag_start->island == spot.island ? *m_drag_start : spot;
     return sim::DemolishOrder{player, spot.island, {start.x, start.y}, {spot.x, spot.y}};
+}
+
+std::vector<sim::TilePos> BuildTool::demolish_preview(const sim::World& world, sim::PlayerId player,
+                                                      const Spot& spot) const {
+    std::vector<sim::TilePos> removed;
+    const auto order = demolish_order(player, spot);
+    if (!order || order->island >= world.islands().size()) {
+        return removed;
+    }
+    const sim::IslandMap& map = world.islands()[order->island].map;
+    for (const sim::TilePos& origin : sim::plan_demolish(world, *m_buildings, *order)) {
+        const auto b = sim::building_at(world, *m_buildings, order->island, origin);
+        if (!b) {
+            continue;
+        }
+        for (std::uint32_t j = 0; j < b->height; ++j) {
+            for (std::uint32_t i = 0; i < b->width; ++i) {
+                const std::int32_t x = b->origin.x + static_cast<std::int32_t>(i);
+                const std::int32_t y = b->origin.y + static_cast<std::int32_t>(j);
+                if (map.contains(x, y)) {
+                    removed.push_back({x, y});
+                }
+            }
+        }
+    }
+    return removed;
 }
 
 std::string BuildTool::describe() const {

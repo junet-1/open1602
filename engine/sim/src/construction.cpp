@@ -894,6 +894,7 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
         // Costs in order; once something does not fit, the rest of the order stays unbuilt.
         BuildBill next = bill;
         next.add(ordered_cost(buildings, *type));
+        plan.shown.add(ordered_cost(buildings, *type));
         if (budget == BuildRefusal::None) {
             if (counted(type->infra) && placed_limited[type->infra - kInfraCastle] >= limit) {
                 budget = BuildRefusal::Limit;
@@ -924,6 +925,11 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
                 planner.taken.insert({f.x + static_cast<std::int32_t>(k), f.y + static_cast<std::int32_t>(j)});
             }
         }
+    }
+    // The building under the mouse shows its costs wherever it stands.
+    if (order.items.size() == 1 && plan.items[0].type != nullptr) {
+        plan.shown = BuildBill{};
+        plan.shown.add(ordered_cost(buildings, *buildings.by_id(order.items[0].building)));
     }
     plan.bill = bill;
     plan.placed = placed;

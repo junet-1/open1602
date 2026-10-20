@@ -160,7 +160,7 @@ private:
     /// Switches the panel to a mode (and what that asks of the viewer).
     void set_mode(std::int32_t mode);
     /// Tells the panel which building is under the mouse for its window (none: the player status).
-    void select_building_at_mouse();
+    void select_building_at_mouse(const Selection& before);
     /// Closes the open pop-up of a build category, else lays the building in hand away (the
     /// original's right click). False if there was neither.
     bool cancel_build_step();

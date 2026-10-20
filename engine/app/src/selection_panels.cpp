@@ -363,19 +363,22 @@ public:
     }
 
     void refresh(const Selection& s, const PanelContext& c) override {
-        // A new selection starts with the city; the same Kontor clicked again shows the stock.
-        Selection key = s;
-        key.again = false;
-        if (key != m_last) {
-            m_last = key;
-            m_page = s.again ? Page::Stock : Page::City;
-            m_picker = false;
-            m_slot = 0;
-        } else if (s.again && !m_seen_again) {
-            m_page = Page::Stock;
-            m_picker = false;
+        // A new selection starts with the city, also the same Kontor selected anew after it was
+        // deselected; the same Kontor or market place clicked again shows the stock.
+        switch (m_pages.update(s)) {
+            case SelectionPages::Change::Opened:
+                m_page = Page::City;
+                m_picker = false;
+                m_slot = 0;
+                break;
+            case SelectionPages::Change::Again:
+                m_page = Page::Stock;
+                m_picker = false;
+                m_slot = 0;
+                break;
+            case SelectionPages::Change::None:
+                break;
         }
-        m_seen_again = s.again;
         const sim::City* city = city_at(s, c);
         if (city == nullptr) {
             return;
@@ -703,8 +706,7 @@ private:
     bool m_sell = true;
     bool m_picker = false;
     std::int32_t m_slot = 0;
-    Selection m_last;
-    bool m_seen_again = false;
+    SelectionPages m_pages;
 };
 
 // ---- Houses --------------------------------------------------------------------------------------
@@ -814,7 +816,7 @@ public:
         if (cls < 4 && state > 0) {
             mask = required(cls + 1U) & unlocked;
         }
-        const std::uint32_t missing = mask & ~std::uint32_t{house->services};
+        const std::uint32_t missing = mask & ~sim::panel_services(*house);
         m_missing.clear();
         for (std::size_t k = 0; k < kServices; ++k) {
             if ((missing & kServiceOrder[k].bit) != 0) {
@@ -967,14 +969,14 @@ private:
         std::size_t help;
     };
     static constexpr std::array<Service, kServices> kServiceOrder{{
-        {0x01, 1, 64},  // Markt
-        {0x02, 0, 62},  // Kapelle
-        {0x10, 7, 63},  // Kirche
-        {0x08, 2, 65},  // Wirtshaus
-        {0x04, 3, 66},  // Schule
-        {0x80, 6, 67},  // Hochschule
-        {0x20, 5, 69},  // Badehaus
-        {0x40, 4, 68},  // Theater
+        {sim::panel_service::kMarkt, 1, 64},
+        {sim::panel_service::kKapelle, 0, 62},
+        {sim::panel_service::kKirche, 7, 63},
+        {sim::panel_service::kWirtshaus, 2, 65},
+        {sim::panel_service::kSchule, 3, 66},
+        {sim::panel_service::kHochschule, 6, 67},
+        {sim::panel_service::kBadehaus, 5, 69},
+        {sim::panel_service::kTheater, 4, 68},
     }};
 
     /// What a class needs of public buildings (Class_RequiredServices 0x0047F320).
@@ -1057,10 +1059,7 @@ public:
     ui::Panel& panel() override { return m_choose ? m_bauship : m_werft; }
 
     void refresh(const Selection& s, const PanelContext& c) override {
-        Selection key = s;
-        key.again = false;
-        if (key != m_last) {
-            m_last = key;
+        if (m_pages.update(s) != SelectionPages::Change::None) {
             m_choose = false;
         }
         const assets::BuildingType* b = building_at(s, c);
@@ -1243,7 +1242,7 @@ private:
     std::array<std::int32_t, 4> m_type_x{};
     bool m_choose = false;
     std::uint8_t m_type = 0;
-    Selection m_last;
+    SelectionPages m_pages;
 };
 
 // ---- Castles -------------------------------------------------------------------------------------
