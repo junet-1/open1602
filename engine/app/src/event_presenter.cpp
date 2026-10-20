@@ -30,6 +30,33 @@ Announcement announce_with_tracks(std::uint16_t message, std::uint8_t tracks) {
     return a;
 }
 
+/// „Euer Volk wünscht …“ for a build level (0x0047FF19): by INFRA number; the gallows (10) and the
+/// levels without a building (market, chapel) have none.
+std::optional<std::uint16_t> wish_message(std::uint8_t infra) {
+    switch (infra) {
+        case 3:  // INFRA_SCHULE: „Euer Volk braucht eine Schule“
+            return std::uint16_t{0x3E};
+        case 4:  // INFRA_WIRT
+            return std::uint16_t{0x3C};
+        case 5:  // INFRA_KIRCHE
+            return std::uint16_t{0x3D};
+        case 6:  // INFRA_BADE
+            return std::uint16_t{0x41};
+        case 7:  // INFRA_THEATER
+            return std::uint16_t{0x42};
+        case 8:  // INFRA_HOCHSCHULE
+            return std::uint16_t{0x3F};
+        case 9:  // INFRA_ARZT
+            return std::uint16_t{0x40};
+        case 11:  // INFRA_SCHLOSS
+            return std::uint16_t{0x44};
+        case 12:  // INFRA_KATHETRALE
+            return std::uint16_t{0x43};
+        default:
+            return std::nullopt;
+    }
+}
+
 }  // namespace
 
 std::array<std::pair<std::uint8_t, std::uint32_t>, 3> island_crops(const sim::WorldIsland& island) {
@@ -74,6 +101,13 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
                                                 const std::vector<sim::CityEvent>& events) const {
     std::vector<Notice> out;
     for (const sim::CityEvent& e : events) {
+        if (e.kind == sim::CityEvent::Kind::Population && e.owner != local && local != sim::kNoPlayer &&
+            e.message >= 0x13 && e.message <= 0x1D) {
+            // Another player's city: „Eine Stadt des Konkurrenten hat nun mehr als …“ from 300 on
+            // (0x00480837).
+            out.emplace_back(announce(static_cast<std::uint16_t>(e.message + 0x0C)));
+            continue;
+        }
         if (e.owner != local) {
             continue;
         }
@@ -89,8 +123,17 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
             out.emplace_back(announce(0x48));
         } else if (e.kind == sim::CityEvent::Kind::Unlocked) {
             std::fprintf(stderr, "%s: build level %u reached\n", name.c_str(), e.infra);
+            if (const auto message = wish_message(e.infra)) {
+                out.emplace_back(announce(*message));
+            }
+        } else if (e.kind == sim::CityEvent::Kind::Population) {
+            out.emplace_back(announce(e.message));
         } else {
             std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
+            // „Es fehlt an …“ by the goods' order, food (0x34) to jewellery (0x3B).
+            if (e.ware >= sim::ware::kFood && e.ware <= sim::ware::kJewellery) {
+                out.emplace_back(announce(static_cast<std::uint16_t>(0x34 + e.ware - sim::ware::kFood)));
+            }
         }
     }
     return out;

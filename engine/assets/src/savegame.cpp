@@ -78,6 +78,7 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
             c.goodwill[k] = u32(r, 0x18 + 4 * k);
         }
         c.material_lock = (r[4] & 1U) != 0;
+        c.population_message = r[5];
         c.purchases = u32(r, 0x08);
         c.sales = u32(r, 0x0C);
         state.cities.push_back(std::move(c));

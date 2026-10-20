@@ -259,6 +259,8 @@ core::Status apply_decoded(World& world, Decoded& d) {
                 c.growing_since_ms = old->growing_since_ms;
                 // Files of an earlier version have no MLCK: the clock stays.
                 c.material_reminder_ms = old->material_reminder_ms;
+                // Files of an earlier version have no CPOP: the message of the original's chunks stays.
+                c.population_message = old->population_message;
             }
         }
         world.set_cities(std::move(*d.cities));
@@ -274,6 +276,13 @@ core::Status apply_decoded(World& world, Decoded& d) {
             for (const Decoded::MaterialClock& st : *d.material_clocks) {
                 if (City* c = world.city(st.island, st.index)) {
                     c->material_reminder_ms = st.material_reminder_ms;
+                }
+            }
+        }
+        if (d.population_marks) {
+            for (const Decoded::PopulationMark& st : *d.population_marks) {
+                if (City* c = world.city(st.island, st.index)) {
+                    c->population_message = st.population_message;
                 }
             }
         }

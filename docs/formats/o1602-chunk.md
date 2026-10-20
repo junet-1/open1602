@@ -64,7 +64,7 @@ chunks of the original say then applies. Later versions can thus add parts witho
 savegames.
 
 In the chunk the writer emits `RULE` (when the settings are known), `WRLD`, `ISLE`, `TILE`, `PLAY`,
-`PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `SHIP`, `ANIM`, `DISA`, `VOLC`,
+`PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `SHIP`, `ANIM`, `DISA`, `VOLC`,
 `FLEE`, `EPOC`, `ARMY`, `DIPL`, `XPLR`, `QUEU`, `STNC` and `SIMU`, in this order. `META`, `MAPW`,
 `WRL2` and `ORIG` exist only in the own savegame ([o1602-save.md](o1602-save.md)).
 
@@ -88,6 +88,7 @@ older readers, marked optional.
 | `MISN` | the missions (goals, loss conditions, values, text, the islands of the island goals recorded at the start) and the end of the game (time, winner) ([missions.md](../re/missions.md)) |
 | `CSTA` | trade statistics per city (island, number, purchases, sales) |
 | `MLCK` | per city (island, number) the game time the building material was locked or the people last complained about it |
+| `CPOP` | per city (island, number) the last population message |
 | `SCOR` | the score's counters per player (soldiers killed and lost, ships sunk and lost), then per city the growth of the house looked at last and the game time since it grows |
 | `FLEE` | ships in full (position in 1/4096 tile, course, holds with price, trade route, destinations with the original's reference, the trader's goods), next ship number, discovered islands, trade settings and affection of the cities, shipyard fields (order, build points, wood, cloth, tick, repair); `SHIP` remains for older readers |
 | `ARMY` | soldiers in full (position in 1/4096 tile, hit points, home, destination, planning, clocks, patrol, path), next soldier number, cannon towers, building damage, shots in flight, weapons and slots of the castles |

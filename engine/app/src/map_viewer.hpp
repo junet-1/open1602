@@ -39,6 +39,7 @@
 #include "o1602/render/ambient.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/camera.hpp"
+#include "o1602/render/combat_effects.hpp"
 #include "o1602/render/graphics_preloader.hpp"
 #include "o1602/render/land_figures.hpp"
 #include "o1602/render/sdl_sprite_renderer.hpp"
@@ -409,8 +410,9 @@ private:
     };
     std::optional<ScreenshotRequest> m_screenshot;  ///< read in the next present()
     std::optional<std::string> m_screenshot_error;  ///< why the last one failed
-    std::vector<render::EffectFigure> m_effects;    ///< volcano fire, lava, sea creatures, jugglers of this frame
+    std::vector<render::EffectFigure> m_effects;    ///< volcano fire, lava, fights, scenery of this frame
     render::Ambient m_ambient;                      ///< life in the picture, no part of the game
+    render::CombatEffects m_combat;                 ///< hits, cannon smoke and wrecks, only a picture
     std::unique_ptr<GameSound> m_sound;             ///< effects, voices and music (after the window)
     std::unique_ptr<Hud> m_hud;                     ///< panel and status bar (after the window), may be null
     /// Mouse and keys on the map, the selection (after the window, the sound and the panel).

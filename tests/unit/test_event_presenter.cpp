@@ -67,6 +67,30 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     CHECK(announcement(city[0])->message == 0x33);
     CHECK(announcement(city[1])->message == 0x48);  // "Das Volk bekommt kein Baumaterial"
 
+    // Shortages, wishes and population marks (MELDUNG 0x11-0x44).
+    sim::CityEvent spices = shortage;
+    spices.ware = sim::ware::kFood + 2;
+    sim::CityEvent tavern = hunger;
+    tavern.kind = sim::CityEvent::Kind::Unlocked;
+    tavern.infra = 4;
+    sim::CityEvent gallows = tavern;
+    gallows.infra = 10;
+    sim::CityEvent grown = hunger;
+    grown.kind = sim::CityEvent::Kind::Population;
+    grown.message = 0x12;
+    sim::CityEvent rival_small = grown;
+    rival_small.owner = kRival;
+    rival_small.city = 1;
+    sim::CityEvent rival_big = rival_small;
+    rival_big.message = 0x15;
+    const auto people = g.presenter.city_events(g.world, kMe, {spices, tavern, gallows, grown, rival_small, rival_big});
+    REQUIRE(people.size() == 4);
+    CHECK(announcement(people[0])->message == 0x36);  // "Es fehlt an Gewürzen"
+    CHECK(announcement(people[1])->message == 0x3C);  // "Euer Volk wünscht ein Wirtshaus"
+    CHECK(announcement(people[2])->message == 0x12);  // 200 inhabitants
+    CHECK(announcement(people[3])->message == 0x21);  // a rival's city passed 1000
+    CHECK(g.presenter.city_events(g.world, sim::kNoPlayer, {rival_big}).empty());
+
     sim::DisasterEvent fire;
     fire.island = 0;
     fire.x = 3;

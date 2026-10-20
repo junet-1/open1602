@@ -87,7 +87,8 @@ struct DrawCommand {
         /// shadows (0x004048E0).
         Translucent,
         /// The sprite darkened: its colours times `tint` (r, g, b / 255). The original dims the
-        /// tiles the player cannot build on through a shading table (tile bit 27, colour 0xD7).
+        /// tiles the player cannot build on through a shading table of its palette (tables 1 and 2
+        /// of 0x005B6360, docs/re/rendering.md#shading-tables).
         Dimmed,
     };
 

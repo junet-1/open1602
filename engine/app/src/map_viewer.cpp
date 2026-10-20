@@ -718,6 +718,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_walkers.update(m_state->simulation.logistics(), m_state->world, m_buildings, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_state->simulation.speed(), m_tick_fraction);
         update_ambient();
+        m_combat.frame(m_state->world, m_figures, m_tick_fraction);
         m_sound->figures({&m_walkers.instances(), &m_soldiers.instances(), &m_ambient.walkers()}, m_effects, m_figures,
                          m_state->world.time_ms(), m_state->simulation.speed());
     }
@@ -870,6 +871,7 @@ render::WorldLayers MapViewer::world_layers(const ZoomGraphics& graphics) const 
     layers.building_figures = &m_building_figures;
     layers.local_player = m_local_player;
     layers.production_phases = &m_production_phases;
+    layers.ship_smoke = &m_combat.ship_smoke();
     return layers;
 }
 
@@ -1146,6 +1148,7 @@ void MapViewer::apply_production_events() {
     const std::vector<sim::ShipEvent> ship_events = m_state->simulation.take_ship_events();
     m_sound->ships(m_state->world, m_figures, ship_events, m_local_player, m_state->world.time_ms());
     m_events.ship_events(m_state->world, m_local_player, ship_events);
+    m_combat.ships(m_state->world, m_figures, ship_events);
     show_notices(m_events.disaster_events(m_state->world, m_local_player, m_state->simulation.take_disaster_events()));
     show_notices(m_events.island_events(m_state->world, m_local_player, m_state->simulation.take_island_events()));
     show_notices(m_events.volcano_events(m_state->world, m_local_player, m_state->simulation.take_volcano_events()));
@@ -1176,6 +1179,8 @@ void MapViewer::collect_effects() {
         f.phase = static_cast<std::uint32_t>(p.launch_us / 1000);
         m_effects.push_back(f);
     }
+    const auto& combat = m_combat.effects();
+    m_effects.insert(m_effects.end(), combat.begin(), combat.end());
     const auto& ambient = m_ambient.effects();
     m_effects.insert(m_effects.end(), ambient.begin(), ambient.end());
 }
@@ -1480,6 +1485,7 @@ void MapViewer::apply_hud(const Hud::Action& action) {
 void MapViewer::apply_game_events() {
     const std::vector<sim::MilitaryEvent> military = m_state->simulation.take_military_events();
     m_sound->combat(m_state->world, m_figures, military, m_local_player, m_state->world.time_ms());
+    m_combat.military(m_state->world, m_buildings, m_figures, military);
     show_notices(m_events.diplomacy_notices(m_local_player, m_state->simulation.take_diplomacy_notices()));
     show_notices(m_events.game_events(m_state->world, m_local_player, m_state->simulation.take_game_events(),
                                       platform::ticks_ms()));
@@ -1971,6 +1977,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     m_walkers = render::WalkerFigures{};
     m_ambient = render::Ambient{1602, ambient_config()};
     m_ambient.tick(m_state->world, m_buildings, m_figures);
+    m_combat.reset();
     m_effects.clear();
     m_player_figures = sim::PlayerFigures{};
     m_figures_ms = 0;

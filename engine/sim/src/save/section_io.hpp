@@ -91,6 +91,13 @@ struct Decoded {
         std::uint64_t material_reminder_ms = 0;
     };
     std::optional<std::vector<MaterialClock>> material_clocks;
+    /// The population messages (CPOP): island, index, City::population_message.
+    struct PopulationMark {
+        std::uint16_t island = 0;
+        std::uint8_t index = 0;
+        std::uint8_t population_message = 0;
+    };
+    std::optional<std::vector<PopulationMark>> population_marks;
     /// The score's counters (SCOR), in the order of PLAY, and the cities' monument clocks.
     struct ScorePart {
         struct Counters {
@@ -254,13 +261,15 @@ void write_scores(Writer& out, const World& w);
 void write_diplomacy(Writer& out, const World& w);
 [[nodiscard]] Diplomacy read_diplomacy(Reader& in);
 
-// cities.cpp: CITY, CSTA, MLCK, PROD, HOUS, GROW, COST.
+// cities.cpp: CITY, CSTA, MLCK, CPOP, PROD, HOUS, GROW, COST.
 void write_cities(Writer& out, const World& w);
 [[nodiscard]] std::vector<City> read_cities(Reader& in);
 void write_city_state(Writer& out, const World& w);
 [[nodiscard]] std::vector<Decoded::CityStats> read_city_state(Reader& in);
 void write_material_clocks(Writer& out, const World& w);
 [[nodiscard]] std::vector<Decoded::MaterialClock> read_material_clocks(Reader& in);
+void write_population_marks(Writer& out, const World& w);
+[[nodiscard]] std::vector<Decoded::PopulationMark> read_population_marks(Reader& in);
 void write_productions(Writer& out, const World& w);
 [[nodiscard]] Decoded::ProductionPart read_productions(Reader& in);
 void write_houses(Writer& out, const World& w);
