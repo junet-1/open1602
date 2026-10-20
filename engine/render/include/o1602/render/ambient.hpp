@@ -30,9 +30,13 @@
 
 namespace o1602::render {
 
-/// What the player sees; only for the sounds, which each computer plays for itself.
+/// What the player at this computer sees. It only filters the picture and the sounds, never a
+/// decision, so every computer of a game still keeps the same scenery.
 struct AmbientView {
-    std::vector<bool> islands;     ///< by index into World::islands()
+    std::vector<bool> islands;  ///< on screen, by index into World::islands(); only for the sounds
+    /// Townsfolk and jugglers show only on islands this player has discovered, as in the original
+    /// (docs/re/flavor.md); kNoPlayer shows every island.
+    sim::PlayerId local_player = sim::kNoPlayer;
     std::uint32_t game_speed = 1;  ///< sounds play only at normal speed, as in the original
     /// Share of the next tick that has passed (Simulation::tick_fraction): townsfolk and sea
     /// creatures are drawn at the game time of the last tick but one plus this share of a tick,

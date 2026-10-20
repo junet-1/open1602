@@ -302,9 +302,13 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
         }
     };
 
+    const auto known = [&](std::uint32_t island) {
+        return view.local_player == sim::kNoPlayer || world.islands()[island].discovered_by(view.local_player);
+    };
+
     m_walker_instances.clear();
     for (Walker& w : m_walking) {
-        if (w.island >= world.islands().size() || now >= w.end_ms) {
+        if (w.island >= world.islands().size() || now >= w.end_ms || !known(w.island)) {
             continue;
         }
         catch_up(w.anim, w.anim_ms, w.figure);
@@ -357,7 +361,7 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
             const auto island_index = static_cast<std::uint32_t>(key >> 32U);
             const auto x = static_cast<std::uint32_t>(key & 0xFFFFU);
             const auto y = static_cast<std::uint32_t>((key >> 16U) & 0xFFFFU);
-            if (island_index >= world.islands().size()) {
+            if (island_index >= world.islands().size() || !known(island_index)) {
                 continue;
             }
             const sim::WorldIsland& island = world.islands()[island_index];
