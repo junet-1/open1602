@@ -138,6 +138,30 @@ TEST_CASE("houses: coverage by market, chapel and their radius") {
     CHECK(!far.services_complete);
     CHECK(sim::has_services(near, 1));  // market and chapel: settlers can live here
     CHECK(!sim::has_services(near, 2));
+    // The house panel shows neither the market nor the chapel as missing.
+    CHECK(sim::panel_services(near) == (sim::panel_service::kMarkt | sim::panel_service::kKapelle));
+}
+
+TEST_CASE("houses: the panel's icons translate the coverage bits") {
+    namespace ps = sim::panel_service;
+    namespace hs = sim::house_service;
+    sim::House h;
+    CHECK(sim::panel_services(h) == 0);
+    // The settler house of the report: market and chapel in reach, nothing else.
+    h.market = true;
+    h.services = hs::kKapelle;
+    CHECK(sim::panel_services(h) == (ps::kMarkt | ps::kKapelle));
+    // A church stands in for a chapel, a college for a school (0x0047B200).
+    h.market = false;
+    h.services = hs::kKirche | hs::kHochschule;
+    CHECK(sim::panel_services(h) == (ps::kKirche | ps::kKapelle | ps::kHochschule | ps::kSchule));
+    h.services = hs::kWirtshaus | hs::kSchule | hs::kBadehaus | hs::kTheater;
+    CHECK(sim::panel_services(h) == (ps::kWirtshaus | ps::kSchule | ps::kBadehaus | ps::kTheater));
+    // Plague, fire and the Kontor have no icon; a Kontor is no market.
+    h.services = hs::kDisasterMask | hs::kKontor;
+    CHECK(sim::panel_services(h) == 0);
+    h.services = hs::kKlinik | hs::kGalgen | hs::kBrunnen;
+    CHECK(sim::panel_services(h) == (ps::kKlinik | ps::kGalgen | ps::kBrunnen));
 }
 
 TEST_CASE("houses: growth rates like the original's tables") {

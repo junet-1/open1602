@@ -814,7 +814,7 @@ public:
         if (cls < 4 && state > 0) {
             mask = required(cls + 1U) & unlocked;
         }
-        const std::uint32_t missing = mask & ~std::uint32_t{house->services};
+        const std::uint32_t missing = mask & ~sim::panel_services(*house);
         m_missing.clear();
         for (std::size_t k = 0; k < kServices; ++k) {
             if ((missing & kServiceOrder[k].bit) != 0) {
@@ -967,14 +967,14 @@ private:
         std::size_t help;
     };
     static constexpr std::array<Service, kServices> kServiceOrder{{
-        {0x01, 1, 64},  // Markt
-        {0x02, 0, 62},  // Kapelle
-        {0x10, 7, 63},  // Kirche
-        {0x08, 2, 65},  // Wirtshaus
-        {0x04, 3, 66},  // Schule
-        {0x80, 6, 67},  // Hochschule
-        {0x20, 5, 69},  // Badehaus
-        {0x40, 4, 68},  // Theater
+        {sim::panel_service::kMarkt, 1, 64},
+        {sim::panel_service::kKapelle, 0, 62},
+        {sim::panel_service::kKirche, 7, 63},
+        {sim::panel_service::kWirtshaus, 2, 65},
+        {sim::panel_service::kSchule, 3, 66},
+        {sim::panel_service::kHochschule, 6, 67},
+        {sim::panel_service::kBadehaus, 5, 69},
+        {sim::panel_service::kTheater, 4, 68},
     }};
 
     /// What a class needs of public buildings (Class_RequiredServices 0x0047F320).

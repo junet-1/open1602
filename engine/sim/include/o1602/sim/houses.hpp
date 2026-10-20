@@ -36,6 +36,22 @@ inline constexpr std::uint16_t kGalgen = 1U << 11;
 inline constexpr std::uint16_t kBrunnen = 1U << 12;
 }  // namespace house_service
 
+/// Bits of the house panel's public buildings (Class_RequiredServices 0x0047F320, the icons of
+/// SIEDLER): another layout than House::services.
+namespace panel_service {
+inline constexpr std::uint32_t kMarkt = 0x01;
+inline constexpr std::uint32_t kKapelle = 0x02;
+inline constexpr std::uint32_t kSchule = 0x04;
+inline constexpr std::uint32_t kWirtshaus = 0x08;
+inline constexpr std::uint32_t kKirche = 0x10;
+inline constexpr std::uint32_t kBadehaus = 0x20;
+inline constexpr std::uint32_t kTheater = 0x40;
+inline constexpr std::uint32_t kHochschule = 0x80;
+inline constexpr std::uint32_t kKlinik = 0x100;
+inline constexpr std::uint32_t kGalgen = 0x200;
+inline constexpr std::uint32_t kBrunnen = 0x8000;
+}  // namespace panel_service
+
 /// Period of house timer group `group`.
 [[nodiscard]] constexpr std::uint32_t house_group_period_ms(std::uint32_t group) noexcept {
     return 15'000U + 64U * group;
@@ -58,6 +74,10 @@ struct HouseEvent {
 /// market or Kontor; settlers a market and a chapel or church; citizens also a tavern and a
 /// school; merchants a church and a bath house; aristocrats a college and a theatre.
 [[nodiscard]] bool has_services(const House& house, std::uint8_t resident_class) noexcept;
+
+/// The public buildings in reach of a house in the panel's layout (House_PanelServices
+/// 0x0047B200). A church also counts as a chapel and a college as a school; a Kontor is no market.
+[[nodiscard]] std::uint32_t panel_services(const House& house) noexcept;
 
 /// Recomputes which markets, Kontors and public buildings reach each house of island `island`
 /// (0x00482120): buildings of the same city whose Radius covers the house from their centre.
