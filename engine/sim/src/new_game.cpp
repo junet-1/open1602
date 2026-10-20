@@ -137,10 +137,10 @@ std::uint32_t new_game_id(std::uint32_t year, std::uint32_t month, std::uint32_t
     return (id << 8) | (random & 0xFFU);
 }
 
-std::string endless_file(std::uint8_t difficulty, std::uint8_t layout) {
+std::string endless_file(std::uint8_t difficulty, std::uint8_t layout, bool multiplayer) {
     char buf[48];
-    std::snprintf(buf, sizeof(buf), "Szenes/Endlosspiel%u%u.szs", static_cast<unsigned>(difficulty),
-                  static_cast<unsigned>(layout));
+    std::snprintf(buf, sizeof(buf), "Szenes/Endlosspiel%u%u.%s", static_cast<unsigned>(difficulty),
+                  static_cast<unsigned>(layout), multiplayer ? "szm" : "szs");
     return buf;
 }
 
@@ -175,7 +175,7 @@ core::Result<World> start_new_game(const assets::GameDirectory& game, const asse
     if (options.difficulty >= NewGameOptions::kDifficulties || options.layout >= NewGameOptions::kLayouts) {
         return core::make_error(core::ErrorCode::OutOfRange, "no endless game with these settings");
     }
-    const std::string path = endless_file(options.difficulty, options.layout);
+    const std::string path = endless_file(options.difficulty, options.layout, options.multiplayer);
     const auto resolved = game.resolve(path);
     if (!resolved) {
         return core::make_error(core::ErrorCode::NotFound, path + " not found in the game directory");

@@ -529,6 +529,7 @@ core::Status MapViewer::start_hosted_game() {
         o.name = own < lobby.seats.size() ? lobby.seats[own].name : std::string{};
         o.world = m_options.world;
         o.world.seed = setup.seed;
+        o.multiplayer = true;  // the .szm level: every player starts with the small trading cog
         if (setup.players > sim::kOriginalPlayers) {
             // More players than the original's maps have starts for: an own world, as much sea
             // and land per player as the original's 500 x 350 for four.
