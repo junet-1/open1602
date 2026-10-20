@@ -329,6 +329,29 @@ void allow_monument(World& world, City& city, std::vector<CityEvent>* events) {
     }
 }
 
+void remind_material_lock(const World& world, City& city, std::vector<CityEvent>* events) {
+    if (!city.material_lock) {
+        return;
+    }
+    const std::uint64_t now = world.time_ms();
+    if (city.material_reminder_ms == 0) {
+        city.material_reminder_ms = now;
+        return;
+    }
+    if (now < city.material_reminder_ms + kMaterialReminderMs) {
+        return;
+    }
+    city.material_reminder_ms = now;
+    if (events != nullptr) {
+        CityEvent e;
+        e.kind = CityEvent::Kind::MaterialLocked;
+        e.island = city.island;
+        e.city = city.index;
+        e.owner = city.owner;
+        events->push_back(e);
+    }
+}
+
 void advance_cities(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
     const std::vector<std::int32_t> costs = running_costs(world, buildings);
     for (std::size_t i = 0; i < world.cities().size(); ++i) {
@@ -348,6 +371,7 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
                     money_plus(owner->money, static_cast<std::int64_t>((tax_income(*city, buildings) - costs[i]) / 6));
                 unlock_levels(world, buildings, *city, events);
                 allow_monument(world, *city, events);
+                remind_material_lock(world, *city, events);
                 break;
             case PlayerRole::Natives:
                 consume_natives(*city);

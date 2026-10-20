@@ -23,10 +23,11 @@ inline constexpr std::uint32_t kCityTickMs = 10'000;
 
 struct CityEvent {
     enum class Kind : std::uint8_t {
-        Shortage,  ///< the supply of `ware` fell twice in a row after it was complete ("Es fehlt an ...")
-        Hunger,    ///< the food supply fell twice in a row and is at most 76 ("Euer Volk hungert")
-        Unlocked,  ///< the city reached build level `infra` for its owner ("Das Volk wünscht ...")
-        Monument,  ///< the owner may build one more monument ("Das treue Volk will Euch ein Denkmal setzen!")
+        Shortage,        ///< the supply of `ware` fell twice in a row after it was complete ("Es fehlt an ...")
+        Hunger,          ///< the food supply fell twice in a row and is at most 76 ("Euer Volk hungert")
+        Unlocked,        ///< the city reached build level `infra` for its owner ("Das Volk wünscht ...")
+        Monument,        ///< the owner may build one more monument ("Das treue Volk will Euch ein Denkmal setzen!")
+        MaterialLocked,  ///< the owner still keeps the building material from the people (message 0x48)
     };
     Kind kind = Kind::Shortage;
     std::uint16_t island = 0;  ///< index into World::islands()
@@ -45,6 +46,14 @@ void unlock_levels(World& world, const assets::BuildingTable& buildings, const C
 /// least 200 inhabitants of class 2 or higher allows its owner one more monument every 30
 /// minutes of game time it keeps growing.
 void allow_monument(World& world, City& city, std::vector<CityEvent>* events);
+
+/// Game time between two complaints about the material lock (10800 in 1/10 s, 0x0047FD67).
+inline constexpr std::uint64_t kMaterialReminderMs = 18ULL * 60 * 1000;
+
+/// The people complain while the building material is locked (message 0x48 from the city tick
+/// 0x0047FD49): 18 minutes of game time after the lock was switched on, and again every 18
+/// minutes. A city without a clock (an original savegame) starts one now.
+void remind_material_lock(const World& world, City& city, std::vector<CityEvent>* events);
 
 /// The tax curve (0x0055E780): how much supply a class asks for at a tax rate (128 = normal ->
 /// 128; lower taxes ask for less, higher ones for more).

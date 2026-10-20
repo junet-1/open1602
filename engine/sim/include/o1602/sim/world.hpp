@@ -142,6 +142,8 @@ struct City {
     std::uint8_t epoch = 0;                  ///< counts the city's 10-s ticks, 0..7
     /// The player keeps building material from the people (city window): no house upgrades.
     bool material_lock = false;
+    /// Game time the lock was switched on or the people last complained about it (city + 0x1E8).
+    std::uint64_t material_reminder_ms = 0;
     std::uint8_t worst_good = 0;  ///< the scarcest good whose supply keeps falling, 0 = none
     /// Fires and plagues burning in the city now (city + 0x1FE, kept by recount_disasters): any
     /// of them stops the growth of every house.

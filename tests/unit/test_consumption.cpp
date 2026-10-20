@@ -177,3 +177,34 @@ TEST_CASE("consumption: pirates take random goods") {
     CHECK((before - after) % (3 * 32) == 0);  // always 3 t from a ware with at least 10 t
     CHECK(before - after <= 20 * 3 * 32);
 }
+
+TEST_CASE("consumption: the people complain every 18 minutes while the building material is locked") {
+    sim::World world(100, 100);
+    sim::City city = make_city(10, 0);
+    std::vector<sim::CityEvent> events;
+
+    world.set_time_ms(5 * 60'000);
+    sim::remind_material_lock(world, city, &events);
+    CHECK(events.empty());  // not locked
+    CHECK(city.material_reminder_ms == 0);
+
+    city.material_lock = true;  // a savegame without a clock: it starts now
+    sim::remind_material_lock(world, city, &events);
+    CHECK(events.empty());
+    CHECK(city.material_reminder_ms == 5 * 60'000);
+
+    world.set_time_ms(23 * 60'000 - 1);
+    sim::remind_material_lock(world, city, &events);
+    CHECK(events.empty());  // not yet
+    world.set_time_ms(23 * 60'000);
+    sim::remind_material_lock(world, city, &events);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == sim::CityEvent::Kind::MaterialLocked);
+    CHECK(events[0].owner == city.owner);
+    CHECK(city.material_reminder_ms == 23 * 60'000);  // the next in another 18 minutes
+
+    city.material_lock = false;
+    world.set_time_ms(60 * 60'000);
+    sim::remind_material_lock(world, city, &events);
+    CHECK(events.size() == 1);  // unlocked: no more complaints
+}

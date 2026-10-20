@@ -2298,9 +2298,11 @@ TEST_CASE("data: the city window sets the taxes, the name and the material lock"
     CHECK(simulation.execute(rename).accepted);
     CHECK(city.name == "Neu-Lemonhall");
     sim::CityOrder lock = order(sim::CityOrder::Op::MaterialLock);
+    CHECK(simulation.execute(lock).accepted);  // off first, so switching it on starts the clock
     lock.on = true;
     CHECK(simulation.execute(lock).accepted);
     CHECK(city.material_lock);
+    CHECK(city.material_reminder_ms == world.time_ms());  // the people's clock starts
 }
 
 TEST_CASE("data: Open1602's chunk is left out when the original's chunks changed or it is damaged") {

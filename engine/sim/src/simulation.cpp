@@ -413,6 +413,10 @@ bool Simulation::city_order(const CityOrder& o) {
             city->name = o.name;
             return true;
         case CityOrder::Op::MaterialLock:
+            // Switching the lock on starts the people's clock (0x0048073A).
+            if (o.on && !city->material_lock) {
+                city->material_reminder_ms = m_world->time_ms();
+            }
             city->material_lock = o.on;
             return true;
     }
