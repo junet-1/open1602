@@ -164,12 +164,16 @@ Without arguments `o1602-tool` lists every command with its options.
 tested and not kept in step with the engine; where they disagree with `engine/assets` (and
 `o1602-tool`), the C++ is right.
 
+`tools/original/original_wine.py` runs the original game headless under Wine or Proton and drives it
+(start, clicks, keys, screenshots, stop) for comparisons with Open1602
+([details](tools/original/README.md)).
+
 ## Project layout
 
 | Folder | Contents |
 |---|---|
 | `engine/` | Engine modules: `core`, `assets`, `sim`, `net`, `render`, `platform`, `audio`, `video`, `ui`, `app`; each has a README |
-| `tools/` | `o1602-tool` (C++, one file per command group) and unmaintained Python prototypes from reverse engineering (`tools/python/`; the C++ readers in `engine/assets` are authoritative) |
+| `tools/` | `o1602-tool` (C++, one file per command group) and unmaintained Python prototypes from reverse engineering (`tools/python/`; the C++ readers in `engine/assets` are authoritative), and a driver for the original under Wine (`tools/original/`) |
 | `tests/` | Unit tests and tests against the original data ([how to run them](tests/README.md)) |
 | `docs/` | [Plan](docs/00-plan.md), [status](docs/status.md), [file formats](docs/formats/README.md), [architecture decisions](docs/architecture/README.md), [languages](docs/modding/languages.md) and [data limits](docs/modding/data-limits.md) for modding |
 | `re/` | Analysis scripts and notes |
