@@ -35,23 +35,23 @@ Announcement announce_with_tracks(std::uint16_t message, std::uint8_t tracks) {
 std::optional<std::uint16_t> wish_message(std::uint8_t infra) {
     switch (infra) {
         case 3:  // INFRA_SCHULE: „Euer Volk braucht eine Schule“
-            return 0x3E;
+            return std::uint16_t{0x3E};
         case 4:  // INFRA_WIRT
-            return 0x3C;
+            return std::uint16_t{0x3C};
         case 5:  // INFRA_KIRCHE
-            return 0x3D;
+            return std::uint16_t{0x3D};
         case 6:  // INFRA_BADE
-            return 0x41;
+            return std::uint16_t{0x41};
         case 7:  // INFRA_THEATER
-            return 0x42;
+            return std::uint16_t{0x42};
         case 8:  // INFRA_HOCHSCHULE
-            return 0x3F;
+            return std::uint16_t{0x3F};
         case 9:  // INFRA_ARZT
-            return 0x40;
+            return std::uint16_t{0x40};
         case 11:  // INFRA_SCHLOSS
-            return 0x44;
+            return std::uint16_t{0x44};
         case 12:  // INFRA_KATHETRALE
-            return 0x43;
+            return std::uint16_t{0x43};
         default:
             return std::nullopt;
     }
