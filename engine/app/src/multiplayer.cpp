@@ -438,16 +438,8 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
     lobby.game = setup.file_name;
     std::optional<sim::World> world;
     if (setup.kind == HostSetup::Kind::Endless) {
-        // A slot per player, the world is made at the start. Players five on sit behind the
-        // free trader, the pirates and the natives (sim::player_slot), whose slots are left out.
-        const std::size_t players = std::clamp<std::size_t>(setup.players, HostSetup::kMinPlayers, sim::kMaxPlayers);
-        lobby.seats.resize(std::max<std::size_t>(sim::player_slot(players - 1) + 1U, sim::kOriginalPlayers));
-        for (std::size_t s = 0; s < lobby.seats.size(); ++s) {
-            const bool used = s < players || s >= sim::kFirstExtraPlayer;
-            if (!used) {
-                lobby.seats[s].kind = net::LobbySeat::Kind::Reserved;
-            }
-        }
+        // A slot per player, the world is made at the start.
+        lobby.seats = endless_seats(setup.players);
     } else {
         const std::filesystem::path path =
             setup.kind == HostSetup::Kind::Scenario ? setup.file : slot_file(save_folder(), setup.slot);
@@ -579,14 +571,15 @@ core::Status MapViewer::start_hosted_game() {
         if (p == nullptr) {
             continue;
         }
+        // The factions' slots stay as the world has them, whatever the lobby says: a free trader
+        // or pirates made a computer player would be out of the game at the first check.
+        if (p->role != sim::PlayerRole::Human && p->role != sim::PlayerRole::Computer) {
+            continue;
+        }
         const net::LobbySeat& seat = lobby.seats[s];
         net::LobbySeat::Kind kind = seat.kind;
         if (kind == net::LobbySeat::Kind::Reserved) {
-            // Not a player's slot (the factions), or one beyond the number of players.
-            if (p->role != sim::PlayerRole::Human && p->role != sim::PlayerRole::Computer) {
-                continue;
-            }
-            kind = net::LobbySeat::Kind::Closed;
+            kind = net::LobbySeat::Kind::Closed;  // one beyond the number of players
         }
         switch (kind) {
             case net::LobbySeat::Kind::Human:

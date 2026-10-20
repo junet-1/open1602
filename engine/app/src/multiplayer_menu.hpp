@@ -102,6 +102,12 @@ struct MultiplayerEvent {
     std::string text{};
 };
 
+/// The lobby slots of an endless game for `players` (clamped to HostSetup::kMinPlayers..
+/// sim::kMaxPlayers): the four players' slots, then those of players five on behind the free
+/// trader, the pirates and the natives (sim::player_slot). The factions' slots are reserved, so
+/// no person and no computer player ever takes them.
+[[nodiscard]] std::vector<net::LobbySeat> endless_seats(std::size_t players);
+
 /// "name", "name:port", "1.2.3.4:port": the host and its port (kDefaultPort if none is given);
 /// nothing for an empty or malformed address.
 [[nodiscard]] std::optional<std::pair<std::string, std::uint16_t>> parse_address(std::string_view text);
