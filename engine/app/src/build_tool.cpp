@@ -205,26 +205,14 @@ std::optional<sim::DemolishOrder> BuildTool::demolish_order(sim::PlayerId player
     return sim::DemolishOrder{player, spot.island, {start.x, start.y}, {spot.x, spot.y}};
 }
 
-BuildTool::DemolishPreview BuildTool::demolish_preview(const sim::World& world, sim::PlayerId player,
-                                                       const Spot& spot) const {
-    DemolishPreview preview;
+std::vector<sim::TilePos> BuildTool::demolish_preview(const sim::World& world, sim::PlayerId player,
+                                                      const Spot& spot) const {
+    std::vector<sim::TilePos> removed;
     const auto order = demolish_order(player, spot);
     if (!order || order->island >= world.islands().size()) {
-        return preview;
+        return removed;
     }
     const sim::IslandMap& map = world.islands()[order->island].map;
-    const std::int32_t x0 = std::max(0, std::min(order->from.x, order->to.x));
-    const std::int32_t y0 = std::max(0, std::min(order->from.y, order->to.y));
-    const std::int32_t x1 = std::min(static_cast<std::int32_t>(map.width()) - 1, std::max(order->from.x, order->to.x));
-    const std::int32_t y1 = std::min(static_cast<std::int32_t>(map.height()) - 1, std::max(order->from.y, order->to.y));
-    if (x1 >= x0 && y1 >= y0) {
-        preview.area.reserve(static_cast<std::size_t>(x1 - x0 + 1) * static_cast<std::size_t>(y1 - y0 + 1));
-    }
-    for (std::int32_t y = y0; y <= y1; ++y) {
-        for (std::int32_t x = x0; x <= x1; ++x) {
-            preview.area.push_back({x, y});
-        }
-    }
     for (const sim::TilePos& origin : sim::plan_demolish(world, *m_buildings, *order)) {
         const auto b = sim::building_at(world, *m_buildings, order->island, origin);
         if (!b) {
@@ -235,12 +223,12 @@ BuildTool::DemolishPreview BuildTool::demolish_preview(const sim::World& world, 
                 const std::int32_t x = b->origin.x + static_cast<std::int32_t>(i);
                 const std::int32_t y = b->origin.y + static_cast<std::int32_t>(j);
                 if (map.contains(x, y)) {
-                    preview.removed.push_back({x, y});
+                    removed.push_back({x, y});
                 }
             }
         }
     }
-    return preview;
+    return removed;
 }
 
 std::string BuildTool::describe() const {

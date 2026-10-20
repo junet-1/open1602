@@ -90,8 +90,8 @@ std::string refusal_text(sim::BuildRefusal refusal) {
 
 /// Ground under a building that cannot be built there.
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
-/// The rectangle being dragged out for demolishing: hatched on the ground.
-constexpr assets::Rgba kDemolishHatch{235, 235, 235, 255};
+/// What a demolish order would remove: hatched over the buildings.
+constexpr assets::Rgba kDemolishHatch{220, 40, 30, 255};
 /// Real time a frame may spend on ticks; the rest of the frame draws.
 constexpr int kTickBudgetMs = 25;
 const char* zoom_name(render::Zoom zoom) {
@@ -1061,22 +1061,15 @@ void MapViewer::render() {
             }
         }
         if (m_tool.mode() == BuildTool::Mode::Demolish) {
-            // The rectangle being dragged (or the tile under the mouse) hatched, and everything the
-            // order would remove on red ground, so the player sees what goes before letting go.
+            // Only what the click or drag would really remove is hatched, over the buildings, so the
+            // player sees what changes before letting go.
             if (const auto spot = m_input->spot_at_mouse()) {
-                const BuildTool::DemolishPreview demolish =
-                    m_tool.demolish_preview(m_state->world, m_local_player, *spot);
-                m_tile_marks.reserve(demolish.area.size() + demolish.removed.size());
-                for (const sim::TilePos& t : demolish.area) {
+                for (const sim::TilePos& t : m_tool.demolish_preview(m_state->world, m_local_player, *spot)) {
                     render::TileMark mark{spot->island, static_cast<std::uint16_t>(t.x),
                                           static_cast<std::uint16_t>(t.y), kDemolishHatch};
                     mark.hatched = true;
+                    mark.on_top = true;
                     m_tile_marks.push_back(mark);
-                }
-                // Marked after the hatching: a tile marked twice shows its last mark.
-                for (const sim::TilePos& t : demolish.removed) {
-                    m_tile_marks.push_back(render::TileMark{spot->island, static_cast<std::uint16_t>(t.x),
-                                                            static_cast<std::uint16_t>(t.y), kRefusedTint});
                 }
             }
         }

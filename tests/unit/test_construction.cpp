@@ -287,7 +287,7 @@ TEST_CASE("construction: houses get one inhabitant and leave nothing behind when
     CHECK(island.city_at(8, 13) == sim::MapCell::kNoCity);
 }
 
-TEST_CASE("construction: the demolish preview shows the dragged rectangle and what it removes") {
+TEST_CASE("construction: the demolish preview marks only what the order removes") {
     Island island;
     island.found();
     REQUIRE(island.build({{kHouse, 8, 13, 0, 0}}).placed == 1);
@@ -297,28 +297,24 @@ TEST_CASE("construction: the demolish preview shows the dragged rectangle and wh
         return std::ranges::find(tiles, sim::TilePos{x, y}) != tiles.end();
     };
     // Nothing unless demolishing.
-    CHECK(tool.demolish_preview(island.world, 0, {0, 9, 14}).area.empty());
+    CHECK(tool.demolish_preview(island.world, 0, {0, 9, 14}).empty());
     tool.set_mode(app::BuildTool::Mode::Demolish);
-    // Hovering: the tile under the mouse, and the whole house a click there would remove.
-    auto hover = tool.demolish_preview(island.world, 0, {0, 9, 14});
-    CHECK(hover.area.size() == 1);
-    CHECK(hover.removed.size() == 4);
-    CHECK(contains(hover.removed, 8, 13));
-    CHECK(contains(hover.removed, 9, 14));
-    // Dragging: the rectangle, and only what the order removes (the road; the house stays).
+    // Hovering: the whole house a click there would remove; bare ground nothing.
+    const auto hover = tool.demolish_preview(island.world, 0, {0, 9, 14});
+    CHECK(hover.size() == 4);
+    CHECK(contains(hover, 8, 13));
+    CHECK(contains(hover, 9, 14));
+    CHECK(tool.demolish_preview(island.world, 0, {0, 20, 20}).empty());
+    // Dragging: only the road; the rectangle leaves the house standing.
     tool.press({0, 7, 12});
     const auto drag = tool.demolish_preview(island.world, 0, {0, 10, 15});
-    CHECK(drag.area.size() == 16);  // x 7..10, y 12..15
-    CHECK(contains(drag.area, 7, 15));
-    REQUIRE(drag.removed.size() == 1);
-    CHECK((drag.removed[0] == sim::TilePos{10, 12}));
-    // It is what the order does.
+    REQUIRE(drag.size() == 1);
+    CHECK((drag[0] == sim::TilePos{10, 12}));
     const auto order = tool.demolish_order(0, {0, 10, 15});
     REQUIRE(order.has_value());
     CHECK(sim::plan_demolish(island.world, island.buildings, *order).size() == 1);
-    // Another player's buildings are not marked, and the rectangle stays on the island.
-    CHECK(tool.demolish_preview(island.world, 1, {0, 10, 15}).removed.empty());
-    CHECK(tool.demolish_preview(island.world, 0, {0, 40, 15}).area.size() == 4 * 23);  // x 7..29
+    // Another player's view marks none of them.
+    CHECK(tool.demolish_preview(island.world, 1, {0, 10, 15}).empty());
 }
 
 TEST_CASE("construction: a market claims land; demolished, the land and what stands on it is lost") {

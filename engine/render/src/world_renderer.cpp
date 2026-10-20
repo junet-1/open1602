@@ -984,7 +984,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     std::vector<DrawCommand>& overlays = scratch.overlays;
     overlays.clear();
     // Marked tiles go on top of everything, so buildings do not hide them; hatched ones lie on the
-    // ground like the ownership view. A tile marked twice shows its last mark.
+    // ground like the ownership view unless marked on top. A tile marked twice shows its last mark.
     const auto mark_key = [](std::uint16_t island, std::uint16_t x, std::uint16_t y) {
         return (std::uint64_t{island} << 32U) | (std::uint64_t{x} << 16U) | y;
     };
@@ -1015,7 +1015,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                                                  [](std::uint64_t k, const auto& e) { return k < e.first; });
                 it != marks.begin() && std::prev(it)->first == key) {
                 const TileMark& m = std::prev(it)->second;
-                (m.hatched ? overlays : marked)
+                (m.hatched && !m.on_top ? overlays : marked)
                     .push_back(DrawCommand{m.hatched ? DrawCommand::kOverlayHatch : DrawCommand::kOverlayDiamond, sx,
                                            row_bottom - elevation, m.color, static_cast<std::uint8_t>(tw)});
             }
