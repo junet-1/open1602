@@ -570,7 +570,8 @@ void MainMenu::refresh_colour() {
     p.set_text(kNameBox, m_typing ? m_name + "_" : m_name);
     // The further colours' coats of arms, golden under the mouse; the banner in the hall with the
     // same pattern shows the colour (render/shape_tint.hpp).
-    const std::optional<std::int32_t> hovered = p.hovered();
+    // While the name is typed the mouse does not choose (mouse()): no coat of arms lights up.
+    const std::optional<std::int32_t> hovered = m_typing ? std::nullopt : p.hovered();
     const render::Banner* preview = nullptr;
     for (std::size_t n = 0; n < kMoreBanners; ++n) {
         const std::int32_t id = kMoreArms + static_cast<std::int32_t>(n);
@@ -579,7 +580,7 @@ void MainMenu::refresh_colour() {
         if (g == nullptr) {
             continue;
         }
-        const bool lit = hovered == id || p.held() == id;
+        const bool lit = hovered == id || (!m_typing && p.held() == id);
         set_banner_graphic(p, id, render::BannerArt::at(lit ? g->gfx + kGfxArmsGold : g->gfx), banner,
                            lit ? 0 : kGfxArmsGold);
         if (lit) {
@@ -675,6 +676,11 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
     }
     ui::Panel* p = panel();
     if (p == nullptr || button != ui::MouseButton::Left) {
+        return out;
+    }
+    if (m_screen == Screen::Colour && m_typing) {
+        // The name first: banners and coats of arms answer only once Enter confirmed it, which
+        // also brings "Unter welcher Flagge wollt Ihr segeln?" (MenuEvent::Kind::NameEntered).
         return out;
     }
     for (const ui::PanelEvent& e : p->mouse(x, y, down)) {

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -14,6 +15,7 @@
 #include "o1602/sim/combat.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/military.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -181,6 +183,110 @@ TEST_CASE("pirates: none with the setting no pirates") {
     w.start();
     w.run(120'000);
     CHECK(w.pirate_ships() == 0);
+}
+
+TEST_CASE("pirates: the rule switches them on against the setting, or off") {
+    // The endless games of the two easy levels have the setting "no pirates" (newgame.md).
+    sim::World::GameSettings none{1, 1, 1500};
+    sim::World::GameSettings some{2, 0, 1500};
+    sim::World world{10, 10};
+    sim::Rules rules;
+    world.set_game_settings(none);
+    CHECK(!sim::pirates_enabled(world, rules));
+    rules.pirates = sim::Pirates::On;
+    CHECK(sim::pirates_enabled(world, rules));
+    world.set_game_settings(some);
+    rules.pirates = sim::Pirates::Game;
+    CHECK(sim::pirates_enabled(world, rules));
+    rules.pirates = sim::Pirates::Off;
+    CHECK(!sim::pirates_enabled(world, rules));
+
+    // "On" in a game without them: they come as on the harder levels.
+    World on;
+    on.rules.pirates = sim::Pirates::On;
+    on.world.set_game_settings(none);
+    on.world.player(0)->infra_mask |= 1U << 24;
+    on.start();
+    on.run(30'000);
+    CHECK(on.pirate_ships() == 1);
+    // "Off" in a game with them: none come.
+    World off;
+    off.rules.pirates = sim::Pirates::Off;
+    off.world.set_game_settings(some);
+    off.world.player(0)->infra_mask |= 1U << 30;
+    off.start();
+    off.run(120'000);
+    CHECK(off.pirate_ships() == 0);
+
+    // The choice stays with the savegame.
+    for (const sim::Pirates choice : {sim::Pirates::Game, sim::Pirates::Off, sim::Pirates::On}) {
+        sim::Rules saved;
+        saved.pirates = choice;
+        off.world.set_saved_rules(saved);
+        auto bytes = sim::write_game(off.world, off.buildings);
+        REQUIRE(bytes.ok());
+        auto back = sim::read_game(*bytes, off.buildings);
+        REQUIRE(back.ok());
+        REQUIRE(back->saved_rules().has_value());
+        CHECK(back->saved_rules()->pirates == choice);
+    }
+}
+
+TEST_CASE("pirates: one nest for every four players begun, each with the original's ships") {
+    // Two players: one nest either way, as in the original.
+    World w;
+    CHECK(sim::pirate_nests(w.world, w.rules) == 1);
+    // Seven players (slots 4 to 8 computers): two nests, unless the rule keeps the original's one.
+    const auto seven = [](World& world) {
+        std::vector<sim::Player> players = world.world.players();
+        players.resize(9);
+        for (std::size_t i = 4; i < players.size(); ++i) {
+            players[i].role = sim::PlayerRole::Computer;
+        }
+        world.world.set_players(players);
+    };
+    seven(w);
+    CHECK(sim::pirate_nests(w.world, w.rules) == 2);
+    sim::Rules one;
+    one.pirate_nests = sim::PirateNests::One;
+    CHECK(sim::pirate_nests(w.world, one) == 1);
+    CHECK(sim::Rules::original().pirate_nests == sim::PirateNests::One);
+    // The parts of the map are strips across its longer side.
+    CHECK(sim::pirate_region(w.world, 0, 59, 2) == 0);
+    CHECK(sim::pirate_region(w.world, 59, 0, 2) == 0);
+    CHECK(sim::pirate_region(w.world, 60, 0, 2) == 1);
+    CHECK(sim::pirate_region(w.world, 119, 59, 2) == 1);
+    CHECK(sim::pirate_region(w.world, 119, 59, 1) == 0);
+
+    // Citizens: two ships for each nest, the next one after half the interval.
+    const auto fleet = [&](sim::PirateNests nests) {
+        World game;
+        seven(game);
+        game.rules.pirate_nests = nests;
+        game.world.set_game_settings(sim::World::GameSettings{2, 0, 1500});
+        game.world.player(0)->infra_mask |= 1U << 24;
+        game.start();
+        game.run(800'000);
+        const std::size_t early = game.pirate_ships();
+        game.run(2'000'000);
+        return std::pair{early, game.pirate_ships()};
+    };
+    using Counts = std::pair<std::size_t, std::size_t>;
+    CHECK(fleet(sim::PirateNests::PerFourPlayers) == Counts(2, 4));
+    CHECK(fleet(sim::PirateNests::One) == Counts(1, 2));
+
+    // The choice stays with the savegame.
+    for (const sim::PirateNests choice : {sim::PirateNests::One, sim::PirateNests::PerFourPlayers}) {
+        sim::Rules saved;
+        saved.pirate_nests = choice;
+        w.world.set_saved_rules(saved);
+        auto bytes = sim::write_game(w.world, w.buildings);
+        REQUIRE(bytes.ok());
+        auto back = sim::read_game(*bytes, w.buildings);
+        REQUIRE(back.ok());
+        REQUIRE(back->saved_rules().has_value());
+        CHECK(back->saved_rules()->pirate_nests == choice);
+    }
 }
 
 TEST_CASE("pirates: a surrendered ship is plundered and the loot goes to the nest") {

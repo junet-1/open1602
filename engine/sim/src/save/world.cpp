@@ -27,6 +27,8 @@ enum RuleKey : std::uint16_t {
     kTraderPrices = 8,
     kMaxArmy = 9,
     kClassicAi = 10,
+    kPirateRule = 23,
+    kPirateNests = 24,
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -101,7 +103,11 @@ void io_epochs(A& a, E& e) {
 // RULE is a list of keys and values rather than a record: the reader keeps a setting of a later
 // version out (unknown key) and clamps the values into what the setting allows.
 void write_rules(Writer& out, const Rules& r) {
-    std::vector<std::pair<RuleKey, std::uint32_t>> values = {
+    // Room for every key up front: the optional ones below then never reallocate (GCC 13 also
+    // misreads that reallocation as an overflow).
+    std::vector<std::pair<RuleKey, std::uint32_t>> values;
+    values.reserve(32);
+    const std::pair<RuleKey, std::uint32_t> always[] = {
         {kRefund, static_cast<std::uint32_t>(r.demolish_refund)},
         {kRefundPercent, r.refund_percent},
         {kMaxShips, r.max_ships_per_player},
@@ -113,6 +119,17 @@ void write_rules(Writer& out, const Rules& r) {
         {kMaxArmy, r.max_army},
         {kClassicAi, r.classic_ai ? 1U : 0U},
     };
+    values.assign(std::begin(always), std::end(always));
+    // The pirates only when they differ from the game's setting: a game without the choice keeps
+    // the bytes of the versions before it.
+    if (r.pirates != Pirates::Game) {
+        values.emplace_back(kPirateRule, static_cast<std::uint32_t>(r.pirates));
+    }
+    // The pirate nests only when they are not one for every four players: up to four players that
+    // is the original, so older games keep their bytes.
+    if (r.pirate_nests != PirateNests::PerFourPlayers) {
+        values.emplace_back(kPirateNests, static_cast<std::uint32_t>(r.pirate_nests));
+    }
     // The victory conditions only when there are any: a game without them keeps the bytes of the
     // versions before them.
     if (const VictoryConditions& v = r.victory; v != VictoryConditions{}) {
@@ -171,6 +188,12 @@ Rules read_rules(Reader& in) {
                 break;
             case kMaxArmy:
                 r.max_army = v;
+                break;
+            case kPirateRule:
+                r.pirates = static_cast<Pirates>(std::min<std::uint32_t>(v, 2));
+                break;
+            case kPirateNests:
+                r.pirate_nests = static_cast<PirateNests>(std::min<std::uint32_t>(v, 1));
                 break;
             case kClassicAi:
                 r.classic_ai = v != 0;

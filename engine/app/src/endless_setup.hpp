@@ -70,6 +70,8 @@ enum class SetupItem : std::uint8_t {
     Resources,
     // Opponents
     ClassicAi,
+    Pirates,
+    PirateNests,
     // Victory conditions (a page of their own, endless games only; sim::VictoryConditions)
     WinInhabitants,
     WinClass,

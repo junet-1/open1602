@@ -98,6 +98,28 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(!s.rules.classic_ai);  // Open1602's computer players by default
     app::choose(s, SetupItem::ClassicAi, 1);
     CHECK(s.rules.classic_ai);
+    CHECK(s.rules.pirates == sim::Pirates::Game);  // as the level by default: none on the two easy ones
+    CHECK(value_of(s, SetupItem::Pirates) == ui::tr("setup.pirates.game"));
+    app::choose(s, SetupItem::Pirates, 2);
+    CHECK(s.rules.pirates == sim::Pirates::On);
+    CHECK(app::write_setup(s).find("endless.pirates = on\n") != std::string::npos);
+    EndlessSetup read;
+    app::read_setup(read, app::write_setup(s));
+    CHECK(read.rules.pirates == sim::Pirates::On);
+    CHECK(app::read_setup_line(read, "pirates", "off"));
+    CHECK(read.rules.pirates == sim::Pirates::Off);
+    CHECK(app::read_setup_line(read, "pirates", "many"));  // not a value: unchanged
+    CHECK(read.rules.pirates == sim::Pirates::Off);
+    // Pirate nests: one for every four players by default (up to four players the original's one).
+    CHECK(s.rules.pirate_nests == sim::PirateNests::PerFourPlayers);
+    CHECK(value_of(s, SetupItem::PirateNests) == ui::tr("setup.pirate_nests.per4"));
+    app::choose(s, SetupItem::PirateNests, 0);
+    CHECK(s.rules.pirate_nests == sim::PirateNests::One);
+    CHECK(app::write_setup(s).find("endless.pirate_nests = one\n") != std::string::npos);
+    app::read_setup(read, app::write_setup(s));
+    CHECK(read.rules.pirate_nests == sim::PirateNests::One);
+    CHECK(app::read_setup_line(read, "pirate_nests", "per4"));
+    CHECK(read.rules.pirate_nests == sim::PirateNests::PerFourPlayers);
 
     // The world's items count only for a world of its own.
     CHECK(!app::setup_item_used(s, SetupItem::Players));
@@ -256,9 +278,9 @@ TEST_CASE("game setup: what a scenario, a multiplayer game and a savegame offer"
                                  SetupItem::Starts, SetupItem::Resources}) {
         CHECK(!app::setup_item_offered(SetupScope::Scenario, item));
     }
-    for (const SetupItem item :
-         {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::Ships, SetupItem::Units, SetupItem::GameSpeed,
-          SetupItem::Droughts, SetupItem::Volcanoes, SetupItem::ClassicAi}) {
+    for (const SetupItem item : {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::Ships, SetupItem::Units,
+                                 SetupItem::GameSpeed, SetupItem::Droughts, SetupItem::Volcanoes, SetupItem::ClassicAi,
+                                 SetupItem::Pirates, SetupItem::PirateNests}) {
         CHECK(app::setup_item_offered(SetupScope::Scenario, item));
         CHECK(app::setup_item_open(EndlessSetup{}, SetupScope::Scenario, item));
         CHECK(!app::setup_item_open(EndlessSetup{}, SetupScope::Savegame, item));  // to look at only
@@ -416,7 +438,7 @@ TEST_CASE("game setup: every group of the dialog ends above its hint") {
             }
             if (d.text.size() > 20 && hint.compare(0, 20, d.text, 0, 20) == 0) {  // fitted to its room
                 hint_y = std::min(hint_y, d.y);
-            } else if (d.text == app::setup_label(SetupItem::ClassicAi)) {
+            } else if (d.text == app::setup_label(SetupItem::PirateNests)) {  // the last row of the lower column
                 rows_y = d.y;
             }
         }
