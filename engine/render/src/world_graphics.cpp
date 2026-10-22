@@ -185,18 +185,12 @@ core::Result<PreparedGraphics> prepare_world_graphics(const assets::GameDirector
         return graphics.error();
     }
     PreparedGraphics p{std::move(graphics).value(), {}, 0};
-    // Units are picked by their visible pixels: the figure sheets keep a mask (the terrain sheet
-    // comes first and is not needed).
-    auto first_figure = static_cast<std::uint32_t>(p.graphics.atlas.sprite_count());
-    for (std::size_t k = 0; k < assets::kFigureSheetCount; ++k) {
-        if (k != static_cast<std::size_t>(assets::FigureSheet::Stadtfld) && p.graphics.base[k]) {
-            first_figure = std::min(first_figure, *p.graphics.base[k]);
-        }
-    }
     if (options.cancel != nullptr && options.cancel->load(std::memory_order_relaxed)) {
         return core::make_error(core::ErrorCode::Unsupported, "cancelled");
     }
-    p.hit_mask = SpriteHitMask::build(p.graphics.atlas, first_figure);
+    // Buildings and units are picked by their visible pixels: every sprite keeps a mask, the
+    // terrain sheet's (buildings, also those of mods) as the figures'.
+    p.hit_mask = SpriteHitMask::build(p.graphics.atlas, 0);
     p.ms = static_cast<std::uint32_t>(
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
     return p;

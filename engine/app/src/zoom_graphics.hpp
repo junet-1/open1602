@@ -13,7 +13,7 @@ namespace o1602::app {
 struct ZoomGraphics {
     render::WorldGraphics graphics;
     std::unique_ptr<render::SdlSpriteRenderer> renderer;
-    render::SpriteHitMask hit_mask;  ///< visible pixels of the figures, for picking units
+    render::SpriteHitMask hit_mask;  ///< visible pixels of all sprites, for picking buildings and units
 };
 
 }  // namespace o1602::app

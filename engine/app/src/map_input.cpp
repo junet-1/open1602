@@ -92,6 +92,14 @@ std::optional<std::int32_t> key_from_name(std::string_view name, bool physical) 
     return key == SDLK_UNKNOWN ? std::nullopt : std::optional<std::int32_t>(static_cast<std::int32_t>(key));
 }
 
+/// Buildings a click shows in the panel: workshops to the Kontor, houses and public buildings,
+/// the castle (the kinds of HAUS_PRODTYP, so the buildings of mods are included).
+bool selectable(const assets::BuildingType& b) {
+    const std::int32_t k = b.prod_kind;
+    return (k >= sim::prod::kWorkshop && k <= sim::prod::kKontor) ||
+           (k >= sim::prod::kHouse && k <= sim::prod::kPublicLast) || k == sim::prod::kHaupt;
+}
+
 ui::KeyPress key_press(int key, int scancode, std::uint16_t mod) {
     return ui::KeyPress{key, scancode, (mod & SDL_KMOD_CTRL) != 0, (mod & SDL_KMOD_SHIFT) != 0,
                         (mod & SDL_KMOD_ALT) != 0};
@@ -839,35 +847,18 @@ void MapInput::select_building_at_mouse(const Selection& before) {
     const sim::World& w = world();
     const assets::BuildingTable& buildings = m_buildings;
     Selection sel;
-    {
-        // A building: its origin, so that every tile of it selects the same. Buildings stand above
-        // their tiles, so a click on the picture over ground looks a little further down the
-        // screen for the tiles they stand on.
-        const auto selectable = [](const assets::BuildingType& b) {
-            const std::int32_t k = b.prod_kind;
-            return (k >= sim::prod::kWorkshop && k <= sim::prod::kKontor) ||
-                   (k >= sim::prod::kHouse && k <= sim::prod::kPublicLast) || k == sim::prod::kHaupt;
-        };
-        const double step = render::tile_height(m_camera.view().zoom) * m_camera.pixel_scale() / 2.0;
-        for (int i = 0; i <= 4 && sel.kind == Selection::Kind::None; ++i) {
-            const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y + step * i);
-            if (!tile || tile->x >= w.width() || tile->y >= w.height()) {
-                continue;
-            }
-            const sim::World::Cell& cell = w.cell(tile->x, tile->y);
-            if (cell.island == sim::World::kSea) {
-                continue;
-            }
-            const sim::IslandMap& map = w.islands()[cell.island].map;
-            const sim::SubTile t = map.sub_tile(buildings, cell.local_x, cell.local_y);
-            if (t.building == nullptr || !map.contains(t.origin_x, t.origin_y) || !selectable(*t.building)) {
-                continue;  // ground, fields, roads: nothing to show, look further down
-            }
-            sel.kind = Selection::Kind::Building;
-            sel.island = cell.island;
-            sel.x = static_cast<std::uint16_t>(t.origin_x);
-            sel.y = static_cast<std::uint16_t>(t.origin_y);
-        }
+    // A building: its origin, so that every tile of it selects the same. Picked by its picture:
+    // a click anywhere on it, also where it reaches over the tiles behind it.
+    const auto hit = building_tile_at(m_mouse_x, m_mouse_y, [&](std::uint16_t island, const sim::SubTile& t) {
+        return t.building != nullptr && w.islands()[island].map.contains(t.origin_x, t.origin_y) &&
+               selectable(*t.building);
+    });
+    if (hit) {
+        const sim::SubTile t = w.islands()[hit->island].map.sub_tile(buildings, hit->local_x, hit->local_y);
+        sel.kind = Selection::Kind::Building;
+        sel.island = hit->island;
+        sel.x = static_cast<std::uint16_t>(t.origin_x);
+        sel.y = static_cast<std::uint16_t>(t.origin_y);
     }
     m_hud->set_selection(clicked_selection(before, sel));
     if (const std::int32_t mode = mode_after_selecting(m_hud->mode(), sel.kind != Selection::Kind::None);
@@ -1037,17 +1028,50 @@ std::vector<ui::UnitCandidate> MapInput::units_in(double x0, double y0, double x
     return out;
 }
 
+std::pair<std::int32_t, std::int32_t> MapInput::world_pixel(double sx, double sy) const {
+    std::int32_t ox = 0;
+    std::int32_t oy = 0;
+    m_camera.screen_origin(ox, oy);
+    const double k = m_camera.pixel_scale();
+    return {static_cast<std::int32_t>(std::floor((sx + ox) / k)), static_cast<std::int32_t>(std::floor((sy + oy) / k))};
+}
+
+std::optional<render::TileHit> MapInput::building_tile_at(double sx, double sy, const BuildingFilter& wanted) const {
+    const sim::World& w = world();
+    const auto accepts = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+        if (island == sim::World::kSea) {
+            return false;
+        }
+        return wanted(island, w.islands()[island].map.sub_tile(m_buildings, x, y));
+    };
+    // Pixel exact, as the units: the pictures under the point, the front-most first.
+    if (m_host.graphics() != nullptr) {
+        const auto [px, py] = world_pixel(sx, sy);
+        m_host.tiles_at_pixel(px, py, m_tile_hits);
+        for (const render::TileHit& hit : m_tile_hits) {
+            if (accepts(hit.island, hit.local_x, hit.local_y)) {
+                return hit;
+            }
+        }
+    }
+    const auto tile = m_camera.tile_at_screen(sx, sy);
+    if (!tile || tile->x >= w.width() || tile->y >= w.height()) {
+        return std::nullopt;
+    }
+    const sim::World::Cell& cell = w.cell(tile->x, tile->y);
+    if (!accepts(cell.island, cell.local_x, cell.local_y)) {
+        return std::nullopt;
+    }
+    return render::TileHit{tile->x, tile->y, cell.island, cell.local_x, cell.local_y, kBehindEverything, false};
+}
+
 std::optional<ui::UnitRef> MapInput::unit_at(double sx, double sy) const {
     // Pixel exact (Map_PickAtScreen 0x00487940): the unit whose visible pixel is under the mouse,
-    // the one drawn last if several overlap.
+    // the one drawn last if several overlap - unless a map tile is drawn over it there, a building
+    // in front of it: the front-most picture takes the click.
     const ZoomGraphics* graphics = m_host.graphics();
     if (graphics) {
-        std::int32_t ox = 0;
-        std::int32_t oy = 0;
-        m_camera.screen_origin(ox, oy);
-        const double k = m_camera.pixel_scale();
-        const auto wx = static_cast<std::int32_t>(std::floor((sx + ox) / k));
-        const auto wy = static_cast<std::int32_t>(std::floor((sy + oy) / k));
+        const auto [wx, wy] = world_pixel(sx, sy);
         std::optional<ui::UnitRef> best;
         std::tuple<std::int32_t, std::int32_t, int> best_order{};
         for (const ui::UnitCandidate& c : units_in(sx, sy, sx + 1.0, sy + 1.0)) {
@@ -1068,7 +1092,21 @@ std::optional<ui::UnitRef> MapInput::unit_at(double sx, double sy) const {
             }
         }
         if (best) {
-            return best;
+            // Water lies flat under the ships and never hides one.
+            m_host.tiles_at_pixel(wx, wy, m_tile_hits);
+            const auto front = std::find_if(m_tile_hits.begin(), m_tile_hits.end(), [&](const render::TileHit& h) {
+                if (h.island == sim::World::kSea) {
+                    return false;
+                }
+                const sim::MapCell& top = world().islands()[h.island].map.top(h.local_x, h.local_y);
+                const assets::BuildingType* b = m_buildings.by_sprite(top.sprite);
+                return b != nullptr && b->kind != sim::building_kind::kSea && b->kind != sim::building_kind::kSurf &&
+                       b->kind != sim::building_kind::kSurfCorner;
+            });
+            if (front == m_tile_hits.end() || !front->covers_figure(std::get<0>(best_order))) {
+                return best;
+            }
+            return std::nullopt;  // hidden there: what is drawn in front is meant
         }
     }
     // Small figures (zoomed out) are hard to hit: then the nearest whose picture box is within a
@@ -1188,38 +1226,43 @@ void MapInput::map_order(double x, double y, bool queue) {
     if (!tile) {
         return;
     }
-    const sim::World::Cell& cell = world().cell(tile->x, tile->y);
-    if (cell.island != sim::World::kSea) {
-        if (m_units.kind() == ui::UnitRef::Kind::Ship) {
-            // A ship to a Kontor: its city.
+    // Onto a building, picked by its picture as a click selects it.
+    if (m_units.kind() == ui::UnitRef::Kind::Ship) {
+        // A ship to a Kontor: its city.
+        const sim::City* city = nullptr;
+        const auto kontor = building_tile_at(x, y, [&](std::uint16_t island, const sim::SubTile& t) {
+            if (t.building == nullptr) {
+                return false;
+            }
             for (const sim::City& c : world().cities()) {
-                if (c.island != cell.island || !c.warehouse_x || !c.warehouse_y) {
-                    continue;
-                }
-                const auto b = sim::building_at(
-                    world(), m_buildings, c.island,
-                    {static_cast<std::int32_t>(*c.warehouse_x), static_cast<std::int32_t>(*c.warehouse_y)});
-                const auto here = sim::building_at(
-                    world(), m_buildings, cell.island,
-                    {static_cast<std::int32_t>(cell.local_x), static_cast<std::int32_t>(cell.local_y)});
-                if (b && here && b->origin.x == here->origin.x && b->origin.y == here->origin.y) {
-                    const sim::Target t = sim::Target::city_of(c.island, c.index);
-                    submit_orders(m_units.target_orders(world(), local(), t, queue, attack_pick && c.owner != local()));
-                    return;
+                if (c.island == island && c.warehouse_x && c.warehouse_y) {
+                    const auto b = sim::building_at(
+                        world(), m_buildings, c.island,
+                        {static_cast<std::int32_t>(*c.warehouse_x), static_cast<std::int32_t>(*c.warehouse_y)});
+                    if (b && b->origin.x == t.origin_x && b->origin.y == t.origin_y) {
+                        city = &c;
+                        return true;
+                    }
                 }
             }
-        } else if (const auto b = sim::building_at(
-                       world(), m_buildings, cell.island,
-                       {static_cast<std::int32_t>(cell.local_x), static_cast<std::int32_t>(cell.local_y)});
-                   b && b->type->kind != sim::building_kind::kGround && b->type->kind != sim::building_kind::kRoad &&
-                   !sim::soldiers_walk_on(*b->type)) {
-            // Land units onto a building: attack another's, walk to (or heal at) one's own.
-            const sim::Target t = sim::Target::building(cell.island, static_cast<std::uint32_t>(b->origin.x),
-                                                        static_cast<std::uint32_t>(b->origin.y));
-            const bool foreign = target_owner(world(), t) != local() && target_owner(world(), t) != sim::kNoPlayer;
-            submit_orders(m_units.target_orders(world(), local(), t, queue, foreign || attack_pick));
+            return false;
+        });
+        if (kontor && city != nullptr) {
+            const sim::Target t = sim::Target::city_of(city->island, city->index);
+            submit_orders(m_units.target_orders(world(), local(), t, queue, attack_pick && city->owner != local()));
             return;
         }
+    } else if (const auto hit = building_tile_at(x, y, [](std::uint16_t, const sim::SubTile& t) {
+                   return t.building != nullptr && t.building->kind != sim::building_kind::kGround &&
+                          t.building->kind != sim::building_kind::kRoad && !sim::soldiers_walk_on(*t.building);
+               })) {
+        // Land units onto a building: attack another's, walk to (or heal at) one's own.
+        const sim::SubTile b = world().islands()[hit->island].map.sub_tile(m_buildings, hit->local_x, hit->local_y);
+        const sim::Target t = sim::Target::building(hit->island, static_cast<std::uint32_t>(b.origin_x),
+                                                    static_cast<std::uint32_t>(b.origin_y));
+        const bool foreign = target_owner(world(), t) != local() && target_owner(world(), t) != sim::kNoPlayer;
+        submit_orders(m_units.target_orders(world(), local(), t, queue, foreign || attack_pick));
+        return;
     }
     // With F first: an attack move (fights on the way, ADR 0010).
     submit_orders(m_units.move_orders(world(), local(), tile->x + 0.5, tile->y + 0.5, queue, attack_pick));

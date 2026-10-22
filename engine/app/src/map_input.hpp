@@ -11,6 +11,8 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -28,6 +30,7 @@
 #include "o1602/platform/window.hpp"
 #include "o1602/render/camera.hpp"
 #include "o1602/render/world_renderer.hpp"
+#include "o1602/sim/island_map.hpp"
 #include "o1602/ui/key_bindings.hpp"
 #include "o1602/ui/unit_selection.hpp"
 
@@ -62,6 +65,10 @@ public:
         [[nodiscard]] virtual const ZoomGraphics* graphics() const = 0;
         /// The pictures of a unit as drawn; nothing if it is not drawn.
         [[nodiscard]] virtual std::optional<render::FigureSprites> unit_sprites(const ui::UnitRef& ref) const = 0;
+        /// The map tiles whose pictures have a visible pixel at world pixel (px, py) of the zoom
+        /// level shown, the front-most first (render::tiles_at_pixel); none while its graphics are
+        /// not there.
+        virtual void tiles_at_pixel(std::int32_t px, std::int32_t py, std::vector<render::TileHit>& out) const = 0;
 
     protected:
         Host() = default;
@@ -172,11 +179,24 @@ private:
     static constexpr int kMaxBackSteps = 8;
     /// Screen position of a world position in tiles.
     [[nodiscard]] std::pair<double, double> screen_of(double tx, double ty) const;
+    /// World pixel of the zoom level shown under a screen point.
+    [[nodiscard]] std::pair<std::int32_t, std::int32_t> world_pixel(double sx, double sy) const;
+    /// Which buildings a pick looks for: the tile of island `island` and what stands on it.
+    using BuildingFilter = std::function<bool(std::uint16_t island, const sim::SubTile& tile)>;
+    /// The building under a screen point by its picture: the front-most tile whose visible pixel is
+    /// there and that `wanted` accepts. Pictures it does not accept (ground, trees, roads, ...) do
+    /// not hide what stands behind them. Where no accepted picture is hit (the graphics not loaded
+    /// yet, a gap in a picture), the tile under the point if accepted, with the row of
+    /// kBehindEverything.
+    [[nodiscard]] std::optional<render::TileHit> building_tile_at(double sx, double sy,
+                                                                  const BuildingFilter& wanted) const;
+    static constexpr std::int32_t kBehindEverything = std::numeric_limits<std::int32_t>::min();
     /// Where a unit is drawn on screen: its box (x, y, w, h).
     [[nodiscard]] std::optional<std::array<double, 4>> unit_box(const ui::UnitRef& ref) const;
     /// Ships and land units whose picture lies in the rectangle (screen), with the part inside.
     [[nodiscard]] std::vector<ui::UnitCandidate> units_in(double x0, double y0, double x1, double y1) const;
-    /// The unit under a screen point, the local player's first.
+    /// The unit under a screen point: the one whose visible pixel is there, unless a map tile is
+    /// drawn over it; zoomed out, else a small one near it, the local player's first.
     [[nodiscard]] std::optional<ui::UnitRef> unit_at(double sx, double sy) const;
     /// Left button released on the map (no tool): a click or the end of a rectangle.
     void map_left_up(double x, double y, std::uint16_t mod, int clicks);
@@ -219,7 +239,8 @@ private:
     std::size_t m_formation = 0;                 ///< the next formation of the F key
     std::vector<sim::Command> m_pending_orders;  ///< waiting for the answer to a question
     std::optional<FieldSource> m_field_source;
-    double m_mouse_x = 0.0;  ///< in output pixels
+    mutable std::vector<render::TileHit> m_tile_hits;  ///< working memory of picks
+    double m_mouse_x = 0.0;                            ///< in output pixels
     double m_mouse_y = 0.0;
     bool m_left_down = false;   ///< the left mouse button, for the frame's buttons
     bool m_text_input = false;  ///< the platform's text input is on (a name is typed)

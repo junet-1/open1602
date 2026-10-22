@@ -21,6 +21,7 @@
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/ship_trail.hpp"
 #include "o1602/render/sprite_atlas.hpp"
+#include "o1602/render/sprite_hit_mask.hpp"
 #include "o1602/render/unit_tint.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/world.hpp"
@@ -403,5 +404,33 @@ struct ShipSprites {
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
                            const WorldView& view, const Viewport& viewport, const SpriteExtent& extent,
                            std::vector<DrawCommand>& out);
+
+/// A map tile whose picture covers a pixel (tiles_at_pixel).
+struct TileHit {
+    std::uint32_t x = 0;  ///< world tile
+    std::uint32_t y = 0;
+    std::uint16_t island = sim::World::kSea;  ///< index into World::islands(); kSea: open sea
+    std::uint16_t local_x = 0;                ///< island tile
+    std::uint16_t local_y = 0;
+    std::int32_t row = 0;  ///< tile row (view space) it is drawn in
+    bool high = false;     ///< drawn in the Highflg pass of its row, after the row's figures
+
+    /// Whether the tile is drawn over a figure drawn after the flat pass of row `figure_row`
+    /// (FigureSprites::row): a later row, or the Highflg pass of the same row.
+    [[nodiscard]] bool covers_figure(std::int32_t figure_row) const noexcept {
+        return row > figure_row || (row == figure_row && high);
+    }
+};
+
+/// The tiles whose sprites, as build_world_draw_list draws them (the same animation frames,
+/// rotation and elevation), have a visible pixel at world pixel (px, py), the front-most first.
+/// Picking follows the pictures, not the tile diamonds: a click on any visible pixel of a building
+/// hits it, also where the picture reaches over the tiles behind it. The pixels come from the
+/// sprites themselves (`mask`, built from the atlas), so any building with a picture, one from a
+/// mod included, is covered without further data. Needs `layers.atlas` and `layers.extent`;
+/// `layers.production_phases` as for drawing. Only tiles are tested, figures have their own sprites.
+void tiles_at_pixel(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
+                    const WorldView& view, const WorldLayers& layers, const SpriteHitMask& mask, std::int32_t px,
+                    std::int32_t py, std::vector<TileHit>& out);
 
 }  // namespace o1602::render

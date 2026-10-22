@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Which pixels of a sprite are visible, one bit per pixel, kept after the atlas pixels went to the
-// GPU (SpriteAtlas::drop_pixels). Units are picked by the visible pixel under the mouse, the one
-// drawn last winning, as in the original (Map_PickAtScreen 0x00487940 reads an ID per screen pixel
-// that the renderer writes with the figure).
+// GPU (SpriteAtlas::drop_pixels). Buildings and units are picked by the visible pixel under the
+// mouse, the one drawn last winning, as in the original (Map_PickAtScreen 0x00487940 reads an ID per
+// screen pixel that the renderer writes with the figure).
 #pragma once
 
 #include <array>
@@ -20,8 +20,8 @@ class SpriteHitMask {
 public:
     SpriteHitMask() = default;
 
-    /// Masks of sprites [first, atlas.sprite_count()) - the figure sheets follow the terrain, which
-    /// is never picked by its pixels. Needs the atlas pixels.
+    /// Masks of sprites [first, atlas.sprite_count()); the game keeps all (first = 0): buildings
+    /// are picked by their pixels as units are. Needs the atlas pixels.
     static SpriteHitMask build(const SpriteAtlas& atlas, std::uint32_t first);
 
     /// Whether pixel (x, y) of the sprite (from its top left corner) is visible. Outside the sprite:

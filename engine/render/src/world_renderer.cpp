@@ -948,6 +948,95 @@ bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, 
     return true;
 }
 
+namespace {
+
+/// The tile sprites of one pass (flat or Highflg) of a tile: the open sea, or the ground under a
+/// building and the building.
+struct TileSprites {
+    std::array<DrawCommand, 2> parts{};
+    std::uint8_t count = 0;
+};
+
+/// Which sprites a tile draws, shared by the draw list and picking so both see the same pictures.
+struct TileDrawer {
+    const sim::World& world;
+    const assets::BuildingTable& buildings;
+    const AnimationClock& clock;
+    const ProductionPhases* phases;
+    std::uint8_t rotation;
+    std::int32_t tw;
+    const assets::BuildingType* sea;
+    std::uint32_t sea_frame;
+    std::int32_t sea_elevation;
+
+    TileDrawer(const sim::World& w, const assets::BuildingTable& b, const AnimationClock& c, const WorldView& view,
+               const ProductionPhases* p)
+        : world(w),
+          buildings(b),
+          clock(c),
+          phases(p),
+          rotation(view.rotation),
+          tw(tile_width(view.zoom)),
+          sea(b.open_sea()),
+          sea_frame(sea != nullptr ? c.frame(*sea) : 0),
+          sea_elevation(sea != nullptr ? sea->posoffs * tw / 64 : 0) {}
+
+    /// Tiles of production buildings take their frame from the building's state (0x00489C90);
+    /// `island` is kSea for tiles without such state (the ground layer).
+    [[nodiscard]] DrawCommand cell(const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom,
+                                   std::uint16_t island, const sim::IslandMap* map, std::uint16_t lx,
+                                   std::uint16_t ly) const {
+        const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
+        if (b == nullptr) {
+            return DrawCommand{cell.sprite, sx, row_bottom};
+        }
+        std::uint32_t frame = 0;
+        if (island != sim::World::kSea && has_production_animation(*b)) {
+            const sim::SubTile sub = map->sub_tile(buildings, lx, ly);
+            const sim::Production* state = world.production(island, static_cast<std::uint16_t>(sub.origin_x),
+                                                            static_cast<std::uint16_t>(sub.origin_y));
+            std::optional<std::uint8_t> phase;
+            if (state != nullptr && phases != nullptr) {
+                phase = phases->get(static_cast<std::size_t>(state - world.productions().data()));
+            }
+            frame = production_frame(*b, clock.frame(*b), state, phase);
+        } else {
+            frame = default_frame(cell, *b, clock.frame(*b));
+        }
+        return DrawCommand{building_sprite(cell, *b, frame, rotation), sx, row_bottom - b->posoffs * tw / 64};
+    }
+
+    /// What world tile (wx, wy) draws in the flat pass or the Highflg pass of its row; (sx,
+    /// row_bottom) as in build_world_draw_list. The open sea is always flat.
+    [[nodiscard]] TileSprites tile(std::uint32_t wx, std::uint32_t wy, const sim::World::Cell& wc, std::int32_t sx,
+                                   std::int32_t row_bottom, bool high_pass) const {
+        TileSprites out;
+        const sim::IslandMap* map = wc.island != sim::World::kSea ? &world.islands()[wc.island].map : nullptr;
+        const sim::MapCell* top = map != nullptr ? &map->top(wc.local_x, wc.local_y) : nullptr;
+        if (top == nullptr || top->empty()) {
+            if (!high_pass && sea != nullptr) {
+                out.parts[out.count++] =
+                    DrawCommand{sea_sprite(*sea, sea_frame, wx, wy), sx, row_bottom - sea_elevation};
+            }
+            return out;
+        }
+        const assets::BuildingType* b = buildings.by_sprite(top->sprite);
+        if ((b != nullptr && b->high) != high_pass) {
+            return out;
+        }
+        if (b != nullptr && b->draw_ground) {
+            const sim::MapCell& ground = map->ground(wc.local_x, wc.local_y);
+            if (!ground.empty()) {
+                out.parts[out.count++] = cell(ground, sx, row_bottom, sim::World::kSea, map, 0, 0);
+            }
+        }
+        out.parts[out.count++] = cell(*top, sx, row_bottom, wc.island, map, wc.local_x, wc.local_y);
+        return out;
+    }
+};
+
+}  // namespace
+
 void build_world_draw_list(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
                            const WorldView& view, const Viewport& viewport, const WorldLayers& layers,
                            std::vector<DrawCommand>& commands) {
@@ -985,9 +1074,8 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     commands.reserve(static_cast<std::size_t>((viewport.width + extent.width) / half_w + 2) *
                      static_cast<std::size_t>(d_end - d_begin + 1) * 5 / 8);
 
-    const assets::BuildingType* sea = buildings.open_sea();
-    const std::uint32_t sea_frame = sea != nullptr ? clock.frame(*sea) : 0;
-    const std::int32_t sea_elevation = sea != nullptr ? sea->posoffs * tw / 64 : 0;
+    const TileDrawer drawer(world, buildings, clock, view, layers.production_phases);
+    const std::int32_t sea_elevation = drawer.sea_elevation;
 
     // Figures of the visible rows (ships, building flags, land figures), sorted by row and within
     // a row by depth, as the original sorts its one list by Y (0x00452190); equal depths keep this
@@ -1130,32 +1218,6 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         c.edges = static_cast<std::uint8_t>(edges);
         outline.push_back(c);
     };
-    // Tiles of production buildings take their frame from the building's state (0x00489C90);
-    // `island` is kSea for tiles without such state (the ground layer).
-    const auto emit = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom, std::uint16_t island,
-                          const sim::IslandMap* map, std::uint16_t lx, std::uint16_t ly) {
-        const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
-        if (b == nullptr) {
-            commands.push_back(DrawCommand{cell.sprite, sx, row_bottom});
-            return;
-        }
-        std::uint32_t frame = 0;
-        if (island != sim::World::kSea && has_production_animation(*b)) {
-            const sim::SubTile sub = map->sub_tile(buildings, lx, ly);
-            const sim::Production* state = world.production(island, static_cast<std::uint16_t>(sub.origin_x),
-                                                            static_cast<std::uint16_t>(sub.origin_y));
-            std::optional<std::uint8_t> phase;
-            if (state != nullptr && layers.production_phases != nullptr) {
-                phase = layers.production_phases->get(static_cast<std::size_t>(state - world.productions().data()));
-            }
-            frame = production_frame(*b, clock.frame(*b), state, phase);
-        } else {
-            frame = default_frame(cell, *b, clock.frame(*b));
-        }
-        commands.push_back(
-            DrawCommand{building_sprite(cell, *b, frame, view.rotation), sx, row_bottom - b->posoffs * tw / 64});
-    };
-
     for (std::int32_t d = d_begin; d <= d_end; ++d) {
         const std::int32_t row_bottom = d * half_h + th - 1;
         // Left edge of tile vx in this row: X = (2 * vx - d + view_h - 1) * half_w.
@@ -1213,28 +1275,14 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                         }
                     }
                 };
-                if (cell == nullptr || cell->empty()) {  // open sea, always flat
-                    if (!high_pass && sea != nullptr) {
-                        commands.push_back(
-                            DrawCommand{sea_sprite(*sea, sea_frame, wx, wy), sx, row_bottom - sea_elevation});
-                        dim();
-                    }
-                    continue;
-                }
-                if (!high_pass) {
+                if (!high_pass && cell != nullptr && !cell->empty()) {
                     add_overlay(*cell, sx, row_bottom, wc.island, wc.local_x, wc.local_y);
                 }
-                const assets::BuildingType* b = buildings.by_sprite(cell->sprite);
-                if ((b != nullptr && b->high) != high_pass) {
+                const TileSprites drawn = drawer.tile(wx, wy, wc, sx, row_bottom, high_pass);
+                if (drawn.count == 0) {
                     continue;
                 }
-                if (b != nullptr && b->draw_ground) {
-                    const sim::MapCell& ground = map->ground(wc.local_x, wc.local_y);
-                    if (!ground.empty()) {
-                        emit(ground, sx, row_bottom, sim::World::kSea, map, 0, 0);
-                    }
-                }
-                emit(*cell, sx, row_bottom, wc.island, map, wc.local_x, wc.local_y);
+                commands.insert(commands.end(), drawn.parts.begin(), drawn.parts.begin() + drawn.count);
                 dim();
             }
             if (!high_pass) {
@@ -1251,6 +1299,56 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     }
     commands.insert(commands.end(), marked.begin(), marked.end());
     commands.insert(commands.end(), outline.begin(), outline.end());
+}
+
+void tiles_at_pixel(const sim::World& world, const assets::BuildingTable& buildings, const AnimationClock& clock,
+                    const WorldView& view_in, const WorldLayers& layers, const SpriteHitMask& mask, std::int32_t px,
+                    std::int32_t py, std::vector<TileHit>& out) {
+    out.clear();
+    if (layers.atlas == nullptr) {
+        return;
+    }
+    const WorldView view = fit_view(view_in, world);
+    const SpriteExtent& extent = layers.extent;
+    const RotatedWorld rw(view);
+    const std::int32_t tw = tile_width(view.zoom);
+    const std::int32_t th = tile_height(view.zoom);
+    const std::int32_t half_w = tw / 2;
+    const std::int32_t half_h = th / 2;
+    const auto view_h = static_cast<std::int32_t>(rw.height);
+    const auto view_w = static_cast<std::int32_t>(rw.width);
+    const std::int32_t rows = view_w + view_h - 1;
+    const std::int32_t max_elevation = tw;
+    // The tiles build_world_draw_list keeps for a viewport of this one pixel, front to back: rows
+    // from the front, per row the Highflg pass before the flat one, per pass right to left.
+    const std::int32_t d_begin = std::max(0, floor_div(py - (th - 1), half_h));
+    const std::int32_t d_end = std::min(rows - 1, floor_div(py + 1 + extent.height + max_elevation - (th - 1), half_h));
+    const TileDrawer drawer(world, buildings, clock, view, layers.production_phases);
+    for (std::int32_t d = d_end; d >= d_begin; --d) {
+        const std::int32_t row_bottom = d * half_h + th - 1;
+        const std::int32_t k_lo = floor_div(px - extent.width, half_w) + d - view_h + 1;
+        const std::int32_t k_hi = floor_div(px + 1, half_w) + d - view_h + 1;
+        const std::int32_t vx_lo = std::max({0, d - view_h + 1, -floor_div(-k_lo, 2)});
+        const std::int32_t vx_hi = std::min({view_w - 1, d, floor_div(k_hi, 2)});
+        for (int pass = 1; pass >= 0; --pass) {
+            const bool high_pass = pass == 1;
+            for (std::int32_t vx = vx_hi; vx >= vx_lo; --vx) {
+                const std::int32_t vy = d - vx;
+                const std::int32_t sx = (vx - vy + view_h - 1) * half_w;
+                std::uint32_t wx = 0;
+                std::uint32_t wy = 0;
+                rw.to_world(static_cast<std::uint32_t>(vx), static_cast<std::uint32_t>(vy), wx, wy);
+                const sim::World::Cell& wc = world.cell(wx, wy);
+                const TileSprites drawn = drawer.tile(wx, wy, wc, sx, row_bottom, high_pass);
+                for (std::uint8_t i = 0; i < drawn.count; ++i) {
+                    if (command_hit(drawn.parts[i], *layers.atlas, mask, px, py)) {
+                        out.push_back(TileHit{wx, wy, wc.island, wc.local_x, wc.local_y, d, high_pass});
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 }  // namespace o1602::render
