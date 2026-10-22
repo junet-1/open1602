@@ -234,6 +234,9 @@ private:
     void task_settle_land(AiPlayer& p);
     void end_settlement(AiPlayer& p);
     [[nodiscard]] Target water_near(std::uint16_t island, std::int32_t x, std::int32_t y) const;
+    [[nodiscard]] bool open_sea_ahead(std::uint16_t island, std::int32_t x, std::int32_t y, std::uint32_t width,
+                                      std::uint32_t height, std::uint8_t rotation) const;
+    void site_unreachable(AiPlayer& p);
     void free_colony_cargo(AiPlayer& p, Ship& ship, bool computer);
     [[nodiscard]] Ship* settle_ship(AiPlayer& p);
     [[nodiscard]] std::vector<Ship*> own_ships(const AiPlayer& p);
