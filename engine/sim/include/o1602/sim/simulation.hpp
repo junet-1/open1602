@@ -265,6 +265,9 @@ private:
     void pay_upkeep();
     void players_tick();
     void accomplish(PlayerId winner);
+    /// `winner` won with `message`; with `co_winners` also everybody else who meets his mission
+    /// or the victory conditions now.
+    void accomplish(PlayerId winner, std::uint16_t message, bool co_winners);
     void defeat(PlayerId player, GameEvent::Reason reason, bool blame);
     bool switch_production(const ProductionSwitch& s);
     bool city_order(const CityOrder& order);

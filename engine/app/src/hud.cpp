@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "banner_graphic.hpp"
+#include "endless_setup.hpp"
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/game_data.hpp"
@@ -667,7 +668,12 @@ void Hud::draw_mission(const sim::World& world) {
         m_tutor->set_visible(kTutorBack + i, true);
         m_tutor->set_visible(kTutorNext + i, i != 0);
     }
-    m_tutor->set_text(110002, mission != nullptr && !mission->text.empty() ? mission->text : std::string("-"));
+    // The victory conditions of an endless game after its text.
+    std::string text = mission != nullptr && !mission->text.empty() ? mission->text : std::string();
+    if (const std::string victory = victory_text(m_simulation->rules().victory); !victory.empty()) {
+        text += text.empty() ? victory : "\n" + victory;
+    }
+    m_tutor->set_text(110002, text.empty() ? std::string("-") : text);
     for (std::int32_t id = 110011; id <= 110016; ++id) {
         m_tutor->set_visible(id, false);
     }

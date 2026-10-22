@@ -10,6 +10,7 @@
 #include "o1602/core/hash.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/save_game.hpp"
+#include "o1602/sim/victory.hpp"
 
 namespace o1602::sim {
 
@@ -21,6 +22,8 @@ constexpr std::uint32_t kDiplomacyTickMs = 5000;     // 0x00476350: the diplomac
 constexpr std::uint8_t kDefeatChecks = 40;           // 0x00476350: 40 checks of 5 s
 constexpr std::size_t kArchClass = 2;                // 0x004805D0(K, 2): inhabitants of class 2 and up
 constexpr std::uint64_t kArchInhabitants = 200;      // more than 199
+constexpr std::uint16_t kMissionMessage = 0x54;      // "Ihr konntet den Euch gestellten Auftrag erfüllen!"
+constexpr std::uint16_t kColourWinMessage = 0x6B;    // "Der rote Spieler konnte seinen Auftrag erfüllen!" + colour
 
 }  // namespace
 
@@ -794,6 +797,16 @@ void Simulation::players_tick() {
         humans += p.role == PlayerRole::Human && p.status != PlayerStatus::Absent ? 1 : 0;
     }
     const bool multiplayer = humans > 1;
+    // The victory conditions of an endless game: alone "your task is fulfilled", with others the
+    // message with the winner's colour, as the original's multiplayer races.
+    const VictoryConditions& victory = m_rules.victory;
+    const std::uint16_t victory_message = multiplayer ? kColourWinMessage : kMissionMessage;
+    if (time_limit_over(victory, m_time_ms)) {
+        if (const PlayerId winner = time_limit_winner(*m_world, *m_buildings, victory); winner != kNoPlayer) {
+            accomplish(winner, victory_message, false);
+            return;
+        }
+    }
     for (std::size_t i = 0; i < m_world->players().size(); ++i) {
         const auto id = static_cast<PlayerId>(i);
         Player* player = m_world->player(id);
@@ -806,6 +819,10 @@ void Simulation::players_tick() {
         const MissionCheck check = check_mission(*m_world, *m_buildings, *m_figures, id);
         if (check.won) {
             accomplish(id);
+            return;
+        }
+        if (victory.goals() && check_victory(*m_world, *m_buildings, *m_figures, victory, id).won) {
+            accomplish(id, victory_message, true);
             return;
         }
         const bool city = owns_city(*m_world, id);
@@ -851,29 +868,41 @@ void Simulation::players_tick() {
 }
 
 void Simulation::accomplish(PlayerId winner) {
+    const Player* p = m_world->player(winner);
+    const Mission* m = p != nullptr ? m_world->mission_of(*p) : nullptr;
+    accomplish(winner, m != nullptr ? m->success_message : std::uint16_t{0}, true);
+}
+
+void Simulation::accomplish(PlayerId winner, std::uint16_t message, bool co_winners) {
     // Op 0x3E (0x00476950): the winner, and every other human or computer who meets his own
     // mission at this moment; the original checks players without a mission against mission 0
-    // (S-106). The game is over for everybody.
-    const auto win = [&](PlayerId id) {
+    // (S-106). Victory conditions count as everyone's mission, but a time limit has one winner.
+    // The game is over for everybody.
+    const VictoryConditions& victory = m_rules.victory;
+    const auto win = [&](PlayerId id, std::uint16_t text) {
         Player* p = m_world->player(id);
         if (p == nullptr) {
             return;
         }
         p->won = true;
-        const Mission* m = m_world->mission_of(*p);
-        m_game_events.push(GameEvent{GameEvent::Kind::MissionAccomplished, id, kNoPlayer, GameEvent::Reason::None,
-                                     m != nullptr ? m->success_message : std::uint16_t{0}});
+        m_game_events.push(
+            GameEvent{GameEvent::Kind::MissionAccomplished, id, kNoPlayer, GameEvent::Reason::None, text});
     };
-    win(winner);
-    for (std::size_t i = 0; i < m_world->players().size(); ++i) {
+    win(winner, message);
+    for (std::size_t i = 0; i < m_world->players().size() && co_winners; ++i) {
         const auto id = static_cast<PlayerId>(i);
-        if (id != winner && m_world->players()[i].active() &&
-            check_mission(*m_world, *m_buildings, *m_figures, id).won) {
-            win(id);
+        if (id == winner || !m_world->players()[i].active()) {
+            continue;
+        }
+        if (check_mission(*m_world, *m_buildings, *m_figures, id).won) {
+            const Mission* m = m_world->mission_of(m_world->players()[i]);
+            win(id, m != nullptr ? m->success_message : std::uint16_t{0});
+        } else if (victory.goals() && check_victory(*m_world, *m_buildings, *m_figures, victory, id).won) {
+            win(id, message);
         }
     }
     m_world->set_game_end(World::GameEnd{m_time_ms, winner});
-    m_game_events.push(GameEvent{GameEvent::Kind::GameOver, winner});
+    m_game_events.push(GameEvent{GameEvent::Kind::GameOver, winner, kNoPlayer, GameEvent::Reason::None, message});
 }
 
 void Simulation::defeat(PlayerId id, GameEvent::Reason reason, bool blame) {

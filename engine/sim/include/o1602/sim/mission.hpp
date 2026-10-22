@@ -175,7 +175,8 @@ struct MissionCheck {
 /// Something that decides the game (GameEvent of Simulation::take_game_events()).
 struct GameEvent {
     enum class Kind : std::uint8_t {
-        MissionAccomplished,  ///< `player` won (also players who met their own mission at that moment)
+        MissionAccomplished,  ///< `player` won (also players who met their own mission at that moment), by a
+                              ///< mission or by the victory conditions of an endless game (victory.hpp)
         GameOver,             ///< a mission was accomplished: `player` triggered the end
         PlayerDefeated,       ///< `player` is out; `by` is the player blamed for it
         ArchAllowed,          ///< `player` may build a triumphal arch for defeating `by` (message 0x32)
@@ -191,7 +192,9 @@ struct GameEvent {
     PlayerId player = kNoPlayer;
     PlayerId by = kNoPlayer;
     Reason reason = Reason::None;
-    std::uint16_t message = 0;  ///< winners: the mission's success message
+    /// Winners: the success message of the mission or of the victory conditions; GameOver: the
+    /// first winner's.
+    std::uint16_t message = 0;
 };
 
 }  // namespace o1602::sim

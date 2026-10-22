@@ -60,7 +60,8 @@ struct HostSetup {
     /// What the settings are for.
     [[nodiscard]] SetupScope scope() const noexcept;
     /// The settings an endless game really gets, with the players of its lobby.
-    [[nodiscard]] EndlessSetup game_settings() const { return multiplayer_setup(settings, players); }
+    /// Victory conditions only for an endless game.
+    [[nodiscard]] EndlessSetup game_settings() const;
 };
 
 /// The host's settings as the lobby passes them on (net::Lobby::setup, which the session does not
@@ -198,6 +199,8 @@ private:
     void layout_connecting();
     /// The start dialog over the screen: the host's settings to choose, or to look at.
     void open_settings(const EndlessSetup& setup, SetupScope scope, GameSettingsMenu::Mode mode);
+    /// Back from the start dialog to the screen it was opened from.
+    void close_settings();
     /// The settings button and the summary of the rules below `y` in the right column.
     void settings_button(std::int32_t y, const EndlessSetup& setup, bool can_change);
     void click(const MultiplayerModel& model, ui::Form::Id id, std::vector<MultiplayerEvent>& out);

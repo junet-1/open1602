@@ -671,6 +671,9 @@ bool MainMenu::back() {
             m_screen = Screen::Mission;
             break;
         case Screen::Settings:
+            if (m_settings.back()) {
+                break;  // from the victory conditions to the settings
+            }
             // Kept for the next time.
             if (m_settings.scope() == SetupScope::Scenario) {
                 m_scenario = m_settings.setup();

@@ -180,6 +180,7 @@ TEST_CASE("event presenter: the multiplayer victory speaks to the winner on trac
     sim::GameEvent over;
     over.kind = sim::GameEvent::Kind::GameOver;
     over.player = kRival;
+    over.message = race.success_message;  // the winner's message comes with the end of the game
     const auto theirs = g.presenter.game_events(g.world, kMe, {over}, 0);
     REQUIRE(theirs.size() == 2);
     CHECK(std::get<app::ScoreUpdate>(theirs[0]).progress);
