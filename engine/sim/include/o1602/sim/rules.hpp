@@ -37,6 +37,21 @@ enum class Volcanoes : std::uint8_t {
     On,    ///< always, whatever the game says
 };
 
+/// Whether pirates come (docs/re/pirates.md). The original has a game setting for it, which the
+/// endless games of the two easy levels set: there they never come.
+enum class Pirates : std::uint8_t {
+    Game,  ///< as the game's settings say (original)
+    Off,   ///< never
+    On,    ///< always, whatever the game says
+};
+
+/// How many nests the pirates found (docs/re/pirates.md). The original has one for the whole world,
+/// which suits its four players; with more players most of them would never meet a pirate.
+enum class PirateNests : std::uint8_t {
+    One,             ///< one nest, as in the original
+    PerFourPlayers,  ///< one for every four human and computer players begun, spread over the map
+};
+
 /// What the free trader pays for goods (docs/re/ships.md, "Free trader").
 enum class TraderPrices : std::uint8_t {
     /// As players know it: about half the base price. The original means to follow the market but
@@ -46,6 +61,14 @@ enum class TraderPrices : std::uint8_t {
     /// What the original intends: three quarters of the average price Kontors pay for the ware;
     /// he stops buying a ware all traders together hold half again as much of as Kontors want.
     Market,
+};
+
+/// How far the free trader looks for his next Kontor (docs/re/ships.md, "Free trader"). The
+/// original weighs the 12 nearest Kontors by profit alone, whatever the distance; on the larger maps
+/// of more than four players he then mostly sails across the world.
+enum class TraderReach : std::uint8_t {
+    Original,        ///< the 12 nearest Kontors, a random one when none promises profit
+    PerFourPlayers,  ///< with more than four players only as many as a four-player game would have
 };
 
 /// The prestige buildings a condition asks for.
@@ -120,8 +143,14 @@ struct Rules {
     Droughts droughts = Droughts::Game;
     /// Volcanoes: as the game says, or switched on or off.
     Volcanoes volcanoes = Volcanoes::Game;
+    /// Pirates: as the game says, or switched on or off.
+    Pirates pirates = Pirates::Game;
+    /// Pirate nests: one, or one for every four players. Up to four players both are the original.
+    PirateNests pirate_nests = PirateNests::PerFourPlayers;
     /// Prices of the free trader.
     TraderPrices trader_prices = TraderPrices::Original;
+    /// How far the free trader looks. Up to four players both are the original.
+    TraderReach trader_reach = TraderReach::PerFourPlayers;
 
     /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
     /// settlement ship sails no city develops, a city whose colony search failed waits for it for
@@ -148,7 +177,10 @@ struct Rules {
         r.demolish_refund = Refund::None;
         r.droughts = Droughts::Game;
         r.volcanoes = Volcanoes::Game;
+        r.pirates = Pirates::Game;
+        r.pirate_nests = PirateNests::One;
         r.trader_prices = TraderPrices::Original;
+        r.trader_reach = TraderReach::Original;
         r.classic_ai = true;
         return r;
     }

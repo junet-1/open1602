@@ -9,6 +9,10 @@ project(Open1602
     HOMEPAGE_URL "https://github.com/x4rd4s/open1602"
     LANGUAGES CXX)
 
+if(WIN32)
+    enable_language(RC)  # the program's icon (engine/app/open1602.rc.in)
+endif()
+
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are not allowed. Use a build directory or a CMake preset.")
 endif()

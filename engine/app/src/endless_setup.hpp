@@ -50,6 +50,7 @@ enum class SetupItem : std::uint8_t {
     // Economy
     Refund,
     TraderPrices,
+    TraderReach,
     // Limits
     Ships,
     Units,
@@ -70,6 +71,8 @@ enum class SetupItem : std::uint8_t {
     Resources,
     // Opponents
     ClassicAi,
+    Pirates,
+    PirateNests,
     // Victory conditions (a page of their own, endless games only; sim::VictoryConditions)
     WinInhabitants,
     WinClass,

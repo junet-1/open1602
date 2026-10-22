@@ -40,7 +40,33 @@ void add_good(Ship& ship, std::uint8_t ware, std::uint32_t amount, std::uint16_t
     g->age = 0;
 }
 
+std::uint32_t kontor_key(const City& c) {
+    return (std::uint32_t{c.island} << 8) | c.index;
+}
+
 }  // namespace
+
+std::size_t trader_reach_players(const World& world, const Rules& rules) noexcept {
+    if (rules.trader_reach == TraderReach::Original) {
+        return 0;
+    }
+    std::size_t players = 0;
+    for (const Player& p : world.players()) {
+        players += p.role == PlayerRole::Human || p.role == PlayerRole::Computer ? 1U : 0U;
+    }
+    return players > kOriginalPlayers ? players : 0;
+}
+
+std::size_t trader_candidates(const World& world, const Rules& rules, std::size_t kontors) noexcept {
+    const std::size_t players = trader_reach_players(world, rules);
+    if (players == 0) {
+        return kCandidates;
+    }
+    // The map grows with the players (settings_for_players), so this keeps him within about the
+    // part of it a four-player game would have.
+    const std::size_t share = (kontors * kOriginalPlayers + players - 1) / players;
+    return std::clamp<std::size_t>(share, 3, kCandidates);
+}
 
 std::uint16_t Fleet::trader_max_price(std::uint8_t ware) const {
     // 0x00454AC0: three quarters of the average price Kontors pay, half the base price without
@@ -116,11 +142,13 @@ std::uint32_t Fleet::trader_sell_amount(const Ship& ship, const City& city, std:
 void Fleet::trader_choose(Ship& ship) {
     // 0x004547E0: of the 12 nearest Kontors of human and computer players (not the last one), the
     // one promising the most profit; half for a Kontor another trader is sailing to already.
+    // Rules::trader_reach narrows them on the larger maps of more than four players.
     struct Candidate {
         std::size_t city;
         std::int32_t distance;
     };
     std::vector<Candidate> candidates;
+    std::size_t kontors = 0;
     for (std::size_t i = 0; i < m_world->cities().size(); ++i) {
         const City& c = m_world->cities()[i];
         if (!c.warehouse_x || !c.warehouse_y) {
@@ -133,6 +161,7 @@ void Fleet::trader_choose(Ship& ship) {
         if (owner->scenario.has(scenario_flag::kNoTrader)) {
             continue;  // a scenario keeps the trader away from this player (player +0x70 bit 2)
         }
+        ++kontors;
         if (ship.previous == Target::city_of(c.island, c.index)) {
             continue;
         }
@@ -146,8 +175,10 @@ void Fleet::trader_choose(Ship& ship) {
     }
     std::stable_sort(candidates.begin(), candidates.end(),
                      [](const Candidate& a, const Candidate& b) { return a.distance < b.distance; });
-    if (candidates.size() > kCandidates) {
-        candidates.resize(kCandidates);
+    const bool scaled = trader_reach_players(*m_world, *m_rules) != 0;
+    const std::size_t reach = trader_candidates(*m_world, *m_rules, kontors);
+    if (candidates.size() > reach) {
+        candidates.resize(reach);
     }
     std::int64_t best_score = 0;
     std::optional<std::size_t> best;
@@ -175,6 +206,23 @@ void Fleet::trader_choose(Ship& ship) {
             best = cand.city;
         }
     }
+    if (!best && scaled) {
+        // Nothing promises profit: the one no trader has chosen for longest, so that the traders
+        // spread over the players near them instead of crowding where they happen to be.
+        std::uint32_t oldest = 0;
+        for (const Candidate& cand : candidates) {
+            const City& c = m_world->cities()[cand.city];
+            if (c.trader_inbound) {
+                continue;
+            }
+            const auto it = m_trader_chosen.find(kontor_key(c));
+            const std::uint32_t age = it != m_trader_chosen.end() ? m_trader_choices - it->second : ~0U;
+            if (!best || age > oldest) {
+                oldest = age;
+                best = cand.city;
+            }
+        }
+    }
     if (!best) {
         // Nothing promises profit: one of them at random, not the one it lies at.
         Random& random = m_world->random(RandomStream::Ships);
@@ -189,6 +237,9 @@ void Fleet::trader_choose(Ship& ship) {
         }
     }
     const City& chosen = m_world->cities()[*best];
+    if (scaled) {
+        m_trader_chosen[kontor_key(chosen)] = ++m_trader_choices;
+    }
     City* city = m_world->city(chosen.island, chosen.index);
     city->trader_inbound = true;
     ship.target = Target::city_of(chosen.island, chosen.index);

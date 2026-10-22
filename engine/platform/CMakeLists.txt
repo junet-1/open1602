@@ -17,3 +17,8 @@ add_library(o1602::platform ALIAS o1602_platform)
 target_include_directories(o1602_platform PUBLIC include)
 target_link_libraries(o1602_platform PUBLIC o1602::core SDL3::SDL3)
 o1602_set_warnings(o1602_platform)
+
+# The window icon (title bar, task bar, macOS dock), rendered by tools/make_icons.py.
+o1602_embed_files(o1602_platform o1602::platform::icons
+    "${PROJECT_SOURCE_DIR}/data/icons/window/open1602-64.bmp"
+    "${PROJECT_SOURCE_DIR}/data/icons/window/open1602-128.bmp")

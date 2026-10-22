@@ -12,6 +12,7 @@
 
 struct SDL_Window;
 struct SDL_Renderer;
+struct SDL_Surface;
 union SDL_Event;
 
 namespace o1602::platform {
@@ -30,6 +31,11 @@ public:
 private:
     SdlSystem() = default;
 };
+
+/// The application icon compiled into the game (data/icons/window): 64 px with a 128 px alternate
+/// for HiDPI screens. nullptr if it cannot be read (SDL_GetError says why); free it with
+/// SDL_DestroySurface. Window::create sets it on every window.
+[[nodiscard]] SDL_Surface* load_app_icon();
 
 struct WindowConfig {
     std::string title = "Open1602";

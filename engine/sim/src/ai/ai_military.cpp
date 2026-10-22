@@ -1210,7 +1210,7 @@ void Engine::diplomacy(AiPlayer& p) {
 // The pirates' nest (0x00429FD0, every 10 s; task 5 = 0x00429DF0)
 
 void Engine::pirate_step(AiPlayer& p) {
-    if ((m_world.game_settings().flags & World::GameSettings::kNoPirates) != 0) {
+    if (!pirates_enabled(m_world, m_sim.rules())) {
         return;  // no pirates
     }
     // Only once some player has grown.
@@ -1221,7 +1221,8 @@ void Engine::pirate_step(AiPlayer& p) {
     if (ships.empty()) {
         return;
     }
-    if (own_city_count(p.player) == 0) {
+    // A nest, and with Rules::pirate_nests one for every four players (the original founds one).
+    if (own_city_count(p.player) < pirate_nests(m_world, m_sim.rules())) {
         if (!p.settle.active && p.stack.empty() && now_ms() - p.settle.last_ms > 36'000) {
             free_colony_cargo(p, *ships.front(), false);
             p.settle.ship = ships.front()->id;
