@@ -5,8 +5,9 @@
 //   open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH] [--zoom 0|1|2]
 //            [--owners] [--original-sheets] [--frames N] [--screenshot out.png]
 //
-// The game directory defaults to $ANNO1602_DIR. Without a game the program starts in the main menu
-// (--menu forces it); with --no-panel the scenario defaults to "Szenes/Das Atoll.szs".
+// The game directory defaults to $ANNO1602_DIR, else to an installation in the usual folders
+// (GameDirectory::locate). Without a game the program starts in the main menu (--menu forces it);
+// with --no-panel the scenario defaults to "Szenes/Das Atoll.szs".
 // A relative scenario path is looked up in the game directory first. --savegame NAME opens a
 // savegame by the name shown in the game (looked up in Game.dat, e.g. "Merlin01" ->
 // SAVEGAME/game00.gam) or by file name. Scenarios and savegames share one format. --load FILE opens
@@ -503,8 +504,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    auto game = game_dir.empty() ? assets::GameDirectory::from_environment()
-                                 : assets::GameDirectory::open(core::path_from_utf8(game_dir));
+    auto game =
+        game_dir.empty()
+            ? assets::GameDirectory::locate()
+            : assets::GameDirectory::open(core::path_from_utf8(assets::GameDirectory::clean_path_text(game_dir)));
     if (!game) {
         app::report_fatal(game.error().message + "\n(set ANNO1602_DIR or pass --game-dir)");
         return 1;
