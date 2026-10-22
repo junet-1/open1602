@@ -91,9 +91,10 @@ public:
     std::optional<Action> mouse(std::int32_t x, std::int32_t y, bool down,
                                 ui::MouseButton button = ui::MouseButton::Left);
 
-    /// A message for the local player (MELDUNG number) at a world tile, in the colour of `banner`.
+    /// A message for the local player (MELDUNG number) at a world tile, in the colour of `banner`;
+    /// `text` (Windows-1252) replaces the original's text in the status bar.
     void message(std::uint16_t id, sim::BannerId banner, std::optional<std::pair<double, double>> tile,
-                 std::uint64_t now_ms);
+                 std::uint64_t now_ms, std::string_view text = {});
     /// What the resource bar at the top of the map shows (Hud_DrawResourceBar 0x0040D160): the
     /// player's money, and of the city under the mouse its tools, wood and bricks (own city) and
     /// inhabitants with the owner's shield. Costs of a pending build order in brackets.
@@ -343,6 +344,7 @@ private:
         sim::BannerId banner = 0;
         std::optional<std::pair<double, double>> tile;
         std::uint64_t time_ms = 0;
+        std::string text;  ///< empty: MELDUNG `id`
     };
 
     SDL_Renderer* m_sdl;

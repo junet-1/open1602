@@ -6,7 +6,9 @@
 #include <map>
 #include <utility>
 
+#include "banner_graphic.hpp"
 #include "high_score_file.hpp"
+#include "multiplayer_menu.hpp"
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/core/file.hpp"
@@ -57,7 +59,23 @@ constexpr std::size_t kScoreRows = 4;
 // FARBWAHL.GAD
 constexpr std::int32_t kNameBox = 35002;
 constexpr std::int32_t kNamePrompt = 35003;
-constexpr std::int32_t kBanner = 35021;  ///< + colour 0..3
+constexpr std::int32_t kFlag = 35011;    ///< + colour 0..3: the banners in the hall
+constexpr std::int32_t kBanner = 35021;  ///< + colour 0..3: their outlines, which take the click
+// Open1602's own: the further colours as coats of arms beside the name board.
+constexpr std::int32_t kMoreArms = 35031;       ///< + 0..7, banner kFirstExtraBanner + n
+constexpr std::int32_t kMoreArmsLabel = 35041;  ///< + side 0..1: the colour under the mouse
+constexpr std::size_t kMoreBanners = sim::kMaxPlayers - sim::kOriginalPlayers;
+constexpr std::size_t kArmsPerSide = kMoreBanners / 2;
+/// START.BSH: the end screen's buttons with a coat of arms (ENDE.GAD: GFXWAPPEN + 4, from GFXFARB
+/// on 14 + 7 + 4 further; red, blue, yellow, white) and the same with a golden frame, 4 further.
+constexpr std::int32_t kGfxArmsFromFarb = 25;
+constexpr std::int32_t kGfxArmsGold = 4;
+constexpr std::int32_t kGfxFarb = 57;  ///< FARBWAHL.GAD: GFXFARB, if the file does not say
+constexpr std::int32_t kArmsWidth = 40;
+constexpr std::int32_t kArmsHeight = 52;
+constexpr std::int32_t kArmsGap = 6;
+constexpr std::int32_t kArmsBoardGap = 12;  ///< between the arms and the name board
+constexpr std::int32_t kArmsLabelHeight = 22;
 
 constexpr std::uint32_t kTutorial = 0;
 constexpr std::uint32_t kEndless = 1;
@@ -88,6 +106,56 @@ std::optional<ui::Panel> load_panel(const assets::GameDirectory& game, const cha
         return std::nullopt;
     }
     return ui::Panel(std::move(layout).value(), 1.0);
+}
+
+/// FARBWAHL.GAD with the further colours: four coats of arms on either side of the name board,
+/// each side with a line below for the name of the colour under the mouse. Unchanged without the
+/// name board.
+assets::GadgetLayout with_more_arms(assets::GadgetLayout farbwahl) {
+    const assets::Gadget* name = farbwahl.find(kNameBox);  // as large as the board it is written on
+    if (name == nullptr) {
+        return farbwahl;
+    }
+    const std::int32_t gfx = farbwahl.constant("GFXFARB").value_or(kGfxFarb) + kGfxArmsFromFarb;
+    const std::int32_t block = farbwahl.constant("BLK_START").value_or(1);
+    const std::int32_t top = name->pos[1] + (name->size[1] - kArmsHeight) / 2;
+    constexpr std::int32_t kSideWidth = static_cast<std::int32_t>(kArmsPerSide) * (kArmsWidth + kArmsGap) - kArmsGap;
+    const std::array<std::int32_t, 2> left = {name->pos[0] - kArmsBoardGap - kSideWidth,
+                                              name->pos[0] + name->size[0] + kArmsBoardGap};
+    const assets::Gadget label = *name;  // the name's font and colour (copied: the gadgets grow below)
+    for (std::size_t n = 0; n < kMoreBanners; ++n) {
+        const std::size_t side = n / kArmsPerSide;
+        assets::Gadget arms;
+        arms.id = kMoreArms + static_cast<std::int32_t>(n);
+        arms.kind = assets::GadgetKind::Graphic;
+        arms.base = static_cast<std::int32_t>(farbwahl.gadgets.size());
+        arms.block = block;
+        arms.gfx = gfx;
+        arms.press_offset = kGfxArmsGold;
+        arms.pos = {left[side] + static_cast<std::int32_t>(n % kArmsPerSide) * (kArmsWidth + kArmsGap), top};
+        arms.size = {kArmsWidth, kArmsHeight};
+        farbwahl.gadgets.push_back(arms);
+    }
+    for (std::size_t side = 0; side < 2; ++side) {
+        assets::Gadget line = label;
+        line.id = kMoreArmsLabel + static_cast<std::int32_t>(side);
+        line.kind = assets::GadgetKind::TextCentre;
+        line.base = static_cast<std::int32_t>(farbwahl.gadgets.size());
+        line.no_select = true;
+        line.pos = {left[side], top + kArmsHeight + 4};
+        line.size = {kSideWidth, kArmsLabelHeight};
+        line.offset = {static_cast<std::int16_t>(kSideWidth / 2), static_cast<std::int16_t>(kArmsLabelHeight - 4)};
+        farbwahl.gadgets.push_back(line);
+    }
+    return farbwahl;
+}
+
+std::optional<ui::Panel> load_colour_panel(const assets::GameDirectory& game) {
+    auto layout = assets::load_gad(game, "FARBWAHL.GAD");
+    if (!layout) {
+        return std::nullopt;
+    }
+    return ui::Panel(with_more_arms(std::move(layout).value()), 1.0);
 }
 
 }  // namespace
@@ -172,12 +240,21 @@ MainMenu::MainMenu(const assets::GameDirectory& game, const assets::TextTable* t
       m_base(load_panel(game, "BASE.GAD")),
       m_host(load_panel(game, "HOST.GAD")),
       m_mission(load_panel(game, "MISSION.GAD")),
-      m_colour(load_panel(game, "FARBWAHL.GAD")) {
+      m_colour(load_colour_panel(game)),
+      m_banners(render::BannerTable::original()) {
     if (m_host) {
         m_host->set_selected(kNewGame, true);
     }
+    m_banners.add_more_players();
     if (m_colour) {
         m_colour->set_text(kNamePrompt, text("GAME", 81));
+        for (std::size_t k = 0; k < m_hall.size(); ++k) {
+            const assets::Gadget* flag = m_colour->layout().find(kFlag + static_cast<std::int32_t>(k));
+            const assets::Gadget* outline = m_colour->layout().find(kBanner + static_cast<std::int32_t>(k));
+            if (flag != nullptr && outline != nullptr) {
+                m_hall[k] = HallBanner{flag->gfx, outline->gfx, outline->press_offset};
+            }
+        }
     }
 }
 
@@ -489,7 +566,60 @@ void MainMenu::refresh_mission() {
 }
 
 void MainMenu::refresh_colour() {
-    m_colour->set_text(kNameBox, m_typing ? m_name + "_" : m_name);
+    ui::Panel& p = *m_colour;
+    p.set_text(kNameBox, m_typing ? m_name + "_" : m_name);
+    // The further colours' coats of arms, golden under the mouse; the banner in the hall with the
+    // same pattern shows the colour (render/shape_tint.hpp).
+    const std::optional<std::int32_t> hovered = p.hovered();
+    const render::Banner* preview = nullptr;
+    for (std::size_t n = 0; n < kMoreBanners; ++n) {
+        const std::int32_t id = kMoreArms + static_cast<std::int32_t>(n);
+        const render::Banner* banner = m_banners.get(static_cast<sim::BannerId>(sim::kFirstExtraBanner + n));
+        const assets::Gadget* g = p.layout().find(id);
+        if (g == nullptr) {
+            continue;
+        }
+        const bool lit = hovered == id || p.held() == id;
+        set_banner_graphic(p, id, render::BannerArt::at(lit ? g->gfx + kGfxArmsGold : g->gfx), banner,
+                           lit ? 0 : kGfxArmsGold);
+        if (lit) {
+            preview = banner;
+        }
+    }
+    for (std::size_t side = 0; side < 2; ++side) {
+        const std::optional<std::int32_t> arms =
+            hovered && *hovered >= kMoreArms && *hovered < kMoreArms + static_cast<std::int32_t>(kMoreBanners)
+                ? hovered
+                : std::nullopt;
+        const bool here = arms && static_cast<std::size_t>(*arms - kMoreArms) / kArmsPerSide == side;
+        p.set_text(kMoreArmsLabel + static_cast<std::int32_t>(side),
+                   here && preview != nullptr ? banner_name(preview->id) : std::string());
+    }
+    for (std::size_t k = 0; k < m_hall.size(); ++k) {
+        if (!m_hall[k]) {
+            continue;
+        }
+        const HallBanner& h = *m_hall[k];
+        const auto flag = kFlag + static_cast<std::int32_t>(k);
+        const auto outline = kBanner + static_cast<std::int32_t>(k);
+        if (preview != nullptr && preview->art_pattern == k) {
+            // The cloth is what the outline's selected picture encloses.
+            ui::ColourTint cloth;
+            cloth.color = preview->color;
+            cloth.shape = h.outline + h.outline_press - h.flag;
+            p.set_graphic(flag, h.flag, 0, cloth);
+            if (!p.selected(outline)) {
+                ui::ColourTint edge;
+                edge.color = preview->color;
+                edge.shape = h.outline_press;
+                p.set_graphic(outline, h.outline, h.outline_press, edge);
+                continue;
+            }
+        } else {
+            p.set_graphic(flag, h.flag, 0);
+        }
+        p.set_graphic(outline, h.outline, h.outline_press);
+    }
 }
 
 std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, 3>& fonts) {
@@ -529,7 +659,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                 m_endless = m_settings.setup();
                 MenuEvent ev{MenuEvent::Kind::NewEndless};
                 ev.level = m_variant == 0xFF ? 0 : m_variant;
-                ev.colour = m_banner;
+                ev.banner = m_banner;
                 ev.name = m_name;
                 ev.setup = m_endless;
                 out.push_back(std::move(ev));
@@ -641,10 +771,13 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
             case Screen::Colour:
                 if (e.id == kNameBox) {
                     m_typing = true;
-                } else if (e.id >= kBanner && e.id < kBanner + 4) {
+                } else if ((e.id >= kBanner && e.id < kBanner + static_cast<std::int32_t>(sim::kOriginalPlayers)) ||
+                           (e.id >= kMoreArms && e.id < kMoreArms + static_cast<std::int32_t>(kMoreBanners))) {
                     // Then the game's settings (Open1602's own dialog; the original starts here).
                     m_typing = false;
-                    m_banner = static_cast<std::uint8_t>(e.id - kBanner);
+                    m_banner = e.id < kMoreArms
+                                   ? static_cast<sim::BannerId>(e.id - kBanner)
+                                   : static_cast<sim::BannerId>(sim::kFirstExtraBanner + (e.id - kMoreArms));
                     m_settings.open(m_endless, SetupScope::Endless);
                     m_screen = Screen::Settings;
                 }

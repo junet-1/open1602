@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 
+#include "o1602/render/shape_tint.hpp"
 #include "o1602/render/variant_tint.hpp"
 
 namespace o1602::render {
@@ -130,6 +131,25 @@ SdlUiRenderer::Texture SdlUiRenderer::make(const std::vector<std::uint8_t>& rgba
 
 std::vector<std::uint8_t> SdlUiRenderer::tinted(const assets::SpriteSheet& sheet, std::int32_t gfx,
                                                 const ui::ColourTint& tint) const {
+    std::vector<std::uint8_t> out;
+    if (tint.shape) {
+        // One sprite and the outline of its cloth (the banners of the colour screen).
+        const auto image = sheet.decode(static_cast<std::size_t>(gfx));
+        if (!image) {
+            return out;
+        }
+        const std::vector<std::uint8_t> pixels = image->to_rgba(m_palette);
+        std::vector<std::uint8_t> shape_pixels;
+        RgbaView shape;
+        if (const std::int32_t s = gfx + *tint.shape; s >= 0 && static_cast<std::size_t>(s) < sheet.size()) {
+            if (auto outline = sheet.decode(static_cast<std::size_t>(s))) {
+                shape_pixels = outline->to_rgba(m_palette);
+                shape = RgbaView{shape_pixels.data(), outline->width, outline->height};
+            }
+        }
+        tint_shape(RgbaView{pixels.data(), image->width, image->height}, shape, tint.color, out);
+        return out;
+    }
     // The family's variants around the drawn one (the base); missing ones are left out.
     std::vector<std::vector<std::uint8_t>> pixels(tint.variants);
     std::vector<RgbaView> views(tint.variants);
@@ -144,14 +164,13 @@ std::vector<std::uint8_t> SdlUiRenderer::tinted(const assets::SpriteSheet& sheet
                 RgbaView{pixels[static_cast<std::size_t>(v)].data(), image->width, image->height};
         }
     }
-    std::vector<std::uint8_t> out;
     tint_variant(views, tint.base, tint.pattern, tint.color, out);
     return out;
 }
 
 SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gfx, int mode, std::int32_t colour,
                                              const std::optional<ui::ColourTint>& tint) {
-    const bool tinting = mode == kModeSprite && tint && tint->base < tint->variants;
+    const bool tinting = mode == kModeSprite && tint && (tint->shape || tint->base < tint->variants);
     const SpriteKey key{
         block,
         gfx,
@@ -161,7 +180,8 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
             ? 0x01000000U | (std::uint32_t{tint->color.r} << 16U) | (std::uint32_t{tint->color.g} << 8U) | tint->color.b
             : 0U,
         tinting ? tint->stride : 0,
-        tinting ? (std::uint32_t{tint->variants} << 16U) | (std::uint32_t{tint->pattern} << 8U) | tint->base : 0U};
+        tinting ? (std::uint32_t{tint->variants} << 16U) | (std::uint32_t{tint->pattern} << 8U) | tint->base : 0U,
+        tinting && tint->shape ? std::optional<std::int32_t>(*tint->shape) : std::nullopt};
     if (const auto it = m_sprites.find(key); it != m_sprites.end()) {
         return it->second;
     }

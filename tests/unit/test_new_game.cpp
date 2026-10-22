@@ -615,3 +615,30 @@ TEST_CASE("new game: an own world with six players: the plan's size and starts, 
     }
     CHECK(!a.state_damaged());
 }
+
+TEST_CASE("new game: a colour the level's file does not have is swapped with the player who had it") {
+    sim::World world;
+    std::vector<sim::Player> players(4);
+    for (std::size_t s = 0; s < players.size(); ++s) {
+        players[s].banner = static_cast<sim::BannerId>(s);
+    }
+    players[3].banner = sim::kFirstExtraBanner + 1;  // a computer flies green
+    world.set_players(std::move(players));
+
+    // Green: the computer gets the human's red.
+    const auto swapped = sim::take_banner(world, 0, sim::kFirstExtraBanner + 1);
+    REQUIRE(swapped.has_value());
+    CHECK(*swapped == 3);
+    CHECK(world.player(0)->banner == sim::kFirstExtraBanner + 1);
+    CHECK(world.player(3)->banner == 0);
+
+    // Orange: nobody has it.
+    CHECK(!sim::take_banner(world, 0, sim::kFirstExtraBanner).has_value());
+    CHECK(world.player(0)->banner == sim::kFirstExtraBanner);
+    CHECK(world.player(3)->banner == 0);
+
+    // Its own banner, or no player: nothing changes.
+    CHECK(!sim::take_banner(world, 0, sim::kFirstExtraBanner).has_value());
+    CHECK(!sim::take_banner(world, 40, 1).has_value());
+    CHECK(world.player(1)->banner == 1);
+}

@@ -6,10 +6,14 @@
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/core/text.hpp"
+#include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
 
 namespace {
+
+/// „Ihr konntet den Euch gestellten Auftrag erfüllen!“, in no player's colour.
+constexpr std::uint16_t kMessageMissionAccomplished = 0x54;
 
 /// A message, with where it happened and the player it is about.
 Announcement announce(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt,
@@ -96,6 +100,21 @@ void add_chat_line(std::deque<ChatLine>* chat, ChatLine line, bool echo) {
 }
 
 EventPresenter::EventPresenter(PlayerLabel label) : m_label(std::move(label)) {}
+
+std::string EventPresenter::rival_won_text(const sim::Player& winner, std::string_view label) const {
+    // "message.won.green": the translation words the colour (German declines it); a banner without
+    // one (a mod's) is named by the player's name.
+    if (m_banners != nullptr) {
+        if (const render::Banner* b = m_banners->get(winner.banner)) {
+            const std::size_t colon = b->id.find(':');
+            const std::string key = "message.won." + b->id.substr(colon == std::string::npos ? 0 : colon + 1);
+            if (const std::string& text = ui::tr(key); text != key) {
+                return text;
+            }
+        }
+    }
+    return ui::tr("message.won", {winner.name.empty() ? label : std::string_view(winner.name)});
+}
 
 std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::PlayerId local,
                                                 const std::vector<sim::CityEvent>& events) const {
@@ -314,10 +333,13 @@ std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::Pl
                 if (e.player == local) {
                     expect_end_screen(sim::GameOutcome::Won, kEndScreenDelayMs, now_ms);
                     // 0x6B is the multiplayer message with the winner's colour (0x6B..0x6E); its
-                    // video speaks to the winner on track 1.
+                    // video speaks to the winner on track 1. The original has it for its four
+                    // colours only: the others hear „Ihr konntet den Euch gestellten Auftrag erfüllen!“.
                     if (e.message == audio::kMessageMultiplayerWin && p != nullptr) {
-                        out.emplace_back(announce_with_tracks(
-                            static_cast<std::uint16_t>(e.message + sim::four_colour_index(p->banner)), 0x03));
+                        out.emplace_back(
+                            p->banner < sim::kOriginalPlayers
+                                ? announce_with_tracks(static_cast<std::uint16_t>(e.message + p->banner), 0x03)
+                                : announce(kMessageMissionAccomplished));
                     } else {
                         out.emplace_back(announce(e.message));
                     }
@@ -329,12 +351,18 @@ std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::Pl
                 if (e.player != local && world.player(local) != nullptr && !world.player(local)->won) {
                     expect_end_screen(sim::GameOutcome::Lost, kEndScreenDelayMs, now_ms);
                     // The winner's message: his mission's, or that of the victory conditions.
-                    if (p != nullptr && e.message == audio::kMessageMultiplayerWin) {
+                    if (p != nullptr && e.message == audio::kMessageMultiplayerWin &&
+                        p->banner < sim::kOriginalPlayers) {
                         // A race: "the red player fulfilled his task", the others' voice (track 2).
-                        out.emplace_back(
-                            announce_with_tracks(static_cast<std::uint16_t>(audio::kMessageMultiplayerWin +
-                                                                            sim::four_colour_index(p->banner)),
-                                                 0x05));
+                        out.emplace_back(announce_with_tracks(
+                            static_cast<std::uint16_t>(audio::kMessageMultiplayerWin + p->banner), 0x05));
+                    } else if (p != nullptr && e.message == audio::kMessageMultiplayerWin) {
+                        // The further colours have no voice: the same words in the status bar only,
+                        // under the winner's icon.
+                        Announcement a = announce(audio::kMessageMultiplayerWin, std::nullopt, e.player);
+                        a.text = rival_won_text(*p, who);
+                        a.voice = false;
+                        out.emplace_back(std::move(a));
                     } else {
                         out.emplace_back(announce(0x53));  // "Ihr wurdet besiegt!"
                     }

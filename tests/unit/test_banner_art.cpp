@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Interface art in any player colour (render/banner.hpp BannerArt, render/variant_tint.hpp): the
-// drawn variant for the original's colours, the white one recoloured for every other banner.
+// drawn variant for the original's colours, the white one recoloured for every other banner; the
+// banners of the colour screen recoloured within their outline (render/shape_tint.hpp).
 
 #include <algorithm>
 #include <array>
@@ -11,6 +12,7 @@
 
 #include "o1602/render/banner.hpp"
 #include "o1602/render/flag_tint.hpp"
+#include "o1602/render/shape_tint.hpp"
 #include "o1602/render/variant_tint.hpp"
 
 using namespace o1602;
@@ -145,5 +147,47 @@ TEST_CASE("banner art: tinting takes the colour where all variants differ and th
     render::tint_variant(other_size, 1, 0, green, out);
     CHECK(out == v[3]);
     render::tint_variant(other_size, 5, 5, green, out);
+    CHECK(out.empty());
+}
+
+TEST_CASE("banner art: a banner of the colour screen takes another colour within its outline") {
+    constexpr std::uint32_t w = 6;
+    constexpr std::uint32_t h = 5;
+    // A red banner on a grey wall, a brighter fold in its middle.
+    std::vector<std::uint8_t> banner = solid(w, h, {200, 40, 10, 255});
+    for (std::uint32_t y = 0; y < h; ++y) {
+        put(banner, w, 0, y, {90, 90, 90, 255});
+        put(banner, w, 5, y, {90, 90, 90, 255});
+    }
+    put(banner, w, 2, 2, {250, 120, 90, 255});
+    put(banner, w, 3, 2, {0, 0, 0, 0});  // a hole in the cloth stays a hole
+    // Its outline from column 1 to 4, with a gap in row 2 and nothing in row 4.
+    std::vector<std::uint8_t> outline = solid(w, h, {0, 0, 0, 0});
+    for (const std::uint32_t y : {0U, 1U, 3U}) {
+        put(outline, w, 1, y, {255, 200, 0, 255});
+        put(outline, w, 4, y, {255, 200, 0, 255});
+    }
+    const assets::Rgba green{0, 230, 90, 255};
+    std::vector<std::uint8_t> out;
+    render::tint_shape(render::RgbaView{banner.data(), w, h}, render::RgbaView{outline.data(), w, h}, green, out);
+    REQUIRE(out.size() == banner.size());
+    for (std::uint32_t y = 0; y < 4; ++y) {
+        // The wall stays, the cloth is green (row 2 too: the rows around it close the gap).
+        CHECK(at(out, w, 0, y) == (assets::Rgba{90, 90, 90, 255}));
+        CHECK(at(out, w, 5, y) == (assets::Rgba{90, 90, 90, 255}));
+        const assets::Rgba c = at(out, w, 1, y);
+        CHECK(c.g > c.r);
+        CHECK(c.g > c.b);
+    }
+    CHECK(at(out, w, 3, 2).a == 0);
+    CHECK(at(out, w, 2, 4) == at(banner, w, 2, 4));  // below the outline
+    // The fold stays brighter than the cloth around it; most of the cloth is about the colour.
+    CHECK(at(out, w, 2, 2).g > at(out, w, 1, 2).g);
+    CHECK(at(out, w, 1, 1) == render::tint_shade(136, green));
+
+    // Without an outline, or without a sprite.
+    render::tint_shape(render::RgbaView{banner.data(), w, h}, render::RgbaView{}, green, out);
+    CHECK(out == banner);
+    render::tint_shape(render::RgbaView{}, render::RgbaView{outline.data(), w, h}, green, out);
     CHECK(out.empty());
 }

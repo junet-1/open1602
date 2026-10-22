@@ -25,6 +25,8 @@
 #include "o1602/assets/high_scores.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/assets/text_table.hpp"
+#include "o1602/render/banner.hpp"
+#include "o1602/sim/player.hpp"
 #include "o1602/ui/panel.hpp"
 
 namespace o1602::app {
@@ -51,7 +53,7 @@ struct MenuEvent {
         Quit,          ///< leave the program (after a question)
         Credits,       ///< video 10 in the picture frame
         Intro,         ///< video 58
-        NewEndless,    ///< endless game of `level` with `colour`, `name` and the settings `setup`
+        NewEndless,    ///< endless game of `level` with `banner`, `name` and the settings `setup`
         Scenario,      ///< start `path` with `name` and the rules of `setup` (none for the tutorial)
         LoadSlot,      ///< savegame `slot`
         ContinueLast,  ///< lastgame
@@ -60,7 +62,9 @@ struct MenuEvent {
     };
     Kind kind = Kind::Quit;
     std::uint8_t level = 0;
-    std::uint8_t colour = 0;
+    /// NewEndless: the human's colour, one of the original's four or a further one (from
+    /// sim::kFirstExtraBanner on).
+    sim::BannerId banner = 0;
     std::string name{};
     std::filesystem::path path{};
     std::size_t slot = 0;
@@ -162,7 +166,15 @@ private:
     GameSettingsMenu m_settings;
     EndlessSetup m_endless;
     EndlessSetup m_scenario;
-    std::uint8_t m_banner = 0;  ///< chosen on the colour screen, for the start dialog
+    /// The banners in the hall of the colour screen (FARBWAHL.GAD), which show a further colour.
+    struct HallBanner {
+        std::int32_t flag = 0;     ///< its picture
+        std::int32_t outline = 0;  ///< the picture of the outline that takes the click
+        std::int32_t outline_press = 0;
+    };
+    std::array<std::optional<HallBanner>, sim::kOriginalPlayers> m_hall{};
+    render::BannerTable m_banners;  ///< the colours on offer: the original's and the further ones
+    sim::BannerId m_banner = 0;     ///< chosen on the colour screen, for the start dialog
     std::uint8_t m_tutorial_chapter = 0;
     bool m_name_fresh = false;  ///< the name was put in, not typed: the first key replaces it
     bool m_typing = false;

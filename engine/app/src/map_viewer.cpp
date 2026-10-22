@@ -302,7 +302,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     viewer->m_sound->set_listener([self = viewer.get()](std::uint16_t message, std::uint16_t flags,
                                                         std::optional<std::pair<double, double>> tile,
-                                                        std::optional<sim::PlayerId> about) {
+                                                        std::optional<sim::PlayerId> about, std::string_view text) {
         if ((flags & audio::kMessageNormalSpeed) != 0 && self->m_state->simulation.speed() > 1) {
             // Fires, plagues and attacks: back to normal speed (0x004893F0), as a command like any
             // other change of the speed.
@@ -312,7 +312,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         if (self->m_hud) {
             // The icon in the colour of the player the message is about (a rival's new city).
             const sim::Player* p = self->m_state->world.player(about.value_or(self->m_local_player));
-            self->m_hud->message(message, p != nullptr ? p->banner : 0, tile, platform::ticks_ms());
+            self->m_hud->message(message, p != nullptr ? p->banner : 0, tile, platform::ticks_ms(), text);
         }
     });
     viewer->m_input->load_key_settings(data_folder() / "keys.cfg");
@@ -414,6 +414,7 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_clock(m_buildings),
       m_tool(m_buildings) {
     m_command_sink.set_simulation(&m_state->simulation);
+    m_events.set_banners(&m_banners);
     warn_if_state_damaged();
 }
 
@@ -1367,7 +1368,8 @@ void MapViewer::place_listener() {
 void MapViewer::show_notices(const std::vector<Notice>& notices) {
     for (const Notice& n : notices) {
         if (const auto* a = std::get_if<Announcement>(&n)) {
-            m_sound->message(a->message, a->tile, a->about);  // the listener puts it into the status bar
+            // The listener puts it into the status bar.
+            m_sound->message(a->message, a->tile, a->about, a->text, a->voice);
             if (const auto video = m_sound->take_video()) {
                 m_video->request(*video, a->tracks);
             }
@@ -2268,7 +2270,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     return core::Ok{};
 }
 
-core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name,
+core::Status MapViewer::start_endless(std::uint8_t level, sim::BannerId banner, const std::string& name,
                                       const EndlessSetup& setup) {
     if (m_session && m_session->ended()) {
         end_session();  // one that ended in its game stood only to show the game
@@ -2286,7 +2288,9 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
     sim::NewGameOptions o;
     o.difficulty = std::min<std::uint8_t>(level, sim::NewGameOptions::kDifficulties - 1);
     o.layout = static_cast<std::uint8_t>(device() % sim::NewGameOptions::kLayouts);
-    o.colour = std::min<std::uint8_t>(colour, 3);
+    // The level's file knows the original's four colours: a further one comes after the start.
+    const bool further = banner >= sim::kOriginalPlayers;
+    o.colour = further ? 0 : static_cast<std::uint8_t>(banner);
     o.name = name;
     o.world = m_options.world;
     o.world.seed = (std::uint64_t{device()} << 32U) | device();
@@ -2310,6 +2314,14 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
     }
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
+    }
+    if (further) {
+        // A computer with that colour takes the human's, and the name of its new colour.
+        if (const auto other = sim::take_banner(*world, sim::first_human_player(*world), banner)) {
+            if (sim::Player* p = world->player(*other); p != nullptr && p->role == sim::PlayerRole::Computer) {
+                p->name = colour_player_name(p->banner, texts->section("PLAYCOL"));
+            }
+        }
     }
     name_more_players(*world);
     return replace_world(std::move(world).value(), {}, &setup.rules);
@@ -2365,7 +2377,7 @@ void MapViewer::apply_menu() {
                 return;  // the rest belongs to the main menu, which is gone
             case MenuEvent::Kind::NewEndless: {
                 const EndlessSetup setup = e.setup.value_or(m_app_settings.endless);
-                started = start_endless(e.level, e.colour, e.name, setup);
+                started = start_endless(e.level, e.banner, e.name, setup);
                 if (started && !(setup == m_app_settings.endless)) {
                     m_app_settings.endless = setup;
                     save_settings();

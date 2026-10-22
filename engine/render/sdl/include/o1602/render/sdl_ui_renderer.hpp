@@ -79,7 +79,7 @@ private:
     };
     Texture sprite(std::int32_t block, std::int32_t gfx, int mode, std::int32_t colour,
                    const std::optional<ui::ColourTint>& tint = std::nullopt);
-    /// Sprite `gfx` of a sheet recoloured (ui::ColourTint, render/variant_tint.hpp).
+    /// Sprite `gfx` of a sheet recoloured (ui::ColourTint, render/variant_tint.hpp, render/shape_tint.hpp).
     [[nodiscard]] std::vector<std::uint8_t> tinted(const assets::SpriteSheet& sheet, std::int32_t gfx,
                                                    const ui::ColourTint& tint) const;
     Texture text(const std::string& s, std::int32_t font, std::int32_t colour);
@@ -92,9 +92,10 @@ private:
     std::array<std::optional<assets::SpriteSheet>, 5> m_sheets;
     std::array<std::optional<ui::Font>, 3> m_fonts;
     std::array<ui::Recolour, ui::kTextColours> m_colours{};
-    /// Block, gfx, mode, colour, tint (0: none, else 0x01RRGGBB), its stride, variants, pattern, base (a byte each).
-    using SpriteKey =
-        std::tuple<std::int32_t, std::int32_t, int, std::int32_t, std::uint32_t, std::int32_t, std::uint32_t>;
+    /// Block, gfx, mode, colour, tint (0: none, else 0x01RRGGBB), its stride, variants, pattern, base (a byte each),
+    /// shape.
+    using SpriteKey = std::tuple<std::int32_t, std::int32_t, int, std::int32_t, std::uint32_t, std::int32_t,
+                                 std::uint32_t, std::optional<std::int32_t>>;
     std::map<SpriteKey, Texture> m_sprites;
     TextCache<Texture> m_texts;
     std::map<int, Texture> m_images;
