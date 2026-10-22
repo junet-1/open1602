@@ -96,6 +96,25 @@ private:
     std::vector<Request> m_queue;
 };
 
+/// The widest view the original hears its scenery in (birds and surf): its game view at 1024 x 768
+/// (768 x 734, docs/re/ui.md) at the small zoom level, in pixels of the large level (four each).
+inline constexpr double kWidestViewWidth = 768.0 * 4;
+inline constexpr double kWidestViewHeight = 734.0 * 4;
+
+/// How far the scenery is heard, in view half sizes: the whole view up to the original's widest
+/// one, beyond that (the free zoom shows more) only the middle that the widest view covers. More
+/// trees and beaches on screen thus never sound more often than in the original.
+struct SceneryReach {
+    float x = 1.0F;
+    float y = 1.0F;
+};
+/// The reach for a view of `width` x `height` pixels of the large zoom level.
+[[nodiscard]] SceneryReach scenery_reach(double width, double height) noexcept;
+/// Where a scenery sound at (x, y) of the view (Effects::request) plays: within the reach it is
+/// placed as in the original's widest view, so it pans and softens as there; nothing outside.
+[[nodiscard]] std::optional<std::pair<float, float>> scenery_place(const SceneryReach& reach, float x,
+                                                                   float y) noexcept;
+
 // ---- Voice messages ------------------------------------------------------------------------------
 
 /// What a message (MELDUNG number) brings (table 0x0049B210): its kind of voice message, the first
