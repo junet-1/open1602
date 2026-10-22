@@ -42,6 +42,7 @@
 #include "o1602/render/combat_effects.hpp"
 #include "o1602/render/graphics_preloader.hpp"
 #include "o1602/render/land_figures.hpp"
+#include "o1602/render/sdl_map_canvas.hpp"
 #include "o1602/render/sdl_sprite_renderer.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/sprite_hit_mask.hpp"
@@ -72,8 +73,9 @@ struct ViewerOptions {
     bool derive_small_figures = true;
     /// The original red/blue/yellow/white flag images instead of the tinted generic flag.
     bool original_flags = false;
-    std::int32_t width = 1280;
-    std::int32_t height = 800;
+    /// The window's size (--size); 0: the size it had last time (settings.cfg), else 1280 x 800.
+    std::int32_t width = 0;
+    std::int32_t height = 0;
     sim::Rules rules;  ///< settings of the game (refund on demolishing, ...)
     /// Start a new endless game instead of loading `scenario`.
     std::optional<sim::NewGameOptions> new_game;
@@ -101,12 +103,12 @@ struct ViewerOptions {
     bool menu = false;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
     struct ScriptedInput {
-        enum class Kind : std::uint8_t { Move, Down, Up, Key };
+        enum class Kind : std::uint8_t { Move, Down, Up, Key, Wheel };
         Kind kind = Kind::Move;
         std::uint32_t frame = 0;
         float x = 0.0F;
         float y = 0.0F;
-        std::int32_t key = 0;   ///< Key: SDL key code
+        std::int32_t key = 0;   ///< Key: SDL key code; Wheel: notches (up: zoom in)
         std::uint16_t mod = 0;  ///< Key: SDL_KMOD_CTRL, SDL_KMOD_SHIFT
         bool right = false;     ///< Down/Up: the right button
     };
@@ -175,6 +177,7 @@ private:
     void request_screenshot() override;
     void quit() override { m_running = false; }
     void toggle_owners() override { m_show_owners = !m_show_owners; }
+    void toggle_fullscreen() override;
 
     /// The window's events; the rest goes to the input.
     void handle_event(const SDL_Event& event);
@@ -323,7 +326,23 @@ private:
     /// The pause of the original (Pause key) while a video fills the window: the game stops or
     /// goes on, the pause video loops (VideoController::toggle_pause).
     void toggle_pause_video();
-    void zoom_by(int steps, double sx, double sy) override;
+    void zoom_by(double steps, double sx, double sy) override;
+    void scale_by(int direction, double sx, double sy) override;
+    /// Free zoom: goes on towards the magnification asked for (smoothly, a few frames).
+    void animate_zoom(std::uint32_t delta_ms);
+    /// Shows a magnification of the free zoom around (sx, sy); its level's graphics may have to be
+    /// loaded first.
+    void show_magnification(double magnification, double sx, double sy);
+    /// The map's sprites of this frame onto the screen: straight, or through m_map_canvas at a
+    /// scale that is no whole number.
+    void draw_map(ZoomGraphics& graphics);
+    /// Applies how the game is shown (the window "Anzeige", F11): full screen, the window's size,
+    /// the interface's size, the zoom and vertical sync. Saved with the other settings.
+    void apply_display(const DisplaySettings& display);
+    /// What the window "Anzeige" shows: the settings and the window's size now.
+    [[nodiscard]] DisplayModel display_model() const;
+    /// The window's size went to the settings: remembered for the next start.
+    void remember_window_size();
     /// What the world dims: while building the land the player cannot build on, or everything
     /// outside the circle of the building being placed or of the player's clicked building.
     [[nodiscard]] render::TileLighting tile_lighting() const;
@@ -346,6 +365,10 @@ private:
 
     /// The pixel scale the screen asked for, last time it was looked at.
     std::int32_t m_display_pixel_scale = 1;
+    /// Free zoom: the magnification the wheel asked for and the screen point it keeps in place.
+    double m_zoom_target = 0.0;  ///< 0: none asked for
+    double m_zoom_anchor_x = 0.0;
+    double m_zoom_anchor_y = 0.0;
 
     assets::GameDirectory m_game;
     assets::BuildingTable m_buildings;
@@ -387,6 +410,9 @@ private:
 
     std::unique_ptr<platform::SdlSystem> m_sdl;
     std::unique_ptr<platform::Window> m_window;
+    /// The map at a scale that is no whole number (after the window, before SDL quits).
+    std::unique_ptr<render::SdlMapCanvas> m_map_canvas;
+    bool m_software_renderer = false;  ///< SDL draws without a GPU
     platform::MouseCursors m_cursors;  ///< the original's arrow and target (after the window, before SDL quits)
     std::array<std::optional<ZoomGraphics>, 3> m_graphics;
     std::unique_ptr<render::GraphicsPreloader> m_preloader;  ///< the CPU side of the zoom levels

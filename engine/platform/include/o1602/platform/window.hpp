@@ -36,6 +36,7 @@ struct WindowConfig {
     std::int32_t width = 1280;  ///< in window coordinates (may be scaled on HiDPI screens)
     std::int32_t height = 800;
     bool vsync = true;
+    bool fullscreen = false;  ///< the whole screen at the desktop's resolution
 };
 
 /// What a render event asks of everything that draws with the window's renderer.
@@ -71,6 +72,21 @@ public:
     /// 2 on a HiDPI screen, 1.5 on Windows at 150 % (SDL_GetWindowDisplayScale).
     [[nodiscard]] float display_scale() const;
     void set_title(const std::string& title);
+    /// The whole screen at the desktop's resolution (no change of the screen's mode, so switching
+    /// is quick and other windows stay as they are), or the window.
+    void set_fullscreen(bool on);
+    [[nodiscard]] bool fullscreen() const;
+    /// The window's size in window coordinates (not in full screen: then the screen's).
+    void window_size(std::int32_t& width, std::int32_t& height) const;
+    /// Resizes the window (window coordinates), kept on its screen.
+    void set_window_size(std::int32_t width, std::int32_t height);
+    /// The part of the window's screen that windows may use (without task bars), window
+    /// coordinates; 0 if unknown.
+    void usable_area(std::int32_t& width, std::int32_t& height) const;
+    /// Whether the window is maximised (its size then is not the one to remember).
+    [[nodiscard]] bool maximized() const;
+    /// Frames wait for the screen (vertical sync); kept when the renderer is made again.
+    void set_vsync(bool on);
     /// Name of the active render backend (e.g. "vulkan", "opengl", "direct3d11", "software").
     [[nodiscard]] std::string renderer_name() const;
     /// Largest texture the renderer accepts (0 = unknown).

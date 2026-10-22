@@ -7,6 +7,7 @@ add_executable(o1602_sdl_tests
     ../test_main.cpp
     test_window.cpp
     test_audio_output.cpp
+    test_sdl_map_canvas.cpp
     test_sdl_sprite_renderer.cpp
     test_sdl_ui_renderer.cpp
 )

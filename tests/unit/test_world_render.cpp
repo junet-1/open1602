@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cmath>
 #include <limits>
 #include <set>
 #include <string>
@@ -589,14 +590,120 @@ TEST_CASE("camera: zoom, rotation and pixel scale keep the anchored tile in plac
         CHECK(camera.tile_at_screen(640, 400) == centre);
     }
 
-    camera.set_pixel_scale(3, 100, 700);
+    camera.set_scale(3, 100, 700);
     const auto scaled = camera.tile_at_screen(100, 700);
-    camera.set_pixel_scale(2, 100, 700);
-    CHECK(camera.pixel_scale() == 2);
+    camera.set_scale(2, 100, 700);
+    CHECK(camera.scale() == 2.0);
     CHECK(camera.tile_at_screen(100, 700) == scaled);
     const render::Viewport vp = camera.viewport();
     CHECK(vp.width == 641);  // 1280 / 2 + 1
     CHECK(vp.height == 401);
+}
+
+TEST_CASE("camera: free zoom picks the most detailed level that is shrunk at most to 0.75") {
+    const auto check = [](double m, render::Zoom zoom, double scale) {
+        const render::ZoomChoice c = render::zoom_for_magnification(m);
+        CHECK(c.zoom == zoom);
+        CHECK(std::abs(c.scale - scale) < 1e-9);
+    };
+    check(1.0, render::Zoom::Large, 1.0);
+    check(2.5, render::Zoom::Large, 2.5);
+    check(0.75, render::Zoom::Large, 0.75);
+    check(0.7, render::Zoom::Medium, 1.4);
+    check(0.5, render::Zoom::Medium, 1.0);
+    check(0.375, render::Zoom::Medium, 0.75);
+    check(0.25, render::Zoom::Small, 1.0);
+    check(0.01, render::Zoom::Small, render::kMinMagnification * 4.0);  // kept within the limits
+    check(100.0, render::Zoom::Large, render::kMaxMagnification);
+    check(std::numeric_limits<double>::quiet_NaN(), render::Zoom::Large, 1.0);
+    CHECK(render::whole_scale(1.0));
+    CHECK(render::whole_scale(3.0));
+    CHECK(!render::whole_scale(1.5));
+    CHECK(!render::whole_scale(0.75));
+}
+
+TEST_CASE("camera: world_pixel_of undoes world_point_at in every rotation and level") {
+    for (const auto zoom : {render::Zoom::Large, render::Zoom::Medium, render::Zoom::Small}) {
+        for (std::uint8_t r = 0; r < 4; ++r) {
+            render::WorldView view;
+            view.zoom = zoom;
+            view.rotation = r;
+            view.world_width = 500;
+            view.world_height = 350;
+            for (const auto& [tx, ty] :
+                 {std::pair{0.0, 0.0}, std::pair{123.25, 47.5}, std::pair{499.9, 349.1}, std::pair{-3.0, 400.0}}) {
+                const auto [px, py] = render::world_pixel_of(view, tx, ty);
+                const auto [bx, by] = render::world_point_at(view, px, py);
+                CHECK(std::abs(bx - tx) < 1e-9);
+                CHECK(std::abs(by - ty) < 1e-9);
+            }
+        }
+    }
+}
+
+TEST_CASE("camera: the free zoom keeps the point under the mouse across levels") {
+    render::Camera camera;
+    camera.set_screen(1280, 800, 1);
+    camera.center_on(render::TilePos{200, 150});
+    for (std::uint8_t r = 0; r < 4; ++r) {
+        camera.set_rotation(r, 640, 400);
+        const auto before = camera.point_at_screen(900, 250);
+        for (const double m : {1.19, 0.84, 0.6, 0.3, 0.21, 0.45, 2.0, 5.5, 1.0}) {
+            camera.set_magnification(m, 900, 250);
+            CHECK(std::abs(camera.magnification() - m) < 1e-9);
+            CHECK(camera.view().zoom == render::zoom_for_magnification(m).zoom);
+            const auto after = camera.point_at_screen(900, 250);
+            CHECK(std::abs(after.first - before.first) < 1e-6);
+            CHECK(std::abs(after.second - before.second) < 1e-6);
+        }
+    }
+}
+
+TEST_CASE("camera: the render plan draws whole scales directly and others through a canvas") {
+    render::Camera camera;
+    camera.set_screen(1000, 700, 2);
+    camera.center_on(render::TilePos{200, 150});
+    camera.scroll(0.3, 0.7);  // not on a whole pixel
+    double ox = 0.0;
+    double oy = 0.0;
+    camera.screen_origin(ox, oy);
+    CHECK(ox == std::round(ox));  // whole scale: sprites on whole pixels
+    CHECK(oy == std::round(oy));
+    render::RenderPlan plan = camera.render_plan(0, 0);
+    CHECK(plan.direct);
+    CHECK(plan.scale == 2);
+    CHECK(plan.origin_x == static_cast<std::int32_t>(ox));
+
+    // 1.5: drawn at 2 into a texture shrunk by 0.75; a world pixel lands where the camera says.
+    camera.set_scale(1.5, 500, 350);
+    plan = camera.render_plan(0, 0);
+    CHECK(!plan.direct);
+    CHECK(plan.scale == 2);
+    CHECK(std::abs(plan.dst_scale - 0.75) < 1e-12);
+    CHECK(plan.dst_x <= 0.0);
+    CHECK(plan.dst_y <= 0.0);
+    CHECK(plan.dst_x > -plan.dst_scale);
+    CHECK(plan.width * plan.dst_scale + plan.dst_x >= 1000.0);  // the texture covers the screen
+    CHECK(plan.height * plan.dst_scale + plan.dst_y >= 700.0);
+    for (const auto& [px, py] : {std::pair{12000, 3000}, std::pair{12345, 3456}}) {
+        double sx = 0.0;
+        double sy = 0.0;
+        camera.world_to_screen(px, py, sx, sy);
+        CHECK(std::abs((px * plan.scale - plan.origin_x) * plan.dst_scale + plan.dst_x - sx) < 1e-6);
+        CHECK(std::abs((py * plan.scale - plan.origin_y) * plan.dst_scale + plan.dst_y - sy) < 1e-6);
+    }
+    // A texture too large for the limit: the next smaller whole scale, stretched.
+    plan = camera.render_plan(1000 * 700, 0);
+    CHECK(plan.scale == 1);
+    CHECK(std::abs(plan.dst_scale - 1.5) < 1e-12);
+    plan = camera.render_plan(0, 1200);
+    CHECK(plan.scale == 1);
+    // Shrunk below one: drawn at 1.
+    camera.set_scale(0.8, 500, 350);
+    plan = camera.render_plan(0, 0);
+    CHECK(!plan.direct);
+    CHECK(plan.scale == 1);
+    CHECK(camera.viewport().width == 1251);  // 1000 / 0.8 + 1
 }
 
 TEST_CASE("camera: the pixel scale of a display scale") {

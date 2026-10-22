@@ -51,6 +51,11 @@ public:
     /// A window's art made as wide as `rect`: its left two thirds, copies of its middle third and its
     /// right third at the right edge, so the frame closes there (status bar, mission window).
     void draw_widened(std::int32_t block, std::int32_t gfx, const ui::Rect& rect, double scale);
+    /// Below a window's art where `rect` is taller than it (the side panel in a tall window): copies
+    /// of the art's lower half, every other one upside down so that no seam shows, and the art's last
+    /// `edge` rows (its frame) at the bottom of `rect`. Drawn over the art, which its layout draws.
+    void draw_lengthened(std::int32_t block, std::int32_t gfx, const ui::Rect& rect, double scale,
+                         std::int32_t edge = 0);
     /// A rectangle of a palette colour (backgrounds).
     void fill(const ui::Rect& rect, std::uint8_t colour);
     /// An RGBA image as a texture at (x, y), size (w, h) on screen (the minimap). The texture is

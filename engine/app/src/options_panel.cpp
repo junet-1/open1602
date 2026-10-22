@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "o1602/ui/localization.hpp"
+
 namespace o1602::app {
 
 namespace {
@@ -15,8 +17,12 @@ constexpr std::int32_t kPageMusik = 47012;
 constexpr std::int32_t kPageAnno = 47013;
 constexpr std::int32_t kMonitor = 47014;
 constexpr std::int32_t kMission = 47015;
+/// The original's three resolutions; Open1602: window, full screen and the window "Anzeige".
 constexpr std::int32_t kResolution = 47021;  ///< + 0..2
 constexpr std::int32_t kResolutionLabel = 47031;
+constexpr std::int32_t kWindowRow = kResolution;
+constexpr std::int32_t kFullscreenRow = kResolution + 1;
+constexpr std::int32_t kDisplayRow = kResolution + 2;
 // DISK.GAD
 constexpr std::int32_t kDiskTitle = 48002;
 constexpr std::int32_t kSave = 48011;
@@ -108,10 +114,6 @@ OptionsPanel::OptionsPanel(assets::GadgetLayout option, assets::GadgetLayout dis
       m_anno(std::move(anno), 1.0),
       m_texts(texts) {
     m_option.set_text(kOptionTitle, text("GAME", 25));
-    constexpr std::array<const char*, 3> kSizes = {"640x480", "800x600", "1024x768"};
-    for (std::size_t i = 0; i < kSizes.size(); ++i) {
-        m_option.set_text(kResolutionLabel + static_cast<std::int32_t>(i), kSizes[i]);
-    }
     m_disk.set_text(kDiskTitle, text("GAME", 26));
     m_musik.set_text(kMusikTitle, text("GAME", 27));
     m_musik.set_text(kMusicLabel, text("GAME", 30));
@@ -181,14 +183,15 @@ void OptionsPanel::stop_editing() {
 void OptionsPanel::refresh(const OptionsModel& model) {
     switch (m_page) {
         case Page::Root:
-            // The resolutions are not offered in a game of several players (0x00439630).
-            for (std::size_t i = 0; i < 3; ++i) {
-                const auto k = static_cast<std::int32_t>(i);
-                m_option.set_visible(kResolution + k, !model.multiplayer);
-                m_option.set_visible(kResolutionLabel + k, !model.multiplayer);
-                m_option.set_selected(kResolution + k, i == model.resolution);
-            }
-            m_option.set_visible(kMonitor, !model.multiplayer);
+            // The original offers no resolutions in a game of several players (0x00439630); window and
+            // full screen concern this computer alone, so Open1602 offers them always. The texts are
+            // set here: the language may change after the panel was made.
+            m_option.set_text(kResolutionLabel, ui::tr("options.window"));
+            m_option.set_text(kResolutionLabel + 1, ui::tr("options.fullscreen"));
+            m_option.set_text(kResolutionLabel + 2, ui::tr("options.display"));
+            m_option.set_selected(kWindowRow, !model.fullscreen);
+            m_option.set_selected(kFullscreenRow, model.fullscreen);
+            m_option.set_selected(kDisplayRow, false);
             m_option.set_selected(kMission, model.mission_window);
             break;
         case Page::Disk:
@@ -317,9 +320,11 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
                 } else if (e.id == kMission) {
                     model.mission_window = !model.mission_window;
                     out.push_back(OptionsEvent{OptionsEvent::Kind::MissionWindow});
-                } else if (e.id >= kResolution && e.id < kResolution + 3) {
-                    out.push_back(
-                        OptionsEvent{OptionsEvent::Kind::Resolution, static_cast<std::size_t>(e.id - kResolution)});
+                } else if (e.id == kWindowRow || e.id == kFullscreenRow) {
+                    model.fullscreen = e.id == kFullscreenRow;
+                    out.push_back(OptionsEvent{OptionsEvent::Kind::Fullscreen, model.fullscreen ? 1U : 0U});
+                } else if (e.id == kDisplayRow || e.id == kMonitor) {
+                    out.push_back(OptionsEvent{OptionsEvent::Kind::Display});
                 }
                 break;
             case Page::Disk:
@@ -435,8 +440,10 @@ std::optional<std::string> OptionsPanel::help(const std::vector<std::string>& le
                 line = 179;
             } else if (*id == kMission) {
                 line = 181;
-            } else if (*id >= kResolution && *id < kResolution + 3) {
-                line = 180;
+            } else if (*id == kWindowRow || *id == kFullscreenRow) {
+                return ui::tr("display.mode");  // the original's line 180 names its resolutions
+            } else if (*id == kDisplayRow || *id == kMonitor) {
+                return ui::tr("display.title");
             }
             break;
         case Page::Disk:

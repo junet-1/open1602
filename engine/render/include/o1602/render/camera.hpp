@@ -5,6 +5,12 @@
 //
 // Zoom and rotation changes keep the tile under a chosen screen point (centre or mouse cursor)
 // in place, which the original only does for the screen centre.
+//
+// Free zoom: the map is drawn at any magnification, not only the original's three zoom levels.
+// The magnification is screen pixels per sprite pixel of the large level; the camera picks the
+// sprites of the level that shows it best and scales them by the rest (scale()). Whole scales draw
+// the sprites directly; any other scale draws them at the next whole scale into a texture first,
+// which is then shrunk smoothly onto the screen (render_plan()), so the pixel art stays sharp.
 #pragma once
 
 #include <cstdint>
@@ -27,8 +33,42 @@ struct TilePos {
 /// the map: for the frame of the visible part on the minimap.
 [[nodiscard]] std::pair<double, double> world_point_at(const WorldView& view, double px, double py);
 
+/// World pixel of a point in world tiles (the inverse of world_point_at).
+[[nodiscard]] std::pair<double, double> world_pixel_of(const WorldView& view, double tx, double ty);
+
 /// The integer pixel scale for a display scale (Window::display_scale): rounded, 1..max_scale.
 [[nodiscard]] std::int32_t pixel_scale_for(float display_scale, std::int32_t max_scale) noexcept;
+
+/// The smallest and largest magnification of the free zoom (screen pixels per sprite pixel of the
+/// large level): the small level shrunk to 0.8, the large level eight times.
+inline constexpr double kMinMagnification = 0.2;
+inline constexpr double kMaxMagnification = 8.0;
+
+/// Zoom level and scale that show a magnification: the most detailed level whose sprites need
+/// not be shrunk below 0.75 (smaller scales blur away the detail the level has in addition).
+struct ZoomChoice {
+    Zoom zoom = Zoom::Large;
+    double scale = 1.0;
+};
+[[nodiscard]] ZoomChoice zoom_for_magnification(double magnification) noexcept;
+
+/// Whether a scale is a whole number (the sprites are drawn directly then).
+[[nodiscard]] bool whole_scale(double scale) noexcept;
+
+/// How a frame of the map is drawn: sprites at the whole scale `scale` with the integer origin
+/// (screen = world pixel * scale - origin) into a texture of `width` x `height` (or straight onto
+/// the screen if `direct`), then that texture stretched to `dst_*` on the screen.
+struct RenderPlan {
+    bool direct = true;
+    std::int32_t scale = 1;
+    std::int32_t origin_x = 0;
+    std::int32_t origin_y = 0;
+    std::int32_t width = 0;  ///< of the texture (direct: of the screen)
+    std::int32_t height = 0;
+    double dst_x = 0.0;  ///< where the texture's top left lands on the screen
+    double dst_y = 0.0;
+    double dst_scale = 1.0;  ///< screen pixels per texture pixel
+};
 
 class Camera {
 public:
@@ -37,27 +77,38 @@ public:
     /// Size of the world in tiles (default: the original 500 x 350).
     void set_world_size(std::uint32_t width, std::uint32_t height);
 
-    /// Screen size in physical pixels and integer pixel scale (1 = one sprite pixel per screen pixel).
-    void set_screen(std::int32_t width, std::int32_t height, std::int32_t pixel_scale);
+    /// Screen size in physical pixels and the scale (1 = one sprite pixel per screen pixel).
+    void set_screen(std::int32_t width, std::int32_t height, double scale);
 
     [[nodiscard]] const WorldView& view() const noexcept { return m_view; }
-    [[nodiscard]] std::int32_t pixel_scale() const noexcept { return m_scale; }
+    /// Screen pixels per sprite pixel of the zoom level shown.
+    [[nodiscard]] double scale() const noexcept { return m_scale; }
+    /// Screen pixels per sprite pixel of the large zoom level.
+    [[nodiscard]] double magnification() const noexcept;
+    [[nodiscard]] std::int32_t screen_width() const noexcept { return m_width; }
+    [[nodiscard]] std::int32_t screen_height() const noexcept { return m_height; }
 
     /// Visible part of the world in world pixels of the current zoom level.
     [[nodiscard]] Viewport viewport() const;
 
-    /// Offset for drawing, in screen pixels and rounded so that sprites land on whole pixels:
-    /// screen position = world pixel * pixel_scale - origin.
-    void screen_origin(std::int32_t& x, std::int32_t& y) const;
+    /// Offset for drawing and picking: screen position = world pixel * scale() - origin. Rounded at
+    /// a whole scale, so that the sprites land on whole pixels.
+    void screen_origin(double& x, double& y) const;
+    /// How to draw the frame. A texture larger than `max_pixels` pixels or `max_side` on a side
+    /// (0: no limit) is drawn at the next smaller whole scale instead (stretched, a little softer).
+    [[nodiscard]] RenderPlan render_plan(std::int64_t max_pixels, std::int32_t max_side) const;
 
     void center_on(TilePos tile);
     /// Scrolls by a distance in screen pixels.
     void scroll(double dx, double dy);
 
-    /// Changes zoom level / rotation / pixel scale, keeping the tile under screen point (sx, sy).
+    /// Changes zoom level / rotation / scale, keeping the tile under screen point (sx, sy).
     void set_zoom(Zoom zoom, double sx, double sy);
     void set_rotation(std::uint8_t rotation, double sx, double sy);
-    void set_pixel_scale(std::int32_t scale, double sx, double sy);
+    void set_scale(double scale, double sx, double sy);
+    /// Free zoom: shows the magnification (kept within kMin/kMaxMagnification) with the level
+    /// zoom_for_magnification chooses, keeping the point under (sx, sy) where it is.
+    void set_magnification(double magnification, double sx, double sy);
 
     /// World tile under a screen point.
     [[nodiscard]] std::optional<TilePos> tile_at_screen(double sx, double sy) const;
@@ -81,7 +132,7 @@ private:
     double m_center_y = 0.0;
     std::int32_t m_width = 640;
     std::int32_t m_height = 480;
-    std::int32_t m_scale = 1;
+    double m_scale = 1.0;
 };
 
 }  // namespace o1602::render

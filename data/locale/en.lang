@@ -123,6 +123,7 @@ keys.action.delete = Disband / scuttle
 keys.action.pixel_scale_up = Larger pixels
 keys.action.pixel_scale_down = Smaller pixels
 keys.action.show_owners = Show ownership
+keys.action.fullscreen = Window or full screen
 keys.action.quit = Quit
 
 # The multiplayer menu and messages (net.*). {1}: a name, a number or a reason, as noted.
@@ -345,3 +346,31 @@ setup.defaults = Open1602 defaults
 setup.back = Back
 setup.start = Start game
 setup.hint = A click on a value chooses the next one. The settings stay with the game and its savegames. A world of its own is made for the players chosen; on the original's maps four play.
+
+# The settings' display rows and the window "Display" (display_menu.cpp)
+options.window = Window
+options.fullscreen = Full screen
+options.display = Display ...
+display.title = Display
+display.mode = Show the game in
+display.window = a window
+display.fullscreen = full screen
+display.size = Window size
+# {1} x {2}: width and height in pixels
+display.size_value = {1} × {2}
+display.size_desktop = the screen's
+display.ui_scale = Interface size
+display.ui_auto = as large as fits
+# {1}: a number
+display.percent = {1} %
+display.zoom = Zoom
+display.zoom_free = free
+display.zoom_steps = three levels (original)
+display.zoom_drawing = Between levels
+display.zoom_smooth = sharp and smooth
+display.zoom_pixels = plain pixels
+display.vsync = V-Sync
+display.on = on
+display.off = off
+display.hint = Any size: drag the window's edge. Full screen: F11 or Alt+Enter. Zoom: the mouse wheel, twice or half the size with Ctrl+Plus and Ctrl+Minus.
+display.close = Close

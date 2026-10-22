@@ -75,29 +75,135 @@ std::pair<double, double> world_point_at(const WorldView& view, double px, doubl
     }
 }
 
+std::pair<double, double> world_pixel_of(const WorldView& view, double tx, double ty) {
+    std::int32_t vw = 0;
+    std::int32_t vh = 0;
+    view_size(view, vw, vh);
+    const auto W = static_cast<double>(view.world_width);
+    const auto H = static_cast<double>(view.world_height);
+    // The rotation of world_point_at undone, then its 45 degree turn.
+    double vx = tx;
+    double vy = ty;
+    switch (view.rotation & 3U) {
+        case 0:
+            break;
+        case 1:
+            vx = H - ty;
+            vy = tx;
+            break;
+        case 2:
+            vx = W - tx;
+            vy = H - ty;
+            break;
+        default:
+            vx = ty;
+            vy = W - tx;
+            break;
+    }
+    const double half_w = tile_width(view.zoom) / 2.0;
+    const double half_h = tile_height(view.zoom) / 2.0;
+    return {(vx - vy + vh) * half_w, (vx + vy) * half_h};
+}
+
+ZoomChoice zoom_for_magnification(double magnification) noexcept {
+    constexpr double kShrinkLimit = 0.75;
+    const double m =
+        std::isfinite(magnification) ? std::clamp(magnification, kMinMagnification, kMaxMagnification) : 1.0;
+    if (m >= kShrinkLimit) {
+        return {Zoom::Large, m};
+    }
+    if (m * 2.0 >= kShrinkLimit) {
+        return {Zoom::Medium, m * 2.0};
+    }
+    return {Zoom::Small, m * 4.0};
+}
+
+bool whole_scale(double scale) noexcept {
+    return scale >= 1.0 && std::abs(scale - std::round(scale)) < 1e-6;
+}
+
 void Camera::set_world_size(std::uint32_t width, std::uint32_t height) {
     m_view.world_width = std::max<std::uint32_t>(1, width);
     m_view.world_height = std::max<std::uint32_t>(1, height);
     clamp();
 }
 
-void Camera::set_screen(std::int32_t width, std::int32_t height, std::int32_t pixel_scale) {
+namespace {
+
+/// The scales a camera accepts: below any level's sprites shrunk by the free zoom, up to the largest
+/// magnification.
+double valid_scale(double scale) {
+    return std::isfinite(scale) ? std::clamp(scale, 0.5, kMaxMagnification) : 1.0;
+}
+
+}  // namespace
+
+void Camera::set_screen(std::int32_t width, std::int32_t height, double scale) {
     m_width = std::max(1, width);
     m_height = std::max(1, height);
-    m_scale = std::clamp(pixel_scale, 1, 8);
+    m_scale = valid_scale(scale);
     clamp();
 }
 
+double Camera::magnification() const noexcept {
+    return m_scale / static_cast<double>(1 << static_cast<int>(m_view.zoom));
+}
+
 Viewport Camera::viewport() const {
-    const std::int32_t w = (m_width + m_scale - 1) / m_scale;
-    const std::int32_t h = (m_height + m_scale - 1) / m_scale;
+    const auto w = static_cast<std::int32_t>(std::ceil(m_width / m_scale));
+    const auto h = static_cast<std::int32_t>(std::ceil(m_height / m_scale));
     return Viewport{static_cast<std::int32_t>(std::floor(m_center_x - m_width / (2.0 * m_scale))),
                     static_cast<std::int32_t>(std::floor(m_center_y - m_height / (2.0 * m_scale))), w + 1, h + 1};
 }
 
-void Camera::screen_origin(std::int32_t& x, std::int32_t& y) const {
-    x = static_cast<std::int32_t>(std::lround(m_center_x * m_scale - m_width / 2.0));
-    y = static_cast<std::int32_t>(std::lround(m_center_y * m_scale - m_height / 2.0));
+void Camera::screen_origin(double& x, double& y) const {
+    x = m_center_x * m_scale - m_width / 2.0;
+    y = m_center_y * m_scale - m_height / 2.0;
+    if (whole_scale(m_scale)) {
+        x = std::round(x);
+        y = std::round(y);
+    }
+}
+
+RenderPlan Camera::render_plan(std::int64_t max_pixels, std::int32_t max_side) const {
+    RenderPlan p;
+    double ox = 0.0;
+    double oy = 0.0;
+    screen_origin(ox, oy);
+    if (whole_scale(m_scale)) {
+        p.scale = static_cast<std::int32_t>(std::lround(m_scale));
+        p.origin_x = static_cast<std::int32_t>(ox);
+        p.origin_y = static_cast<std::int32_t>(oy);
+        p.width = m_width;
+        p.height = m_height;
+        return p;
+    }
+    // Drawn at the next whole scale and shrunk: every sprite pixel keeps hard edges, only the
+    // screen pixels on its border mix the two colours (no uneven pixels, no blur).
+    p.direct = false;
+    p.scale = std::max(1, static_cast<std::int32_t>(std::ceil(m_scale)));
+    const auto size = [&](std::int32_t k, std::int32_t& w, std::int32_t& h) {
+        const double f = m_scale / k;
+        // One texture pixel more on each side: the screen's edge may fall inside one.
+        w = static_cast<std::int32_t>(std::ceil(m_width / f)) + 2;
+        h = static_cast<std::int32_t>(std::ceil(m_height / f)) + 2;
+    };
+    for (;; --p.scale) {
+        size(p.scale, p.width, p.height);
+        const bool fits = (max_pixels <= 0 || std::int64_t{p.width} * p.height <= max_pixels) &&
+                          (max_side <= 0 || std::max(p.width, p.height) <= max_side);
+        if (fits || p.scale == 1) {
+            break;
+        }
+    }
+    p.dst_scale = m_scale / p.scale;
+    // Texture pixel t = world pixel * k - origin lands at t * f + dst, which must be
+    // world pixel * scale - screen origin.
+    p.origin_x = static_cast<std::int32_t>(std::floor(ox / p.dst_scale));
+    p.origin_y = static_cast<std::int32_t>(std::floor(oy / p.dst_scale));
+    p.dst_x = p.origin_x * p.dst_scale - ox;
+    p.dst_y = p.origin_y * p.dst_scale - oy;
+    return p;
 }
 
 void Camera::center_on(TilePos tile) {
@@ -196,11 +302,26 @@ std::int32_t pixel_scale_for(float display_scale, std::int32_t max_scale) noexce
     return std::clamp(static_cast<std::int32_t>(std::lround(s)), 1, std::max(max_scale, 1));
 }
 
-void Camera::set_pixel_scale(std::int32_t scale, double sx, double sy) {
+void Camera::set_scale(double scale, double sx, double sy) {
     double px = 0;
     double py = 0;
     screen_to_world(sx, sy, px, py);
-    m_scale = std::clamp(scale, 1, 8);
+    m_scale = valid_scale(scale);
+    place(px, py, sx, sy);
+    clamp();
+}
+
+void Camera::set_magnification(double magnification, double sx, double sy) {
+    const ZoomChoice choice = zoom_for_magnification(magnification);
+    if (choice.zoom == m_view.zoom) {
+        set_scale(choice.scale, sx, sy);
+        return;
+    }
+    // The point under (sx, sy) in world tiles, the same at every level.
+    const auto [tx, ty] = point_at_screen(sx, sy);
+    m_view.zoom = choice.zoom;
+    m_scale = valid_scale(choice.scale);
+    const auto [px, py] = world_pixel_of(m_view, tx, ty);
     place(px, py, sx, sy);
     clamp();
 }

@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "display_menu.hpp"
 #include "end_screen.hpp"
 #include "main_menu.hpp"
 #include "multiplayer_menu.hpp"
@@ -75,8 +76,10 @@ public:
     static std::unique_ptr<Hud> create(SDL_Renderer* renderer, const assets::GameDirectory& game,
                                        const assets::Palette& palette, const assets::TextTable* texts);
 
-    /// Lays the frame out for the window; returns the rectangle left for the map.
-    ui::Rect layout(std::int32_t width, std::int32_t height);
+    /// Lays the frame out for the window at the interface's scale `ui_scale` (screen pixels per pixel
+    /// of the 1024 x 768 design; the menus always fill the window as far as they fit); returns the
+    /// rectangle left for the map.
+    ui::Rect layout(std::int32_t width, std::int32_t height, double ui_scale);
     [[nodiscard]] const ui::Rect& game_view() const noexcept { return m_regions.game_view; }
     /// Whether a point belongs to the frame (the map does not see the mouse there).
     [[nodiscard]] bool covers(std::int32_t x, std::int32_t y) const noexcept;
@@ -180,8 +183,25 @@ public:
     };
     void show_help(std::vector<HelpLine> lines) { m_help = std::move(lines); }
     [[nodiscard]] bool helping() const noexcept { return m_help.has_value(); }
-    /// A question or the key overview is open: it takes every click.
-    [[nodiscard]] bool modal() const noexcept { return m_question.has_value() || m_help.has_value(); }
+    /// A question, the key overview or the window "Anzeige" is open: it takes every click.
+    [[nodiscard]] bool modal() const noexcept { return m_question.has_value() || m_help.has_value() || m_display_open; }
+    /// The window "Anzeige" over the map (display_menu.hpp) showing `model`.
+    void open_display(DisplayModel model) {
+        m_display_model = std::move(model);
+        m_display_open = m_display != nullptr;
+        m_display_changed = false;
+    }
+    void close_display() noexcept { m_display_open = false; }
+    [[nodiscard]] bool display_open() const noexcept { return m_display_open; }
+    /// Keeps the window's size the window shows up to date (the player drags the edge meanwhile).
+    void set_display_window(WindowSize size) noexcept { m_display_model.window = size; }
+    /// The settings the window "Anzeige" changed since the last call, if it changed any.
+    [[nodiscard]] std::optional<DisplaySettings> take_display_change() {
+        if (!std::exchange(m_display_changed, false)) {
+            return std::nullopt;
+        }
+        return m_display_model.settings;
+    }
     void close_help() noexcept { m_help.reset(); }
     /// Closes the build menu's pop-up of a category (public buildings ...); false if none was open.
     bool close_build_popup() noexcept {
@@ -362,6 +382,13 @@ private:
     EndScreen m_end;
     bool m_end_active = false;
     std::optional<EndScreen::Choice> m_end_choice;
+    std::unique_ptr<DisplayMenu> m_display;
+    DisplayModel m_display_model;
+    bool m_display_open = false;
+    bool m_display_changed = false;
+    /// Top left of the window "Anzeige" on the screen (centred on the map).
+    [[nodiscard]] ui::Rect display_rect() const;
+    double m_menu_scale = 1.0;  ///< of the menus over the whole window: as large as fits
     std::unique_ptr<OptionsPanel> m_options;
     OptionsModel m_options_model;
     std::vector<OptionsEvent> m_option_events;
