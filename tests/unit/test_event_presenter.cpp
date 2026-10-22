@@ -8,6 +8,8 @@
 #include "event_presenter.hpp"
 
 #include "o1602/audio/game_audio.hpp"
+#include "o1602/render/banner.hpp"
+#include "o1602/ui/localization.hpp"
 
 using namespace o1602;
 
@@ -207,9 +209,26 @@ TEST_CASE("event presenter: a further colour's victory never names one of the or
     sim::GameEvent over;
     over.kind = sim::GameEvent::Kind::GameOver;
     over.player = kRival;
+    ui::set_language("en");
+    auto banners = render::BannerTable::original();
+    banners.add_more_players();
+    g.presenter.set_banners(&banners);
     const auto theirs = g.presenter.game_events(g.world, kMe, {over}, 0);
     REQUIRE(theirs.size() == 2);
-    CHECK(announcement(theirs[1])->message == 0x53);  // „Ihr wurdet besiegt!“, not „Der weiße Spieler …“
+    // Not „Der weiße Spieler …“: the same words with the right colour, in the status bar only.
+    const app::Announcement* a = announcement(theirs[1]);
+    CHECK(a->message == audio::kMessageMultiplayerWin);  // its icon, in the winner's colour
+    CHECK(a->about == kRival);
+    CHECK(!a->voice);
+    CHECK(a->text == "The orange player has fulfilled their task!");
+
+    // A banner the language has no words for: the winner by name.
+    g.presenter.reset_game();
+    g.world.player(kRival)->name = "Lady Anne";
+    g.world.player(kRival)->banner = 4;  // a faction's banner
+    const auto named = g.presenter.game_events(g.world, kMe, {over}, 0);
+    REQUIRE(named.size() == 2);
+    CHECK(announcement(named[1])->text == "Lady Anne has fulfilled their task!");
 }
 
 TEST_CASE("event presenter: the end screen waits for the delay of running game time, or for the videos") {

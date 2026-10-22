@@ -19,18 +19,22 @@
 
 #include "multiplayer_menu.hpp"
 
+#include "o1602/render/banner.hpp"
 #include "o1602/sim/score.hpp"
 #include "o1602/sim/simulation.hpp"
 
 namespace o1602::app {
 
 /// A message for the local player (GameSound::message): its voice, its icon in the status bar and
-/// its video.
+/// its video. A message of Open1602's own brings its text and borrows an original's icon (and its
+/// voice and video, unless `voice` is off).
 struct Announcement {
     std::uint16_t message = 0;
     std::optional<std::pair<double, double>> tile;  ///< where it happened, in world tiles
     std::optional<sim::PlayerId> about;             ///< the player it is about, if not the local one
     std::uint8_t tracks = 0;                        ///< the tracks of its video (bit i = track i, 0 = all)
+    std::string text;   ///< the status bar's text (Windows-1252, from ui::tr); empty: MELDUNG `message`
+    bool voice = true;  ///< false: the status bar only, without the message's voice and video
 };
 
 /// A video by itself, whatever the video switches of the messages say (the defeats).
@@ -66,6 +70,8 @@ public:
     /// How the log names a player ("player 1 red (human)").
     using PlayerLabel = std::function<std::string(const sim::Player& player, sim::PlayerId id)>;
     explicit EventPresenter(PlayerLabel label);
+    /// The players' banners, for messages that name a colour (none: the colourless ones).
+    void set_banners(const render::BannerTable* banners) noexcept { m_banners = banners; }
 
     /// The end screen comes this long after the message of a decided game when it has no video,
     /// after an own defeat without one the shorter time (docs/re/missions.md "Sieg"; with a video
@@ -138,10 +144,14 @@ private:
         std::uint64_t last_ms = 0;  ///< real time of the last check
         bool after_video = false;   ///< a video played since: the screen follows when it ends
     };
+    /// „Der grüne Spieler konnte seinen Auftrag erfüllen!“ for a colour the original does not speak
+    /// (Windows-1252); `label` names the winner if it has no name.
+    [[nodiscard]] std::string rival_won_text(const sim::Player& winner, std::string_view label) const;
     /// The end screen is to follow, unless one is coming or was shown already.
     void expect_end_screen(sim::GameOutcome outcome, std::uint64_t delay_ms, std::uint64_t now_ms);
 
     PlayerLabel m_label;
+    const render::BannerTable* m_banners = nullptr;
     std::optional<EndPending> m_end_pending;
     bool m_end_shown = false;            ///< once per game (a won game may go on)
     std::uint32_t m_defeat_variant = 0;  ///< own counter for 1010/2020 (no game random numbers)

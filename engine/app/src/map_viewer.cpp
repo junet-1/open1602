@@ -302,7 +302,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     viewer->m_sound->set_listener([self = viewer.get()](std::uint16_t message, std::uint16_t flags,
                                                         std::optional<std::pair<double, double>> tile,
-                                                        std::optional<sim::PlayerId> about) {
+                                                        std::optional<sim::PlayerId> about, std::string_view text) {
         if ((flags & audio::kMessageNormalSpeed) != 0 && self->m_state->simulation.speed() > 1) {
             // Fires, plagues and attacks: back to normal speed (0x004893F0), as a command like any
             // other change of the speed.
@@ -312,7 +312,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         if (self->m_hud) {
             // The icon in the colour of the player the message is about (a rival's new city).
             const sim::Player* p = self->m_state->world.player(about.value_or(self->m_local_player));
-            self->m_hud->message(message, p != nullptr ? p->banner : 0, tile, platform::ticks_ms());
+            self->m_hud->message(message, p != nullptr ? p->banner : 0, tile, platform::ticks_ms(), text);
         }
     });
     viewer->m_input->load_key_settings(data_folder() / "keys.cfg");
@@ -414,6 +414,7 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_clock(m_buildings),
       m_tool(m_buildings) {
     m_command_sink.set_simulation(&m_state->simulation);
+    m_events.set_banners(&m_banners);
     warn_if_state_damaged();
 }
 
@@ -1364,7 +1365,8 @@ void MapViewer::place_listener() {
 void MapViewer::show_notices(const std::vector<Notice>& notices) {
     for (const Notice& n : notices) {
         if (const auto* a = std::get_if<Announcement>(&n)) {
-            m_sound->message(a->message, a->tile, a->about);  // the listener puts it into the status bar
+            // The listener puts it into the status bar.
+            m_sound->message(a->message, a->tile, a->about, a->text, a->voice);
             if (const auto video = m_sound->take_video()) {
                 m_video->request(*video, a->tracks);
             }

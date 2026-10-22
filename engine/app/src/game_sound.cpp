@@ -185,12 +185,12 @@ void GameSound::click() {
 }
 
 std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<double, double>> tile,
-                                 std::optional<sim::PlayerId> about) {
-    if (m_output == nullptr) {
+                                 std::optional<sim::PlayerId> about, std::string_view text, bool voice) {
+    if (m_output == nullptr || !voice) {
         const audio::MessageAudio* m = audio::message_audio(message);
         const std::uint16_t flags = m != nullptr ? m->flags : 0;
         if (m_listener) {
-            m_listener(message, flags, tile, about);
+            m_listener(message, flags, tile, about, text);
         }
         return flags;
     }
@@ -201,7 +201,7 @@ std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<
     }
     const std::uint16_t flags = m_voices.message(message, visible);
     if (m_listener) {
-        m_listener(message, flags, tile, about);
+        m_listener(message, flags, tile, about, text);
     }
     return flags;
 }

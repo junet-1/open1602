@@ -374,3 +374,14 @@ display.on = an
 display.off = aus
 display.hint = Jede Größe: am Fensterrand ziehen. Vollbild: F11 oder Alt+Eingabe. Zoom: Mausrad, doppelt oder halb so groß mit Strg+Plus und Strg+Minus.
 display.close = Schließen
+
+# A further colour's victory in a race, in the status bar (the original speaks only its four)
+message.won = {1} konnte seinen Auftrag erfüllen!
+message.won.orange = Der orange Spieler konnte seinen Auftrag erfüllen!
+message.won.green = Der grüne Spieler konnte seinen Auftrag erfüllen!
+message.won.teal = Der türkise Spieler konnte seinen Auftrag erfüllen!
+message.won.pink = Der rosa Spieler konnte seinen Auftrag erfüllen!
+message.won.light_blue = Der hellblaue Spieler konnte seinen Auftrag erfüllen!
+message.won.lime = Der hellgrüne Spieler konnte seinen Auftrag erfüllen!
+message.won.purple = Der violette Spieler konnte seinen Auftrag erfüllen!
+message.won.brown = Der braune Spieler konnte seinen Auftrag erfüllen!

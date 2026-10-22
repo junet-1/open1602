@@ -10,6 +10,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "o1602/assets/building_table.hpp"
@@ -57,17 +58,20 @@ public:
     /// The test sound of the effects' volume, in the middle of the view.
     void test_effects();
     /// A message for the local player at a world tile (nothing: no place), about another player
-    /// (a rival's new city or ship; nothing: the local player). Returns its flags.
+    /// (a rival's new city or ship; nothing: the local player), with a text of its own for the
+    /// status bar (empty: the original's) and without its voice if `voice` is off. Returns its flags.
     std::uint16_t message(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt,
-                          std::optional<sim::PlayerId> about = std::nullopt);
+                          std::optional<sim::PlayerId> about = std::nullopt, std::string_view text = {},
+                          bool voice = true);
     /// One of `count` voices from `base` (every second file), without a message (the menu).
     void speak(std::uint16_t base, std::uint8_t count);
     /// Stops the voice speaking and those waiting (closing the tutorial, _MaxstreamStop).
     void stop_voices();
-    /// Hears every message with its flags (the status bar's icons in the colour of `about`, normal speed).
+    /// Hears every message with its flags (the status bar's icons in the colour of `about`, its own
+    /// text, normal speed).
     using Listener =
         std::function<void(std::uint16_t message, std::uint16_t flags, std::optional<std::pair<double, double>> tile,
-                           std::optional<sim::PlayerId> about)>;
+                           std::optional<sim::PlayerId> about, std::string_view text)>;
     void set_listener(Listener listener) { m_listener = std::move(listener); }
 
     /// Messages pick their videos when `check` says the number can be played (without: never).

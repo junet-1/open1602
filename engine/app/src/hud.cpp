@@ -1105,16 +1105,16 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
 }
 
 void Hud::message(std::uint16_t id, sim::BannerId banner, std::optional<std::pair<double, double>> tile,
-                  std::uint64_t now_ms) {
+                  std::uint64_t now_ms, std::string_view text) {
     // Event_Post 0x00430D50: the same message at the same place only refreshes its time; a new one
     // pushes the oldest out.
     for (Event& e : m_events) {
-        if (e.id == id && e.tile == tile) {
+        if (e.id == id && e.tile == tile && e.text == text) {
             e.time_ms = now_ms;
             return;
         }
     }
-    m_events.push_front(Event{id, banner, tile, now_ms});
+    m_events.push_front(Event{id, banner, tile, now_ms, std::string(text)});
     if (m_events.size() > kEvents) {
         m_events.pop_back();
     }
@@ -1226,7 +1226,9 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
             m_leist.set_graphic(id, kGfxLeiste + 1 + 0x28 + type * 2, 1);
         }
         m_leist.set_hidden(id, false);
-        if (m_leist.hovered() == id && e.id < m_meldung.size()) {
+        if (m_leist.hovered() == id && !e.text.empty()) {
+            status = e.text;
+        } else if (m_leist.hovered() == id && e.id < m_meldung.size()) {
             status = m_meldung[e.id];
         }
     }

@@ -95,8 +95,12 @@ brightness relative to the cloth's upper quartile. Pole, rope and the hall aroun
 
 A further colour the level's file does not have is taken by swapping banners with the player who had it
 (`sim::take_banner`); that computer is renamed after its new colour. Messages that name one of the original's four
-colours (the „… Spieler konnte seinen Auftrag erfüllen!“ family) are spoken only for those four; a further colour hears
-the colourless message instead.
+colours (the „… Spieler konnte seinen Auftrag erfüllen!“ family, MELDUNG 0x6B–0x6E) are spoken only for those four. One's
+own victory with a further colour plays the colourless „Ihr konntet den Euch gestellten Auftrag erfüllen!“ (0x54); a
+rival's shows the same words with its colour in the status bar, under the winner's icon and without a voice: the
+catalogue's `message.won.<colour>` (so each language declines the colour itself), for a banner without one
+`message.won` with the player's name. Such a text of Open1602's own travels with the message (`Announcement::text`)
+and replaces the original's MELDUNG text in the status bar.
 
 ## The original flags
 
