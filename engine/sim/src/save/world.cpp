@@ -3,7 +3,9 @@
 // The game's settings and clocks: RULE, WRLD and EPOC.
 #include <algorithm>
 #include <array>
+#include <iterator>
 #include <utility>
+#include <vector>
 
 #include "section_io.hpp"
 
@@ -25,6 +27,19 @@ enum RuleKey : std::uint16_t {
     kTraderPrices = 8,
     kMaxArmy = 9,
     kClassicAi = 10,
+    // The victory conditions (VictoryConditions).
+    kWinInhabitants = 11,
+    kWinResidentClass = 12,
+    kWinClassInhabitants = 13,
+    kWinMoney = 14,
+    kWinBalance = 15,
+    kWinEliminate = 16,
+    kWinIslandsPercent = 17,
+    kWinScore = 18,
+    kWinMonument = 19,
+    kWinTimeLimit = 20,
+    kWinAll = 21,
+    kWinComputers = 22,
 };
 
 template <class A, class R>
@@ -86,7 +101,7 @@ void io_epochs(A& a, E& e) {
 // RULE is a list of keys and values rather than a record: the reader keeps a setting of a later
 // version out (unknown key) and clamps the values into what the setting allows.
 void write_rules(Writer& out, const Rules& r) {
-    const std::array<std::pair<RuleKey, std::uint32_t>, 10> values = {{
+    std::vector<std::pair<RuleKey, std::uint32_t>> values = {
         {kRefund, static_cast<std::uint32_t>(r.demolish_refund)},
         {kRefundPercent, r.refund_percent},
         {kMaxShips, r.max_ships_per_player},
@@ -97,7 +112,26 @@ void write_rules(Writer& out, const Rules& r) {
         {kTraderPrices, static_cast<std::uint32_t>(r.trader_prices)},
         {kMaxArmy, r.max_army},
         {kClassicAi, r.classic_ai ? 1U : 0U},
-    }};
+    };
+    // The victory conditions only when there are any: a game without them keeps the bytes of the
+    // versions before them.
+    if (const VictoryConditions& v = r.victory; v != VictoryConditions{}) {
+        const std::pair<RuleKey, std::uint32_t> wins[] = {
+            {kWinInhabitants, v.inhabitants},
+            {kWinResidentClass, v.resident_class},
+            {kWinClassInhabitants, v.class_inhabitants},
+            {kWinMoney, v.money},
+            {kWinBalance, v.balance},
+            {kWinEliminate, v.eliminate ? 1U : 0U},
+            {kWinIslandsPercent, v.islands_percent},
+            {kWinScore, v.score},
+            {kWinMonument, static_cast<std::uint32_t>(v.monument)},
+            {kWinTimeLimit, v.time_limit_minutes},
+            {kWinAll, v.all ? 1U : 0U},
+            {kWinComputers, v.computers ? 1U : 0U},
+        };
+        values.insert(values.end(), std::begin(wins), std::end(wins));
+    }
     out.list(values, 6, [&](const auto& item) {
         out.u16(item.first);
         out.u32(item.second);
@@ -140,6 +174,42 @@ Rules read_rules(Reader& in) {
                 break;
             case kClassicAi:
                 r.classic_ai = v != 0;
+                break;
+            case kWinInhabitants:
+                r.victory.inhabitants = v;
+                break;
+            case kWinResidentClass:
+                r.victory.resident_class = static_cast<std::uint8_t>(std::min<std::uint32_t>(v, 4));
+                break;
+            case kWinClassInhabitants:
+                r.victory.class_inhabitants = v;
+                break;
+            case kWinMoney:
+                r.victory.money = v;
+                break;
+            case kWinBalance:
+                r.victory.balance = v;
+                break;
+            case kWinEliminate:
+                r.victory.eliminate = v != 0;
+                break;
+            case kWinIslandsPercent:
+                r.victory.islands_percent = static_cast<std::uint8_t>(std::min<std::uint32_t>(v, 100));
+                break;
+            case kWinScore:
+                r.victory.score = v;
+                break;
+            case kWinMonument:
+                r.victory.monument = static_cast<Monument>(std::min<std::uint32_t>(v, 3));
+                break;
+            case kWinTimeLimit:
+                r.victory.time_limit_minutes = v;
+                break;
+            case kWinAll:
+                r.victory.all = v != 0;
+                break;
+            case kWinComputers:
+                r.victory.computers = v != 0;
                 break;
             default:
                 break;  // a setting of a later version

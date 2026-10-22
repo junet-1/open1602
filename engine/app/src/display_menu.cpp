@@ -58,7 +58,7 @@ std::string DisplayMenu::value_text(const DisplayModel& model, Item item) {
     return {};
 }
 
-bool DisplayMenu::choose_next(DisplayModel& model, Item item) {
+bool DisplayMenu::choose(DisplayModel& model, Item item, bool forward) {
     DisplaySettings& s = model.settings;
     switch (item) {
         case Item::Mode:
@@ -68,14 +68,15 @@ bool DisplayMenu::choose_next(DisplayModel& model, Item item) {
             if (s.fullscreen) {
                 return false;
             }
-            const WindowSize next = next_window_size(model.sizes, model.window);
+            const WindowSize next =
+                forward ? next_window_size(model.sizes, model.window) : previous_window_size(model.sizes, model.window);
             s.window_width = next.width;
             s.window_height = next.height;
             model.window = next;
             return true;
         }
         case Item::UiScale:
-            s.ui_scale = next_ui_scale(s.ui_scale);
+            s.ui_scale = forward ? next_ui_scale(s.ui_scale) : previous_ui_scale(s.ui_scale);
             return true;
         case Item::Zoom:
             s.free_zoom = !s.free_zoom;
@@ -98,9 +99,10 @@ std::vector<ui::DrawItem> DisplayMenu::draw(const DisplayModel& model, const std
     return m_form.draw(fonts);
 }
 
-DisplayMenu::Result DisplayMenu::mouse(std::int32_t x, std::int32_t y, bool down, DisplayModel& model) {
+DisplayMenu::Result DisplayMenu::mouse(std::int32_t x, std::int32_t y, bool down, DisplayModel& model,
+                                       ui::MouseButton button) {
     layout(model);
-    const auto id = m_form.mouse(x, y, down);
+    const auto id = m_form.mouse(x, y, down, button);
     if (!id) {
         return Result::None;
     }
@@ -108,7 +110,8 @@ DisplayMenu::Result DisplayMenu::mouse(std::int32_t x, std::int32_t y, bool down
         return Result::Close;
     }
     if (*id >= kItem && *id < kItem + static_cast<Id>(kItems)) {
-        return choose_next(model, static_cast<Item>(*id - kItem)) ? Result::Changed : Result::None;
+        const bool forward = m_form.clicked_with() == ui::MouseButton::Left;
+        return choose(model, static_cast<Item>(*id - kItem), forward) ? Result::Changed : Result::None;
     }
     return Result::None;
 }
@@ -124,8 +127,8 @@ void DisplayMenu::layout(const DisplayModel& model) {
         const bool used = !(item == Item::WindowSize && model.settings.fullscreen) &&
                           !(item == Item::ZoomDrawing && !model.settings.free_zoom);
         f.label(Rect{24, y, kLabelW, kRowH - 4}, ui::tr(kLabels[i]), Align::Left, used ? Tone::Normal : Tone::Dim);
-        f.button(kItem + static_cast<Id>(i), Rect{kWidth - 24 - kValueW, y, kValueW, kRowH - 6},
-                 value_text(model, item), used);
+        f.cycle_button(kItem + static_cast<Id>(i), Rect{kWidth - 24 - kValueW, y, kValueW, kRowH - 6},
+                       value_text(model, item), used);
     }
     const std::int32_t below = kRowY + static_cast<std::int32_t>(kItems) * kRowH + 4;
     f.paragraph(Rect{24, below, kWidth - 48, kHeight - below - 60}, ui::tr("display.hint"), Tone::Dim);

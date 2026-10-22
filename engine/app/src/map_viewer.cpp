@@ -1339,6 +1339,7 @@ void MapViewer::place_listener() {
     const double cy = v.top + v.height / 2.0;
     const double hw = std::max(1.0, v.width / 2.0);
     const double hh = std::max(1.0, v.height / 2.0);
+    const double large_per_pixel = m_camera.scale() / m_camera.magnification();
     m_sound->set_view(
         [view, cx, cy, hw, hh](double tx, double ty) {
             // World pixels of the point: the tile centres around it, in between by its fraction.
@@ -1359,7 +1360,9 @@ void MapViewer::place_listener() {
             const double py = ay + fx * (by - ay) + fy * (c_y - ay);
             return std::make_pair(static_cast<float>((px - cx) / hw), static_cast<float>((py - cy) / hh));
         },
-        static_cast<float>(v.width), static_cast<float>(v.height));
+        static_cast<float>(v.width), static_cast<float>(v.height),
+        // The view in pixels of the large zoom level.
+        audio::scenery_reach(v.width * large_per_pixel, v.height * large_per_pixel));
 }
 
 void MapViewer::show_notices(const std::vector<Notice>& notices) {

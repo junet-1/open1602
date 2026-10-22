@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "banner_graphic.hpp"
+#include "endless_setup.hpp"
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/game_data.hpp"
@@ -667,7 +668,12 @@ void Hud::draw_mission(const sim::World& world) {
         m_tutor->set_visible(kTutorBack + i, true);
         m_tutor->set_visible(kTutorNext + i, i != 0);
     }
-    m_tutor->set_text(110002, mission != nullptr && !mission->text.empty() ? mission->text : std::string("-"));
+    // The victory conditions of an endless game after its text.
+    std::string text = mission != nullptr && !mission->text.empty() ? mission->text : std::string();
+    if (const std::string victory = victory_text(m_simulation->rules().victory); !victory.empty()) {
+        text += text.empty() ? victory : "\n" + victory;
+    }
+    m_tutor->set_text(110002, text.empty() ? std::string("-") : text);
     for (std::int32_t id = 110011; id <= 110016; ++id) {
         m_tutor->set_visible(id, false);
     }
@@ -893,11 +899,11 @@ void Hud::draw_help() {
     m_renderer->draw(items, box.x, box.y, s);
 }
 
-std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down) {
+std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button) {
     std::optional<Action> action;
     if (m_display_open && !m_menu_active && !m_question && !m_help) {
         const ui::Rect r = display_rect();
-        switch (m_display->mouse(x - r.x, y - r.y, down, m_display_model)) {
+        switch (m_display->mouse(x - r.x, y - r.y, down, m_display_model, button)) {
             case DisplayMenu::Result::Changed:
                 m_display_changed = true;
                 break;
@@ -908,6 +914,9 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
                 break;
         }
         return std::nullopt;
+    }
+    if (button != ui::MouseButton::Left && (m_help || m_question || m_end_active || !m_menu_active || !m_menu)) {
+        return std::nullopt;  // the right button only goes through the values of the menus' dialogs
     }
     // Mouse motion also comes here with down == false: only a release after a press is a click.
     if (m_help) {
@@ -986,7 +995,7 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         std::int32_t ox = 0;
         std::int32_t oy = 0;
         menu_origin(ox, oy);
-        for (MultiplayerEvent& e : m_multiplayer->mouse(m_multiplayer_model, x - ox, y - oy, down)) {
+        for (MultiplayerEvent& e : m_multiplayer->mouse(m_multiplayer_model, x - ox, y - oy, down, button)) {
             m_multiplayer_events.push_back(std::move(e));
         }
         return std::nullopt;
@@ -995,7 +1004,7 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         std::int32_t ox = 0;
         std::int32_t oy = 0;
         menu_origin(ox, oy);
-        for (MenuEvent& e : m_menu->mouse(x - ox, y - oy, down)) {
+        for (MenuEvent& e : m_menu->mouse(x - ox, y - oy, down, button)) {
             m_menu_events.push_back(std::move(e));
         }
         return std::nullopt;

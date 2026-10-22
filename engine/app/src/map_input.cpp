@@ -105,6 +105,10 @@ ui::KeyPress key_press(int key, int scancode, std::uint16_t mod) {
                         (mod & SDL_KMOD_ALT) != 0};
 }
 
+ui::MouseButton mouse_button(const SDL_MouseButtonEvent& b) {
+    return b.button == SDL_BUTTON_RIGHT ? ui::MouseButton::Right : ui::MouseButton::Left;
+}
+
 }  // namespace
 
 MapInput::MapInput(const Parts& parts)
@@ -688,10 +692,11 @@ void MapInput::handle_event(const SDL_Event& event) {
                 m_left_down = true;
             }
             if (m_hud && m_hud->modal()) {
-                // The question (or the key overview) takes every click.
-                if (event.button.button == SDL_BUTTON_LEFT) {
+                // The question (or the key overview) takes every click; the window "Anzeige" also the
+                // right button (the previous value).
+                if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT) {
                     (void)m_hud->mouse(static_cast<std::int32_t>(event.button.x),
-                                       static_cast<std::int32_t>(event.button.y), true);
+                                       static_cast<std::int32_t>(event.button.y), true, mouse_button(event.button));
                 }
                 break;
             }
@@ -703,6 +708,10 @@ void MapInput::handle_event(const SDL_Event& event) {
                                                     static_cast<std::int32_t>(event.button.y), true)) {
                         m_host.apply_hud(*a);
                     }
+                } else if (event.button.button == SDL_BUTTON_RIGHT && m_hud->menu_active()) {
+                    // The menus' settings: the previous value.
+                    (void)m_hud->mouse(static_cast<std::int32_t>(event.button.x),
+                                       static_cast<std::int32_t>(event.button.y), true, ui::MouseButton::Right);
                 } else if (event.button.button == SDL_BUTTON_RIGHT) {
                     // A right click on the minimap sends the selection there (ADR 0010), elsewhere on
                     // the panel it goes back to the player status.
@@ -747,9 +756,15 @@ void MapInput::handle_event(const SDL_Event& event) {
                     m_press.reset();
                 }
             }
+            if (event.button.button == SDL_BUTTON_RIGHT && m_hud) {
+                // Ends a right click on a setting of the menus or the window "Anzeige".
+                (void)m_hud->mouse(static_cast<std::int32_t>(event.button.x), static_cast<std::int32_t>(event.button.y),
+                                   false, ui::MouseButton::Right);
+            }
             if (event.button.button == SDL_BUTTON_RIGHT || event.button.button == SDL_BUTTON_MIDDLE) {
                 // A right click (not a drag): an order (ADR 0010), or back with the original's mouse.
-                if (m_drag.release() && event.button.button == SDL_BUTTON_RIGHT && !(m_hud && m_hud->modal())) {
+                if (m_drag.release() && event.button.button == SDL_BUTTON_RIGHT &&
+                    !(m_hud && (m_hud->modal() || m_hud->menu_active()))) {
                     if (m_original_mouse) {
                         cancel_action();
                     } else if (!m_units.empty() && cancel_build_step()) {

@@ -34,6 +34,7 @@ this as well. Until now, `sim::Rules` only had switches for deviations from the 
 | Volcanoes (`volcanoes`) | as the game (setting), off, on | as the game | as the game |
 | Free trader prices (`trader_prices`, S-077) | as usual (about half the base price), by the market (as the original intends) | as usual | as usual |
 | Computer players (`classic_ai`, S-097 to S-099) | improved, as the original (with its bugs in settling, counting and site search, so they stall after about two hours) | as the original | improved |
+| Victory conditions of the endless game (`victory`, `VictoryConditions`) | inhabitants, residents of a level or higher, treasury, balance per minute, share of settled islands, defeat all opponents, score, prestige buildings (castle, cathedral, both), time limit (then the most points win); all or any one; computers can win or not | none (the endless game never ends) | none |
 | Custom world (`WorldSettings`, new game) | size 200–2000 per side or automatic by the players (as multiplayer: 500 × 350 up to four, both sides growing with the square root of the players beyond), 2–12 players, number of islands, island sizes, villages, volcano islands, gold islands (automatic by level, islands and players, or a fixed 1–40 for very large maps; settings.cfg up to 250), starting areas separate/shared | the three fixed maps | off; on: automatic size (500 × 350 for 4 players), 4 players, normal, mixed, automatic gold, separate |
 
 What two of the choices mean for the player (shown in the start dialog as "Free trader's prices" and
@@ -64,6 +65,27 @@ cycles its values, with presets for the original's rules and Open1602's defaults
 kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--ai`)
 still sets them for games started from it.
 
+### Victory conditions
+Since 2026-10-22 an endless game can be won, as in Anno 1503, 1701 and 1404: the start dialog has a
+group "Victory" below the disasters, whose button opens a page of its own with the conditions in
+four groups (population, wealth, power, end of the game). All are off by default and in both
+presets; the presets change the rules and leave the conditions as chosen, "All off" on the page
+switches them off. Every value is a plain number in `settings.cfg` (`endless.victory.*`), so any
+value works there, the dialog offers a few.
+
+`sim::check_victory()` (`engine/sim/src/victory.cpp`) checks every human and computer that is
+still playing every 5 s of game time in `Simulation::players_tick()`, after its mission, from the
+synchronised state only (integers, no floating point), so every computer of a multiplayer game
+finds the same winner. The first to meet the conditions (all at once, or any one) wins as with a
+mission (`GameEvent::MissionAccomplished`, then `GameOver`): alone with message 0x54 "you have
+fulfilled your task", with other humans 0x6B + the winner's colour, as the original's
+multiplayer races; whoever meets them at the same moment wins too. With a time limit, when the
+game time is up the player with the most points (`sim::score_sheet()`) wins, on equal points
+the first slot; nobody else. The end screen and the high score list are the missions'. The
+conditions are `Rules::victory` and so part of `RULE` (keys 11 to 22, written only when one is
+on, so games without them keep their bytes). Scenarios have their own missions and get none; the
+mission window shows the conditions after the endless game's text.
+
 Since 2026-10-22 the same dialog serves every new game; what is played (`SetupScope`) decides
 what it offers:
 
@@ -74,6 +96,9 @@ what it offers:
 | Multiplayer endless game | everything; the players are those of the lobby, more than four always play on a world of their own, which starts together by default as the original's multiplayer maps | `multiplayer.*` |
 | Multiplayer scenario | as a scenario alone | `multiplayer.*` |
 | Multiplayer savegame | nothing to change: the lobby shows the rules the game was started with | — |
+
+The victory conditions are offered for both kinds of endless game and shown for a savegame; a
+scenario never gets them.
 
 In multiplayer the host chooses on the create screen and, until the start, in the lobby. The
 lobby passes the choice on in `Lobby::setup`, the program's own bytes the session does not read, as

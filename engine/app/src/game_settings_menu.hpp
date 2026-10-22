@@ -2,7 +2,9 @@
 //
 // The start dialog of a new game (ADR 0008): Open1602's own screen, the original has none. The
 // settings in groups (economy, limits, disasters, world, opponents), each a button with its value;
-// a click chooses the next value. Presets for the original's rules and Open1602's defaults.
+// a left click chooses the next value, a right click the previous one. Presets for the original's
+// rules and Open1602's defaults. The victory conditions of an endless game have a page of their
+// own, which a button of the first opens.
 //
 // One dialog for every kind of game: the endless game after the name and the banner, a scenario
 // after its mission screen, and the multiplayer menu, where the host chooses and the others look
@@ -37,16 +39,23 @@ public:
         m_setup = setup;
         m_scope = scope;
         m_mode = scope == SetupScope::Savegame ? Mode::View : mode;
+        m_page = Page::Settings;
     }
     [[nodiscard]] const EndlessSetup& setup() const noexcept { return m_setup; }
     [[nodiscard]] SetupScope scope() const noexcept { return m_scope; }
     [[nodiscard]] Mode mode() const noexcept { return m_mode; }
+    /// Whether the page of the victory conditions is open.
+    [[nodiscard]] bool victory_page() const noexcept { return m_page == Page::Victory; }
+    /// Escape or a right click: from the victory conditions back to the settings; true if it went
+    /// there, false if the dialog itself is to close.
+    bool back() noexcept;
 
     /// Everything to draw, relative to the 1024 x 768 design's top left.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts);
-    Result mouse(std::int32_t x, std::int32_t y, bool down);
+    Result mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button = ui::MouseButton::Left);
 
 private:
+    enum class Page : std::uint8_t { Settings, Victory };
     void layout();
     /// A preset with what the dialog does not decide (the players of a multiplayer game) kept.
     [[nodiscard]] EndlessSetup keep_decided(EndlessSetup preset) const;
@@ -55,6 +64,7 @@ private:
     EndlessSetup m_setup;
     SetupScope m_scope = SetupScope::Endless;
     Mode m_mode = Mode::Start;
+    Page m_page = Page::Settings;
 };
 
 }  // namespace o1602::app

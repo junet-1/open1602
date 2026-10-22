@@ -350,13 +350,13 @@ std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::Pl
                 out.emplace_back(ScoreUpdate{sim::kNoPlayer, true});  // op 0x3E, after the winners are known
                 if (e.player != local && world.player(local) != nullptr && !world.player(local)->won) {
                     expect_end_screen(sim::GameOutcome::Lost, kEndScreenDelayMs, now_ms);
-                    const sim::Mission* m = p != nullptr ? world.mission_of(*p) : nullptr;
-                    if (m != nullptr && m->success_message == audio::kMessageMultiplayerWin &&
+                    // The winner's message: his mission's, or that of the victory conditions.
+                    if (p != nullptr && e.message == audio::kMessageMultiplayerWin &&
                         p->banner < sim::kOriginalPlayers) {
                         // A race: "the red player fulfilled his task", the others' voice (track 2).
                         out.emplace_back(announce_with_tracks(
                             static_cast<std::uint16_t>(audio::kMessageMultiplayerWin + p->banner), 0x05));
-                    } else if (m != nullptr && m->success_message == audio::kMessageMultiplayerWin) {
+                    } else if (p != nullptr && e.message == audio::kMessageMultiplayerWin) {
                         // The further colours have no voice: the same words in the status bar only,
                         // under the winner's icon.
                         Announcement a = announce(audio::kMessageMultiplayerWin, std::nullopt, e.player);

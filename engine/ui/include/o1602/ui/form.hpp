@@ -37,6 +37,9 @@ struct FormStyle {
 /// every byte is 9 units wide.
 [[nodiscard]] std::string fit_text(const Font* font, std::string text, double width, bool keep_end);
 
+/// The mouse button of a press or release.
+enum class MouseButton : std::uint8_t { Left, Right };
+
 class Form {
 public:
     using Id = std::int32_t;
@@ -61,6 +64,9 @@ public:
     /// left out.
     void paragraph(Rect r, std::string text, Tone tone = Tone::Normal, std::int32_t line = 22);
     void button(Id id, Rect r, std::string text, bool enabled = true, bool selected = false);
+    /// A button that goes through values: the left button chooses the next, the right one the
+    /// previous (clicked_with() tells which). Other widgets answer the left button only.
+    void cycle_button(Id id, Rect r, std::string text, bool enabled = true);
     /// A text field: the owner keeps the text; the focused one shows the caret. `secret` shows
     /// stars.
     void field(Id id, Rect r, const std::string& text, bool secret = false);
@@ -73,8 +79,11 @@ public:
     void set_focus(std::optional<Id> id) noexcept { m_focus = id; }
 
     /// The mouse at (x, y) in pixels of the form's region: the widget clicked (pressed and
-    /// released on it), if any.
-    std::optional<Id> mouse(std::int32_t x, std::int32_t y, bool down);
+    /// released on it with the same button), if any. The right button clicks cycle buttons only;
+    /// a button pressed while another is held is not seen.
+    std::optional<Id> mouse(std::int32_t x, std::int32_t y, bool down, MouseButton button = MouseButton::Left);
+    /// The button of the last click mouse() returned.
+    [[nodiscard]] MouseButton clicked_with() const noexcept { return m_clicked_with; }
     /// The widget under the mouse at the last call.
     [[nodiscard]] std::optional<Id> hovered() const noexcept { return m_hovered; }
     /// Whether the last call let go of a press (on a widget or beside them), and not only moved
@@ -96,18 +105,21 @@ public:
         std::uint8_t colour = 0;
         std::int32_t line = 0;  ///< paragraph: line height
         bool enabled = true;
-        bool on = false;  ///< selected, checked, secret
+        bool on = false;      ///< selected, checked, secret
+        bool cycles = false;  ///< button: the right button chooses the previous value
     };
     [[nodiscard]] const std::vector<Widget>& widgets() const noexcept { return m_widgets; }
 
 private:
-    [[nodiscard]] std::optional<Id> hit(std::int32_t x, std::int32_t y) const;
+    [[nodiscard]] std::optional<Id> hit(std::int32_t x, std::int32_t y, MouseButton button) const;
     [[nodiscard]] std::int32_t colour_of(Tone tone) const noexcept;
 
     FormStyle m_style;
     double m_scale = 1.0;
     std::vector<Widget> m_widgets;
     std::optional<Id> m_pressed;
+    MouseButton m_pressed_with = MouseButton::Left;
+    MouseButton m_clicked_with = MouseButton::Left;
     std::optional<Id> m_hovered;
     std::optional<Id> m_focus;
     bool m_released = false;

@@ -66,6 +66,14 @@ TEST_CASE("display settings: the window sizes that fit the screen") {
     CHECK(app::next_window_size(all, {1280, 720}) == (app::WindowSize{1280, 800}));
     CHECK(app::next_window_size(all, {1300, 900}) == (app::WindowSize{1600, 900}));
     CHECK(app::next_window_size(all, app::kWindowSizes.back()) == app::kWindowSizes.front());
+    // The previous size: the one before in the list, a dragged size the next smaller.
+    CHECK(app::previous_window_size(all, {1280, 800}) == (app::WindowSize{1280, 720}));
+    CHECK(app::previous_window_size(all, {1300, 900}) == (app::WindowSize{1366, 768}));
+    CHECK(app::previous_window_size(all, app::kWindowSizes.front()) == app::kWindowSizes.back());
+    CHECK(app::previous_window_size(all, {200, 100}) == app::kWindowSizes.back());
+    for (const app::WindowSize& s : all) {
+        CHECK(app::previous_window_size(all, app::next_window_size(all, s)) == s);
+    }
 }
 
 TEST_CASE("display settings: the interface's scale") {
@@ -80,6 +88,12 @@ TEST_CASE("display settings: the interface's scale") {
     CHECK(app::next_ui_scale(0) == 75);
     CHECK(app::next_ui_scale(300) == 0);
     CHECK(app::next_ui_scale(33) == 0);
+    CHECK(app::previous_ui_scale(75) == 0);
+    CHECK(app::previous_ui_scale(0) == 300);
+    CHECK(app::previous_ui_scale(33) == 300);
+    for (const std::int32_t s : app::kUiScales) {
+        CHECK(app::previous_ui_scale(app::next_ui_scale(s)) == s);
+    }
 }
 
 TEST_CASE("display menu: each row chooses its next value") {
@@ -107,6 +121,7 @@ TEST_CASE("display menu: each row chooses its next value") {
 
 TEST_CASE("display menu: a click on a row changes it, the button closes the window") {
     ui::set_language(ui::kFallbackLanguage);
+    using Item = app::DisplayMenu::Item;
     app::DisplayMenu menu;
     menu.set_scale(1.0);
     app::DisplayModel model;
@@ -119,6 +134,16 @@ TEST_CASE("display menu: a click on a row changes it, the button closes the wind
     CHECK(menu.mouse(x, y, true, model) == app::DisplayMenu::Result::None);
     CHECK(menu.mouse(x, y, false, model) == app::DisplayMenu::Result::Changed);
     CHECK(model.settings.fullscreen);
+    CHECK(app::DisplayMenu::choose_next(model, Item::Mode));  // back to the window
+    // A right click on the window's size takes the previous one.
+    const std::int32_t size_y = 64 + 40 + 15;
+    CHECK(menu.mouse(x, size_y, true, model, ui::MouseButton::Right) == app::DisplayMenu::Result::None);
+    CHECK(menu.mouse(x, size_y, false, model, ui::MouseButton::Right) == app::DisplayMenu::Result::Changed);
+    CHECK(model.window == (app::WindowSize{1280, 720}));
+    CHECK(model.settings.window_width == 1280);
+    CHECK(model.settings.window_height == 720);
+    CHECK(app::DisplayMenu::choose_previous(model, Item::UiScale));
+    CHECK(model.settings.ui_scale == 300);
     const std::int32_t cx = app::DisplayMenu::kWidth / 2;
     const std::int32_t cy = app::DisplayMenu::kHeight - 34;
     CHECK(menu.mouse(cx, cy, true, model) == app::DisplayMenu::Result::None);

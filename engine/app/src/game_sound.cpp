@@ -159,10 +159,11 @@ void GameSound::test_effects() {
 
 GameSound::~GameSound() = default;
 
-void GameSound::set_view(Locator locate, float width_px, float height_px) {
+void GameSound::set_view(Locator locate, float width_px, float height_px, audio::SceneryReach reach) {
     m_locate = std::move(locate);
     m_view_w = width_px;
     m_view_h = height_px;
+    m_reach = reach;
 }
 
 void GameSound::at(audio::SampleId sample, double tile_x, double tile_y) {
@@ -387,9 +388,24 @@ void GameSound::ships(const sim::World& world, const assets::FigureTable& figure
 }
 
 void GameSound::scenery(const std::vector<render::AmbientSound>& sounds) {
+    if (m_output == nullptr || !m_locate) {
+        return;
+    }
+    bool birds = false;
+    bool surf = false;
     for (const render::AmbientSound& s : sounds) {
-        at(s.kind == render::AmbientSound::Kind::Birds ? static_cast<audio::SampleId>(kWavBirds + s.variant) : kWavSurf,
-           s.x, s.y);
+        const bool bird = s.kind == render::AmbientSound::Kind::Birds;
+        if (bird ? birds : surf) {
+            continue;
+        }
+        const auto [x, y] = m_locate(s.x, s.y);
+        const auto place = audio::scenery_place(m_reach, x, y);
+        if (!place) {
+            continue;
+        }
+        (bird ? birds : surf) = true;
+        m_effects.request(bird ? static_cast<audio::SampleId>(kWavBirds + s.variant) : kWavSurf, place->first,
+                          place->second);
     }
 }
 

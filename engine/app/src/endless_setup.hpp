@@ -2,8 +2,8 @@
 //
 // The settings of a new game (ADR 0008): the rules of the game and, for an endless game, if wanted,
 // a world of its own instead of the original's maps. The start dialog shows them as items with a few
-// values each, a click choosing the next; settings.cfg keeps the last choice ("endless.*" lines for
-// the endless game, "scenario.*" for scenarios, "multiplayer.*" for the games a host sets up).
+// values each, a left click choosing the next, a right click the previous; settings.cfg keeps the last choice
+// ("endless.*" lines for the endless game, "scenario.*" for scenarios, "multiplayer.*" for the games a host sets up).
 // Which items a game offers depends on what is played (SetupScope).
 #pragma once
 
@@ -70,12 +70,40 @@ enum class SetupItem : std::uint8_t {
     Resources,
     // Opponents
     ClassicAi,
+    // Victory conditions (a page of their own, endless games only; sim::VictoryConditions)
+    WinInhabitants,
+    WinClass,
+    WinClassInhabitants,
+    WinMoney,
+    WinBalance,
+    WinIslands,
+    WinEliminate,
+    WinScore,
+    WinMonument,
+    WinTimeLimit,
+    WinAll,
+    WinComputers,
     Count,
 };
 
+/// Whether an item is one of the victory conditions (their page of the dialog).
+[[nodiscard]] constexpr bool victory_item(SetupItem item) noexcept {
+    return item >= SetupItem::WinInhabitants && item < SetupItem::Count;
+}
+/// Whether what is played offers victory conditions: endless games (a saved one to look at).
+[[nodiscard]] bool victory_offered(SetupScope scope) noexcept;
+/// How many victory conditions are on (the time limit counts as one).
+[[nodiscard]] std::size_t victory_count(const sim::VictoryConditions& v) noexcept;
+/// The victory conditions in a few words: "none", or how many are on.
+[[nodiscard]] std::string victory_summary(const sim::VictoryConditions& v);
+/// The victory conditions as a sentence for the mission window ("Victory conditions: ..."), with
+/// the values as they are (settings.cfg may give others than the dialog); empty with none.
+[[nodiscard]] std::string victory_text(const sim::VictoryConditions& v);
+
 inline constexpr std::size_t kSetupItems = static_cast<std::size_t>(SetupItem::Count);
 
-/// Whether the dialog shows the item for what is played: the world's items only for endless games.
+/// Whether the dialog shows the item for what is played: the world's items and the victory
+/// conditions only for endless games.
 [[nodiscard]] bool setup_item_offered(SetupScope scope, SetupItem item) noexcept;
 /// Whether the player can change the item: offered, not a saved game, and not decided elsewhere
 /// (the players of a multiplayer game by its lobby; with more than four of them the world is
@@ -96,7 +124,10 @@ inline constexpr std::size_t kSetupItems = static_cast<std::size_t>(SetupItem::C
 void choose(EndlessSetup& setup, SetupItem item, std::size_t choice);
 /// The next value, after the last the first.
 void choose_next(EndlessSetup& setup, SetupItem item);
-/// Whether the item counts: the world's items only for a world of its own.
+/// The previous value, before the first the last.
+void choose_previous(EndlessSetup& setup, SetupItem item);
+/// Whether the item counts: the world's items only for a world of its own, the level of the
+/// residents only with a number of them, how the conditions are combined only with two or more.
 [[nodiscard]] bool setup_item_used(const EndlessSetup& setup, SetupItem item) noexcept;
 
 /// The item's name and a value's text in the language of the interface (Windows-1252).

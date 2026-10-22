@@ -110,6 +110,11 @@ void Form::button(Id id, Rect r, std::string text, bool enabled, bool selected) 
     m_widgets.push_back(std::move(w));
 }
 
+void Form::cycle_button(Id id, Rect r, std::string text, bool enabled) {
+    button(id, r, std::move(text), enabled);
+    m_widgets.back().cycles = true;
+}
+
 void Form::field(Id id, Rect r, const std::string& text, bool secret) {
     Widget w = make(Widget::Kind::Field, id, r, secret ? std::string(text.size(), '*') : text);
     w.on = secret;
@@ -129,31 +134,40 @@ void Form::row(Id id, Rect r, bool selected) {
     m_widgets.push_back(std::move(w));
 }
 
-std::optional<Form::Id> Form::hit(std::int32_t x, std::int32_t y) const {
-    // In design units; the last widget laid out is on top.
+std::optional<Form::Id> Form::hit(std::int32_t x, std::int32_t y, MouseButton button) const {
+    // In design units; the last widget laid out is on top. The right button passes through the
+    // widgets it does not click.
     const auto dx = static_cast<std::int32_t>(x / m_scale);
     const auto dy = static_cast<std::int32_t>(y / m_scale);
     for (auto it = m_widgets.rbegin(); it != m_widgets.rend(); ++it) {
         if (it->id >= 0 && it->enabled && it->rect.contains(dx, dy)) {
+            if (button == MouseButton::Right && !it->cycles) {
+                return std::nullopt;
+            }
             return it->id;
         }
     }
     return std::nullopt;
 }
 
-std::optional<Form::Id> Form::mouse(std::int32_t x, std::int32_t y, bool down) {
-    const std::optional<Id> under = hit(x, y);
-    m_hovered = under;
+std::optional<Form::Id> Form::mouse(std::int32_t x, std::int32_t y, bool down, MouseButton button) {
+    m_hovered = hit(x, y, MouseButton::Left);
     m_released = false;
+    if (m_pressed && button != m_pressed_with) {
+        return std::nullopt;  // the other button while one is held
+    }
+    const std::optional<Id> under = hit(x, y, button);
     if (down) {
         if (!m_pressed) {
             m_pressed = under ? under : std::optional<Id>(-1);  // -1: pressed on nothing
+            m_pressed_with = button;
         }
         return std::nullopt;
     }
     const std::optional<Id> pressed = std::exchange(m_pressed, std::nullopt);
     m_released = pressed.has_value();
     if (pressed && under && *pressed == *under) {
+        m_clicked_with = button;
         return under;
     }
     return std::nullopt;
