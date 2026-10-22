@@ -119,23 +119,41 @@ std::string player_label(const sim::Player& p, sim::PlayerId slot, const render:
 
 }  // namespace
 
+namespace {
+
+// In the order of render::BannerTable::add_more_players.
+constexpr std::array<const char*, sim::kMaxPlayers - sim::kOriginalPlayers> kMoreColourNames = {
+    "player.colour.orange",     "player.colour.green", "player.colour.teal",   "player.colour.pink",
+    "player.colour.light_blue", "player.colour.lime",  "player.colour.purple", "player.colour.brown"};
+
+}  // namespace
+
 void name_more_players(sim::World& world) {
     // Only a game that has not run yet: later a person may have taken a slot and its name.
     if (world.time_ms() != 0) {
         return;
     }
-    // In the order of render::BannerTable::add_more_players.
-    static constexpr std::array<const char*, sim::kMaxPlayers - sim::kOriginalPlayers> kKeys = {
-        "player.colour.orange",     "player.colour.green", "player.colour.teal",   "player.colour.pink",
-        "player.colour.light_blue", "player.colour.lime",  "player.colour.purple", "player.colour.brown"};
     for (std::size_t n = sim::kOriginalPlayers; n < sim::kMaxPlayers; ++n) {
         sim::Player* p = world.player(sim::player_slot(n));
         if (p != nullptr && p->role == sim::PlayerRole::Computer &&
             p->banner == sim::kFirstExtraBanner + (n - sim::kOriginalPlayers) &&
             p->name == "Player " + std::to_string(n + 1)) {
-            p->name = ui::tr(kKeys[n - sim::kOriginalPlayers]);
+            p->name = ui::tr(kMoreColourNames[n - sim::kOriginalPlayers]);
         }
     }
+}
+
+std::string colour_player_name(sim::BannerId banner, const std::vector<std::string>& colour_names) {
+    static constexpr std::array<const char*, sim::kOriginalPlayers> kFallback = {"Red player", "Blue player",
+                                                                                 "Yellow player", "White player"};
+    if (banner < sim::kOriginalPlayers) {
+        return banner < colour_names.size() && !colour_names[banner].empty() ? colour_names[banner]
+                                                                             : std::string(kFallback[banner]);
+    }
+    if (banner >= sim::kFirstExtraBanner && std::size_t{banner} - sim::kFirstExtraBanner < kMoreColourNames.size()) {
+        return ui::tr(kMoreColourNames[banner - sim::kFirstExtraBanner]);
+    }
+    return "Player " + std::to_string(banner + 1);
 }
 
 core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDirectory& game,

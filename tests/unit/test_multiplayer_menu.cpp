@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The multiplayer menu (ADR 0011): addresses, its screens at work, its texts in both languages.
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <optional>
@@ -14,6 +15,7 @@
 #include "multiplayer_texts.hpp"
 
 #include "o1602/net/loopback.hpp"
+#include "o1602/render/banner.hpp"
 #include "o1602/ui/localization.hpp"
 
 using namespace o1602;
@@ -83,7 +85,7 @@ TEST_CASE("multiplayer menu: addresses with and without a port") {
 TEST_CASE("multiplayer menu: every text in both languages, with its value") {
     const ui::Catalogue english = ui::builtin_catalogue("en");
     const ui::Catalogue german = ui::builtin_catalogue("de");
-    for (std::size_t i = 0; i <= static_cast<std::size_t>(MpText::HostMovedYou); ++i) {
+    for (std::size_t i = 0; i <= static_cast<std::size_t>(MpText::ChooseBanner); ++i) {
         const std::string_view key = app::mp_key(static_cast<MpText>(i));
         CHECK(english.find(key) != nullptr);
         CHECK(german.find(key) != nullptr);
@@ -319,4 +321,139 @@ TEST_CASE("multiplayer menu: the factions' slots are reserved for every number o
     }
     CHECK(app::endless_seats(4).size() == 4);
     CHECK(app::endless_seats(5).size() == 8);
+}
+
+namespace {
+
+/// The palette colour of banner 0 in the tests; the others follow (none is a colour of the form).
+constexpr std::int32_t kFirstColour = 150;
+
+/// The menu's banners as the game gives them (Hud): the original's seven and the further colours.
+std::vector<app::MenuBanner> menu_banners() {
+    render::BannerTable table = render::BannerTable::original();
+    table.add_more_players();
+    std::vector<app::MenuBanner> banners;
+    for (std::size_t i = 0; i < table.size(); ++i) {
+        banners.push_back(app::MenuBanner{static_cast<std::uint8_t>(kFirstColour + i), table.banners()[i].id});
+    }
+    return banners;
+}
+
+}  // namespace
+
+TEST_CASE("multiplayer menu: a banner for every player, each slot its own") {
+    const std::vector<sim::BannerId> offered = app::player_banners();
+    REQUIRE(offered.size() == sim::kMaxPlayers);
+    render::BannerTable table = render::BannerTable::original();
+    table.add_more_players();
+    for (std::size_t i = 0; i < offered.size(); ++i) {
+        const render::Banner* b = table.get(offered[i]);
+        REQUIRE(b != nullptr);
+        CHECK(b->flag == render::FlagStyle::Tinted);  // a player's, not the pirates' or the natives'
+        CHECK(std::count(offered.begin(), offered.end(), offered[i]) == 1);
+    }
+    // A new world's players have the banner of their slot (sim::add_players).
+    const std::vector<net::LobbySeat> seats = app::endless_seats(sim::kMaxPlayers);
+    for (std::size_t n = 0; n < sim::kMaxPlayers; ++n) {
+        CHECK(seats[sim::player_slot(n)].banner == offered[n]);
+    }
+    CHECK(app::banner_name("anno1602:red") == "Red");
+    CHECK(app::banner_name("open1602:light_blue") == "Light blue");
+    CHECK(app::banner_name("mymod:gold") == "gold");  // no text: its id
+    const ui::Catalogue english = ui::builtin_catalogue("en");
+    const ui::Catalogue german = ui::builtin_catalogue("de");
+    for (const render::Banner& b : table.banners()) {
+        if (b.flag == render::FlagStyle::Tinted) {
+            const std::string key = "net.colour." + b.id.substr(b.id.find(':') + 1);
+            CHECK(english.find(key) != nullptr);
+            CHECK(german.find(key) != nullptr);
+        }
+    }
+    const LanguageGuard german_game("de");
+    CHECK(app::banner_name("anno1602:white") == "Wei\xDF");
+    CHECK(app::banner_name("open1602:green") ==
+          "Gr\xFC"
+          "n");
+}
+
+TEST_CASE("multiplayer menu: choosing a banner in the lobby") {
+    net::LoopbackNetwork network;
+    net::Lobby lobby;
+    lobby.title = "Abend";
+    lobby.seats = app::endless_seats(6);
+    lobby.banners = app::player_banners();
+    net::HostSession host(network.listen(), lobby, 0, "Anna", 1);
+    net::Hello hello;
+    hello.content = 1;
+    hello.name = "Wilma";
+    net::ClientSession wilma(network.connect(), hello, [](std::span<const std::uint8_t>) { return nullptr; });
+    for (int i = 0; i < 20; ++i) {
+        host.update(50);
+        wilma.update(50);
+    }
+    REQUIRE(wilma.local_seat() == 1);
+
+    MultiplayerMenu menu(ui::FormStyle{});
+    menu.set_banners(menu_banners(), 1);
+    app::MultiplayerModel model;
+    model.name = "Anna";
+    model.session = &host;
+    model.hosting = true;
+    menu.show_lobby();
+    // Each slot shows the colour of its banner.
+    const auto colours = [&] {
+        std::vector<std::int32_t> c;
+        for (const ui::DrawItem& d : menu.draw(model, kNoFonts)) {
+            if (d.kind == ui::DrawItem::Kind::Fill && d.colour >= kFirstColour && d.colour < kFirstColour + 20) {
+                c.push_back(d.colour - kFirstColour);
+            }
+        }
+        return c;
+    };
+    CHECK((colours() == std::vector<std::int32_t>{0, 1, 2, 3, 7, 8}));
+    CHECK(!find_text(menu, model, "Green").has_value());
+
+    // The host's own colour (the first slot's): the colours on offer show in place of the chat.
+    CHECK(click_at(menu, model, 62, 112).empty());
+    REQUIRE(menu.choosing_banner() == std::optional<std::size_t>(0));
+    CHECK(find_text(menu, model, "Choose a banner").has_value());
+    // Wilma's blue is hers: nothing happens.
+    CHECK(click(menu, model, "Blue").empty());
+    auto events = click(menu, model, "Green");
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == MultiplayerEvent::Kind::SetBanner);
+    CHECK(events[0].seat == 0);
+    CHECK(events[0].banner == 8);
+    CHECK(!menu.choosing_banner());
+    CHECK(host.set_banner(events[0].seat, events[0].banner));
+    CHECK((colours() == std::vector<std::int32_t>{8, 1, 2, 3, 7, 0}));  // the open slot took red
+
+    // An open slot's too; not Wilma's (no button: a click there does not open the colours).
+    CHECK(click_at(menu, model, 62, 112 + 36 * 2).empty());
+    CHECK(menu.choosing_banner() == std::optional<std::size_t>(2));
+    CHECK(!menu.back().has_value());  // Escape closes the colours first
+    CHECK(!menu.choosing_banner());
+    CHECK(click_at(menu, model, 62, 112 + 36).empty());
+    CHECK(!menu.choosing_banner());
+
+    // Wilma's menu: only her own slot.
+    MultiplayerMenu theirs(ui::FormStyle{});
+    theirs.set_banners(menu_banners(), 1);
+    app::MultiplayerModel their_model;
+    their_model.name = "Wilma";
+    their_model.session = &wilma;
+    theirs.show_lobby();
+    for (int i = 0; i < 4; ++i) {
+        host.update(50);
+        wilma.update(50);
+    }
+    CHECK(theirs.choosing_banner() == std::nullopt);
+    CHECK(click_at(theirs, their_model, 62, 112).empty());
+    CHECK(!theirs.choosing_banner());
+    CHECK(click_at(theirs, their_model, 62, 112 + 36).empty());
+    CHECK(theirs.choosing_banner() == std::optional<std::size_t>(1));
+    CHECK(click(theirs, their_model, "Green").empty());  // the host's now
+    events = click(theirs, their_model, "Teal");
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].banner == 9);
 }

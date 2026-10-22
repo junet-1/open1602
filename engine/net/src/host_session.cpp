@@ -43,6 +43,13 @@ std::string printable(std::string text) {
     return text;
 }
 
+/// Someone (or nobody) takes a slot; its banner stays with the slot.
+void occupy(LobbySeat& seat, LobbySeat::Kind kind, std::string name = {}, bool ready = false) {
+    seat.kind = kind;
+    seat.name = std::move(name);
+    seat.ready = ready;
+}
+
 }  // namespace
 
 struct HostSession::Peer {
@@ -88,8 +95,9 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, sim::Simulation& 
     const auto& players = simulation.world().players();
     for (std::size_t s = 0; s < players.size() && s < kMaxLobbySeats; ++s) {
         LobbySeat lobby_seat;
+        lobby_seat.banner = players[s].banner;
         if (s == seat) {
-            lobby_seat = LobbySeat{LobbySeat::Kind::Human, m_name, true};
+            occupy(lobby_seat, LobbySeat::Kind::Human, m_name, true);
         } else if (players[s].role != sim::PlayerRole::Human && players[s].role != sim::PlayerRole::Computer) {
             lobby_seat.kind = LobbySeat::Kind::Reserved;
         } else if (!players[s].active()) {
@@ -117,12 +125,16 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, Lobby lobby, Seat
     m_lobby.started = false;
     for (LobbySeat& s : m_lobby.seats) {
         if (s.kind == LobbySeat::Kind::Human) {
-            s = LobbySeat{};  // only computers that come in are human players
+            occupy(s, LobbySeat::Kind::Open);  // only computers that come in are human players
         }
     }
+    if (m_lobby.banners.size() > kMaxLobbyBanners) {
+        m_lobby.banners.resize(kMaxLobbyBanners);
+    }
+    sort_out_banners();
     m_seat = seat < m_lobby.seats.size() ? seat : sim::kNoPlayer;
     if (m_seat != sim::kNoPlayer) {
-        m_lobby.seats[m_seat] = LobbySeat{LobbySeat::Kind::Human, m_name, true};
+        occupy(m_lobby.seats[m_seat], LobbySeat::Kind::Human, m_name, true);
     }
     init_lobby();
 }
@@ -162,9 +174,9 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
     m_lobby.started = true;
     for (std::size_t s = 0; s < m_lobby.seats.size(); ++s) {
         if (s == m_seat) {
-            m_lobby.seats[s] = LobbySeat{LobbySeat::Kind::Human, m_name, true};
+            occupy(m_lobby.seats[s], LobbySeat::Kind::Human, m_name, true);
         } else if (m_lobby.seats[s].kind == LobbySeat::Kind::Human) {
-            m_lobby.seats[s] = LobbySeat{};  // until its player is back
+            occupy(m_lobby.seats[s], LobbySeat::Kind::Open);  // until its player is back
         }
     }
     // The old host's slot: the computer plays it until someone takes it, as a slot left open.
@@ -344,6 +356,8 @@ void HostSession::receive(LinkId link, std::span<const std::uint8_t> bytes) {
         ready(*peer, r->ready);
     } else if (const auto* line = std::get_if<Chat>(&*message)) {
         chat(*peer, *line);
+    } else if (const auto* b = std::get_if<SetBanner>(&*message)) {
+        set_banner(*peer, b->banner);
     } else {
         drop(*peer, RefuseReason::Invalid);
     }
@@ -404,7 +418,7 @@ void HostSession::hello(Peer& peer, const Hello& m) {
     }
     if (seat != sim::kNoPlayer) {
         peer.token = token_of(seat);
-        m_lobby.seats[seat] = LobbySeat{LobbySeat::Kind::Human, peer.name, false};
+        occupy(m_lobby.seats[seat], LobbySeat::Kind::Human, peer.name, false);
         if (started()) {
             // The player takes the slot over from the computer, under the player's name, as
             // commands of that player like any other.
@@ -722,7 +736,7 @@ void HostSession::drop(Peer& peer, std::optional<RefuseReason> tell) {
     m_transport->disconnect(peer.link);
     if (peer.welcomed) {
         if (peer.seat != sim::kNoPlayer) {
-            m_lobby.seats[peer.seat] = LobbySeat{};
+            occupy(m_lobby.seats[peer.seat], LobbySeat::Kind::Open);
             m_lobby_changed = true;
             // A slot the computer held before the player came: the computer goes on with it.
             // The host gives it in the player's stead (queue() takes orders only from those here).
@@ -860,7 +874,7 @@ void HostSession::forget_token(Seat seat) {
 void HostSession::move(Peer* peer, Seat seat) {
     Seat& current = peer != nullptr ? peer->seat : m_seat;
     if (current != sim::kNoPlayer) {
-        m_lobby.seats[current] = LobbySeat{};
+        occupy(m_lobby.seats[current], LobbySeat::Kind::Open);
         // Whoever takes the slot later gets a new token, so that nobody collects the tokens of
         // the slots he passes through.
         forget_token(current);
@@ -868,7 +882,7 @@ void HostSession::move(Peer* peer, Seat seat) {
     current = seat;
     if (seat != sim::kNoPlayer) {
         const std::string& name = peer != nullptr ? peer->name : m_name;
-        m_lobby.seats[seat] = LobbySeat{LobbySeat::Kind::Human, name, peer == nullptr};
+        occupy(m_lobby.seats[seat], LobbySeat::Kind::Human, name, peer == nullptr);
     }
     if (peer != nullptr) {
         peer->token = seat != sim::kNoPlayer ? token_of(seat) : 0;
@@ -952,8 +966,75 @@ void HostSession::set_seat(Seat seat, LobbySeat::Kind kind) {
             drop(**holder, RefuseReason::Full);
         }
     }
-    m_lobby.seats[seat] = LobbySeat{kind, {}, false};
+    occupy(m_lobby.seats[seat], kind);
     m_lobby_changed = true;
+}
+
+bool HostSession::set_banner(Seat seat, sim::BannerId banner) {
+    // The host speaks for itself and for the slots no other person plays.
+    if (seat >= m_lobby.seats.size() || (seat != m_seat && m_lobby.seats[seat].kind == LobbySeat::Kind::Human)) {
+        return false;
+    }
+    return change_banner(seat, banner);
+}
+
+void HostSession::set_banner(Peer& peer, sim::BannerId banner) {
+    if (peer.seat != sim::kNoPlayer) {
+        (void)change_banner(peer.seat, banner);
+    }
+}
+
+bool HostSession::change_banner(Seat seat, sim::BannerId banner) {
+    if (started() || seat >= m_lobby.seats.size() || m_lobby.seats[seat].kind == LobbySeat::Kind::Reserved ||
+        std::find(m_lobby.banners.begin(), m_lobby.banners.end(), banner) == m_lobby.banners.end()) {
+        return false;
+    }
+    LobbySeat& mine = m_lobby.seats[seat];
+    if (mine.banner == banner) {
+        return true;
+    }
+    const auto other = std::find_if(m_lobby.seats.begin(), m_lobby.seats.end(), [&](const LobbySeat& s) {
+        return &s != &mine && s.kind != LobbySeat::Kind::Reserved && s.banner == banner;
+    });
+    if (other != m_lobby.seats.end()) {
+        if (other->kind == LobbySeat::Kind::Human) {
+            return false;  // another person's: first come, first served
+        }
+        other->banner = mine.banner;  // the computer's or nobody's: they swap
+    }
+    mine.banner = banner;
+    m_lobby_changed = true;
+    return true;
+}
+
+void HostSession::sort_out_banners() {
+    if (m_lobby.banners.empty()) {
+        return;
+    }
+    std::vector<sim::BannerId> taken;
+    std::vector<LobbySeat*> unsorted;
+    for (LobbySeat& s : m_lobby.seats) {
+        if (s.kind == LobbySeat::Kind::Reserved) {
+            continue;
+        }
+        const bool offered =
+            std::find(m_lobby.banners.begin(), m_lobby.banners.end(), s.banner) != m_lobby.banners.end();
+        if (offered && std::find(taken.begin(), taken.end(), s.banner) == taken.end()) {
+            taken.push_back(s.banner);
+        } else {
+            unsorted.push_back(&s);
+        }
+    }
+    // More slots than banners: the last ones share (the lobby cannot tell them apart anyway).
+    std::size_t next = 0;
+    for (LobbySeat* s : unsorted) {
+        while (next < m_lobby.banners.size() &&
+               std::find(taken.begin(), taken.end(), m_lobby.banners[next]) != taken.end()) {
+            ++next;
+        }
+        s->banner = next < m_lobby.banners.size() ? m_lobby.banners[next] : m_lobby.banners.back();
+        taken.push_back(s->banner);
+    }
 }
 
 void HostSession::kick(Seat seat) {

@@ -105,6 +105,7 @@ void put(core::ByteWriter& out, const Lobby& m) {
         out.u8(static_cast<std::uint8_t>(seat.kind));
         out.string(seat.name);
         out.boolean(seat.ready);
+        out.u16(seat.banner);
     }
     out.boolean(m.started);
     out.boolean(m.join_running);
@@ -112,6 +113,10 @@ void put(core::ByteWriter& out, const Lobby& m) {
     out.boolean(m.password);
     out.u32(static_cast<std::uint32_t>(m.setup.size()));
     out.bytes(m.setup);
+    out.u32(static_cast<std::uint32_t>(m.banners.size()));
+    for (const sim::BannerId b : m.banners) {
+        out.u16(b);
+    }
 }
 
 void put(core::ByteWriter& out, const TakeSeat& m) {
@@ -126,6 +131,10 @@ void put(core::ByteWriter& out, const Chat& m) {
     out.u8(m.seat);
     out.string(m.name);
     out.string(m.text);
+}
+
+void put(core::ByteWriter& out, const SetBanner& m) {
+    out.u16(m.banner);
 }
 
 void put(core::ByteWriter& out, const Standby& m) {
@@ -269,6 +278,7 @@ Lobby get_lobby(In& in) {
         seat.kind = static_cast<LobbySeat::Kind>(kind);
         seat.name = in.text(kMaxNameLength);
         seat.ready = in.boolean();
+        seat.banner = in.u16();
         m.seats.push_back(std::move(seat));
     }
     m.started = in.boolean();
@@ -280,6 +290,11 @@ Lobby get_lobby(In& in) {
         m.setup.assign(bytes->begin(), bytes->end());
     } else {
         in.fail();
+    }
+    const std::uint32_t banners = in.count(kMaxLobbyBanners);
+    m.banners.reserve(banners);
+    for (std::uint32_t i = 0; i < banners && in.ok(); ++i) {
+        m.banners.push_back(in.u16());
     }
     return m;
 }
@@ -340,12 +355,14 @@ std::optional<Message> get(In& in, std::uint8_t type) {
             return get_chat(in);
         case 13:
             return get_standby(in);
+        case 14:
+            return SetBanner{in.u16()};
         default:
             return std::nullopt;
     }
 }
 
-static_assert(std::variant_size_v<Message> == 14, "a new message needs its case in get()");
+static_assert(std::variant_size_v<Message> == 15, "a new message needs its case in get()");
 
 }  // namespace
 

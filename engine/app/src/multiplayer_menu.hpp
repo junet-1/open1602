@@ -89,6 +89,7 @@ struct MultiplayerEvent {
         Ready,       ///< ready (`ready`) or not
         Say,         ///< chat `text`
         Name,        ///< the player's name changed to `text`
+        SetBanner,   ///< slot `seat` gets `banner` (the own slot; the host also the computer's and open ones)
     };
     Kind kind = Kind::Close;
     std::string address{};
@@ -100,13 +101,30 @@ struct MultiplayerEvent {
     net::LobbySeat::Kind seat_kind = net::LobbySeat::Kind::Open;
     bool ready = false;
     std::string text{};
+    sim::BannerId banner = 0;
+};
+
+/// A banner as the lobby shows it: its colour in the palette and its id (render::Banner::id), whose
+/// name after the colon names its text ("anno1602:red": "net.colour.red").
+struct MenuBanner {
+    std::uint8_t colour = 0;
+    std::string id;
 };
 
 /// The lobby slots of an endless game for `players` (clamped to HostSetup::kMinPlayers..
 /// sim::kMaxPlayers): the four players' slots, then those of players five on behind the free
 /// trader, the pirates and the natives (sim::player_slot). The factions' slots are reserved, so
 /// no person and no computer player ever takes them.
+/// Each slot has the banner of its number, as a new world gives its players (sim::add_players).
 [[nodiscard]] std::vector<net::LobbySeat> endless_seats(std::size_t players);
+
+/// The banners players choose from in a lobby (net::Lobby::banners): the original's four, then the
+/// further colours (render::BannerTable::add_more_players), one for each of sim::kMaxPlayers.
+[[nodiscard]] std::vector<sim::BannerId> player_banners();
+
+/// The name of a banner in the game's language ("Red", "Rot"): the text of its colour, else the id
+/// after the colon (a mod's banner without a text).
+[[nodiscard]] std::string banner_name(std::string_view id);
 
 /// "name", "name:port", "1.2.3.4:port": the host and its port (kDefaultPort if none is given);
 /// nothing for an empty or malformed address.
@@ -124,12 +142,14 @@ public:
     void show_connecting(std::string address);
     void show_lobby();
     void set_scale(double scale) { m_form.set_scale(scale); }
-    /// Colours (palette) of the banners, by banner id: a player's slot shows the banner of the
-    /// same number (sim::kFirstExtraBanner); `other` for slots beyond them.
-    void set_banner_colours(std::vector<std::uint8_t> colours, std::uint8_t other) {
-        m_banners = std::move(colours);
+    /// The banners by id (render::BannerTable): a slot shows the colour of its banner
+    /// (net::LobbySeat::banner); `other` for a banner beyond them.
+    void set_banners(std::vector<MenuBanner> banners, std::uint8_t other) {
+        m_banners = std::move(banners);
         m_other_banner = other;
     }
+    /// The slot whose banner is being chosen (the colours shown in place of the chat).
+    [[nodiscard]] std::optional<std::size_t> choosing_banner() const noexcept { return m_banner_seat; }
 
     /// Everything to draw for the model, relative to the 1024 x 768 design's top left.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const MultiplayerModel& model,
@@ -169,11 +189,17 @@ private:
 
     ui::Form m_form;
     Screen m_screen = Screen::Browse;
-    [[nodiscard]] std::uint8_t banner_colour(std::size_t seat) const noexcept {
-        return seat < m_banners.size() ? m_banners[seat] : m_other_banner;
+    [[nodiscard]] std::uint8_t banner_colour(sim::BannerId banner) const noexcept {
+        return banner < m_banners.size() ? m_banners[banner].colour : m_other_banner;
     }
+    [[nodiscard]] std::string banner_label(sim::BannerId banner) const;
+    /// Whether this computer may choose the banner of slot `seat` now: its own, or as the host one
+    /// that no other person plays.
+    [[nodiscard]] static bool may_choose_banner(const MultiplayerModel& model, std::size_t seat);
+    /// The colours on offer for m_banner_seat, in place of the chat lines from `top`.
+    void layout_banner_choice(const MultiplayerModel& model, std::int32_t top);
 
-    std::vector<std::uint8_t> m_banners;
+    std::vector<MenuBanner> m_banners;
     std::uint8_t m_other_banner = 0;
     std::string m_notice;      ///< on the search screen, why the last session ended
     std::string m_connecting;  ///< the address being connected to
@@ -193,7 +219,9 @@ private:
     // Lobby
     std::string m_chat;
     bool m_ready = false;
-    std::vector<std::size_t> m_watchers;  ///< (host) roster entries of the spectators shown with a kick button
+    std::optional<std::size_t> m_banner_seat;     ///< the slot whose banner is being chosen
+    std::vector<sim::BannerId> m_banner_choices;  ///< the banners of the buttons shown, in order
+    std::vector<std::size_t> m_watchers;          ///< (host) roster entries of the spectators shown with a kick button
 };
 
 }  // namespace o1602::app

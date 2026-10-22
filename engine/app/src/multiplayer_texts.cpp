@@ -100,6 +100,7 @@ constexpr std::array kTexts = {
     Entry{MpText::HostMoving, "net.host_moving"},
     Entry{MpText::HostMoved, "net.host_moved"},
     Entry{MpText::HostMovedYou, "net.host_moved_you"},
+    Entry{MpText::ChooseBanner, "net.choose_banner"},
 };
 
 constexpr bool in_order() {
@@ -111,7 +112,7 @@ constexpr bool in_order() {
     return true;
 }
 static_assert(in_order(), "kTexts must list every MpText in order");
-static_assert(kTexts.size() == static_cast<std::size_t>(MpText::HostMovedYou) + 1, "a text is missing");
+static_assert(kTexts.size() == static_cast<std::size_t>(MpText::ChooseBanner) + 1, "a text is missing");
 
 }  // namespace
 

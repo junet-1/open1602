@@ -24,7 +24,7 @@
 namespace o1602::net {
 
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
-inline constexpr std::uint16_t kProtocolVersion = 4;
+inline constexpr std::uint16_t kProtocolVersion = 5;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
@@ -41,6 +41,7 @@ inline constexpr std::size_t kMaxChatLength = 200;
 inline constexpr std::uint32_t kMaxLobbySeats = 255;
 inline constexpr std::uint32_t kMaxSetupBytes = 64U << 10;
 inline constexpr std::size_t kMaxAddressLength = 64;
+inline constexpr std::uint32_t kMaxLobbyBanners = 1024;
 
 /// Which player of the world a computer plays: kNoPlayer watches only.
 using Seat = sim::PlayerId;
@@ -178,6 +179,9 @@ struct LobbySeat {
     Kind kind = Kind::Open;
     std::string name;
     bool ready = false;
+    /// The banner the slot's player gets (colour, flag, coat of arms). It stays with the slot when
+    /// players come and go; no two slots of a lobby with Lobby::banners share one.
+    sim::BannerId banner = 0;
     friend bool operator==(const LobbySeat&, const LobbySeat&) = default;
 };
 
@@ -194,6 +198,9 @@ struct Lobby {
     /// The program's own description of the game (map, level, preview): the session passes it on
     /// without reading it.
     std::vector<std::uint8_t> setup;
+    /// The banners the players may choose from (SetBanner), in the order the lobby offers them;
+    /// empty: every slot keeps its banner (a savegame, a running game).
+    std::vector<sim::BannerId> banners;
     friend bool operator==(const Lobby&, const Lobby&) = default;
 };
 
@@ -205,6 +212,12 @@ struct TakeSeat {
 /// (Computer) Ready to start, or not any more.
 struct SetReady {
     bool ready = false;
+};
+
+/// (Computer) Wants `banner` (one of Lobby::banners) for its slot. Refused when another person's
+/// slot has it; a slot the computer plays or nobody plays gives it up and takes the old one.
+struct SetBanner {
+    sim::BannerId banner = 0;
 };
 
 /// A line of chat. From a computer only `text` counts: the host fills in who said it and sends it
@@ -233,7 +246,7 @@ struct Standby {
 };
 
 using Message = std::variant<Hello, CommandBatch, Progress, Welcome, Refused, Snapshot, Turn, Roster, Desync, Lobby,
-                             TakeSeat, SetReady, Chat, Standby>;
+                             TakeSeat, SetReady, Chat, Standby, SetBanner>;
 
 [[nodiscard]] std::vector<std::uint8_t> encode(const Message& message);
 /// Nothing if the bytes are cut off, too long, of an unknown type or out of range.
