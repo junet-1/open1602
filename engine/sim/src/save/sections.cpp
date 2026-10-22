@@ -72,13 +72,16 @@ constexpr std::uint32_t kOrigin = tag("ORIG");
 constexpr std::uint32_t kQueues = tag("QUEU");
 /// Attack move and hold position of ships and units (Open1602, ADR 0010).
 constexpr std::uint32_t kStances = tag("STNC");
+/// The tutorial flag of the world (TIMERS +0xA5), only written when set.
+constexpr std::uint32_t kTutorial = tag("TUTR");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
-    kRules,  kWorld,     kIslands,  kTiles,   kPlayers,        kCities,         kProductions, kHouses,      kGrowth,
-    kCosts,  kShips,     kSoldiers, kAnimals, kDisasters,      kVolcanoes,      kSimulation,  kFleet,       kEpochs,
-    kArmy,   kDiplomacy, kExplored, kMap,     kWorld2,         kMeta,           kMissions,    kPlayerState, kCityState,
-    kOrigin, kQueues,    kStances,  kScores,  kMaterialClocks, kPopulationMarks};
+    kRules,           kWorld,       kIslands,   kTiles,     kPlayers,  kCities,    kProductions, kHouses,
+    kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
+    kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
+    kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks,
+    kPopulationMarks, kTutorial};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -190,6 +193,9 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kWorld, [&](Writer& o) { write_world(o, world); });
     if (tiles == TileMode::Full) {
         section(out, kWorld2, [&](Writer& o) { o.u32(world.game_settings().pirate_interval_s); });
+    }
+    if (world.game_settings().tutorial) {
+        section(out, kTutorial, [&](Writer& o) { o.u8(1); }, Need::Optional);
     }
     const std::uint16_t islands_at = islands_version(world);
     section(out, kIslands, [&](Writer& o) { write_islands(o, world, islands_at); }, Need::Required, islands_at);
@@ -325,6 +331,12 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 std::uint32_t interval = 0;
                 in.u32(interval);
                 d.pirate_interval_s = interval;
+                break;
+            }
+            case kTutorial: {
+                std::uint8_t on = 0;
+                in.u8(on);
+                d.tutorial = on != 0;
                 break;
             }
             case kIslands:

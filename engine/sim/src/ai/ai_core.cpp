@@ -165,8 +165,10 @@ void Engine::tick(std::uint32_t dt_ms) {
             p.t_10s -= dt;
         }
         if (p.has_plan && p.t_6s < 0) {
-            buy_pirate_peace(p);
-            recruit(p);
+            if (!tutorial()) {  // the tutorial's computers neither buy peace nor recruit (0x0042B67A)
+                buy_pirate_peace(p);
+                recruit(p);
+            }
             p.t_6s = 6'000;  // absolute: the period is 6 s plus the wait
         }
         if (p.has_plan && p.t_10s < 0) {
@@ -215,7 +217,19 @@ void Engine::step(AiPlayer& p) {
 
 void Engine::run_task(AiPlayer& p) {
     const std::uint8_t id = top(p);
-    if (id > kSettleLand) {
+    if (tutorial() && !p.pirates) {
+        // The tutorial (TIMERS +0xA5, 0x00429AA0): no city check or maintenance, no root task, so
+        // no development; task 5 only tops up the money (0x00428E30). Other tasks of a loaded
+        // stack run out as usual.
+        if (id == kRoot) {
+            return;
+        }
+        if (id == kDevelop) {
+            pop(p);
+            tutorial_money(p);
+            return;
+        }
+    } else if (id > kSettleLand) {
         if (!city_valid(p, true)) {
             return;
         }

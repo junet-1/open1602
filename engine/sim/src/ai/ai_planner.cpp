@@ -46,6 +46,18 @@ void Engine::task_develop(AiPlayer& p) {
     run_stage(p, *c, *r);
 }
 
+void Engine::tutorial_money(AiPlayer& p) {
+    // 0x00428E30: at most once a second (P+0x10), money below 3791 gets 379.
+    if (now_ms() - p.refresh_ms <= 1000) {
+        return;
+    }
+    p.refresh_ms = now_ms();
+    Player& pl = player(p);
+    if (pl.money < kCheatBelow) {
+        pl.money = money_plus(pl.money, std::int64_t{kCheatMoney});
+    }
+}
+
 bool Engine::peaceful(AiPlayer& p) {
     // 0x0040EEF0: a computer a scenario keeps quiet (player +0x70 bit 3) builds nothing while every
     // human holds a peace treaty with it and it likes each of them at least -30. Once one does not,

@@ -307,15 +307,18 @@ bool Fleet::plunder(Ship& pirate, Ship& victim) {
             pirate.route = route;
             pirate.target = route.stops[0].target;
             any = true;
-            Diplomacy& d = m_world->diplomacy();
-            for (std::size_t b = 0; b < m_world->players().size(); ++b) {
-                const PlayerRole role = m_world->players()[b].role;
-                if (role == PlayerRole::Human || role == PlayerRole::Computer) {
-                    d.add_event(p, static_cast<PlayerId>(b), DiplomacyEventType::AnySurrender, m_world->time_ms());
-                }
-            }
-            d.add_event(p, victim.owner, DiplomacyEventType::Surrendered, m_world->time_ms());
         }
+        // The surrender pleases the pirates whether or not there was loot (events 9 and 6 after
+        // 0x00455840 returns, 0x00452BE0): without this they would declare war again at their
+        // next look and hunt the same ship until it sinks.
+        Diplomacy& d = m_world->diplomacy();
+        for (std::size_t b = 0; b < m_world->players().size(); ++b) {
+            const PlayerRole role = m_world->players()[b].role;
+            if (role == PlayerRole::Human || role == PlayerRole::Computer) {
+                d.add_event(p, static_cast<PlayerId>(b), DiplomacyEventType::AnySurrender, m_world->time_ms());
+            }
+        }
+        d.add_event(p, victim.owner, DiplomacyEventType::Surrendered, m_world->time_ms());
     }
     if (!any) {
         const Player* owner = m_world->player(victim.owner);

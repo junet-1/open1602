@@ -511,6 +511,9 @@ public:
         std::uint8_t difficulty = 2;
         std::uint32_t flags = 0;                 ///< the k... bits above
         std::uint32_t pirate_interval_s = 1500;  ///< TIMERS +0xB8: time between two new pirate ships
+        /// TIMERS +0xA5 (0x005B62FC): the tutorial; set only in Einführungsspiel0-4. Its computer
+        /// opponents keep their towns as they are and do not recruit, buy peace or order ships.
+        bool tutorial = false;
     };
     [[nodiscard]] const GameSettings& game_settings() const noexcept { return m_game_settings; }
     void set_game_settings(const GameSettings& s) noexcept { m_game_settings = s; }

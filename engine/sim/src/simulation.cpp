@@ -799,8 +799,9 @@ void Simulation::players_tick() {
                 }
                 break;
             case PlayerRole::Computer:
-                // The AI root retires a computer with no city and no ship (0x00429070).
-                if (!city && !ship) {
+                // The AI root retires a computer with no city and no ship (0x00429070), not in
+                // the tutorial (0x0042942C).
+                if (!city && !ship && !m_world->game_settings().tutorial) {
                     defeat(id, GameEvent::Reason::Retired, true);
                 }
                 break;

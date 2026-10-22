@@ -1224,6 +1224,7 @@ private:
         put32(r, 0xA0, clamp32(m_world.time_ms() / 100));
         r[1] = static_cast<std::uint8_t>((r[1] & ~7U) | (m_world.island_phase() & 7U));
         put32(r, 0xB0, m_world.city_name_index());
+        r[0xA5] = m_world.game_settings().tutorial ? 1 : 0;
         r[0xA6] = m_world.game_settings().difficulty;
         put32(r, 0xA8, m_world.game_settings().flags);
         // A stored 0 loads as 60 minutes.

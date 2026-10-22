@@ -300,6 +300,8 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
         constexpr std::size_t kTimersSettings = 0xA8;
         constexpr std::size_t kTimersNextDrought = 0xB4;
         if (data.size() >= kTimersNextDrought + 4) {
+            constexpr std::size_t kTimersTutorial = 0xA5;
+            state.tutorial = data[kTimersTutorial];
             state.difficulty = data[kTimersDifficulty];
             state.settings = u32(data, kTimersSettings);
             constexpr std::size_t kTimersPirates = 0xB8;

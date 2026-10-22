@@ -583,7 +583,17 @@ void Engine::update_fleet_target(AiPlayer& p) {
 
 void Engine::order_ship(AiPlayer& p) {
     // 0x00422150: a ship of a random type the yard can build, while the money covers half of it.
+    // Never in the tutorial.
+    if (tutorial()) {
+        return;
+    }
     if (!p.yard_valid) {
+        // Without a yard the computer plans one (0x0042233E: when a building task is on top of its
+        // stack, 0x00421D30), whatever its stage; the stage lists ask for it only from the merchants
+        // on. Without this a computer never had more than its first ship.
+        if (top(p) > kSurvey) {
+            need_shipyard(p);
+        }
         return;
     }
     const CostBuilding* yard = nullptr;
