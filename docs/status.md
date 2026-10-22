@@ -121,7 +121,7 @@ are listed in 2.1.
 
 | What | Where |
 |---|---|
-| **Bugs of the original**: 200 entries in the catalogue by its own count (2026-10-20), of which 110 fixed, 53 avoided, 6 switchable as a rule, 20 kept; open are only T-009 (Wine) and the data patches | [bugs.md](re/bugs.md) |
+| **Bugs of the original**: 200 entries in the catalogue by its own count (2026-10-20), of which 107 fixed, 53 avoided, 9 switchable as a rule (S-097 to S-099 since 2026-10-22), 20 kept; open are only T-009 (Wine) and the data patches | [bugs.md](re/bugs.md) |
 | **Settings** (`sim::Rules`, in the savegame): refund on demolition, ships per player (100, original 33), units per player (250, original 100), raw material guarantee, highest game speed (8, original 4), droughts, volcanoes, trader prices | [ADR 0008](architecture/0008-game-settings.md) |
 | **Custom worlds** (world generator stage 1): 200–2000 fields per side, number of islands, mix of sizes, villages, volcanic islands, starting areas; chunk `O1602MAP` | [worldgen.md](re/worldgen.md) |
 | **Own save format `.o1602`**: full state (map, clocks, randomness, figures, fires, lava, diplomacy, exploration, ships, soldiers, AI) without limits, canonical, CRC-32, zlib; a saved game continues exactly. Exported `.GAM` files carry the same state in the chunk `O1602` | [o1602-save.md](formats/o1602-save.md), [o1602-chunk.md](formats/o1602-chunk.md) |
