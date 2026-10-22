@@ -221,6 +221,10 @@ public:
     void set_seat(Seat seat, LobbySeat::Kind kind);
     /// The host's own player: an open slot, or kNoPlayer to only host.
     bool take_seat(Seat seat);
+    /// The banner of slot `seat`: the host's own, or one no other person plays (the computer's, an
+    /// open or a closed one). `banner` must be one of Lobby::banners; a slot the computer plays or
+    /// nobody plays that has it takes the old one in exchange, another person's refuses.
+    bool set_banner(Seat seat, sim::BannerId banner);
     /// Sends the computer playing `seat` away.
     void kick(Seat seat);
     /// Sends the computer of roster()[`member`] away, a spectator too (0, the host itself: nothing).
@@ -253,6 +257,12 @@ private:
     void take_seat(Peer& peer, Seat seat);
     void ready(Peer& peer, bool ready);
     void chat(Peer& peer, const Chat& m);
+    /// Gives slot `seat` banner `banner` (set_banner()), whoever asks.
+    bool change_banner(Seat seat, sim::BannerId banner);
+    void set_banner(Peer& peer, sim::BannerId banner);
+    /// Makes the slots' banners those on offer and every one different: a slot with a banner taken
+    /// by an earlier slot, or not on offer, gets the first free one.
+    void sort_out_banners();
     void broadcast(const Message& message);
     /// Moves a computer (or the host, `peer` nullptr) to `seat`, or to watching.
     void move(Peer* peer, Seat seat);
@@ -339,6 +349,8 @@ public:
     void take_seat(Seat seat);
     /// In the lobby: ready to start, or not.
     void set_ready(bool ready);
+    /// In the lobby: asks for `banner` (one of Lobby::banners) for this computer's slot.
+    void set_banner(sim::BannerId banner);
 
     /// Taken in by the host (in the lobby or the game).
     [[nodiscard]] bool welcomed() const noexcept { return m_welcomed; }

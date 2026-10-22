@@ -380,6 +380,13 @@ void MapViewer::handle_multiplayer(const MultiplayerEvent& e) {
                 host->kick_member(e.member);
             }
             break;
+        case MultiplayerEvent::Kind::SetBanner:
+            if (host != nullptr) {
+                (void)host->set_banner(e.seat, e.banner);
+            } else if (client != nullptr) {
+                client->set_banner(e.banner);
+            }
+            break;
         case MultiplayerEvent::Kind::Ready:
             if (client != nullptr) {
                 client->set_ready(e.ready);
@@ -439,6 +446,7 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
     if (setup.kind == HostSetup::Kind::Endless) {
         // A slot per player, the world is made at the start.
         lobby.seats = endless_seats(setup.players);
+        lobby.banners = player_banners();
     } else {
         const std::filesystem::path path =
             setup.kind == HostSetup::Kind::Scenario ? setup.file : slot_file(save_folder(), setup.slot);
@@ -462,10 +470,15 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
             seat.kind = !playable(s)                                   ? net::LobbySeat::Kind::Reserved
                         : players[s].role == sim::PlayerRole::Computer ? net::LobbySeat::Kind::Computer
                                                                        : net::LobbySeat::Kind::Open;
+            seat.banner = players[s].banner;
             lobby.seats.push_back(std::move(seat));
         }
         if (lobby.seats.empty()) {
             return core::make_error(core::ErrorCode::Unsupported, "the game has no player slots");
+        }
+        // A scenario's players may change colours before it begins; a savegame's keep theirs.
+        if (setup.kind == HostSetup::Kind::Scenario) {
+            lobby.banners = player_banners();
         }
         world = std::move(loaded).value();
     }
@@ -563,6 +576,10 @@ core::Status MapViewer::start_hosted_game() {
     }
     // The slots as the lobby has them. Nobody plays an open slot yet: the computer plays it, and
     // when people may come into the running game, the host hands it to whoever comes.
+    std::vector<std::string> colour_names;  // PLAYCOL: the computers of an endless game are named by colour
+    if (auto texts = assets::TextTable::load(m_game); texts && setup.kind == HostSetup::Kind::Endless) {
+        colour_names = texts->section("PLAYCOL");
+    }
     for (std::size_t s = 0; s < lobby.seats.size(); ++s) {
         sim::Player* p = world->player(static_cast<sim::PlayerId>(s));
         if (p == nullptr) {
@@ -574,6 +591,9 @@ core::Status MapViewer::start_hosted_game() {
             continue;
         }
         const net::LobbySeat& seat = lobby.seats[s];
+        if (!lobby.banners.empty()) {
+            p->banner = seat.banner;  // the colour chosen in the lobby (all different, net::HostSession)
+        }
         net::LobbySeat::Kind kind = seat.kind;
         if (kind == net::LobbySeat::Kind::Reserved) {
             kind = net::LobbySeat::Kind::Closed;  // one beyond the number of players
@@ -586,6 +606,9 @@ core::Status MapViewer::start_hosted_game() {
             case net::LobbySeat::Kind::Open:
             case net::LobbySeat::Kind::Computer:
                 p->role = sim::PlayerRole::Computer;
+                if (setup.kind == HostSetup::Kind::Endless) {
+                    p->name = colour_player_name(p->banner, colour_names);
+                }
                 break;
             case net::LobbySeat::Kind::Closed: {
                 // Nobody plays it: no ship of it sails (a slot with no city and no ship is absent).

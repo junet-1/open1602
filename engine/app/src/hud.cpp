@@ -171,11 +171,11 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         // The banners of the slots in the palette's nearest colours, grey for any further one.
         render::BannerTable banners = render::BannerTable::original();
         banners.add_more_players();
-        std::vector<std::uint8_t> colours;
+        std::vector<MenuBanner> menu_banners;
         for (const render::Banner& b : banners.banners()) {
-            colours.push_back(ui::nearest_colour(palette, b.color.r, b.color.g, b.color.b));
+            menu_banners.push_back(MenuBanner{ui::nearest_colour(palette, b.color.r, b.color.g, b.color.b), b.id});
         }
-        m_multiplayer->set_banner_colours(std::move(colours), ui::nearest_colour(palette, 128, 128, 128));
+        m_multiplayer->set_banners(std::move(menu_banners), ui::nearest_colour(palette, 128, 128, 128));
     }
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);

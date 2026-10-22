@@ -5,6 +5,8 @@
 #include <charconv>
 #include <random>
 
+#include "o1602/ui/localization.hpp"
+
 namespace o1602::app {
 
 namespace {
@@ -56,6 +58,10 @@ constexpr Id kSeatKick = 500;           ///< + slot
 constexpr std::size_t kMaxSeats = 100;  ///< slot numbers the ids above leave room for
 constexpr Id kWatcherKick = 700;        ///< + row of the spectators the host can send away
 constexpr std::size_t kWatcherRows = 5;
+constexpr Id kSeatBanner = 800;    ///< + slot: choose its banner
+constexpr Id kBannerChoice = 900;  ///< + button of the colours on offer
+constexpr std::size_t kMaxBannerChoices = 100;
+constexpr std::size_t kBannerColumns = 6;
 constexpr Id kChat = 60;
 constexpr Id kLeave = 61;
 constexpr Id kReady = 62;
@@ -90,10 +96,31 @@ std::optional<std::uint32_t> number(std::string_view text) {
 std::vector<net::LobbySeat> endless_seats(std::size_t players) {
     players = std::clamp<std::size_t>(players, HostSetup::kMinPlayers, sim::kMaxPlayers);
     std::vector<net::LobbySeat> seats(std::max<std::size_t>(sim::player_slot(players - 1) + 1U, sim::kOriginalPlayers));
-    for (std::size_t s = sim::kOriginalPlayers; s < std::min<std::size_t>(seats.size(), sim::kFirstExtraPlayer); ++s) {
-        seats[s].kind = net::LobbySeat::Kind::Reserved;
+    for (std::size_t s = 0; s < seats.size(); ++s) {
+        // Slot and banner go together, the factions' too (sim::kFirstExtraBanner).
+        seats[s].banner = static_cast<sim::BannerId>(s);
+        if (s >= sim::kOriginalPlayers && s < sim::kFirstExtraPlayer) {
+            seats[s].kind = net::LobbySeat::Kind::Reserved;
+        }
     }
     return seats;
+}
+
+std::vector<sim::BannerId> player_banners() {
+    std::vector<sim::BannerId> banners;
+    for (std::size_t n = 0; n < sim::kMaxPlayers; ++n) {
+        banners.push_back(static_cast<sim::BannerId>(
+            n < sim::kOriginalPlayers ? n : sim::kFirstExtraBanner + (n - sim::kOriginalPlayers)));
+    }
+    return banners;
+}
+
+std::string banner_name(std::string_view id) {
+    const std::size_t colon = id.find(':');
+    const std::string_view colour = colon == std::string_view::npos ? id : id.substr(colon + 1);
+    const std::string key = "net.colour." + std::string(colour);
+    const std::string& text = ui::tr(key);
+    return text != key ? text : std::string(colour);
 }
 
 std::optional<std::pair<std::string, std::uint16_t>> parse_address(std::string_view text) {
@@ -141,6 +168,7 @@ void MultiplayerMenu::show_connecting(std::string address) {
 void MultiplayerMenu::show_lobby() {
     m_screen = Screen::Lobby;
     m_ready = false;
+    m_banner_seat.reset();
     m_chat.clear();
     m_form.set_focus(kChat);  // the keys go to the chat
 }
@@ -403,7 +431,11 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
         const auto y = static_cast<std::int32_t>(96 + r * static_cast<std::size_t>(row_h));
         const std::int32_t h = row_h - 2;
         const Id k = static_cast<Id>(s);
-        f.swatch(Rect{52, y + 4, 22, h - 8}, banner_colour(s));
+        if (may_choose_banner(model, s)) {
+            // A click on the colour offers the others.
+            f.button(kSeatBanner + k, Rect{48, y, 30, h}, {}, true, m_banner_seat == s);
+        }
+        f.swatch(Rect{52, y + 4, 22, h - 8}, banner_colour(seat.banner));
         std::string who;
         std::string state;
         Tone tone = Tone::Normal;
@@ -459,10 +491,16 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
     f.label(Rect{48, rows_end + 4, 600, 30}, tr(MpText::Watchers, watchers.empty() ? tr(MpText::Nobody) : watchers),
             Align::Left, Tone::Dim);
 
-    // The chat.
+    // The chat, or the colours to choose from.
     f.panel(Rect{40, chat_top, 620, 670 - chat_top});
+    if (m_banner_seat && !may_choose_banner(model, *m_banner_seat)) {
+        m_banner_seat.reset();  // the slot changed hands, or the game started
+    }
     const auto chat_lines = static_cast<std::size_t>(std::max(0, (622 - 8 - (chat_top + 8)) / 28));
-    const std::size_t lines = std::min({model.chat.size(), kChatLines, chat_lines});
+    const std::size_t lines = m_banner_seat ? 0 : std::min({model.chat.size(), kChatLines, chat_lines});
+    if (m_banner_seat) {
+        layout_banner_choice(model, chat_top + 8);
+    }
     for (std::size_t i = 0; i < lines; ++i) {
         const ChatLine& line = model.chat[model.chat.size() - lines + i];
         const std::int32_t y = chat_top + 8 + static_cast<std::int32_t>(i) * 28;
@@ -511,6 +549,58 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
     }
     if (model.hosting) {
         f.button(kStart, Rect{764, kBottomY, 220, 44}, tr(MpText::Start), model.everyone_ready, true);
+    }
+}
+
+bool MultiplayerMenu::may_choose_banner(const MultiplayerModel& model, std::size_t seat) {
+    const net::Session* session = model.session;
+    if (session == nullptr) {
+        return false;
+    }
+    const net::Lobby& lobby = session->lobby();
+    if (lobby.started || lobby.banners.empty() || seat >= lobby.seats.size()) {
+        return false;
+    }
+    const net::LobbySeat::Kind kind = lobby.seats[seat].kind;
+    if (seat == session->local_seat()) {
+        return true;
+    }
+    return model.hosting && kind != net::LobbySeat::Kind::Human && kind != net::LobbySeat::Kind::Reserved;
+}
+
+std::string MultiplayerMenu::banner_label(sim::BannerId banner) const {
+    return banner < m_banners.size() ? banner_name(m_banners[banner].id) : std::to_string(banner);
+}
+
+void MultiplayerMenu::layout_banner_choice(const MultiplayerModel& model, std::int32_t top) {
+    ui::Form& f = m_form;
+    const net::Lobby& lobby = model.session->lobby();
+    const std::size_t seat = *m_banner_seat;
+    const net::LobbySeat& mine = lobby.seats[seat];
+    f.label(Rect{48, top, 604, 28}, tr(MpText::ChooseBanner), Align::Left, Tone::Heading);
+    // As many rows as there is room above the chat line, at most 36 high.
+    const std::int32_t grid_top = top + 32;
+    const std::int32_t room = 616 - grid_top;
+    const std::size_t wanted_rows =
+        (std::min(lobby.banners.size(), kMaxBannerChoices) + kBannerColumns - 1) / kBannerColumns;
+    const std::size_t rows = std::min<std::size_t>(wanted_rows, static_cast<std::size_t>(std::max(0, room / 26)));
+    const std::int32_t cell_h = rows == 0 ? 0 : std::min<std::int32_t>(36, room / static_cast<std::int32_t>(rows));
+    const std::int32_t cell_w = 600 / static_cast<std::int32_t>(kBannerColumns);
+    m_banner_choices.clear();
+    for (std::size_t i = 0; i < lobby.banners.size() && i < rows * kBannerColumns; ++i) {
+        const sim::BannerId banner = lobby.banners[i];
+        // Another person's banner is theirs; a computer's or a free slot's is swapped.
+        const bool other_person = std::any_of(lobby.seats.begin(), lobby.seats.end(), [&](const net::LobbySeat& s) {
+            return &s != &mine && s.kind == net::LobbySeat::Kind::Human && s.banner == banner;
+        });
+        const auto x = static_cast<std::int32_t>(50 + (i % kBannerColumns) * static_cast<std::size_t>(cell_w));
+        const auto y = static_cast<std::int32_t>(grid_top + static_cast<std::int32_t>(i / kBannerColumns) * cell_h);
+        const Rect cell{x, y, cell_w - 4, cell_h - 2};
+        f.button(kBannerChoice + static_cast<Id>(i), cell, {}, !other_person, banner == mine.banner);
+        f.swatch(Rect{x + 5, y + 6, 16, cell_h - 14}, banner_colour(banner));
+        f.label(Rect{x + 24, y, cell_w - 30, cell_h - 2}, banner_label(banner), Align::Left,
+                other_person ? Tone::Dim : Tone::Normal);
+        m_banner_choices.push_back(banner);
     }
 }
 
@@ -673,6 +763,15 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
             } else if (id >= kWatcherKick && id < kWatcherKick + static_cast<Id>(m_watchers.size())) {
                 event(MultiplayerEvent::Kind::KickMember)->member =
                     m_watchers[static_cast<std::size_t>(id - kWatcherKick)];
+            } else if (id >= kSeatBanner && id < kSeatBanner + static_cast<Id>(kMaxSeats)) {
+                const auto s = static_cast<std::size_t>(id - kSeatBanner);
+                m_banner_seat = m_banner_seat == s ? std::nullopt : std::optional(s);
+            } else if (id >= kBannerChoice && id < kBannerChoice + static_cast<Id>(m_banner_choices.size()) &&
+                       m_banner_seat) {
+                MultiplayerEvent* e = event(MultiplayerEvent::Kind::SetBanner);
+                e->seat = static_cast<sim::PlayerId>(*m_banner_seat);
+                e->banner = m_banner_choices[static_cast<std::size_t>(id - kBannerChoice)];
+                m_banner_seat.reset();
             } else if (id >= kSeatKick && id < kSeatKick + static_cast<Id>(kMaxSeats)) {
                 event(MultiplayerEvent::Kind::Kick)->seat = static_cast<sim::PlayerId>(id - kSeatKick);
             } else if (id >= kSeatKind && id < kSeatKind + static_cast<Id>(kMaxSeats) && session != nullptr) {
@@ -707,6 +806,12 @@ std::optional<MultiplayerEvent> MultiplayerMenu::back() {
             m_screen = Screen::Browse;
             return std::nullopt;
         case Screen::Lobby:
+            if (m_banner_seat) {
+                m_banner_seat.reset();  // the colours close first
+                return std::nullopt;
+            }
+            e.kind = MultiplayerEvent::Kind::Leave;
+            return e;
         case Screen::Connecting:
             e.kind = MultiplayerEvent::Kind::Leave;
             return e;

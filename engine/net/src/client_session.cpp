@@ -65,6 +65,12 @@ void ClientSession::set_ready(bool ready) {
     }
 }
 
+void ClientSession::set_banner(sim::BannerId banner) {
+    if (m_welcomed && !m_ended && !m_lobby.started && m_seat != sim::kNoPlayer) {
+        send(kHost, SetBanner{banner});
+    }
+}
+
 void ClientSession::submit(sim::Command command) {
     // Only the host decides when a command is carried out, also those of this computer's player.
     if (m_ended || m_simulation == nullptr || m_seat == sim::kNoPlayer || command_player(command) != m_seat) {
