@@ -369,9 +369,9 @@ TEST_CASE("core: doubles from data files become integers the same way everywhere
 
 TEST_CASE("assets: a game folder typed with quotes or blanks around it is still found") {
     using assets::GameDirectory;
-    CHECK(GameDirectory::clean_path_text(R"("C:\Users\Jonas\Documents\Anno 1602")") ==
-          R"(C:\Users\Jonas\Documents\Anno 1602)");
-    CHECK(GameDirectory::clean_path_text(R"(C:\GOG Games\Anno 1602")") == R"(C:\GOG Games\Anno 1602)");  // "...\"
+    CHECK(GameDirectory::clean_path_text("\"C:\\Users\\Jonas\\Documents\\Anno 1602\"") ==
+          "C:\\Users\\Jonas\\Documents\\Anno 1602");
+    CHECK(GameDirectory::clean_path_text("C:\\GOG Games\\Anno 1602\"") == "C:\\GOG Games\\Anno 1602");  // "...\"
     CHECK(GameDirectory::clean_path_text("  /home/a/Anno 1602 \r\n") == "/home/a/Anno 1602");
     CHECK(GameDirectory::clean_path_text(" \" /games/anno \" ") == "/games/anno");
     CHECK(GameDirectory::clean_path_text("\"\"").empty());
