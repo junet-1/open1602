@@ -108,10 +108,11 @@ int cmd_state(const Args& args) {
     }
     for (const auto& p : *players) {
         std::printf("player %u: kind 0x%02X, colour %u, money %d %s\n", p.slot, static_cast<unsigned>(p.kind),
-                    static_cast<unsigned>(p.color), p.money, p.name.c_str());
+                    static_cast<unsigned>(p.color), p.money, core::cp1252_to_utf8(p.name).c_str());
     }
     for (const auto& c : state->cities) {
-        std::printf("city: island %u #%u, owner %u, \"%s\"\n", c.island, c.index, c.owner, c.name.c_str());
+        std::printf("city: island %u #%u, owner %u, \"%s\"\n", c.island, c.index, c.owner,
+                    core::cp1252_to_utf8(c.name).c_str());
     }
     for (const auto& w : state->warehouses) {
         std::size_t used = 0;
@@ -157,8 +158,9 @@ int cmd_state(const Args& args) {
     }
     std::printf("deer: %zu on %zu islands\n", state->animals.size(), deer.size());
     for (const auto& s : *ships) {
-        std::printf("ship \"%s\": figure %u, owner %u, at %u,%u, direction %u, island %s\n", s.name.c_str(), s.figure,
-                    s.owner, s.x, s.y, s.direction, s.island == 0xFF ? "-" : std::to_string(s.island).c_str());
+        std::printf("ship \"%s\": figure %u, owner %u, at %u,%u, direction %u, island %s\n",
+                    core::cp1252_to_utf8(s.name).c_str(), s.figure, s.owner, s.x, s.y, s.direction,
+                    s.island == 0xFF ? "-" : std::to_string(s.island).c_str());
     }
     return 0;
 }
