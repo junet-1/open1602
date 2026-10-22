@@ -25,7 +25,7 @@ inline void set_banner_graphic(ui::Panel& panel, std::int32_t id, const render::
     const render::BannerArtSprite s = render::banner_art(art, banner);
     std::optional<ui::ColourTint> tint;
     if (s.tint) {
-        tint = ui::ColourTint{*s.tint, art.stride, art.variants, art.base};
+        tint = ui::ColourTint{*s.tint, art.stride, art.variants, art.base, s.pattern};
     }
     panel.set_graphic(id, s.gfx, press_offset, tint);
 }

@@ -80,7 +80,7 @@ sim::BannerId BannerTable::add(Banner banner) {
 }
 
 sim::BannerId BannerTable::add_color(std::string id, assets::Rgba color) {
-    // FNV-1a of the id: a stable "random" horse per banner (not std::hash, which differs between
+    // FNV-1a of the id: a stable "random" horse and coat of arms per banner (not std::hash, which differs between
     // standard libraries and would break multiplayer games across platforms).
     std::uint32_t hash = 2166136261U;
     for (const char c : id) {
@@ -88,6 +88,7 @@ sim::BannerId BannerTable::add_color(std::string id, assets::Rgba color) {
     }
     Banner b{std::move(id), color, FlagStyle::Tinted, 0, 8, std::nullopt};
     b.unit_mount = static_cast<std::uint8_t>(hash % 4U);
+    b.art_pattern = static_cast<std::uint8_t>((hash >> 8U) % 4U);
     return add(std::move(b));
 }
 
@@ -102,9 +103,10 @@ BannerArtSprite banner_art(const BannerArt& art, const Banner* banner) {
             return {art.first + *banner->unit_variant * art.stride, std::nullopt};
         }
     }
-    BannerArtSprite s{art.first + art.base * art.stride, std::nullopt};
+    BannerArtSprite s{art.first + art.base * art.stride, std::nullopt, art.base};
     if (banner != nullptr && art.base < art.variants) {
         s.tint = banner->color;
+        s.pattern = banner->art_pattern < art.variants ? banner->art_pattern : art.base;
     }
     return s;
 }

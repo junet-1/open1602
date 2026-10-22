@@ -87,7 +87,7 @@ private:
     std::array<std::optional<assets::SpriteSheet>, 5> m_sheets;
     std::array<std::optional<ui::Font>, 3> m_fonts;
     std::array<ui::Recolour, ui::kTextColours> m_colours{};
-    /// Block, gfx, mode, colour, tint (0: none, else 0x01RRGGBB), its stride, variants * 256 + base.
+    /// Block, gfx, mode, colour, tint (0: none, else 0x01RRGGBB), its stride, variants, pattern, base (a byte each).
     using SpriteKey =
         std::tuple<std::int32_t, std::int32_t, int, std::int32_t, std::uint32_t, std::int32_t, std::uint32_t>;
     std::map<SpriteKey, Texture> m_sprites;

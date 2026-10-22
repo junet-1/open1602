@@ -2,6 +2,7 @@
 // Interface art in any player colour (render/banner.hpp BannerArt, render/variant_tint.hpp): the
 // drawn variant for the original's colours, the white one recoloured for every other banner.
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <vector>
@@ -45,21 +46,33 @@ TEST_CASE("banner art: the original colours show their drawn variant, the others
     banners.add_more_players();
     render::BannerArt art = render::BannerArt::at(548);
     for (sim::BannerId b = 0; b < 4; ++b) {
-        CHECK(render::banner_art(art, banners.get(b)) == (render::BannerArtSprite{548 + b, std::nullopt}));
+        CHECK(render::banner_art(art, banners.get(b)) == (render::BannerArtSprite{548 + b, std::nullopt, 3}));
     }
     // Players five on, and natives and the trader (no art of their own): white, in their colour.
     for (const sim::BannerId b :
          {sim::BannerId{5}, sim::BannerId{6}, sim::kFirstExtraBanner, static_cast<sim::BannerId>(banners.size() - 1)}) {
         const render::Banner* banner = banners.get(b);
         REQUIRE(banner != nullptr);
-        CHECK(render::banner_art(art, banner) == (render::BannerArtSprite{551, banner->color}));
+        CHECK(render::banner_art(art, banner) == (render::BannerArtSprite{551, banner->color, banner->art_pattern}));
     }
+    // Natives and the trader keep the white plain field; the further players get the patterns of
+    // the four original coats of arms, picked from their ids: not all the same, and the same on
+    // every machine.
+    CHECK(banners.get(5)->art_pattern == 3);
+    std::array<int, 4> patterns{};
+    for (std::size_t b = sim::kFirstExtraBanner; b < banners.size(); ++b) {
+        const std::uint8_t p = banners.get(static_cast<sim::BannerId>(b))->art_pattern;
+        REQUIRE(p < 4);
+        ++patterns[p];
+    }
+    CHECK(std::count(patterns.begin(), patterns.end(), 0) <= 1);
+    CHECK(banners.get(sim::kFirstExtraBanner)->art_pattern == 2);  // orange: FNV-1a of "open1602:orange"
     // No banner: the white art as drawn.
-    CHECK(render::banner_art(art, nullptr) == (render::BannerArtSprite{551, std::nullopt}));
+    CHECK(render::banner_art(art, nullptr) == (render::BannerArtSprite{551, std::nullopt, 3}));
 
     // A sprite of one banner's own: the pirates' skull among the military message icons.
     art.own = {{"anno1602:pirates", 4}};
-    CHECK(render::banner_art(art, banners.get(4)) == (render::BannerArtSprite{552, std::nullopt}));
+    CHECK(render::banner_art(art, banners.get(4)) == (render::BannerArtSprite{552, std::nullopt, 3}));
     // Variants further apart.
     render::BannerArt spread = render::BannerArt::at(100);
     spread.stride = 12;
@@ -90,7 +103,7 @@ TEST_CASE("banner art: tinting takes the colour where all variants differ and th
         render::RgbaView{v[3].data(), w, h}};
     const assets::Rgba green{0, 230, 90, 255};
     std::vector<std::uint8_t> out;
-    render::tint_variant(views, 3, green, out);
+    render::tint_variant(views, 3, 3, green, out);
     REQUIRE(out.size() == std::size_t{w} * h * 4);
     const assets::Rgba cloth = render::tint_shade(101, green);  // 0.48 * 200 + 5
     CHECK(at(out, w, 4, 3) == cloth);
@@ -98,6 +111,22 @@ TEST_CASE("banner art: tinting takes the colour where all variants differ and th
     CHECK(at(out, w, 1, 1) == motif);                            // the same in all variants
     CHECK(at(out, w, 5, 0) == (assets::Rgba{30, 30, 30, 255}));  // outline
     CHECK(at(out, w, 5, 5) == grey);                             // not all variants differ
+
+    // With the pattern of the yellow variant: dark stripes (columns 3 and 4) on its bright field,
+    // scaled to the white one's brightness; the cloth stays where the white variant has it.
+    for (std::uint32_t y = 0; y < h; ++y) {
+        for (const std::uint32_t x : {3U, 4U}) {
+            put(v[2], w, x, y, {40, 40, 0, 255});
+        }
+    }
+    render::tint_variant(views, 3, 2, green, out);
+    const assets::Rgba field = at(out, w, 0, 4);
+    const assets::Rgba stripe = at(out, w, 3, 4);
+    CHECK(field.g > cloth.g);  // the field is brighter than the white variant's average
+    CHECK(stripe.g < cloth.g / 2);
+    CHECK(stripe.r == 0);  // still green: tinted, not the yellow variant's colour
+    CHECK(at(out, w, 1, 1) == motif);
+    CHECK(at(out, w, 5, 0) == (assets::Rgba{30, 30, 30, 255}));
 
     // A pixel of cloth alone (fewer than three cloth neighbours) is dithering, not cloth.
     std::array<std::vector<std::uint8_t>, 2> lone{solid(w, h, motif), solid(w, h, motif)};
@@ -107,14 +136,14 @@ TEST_CASE("banner art: tinting takes the colour where all variants differ and th
     put(lone[1], w, 4, 3, grey);
     const std::array<render::RgbaView, 2> lone_views{render::RgbaView{lone[0].data(), w, h},
                                                      render::RgbaView{lone[1].data(), w, h}};
-    render::tint_variant(lone_views, 1, green, out);
+    render::tint_variant(lone_views, 1, 1, green, out);
     CHECK(at(out, w, 3, 3) == grey);
 
     // Variants of another size are left out; with none left the base is as drawn.
     const std::vector<std::uint8_t> small = solid(2, 2, {0, 0, 0, 255});
     const std::array<render::RgbaView, 2> other_size{render::RgbaView{small.data(), 2, 2}, views[3]};
-    render::tint_variant(other_size, 1, green, out);
+    render::tint_variant(other_size, 1, 0, green, out);
     CHECK(out == v[3]);
-    render::tint_variant(other_size, 5, green, out);
+    render::tint_variant(other_size, 5, 5, green, out);
     CHECK(out.empty());
 }

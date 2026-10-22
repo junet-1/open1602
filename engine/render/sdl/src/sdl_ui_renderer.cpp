@@ -145,22 +145,23 @@ std::vector<std::uint8_t> SdlUiRenderer::tinted(const assets::SpriteSheet& sheet
         }
     }
     std::vector<std::uint8_t> out;
-    tint_variant(views, tint.base, tint.color, out);
+    tint_variant(views, tint.base, tint.pattern, tint.color, out);
     return out;
 }
 
 SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gfx, int mode, std::int32_t colour,
                                              const std::optional<ui::ColourTint>& tint) {
     const bool tinting = mode == kModeSprite && tint && tint->base < tint->variants;
-    const SpriteKey key{block,
-                        gfx,
-                        mode,
-                        mode == kModeSprite ? 0 : colour,
-                        tinting ? 0x01000000U | (std::uint32_t{tint->color.r} << 16U) |
-                                      (std::uint32_t{tint->color.g} << 8U) | tint->color.b
-                                : 0U,
-                        tinting ? tint->stride : 0,
-                        tinting ? std::uint32_t{tint->variants} * 256U + tint->base : 0U};
+    const SpriteKey key{
+        block,
+        gfx,
+        mode,
+        mode == kModeSprite ? 0 : colour,
+        tinting
+            ? 0x01000000U | (std::uint32_t{tint->color.r} << 16U) | (std::uint32_t{tint->color.g} << 8U) | tint->color.b
+            : 0U,
+        tinting ? tint->stride : 0,
+        tinting ? (std::uint32_t{tint->variants} << 16U) | (std::uint32_t{tint->pattern} << 8U) | tint->base : 0U};
     if (const auto it = m_sprites.find(key); it != m_sprites.end()) {
         return it->second;
     }

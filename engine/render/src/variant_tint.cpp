@@ -16,7 +16,7 @@ double luminance(const std::uint8_t* p) noexcept {
 
 }  // namespace
 
-void tint_variant(std::span<const RgbaView> variants, std::size_t base, assets::Rgba color,
+void tint_variant(std::span<const RgbaView> variants, std::size_t base, std::size_t pattern, assets::Rgba color,
                   std::vector<std::uint8_t>& out) {
     out.clear();
     if (base >= variants.size() || variants[base].pixels == nullptr) {
@@ -49,6 +49,7 @@ void tint_variant(std::span<const RgbaView> variants, std::size_t base, assets::
             return q[3] != 0 && (q[0] != p[0] || q[1] != p[1] || q[2] != p[2]);
         });
     }
+    std::vector<std::size_t> cloth;
     for (std::size_t y = 0; y < h; ++y) {
         for (std::size_t x = 0; x < w; ++x) {
             const std::size_t i = y * w + x;
@@ -61,16 +62,33 @@ void tint_variant(std::span<const RgbaView> variants, std::size_t base, assets::
                     neighbours += (ny != y || nx != x) ? candidate[ny * w + nx] : 0;
                 }
             }
-            if (neighbours < kVariantTintNeighbours) {
-                continue;
+            if (neighbours >= kVariantTintNeighbours) {
+                cloth.push_back(i);
             }
-            const auto shade =
-                static_cast<std::uint8_t>(std::clamp(std::lround(0.48 * luminance(b.pixels + i * 4) + 5.0), 0L, 255L));
-            const assets::Rgba c = tint_shade(shade, color);
-            out[i * 4] = c.r;
-            out[i * 4 + 1] = c.g;
-            out[i * 4 + 2] = c.b;
         }
+    }
+    // The shading: the pattern's luminance where it has the pixel, scaled to the base's brightness.
+    const std::uint8_t* p = pattern < variants.size() && pattern != base && variants[pattern].pixels != nullptr &&
+                                    variants[pattern].width == b.width && variants[pattern].height == b.height
+                                ? variants[pattern].pixels
+                                : b.pixels;
+    const auto shading = [&](std::size_t i) {
+        return p[i * 4 + 3] != 0 ? luminance(p + i * 4) : luminance(b.pixels + i * 4);
+    };
+    double base_sum = 0.0;
+    double pattern_sum = 0.0;
+    for (const std::size_t i : cloth) {
+        base_sum += luminance(b.pixels + i * 4);
+        pattern_sum += shading(i);
+    }
+    const double scale = pattern_sum > 0.0 ? base_sum / pattern_sum : 1.0;
+    for (const std::size_t i : cloth) {
+        const auto shade =
+            static_cast<std::uint8_t>(std::clamp(std::lround(0.48 * shading(i) * scale + 5.0), 0L, 255L));
+        const assets::Rgba c = tint_shade(shade, color);
+        out[i * 4] = c.r;
+        out[i * 4 + 1] = c.g;
+        out[i * 4 + 2] = c.b;
     }
 }
 

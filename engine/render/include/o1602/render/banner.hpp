@@ -41,12 +41,17 @@ struct Banner {
     /// UnitTintColor::mount) the riders get. add_color picks it from the banner's id, so it stays the same in
     /// every session and on every computer of a multiplayer game.
     std::uint8_t unit_mount = 3;
+    /// Without unit_variant: which of the four original coats of arms (0 red's cross, 1 blue's
+    /// quarters, 2 yellow's stripes, 3 white's plain field) its interface art takes the pattern
+    /// from (BannerArt). add_color picks it from the banner's id like unit_mount.
+    std::uint8_t art_pattern = 3;
 };
 
 /// Interface art the original draws once per player colour (coats of arms, message icons, the
 /// cities' list icons): variant v is sprite `first + v * stride`. A banner with a drawn variant
 /// (Banner::unit_variant, the same red, blue, yellow, white order) or a sprite of its own shows
-/// that; every other banner shows variant `base` recoloured in its colour (variant_tint.hpp).
+/// that; every other banner shows variant `base` recoloured in its colour, with the pattern of
+/// variant Banner::art_pattern (variant_tint.hpp).
 struct BannerArt {
     std::int32_t first = 0;
     std::int32_t stride = 1;
@@ -68,6 +73,7 @@ struct BannerArt {
 struct BannerArtSprite {
     std::int32_t gfx = 0;
     std::optional<assets::Rgba> tint;
+    std::uint8_t pattern = 3;  ///< with `tint`: the variant whose pattern the cloth gets
     friend bool operator==(const BannerArtSprite&, const BannerArtSprite&) = default;
 };
 
@@ -113,7 +119,8 @@ public:
     /// the eight colours after the original's four, those that stand out best on the minimap's
     /// land and are furthest from the natives' brown first.
     void add_more_players();
-    /// A banner with the generic flag in `color`; its riders get a horse picked from `id`.
+    /// A banner with the generic flag in `color`; its riders get a horse and its interface art a coat
+    /// of arms pattern picked from `id`.
     sim::BannerId add_color(std::string id, assets::Rgba color);
 
     [[nodiscard]] const std::optional<FlagTemplate>& flag_template() const noexcept { return m_template; }

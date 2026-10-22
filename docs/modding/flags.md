@@ -57,14 +57,20 @@ coats of arms in the info panel, the diplomacy window, the ship and city lists, 
 pirates' order and the end screen, the small coats of arms of the city list, and the message icons
 in the status bar. Banners with one of these colours show the drawn picture
 (`render::Banner::unit_variant`); every other banner (players five to twelve, mods' banners) gets
-the white picture recoloured at runtime.
+the white picture recoloured at runtime, with the pattern of one of the four original coats of
+arms (`render::Banner::art_pattern`: red's cross, blue's quarters, yellow's stripes or white's
+plain field). `add_color` picks the pattern from the banner's id (FNV-1a, like the riders' horse),
+so the further players do not all look alike and every computer of a multiplayer game shows the
+same.
 
 Which pixels take the colour is found by comparing the four variants: a pixel is cloth where all
 other variants have another colour, the white one is grey (channels at most 47 apart) and not
 darker than luminance 64, and at least three of its eight neighbours are cloth too (the variants'
 hand-dithered shadows differ in single pixels). Cloth gets the same shading as the flag template
-(0.48 · brightness + 5), so a banner's coat of arms and its flag have the same colour; the motif of
-a message icon (lips, sword, scroll, exclamation mark), outlines and the selection frame stay as
+(0.48 · brightness + 5), so a banner's coat of arms and its flag have the same colour. The
+brightness of each cloth pixel comes from the pattern variant, scaled so that its cloth is as
+bright on average as the white one's (the yellow arms' black stripes stay dark). The motif of a
+message icon (lips, sword, scroll, exclamation mark), outlines and the selection frame stay as
 drawn.
 
 A family of pictures is described by `render::BannerArt`: its first sprite, the distance between the
