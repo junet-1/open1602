@@ -154,6 +154,7 @@ o1602-tool smk        VideoSmk/58.smk --png out/     # decode a Smacker video, f
 o1602-tool state      SAVEGAME/game00.gam            # players, cities, warehouses, ships of a game
 o1602-tool new-world  world.gam --world 900x600      # an own world as a savegame for the original
 o1602-tool export     game.o1602 game.gam            # export a game for the original
+o1602-tool bench      --players 8 --minutes 600      # run a game headless and measure it (docs/performance.md)
 ```
 
 Without arguments `o1602-tool` lists every command with its options.

@@ -162,4 +162,9 @@ if(TARGET o1602-tool)
         STDERR "^error: [^\\n]*does not look like an Anno 1602 installation \\(missing haeuser.cod\\)\\n$"
         ARGS new-world "${_files}/new.gam")
     set_tests_properties(tool:new-world-without-data PROPERTIES ENVIRONMENT "ANNO1602_DIR=${_files}/no-installation")
+    o1602_tool_test(bench-without-data 1
+        STDERR "^error: [^\\n]*does not look like an Anno 1602 installation \\(missing haeuser.cod\\)\\n$"
+        ARGS bench --minutes 1)
+    set_tests_properties(tool:bench-without-data PROPERTIES ENVIRONMENT "ANNO1602_DIR=${_files}/no-installation")
+    o1602_tool_test(bench-two-files 2 STDERR "^usage:\\n" ARGS bench a.gam b.gam)
 endif()

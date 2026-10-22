@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/save_game.hpp"
@@ -553,14 +554,26 @@ std::vector<std::string_view> Simulation::tick_step_names() {
 }
 
 void Simulation::tick() {
+    tick_timed({});
+}
+
+void Simulation::tick_timed(std::span<std::uint64_t> step_ns) {
     apply_commands();
     if (m_paused) {
         return;  // paused by a command of this tick: the game time stands still
     }
     m_time_ms += kTickMs;
     m_world->set_time_ms(m_time_ms);
-    for (const TickStep& step : tick_steps()) {
-        (this->*step.run)();
+    const std::span<const TickStep> steps = tick_steps();
+    for (std::size_t i = 0; i < steps.size(); ++i) {
+        if (i < step_ns.size()) {
+            const auto start = std::chrono::steady_clock::now();
+            (this->*steps[i].run)();
+            step_ns[i] += static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count());
+        } else {
+            (this->*steps[i].run)();
+        }
     }
     trim_events();
     if (m_tick_observer) {

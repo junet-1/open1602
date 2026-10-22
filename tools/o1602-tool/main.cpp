@@ -50,6 +50,10 @@ int usage() {
         "                       [--island-count C] [--villages C] [--volcano-islands C] [--island-sizes S]\n"
         "                       [--together]   (an own world as a new game; C none|few|normal|many,\n"
         "                                       S small|mixed|large; written as a savegame)\n"
+        "  o1602-tool bench     [<file.gam|.o1602>] [--players N] [--world WxH] [--seed N] [--level 0-3]\n"
+        "                       [--minutes M] [--period M] [--out file.o1602]\n"
+        "                       (runs a game headless, every player a computer; tick times per period and step,\n"
+        "                        state hash, savegame, peak memory; default: new own world, 8 players, 600 min)\n"
         "  o1602-tool smk        <file.smk> [--png DIR] [--every N] [--wav TRACK OUT.wav]\n"
         "                        (Smacker video: header, decode all frames; frames as PNG, a track as WAVE)\n"
         "  o1602-tool state      <file.gam|.szs> [--wares] [--production]\n"
@@ -127,6 +131,9 @@ int main(int argc, char** argv) {
     }
     if (command == "new-world") {
         return cmd_new_world(args);
+    }
+    if (command == "bench") {
+        return cmd_bench(args);
     }
     if (command == "export") {
         return cmd_export(args);
