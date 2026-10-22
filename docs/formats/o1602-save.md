@@ -51,6 +51,7 @@ see [o1602-chunk.md](o1602-chunk.md) for the rules.
 | `RULE` | settings (`sim::Rules`) as pairs (u16 key, u32 value); unknown keys are skipped |
 | `WRLD` | game time, city name counter, difficulty and settings word, drought date and seed, random generators, clocks of the houses and of growth, next disaster number |
 | `WRL2` | further settings of the world: interval between two pirate ships |
+| `TUTR` | one byte, 1: the game is the tutorial (`TIMERS` +0xA5, [ai.md](../re/ai.md#tutorial)); written only then, optional, so a reader that does not know it loads the game as an ordinary one |
 | `ISLE` | per island: deer spots, drought, craters, deposits, fertility (version 2: 16-bit coordinates, see [o1602-chunk.md](o1602-chunk.md#section-versions)) |
 | `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `ANIM` `DISA` `VOLC` | players, cities, production list with free slots, houses, growth, shipyards and castles, animals, fires and plagues, volcanoes with lava in flight |
 | `TILE` | not in the own savegame (`MAPW` holds every tile); only in the chunk of an exported `.GAM` |
@@ -65,7 +66,7 @@ see [o1602-chunk.md](o1602-chunk.md) for the rules.
 | `SIMU` | clocks of the simulation, all active figures, the state of the computer opponents, (from state version 5) the names for new cities and ships, and (from state version 6) the game speed and whether the game is paused |
 | `ORIG` | the file of the original the game comes from (savegame, scenario or the template of a new game), as chunks without the island tiles (`INSELHAUS`), about 12 KB packed. Only for the export as `.GAM`: it takes from it the bytes that Open1602 does not track, exactly as for a game loaded directly from the file. If the section is missing, the export writes defaults like a new game |
 
-The writer emits the sections in this order: `META`, `MAPW`, `RULE`, `WRLD`, `WRL2`, `ISLE`, `PLAY`,
+The writer emits the sections in this order: `META`, `MAPW`, `RULE`, `WRLD`, `WRL2`, `TUTR`, `ISLE`, `PLAY`,
 `PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `ANIM`, `DISA`, `VOLC`, `FLEE`,
 `EPOC`, `ARMY`, `DIPL`, `XPLR`, `QUEU`, `STNC`, `ORIG` (only for a game that came from a file of the
 original) and `SIMU` (`engine/sim/src/save/sections.cpp`, `encode_sections`). `SHIP` and `SOLD`,
