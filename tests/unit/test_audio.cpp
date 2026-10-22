@@ -375,3 +375,41 @@ TEST_CASE("audio: music by name, battle music near shots, back after 25 s with a
     music.update(27'000, 4000);
     CHECK(music.playing() == "b Song");
 }
+
+TEST_CASE("audio: scenery is heard no farther than in the original's widest view") {
+    // Up to the original's widest view the whole view hears, unchanged.
+    const audio::SceneryReach close = audio::scenery_reach(1024.0, 768.0);
+    CHECK(close.x == 1.0F);
+    CHECK(close.y == 1.0F);
+    const audio::SceneryReach widest = audio::scenery_reach(audio::kWidestViewWidth, audio::kWidestViewHeight);
+    CHECK(widest.x == 1.0F);
+    CHECK(widest.y == 1.0F);
+    const auto same = audio::scenery_place(close, 0.5F, -0.25F);
+    REQUIRE(same);
+    CHECK(same->first == 0.5F);
+    CHECK(same->second == -0.25F);
+    CHECK(!audio::scenery_place(close, 1.0F, 0.0F));
+
+    // Zoomed out to four times the original's widest view (the free zoom's 0.2x on a large
+    // screen): only the middle quarter hears, a sixteenth of the area, and as loud as there.
+    const audio::SceneryReach far = audio::scenery_reach(4 * audio::kWidestViewWidth, 4 * audio::kWidestViewHeight);
+    CHECK(std::fabs(far.x - 0.25F) < 1e-6F);
+    CHECK(std::fabs(far.y - 0.25F) < 1e-6F);
+    CHECK(!audio::scenery_place(far, 0.3F, 0.0F));
+    CHECK(!audio::scenery_place(far, 0.0F, -0.26F));
+    const auto edge = audio::scenery_place(far, 0.2F, -0.1F);
+    REQUIRE(edge);
+    CHECK(std::fabs(edge->first - 0.8F) < 1e-5F);
+    CHECK(std::fabs(edge->second + 0.4F) < 1e-5F);
+    // Placed there it pans and softens like the same spot of the original's widest view.
+    const auto heard = audio::Effects::placement(edge->first, edge->second);
+    const auto original = audio::Effects::placement(0.8F, -0.4F);
+    REQUIRE(heard);
+    REQUIRE(original);
+    CHECK(std::fabs(heard->first - original->first) < 1e-5F);
+
+    // A wide but short view: only the width is cut.
+    const audio::SceneryReach wide = audio::scenery_reach(2 * audio::kWidestViewWidth, 1000.0);
+    CHECK(std::fabs(wide.x - 0.5F) < 1e-6F);
+    CHECK(wide.y == 1.0F);
+}
