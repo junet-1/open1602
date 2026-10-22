@@ -1221,7 +1221,8 @@ void Engine::pirate_step(AiPlayer& p) {
     if (ships.empty()) {
         return;
     }
-    if (own_city_count(p.player) == 0) {
+    // A nest, and with Rules::pirate_nests one for every four players (the original founds one).
+    if (own_city_count(p.player) < pirate_nests(m_world, m_sim.rules())) {
         if (!p.settle.active && p.stack.empty() && now_ms() - p.settle.last_ms > 36'000) {
             free_colony_cargo(p, *ships.front(), false);
             p.settle.ship = ships.front()->id;

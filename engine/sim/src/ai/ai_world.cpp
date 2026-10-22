@@ -295,6 +295,11 @@ std::uint32_t Engine::island_size(std::uint16_t island) const {
     return area <= 900 ? 0U : area <= 1600 ? 1U : area <= 2600 ? 2U : area <= 4200 ? 3U : 4U;
 }
 
+std::uint32_t Engine::island_region(std::uint16_t island, std::uint32_t nests) const {
+    const WorldIsland& i = m_world.islands()[island];
+    return pirate_region(m_world, i.x + i.map.width() / 2, i.y + i.map.height() / 2, nests);
+}
+
 void Engine::add_goods(City& c, std::uint8_t w, std::uint32_t amount) {
     c.ensure_ware(w);
     const std::uint32_t room = c.capacity > c.goods[w] ? c.capacity - c.goods[w] : 0;

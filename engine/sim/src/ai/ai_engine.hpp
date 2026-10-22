@@ -212,6 +212,8 @@ private:
     [[nodiscard]] bool classic() const;
     [[nodiscard]] bool is_settler(PlayerId owner) const;
     [[nodiscard]] std::uint32_t island_size(std::uint16_t island) const;
+    /// The part of the map an island's middle lies in when the pirates aim for `nests` nests.
+    [[nodiscard]] std::uint32_t island_region(std::uint16_t island, std::uint32_t nests) const;
     /// Goods into or out of a city without a trade (building costs, subsidies).
     void add_goods(City& c, std::uint8_t ware, std::uint32_t amount);
     std::uint32_t remove_goods(City& c, std::uint8_t ware, std::uint32_t amount);

@@ -34,6 +34,15 @@ namespace o1602::sim {
 /// Whether pirates come in this game (settings bit 0: no pirates; Rules::pirates can override it).
 [[nodiscard]] bool pirates_enabled(const World& world, const Rules& rules) noexcept;
 
+/// Nests the pirates aim for (Rules::pirate_nests): one, or one for every four human and computer
+/// players begun. Each nest brings the original's ships, so the fleet grows with them.
+[[nodiscard]] std::uint32_t pirate_nests(const World& world, const Rules& rules) noexcept;
+
+/// The part of the map a world tile belongs to when the pirates aim for `nests` nests: as many
+/// strips across the longer side of the map, numbered from its top or left edge.
+[[nodiscard]] std::uint32_t pirate_region(const World& world, std::uint32_t x, std::uint32_t y,
+                                          std::uint32_t nests) noexcept;
+
 /// Room of one hold of a ship (0x00446A60).
 inline constexpr std::uint32_t kHoldCapacity = 50 * 32;
 
@@ -332,6 +341,8 @@ private:
     void pirates_step();
     void pirate_nest_sales(City& nest);
     void pirate_choose(Ship& ship);
+    /// The base a pirate ship sails to: one of `bases` (not empty).
+    std::size_t pirate_base_for(const Ship& ship, const std::vector<std::size_t>& bases);
     bool plunder(Ship& pirate, Ship& victim);
 
     // Free trader (trader.cpp)
