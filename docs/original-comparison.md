@@ -31,8 +31,8 @@ Status 2026-10-22. What is still open is also listed in [status.md](status.md), 
 | 1 Pirates | fixed in #58: the surrender events go out loot or not |
 | 2 Tutorial | fixed in #58: the computers of the tutorial stay idle (`TIMERS` +0xA5, savegame section `TUTR`); the tutorial windows and speech are still missing |
 | 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships, not yet checked again in a long run; the "classic computer" setting is open |
-| 4 Rendering | open |
-| 7 Disasters | open |
+| 4 Rendering | not a difference: Open1602 was in build mode in that screenshot, which dims everything outside the own territory |
+| 7 Disasters | not a bug: the long fires of the original come from S-050 (a burning house catches fire again) and S-053 (the fire brigade also goes out for the plague), which Open1602 fixes on purpose |
 | 8, 9 | the notes are updated (#56, #12 and #13 of `open1602-re`) |
 | Other observations | the tool prints names as UTF-8 (#56); the driver `tools/original/original_wine.py` is not merged yet |
 

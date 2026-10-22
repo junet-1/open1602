@@ -111,8 +111,8 @@ are listed in 2.1.
 |---|---|---|
 | Computers grow on in long games where the original's stall (up to 30 % more inhabitants at two hours, clearly more after three; second towns earlier on "hard"), mostly because of the fixes S-097 to S-099 | open: keep the fixes, offer the original's behaviour as a "classic computer" setting in `Rules` | [ai.md](re/ai.md); comparison section 3 |
 | No warships built by the computers in six hours (the original's after about 100 minutes) | fixed in #58 (a shipyard when they want ships); not yet checked again in a long run | [ai.md](re/ai.md); comparison section 3 |
-| Fires in a computer's large town end within three epochs in Open1602; the original's burned their full 25 epochs, again and again | open: check the reach of the fire brigade and where the computers build fire stations and doctors | [disasters.md](re/disasters.md); comparison section 7 |
-| Rotated views: Open1602 darkens parts of a discovered island in view with sharp diagonal edges, and the picture is somewhat darker overall | open | [rendering.md](re/rendering.md); comparison section 4 |
+| Fires in a computer's large town end within three epochs in Open1602; the original's burned their full 25 epochs, again and again | not a bug: the original's fires last because a burning house catches fire again and its count starts over (S-050), and its fire brigade also sets out for the plague and comes back empty (S-053; the town had eight plagues at the time). Open1602 fixes both on purpose | [disasters.md](re/disasters.md); comparison section 7 |
+| Rotated views: Open1602 darkened parts of the map with sharp diagonal edges | not a difference: Open1602 was in build mode in that screenshot, which dims everything outside the own territory (as asked for on 2026-10-18); outside build mode nothing is dimmed, as in the original | [rendering.md](re/rendering.md); comparison section 4 |
 | The top bar showed the goods of the town under the camera where the original showed only the gold | open: check whether the mouse was over the town in the original | [ui.md](re/ui.md); comparison section 4 |
 
 ## 2. Open1602 extensions
