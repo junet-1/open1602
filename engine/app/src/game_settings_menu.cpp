@@ -28,7 +28,7 @@ constexpr std::int32_t kBottomY = 690;
 
 constexpr std::int32_t kTop = 84;
 constexpr std::int32_t kGap = 8;
-constexpr std::int32_t kRowH = 40;
+constexpr std::int32_t kRowH = 36;
 constexpr std::int32_t kLabelW = 236;
 constexpr std::int32_t kValueW = 196;
 

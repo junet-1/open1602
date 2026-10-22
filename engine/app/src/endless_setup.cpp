@@ -33,6 +33,8 @@ constexpr std::uint8_t kFewestPlayers = 2;
 constexpr auto kMostPlayers = static_cast<std::uint8_t>(sim::kMaxPlayers);  // as in multiplayer
 constexpr std::array<Amount, 3> kIslandAmounts = {Amount::Few, Amount::Normal, Amount::Many};
 constexpr std::array<Amount, 4> kAmounts = {Amount::None, Amount::Few, Amount::Normal, Amount::Many};
+/// Islands with gold: 0 by the level and the world's size, then fixed numbers.
+constexpr std::array<std::uint32_t, 12> kGoldIslands = {0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20};
 
 /// The index of the value nearest to `v` (0 counts as the largest: unlimited).
 template <std::size_t N>
@@ -145,7 +147,8 @@ bool operator==(const EndlessSetup& a, const EndlessSetup& b) noexcept {
     const sim::WorldSettings& y = b.world;
     return a.rules == b.rules && a.own_world == b.own_world && a.auto_size == b.auto_size && x.width == y.width &&
            x.height == y.height && x.players == y.players && x.islands == y.islands && x.sizes == y.sizes &&
-           x.natives == y.natives && x.volcanoes == y.volcanoes && x.starts == y.starts;
+           x.natives == y.natives && x.volcanoes == y.volcanoes && x.gold_islands == y.gold_islands &&
+           x.starts == y.starts;
 }
 
 std::size_t setup_choices(SetupItem item) noexcept {
@@ -173,6 +176,8 @@ std::size_t setup_choices(SetupItem item) noexcept {
         case SetupItem::Villages:
         case SetupItem::VolcanoIslands:
             return kAmounts.size();
+        case SetupItem::GoldIslands:
+            return kGoldIslands.size();
         case SetupItem::TraderPrices:
         case SetupItem::Map:
         case SetupItem::Starts:
@@ -236,6 +241,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return index_of(kAmounts, w.natives);
         case SetupItem::VolcanoIslands:
             return index_of(kAmounts, w.volcanoes);
+        case SetupItem::GoldIslands:
+            return nearest(kGoldIslands, w.gold_islands);
         case SetupItem::Starts:
             return w.starts == Starts::Together ? 1 : 0;
         case SetupItem::Resources:
@@ -308,6 +315,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
         case SetupItem::VolcanoIslands:
             w.volcanoes = kAmounts[choice];
             break;
+        case SetupItem::GoldIslands:
+            w.gold_islands = static_cast<std::uint8_t>(kGoldIslands[choice]);
+            break;
         case SetupItem::Starts:
             w.starts = choice == 1 ? Starts::Together : Starts::Spread;
             break;
@@ -337,6 +347,7 @@ bool setup_item_used(const EndlessSetup& setup, SetupItem item) noexcept {
         case SetupItem::IslandSizes:
         case SetupItem::Villages:
         case SetupItem::VolcanoIslands:
+        case SetupItem::GoldIslands:
         case SetupItem::Starts:
             return setup.own_world;
         default:
@@ -405,12 +416,15 @@ EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players) {
 }
 
 std::string setup_label(SetupItem item) {
-    static constexpr std::array<std::string_view, kSetupItems> kKeys = {
-        "setup.refund",   "setup.trader",          "setup.ships",     "setup.units",
-        "setup.speed",    "setup.droughts",        "setup.volcanoes", "setup.map",
-        "setup.size",     "setup.players",         "setup.islands",   "setup.island_sizes",
-        "setup.villages", "setup.volcano_islands", "setup.starts",    "setup.resources",
-        "setup.ai"};
+    static constexpr std::array<std::string_view, kSetupItems> kKeys = {"setup.refund",       "setup.trader",
+                                                                        "setup.ships",        "setup.units",
+                                                                        "setup.speed",        "setup.droughts",
+                                                                        "setup.volcanoes",    "setup.map",
+                                                                        "setup.size",         "setup.players",
+                                                                        "setup.islands",      "setup.island_sizes",
+                                                                        "setup.villages",     "setup.volcano_islands",
+                                                                        "setup.gold_islands", "setup.starts",
+                                                                        "setup.resources",    "setup.ai"};
     const auto i = static_cast<std::size_t>(item);
     return i < kKeys.size() ? ui::tr(kKeys[i]) : std::string{};
 }
@@ -466,6 +480,8 @@ std::string setup_value(SetupItem item, std::size_t choice) {
         case SetupItem::Villages:
         case SetupItem::VolcanoIslands:
             return amount_text(kAmounts[choice]);
+        case SetupItem::GoldIslands:
+            return choice == 0 ? ui::tr("setup.gold_islands.auto") : std::to_string(kGoldIslands[choice]);
         case SetupItem::Starts:
             return ui::tr(choice == 1 ? "setup.starts.together" : "setup.starts.spread");
         case SetupItem::Resources:
@@ -555,6 +571,12 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (const auto i = name_index(kAmountNames, value); i && !(key == "islands" && *i == 0)) {
             (key == "islands" ? w.islands : key == "villages" ? w.natives : w.volcanoes) = kAmounts[*i];
         }
+    } else if (key == "gold_islands") {
+        if (value == "auto") {
+            w.gold_islands = 0;
+        } else if (n && *n >= 1 && *n <= sim::WorldSettings::kMaxGoldIslands) {
+            w.gold_islands = static_cast<std::uint8_t>(*n);
+        }
     } else if (key == "island_sizes") {
         if (const auto i = name_index(kSizeNames, value)) {
             w.sizes = static_cast<Sizes>(*i);
@@ -596,6 +618,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("island_sizes", kSizeNames[std::min<std::size_t>(static_cast<std::size_t>(w.sizes), 2)]);
     line("villages", kAmountNames[static_cast<std::size_t>(w.natives)]);
     line("volcano_islands", kAmountNames[static_cast<std::size_t>(w.volcanoes)]);
+    line("gold_islands", w.gold_islands == 0 ? "auto" : std::to_string(w.gold_islands));
     line("starts", kStartNames[w.starts == Starts::Together ? 1 : 0]);
     return out;
 }

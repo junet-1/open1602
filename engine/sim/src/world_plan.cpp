@@ -690,6 +690,10 @@ WorldPlan Planner::finish() {
     plan.ores[0] = ScenarioPlan::Resource{id::kOreMine, scaled(kBigIron[d]), 0};
     plan.ores[1] = ScenarioPlan::Resource{id::kOreMine, scaled(kSmallIron[d]), 1};
     plan.ores[2] = ScenarioPlan::Resource{id::kGoldMine, scaled(kGold[d]), 2};
+    if (m_s.gold_islands != 0) {
+        plan.ores[2].count = m_s.gold_islands;
+        out.gold_islands = m_s.gold_islands;
+    }
     for (std::size_t c = 0; c < kCropBuildings.size(); ++c) {
         plan.crops[c] = ScenarioPlan::Resource{kCropBuildings[c], scaled(kCropCounts[d][c]), 0};
     }

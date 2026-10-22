@@ -28,7 +28,7 @@ enum class SetupScope : std::uint8_t {
 struct EndlessSetup {
     sim::Rules rules = sim::Rules::open1602();
     bool own_world = false;      ///< a world of its own (`world`) instead of the level's map
-    sim::WorldSettings world{};  ///< size, players, islands, villages, volcanoes, starts (seed and level aside)
+    sim::WorldSettings world{};  ///< size, players, islands, villages, volcanoes, gold, starts (seed and level aside)
     /// The size follows the players as in a multiplayer game (sim::settings_for_players): the
     /// original's 500 x 350 for four or fewer, more sea and land for more; `world`'s size is then
     /// not used. The islands follow the area.
@@ -65,6 +65,7 @@ enum class SetupItem : std::uint8_t {
     IslandSizes,
     Villages,
     VolcanoIslands,
+    GoldIslands,
     Starts,
     Resources,
     // Opponents

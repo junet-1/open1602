@@ -882,3 +882,91 @@ TEST_CASE("world generator: an own world gives every start home iron, all crops 
         CHECK(sim::validate(*world).ok());
     }
 }
+
+TEST_CASE("world generator: a fixed number of gold islands, the starts' first") {
+    const auto& fake = full_game();
+    const auto templates = sim::island_templates(fake.game, buildings());
+    REQUIRE(!templates.empty());
+    const auto has_gold = [](const sim::GeneratedIsland& g) {
+        return std::any_of(g.deposits.begin(), g.deposits.end(), [](const auto& d) { return d.ware == kGold; });
+    };
+    for (const std::uint8_t wanted : std::array<std::uint8_t, 4>{1, 2, 4, 7}) {
+        for (std::uint64_t seed = 1; seed <= 4; ++seed) {
+            sim::WorldSettings settings;
+            settings.seed = seed;
+            settings.gold_islands = wanted;
+            std::vector<std::string> warnings;
+            auto plan = sim::plan_world(settings, templates, &warnings);
+            REQUIRE(plan.ok());
+            sim::WorldStart start;
+            start.seed = seed;
+            auto w = sim::generate_islands(scenario(standard_plan()), *plan, fake.game, buildings(), start, &warnings);
+            REQUIRE(w.ok());
+            CHECK(warnings.empty());
+            std::map<std::uint8_t, assets::ScenarioPlan::Island> planned;
+            for (const auto& e : plan->plan.islands) {
+                planned[e.number] = e;
+            }
+            std::size_t gold_islands = 0;
+            for (const auto& g : w->islands) {
+                const auto veins =
+                    std::count_if(g.deposits.begin(), g.deposits.end(), [](const auto& d) { return d.ware == kGold; });
+                CHECK(veins <= 1);  // one vein each
+                gold_islands += veins == 1 ? 1U : 0U;
+            }
+            CHECK(gold_islands == wanted);
+            // As many starts as the number lasts have gold within reach.
+            std::size_t starts_with_gold = 0;
+            for (const sim::StartArea& st : plan->starts) {
+                bool gold = false;
+                for (const auto& g : w->islands) {
+                    const auto& e = planned[g.number];
+                    const std::int64_t dx = std::int64_t{e.x} + side(g.size) / 2 - st.x;
+                    const std::int64_t dy = std::int64_t{e.y} + side(g.size) / 2 - st.y;
+                    const bool near =
+                        dx * dx + dy * dy <= std::int64_t{st.reach} * st.reach || g.number == st.home_island;
+                    gold = gold || (near && has_gold(g));
+                }
+                starts_with_gold += gold ? 1U : 0U;
+            }
+            CHECK(starts_with_gold >= std::min<std::size_t>(wanted, plan->starts.size()));
+            // The same seed, the same world.
+            auto again = sim::generate_islands(scenario(standard_plan()), *plan, fake.game, buildings(), start);
+            REQUIRE(again.ok());
+            CHECK(same_world(*w, *again));
+        }
+    }
+
+    // All ships at one place: the number holds as well.
+    sim::WorldSettings together;
+    together.seed = 5;
+    together.starts = sim::WorldSettings::Starts::Together;
+    together.gold_islands = 5;
+    auto plan = sim::plan_world(together, templates);
+    REQUIRE(plan.ok());
+    auto w = sim::generate_islands(scenario(standard_plan()), *plan, fake.game, buildings(), {});
+    REQUIRE(w.ok());
+    CHECK(std::count_if(w->islands.begin(), w->islands.end(), has_gold) == 5);
+}
+
+TEST_CASE("world generator: more gold islands than free mountains are reported, not invented") {
+    const auto& fake = full_game();
+    const auto templates = sim::island_templates(fake.game, buildings());
+    sim::WorldSettings settings;
+    settings.seed = 2;
+    settings.gold_islands = sim::WorldSettings::kMaxGoldIslands;
+    auto plan = sim::plan_world(settings, templates);
+    REQUIRE(plan.ok());
+    std::vector<std::string> warnings;
+    auto w = sim::generate_islands(scenario(standard_plan()), *plan, fake.game, buildings(), {}, &warnings);
+    REQUIRE(w.ok());
+    CHECK(std::any_of(warnings.begin(), warnings.end(),
+                      [](const std::string& t) { return t.find("gold islands") != std::string::npos; }));
+    std::size_t gold_islands = 0;
+    for (const auto& g : w->islands) {
+        gold_islands +=
+            std::any_of(g.deposits.begin(), g.deposits.end(), [](const auto& d) { return d.ware == kGold; }) ? 1U : 0U;
+    }
+    CHECK(gold_islands > 0);
+    CHECK(gold_islands <= w->islands.size());
+}
