@@ -72,27 +72,6 @@ const assets::BuildingType* type_at(const sim::IslandMap& map, const assets::Bui
     return c.empty() ? nullptr : buildings.by_sprite(c.sprite);
 }
 
-/// Tiles townsfolk are seen on (0x00451590): roads, ground, ruins, squares, bridges, piers; on
-/// building tiles (leaving the house, entering the target) they are hidden.
-bool walker_visible_on(const assets::BuildingType* b) noexcept {
-    if (b == nullptr) {
-        return false;
-    }
-    switch (b->kind) {
-        case 1:
-        case 11:
-        case 12:
-        case 13:
-        case 17:
-        case 18:
-        case 29:
-        case 30:
-            return true;
-        default:
-            return false;
-    }
-}
-
 std::uint32_t inhabitants_from(const sim::City& c, std::size_t first) {
     std::uint32_t n = 0;
     for (std::size_t k = first; k < c.inhabitants.size(); ++k) {

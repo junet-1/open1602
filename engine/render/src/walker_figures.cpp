@@ -13,6 +13,21 @@ std::uint64_t trail_key(sim::Handle h) noexcept {
     return std::uint64_t{h.index} << 32U | h.generation;
 }
 
+/// Figure kinds 8, 9, 0x0A, 0x0B and 0x0F, which 0x0044FA90 draws only where 0x00451590 allows.
+/// Workers, hunters, animals and fishing boats follow their own rules (crop_cut).
+bool hidden_in_buildings(sim::WalkerKind kind) noexcept {
+    switch (kind) {
+        case sim::WalkerKind::Carrier:
+        case sim::WalkerKind::Cart:
+        case sim::WalkerKind::Doctor:
+        case sim::WalkerKind::Firefighter:
+        case sim::WalkerKind::Robber:
+            return true;
+        default:
+            return false;
+    }
+}
+
 }  // namespace
 
 void WalkerFigures::capture(const sim::Logistics& logistics, const sim::World& world) {
@@ -92,6 +107,12 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
         if (w.kind == sim::WalkerKind::Harvester || w.kind == sim::WalkerKind::Hunter ||
             w.kind == sim::WalkerKind::Grazer || w.kind == sim::WalkerKind::Deer) {
             f.crop = crop_cut(world, buildings, f.x, f.y);
+        }
+        // Carriers, carts, doctors, firemen and robbers are drawn only on roads and open ground
+        // (0x00451590): on the tiles of a building they are hidden, so a cart crossing the market
+        // square into a producer next to it is not seen at all.
+        if (hidden_in_buildings(w.kind) && !walker_visible_at(world, buildings, f.x, f.y)) {
+            return;
         }
         f.direction = w.direction;
         f.anim = slot.state.anim;

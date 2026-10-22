@@ -151,6 +151,42 @@ std::uint16_t crop_cut(const sim::World& world, const assets::BuildingTable& bui
     return b->prod_kind == kQuarry ? 0 : kCropHidden;
 }
 
+bool walker_visible_on(const assets::BuildingType* b) noexcept {
+    if (b == nullptr) {
+        return false;
+    }
+    switch (b->kind) {
+        case 1:   // road
+        case 11:  // ground
+        case 12:  // ruin
+        case 13:  // square
+        case 17:  // river corner
+        case 18:  // bridge
+        case 29:  // beach ruin
+        case 30:  // pier
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool walker_visible_at(const sim::World& world, const assets::BuildingTable& buildings, double x, double y) {
+    if (x < 0.0 || y < 0.0) {
+        return false;
+    }
+    const auto wx = static_cast<std::uint32_t>(x);
+    const auto wy = static_cast<std::uint32_t>(y);
+    if (!world.contains(wx, wy)) {
+        return false;
+    }
+    const sim::World::Cell& wc = world.cell(wx, wy);
+    if (wc.island == sim::World::kSea || wc.island >= world.islands().size()) {
+        return false;
+    }
+    const sim::MapCell& cell = world.islands()[wc.island].map.top(wc.local_x, wc.local_y);
+    return walker_visible_on(cell.empty() ? nullptr : buildings.by_sprite(cell.sprite));
+}
+
 void LandFigures::clear() {
     m_instances.clear();
     m_states.clear();

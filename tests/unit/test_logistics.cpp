@@ -7,6 +7,8 @@
 #include "o1602/assets/savegame.hpp"
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
+#include "o1602/render/land_figures.hpp"
+#include "o1602/render/walker_figures.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/simulation.hpp"
@@ -424,6 +426,42 @@ TEST_CASE("logistics: carts respect reservations and warehouse room (S-023, S-02
     town.production(13, 6).stock = 0;
     logistics.handle(needs(town.index(2, 2), sim::kAllWares));
     CHECK(logistics.walkers().size() == 0);
+}
+
+TEST_CASE("logistics: carts are not drawn on the tiles of buildings (0x00451590)") {
+    // Ticks a cart of the market to the weaver and back; returns how many ticks it was drawn.
+    const auto drawn_ticks = [](std::int32_t weaver_x, std::int32_t weaver_y) {
+        Town town;
+        town.place(kMarket, 2, 2);  // 3 x 3, touches the road; the cart starts in its centre (3, 3)
+        town.place(kKontor, 24, 3);
+        town.place(kWeaver, weaver_x, weaver_y);
+        town.finish({{2, 2}, {24, 3}, {weaver_x, weaver_y}});
+        sim::Logistics logistics(town.world, town.buildings, town.figures);
+        town.production(weaver_x, weaver_y).stock = 2 * 32;
+        logistics.handle(needs(town.index(2, 2), sim::kAllWares));
+        REQUIRE(logistics.walkers().size() == 1);
+        render::WalkerFigures figures;
+        std::uint32_t drawn = 0;
+        for (std::uint32_t n = 0; logistics.walkers().size() != 0 && n < 20'000; ++n) {
+            logistics.tick();
+            figures.update(logistics, town.world, town.buildings, town.figures, sim::Logistics::kTickMs);
+            drawn += figures.instances().empty() ? 0U : 1U;
+        }
+        CHECK(town.city().goods[kCloth] == 2 * 32);
+        return drawn;
+    };
+    // A weaver next to the market: the cart crosses the market square into the weaver and back
+    // without ever touching the road, and is never seen (as in the original).
+    CHECK(drawn_ticks(5, 3) == 0);
+    // A weaver down the road: the cart is seen on the road.
+    CHECK(drawn_ticks(8, 4) > 0);
+
+    const auto buildings = make_buildings();
+    CHECK(render::walker_visible_on(buildings.by_id(kRoad)));
+    CHECK(render::walker_visible_on(buildings.by_id(kGround)));
+    CHECK(!render::walker_visible_on(buildings.by_id(kForest)));
+    CHECK(!render::walker_visible_on(buildings.by_id(kMarket)));
+    CHECK(!render::walker_visible_on(nullptr));
 }
 
 TEST_CASE("logistics: the simulation sends carriers when a workshop runs short") {
