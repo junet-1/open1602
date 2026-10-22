@@ -77,10 +77,11 @@ constexpr std::uint32_t kTutorial = tag("TUTR");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
-    kRules,  kWorld,     kIslands,  kTiles,   kPlayers,        kCities,         kProductions, kHouses,      kGrowth,
-    kCosts,  kShips,     kSoldiers, kAnimals, kDisasters,      kVolcanoes,      kSimulation,  kFleet,       kEpochs,
-    kArmy,   kDiplomacy, kExplored, kMap,     kWorld2,         kMeta,           kMissions,    kPlayerState, kCityState,
-    kOrigin, kQueues,    kStances,  kScores,  kMaterialClocks, kPopulationMarks, kTutorial};
+    kRules,           kWorld,       kIslands,   kTiles,     kPlayers,  kCities,    kProductions, kHouses,
+    kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
+    kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
+    kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks,
+    kPopulationMarks, kTutorial};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
