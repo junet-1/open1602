@@ -9,6 +9,22 @@
 
 namespace o1602::app {
 
+/// The modes of the side panel (CTRL.GAD, Hud_SetMode 0x0043B660).
+namespace side_mode {
+inline constexpr std::int32_t kBuild = 30011;
+inline constexpr std::int32_t kMilitary = 30012;
+inline constexpr std::int32_t kInfo = 30013;
+inline constexpr std::int32_t kOptions = 30014;
+}  // namespace side_mode
+
+/// The mode after a left click on the map in `mode` (`selected`: it selected a building or a
+/// unit). The settings give way to the info mode, which shows the window of the selection
+/// (Map_OnLeftUp 0x0040AFF0 handles the settings like the info mode and calls 0x0043B7F0); a
+/// click on nothing keeps them. The build and the military mode stay.
+[[nodiscard]] constexpr std::int32_t mode_after_selecting(std::int32_t mode, bool selected) noexcept {
+    return mode == side_mode::kOptions && selected ? side_mode::kInfo : mode;
+}
+
 /// What the player selected on the map.
 struct Selection {
     /// ShipList, CityList, Diplomacy: the windows behind the player status (no object selected).

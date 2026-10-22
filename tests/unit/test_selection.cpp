@@ -96,3 +96,15 @@ TEST_CASE("selection: the same object keeps its serial, a new one gets another")
     // Only buildings count repeated clicks.
     CHECK(app::clicked_selection(other, other).again == 0);
 }
+
+TEST_CASE("selection: a building or unit selected from the settings shows in the info mode") {
+    namespace m = app::side_mode;
+    // Map_OnLeftUp 0x0040AFF0: the settings handle the click like the info mode and switch to it.
+    CHECK(app::mode_after_selecting(m::kOptions, true) == m::kInfo);
+    // A click on nothing keeps the settings open.
+    CHECK(app::mode_after_selecting(m::kOptions, false) == m::kOptions);
+    // The other modes stay: the military mode shows the selection itself, the build mode builds.
+    CHECK(app::mode_after_selecting(m::kInfo, true) == m::kInfo);
+    CHECK(app::mode_after_selecting(m::kMilitary, true) == m::kMilitary);
+    CHECK(app::mode_after_selecting(m::kBuild, true) == m::kBuild);
+}

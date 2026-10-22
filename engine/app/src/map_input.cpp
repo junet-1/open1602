@@ -870,6 +870,10 @@ void MapInput::select_building_at_mouse(const Selection& before) {
         }
     }
     m_hud->set_selection(clicked_selection(before, sel));
+    if (const std::int32_t mode = mode_after_selecting(m_hud->mode(), sel.kind != Selection::Kind::None);
+        mode != m_hud->mode()) {
+        set_mode(mode);
+    }
     m_field_source.reset();
     if (sel.kind == Selection::Kind::Building) {
         // Looking at a farm, a plantation or a forester picks its field in the build menu
@@ -1272,6 +1276,10 @@ void MapInput::selection_changed(bool box) {
     if (!m_units.empty() && m_hud->mode() != Hud::kModeMilitary && m_hud->mode() != Hud::kModeBuild &&
         ((box && m_units.size() >= 2) || m_units.kind() == ui::UnitRef::Kind::Soldier)) {
         set_mode(Hud::kModeMilitary);
+    }
+    // A ship selected from the settings: its window in the info mode.
+    if (const std::int32_t mode = mode_after_selecting(m_hud->mode(), !m_units.empty()); mode != m_hud->mode()) {
+        set_mode(mode);
     }
 }
 
