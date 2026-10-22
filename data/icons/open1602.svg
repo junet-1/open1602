@@ -1,0 +1,114 @@
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+<!-- Open1602 application icon: compass rose in a sandstone medallion, 48 px and up. Source of every icon size (tools/make_icons.py). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="hst" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e2cfa4"/>
+      <stop offset="1" stop-color="#86704a"/>
+    </linearGradient>
+    <radialGradient id="hpa" cx=".45" cy=".4" r=".65">
+      <stop offset="0" stop-color="#f3e2b8"/>
+      <stop offset="1" stop-color="#c7a46a"/>
+    </radialGradient>
+    <linearGradient id="hg" gradientUnits="userSpaceOnUse" x1="50" y1="40" x2="210" y2="230">
+      <stop offset="0" stop-color="#fdeaa6"/>
+      <stop offset=".45" stop-color="#dba53c"/>
+      <stop offset="1" stop-color="#7d4f10"/>
+    </linearGradient>
+    <filter id="hbv" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="b"/>
+      <feSpecularLighting in="b" surfaceScale="6" specularConstant=".9" specularExponent="18" lighting-color="#fff4d8" result="s">
+        <feDistantLight azimuth="225" elevation="38"/>
+      </feSpecularLighting>
+      <feComposite in="s" in2="SourceAlpha" operator="in" result="si"/>
+      <feComposite in="SourceGraphic" in2="si" operator="arithmetic" k2="1" k3=".75"/>
+    </filter>
+    <filter id="hbg" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="b"/>
+      <feSpecularLighting in="b" surfaceScale="2" specularConstant=".9" specularExponent="18" lighting-color="#fff4d8" result="s">
+        <feDistantLight azimuth="225" elevation="50"/>
+      </feSpecularLighting>
+      <feComposite in="s" in2="SourceAlpha" operator="in" result="si"/>
+      <feComposite in="SourceGraphic" in2="si" operator="arithmetic" k2="1" k3=".75"/>
+    </filter>
+    <filter id="hgr" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05 0.05" numOctaves="4" seed="9" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.3 0 0 0 0 0.22 0 0 0 0 0.12 -1.6 0 0 0 0.9" result="g"/>
+      <feComposite in="g" in2="SourceAlpha" operator="in" result="gi"/>
+      <feMerge>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="gi"/>
+      </feMerge>
+    </filter>
+    <filter id="hpp" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.03 0.03" numOctaves="4" seed="5" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.45 0 0 0 0 0.3 0 0 0 0 0.12 -1.4 0 0 0 0.75" result="g"/>
+      <feComposite in="g" in2="SourceAlpha" operator="in" result="gi"/>
+      <feMerge>
+        <feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="gi"/>
+      </feMerge>
+    </filter>
+    <filter id="hsd" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="3" dy="5" stdDeviation="4" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <g filter="url(#hsd)">
+    <g filter="url(#hbv)">
+      <circle cx="128" cy="128" r="120" fill="url(#hst)" filter="url(#hgr)"/>
+    </g>
+  </g>
+  <circle cx="128" cy="128" r="98" fill="url(#hg)" filter="url(#hbg)"/>
+  <circle cx="128" cy="128" r="90" fill="url(#hpa)" filter="url(#hpp)"/>
+  <path d="M128.0 40.0 L128.0 50.0" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M145.2 41.7 L144.2 46.6" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M161.7 46.7 L159.8 51.3" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M176.9 54.8 L174.1 59.0" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M190.2 65.8 L183.2 72.8" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M201.2 79.1 L197.0 81.9" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M209.3 94.3 L204.7 96.2" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M214.3 110.8 L209.4 111.8" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M216.0 128.0 L206.0 128.0" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M214.3 145.2 L209.4 144.2" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M209.3 161.7 L204.7 159.8" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M201.2 176.9 L197.0 174.1" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M190.2 190.2 L183.2 183.2" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M176.9 201.2 L174.1 197.0" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M161.7 209.3 L159.8 204.7" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M145.2 214.3 L144.2 209.4" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M128.0 216.0 L128.0 206.0" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M110.8 214.3 L111.8 209.4" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M94.3 209.3 L96.2 204.7" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M79.1 201.2 L81.9 197.0" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M65.8 190.2 L72.8 183.2" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M54.8 176.9 L59.0 174.1" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M46.7 161.7 L51.3 159.8" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M41.7 145.2 L46.6 144.2" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M40.0 128.0 L50.0 128.0" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M41.7 110.8 L46.6 111.8" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M46.7 94.3 L51.3 96.2" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M54.8 79.1 L59.0 81.9" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M65.8 65.8 L72.8 72.8" stroke="#5a3a1a" stroke-width="2"/>
+  <path d="M79.1 54.8 L81.9 59.0" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M94.3 46.7 L96.2 51.3" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M110.8 41.7 L111.8 46.6" stroke="#5a3a1a" stroke-width="1.2"/>
+  <path d="M128 128 L128.0 114.0 L169.0 87.0 Z" fill="#3f6e8c"/>
+  <path d="M128 128 L169.0 87.0 L142.0 128.0 Z" fill="#1d3a50"/>
+  <path d="M128 128 L142.0 128.0 L169.0 169.0 Z" fill="#3f6e8c"/>
+  <path d="M128 128 L169.0 169.0 L128.0 142.0 Z" fill="#1d3a50"/>
+  <path d="M128 128 L128.0 142.0 L87.0 169.0 Z" fill="#3f6e8c"/>
+  <path d="M128 128 L87.0 169.0 L114.0 128.0 Z" fill="#1d3a50"/>
+  <path d="M128 128 L114.0 128.0 L87.0 87.0 Z" fill="#3f6e8c"/>
+  <path d="M128 128 L87.0 87.0 L128.0 114.0 Z" fill="#1d3a50"/>
+  <g filter="url(#hsd)">
+    <path d="M128 128 L115.3 115.3 L128.0 48.0 Z" fill="#d0402a"/>
+    <path d="M128 128 L128.0 48.0 L140.7 115.3 Z" fill="#7e1c12"/>
+    <path d="M128 128 L140.7 115.3 L208.0 128.0 Z" fill="#f6dc8e"/>
+    <path d="M128 128 L208.0 128.0 L140.7 140.7 Z" fill="#a26a1c"/>
+    <path d="M128 128 L140.7 140.7 L128.0 208.0 Z" fill="#f6dc8e"/>
+    <path d="M128 128 L128.0 208.0 L115.3 140.7 Z" fill="#a26a1c"/>
+    <path d="M128 128 L115.3 140.7 L48.0 128.0 Z" fill="#f6dc8e"/>
+    <path d="M128 128 L48.0 128.0 L115.3 115.3 Z" fill="#a26a1c"/>
+  </g>
+  <circle cx="128" cy="128" r="8" fill="url(#hg)" stroke="#5a3a1a" stroke-width="1.5"/>
+</svg>

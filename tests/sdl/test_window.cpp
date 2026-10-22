@@ -181,3 +181,33 @@ TEST_CASE("window: after a lost device the window draws with a new renderer") {
     CHECK(pixels.at(24, 11) == (assets::Rgba{10, 20, 30, 255}));
     CHECK(SDL_RenderPresent(w.sdl_renderer()));
 }
+
+TEST_CASE("window: the application icon is compiled in, with a larger picture for HiDPI screens") {
+    test::use_dummy_drivers();
+    auto sdl = platform::SdlSystem::init();
+    REQUIRE(sdl.ok());
+    SDL_Surface* icon = platform::load_app_icon();
+    REQUIRE(icon != nullptr);
+    CHECK(icon->w == 64);
+    CHECK(icon->h == 64);
+    CHECK(SDL_SurfaceHasAlternateImages(icon));
+    int count = 0;
+    SDL_Surface** images = SDL_GetSurfaceImages(icon, &count);
+    REQUIRE(images != nullptr);
+    CHECK(count == 2);
+    if (count == 2) {
+        CHECK(images[1]->w == 128);
+    }
+    SDL_free(static_cast<void*>(images));
+
+    // Round medallion: the corners are transparent, the centre opaque.
+    float r = 0.0F;
+    float g = 0.0F;
+    float b = 0.0F;
+    float a = 1.0F;
+    REQUIRE(SDL_ReadSurfacePixelFloat(icon, 0, 0, &r, &g, &b, &a));
+    CHECK(a == 0.0F);
+    REQUIRE(SDL_ReadSurfacePixelFloat(icon, 32, 32, &r, &g, &b, &a));
+    CHECK(a == 1.0F);
+    SDL_DestroySurface(icon);
+}
