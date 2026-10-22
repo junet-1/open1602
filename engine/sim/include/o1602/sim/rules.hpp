@@ -77,6 +77,14 @@ struct Rules {
     /// Prices of the free trader.
     TraderPrices trader_prices = TraderPrices::Original;
 
+    /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
+    /// settlement ship sails no city develops, a city whose colony search failed waits for it for
+    /// ever, an unreachable site is searched afresh (and found again), the fisher looks in two
+    /// directions only, mines and quarries only within seven tiles of the road runs, castles never
+    /// count and bakeries are asked for without a mill. Their computers stall after about two hours
+    /// where Open1602's grow on (docs/original-comparison.md, section 3).
+    bool classic_ai = false;
+
     /// Defaults: corrected behaviour.
     [[nodiscard]] static constexpr Rules open1602() noexcept { return Rules{}; }
 
@@ -91,6 +99,7 @@ struct Rules {
         r.droughts = Droughts::Game;
         r.volcanoes = Volcanoes::Game;
         r.trader_prices = TraderPrices::Original;
+        r.classic_ai = true;
         return r;
     }
 

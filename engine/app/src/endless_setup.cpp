@@ -159,6 +159,7 @@ std::size_t setup_choices(SetupItem item) noexcept {
         case SetupItem::Map:
         case SetupItem::Starts:
         case SetupItem::Resources:
+        case SetupItem::ClassicAi:
             return 2;
         case SetupItem::Count:
             break;
@@ -218,6 +219,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return w.starts == Starts::Together ? 1 : 0;
         case SetupItem::Resources:
             return r.guarantee_resources ? 0 : 1;
+        case SetupItem::ClassicAi:
+            return r.classic_ai ? 1 : 0;
         case SetupItem::Count:
             break;
     }
@@ -287,6 +290,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
         case SetupItem::Resources:
             r.guarantee_resources = choice == 0;
             break;
+        case SetupItem::ClassicAi:
+            r.classic_ai = choice == 1;
+            break;
         case SetupItem::Count:
             break;
     }
@@ -319,7 +325,8 @@ std::string setup_label(SetupItem item) {
         "setup.refund",   "setup.trader",          "setup.ships",     "setup.units",
         "setup.speed",    "setup.droughts",        "setup.volcanoes", "setup.map",
         "setup.size",     "setup.players",         "setup.islands",   "setup.island_sizes",
-        "setup.villages", "setup.volcano_islands", "setup.starts",    "setup.resources"};
+        "setup.villages", "setup.volcano_islands", "setup.starts",    "setup.resources",
+        "setup.ai"};
     const auto i = static_cast<std::size_t>(item);
     return i < kKeys.size() ? ui::tr(kKeys[i]) : std::string{};
 }
@@ -376,6 +383,8 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 1 ? "setup.starts.together" : "setup.starts.spread");
         case SetupItem::Resources:
             return ui::tr(choice == 0 ? "setup.on" : "setup.off");
+        case SetupItem::ClassicAi:
+            return ui::tr(choice == 1 ? "setup.ai.classic" : "setup.ai.open1602");
         case SetupItem::Count:
             break;
     }
@@ -419,6 +428,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
     } else if (key == "resources") {
         if (value == "on" || value == "off") {
             r.guarantee_resources = value == "on";
+        }
+    } else if (key == "ai") {
+        if (value == "classic" || value == "open1602") {
+            r.classic_ai = value == "classic";
         }
     } else if (key == "own_world") {
         if (value == "on" || value == "off") {
@@ -475,6 +488,7 @@ std::string write_setup(const EndlessSetup& setup) {
     line("droughts", kDroughtNames[std::min<std::size_t>(static_cast<std::size_t>(r.droughts), 4)]);
     line("volcanoes", kVolcanoNames[std::min<std::size_t>(static_cast<std::size_t>(r.volcanoes), 2)]);
     line("resources", on_off(r.guarantee_resources));
+    line("ai", r.classic_ai ? "classic" : "open1602");
     line("own_world", on_off(setup.own_world));
     line("world", std::to_string(w.width) + "x" + std::to_string(w.height));
     line("players", std::to_string(w.players));

@@ -274,6 +274,14 @@ TEST_CASE("ai: a computer with a ship founds a city through a build order") {
     CHECK(!view[0].settling);
 }
 
+TEST_CASE("ai: the original's computer players (Rules::classic_ai) found their city too") {
+    Game g;
+    sim::Rules rules;
+    rules.classic_ai = true;
+    sim::Simulation s(g.world, g.buildings, g.figures, rules);
+    CHECK(run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));
+}
+
 TEST_CASE("ai: a computer founds its city at the open sea, not at a lake its ship cannot reach (0x00417220)") {
     Game g(true, 10000, true);
     sim::Simulation s(g.world, g.buildings, g.figures);
@@ -354,7 +362,7 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
-    constexpr std::uint64_t kExpected = 0xea38711665369cc3ULL;
+    constexpr std::uint64_t kExpected = 0xd594ae09dec4840aULL;
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }

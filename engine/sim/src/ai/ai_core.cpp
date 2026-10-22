@@ -351,6 +351,10 @@ void Engine::check_city_loss(AiPlayer& p) {
     }
 }
 
+bool Engine::classic() const {
+    return m_sim.rules().classic_ai;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Root task (0x00429070)
 
@@ -365,6 +369,8 @@ void Engine::root(AiPlayer& p) {
             } else if (ship->target.empty() && ship->motion.phase != ShipMotion::Phase::Run &&
                        ship->motion.phase != ShipMotion::Phase::Turn) {
                 push(p, kSettleLand, true);
+                return;
+            } else if (classic()) {
                 return;
             }
         } else {

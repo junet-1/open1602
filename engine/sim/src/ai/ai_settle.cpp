@@ -648,6 +648,10 @@ void Engine::site_unreachable(AiPlayer& p) {
     // The original ends the settlement here and starts the search afresh, which picks the same
     // site again (the search has no randomness): a computer whose site cannot be reached tries it
     // forever. Open1602 goes on with the next island of the same search instead; the ship stays.
+    if (classic()) {
+        end_settlement(p);
+        return;
+    }
     Settlement& s = p.settle;
     log(p, "the ship cannot reach the site on island %d, the search goes on", s.island);
     s.retries = 0;
