@@ -540,6 +540,41 @@ TEST_CASE("ui: a form of Open1602's own: clicks, focus, cut texts and the scale"
     CHECK(texts[1] == "******");
 }
 
+TEST_CASE("ui: a form's cycle buttons take the right button, its other widgets only the left one") {
+    using ui::MouseButton;
+    ui::Form form;
+    form.panel(ui::Rect{0, 0, 300, 200});
+    form.cycle_button(1, ui::Rect{10, 10, 100, 30}, "4 Spieler");
+    form.button(2, ui::Rect{10, 50, 100, 30}, "Verlassen");
+    form.cycle_button(3, ui::Rect{10, 90, 100, 30}, "aus", false);
+    // The left button clicks a cycle button as any other.
+    CHECK(!form.mouse(20, 20, true));
+    CHECK(form.mouse(20, 20, false) == std::optional<ui::Form::Id>(1));
+    CHECK(form.clicked_with() == MouseButton::Left);
+    // The right button clicks it too, and the form says which button it was.
+    CHECK(!form.mouse(20, 20, true, MouseButton::Right));
+    CHECK(form.mouse(20, 20, false, MouseButton::Right) == std::optional<ui::Form::Id>(1));
+    CHECK(form.clicked_with() == MouseButton::Right);
+    // A plain button and a disabled cycle button do not answer the right button.
+    CHECK(!form.mouse(20, 60, true, MouseButton::Right));
+    CHECK(!form.mouse(20, 60, false, MouseButton::Right));
+    CHECK(form.hovered() == std::optional<ui::Form::Id>(2));
+    CHECK(!form.mouse(20, 100, true, MouseButton::Right));
+    CHECK(!form.mouse(20, 100, false, MouseButton::Right));
+    // The other button while one is held changes nothing: the click is the first button's.
+    CHECK(!form.mouse(20, 20, true, MouseButton::Right));
+    CHECK(!form.mouse(20, 60, true));
+    CHECK(!form.mouse(20, 60, false));
+    CHECK(!form.mouse(20, 20, false));  // the pointer moving back with no left button held
+    CHECK(form.mouse(20, 20, false, MouseButton::Right) == std::optional<ui::Form::Id>(1));
+    CHECK(form.clicked_with() == MouseButton::Right);
+    // A cycle button draws as a button.
+    REQUIRE(form.widgets().size() == 4);
+    CHECK(form.widgets()[1].kind == ui::Form::Widget::Kind::Button);
+    CHECK(form.widgets()[1].cycles);
+    CHECK(!form.widgets()[2].cycles);
+}
+
 TEST_CASE("ui: cutting text to a width finds the same cut as trying one byte after the other") {
     // The cut by removing one byte at a time, as the form did before.
     const auto linear = [](const ui::Font* font, std::string s, double width, bool keep_end) {

@@ -219,6 +219,20 @@ void Effects::flush() {
     m_queue.clear();
 }
 
+SceneryReach scenery_reach(double width, double height) noexcept {
+    const auto share = [](double widest, double view) {
+        return view > widest ? static_cast<float>(widest / view) : 1.0F;
+    };
+    return SceneryReach{share(kWidestViewWidth, width), share(kWidestViewHeight, height)};
+}
+
+std::optional<std::pair<float, float>> scenery_place(const SceneryReach& reach, float x, float y) noexcept {
+    if (reach.x <= 0.0F || reach.y <= 0.0F || std::fabs(x) >= reach.x || std::fabs(y) >= reach.y) {
+        return std::nullopt;
+    }
+    return std::make_pair(x / reach.x, y / reach.y);
+}
+
 // ---- Voice messages ------------------------------------------------------------------------------
 
 const MessageAudio* message_audio(std::uint16_t message) noexcept {

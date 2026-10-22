@@ -507,6 +507,13 @@ void choose_next(EndlessSetup& setup, SetupItem item) {
     }
 }
 
+void choose_previous(EndlessSetup& setup, SetupItem item) {
+    const std::size_t n = setup_choices(item);
+    if (n != 0) {
+        choose(setup, item, (setup_choice(setup, item) + n - 1) % n);
+    }
+}
+
 bool setup_item_used(const EndlessSetup& setup, SetupItem item) noexcept {
     switch (item) {
         case SetupItem::WorldSize:

@@ -55,6 +55,8 @@ inline constexpr std::array<WindowSize, 10> kWindowSizes = {{{1024, 768},
 [[nodiscard]] std::vector<WindowSize> window_sizes_for(std::int32_t usable_width, std::int32_t usable_height);
 /// The size after `current` in `sizes` (the first that is larger in area; after the last the first).
 [[nodiscard]] WindowSize next_window_size(const std::vector<WindowSize>& sizes, WindowSize current);
+/// The size before `current` in `sizes` (the last that is smaller in area; before the first the last).
+[[nodiscard]] WindowSize previous_window_size(const std::vector<WindowSize>& sizes, WindowSize current);
 
 /// The interface's scale (screen pixels per pixel of the 1024 x 768 design) in a window of
 /// `width` x `height` physical pixels: automatic, the largest that fits; else the setting times the
@@ -63,6 +65,8 @@ inline constexpr std::array<WindowSize, 10> kWindowSizes = {{{1024, 768},
                                   float display_scale) noexcept;
 /// The setting after `current` in kUiScales (after the last the first).
 [[nodiscard]] std::int32_t next_ui_scale(std::int32_t current) noexcept;
+/// The setting before `current` in kUiScales (before the first the last).
+[[nodiscard]] std::int32_t previous_ui_scale(std::int32_t current) noexcept;
 
 /// A "display.*" line of settings.cfg (`key` without the prefix); false if the key is unknown.
 bool read_display_line(DisplaySettings& s, std::string_view key, std::string_view value);

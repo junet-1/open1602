@@ -2,8 +2,8 @@
 //
 // The settings of a new game (ADR 0008): the rules of the game and, for an endless game, if wanted,
 // a world of its own instead of the original's maps. The start dialog shows them as items with a few
-// values each, a click choosing the next; settings.cfg keeps the last choice ("endless.*" lines for
-// the endless game, "scenario.*" for scenarios, "multiplayer.*" for the games a host sets up).
+// values each, a left click choosing the next, a right click the previous; settings.cfg keeps the last choice
+// ("endless.*" lines for the endless game, "scenario.*" for scenarios, "multiplayer.*" for the games a host sets up).
 // Which items a game offers depends on what is played (SetupScope).
 #pragma once
 
@@ -124,6 +124,8 @@ inline constexpr std::size_t kSetupItems = static_cast<std::size_t>(SetupItem::C
 void choose(EndlessSetup& setup, SetupItem item, std::size_t choice);
 /// The next value, after the last the first.
 void choose_next(EndlessSetup& setup, SetupItem item);
+/// The previous value, before the first the last.
+void choose_previous(EndlessSetup& setup, SetupItem item);
 /// Whether the item counts: the world's items only for a world of its own, the level of the
 /// residents only with a number of them, how the conditions are combined only with two or more.
 [[nodiscard]] bool setup_item_used(const EndlessSetup& setup, SetupItem item) noexcept;

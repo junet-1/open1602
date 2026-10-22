@@ -249,10 +249,10 @@ std::vector<ui::DrawItem> MultiplayerMenu::draw(const MultiplayerModel& model,
 }
 
 std::vector<MultiplayerEvent> MultiplayerMenu::mouse(const MultiplayerModel& model, std::int32_t x, std::int32_t y,
-                                                     bool down) {
+                                                     bool down, ui::MouseButton button) {
     std::vector<MultiplayerEvent> out;
     if (m_screen == Screen::Settings) {
-        const GameSettingsMenu::Result result = m_settings.mouse(x, y, down);
+        const GameSettingsMenu::Result result = m_settings.mouse(x, y, down, button);
         if (result == GameSettingsMenu::Result::Start) {
             if (m_settings_from == Screen::Create) {
                 // More than four players always get a world of their own; with fewer again, the
@@ -272,6 +272,9 @@ std::vector<MultiplayerEvent> MultiplayerMenu::mouse(const MultiplayerModel& mod
         if (result != GameSettingsMenu::Result::None) {
             close_settings();
         }
+        return out;
+    }
+    if (button != ui::MouseButton::Left) {
         return out;
     }
     layout(model);

@@ -106,9 +106,9 @@ std::vector<ui::DrawItem> GameSettingsMenu::draw(const std::array<const ui::Font
     return m_form.draw(fonts);
 }
 
-GameSettingsMenu::Result GameSettingsMenu::mouse(std::int32_t x, std::int32_t y, bool down) {
+GameSettingsMenu::Result GameSettingsMenu::mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button) {
     layout();
-    const auto id = m_form.mouse(x, y, down);
+    const auto id = m_form.mouse(x, y, down, button);
     if (!id) {
         return Result::None;
     }
@@ -116,7 +116,11 @@ GameSettingsMenu::Result GameSettingsMenu::mouse(std::int32_t x, std::int32_t y,
     if (*id >= kItem && *id < kItem + static_cast<Id>(kSetupItems)) {
         const auto item = static_cast<SetupItem>(*id - kItem);
         if (editable && setup_item_open(m_setup, m_scope, item)) {
-            choose_next(m_setup, item);
+            if (m_form.clicked_with() == ui::MouseButton::Right) {
+                choose_previous(m_setup, item);
+            } else {
+                choose_next(m_setup, item);
+            }
         }
     } else if (*id == kVictory) {
         m_page = Page::Victory;
@@ -183,8 +187,8 @@ void GameSettingsMenu::layout() {
             const bool used = setup_item_used(m_setup, item);
             const Rect value = row(g.x, top + static_cast<std::int32_t>(i) * kRowH, setup_label(item), used);
             if (editable) {
-                f.button(kItem + static_cast<Id>(item), value, setup_value(m_setup, item),
-                         setup_item_open(m_setup, m_scope, item));
+                f.cycle_button(kItem + static_cast<Id>(item), value, setup_value(m_setup, item),
+                               setup_item_open(m_setup, m_scope, item));
             } else {
                 f.label(value, setup_value(m_setup, item), Align::Left, used ? Tone::Normal : Tone::Dim);
             }

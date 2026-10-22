@@ -108,7 +108,9 @@ public:
 
     /// The screen's gadgets, relative to the full screen region.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts);
-    std::vector<MenuEvent> mouse(std::int32_t x, std::int32_t y, bool down);
+    /// The right button only reaches the start dialog's settings.
+    std::vector<MenuEvent> mouse(std::int32_t x, std::int32_t y, bool down,
+                                 ui::MouseButton button = ui::MouseButton::Left);
     /// Escape (0x00409D70): one screen back; false in the main menu.
     bool back();
     /// Where the credits play: the picture frame of the main menu, design units.
