@@ -646,6 +646,7 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
     rules.volcanoes = sim::Volcanoes::On;
     rules.trader_prices = sim::TraderPrices::Market;
     v(rules.max_army);
+    rules.classic_ai = true;
     world.set_saved_rules(rules);
 
     // The original's file the game came from (ORIG keeps every chunk but the island tiles).
@@ -728,7 +729,7 @@ bool matches(const char* name, std::span<const std::uint8_t> data, std::span<con
 constexpr Golden kSaveNarrow[] = {
     {"META", 1, 0, 37, 0x5A2EBCE3},
     {"MAPW", 1, 1, 4892, 0xE5B4A6F5},
-    {"RULE", 1, 1, 58, 0xF921B686},
+    {"RULE", 1, 1, 64, 0x173E1F2B},
     {"WRLD", 1, 1, 419, 0xC3B8D9A4},
     {"WRL2", 1, 1, 4, 0x5ADE7D82},
     {"ISLE", 1, 1, 274, 0x6FCE0641},
@@ -761,7 +762,7 @@ constexpr Golden kSaveNarrow[] = {
 constexpr Golden kSaveWide[] = {
     {"META", 1, 0, 38, 0xB89CD646},
     {"MAPW", 1, 1, 20532, 0x262A247C},
-    {"RULE", 1, 1, 58, 0xE2443C4C},
+    {"RULE", 1, 1, 64, 0x4090C16A},
     {"WRLD", 1, 1, 419, 0x3DED0795},
     {"WRL2", 1, 1, 4, 0x637B2D3C},
     {"ISLE", 2, 1, 469, 0x3F8E764F},
@@ -792,7 +793,7 @@ constexpr Golden kSaveWide[] = {
 };
 
 constexpr Golden kChunkNarrow[] = {
-    {"RULE", 1, 1, 58, 0xF921B686},
+    {"RULE", 1, 1, 64, 0x173E1F2B},
     {"WRLD", 1, 1, 419, 0xC3B8D9A4},
     {"ISLE", 1, 1, 274, 0x6FCE0641},
     {"TILE", 1, 1, 8164, 0x769F7EC8},
@@ -823,7 +824,7 @@ constexpr Golden kChunkNarrow[] = {
 };
 
 constexpr Golden kChunkWide[] = {
-    {"RULE", 1, 1, 58, 0xE2443C4C},
+    {"RULE", 1, 1, 64, 0x4090C16A},
     {"WRLD", 1, 1, 419, 0x3DED0795},
     {"ISLE", 2, 1, 469, 0x3F8E764F},
     {"TILE", 1, 1, 34684, 0x3991F216},

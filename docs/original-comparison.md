@@ -30,7 +30,7 @@ Status 2026-10-22. What is still open is also listed in [status.md](status.md), 
 |---|---|
 | 1 Pirates | fixed in #58: the surrender events go out loot or not |
 | 2 Tutorial | fixed in #58: the computers of the tutorial stay idle (`TIMERS` +0xA5, savegame section `TUTR`); the tutorial windows and speech are still missing |
-| 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships, not yet checked again in a long run; the "classic computer" setting is open |
+| 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships, not yet checked again in a long run; the original's computer players are a setting (`Rules::classic_ai`), Open1602's stay the default |
 | 4 Rendering | open |
 | 7 Disasters | open |
 | 8, 9 | the notes are updated (#56, #12 and #13 of `open1602-re`) |

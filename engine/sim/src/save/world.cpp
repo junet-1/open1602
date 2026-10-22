@@ -24,6 +24,7 @@ enum RuleKey : std::uint16_t {
     kVolcanoRule = 7,
     kTraderPrices = 8,
     kMaxArmy = 9,
+    kClassicAi = 10,
 };
 
 template <class A, class R>
@@ -85,7 +86,7 @@ void io_epochs(A& a, E& e) {
 // RULE is a list of keys and values rather than a record: the reader keeps a setting of a later
 // version out (unknown key) and clamps the values into what the setting allows.
 void write_rules(Writer& out, const Rules& r) {
-    const std::array<std::pair<RuleKey, std::uint32_t>, 9> values = {{
+    const std::array<std::pair<RuleKey, std::uint32_t>, 10> values = {{
         {kRefund, static_cast<std::uint32_t>(r.demolish_refund)},
         {kRefundPercent, r.refund_percent},
         {kMaxShips, r.max_ships_per_player},
@@ -95,6 +96,7 @@ void write_rules(Writer& out, const Rules& r) {
         {kVolcanoRule, static_cast<std::uint32_t>(r.volcanoes)},
         {kTraderPrices, static_cast<std::uint32_t>(r.trader_prices)},
         {kMaxArmy, r.max_army},
+        {kClassicAi, r.classic_ai ? 1U : 0U},
     }};
     out.list(values, 6, [&](const auto& item) {
         out.u16(item.first);
@@ -135,6 +137,9 @@ Rules read_rules(Reader& in) {
                 break;
             case kMaxArmy:
                 r.max_army = v;
+                break;
+            case kClassicAi:
+                r.classic_ai = v != 0;
                 break;
             default:
                 break;  // a setting of a later version

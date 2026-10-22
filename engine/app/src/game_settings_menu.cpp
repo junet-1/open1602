@@ -38,12 +38,13 @@ struct Group {
     std::int32_t y;
 };
 
-// Economy, limits and disasters on the left, the world on the right.
+// Economy, limits and disasters on the left, the world and the opponents on the right.
 constexpr Group kGroups[] = {
     {"setup.group.economy", SetupItem::Refund, SetupItem::TraderPrices, 40, 84},
     {"setup.group.limits", SetupItem::Ships, SetupItem::GameSpeed, 40, 216},
     {"setup.group.disasters", SetupItem::Droughts, SetupItem::Volcanoes, 40, 388},
     {"setup.group.world", SetupItem::Map, SetupItem::Resources, 524, 84},
+    {"setup.group.opponents", SetupItem::ClassicAi, SetupItem::ClassicAi, 524, 496},
 };
 
 }  // namespace
@@ -93,7 +94,7 @@ void GameSettingsMenu::layout() {
                      setup_value(item, setup_choice(m_setup, item)), used);
         }
     }
-    f.paragraph(Rect{40, 560, 944, 110}, ui::tr("setup.hint"), Tone::Dim);
+    f.paragraph(Rect{40, 592, 944, 90}, ui::tr("setup.hint"), Tone::Dim);
     f.button(kBack, Rect{40, kBottomY, 180, 44}, ui::tr("setup.back"));
     f.button(kOriginal, Rect{260, kBottomY, 240, 44}, ui::tr("setup.original"), true,
              m_setup == EndlessSetup::original());

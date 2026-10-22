@@ -40,7 +40,7 @@ int usage() {
         "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH]\n"
         "                [--zoom 0|1|2]\n"
         "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--droughts MODE]\n"
-        "                [--volcanoes MODE] [--frames N]\n"
+        "                [--volcanoes MODE] [--ai MODE] [--frames N]\n"
         "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
         "                [--islands original|seed]\n"
         "                [--world WxH] [--players 1-12] [--island-count C] [--island-sizes S] [--villages C]\n"
@@ -59,6 +59,7 @@ int usage() {
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
         "  --droughts MODE    game (as the game's difficulty says, original), off, rare, normal, frequent\n"
         "  --volcanoes MODE   game (as the game's settings say, original), off, on\n"
+        "  --ai MODE          open1602 (computer players without the original's bugs), classic (the original's)\n"
         "  --no-panel         no panel and status bar around the map (the original's frame)\n"
         "  --no-sound         no effects and voice messages; --no-music: no music (the original's Game.dat\n"
         "                     is read for the volumes, never written)\n"
@@ -318,6 +319,14 @@ int main(int argc, char** argv) {
                 options.rules.volcanoes = sim::Volcanoes::Off;
             } else if (mode == "on") {
                 options.rules.volcanoes = sim::Volcanoes::On;
+            } else {
+                return usage();
+            }
+        } else if (arg == "--ai" && has_value) {
+            // Game setting: the computer players of Open1602 or the original's (S-097 to S-099).
+            const std::string_view mode = argv[++i];
+            if (mode == "open1602" || mode == "classic") {
+                options.rules.classic_ai = mode == "classic";
             } else {
                 return usage();
             }
