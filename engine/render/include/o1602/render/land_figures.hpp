@@ -39,6 +39,15 @@ inline constexpr double kLandHeight = 0.56;
 [[nodiscard]] std::uint16_t crop_cut(const sim::World& world, const assets::BuildingTable& buildings, double x,
                                      double y);
 
+/// Whether a townsman, carrier, cart, doctor, fireman or robber is drawn on a tile of building
+/// type `b` (0x00451590): on roads, ground, ruins, squares, river corners, bridges, beach ruins
+/// and piers. On the tiles of a building (leaving home, at the target) it is hidden.
+[[nodiscard]] bool walker_visible_on(const assets::BuildingType* b) noexcept;
+
+/// walker_visible_on for the tile under world point (x, y); never on open sea.
+[[nodiscard]] bool walker_visible_at(const sim::World& world, const assets::BuildingTable& buildings, double x,
+                                     double y);
+
 /// A set of land figures with their animation states.
 class LandFigures {
 public:
