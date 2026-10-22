@@ -98,7 +98,8 @@ constexpr std::string_view kSetupScopeKey = "game = ";
 constexpr std::array<std::string_view, 4> kSetupScopes = {"endless", "multiplayer", "scenario", "savegame"};
 
 /// Open1602's defaults, the original's rules, or something else: in the words of the start dialog.
-std::string rules_summary(const sim::Rules& rules) {
+std::string rules_summary(sim::Rules rules) {
+    rules.victory = {};  // the game's goal, not its rules: the start dialog shows it on a page of its own
     if (rules == sim::Rules::open1602()) {
         return ui::tr("setup.defaults");
     }
@@ -120,6 +121,14 @@ SetupScope HostSetup::scope() const noexcept {
             break;
     }
     return SetupScope::MultiplayerEndless;
+}
+
+EndlessSetup HostSetup::game_settings() const {
+    EndlessSetup s = multiplayer_setup(settings, players);
+    if (!victory_offered(scope())) {
+        s.rules.victory = {};
+    }
+    return s;
 }
 
 std::vector<std::uint8_t> lobby_setup(const EndlessSetup& settings, SetupScope scope) {
@@ -261,7 +270,7 @@ std::vector<MultiplayerEvent> MultiplayerMenu::mouse(const MultiplayerModel& mod
             }
         }
         if (result != GameSettingsMenu::Result::None) {
-            (void)back();
+            close_settings();
         }
         return out;
     }
@@ -942,13 +951,19 @@ std::optional<MultiplayerEvent> MultiplayerMenu::back() {
             e.kind = MultiplayerEvent::Kind::Leave;
             return e;
         case Screen::Settings:
-            m_screen = m_settings_from;
-            if (m_screen == Screen::Lobby) {
-                m_form.set_focus(kChat);  // as the lobby has it
+            if (!m_settings.back()) {  // from the victory conditions to the settings first
+                close_settings();
             }
             return std::nullopt;
     }
     return std::nullopt;
+}
+
+void MultiplayerMenu::close_settings() {
+    m_screen = m_settings_from;
+    if (m_screen == Screen::Lobby) {
+        m_form.set_focus(kChat);  // as the lobby has it
+    }
 }
 
 std::string* MultiplayerMenu::field_text(Id id) {

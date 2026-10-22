@@ -134,6 +134,7 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             (void)read_setup_line(s.multiplayer, key.substr(12), value);
         }
     });
+    s.scenario.rules.victory = {};  // a scenario has its own missions (victory_offered)
     return s;
 }
 

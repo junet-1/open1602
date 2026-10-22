@@ -48,6 +48,52 @@ enum class TraderPrices : std::uint8_t {
     Market,
 };
 
+/// The prestige buildings a condition asks for.
+enum class Monument : std::uint8_t {
+    None,
+    Castle,     ///< a castle (Schloss)
+    Cathedral,  ///< a cathedral
+    Both,       ///< a castle and a cathedral
+};
+
+/// The conditions of a victory; 0 (or None, false) switches one off.
+struct VictoryConditions {
+    /// Einwohner of all own cities, as the city list counts them.
+    std::uint32_t inhabitants = 0;
+    /// With `class_inhabitants`: residents of `resident_class` (0 pioneers .. 4 aristocrats) or a
+    /// higher class in all own cities.
+    std::uint8_t resident_class = 4;
+    std::uint32_t class_inhabitants = 0;
+    /// Gold in the treasury.
+    std::uint32_t money = 0;
+    /// Balance per minute as the status bar shows it.
+    std::uint32_t balance = 0;
+    /// Every human and computer opponent defeated.
+    bool eliminate = false;
+    /// Share of all islands with an own city, in percent (1..100).
+    std::uint8_t islands_percent = 0;
+    /// Points of the score sheet.
+    std::uint32_t score = 0;
+    /// Prestige buildings built.
+    Monument monument = Monument::None;
+    /// Minutes of game time; then the player with the most points wins.
+    std::uint32_t time_limit_minutes = 0;
+    /// All conditions at the same time, or any one of them.
+    bool all = true;
+    /// Whether computer players can win too (they are measured by the same conditions).
+    bool computers = true;
+
+    /// Whether a condition other than the time limit is on.
+    [[nodiscard]] constexpr bool goals() const noexcept {
+        return inhabitants != 0 || class_inhabitants != 0 || money != 0 || balance != 0 || eliminate ||
+               islands_percent != 0 || score != 0 || monument != Monument::None;
+    }
+    /// Whether the game can end by a win at all.
+    [[nodiscard]] constexpr bool active() const noexcept { return goals() || time_limit_minutes != 0; }
+
+    friend constexpr bool operator==(const VictoryConditions&, const VictoryConditions&) = default;
+};
+
 struct Rules {
     /// Refund of the build costs (gold and goods) when the player demolishes a building. The goods
     /// go back into the warehouse of the building's city as far as there is room.
@@ -84,6 +130,10 @@ struct Rules {
     /// count and bakeries are asked for without a mill. Their computers stall after about two hours
     /// where Open1602's grow on (docs/original-comparison.md, section 3).
     bool classic_ai = false;
+
+    /// Victory conditions of an endless game (victory.hpp); all off by default, as the original's
+    /// endless game, which no one wins.
+    VictoryConditions victory{};
 
     /// Defaults: corrected behaviour.
     [[nodiscard]] static constexpr Rules open1602() noexcept { return Rules{}; }
