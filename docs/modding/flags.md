@@ -8,9 +8,9 @@ players grows without new images ([ADR 0007](../architecture/0007-extensibility-
 **Status:** Done are the tinting (`render/flag_tint.hpp`), the twelve presets and the template from
 the white original flag (`render::BannerTable`), custom images per banner (`FlagStyle::Sprites`, used for
 the skull), units in player colour (`render/unit_tint.hpp`) and the interface's coats of arms and message
-icons in player colour (`render/variant_tint.hpp`, [below](#interface-art-in-player-colour)). Still open: the flag menu and
-the free RGB colour (interface; until then `--colour 0–3` for a new game in the viewer) as well as custom flags as PNG
-(content packages, milestone M8).
+icons in player colour (`render/variant_tint.hpp`, [below](#interface-art-in-player-colour)) and the flag menu of the
+endless game with the twelve presets ([below](#the-flag-menu)). Still open: the free RGB colour (interface) and custom
+flags as PNG (content packages, milestone M8).
 
 ## How tinting works
 
@@ -78,6 +78,25 @@ variants, how many there are and which one is recoloured, plus sprites of a bann
 pirates' skull among the military message icons). The windows set a gadget's picture with
 `set_banner_graphic` (`engine/app/src/banner_graphic.hpp`); the interface renderer recolours and
 caches it per colour.
+
+## The flag menu
+
+The single player's banner screen (`FARBWAHL.GAD`) keeps the original's four hall banners and adds, for the endless
+game only, eight coats of arms for the further presets: four left and four right of the name board, drawn from the
+end screen's coat of arms (`GFXFARB + 25`, gold frame `+ 4` while the mouse is over it) and tinted like every other
+interface art. Over a coat of arms the screen writes the colour's name below it (`net.colour.*`) and repaints the hall
+banner with the same pattern ([`art_pattern`](#interface-art-in-player-colour)) in that colour, so the hall shows the
+banner one would sail under. A click chooses it as a click on a hall banner does.
+
+The hall banners are painted, not flat flags, so they are recoloured by `render::tint_shape`
+(`render/shape_tint.hpp`): the cloth is every opaque pixel of the banner between the left and right edge of its
+clickable outline on the same row (`ColourTint::shape` names the outline's sprite), and its shading is kept as the
+brightness relative to the cloth's upper quartile. Pole, rope and the hall around it stay as they are.
+
+A further colour the level's file does not have is taken by swapping banners with the player who had it
+(`sim::take_banner`); that computer is renamed after its new colour. Messages that name one of the original's four
+colours (the „… Spieler konnte seinen Auftrag erfüllen!“ family) are spoken only for those four; a further colour hears
+the colourless message instead.
 
 ## The original flags
 

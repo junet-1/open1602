@@ -187,6 +187,31 @@ TEST_CASE("event presenter: the multiplayer victory speaks to the winner on trac
     CHECK(announcement(theirs[1])->message == audio::kMessageMultiplayerWin + 1);  // the rival's banner
 }
 
+TEST_CASE("event presenter: a further colour's victory never names one of the original's four") {
+    Game g;
+    g.world.player(kMe)->banner = sim::kFirstExtraBanner + 1;  // green
+    g.world.player(kRival)->banner = sim::kFirstExtraBanner;   // orange
+    sim::GameEvent won;
+    won.kind = sim::GameEvent::Kind::MissionAccomplished;
+    won.player = kMe;
+    won.message = audio::kMessageMultiplayerWin;
+    const auto mine = g.presenter.game_events(g.world, kMe, {won}, 0);
+    REQUIRE(mine.size() == 1);
+    CHECK(announcement(mine[0])->message == 0x54);  // „Ihr konntet den Euch gestellten Auftrag erfüllen!“
+    CHECK(announcement(mine[0])->tracks == 0);
+
+    sim::Mission race;
+    race.success_message = audio::kMessageMultiplayerWin;
+    g.world.set_missions({race});
+    g.world.player(kRival)->mission = 0;
+    sim::GameEvent over;
+    over.kind = sim::GameEvent::Kind::GameOver;
+    over.player = kRival;
+    const auto theirs = g.presenter.game_events(g.world, kMe, {over}, 0);
+    REQUIRE(theirs.size() == 2);
+    CHECK(announcement(theirs[1])->message == 0x53);  // „Ihr wurdet besiegt!“, not „Der weiße Spieler …“
+}
+
 TEST_CASE("event presenter: the end screen waits for the delay of running game time, or for the videos") {
     Game g;
     sim::GameEvent won;

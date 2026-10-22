@@ -2265,7 +2265,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     return core::Ok{};
 }
 
-core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name,
+core::Status MapViewer::start_endless(std::uint8_t level, sim::BannerId banner, const std::string& name,
                                       const EndlessSetup& setup) {
     if (m_session && m_session->ended()) {
         end_session();  // one that ended in its game stood only to show the game
@@ -2283,7 +2283,9 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
     sim::NewGameOptions o;
     o.difficulty = std::min<std::uint8_t>(level, sim::NewGameOptions::kDifficulties - 1);
     o.layout = static_cast<std::uint8_t>(device() % sim::NewGameOptions::kLayouts);
-    o.colour = std::min<std::uint8_t>(colour, 3);
+    // The level's file knows the original's four colours: a further one comes after the start.
+    const bool further = banner >= sim::kOriginalPlayers;
+    o.colour = further ? 0 : static_cast<std::uint8_t>(banner);
     o.name = name;
     o.world = m_options.world;
     o.world.seed = (std::uint64_t{device()} << 32U) | device();
@@ -2307,6 +2309,14 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
     }
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
+    }
+    if (further) {
+        // A computer with that colour takes the human's, and the name of its new colour.
+        if (const auto other = sim::take_banner(*world, sim::first_human_player(*world), banner)) {
+            if (sim::Player* p = world->player(*other); p != nullptr && p->role == sim::PlayerRole::Computer) {
+                p->name = colour_player_name(p->banner, texts->section("PLAYCOL"));
+            }
+        }
     }
     name_more_players(*world);
     return replace_world(std::move(world).value(), {}, &setup.rules);
@@ -2362,7 +2372,7 @@ void MapViewer::apply_menu() {
                 return;  // the rest belongs to the main menu, which is gone
             case MenuEvent::Kind::NewEndless: {
                 const EndlessSetup setup = e.setup.value_or(m_app_settings.endless);
-                started = start_endless(e.level, e.colour, e.name, setup);
+                started = start_endless(e.level, e.banner, e.name, setup);
                 if (started && !(setup == m_app_settings.endless)) {
                     m_app_settings.endless = setup;
                     save_settings();

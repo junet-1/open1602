@@ -252,9 +252,9 @@ private:
     [[nodiscard]] std::size_t humans() const;
     /// How the game stands for the local player now.
     [[nodiscard]] sim::GameOutcome local_outcome() const;
-    /// A new endless game of `level` (from the menu): name and banner of the human.
-    /// A new endless game with the settings of the start dialog (rules, an own world).
-    core::Status start_endless(std::uint8_t level, std::uint8_t colour, const std::string& name,
+    /// A new endless game of `level` (from the menu): name and banner of the human (one of the
+    /// original's four or a further one), with the settings of the start dialog (rules, an own world).
+    core::Status start_endless(std::uint8_t level, sim::BannerId banner, const std::string& name,
                                const EndlessSetup& setup);
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
     [[nodiscard]] static std::filesystem::path save_folder();

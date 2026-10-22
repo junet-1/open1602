@@ -11,6 +11,9 @@ namespace o1602::app {
 
 namespace {
 
+/// „Ihr konntet den Euch gestellten Auftrag erfüllen!“, in no player's colour.
+constexpr std::uint16_t kMessageMissionAccomplished = 0x54;
+
 /// A message, with where it happened and the player it is about.
 Announcement announce(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt,
                       std::optional<sim::PlayerId> about = std::nullopt) {
@@ -314,10 +317,13 @@ std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::Pl
                 if (e.player == local) {
                     expect_end_screen(sim::GameOutcome::Won, kEndScreenDelayMs, now_ms);
                     // 0x6B is the multiplayer message with the winner's colour (0x6B..0x6E); its
-                    // video speaks to the winner on track 1.
+                    // video speaks to the winner on track 1. The original has it for its four
+                    // colours only: the others hear „Ihr konntet den Euch gestellten Auftrag erfüllen!“.
                     if (e.message == audio::kMessageMultiplayerWin && p != nullptr) {
-                        out.emplace_back(announce_with_tracks(
-                            static_cast<std::uint16_t>(e.message + sim::four_colour_index(p->banner)), 0x03));
+                        out.emplace_back(
+                            p->banner < sim::kOriginalPlayers
+                                ? announce_with_tracks(static_cast<std::uint16_t>(e.message + p->banner), 0x03)
+                                : announce(kMessageMissionAccomplished));
                     } else {
                         out.emplace_back(announce(e.message));
                     }
@@ -329,12 +335,12 @@ std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::Pl
                 if (e.player != local && world.player(local) != nullptr && !world.player(local)->won) {
                     expect_end_screen(sim::GameOutcome::Lost, kEndScreenDelayMs, now_ms);
                     const sim::Mission* m = p != nullptr ? world.mission_of(*p) : nullptr;
-                    if (m != nullptr && m->success_message == audio::kMessageMultiplayerWin) {
+                    if (m != nullptr && m->success_message == audio::kMessageMultiplayerWin &&
+                        p->banner < sim::kOriginalPlayers) {
                         // A race: "the red player fulfilled his task", the others' voice (track 2).
-                        out.emplace_back(
-                            announce_with_tracks(static_cast<std::uint16_t>(audio::kMessageMultiplayerWin +
-                                                                            sim::four_colour_index(p->banner)),
-                                                 0x05));
+                        // There is none for the further colours: they hear their defeat below.
+                        out.emplace_back(announce_with_tracks(
+                            static_cast<std::uint16_t>(audio::kMessageMultiplayerWin + p->banner), 0x05));
                     } else {
                         out.emplace_back(announce(0x53));  // "Ihr wurdet besiegt!"
                     }

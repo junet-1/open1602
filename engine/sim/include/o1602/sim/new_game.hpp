@@ -69,6 +69,12 @@ struct NewGameOptions {
 /// from kFirstExtraBanner on. Nothing for four players or fewer.
 core::Status add_players(World& world, const WorldPlan& plan, std::uint8_t players);
 
+/// Gives player `who` banner `banner`: the colour screen offers all of kMaxPlayers colours, a new
+/// game's file only the original's four (NewGameOptions::colour). The player that had it, if any,
+/// takes `who`'s old one, as a computer's in the multiplayer lobby; it is returned, nothing if
+/// nobody had it or `who` is no player.
+std::optional<PlayerId> take_banner(World& world, PlayerId who, BannerId banner);
+
 /// The scenario of an own world: the players' ships at the plan's starts (none for players beyond
 /// `players`), the map size if it is not the original's. The islands are still to be made.
 [[nodiscard]] core::Result<assets::ChunkFile> own_world_scenario(const assets::ChunkFile& scenario,

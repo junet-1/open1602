@@ -260,6 +260,24 @@ core::Status add_players(World& world, const WorldPlan& plan, std::uint8_t playe
     return core::Ok{};
 }
 
+std::optional<PlayerId> take_banner(World& world, PlayerId who, BannerId banner) {
+    Player* me = world.player(who);
+    if (me == nullptr || me->banner == banner) {
+        return std::nullopt;
+    }
+    std::optional<PlayerId> other;
+    for (std::size_t slot = 0; slot < world.players().size(); ++slot) {
+        Player* p = world.player(static_cast<PlayerId>(slot));
+        if (p != nullptr && p != me && p->banner == banner) {
+            p->banner = me->banner;
+            other = static_cast<PlayerId>(slot);
+            break;
+        }
+    }
+    me->banner = banner;
+    return other;
+}
+
 core::Result<assets::ChunkFile> own_world_scenario(const assets::ChunkFile& scenario, const WorldPlan& plan,
                                                    std::uint8_t players) {
     assets::ChunkWriter out;

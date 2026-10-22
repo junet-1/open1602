@@ -18,6 +18,7 @@ add_library(o1602_render
     src/sprite_hit_mask.cpp
     src/ship_trail.cpp
     src/tick_trail.cpp
+    src/shape_tint.cpp
     src/sprite_source.cpp
     src/unit_tint.cpp
     src/variant_tint.cpp
