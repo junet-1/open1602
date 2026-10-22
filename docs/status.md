@@ -90,20 +90,14 @@ in [requests.md](requests.md).
 | Speed and strength of the computer opponents in comparison | [ai.md](re/ai.md) | Observation: endless savegames after 1 and 3 hours |
 | Sailing behaviour of the computer ships | [ships.md](re/ships.md) | Observation (video) |
 | View rotation 1–3 against the running original | [rendering.md](re/rendering.md) | Observation: screenshot in a rotated view |
-| Drought: strength, end, withered fields | [growth.md](re/growth.md) | Observation: savegames "Duerre", "NachDuerre" |
-| Volcanic eruption in a running game | [volcanoes.md](re/volcanoes.md) | Observation: savegames before and after the eruption |
+| Drought: how many fields wither (strength, end and recovery match the original) | [growth.md](re/growth.md) | Observation: savegames "Duerre", "NachDuerre" |
 | Fire, plague, robbers in large towns | [disasters.md](re/disasters.md) | Observation: larger town, video |
 | Effect of a fire on the ship construction of a shipyard | [disasters.md](re/disasters.md) | Observation |
-| Whether units in training can be sent out | [military.md](re/military.md) | Observation |
-| Who sends message 0x48 („protestiert“, "protests") | [diplomacy.md](re/diplomacy.md) | Analysis |
-| TIMERS +0xA5 ("computer idle"): who sets it | [ai.md](re/ai.md) | Analysis |
-| Town fields +2/+4/+8, HAUS +0x6A bit 7 (probably `Destroyflg`) | [logistics.md](re/logistics.md) | Analysis |
-| Production bits +0x0F/4 and /6 | [production.md](re/production.md) | Analysis |
 | Second list at island +0x30, random class of loaded fields | [growth.md](re/growth.md) | Analysis |
 | Control switches of the loader (`0x0060912C`, `0x005E6AA8`) | [deer.md](re/deer.md) | Analysis |
 | Special figures of branches 9/10/11/13 | [rendering.md](re/rendering.md) | Analysis |
 | Island header (rest), attribute bits 26–31, BSH field `type`, palette animation | [scp.md](formats/scp.md), [bsh.md](formats/bsh.md), [col.md](formats/col.md) | Analysis |
-| Parts of `TIMERS`, remaining `SZENE` chunks; `AUFTRAG4` +0x48/+0x58 (never read); TIMERS +0xA5 (probably the tutorial) | [gam.md](formats/gam.md), [missions.md](re/missions.md) | Analysis |
+| Parts of `TIMERS`, remaining `SZENE` chunks; `AUFTRAG4` +0x48/+0x58 (never read) | [gam.md](formats/gam.md), [missions.md](re/missions.md) | Analysis |
 | U-007, S-088 (part), S-094 (part) | [bugs.md](re/bugs.md) | inferred from the code; Open1602 avoids them anyway |
 | Playback of the messages, character mapping of the fonts | [cod.md](formats/cod.md) | with the interface |
 
