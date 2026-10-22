@@ -1362,8 +1362,10 @@ bool Fleet::route_ship_stop(Ship& ship, const RouteStop& stop) {
 namespace o1602::sim {
 
 void Fleet::save(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 4;
-    out.u16(kVersion);
+    // Version 5 only with the free traders' choices of Rules::trader_reach: a game of up to four
+    // players keeps the bytes of the versions before them.
+    const bool trader_choices = m_trader_choices != 0 || !m_trader_chosen.empty();
+    out.u16(trader_choices ? 5 : 4);
     out.u32(m_trader_ms);
     out.u32(m_yard_ms);
     out.u32(m_tools_given);
@@ -1394,12 +1396,21 @@ void Fleet::save(core::ByteWriter& out) const {
         out.u64(m.offer);
         out.u64(m.offer_value);
     }
+    // Version 5: the free traders' choices under Rules::trader_reach.
+    if (trader_choices) {
+        out.u32(m_trader_choices);
+        out.u32(static_cast<std::uint32_t>(m_trader_chosen.size()));
+        for (const auto& [kontor, choice] : m_trader_chosen) {
+            out.u32(kontor);
+            out.u32(choice);
+        }
+    }
 }
 
 bool Fleet::load(core::ByteReader& reader) {
     StateIn in(reader);
     const std::uint16_t version = in.u16();
-    if (version < 1 || version > 4) {
+    if (version < 1 || version > 5) {
         return false;
     }
     const std::uint32_t trader = in.u32();
@@ -1438,6 +1449,15 @@ bool Fleet::load(core::ByteReader& reader) {
             m.offer_value = in.u64();
         });
     }
+    std::uint32_t trader_choices = 0;
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> trader_chosen;
+    if (version >= 5) {
+        trader_choices = in.u32();
+        in.list(trader_chosen, 8, [&](std::pair<std::uint32_t, std::uint32_t>& c) {
+            c.first = in.u32();
+            c.second = in.u32();
+        });
+    }
     if (!in.ok()) {
         return false;
     }
@@ -1451,6 +1471,11 @@ bool Fleet::load(core::ByteReader& reader) {
         }
     }
     m_market = std::move(market);
+    m_trader_choices = trader_choices;
+    m_trader_chosen.clear();
+    for (const auto& [kontor, choice] : trader_chosen) {
+        m_trader_chosen[kontor] = choice;
+    }
     // Within their periods (trader check 10 s, shipyard second), like the pirates' clock: a larger
     // value would make the first tick catch up millions of shipyard seconds.
     m_trader_ms = trader % 10'000U;
