@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
@@ -11,6 +12,7 @@
 #include <utility>
 
 #include "o1602/sim/player.hpp"
+#include "o1602/sim/victory.hpp"
 #include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
@@ -35,6 +37,18 @@ constexpr std::array<Amount, 3> kIslandAmounts = {Amount::Few, Amount::Normal, A
 constexpr std::array<Amount, 4> kAmounts = {Amount::None, Amount::Few, Amount::Normal, Amount::Many};
 /// Islands with gold: 0 by the level and the world's size, then fixed numbers.
 constexpr std::array<std::uint32_t, 16> kGoldIslands = {0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40};
+// The victory conditions, each first "off" (0). Later Anno titles ask for a few thousand of the
+// highest class or a million in gold; an endless game of Anno 1602 reaches 1,000 aristocrats in
+// a few hours (the multiplayer map "Das Atoll" asks for them).
+constexpr std::array<std::uint32_t, 7> kWinInhabitants = {0, 1000, 2500, 5000, 10'000, 20'000, 50'000};
+constexpr std::uint8_t kFirstWinClass = 1;  // settlers: pioneers are every city's start
+constexpr std::uint8_t kLastWinClass = 4;   // aristocrats
+constexpr std::array<std::uint32_t, 7> kWinClassInhabitants = {0, 100, 250, 500, 1000, 2500, 5000};
+constexpr std::array<std::uint32_t, 6> kWinMoney = {0, 100'000, 250'000, 500'000, 1'000'000, 2'500'000};
+constexpr std::array<std::uint32_t, 5> kWinBalance = {0, 250, 500, 1000, 2500};
+constexpr std::array<std::uint32_t, 6> kWinIslands = {0, 25, 33, 50, 75, 100};
+constexpr std::array<std::uint32_t, 6> kWinScore = {0, 5000, 10'000, 25'000, 50'000, 100'000};
+constexpr std::array<std::uint32_t, 7> kWinMinutes = {0, 60, 120, 180, 240, 360, 480};
 
 /// The index of the value nearest to `v` (0 counts as the largest: unlimited).
 template <std::size_t N>
@@ -75,6 +89,26 @@ std::string number_text(std::uint32_t v) {
     return v == 0 ? ui::tr("setup.unlimited") : std::to_string(v);
 }
 
+/// A number with its thousands marked as the language does ("10,000", "10.000").
+std::string grouped(std::uint32_t v) {
+    const std::string digits = std::to_string(v);
+    const std::string mark = ui::tr("setup.thousands");
+    std::string out;
+    for (std::size_t i = 0; i < digits.size(); ++i) {
+        if (i != 0 && (digits.size() - i) % 3 == 0) {
+            out += mark;
+        }
+        out += digits[i];
+    }
+    return out;
+}
+
+/// A condition's value: "off" for 0.
+template <std::size_t N>
+std::string condition_text(const std::array<std::uint32_t, N>& values, std::size_t choice, std::string_view key) {
+    return values[choice] == 0 ? ui::tr("setup.off") : ui::tr(key, {grouped(values[choice])});
+}
+
 std::string amount_text(Amount a) {
     switch (a) {
         case Amount::None:
@@ -101,6 +135,7 @@ constexpr std::array<std::string_view, 3> kVolcanoNames = {"game", "off", "on"};
 constexpr std::array<std::string_view, 4> kAmountNames = {"none", "few", "normal", "many"};
 constexpr std::array<std::string_view, 3> kSizeNames = {"small", "mixed", "large"};
 constexpr std::array<std::string_view, 2> kStartNames = {"spread", "together"};
+constexpr std::array<std::string_view, 4> kMonumentNames = {"none", "castle", "cathedral", "both"};
 
 template <std::size_t N>
 std::optional<std::size_t> name_index(const std::array<std::string_view, N>& names, std::string_view v) {
@@ -114,6 +149,51 @@ std::optional<std::size_t> name_index(const std::array<std::string_view, N>& nam
 
 std::string_view on_off(bool b) {
     return b ? "on" : "off";
+}
+
+/// One "victory.<key>" line: any number, as far as the condition allows it.
+bool read_victory_line(sim::VictoryConditions& v, std::string_view key, std::string_view value) {
+    const auto n = parse_number(value);
+    if (key == "inhabitants") {
+        v.inhabitants = n.value_or(v.inhabitants);
+    } else if (key == "class") {
+        if (n && *n <= kLastWinClass) {
+            v.resident_class = static_cast<std::uint8_t>(*n);
+        }
+    } else if (key == "class_inhabitants") {
+        v.class_inhabitants = n.value_or(v.class_inhabitants);
+    } else if (key == "money") {
+        v.money = n.value_or(v.money);
+    } else if (key == "balance") {
+        v.balance = n.value_or(v.balance);
+    } else if (key == "islands") {
+        if (n && *n <= 100) {
+            v.islands_percent = static_cast<std::uint8_t>(*n);
+        }
+    } else if (key == "eliminate") {
+        if (value == "on" || value == "off") {
+            v.eliminate = value == "on";
+        }
+    } else if (key == "score") {
+        v.score = n.value_or(v.score);
+    } else if (key == "monument") {
+        if (const auto i = name_index(kMonumentNames, value)) {
+            v.monument = static_cast<sim::Monument>(*i);
+        }
+    } else if (key == "minutes") {
+        v.time_limit_minutes = n.value_or(v.time_limit_minutes);
+    } else if (key == "combine") {
+        if (value == "all" || value == "any") {
+            v.all = value == "all";
+        }
+    } else if (key == "computers") {
+        if (value == "on" || value == "off") {
+            v.computers = value == "on";
+        }
+    } else {
+        return false;
+    }
+    return true;
 }
 
 }  // namespace
@@ -183,7 +263,28 @@ std::size_t setup_choices(SetupItem item) noexcept {
         case SetupItem::Starts:
         case SetupItem::Resources:
         case SetupItem::ClassicAi:
+        case SetupItem::WinEliminate:
+        case SetupItem::WinAll:
+        case SetupItem::WinComputers:
             return 2;
+        case SetupItem::WinInhabitants:
+            return kWinInhabitants.size();
+        case SetupItem::WinClass:
+            return kLastWinClass - kFirstWinClass + 1;
+        case SetupItem::WinClassInhabitants:
+            return kWinClassInhabitants.size();
+        case SetupItem::WinMoney:
+            return kWinMoney.size();
+        case SetupItem::WinBalance:
+            return kWinBalance.size();
+        case SetupItem::WinIslands:
+            return kWinIslands.size();
+        case SetupItem::WinScore:
+            return kWinScore.size();
+        case SetupItem::WinMonument:
+            return kMonumentNames.size();
+        case SetupItem::WinTimeLimit:
+            return kWinMinutes.size();
         case SetupItem::Count:
             break;
     }
@@ -192,7 +293,12 @@ std::size_t setup_choices(SetupItem item) noexcept {
 
 std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
     const sim::Rules& r = setup.rules;
+    const sim::VictoryConditions& v = r.victory;
     const sim::WorldSettings& w = setup.world;
+    // A condition that is on shows the nearest value that is on too, not "off".
+    const auto condition = [](const auto& values, std::uint32_t value) {
+        return value == 0 ? std::size_t{0} : std::max<std::size_t>(nearest(values, value), 1);
+    };
     switch (item) {
         case SetupItem::Refund: {
             switch (r.demolish_refund) {
@@ -249,6 +355,31 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return r.guarantee_resources ? 0 : 1;
         case SetupItem::ClassicAi:
             return r.classic_ai ? 1 : 0;
+        case SetupItem::WinInhabitants:
+            return condition(kWinInhabitants, v.inhabitants);
+        case SetupItem::WinClass:
+            return static_cast<std::size_t>(std::clamp(v.resident_class, kFirstWinClass, kLastWinClass) -
+                                            kFirstWinClass);
+        case SetupItem::WinClassInhabitants:
+            return condition(kWinClassInhabitants, v.class_inhabitants);
+        case SetupItem::WinMoney:
+            return condition(kWinMoney, v.money);
+        case SetupItem::WinBalance:
+            return condition(kWinBalance, v.balance);
+        case SetupItem::WinIslands:
+            return condition(kWinIslands, v.islands_percent);
+        case SetupItem::WinEliminate:
+            return v.eliminate ? 1 : 0;
+        case SetupItem::WinScore:
+            return condition(kWinScore, v.score);
+        case SetupItem::WinMonument:
+            return std::min<std::size_t>(static_cast<std::size_t>(v.monument), kMonumentNames.size() - 1);
+        case SetupItem::WinTimeLimit:
+            return condition(kWinMinutes, v.time_limit_minutes);
+        case SetupItem::WinAll:
+            return v.all ? 0 : 1;
+        case SetupItem::WinComputers:
+            return v.computers ? 0 : 1;
         case SetupItem::Count:
             break;
     }
@@ -260,6 +391,7 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
         return;
     }
     sim::Rules& r = setup.rules;
+    sim::VictoryConditions& v = r.victory;
     sim::WorldSettings& w = setup.world;
     switch (item) {
         case SetupItem::Refund:
@@ -327,6 +459,42 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
         case SetupItem::ClassicAi:
             r.classic_ai = choice == 1;
             break;
+        case SetupItem::WinInhabitants:
+            v.inhabitants = kWinInhabitants[choice];
+            break;
+        case SetupItem::WinClass:
+            v.resident_class = static_cast<std::uint8_t>(kFirstWinClass + choice);
+            break;
+        case SetupItem::WinClassInhabitants:
+            v.class_inhabitants = kWinClassInhabitants[choice];
+            break;
+        case SetupItem::WinMoney:
+            v.money = kWinMoney[choice];
+            break;
+        case SetupItem::WinBalance:
+            v.balance = kWinBalance[choice];
+            break;
+        case SetupItem::WinIslands:
+            v.islands_percent = static_cast<std::uint8_t>(kWinIslands[choice]);
+            break;
+        case SetupItem::WinEliminate:
+            v.eliminate = choice == 1;
+            break;
+        case SetupItem::WinScore:
+            v.score = kWinScore[choice];
+            break;
+        case SetupItem::WinMonument:
+            v.monument = static_cast<sim::Monument>(choice);
+            break;
+        case SetupItem::WinTimeLimit:
+            v.time_limit_minutes = kWinMinutes[choice];
+            break;
+        case SetupItem::WinAll:
+            v.all = choice == 0;
+            break;
+        case SetupItem::WinComputers:
+            v.computers = choice == 0;
+            break;
         case SetupItem::Count:
             break;
     }
@@ -357,12 +525,88 @@ bool setup_item_used(const EndlessSetup& setup, SetupItem item) noexcept {
         case SetupItem::GoldIslands:
         case SetupItem::Starts:
             return setup.own_world;
+        case SetupItem::WinClass:
+            return setup.rules.victory.class_inhabitants != 0;
+        case SetupItem::WinAll:
+            return std::popcount(sim::victory_required(setup.rules.victory)) >= 2;
+        case SetupItem::WinComputers:
+            return setup.rules.victory.active();
         default:
             return item != SetupItem::Count;
     }
 }
 
+bool victory_offered(SetupScope scope) noexcept {
+    return scope != SetupScope::Scenario;
+}
+
+std::size_t victory_count(const sim::VictoryConditions& v) noexcept {
+    return static_cast<std::size_t>(std::popcount(sim::victory_required(v))) + (v.time_limit_minutes != 0 ? 1U : 0U);
+}
+
+std::string victory_summary(const sim::VictoryConditions& v) {
+    const std::size_t n = victory_count(v);
+    if (n == 0) {
+        return ui::tr("setup.victory.none");
+    }
+    return ui::tr(n == 1 ? "setup.victory.one" : "setup.victory.many", {std::to_string(n)});
+}
+
+std::string victory_text(const sim::VictoryConditions& v) {
+    if (!v.active()) {
+        return {};
+    }
+    std::string parts;
+    const auto add = [&parts](SetupItem item, const std::string& value) {
+        parts += parts.empty() ? "" : "; ";
+        parts += setup_label(item) + ": " + value;
+    };
+    if (v.inhabitants != 0) {
+        add(SetupItem::WinInhabitants, grouped(v.inhabitants));
+    }
+    if (v.class_inhabitants != 0) {
+        const auto cls =
+            static_cast<std::size_t>(std::clamp(v.resident_class, kFirstWinClass, kLastWinClass) - kFirstWinClass);
+        add(SetupItem::WinClass,
+            ui::tr("setup.win.class.text", {grouped(v.class_inhabitants), setup_value(SetupItem::WinClass, cls)}));
+    }
+    if (v.money != 0) {
+        add(SetupItem::WinMoney, ui::tr("setup.win.gold", {grouped(v.money)}));
+    }
+    if (v.balance != 0) {
+        add(SetupItem::WinBalance, ui::tr("setup.win.balance.value", {grouped(v.balance)}));
+    }
+    if (v.islands_percent != 0) {
+        add(SetupItem::WinIslands, ui::tr("setup.win.percent", {std::to_string(v.islands_percent)}));
+    }
+    if (v.eliminate) {
+        parts += parts.empty() ? "" : "; ";
+        parts += setup_label(SetupItem::WinEliminate);
+    }
+    if (v.score != 0) {
+        add(SetupItem::WinScore, grouped(v.score));
+    }
+    if (v.monument != sim::Monument::None) {
+        add(SetupItem::WinMonument, setup_value(SetupItem::WinMonument, static_cast<std::size_t>(v.monument)));
+    }
+    if (v.time_limit_minutes != 0) {
+        const std::uint32_t m = v.time_limit_minutes;
+        add(SetupItem::WinTimeLimit, m % 60 == 0 ? ui::tr("setup.win.hours", {std::to_string(m / 60)})
+                                                 : ui::tr("setup.win.minutes", {std::to_string(m)}));
+    }
+    if (std::popcount(sim::victory_required(v)) >= 2) {
+        add(SetupItem::WinAll, setup_value(SetupItem::WinAll, v.all ? 0 : 1));
+    }
+    if (!v.computers) {
+        add(SetupItem::WinComputers, ui::tr("dialog.no"));
+    }
+    return ui::tr("setup.victory.text", {parts});
+}
+
 bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
+    if (victory_item(item)) {
+        return victory_offered(scope);
+    }
     switch (scope) {
         case SetupScope::Endless:
         case SetupScope::MultiplayerEndless:
@@ -423,15 +667,36 @@ EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players) {
 }
 
 std::string setup_label(SetupItem item) {
-    static constexpr std::array<std::string_view, kSetupItems> kKeys = {"setup.refund",       "setup.trader",
-                                                                        "setup.ships",        "setup.units",
-                                                                        "setup.speed",        "setup.droughts",
-                                                                        "setup.volcanoes",    "setup.map",
-                                                                        "setup.size",         "setup.players",
-                                                                        "setup.islands",      "setup.island_sizes",
-                                                                        "setup.villages",     "setup.volcano_islands",
-                                                                        "setup.gold_islands", "setup.starts",
-                                                                        "setup.resources",    "setup.ai"};
+    static constexpr std::array<std::string_view, kSetupItems> kKeys = {"setup.refund",
+                                                                        "setup.trader",
+                                                                        "setup.ships",
+                                                                        "setup.units",
+                                                                        "setup.speed",
+                                                                        "setup.droughts",
+                                                                        "setup.volcanoes",
+                                                                        "setup.map",
+                                                                        "setup.size",
+                                                                        "setup.players",
+                                                                        "setup.islands",
+                                                                        "setup.island_sizes",
+                                                                        "setup.villages",
+                                                                        "setup.volcano_islands",
+                                                                        "setup.gold_islands",
+                                                                        "setup.starts",
+                                                                        "setup.resources",
+                                                                        "setup.ai",
+                                                                        "setup.win.inhabitants",
+                                                                        "setup.win.class",
+                                                                        "setup.win.class_inhabitants",
+                                                                        "setup.win.money",
+                                                                        "setup.win.balance",
+                                                                        "setup.win.islands",
+                                                                        "setup.win.eliminate",
+                                                                        "setup.win.score",
+                                                                        "setup.win.monument",
+                                                                        "setup.win.time",
+                                                                        "setup.win.all",
+                                                                        "setup.win.computers"};
     const auto i = static_cast<std::size_t>(item);
     return i < kKeys.size() ? ui::tr(kKeys[i]) : std::string{};
 }
@@ -495,6 +760,38 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 0 ? "setup.on" : "setup.off");
         case SetupItem::ClassicAi:
             return ui::tr(choice == 1 ? "setup.ai.classic" : "setup.ai.open1602");
+        case SetupItem::WinInhabitants:
+            return condition_text(kWinInhabitants, choice, "setup.win.number");
+        case SetupItem::WinClass: {
+            static constexpr std::array<std::string_view, 4> kKeys = {
+                "setup.win.class.settlers", "setup.win.class.citizens", "setup.win.class.merchants",
+                "setup.win.class.aristocrats"};
+            return ui::tr(kKeys[choice]);
+        }
+        case SetupItem::WinClassInhabitants:
+            return condition_text(kWinClassInhabitants, choice, "setup.win.number");
+        case SetupItem::WinMoney:
+            return condition_text(kWinMoney, choice, "setup.win.gold");
+        case SetupItem::WinBalance:
+            return condition_text(kWinBalance, choice, "setup.win.balance.value");
+        case SetupItem::WinIslands:
+            return condition_text(kWinIslands, choice, "setup.win.percent");
+        case SetupItem::WinEliminate:
+            return ui::tr(choice == 1 ? "setup.on" : "setup.off");
+        case SetupItem::WinScore:
+            return condition_text(kWinScore, choice, "setup.win.number");
+        case SetupItem::WinMonument: {
+            static constexpr std::array<std::string_view, 4> kKeys = {
+                "setup.off", "setup.win.monument.castle", "setup.win.monument.cathedral", "setup.win.monument.both"};
+            return ui::tr(kKeys[choice]);
+        }
+        case SetupItem::WinTimeLimit:
+            return kWinMinutes[choice] == 0 ? ui::tr("setup.off")
+                                            : ui::tr("setup.win.hours", {std::to_string(kWinMinutes[choice] / 60)});
+        case SetupItem::WinAll:
+            return ui::tr(choice == 0 ? "setup.win.all.every" : "setup.win.all.any");
+        case SetupItem::WinComputers:
+            return ui::tr(choice == 0 ? "dialog.yes" : "dialog.no");
         case SetupItem::Count:
             break;
     }
@@ -513,6 +810,9 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
     sim::Rules& r = setup.rules;
     sim::WorldSettings& w = setup.world;
     const auto n = parse_number(value);
+    if (key.starts_with("victory.")) {
+        return read_victory_line(r.victory, key.substr(8), value);
+    }
     if (key == "refund") {
         // 0: none, 100: full, else a share in percent.
         if (n && *n == 0) {
@@ -627,6 +927,19 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("volcano_islands", kAmountNames[static_cast<std::size_t>(w.volcanoes)]);
     line("gold_islands", w.gold_islands == 0 ? "auto" : std::to_string(w.gold_islands));
     line("starts", kStartNames[w.starts == Starts::Together ? 1 : 0]);
+    const sim::VictoryConditions& v = r.victory;
+    line("victory.inhabitants", std::to_string(v.inhabitants));
+    line("victory.class", std::to_string(v.resident_class));
+    line("victory.class_inhabitants", std::to_string(v.class_inhabitants));
+    line("victory.money", std::to_string(v.money));
+    line("victory.balance", std::to_string(v.balance));
+    line("victory.islands", std::to_string(v.islands_percent));
+    line("victory.eliminate", on_off(v.eliminate));
+    line("victory.score", std::to_string(v.score));
+    line("victory.monument", kMonumentNames[std::min<std::size_t>(static_cast<std::size_t>(v.monument), 3)]);
+    line("victory.minutes", std::to_string(v.time_limit_minutes));
+    line("victory.combine", v.all ? "all" : "any");
+    line("victory.computers", on_off(v.computers));
     return out;
 }
 

@@ -428,3 +428,155 @@ TEST_CASE("game setup: every group of the dialog ends above its hint") {
         }
     }
 }
+
+TEST_CASE("endless setup: the victory conditions, all off by default") {
+    EndlessSetup s;
+    CHECK(!s.rules.victory.active());
+    CHECK(app::victory_summary(s.rules.victory) == ui::tr("setup.victory.none"));
+    CHECK(app::victory_text(s.rules.victory).empty());
+    for (std::size_t i = 0; i < app::kSetupItems; ++i) {
+        const auto item = static_cast<SetupItem>(i);
+        if (app::victory_item(item) && item != SetupItem::WinClass && item != SetupItem::WinAll &&
+            item != SetupItem::WinComputers) {
+            CHECK(value_of(s, item) == ui::tr("setup.off"));
+        }
+    }
+    // A few conditions: they reach the rules.
+    app::choose(s, SetupItem::WinInhabitants, 3);
+    app::choose(s, SetupItem::WinClass, 3);
+    app::choose(s, SetupItem::WinClassInhabitants, 4);
+    app::choose(s, SetupItem::WinTimeLimit, 2);
+    app::choose(s, SetupItem::WinMonument, 2);
+    const sim::VictoryConditions& v = s.rules.victory;
+    CHECK(v.inhabitants == 5000);
+    CHECK(v.resident_class == 4);  // aristocrats
+    CHECK(v.class_inhabitants == 1000);
+    CHECK(v.time_limit_minutes == 120);
+    CHECK(v.monument == sim::Monument::Cathedral);
+    CHECK(app::victory_count(v) == 4);
+    CHECK(app::victory_summary(v) == ui::tr("setup.victory.many", {"4"}));
+    CHECK(app::setup_item_used(s, SetupItem::WinClass));
+    CHECK(app::setup_item_used(s, SetupItem::WinAll));
+    CHECK(!(s == EndlessSetup{}));
+
+    // settings.cfg, and with it the lobby, keeps them; any number, not only the dialog's.
+    EndlessSetup back;
+    app::read_setup(back, app::write_setup(s, "multiplayer."), "multiplayer.");
+    CHECK(back == s);
+    CHECK(app::read_setup_line(back, "victory.inhabitants", "7500"));
+    CHECK(back.rules.victory.inhabitants == 7500);
+    CHECK(app::setup_choice(back, SetupItem::WinInhabitants) != 0);  // shown as a value that is on
+    CHECK(app::read_setup_line(back, "victory.islands", "150"));     // beyond 100 %: unchanged
+    CHECK(back.rules.victory.islands_percent == 0);
+    CHECK(app::read_setup_line(back, "victory.monument", "both"));
+    CHECK(back.rules.victory.monument == sim::Monument::Both);
+    CHECK(app::read_setup_line(back, "victory.combine", "any"));
+    CHECK(!back.rules.victory.all);
+    CHECK(!app::read_setup_line(back, "victory.unknown", "1"));
+
+    // The mission window's sentence names them with their values.
+    ui::set_language("de");
+    const std::string text = app::victory_text(back.rules.victory);
+    CHECK(text.find("Siegbedingungen") == 0);
+    CHECK(text.find("7.500") != std::string::npos);
+    CHECK(text.find("2 Std.") != std::string::npos);
+    ui::set_language(ui::kFallbackLanguage);
+    CHECK(app::victory_text(back.rules.victory).find("7,500") != std::string::npos);
+}
+
+TEST_CASE("game setup: victory conditions for endless games, not for scenarios") {
+    using app::SetupScope;
+    CHECK(app::victory_offered(SetupScope::Endless));
+    CHECK(app::victory_offered(SetupScope::MultiplayerEndless));
+    CHECK(app::victory_offered(SetupScope::Savegame));   // to look at
+    CHECK(!app::victory_offered(SetupScope::Scenario));  // a scenario has its own missions
+    CHECK(!app::setup_item_offered(SetupScope::Scenario, SetupItem::WinInhabitants));
+    CHECK(app::setup_item_open(EndlessSetup{}, SetupScope::Endless, SetupItem::WinInhabitants));
+    CHECK(!app::setup_item_open(EndlessSetup{}, SetupScope::Savegame, SetupItem::WinInhabitants));
+
+    app::GameSettingsMenu menu;
+    menu.open(EndlessSetup{}, SetupScope::Scenario);
+    CHECK(!find_text(menu, ui::tr("setup.victory")).has_value());
+}
+
+TEST_CASE("game setup: the page of the victory conditions") {
+    app::GameSettingsMenu menu;
+    menu.open(EndlessSetup{});
+    const std::string open = ui::tr("setup.victory.open", {ui::tr("setup.victory.none")});
+    CHECK(!find_text(menu, ui::tr("setup.win.inhabitants")).has_value());
+    CHECK(click(menu, open) == app::GameSettingsMenu::Result::None);
+    CHECK(menu.victory_page());
+    CHECK(find_text(menu, ui::tr("setup.title.victory")).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.original")).has_value());  // the presets are the rules'
+
+    // A click on a condition turns it on.
+    (void)click(menu, value_of(menu.setup(), SetupItem::WinInhabitants));
+    CHECK(menu.setup().rules.victory.inhabitants == 1000);
+    // Many conditions show "off": the one in the row of its label.
+    const auto label = find_text(menu, app::setup_label(SetupItem::WinEliminate));
+    REQUIRE(label.has_value());
+    (void)menu.mouse(label->first + 260, label->second - 4, true);
+    (void)menu.mouse(label->first + 260, label->second - 4, false);
+    CHECK(menu.setup().rules.victory.eliminate);
+    // "Back" leads to the settings, where the button counts them.
+    CHECK(click(menu, ui::tr("setup.back")) == app::GameSettingsMenu::Result::None);
+    CHECK(!menu.victory_page());
+    CHECK(find_text(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.many", {"2"})})).has_value());
+    // The presets change the rules, the conditions stay.
+    (void)click(menu, ui::tr("setup.original"));
+    CHECK(menu.setup().rules.classic_ai);
+    CHECK(menu.setup().rules.victory.inhabitants == 1000);
+    // Escape goes back to the settings first, then out.
+    (void)click(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.many", {"2"})}));
+    CHECK(menu.back());
+    CHECK(!menu.back());
+    // "All off" switches every condition off.
+    (void)click(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.many", {"2"})}));
+    (void)click(menu, ui::tr("setup.victory.off"));
+    CHECK(!menu.setup().rules.victory.active());
+    CHECK(click(menu, ui::tr("setup.start")) == app::GameSettingsMenu::Result::Start);
+
+    // A savegame's conditions can be looked at, not changed.
+    EndlessSetup saved;
+    saved.rules.victory.score = 25'000;
+    menu.open(saved, app::SetupScope::Savegame);
+    (void)click(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.one")}));
+    CHECK(menu.victory_page());
+    CHECK(find_text(menu, value_of(saved, SetupItem::WinScore)).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.victory.off")).has_value());
+    // Opened anew, the dialog starts on its first page.
+    menu.open(saved, app::SetupScope::Endless);
+    CHECK(!menu.victory_page());
+}
+
+TEST_CASE("game setup: the victory page's groups end above its hint, in English and German") {
+    for (const std::string_view code : {"de", "en"}) {
+        ui::set_language(code);
+        app::GameSettingsMenu menu;
+        menu.open(EndlessSetup{});
+        (void)click(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.none")}));
+        REQUIRE(menu.victory_page());
+        std::int32_t lowest = 0;
+        std::int32_t hint_y = INT32_MAX;
+        const std::string hint = ui::tr("setup.hint.victory");
+        for (const ui::DrawItem& d : menu.draw(kNoFonts)) {
+            if (d.kind != ui::DrawItem::Kind::Text || d.text.empty()) {
+                continue;
+            }
+            if (d.text.size() > 20 && hint.compare(0, 20, d.text, 0, 20) == 0) {
+                hint_y = std::min(hint_y, d.y);
+            }
+            for (std::size_t i = 0; i < app::kSetupItems; ++i) {
+                const auto item = static_cast<SetupItem>(i);
+                if (app::victory_item(item) && d.text == app::setup_label(item)) {
+                    lowest = std::max(lowest, d.y);
+                }
+            }
+        }
+        REQUIRE(hint_y != INT32_MAX);
+        CHECK(lowest > 0);
+        CHECK(lowest + 27 <= hint_y);
+        CHECK(ui::tr("setup.hint.victory") != "setup.hint.victory");
+    }
+    ui::set_language(ui::kFallbackLanguage);
+}
