@@ -363,6 +363,9 @@ TEST_CASE("endless setup: the gold islands, automatic or a fixed number") {
     CHECK(value_of(s, SetupItem::GoldIslands) == "3");
     CHECK(s.world_settings().gold_islands == 3);
     CHECK(!(s == EndlessSetup{}));
+    app::choose(s, SetupItem::GoldIslands, app::setup_choices(SetupItem::GoldIslands) - 1);
+    CHECK(s.world.gold_islands == 40);  // the most, for the largest maps
+    app::choose(s, SetupItem::GoldIslands, 3);
 
     // settings.cfg, and with it the lobby, keeps the choice.
     CHECK(app::write_setup(s).find("endless.gold_islands = 3\n") != std::string::npos);

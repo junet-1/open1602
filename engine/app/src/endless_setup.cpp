@@ -34,7 +34,7 @@ constexpr auto kMostPlayers = static_cast<std::uint8_t>(sim::kMaxPlayers);  // a
 constexpr std::array<Amount, 3> kIslandAmounts = {Amount::Few, Amount::Normal, Amount::Many};
 constexpr std::array<Amount, 4> kAmounts = {Amount::None, Amount::Few, Amount::Normal, Amount::Many};
 /// Islands with gold: 0 by the level and the world's size, then fixed numbers.
-constexpr std::array<std::uint32_t, 12> kGoldIslands = {0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20};
+constexpr std::array<std::uint32_t, 16> kGoldIslands = {0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 25, 30, 35, 40};
 
 /// The index of the value nearest to `v` (0 counts as the largest: unlimited).
 template <std::size_t N>
