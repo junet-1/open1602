@@ -1022,7 +1022,7 @@ void Engine::run_stage(AiPlayer& p, City& c, CityPlan& r) {
                 // A first colony before the city grows on (the original waits for it forever if no
                 // island is found, S-097; Open1602 goes on once the search has failed). Not if the
                 // scenario forbids colonies (0x00426A7B).
-                if (kontor_level(c) == 1 && p.cities < 2 && !p.colony_failed &&
+                if (kontor_level(c) == 1 && p.cities < 2 && (!p.colony_failed || classic()) &&
                     !player(p).scenario.has(scenario_flag::kNoColonies)) {
                     want_colony(p, 1, true, true);
                 } else if (money > 8000 || incomes_ok(p, 11)) {
@@ -1379,7 +1379,7 @@ bool Engine::need(AiPlayer& p, std::uint8_t which, std::uint32_t n, bool cov) {
             break;
         case kSlotBakery:
             // The original asks for bakeries and mills even where nothing feeds them (S-098).
-            if (r->slots[kSlotMill].count == 0) {
+            if (r->slots[kSlotMill].count == 0 && !classic()) {
                 return false;
             }
             break;

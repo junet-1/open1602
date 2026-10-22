@@ -792,7 +792,9 @@ void Engine::task_military(AiPlayer& p) {
             }
             build(p, std::move(items), false);
         }
-        slot_built(p, kSlotCastle);  // the original never counts it (S-098)
+        if (!classic()) {
+            slot_built(p, kSlotCastle);  // the original never counts it (S-098)
+        }
         slot_ok(p, kSlotCastle);
         push(p, kSurvey, true);
         return;

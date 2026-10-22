@@ -7,6 +7,7 @@
 // once the road list is exhausted.
 #include <algorithm>
 #include <array>
+#include <span>
 #include <vector>
 
 #include "ai_engine.hpp"
@@ -1242,8 +1243,9 @@ bool Engine::search_fisher(AiPlayer& p) {
             }
         }
         // Outwards and both sides (the original never tries the third direction, S-099).
-        for (const std::uint8_t dir :
-             {out, static_cast<std::uint8_t>((g.dir + 3U) & 3U), static_cast<std::uint8_t>((g.dir + 1U) & 3U)}) {
+        const std::array<std::uint8_t, 3> dirs = {out, static_cast<std::uint8_t>((g.dir + 3U) & 3U),
+                                                  static_cast<std::uint8_t>((g.dir + 1U) & 3U)};
+        for (const std::uint8_t dir : std::span(dirs).first(classic() ? 2 : 3)) {
             std::int32_t cx = 0;
             std::int32_t cy = 0;
             const std::int32_t dist = coast_walk(p, sx, sy, dir, &cx, &cy, false);
@@ -1355,7 +1357,9 @@ bool Engine::search_mine(AiPlayer& p, std::uint8_t w) {
     Search& s = p.search;
     for (std::int32_t k = 0; k < 4; ++k) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
-            search_mine_wide(p, w);
+            if (!classic()) {
+                search_mine_wide(p, w);
+            }
             return true;
         }
         const Segment& g = p.segments[static_cast<std::size_t>(s.segment)];

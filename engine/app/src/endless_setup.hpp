@@ -48,6 +48,8 @@ enum class SetupItem : std::uint8_t {
     VolcanoIslands,
     Starts,
     Resources,
+    // Opponents
+    ClassicAi,
     Count,
 };
 

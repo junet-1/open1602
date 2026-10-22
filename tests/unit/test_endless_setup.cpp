@@ -86,6 +86,9 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(s.rules.trader_prices == sim::TraderPrices::Market);
     app::choose(s, SetupItem::Resources, 1);
     CHECK(!s.rules.guarantee_resources);
+    CHECK(!s.rules.classic_ai);  // Open1602's computer players by default
+    app::choose(s, SetupItem::ClassicAi, 1);
+    CHECK(s.rules.classic_ai);
 
     // The world's items count only for a world of its own.
     CHECK(!app::setup_item_used(s, SetupItem::Players));
