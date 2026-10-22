@@ -44,7 +44,7 @@ int usage() {
         "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
         "                [--islands original|seed]\n"
         "                [--world WxH] [--players 1-12] [--island-count C] [--island-sizes S] [--villages C]\n"
-        "                [--volcano-islands C] [--starts spread|together]\n"
+        "                [--volcano-islands C] [--gold-islands auto|N] [--starts spread|together]\n"
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
         "                [--video N] [--input EVENTS] [--select ISLAND,X,Y|ship:N]\n"
         "                [--host [--port N] | --join HOST[:PORT]] [--name NAME]\n"
@@ -53,7 +53,8 @@ int usage() {
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
         "  --world WxH ...    an own world for the new game (any of these options): size in tiles (200-2000),\n"
         "                     players with a start, island count, villages and volcano islands none|few|normal|\n"
-        "                     many, island sizes small|mixed|large, starts spread (default) or together\n"
+        "                     many, island sizes small|mixed|large, islands with gold auto (default) or a\n"
+        "                     number, starts spread (default) or together\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
         "  --original-flags   original flag images instead of the tinted generic flag\n"
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
@@ -454,6 +455,15 @@ int main(int argc, char** argv) {
             } else {
                 return usage();
             }
+            custom_world = true;
+        } else if (arg == "--gold-islands" && has_value) {
+            const std::string_view mode = argv[++i];
+            std::int32_t gold = 0;
+            if (mode != "auto" && (!parse_number(mode, gold) || gold < 1 ||
+                                   gold > static_cast<std::int32_t>(sim::WorldSettings::kMaxGoldIslands))) {
+                return usage();
+            }
+            custom.gold_islands = static_cast<std::uint8_t>(gold);
             custom_world = true;
         } else if (arg == "--players" && has_value) {
             std::int32_t players = 0;

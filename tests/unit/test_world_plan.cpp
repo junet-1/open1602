@@ -311,3 +311,21 @@ TEST_CASE("world plan: players five on are computers behind the factions, each w
     CHECK(!sim::add_players(four, plan, 7).ok());
     CHECK(!sim::add_players(four, plan, 13).ok());
 }
+
+TEST_CASE("world plan: a fixed number of gold islands replaces the level's gold") {
+    sim::WorldSettings s;
+    s.seed = 3;
+    auto by_level = sim::plan_world(s, templates());
+    REQUIRE(by_level.ok());
+    CHECK(by_level->gold_islands == 0);
+    CHECK(by_level->plan.ores[2].count == 3);  // easy: three, as the original's plans
+    s.gold_islands = 7;
+    auto fixed = sim::plan_world(s, templates());
+    REQUIRE(fixed.ok());
+    CHECK(fixed->gold_islands == 7);
+    CHECK(fixed->plan.ores[2].building == 22405);
+    CHECK(fixed->plan.ores[2].count == 7);
+    // Only the gold changes.
+    CHECK(fixed->plan.ores[0].count == by_level->plan.ores[0].count);
+    CHECK(fixed->plan.islands.size() == by_level->plan.islands.size());
+}

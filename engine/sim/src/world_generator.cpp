@@ -125,6 +125,15 @@ struct Slot {
     DepositSlots deposits;
     bool treasure = false;
     std::array<std::uint32_t, 2> mountains{};  ///< big (Erzbergnr 0) and small ones among the first 40
+
+    [[nodiscard]] bool has(std::uint8_t ware) const {
+        for (std::size_t i = 0; i < deposits.count; ++i) {
+            if (deposits.ware(i) == ware) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 std::string template_path(std::uint8_t climate, std::uint8_t size, std::uint16_t number, bool natives) {
@@ -149,13 +158,15 @@ std::shared_ptr<assets::ChunkFile> open(const assets::GameDirectory& game, const
 class Generator {
 public:
     Generator(ScenarioPlan plan, const assets::GameDirectory& game, const assets::BuildingTable& buildings,
-              PlanRandom& random, std::vector<std::string>* warnings, std::vector<StartArea> starts = {})
+              PlanRandom& random, std::vector<std::string>* warnings, std::vector<StartArea> starts = {},
+              std::uint8_t gold_islands = 0)
         : m_plan(std::move(plan)),
           m_game(game),
           m_buildings(buildings),
           m_random(random),
           m_warnings(warnings),
-          m_starts(std::move(starts)) {}
+          m_starts(std::move(starts)),
+          m_gold_islands(gold_islands) {}
 
     core::Result<GeneratedWorld> run(const assets::ChunkFile& scenario, bool guarantee);
 
@@ -175,6 +186,10 @@ private:
     void reserve_home_iron();
     [[nodiscard]] bool village_fits(const ScenarioPlan::Island& e) const;
     void fair_starts();
+    bool give_start_gold(const StartArea& start, const std::vector<Slot*>& near);
+    void reserve_start_gold();
+    void top_up_gold();
+    [[nodiscard]] std::uint32_t gold_islands() const;
     [[nodiscard]] std::vector<Slot*> in_reach(const StartArea& start) const;
 
     [[nodiscard]] std::vector<Mountain> mountains(const Slot& slot, int type, bool free_only) const;
@@ -205,6 +220,7 @@ private:
     PlanRandom& m_random;
     std::vector<std::string>* m_warnings;
     std::vector<StartArea> m_starts;  ///< own worlds (world_plan.hpp): the players' start areas
+    std::uint8_t m_gold_islands = 0;  ///< own worlds: exactly this many islands with gold (0: as planned)
     std::vector<Slot> m_slots;        ///< in the order of the plan
     std::vector<Slot*> m_by_number;   ///< in the order of the island table (island number)
     std::uint32_t m_max_crops = 2;
@@ -535,6 +551,9 @@ void Generator::place_ores() {
             tries = {{3, 2, 3, g1, g2, mc, 1},  {3, 2, 2, g1, g2, mc, 1}, {3, 2, 2, g1, g2, 255, 1},
                      {3, 2, 1, g1, g2, 255, 1}, {3, 2, 3, g1, 4, 255, 1}, {3, 2, 2, g1, 4, 255, 1},
                      {3, 2, 2, g1, 4, 255, 2},  {3, 2, 1, g1, 4, 255, 2}};
+            if (m_gold_islands != 0) {
+                tries.resize(6);  // a fixed number of gold islands: one vein each
+            }
             amount = kGoldAmount;
         } else {
             continue;
@@ -776,7 +795,8 @@ void Generator::reserve_home_iron() {
 
 void Generator::fair_starts() {
     // Own worlds: every start has the six crops and a gold vein within reach. What the main
-    // passes did not put there goes to an island near the start.
+    // passes did not put there goes to an island near the start. With a fixed number of gold
+    // islands the starts got their gold before the passes (reserve_start_gold).
     for (const StartArea& start : m_starts) {
         const std::vector<Slot*> near = in_reach(start);
         const auto reachable = [&](const Slot* s) { return std::find(near.begin(), near.end(), s) != near.end(); };
@@ -842,21 +862,93 @@ void Generator::fair_starts() {
             give_crop(*best, ware);
             ++m_guaranteed;
         }
-        const auto has_gold = std::any_of(near.begin(), near.end(), [](const Slot* s) {
-            for (std::size_t i = 0; i < s->deposits.count; ++i) {
-                if (s->deposits.ware(i) == ware::kGold) {
-                    return true;
-                }
-            }
-            return false;
-        });
-        if (has_gold) {
-            continue;
+        if (m_gold_islands == 0 && give_start_gold(start, near)) {
+            ++m_guaranteed;
         }
+    }
+}
+
+bool Generator::give_start_gold(const StartArea& start, const std::vector<Slot*>& near) {
+    if (std::any_of(near.begin(), near.end(), [](const Slot* s) { return s->has(ware::kGold); })) {
+        return false;
+    }
+    std::vector<std::pair<Slot*, Mountain>> spots;
+    for (const bool little : {false, true}) {
+        for (Slot* s : near) {
+            if (s->deposits.count >= 2 || (s->plan.size == 0) != little) {
+                continue;
+            }
+            for (const Mountain& m : mountains(*s, 2, true)) {
+                spots.emplace_back(s, m);
+            }
+        }
+        if (!spots.empty()) {
+            break;
+        }
+    }
+    if (spots.empty()) {
+        // The second iron vein of a near island makes room.
+        for (Slot* s : near) {
+            if (s->deposits.count == 2 && s->deposits.ware(0) == ware::kOre && s->deposits.ware(1) == ware::kOre) {
+                spots.emplace_back(s, Mountain{s->deposits.x(1), s->deposits.y(1)});
+            }
+        }
+    }
+    if (spots.empty()) {
+        // Nothing near: the nearest island with a free mountain and a free slot (with a fixed
+        // number of gold islands, one without gold).
+        std::int64_t best = std::numeric_limits<std::int64_t>::max();
+        for (Slot* s : m_by_number) {
+            if (m_gold_islands != 0 && s->has(ware::kGold)) {
+                continue;
+            }
+            const std::int64_t dx = std::int64_t{s->plan.x} + s->map->width() / 2 - start.x;
+            const std::int64_t dy = std::int64_t{s->plan.y} + s->map->height() / 2 - start.y;
+            const std::vector<Mountain> free = mountains(*s, 2, true);
+            if (s->deposits.count < 2 && !free.empty() && dx * dx + dy * dy < best) {
+                best = dx * dx + dy * dy;
+                spots.assign(1, {s, free.front()});
+            }
+        }
+    }
+    if (spots.empty()) {
+        warn("no mountain for gold near start (" + std::to_string(start.x) + ", " + std::to_string(start.y) + ")");
+        return false;
+    }
+    const auto& [s, m] = spots[m_random.below(static_cast<std::uint32_t>(spots.size()))];
+    return s->deposits.place(ware::kGold, m.x, m.y, 1, kGoldAmount);
+}
+
+std::uint32_t Generator::gold_islands() const {
+    return static_cast<std::uint32_t>(
+        std::count_if(m_slots.begin(), m_slots.end(), [](const Slot& s) { return s.has(ware::kGold); }));
+}
+
+void Generator::reserve_start_gold() {
+    // A fixed number of gold islands: the starts get theirs before the main passes, in the order of
+    // the players, as long as the number lasts; the passes place the rest.
+    ScenarioPlan::Resource* gold = nullptr;
+    for (ScenarioPlan::Resource& r : m_plan.ores) {
+        gold = r.building != 0 && ware_of(r.building) == ware::kGold ? &r : gold;
+    }
+    for (const StartArea& start : m_starts) {
+        if (gold == nullptr || gold->count == 0) {
+            return;
+        }
+        if (give_start_gold(start, in_reach(start))) {
+            --gold->count;  // counts against the plan's gold, as the home iron does
+        }
+    }
+}
+
+void Generator::top_up_gold() {
+    // A fixed number of gold islands: units the main passes lost go to islands without gold, the
+    // larger classes first, as the passes would.
+    while (gold_islands() < m_gold_islands) {
         std::vector<std::pair<Slot*, Mountain>> spots;
         for (const bool little : {false, true}) {
-            for (Slot* s : near) {
-                if (s->deposits.count >= 2 || (s->plan.size == 0) != little) {
+            for (Slot* s : m_by_number) {
+                if (s->deposits.count >= 2 || s->has(ware::kGold) || (s->plan.size == 0) != little) {
                     continue;
                 }
                 for (const Mountain& m : mountains(*s, 2, true)) {
@@ -868,34 +960,15 @@ void Generator::fair_starts() {
             }
         }
         if (spots.empty()) {
-            // The second iron vein of a near island makes room.
-            for (Slot* s : near) {
-                if (s->deposits.count == 2 && s->deposits.ware(0) == ware::kOre && s->deposits.ware(1) == ware::kOre) {
-                    spots.emplace_back(s, Mountain{s->deposits.x(1), s->deposits.y(1)});
-                }
-            }
-        }
-        if (spots.empty()) {
-            // Nothing near: the nearest island with a free mountain and a free slot.
-            std::int64_t best = std::numeric_limits<std::int64_t>::max();
-            for (Slot* s : m_by_number) {
-                const std::int64_t dx = std::int64_t{s->plan.x} + s->map->width() / 2 - start.x;
-                const std::int64_t dy = std::int64_t{s->plan.y} + s->map->height() / 2 - start.y;
-                const std::vector<Mountain> free = mountains(*s, 2, true);
-                if (s->deposits.count < 2 && !free.empty() && dx * dx + dy * dy < best) {
-                    best = dx * dx + dy * dy;
-                    spots.assign(1, {s, free.front()});
-                }
-            }
-        }
-        if (spots.empty()) {
-            warn("no mountain for gold near start (" + std::to_string(start.x) + ", " + std::to_string(start.y) + ")");
-            continue;
+            warn("only " + std::to_string(gold_islands()) + " of " + std::to_string(m_gold_islands) +
+                 " gold islands: no free mountain left");
+            return;
         }
         const auto& [s, m] = spots[m_random.below(static_cast<std::uint32_t>(spots.size()))];
-        if (s->deposits.place(ware::kGold, m.x, m.y, 1, kGoldAmount)) {
-            ++m_guaranteed;
+        if (!s->deposits.place(ware::kGold, m.x, m.y, 1, kGoldAmount)) {
+            return;
         }
+        ++m_guaranteed;
     }
 }
 
@@ -1149,12 +1222,18 @@ core::Result<GeneratedWorld> Generator::run(const assets::ChunkFile& scenario, b
                      [](const Slot* a, const Slot* b) { return a->plan.number < b->plan.number; });
     if (!m_starts.empty()) {
         reserve_home_iron();
+        if (m_gold_islands != 0) {
+            reserve_start_gold();
+        }
     }
     hand_out_crops();
     place_ores();
     place_treasures();
     if (!m_starts.empty()) {
         fair_starts();
+    }
+    if (m_gold_islands != 0) {
+        top_up_gold();
     }
     if (guarantee_wanted) {
         guarantee();
@@ -1264,7 +1343,7 @@ core::Result<GeneratedWorld> generate_islands(const assets::ChunkFile& scenario,
                                               const WorldStart& start, std::vector<std::string>* warnings) {
     PlanRandom random(start.seed);
     Generator generator(plan.plan, game, buildings, random, warnings,
-                        plan.shared_start ? std::vector<StartArea>{} : plan.starts);
+                        plan.shared_start ? std::vector<StartArea>{} : plan.starts, plan.gold_islands);
     return generator.run(scenario, start.guarantee_resources);
 }
 

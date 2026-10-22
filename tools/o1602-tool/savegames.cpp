@@ -244,6 +244,9 @@ int cmd_new_world(const Args& args) {
                   : it->second == "large" ? sim::WorldSettings::Sizes::Large
                                           : sim::WorldSettings::Sizes::Mixed;
     }
+    if (const auto gold = args.number("--gold-islands")) {
+        w.gold_islands = static_cast<std::uint8_t>(std::min<std::size_t>(*gold, sim::WorldSettings::kMaxGoldIslands));
+    }
     if (args.flag("--together")) {
         w.starts = sim::WorldSettings::Starts::Together;
     }

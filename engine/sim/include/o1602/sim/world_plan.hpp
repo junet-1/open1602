@@ -36,6 +36,7 @@ struct WorldSettings {
     static constexpr std::uint32_t kMinSide = 200;
     static constexpr std::uint32_t kMaxSide = 2000;
     static constexpr std::uint8_t kMaxPlayers = 16;
+    static constexpr std::uint8_t kMaxGoldIslands = 250;  ///< one per island at most
 
     std::uint32_t width = 500;  ///< tiles; the original map is 500 x 350
     std::uint32_t height = 350;
@@ -46,6 +47,10 @@ struct WorldSettings {
     Amount volcanoes = Amount::Normal;  ///< islands with a volcano; Normal: one per player
     std::uint8_t difficulty = 0;        ///< 0..3: ore, crops and treasures as the original's levels
     Starts starts = Starts::Spread;
+    /// Islands with a gold vein. 0: as the original's plans for the level, scaled with the islands
+    /// and players, plus one within reach of every start that has none. Otherwise exactly this many,
+    /// one vein each, as far as the islands have free mountains; the starts get theirs first.
+    std::uint8_t gold_islands = 0;
     std::uint64_t seed = 0;
 };
 
@@ -88,6 +93,7 @@ struct WorldPlan {
     assets::ScenarioPlan plan;
     std::vector<StartArea> starts;  ///< one per player (Together: all at the same place)
     bool shared_start = false;      ///< Together: no start area of one's own to make fair
+    std::uint8_t gold_islands = 0;  ///< WorldSettings::gold_islands: 0 as the plan, else exactly this many
 };
 
 /// Island flag of a plan entry that the generator keeps free of a native village (home islands).

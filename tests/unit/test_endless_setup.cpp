@@ -2,7 +2,9 @@
 // The start dialog of the endless game (ADR 0008): its items and values, the presets, the lines
 // in settings.cfg and the screen at work.
 
+#include <algorithm>
 #include <array>
+#include <climits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -347,4 +349,67 @@ TEST_CASE("game setup: the texts of every kind of game in English and German") {
     }
     CHECK(ui::tr("setup.apply") == "Apply");
     ui::set_language(ui::kFallbackLanguage);
+}
+
+TEST_CASE("endless setup: the gold islands, automatic or a fixed number") {
+    EndlessSetup s;
+    CHECK(s.world.gold_islands == 0);
+    CHECK(value_of(s, SetupItem::GoldIslands) == ui::tr("setup.gold_islands.auto"));
+    CHECK(!app::setup_item_used(s, SetupItem::GoldIslands));  // the original's maps keep their gold
+    s.own_world = true;
+    CHECK(app::setup_item_used(s, SetupItem::GoldIslands));
+    app::choose(s, SetupItem::GoldIslands, 3);
+    CHECK(s.world.gold_islands == 3);
+    CHECK(value_of(s, SetupItem::GoldIslands) == "3");
+    CHECK(s.world_settings().gold_islands == 3);
+    CHECK(!(s == EndlessSetup{}));
+    app::choose(s, SetupItem::GoldIslands, app::setup_choices(SetupItem::GoldIslands) - 1);
+    CHECK(s.world.gold_islands == 40);  // the most, for the largest maps
+    app::choose(s, SetupItem::GoldIslands, 3);
+
+    // settings.cfg, and with it the lobby, keeps the choice.
+    CHECK(app::write_setup(s).find("endless.gold_islands = 3\n") != std::string::npos);
+    CHECK(app::write_setup(EndlessSetup{}).find("endless.gold_islands = auto\n") != std::string::npos);
+    EndlessSetup back;
+    app::read_setup(back, app::write_setup(s, "multiplayer."), "multiplayer.");
+    CHECK(back == s);
+    CHECK(app::read_setup_line(back, "gold_islands", "auto"));
+    CHECK(back.world.gold_islands == 0);
+    CHECK(app::read_setup_line(back, "gold_islands", "7"));  // between the dialog's values
+    CHECK(back.world.gold_islands == 7);
+    CHECK(app::setup_choice(back, SetupItem::GoldIslands) == app::setup_choice(s, SetupItem::GoldIslands) + 3);
+    CHECK(app::read_setup_line(back, "gold_islands", "0"));  // not a number of islands: unchanged
+    CHECK(app::read_setup_line(back, "gold_islands", "999"));
+    CHECK(app::read_setup_line(back, "gold_islands", "many"));
+    CHECK(back.world.gold_islands == 7);
+}
+
+TEST_CASE("game setup: every group of the dialog ends above its hint") {
+    for (const auto scope :
+         {app::SetupScope::Endless, app::SetupScope::MultiplayerEndless, app::SetupScope::Scenario}) {
+        app::GameSettingsMenu menu;
+        menu.open(EndlessSetup{}, scope);
+        // The hint's first line lies below every item's row.
+        const std::string hint = ui::tr(scope == app::SetupScope::Endless    ? "setup.hint"
+                                        : scope == app::SetupScope::Scenario ? "setup.hint.scenario"
+                                                                             : "setup.hint.multiplayer");
+        std::int32_t hint_y = INT32_MAX;
+        std::int32_t rows_y = 0;
+        for (const ui::DrawItem& d : menu.draw(kNoFonts)) {
+            if (d.kind != ui::DrawItem::Kind::Text || d.text.empty()) {
+                continue;
+            }
+            if (d.text.size() > 20 && hint.compare(0, 20, d.text, 0, 20) == 0) {  // fitted to its room
+                hint_y = std::min(hint_y, d.y);
+            } else if (d.text == app::setup_label(SetupItem::ClassicAi)) {
+                rows_y = d.y;
+            }
+        }
+        REQUIRE(hint_y != INT32_MAX);
+        CHECK(rows_y > 0);
+        CHECK(rows_y + 27 <= hint_y);  // a row is 32 high, the hint's line 22: texts sit in their middles
+        if (scope != app::SetupScope::Scenario) {
+            CHECK(find_text(menu, ui::tr("setup.gold_islands")).has_value());
+        }
+    }
 }
