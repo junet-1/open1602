@@ -3,6 +3,7 @@
 add_library(o1602_core
     src/compress.cpp
     src/file.cpp
+    src/hash.cpp
     src/png_writer.cpp
     src/text.cpp
 )

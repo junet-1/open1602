@@ -295,7 +295,6 @@ TEST_CASE("commands: the fingerprint of the game is the same for the same game, 
     Game a;
     Game b;
     const auto start = a.simulation.state_hash();
-    REQUIRE(start.has_value());
     CHECK(b.simulation.state_hash() == start);
     for (int t = 0; t < 40; ++t) {
         a.simulation.tick();

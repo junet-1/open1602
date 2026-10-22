@@ -611,7 +611,6 @@ TEST_CASE("new game: an own world with six players: the plan's size and starts, 
         run(a, 10'000);
         run(b, 10'000);
         const auto hash = a.state_hash();
-        REQUIRE(hash.has_value());
         CHECK(hash == b.state_hash());
     }
     CHECK(!a.state_damaged());

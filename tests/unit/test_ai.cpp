@@ -339,7 +339,6 @@ TEST_CASE("ai: two runs of the same game stay the same, tick by tick") {
         run(sa, 5'000);
         run(sb, 5'000);
         const auto ha = sa.state_hash();
-        REQUIRE(ha.has_value());
         CHECK(ha == sb.state_hash());
         CHECK(same(sa.computers().view(), sb.computers().view()));
         CHECK(saved(sa.computers()) == saved(sb.computers()));
@@ -354,13 +353,12 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     Game g;
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
-    const auto hash = s.state_hash();
-    REQUIRE(hash.has_value());
-    constexpr std::uint64_t kExpected = 0x53134eab92170421ULL;
-    if (*hash != kExpected) {
-        std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(*hash));
+    const std::uint64_t hash = s.state_hash();
+    constexpr std::uint64_t kExpected = 0xea38711665369cc3ULL;
+    if (hash != kExpected) {
+        std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }
-    CHECK(*hash == kExpected);
+    CHECK(hash == kExpected);
     CHECK(g.cities_of(kComputer) == 1);
 }
 

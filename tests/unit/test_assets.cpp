@@ -6,6 +6,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -15,8 +16,10 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
+#include "o1602/core/byte_writer.hpp"
 #include "o1602/core/compress.hpp"
 #include "o1602/core/file.hpp"
+#include "o1602/core/hash.hpp"
 #include "o1602/core/numeric.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/core/text.hpp"
@@ -305,6 +308,51 @@ TEST_CASE("file: paths go to and from UTF-8 unchanged (a user named Juergen)") {
 
     CHECK(core::environment_variable("PATH").has_value());
     CHECK(!core::environment_variable("O1602_TEST_VARIABLE_THAT_IS_NOT_SET").has_value());
+}
+
+TEST_CASE("core: xxh64 gives the values of xxHash's reference implementation") {
+    const auto text = [](std::string_view t) {
+        return std::span(reinterpret_cast<const std::uint8_t*>(t.data()), t.size());
+    };
+    CHECK(core::xxh64({}) == 0xEF46DB3751D8E999ULL);
+    CHECK(core::xxh64(text("abc")) == 0x44BC2CF5AD770999ULL);
+    CHECK(core::xxh64(text("abc"), 1602) == 0xA9CF0FA6C252006AULL);
+    // Every path: 32 bytes a step, then 8, 4 and single bytes (37 = 32 + 4 + 1; 1032 = 32 * 32 + 8).
+    std::vector<std::uint8_t> bytes(37);
+    for (std::size_t k = 0; k < bytes.size(); ++k) {
+        bytes[k] = static_cast<std::uint8_t>(k);
+    }
+    CHECK(core::xxh64(bytes) == 0xD93FA2DFEE5C24C9ULL);
+    bytes.clear();
+    for (int r = 0; r < 4; ++r) {
+        for (int k = 0; k < 256; ++k) {
+            bytes.push_back(static_cast<std::uint8_t>(k));
+        }
+    }
+    for (const char c : std::string_view("Open1602")) {
+        bytes.push_back(static_cast<std::uint8_t>(c));
+    }
+    CHECK(core::xxh64(bytes) == 0xF104EC2A5DD9F46FULL);
+}
+
+TEST_CASE("core: a ByteWriter writes lists of numbers little-endian and reuses a buffer from its start") {
+    core::ByteWriter out;
+    out.u8(9);
+    const std::uint16_t halves[] = {0x0102, 0xA0B0};
+    const std::uint32_t words[] = {0x01020304U};
+    out.u16s(halves);
+    out.u32s(words);
+    out.u16(0x1234);
+    std::vector<std::uint8_t> bytes = out.take();
+    const std::vector<std::uint8_t> expected{9, 0x02, 0x01, 0xB0, 0xA0, 0x04, 0x03, 0x02, 0x01, 0x34, 0x12};
+    CHECK(bytes == expected);
+    const std::uint8_t* memory = bytes.data();
+    core::ByteWriter again(std::move(bytes));
+    CHECK(again.size() == 0);
+    again.u32(7);
+    const std::vector<std::uint8_t> seven{7, 0, 0, 0};
+    CHECK(again.data() == seven);
+    CHECK(again.data().data() == memory);  // the same memory, no new allocation
 }
 
 TEST_CASE("core: doubles from data files become integers the same way everywhere") {

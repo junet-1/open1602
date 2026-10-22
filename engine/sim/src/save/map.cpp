@@ -102,15 +102,26 @@ struct Layer {
 /// The columns of a layer, without a length: the island's size gives it.
 template <class A, class L>
 void io_layer(A& a, L& layer) {
-    for (auto& v : layer.ids) {
-        a.u32(v);
-    }
-    for (auto& v : layer.subs) {
-        a.u16(v);
-    }
-    for (auto* column : {&layer.rotation_anim, &layer.owner, &layer.city, &layer.random}) {
-        for (auto& v : *column) {
-            a.u8(v);
+    if constexpr (!A::kReading) {
+        // Column by column in one go: the map is most of a savegame, and of the fingerprint of the
+        // game that multiplayer takes every few seconds (Simulation::state_hash()).
+        core::ByteWriter& out = a.out();
+        out.u32s(layer.ids);
+        out.u16s(layer.subs);
+        for (const auto* column : {&layer.rotation_anim, &layer.owner, &layer.city, &layer.random}) {
+            out.bytes(*column);
+        }
+    } else {
+        for (auto& v : layer.ids) {
+            a.u32(v);
+        }
+        for (auto& v : layer.subs) {
+            a.u16(v);
+        }
+        for (auto* column : {&layer.rotation_anim, &layer.owner, &layer.city, &layer.random}) {
+            for (auto& v : *column) {
+                a.u8(v);
+            }
         }
     }
 }

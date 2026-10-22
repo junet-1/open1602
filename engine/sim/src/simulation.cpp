@@ -5,9 +5,11 @@
 #include <array>
 #include <chrono>
 
+#include "save/sections.hpp"
+
+#include "o1602/core/hash.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/save_game.hpp"
-#include "o1602/sim/savegame_extension.hpp"
 
 namespace o1602::sim {
 
@@ -79,12 +81,16 @@ bool Simulation::state_readable(World& world, const assets::BuildingTable& build
     return probe.restore_state(world.simulation_state());
 }
 
-std::optional<std::uint64_t> Simulation::state_hash() const {
-    const auto bytes = write_game(*m_world, *m_buildings, this, SaveOptions{false});
-    if (!bytes.ok()) {
-        return std::nullopt;
-    }
-    return savegame_fingerprint(bytes.value());
+std::uint64_t Simulation::state_hash() const {
+    // The sections of the savegame as they are, without the file around them: neither packed nor
+    // checked with a CRC-32, and without the original's file the game came from, which never
+    // changes. XXH64 takes them eight bytes at a time.
+    // The buffer is kept from one fingerprint to the next: written anew, a game of several
+    // megabytes would cost an allocation and its growth each time.
+    core::ByteWriter out(std::move(m_hash_buffer));
+    save::encode_sections(out, *m_world, *m_buildings, this, save::TileMode::Full, {}, save::Origin::Leave);
+    m_hash_buffer = out.take();
+    return core::xxh64(m_hash_buffer);
 }
 
 namespace {

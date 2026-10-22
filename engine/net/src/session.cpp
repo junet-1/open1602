@@ -105,9 +105,7 @@ std::optional<FrameHash> Session::run_frame(sim::Simulation& simulation, std::sp
         0) {
         return std::nullopt;
     }
-    const auto hash = simulation.state_hash();
-    // A game that cannot be written has no fingerprint; such a frame is not compared.
-    return hash ? std::optional<FrameHash>(FrameHash{m_frames, *hash}) : std::nullopt;
+    return FrameHash{m_frames, simulation.state_hash()};
 }
 
 void Session::end(EndReason reason) {

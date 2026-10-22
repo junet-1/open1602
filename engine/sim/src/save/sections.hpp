@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/core/byte_writer.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/sim/save_game.hpp"
@@ -26,9 +27,18 @@ namespace save {
 /// loading the original's chunks in front (`before`) would not give back (chunk in a .GAM).
 enum class TileMode : std::uint8_t { Full, Differences };
 
+/// Whether the sections of a TileMode::Full save carry the original's file the game came from
+/// (ORIG, for the export as .GAM). It does not change while the game runs, so the fingerprint of
+/// the game (Simulation::state_hash()) leaves it out.
+enum class Origin : std::uint8_t { Keep, Leave };
+
 [[nodiscard]] core::Bytes encode_sections(const World& world, const assets::BuildingTable& buildings,
                                           const Simulation* simulation, TileMode tiles,
-                                          std::span<const std::uint8_t> before);
+                                          std::span<const std::uint8_t> before, Origin origin = Origin::Keep);
+/// The same, appended to `out`.
+void encode_sections(core::ByteWriter& out, const World& world, const assets::BuildingTable& buildings,
+                     const Simulation* simulation, TileMode tiles, std::span<const std::uint8_t> before,
+                     Origin origin = Origin::Keep);
 
 /// A world with the size and the islands of the sections (MAPW); the rest comes with apply_sections.
 [[nodiscard]] core::Result<World> world_from_sections(std::span<const std::uint8_t> sections,

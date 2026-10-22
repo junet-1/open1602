@@ -24,7 +24,7 @@
 namespace o1602::net {
 
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
-inline constexpr std::uint16_t kProtocolVersion = 3;
+inline constexpr std::uint16_t kProtocolVersion = 4;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;

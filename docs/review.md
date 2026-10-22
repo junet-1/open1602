@@ -105,7 +105,7 @@ rest stays open, as noted.
 | SC-11 | Low | `find_case_insensitive` resolves `..` and absolute paths | `core/src/file.cpp` | Fixed #19 |
 | SC-12 | Low (uncertain) | An in-place upgrade keeps the old `Production::rate`; `raw` can underflow | `sim/src/production_cycle.cpp` | Fixed #20 |
 | SC-13 | Low | Crater and deer spot coordinates are `uint8_t` in the runtime model | `sim/include/o1602/sim/world.hpp` | Fixed #28 (16-bit in the runtime model and in the own format's section version 2; the `.GAM` writer refuses islands wider than 255 tiles) |
-| SC-14 | Low | Small per-call costs: `state_hash()` serializes the game, linear city lookups, `vector<bool>` in `PathFinder` | `sim/src/simulation.cpp`, `consumption.cpp` | Won't fix (measured in #29: `state_hash` runs only every few frames in multiplayer, the city lookups cost about 0.2 ms every 10 s, and bytes instead of `vector<bool>` gave no wall-time gain) |
+| SC-14 | Low | Small per-call costs: `state_hash()` serializes the game, linear city lookups, `vector<bool>` in `PathFinder` | `sim/src/simulation.cpp`, `consumption.cpp` | `state_hash` fixed #66 (XXH64 over the sections in a kept buffer: 0.7 ms instead of 10 ms on 500 × 350, 2.4 ms instead of 33 ms on 800 × 600); rest won't fix (measured in #29: the city lookups cost about 0.2 ms every 10 s, and bytes instead of `vector<bool>` gave no wall-time gain) |
 
 For SC-7, the identifiers "Trader4", "Pirat5", "Native6" and "Endlosspiel" stay as they are. They
 are the original's internal names, not player-facing text. For SC-3, the multiplayer review found
