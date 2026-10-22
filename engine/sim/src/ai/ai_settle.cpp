@@ -15,6 +15,7 @@ namespace {
 
 constexpr std::uint64_t kColonyCooldownMs = 60'000;  // C+0x30: 60 s between settlement events
 constexpr std::int32_t kNeedStep = 50;
+constexpr std::uint32_t kPirateRegionPasses = 6;  // passes a further nest keeps to a part without one
 constexpr std::uint8_t kLandRetries = 4;
 constexpr std::uint32_t kReach = 5;       // a ship within 5 tiles of a Kontor lies at it
 constexpr std::uint32_t kLandRange = 12;  // founding: the ship within 12 tiles of the site
@@ -126,12 +127,27 @@ void Engine::pick_island(AiPlayer& p) {
     Settlement& s = p.settle;
     if (p.pirates) {
         // Pirates: the first island whose size class is at most the pass number (smallest first).
+        // A further nest (Rules::pirate_nests) goes to a part of the map without one, as long as
+        // the passes find such an island, and never to an island with a nest.
+        const std::uint32_t nests = pirate_nests(m_world, m_sim.rules());
+        std::vector<bool> region_has_nest(nests, false);
+        std::vector<bool> island_has_nest(n, false);
+        for (const City& c : m_world.cities()) {
+            if (c.owner == p.player && c.island < n) {
+                island_has_nest[c.island] = true;
+                region_has_nest[island_region(c.island, nests)] = true;
+            }
+        }
         for (std::uint32_t k = 0; k < 2U * n; ++k) {
             s.cursor = static_cast<std::uint16_t>(s.cursor + 1);
             if (s.cursor >= n) {
                 s.cursor = 0;
                 ++s.pass;
                 s.last_ms = now_ms();
+            }
+            if (island_has_nest[s.cursor] ||
+                (s.pass <= kPirateRegionPasses && region_has_nest[island_region(s.cursor, nests)])) {
+                continue;
             }
             if (island_size(s.cursor) <= std::max<std::uint32_t>(s.pass, 1)) {
                 s.island = s.cursor;

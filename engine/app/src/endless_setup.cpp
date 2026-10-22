@@ -133,6 +133,7 @@ std::optional<std::uint32_t> parse_number(std::string_view v) {
 constexpr std::array<std::string_view, 5> kDroughtNames = {"game", "off", "rare", "normal", "frequent"};
 constexpr std::array<std::string_view, 3> kVolcanoNames = {"game", "off", "on"};
 constexpr std::array<std::string_view, 3> kPirateNames = {"game", "off", "on"};
+constexpr std::array<std::string_view, 2> kPirateNestNames = {"one", "per4"};
 constexpr std::array<std::string_view, 4> kAmountNames = {"none", "few", "normal", "many"};
 constexpr std::array<std::string_view, 3> kSizeNames = {"small", "mixed", "large"};
 constexpr std::array<std::string_view, 2> kStartNames = {"spread", "together"};
@@ -248,6 +249,8 @@ std::size_t setup_choices(SetupItem item) noexcept {
             return kVolcanoNames.size();
         case SetupItem::Pirates:
             return kPirateNames.size();
+        case SetupItem::PirateNests:
+            return kPirateNestNames.size();
         case SetupItem::WorldSize:
             return kSizes.size() + 1;  // first: by the players
         case SetupItem::Players:
@@ -360,6 +363,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return r.classic_ai ? 1 : 0;
         case SetupItem::Pirates:
             return std::min<std::size_t>(static_cast<std::size_t>(r.pirates), kPirateNames.size() - 1);
+        case SetupItem::PirateNests:
+            return std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), kPirateNestNames.size() - 1);
         case SetupItem::WinInhabitants:
             return condition(kWinInhabitants, v.inhabitants);
         case SetupItem::WinClass:
@@ -466,6 +471,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             break;
         case SetupItem::Pirates:
             r.pirates = static_cast<sim::Pirates>(choice);
+            break;
+        case SetupItem::PirateNests:
+            r.pirate_nests = static_cast<sim::PirateNests>(choice);
             break;
         case SetupItem::WinInhabitants:
             v.inhabitants = kWinInhabitants[choice];
@@ -634,6 +642,7 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
         case SetupItem::Volcanoes:
         case SetupItem::ClassicAi:
         case SetupItem::Pirates:
+        case SetupItem::PirateNests:
             return true;
         default:
             return false;
@@ -676,23 +685,38 @@ EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players) {
 }
 
 std::string setup_label(SetupItem item) {
-    static constexpr std::array<std::string_view, kSetupItems> kKeys = {
-        "setup.refund",       "setup.trader",
-        "setup.ships",        "setup.units",
-        "setup.speed",        "setup.droughts",
-        "setup.volcanoes",    "setup.map",
-        "setup.size",         "setup.players",
-        "setup.islands",      "setup.island_sizes",
-        "setup.villages",     "setup.volcano_islands",
-        "setup.gold_islands", "setup.starts",
-        "setup.resources",    "setup.ai",
-        "setup.pirates",      "setup.win.inhabitants",
-        "setup.win.class",    "setup.win.class_inhabitants",
-        "setup.win.money",    "setup.win.balance",
-        "setup.win.islands",  "setup.win.eliminate",
-        "setup.win.score",    "setup.win.monument",
-        "setup.win.time",     "setup.win.all",
-        "setup.win.computers"};
+    static constexpr std::array<std::string_view, kSetupItems> kKeys = {"setup.refund",
+                                                                        "setup.trader",
+                                                                        "setup.ships",
+                                                                        "setup.units",
+                                                                        "setup.speed",
+                                                                        "setup.droughts",
+                                                                        "setup.volcanoes",
+                                                                        "setup.map",
+                                                                        "setup.size",
+                                                                        "setup.players",
+                                                                        "setup.islands",
+                                                                        "setup.island_sizes",
+                                                                        "setup.villages",
+                                                                        "setup.volcano_islands",
+                                                                        "setup.gold_islands",
+                                                                        "setup.starts",
+                                                                        "setup.resources",
+                                                                        "setup.ai",
+                                                                        "setup.pirates",
+                                                                        "setup.pirate_nests",
+                                                                        "setup.win.inhabitants",
+                                                                        "setup.win.class",
+                                                                        "setup.win.class_inhabitants",
+                                                                        "setup.win.money",
+                                                                        "setup.win.balance",
+                                                                        "setup.win.islands",
+                                                                        "setup.win.eliminate",
+                                                                        "setup.win.score",
+                                                                        "setup.win.monument",
+                                                                        "setup.win.time",
+                                                                        "setup.win.all",
+                                                                        "setup.win.computers"};
     const auto i = static_cast<std::size_t>(item);
     return i < kKeys.size() ? ui::tr(kKeys[i]) : std::string{};
 }
@@ -758,6 +782,11 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 1 ? "setup.ai.classic" : "setup.ai.open1602");
         case SetupItem::Pirates: {
             static constexpr std::array<std::string_view, 3> kKeys = {"setup.pirates.game", "setup.off", "setup.on"};
+            return ui::tr(kKeys[choice]);
+        }
+        case SetupItem::PirateNests: {
+            static constexpr std::array<std::string_view, 2> kKeys = {"setup.pirate_nests.one",
+                                                                      "setup.pirate_nests.per4"};
             return ui::tr(kKeys[choice]);
         }
         case SetupItem::WinInhabitants:
@@ -847,6 +876,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (const auto i = name_index(kPirateNames, value)) {
             r.pirates = static_cast<sim::Pirates>(*i);
         }
+    } else if (key == "pirate_nests") {
+        if (const auto i = name_index(kPirateNestNames, value)) {
+            r.pirate_nests = static_cast<sim::PirateNests>(*i);
+        }
     } else if (key == "resources") {
         if (value == "on" || value == "off") {
             r.guarantee_resources = value == "on";
@@ -923,6 +956,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("resources", on_off(r.guarantee_resources));
     line("ai", r.classic_ai ? "classic" : "open1602");
     line("pirates", kPirateNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirates), 2)]);
+    line("pirate_nests", kPirateNestNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), 1)]);
     line("own_world", on_off(setup.own_world));
     line("world", setup.auto_size ? "auto" : std::to_string(w.width) + "x" + std::to_string(w.height));
     line("players", std::to_string(w.players));

@@ -45,6 +45,13 @@ enum class Pirates : std::uint8_t {
     On,    ///< always, whatever the game says
 };
 
+/// How many nests the pirates found (docs/re/pirates.md). The original has one for the whole world,
+/// which suits its four players; with more players most of them would never meet a pirate.
+enum class PirateNests : std::uint8_t {
+    One,             ///< one nest, as in the original
+    PerFourPlayers,  ///< one for every four human and computer players begun, spread over the map
+};
+
 /// What the free trader pays for goods (docs/re/ships.md, "Free trader").
 enum class TraderPrices : std::uint8_t {
     /// As players know it: about half the base price. The original means to follow the market but
@@ -130,6 +137,8 @@ struct Rules {
     Volcanoes volcanoes = Volcanoes::Game;
     /// Pirates: as the game says, or switched on or off.
     Pirates pirates = Pirates::Game;
+    /// Pirate nests: one, or one for every four players. Up to four players both are the original.
+    PirateNests pirate_nests = PirateNests::PerFourPlayers;
     /// Prices of the free trader.
     TraderPrices trader_prices = TraderPrices::Original;
 
@@ -159,6 +168,7 @@ struct Rules {
         r.droughts = Droughts::Game;
         r.volcanoes = Volcanoes::Game;
         r.pirates = Pirates::Game;
+        r.pirate_nests = PirateNests::One;
         r.trader_prices = TraderPrices::Original;
         r.classic_ai = true;
         return r;

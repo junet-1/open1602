@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Pirates at sea (docs/re/pirates.md): new ships, arming, hunting, plunder, the nest's sales.
 #include <algorithm>
+#include <limits>
 
 #include "o1602/sim/combat.hpp"
 #include "o1602/sim/game_data.hpp"
@@ -60,6 +61,24 @@ bool pirates_enabled(const World& world, const Rules& rules) noexcept {
     return (world.game_settings().flags & World::GameSettings::kNoPirates) == 0;
 }
 
+std::uint32_t pirate_nests(const World& world, const Rules& rules) noexcept {
+    if (rules.pirate_nests == PirateNests::One) {
+        return 1;
+    }
+    std::uint32_t players = 0;
+    for (const Player& p : world.players()) {
+        players += p.role == PlayerRole::Human || p.role == PlayerRole::Computer ? 1U : 0U;
+    }
+    return std::max<std::uint32_t>(1, (players + 3) / 4);
+}
+
+std::uint32_t pirate_region(const World& world, std::uint32_t x, std::uint32_t y, std::uint32_t nests) noexcept {
+    const bool across_x = world.width() >= world.height();
+    const std::uint64_t along = across_x ? x : y;
+    const std::uint64_t size = std::max<std::uint32_t>(1, across_x ? world.width() : world.height());
+    return static_cast<std::uint32_t>(std::min<std::uint64_t>(along * nests / size, nests - 1));
+}
+
 std::vector<std::size_t> Fleet::pirate_bases() const {
     std::vector<std::size_t> bases;
     const PlayerId p = pirates();
@@ -90,16 +109,26 @@ void Fleet::pirates_step() {
     if (p == kNoPlayer || !pirates_enabled(*m_world, *m_rules) || max <= 1) {
         return;
     }
+    // Every nest brings the original's ships; new ones come as much sooner.
+    const std::uint32_t nests = pirate_nests(*m_world, *m_rules);
+    const std::uint32_t interval_ms = settings.pirate_interval_s * 1000U / nests;
     std::uint32_t ships = 0;
+    std::vector<std::uint32_t> per_region(nests, 0);
     for (const Ship& s : m_world->ships()) {
-        ships += s.owner == p && !s.sinking ? 1U : 0U;
+        if (s.owner == p && !s.sinking) {
+            ++ships;
+            ++per_region[pirate_region(*m_world, s.x, s.y, nests)];
+        }
     }
     const std::vector<std::size_t> bases = pirate_bases();
     Random& random = m_world->random(RandomStream::Pirates);
-    // A new ship at a random edge of the map, unarmed for one step.
-    if (ships < max && m_pirate_armed && m_pirate_spawn_ms == 0 &&
+    // A new ship at a random edge of the map, unarmed for one step. With several nests at the edge
+    // of the part of the map with the fewest pirates, while a few tries find it.
+    const auto region =
+        static_cast<std::uint32_t>(std::min_element(per_region.begin(), per_region.end()) - per_region.begin());
+    if (ships < max * nests && m_pirate_armed && m_pirate_spawn_ms == 0 &&
         ((settings.flags & World::GameSettings::kPirateGoal) == 0 || !bases.empty())) {
-        for (int tries = 0; tries < 16; ++tries) {
+        for (int tries = 0; tries < (nests > 1 ? 32 : 16); ++tries) {
             const std::uint32_t r = random.next();
             std::int32_t x = 0;
             std::int32_t y = 0;
@@ -124,6 +153,11 @@ void Fleet::pirates_step() {
             if (!m_sea.sailable(x, y)) {
                 continue;
             }
+            if (nests > 1 && tries < 24 &&
+                pirate_region(*m_world, static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y), nests) !=
+                    region) {
+                continue;
+            }
             Ship pirate = make_ship(next_ship_name(), static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y),
                                     figure::kPirate, p, static_cast<std::uint8_t>(random.below(8)));
             if (const assets::FigureType* t = m_figures->get(figure::kPirate)) {
@@ -135,7 +169,7 @@ void Fleet::pirates_step() {
             break;
         }
         m_pirate_armed = false;
-        m_pirate_spawn_ms = settings.pirate_interval_s * 1000U;
+        m_pirate_spawn_ms = interval_ms;
         return;
     }
     // Arming: by the difficulty of the game.
@@ -161,19 +195,49 @@ void Fleet::pirates_step() {
         for (Ship& s : m_world->ships()) {
             if (s.owner == p && s.cannons == 0 && !s.sinking) {
                 s.cannons = static_cast<std::uint8_t>(std::min(cannons, cap));
-                m_pirate_spawn_ms = settings.pirate_interval_s * 1000U;
+                m_pirate_spawn_ms = interval_ms;
             }
         }
     }
-    // The nest: with enough food it sells its most valuable goods (0x0041DD80).
-    if (ships != 0 && !bases.empty()) {
-        const City& found = m_world->cities()[bases.front()];
-        City* nest = m_world->city(found.island, found.index);
-        if (nest != nullptr && nest->stock(ware::kFood) > kNestFoodMin) {
-            nest->goods[ware::kFood] -= kNestFoodCost;
-            pirate_nest_sales(*nest);
+    // The nests: with enough food each sells its most valuable goods (0x0041DD80; the original has
+    // only one).
+    if (ships != 0) {
+        for (const std::size_t b : bases) {
+            const City& found = m_world->cities()[b];
+            City* nest = m_world->city(found.island, found.index);
+            if (nest != nullptr && nest->stock(ware::kFood) > kNestFoodMin) {
+                nest->goods[ware::kFood] -= kNestFoodCost;
+                pirate_nest_sales(*nest);
+            }
         }
     }
+}
+
+std::size_t Fleet::pirate_base_for(const Ship& ship, const std::vector<std::size_t>& bases) {
+    // The original draws one of its bases (it has one); with several nests the nearest, after the
+    // same draw, so that the pirates' random numbers stay those of the original.
+    const std::size_t drawn =
+        bases[m_world->random(RandomStream::Pirates).below(static_cast<std::uint32_t>(bases.size()))];
+    if (bases.size() == 1) {
+        return drawn;
+    }
+    std::size_t best = drawn;
+    std::uint64_t best_d = std::numeric_limits<std::uint64_t>::max();
+    for (const std::size_t b : bases) {
+        const City& c = m_world->cities()[b];
+        if (c.island >= m_world->islands().size()) {
+            continue;
+        }
+        const WorldIsland& island = m_world->islands()[c.island];
+        const std::int64_t dx = std::int64_t{island.x} + c.warehouse_x.value_or(0) - ship.x;
+        const std::int64_t dy = std::int64_t{island.y} + c.warehouse_y.value_or(0) - ship.y;
+        const auto d = static_cast<std::uint64_t>(dx * dx + dy * dy);
+        if (d < best_d) {
+            best_d = d;
+            best = b;
+        }
+    }
+    return best;
 }
 
 void Fleet::pirate_nest_sales(City& nest) {
@@ -274,7 +338,7 @@ void Fleet::pirate_choose(Ship& ship) {
     }
     const std::vector<std::size_t> bases = pirate_bases();
     if (!bases.empty()) {
-        const City& base = m_world->cities()[bases[random.below(static_cast<std::uint32_t>(bases.size()))]];
+        const City& base = m_world->cities()[pirate_base_for(ship, bases)];
         ship.target = Target::city_of(base.island, base.index);
         ship.order = ship.target;
     }
@@ -292,9 +356,7 @@ bool Fleet::plunder(Ship& pirate, Ship& victim) {
     const std::vector<std::size_t> bases = pirate_bases();
     bool any = false;
     if (!bases.empty()) {
-        const City& base =
-            m_world->cities()
-                [bases[m_world->random(RandomStream::Pirates).below(static_cast<std::uint32_t>(bases.size()))]];
+        const City& base = m_world->cities()[pirate_base_for(pirate, bases)];
         TradeRoute route;
         route.stops[0].target = Target::other_ship(victim.id);
         route.stops[1].target = Target::other_ship(victim.id);
