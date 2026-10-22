@@ -167,8 +167,15 @@ core::Status for_each_section(std::span<const std::uint8_t> data, std::vector<st
 }  // namespace
 
 core::Bytes encode_sections(const World& world, const assets::BuildingTable& buildings, const Simulation* simulation,
-                            TileMode tiles, std::span<const std::uint8_t> before) {
+                            TileMode tiles, std::span<const std::uint8_t> before, Origin origin) {
     core::ByteWriter out;
+    encode_sections(out, world, buildings, simulation, tiles, before, origin);
+    return out.take();
+}
+
+void encode_sections(core::ByteWriter& out, const World& world, const assets::BuildingTable& buildings,
+                     const Simulation* simulation, TileMode tiles, std::span<const std::uint8_t> before,
+                     Origin origin) {
     if (tiles == TileMode::Full) {
         // For a list of savegames; a reader takes only the fingerprint (world_from_sections).
         section(
@@ -231,7 +238,7 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
     section(out, kExplored, [&](Writer& o) { write_explored(o, world); });
     section(out, kQueues, [&](Writer& o) { write_queues(o, world); });
     section(out, kStances, [&](Writer& o) { write_stances(o, world); });
-    if (tiles == TileMode::Full && world.source() != nullptr) {
+    if (tiles == TileMode::Full && origin == Origin::Keep && world.source() != nullptr) {
         section(
             out, kOrigin,
             [&](Writer& o) {
@@ -251,7 +258,6 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
         // A world loaded but not yet run keeps the figures it was saved with.
         section(out, kSimulation, [&](Writer& o) { o.out().bytes(world.simulation_state()); });
     }
-    return out.take();
 }
 
 std::optional<SaveMeta> read_meta(std::span<const std::uint8_t> sections) {

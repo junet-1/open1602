@@ -208,6 +208,24 @@ std::uint16_t section_version(const core::Bytes& bytes, std::string_view tag) {
 
 }  // namespace
 
+TEST_CASE("save game: the fingerprint of the running game sees every tile, and only the game") {
+    const auto buildings = make_buildings();
+    const assets::FigureTable figures;
+    sim::World world = make_world(buildings);
+    sim::World twin = make_world(buildings);
+    sim::Simulation simulation(world, buildings, figures);
+    sim::Simulation other(twin, buildings, figures);
+    const std::uint64_t start = simulation.state_hash();
+    CHECK(simulation.state_hash() == start);  // the buffer kept from last time adds nothing
+    CHECK(other.state_hash() == start);
+    // One road on the second island.
+    REQUIRE(world.island(1).map.build(*buildings.by_id(kRoad), 20, 10, 0, 0, 1, 0).ok());
+    const std::uint64_t built = simulation.state_hash();
+    CHECK(built != start);
+    REQUIRE(twin.island(1).map.build(*buildings.by_id(kRoad), 20, 10, 0, 0, 1, 0).ok());
+    CHECK(other.state_hash() == built);
+}
+
 TEST_CASE("save game: craters and deer spots beyond 255 tiles come back whole (SC-13)") {
     const auto buildings = make_buildings();
     // A world that fits 8 bits keeps version 1 of ISLE and VOLC: the bytes of earlier versions.
