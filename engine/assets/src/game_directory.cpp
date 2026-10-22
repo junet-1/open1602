@@ -78,15 +78,23 @@ void add_gog_registry(std::vector<fs::path>& out) {
 
 }  // namespace
 
-core::Result<GameDirectory> GameDirectory::open(const fs::path& root) {
+std::optional<std::string_view> GameDirectory::missing_file(const fs::path& root) {
     // Files every supported edition contains. 1602.exe itself is not required.
-    constexpr std::array kRequired = {"haeuser.cod", "figuren.cod", "toolgfx/stadtfld.col", "gfx/stadtfld.bsh"};
-    for (const char* file : kRequired) {
+    constexpr std::array<std::string_view, 4> kRequired = {"haeuser.cod", "figuren.cod", "toolgfx/stadtfld.col",
+                                                           "gfx/stadtfld.bsh"};
+    for (const std::string_view file : kRequired) {
         if (!core::find_case_insensitive(root, file)) {
-            return make_error(
-                ErrorCode::NotFound,
-                core::path_to_utf8(root) + " does not look like an Anno 1602 installation (missing " + file + ")");
+            return file;
         }
+    }
+    return std::nullopt;
+}
+
+core::Result<GameDirectory> GameDirectory::open(const fs::path& root) {
+    if (const auto file = missing_file(root)) {
+        return make_error(ErrorCode::NotFound, core::path_to_utf8(root) +
+                                                   " does not look like an Anno 1602 installation (missing " +
+                                                   std::string(*file) + ")");
     }
     GameDirectory dir;
     dir.m_root = root;
@@ -99,19 +107,6 @@ core::Result<GameDirectory> GameDirectory::from_environment() {
         return make_error(ErrorCode::NotFound, std::string("environment variable ") + kEnvVar + " is not set");
     }
     return open(*root);
-}
-
-core::Result<GameDirectory> GameDirectory::locate() {
-    // A folder the user named is never replaced by a guess: a typo there should be reported.
-    if (const auto root = environment_path(kEnvVar); root && !root->empty()) {
-        return open(*root);
-    }
-    for (const fs::path& candidate : installation_candidates()) {
-        if (auto dir = open(candidate)) {
-            return dir;
-        }
-    }
-    return make_error(ErrorCode::NotFound, "no Anno 1602 installation found in the usual folders");
 }
 
 std::vector<fs::path> GameDirectory::installation_candidates() {

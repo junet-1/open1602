@@ -153,6 +153,9 @@ public:
     /// Main loop; returns the process exit code.
     int run();
 
+    /// The user's data folder of Open1602 (settings; the savegames in "saves" below it).
+    [[nodiscard]] static std::filesystem::path data_folder();
+
 private:
     MapViewer(assets::GameDirectory game, assets::BuildingTable buildings, sim::World world, assets::Palette palette,
               assets::FigureTable figures, ViewerOptions options);
@@ -260,9 +263,6 @@ private:
                                const EndlessSetup& setup);
     /// Open1602's own folder for savegames (the user's data folder, not the installation).
     [[nodiscard]] static std::filesystem::path save_folder();
-
-    /// The user's data folder of Open1602 (settings; the savegames in "saves" below it).
-    [[nodiscard]] static std::filesystem::path data_folder();
 
     // ---- Multiplayer (multiplayer.cpp, ADR 0011) ----
     /// Hosts or joins the multiplayer game of the command line.

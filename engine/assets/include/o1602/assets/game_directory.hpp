@@ -21,11 +21,12 @@ public:
     /// Validates that `root` looks like an Anno 1602 installation.
     static core::Result<GameDirectory> open(const std::filesystem::path& root);
 
+    /// The first file of an installation that `root` lacks ("haeuser.cod", ...), or nothing if it
+    /// has them all. open() fails exactly when there is one.
+    [[nodiscard]] static std::optional<std::string_view> missing_file(const std::filesystem::path& root);
+
     /// Opens the directory named by ANNO1602_DIR.
     static core::Result<GameDirectory> from_environment();
-
-    /// ANNO1602_DIR when it is set, otherwise the first installation in installation_candidates().
-    static core::Result<GameDirectory> locate();
 
     /// Folders where installers usually put the game, most likely first: GOG's registry entries on
     /// Windows, then the default folders of GOG, GOG Galaxy, Heroic and Wine. Only folders that exist;

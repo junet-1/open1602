@@ -21,9 +21,15 @@ installation: a German Anno 1602 gives a German game, an English one an English 
 Open1602 finds a GOG installation on its own: on Windows through the folder GOG's installer records
 and in `C:\GOG Games` and `GOG Galaxy\Games` under Program Files, on Linux and macOS in
 `~/GOG Games`, `~/Games/Heroic`, `~/Games` and the default Wine prefix (a folder whose name contains
-"1602"). The game files are only read, so the installation can stay under Program Files. Anywhere
-else, tell Open1602 where the installation is with the environment variable `ANNO1602_DIR` (or
-`--game-dir DIR` on the command line):
+"1602"). The game files are only read, so the installation can stay under Program Files. If it
+finds none, Open1602 asks for the folder of the installation with the system's folder dialog and
+remembers it (`game_folder` in `settings.cfg` in the user's data folder); it asks again only when
+that folder is moved or deleted. On Linux the dialog needs the desktop portal or `zenity`.
+
+Open1602 looks in this order: `--game-dir DIR` on the command line, the environment variable
+`ANNO1602_DIR`, the folder chosen in the dialog, the usual folders above, and only then asks. A
+folder given with `--game-dir` or `ANNO1602_DIR` is never replaced: if it is wrong, Open1602 says so
+and ends. To set the variable:
 
 | Shell | Command |
 |---|---|

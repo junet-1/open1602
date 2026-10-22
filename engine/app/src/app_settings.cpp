@@ -112,6 +112,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             a.disabled_songs.emplace_back(value);
         } else if (key == "language") {
             s.language = value.empty() ? std::string("auto") : std::string(value);
+        } else if (key == "game_folder") {
+            s.game_folder = std::string(value);
         } else if (key == "player_name") {
             s.player_name = from_file(value);
         } else if (key == "remembered_host") {
@@ -154,6 +156,10 @@ std::string write_settings(const AppSettings& s) {
     out += std::string("mission_window = ") + (s.mission_window ? "on" : "off") + "\n";
     out += "# Language of Open1602's own texts: auto (as the installation), en, de, ...\n";
     out += "language = " + s.language + "\n";
+    if (!s.game_folder.empty()) {
+        out += "# The Anno 1602 installation chosen at the start\n";
+        out += "game_folder = " + s.game_folder + "\n";
+    }
     out +=
         "# Whales, dolphins, krakens: on average one per screen of sea every this many seconds (original 5, 0 = off)\n";
     out += "tutorial_chapter = " + std::to_string(s.tutorial_chapter) + "\n";
@@ -171,6 +177,34 @@ std::string write_settings(const AppSettings& s) {
     out += write_setup(s.scenario, "scenario.");
     out += "# The last settings a host chose for a multiplayer game\n";
     out += write_setup(s.multiplayer, "multiplayer.");
+    return out;
+}
+
+std::string set_setting_line(std::string_view text, std::string_view key, std::string_view value) {
+    const std::string line = std::string(key) + " = " + std::string(value) + "\n";
+    std::string out;
+    bool set = false;
+    while (!text.empty()) {
+        const std::size_t nl = text.find('\n');
+        const std::string_view raw = text.substr(0, nl == std::string_view::npos ? text.size() : nl + 1);
+        text.remove_prefix(raw.size());
+        const std::string_view content = trim(raw.substr(0, raw.find('\n')));
+        const std::size_t eq = content.find('=');
+        if (!content.empty() && content.front() != '#' && eq != std::string_view::npos &&
+            trim(content.substr(0, eq)) == key) {
+            if (!std::exchange(set, true)) {
+                out += line;
+            }
+            continue;
+        }
+        out += raw;
+        if (raw.back() != '\n') {
+            out += '\n';  // a last line without its line break
+        }
+    }
+    if (!set) {
+        out += line;
+    }
     return out;
 }
 
