@@ -18,6 +18,7 @@ add_library(o1602_menus
     ../src/high_score_file.cpp
     ../src/map_gestures.cpp
     ../src/main_menu.cpp
+    ../src/message_table.cpp
     ../src/multiplayer_menu.cpp
     ../src/multiplayer_texts.cpp
     ../src/order_questions.cpp

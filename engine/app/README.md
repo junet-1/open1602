@@ -22,6 +22,9 @@ The game executable `open1602` and the wiring of all modules. Built only with `-
 - `event_presenter.*`: `EventPresenter` turns the simulation's events into the original's
   messages, videos and high score updates (the viewer plays them), keeps the end screen that
   follows a decided game, the notes of the status line and the chat's length. In `o1602::menus`.
+- `message_table.*`: `MessageTable`, the messages of the status bar as data: the original's and
+  those of the mods (`mods/<package>/messages.toml`, [messages.md](../../docs/modding/messages.md)).
+  In `o1602::menus`.
 - `video_controller.*`, `video_queue.*`: `VideoController` decides with `VideoQueue` (in
   `o1602::menus`) which video plays when and where (the whole window, the minimap's window, the
   menu's picture frame), plays it with `VideoPlayer`, and takes the input while one fills the window.

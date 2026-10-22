@@ -55,6 +55,7 @@ a clear message.
 | Climate zones, landscapes | `NORD`, `SUED`, `*NAT`, island templates | custom climate zones, ground and vegetation sets |
 | Islands | 677 templates (`.scp`) in fixed sizes | any size, custom templates, generator rules (section 5) |
 | Music, sounds | `MUSIC8`, `SAMPLES`, `Speech8` | custom tracks, sounds per building/figure/event |
+| Messages | `[MELDUNG]` in `Text.cod`, table `0x0049B210`, icons hard-coded | custom messages and changes to the original's: text per language, icon, sound, video (`messages.toml`, [messages.md](../modding/messages.md)) |
 | Scenarios, campaigns | `.szs`/`.szm`, hard-wired goals | section 6 |
 
 ### 3. Players and factions
@@ -146,4 +147,5 @@ a clear message.
 | Factions, scaling of neutral players | – | ⬜ `sim::PlayerRole` is still a fixed enum; the computer opponents (2026-10-18) build on it, factions as data are still pending |
 | Player count at game start, saving | 4 players at start, 7 players, 150 ships, 400 soldiers, 350 towers in the savegame | ⬜ the world plan supports 16 players; saving beyond the original limits is done with the own format `.o1602` ([ADR 0009](0009-own-save-format.md)) |
 | Island generator | – | 🟡 stage 1: custom worlds from the original templates (200–2000 tiles, [worldgen.md](../re/worldgen.md)); stage 2 with custom island shapes postponed |
+| Messages of the status bar | MELDUNG numbers 0–0x6F, texts only from `Text.cod` | ✅ `app::MessageTable`: the original's at their numbers, packages' after them, from `mods/<package>/messages.toml` ([messages.md](../modding/messages.md)); a package's id is its folder's name until manifests come |
 | Lua, campaigns, content packages | – | ⬜ own milestones (M8) |

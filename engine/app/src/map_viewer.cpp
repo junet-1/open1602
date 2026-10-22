@@ -259,6 +259,15 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->load_cursors();
     // The viewer's own copy: GameSound keeps a pointer, and `game` may be a temporary (UI-15).
     viewer->m_sound = std::make_unique<GameSound>(viewer->m_game, options.effects, options.music);
+    {
+        // The mods' messages (<data folder>/mods/<package>/messages.toml).
+        std::vector<std::string> problems;
+        viewer->m_messages.load_mods(data_folder() / "mods", problems);
+        for (const std::string& p : problems) {
+            std::fprintf(stderr, "mods: %s\n", p.c_str());
+        }
+        viewer->m_sound->set_messages(&viewer->m_messages);
+    }
     viewer->m_video = std::make_unique<VideoController>(
         options.videos ? std::make_unique<VideoPlayer>(viewer->m_window->sdl_renderer(), viewer->m_game) : nullptr,
         *viewer->m_sound);
@@ -286,6 +295,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             viewer->m_hud->set_game(viewer->m_state->simulation, viewer->m_buildings, viewer->m_figures,
                                     viewer->m_local_player);
             viewer->m_hud->set_banners(&viewer->m_banners);
+            viewer->m_hud->set_messages(&viewer->m_messages);
             viewer->m_hud->set_available([self = viewer.get()](std::uint32_t id) {
                 const sim::Player* p = self->m_state->world.player(self->m_local_player);
                 const assets::BuildingType* b = self->m_buildings.by_id(id);
@@ -300,7 +310,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (viewer->m_hud) {
         viewer->m_hud->set_units(&viewer->m_input->units());
     }
-    viewer->m_sound->set_listener([self = viewer.get()](std::uint16_t message, std::uint16_t flags,
+    viewer->m_sound->set_listener([self = viewer.get()](MessageId message, std::uint16_t flags,
                                                         std::optional<std::pair<double, double>> tile,
                                                         std::optional<sim::PlayerId> about, std::string_view text) {
         if ((flags & audio::kMessageNormalSpeed) != 0 && self->m_state->simulation.speed() > 1) {
@@ -331,6 +341,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     if (options.menu && viewer->m_hud) {
         viewer->m_hud->open_menu();
+    }
+    if (!options.message.empty() && !viewer->announce(options.message)) {
+        std::fprintf(stderr, "--message: there is no message %s\n", options.message.c_str());
     }
     std::fprintf(stderr, "renderer: %s, max texture %d\n", viewer->m_window->renderer_name().c_str(),
                  viewer->m_window->max_texture_size());
@@ -1382,6 +1395,19 @@ void MapViewer::show_notices(const std::vector<Notice>& notices) {
             }
         }
     }
+}
+
+bool MapViewer::announce(std::string_view id, const MessageArgs& args, std::optional<std::pair<double, double>> tile) {
+    const auto message = m_messages.find(id);
+    if (!message) {
+        return false;
+    }
+    Announcement a;
+    a.message = *message;
+    a.tile = tile;
+    a.text = m_messages.text(*message, ui::current_language(), args);
+    show_notices({a});
+    return true;
 }
 
 void MapViewer::toggle_pause_video() {

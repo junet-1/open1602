@@ -17,6 +17,7 @@
 #include <variant>
 #include <vector>
 
+#include "message_table.hpp"
 #include "multiplayer_menu.hpp"
 
 #include "o1602/render/banner.hpp"
@@ -26,14 +27,14 @@
 namespace o1602::app {
 
 /// A message for the local player (GameSound::message): its voice, its icon in the status bar and
-/// its video. A message of Open1602's own brings its text and borrows an original's icon (and its
-/// voice and video, unless `voice` is off).
+/// its video, as its MessageTable entry says. It may bring a text of its own (Open1602's, with the
+/// placeholders filled), and stay silent (`voice` off).
 struct Announcement {
-    std::uint16_t message = 0;
+    MessageId message = 0;                          ///< an original's MELDUNG number, or a MessageTable index
     std::optional<std::pair<double, double>> tile;  ///< where it happened, in world tiles
     std::optional<sim::PlayerId> about;             ///< the player it is about, if not the local one
     std::uint8_t tracks = 0;                        ///< the tracks of its video (bit i = track i, 0 = all)
-    std::string text;   ///< the status bar's text (Windows-1252, from ui::tr); empty: MELDUNG `message`
+    std::string text;   ///< the status bar's text (Windows-1252); empty: the message's own, else MELDUNG
     bool voice = true;  ///< false: the status bar only, without the message's voice and video
 };
 

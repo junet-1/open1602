@@ -21,6 +21,7 @@
 #include "display_menu.hpp"
 #include "end_screen.hpp"
 #include "main_menu.hpp"
+#include "message_table.hpp"
 #include "multiplayer_menu.hpp"
 #include "options_panel.hpp"
 #include "selection.hpp"
@@ -92,10 +93,15 @@ public:
     std::optional<Action> mouse(std::int32_t x, std::int32_t y, bool down,
                                 ui::MouseButton button = ui::MouseButton::Left);
 
-    /// A message for the local player (MELDUNG number) at a world tile, in the colour of `banner`;
-    /// `text` (Windows-1252) replaces the original's text in the status bar.
-    void message(std::uint16_t id, sim::BannerId banner, std::optional<std::pair<double, double>> tile,
+    /// A message for the local player (MessageTable index) at a world tile, in the colour of
+    /// `banner`; `text` (Windows-1252) replaces the message's own text, and that the original's
+    /// MELDUNG text, in the status bar.
+    void message(MessageId id, sim::BannerId banner, std::optional<std::pair<double, double>> tile,
                  std::uint64_t now_ms, std::string_view text = {});
+    /// The messages' icons and texts (the mods' among them); without: the original's. Outlives this.
+    void set_messages(const MessageTable* messages) noexcept {
+        m_messages = messages != nullptr ? messages : &MessageTable::original();
+    }
     /// What the resource bar at the top of the map shows (Hud_DrawResourceBar 0x0040D160): the
     /// player's money, and of the city under the mouse its tools, wood and bricks (own city) and
     /// inhabitants with the owner's shield. Costs of a pending build order in brackets.
@@ -343,11 +349,11 @@ private:
     [[nodiscard]] ui::Rect minimap_rect() const;
 
     struct Event {
-        std::uint16_t id = 0;
+        MessageId id = 0;
         sim::BannerId banner = 0;
         std::optional<std::pair<double, double>> tile;
         std::uint64_t time_ms = 0;
-        std::string text;  ///< empty: MELDUNG `id`
+        std::string text;  ///< empty: the MELDUNG text the message names
     };
 
     SDL_Renderer* m_sdl;
@@ -359,6 +365,7 @@ private:
     std::optional<assets::TextTable> m_texts;
     std::vector<std::string> m_leiste;   ///< Text.cod [LEISTE]: help texts of the status line
     std::vector<std::string> m_meldung;  ///< Text.cod [MELDUNG]
+    const MessageTable* m_messages = &MessageTable::original();
     std::string m_status;
     std::uint8_t m_rotation = 0;
     std::uint8_t m_building_rotation = 0;

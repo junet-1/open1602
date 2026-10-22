@@ -46,7 +46,7 @@ int usage() {
         "                [--world WxH] [--players 1-12] [--island-count C] [--island-sizes S] [--villages C]\n"
         "                [--volcano-islands C] [--gold-islands auto|N] [--starts spread|together]\n"
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
-        "                [--video N] [--input EVENTS] [--select ISLAND,X,Y|ship:N]\n"
+        "                [--video N] [--message ID] [--input EVENTS] [--select ISLAND,X,Y|ship:N]\n"
         "                [--host [--port N] | --join HOST[:PORT]] [--name NAME]\n"
         "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
         "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
@@ -71,6 +71,7 @@ int usage() {
         "  --language CODE    language of Open1602's own texts, e.g. en, de (default: the installation's)\n"
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
+        "  --message ID       show a message at the start, e.g. a mod's mymod:lighthouse (docs/modding/messages.md)\n"
         "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\";\n"
         "                     rdown/rup: the right button; \"wheel X,Y,N@F\": N notches (up zooms in)\n"
         "  --select I,X,Y     select the building at tile X,Y of island I (index) and look at it\n"
@@ -269,6 +270,8 @@ int main(int argc, char** argv) {
             options.intro = true;
         } else if (arg == "--video" && has_value) {
             options.video = static_cast<std::uint16_t>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (arg == "--message" && has_value) {
+            options.message = argv[++i];
         } else if (arg == "--owners") {
             options.show_owners = true;
         } else if (arg == "--original-sheets") {

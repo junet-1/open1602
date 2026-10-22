@@ -1,0 +1,303 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// The data files of content packages (core/data_file.hpp) and the messages a mod defines with them
+// (app/message_table.hpp, docs/modding/messages.md).
+
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "../test_framework.hpp"
+#include "message_table.hpp"
+
+#include "o1602/core/data_file.hpp"
+#include "o1602/core/file.hpp"
+
+using namespace o1602;
+
+namespace {
+
+/// A package folder under the system's temporary folder, removed again at the end.
+struct TempPackage {
+    std::filesystem::path path;
+    explicit TempPackage(std::string_view name) : path(test::temp_path("o1602_mods_test") / std::string(name)) {
+        std::filesystem::remove_all(path);
+        std::filesystem::create_directories(path);
+    }
+    ~TempPackage() {
+        std::error_code ec;
+        std::filesystem::remove_all(path.parent_path(), ec);
+    }
+    TempPackage(const TempPackage&) = delete;
+    TempPackage& operator=(const TempPackage&) = delete;
+
+    void write(std::string_view name, std::string_view text) const {
+        std::ofstream out(path / name, std::ios::binary);
+        out << text;
+    }
+    /// A short 8-bit mono WAVE file.
+    void write_wave(std::string_view name) const {
+        std::vector<std::uint8_t> v;
+        const auto put = [&](std::uint32_t x, int bytes) {
+            for (int i = 0; i < bytes; ++i) {
+                v.push_back(static_cast<std::uint8_t>(x >> (8 * i)));
+            }
+        };
+        const auto tag = [&](const char* t) { v.insert(v.end(), t, t + 4); };
+        const std::uint32_t frames = 441;
+        tag("RIFF");
+        put(4 + 8 + 16 + 8 + frames, 4);
+        tag("WAVE");
+        tag("fmt ");
+        put(16, 4);
+        put(1, 2);
+        put(1, 2);
+        put(22050, 4);
+        put(22050, 4);
+        put(1, 2);
+        put(8, 2);
+        tag("data");
+        put(frames, 4);
+        v.insert(v.end(), frames, 128);
+        REQUIRE(core::write_file(path / name, v).ok());
+    }
+};
+
+}  // namespace
+
+TEST_CASE("data file: tables, keys and the three kinds of value") {
+    const auto tables = core::parse_data_file(
+        "\xEF\xBB\xBF# A mod's messages\n"
+        "[lighthouse]\n"
+        "text = \"The lighthouse shines. # not a comment\"\n"
+        "text.de = 'Der Leuchtturm strahlt \\o/'  # a comment\n"
+        "like = 0x2A\n"
+        "count = -1_000\n"
+        "video_always = true\r\n"
+        "\n"
+        "[\"anno1602:42\"]\n"
+        "\"quoted key\" = \"\\u00e4\\n\\\"\"\n");
+    REQUIRE(tables.ok());
+    REQUIRE(tables->size() == 2);
+    const core::DataTable& t = (*tables)[0];
+    CHECK(t.name == "lighthouse");
+    CHECK(t.line == 2);
+    REQUIRE(t.find("text") != nullptr);
+    CHECK(*t.find("text")->string() == "The lighthouse shines. # not a comment");
+    CHECK(*t.find("text.de")->string() == "Der Leuchtturm strahlt \\o/");
+    CHECK(*t.find("like")->integer() == 0x2A);
+    CHECK(*t.find("count")->integer() == -1000);
+    CHECK(*t.find("video_always")->boolean());
+    CHECK(t.find("video_always")->line == 7);
+    const core::DataTable& o = (*tables)[1];
+    CHECK(o.name == "anno1602:42");
+    CHECK(*o.find("quoted key")->string() == "\xC3\xA4\n\"");
+}
+
+TEST_CASE("data file: what is not supported is an error with its line, never a guess") {
+    const auto error_line = [](std::string_view text) {
+        const auto r = core::parse_data_file(text);
+        return r.ok() ? std::string("ok") : r.error().message.substr(0, r.error().message.find(':'));
+    };
+    CHECK(error_line("[a]\nx = unquoted\n") == "line 2");
+    CHECK(error_line("[a]\nx = 1.5\n") == "line 2");
+    CHECK(error_line("[a]\nx = [1, 2]\n") == "line 2");
+    CHECK(error_line("[a]\nx = { y = 1 }\n") == "line 2");
+    CHECK(error_line("[a]\nx = \"open\n") == "line 2");
+    CHECK(error_line("[a]\nx = \"\"\"long\"\"\"\n") == "line 2");
+    CHECK(error_line("[a]\nx = 1\nx = 2\n") == "line 3");
+    CHECK(error_line("[a]\n[a]\n") == "line 2");
+    CHECK(error_line("[[a]]\n") == "line 1");
+    CHECK(error_line("[a]\nx = 1 2\n") == "line 2");
+    CHECK(error_line("[a]\nx = 99999999999999999999\n") == "line 2");
+    CHECK(error_line("[a]\nx\n") == "line 2");
+    CHECK(!core::parse_data_file("x = \"\xFF\"\n").ok());  // not UTF-8
+    // Fields before the first table belong to the nameless one.
+    const auto top = core::parse_data_file("x = 1\n[a]\n");
+    REQUIRE(top.ok());
+    CHECK(top->size() == 2);
+    CHECK((*top)[0].name.empty());
+}
+
+TEST_CASE("messages: the original's messages at their MELDUNG numbers") {
+    const app::MessageTable& t = app::MessageTable::original();
+    CHECK(t.size() == 0x70);
+    CHECK(t.find("anno1602:42") == std::optional<app::MessageId>(42));
+    CHECK(t.find("anno1602:0x2A") == std::optional<app::MessageId>(42));
+    CHECK(!t.find("anno1602:0x70"));
+    CHECK(!t.find("mymod:lighthouse"));
+    // Plague: its own icon, voices and video from Speech8 282 and VideoSmk 282, normal speed.
+    const app::MessageDefinition* plague = t.get(1);
+    REQUIRE(plague != nullptr);
+    CHECK(plague->icon == app::MessageIcon::Plague);
+    CHECK(plague->meldung == std::optional<std::uint16_t>(1));
+    CHECK(plague->playback.voice_base == 282);
+    CHECK(plague->playback.video_base == 282);
+    CHECK((plague->playback.flags & audio::kMessageNormalSpeed) != 0);
+    CHECK(t.get(5)->icon == app::MessageIcon::Combat);  // pirates: kind 5
+    CHECK(t.text(1, "de").empty());                     // the status bar shows MELDUNG 1
+}
+
+TEST_CASE("messages: a mod adds a message with text, icon, sound and video") {
+    TempPackage pkg("lighthouse_mod");
+    pkg.write_wave("horn.wav");
+    app::MessageTable t;
+    std::vector<std::string> warnings;
+    const auto status = t.load_package("lighthouse_mod",
+                                       "[lit]\n"
+                                       "text = \"{player}'s lighthouse shines over {island}.\"\n"
+                                       "text.de = \"Der Leuchtturm von {player} strahlt über {island}.\"\n"
+                                       "icon = \"scroll\"\n"
+                                       "kind = \"events\"\n"
+                                       "sound = \"horn.wav\"\n"
+                                       "video = 23\n"
+                                       "normal_speed = true\n",
+                                       pkg.path, warnings);
+    REQUIRE(status.ok());
+    CHECK(warnings.empty());
+    const auto id = t.find("lighthouse_mod:lit");
+    REQUIRE(id.has_value());
+    CHECK(*id == 0x70);  // after the original's
+    const app::MessageDefinition* m = t.get(*id);
+    CHECK(m->icon == app::MessageIcon::Scroll);
+    CHECK(!m->meldung);
+    CHECK(m->playback.kind == 1);
+    REQUIRE(m->playback.sound != nullptr);
+    CHECK(m->playback.sound->frames() == 441);
+    CHECK(m->playback.video_base == 23);
+    CHECK(m->playback.videos == 1);
+    CHECK((m->playback.flags & audio::kMessageNormalSpeed) != 0);
+    const app::MessageArgs args{{"player", "Merlin"}, {"island", "Nordinsel"}};
+    // German in Windows-1252, as the game's fonts draw; a language without its own text: the
+    // text for every language; an unknown placeholder stays.
+    CHECK(t.text(*id, "de", args) ==
+          "Der Leuchtturm von Merlin strahlt \xFC"
+          "ber Nordinsel.");
+    CHECK(t.text(*id, "fr", args) == "Merlin's lighthouse shines over Nordinsel.");
+    CHECK(t.text(*id, "en", {{"player", "A"}}) == "A's lighthouse shines over {island}.");
+}
+
+TEST_CASE("messages: 'like' borrows an original's icon, text, voice and video; fields change it") {
+    TempPackage pkg("m");
+    app::MessageTable t;
+    std::vector<std::string> warnings;
+    REQUIRE(t.load_package("m",
+                           "[gold]\n"
+                           "video = false\n"  // before 'like', still applied after it
+                           "like = 0x2C\n"
+                           "[quiet]\n"
+                           "like = \"anno1602:1\"\n"
+                           "sound = false\n"
+                           "text = \"Quiet plague\"\n",
+                           pkg.path, warnings)
+                .ok());
+    CHECK(warnings.empty());
+    const app::MessageDefinition* gold = t.get(*t.find("m:gold"));
+    const app::MessageDefinition* original = t.get(0x2C);
+    CHECK(gold->icon == original->icon);
+    CHECK(gold->meldung == std::optional<std::uint16_t>(0x2C));
+    CHECK(gold->playback.voice_base == original->playback.voice_base);
+    CHECK(gold->playback.voices == original->playback.voices);
+    CHECK(gold->playback.videos == 0);
+    const app::MessageDefinition* quiet = t.get(*t.find("m:quiet"));
+    CHECK(quiet->icon == app::MessageIcon::Plague);
+    CHECK(quiet->playback.voices == 0);
+    CHECK(quiet->playback.videos == 1);
+    CHECK(t.text(*t.find("m:quiet"), "de") == "Quiet plague");
+}
+
+TEST_CASE("messages: a mod changes an original message field by field") {
+    TempPackage pkg("voices");
+    pkg.write_wave("plague.wav");
+    app::MessageTable t;
+    std::vector<std::string> warnings;
+    REQUIRE(t.load_package("voices",
+                           "[\"anno1602:0x01\"]\n"
+                           "sound = \"plague.wav\"\n"
+                           "text.de = \"Die Pest!\"\n",
+                           pkg.path, warnings)
+                .ok());
+    CHECK(warnings.empty());
+    const app::MessageDefinition* plague = t.get(1);
+    CHECK(plague->id == "anno1602:1");
+    CHECK(plague->playback.sound != nullptr);
+    CHECK(plague->playback.video_base == 282);  // the rest as it was
+    CHECK(plague->icon == app::MessageIcon::Plague);
+    CHECK(t.text(1, "de") == "Die Pest!");
+    CHECK(t.text(1, "en").empty());  // English keeps the original's text
+    CHECK(app::MessageTable::original().get(1)->playback.sound == nullptr);
+}
+
+TEST_CASE("messages: what is wrong in a field is passed over with a warning that names the line") {
+    TempPackage pkg("bad");
+    pkg.write("noise.txt", "not a wave");
+    app::MessageTable t;
+    std::vector<std::string> warnings;
+    REQUIRE(t.load_package("bad",
+                           "[a]\n"
+                           "text = \"A\"\n"
+                           "icon = \"star\"\n"
+                           "kind = 3\n"
+                           "sound = \"../../escape.wav\"\n"
+                           "sound = \"noise.txt\"\n",
+                           pkg.path, warnings)
+                .ok() == false);  // a key given twice: the file is not read at all
+    CHECK(t.size() == 0x70);
+    warnings.clear();
+    REQUIRE(t.load_package("bad",
+                           "[a]\n"
+                           "text = \"A\"\n"
+                           "icon = \"star\"\n"
+                           "kind = 3\n"
+                           "sound = \"../../escape.wav\"\n"
+                           "video = \"intro.mp4\"\n"
+                           "colour = \"red\"\n"
+                           "[b]\n"
+                           "sound = \"noise.txt\"\n"
+                           "[\"anno1602:200\"]\n"
+                           "text = \"x\"\n"
+                           "[\"other:x\"]\n"
+                           "text = \"x\"\n"
+                           "[c]\n"
+                           "like = 999\n",
+                           pkg.path, warnings)
+                .ok());
+    REQUIRE(warnings.size() == 11);
+    CHECK(warnings[0].starts_with("bad/messages.toml line 3: 'icon'"));
+    CHECK(warnings[1].starts_with("bad/messages.toml line 4: 'kind'"));
+    CHECK(warnings[2].starts_with("bad/messages.toml line 5: 'sound'"));
+    CHECK(warnings[3].starts_with("bad/messages.toml line 6: 'video'"));
+    CHECK(warnings[4].starts_with("bad/messages.toml line 7: unknown field 'colour'"));
+    CHECK(warnings[5].starts_with("bad/messages.toml line 9: noise.txt"));
+    CHECK(warnings[6].starts_with("bad/messages.toml line 8: bad:b has no text"));
+    CHECK(warnings[7].starts_with("bad/messages.toml line 10: there is no message anno1602:200"));
+    CHECK(warnings[8].starts_with("bad/messages.toml line 12: there is no message other:x"));
+    CHECK(warnings[9].starts_with("bad/messages.toml line 15: 'like'"));
+    CHECK(warnings[10].starts_with("bad/messages.toml line 14: bad:c has no text"));
+    // The messages themselves are there, without what was wrong.
+    CHECK(t.find("bad:a").has_value());
+    CHECK(t.get(*t.find("bad:a"))->icon == app::MessageIcon::Notice);
+    CHECK(t.find("bad:b").has_value());
+    // A package's id is its folder's name, lower case, and never the original's.
+    CHECK(!t.load_package("Bad Mod", "", pkg.path, warnings).ok());
+    CHECK(!t.load_package("anno1602", "", pkg.path, warnings).ok());
+}
+
+TEST_CASE("messages: the mods folder, package by package in the order of their names") {
+    TempPackage b("b_second");
+    TempPackage a("a_first");
+    a.write("messages.toml", "[hello]\ntext = \"from a\"\n");
+    b.write("messages.toml", "[\"a_first:hello\"]\ntext = \"changed by b\"\n[hello]\ntext = \"from b\"\n");
+    std::filesystem::create_directories(a.path.parent_path() / "no_messages");
+    app::MessageTable t;
+    std::vector<std::string> warnings;
+    t.load_mods(a.path.parent_path(), warnings);
+    CHECK(warnings.empty());
+    CHECK(t.size() == 0x72);
+    CHECK(t.text(*t.find("a_first:hello"), "en") == "changed by b");
+    CHECK(t.text(*t.find("b_second:hello"), "en") == "from b");
+    // No folder at all: nothing to load, nothing to say.
+    t.load_mods(a.path.parent_path() / "missing", warnings);
+    CHECK(warnings.empty());
+}

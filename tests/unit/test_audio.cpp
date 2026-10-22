@@ -344,6 +344,47 @@ TEST_CASE("audio: messages with a video play it instead of their voice (Msg_Audi
     CHECK(!voices.take_video());
 }
 
+TEST_CASE("audio: a message of a mod speaks its own sound and picks voices and videos apart") {
+    FakeGame fake;
+    auto game = assets::GameDirectory::open(fake.root);
+    REQUIRE(game.ok());
+    audio::SoundBank bank(*game);
+    audio::Mixer mixer(22050, 8);
+    audio::Effects effects(mixer, bank);
+    audio::Voices voices(mixer, bank, effects);
+    audio::MessagePlayback own;
+    own.kind = 1;
+    own.voice_base = 282;  // its own sound goes before these
+    own.voices = 1;
+    own.sound = constant(22050, 2205, 1000);
+    voices.message(own, false);
+    CHECK(voices.waiting() == 1);
+    voices.update();
+    CHECK(voices.speaking());
+    CHECK(voices.waiting() == 0);
+    // Its kind switched off: only event.wav.
+    audio::AudioSettings s;
+    s.speech[1] = false;
+    voices.set_settings(s);
+    voices.stop_all();
+    voices.message(own, false);
+    CHECK(voices.waiting() == 0);
+    effects.flush();
+    CHECK(mixer.playing_count(audio::Group::Effects) == 1);
+    // A video of its own number, not the voices' base.
+    voices.set_settings(audio::AudioSettings{});
+    voices.set_video_check([](std::uint16_t) { return true; });
+    own.video_base = 23;
+    own.videos = 1;
+    voices.message(own, false);
+    CHECK(voices.take_video() == std::optional<std::uint16_t>(23));
+    CHECK(voices.waiting() == 0);
+    // Without a sound of its own and without voices: event.wav.
+    audio::MessagePlayback silent;
+    voices.message(silent, true);
+    CHECK(voices.waiting() == 0);
+}
+
 TEST_CASE("audio: music by name, battle music near shots, back after 25 s with a fade") {
     FakeGame fake;
     auto game = assets::GameDirectory::open(fake.root);

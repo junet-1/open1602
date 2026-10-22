@@ -185,11 +185,11 @@ void GameSound::click() {
     }
 }
 
-std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<double, double>> tile,
+std::uint16_t GameSound::message(MessageId message, std::optional<std::pair<double, double>> tile,
                                  std::optional<sim::PlayerId> about, std::string_view text, bool voice) {
-    if (m_output == nullptr || !voice) {
-        const audio::MessageAudio* m = audio::message_audio(message);
-        const std::uint16_t flags = m != nullptr ? m->flags : 0;
+    const MessageDefinition* m = m_messages->get(message);
+    if (m_output == nullptr || !voice || m == nullptr) {
+        const std::uint16_t flags = m != nullptr ? m->playback.flags : 0;
         if (m_listener) {
             m_listener(message, flags, tile, about, text);
         }
@@ -200,7 +200,7 @@ std::uint16_t GameSound::message(std::uint16_t message, std::optional<std::pair<
         const auto [x, y] = m_locate(tile->first, tile->second);
         visible = std::abs(x) < 1.0F && std::abs(y) < 1.0F;
     }
-    const std::uint16_t flags = m_voices.message(message, visible);
+    const std::uint16_t flags = m_voices.message(m->playback, visible);
     if (m_listener) {
         m_listener(message, flags, tile, about, text);
     }
