@@ -2,6 +2,7 @@
 // The SDL backend of the interface (engine/render/sdl/sdl_ui_renderer.cpp) on a software renderer,
 // with a synthetic game folder: one sheet (TOOLS.BSH) and one font (ZEI20V.ZEI) of the large art.
 
+#include <array>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -303,4 +304,35 @@ TEST_CASE("sdl ui renderer: after the window's renderer is made again it draws w
     REQUIRE((*window)->recreate_renderer().ok());
     ui.set_renderer((*window)->sdl_renderer());
     draw();
+}
+
+TEST_CASE("sdl ui renderer: a tinted sprite is its white variant recoloured, cached per colour") {
+    // Four 6 x 6 variants (red, blue, yellow and a light grey white one, palette 10..13); the
+    // gadget shows the white one (sprite 3) in a further player colour.
+    GameFolder folder;
+    folder.write("TOOLGFX/TOOLS.BSH", test::sheet_bytes_each({{6, 6}, {6, 6}, {6, 6}, {6, 6}}, {10, 11, 12, 13}));
+    std::array<assets::Rgba, assets::Palette::kSize> colours{};
+    colours[10] = {216, 51, 8, 255};
+    colours[11] = {0, 0, 241, 255};
+    colours[12] = {255, 219, 57, 255};
+    colours[13] = {200, 200, 200, 255};
+    const assets::Palette palette = test::make_palette(colours);
+    test::Canvas canvas{64, 48};
+    canvas.clear(kBackground);
+    render::SdlUiRenderer ui{canvas.renderer(), folder.game(), palette, ui::ArtSize::Large};
+
+    auto plain = item(ui::DrawItem::Kind::Sprite, 2, 2);
+    plain.gfx = 3;
+    auto green = item(ui::DrawItem::Kind::Sprite, 12, 2);
+    green.gfx = 3;
+    green.tint = ui::ColourTint{assets::Rgba{0, 230, 90, 255}, 1, 4, 3};
+    auto pink = green;
+    pink.x = 22;
+    pink.tint->color = {255, 110, 180, 255};
+    ui.draw({plain, green, pink}, 0, 0, 1.0);
+    canvas.read();
+    CHECK(box(canvas, 2, 2, 8, 8, colours[13]));
+    // Shade 0.48 * 200 + 5 = 101 of 128 (flag_tint.hpp).
+    CHECK(box(canvas, 12, 2, 18, 8, assets::Rgba{0, 181, 71, 255}));
+    CHECK(box(canvas, 22, 2, 28, 8, assets::Rgba{201, 86, 142, 255}));
 }

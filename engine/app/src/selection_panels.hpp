@@ -20,6 +20,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/text_table.hpp"
+#include "o1602/render/banner.hpp"
 #include "o1602/render/sdl_ui_renderer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/ui/panel.hpp"
@@ -37,7 +38,14 @@ struct PanelContext {
     /// The selected ships and land units (the military mode's windows change it: filters,
     /// formations).
     ui::UnitSelection* units = nullptr;
+    /// How players are shown (coats of arms in their colour); without it the white ones.
+    const render::BannerTable* banners = nullptr;
     [[nodiscard]] const sim::World& world() const noexcept { return simulation.world(); }
+    /// The banner of a player, nothing if there is no such player or table.
+    [[nodiscard]] const render::Banner* banner(sim::PlayerId p) const {
+        const sim::Player* player = world().player(p);
+        return banners != nullptr && player != nullptr ? banners->get(player->banner) : nullptr;
+    }
     /// A line of a Text.cod section, empty if there is none.
     [[nodiscard]] std::string text(std::string_view section, std::size_t line) const;
 };

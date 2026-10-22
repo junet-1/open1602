@@ -91,13 +91,13 @@ public:
     /// "Punkte" (57027, Player_ComputeScore's total) and whether "Bewertung" can be pressed.
     void set_points(std::int64_t points, bool rating);
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste) const;
-    void draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& figures, std::uint8_t colour,
+    void draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& figures, const render::Banner* banner,
               const ui::Rect& region, double scale);
 
 private:
     ui::Panel m_panel;
     std::vector<std::string> m_game;  ///< Text.cod [GAME]
-    std::int32_t m_arms = 0;          ///< sprite of the coat of arms of colour 0
+    std::int32_t m_arms = 0;          ///< sprite of the coat of arms of colour 0 (render::BannerArt)
     std::int32_t m_balance_icon = 0;  ///< sprite of the balance icon (green; red is the next)
     bool m_rating_clicked = false;
 };

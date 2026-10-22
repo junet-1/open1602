@@ -2,6 +2,7 @@
 // Small builders for synthetic original-format data used by several unit tests.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <utility>
@@ -27,11 +28,14 @@ inline void put_chunk(std::vector<std::uint8_t>& file, const char* name, const s
     file.insert(file.end(), payload.begin(), payload.end());
 }
 
-/// The bytes of a BSH file with solid sprites of the given sizes, all pixels palette index `index`.
-inline std::vector<std::uint8_t> sheet_bytes(const std::vector<std::pair<std::uint32_t, std::uint32_t>>& sizes,
-                                             std::uint8_t index = 1) {
+/// The bytes of a BSH file with solid sprites of the given sizes, sprite i all palette index
+/// `indices[i]` (1 for sprites without one).
+inline std::vector<std::uint8_t> sheet_bytes_each(const std::vector<std::pair<std::uint32_t, std::uint32_t>>& sizes,
+                                                  const std::vector<std::uint8_t>& indices) {
     std::vector<std::vector<std::uint8_t>> records;
-    for (const auto& [w, h] : sizes) {
+    for (std::size_t i = 0; i < sizes.size(); ++i) {
+        const auto [w, h] = sizes[i];
+        const std::uint8_t index = i < indices.size() ? indices[i] : 1;
         std::vector<std::uint8_t> rle;
         for (std::uint32_t y = 0; y < h; ++y) {
             rle.push_back(0);
@@ -62,6 +66,12 @@ inline std::vector<std::uint8_t> sheet_bytes(const std::vector<std::pair<std::ui
     return file;
 }
 
+/// The bytes of a BSH file with solid sprites of the given sizes, all pixels palette index `index`.
+inline std::vector<std::uint8_t> sheet_bytes(const std::vector<std::pair<std::uint32_t, std::uint32_t>>& sizes,
+                                             std::uint8_t index = 1) {
+    return sheet_bytes_each(sizes, std::vector<std::uint8_t>(sizes.size(), index));
+}
+
 /// BSH with solid sprites of the given sizes, all pixels palette index `index`.
 inline assets::SpriteSheet make_sheet(const std::vector<std::pair<std::uint32_t, std::uint32_t>>& sizes,
                                       std::uint8_t index = 1) {
@@ -70,16 +80,25 @@ inline assets::SpriteSheet make_sheet(const std::vector<std::pair<std::uint32_t,
     return std::move(sheet).value();
 }
 
-/// Palette with colour i = (i, 0, 0).
-inline assets::Palette make_palette() {
+/// Palette with the given colours (alpha ignored).
+inline assets::Palette make_palette(const std::array<assets::Rgba, assets::Palette::kSize>& colours) {
     std::vector<std::uint8_t> payload;
-    for (int i = 0; i < 256; ++i) {
-        payload.insert(payload.end(), {static_cast<std::uint8_t>(i), 0, 0, 0});
+    for (const assets::Rgba& c : colours) {
+        payload.insert(payload.end(), {c.r, c.g, c.b, 0});
     }
     std::vector<std::uint8_t> file;
     put_chunk(file, "COL", payload);
     auto chunks = assets::ChunkFile::from_bytes(file);
     return std::move(assets::Palette::from_chunk_file(*chunks)).value();
+}
+
+/// Palette with colour i = (i, 0, 0).
+inline assets::Palette make_palette() {
+    std::array<assets::Rgba, assets::Palette::kSize> colours{};
+    for (std::size_t i = 0; i < colours.size(); ++i) {
+        colours[i] = {static_cast<std::uint8_t>(i), 0, 0, 255};
+    }
+    return make_palette(colours);
 }
 
 }  // namespace o1602::test

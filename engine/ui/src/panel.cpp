@@ -101,9 +101,10 @@ void Panel::set_slider(std::int32_t id, std::size_t axis, std::int32_t value, st
     m_state[*i].slider[axis] = std::clamp((value * size + range / 2) / range, 0, std::max(0, size));
 }
 
-void Panel::set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset) {
+void Panel::set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset, std::optional<ColourTint> tint) {
     if (const auto i = m_layout.index_of(id)) {
         m_state[*i].graphic = std::make_pair(gfx, press_offset);
+        m_state[*i].tint = tint;
     }
 }
 
@@ -295,6 +296,7 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
         case GadgetKind::Graphic:
             item.kind = DrawItem::Kind::Sprite;
             item.gfx = gfx;
+            item.tint = s.graphic ? s.tint : std::nullopt;
             out.push_back(item);
             break;
         case GadgetKind::GraphicRaster:

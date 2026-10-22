@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "banner_graphic.hpp"
+
 #include "o1602/core/text.hpp"
 #include "o1602/ui/localization.hpp"
 
@@ -87,9 +89,9 @@ void EndScreen::show(std::size_t row) {
     }
     p.set_text(kTotal, std::to_string(s.total));
     p.set_text(kName, r.name.empty() ? ui::tr("end.player", {std::to_string(r.player + 1)}) : r.name);
-    // The four colours of the original have coats of arms; the further players show none.
-    p.set_visible(kArms, r.banner <= 3);
-    p.set_graphic(kArms, m_arms + sim::four_colour_index(r.banner), 0);
+    // The coat of arms in the player's colour (the further colours: the white one recoloured).
+    set_banner_graphic(p, kArms, render::BannerArt::at(m_arms),
+                       m_banners != nullptr ? m_banners->get(r.banner) : nullptr);
     for (std::size_t c = 0; c < m_by_colour.size(); ++c) {
         p.set_selected(kColours + static_cast<std::int32_t>(c), m_by_colour[c] == row);
     }

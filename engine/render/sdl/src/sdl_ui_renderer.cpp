@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdint>
 
+#include "o1602/render/variant_tint.hpp"
+
 namespace o1602::render {
 
 namespace {
@@ -126,8 +128,40 @@ SdlUiRenderer::Texture SdlUiRenderer::make(const std::vector<std::uint8_t>& rgba
     return t;
 }
 
-SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gfx, int mode, std::int32_t colour) {
-    const auto key = std::make_tuple(block, gfx, mode, mode == kModeSprite ? 0 : colour);
+std::vector<std::uint8_t> SdlUiRenderer::tinted(const assets::SpriteSheet& sheet, std::int32_t gfx,
+                                                const ui::ColourTint& tint) const {
+    // The family's variants around the drawn one (the base); missing ones are left out.
+    std::vector<std::vector<std::uint8_t>> pixels(tint.variants);
+    std::vector<RgbaView> views(tint.variants);
+    for (std::int32_t v = 0; v < tint.variants; ++v) {
+        const std::int32_t g = gfx + (v - tint.base) * tint.stride;
+        if (g < 0 || static_cast<std::size_t>(g) >= sheet.size()) {
+            continue;
+        }
+        if (auto image = sheet.decode(static_cast<std::size_t>(g))) {
+            pixels[static_cast<std::size_t>(v)] = image->to_rgba(m_palette);
+            views[static_cast<std::size_t>(v)] =
+                RgbaView{pixels[static_cast<std::size_t>(v)].data(), image->width, image->height};
+        }
+    }
+    std::vector<std::uint8_t> out;
+    tint_variant(views, tint.base, tint.pattern, tint.color, out);
+    return out;
+}
+
+SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gfx, int mode, std::int32_t colour,
+                                             const std::optional<ui::ColourTint>& tint) {
+    const bool tinting = mode == kModeSprite && tint && tint->base < tint->variants;
+    const SpriteKey key{
+        block,
+        gfx,
+        mode,
+        mode == kModeSprite ? 0 : colour,
+        tinting
+            ? 0x01000000U | (std::uint32_t{tint->color.r} << 16U) | (std::uint32_t{tint->color.g} << 8U) | tint->color.b
+            : 0U,
+        tinting ? tint->stride : 0,
+        tinting ? (std::uint32_t{tint->variants} << 16U) | (std::uint32_t{tint->pattern} << 8U) | tint->base : 0U};
     if (const auto it = m_sprites.find(key); it != m_sprites.end()) {
         return it->second;
     }
@@ -136,7 +170,9 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
         gfx >= 0 && static_cast<std::size_t>(gfx) < m_sheets[static_cast<std::size_t>(block)]->size()) {
         if (auto image = m_sheets[static_cast<std::size_t>(block)]->decode(static_cast<std::size_t>(gfx))) {
             std::vector<std::uint8_t> rgba;
-            if (mode == kModeSprite) {
+            if (tinting) {
+                rgba = tinted(*m_sheets[static_cast<std::size_t>(block)], gfx, *tint);
+            } else if (mode == kModeSprite) {
                 rgba = image->to_rgba(m_palette);
             } else {
                 // The shape in one palette colour, solid or as a checkerboard.
@@ -269,7 +305,7 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
     for (const ui::DrawItem& d : items) {
         switch (d.kind) {
             case ui::DrawItem::Kind::Sprite:
-                blit(sprite(d.block, d.gfx, kModeSprite, 0), d.x, d.y, d.half);
+                blit(sprite(d.block, d.gfx, kModeSprite, 0, d.tint), d.x, d.y, d.half);
                 break;
             case ui::DrawItem::Kind::SpriteMask:
                 // The shadow of the build menu's building: the original fills it solid black, which

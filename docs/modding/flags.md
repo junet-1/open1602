@@ -7,7 +7,8 @@ players grows without new images ([ADR 0007](../architecture/0007-extensibility-
 
 **Status:** Done are the tinting (`render/flag_tint.hpp`), the twelve presets and the template from
 the white original flag (`render::BannerTable`), custom images per banner (`FlagStyle::Sprites`, used for
-the skull) and units in player colour (`render/unit_tint.hpp`). Still open: the flag menu and
+the skull), units in player colour (`render/unit_tint.hpp`) and the interface's coats of arms and message
+icons in player colour (`render/variant_tint.hpp`, [below](#interface-art-in-player-colour)). Still open: the flag menu and
 the free RGB colour (interface; until then `--colour 0–3` for a new game in the viewer) as well as custom flags as PNG
 (content packages, milestone M8).
 
@@ -48,6 +49,35 @@ if a motif should not be tintable – this is how the pirates keep their skull.
 The same rules are meant to apply to custom units in player colour (soldiers, cavalry, cannoneers): cloth
 in pure grey, everything else deviating by at least one value. For the original units
 Open1602 already generates the template itself ([figures.md](../re/figures.md#soldiers-and-player-colours)).
+
+## Interface art in player colour
+
+The original draws some interface pictures once per player colour (red, blue, yellow, white): the
+coats of arms in the info panel, the diplomacy window, the ship and city lists, the trade route, the
+pirates' order and the end screen, the small coats of arms of the city list, and the message icons
+in the status bar. Banners with one of these colours show the drawn picture
+(`render::Banner::unit_variant`); every other banner (players five to twelve, mods' banners) gets
+the white picture recoloured at runtime, with the pattern of one of the four original coats of
+arms (`render::Banner::art_pattern`: red's cross, blue's quarters, yellow's stripes or white's
+plain field). `add_color` picks the pattern from the banner's id (FNV-1a, like the riders' horse),
+so the further players do not all look alike and every computer of a multiplayer game shows the
+same.
+
+Which pixels take the colour is found by comparing the four variants: a pixel is cloth where all
+other variants have another colour, the white one is grey (channels at most 47 apart) and not
+darker than luminance 64, and at least three of its eight neighbours are cloth too (the variants'
+hand-dithered shadows differ in single pixels). Cloth gets the same shading as the flag template
+(0.48 · brightness + 5), so a banner's coat of arms and its flag have the same colour. The
+brightness of each cloth pixel comes from the pattern variant, scaled so that its cloth is as
+bright on average as the white one's (the yellow arms' black stripes stay dark). The motif of a
+message icon (lips, sword, scroll, exclamation mark), outlines and the selection frame stay as
+drawn.
+
+A family of pictures is described by `render::BannerArt`: its first sprite, the distance between the
+variants, how many there are and which one is recoloured, plus sprites of a banner's own (the
+pirates' skull among the military message icons). The windows set a gadget's picture with
+`set_banner_graphic` (`engine/app/src/banner_graphic.hpp`); the interface renderer recolours and
+caches it per colour.
 
 ## The original flags
 

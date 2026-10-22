@@ -5,6 +5,8 @@
 #include <array>
 #include <utility>
 
+#include "banner_graphic.hpp"
+
 #include "o1602/sim/game_data.hpp"
 
 namespace o1602::app {
@@ -377,18 +379,17 @@ std::optional<std::string> InfoPanel::help(const std::vector<std::string>& leist
     return line < leiste.size() ? std::optional<std::string>(leiste[line]) : std::nullopt;
 }
 
-void InfoPanel::draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& f, std::uint8_t colour,
+void InfoPanel::draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& f, const render::Banner* banner,
                      const ui::Rect& region, double scale) {
     const std::array<std::int64_t, 7> values{f.inhabitants, f.taxes,     f.running_costs, f.military,
                                              f.sales,       f.purchases, f.balance};
     for (std::size_t i = 0; i < values.size(); ++i) {
         m_panel.set_text(kInfoRows[i].first + 1, std::to_string(values[i]));
     }
-    // The coat of arms in the player's colour (colours above 3 show the first), the balance icon
-    // green or red.
-    const std::int32_t arms = m_arms + (colour > 3 ? 0 : colour);
-    m_panel.set_graphic(kInfoArms, arms, 0);
-    m_panel.set_graphic(kInfoArmsShadow, arms, 0);
+    // The coat of arms in the player's colour, the balance icon green or red.
+    const render::BannerArt arms = render::BannerArt::at(m_arms);
+    set_banner_graphic(m_panel, kInfoArms, arms, banner);
+    set_banner_graphic(m_panel, kInfoArmsShadow, arms, banner);
     m_panel.set_graphic(kInfoBalanceIcon, m_balance_icon + (f.balance < 0 ? 1 : 0), 0);
     renderer.draw(m_panel.draw(renderer.fonts()), region.x, region.y, scale);
 }

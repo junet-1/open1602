@@ -52,6 +52,20 @@ struct ScreenRegions {
 /// Design units to pixels: trunc((v + 0.5) * scale), as the original rounds every element.
 [[nodiscard]] std::int32_t to_pixels(std::int32_t v, double scale) noexcept;
 
+/// A sprite of a family the original draws once per player colour (coats of arms, message icons),
+/// recoloured for a colour it was not drawn in. The family's variants are `stride` sprites apart;
+/// the sprite drawn is variant `base` (white in the original). Pixels that differ between the
+/// variants take the colour, shaded like variant `pattern` (its coat of arms: cross, stripes, ...);
+/// the rest stays as drawn (render/variant_tint.hpp).
+struct ColourTint {
+    assets::Rgba color{};
+    std::int32_t stride = 1;
+    std::uint8_t variants = 4;  ///< red, blue, yellow, white in the original
+    std::uint8_t base = 3;
+    std::uint8_t pattern = 3;
+    friend bool operator==(const ColourTint&, const ColourTint&) = default;
+};
+
 /// Something a panel draws, in pixels relative to its region.
 struct DrawItem {
     enum class Kind : std::uint8_t {
@@ -73,6 +87,7 @@ struct DrawItem {
     Align align = Align::Left;
     bool half = false;  ///< drawn as a 50 % checkerboard (Alphaflg)
     std::string text;
+    std::optional<ColourTint> tint;  ///< Sprite: recoloured
 };
 
 /// What the mouse did to a panel.
@@ -113,8 +128,10 @@ public:
     /// Last first line that still fills the flowing text's box (0 if the text fits); callers clamp
     /// their scroll to it so "down" past the end does not blank the window (UI-12).
     [[nodiscard]] std::int32_t max_scroll(std::int32_t id, const std::array<const Font*, 3>& fonts) const;
-    /// Another sprite and pressed step for a gadget (0x004077C0, 0x00407840): message icons.
-    void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset);
+    /// Another sprite and pressed step for a gadget (0x004077C0, 0x00407840): message icons. With
+    /// `tint` the sprite is recoloured (a player colour the art was not drawn in).
+    void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset,
+                     std::optional<ColourTint> tint = std::nullopt);
     /// Another draw offset (Posoffs) for a gadget: art centred in its box, groups moved together.
     void set_offset(std::int32_t id, std::int32_t x, std::int32_t y);
     /// Moves a gadget, click area and picture (Open1602 rearranges a few windows, e.g. U-013).
@@ -144,6 +161,7 @@ private:
         std::int32_t scroll = 0;
         std::string text;
         std::optional<std::pair<std::int32_t, std::int32_t>> graphic;  ///< gfx, press offset
+        std::optional<ColourTint> tint;
     };
     /// A flowing text's wrapped lines and how many fit its box; nothing if it draws no text.
     [[nodiscard]] std::optional<std::pair<std::vector<std::string>, std::int32_t>> flow_lines(
