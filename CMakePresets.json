@@ -50,8 +50,14 @@
       "name": "vcpkg",
       "displayName": "Release game with vcpkg (Windows/macOS)",
       "inherits": "release",
+      "description": "One link at a time: after each link vcpkg copies the DLLs beside the program, and on Windows a parallel link or the virus scanner can hold the fresh .exe (\"The process cannot access the file\").",
       "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": { "O1602_BUILD_GAME": "ON", "VCPKG_MANIFEST_FEATURES": "game" }
+      "cacheVariables": {
+        "O1602_BUILD_GAME": "ON",
+        "VCPKG_MANIFEST_FEATURES": "game",
+        "CMAKE_JOB_POOLS": "link=1",
+        "CMAKE_JOB_POOL_LINK": "link"
+      }
     }
   ],
   "buildPresets": [
