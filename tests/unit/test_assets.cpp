@@ -393,11 +393,11 @@ TEST_CASE("assets: a game folder typed with quotes or blanks around it is still 
 TEST_CASE("assets: installers' folders named after the game are candidates, others are not") {
     const auto parent = test::temp_path("o1602-test-install-candidates");
     std::filesystem::remove_all(parent);
-    for (const char* name : {"Anno 1602 Koenigsedition", "Anno 1602", "Anno 1503", "1602 A.D."}) {
+    for (const char* name : {"Anno 1602 Koenigsedition", "Anno 1602", "Anno 1503", "1602 AD"}) {
         std::filesystem::create_directories(parent / name);
     }
     std::ofstream(parent / "Anno 1602.txt") << "";  // a file, not a folder
-    const std::vector<std::filesystem::path> expected{parent / "1602 A.D.", parent / "Anno 1602",
+    const std::vector<std::filesystem::path> expected{parent / "1602 AD", parent / "Anno 1602",
                                                       parent / "Anno 1602 Koenigsedition"};
     CHECK(assets::GameDirectory::folders_named_1602(parent) == expected);
     CHECK(assets::GameDirectory::folders_named_1602(parent / "missing").empty());
