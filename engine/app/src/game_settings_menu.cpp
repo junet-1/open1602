@@ -90,8 +90,8 @@ void GameSettingsMenu::layout() {
             const bool used = setup_item_used(m_setup, item);
             f.label(Rect{g.x + 12, y, kLabelW, kRowH - 4}, setup_label(item), Align::Left,
                     used ? Tone::Normal : Tone::Dim);
-            f.button(kItem + first + i, Rect{g.x + 16 + kLabelW, y, kValueW, kRowH - 6},
-                     setup_value(item, setup_choice(m_setup, item)), used);
+            f.button(kItem + first + i, Rect{g.x + 16 + kLabelW, y, kValueW, kRowH - 6}, setup_value(m_setup, item),
+                     used);
         }
     }
     f.paragraph(Rect{40, 592, 944, 90}, ui::tr("setup.hint"), Tone::Dim);

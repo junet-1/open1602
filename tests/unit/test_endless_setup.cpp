@@ -98,9 +98,14 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(app::setup_item_used(s, SetupItem::Players));
     app::choose(s, SetupItem::Players, 4);
     CHECK(s.world.players == 6);
-    app::choose(s, SetupItem::WorldSize, 3);
-    CHECK(s.world.width == 1000);
-    CHECK(s.world.height == 700);
+    // The size follows the players at first, as in a multiplayer game.
+    CHECK(s.auto_size);
+    CHECK(s.world_settings().width == sim::settings_for_players(6).width);
+    CHECK(s.world_settings().height == sim::settings_for_players(6).height);
+    app::choose(s, SetupItem::WorldSize, 4);
+    CHECK(!s.auto_size);
+    CHECK(s.world_settings().width == 1000);
+    CHECK(s.world_settings().height == 700);
     app::choose(s, SetupItem::Villages, 0);
     CHECK(s.world.natives == sim::WorldSettings::Amount::None);
     app::choose(s, SetupItem::Starts, 1);
@@ -132,7 +137,7 @@ TEST_CASE("endless setup: settings.cfg keeps the last choice") {
     app::choose(a.endless, SetupItem::GameSpeed, 0);
     app::choose(a.endless, SetupItem::Droughts, 2);
     app::choose(a.endless, SetupItem::Map, 1);
-    app::choose(a.endless, SetupItem::WorldSize, 4);
+    app::choose(a.endless, SetupItem::WorldSize, 5);
     app::choose(a.endless, SetupItem::Players, 6);
     app::choose(a.endless, SetupItem::IslandSizes, 2);
     app::choose(a.endless, SetupItem::VolcanoIslands, 3);
@@ -154,6 +159,38 @@ TEST_CASE("endless setup: settings.cfg keeps the last choice") {
     CHECK(s.world.players == 4);
     CHECK(!app::read_setup_line(s, "colour", "red"));
     CHECK(s == EndlessSetup{});
+
+    // The automatic size is kept as such.
+    CHECK(app::write_setup(EndlessSetup{}).find("endless.world = auto\n") != std::string::npos);
+    CHECK(app::read_setup_line(s, "world", "700x490"));
+    CHECK(!s.auto_size);
+    CHECK(app::read_setup_line(s, "world", "auto"));
+    CHECK(s.auto_size);
+    CHECK(s.world.width == 700);  // the last fixed size stays for the next time
+}
+
+TEST_CASE("endless setup: the automatic size grows with more than four players") {
+    EndlessSetup s;
+    s.own_world = true;
+    for (std::uint8_t players = 2; players <= 4; ++players) {
+        s.world.players = players;
+        CHECK(s.world_settings().width == 500);
+        CHECK(s.world_settings().height == 350);
+    }
+    s.world.players = 8;
+    const sim::WorldSettings eight = s.world_settings();
+    CHECK(eight.width == sim::settings_for_players(8).width);
+    CHECK(eight.width > 500);
+    CHECK(eight.players == 8);
+    CHECK(app::setup_value(s, SetupItem::WorldSize).find(std::to_string(eight.width)) != std::string::npos);
+
+    // Up to twelve players, as in multiplayer; a fixed size stays as chosen.
+    app::choose(s, SetupItem::Players, 10);
+    CHECK(s.world.players == 12);
+    CHECK(s.world_settings().width == sim::settings_for_players(12).width);
+    app::choose(s, SetupItem::WorldSize, 2);
+    CHECK(s.world_settings().width == 500);
+    CHECK(s.world_settings().players == 12);
 }
 
 TEST_CASE("endless setup: the dialog chooses, resets and starts") {

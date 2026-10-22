@@ -34,7 +34,23 @@ this as well. Until now, `sim::Rules` only had switches for deviations from the 
 | Volcanoes (`volcanoes`) | as the game (setting), off, on | as the game | as the game |
 | Free trader prices (`trader_prices`, S-077) | as usual (about half the base price), by the market (as the original intends) | as usual | as usual |
 | Computer players (`classic_ai`, S-097 to S-099) | improved, as the original (with its bugs in settling, counting and site search, so they stall after about two hours) | as the original | improved |
-| Custom world (`WorldSettings`, new game) | size 200–2000 per side, players, number of islands, island sizes, villages, volcano islands, starting areas separate/shared | the three fixed maps | off; on: 500 × 350, 4 players, normal, mixed, separate |
+| Custom world (`WorldSettings`, new game) | size 200–2000 per side or automatic by the players (as multiplayer: 500 × 350 up to four, both sides growing with the square root of the players beyond), 2–12 players, number of islands, island sizes, villages, volcano islands, starting areas separate/shared | the three fixed maps | off; on: automatic size (500 × 350 for 4 players), 4 players, normal, mixed, separate |
+
+What two of the choices mean for the player (shown in the start dialog as "Free trader's prices" and
+"Every raw material"; in German „Preise des freien Händlers“ and „Jeder Rohstoff“):
+
+- **Free trader's prices** (`trader_prices`): what the free trader pays for the player's goods. "As usual" is about half
+  the base price, as players know the original. The original means him to follow the market, but it
+  gathers the statistics for that in a way that depends on the frame rate, so they are almost always
+  empty (S-077, [ships.md](../re/ships.md)).
+  "By the market" does what it intends: he pays up to three quarters of the average price at which
+  the Kontors buy the ware, and stops buying a ware once all traders together hold half again as much
+  of it as the Kontors want.
+- **Every raw material** (`guarantee_resources`): a randomly generated world has at least one deposit
+  of every raw material a building needs: every crop, iron and gold, gold if need be instead of a
+  second iron vein. The original can generate endless games without any gold (S-019, in 31 % of the
+  512 worlds of `Endlosspiel00`;
+  [worldgen.md](../re/worldgen.md)).
 
 ## Consequences
 The Open1602 savegame has its own section for the settings (`RULE` in the chunk
@@ -45,5 +61,5 @@ its difficulty, but their bugs stay fixed by default, also in savegames of the o
 start dialog after name and banner (`engine/app/src/game_settings_menu.cpp`, since 2026-10-20): the
 settings in groups (economy, limits, disasters, world, opponents), as in later Anno titles, each a button that
 cycles its values, with presets for the original's rules and Open1602's defaults; the last choice is
-kept in `settings.cfg` (`endless.*`). The command line (`--refund`, `--droughts`, `--volcanoes`, `--ai`)
+kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--ai`)
 still sets them for games started from it.
