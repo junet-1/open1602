@@ -512,10 +512,10 @@ std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, 3>& f
     return p->draw(fonts);
 }
 
-std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down) {
+std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button) {
     std::vector<MenuEvent> out;
     if (m_screen == Screen::Settings) {
-        switch (m_settings.mouse(x, y, down)) {
+        switch (m_settings.mouse(x, y, down, button)) {
             case GameSettingsMenu::Result::Start: {
                 if (m_settings.scope() == SetupScope::Scenario) {
                     m_scenario = m_settings.setup();
@@ -544,7 +544,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
         return out;
     }
     ui::Panel* p = panel();
-    if (p == nullptr) {
+    if (p == nullptr || button != ui::MouseButton::Left) {
         return out;
     }
     for (const ui::PanelEvent& e : p->mouse(x, y, down)) {

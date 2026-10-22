@@ -35,11 +35,12 @@ std::optional<std::pair<std::int32_t, std::int32_t>> find_text(app::GameSettings
     return std::nullopt;
 }
 
-app::GameSettingsMenu::Result click(app::GameSettingsMenu& menu, const std::string& text) {
+app::GameSettingsMenu::Result click(app::GameSettingsMenu& menu, const std::string& text,
+                                    ui::MouseButton button = ui::MouseButton::Left) {
     const auto at = find_text(menu, text);
     REQUIRE(at.has_value());
-    (void)menu.mouse(at->first, at->second - 4, true);
-    return menu.mouse(at->first, at->second - 4, false);
+    (void)menu.mouse(at->first, at->second - 4, true, button);
+    return menu.mouse(at->first, at->second - 4, false, button);
 }
 
 std::string value_of(const EndlessSetup& s, SetupItem item) {
@@ -59,6 +60,12 @@ TEST_CASE("endless setup: every item goes round its values and back") {
         for (std::size_t k = 0; k < n; ++k) {
             seen.push_back(value_of(s, item));
             app::choose_next(s, item);
+        }
+        CHECK(app::setup_choice(s, item) == start);
+        // Backwards: the same values in the other order, before the first the last.
+        for (std::size_t k = n; k > 0; --k) {
+            app::choose_previous(s, item);
+            CHECK(value_of(s, item) == seen[k - 1]);
         }
         CHECK(app::setup_choice(s, item) == start);
         for (std::size_t a = 0; a < seen.size(); ++a) {
@@ -209,6 +216,14 @@ TEST_CASE("endless setup: the dialog chooses, resets and starts") {
     CHECK(menu.setup().own_world);
     (void)click(menu, players);
     CHECK(menu.setup().world.players == 5);
+    // A right click takes the previous value; buttons that are no setting do not answer it.
+    CHECK(click(menu, value_of(menu.setup(), SetupItem::Players), ui::MouseButton::Right) ==
+          app::GameSettingsMenu::Result::None);
+    CHECK(menu.setup().world.players == 4);
+    (void)click(menu, value_of(menu.setup(), SetupItem::Refund), ui::MouseButton::Right);
+    CHECK(menu.setup().rules.demolish_refund == EndlessSetup{}.rules.demolish_refund);
+    CHECK(click(menu, ui::tr("setup.start"), ui::MouseButton::Right) == app::GameSettingsMenu::Result::None);
+    CHECK(click(menu, ui::tr("setup.back"), ui::MouseButton::Right) == app::GameSettingsMenu::Result::None);
 
     CHECK(click(menu, ui::tr("setup.original")) == app::GameSettingsMenu::Result::None);
     CHECK(menu.setup() == EndlessSetup::original());

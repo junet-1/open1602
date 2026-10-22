@@ -70,6 +70,24 @@ WindowSize next_window_size(const std::vector<WindowSize>& sizes, WindowSize cur
     return sizes.front();
 }
 
+WindowSize previous_window_size(const std::vector<WindowSize>& sizes, WindowSize current) {
+    if (sizes.empty()) {
+        return current;
+    }
+    const std::int64_t area = std::int64_t{current.width} * current.height;
+    const auto it = std::ranges::find(sizes, current);
+    if (it != sizes.end()) {
+        return it == sizes.begin() ? sizes.back() : *std::prev(it);
+    }
+    // A size dragged by hand: the next smaller one in the list.
+    for (auto s = sizes.rbegin(); s != sizes.rend(); ++s) {
+        if (std::int64_t{s->width} * s->height < area) {
+            return *s;
+        }
+    }
+    return sizes.back();
+}
+
 double ui_scale_for(std::int32_t ui_scale, std::int32_t width, std::int32_t height, float display_scale) noexcept {
     const double fit = std::min(static_cast<double>(std::max(width, 1)) / ui::kDesignWidth,
                                 static_cast<double>(std::max(height, 1)) / ui::kDesignHeight);
@@ -87,6 +105,14 @@ std::int32_t next_ui_scale(std::int32_t current) noexcept {
         return kUiScales.front();
     }
     return *std::next(it);
+}
+
+std::int32_t previous_ui_scale(std::int32_t current) noexcept {
+    const auto it = std::ranges::find(kUiScales, current);
+    if (it == kUiScales.end() || it == kUiScales.begin()) {
+        return kUiScales.back();
+    }
+    return *std::prev(it);
 }
 
 bool read_display_line(DisplaySettings& s, std::string_view key, std::string_view value) {
