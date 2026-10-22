@@ -583,7 +583,8 @@ void Engine::update_fleet_target(AiPlayer& p) {
 
 void Engine::order_ship(AiPlayer& p) {
     // 0x00422150: a ship of a random type the yard can build, while the money covers half of it.
-    if (!p.yard_valid) {
+    // Never in the tutorial.
+    if (!p.yard_valid || tutorial()) {
         return;
     }
     const CostBuilding* yard = nullptr;

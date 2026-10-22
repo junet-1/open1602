@@ -241,6 +241,7 @@ struct GameState {
     std::optional<std::uint8_t> island_phase;
     /// TIMERS +0xB0: next name of the [STAEDTE] list of Text.cod a new city gets (0x005B3168).
     std::optional<std::uint32_t> city_name_index;
+    std::optional<std::uint8_t> tutorial;          ///< TIMERS +0xA5: 1 in the tutorial scenarios
     std::optional<std::uint8_t> difficulty;        ///< TIMERS +0xA6: 0 easy .. 3 hard (droughts)
     std::optional<std::uint32_t> settings;         ///< TIMERS +0xA8: game settings word, bit 2 no droughts
     std::optional<std::uint32_t> pirate_interval;  ///< TIMERS +0xB8: seconds between new pirate ships

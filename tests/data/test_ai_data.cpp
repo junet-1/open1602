@@ -350,3 +350,53 @@ TEST_CASE("data: the computers of a new endless game stay sound over three game 
     }
     CHECK(*first == *second);
 }
+
+TEST_CASE("data: the computer of the tutorial stays as it is; the flag survives saving") {
+    const Setup s = setup_or_skip();
+    // "Diplomatie & Handel" has a computer opponent; TIMERS +0xA5 marks the tutorial. The original's
+    // computer there builds nothing (0x00429AFA): its money only grows by taxes.
+    const auto path = s.game.resolve("Szenes/Einführungsspiel2.szs");
+    if (!path) {
+        SKIP("no tutorial scenario");
+    }
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto world = sim::load_world(*file, s.buildings, s.game);
+    REQUIRE(world.ok());
+    CHECK(world->game_settings().tutorial);
+    const auto productions = world->productions().size();
+    const auto houses = world->houses().size();
+    const std::int32_t money = world->players()[1].money;
+    REQUIRE(world->players()[1].role == sim::PlayerRole::Computer);
+    {
+        sim::Simulation simulation(*world, s.buildings, s.figures, sim::Rules::original());
+        for (int second = 0; second < 600; ++second) {
+            simulation.advance(1000);
+        }
+        // Open1602 saves the flag in its own savegame and writes it into the .GAM.
+        auto own = sim::write_game(*world, s.buildings, &simulation);
+        REQUIRE(own.ok());
+        auto loaded = sim::read_game(*own, s.buildings);
+        REQUIRE(loaded.ok());
+        CHECK(loaded->game_settings().tutorial);
+        auto gam = sim::write_savegame(*world, s.buildings, &simulation);
+        REQUIRE(gam.ok());
+        auto exported = assets::ChunkFile::from_bytes(*gam);
+        REQUIRE(exported.ok());
+        auto again = sim::load_world(*exported, s.buildings, s.game);
+        REQUIRE(again.ok());
+        CHECK(again->game_settings().tutorial);
+    }
+    CHECK(world->productions().size() == productions);
+    CHECK(world->houses().size() == houses);
+    CHECK(world->players()[1].money >= money);
+
+    // An endless game is no tutorial.
+    const auto endless = s.game.resolve("Szenes/Endlosspiel10.szs");
+    REQUIRE(endless.has_value());
+    auto efile = assets::ChunkFile::load(*endless);
+    REQUIRE(efile.ok());
+    auto eworld = sim::load_world(*efile, s.buildings, s.game);
+    REQUIRE(eworld.ok());
+    CHECK(!eworld->game_settings().tutorial);
+}

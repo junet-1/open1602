@@ -39,6 +39,7 @@ struct Decoded {
     };
     std::optional<WorldPart> world;
     std::optional<std::uint32_t> pirate_interval_s;  ///< WRL2
+    bool tutorial = false;                           ///< TUTR
     struct IslandPart {
         std::uint8_t number = 0;
         std::uint8_t deer_phase = 0;

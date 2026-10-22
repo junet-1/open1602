@@ -140,6 +140,7 @@ core::Status apply_decoded(World& world, Decoded& d) {
         world.set_city_name_index(w.city_name_index);
         World::GameSettings settings = w.settings;
         settings.pirate_interval_s = d.pirate_interval_s.value_or(world.game_settings().pirate_interval_s);
+        settings.tutorial = d.tutorial;
         world.set_game_settings(settings);
         world.set_next_drought_ms(w.next_drought_ms);
         if (w.drought_seed) {

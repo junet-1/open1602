@@ -696,8 +696,9 @@ void load_volcanoes(World& world, const assets::GameState& state, const WarningS
 /// TIMERS: the game settings, the drought clock and the clocks of the house groups.
 void load_timers(World& world, const assets::GameState& state) {
     if (state.difficulty) {
-        world.set_game_settings(
-            World::GameSettings{*state.difficulty, state.settings.value_or(0), state.pirate_interval.value_or(1500)});
+        world.set_game_settings(World::GameSettings{*state.difficulty, state.settings.value_or(0),
+                                                    state.pirate_interval.value_or(1500),
+                                                    state.tutorial.value_or(0) != 0});
     }
     if (state.next_drought) {
         // A stored 0 becomes 60 minutes, as in the original's loader (0x00484E3C).
