@@ -88,6 +88,8 @@ struct ViewerOptions {
     bool videos = true;                  ///< the videos of messages, victory, defeat and pause
     bool intro = false;                  ///< the logos and the intro before the game (the original always shows them)
     std::optional<std::uint16_t> video;  ///< one video before the game (VideoSmk number)
+    /// A message to show when the game starts (its id, "mymod:lighthouse"): to try a mod's messages.
+    std::string message;
     /// The original's mouse: the left button gives orders too, the right one only cancels
     /// (ADR 0010: Open1602 orders with the right button).
     bool original_mouse = false;
@@ -328,6 +330,10 @@ private:
     /// Plays what the EventPresenter made of the events: messages with their voices (a message that
     /// asks for it slows the game to normal speed, flag 0x02) and videos, high score lists.
     void show_notices(const std::vector<Notice>& notices);
+    /// Posts a message by its id ("mymod:lighthouse") with its placeholders filled, as the scripts
+    /// will (M8); false if there is no such message.
+    bool announce(std::string_view id, const MessageArgs& args = {},
+                  std::optional<std::pair<double, double>> tile = std::nullopt);
     /// The pause of the original (Pause key) while a video fills the window: the game stops or
     /// goes on, the pause video loops (VideoController::toggle_pause).
     void toggle_pause_video();
@@ -380,6 +386,7 @@ private:
     assets::Palette m_palette;
     assets::FigureTable m_figures;
     render::BannerTable m_banners;  ///< colours and flags of the players (ADR 0007)
+    MessageTable m_messages;        ///< the original's messages and the mods' (docs/modding/messages.md)
     /// Flags, smoke and icons: buildings do not move, so they are collected once at load.
     std::vector<render::BuildingFigure> m_building_figures;
     std::vector<std::string> m_city_names;  ///< Text.cod [STAEDTE], [SHIPS]: for every game loaded

@@ -134,6 +134,24 @@ inline constexpr std::uint16_t kMessageMultiplayerWin = 0x6B;  ///< + banner 0..
 
 [[nodiscard]] const MessageAudio* message_audio(std::uint16_t message) noexcept;
 
+/// What a message plays, in general: an original message (from its MessageAudio) or one of
+/// Open1602's own or a mod's (app::MessageTable), which may bring its own sound and pick its voices
+/// and videos apart (the original takes both from `base`).
+struct MessagePlayback {
+    std::uint8_t kind = 0;  ///< [SPEECHKIND], 0 = only the master switch
+    std::uint16_t flags = 0;
+    std::uint16_t voice_base = 0;  ///< Speech8 files voice_base, voice_base + 2, ...
+    std::uint8_t voices = 0;
+    std::uint16_t video_base = 0;  ///< VideoSmk numbers video_base, video_base + 1, ...
+    std::uint8_t videos = 0;
+    std::shared_ptr<const Pcm> sound;  ///< own sound, spoken instead of the Speech8 voices
+
+    /// The playback of an original message.
+    [[nodiscard]] static MessagePlayback of(const MessageAudio& m) {
+        return MessagePlayback{m.kind, m.flags, m.base, m.voices, m.base, m.videos, nullptr};
+    }
+};
+
 /// The voice of the messages (Speech8): four waiting at most, one speaking at a time, never cut
 /// off (0x00488D00, 0x00488D50). A message that finds no room, or has no voice, sounds event.wav.
 class Voices {
@@ -151,6 +169,8 @@ public:
     /// instead of a voice when videos of its kind are on and its place is off screen, or always
     /// (flag 0x01), or at a quarter of the times (flag 0x08) (Msg_Audio 0x00488E80).
     std::uint16_t message(std::uint16_t message, bool visible);
+    /// The same for a message described by its playback (own sound before the Speech8 voices).
+    std::uint16_t message(const MessagePlayback& m, bool visible);
     /// One of `count` voice files base, base + 2, ... at random, without a message (the menu's
     /// "Wählt Euer Banner": Speech_Queue(0x6B, 5, 2) 0x0048C008). False if muted or no room.
     bool speak(std::uint16_t base, std::uint8_t count);
@@ -164,8 +184,16 @@ public:
 
 private:
     static constexpr std::size_t kSlots = 4;
+    /// A waiting voice: a Speech8 file number or a sound of its own.
+    struct Slot {
+        std::uint16_t number = 0;  ///< 0 and no sound: free
+        std::shared_ptr<const Pcm> sound;
+        [[nodiscard]] bool free() const noexcept { return number == 0 && !sound; }
+    };
     /// One of `count` files from `base` (every second number) into a free slot.
     bool queue(std::uint16_t base, std::uint8_t count);
+    /// An own sound into a free slot.
+    bool queue(std::shared_ptr<const Pcm> sound);
     Mixer* m_mixer;
     SoundBank* m_bank;
     Effects* m_effects;
@@ -173,7 +201,7 @@ private:
     AudioSettings m_settings;
     std::function<bool(std::uint16_t)> m_video_check;
     std::optional<std::uint16_t> m_video;
-    std::array<std::uint16_t, kSlots> m_queue{};  ///< voice file numbers, 0 = free
+    std::array<Slot, kSlots> m_queue{};
     std::size_t m_cursor = 0;
     Mixer::VoiceId m_voice = Mixer::kNoVoice;
 };

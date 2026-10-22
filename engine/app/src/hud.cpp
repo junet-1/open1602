@@ -135,24 +135,6 @@ const render::BannerArt& message_icon_art(std::uint8_t type) {
     return kArt[std::min<std::size_t>(type, kArt.size() - 1)];
 }
 
-std::uint8_t event_type(std::uint16_t message) {
-    switch (message) {
-        case 0x01:
-            return 4;
-        case 0x02:
-            return 5;
-        case 0x03:
-            return 6;
-        case 0x5E:
-            return 7;
-        default:
-            break;
-    }
-    const audio::MessageAudio* m = audio::message_audio(message);
-    const std::uint8_t kind = m != nullptr ? m->kind : 0;
-    return kind == 5 ? 2 : kind == 4 || kind == 7 ? 1 : kind == 3 ? 3 : 0;
-}
-
 /// The end screen (ENDE.GAD), with the scroll arrows of TRANSFER.GAD for the strip of players.
 EndScreen load_end_screen(const assets::GameDirectory& game) {
     auto ende = assets::load_gad(game, "ENDE.GAD");
@@ -1113,17 +1095,19 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
     return action;
 }
 
-void Hud::message(std::uint16_t id, sim::BannerId banner, std::optional<std::pair<double, double>> tile,
+void Hud::message(MessageId id, sim::BannerId banner, std::optional<std::pair<double, double>> tile,
                   std::uint64_t now_ms, std::string_view text) {
+    // A text of the message's own (a mod's) in the language of the game, else the original's.
+    std::string shown = text.empty() ? m_messages->text(id, ui::current_language()) : std::string(text);
     // Event_Post 0x00430D50: the same message at the same place only refreshes its time; a new one
     // pushes the oldest out.
     for (Event& e : m_events) {
-        if (e.id == id && e.tile == tile && e.text == text) {
+        if (e.id == id && e.tile == tile && e.text == shown) {
             e.time_ms = now_ms;
             return;
         }
     }
-    m_events.push_front(Event{id, banner, tile, now_ms, std::string(text)});
+    m_events.push_front(Event{id, banner, tile, now_ms, std::move(shown)});
     if (m_events.size() > kEvents) {
         m_events.pop_back();
     }
@@ -1228,7 +1212,8 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
             continue;
         }
         const Event& e = m_events[i];
-        const std::uint8_t type = event_type(e.id);
+        const MessageDefinition* def = m_messages->get(e.id);
+        const auto type = static_cast<std::uint8_t>(def != nullptr ? def->icon : MessageIcon::Notice);
         if (type < 4) {
             set_banner_graphic(m_leist, id, message_icon_art(type), banners.get(e.banner), 6);
         } else {
@@ -1237,8 +1222,8 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         m_leist.set_hidden(id, false);
         if (m_leist.hovered() == id && !e.text.empty()) {
             status = e.text;
-        } else if (m_leist.hovered() == id && e.id < m_meldung.size()) {
-            status = m_meldung[e.id];
+        } else if (m_leist.hovered() == id && def != nullptr && def->meldung && *def->meldung < m_meldung.size()) {
+            status = m_meldung[*def->meldung];
         }
     }
     m_ctrl.set_graphic(kCompass, kGfxCompass + m_rotation, 0);

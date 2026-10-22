@@ -11,6 +11,7 @@ privately when the build has it.
 | `text.hpp` | Windows-1252 to UTF-8 and back (the original's texts and fonts are Windows-1252) |
 | `numeric.hpp` | Doubles from data files as integers, the same on every platform (`saturating_cast`) |
 | `compress.hpp` | zlib streams (when the build has zlib) and CRC-32 for Open1602's own files |
+| `data_file.hpp` | The data files of content packages: the part of TOML they need (tables, strings, integers, booleans) |
 | `png_writer.hpp` | PNG output for screenshots and the tools |
 | `embedded_file.hpp` | Files compiled into the program (`cmake/EmbedFiles.cmake`) |
 

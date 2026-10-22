@@ -13,6 +13,8 @@
 #include <string_view>
 #include <utility>
 
+#include "message_table.hpp"
+
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
@@ -61,7 +63,7 @@ public:
     /// A message for the local player at a world tile (nothing: no place), about another player
     /// (a rival's new city or ship; nothing: the local player), with a text of its own for the
     /// status bar (empty: the original's) and without its voice if `voice` is off. Returns its flags.
-    std::uint16_t message(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt,
+    std::uint16_t message(MessageId message, std::optional<std::pair<double, double>> tile = std::nullopt,
                           std::optional<sim::PlayerId> about = std::nullopt, std::string_view text = {},
                           bool voice = true);
     /// One of `count` voices from `base` (every second file), without a message (the menu).
@@ -71,9 +73,13 @@ public:
     /// Hears every message with its flags (the status bar's icons in the colour of `about`, its own
     /// text, normal speed).
     using Listener =
-        std::function<void(std::uint16_t message, std::uint16_t flags, std::optional<std::pair<double, double>> tile,
+        std::function<void(MessageId message, std::uint16_t flags, std::optional<std::pair<double, double>> tile,
                            std::optional<sim::PlayerId> about, std::string_view text)>;
     void set_listener(Listener listener) { m_listener = std::move(listener); }
+    /// What the messages play (the mods' messages among them); without: the original's. Outlives this.
+    void set_messages(const MessageTable* messages) noexcept {
+        m_messages = messages != nullptr ? messages : &MessageTable::original();
+    }
 
     /// Messages pick their videos when `check` says the number can be played (without: never).
     void set_video_check(std::function<bool(std::uint16_t)> check) { m_voices.set_video_check(std::move(check)); }
@@ -126,6 +132,7 @@ private:
     audio::AudioSettings m_settings;
     Locator m_locate;
     Listener m_listener;
+    const MessageTable* m_messages = &MessageTable::original();
     float m_view_w = 1024.0F;
     float m_view_h = 768.0F;
     audio::SceneryReach m_reach;

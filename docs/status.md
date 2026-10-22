@@ -43,7 +43,7 @@ Symbols: ✅ done · 🟡 partly · ⬜ open · ❓ behaviour of the original no
   reconnecting, lobby, LAN search, Open1602's own multiplayer menu, 4 to 12 players, host migration; open: see
   Multiplayer in 1.2) · M7 🟡 (freely assignable keys, mouse-wheel zoom, pixel scaling, screenshot,
   bug fixes, any window size and full screen, free zoom and the interface's size done; open: editor) · M8 ⬜ (banners with
-  tinted flags already in place).
+  tinted flags and the mods' own messages already in place).
 - **Savegames**: since 2026-10-18 Open1602 saves in its own format `.o1602`
   ([o1602-save.md](formats/o1602-save.md), [ADR 0009](architecture/0009-own-save-format.md)): without
   the limits of the original (7 players, 150 ships, 400 soldiers, 350 towers), with a checksum, compressed,
@@ -136,6 +136,7 @@ are listed in 2.1.
 | **Fixes after feedback, second list (2026-10-18)**: fertility of an explored island in the status bar over grass and trees ([GAME] 22); build mode darkens what cannot be built on, and when placing or clicking a building, everything outside its catchment area; forest in random variants; empty goods slots without a yellow frame; camera stays over the map; softer shadows in the build menu; right-click back to the player status (one click from any menu, build menu together with the building in hand); a farm being looked at selects its field in the build menu; when dragging fields and forest the area is hatched yellow as in the History Edition; savegames unlimited with arrows, Enter saves a new one immediately, a voice confirms the save | [ui.md](re/ui.md), [bugs.md](re/bugs.md#bugs-of-open1602-itself) |
 | **Start dialog of the endless game**: after name and banner, the settings in groups (economy, limits, disasters, world, opponents: the computer players improved or as the original), each a button that cycles its values; presets for the original's rules and Open1602's defaults; the world items for a world of its own (size, fixed or automatic by the players as in multiplayer, 2 to 12 players, islands, villages, volcanic islands, starting areas, raw material guarantee); remembered in `settings.cfg`. The same dialog for **scenarios** (the rules only, the tutorial without it) and in **multiplayer**: the host chooses on the create screen and in the lobby until the start, everyone else sees the settings in the lobby, a savegame shows its own | [ADR 0008](architecture/0008-game-settings.md) |
 | **Flag menu of the endless game**: the four hall banners of the original and eight coats of arms for the further colours beside the name board; over one, its name and the hall banner of its pattern repainted in it; a further colour swapped with the computer that had it; no more „Der weiße Spieler“ for a further colour's victory: one's own plays „Ihr konntet den Euch gestellten Auftrag erfüllen!“, a rival's shows „Der grüne Spieler konnte seinen Auftrag erfüllen!“ in the status bar, which now also shows texts of Open1602's own | [flags.md](modding/flags.md#the-flag-menu) |
+| **Mods' own messages**: `mods/<package>/messages.toml` adds messages of the status bar and changes the original's, with text per language and placeholders, icon, own WAV sound or an original voice, an original video; `--message ID` shows one at the start | [messages.md](modding/messages.md) |
 | **Savegame lists** show what the section `META` says: the time played in the main menu's list, player, time and map size in the status bar over a slot of the settings | [o1602-save.md](formats/o1602-save.md) |
 | **Display and controls**: figures also at the smallest zoom level, zoom with the mouse wheel, pixel scaling, screenshot as PNG, own save folder (never into the installation); any window size, full screen (F11, Alt+Enter), the interface's size, free zoom (window "Anzeige" of the settings) | [README](../README.md#running), [ADR 0010](architecture/0010-controls-and-interface.md) |
 
@@ -146,7 +147,8 @@ are listed in 2.1.
 | Flag menu with free RGB colour as in Anno 1503 | Interface | [ADR 0007](architecture/0007-extensibility-and-modding.md) |
 | Pirates and traders scale with the number of players (the start dialog, multiplayer and `--players` offer up to 12) | Factions as data | [worldgen.md](re/worldgen.md) |
 | Factions as data (today a fixed `PlayerRole`) | – | ADR 0007 |
-| Content packs with manifest and identifiers, free goods list, PNG and OGG import | M8 | ADR 0007 |
+| Content packs with manifest and identifiers, free goods list, PNG and OGG import (also icons, sounds and videos of the mods' messages) | M8 | ADR 0007 |
+| Scripts post the mods' messages (`MapViewer::announce`) | Lua (M8) | [messages.md](modding/messages.md) |
 | Lua scripts, custom scenarios and campaigns | M8, scenarios | ADR 0007 |
 | World generator stage 2 (custom island shapes, including ones larger than the templates) | deferred until everything runs | [00-plan.md](00-plan.md) |
 | Data patches for `.cod` bugs (D-001, D-002, D-011, D-012), switchable | mechanism missing | [bugs.md](re/bugs.md), ADR 0006 |

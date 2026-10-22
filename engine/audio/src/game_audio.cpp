@@ -241,39 +241,52 @@ const MessageAudio* message_audio(std::uint16_t message) noexcept {
 
 std::uint16_t Voices::message(std::uint16_t message, bool visible) {
     const MessageAudio* m = message_audio(message);
-    if (m == nullptr) {
-        return 0;
-    }
+    return m != nullptr ? this->message(MessagePlayback::of(*m), visible) : 0;
+}
+
+std::uint16_t Voices::message(const MessagePlayback& m, bool visible) {
     // Video first (Msg_Audio 0x00488E80): off screen, or always, or at a quarter of the times. The
     // random numbers are the interface's own, not the game's (S-112).
-    const bool videos_on = m_settings.video[0] && (m->kind >= m_settings.video.size() || m_settings.video[m->kind]);
-    if (m->videos > 0 && videos_on && m_video_check) {
-        const bool chance = (m->flags & kMessageVideoQuarter) != 0 && (m_random() & 3U) == 0;
-        if (!visible || (m->flags & kMessageVideoAlways) != 0 || chance) {
+    const bool videos_on = m_settings.video[0] && (m.kind >= m_settings.video.size() || m_settings.video[m.kind]);
+    if (m.videos > 0 && videos_on && m_video_check) {
+        const bool chance = (m.flags & kMessageVideoQuarter) != 0 && (m_random() & 3U) == 0;
+        if (!visible || (m.flags & kMessageVideoAlways) != 0 || chance) {
             const auto pick =
-                static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, m->videos - 1)(m_random));
-            const auto number = static_cast<std::uint16_t>(m->base + pick);
+                static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, m.videos - 1)(m_random));
+            const auto number = static_cast<std::uint16_t>(m.video_base + pick);
             if (m_video_check(number)) {
                 m_video = number;
-                return m->flags;
+                return m.flags;
             }
         }
     }
-    const bool allowed = m_settings.speech[0] && (m->kind >= m_settings.speech.size() || m_settings.speech[m->kind]);
-    if (m->voices > 0 && allowed && (!visible || (m->flags & kMessageVoiceHidden) == 0) && queue(m->base, m->voices)) {
-        return m->flags;
+    const bool allowed = m_settings.speech[0] && (m.kind >= m_settings.speech.size() || m_settings.speech[m.kind]);
+    if (allowed && (!visible || (m.flags & kMessageVoiceHidden) == 0) &&
+        (m.sound ? queue(m.sound) : m.voices > 0 && queue(m.voice_base, m.voices))) {
+        return m.flags;
     }
     // No voice, or no room: the message sound in the middle.
     m_effects->request(kWavEvent, 0.0F, 0.0F);
-    return m->flags;
+    return m.flags;
 }
 
 bool Voices::queue(std::uint16_t base, std::uint8_t count) {
     for (std::size_t i = 0; i < kSlots; ++i) {
-        std::uint16_t& slot = m_queue[(m_cursor + i) % kSlots];
-        if (slot == 0) {
+        Slot& slot = m_queue[(m_cursor + i) % kSlots];
+        if (slot.free()) {
             const auto pick = static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, count - 1)(m_random));
-            slot = static_cast<std::uint16_t>(base + 2 * pick);
+            slot.number = static_cast<std::uint16_t>(base + 2 * pick);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Voices::queue(std::shared_ptr<const Pcm> sound) {
+    for (std::size_t i = 0; i < kSlots; ++i) {
+        Slot& slot = m_queue[(m_cursor + i) % kSlots];
+        if (slot.free()) {
+            slot.sound = std::move(sound);
             return true;
         }
     }
@@ -291,13 +304,13 @@ void Voices::update() {
     m_voice = Mixer::kNoVoice;
     for (std::size_t i = 0; i < kSlots; ++i) {
         const std::size_t at = (m_cursor + i) % kSlots;
-        if (m_queue[at] == 0) {
+        if (m_queue[at].free()) {
             continue;
         }
-        const std::uint16_t n = m_queue[at];
-        m_queue[at] = 0;
+        Slot slot = std::exchange(m_queue[at], Slot{});
         m_cursor = (at + 1) % kSlots;
-        if (auto pcm = m_bank->load("Speech8/" + std::to_string(n) + ".wav")) {
+        auto pcm = slot.sound ? std::move(slot.sound) : m_bank->load("Speech8/" + std::to_string(slot.number) + ".wav");
+        if (pcm) {
             PlayOptions o;
             o.group = Group::Speech;
             // Voices are a quarter less attenuated than the effects (0x00488D50).
@@ -310,14 +323,14 @@ void Voices::update() {
 }
 
 void Voices::stop_all() {
-    m_queue.fill(0);
+    m_queue.fill(Slot{});
     m_mixer->stop(m_voice);
     m_voice = Mixer::kNoVoice;
 }
 
 std::size_t Voices::waiting() const noexcept {
     return static_cast<std::size_t>(
-        std::count_if(m_queue.begin(), m_queue.end(), [](std::uint16_t n) { return n != 0; }));
+        std::count_if(m_queue.begin(), m_queue.end(), [](const Slot& s) { return !s.free(); }));
 }
 
 // ---- Music ---------------------------------------------------------------------------------------
