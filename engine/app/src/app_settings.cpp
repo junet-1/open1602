@@ -128,6 +128,10 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             (void)read_display_line(s.display, key.substr(8), value);
         } else if (key.starts_with("endless.")) {
             (void)read_setup_line(s.endless, key.substr(8), value);
+        } else if (key.starts_with("scenario.")) {
+            (void)read_setup_line(s.scenario, key.substr(9), value);
+        } else if (key.starts_with("multiplayer.")) {
+            (void)read_setup_line(s.multiplayer, key.substr(12), value);
         }
     });
     return s;
@@ -162,6 +166,10 @@ std::string write_settings(const AppSettings& s) {
     out += write_display(s.display);
     out += "# The last settings of the start dialog of the endless game\n";
     out += write_setup(s.endless);
+    out += "# The last rules chosen for a scenario\n";
+    out += write_setup(s.scenario, "scenario.");
+    out += "# The last settings a host chose for a multiplayer game\n";
+    out += write_setup(s.multiplayer, "multiplayer.");
     return out;
 }
 

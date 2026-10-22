@@ -51,8 +51,8 @@ struct MenuEvent {
         Quit,          ///< leave the program (after a question)
         Credits,       ///< video 10 in the picture frame
         Intro,         ///< video 58
-        NewEndless,    ///< endless game of `level` with `colour`, `name` and the settings `endless`
-        Scenario,      ///< start `path` with `name`
+        NewEndless,    ///< endless game of `level` with `colour`, `name` and the settings `setup`
+        Scenario,      ///< start `path` with `name` and the rules of `setup` (none for the tutorial)
         LoadSlot,      ///< savegame `slot`
         ContinueLast,  ///< lastgame
         NameEntered,   ///< the name is confirmed (Enter): "Wählt Euer Banner" and the like
@@ -64,7 +64,8 @@ struct MenuEvent {
     std::string name{};
     std::filesystem::path path{};
     std::size_t slot = 0;
-    EndlessSetup endless{};
+    /// The settings of the start dialog; for a scenario only its rules count.
+    std::optional<EndlessSetup> setup{};
     /// Scenario: the chapter of the tutorial, nothing for another scenario.
     std::optional<std::uint8_t> tutorial_chapter{};
 };
@@ -92,6 +93,9 @@ public:
     /// The settings the start dialog of the endless game offers first (the last ones chosen).
     void set_endless_setup(const EndlessSetup& setup) { m_endless = setup; }
     [[nodiscard]] const EndlessSetup& endless_setup() const noexcept { return m_endless; }
+    /// The rules the start dialog of a scenario offers first (the last ones chosen).
+    void set_scenario_setup(const EndlessSetup& setup) { m_scenario = setup; }
+    [[nodiscard]] const EndlessSetup& scenario_setup() const noexcept { return m_scenario; }
     /// Colours of Open1602's own screens (the start dialog).
     void set_form_style(const ui::FormStyle& style) { m_settings.set_style(style); }
     /// The chapter of the tutorial the mission screen offers first (the settings' "Tutornr").
@@ -155,6 +159,7 @@ private:
     std::string m_name;
     GameSettingsMenu m_settings;
     EndlessSetup m_endless;
+    EndlessSetup m_scenario;
     std::uint8_t m_banner = 0;  ///< chosen on the colour screen, for the start dialog
     std::uint8_t m_tutorial_chapter = 0;
     bool m_name_fresh = false;  ///< the name was put in, not typed: the first key replaces it

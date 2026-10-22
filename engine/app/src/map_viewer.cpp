@@ -2007,6 +2007,7 @@ void MapViewer::load_options() {
         menu->set_progress_file(data_folder() / "progress.cfg");
         menu->set_name(m_app_settings.player_name);
         menu->set_endless_setup(m_app_settings.endless);
+        menu->set_scenario_setup(m_app_settings.scenario);
         menu->set_tutorial_chapter(m_app_settings.tutorial_chapter);
     }
 }
@@ -2152,7 +2153,7 @@ void MapViewer::apply_options() {
     }
 }
 
-core::Status MapViewer::load_game(const std::filesystem::path& path) {
+core::Status MapViewer::load_game(const std::filesystem::path& path, const sim::Rules* rules) {
     if (m_session && m_session->ended()) {
         end_session();  // one that ended in its game stood only to show the game
     }
@@ -2167,7 +2168,7 @@ core::Status MapViewer::load_game(const std::filesystem::path& path) {
     if (!world) {
         return world.error();
     }
-    if (auto replaced = replace_world(std::move(world).value(), path); !replaced) {
+    if (auto replaced = replace_world(std::move(world).value(), path, rules); !replaced) {
         return replaced;
     }
     report_load_problems(warnings);
@@ -2359,13 +2360,15 @@ void MapViewer::apply_menu() {
             case MenuEvent::Kind::Multiplayer:
                 open_multiplayer_menu();
                 return;  // the rest belongs to the main menu, which is gone
-            case MenuEvent::Kind::NewEndless:
-                started = start_endless(e.level, e.colour, e.name, e.endless);
-                if (started && !(e.endless == m_app_settings.endless)) {
-                    m_app_settings.endless = e.endless;
+            case MenuEvent::Kind::NewEndless: {
+                const EndlessSetup setup = e.setup.value_or(m_app_settings.endless);
+                started = start_endless(e.level, e.colour, e.name, setup);
+                if (started && !(setup == m_app_settings.endless)) {
+                    m_app_settings.endless = setup;
                     save_settings();
                 }
                 break;
+            }
             case MenuEvent::Kind::Scenario:
                 if (e.tutorial_chapter) {
                     // The chapter is a setting, as the original's "Tutornr": the game reads it.
@@ -2373,7 +2376,11 @@ void MapViewer::apply_menu() {
                     save_settings();
                     menu->set_tutorial_chapter(*e.tutorial_chapter);
                 }
-                started = load_game(e.path);
+                started = load_game(e.path, e.setup ? &e.setup->rules : nullptr);
+                if (started && e.setup && !(e.setup->rules == m_app_settings.scenario.rules)) {
+                    m_app_settings.scenario = *e.setup;
+                    save_settings();
+                }
                 if (started && !e.name.empty()) {
                     // The stored name goes to the human (0x0048A680).
                     m_command_sink.submit(sim::PlayerRename{m_local_player, e.name});

@@ -231,3 +231,120 @@ TEST_CASE("endless setup: the dialog speaks English and German") {
     CHECK(ui::tr("setup.start") == "Start game");
     ui::set_language(ui::kFallbackLanguage);
 }
+
+TEST_CASE("game setup: what a scenario, a multiplayer game and a savegame offer") {
+    using app::SetupScope;
+    // A scenario's world is given: only the rules.
+    for (const SetupItem item : {SetupItem::Map, SetupItem::WorldSize, SetupItem::Players, SetupItem::Islands,
+                                 SetupItem::Starts, SetupItem::Resources}) {
+        CHECK(!app::setup_item_offered(SetupScope::Scenario, item));
+    }
+    for (const SetupItem item :
+         {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::Ships, SetupItem::Units, SetupItem::GameSpeed,
+          SetupItem::Droughts, SetupItem::Volcanoes, SetupItem::ClassicAi}) {
+        CHECK(app::setup_item_offered(SetupScope::Scenario, item));
+        CHECK(app::setup_item_open(EndlessSetup{}, SetupScope::Scenario, item));
+        CHECK(!app::setup_item_open(EndlessSetup{}, SetupScope::Savegame, item));  // to look at only
+    }
+    // A multiplayer endless game: everything but the players, which are the lobby's.
+    EndlessSetup mp = app::multiplayer_setup(EndlessSetup::defaults(SetupScope::MultiplayerEndless), 4);
+    CHECK(!mp.own_world);
+    CHECK(mp.world.starts == sim::WorldSettings::Starts::Together);
+    CHECK(app::setup_item_open(mp, SetupScope::MultiplayerEndless, SetupItem::Map));
+    CHECK(!app::setup_item_open(mp, SetupScope::MultiplayerEndless, SetupItem::Players));
+    CHECK(app::setup_item_open(mp, SetupScope::MultiplayerEndless, SetupItem::ClassicAi));
+    // More than four always get a world of their own.
+    mp = app::multiplayer_setup(mp, 7);
+    CHECK(mp.own_world);
+    CHECK(mp.world.players == 7);
+    CHECK(mp.world_settings().width == sim::settings_for_players(7).width);
+    CHECK(!app::setup_item_open(mp, SetupScope::MultiplayerEndless, SetupItem::Map));
+    CHECK(app::setup_item_open(mp, SetupScope::MultiplayerEndless, SetupItem::Islands));
+
+    // A scenario compares the rules only.
+    EndlessSetup a;
+    EndlessSetup b;
+    b.own_world = true;
+    CHECK(app::same_setup(a, b, SetupScope::Scenario));
+    CHECK(!app::same_setup(a, b, SetupScope::Endless));
+}
+
+TEST_CASE("game setup: settings.cfg keeps the scenario's and the host's choice apart") {
+    app::AppSettings a;
+    app::choose(a.scenario, SetupItem::ClassicAi, 1);
+    app::choose(a.scenario, SetupItem::TraderPrices, 1);
+    app::choose(a.multiplayer, SetupItem::Map, 1);
+    app::choose(a.multiplayer, SetupItem::Villages, 0);
+    const std::string text = app::write_settings(a);
+    CHECK(text.find("scenario.ai = classic\n") != std::string::npos);
+    CHECK(text.find("multiplayer.own_world = on\n") != std::string::npos);
+    const app::AppSettings back = app::parse_settings(text, app::AppSettings{});
+    CHECK(back.scenario == a.scenario);
+    CHECK(back.multiplayer == a.multiplayer);
+    CHECK(back.endless == EndlessSetup{});
+    // A host's world of its own starts together by default, as the original's multiplayer maps.
+    CHECK(app::AppSettings{}.multiplayer.world.starts == sim::WorldSettings::Starts::Together);
+
+    // The same lines, as text with any prefix.
+    EndlessSetup read = EndlessSetup::defaults(app::SetupScope::MultiplayerEndless);
+    app::read_setup(read, "# a comment\n" + app::write_setup(a.multiplayer, "x.") + "x.colour = red\nbroken\n", "x.");
+    CHECK(read == a.multiplayer);
+}
+
+TEST_CASE("game setup: the dialog of a scenario shows the rules only") {
+    app::GameSettingsMenu menu;
+    menu.open(EndlessSetup{}, app::SetupScope::Scenario);
+    CHECK(find_text(menu, ui::tr("setup.title.scenario")).has_value());
+    CHECK(find_text(menu, ui::tr("setup.group.opponents")).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.group.world")).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.map")).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.resources")).has_value());
+    (void)click(menu, ui::tr("setup.ai.open1602"));
+    CHECK(menu.setup().rules.classic_ai);
+    (void)click(menu, ui::tr("setup.original"));
+    CHECK(menu.setup().rules == sim::Rules::original());
+    CHECK(click(menu, ui::tr("setup.start")) == app::GameSettingsMenu::Result::Start);
+}
+
+TEST_CASE("game setup: the host's dialog keeps the lobby's players, the others only look") {
+    app::GameSettingsMenu menu;
+    const EndlessSetup six = app::multiplayer_setup(EndlessSetup::defaults(app::SetupScope::MultiplayerEndless), 6);
+    menu.open(six, app::SetupScope::MultiplayerEndless, app::GameSettingsMenu::Mode::Apply);
+    CHECK(find_text(menu, ui::tr("setup.title.multiplayer")).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.start")).has_value());
+    (void)click(menu, "6");  // the players: the lobby's
+    CHECK(menu.setup().world.players == 6);
+    (void)click(menu, ui::tr("setup.map.own"));  // more than four: always a world of their own
+    CHECK(menu.setup().own_world);
+    (void)click(menu, ui::tr("setup.original"));
+    CHECK(menu.setup().rules == sim::Rules::original());
+    CHECK(menu.setup().world.players == 6);
+    CHECK(menu.setup().own_world);
+    CHECK(click(menu, ui::tr("setup.apply")) == app::GameSettingsMenu::Result::Start);
+
+    // Looking only: the values are text, no presets, no start.
+    menu.open(six, app::SetupScope::MultiplayerEndless, app::GameSettingsMenu::Mode::View);
+    const std::string refund = value_of(six, SetupItem::Refund);
+    CHECK(click(menu, refund) == app::GameSettingsMenu::Result::None);
+    CHECK(menu.setup() == six);
+    CHECK(!find_text(menu, ui::tr("setup.original")).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.apply")).has_value());
+    CHECK(click(menu, ui::tr("setup.back")) == app::GameSettingsMenu::Result::Back);
+    // A savegame's settings can only be looked at, whatever the caller asks.
+    menu.open(EndlessSetup{}, app::SetupScope::Savegame, app::GameSettingsMenu::Mode::Apply);
+    CHECK(menu.mode() == app::GameSettingsMenu::Mode::View);
+}
+
+TEST_CASE("game setup: the texts of every kind of game in English and German") {
+    for (const std::string_view code : {"de", "en"}) {
+        ui::set_language(code);
+        for (const std::string_view key : {"setup.title.multiplayer", "setup.title.scenario", "setup.title.savegame",
+                                           "setup.hint.multiplayer", "setup.hint.scenario", "setup.hint.savegame",
+                                           "setup.apply", "setup.custom", "setup.change", "setup.view"}) {
+            CHECK(ui::tr(key) != key);
+        }
+        CHECK(ui::tr("setup.summary", {"x"}).find('x') != std::string::npos);
+    }
+    CHECK(ui::tr("setup.apply") == "Apply");
+    ui::set_language(ui::kFallbackLanguage);
+}

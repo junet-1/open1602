@@ -116,8 +116,16 @@ std::string_view on_off(bool b) {
 
 }  // namespace
 
-EndlessSetup EndlessSetup::original() {
+EndlessSetup EndlessSetup::defaults(SetupScope scope) {
     EndlessSetup s;
+    if (scope == SetupScope::MultiplayerEndless) {
+        s.world.starts = Starts::Together;  // all ships at one place, as the original's multiplayer maps
+    }
+    return s;
+}
+
+EndlessSetup EndlessSetup::original(SetupScope scope) {
+    EndlessSetup s = defaults(scope);
     s.rules = sim::Rules::original();
     return s;
 }
@@ -336,6 +344,66 @@ bool setup_item_used(const EndlessSetup& setup, SetupItem item) noexcept {
     }
 }
 
+bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
+    switch (scope) {
+        case SetupScope::Endless:
+        case SetupScope::MultiplayerEndless:
+            return item != SetupItem::Count;
+        case SetupScope::Scenario:
+        case SetupScope::Savegame:
+            break;
+    }
+    // A scenario's world is given: no world of its own, and its deposits are as its author placed them.
+    switch (item) {
+        case SetupItem::Refund:
+        case SetupItem::TraderPrices:
+        case SetupItem::Ships:
+        case SetupItem::Units:
+        case SetupItem::GameSpeed:
+        case SetupItem::Droughts:
+        case SetupItem::Volcanoes:
+        case SetupItem::ClassicAi:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool setup_item_open(const EndlessSetup& setup, SetupScope scope, SetupItem item) noexcept {
+    if (scope == SetupScope::Savegame || !setup_item_offered(scope, item)) {
+        return false;
+    }
+    if (scope == SetupScope::MultiplayerEndless) {
+        if (item == SetupItem::Players) {
+            return false;  // the lobby's slots
+        }
+        if (item == SetupItem::Map && setup.world.players > sim::kOriginalPlayers) {
+            return false;  // the original's maps have starts for four
+        }
+    }
+    return setup_item_used(setup, item);
+}
+
+bool same_setup(const EndlessSetup& a, const EndlessSetup& b, SetupScope scope) noexcept {
+    switch (scope) {
+        case SetupScope::Endless:
+        case SetupScope::MultiplayerEndless:
+            return a == b;
+        case SetupScope::Scenario:
+        case SetupScope::Savegame:
+            break;
+    }
+    return a.rules == b.rules;
+}
+
+EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players) {
+    setup.world.players = static_cast<std::uint8_t>(std::clamp<std::size_t>(players, 1, sim::kMaxPlayers));
+    if (setup.world.players > sim::kOriginalPlayers) {
+        setup.own_world = true;
+    }
+    return setup;
+}
+
 std::string setup_label(SetupItem item) {
     static constexpr std::array<std::string_view, kSetupItems> kKeys = {
         "setup.refund",   "setup.trader",          "setup.ships",     "setup.units",
@@ -501,12 +569,12 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
     return true;
 }
 
-std::string write_setup(const EndlessSetup& setup) {
+std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     const sim::Rules& r = setup.rules;
     const sim::WorldSettings& w = setup.world;
     std::string out;
-    const auto line = [&out](std::string_view key, std::string_view value) {
-        out += "endless.";
+    const auto line = [&out, prefix](std::string_view key, std::string_view value) {
+        out += prefix;
         out += key;
         out += " = ";
         out += value;
@@ -530,6 +598,31 @@ std::string write_setup(const EndlessSetup& setup) {
     line("volcano_islands", kAmountNames[static_cast<std::size_t>(w.volcanoes)]);
     line("starts", kStartNames[w.starts == Starts::Together ? 1 : 0]);
     return out;
+}
+
+void read_setup(EndlessSetup& setup, std::string_view text, std::string_view prefix) {
+    const auto trim = [](std::string_view v) {
+        while (!v.empty() && (v.front() == ' ' || v.front() == '\t')) {
+            v.remove_prefix(1);
+        }
+        while (!v.empty() && (v.back() == ' ' || v.back() == '\t' || v.back() == '\r')) {
+            v.remove_suffix(1);
+        }
+        return v;
+    };
+    while (!text.empty()) {
+        const std::size_t end = text.find('\n');
+        std::string_view line = text.substr(0, end);
+        text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1);
+        const std::size_t eq = line.find('=');
+        if (eq == std::string_view::npos) {
+            continue;
+        }
+        const std::string_view key = trim(line.substr(0, eq));
+        if (key.starts_with(prefix)) {
+            (void)read_setup_line(setup, key.substr(prefix.size()), trim(line.substr(eq + 1)));
+        }
+    }
 }
 
 }  // namespace o1602::app

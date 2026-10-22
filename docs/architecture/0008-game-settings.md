@@ -63,3 +63,20 @@ settings in groups (economy, limits, disasters, world, opponents), as in later A
 cycles its values, with presets for the original's rules and Open1602's defaults; the last choice is
 kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--ai`)
 still sets them for games started from it.
+
+Since 2026-10-22 the same dialog serves every new game; what is played (`SetupScope`) decides
+what it offers:
+
+| Game | Offers | Kept in `settings.cfg` |
+|---|---|---|
+| Endless game alone | everything | `endless.*` |
+| Scenario (after the mission screen; not the tutorial) | the rules only: economy, limits, disasters, opponents. Its map and deposits are the author's, so no world items and no raw material guarantee | `scenario.*` |
+| Multiplayer endless game | everything; the players are those of the lobby, more than four always play on a world of their own, which starts together by default as the original's multiplayer maps | `multiplayer.*` |
+| Multiplayer scenario | as a scenario alone | `multiplayer.*` |
+| Multiplayer savegame | nothing to change: the lobby shows the rules the game was started with | — |
+
+In multiplayer the host chooses on the create screen and, until the start, in the lobby. The
+lobby passes the choice on in `Lobby::setup`, the program's own bytes the session does not read, as
+`settings.cfg` lines after a line `game = multiplayer|scenario|savegame`; so the protocol stays as
+it is. Everyone else opens the dialog from the lobby to look only. The rules themselves reach
+every computer with the game, as the savegame's `RULE` section (ADR 0011, point 6).
