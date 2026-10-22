@@ -216,6 +216,10 @@ player.colour.brown = Brauner Spieler
 # End screen
 end.player = Spieler {1}
 end.continue_hint = Esc: Weiterspielen
+# With more players than coats of arms: the shown player's rank by points ({1}) of all ({2}),
+# and the rank under each coat of arms of the strip ({1})
+end.rank = Platz {1} von {2}
+end.place = {1}.
 
 # Window title
 title.paused = Pause

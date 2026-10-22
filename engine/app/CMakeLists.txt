@@ -8,7 +8,6 @@ add_executable(open1602
     src/hud.cpp
     src/selection_panels.cpp
     src/diplomacy_panel.cpp
-    src/end_screen.cpp
     src/list_panels.cpp
     src/multiplayer.cpp
     src/options_panel.cpp
