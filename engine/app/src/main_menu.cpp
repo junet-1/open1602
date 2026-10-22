@@ -608,7 +608,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                         ev.path = chosen_file();
                         ev.name = m_name;
                         if (s.header.mission_number == kTutorial) {
-                            ev.tutorial_chapter = m_variant == 0xFF ? 0 : m_variant;
+                            ev.tutorial_chapter = static_cast<std::uint8_t>(m_variant == 0xFF ? 0 : m_variant);
                         }
                         out.push_back(std::move(ev));
                     }
