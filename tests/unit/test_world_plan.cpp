@@ -187,6 +187,29 @@ TEST_CASE("world plan: any size from 200 to 2000 tiles and up to 16 players") {
     CHECK(!sim::plan_world(sim::WorldSettings{}, {}).ok());
 }
 
+TEST_CASE("world plan: more than four players get as much sea and land each as the original's four") {
+    for (const std::uint8_t players : {std::uint8_t{1}, std::uint8_t{4}}) {
+        const sim::WorldSettings s = sim::settings_for_players(players);
+        CHECK(s.players == players);
+        CHECK(s.width == 500);
+        CHECK(s.height == 350);
+    }
+    const sim::WorldSettings eight = sim::settings_for_players(8);
+    CHECK(eight.players == 8);
+    CHECK(eight.width == 707);  // 500 * sqrt(2)
+    CHECK(eight.height == 495);
+    const sim::WorldSettings sixteen = sim::settings_for_players(16);
+    CHECK(sixteen.width == 1000);
+    CHECK(sixteen.height == 700);
+    // The islands follow the area: about twice as many for twice the players.
+    sim::WorldSettings four = sim::settings_for_players(4);
+    auto few = sim::plan_world(four, templates());
+    auto many = sim::plan_world(eight, templates());
+    REQUIRE(few.ok());
+    REQUIRE(many.ok());
+    CHECK(many->plan.islands.size() > few->plan.islands.size() * 3 / 2);
+}
+
 TEST_CASE("world plan: settings change the amount of islands, their sizes, villages and volcanoes") {
     const auto plan_with = [](auto&& change) {
         sim::WorldSettings s;

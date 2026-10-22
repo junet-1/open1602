@@ -3,7 +3,6 @@
 // The viewer's side of a multiplayer game (ADR 0011): the session, its menu (multiplayer_menu.hpp),
 // the search on the local network, and the games the host makes from its lobby.
 #include <algorithm>
-#include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <random>
@@ -533,11 +532,8 @@ core::Status MapViewer::start_hosted_game() {
         if (setup.players > sim::kOriginalPlayers) {
             // More players than the original's maps have starts for: an own world, as much sea
             // and land per player as the original's 500 x 350 for four.
-            sim::WorldSettings custom;
-            custom.players = static_cast<std::uint8_t>(std::min<std::size_t>(setup.players, sim::kMaxPlayers));
-            const double scale = std::sqrt(static_cast<double>(custom.players) / sim::kOriginalPlayers);
-            custom.width = static_cast<std::uint32_t>(std::lround(custom.width * scale));
-            custom.height = static_cast<std::uint32_t>(std::lround(custom.height * scale));
+            sim::WorldSettings custom = sim::settings_for_players(
+                static_cast<std::uint8_t>(std::min<std::size_t>(setup.players, sim::kMaxPlayers)));
             custom.starts = sim::WorldSettings::Starts::Together;  // all ships at one place, as the original
             o.custom = custom;
         }

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <limits>
@@ -12,6 +13,7 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/player.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/volcanoes.hpp"
 
@@ -829,6 +831,17 @@ core::Result<WorldPlan> plan_world(const WorldSettings& settings, const std::vec
                                    std::vector<std::string>* warnings) {
     Planner planner(settings, templates, warnings);
     return planner.run();
+}
+
+WorldSettings settings_for_players(std::uint8_t players) {
+    WorldSettings settings;
+    settings.players = players;
+    if (players > kOriginalPlayers) {
+        const double scale = std::sqrt(static_cast<double>(players) / kOriginalPlayers);
+        settings.width = static_cast<std::uint32_t>(std::lround(settings.width * scale));
+        settings.height = static_cast<std::uint32_t>(std::lround(settings.height * scale));
+    }
+    return settings;
 }
 
 }  // namespace o1602::sim

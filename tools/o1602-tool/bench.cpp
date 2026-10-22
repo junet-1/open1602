@@ -24,6 +24,7 @@
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
+#include "o1602/sim/world_plan.hpp"
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -147,13 +148,13 @@ int cmd_bench(const Args& args) {
         options.difficulty = static_cast<std::uint8_t>(std::min<std::size_t>(args.number("--level").value_or(1), 3));
         options.world.seed = args.number("--seed").value_or(1);
         options.world.guarantee_resources = true;
-        sim::WorldSettings settings;
+        // Without --world as large as a multiplayer game of that many players makes it.
+        sim::WorldSettings settings = sim::settings_for_players(static_cast<std::uint8_t>(
+            std::clamp<std::size_t>(args.number("--players").value_or(8), 1, sim::WorldSettings::kMaxPlayers)));
         if (const auto size = args.pair("--world", 'x')) {
             settings.width = static_cast<std::uint32_t>(std::max(0, size->first));
             settings.height = static_cast<std::uint32_t>(std::max(0, size->second));
         }
-        settings.players = static_cast<std::uint8_t>(
-            std::clamp<std::size_t>(args.number("--players").value_or(8), 1, sim::WorldSettings::kMaxPlayers));
         options.custom = settings;
         return sim::start_new_game(*game, *buildings, *texts, options, &warnings);
     };

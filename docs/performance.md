@@ -14,6 +14,8 @@ measurement on 2026-10-22 and are an estimate, not a guarantee.
 | Network | Any broadband connection; latency matters more than bandwidth | Lockstep: only commands travel, and a savegame when a computer has to get the game anew |
 
 In a multiplayer game every computer runs the whole world, so the slowest computer sets the pace.
+A multiplayer game of more than four players makes its world larger (707 x 495 for eight, about
+37 islands), between the two world sizes measured below.
 
 ## Measurements
 
@@ -79,13 +81,16 @@ the sprites took 2.2 s (GFX), 0.6 s (MGFX) and 0.16 s (SGFX).
 ## Measuring on your computer
 
 ```sh
-o1602-tool bench                                    # new own world, 8 players, 10 game hours
-o1602-tool bench --players 8 --world 800x600 --minutes 120 --period 10
+o1602-tool bench                                    # new own world, 8 players (707 x 495), 10 game hours
+o1602-tool bench --players 8 --world 500x350 --minutes 120 --period 10
 o1602-tool bench SAVEGAME/game00.gam --minutes 60   # a savegame of the original or of Open1602
 o1602-tool bench --minutes 600 --out late.o1602     # keep the end state, e.g. for the game's --load
 ```
 
-`bench` hands every player to the computer, runs the game as fast as it goes and prints per period
+Without `--world` the world is as large as a multiplayer game of that many players makes it
+(`sim::settings_for_players`: the original's 500 x 350 for four, both sides growing with the square
+root of the players, so 707 x 495 for eight); the islands follow the area. `bench` hands every
+player to the computer, runs the game as fast as it goes and prints per period
 (`--period`, game minutes) the mean, median, 99th percentile and maximum tick in microseconds with
 the size of the world. At the end it shows each step of a tick (`Simulation::tick_timed()`), the
 time of the multiplayer fingerprint and of a savegame, and the peak memory of the process. The
