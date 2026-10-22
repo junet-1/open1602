@@ -34,7 +34,7 @@ this as well. Until now, `sim::Rules` only had switches for deviations from the 
 | Volcanoes (`volcanoes`) | as the game (setting), off, on | as the game | as the game |
 | Free trader prices (`trader_prices`, S-077) | as usual (about half the base price), by the market (as the original intends) | as usual | as usual |
 | Computer players (`classic_ai`, S-097 to S-099) | improved, as the original (with its bugs in settling, counting and site search, so they stall after about two hours) | as the original | improved |
-| Custom world (`WorldSettings`, new game) | size 200–2000 per side, players, number of islands, island sizes, villages, volcano islands, starting areas separate/shared | the three fixed maps | off; on: 500 × 350, 4 players, normal, mixed, separate |
+| Custom world (`WorldSettings`, new game) | size 200–2000 per side or automatic by the players (as multiplayer: 500 × 350 up to four, both sides growing with the square root of the players beyond), 2–12 players, number of islands, island sizes, villages, volcano islands, starting areas separate/shared | the three fixed maps | off; on: automatic size (500 × 350 for 4 players), 4 players, normal, mixed, separate |
 
 ## Consequences
 The Open1602 savegame has its own section for the settings (`RULE` in the chunk
@@ -45,5 +45,5 @@ its difficulty, but their bugs stay fixed by default, also in savegames of the o
 start dialog after name and banner (`engine/app/src/game_settings_menu.cpp`, since 2026-10-20): the
 settings in groups (economy, limits, disasters, world, opponents), as in later Anno titles, each a button that
 cycles its values, with presets for the original's rules and Open1602's defaults; the last choice is
-kept in `settings.cfg` (`endless.*`). The command line (`--refund`, `--droughts`, `--volcanoes`, `--ai`)
+kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--ai`)
 still sets them for games started from it.

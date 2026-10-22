@@ -30,7 +30,7 @@ constexpr std::array<std::uint32_t, 2> kSpeeds = {4, 8};
 constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 5> kSizes = {
     {{350, 250}, {500, 350}, {700, 490}, {1000, 700}, {1400, 980}}};
 constexpr std::uint8_t kFewestPlayers = 2;
-constexpr std::uint8_t kMostPlayers = 8;
+constexpr auto kMostPlayers = static_cast<std::uint8_t>(sim::kMaxPlayers);  // as in multiplayer
 constexpr std::array<Amount, 3> kIslandAmounts = {Amount::Few, Amount::Normal, Amount::Many};
 constexpr std::array<Amount, 4> kAmounts = {Amount::None, Amount::Few, Amount::Normal, Amount::Many};
 
@@ -122,12 +122,22 @@ EndlessSetup EndlessSetup::original() {
     return s;
 }
 
+sim::WorldSettings EndlessSetup::world_settings() const {
+    sim::WorldSettings w = world;
+    if (auto_size) {
+        const sim::WorldSettings sized = sim::settings_for_players(w.players);
+        w.width = sized.width;
+        w.height = sized.height;
+    }
+    return w;
+}
+
 bool operator==(const EndlessSetup& a, const EndlessSetup& b) noexcept {
     const sim::WorldSettings& x = a.world;
     const sim::WorldSettings& y = b.world;
-    return a.rules == b.rules && a.own_world == b.own_world && x.width == y.width && x.height == y.height &&
-           x.players == y.players && x.islands == y.islands && x.sizes == y.sizes && x.natives == y.natives &&
-           x.volcanoes == y.volcanoes && x.starts == y.starts;
+    return a.rules == b.rules && a.own_world == b.own_world && a.auto_size == b.auto_size && x.width == y.width &&
+           x.height == y.height && x.players == y.players && x.islands == y.islands && x.sizes == y.sizes &&
+           x.natives == y.natives && x.volcanoes == y.volcanoes && x.starts == y.starts;
 }
 
 std::size_t setup_choices(SetupItem item) noexcept {
@@ -145,7 +155,7 @@ std::size_t setup_choices(SetupItem item) noexcept {
         case SetupItem::Volcanoes:
             return kVolcanoNames.size();
         case SetupItem::WorldSize:
-            return kSizes.size();
+            return kSizes.size() + 1;  // first: by the players
         case SetupItem::Players:
             return kMostPlayers - kFewestPlayers + 1;
         case SetupItem::Islands:
@@ -199,11 +209,14 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
         case SetupItem::Map:
             return setup.own_world ? 1 : 0;
         case SetupItem::WorldSize: {
+            if (setup.auto_size) {
+                return 0;
+            }
             std::array<std::uint32_t, kSizes.size()> widths{};
             for (std::size_t i = 0; i < kSizes.size(); ++i) {
                 widths[i] = kSizes[i].first;
             }
-            return nearest(widths, std::max<std::uint32_t>(w.width, 1));
+            return 1 + nearest(widths, std::max<std::uint32_t>(w.width, 1));
         }
         case SetupItem::Players:
             return static_cast<std::size_t>(std::clamp(w.players, kFewestPlayers, kMostPlayers) - kFewestPlayers);
@@ -266,8 +279,11 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             setup.own_world = choice == 1;
             break;
         case SetupItem::WorldSize:
-            w.width = kSizes[choice].first;
-            w.height = kSizes[choice].second;
+            setup.auto_size = choice == 0;
+            if (choice > 0) {
+                w.width = kSizes[choice - 1].first;
+                w.height = kSizes[choice - 1].second;
+            }
             break;
         case SetupItem::Players:
             w.players = static_cast<std::uint8_t>(kFewestPlayers + choice);
@@ -365,8 +381,11 @@ std::string setup_value(SetupItem item, std::size_t choice) {
         case SetupItem::Map:
             return ui::tr(choice == 1 ? "setup.map.own" : "setup.map.original");
         case SetupItem::WorldSize:
+            if (choice == 0) {
+                return ui::tr("setup.size.auto", {"500", "350"});
+            }
             return ui::tr("setup.size.value",
-                          {std::to_string(kSizes[choice].first), std::to_string(kSizes[choice].second)});
+                          {std::to_string(kSizes[choice - 1].first), std::to_string(kSizes[choice - 1].second)});
         case SetupItem::Players:
             return std::to_string(kFewestPlayers + choice);
         case SetupItem::Islands:
@@ -389,6 +408,14 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             break;
     }
     return {};
+}
+
+std::string setup_value(const EndlessSetup& setup, SetupItem item) {
+    if (item == SetupItem::WorldSize && setup.auto_size) {
+        const sim::WorldSettings w = setup.world_settings();
+        return ui::tr("setup.size.auto", {std::to_string(w.width), std::to_string(w.height)});
+    }
+    return setup_value(item, setup_choice(setup, item));
 }
 
 bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view value) {
@@ -438,6 +465,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
             setup.own_world = value == "on";
         }
     } else if (key == "world") {
+        if (value == "auto") {
+            setup.auto_size = true;
+            return true;
+        }
         const std::size_t x = value.find('x');
         const auto width = x == std::string_view::npos ? std::nullopt : parse_number(value.substr(0, x));
         const auto height = x == std::string_view::npos ? std::nullopt : parse_number(value.substr(x + 1));
@@ -446,6 +477,7 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (width && height && *width >= lo && *width <= hi && *height >= lo && *height <= hi) {
             w.width = *width;
             w.height = *height;
+            setup.auto_size = false;
         }
     } else if (key == "players") {
         if (n && *n >= 1 && *n <= sim::kMaxPlayers) {
@@ -490,7 +522,7 @@ std::string write_setup(const EndlessSetup& setup) {
     line("resources", on_off(r.guarantee_resources));
     line("ai", r.classic_ai ? "classic" : "open1602");
     line("own_world", on_off(setup.own_world));
-    line("world", std::to_string(w.width) + "x" + std::to_string(w.height));
+    line("world", setup.auto_size ? "auto" : std::to_string(w.width) + "x" + std::to_string(w.height));
     line("players", std::to_string(w.players));
     line("islands", kAmountNames[static_cast<std::size_t>(w.islands)]);
     line("island_sizes", kSizeNames[std::min<std::size_t>(static_cast<std::size_t>(w.sizes), 2)]);

@@ -19,9 +19,15 @@ struct EndlessSetup {
     sim::Rules rules = sim::Rules::open1602();
     bool own_world = false;      ///< a world of its own (`world`) instead of the level's map
     sim::WorldSettings world{};  ///< size, players, islands, villages, volcanoes, starts (seed and level aside)
+    /// The size follows the players as in a multiplayer game (sim::settings_for_players): the
+    /// original's 500 x 350 for four or fewer, more sea and land for more; `world`'s size is then
+    /// not used. The islands follow the area.
+    bool auto_size = true;
 
     /// The original's rules on the original's maps.
     [[nodiscard]] static EndlessSetup original();
+    /// The world to make: `world`, with the size for its players if `auto_size`.
+    [[nodiscard]] sim::WorldSettings world_settings() const;
 
     friend bool operator==(const EndlessSetup& a, const EndlessSetup& b) noexcept;
 };
@@ -70,6 +76,8 @@ void choose_next(EndlessSetup& setup, SetupItem item);
 /// The item's name and a value's text in the language of the interface (Windows-1252).
 [[nodiscard]] std::string setup_label(SetupItem item);
 [[nodiscard]] std::string setup_value(SetupItem item, std::size_t choice);
+/// The text of the value the setup has (the automatic size with the size it gives).
+[[nodiscard]] std::string setup_value(const EndlessSetup& setup, SetupItem item);
 
 /// One "endless.<key> = value" line of settings.cfg (key without the prefix); false if the key is
 /// not one of them. A value it does not know keeps the setting.

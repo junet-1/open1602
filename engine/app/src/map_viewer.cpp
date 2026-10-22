@@ -2222,7 +2222,7 @@ core::Status MapViewer::start_endless(std::uint8_t level, std::uint8_t colour, c
     o.world.seed = (std::uint64_t{device()} << 32U) | device();
     o.world.guarantee_resources = setup.rules.guarantee_resources;
     if (setup.own_world) {
-        sim::WorldSettings custom = setup.world;
+        sim::WorldSettings custom = setup.world_settings();
         custom.players = static_cast<std::uint8_t>(std::min<std::size_t>(custom.players, sim::kMaxPlayers));
         o.custom = custom;
     }
