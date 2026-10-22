@@ -79,14 +79,17 @@ void SdlSpriteRenderer::flush(std::uint16_t page) {
     m_indices.clear();
 }
 
-std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, std::int32_t origin_x,
-                                    std::int32_t origin_y, std::int32_t scale) {
+std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, double origin_x, double origin_y,
+                                    double scale) {
     if (m_atlas == nullptr || m_pages.empty()) {
         return 0;
     }
     const auto inv_page = 1.0F / static_cast<float>(m_atlas->page_size());
     const SDL_FColor white{1.0F, 1.0F, 1.0F, 1.0F};
     const auto s = static_cast<float>(scale);
+    // Screen position of a world pixel.
+    const auto sx = [&](std::int32_t x) { return static_cast<float>(x * scale - origin_x); };
+    const auto sy = [&](std::int32_t y) { return static_cast<float>(y * scale - origin_y); };
     std::size_t drawn = 0;
     std::uint16_t current = 0;
     m_vertices.clear();
@@ -100,8 +103,8 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
             const assets::Rgba rgb = c.tint;
             const SDL_FColor color{rgb.r / 255.0F, rgb.g / 255.0F, rgb.b / 255.0F, rgb.a / 255.0F};
             const float w = static_cast<float>(c.tint_size) * s;
-            const float left = static_cast<float>(c.x * scale - origin_x);
-            const float bottom = static_cast<float>(c.y * scale - origin_y);
+            const float left = sx(c.x);
+            const float bottom = sy(c.y);
             const float cy = bottom - w / 4.0F;
             const int base = static_cast<int>(m_vertices.size());
             m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom - w / 2.0F}, color, {0, 0}});
@@ -130,8 +133,7 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
             const int base = static_cast<int>(m_vertices.size());
             for (const auto& [lx, ly] : corners) {
                 m_vertices.push_back(
-                    SDL_Vertex{{static_cast<float>((c.x + lx) * scale - origin_x),
-                                static_cast<float>((top + ly) * scale - origin_y)},
+                    SDL_Vertex{{sx(c.x + lx), sy(top + ly)},
                                color,
                                {static_cast<float>(lx + shift) / kHatchWidth, static_cast<float>(ly) / kHatchHeight}});
             }
@@ -145,8 +147,8 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
             }
             const SDL_FColor color{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, 1.0F};
             for_each_outline_step(c, [&](std::int32_t x, std::int32_t y) {
-                const float x0 = static_cast<float>((c.x + x) * scale - origin_x);
-                const float y0 = static_cast<float>((c.y + y) * scale - origin_y);
+                const float x0 = sx(c.x + x);
+                const float y0 = sy(c.y + y);
                 const int base = static_cast<int>(m_vertices.size());
                 m_vertices.push_back(SDL_Vertex{{x0, y0}, color, {0, 0}});
                 m_vertices.push_back(SDL_Vertex{{x0 + 2.0F * s, y0}, color, {0, 0}});
@@ -164,8 +166,8 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, st
             flush(current);
             current = r.page;
         }
-        const float x0 = static_cast<float>(c.x * scale - origin_x);
-        const float y0 = static_cast<float>((c.y - r.height) * scale - origin_y);
+        const float x0 = sx(c.x);
+        const float y0 = sy(c.y - r.height);
         // Rows cut off at the bottom (figures in crops) are left out of the quad and the texture.
         const std::int32_t height = r.height - std::min<std::int32_t>(c.cut_bottom, r.height);
         if (height <= 0) {

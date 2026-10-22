@@ -72,6 +72,7 @@ enum class KeyAction : std::uint16_t {
     PixelScaleUp,
     PixelScaleDown,
     ShowOwners,
+    Fullscreen,  ///< window or full screen
     Quit,
 };
 

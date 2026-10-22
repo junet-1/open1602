@@ -29,9 +29,9 @@ public:
     /// Uploads the atlas pages (replacing previous ones). The atlas must outlive draw calls.
     core::Status upload(const SpriteAtlas& atlas);
 
-    /// Draws at screen = (x, y) * scale - origin; returns the number of sprites drawn.
-    std::size_t draw(const std::vector<DrawCommand>& commands, std::int32_t origin_x, std::int32_t origin_y,
-                     std::int32_t scale);
+    /// Draws at screen = (x, y) * scale - origin; returns the number of sprites drawn. A scale that
+    /// is no whole number gives uneven pixels (render::RenderPlan avoids it for the map).
+    std::size_t draw(const std::vector<DrawCommand>& commands, double origin_x, double origin_y, double scale);
 
 private:
     static constexpr std::uint16_t kUntextured = 0xFFFF;  ///< batch of overlay diamonds

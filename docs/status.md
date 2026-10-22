@@ -1,6 +1,6 @@
 # Implementation status
 
-Status: 2026-10-22 (comparison with the running original and its first fixes: pirates make peace after
+Status: 2026-10-22 (any window size, full screen, the interface's size and a free zoom; comparison with the running original and its first fixes: pirates make peace after
 every surrender, idle computers in the tutorial, computers plan a shipyard when they want ships; top bar
 inhabitants with the workers; a click in settings mode switches to info mode). This page is the overview
 and the single place for the status of the project. The details are in the linked documents, each in
@@ -41,8 +41,8 @@ Symbols: ✅ done · 🟡 partly · ⬜ open · ❓ behaviour of the original no
   points, end screen, high score lists, campaign progress, the scenarios' switches of the computers and
   their attitude done) · M6 🟡 (lockstep, desync detection with resync,
   reconnecting, lobby, LAN search, Open1602's own multiplayer menu, 4 to 12 players, host migration; open: see
-  Multiplayer in 1.2) · M7 🟡 (freely assignable keys, mouse-wheel zoom, pixel scaling, screenshot and
-  bug fixes done; open: arbitrary resolutions, free zoom, UI scaling, editor) · M8 ⬜ (banners with
+  Multiplayer in 1.2) · M7 🟡 (freely assignable keys, mouse-wheel zoom, pixel scaling, screenshot,
+  bug fixes, any window size and full screen, free zoom and the interface's size done; open: editor) · M8 ⬜ (banners with
   tinted flags already in place).
 - **Savegames**: since 2026-10-18 Open1602 saves in its own format `.o1602`
   ([o1602-save.md](formats/o1602-save.md), [ADR 0009](architecture/0009-own-save-format.md)): without
@@ -75,7 +75,7 @@ Symbols: ✅ done · 🟡 partly · ⬜ open · ❓ behaviour of the original no
 
 | Area | Status | Open | Document |
 |---|---|---|---|
-| Islands, buildings, world map | ✅ three zoom levels, four rotations, flags, smoke, status symbols (also the shipyard's „Material fehlt“, "material missing", and „Brand“, "fire"), ownership view (image comparison 0.967), dimmed land as the original's shading tables | – | [rendering.md](re/rendering.md) |
+| Islands, buildings, world map | ✅ three zoom levels and a free zoom between and beyond them (sharp: drawn at the next whole scale and shrunk), four rotations, flags, smoke, status symbols (also the shipyard's „Material fehlt“, "material missing", and „Brand“, "fire"), ownership view (image comparison 0.967), dimmed land as the original's shading tables | – | [rendering.md](re/rendering.md) |
 | Figures | ✅ all figures of the economy, soldiers in every banner colour, ships with damage, bow wave, white flag, sinking, cannon smoke of ships and towers, hits, wreck (SHIPSUNK), health bars, decorative figures (walkers, jugglers, whales, dolphins, krakens; only on discovered islands) | – | [figures.md](re/figures.md), [flavor.md](re/flavor.md), [military.md](re/military.md#effects) |
 | Interface | 🟡 foundations: all 45 layouts (`.GAD`) read, fonts (`.ZEI`) with colours and line wrapping, screen areas, gadgets in operation (states, click, toggles, groups, sliders, glyph list); in the viewer the frame of the original: head of the side panel with world map, compass, rotation and zoom, status bar with help texts and message symbols; build and info modes: **build menu** (groups as data, drop-down, availability, costs, preview, production chain, demolish, rotate) and player status; money and goods at the top of the map; **selection windows**: production buildings, public buildings, house, warehouse/marketplace with lists and stock, foreign warehouse, shipyard with type selection, castle, ship with transfer of cargo, trading, warehouse founding, trade route and pirates; **controls per ADR 0010**: freely assignable keys (`keys.cfg`, overview with F1), pixel-exact selection with a frame, groups by number key, formations, filters and Tab, right-click and minimap commands, command chains, attack-move, hold position, confirmation prompts, quick save/load; **military mode** with the four windows; **ship and town list**, **diplomacy** with tribute; **settings** with savegames, music & effects, voice messages & films, mission window; **main menu** (single player: scenario list, mission with level choice and high score list, name and flag, savegames with the time played, continue, credits, intro); **start dialog of the endless game** with all settings in groups (ADR 0008); **score sheets** (end screen and "Bewertung" of the info panel, points in the info panel); **mouse cursors** of the original (arrow, target while a window waits for a click on the map); warning before a demolition takes land from houses (S-035); inhabitants in the top bar with the workers of the city's buildings; a building or ship clicked in settings mode switches to info mode | tutorial windows (`TUTOR.GAD` as a tutorial) | [ui.md](re/ui.md) |
 | Sound, music, speech | ✅ sounds (building, shots, hits, commands, birds, surf, work and animals, clicks) spatial as in the original, voice messages with a queue, music with randomness, battle music and fading out, 4-bit music unpacked; volumes from `Game.dat` (read only); messages about inhabitants, missing goods and the people's wishes | tutorial speech (comes with the tutorial window, which is not built yet) | [audio.md](re/audio.md) |
@@ -135,7 +135,7 @@ are listed in 2.1.
 | **Fixes after feedback, second list (2026-10-18)**: fertility of an explored island in the status bar over grass and trees ([GAME] 22); build mode darkens what cannot be built on, and when placing or clicking a building, everything outside its catchment area; forest in random variants; empty goods slots without a yellow frame; camera stays over the map; softer shadows in the build menu; right-click back to the player status (one click from any menu, build menu together with the building in hand); a farm being looked at selects its field in the build menu; when dragging fields and forest the area is hatched yellow as in the History Edition; savegames unlimited with arrows, Enter saves a new one immediately, a voice confirms the save | [ui.md](re/ui.md), [bugs.md](re/bugs.md#bugs-of-open1602-itself) |
 | **Start dialog of the endless game**: after name and banner, the settings in groups (economy, limits, disasters, world), each a button that cycles its values; presets for the original's rules and Open1602's defaults; the world items for a world of its own (size, 2 to 8 players, islands, villages, volcanic islands, starting areas, raw material guarantee); remembered in `settings.cfg` | [ADR 0008](architecture/0008-game-settings.md) |
 | **Savegame lists** show what the section `META` says: the time played in the main menu's list, player, time and map size in the status bar over a slot of the settings | [o1602-save.md](formats/o1602-save.md) |
-| **Display and controls**: figures also at the smallest zoom level, zoom with the mouse wheel, pixel scaling, screenshot as PNG, own save folder (never into the installation) | [README](../README.md#running), [ADR 0010](architecture/0010-controls-and-interface.md) |
+| **Display and controls**: figures also at the smallest zoom level, zoom with the mouse wheel, pixel scaling, screenshot as PNG, own save folder (never into the installation); any window size, full screen (F11, Alt+Enter), the interface's size, free zoom (window "Anzeige" of the settings) | [README](../README.md#running), [ADR 0010](architecture/0010-controls-and-interface.md) |
 
 ### 2.2 Open or planned
 
@@ -148,7 +148,6 @@ are listed in 2.1.
 | Lua scripts, custom scenarios and campaigns | M8, scenarios | ADR 0007 |
 | World generator stage 2 (custom island shapes, including ones larger than the templates) | deferred until everything runs | [00-plan.md](00-plan.md) |
 | Data patches for `.cod` bugs (D-001, D-002, D-011, D-012), switchable | mechanism missing | [bugs.md](re/bugs.md), ADR 0006 |
-| Arbitrary resolution, free zoom, UI scaling (freely assignable keys are done) | M7, interface | [00-plan.md](00-plan.md) |
 | Replays from the session's frames | M6 | [ADR 0011](architecture/0011-multiplayer-lockstep.md) |
 | "Classic computer" setting: the original's computer players without the fixes S-097 to S-099 | `Rules` | [original-comparison.md](original-comparison.md), section 3 |
 | Tutorial: its windows and speech (the computers already stay idle) | Interface | [ai.md](re/ai.md#tutorial), [audio.md](re/audio.md) |

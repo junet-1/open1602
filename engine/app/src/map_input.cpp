@@ -187,6 +187,8 @@ void MapInput::setup_keys() {
     general(chord(SDLK_EQUALS, true), KeyAction::PixelScaleUp);
     general(chord(SDLK_MINUS, true), KeyAction::PixelScaleDown);
     general(chord(SDLK_O, true), KeyAction::ShowOwners);
+    general(chord(SDLK_F11), KeyAction::Fullscreen);
+    general(ui::KeyChord{static_cast<std::int32_t>(SDLK_RETURN), false, false, true}, KeyAction::Fullscreen);
     general(chord(SDLK_Q, true), KeyAction::Quit);
     // Building
     building(chord(SDLK_R), KeyAction::RotateBuilding);
@@ -302,7 +304,7 @@ void MapInput::handle_key(int key, int scancode, std::uint16_t mod) {
         }
         if (const auto b = m_keys.find_pressed(ui::KeyContext::General, press);
             b && (b->action == ui::KeyAction::Screenshot || b->action == ui::KeyAction::Quit ||
-                  b->action == ui::KeyAction::Help)) {
+                  b->action == ui::KeyAction::Fullscreen || b->action == ui::KeyAction::Help)) {
             run_action(*b);
         }
         return;
@@ -323,6 +325,10 @@ void MapInput::handle_key(int key, int scancode, std::uint16_t mod) {
             a.step = key == SDLK_ESCAPE ? 0 : 1;
             m_host.apply_hud(a);
         }
+        return;
+    }
+    if (m_hud && m_hud->display_open() && key == SDLK_ESCAPE) {
+        m_hud->close_display();
         return;
     }
     if (const auto b = m_keys.find_pressed(key_context(), press)) {
@@ -388,10 +394,10 @@ void MapInput::run_action(const ui::KeyBinding& b) {
                 cx, cy);
             break;
         case KeyAction::ZoomIn:
-            m_host.zoom_by(-1, cx, cy);
+            m_host.zoom_by(-kKeyZoomSteps, cx, cy);
             break;
         case KeyAction::ZoomOut:
-            m_host.zoom_by(1, cx, cy);
+            m_host.zoom_by(kKeyZoomSteps, cx, cy);
             break;
         case KeyAction::JumpToMessage:
             if (const auto t = m_hud ? m_hud->last_message_tile() : std::nullopt) {
@@ -620,13 +626,16 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             break;
         }
         case KeyAction::PixelScaleUp:
-            m_camera.set_pixel_scale(std::min(m_camera.pixel_scale() + 1, kMaxPixelScale), cx, cy);
+            m_host.scale_by(1, cx, cy);
             break;
         case KeyAction::PixelScaleDown:
-            m_camera.set_pixel_scale(std::max(m_camera.pixel_scale() - 1, 1), cx, cy);
+            m_host.scale_by(-1, cx, cy);
             break;
         case KeyAction::ShowOwners:
             m_host.toggle_owners();
+            break;
+        case KeyAction::Fullscreen:
+            m_host.toggle_fullscreen();
             break;
         case KeyAction::Quit:
             m_host.quit();
@@ -775,7 +784,8 @@ void MapInput::handle_event(const SDL_Event& event) {
         case SDL_EVENT_MOUSE_WHEEL: {  // U-001: the original has no wheel zoom
             const float y = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event.wheel.y : event.wheel.y;
             if (y != 0.0F) {
-                m_host.zoom_by(y > 0.0F ? -1 : 1, static_cast<double>(event.wheel.mouse_x),
+                // Touchpads send parts of a notch: the free zoom follows them finely.
+                m_host.zoom_by(-static_cast<double>(y), static_cast<double>(event.wheel.mouse_x),
                                static_cast<double>(event.wheel.mouse_y));
             }
             break;
@@ -957,10 +967,10 @@ std::optional<std::array<double, 4>> MapInput::unit_box(const ui::UnitRef& ref) 
     const ZoomGraphics* graphics = m_host.graphics();
     if (const auto sprites = m_host.unit_sprites(ref); sprites && graphics) {
         // The pictures as drawn: world pixels * scale - origin.
-        std::int32_t ox = 0;
-        std::int32_t oy = 0;
+        double ox = 0.0;
+        double oy = 0.0;
         m_camera.screen_origin(ox, oy);
-        const double k = m_camera.pixel_scale();
+        const double k = m_camera.scale();
         std::optional<std::array<std::int32_t, 4>> u;
         for (std::uint8_t i = 0; i < sprites->count; ++i) {
             const auto b = render::command_bounds(sprites->parts[i], graphics->graphics.atlas);
@@ -987,7 +997,7 @@ std::optional<std::array<double, 4>> MapInput::unit_box(const ui::UnitRef& ref) 
         return std::nullopt;
     }
     const auto [sx, sy] = screen_of(pos->first, pos->second);
-    const double tw = render::tile_width(m_camera.view().zoom) * m_camera.pixel_scale();
+    const double tw = render::tile_width(m_camera.view().zoom) * m_camera.scale();
     if (ref.kind == ui::UnitRef::Kind::Ship) {
         const double w = 1.4 * tw;
         const double h = 1.5 * tw;
@@ -1029,10 +1039,10 @@ std::vector<ui::UnitCandidate> MapInput::units_in(double x0, double y0, double x
 }
 
 std::pair<std::int32_t, std::int32_t> MapInput::world_pixel(double sx, double sy) const {
-    std::int32_t ox = 0;
-    std::int32_t oy = 0;
+    double ox = 0.0;
+    double oy = 0.0;
     m_camera.screen_origin(ox, oy);
-    const double k = m_camera.pixel_scale();
+    const double k = m_camera.scale();
     return {static_cast<std::int32_t>(std::floor((sx + ox) / k)), static_cast<std::int32_t>(std::floor((sy + oy) / k))};
 }
 
@@ -1111,13 +1121,13 @@ std::optional<ui::UnitRef> MapInput::unit_at(double sx, double sy) const {
     }
     // Small figures (zoomed out) are hard to hit: then the nearest whose picture box is within a
     // few pixels, land units and the player's own first.
-    const double slack = 3.0 * m_camera.pixel_scale();
+    const double slack = 3.0 * m_camera.scale();
     std::optional<ui::UnitRef> best;
     double best_d = 0.0;
     bool best_own = false;
     for (const ui::UnitCandidate& c : units_in(sx - slack, sy - slack, sx + slack, sy + slack)) {
         const auto b = unit_box(c.ref);
-        if (!b || (*b)[2] * (*b)[3] > 400.0 * m_camera.pixel_scale() * m_camera.pixel_scale()) {
+        if (!b || (*b)[2] * (*b)[3] > 400.0 * m_camera.scale() * m_camera.scale()) {
             continue;  // only small pictures; a large one is hit by its pixels
         }
         const double dx = (*b)[0] + (*b)[2] / 2 - sx;
@@ -1372,9 +1382,9 @@ void MapInput::submit(std::vector<sim::Command> orders, bool sound, bool ask) {
 void MapInput::draw_overlay() {
     SDL_Renderer* r = m_window.sdl_renderer();
     const ZoomGraphics* graphics = m_host.graphics();
-    const std::int32_t k = m_camera.pixel_scale();
-    std::int32_t ox = 0;
-    std::int32_t oy = 0;
+    const double k = m_camera.scale();
+    double ox = 0.0;
+    double oy = 0.0;
     m_camera.screen_origin(ox, oy);
     const std::int32_t tw = render::tile_width(m_camera.view().zoom);
     const std::optional<std::uint32_t> numbers =

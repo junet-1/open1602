@@ -31,6 +31,7 @@ constexpr std::int32_t kStatusLine = 100001;
 constexpr std::int32_t kFirstEvent = 100011;
 constexpr std::size_t kEvents = 3;
 // TOOLS.INC: the compass (GFXMAP + 1 + rotation) and the message icons (GFXLEISTE).
+constexpr std::int32_t kGfxTafel = 0;  // GFXTAFEL: the side panel's art
 constexpr std::int32_t kGfxParchment = 17;
 constexpr std::int32_t kGfxCompass = 18;
 constexpr std::int32_t kGfxLeiste = 253;
@@ -166,6 +167,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         style.selected = ui::nearest_colour(palette, 112, 80, 30);
         m_multiplayer = std::make_unique<MultiplayerMenu>(style);
         m_menu->set_form_style(style);
+        m_display = std::make_unique<DisplayMenu>(style);
         // The banners of the slots in the palette's nearest colours, grey for any further one.
         render::BannerTable banners = render::BannerTable::original();
         banners.add_more_players();
@@ -296,6 +298,10 @@ std::optional<Hud::Action> Hud::toggle_window(Selection::Kind kind) {
 }
 
 bool Hud::back() {
+    if (m_display_open && !m_menu_active) {
+        m_display_open = false;
+        return true;
+    }
     if (m_end_active) {
         if (const auto choice = m_end.back()) {
             m_end_choice = choice;
@@ -368,10 +374,12 @@ std::optional<Hud::Action> Hud::set_mode(std::int32_t mode) {
     return mode == kModeBuild ? build_tool_action() : std::optional<Action>(Action{Action::Kind::ToolOff});
 }
 
-ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
-    // The whole panel stays on screen: the smaller of the two scales (the original: width / 1024).
-    const double scale =
+ui::Rect Hud::layout(std::int32_t width, std::int32_t height, double ui_scale) {
+    // The menus fill the window as far as they fit: the smaller of the two scales (the original:
+    // width / 1024). The frame around the map takes the interface's scale, never larger.
+    m_menu_scale =
         std::min(static_cast<double>(width) / ui::kDesignWidth, static_cast<double>(height) / ui::kDesignHeight);
+    const double scale = std::isfinite(ui_scale) && ui_scale > 0.0 ? std::min(ui_scale, m_menu_scale) : m_menu_scale;
     m_regions = ui::screen_regions(width, height, scale);
     m_ctrl.set_scale(scale);
     m_leist.set_scale(scale);
@@ -385,12 +393,15 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
         m_options->set_scale(scale);
     }
     if (m_menu) {
-        m_menu->set_scale(scale);
+        m_menu->set_scale(m_menu_scale);
     }
     if (m_multiplayer) {
-        m_multiplayer->set_scale(scale);
+        m_multiplayer->set_scale(m_menu_scale);
     }
-    m_end.set_scale(scale);
+    if (m_display) {
+        m_display->set_scale(scale);
+    }
+    m_end.set_scale(m_menu_scale);
     if (m_selection_panels) {
         m_selection_panels->set_scale(scale);
     }
@@ -398,8 +409,10 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height) {
 }
 
 bool Hud::covers(std::int32_t x, std::int32_t y) const noexcept {
-    // The mission's window takes the clicks inside it (0x0042D1C0); the menu all of them.
-    return m_menu_active || m_regions.side_panel.contains(x, y) || m_regions.status_bar.contains(x, y) ||
+    // The mission's window takes the clicks inside it (0x0042D1C0); the menu and the window
+    // "Anzeige" all of them.
+    return m_menu_active || m_display_open || m_regions.side_panel.contains(x, y) ||
+           m_regions.status_bar.contains(x, y) ||
            (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y));
 }
 
@@ -442,7 +455,7 @@ void Hud::draw_question() {
     if (!m_question) {
         return;
     }
-    const double s = m_regions.scale;
+    const double s = m_menu_active ? m_menu_scale : m_regions.scale;
     // Centred on the main menu's window, in the game on the map.
     const ui::Rect& v = m_menu_active ? m_regions.full : m_regions.game_view;
     const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
@@ -481,8 +494,16 @@ void Hud::draw_question() {
     m_renderer->draw(items, box.x, box.y, s);
 }
 
+ui::Rect Hud::display_rect() const {
+    const double s = m_display ? m_display->scale() : m_regions.scale;
+    const auto w = static_cast<std::int32_t>(DisplayMenu::kWidth * s);
+    const auto h = static_cast<std::int32_t>(DisplayMenu::kHeight * s);
+    const ui::Rect& v = m_regions.game_view;
+    return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
+}
+
 void Hud::menu_origin(std::int32_t& x, std::int32_t& y) const {
-    const double s = m_regions.scale;
+    const double s = m_menu_scale;
     x = std::max(0, (m_regions.full.w - static_cast<std::int32_t>(ui::kDesignWidth * s)) / 2);
     y = std::max(0, (m_regions.full.h - static_cast<std::int32_t>(ui::kDesignHeight * s)) / 2);
 }
@@ -491,7 +512,7 @@ ui::Rect Hud::menu_video_rect() const {
     std::int32_t ox = 0;
     std::int32_t oy = 0;
     menu_origin(ox, oy);
-    const double s = m_regions.scale;
+    const double s = m_menu_scale;
     const ui::Rect f = MainMenu::video_frame();
     return {ox + ui::to_pixels(f.x, s), oy + ui::to_pixels(f.y, s), ui::to_pixels(f.w, s), ui::to_pixels(f.h, s)};
 }
@@ -504,9 +525,9 @@ void Hud::draw_menu() {
     if (m_end_active) {
         m_renderer->draw(m_end.draw(m_renderer->fonts()), ox, oy, m_end.scale());
     } else if (multiplayer_open()) {
-        m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_regions.scale);
+        m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_menu_scale);
     } else if (m_menu) {
-        m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_regions.scale);
+        m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_menu_scale);
     }
     draw_question();
     draw_help();
@@ -597,7 +618,7 @@ void Hud::draw_help() {
     if (!m_help) {
         return;
     }
-    const double s = m_regions.scale;
+    const double s = m_menu_active ? m_menu_scale : m_regions.scale;
     const ui::Rect& v = m_regions.game_view;
     const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
     const std::size_t rows = (m_help->size() + 1) / 2;
@@ -643,6 +664,20 @@ void Hud::draw_help() {
 
 std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down) {
     std::optional<Action> action;
+    if (m_display_open && !m_menu_active && !m_question && !m_help) {
+        const ui::Rect r = display_rect();
+        switch (m_display->mouse(x - r.x, y - r.y, down, m_display_model)) {
+            case DisplayMenu::Result::Changed:
+                m_display_changed = true;
+                break;
+            case DisplayMenu::Result::Close:
+                m_display_open = false;
+                break;
+            case DisplayMenu::Result::None:
+                break;
+        }
+        return std::nullopt;
+    }
     // Mouse motion also comes here with down == false: only a release after a press is a click.
     if (m_help) {
         // The key overview takes the click that closes it.
@@ -954,6 +989,9 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     }
     m_ctrl.set_graphic(kCompass, kGfxCompass + m_rotation, 0);
     m_renderer->draw(m_ctrl.draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+    // A window taller than the panel's art (narrower than 4:3, or a smaller interface): the
+    // parchment goes on to the bottom, where the art's lower edge (5 rows) closes it.
+    m_renderer->draw_lengthened(0, kGfxTafel, m_regions.side_panel, s, 5);
     // The mode's panel below the head, and its help texts.
     const BuildPanel::Available available =
         m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
@@ -1043,6 +1081,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     }
     m_leist.set_text(kStatusLine, status);
     m_renderer->draw(m_leist.draw(m_renderer->fonts()), m_regions.status_bar.x, m_regions.status_bar.y, s);
+    if (m_display_open && m_display) {
+        const ui::Rect r = display_rect();
+        m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+    }
     draw_question();
     draw_help();
 }

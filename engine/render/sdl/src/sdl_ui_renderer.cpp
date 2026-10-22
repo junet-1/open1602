@@ -261,6 +261,45 @@ void SdlUiRenderer::draw_widened(std::int32_t block, std::int32_t gfx, const ui:
     SDL_SetRenderClipRect(m_renderer, nullptr);
 }
 
+void SdlUiRenderer::draw_lengthened(std::int32_t block, std::int32_t gfx, const ui::Rect& rect, double scale,
+                                    std::int32_t edge) {
+    const Texture t = sprite(block, gfx, kModeSprite, 0);
+    edge = std::clamp(edge, 0, t.h / 4);
+    if (t.texture == nullptr || t.h < 4) {
+        return;
+    }
+    const double stretch = scale / art_scale();
+    const auto bottom = static_cast<float>(rect.y + rect.h);
+    const auto edge_h = static_cast<float>(edge * stretch);
+    // From the art's edge on, which moves to the bottom.
+    float y = static_cast<float>(rect.y + t.h * stretch) - edge_h;
+    if (y + edge_h >= bottom - 0.5F) {
+        return;  // the art reaches the bottom
+    }
+    const SDL_Rect clip{rect.x, rect.y, rect.w, rect.h};
+    SDL_SetRenderClipRect(m_renderer, &clip);
+    SDL_SetTextureAlphaMod(t.texture, 255);
+    const auto w = static_cast<float>(t.w * stretch);
+    const std::int32_t body = t.h / 2 - edge;  // rows of the lower half without the edge
+    const SDL_FRect src{0.0F, static_cast<float>(t.h / 2), static_cast<float>(t.w), static_cast<float>(body)};
+    const auto step = static_cast<float>(body * stretch);
+    // The first copy upside down: it meets the row above the edge with that same row.
+    bool flipped = true;
+    for (; y < bottom - edge_h && step > 0.0F; y += step) {
+        const SDL_FRect dst{static_cast<float>(rect.x), y, w, step};
+        SDL_RenderTextureRotated(m_renderer, t.texture, &src, &dst, 0.0, nullptr,
+                                 flipped ? SDL_FLIP_VERTICAL : SDL_FLIP_NONE);
+        flipped = !flipped;
+    }
+    if (edge > 0) {
+        const SDL_FRect src_edge{0.0F, static_cast<float>(t.h - edge), static_cast<float>(t.w),
+                                 static_cast<float>(edge)};
+        const SDL_FRect dst{static_cast<float>(rect.x), bottom - edge_h, w, edge_h};
+        SDL_RenderTexture(m_renderer, t.texture, &src_edge, &dst);
+    }
+    SDL_SetRenderClipRect(m_renderer, nullptr);
+}
+
 void SdlUiRenderer::fill(const ui::Rect& rect, std::uint8_t colour) {
     const assets::Rgba c = m_palette[colour];
     SDL_SetRenderDrawColor(m_renderer, c.r, c.g, c.b, 255);

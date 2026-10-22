@@ -8,7 +8,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
+#include <optional>
 #include <random>
 #include <span>
 #include <string_view>
@@ -216,15 +218,26 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         return sdl.error();
     }
     viewer->m_sdl = std::move(sdl).value();
+    // How the game was shown last time (the rest of settings.cfg is read with load_options()):
+    // the window opens as it was left. --size wins over the size remembered.
+    if (auto bytes = core::read_file(data_folder() / "settings.cfg")) {
+        viewer->m_app_settings.display =
+            parse_settings(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()), {}).display;
+    }
+    const DisplaySettings& display = viewer->m_app_settings.display;
     platform::WindowConfig config;
     config.title = "Open1602";
-    config.width = options.width;
-    config.height = options.height;
+    config.width = options.width > 0 ? options.width : (display.window_width > 0 ? display.window_width : 1280);
+    config.height = options.height > 0 ? options.height : (display.window_height > 0 ? display.window_height : 800);
+    config.fullscreen = display.fullscreen && options.width <= 0;
+    config.vsync = display.vsync;
     auto window = platform::Window::create(config);
     if (!window) {
         return window.error();
     }
     viewer->m_window = std::move(window).value();
+    viewer->m_map_canvas = std::make_unique<render::SdlMapCanvas>(viewer->m_window->sdl_renderer());
+    viewer->m_software_renderer = viewer->m_window->renderer_name() == "software";
     viewer->load_cursors();
     // The viewer's own copy: GameSound keeps a pointer, and `game` may be a temporary (UI-15).
     viewer->m_sound = std::make_unique<GameSound>(viewer->m_game, options.effects, options.music);
@@ -286,6 +299,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     });
     viewer->m_input->load_key_settings(data_folder() / "keys.cfg");
     viewer->load_options();
+    if (options.width > 0) {
+        viewer->m_app_settings.display.fullscreen = false;  // --size: a window this time
+    }
     name_more_players(viewer->m_state->world);  // in the language the options set
     viewer->report_load_problems(warnings.size());
     if (options.new_game && options.new_game->name.empty() && viewer->m_state->world.time_ms() == 0) {
@@ -308,6 +324,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_camera.set_world_size(viewer->m_state->world.width(), viewer->m_state->world.height());
     viewer->m_camera.set_screen(w, h, viewer->m_display_pixel_scale);
     viewer->lay_out();
+    // The level asked for at the screen's whole pixel scale: the same picture as the original's
+    // level, sharp, with or without the free zoom.
     viewer->m_camera.set_zoom(options.zoom, w / 2.0, h / 2.0);
     // Start over the player's own city.
     viewer->m_camera.center_on(viewer->home_tile());
@@ -518,6 +536,13 @@ int MapViewer::run() {
                     e.key.mod = in.mod;
                     e.key.down = true;
                     break;
+                case ViewerOptions::ScriptedInput::Kind::Wheel:
+                    e.type = SDL_EVENT_MOUSE_WHEEL;
+                    e.wheel.y = static_cast<float>(in.key);
+                    e.wheel.mouse_x = in.x;
+                    e.wheel.mouse_y = in.y;
+                    e.wheel.direction = SDL_MOUSEWHEEL_NORMAL;
+                    break;
             }
             SDL_PushEvent(&e);
         }
@@ -592,6 +617,9 @@ int MapViewer::run() {
             break;
         }
     }
+    if (m_options.max_frames == 0) {
+        save_settings();  // the window's size for the next start
+    }
     if (m_options.max_frames != 0) {
         const std::uint64_t elapsed = std::max<std::uint64_t>(platform::ticks_ms() - run_start, 1);
         std::fprintf(stderr, "%u frames in %llu ms (%.1f fps), %zu sprites in the last frame\n", frames,
@@ -629,7 +657,7 @@ void MapViewer::handle_event(const SDL_Event& original) {
     SDL_Event event = original;
     // Mouse positions in output pixels, independent of the screen's pixel density.
     SDL_ConvertEventToRenderCoordinates(m_window->sdl_renderer(), &event);
-    // SDL_EVENT_RENDER_TARGETS_RESET needs nothing: no texture is drawn into.
+    // SDL_EVENT_RENDER_TARGETS_RESET needs nothing: the map's canvas is drawn anew every frame.
     switch (m_window->render_reset(event)) {
         case platform::RenderReset::Textures:
             std::fprintf(stderr, "the render device was reset: textures are made again\n");
@@ -649,9 +677,10 @@ void MapViewer::handle_event(const SDL_Event& original) {
             std::int32_t w = 0;
             std::int32_t h = 0;
             m_window->output_size(w, h);
-            m_camera.set_screen(w, h, m_camera.pixel_scale());
+            m_camera.set_screen(w, h, m_camera.scale());
             lay_out();
             follow_display_scale();  // a move to another screen may change both
+            remember_window_size();
             break;
         }
         case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
@@ -663,9 +692,22 @@ void MapViewer::handle_event(const SDL_Event& original) {
     }
 }
 
-void MapViewer::zoom_by(int steps, double sx, double sy) {
+void MapViewer::zoom_by(double steps, double sx, double sy) {
+    if (steps == 0.0 || !std::isfinite(steps)) {
+        return;
+    }
+    if (m_app_settings.display.free_zoom) {
+        // Four notches of the wheel are one level (twice or half the size); the animation goes
+        // on from where the last one aimed, so quick notches add up.
+        const double from = m_zoom_target > 0.0 ? m_zoom_target : m_camera.magnification();
+        m_zoom_target =
+            std::clamp(from * std::exp2(-steps / 4.0), render::kMinMagnification, render::kMaxMagnification);
+        m_zoom_anchor_x = sx;
+        m_zoom_anchor_y = sy;
+        return;
+    }
     const int current = static_cast<int>(m_camera.view().zoom);
-    const int next = std::clamp(current + steps, 0, 2);
+    const int next = std::clamp(current + (steps > 0.0 ? 1 : -1), 0, 2);
     if (next == current) {
         return;
     }
@@ -677,7 +719,46 @@ void MapViewer::zoom_by(int steps, double sx, double sy) {
     m_camera.set_zoom(zoom, sx, sy);
 }
 
+void MapViewer::scale_by(int direction, double sx, double sy) {
+    if (m_app_settings.display.free_zoom) {
+        zoom_by(direction > 0 ? -4.0 : 4.0, sx, sy);
+        return;
+    }
+    // The original's levels: whole pixel scales.
+    const auto scale = static_cast<std::int32_t>(std::lround(m_camera.scale()));
+    m_camera.set_scale(std::clamp(scale + (direction > 0 ? 1 : -1), 1, kMaxPixelScale), sx, sy);
+}
+
+void MapViewer::show_magnification(double magnification, double sx, double sy) {
+    const render::ZoomChoice choice = render::zoom_for_magnification(magnification);
+    if (choice.zoom != m_camera.view().zoom) {
+        if (auto status = ensure_graphics(choice.zoom); !status) {
+            std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
+            m_zoom_target = 0.0;
+            return;
+        }
+    }
+    m_camera.set_magnification(magnification, sx, sy);
+}
+
+void MapViewer::animate_zoom(std::uint32_t delta_ms) {
+    if (m_zoom_target <= 0.0) {
+        return;
+    }
+    // Exponentially towards the target in log space: the same speed zooming in and out, about
+    // 0.15 s to get there.
+    const double now = m_camera.magnification();
+    const double t = 1.0 - std::exp(-static_cast<double>(delta_ms) / 45.0);
+    double next = std::exp(std::log(now) + (std::log(m_zoom_target) - std::log(now)) * t);
+    if (std::abs(std::log(m_zoom_target / next)) < 0.004 || delta_ms >= 1000) {
+        next = m_zoom_target;  // there: exactly, so a whole scale draws without the canvas
+        m_zoom_target = 0.0;
+    }
+    show_magnification(next, m_zoom_anchor_x, m_zoom_anchor_y);
+}
+
 void MapViewer::update(std::uint32_t delta_ms) {
+    animate_zoom(delta_ms);
     m_input->scroll_with_keys(delta_ms);
     // The pause of the video ended another way (F3, another player): the video goes too.
     m_video->follow_pause(m_state->simulation.paused());
@@ -1092,10 +1173,7 @@ void MapViewer::render() {
         render::build_world_draw_list(m_state->world, m_buildings, m_clock, m_camera.view(), m_camera.viewport(),
                                       layers, m_commands, m_draw_scratch);
         preview.restore();
-        std::int32_t ox = 0;
-        std::int32_t oy = 0;
-        m_camera.screen_origin(ox, oy);
-        m_sprites_drawn = graphics->renderer->draw(m_commands, ox, oy, m_camera.pixel_scale());
+        draw_map(*graphics);
         m_input->draw_overlay();
     }
     if (m_hud) {
@@ -1285,6 +1363,105 @@ void MapViewer::toggle_pause_video() {
                                               m_state->simulation.speed()});
 }
 
+void MapViewer::draw_map(ZoomGraphics& graphics) {
+    // The canvas costs what is drawn into it: at most twice the window's pixels (and 16 million)
+    // keeps weak GPUs fluent; just above a whole scale that means the scale below, stretched a
+    // little (slightly softer) instead of the one above, shrunk. Without a GPU (SDL's software
+    // renderer) never more than the window: the scale below, which is cheaper than drawing directly.
+    std::int32_t w = 0;
+    std::int32_t h = 0;
+    m_window->output_size(w, h);
+    // O1602_MAP_CANVAS=N: N times the window's pixels instead (to try it on a GPU, 0: no limit).
+    static const std::optional<std::int64_t> wanted = [] {
+        const auto value = core::environment_variable("O1602_MAP_CANVAS");
+        return value ? std::optional<std::int64_t>(std::atoll(value->c_str())) : std::nullopt;
+    }();
+    const std::int64_t times = wanted ? std::max<std::int64_t>(*wanted, 0) : (m_software_renderer ? 1 : 2);
+    const std::int32_t max_side = m_window->max_texture_size();
+    const std::int64_t max_pixels = times == 0 ? 0 : std::min<std::int64_t>(std::int64_t{w} * h * times, 16'777'216);
+    render::RenderPlan plan = m_camera.render_plan(max_pixels, max_side > 0 ? max_side : 8192);
+    if (!plan.direct && !m_app_settings.display.smooth_zoom) {
+        plan.direct = true;  // the player wants plain pixels: drawn straight at the scale, unevenly
+    }
+    if (plan.direct || !m_map_canvas || !m_map_canvas->begin(plan)) {
+        double ox = 0.0;
+        double oy = 0.0;
+        m_camera.screen_origin(ox, oy);
+        if (m_map_canvas) {
+            m_map_canvas->begin(render::RenderPlan{});  // nothing went through it this frame
+        }
+        m_sprites_drawn = graphics.renderer->draw(m_commands, ox, oy, m_camera.scale());
+        return;
+    }
+    m_sprites_drawn = graphics.renderer->draw(m_commands, plan.origin_x, plan.origin_y, plan.scale);
+    m_map_canvas->end();
+}
+
+void MapViewer::toggle_fullscreen() {
+    DisplaySettings display = m_app_settings.display;
+    display.fullscreen = !m_window->fullscreen();
+    apply_display(display);
+    if (m_hud && m_hud->display_open()) {
+        m_hud->open_display(display_model());  // the window shows the change
+    }
+}
+
+DisplayModel MapViewer::display_model() const {
+    DisplayModel model;
+    model.settings = m_app_settings.display;
+    m_window->window_size(model.window.width, model.window.height);
+    std::int32_t uw = 0;
+    std::int32_t uh = 0;
+    m_window->usable_area(uw, uh);
+    model.sizes = window_sizes_for(uw, uh);
+    return model;
+}
+
+void MapViewer::remember_window_size() {
+    if (m_hud) {
+        WindowSize size;
+        m_window->window_size(size.width, size.height);
+        m_hud->set_display_window(size);
+    }
+    // Only a window the player sized: not full screen, not maximised (it comes back as it was).
+    if (m_window->fullscreen() || m_window->maximized()) {
+        return;
+    }
+    m_window->window_size(m_app_settings.display.window_width, m_app_settings.display.window_height);
+}
+
+void MapViewer::apply_display(const DisplaySettings& display) {
+    const DisplaySettings before = m_app_settings.display;
+    m_app_settings.display = display;
+    if (display.fullscreen != m_window->fullscreen()) {
+        m_window->set_fullscreen(display.fullscreen);
+    }
+    if (!display.fullscreen && display.window_width > 0 && display.window_height > 0 &&
+        (display.window_width != before.window_width || display.window_height != before.window_height)) {
+        m_window->set_window_size(display.window_width, display.window_height);
+    }
+    if (display.vsync != before.vsync) {
+        m_window->set_vsync(display.vsync);
+    }
+    if (display.free_zoom != before.free_zoom) {
+        m_zoom_target = 0.0;
+        if (!display.free_zoom) {
+            // Back to the original's levels: the current level at the screen's whole pixel scale.
+            std::int32_t w = 0;
+            std::int32_t h = 0;
+            m_window->output_size(w, h);
+            m_camera.set_scale(m_display_pixel_scale, w / 2.0, h / 2.0);
+        }
+    }
+    // The window's size and full screen arrive as events (the layout follows them); the
+    // interface's size is laid out now.
+    lay_out();
+    if (m_hud) {
+        m_hud->options_model().fullscreen = display.fullscreen;
+    }
+    save_settings();
+}
+
 void MapViewer::lay_out() {
     if (!m_hud) {
         return;
@@ -1292,8 +1469,9 @@ void MapViewer::lay_out() {
     std::int32_t w = 0;
     std::int32_t h = 0;
     m_window->output_size(w, h);
-    const ui::Rect view = m_hud->layout(w, h);
-    m_camera.set_screen(view.w, view.h, m_camera.pixel_scale());
+    const ui::Rect view =
+        m_hud->layout(w, h, ui_scale_for(m_app_settings.display.ui_scale, w, h, m_window->display_scale()));
+    m_camera.set_screen(view.w, view.h, m_camera.scale());
 }
 
 void MapViewer::follow_display_scale() {
@@ -1301,14 +1479,24 @@ void MapViewer::follow_display_scale() {
     if (scale == m_display_pixel_scale) {
         return;
     }
-    const std::int32_t own = m_camera.pixel_scale() - m_display_pixel_scale;  // Ctrl +/- of the player
-    m_display_pixel_scale = scale;
     std::int32_t w = 0;
     std::int32_t h = 0;
     m_window->output_size(w, h);
-    m_camera.set_pixel_scale(std::clamp(scale + own, 1, kMaxPixelScale), w / 2.0, h / 2.0);
-    std::fprintf(stderr, "display scale %.2f: pixel scale %d\n", static_cast<double>(m_window->display_scale()),
-                 m_camera.pixel_scale());
+    if (m_app_settings.display.free_zoom) {
+        // The same size on the new screen: the magnification grows or shrinks with its scale.
+        const double m = m_camera.magnification() * scale / m_display_pixel_scale;
+        m_display_pixel_scale = scale;
+        m_zoom_target = 0.0;
+        show_magnification(m, w / 2.0, h / 2.0);
+    } else {
+        // Ctrl +/- of the player stays on top of the screen's scale.
+        const auto own = static_cast<std::int32_t>(std::lround(m_camera.scale())) - m_display_pixel_scale;
+        m_display_pixel_scale = scale;
+        m_camera.set_scale(std::clamp(scale + own, 1, kMaxPixelScale), w / 2.0, h / 2.0);
+    }
+    lay_out();  // the interface's size may follow the desktop's scale
+    std::fprintf(stderr, "display scale %.2f: map scale %.2f\n", static_cast<double>(m_window->display_scale()),
+                 m_camera.scale());
 }
 
 void MapViewer::recreate_renderer() {
@@ -1321,6 +1509,7 @@ void MapViewer::recreate_renderer() {
         m_hud->release_textures();
     }
     m_video->release_texture();
+    m_map_canvas->release();
     if (auto status = m_window->recreate_renderer(); !status) {
         std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
         m_running = false;
@@ -1331,6 +1520,8 @@ void MapViewer::recreate_renderer() {
         m_hud->set_renderer(renderer);
     }
     m_video->set_renderer(renderer);
+    m_map_canvas->set_renderer(renderer);
+    m_software_renderer = m_window->renderer_name() == "software";
     std::fprintf(stderr, "renderer: %s\n", m_window->renderer_name().c_str());
     reload_graphics();
 }
@@ -1348,6 +1539,7 @@ void MapViewer::reload_graphics() {
 }
 
 void MapViewer::recreate_textures() {
+    m_map_canvas->release();
     reload_graphics();
     if (m_hud) {
         m_hud->release_textures();
@@ -1413,10 +1605,10 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             m_camera.set_rotation(static_cast<std::uint8_t>(m_camera.view().rotation + 1), cx, cy);
             break;
         case Hud::Action::Kind::ZoomIn:
-            zoom_by(-1, cx, cy);
+            zoom_by(-kKeyZoomSteps, cx, cy);
             break;
         case Hud::Action::Kind::ZoomOut:
-            zoom_by(1, cx, cy);
+            zoom_by(kKeyZoomSteps, cx, cy);
             break;
         case Hud::Action::Kind::Minimap:
         case Hud::Action::Kind::Message:
@@ -1523,8 +1715,10 @@ render::TilePos MapViewer::home_tile() const {
 std::string MapViewer::debug_title(double fps) {
     // For development (O1602_DEBUG_TITLE): what lies under the mouse and is selected, in English.
     const auto& view = m_camera.view();
-    std::string title = "Open1602 - " + game_title() + " | " + zoom_name(view.zoom) + " x" +
-                        std::to_string(m_camera.pixel_scale()) + " | rotation " + std::to_string(view.rotation);
+    char scale[32];
+    std::snprintf(scale, sizeof scale, " x%.2f%s", m_camera.scale(), m_map_canvas->used() ? " (canvas)" : "");
+    std::string title = "Open1602 - " + game_title() + " | " + zoom_name(view.zoom) + scale + " | rotation " +
+                        std::to_string(view.rotation);
     if (const auto tile = m_camera.tile_at_screen(m_input->mouse_x(), m_input->mouse_y())) {
         title += " | tile " + std::to_string(tile->x) + "," + std::to_string(tile->y);
         const auto& cell = m_state->world.cell(tile->x, tile->y);
@@ -1800,10 +1994,10 @@ void MapViewer::apply_options() {
     if (m_sound) {
         model.playing = m_sound->playing();
     }
-    std::int32_t w = 0;
-    std::int32_t h = 0;
-    m_window->output_size(w, h);
-    model.resolution = w >= 1024 ? 2 : (w >= 800 ? 1 : 0);
+    model.fullscreen = m_app_settings.display.fullscreen;
+    if (const auto display = m_hud->take_display_change()) {
+        apply_display(*display);
+    }
     for (const OptionsEvent& e : m_hud->take_option_events()) {
         switch (e.kind) {
             case OptionsEvent::Kind::Save: {
@@ -1866,13 +2060,17 @@ void MapViewer::apply_options() {
                     apply_hud(yes);
                 }
                 break;
-            case OptionsEvent::Kind::Resolution: {
-                // The original's three sizes as window sizes (in full screen nothing changes).
-                constexpr std::array<std::pair<int, int>, 3> kSizes = {{{640, 480}, {800, 600}, {1024, 768}}};
-                const auto [rw, rh] = kSizes[std::min<std::size_t>(e.value, 2)];
-                SDL_SetWindowSize(m_window->sdl_window(), rw, rh);
+            case OptionsEvent::Kind::Fullscreen: {
+                // The original's three resolutions became window and full screen (and the window
+                // "Anzeige" for the rest).
+                DisplaySettings display = m_app_settings.display;
+                display.fullscreen = e.value != 0;
+                apply_display(display);
                 break;
             }
+            case OptionsEvent::Kind::Display:
+                m_hud->open_display(display_model());
+                break;
             case OptionsEvent::Kind::Audio:
                 m_app_settings.audio = model.audio;
                 if (m_sound) {

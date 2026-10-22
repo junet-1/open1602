@@ -122,6 +122,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             s.mission_window = flag(value, s.mission_window);
         } else if (key == "sea_creatures_every") {
             s.sea_creatures_every = std::clamp(number(value, s.sea_creatures_every), 0, 3600);
+        } else if (key.starts_with("display.")) {
+            (void)read_display_line(s.display, key.substr(8), value);
         } else if (key.starts_with("endless.")) {
             (void)read_setup_line(s.endless, key.substr(8), value);
         }
@@ -154,6 +156,7 @@ std::string write_settings(const AppSettings& s) {
     for (const std::string& host : s.remembered_hosts) {
         out += "remembered_host = " + core::cp1252_to_utf8(host) + "\n";
     }
+    out += write_display(s.display);
     out += "# The last settings of the start dialog of the endless game\n";
     out += write_setup(s.endless);
     return out;

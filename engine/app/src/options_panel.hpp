@@ -31,7 +31,7 @@ struct OptionsModel {
     /// Per slot the player, time played and map size (save_details); empty if unknown. The status
     /// bar shows it over the slot.
     std::vector<std::string> slot_details;
-    std::size_t resolution = 2;   ///< 0 640 x 480, 1 800 x 600, 2 1024 x 768
+    bool fullscreen = false;      ///< the window fills the screen
     bool mission_window = false;  ///< "Auftrag ansehen"
     bool multiplayer = false;
 };
@@ -42,7 +42,8 @@ struct OptionsEvent {
         Save,           ///< into slot `value`, named `text`
         Load,           ///< slot `value`
         Quit,           ///< "Ende": leave the game
-        Resolution,     ///< `value` 0..2
+        Fullscreen,     ///< OptionsModel::fullscreen changed (`value` 1: on)
+        Display,        ///< open the window "Anzeige"
         Audio,          ///< OptionsModel::audio changed
         PlayTrack,      ///< play `text` now (and enable it)
         TestEffects,    ///< the test sound

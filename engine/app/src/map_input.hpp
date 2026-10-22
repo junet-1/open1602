@@ -40,6 +40,8 @@ namespace o1602::app {
 
 /// The largest pixel scale (Ctrl +, and the screen's scale).
 inline constexpr std::int32_t kMaxPixelScale = 4;
+/// Wheel notches a zoom key or button stands for (free zoom: two notches are half a level).
+inline constexpr double kKeyZoomSteps = 2.0;
 
 class MapInput {
 public:
@@ -49,8 +51,11 @@ public:
         virtual ~Host() = default;
         /// What a click on the frame asked for (also the modes the input switches to).
         virtual void apply_hud(const Hud::Action& action) = 0;
-        /// Zooms in or out around a screen point; the zoom level's graphics may have to be loaded.
-        virtual void zoom_by(int steps, double sx, double sy) = 0;
+        /// Zooms in (negative) or out around a screen point by notches of the mouse wheel (parts of
+        /// one from a touchpad); the zoom level's graphics may have to be loaded.
+        virtual void zoom_by(double steps, double sx, double sy) = 0;
+        /// Ctrl +/-: the map twice as large or half as large (`direction` +1, -1).
+        virtual void scale_by(int direction, double sx, double sy) = 0;
         /// F5 and F9: the quick savegame.
         virtual void quick_save() = 0;
         virtual void quick_load() = 0;
@@ -59,6 +64,8 @@ public:
         virtual void quit() = 0;
         /// Ctrl+O: the ownership overlay.
         virtual void toggle_owners() = 0;
+        /// F11, Alt+Enter: window or full screen.
+        virtual void toggle_fullscreen() = 0;
         /// Where Home goes without a selection.
         [[nodiscard]] virtual render::TilePos home_tile() const = 0;
         /// The graphics of the zoom level shown; null while they are not there.

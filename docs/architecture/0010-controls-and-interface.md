@@ -41,7 +41,9 @@ information fit in and the controls follow today's real-time strategy games (202
 |---|---|
 | W A S D, arrow keys | scroll the map (Shift: faster) |
 | Q / E | rotate view |
-| Mouse wheel, Page Up / Page Down | zoom |
+| Mouse wheel, Page Up / Page Down | zoom (free zoom: four notches or two key presses are one level) |
+| Ctrl + / Ctrl − | the map twice / half as large |
+| F11, Alt+Enter | window or full screen |
 | Space | jump to the last message |
 | Home | centre view on the selection |
 | F3, Pause | pause |
@@ -142,6 +144,37 @@ so buildings of mods are covered without data of their own. Not yet: our own gam
 bindings as a second preset; F1 as help for the window under the mouse (today F1 shows the keys). The original
 has no game menu: save, load and quit are in the settings of the side panel (done
 with a confirmation before „Ende“ ("Quit")).
+
+## Display: window size, full screen, interface and free zoom (2026-10-22)
+
+The original knows 640 x 480, 800 x 600 and 1024 x 768 and three zoom levels. Open1602:
+
+- **Any window size.** The window can be dragged to any size; the settings offer common sizes that
+  fit the screen. The size is remembered in `settings.cfg` (`display.window`), `--size` wins over it.
+- **Full screen at the desktop's resolution** (F11, Alt+Enter, or the settings): no change of the
+  screen's mode, so switching is quick and works the same on Windows, macOS, X11 and Wayland, and
+  HiDPI screens get their full resolution. The original's three resolution buttons in the settings
+  of the side panel became "Fenster", "Vollbild" and "Anzeige …", the window with the rest.
+- **The interface's size**: automatic (as large as the 1024 x 768 design fits, as before), or a
+  percentage of the desktop's scale (100 %: the original's pixels on a normal screen, twice that on
+  a HiDPI one), never larger than fits. A smaller interface leaves more of the window to the map;
+  the side panel's parchment then goes on to the bottom. Full-screen menus (main menu, multiplayer,
+  end screen) always fill the window as far as they fit.
+- **Free zoom** (default; the original's three levels are a setting): the magnification is screen
+  pixels per sprite pixel of the large level, 0.2 to 8. The camera shows it with the most detailed
+  level whose sprites need not shrink below 0.75 (`render::zoom_for_magnification`) and scales them
+  by the rest. A whole scale draws directly. Any other scale draws the sprites at the next whole
+  scale into a texture, which is shrunk onto the screen with linear filtering
+  (`render::SdlMapCanvas`): every sprite pixel keeps hard edges and only the screen pixels on its
+  border mix two colours, so the art stays sharp without the uneven pixels of plain nearest
+  scaling, and nothing shimmers while scrolling. The texture is at most twice the window's pixels
+  (else one whole scale less, stretched a little and so a little softer; just above a whole scale
+  that is the case), so that weak GPUs stay fluent; without a GPU (SDL's software renderer) at most
+  the window's pixels. `O1602_MAP_CANVAS=N` allows N times the window's pixels (0: no limit) to try
+  other limits. "einfache Pixel" draws straight at the scale instead. The wheel zooms by a quarter level per notch (touchpads finer), the
+  zoom keys and buttons by half a level, Ctrl +/− by a whole one; the zoom glides there in about
+  0.15 s and keeps the point under the mouse in place. Picking by the sprites' pixels works at any
+  scale.
 
 ## Consequences
 - Input runs through an action → key table (settings file), not through fixed keys in the

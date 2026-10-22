@@ -70,7 +70,7 @@ int usage() {
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
         "  --video N          the video VideoSmk/N.smk first (e.g. 58 the intro, 10 the credits)\n"
         "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\";\n"
-        "                     rdown/rup: the right button\n"
+        "                     rdown/rup: the right button; \"wheel X,Y,N@F\": N notches (up zooms in)\n"
         "  --select I,X,Y     select the building at tile X,Y of island I (index) and look at it\n"
         "  --select ship:N    select the N-th ship of the game (index) and look at it; unit:N a land unit\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
@@ -89,7 +89,8 @@ int usage() {
         "  Space          to the last message         Home                     to the selection\n"
         "  F3, Pause      pause                       Num+ / Num-              game speed\n"
         "  F5 / F9        quick save / quick load     F12, Print               screenshot\n"
-        "  F1             these keys over the map\n"
+        "  F1             these keys over the map     F11, Alt+Enter           window / full screen\n"
+        "  Ctrl + / Ctrl - the map twice / half as large\n"
         "  B K I O        build, military, info, options\n"
         "  left mouse     select (drag: rectangle, Shift: add, Ctrl/double: all alike on screen)\n"
         "  right mouse    order (also on the minimap; Shift: queued)\n"
@@ -143,6 +144,20 @@ bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::S
             if (!parse_number(key, in.key)) {
                 return false;
             }
+        } else if (verb == "wheel") {
+            in.kind = Input::Kind::Wheel;
+            const std::size_t c1 = args.find(',');
+            const std::size_t c2 = c1 == std::string_view::npos ? c1 : args.find(',', c1 + 1);
+            std::int32_t x = 0;
+            std::int32_t y = 0;
+            std::int32_t n = 0;
+            if (c2 == std::string_view::npos || !parse_number(args.substr(0, c1), x) ||
+                !parse_number(args.substr(c1 + 1, c2 - c1 - 1), y) || !parse_number(args.substr(c2 + 1), n)) {
+                return false;
+            }
+            in.x = static_cast<float>(x);
+            in.y = static_cast<float>(y);
+            in.key = n;
         } else {
             in.right = verb == "rdown" || verb == "rup";
             in.kind = verb == "down" || verb == "rdown" ? Input::Kind::Down

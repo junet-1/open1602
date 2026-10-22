@@ -2,6 +2,7 @@
 #include "o1602/platform/window.hpp"
 
 #include <SDL3/SDL.h>
+#include <cstdio>
 
 namespace o1602::platform {
 
@@ -23,8 +24,11 @@ SdlSystem::~SdlSystem() {
 
 core::Result<std::unique_ptr<Window>> Window::create(const WindowConfig& config) {
     std::unique_ptr<Window> window(new Window());
-    window->m_window = SDL_CreateWindow(config.title.c_str(), config.width, config.height,
-                                        SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    if (config.fullscreen) {
+        flags |= SDL_WINDOW_FULLSCREEN;  // no mode set: the desktop's resolution
+    }
+    window->m_window = SDL_CreateWindow(config.title.c_str(), config.width, config.height, flags);
     if (window->m_window == nullptr) {
         return sdl_error("SDL_CreateWindow");
     }
@@ -107,6 +111,65 @@ std::int32_t Window::max_texture_size() const {
 
 std::uint64_t ticks_ms() {
     return SDL_GetTicks();
+}
+
+void Window::set_fullscreen(bool on) {
+    if (on == fullscreen()) {
+        return;
+    }
+    SDL_SetWindowFullscreenMode(m_window, nullptr);  // borderless at the desktop's resolution
+    if (!SDL_SetWindowFullscreen(m_window, on)) {
+        std::fprintf(stderr, "full screen: %s\n", SDL_GetError());
+    }
+}
+
+bool Window::fullscreen() const {
+    return (SDL_GetWindowFlags(m_window) & SDL_WINDOW_FULLSCREEN) != 0;
+}
+
+void Window::window_size(std::int32_t& width, std::int32_t& height) const {
+    int w = 0;
+    int h = 0;
+    SDL_GetWindowSize(m_window, &w, &h);
+    width = w;
+    height = h;
+}
+
+void Window::set_window_size(std::int32_t width, std::int32_t height) {
+    if (fullscreen() || maximized()) {
+        SDL_RestoreWindow(m_window);
+    }
+    SDL_SetWindowSize(m_window, width, height);
+    // Kept on the screen: centred if it would reach beyond the usable area.
+    std::int32_t uw = 0;
+    std::int32_t uh = 0;
+    usable_area(uw, uh);
+    if (uw > 0 && uh > 0 && (width >= uw || height >= uh)) {
+        const SDL_DisplayID display = SDL_GetDisplayForWindow(m_window);
+        const auto centred = static_cast<int>(SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+        SDL_SetWindowPosition(m_window, centred, centred);
+    }
+}
+
+void Window::usable_area(std::int32_t& width, std::int32_t& height) const {
+    width = 0;
+    height = 0;
+    SDL_Rect r{};
+    if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(m_window), &r)) {
+        width = r.w;
+        height = r.h;
+    }
+}
+
+bool Window::maximized() const {
+    return (SDL_GetWindowFlags(m_window) & SDL_WINDOW_MAXIMIZED) != 0;
+}
+
+void Window::set_vsync(bool on) {
+    m_vsync = on;
+    if (m_renderer != nullptr) {
+        SDL_SetRenderVSync(m_renderer, on ? 1 : 0);
+    }
 }
 
 }  // namespace o1602::platform

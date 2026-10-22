@@ -2,6 +2,7 @@
 # SDL3 backend of the renderer. Separate target so tools and tests stay free of SDL.
 
 add_library(o1602_render_sdl
+    src/sdl_map_canvas.cpp
     src/sdl_sprite_renderer.cpp
     src/sdl_ui_renderer.cpp
 )

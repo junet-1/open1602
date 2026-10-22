@@ -15,6 +15,7 @@
 #include <string_view>
 #include <vector>
 
+#include "display_settings.hpp"
 #include "endless_setup.hpp"
 
 #include "o1602/audio/game_audio.hpp"
@@ -37,6 +38,7 @@ struct AppSettings {
     static constexpr std::size_t kMaxHosts = 8;
     /// The last settings chosen in the start dialog of the endless game.
     EndlessSetup endless;
+    DisplaySettings display;
 };
 
 /// "key = value" lines; unknown keys are passed over, missing ones keep `defaults`.

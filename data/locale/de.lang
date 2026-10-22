@@ -101,6 +101,7 @@ keys.action.delete = Auflösen / versenken
 keys.action.pixel_scale_up = Größere Pixel
 keys.action.pixel_scale_down = Kleinere Pixel
 keys.action.show_owners = Besitz zeigen
+keys.action.fullscreen = Fenster oder Vollbild
 keys.action.quit = Beenden
 
 # Mehrspielermenü und Meldungen
@@ -315,3 +316,29 @@ setup.defaults = Vorgaben von Open1602
 setup.back = Zurück
 setup.start = Spiel starten
 setup.hint = Ein Klick auf einen Wert wählt den nächsten. Die Einstellungen bleiben beim Spiel und seinen Spielständen. Eine eigene Welt wird für die gewählten Spieler gemacht; auf den Karten des Originals spielen vier.
+
+# Die Anzeige-Zeilen der Einstellungen und das Fenster „Anzeige“ (display_menu.cpp)
+options.window = Fenster
+options.fullscreen = Vollbild
+options.display = Anzeige ...
+display.title = Anzeige
+display.mode = Darstellung
+display.window = im Fenster
+display.fullscreen = Vollbild
+display.size = Fenstergröße
+display.size_value = {1} × {2}
+display.size_desktop = wie der Bildschirm
+display.ui_scale = Größe der Oberfläche
+display.ui_auto = so groß wie möglich
+display.percent = {1} %
+display.zoom = Zoom
+display.zoom_free = stufenlos
+display.zoom_steps = drei Stufen (Original)
+display.zoom_drawing = Zwischen den Stufen
+display.zoom_smooth = scharf und weich
+display.zoom_pixels = einfache Pixel
+display.vsync = V-Sync
+display.on = an
+display.off = aus
+display.hint = Jede Größe: am Fensterrand ziehen. Vollbild: F11 oder Alt+Eingabe. Zoom: Mausrad, doppelt oder halb so groß mit Strg+Plus und Strg+Minus.
+display.close = Schließen

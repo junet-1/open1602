@@ -68,6 +68,13 @@ The game with the dense world, SDL's software renderer (no GPU), vsync off, spee
 | 1 | 93 fps, 8 200 sprites | 57 fps, 12 800 sprites |
 | 2 (far) | 60 fps, 23 600 sprites | 46 fps, 34 900 sprites |
 
+The free zoom (2026-10-22, Merlin01, 1920 x 1080, release build, the same software renderer): at a
+whole scale nothing changes (magnification 1: 58 fps, 2: 27 fps, the cost grows with the pixels
+drawn). Between whole scales the map goes through a texture (ADR 0010); without a GPU it is never
+larger than the window, so the scale below is drawn and stretched: 1.19 and 1.41 run at 58 fps, 2.83
+at 18 fps. With a GPU the texture may have twice the window's pixels (sharper); that was not measured
+on a GPU yet (`O1602_MAP_CANVAS` changes the limit for such a measurement).
+
 The process held 1.35 GB; with the software renderer the textures are in main memory. Preparing
 the sprites took 2.2 s (GFX), 0.6 s (MGFX) and 0.16 s (SGFX).
 

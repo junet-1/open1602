@@ -8,6 +8,8 @@ add_library(o1602_menus
     ../src/app_settings.cpp
     ../src/build_tool.cpp
     ../src/command_sink.cpp
+    ../src/display_menu.cpp
+    ../src/display_settings.cpp
     ../src/end_screen.cpp
     ../src/endless_setup.cpp
     ../src/event_presenter.cpp
