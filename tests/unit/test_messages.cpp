@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "../test_framework.hpp"
-
 #include "message_table.hpp"
 
 #include "o1602/core/data_file.hpp"
@@ -137,7 +136,7 @@ TEST_CASE("messages: the original's messages at their MELDUNG numbers") {
     CHECK(plague->playback.video_base == 282);
     CHECK((plague->playback.flags & audio::kMessageNormalSpeed) != 0);
     CHECK(t.get(5)->icon == app::MessageIcon::Combat);  // pirates: kind 5
-    CHECK(t.text(1, "de").empty());                      // the status bar shows MELDUNG 1
+    CHECK(t.text(1, "de").empty());                     // the status bar shows MELDUNG 1
 }
 
 TEST_CASE("messages: a mod adds a message with text, icon, sound and video") {
@@ -172,7 +171,9 @@ TEST_CASE("messages: a mod adds a message with text, icon, sound and video") {
     const app::MessageArgs args{{"player", "Merlin"}, {"island", "Nordinsel"}};
     // German in Windows-1252, as the game's fonts draw; a language without its own text: the
     // text for every language; an unknown placeholder stays.
-    CHECK(t.text(*id, "de", args) == "Der Leuchtturm von Merlin strahlt \xFC" "ber Nordinsel.");
+    CHECK(t.text(*id, "de", args) ==
+          "Der Leuchtturm von Merlin strahlt \xFC"
+          "ber Nordinsel.");
     CHECK(t.text(*id, "fr", args) == "Merlin's lighthouse shines over Nordinsel.");
     CHECK(t.text(*id, "en", {{"player", "A"}}) == "A's lighthouse shines over {island}.");
 }

@@ -48,7 +48,7 @@ MessageIcon original_icon(std::uint16_t message) {
     }
     const audio::MessageAudio* m = audio::message_audio(message);
     const std::uint8_t kind = m != nullptr ? m->kind : 0;
-    return kind == 5                 ? MessageIcon::Combat
+    return kind == 5                ? MessageIcon::Combat
            : kind == 4 || kind == 7 ? MessageIcon::Scroll
            : kind == 3              ? MessageIcon::Player
                                     : MessageIcon::Notice;
@@ -184,20 +184,22 @@ void MessageTable::apply(const core::DataTable& table, MessageDefinition& m, con
                 m.texts.insert_or_assign(code, core::utf8_to_cp1252(*s));
             }
         } else if (e.key == "icon") {
-            const auto it = s == nullptr ? kIcons.end() : std::find_if(kIcons.begin(), kIcons.end(), [&](const auto& i) {
-                return i.first == *s;
-            });
+            const auto it =
+                s == nullptr ? kIcons.end()
+                             : std::find_if(kIcons.begin(), kIcons.end(), [&](const auto& i) { return i.first == *s; });
             if (it == kIcons.end()) {
-                warnings.push_back(at + "'icon' must be one of notice, scroll, combat, player, plague, fire, "
-                                        "drought, volcano");
+                warnings.push_back(at +
+                                   "'icon' must be one of notice, scroll, combat, player, plague, fire, "
+                                   "drought, volcano");
             } else {
                 m.icon = it->second;
             }
         } else if (e.key == "kind") {
             const auto it = s == nullptr ? kKinds.end() : std::find(kKinds.begin(), kKinds.end(), *s);
             if (it == kKinds.end()) {
-                warnings.push_back(at + "'kind' must be one of general, events, island, players, trade, combat, "
-                                        "orders, diplomacy");
+                warnings.push_back(at +
+                                   "'kind' must be one of general, events, island, players, trade, combat, "
+                                   "orders, diplomacy");
             } else {
                 m.playback.kind = static_cast<std::uint8_t>(it - kKinds.begin());
             }
@@ -212,7 +214,8 @@ void MessageTable::apply(const core::DataTable& table, MessageDefinition& m, con
                 m.playback.sound = nullptr;
             } else if (s != nullptr) {
                 // A file of the package, never outside its folder.
-                const std::filesystem::path relative = std::filesystem::path(core::path_from_utf8(*s)).lexically_normal();
+                const std::filesystem::path relative =
+                    std::filesystem::path(core::path_from_utf8(*s)).lexically_normal();
                 if (relative.empty() || relative.is_absolute() || relative.has_root_name() ||
                     *relative.begin() == "..") {
                     warnings.push_back(at + "'sound' must be a file in the package's folder");
@@ -239,8 +242,9 @@ void MessageTable::apply(const core::DataTable& table, MessageDefinition& m, con
                 m.playback.video_base = static_cast<std::uint16_t>(*n);
                 m.playback.videos = 1;
             } else if (s != nullptr) {
-                warnings.push_back(at + "'video': videos of a package's own are not supported yet; give the number of "
-                                        "one of the original's (VideoSmk/<number>.smk)");
+                warnings.push_back(at +
+                                   "'video': videos of a package's own are not supported yet; give the number of "
+                                   "one of the original's (VideoSmk/<number>.smk)");
             } else {
                 warnings.push_back(at + "'video' must be a number of VideoSmk or false");
             }

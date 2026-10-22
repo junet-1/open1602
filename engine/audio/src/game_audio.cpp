@@ -251,8 +251,7 @@ std::uint16_t Voices::message(const MessagePlayback& m, bool visible) {
     if (m.videos > 0 && videos_on && m_video_check) {
         const bool chance = (m.flags & kMessageVideoQuarter) != 0 && (m_random() & 3U) == 0;
         if (!visible || (m.flags & kMessageVideoAlways) != 0 || chance) {
-            const auto pick =
-                static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, m.videos - 1)(m_random));
+            const auto pick = static_cast<std::uint16_t>(std::uniform_int_distribution<int>(0, m.videos - 1)(m_random));
             const auto number = static_cast<std::uint16_t>(m.video_base + pick);
             if (m_video_check(number)) {
                 m_video = number;

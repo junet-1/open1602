@@ -30,7 +30,7 @@ namespace o1602::app {
 /// its video, as its MessageTable entry says. It may bring a text of its own (Open1602's, with the
 /// placeholders filled), and stay silent (`voice` off).
 struct Announcement {
-    MessageId message = 0;  ///< an original's MELDUNG number, or a MessageTable index
+    MessageId message = 0;                          ///< an original's MELDUNG number, or a MessageTable index
     std::optional<std::pair<double, double>> tile;  ///< where it happened, in world tiles
     std::optional<sim::PlayerId> about;             ///< the player it is about, if not the local one
     std::uint8_t tracks = 0;                        ///< the tracks of its video (bit i = track i, 0 = all)
