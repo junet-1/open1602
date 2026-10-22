@@ -70,7 +70,7 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
 /// on another thread while the game goes on (GraphicsPreloader).
 struct PreparedGraphics {
     WorldGraphics graphics;
-    SpriteHitMask hit_mask;  ///< visible pixels of the figure sheets (not of the terrain)
+    SpriteHitMask hit_mask;  ///< visible pixels of all sprites, for picking buildings and units
     std::uint32_t ms = 0;    ///< time it took
 };
 

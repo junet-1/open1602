@@ -754,6 +754,119 @@ TEST_CASE("sprite hit mask: units are picked by their visible pixels") {
     CHECK(!render::command_bounds(overlay, *atlas));
 }
 
+namespace {
+
+/// Sprites for make_table(): the sea (10..13) a full 16 x 8 tile, the building (100..127) a 16 x 40
+/// picture reaching over the tiles behind it, its top 10 rows transparent; the rest empty.
+class TallBuildingSource final : public render::SpriteSource {
+public:
+    [[nodiscard]] std::uint32_t count() const override { return 128; }
+    void size(std::uint32_t i, std::uint32_t& width, std::uint32_t& height) const override {
+        width = i >= 100 || (i >= 10 && i < 14) ? 16 : 0;
+        height = i >= 100 ? 40 : (i >= 10 && i < 14 ? 8 : 0);
+    }
+    bool pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) const override {
+        std::uint32_t w = 0;
+        std::uint32_t h = 0;
+        size(i, w, h);
+        rgba.assign(std::size_t{w} * h * 4, 255);
+        if (i >= 100) {
+            for (std::size_t p = 0; p < std::size_t{w} * 10; ++p) {
+                rgba[p * 4 + 3] = 0;
+            }
+        }
+        return true;
+    }
+};
+
+}  // namespace
+
+TEST_CASE("picking: a building is hit by its picture, the front-most first, not by its tile") {
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 2, 2);
+    REQUIRE(island.map.place(*table.by_id(20100), 0, 0, 0, 0).ok());  // the 2 x 2 building at world (10, 20)
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+    const TallBuildingSource source;
+    const render::SpriteSource* sources[] = {&source};
+    auto atlas = render::SpriteAtlas::build(sources, 64);
+    REQUIRE(atlas.ok());
+    const auto mask = render::SpriteHitMask::build(*atlas, 0);
+    render::WorldView view;
+    view.zoom = render::Zoom::Small;  // 16 x 8 px tiles
+    render::WorldLayers layers;
+    layers.atlas = &*atlas;
+    layers.extent = render::SpriteExtent{16, 40};
+    std::vector<render::TileHit> hits;
+
+    // Without the atlas nothing is picked.
+    render::tiles_at_pixel(world, table, clock, view, render::WorldLayers{}, mask, 2715, 100, hits);
+    CHECK(hits.empty());
+
+    // The building's tiles at rotation 0 (world_renderer.hpp): tile (x, y) has its left edge at
+    // (x - y + 349) * 8 and its picture 40 px high above row x + y's bottom (row * 4 + 7) less 5.
+    // (2715, 100) lies on the pictures of three of them, over the sea behind: the front-most first.
+    render::tiles_at_pixel(world, table, clock, view, layers, mask, 2715, 100, hits);
+    REQUIRE(hits.size() == 5);  // the sea tiles' rectangles overlap
+    CHECK(
+        (std::tuple{hits[0].x, hits[0].y, hits[0].row, hits[0].island} == std::tuple{11U, 21U, 32, std::uint16_t{0}}));
+    CHECK((std::tuple{hits[1].x, hits[1].y, hits[1].row} == std::tuple{10U, 21U, 31}));
+    CHECK((std::tuple{hits[2].x, hits[2].y, hits[2].row} == std::tuple{10U, 20U, 30}));
+    CHECK((std::tuple{hits[3].x, hits[3].y, hits[3].island} == std::tuple{7U, 18U, sim::World::kSea}));
+    CHECK((std::tuple{hits[4].x, hits[4].y, hits[4].island} == std::tuple{7U, 17U, sim::World::kSea}));
+    CHECK(hits[1].local_x == 0);
+    CHECK(hits[1].local_y == 1);
+
+    // The roof of tile (11, 20) far above its tile: the tile under the point is the sea (the
+    // click went through the building before), the picture hits the building.
+    const auto under = render::world_tile_at(view, 2730, 100);
+    REQUIRE(under.has_value());
+    CHECK(world.cell(under->x, under->y).island == sim::World::kSea);
+    render::tiles_at_pixel(world, table, clock, view, layers, mask, 2730, 100, hits);
+    REQUIRE(!hits.empty());
+    CHECK((std::tuple{hits[0].x, hits[0].y, hits[0].island} == std::tuple{11U, 20U, std::uint16_t{0}}));
+
+    // Inside the picture's rectangle but on its transparent pixels: only the sea behind.
+    render::tiles_at_pixel(world, table, clock, view, layers, mask, 2730, 88, hits);
+    REQUIRE(!hits.empty());
+    for (const render::TileHit& h : hits) {
+        CHECK(h.island == sim::World::kSea);
+    }
+
+    // Every rotation: each pixel of a building tile's picture picks that tile or one drawn later.
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        view.rotation = rotation;
+        render::Viewport all;
+        render::world_pixel_size(view, all.width, all.height);
+        const auto commands = render::build_world_draw_list(world, table, clock, view, all, layers.extent);
+        std::size_t tested = 0;
+        for (const render::DrawCommand& c : commands) {
+            if (c.sprite < 100) {
+                continue;
+            }
+            for (const auto& [dx, dy] : {std::pair{0, -1}, std::pair{15, -11}, std::pair{8, -30}}) {
+                render::tiles_at_pixel(world, table, clock, view, layers, mask, c.x + dx, c.y + dy, hits);
+                REQUIRE(!hits.empty());
+                CHECK(hits[0].island == 0);
+                ++tested;
+            }
+        }
+        CHECK(tested == 12);
+    }
+}
+
+TEST_CASE("picking: a tile hides a figure drawn before it") {
+    render::TileHit hit;
+    hit.row = 5;
+    CHECK(hit.covers_figure(4));
+    CHECK(!hit.covers_figure(5));  // figures go after the flat pass of their row
+    CHECK(!hit.covers_figure(6));
+    hit.high = true;
+    CHECK(hit.covers_figure(5));  // the Highflg pass follows the row's figures
+    CHECK(!hit.covers_figure(6));
+}
+
 TEST_CASE("render: a ship is drawn on its way between two ticks, a jump is not smoothed") {
     sim::World world(40, 40);
     sim::Ship ship;

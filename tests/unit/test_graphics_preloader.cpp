@@ -280,7 +280,7 @@ std::vector<std::uint8_t> bsh_file() {
 
 }  // namespace
 
-TEST_CASE("graphics preloader: a level is made from the sheets of a folder, with the figures' masks") {
+TEST_CASE("graphics preloader: a level is made from the sheets of a folder, with the sprites' masks") {
     const auto root = test::temp_path("o1602-preload");
     std::filesystem::remove_all(root);
     const auto bsh = bsh_file();
@@ -310,10 +310,12 @@ TEST_CASE("graphics preloader: a level is made from the sheets of a folder, with
     CHECK(large->graphics.sheet_base(assets::FigureSheet::Ship) == std::optional<std::uint32_t>(1));
     CHECK(!large->graphics.derived[static_cast<std::size_t>(assets::FigureSheet::Ship)]);
     CHECK(!large->graphics.atlas.pages().empty());  // the pixels stay for the upload
-    // The ship has a mask (row 0 starts with two clear pixels), the terrain none (all of it counts).
+    // The ship and the terrain (buildings are picked by their pictures too) have masks: row 0
+    // starts with two clear pixels.
     CHECK(!large->hit_mask.visible(1, 0, 0));
     CHECK(large->hit_mask.visible(1, 2, 0));
-    CHECK(large->hit_mask.visible(0, 0, 0));
+    CHECK(!large->hit_mask.visible(0, 0, 0));
+    CHECK(large->hit_mask.visible(0, 2, 0));
     // Medium has no terrain sheet; Small takes the ship from Medium at half size.
     CHECK(!preloader.take(Zoom::Medium).ok());
     auto small = preloader.take(Zoom::Small);

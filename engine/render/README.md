@@ -8,7 +8,7 @@ SDL, so the tools and tests draw with the software rasteriser.
 |---|---|
 | `island_renderer.hpp`, `world_renderer.hpp` | Draw lists for an island or a viewport of the world (painter's algorithm), software rasteriser |
 | `sprite_atlas.hpp`, `sprite_source.hpp`, `world_graphics.hpp` | Sprite sheets of a zoom level decoded into atlas pages |
-| `sprite_hit_mask.hpp` | Visible pixels of a sprite, for pixel-exact selection |
+| `sprite_hit_mask.hpp` | Visible pixels of a sprite, for pixel-exact selection of buildings and units (`tiles_at_pixel` in `world_renderer.hpp`) |
 | `camera.hpp` | Which part of the world is on screen |
 | `animation_clock.hpp`, `figure_animation.hpp` | Animation timing as in the original |
 | `land_figures.hpp`, `walker_figures.hpp`, `ship_trail.hpp` | Figures, carriers and ships as drawn between ticks |

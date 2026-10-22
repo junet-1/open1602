@@ -164,6 +164,8 @@ private:
     /// The pictures of a unit as drawn (ship: hull and flag; land unit: body), with the row and
     /// depth that order them; nothing if it is not drawn.
     [[nodiscard]] std::optional<render::FigureSprites> unit_sprites(const ui::UnitRef& ref) const override;
+    /// The map tiles whose pictures cover a world pixel, the front-most first.
+    void tiles_at_pixel(std::int32_t px, std::int32_t py, std::vector<render::TileHit>& out) const override;
     /// The graphics of the zoom level shown; null while they are not there.
     [[nodiscard]] const ZoomGraphics* graphics() const override;
 

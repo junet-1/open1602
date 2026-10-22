@@ -912,6 +912,16 @@ std::optional<render::FigureSprites> MapViewer::unit_sprites(const ui::UnitRef& 
     return out.count > 0 ? std::optional<render::FigureSprites>(out) : std::nullopt;
 }
 
+void MapViewer::tiles_at_pixel(std::int32_t px, std::int32_t py, std::vector<render::TileHit>& out) const {
+    out.clear();
+    const auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
+    if (!graphics) {
+        return;
+    }
+    render::tiles_at_pixel(m_state->world, m_buildings, m_clock, m_camera.view(), world_layers(*graphics),
+                           graphics->hit_mask, px, py, out);
+}
+
 const ZoomGraphics* MapViewer::graphics() const {
     const auto& graphics = m_graphics[static_cast<std::size_t>(m_camera.view().zoom)];
     return graphics ? &*graphics : nullptr;
