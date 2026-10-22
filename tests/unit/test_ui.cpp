@@ -502,10 +502,16 @@ TEST_CASE("ui: a form of Open1602's own: clicks, focus, cut texts and the scale"
     form.check(4, ui::Rect{10, 130, 200, 30}, "Zuschauer", true);
     // Pressed and released on the button (pixels at scale 2).
     CHECK(!form.mouse(40, 40, true));
+    CHECK(!form.released());
     CHECK(form.mouse(40, 40, false) == std::optional<ui::Form::Id>(1));
+    CHECK(form.released());
+    // Only moved, with no button held: nothing let go.
+    CHECK(!form.mouse(40, 400, false));
+    CHECK(!form.released());
     // Released elsewhere: no click; a disabled button takes none.
     CHECK(!form.mouse(40, 40, true));
     CHECK(!form.mouse(40, 400, false));
+    CHECK(form.released());  // let go beside: no click, but the press ended
     CHECK(!form.mouse(40, 120, true));
     CHECK(!form.mouse(40, 120, false));
     // Laid out anew, the press survives (by its Id).

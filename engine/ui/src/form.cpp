@@ -144,6 +144,7 @@ std::optional<Form::Id> Form::hit(std::int32_t x, std::int32_t y) const {
 std::optional<Form::Id> Form::mouse(std::int32_t x, std::int32_t y, bool down) {
     const std::optional<Id> under = hit(x, y);
     m_hovered = under;
+    m_released = false;
     if (down) {
         if (!m_pressed) {
             m_pressed = under ? under : std::optional<Id>(-1);  // -1: pressed on nothing
@@ -151,6 +152,7 @@ std::optional<Form::Id> Form::mouse(std::int32_t x, std::int32_t y, bool down) {
         return std::nullopt;
     }
     const std::optional<Id> pressed = std::exchange(m_pressed, std::nullopt);
+    m_released = pressed.has_value();
     if (pressed && under && *pressed == *under) {
         return under;
     }

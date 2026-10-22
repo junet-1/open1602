@@ -77,6 +77,9 @@ public:
     std::optional<Id> mouse(std::int32_t x, std::int32_t y, bool down);
     /// The widget under the mouse at the last call.
     [[nodiscard]] std::optional<Id> hovered() const noexcept { return m_hovered; }
+    /// Whether the last call let go of a press (on a widget or beside them), and not only moved
+    /// the mouse: a click beside the fields ends typing, the mouse merely leaving one does not.
+    [[nodiscard]] bool released() const noexcept { return m_released; }
 
     /// Everything to draw, in pixels of the region. `fonts` cut texts to their boxes.
     [[nodiscard]] std::vector<DrawItem> draw(const std::array<const Font*, 3>& fonts) const;
@@ -107,6 +110,7 @@ private:
     std::optional<Id> m_pressed;
     std::optional<Id> m_hovered;
     std::optional<Id> m_focus;
+    bool m_released = false;
 };
 
 }  // namespace o1602::ui

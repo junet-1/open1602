@@ -148,6 +148,48 @@ TEST_CASE("multiplayer menu: searching, joining by address and back") {
     CHECK(back->kind == MultiplayerEvent::Kind::Close);
 }
 
+TEST_CASE("multiplayer menu: a field keeps the keys when the mouse leaves it, until a click beside") {
+    MultiplayerMenu menu(ui::FormStyle{});
+    app::MultiplayerModel model;
+    model.name = "Anna";
+    menu.open();
+    CHECK(click_at(menu, model, 800, 48).empty());  // the name field
+    CHECK(menu.typing());
+
+    // The mouse moves away, over the list and the buttons, without a button held.
+    CHECK(menu.mouse(model, 600, 48, false).empty());
+    CHECK(menu.mouse(model, 300, 400, false).empty());
+    CHECK(menu.mouse(model, 800, 360, false).empty());  // over "Create game"
+    CHECK(menu.typing());
+    (void)menu.key(model, 8);
+    menu.type("e");
+    CHECK(menu.name() == "Anne");
+
+    // A click beside the fields ends typing, and the name counts.
+    auto events = click_at(menu, model, 400, 720);
+    CHECK(!menu.typing());
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == MultiplayerEvent::Kind::Name);
+    CHECK(events[0].text == "Anne");
+
+    // Enter ends it as before; the mouse moving away in between changes nothing.
+    CHECK(click_at(menu, model, 800, 166).empty());  // the address field
+    CHECK(menu.mouse(model, 100, 700, false).empty());
+    menu.type("10.0.0.7");
+    CHECK(menu.typing());
+    events = menu.key(model, 13);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == MultiplayerEvent::Kind::Join);
+    CHECK(!menu.typing());
+
+    // Escape too.
+    CHECK(click_at(menu, model, 800, 166).empty());
+    CHECK(menu.mouse(model, 100, 700, false).empty());
+    CHECK(menu.typing());
+    (void)menu.key(model, 27);
+    CHECK(!menu.typing());
+}
+
 TEST_CASE("multiplayer menu: creating a game: endless, scenario, settings") {
     MultiplayerMenu menu(ui::FormStyle{});
     app::MultiplayerModel model;

@@ -155,15 +155,24 @@ std::vector<MultiplayerEvent> MultiplayerMenu::mouse(const MultiplayerModel& mod
                                                      bool down) {
     std::vector<MultiplayerEvent> out;
     layout(model);
+    const auto focus = m_form.focus();
     if (const auto id = m_form.mouse(x, y, down)) {
         click(model, *id, out);
-    } else if (!down) {
-        // A click beside the fields ends typing (the chat line keeps its text).
-        if (const auto pressed = m_form.hovered(); !pressed || field_text(*pressed) == nullptr) {
+    } else if (m_form.released()) {
+        // A click beside the fields ends typing (the chat line stays open). The mouse only moving
+        // away keeps it: the keys go to the field clicked until Enter, Escape or another click.
+        if (const auto under = m_form.hovered(); !under || field_text(*under) == nullptr) {
             if (m_screen != Screen::Lobby) {
                 m_form.set_focus(std::nullopt);
             }
         }
+    }
+    if (focus == kName && m_form.focus() != kName) {
+        // Left the name field with the mouse: the name counts, as with Tab or Escape.
+        MultiplayerEvent e;
+        e.kind = MultiplayerEvent::Kind::Name;
+        e.text = m_name;
+        out.insert(out.begin(), std::move(e));
     }
     return out;
 }
