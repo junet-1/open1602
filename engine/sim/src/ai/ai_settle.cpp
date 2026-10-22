@@ -359,6 +359,9 @@ void Engine::task_settle_site(AiPlayer& p) {
                     std::uint32_t fw = 0;
                     std::uint32_t fh = 0;
                     rotated_size(*kontor, item.rotation, fw, fh);
+                    if (!open_sea_ahead(island, item.x, item.y, fw, fh, item.rotation)) {
+                        continue;  // e.g. the shore of a lake inside the island
+                    }
                     // Land behind the Kontor, away from the water side.
                     const std::uint8_t inland = static_cast<std::uint8_t>((item.rotation + 2U) & 3U);
                     const std::int32_t cx = item.x + static_cast<std::int32_t>(fw) / 2;
@@ -467,6 +470,39 @@ void Engine::free_colony_cargo(AiPlayer& p, Ship& ship, bool computer) {
     }
 }
 
+bool Engine::open_sea_ahead(std::uint16_t island, std::int32_t x, std::int32_t y, std::uint32_t width,
+                            std::uint32_t height, std::uint8_t rotation) const {
+    // 0x00417220: from the beach of a candidate, every tile towards the water out to the edge of
+    // the island's rectangle must be sea, so that a ship can reach the site from outside. Without
+    // it the computer can pick the shore of a lake inside the island, which its ship never
+    // reaches. Open1602 starts at the Kontor's water side and allows a few tiles of beach or surf
+    // before the water (the original skips two or three tiles).
+    constexpr std::int32_t kShore = 3;
+    constexpr std::array<std::array<std::int32_t, 2>, 4> kSeaward{{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}};
+    const WorldIsland& isl = island_of(island);
+    const SeaMap& sea = m_sim.fleet().sea();
+    const auto& d = kSeaward[rotation & 3U];
+    const auto w = static_cast<std::int32_t>(isl.map.width());
+    const auto h = static_cast<std::int32_t>(isl.map.height());
+    // The middle of the Kontor's water side, one tile out.
+    std::int32_t tx = d[0] > 0   ? x + static_cast<std::int32_t>(width)
+                      : d[0] < 0 ? x - 1
+                                 : x + static_cast<std::int32_t>(width) / 2;
+    std::int32_t ty = d[1] > 0   ? y + static_cast<std::int32_t>(height)
+                      : d[1] < 0 ? y - 1
+                                 : y + static_cast<std::int32_t>(height) / 2;
+    bool water = false;
+    std::int32_t shore = 0;
+    for (; tx >= 0 && ty >= 0 && tx < w && ty < h; tx += d[0], ty += d[1]) {
+        if (sea.sailable(static_cast<std::int32_t>(isl.x) + tx, static_cast<std::int32_t>(isl.y) + ty)) {
+            water = true;
+        } else if (water || ++shore > kShore) {
+            return false;
+        }
+    }
+    return water;
+}
+
 Target Engine::water_near(std::uint16_t island, std::int32_t x, std::int32_t y) const {
     // The original sails to the beach tile; Open1602 picks the open water nearest to it, so the
     // course can be planned.
@@ -549,7 +585,7 @@ void Engine::task_settle_land(AiPlayer& p) {
             s.sailing = true;
             return;
         }
-        end_settlement(p);
+        site_unreachable(p);
         return;
     }
     Player& pl = player(p);
@@ -606,6 +642,18 @@ void Engine::task_settle_land(AiPlayer& p) {
     push(p, kSurvey, true);
     push(p, kLayout, true);
     end_settlement(p);
+}
+
+void Engine::site_unreachable(AiPlayer& p) {
+    // The original ends the settlement here and starts the search afresh, which picks the same
+    // site again (the search has no randomness): a computer whose site cannot be reached tries it
+    // forever. Open1602 goes on with the next island of the same search instead; the ship stays.
+    Settlement& s = p.settle;
+    log(p, "the ship cannot reach the site on island %d, the search goes on", s.island);
+    s.retries = 0;
+    s.sailing = false;
+    s.regions.clear();
+    s.island = -1;
 }
 
 void Engine::end_settlement(AiPlayer& p) {

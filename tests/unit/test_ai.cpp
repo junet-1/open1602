@@ -84,23 +84,30 @@ assets::FigureTable make_figures() {
 /// A world of 90 x 90 tiles of sea with one island of 50 x 50 tiles at (30, 20): open ground, a
 /// wood (columns 32..43), a beach facing east (column 46) and sea (columns 47..49). Every crop grows
 /// there fully. Player 0 is human, 1 a computer with a ship east of the island, 2 the trader, 3 the
-/// natives.
+/// natives. With `lake`, a lake inside the island (columns 26..30, rows 18..32) with a beach facing
+/// it (column 25) and a second wood (columns 2..12): the lake has more green around it than the
+/// coast, but ships cannot reach it from the sea.
 struct Game {
     assets::BuildingTable buildings = make_buildings();
     assets::FigureTable figures = make_figures();
     sim::World world{90, 90};
 
-    explicit Game(bool computer_ship = true, std::int32_t computer_money = 10000) {
+    explicit Game(bool computer_ship = true, std::int32_t computer_money = 10000, bool lake = false) {
         add_islet(2, 2);
         sim::IslandMap map(50, 50);
         for (std::int32_t y = 0; y < 50; ++y) {
             for (std::int32_t x = 0; x < 50; ++x) {
                 std::uint32_t id = kGround;
-                if (x > 46) {
+                const bool lake_row = lake && y >= 18 && y <= 32;
+                if (lake_row && x >= 26 && x <= 30) {
+                    id = kSea;
+                } else if (lake_row && x == 25) {
+                    id = kBeach;
+                } else if (x > 46) {
                     id = kSea;
                 } else if (x == 46) {
                     id = kBeach;
-                } else if (x >= 32 && x <= 43) {
+                } else if ((x >= 32 && x <= 43) || (lake && x >= 2 && x <= 12)) {
                     id = kTree;
                 }
                 REQUIRE(map.place(*buildings.by_id(id), x, y, id == kBeach ? 3 : 0, 0).ok());
@@ -265,6 +272,21 @@ TEST_CASE("ai: a computer with a ship founds a city through a build order") {
     CHECK(view[0].player == kComputer);
     CHECK(view[0].cities == 1);
     CHECK(!view[0].settling);
+}
+
+TEST_CASE("ai: a computer founds its city at the open sea, not at a lake its ship cannot reach (0x00417220)") {
+    Game g(true, 10000, true);
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    REQUIRE(run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));
+    const sim::City* city = nullptr;
+    for (const sim::City& c : g.world.cities()) {
+        if (c.owner == kComputer) {
+            city = &c;
+        }
+    }
+    REQUIRE(city != nullptr);
+    REQUIRE(city->warehouse_x.has_value());
+    CHECK(*city->warehouse_x >= 40);  // at the beach of column 46, not at the lake (column 25)
 }
 
 TEST_CASE("ai: a person who takes a seat over finds its ships standing") {
