@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The settings of a new endless game (ADR 0008): the rules of the game and, if wanted, a world of
-// its own instead of the original's maps. The start dialog shows them as items with a few values
-// each, a click choosing the next; settings.cfg keeps the last choice ("endless.*" lines).
+// The settings of a new game (ADR 0008): the rules of the game and, for an endless game, if wanted,
+// a world of its own instead of the original's maps. The start dialog shows them as items with a few
+// values each, a click choosing the next; settings.cfg keeps the last choice ("endless.*" lines for
+// the endless game, "scenario.*" for scenarios, "multiplayer.*" for the games a host sets up).
+// Which items a game offers depends on what is played (SetupScope).
 #pragma once
 
 #include <cstddef>
@@ -15,6 +17,14 @@
 
 namespace o1602::app {
 
+/// What the settings are for: which items the dialog shows and which it lets the player change.
+enum class SetupScope : std::uint8_t {
+    Endless,             ///< a new endless game alone: every item
+    MultiplayerEndless,  ///< a new endless game a host sets up: the lobby decides the players
+    Scenario,            ///< a scenario: its world is given, only the rules
+    Savegame,            ///< a saved game: its rules, to look at only (the game keeps its own)
+};
+
 struct EndlessSetup {
     sim::Rules rules = sim::Rules::open1602();
     bool own_world = false;      ///< a world of its own (`world`) instead of the level's map
@@ -24,8 +34,11 @@ struct EndlessSetup {
     /// not used. The islands follow the area.
     bool auto_size = true;
 
-    /// The original's rules on the original's maps.
-    [[nodiscard]] static EndlessSetup original();
+    /// Open1602's rules on the original's maps. A multiplayer game's own world, if it gets one,
+    /// has all starts at one place, as the original's multiplayer maps.
+    [[nodiscard]] static EndlessSetup defaults(SetupScope scope = SetupScope::Endless);
+    /// The original's rules on the original's maps (starts as for defaults()).
+    [[nodiscard]] static EndlessSetup original(SetupScope scope = SetupScope::Endless);
     /// The world to make: `world`, with the size for its players if `auto_size`.
     [[nodiscard]] sim::WorldSettings world_settings() const;
 
@@ -61,6 +74,18 @@ enum class SetupItem : std::uint8_t {
 
 inline constexpr std::size_t kSetupItems = static_cast<std::size_t>(SetupItem::Count);
 
+/// Whether the dialog shows the item for what is played: the world's items only for endless games.
+[[nodiscard]] bool setup_item_offered(SetupScope scope, SetupItem item) noexcept;
+/// Whether the player can change the item: offered, not a saved game, and not decided elsewhere
+/// (the players of a multiplayer game by its lobby; with more than four of them the world is
+/// always one of its own).
+[[nodiscard]] bool setup_item_open(const EndlessSetup& setup, SetupScope scope, SetupItem item) noexcept;
+/// Whether two setups give the same game for what is played (a scenario compares the rules only).
+[[nodiscard]] bool same_setup(const EndlessSetup& a, const EndlessSetup& b, SetupScope scope) noexcept;
+/// The setup a multiplayer endless game for `players` really gets: more than four always play on a
+/// world of their own, with the players of the lobby.
+[[nodiscard]] EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players);
+
 /// How many values an item offers.
 [[nodiscard]] std::size_t setup_choices(SetupItem item) noexcept;
 /// The value the setup has, or the nearest one an item offers (a setting from settings.cfg or the
@@ -82,7 +107,10 @@ void choose_next(EndlessSetup& setup, SetupItem item);
 /// One "endless.<key> = value" line of settings.cfg (key without the prefix); false if the key is
 /// not one of them. A value it does not know keeps the setting.
 bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view value);
-/// The lines for settings.cfg.
-[[nodiscard]] std::string write_setup(const EndlessSetup& setup);
+/// The lines for settings.cfg, each key after `prefix`.
+[[nodiscard]] std::string write_setup(const EndlessSetup& setup, std::string_view prefix = "endless.");
+/// Reads "<prefix><key> = value" lines, as write_setup writes them, into `setup`; other lines are
+/// left out. For the lobby, which passes the host's setup on as such text.
+void read_setup(EndlessSetup& setup, std::string_view text, std::string_view prefix = "endless.");
 
 }  // namespace o1602::app

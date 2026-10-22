@@ -292,6 +292,7 @@ void MapViewer::apply_multiplayer_menu() {
 
     MultiplayerModel& model = m_hud->multiplayer_model();
     model.name = m_app_settings.player_name.empty() ? ui::tr("menu.default_name") : m_app_settings.player_name;
+    model.settings = m_app_settings.multiplayer;
     model.found = m_lan_browser ? m_lan_browser->games() : std::vector<net::FoundGame>{};
     model.savegames.clear();
     for (std::size_t slot = 0; slot < m_slots.size(); ++slot) {
@@ -346,8 +347,24 @@ void MapViewer::handle_multiplayer(const MultiplayerEvent& e) {
             break;
         case MultiplayerEvent::Kind::Host:
             keep_name();
+            if (e.setup.kind != HostSetup::Kind::Savegame && !(e.setup.settings == m_app_settings.multiplayer)) {
+                m_app_settings.multiplayer = e.setup.settings;  // offered first next time
+                save_settings();
+            }
             if (auto status = host_lobby(e.setup); !status) {
                 leave_session(mp_text(MpText::CannotHost, status.error().message));
+            }
+            break;
+        case MultiplayerEvent::Kind::Settings:
+            if (host != nullptr && !host->started() && m_hosted && m_hosted->kind != HostSetup::Kind::Savegame) {
+                m_hosted->settings = e.setup.settings;
+                const net::Lobby& lobby = host->lobby();
+                host->set_lobby_info(lobby.title, lobby.game,
+                                     lobby_setup(m_hosted->game_settings(), m_hosted->scope()));
+                if (!(e.setup.settings == m_app_settings.multiplayer)) {
+                    m_app_settings.multiplayer = e.setup.settings;
+                    save_settings();
+                }
             }
             break;
         case MultiplayerEvent::Kind::Leave:
@@ -482,6 +499,14 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
         }
         world = std::move(loaded).value();
     }
+    // The settings for everyone to see; a savegame keeps those it was started with.
+    if (setup.kind == HostSetup::Kind::Savegame) {
+        EndlessSetup saved;
+        saved.rules = world->saved_rules().value_or(m_options.rules);
+        lobby.setup = lobby_setup(saved, SetupScope::Savegame);
+    } else {
+        lobby.setup = lobby_setup(setup.game_settings(), setup.scope());
+    }
     // The host plays the first open slot (the first slot if all are computers), unless it only hosts.
     sim::PlayerId seat = sim::kNoPlayer;
     if (!setup.dedicated) {
@@ -528,6 +553,9 @@ core::Status MapViewer::start_hosted_game() {
     const net::Lobby lobby = host->lobby();
     const sim::PlayerId own = host->local_seat();
     std::optional<sim::World> world;
+    // The settings the host chose (ADR 0008); they reach the others with the game.
+    const EndlessSetup settings = setup.game_settings();
+    const sim::Rules* rules = setup.kind == HostSetup::Kind::Savegame ? nullptr : &settings.rules;
     if (setup.kind == HostSetup::Kind::Endless) {
         auto texts = assets::TextTable::load(m_game);
         if (!texts) {
@@ -541,14 +569,13 @@ core::Status MapViewer::start_hosted_game() {
         o.name = own < lobby.seats.size() ? lobby.seats[own].name : std::string{};
         o.world = m_options.world;
         o.world.seed = setup.seed;
+        o.world.guarantee_resources = settings.rules.guarantee_resources;
         o.multiplayer = true;  // the .szm level: every player starts with the small trading cog
-        if (setup.players > sim::kOriginalPlayers) {
-            // More players than the original's maps have starts for: an own world, as much sea
-            // and land per player as the original's 500 x 350 for four.
-            sim::WorldSettings custom = sim::settings_for_players(
-                static_cast<std::uint8_t>(std::min<std::size_t>(setup.players, sim::kMaxPlayers)));
-            custom.starts = sim::WorldSettings::Starts::Together;  // all ships at one place, as the original
-            o.custom = custom;
+        if (settings.own_world) {
+            // A world of its own: chosen, or more players than the original's maps have starts
+            // for (multiplayer_setup); by default as much sea and land per player as the
+            // original's 500 x 350 for four, all ships at one place as the original.
+            o.custom = settings.world_settings();
         }
         std::random_device device;
         const std::time_t now = std::time(nullptr);
@@ -620,7 +647,7 @@ core::Status MapViewer::start_hosted_game() {
                 break;  // made closed above
         }
     }
-    if (auto replaced = replace_world(std::move(*world)); !replaced) {
+    if (auto replaced = replace_world(std::move(*world), {}, rules); !replaced) {
         return replaced;
     }
     host->start(m_state->simulation, m_buildings);

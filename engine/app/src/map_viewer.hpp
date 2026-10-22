@@ -214,8 +214,9 @@ private:
     [[nodiscard]] render::Ambient::Config ambient_config() const;
     void save_settings();
     /// Replaces the running game by a savegame (Open1602's own or the original's) while the
-    /// program runs (F9); the game goes on as it was if the file cannot be read.
-    core::Status load_game(const std::filesystem::path& path);
+    /// program runs (F9); the game goes on as it was if the file cannot be read. `rules`: the
+    /// settings chosen for a scenario (a savegame of Open1602 keeps its own).
+    core::Status load_game(const std::filesystem::path& path, const sim::Rules* rules = nullptr);
     /// A savegame or scenario as a world, not started.
     /// `warnings`: how many the loader gave (they are written to the log).
     [[nodiscard]] core::Result<sim::World> read_world(const std::filesystem::path& path,

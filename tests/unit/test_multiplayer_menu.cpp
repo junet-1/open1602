@@ -499,3 +499,91 @@ TEST_CASE("multiplayer menu: choosing a banner in the lobby") {
     REQUIRE(events.size() == 1);
     CHECK(events[0].banner == 9);
 }
+
+TEST_CASE("multiplayer menu: the host's settings travel in the lobby") {
+    app::EndlessSetup settings = app::EndlessSetup::defaults(app::SetupScope::MultiplayerEndless);
+    app::choose(settings, app::SetupItem::ClassicAi, 1);
+    app::choose(settings, app::SetupItem::Map, 1);
+    const std::vector<std::uint8_t> bytes = app::lobby_setup(settings, app::SetupScope::MultiplayerEndless);
+    const auto back = app::read_lobby_setup(bytes);
+    REQUIRE(back.has_value());
+    CHECK(back->first == settings);
+    CHECK(back->second == app::SetupScope::MultiplayerEndless);
+    CHECK(app::read_lobby_setup(app::lobby_setup(settings, app::SetupScope::Scenario))->second ==
+          app::SetupScope::Scenario);
+    // Another program's setup, or none: no settings to show.
+    const std::string other = "map=Insel";
+    CHECK(!app::read_lobby_setup(std::span(reinterpret_cast<const std::uint8_t*>(other.data()), other.size())));
+    CHECK(!app::read_lobby_setup({}));
+}
+
+TEST_CASE("multiplayer menu: the host chooses the settings of the game") {
+    MultiplayerMenu menu(ui::FormStyle{});
+    app::MultiplayerModel model;
+    model.name = "Bernd";
+    model.settings.rules.max_army = 500;  // the host's last choice
+    menu.open();
+    (void)click(menu, model, "Create game");
+    CHECK(find_text(menu, model, "Rules: Custom settings").has_value());
+    CHECK(click(menu, model, "Game settings ...").empty());
+    CHECK(menu.screen() == MultiplayerMenu::Screen::Settings);
+    CHECK(!menu.typing());
+    CHECK(find_text(menu, model, ui::tr("setup.title.multiplayer")).has_value());
+    (void)click(menu, model, ui::tr("setup.defaults"));
+    (void)click(menu, model, ui::tr("setup.ai.open1602"));
+    CHECK(click(menu, model, "Apply").empty());
+    CHECK(menu.screen() == MultiplayerMenu::Screen::Create);
+    // Escape out of the dialog keeps what was there.
+    (void)click(menu, model, "Game settings ...");
+    CHECK(!menu.back().has_value());
+    CHECK(menu.screen() == MultiplayerMenu::Screen::Create);
+
+    auto events = click(menu, model, "Open lobby");
+    REQUIRE(events.size() == 1);
+    const app::HostSetup& setup = events[0].setup;
+    CHECK(setup.settings.rules.classic_ai);
+    CHECK(setup.settings.rules.max_army == 250);
+    CHECK(setup.scope() == app::SetupScope::MultiplayerEndless);
+    CHECK(setup.game_settings().world.players == 4);
+
+    // A savegame keeps its own: no button.
+    (void)click(menu, model, "Savegame");
+    CHECK(!find_text(menu, model, "Game settings ...").has_value());
+}
+
+TEST_CASE("multiplayer menu: in the lobby the host changes the settings, the others look") {
+    net::LoopbackNetwork network;
+    net::Lobby lobby;
+    lobby.title = "Abend";
+    lobby.game = "Endless game";
+    lobby.seats.resize(4);
+    lobby.setup = app::lobby_setup(app::EndlessSetup::defaults(app::SetupScope::MultiplayerEndless),
+                                   app::SetupScope::MultiplayerEndless);
+    net::HostSession host(network.listen(), lobby, 0, "Anna", 1);
+    host.update(0);
+
+    MultiplayerMenu menu(ui::FormStyle{});
+    app::MultiplayerModel model;
+    model.name = "Anna";
+    model.session = &host;
+    model.hosting = true;
+    menu.show_lobby();
+    CHECK(find_text(menu, model, "Rules: Open1602 defaults").has_value());
+    CHECK(click(menu, model, "Game settings ...").empty());
+    CHECK(menu.screen() == MultiplayerMenu::Screen::Settings);
+    (void)click(menu, model, ui::tr("setup.original"));
+    auto events = click(menu, model, "Apply");
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == MultiplayerEvent::Kind::Settings);
+    CHECK(events[0].setup.settings.rules == sim::Rules::original());
+    CHECK(menu.screen() == MultiplayerMenu::Screen::Lobby);
+    CHECK(menu.typing());  // the chat line again
+
+    // Someone who joined sees the host's settings and cannot change them.
+    model.hosting = false;
+    CHECK(click(menu, model, "Show game settings").empty());
+    CHECK(menu.screen() == MultiplayerMenu::Screen::Settings);
+    CHECK(!find_text(menu, model, "Apply").has_value());
+    CHECK(click(menu, model, ui::tr("setup.back")).empty());
+    CHECK(menu.screen() == MultiplayerMenu::Screen::Lobby);
+}

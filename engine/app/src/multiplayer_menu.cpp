@@ -70,6 +70,8 @@ constexpr Id kWatch = 64;
 constexpr std::size_t kChatLines = 12;
 // Connecting
 constexpr Id kCancel = 70;
+// The game's settings, on the create screen and in the lobby
+constexpr Id kSettings = 80;
 
 constexpr std::size_t kMaxAddress = 64;
 constexpr std::size_t kMaxNumber = 10;
@@ -91,7 +93,62 @@ std::optional<std::uint32_t> number(std::string_view text) {
     return ec == std::errc() && end == text.data() + text.size() && !text.empty() ? std::optional(v) : std::nullopt;
 }
 
+// The lobby's setup: a first line with what is played, then the settings as settings.cfg has them.
+constexpr std::string_view kSetupScopeKey = "game = ";
+constexpr std::array<std::string_view, 4> kSetupScopes = {"endless", "multiplayer", "scenario", "savegame"};
+
+/// Open1602's defaults, the original's rules, or something else: in the words of the start dialog.
+std::string rules_summary(const sim::Rules& rules) {
+    if (rules == sim::Rules::open1602()) {
+        return ui::tr("setup.defaults");
+    }
+    if (rules == sim::Rules::original()) {
+        return ui::tr("setup.original");
+    }
+    return ui::tr("setup.custom");
+}
+
 }  // namespace
+
+SetupScope HostSetup::scope() const noexcept {
+    switch (kind) {
+        case Kind::Scenario:
+            return SetupScope::Scenario;
+        case Kind::Savegame:
+            return SetupScope::Savegame;
+        case Kind::Endless:
+            break;
+    }
+    return SetupScope::MultiplayerEndless;
+}
+
+std::vector<std::uint8_t> lobby_setup(const EndlessSetup& settings, SetupScope scope) {
+    std::string text(kSetupScopeKey);
+    text += kSetupScopes[static_cast<std::size_t>(scope)];
+    text += '\n';
+    text += write_setup(settings, "");
+    return {text.begin(), text.end()};
+}
+
+std::optional<std::pair<EndlessSetup, SetupScope>> read_lobby_setup(std::span<const std::uint8_t> bytes) {
+    const std::string_view text(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    if (!text.starts_with(kSetupScopeKey)) {
+        return std::nullopt;
+    }
+    const std::size_t end = text.find('\n');
+    const std::string_view name = text.substr(
+        kSetupScopeKey.size(), end == std::string_view::npos ? std::string_view::npos : end - kSetupScopeKey.size());
+    const auto known = std::find(kSetupScopes.begin(), kSetupScopes.end(), name);
+    if (known == kSetupScopes.end()) {
+        return std::nullopt;
+    }
+    const auto scope = static_cast<SetupScope>(known - kSetupScopes.begin());
+    EndlessSetup settings = EndlessSetup::defaults(scope);
+    if (end != std::string_view::npos) {
+        read_setup(settings, text.substr(end + 1), "");
+    }
+    return std::pair{settings, scope};
+}
 
 std::vector<net::LobbySeat> endless_seats(std::size_t players) {
     players = std::clamp<std::size_t>(players, HostSetup::kMinPlayers, sim::kMaxPlayers);
@@ -145,7 +202,7 @@ std::optional<std::pair<std::string, std::uint16_t>> parse_address(std::string_v
     return std::pair{std::string(text), port};
 }
 
-MultiplayerMenu::MultiplayerMenu(ui::FormStyle style) : m_form(style) {
+MultiplayerMenu::MultiplayerMenu(ui::FormStyle style) : m_form(style), m_settings(style) {
     m_setup.seed = random_seed();
     m_seed_text = std::to_string(m_setup.seed);
     m_port_text = std::to_string(m_setup.port);
@@ -175,6 +232,9 @@ void MultiplayerMenu::show_lobby() {
 
 std::vector<ui::DrawItem> MultiplayerMenu::draw(const MultiplayerModel& model,
                                                 const std::array<const ui::Font*, 3>& fonts) {
+    if (m_screen == Screen::Settings) {
+        return m_settings.draw(fonts);
+    }
     layout(model);
     return m_form.draw(fonts);
 }
@@ -182,6 +242,29 @@ std::vector<ui::DrawItem> MultiplayerMenu::draw(const MultiplayerModel& model,
 std::vector<MultiplayerEvent> MultiplayerMenu::mouse(const MultiplayerModel& model, std::int32_t x, std::int32_t y,
                                                      bool down) {
     std::vector<MultiplayerEvent> out;
+    if (m_screen == Screen::Settings) {
+        const GameSettingsMenu::Result result = m_settings.mouse(x, y, down);
+        if (result == GameSettingsMenu::Result::Start) {
+            if (m_settings_from == Screen::Create) {
+                // More than four players always get a world of their own; with fewer again, the
+                // choice the host made stays.
+                const bool own_world = m_setup.settings.own_world;
+                m_setup.settings = m_settings.setup();
+                if (m_setup.players > sim::kOriginalPlayers) {
+                    m_setup.settings.own_world = own_world;
+                }
+            } else {
+                MultiplayerEvent e;
+                e.kind = MultiplayerEvent::Kind::Settings;
+                e.setup.settings = m_settings.setup();
+                out.push_back(std::move(e));
+            }
+        }
+        if (result != GameSettingsMenu::Result::None) {
+            (void)back();
+        }
+        return out;
+    }
     layout(model);
     const auto focus = m_form.focus();
     if (const auto id = m_form.mouse(x, y, down)) {
@@ -210,6 +293,10 @@ void MultiplayerMenu::layout(const MultiplayerModel& model) {
         m_name = model.name;
         m_name_known = true;
     }
+    if (!m_settings_known) {
+        m_setup.settings = model.settings;
+        m_settings_known = true;
+    }
     m_form.clear();
     m_form.panel(kScreen);
     switch (m_screen) {
@@ -225,7 +312,21 @@ void MultiplayerMenu::layout(const MultiplayerModel& model) {
         case Screen::Connecting:
             layout_connecting();
             break;
+        case Screen::Settings:
+            break;  // the start dialog's own form
     }
+}
+
+void MultiplayerMenu::open_settings(const EndlessSetup& setup, SetupScope scope, GameSettingsMenu::Mode mode) {
+    m_settings.open(setup, scope, mode);
+    m_settings_from = m_screen;
+    m_screen = Screen::Settings;
+    m_form.set_focus(std::nullopt);  // the keys do not go to a field behind the dialog
+}
+
+void MultiplayerMenu::settings_button(std::int32_t y, const EndlessSetup& setup, bool can_change) {
+    m_form.label(Rect{684, y, 292, 30}, ui::tr("setup.summary", {rules_summary(setup.rules)}), Align::Left, Tone::Dim);
+    m_form.button(kSettings, Rect{688, y + 34, 284, 38}, ui::tr(can_change ? "setup.change" : "setup.view"));
 }
 
 // --- Finding a game ---
@@ -388,6 +489,10 @@ void MultiplayerMenu::layout_create(const MultiplayerModel& model) {
     f.check(kJoinRunning, Rect{668, 310, 304, 32}, tr(MpText::AllowJoinRunning), m_setup.join_running);
     f.check(kSpectators, Rect{668, 346, 304, 32}, tr(MpText::AllowSpectators), m_setup.spectators);
     f.check(kDedicated, Rect{668, 382, 304, 32}, tr(MpText::HostOnly), m_setup.dedicated);
+    if (m_setup.kind != HostSetup::Kind::Savegame) {
+        // A savegame keeps the settings it was started with; the lobby shows them.
+        settings_button(436, m_setup.game_settings(), true);
+    }
     f.label(Rect{664, 620, 150, 34}, tr(MpText::Port), Align::Left, Tone::Dim);
     f.field(kPort, Rect{820, 620, 152, 34}, m_port_text);
 
@@ -525,16 +630,24 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
     setting(176, MpText::Password, lobby.password);
     setting(208, MpText::AllowJoinRunning, lobby.join_running);
     setting(240, MpText::AllowSpectators, lobby.spectators);
+    // The host's settings: the host changes them until the game starts, the others look at them.
+    std::int32_t y_free = 290;
+    if (const auto settings = read_lobby_setup(lobby.setup)) {
+        settings_button(276, settings->first,
+                        model.hosting && !lobby.started && settings->second != SetupScope::Savegame);
+        y_free = 356;
+    }
     if (lobby.spectators && me != sim::kNoPlayer) {
-        f.button(kWatch, Rect{688, 290, 284, 38}, tr(MpText::Watch));
+        f.button(kWatch, Rect{688, y_free, 284, 38}, tr(MpText::Watch));
     }
     if (model.hosting) {
         // The host can send spectators away too (they hold no slot to kick).
         m_watchers.clear();
         const auto& roster = session->roster();
-        for (std::size_t i = 1; i < roster.size() && m_watchers.size() < kWatcherRows; ++i) {
+        const std::size_t rows = y_free > 290 ? kWatcherRows - 1 : kWatcherRows;
+        for (std::size_t i = 1; i < roster.size() && m_watchers.size() < rows; ++i) {
             if (roster[i].seat == sim::kNoPlayer) {
-                const auto y = static_cast<std::int32_t>(340 + m_watchers.size() * 40);
+                const std::int32_t y = y_free + 46 + static_cast<std::int32_t>(m_watchers.size()) * 40;
                 f.label(Rect{688, y, 130, 38}, roster[i].name, Align::Left, Tone::Dim);
                 f.button(kWatcherKick + static_cast<Id>(m_watchers.size()), Rect{822, y, 150, 38}, tr(MpText::Kick));
                 m_watchers.push_back(i);
@@ -704,6 +817,8 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                 m_setup.spectators = !m_setup.spectators;
             } else if (id == kDedicated) {
                 m_setup.dedicated = !m_setup.dedicated;
+            } else if (id == kSettings && m_setup.kind != Kind::Savegame) {
+                open_settings(m_setup.game_settings(), m_setup.scope(), GameSettingsMenu::Mode::Apply);
             } else if (id == kListUp) {
                 m_list_first -= std::min(m_list_first, kListRows);
             } else if (id == kListDown) {
@@ -754,6 +869,12 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                 event(MultiplayerEvent::Kind::Ready)->ready = m_ready;
             } else if (id == kStart) {
                 event(MultiplayerEvent::Kind::Start);
+            } else if (id == kSettings && session != nullptr) {
+                if (const auto settings = read_lobby_setup(session->lobby().setup)) {
+                    const bool change = model.hosting && !session->lobby().started;
+                    open_settings(settings->first, settings->second,
+                                  change ? GameSettingsMenu::Mode::Apply : GameSettingsMenu::Mode::View);
+                }
             } else if (id == kWatch) {
                 event(MultiplayerEvent::Kind::TakeSeat)->seat = sim::kNoPlayer;
                 m_ready = false;
@@ -792,6 +913,8 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                 event(MultiplayerEvent::Kind::Leave);
             }
             break;
+        case Screen::Settings:
+            break;  // the start dialog answers in mouse()
     }
 }
 
@@ -815,6 +938,12 @@ std::optional<MultiplayerEvent> MultiplayerMenu::back() {
         case Screen::Connecting:
             e.kind = MultiplayerEvent::Kind::Leave;
             return e;
+        case Screen::Settings:
+            m_screen = m_settings_from;
+            if (m_screen == Screen::Lobby) {
+                m_form.set_focus(kChat);  // as the lobby has it
+            }
+            return std::nullopt;
     }
     return std::nullopt;
 }

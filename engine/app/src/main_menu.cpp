@@ -212,8 +212,10 @@ ui::Panel* MainMenu::panel() {
         case Screen::Mission:
             p = &m_mission;
             break;
+        case Screen::Settings:  // drawn by its form; the screen before it stands behind it
+            p = m_settings.scope() == SetupScope::Scenario ? &m_mission : &m_colour;
+            break;
         case Screen::Colour:
-        case Screen::Settings:  // drawn by its form; the colour screen stands behind it
             p = &m_colour;
             break;
         case Screen::Base:
@@ -515,12 +517,21 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
     if (m_screen == Screen::Settings) {
         switch (m_settings.mouse(x, y, down)) {
             case GameSettingsMenu::Result::Start: {
+                if (m_settings.scope() == SetupScope::Scenario) {
+                    m_scenario = m_settings.setup();
+                    MenuEvent ev{MenuEvent::Kind::Scenario};
+                    ev.path = chosen_file();
+                    ev.name = m_name;
+                    ev.setup = m_scenario;
+                    out.push_back(std::move(ev));
+                    break;
+                }
                 m_endless = m_settings.setup();
                 MenuEvent ev{MenuEvent::Kind::NewEndless};
                 ev.level = m_variant == 0xFF ? 0 : m_variant;
                 ev.colour = m_banner;
                 ev.name = m_name;
-                ev.endless = m_endless;
+                ev.setup = m_endless;
                 out.push_back(std::move(ev));
                 break;
             }
@@ -603,13 +614,16 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                         }
                         m_typing = true;
                         m_name_fresh = true;
+                    } else if (s.header.mission_number != kTutorial) {
+                        // The rules first (Open1602's own dialog; the original starts here).
+                        m_settings.open(m_scenario, SetupScope::Scenario);
+                        m_screen = Screen::Settings;
                     } else {
+                        // The tutorial teaches the game as it is: no settings.
                         MenuEvent ev{MenuEvent::Kind::Scenario};
                         ev.path = chosen_file();
                         ev.name = m_name;
-                        if (s.header.mission_number == kTutorial) {
-                            ev.tutorial_chapter = m_variant == 0xFF ? 0 : m_variant;
-                        }
+                        ev.tutorial_chapter = m_variant == 0xFF ? 0 : m_variant;
                         out.push_back(std::move(ev));
                     }
                 } else if (e.id == kCancel) {
@@ -631,7 +645,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     // Then the game's settings (Open1602's own dialog; the original starts here).
                     m_typing = false;
                     m_banner = static_cast<std::uint8_t>(e.id - kBanner);
-                    m_settings.open(m_endless);
+                    m_settings.open(m_endless, SetupScope::Endless);
                     m_screen = Screen::Settings;
                 }
                 break;
@@ -657,8 +671,14 @@ bool MainMenu::back() {
             m_screen = Screen::Mission;
             break;
         case Screen::Settings:
-            m_endless = m_settings.setup();  // kept for the next time
-            m_screen = Screen::Colour;
+            // Kept for the next time.
+            if (m_settings.scope() == SetupScope::Scenario) {
+                m_scenario = m_settings.setup();
+                m_screen = Screen::Mission;
+            } else {
+                m_endless = m_settings.setup();
+                m_screen = Screen::Colour;
+            }
             break;
     }
     return true;

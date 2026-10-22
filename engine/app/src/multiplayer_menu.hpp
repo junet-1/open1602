@@ -13,12 +13,15 @@
 #include <deque>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "app_settings.hpp"
+#include "endless_setup.hpp"
+#include "game_settings_menu.hpp"
 #include "main_menu.hpp"
 #include "multiplayer_texts.hpp"
 
@@ -50,7 +53,21 @@ struct HostSetup {
     bool spectators = true;
     bool dedicated = false;  ///< the host plays no slot
     std::uint16_t port = net::kDefaultPort;
+    /// The game's settings (ADR 0008): rules, and for an endless game its world; a scenario uses
+    /// the rules only, a savegame keeps its own.
+    EndlessSetup settings = EndlessSetup::defaults(SetupScope::MultiplayerEndless);
+
+    /// What the settings are for.
+    [[nodiscard]] SetupScope scope() const noexcept;
+    /// The settings an endless game really gets, with the players of its lobby.
+    [[nodiscard]] EndlessSetup game_settings() const { return multiplayer_setup(settings, players); }
 };
+
+/// The host's settings as the lobby passes them on (net::Lobby::setup, which the session does not
+/// read): what is played and its settings, as "key = value" text.
+[[nodiscard]] std::vector<std::uint8_t> lobby_setup(const EndlessSetup& settings, SetupScope scope);
+/// The settings of a lobby's setup; nothing if it has none or not in this form.
+[[nodiscard]] std::optional<std::pair<EndlessSetup, SetupScope>> read_lobby_setup(std::span<const std::uint8_t> bytes);
 
 /// A line of the chat, or a notice of the session (someone came or went).
 struct ChatLine {
@@ -67,7 +84,8 @@ struct MultiplayerModel {
     std::vector<std::string> level_names;                        ///< [ENDLESSKIND]
     std::vector<MenuScenario> scenarios;                         ///< the scenario list of the main menu
     std::vector<std::pair<std::size_t, std::string>> savegames;  ///< slot and name
-    const net::Session* session = nullptr;                       ///< the session, once hosting or joining
+    EndlessSetup settings = EndlessSetup::defaults(SetupScope::MultiplayerEndless);  ///< the last a host chose
+    const net::Session* session = nullptr;  ///< the session, once hosting or joining
     bool hosting = false;
     bool everyone_ready = false;             ///< (host) every other player is ready
     std::uint16_t port = net::kDefaultPort;  ///< (host) the game's port
@@ -90,6 +108,7 @@ struct MultiplayerEvent {
         Say,         ///< chat `text`
         Name,        ///< the player's name changed to `text`
         SetBanner,   ///< slot `seat` gets `banner` (the own slot; the host also the computer's and open ones)
+        Settings,    ///< (host, in the lobby) the game's settings are now `setup.settings`
     };
     Kind kind = Kind::Close;
     std::string address{};
@@ -132,7 +151,7 @@ struct MenuBanner {
 
 class MultiplayerMenu {
 public:
-    enum class Screen : std::uint8_t { Browse, Create, Lobby, Connecting };
+    enum class Screen : std::uint8_t { Browse, Create, Lobby, Connecting, Settings };
 
     explicit MultiplayerMenu(ui::FormStyle style);
 
@@ -141,7 +160,10 @@ public:
     void open(std::string notice = {});
     void show_connecting(std::string address);
     void show_lobby();
-    void set_scale(double scale) { m_form.set_scale(scale); }
+    void set_scale(double scale) {
+        m_form.set_scale(scale);
+        m_settings.set_scale(scale);
+    }
     /// The banners by id (render::BannerTable): a slot shows the colour of its banner
     /// (net::LobbySeat::banner); `other` for a banner beyond them.
     void set_banners(std::vector<MenuBanner> banners, std::uint8_t other) {
@@ -174,6 +196,10 @@ private:
     void layout_create(const MultiplayerModel& model);
     void layout_lobby(const MultiplayerModel& model);
     void layout_connecting();
+    /// The start dialog over the screen: the host's settings to choose, or to look at.
+    void open_settings(const EndlessSetup& setup, SetupScope scope, GameSettingsMenu::Mode mode);
+    /// The settings button and the summary of the rules below `y` in the right column.
+    void settings_button(std::int32_t y, const EndlessSetup& setup, bool can_change);
     void click(const MultiplayerModel& model, ui::Form::Id id, std::vector<MultiplayerEvent>& out);
     /// The text of a field by its Id, nullptr if the Id is no field.
     [[nodiscard]] std::string* field_text(ui::Form::Id id);
@@ -216,6 +242,10 @@ private:
     std::string m_port_text;
     std::size_t m_list_first = 0;
     std::optional<std::size_t> m_chosen;  ///< scenario index or savegame slot
+    bool m_settings_known = false;        ///< m_setup.settings was taken from the model
+    // The start dialog, over the screen it was opened from
+    GameSettingsMenu m_settings;
+    Screen m_settings_from = Screen::Create;
     // Lobby
     std::string m_chat;
     bool m_ready = false;

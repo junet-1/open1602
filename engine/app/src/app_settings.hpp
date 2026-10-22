@@ -41,6 +41,10 @@ struct AppSettings {
     static constexpr std::size_t kMaxHosts = 8;
     /// The last settings chosen in the start dialog of the endless game.
     EndlessSetup endless;
+    /// The last rules chosen for a scenario (its world is given, only the rules count).
+    EndlessSetup scenario;
+    /// The last settings a host chose for a multiplayer game.
+    EndlessSetup multiplayer = EndlessSetup::defaults(SetupScope::MultiplayerEndless);
     DisplaySettings display;
 };
 
