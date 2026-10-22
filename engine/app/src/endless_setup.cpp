@@ -134,6 +134,7 @@ constexpr std::array<std::string_view, 5> kDroughtNames = {"game", "off", "rare"
 constexpr std::array<std::string_view, 3> kVolcanoNames = {"game", "off", "on"};
 constexpr std::array<std::string_view, 3> kPirateNames = {"game", "off", "on"};
 constexpr std::array<std::string_view, 2> kPirateNestNames = {"one", "per4"};
+constexpr std::array<std::string_view, 2> kTraderReachNames = {"original", "per4"};
 constexpr std::array<std::string_view, 4> kAmountNames = {"none", "few", "normal", "many"};
 constexpr std::array<std::string_view, 3> kSizeNames = {"small", "mixed", "large"};
 constexpr std::array<std::string_view, 2> kStartNames = {"spread", "together"};
@@ -265,6 +266,7 @@ std::size_t setup_choices(SetupItem item) noexcept {
         case SetupItem::GoldIslands:
             return kGoldIslands.size();
         case SetupItem::TraderPrices:
+        case SetupItem::TraderReach:
         case SetupItem::Map:
         case SetupItem::Starts:
         case SetupItem::Resources:
@@ -321,6 +323,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
         }
         case SetupItem::TraderPrices:
             return r.trader_prices == sim::TraderPrices::Market ? 1 : 0;
+        case SetupItem::TraderReach:
+            return r.trader_reach == sim::TraderReach::PerFourPlayers ? 1 : 0;
         case SetupItem::Ships:
             return nearest(kShips, r.max_ships_per_player);
         case SetupItem::Units:
@@ -416,6 +420,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             break;
         case SetupItem::TraderPrices:
             r.trader_prices = choice == 1 ? sim::TraderPrices::Market : sim::TraderPrices::Original;
+            break;
+        case SetupItem::TraderReach:
+            r.trader_reach = choice == 1 ? sim::TraderReach::PerFourPlayers : sim::TraderReach::Original;
             break;
         case SetupItem::Ships:
             r.max_ships_per_player = kShips[choice];
@@ -635,6 +642,7 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
     switch (item) {
         case SetupItem::Refund:
         case SetupItem::TraderPrices:
+        case SetupItem::TraderReach:
         case SetupItem::Ships:
         case SetupItem::Units:
         case SetupItem::GameSpeed:
@@ -687,6 +695,7 @@ EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players) {
 std::string setup_label(SetupItem item) {
     static constexpr std::array<std::string_view, kSetupItems> kKeys = {"setup.refund",
                                                                         "setup.trader",
+                                                                        "setup.trader_reach",
                                                                         "setup.ships",
                                                                         "setup.units",
                                                                         "setup.speed",
@@ -736,6 +745,8 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr("setup.refund.partial", {std::to_string(kRefundPercents[choice - 1])});
         case SetupItem::TraderPrices:
             return ui::tr(choice == 1 ? "setup.trader.market" : "setup.trader.original");
+        case SetupItem::TraderReach:
+            return ui::tr(choice == 1 ? "setup.trader_reach.per4" : "setup.trader_reach.original");
         case SetupItem::Ships:
             return number_text(kShips[choice]);
         case SetupItem::Units:
@@ -856,6 +867,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (value == "market" || value == "original") {
             r.trader_prices = value == "market" ? sim::TraderPrices::Market : sim::TraderPrices::Original;
         }
+    } else if (key == "trader_reach") {
+        if (const auto i = name_index(kTraderReachNames, value)) {
+            r.trader_reach = static_cast<sim::TraderReach>(*i);
+        }
     } else if (key == "ships") {
         r.max_ships_per_player = n.value_or(r.max_ships_per_player);
     } else if (key == "units") {
@@ -948,6 +963,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     };
     line("refund", std::to_string(r.refund_share()));
     line("trader_prices", r.trader_prices == sim::TraderPrices::Market ? "market" : "original");
+    line("trader_reach", kTraderReachNames[std::min<std::size_t>(static_cast<std::size_t>(r.trader_reach), 1)]);
     line("ships", std::to_string(r.max_ships_per_player));
     line("units", std::to_string(r.max_army));
     line("game_speed", std::to_string(r.max_game_speed));

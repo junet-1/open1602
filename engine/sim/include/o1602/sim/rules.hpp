@@ -63,6 +63,14 @@ enum class TraderPrices : std::uint8_t {
     Market,
 };
 
+/// How far the free trader looks for his next Kontor (docs/re/ships.md, "Free trader"). The
+/// original weighs the 12 nearest Kontors by profit alone, whatever the distance; on the larger maps
+/// of more than four players he then mostly sails across the world.
+enum class TraderReach : std::uint8_t {
+    Original,        ///< the 12 nearest Kontors, a random one when none promises profit
+    PerFourPlayers,  ///< with more than four players only as many as a four-player game would have
+};
+
 /// The prestige buildings a condition asks for.
 enum class Monument : std::uint8_t {
     None,
@@ -141,6 +149,8 @@ struct Rules {
     PirateNests pirate_nests = PirateNests::PerFourPlayers;
     /// Prices of the free trader.
     TraderPrices trader_prices = TraderPrices::Original;
+    /// How far the free trader looks. Up to four players both are the original.
+    TraderReach trader_reach = TraderReach::PerFourPlayers;
 
     /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
     /// settlement ship sails no city develops, a city whose colony search failed waits for it for
@@ -170,6 +180,7 @@ struct Rules {
         r.pirates = Pirates::Game;
         r.pirate_nests = PirateNests::One;
         r.trader_prices = TraderPrices::Original;
+        r.trader_reach = TraderReach::Original;
         r.classic_ai = true;
         return r;
     }

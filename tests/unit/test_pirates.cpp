@@ -289,6 +289,21 @@ TEST_CASE("pirates: one nest for every four players begun, each with the origina
     }
 }
 
+TEST_CASE("free trader: the reach of the rule stays with the savegame") {
+    World w;
+    for (const sim::TraderReach choice : {sim::TraderReach::Original, sim::TraderReach::PerFourPlayers}) {
+        sim::Rules saved;
+        saved.trader_reach = choice;
+        w.world.set_saved_rules(saved);
+        auto bytes = sim::write_game(w.world, w.buildings);
+        REQUIRE(bytes.ok());
+        auto back = sim::read_game(*bytes, w.buildings);
+        REQUIRE(back.ok());
+        REQUIRE(back->saved_rules().has_value());
+        CHECK(back->saved_rules()->trader_reach == choice);
+    }
+}
+
 TEST_CASE("pirates: a surrendered ship is plundered and the loot goes to the nest") {
     World w;
     w.start();
