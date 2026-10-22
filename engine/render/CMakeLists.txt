@@ -20,6 +20,7 @@ add_library(o1602_render
     src/tick_trail.cpp
     src/sprite_source.cpp
     src/unit_tint.cpp
+    src/variant_tint.cpp
     src/world_graphics.cpp
     src/world_renderer.cpp
 )

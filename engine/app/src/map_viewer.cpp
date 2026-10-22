@@ -254,6 +254,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         } else {
             viewer->m_hud->set_game(viewer->m_state->simulation, viewer->m_buildings, viewer->m_figures,
                                     viewer->m_local_player);
+            viewer->m_hud->set_banners(&viewer->m_banners);
             viewer->m_hud->set_available([self = viewer.get()](std::uint32_t id) {
                 const sim::Player* p = self->m_state->world.player(self->m_local_player);
                 const assets::BuildingType* b = self->m_buildings.by_id(id);

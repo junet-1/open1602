@@ -91,4 +91,22 @@ sim::BannerId BannerTable::add_color(std::string id, assets::Rgba color) {
     return add(std::move(b));
 }
 
+BannerArtSprite banner_art(const BannerArt& art, const Banner* banner) {
+    if (banner != nullptr) {
+        for (const auto& [id, offset] : art.own) {
+            if (id == banner->id) {
+                return {art.first + offset, std::nullopt};
+            }
+        }
+        if (banner->unit_variant && *banner->unit_variant < art.variants) {
+            return {art.first + *banner->unit_variant * art.stride, std::nullopt};
+        }
+    }
+    BannerArtSprite s{art.first + art.base * art.stride, std::nullopt};
+    if (banner != nullptr && art.base < art.variants) {
+        s.tint = banner->color;
+    }
+    return s;
+}
+
 }  // namespace o1602::render

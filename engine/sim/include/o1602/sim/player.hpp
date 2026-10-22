@@ -190,9 +190,9 @@ inline constexpr BannerId kFirstExtraBanner = 7;
 /// (render::BannerTable::kDefaultColors).
 inline constexpr std::size_t kMaxPlayers = 12;
 
-/// Of the four player colours the original draws some pictures in (coats of arms, unit figures,
-/// message icons), the one for a banner: the colours of players five on and of the other
-/// banners look like the fourth.
+/// Of the four player colours the original has some things in (unit figure types, the spoken
+/// "the red player won" messages), the one for a banner: the colours of players five on and of
+/// the other banners count as the fourth. Pictures are recoloured instead (render::BannerArt).
 [[nodiscard]] constexpr std::int32_t four_colour_index(BannerId banner) noexcept {
     return banner < kOriginalPlayers ? static_cast<std::int32_t>(banner) : kOriginalPlayers - 1;
 }

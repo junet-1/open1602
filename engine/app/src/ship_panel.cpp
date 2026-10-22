@@ -7,6 +7,7 @@
 #include <string_view>
 #include <utility>
 
+#include "banner_graphic.hpp"
 #include "panel_common.hpp"
 
 #include "o1602/sim/diplomacy.hpp"
@@ -1050,11 +1051,6 @@ private:
     [[nodiscard]] static bool locked(const sim::City& city, const PanelContext& c) {
         return city.owner != c.local && !c.world().diplomacy().may_trade(c.local, city.owner);
     }
-    [[nodiscard]] static std::int32_t arms_of(std::int32_t base, const PanelContext& c, sim::PlayerId p) {
-        const sim::Player* player = c.world().player(p);
-        const std::int32_t banner = player != nullptr ? player->banner : 0;
-        return base + (banner > 3 ? 0 : banner);
-    }
 
     void refresh_route(const sim::Ship& ship, const PanelContext& c) {
         const auto cap = static_cast<std::int32_t>(sim::kHoldCapacity);
@@ -1067,8 +1063,9 @@ private:
             m_route.set_selected(kStopName + s, m_pick_stop == stop);
             m_route.set_graphic(kStopSymbol + s, m_gfx_stop + (city != nullptr ? 0 : 1), 0);
             if (city != nullptr) {
-                m_route.set_graphic(kStopArms + s, arms_of(m_gfx_arms, c, city->owner), 0);
-                m_route.set_graphic(kStopArmsShadow + s, arms_of(m_gfx_arms, c, city->owner), 0);
+                set_banner_graphic(m_route, kStopArms + s, render::BannerArt::at(m_gfx_arms), c.banner(city->owner));
+                set_banner_graphic(m_route, kStopArmsShadow + s, render::BannerArt::at(m_gfx_arms),
+                                   c.banner(city->owner));
             }
             const bool lock = city == nullptr || locked(*city, c);
             for (std::size_t e = 0; e < 2; ++e) {
@@ -1294,8 +1291,8 @@ private:
             m_piratord.set_visible(kPirateChoice + k, shown);
             m_piratord.set_selected(kPirateChoice + k, k == m_hire_choice);
             if (shown) {
-                m_piratord.set_graphic(kPirateArms + k,
-                                       arms_of(m_gfx_pirate_arms, c, m_opponents[static_cast<std::size_t>(k)]), 0);
+                set_banner_graphic(m_piratord, kPirateArms + k, render::BannerArt::at(m_gfx_pirate_arms),
+                                   c.banner(m_opponents[static_cast<std::size_t>(k)]));
             }
         }
         m_piratord.set_text(kCostLabel, c.text("GAME", 45));

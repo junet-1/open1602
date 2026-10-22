@@ -17,6 +17,7 @@
 #include "high_score_file.hpp"
 
 #include "o1602/assets/gad.hpp"
+#include "o1602/render/banner.hpp"
 #include "o1602/render/sdl_ui_renderer.hpp"
 #include "o1602/sim/score.hpp"
 #include "o1602/ui/panel.hpp"
@@ -39,6 +40,8 @@ public:
     /// running one (Escape goes back). Starts with the local player's sheet.
     void open(sim::EndScreenSummary summary, bool view_only);
     void set_scale(double scale);
+    /// How players are shown (their coats of arms); kept, not copied. Without: the white arms.
+    void set_banners(const render::BannerTable* banners) noexcept { m_banners = banners; }
 
     /// Draws over the whole 1024 x 768 design, its top left at (x, y).
     void draw(render::SdlUiRenderer& renderer, std::int32_t x, std::int32_t y);
@@ -60,6 +63,7 @@ private:
     std::optional<ui::Panel> m_panel;
     double m_scale = 1.0;
     std::int32_t m_arms = 0;  ///< sprite of the coat of arms of colour 0 (gadget 36005)
+    const render::BannerTable* m_banners = nullptr;
     sim::EndScreenSummary m_summary;
     std::size_t m_row = 0;  ///< the row shown
     bool m_view_only = false;

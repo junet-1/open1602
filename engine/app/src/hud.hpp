@@ -125,6 +125,11 @@ public:
         m_figure_table = &figures;
         m_local = local;
     }
+    /// How players are shown: coats of arms and message icons in their colours. Kept, not copied.
+    void set_banners(const render::BannerTable* banners) noexcept {
+        m_banners = banners;
+        m_end.set_banners(banners);
+    }
     /// The selected ships and land units: their windows show in the military mode.
     void set_units(ui::UnitSelection* units) noexcept { m_units = units; }
     /// What the player selected on the map; its window shows in the info mode. An object selected
@@ -328,6 +333,7 @@ private:
     std::uint32_t m_selection_serial = 0;
     ui::UnitSelection* m_units = nullptr;
     const sim::Simulation* m_simulation = nullptr;
+    const render::BannerTable* m_banners = nullptr;
     const assets::BuildingTable* m_buildings = nullptr;
     const assets::FigureTable* m_figure_table = nullptr;
     sim::PlayerId m_local = sim::kNoPlayer;

@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "banner_graphic.hpp"
 #include "panel_common.hpp"
 
 namespace o1602::app {
@@ -250,9 +251,9 @@ private:
             return;
         }
         p.set_text(name + row, player->name);
-        const std::int32_t colour = m_shield + sim::four_colour_index(player->banner);
-        p.set_graphic(shield + row, colour, 0);
-        p.set_graphic(shadow + row, colour, 0);
+        const render::BannerArt arms = render::BannerArt::at(m_shield);
+        set_banner_graphic(p, shield + row, arms, c.banner(b));
+        set_banner_graphic(p, shadow + row, arms, c.banner(b));
         const sim::Diplomacy& d = c.world().diplomacy();
         if (c.local < d.size() && b < d.size()) {
             const sim::Relation& rel = d.relation(c.local, b);

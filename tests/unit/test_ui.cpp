@@ -216,6 +216,36 @@ TEST_CASE("ui: a graphic set by the code also replaces the layout's in its shado
     CHECK(items[1].gfx == 42);
 }
 
+TEST_CASE("ui: a graphic set with a colour tint draws its sprite tinted, the pressed one too") {
+    // A message icon in a further player colour: the white variant recoloured (ColourTint); the
+    // shadow (GAD_GFXFILL) is only a shape and carries none. Setting the graphic again drops it.
+    const auto layout = assets::parse_gad(
+        "  Objekt: GADGET\n"
+        "    @Nummer:    0\n"
+        "    Id:         100011\n"
+        "    Kind:       GAD_GFX\n"
+        "    Gfxnr:      1\n"
+        "    @Nummer:    +1\n"
+        "    Id:         100012\n"
+        "    Kind:       GAD_GFXFILL\n"
+        "    Gfxnr:      1\n"
+        "  EndObj\n",
+        [](std::string_view) -> std::optional<std::string> { return std::nullopt; });
+    ui::Panel panel(layout, 1.0);
+    const ui::ColourTint tint{assets::Rgba{0, 230, 90, 255}, 1, 4, 3};
+    panel.set_graphic(100011, 257, 6, tint);
+    panel.set_graphic(100012, 257, 0, tint);
+    auto items = panel.draw({});
+    REQUIRE(items.size() == 2);
+    CHECK(items[0].gfx == 257);
+    CHECK(items[0].tint == std::optional<ui::ColourTint>(tint));
+    CHECK(!items[1].tint);
+    panel.set_graphic(100011, 254, 6);
+    items = panel.draw({});
+    CHECK(items[0].gfx == 254);
+    CHECK(!items[0].tint);
+}
+
 TEST_CASE("ui: text width, colours, wrapping with hyphens and hard breaks") {
     const ui::Font font = test_font();
     CHECK(font.height() == 6);

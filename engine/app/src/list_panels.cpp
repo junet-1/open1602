@@ -5,10 +5,12 @@
 // Shift+L, 13 rows a page; a click on a name goes there (a ship is also selected).
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "banner_graphic.hpp"
 #include "panel_common.hpp"
 
 namespace o1602::app {
@@ -41,10 +43,9 @@ public:
         // The original leaves the heading empty; Open1602 names the list and counts its rows.
         m_panel.set_text(m_base + kHeading,
                          panel_detail::help_line(c, m_ships ? 214 : 215) + " (" + std::to_string(m_rows.size()) + ")");
-        const sim::Player* local = c.world().player(c.local);
-        const std::int32_t colour = local != nullptr ? sim::four_colour_index(local->banner) : 0;
-        m_panel.set_graphic(m_base + kArms, m_arms + colour, 0);
-        m_panel.set_graphic(m_base + kArmsShadow, m_arms + colour, 0);
+        const render::BannerArt arms = render::BannerArt::at(m_arms);
+        set_banner_graphic(m_panel, m_base + kArms, arms, c.banner(c.local));
+        set_banner_graphic(m_panel, m_base + kArmsShadow, arms, c.banner(c.local));
         m_panel.set_visible(m_base + kPageDown, m_first + kRows < m_rows.size());
         m_panel.set_visible(m_base + kPageUp, m_first > 0);
         for (std::size_t k = 0; k < kRows; ++k) {
@@ -58,7 +59,13 @@ public:
             }
             const Row& r = m_rows[m_first + k];
             m_panel.set_text(m_base + kName + row, r.name);
-            m_panel.set_graphic(m_base + kIcon + row, m_icons + r.icon, 0);
+            if (r.owner) {
+                // Cities: the small coat of arms of the owner (icons 4..7).
+                set_banner_graphic(m_panel, m_base + kIcon + row, render::BannerArt::at(m_icons + kCityIcons),
+                                   c.banner(*r.owner));
+            } else {
+                m_panel.set_graphic(m_base + kIcon + row, m_icons + r.icon, 0);
+            }
         }
     }
 
@@ -119,10 +126,12 @@ private:
     static constexpr std::int32_t kBoard = 11;
     static constexpr std::int32_t kName = 31;
     static constexpr std::int32_t kIcon = 51;
+    static constexpr std::int32_t kCityIcons = 4;  ///< the cities' small coats of arms after the ships' icons
 
     struct Row {
         std::string name;
-        std::int32_t icon = 0;  ///< ships: 0 trade route, 1 anchored, 2 under way; cities: 4 + colour
+        std::int32_t icon = 0;               ///< ships: 0 trade route, 1 anchored, 2 under way
+        std::optional<sim::PlayerId> owner;  ///< cities: whose coat of arms
         std::uint32_t ship = 0;
         double x = 0.0;  ///< world tile to go to
         double y = 0.0;
@@ -163,7 +172,7 @@ private:
             const sim::WorldIsland& island = w.islands()[city.island];
             Row r;
             r.name = city.name;
-            r.icon = 4 + sim::four_colour_index(owner->banner);
+            r.owner = city.owner;
             r.x = island.x + (city.warehouse_x ? *city.warehouse_x : island.map.width() / 2.0);
             r.y = island.y + (city.warehouse_y ? *city.warehouse_y : island.map.height() / 2.0);
             m_rows.push_back(std::move(r));

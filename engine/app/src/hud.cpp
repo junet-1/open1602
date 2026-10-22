@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <string_view>
 
+#include "banner_graphic.hpp"
+
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
@@ -32,15 +34,14 @@ constexpr std::size_t kEvents = 3;
 constexpr std::int32_t kGfxParchment = 17;
 constexpr std::int32_t kGfxCompass = 18;
 constexpr std::int32_t kGfxLeiste = 253;
-constexpr std::int32_t kLeisteLastBanner = 4;  // its message icons have colours for banners 0..4, 12 apart
-constexpr std::int32_t kLeistArt = 101001;     // the status bar's art (drawn widened instead)
-constexpr std::int32_t kLeistTextX = 750;      // its line ends here, 18 before the art's right edge
-constexpr std::int32_t kTutorArt = 111001;     // the mission window's art (drawn widened instead)
-constexpr std::int32_t kGfxTutor = 645;        // GFXTUTOR of TOOLS.INC
-constexpr std::int32_t kTutorText = 110002;    // its flowing text
-constexpr std::int32_t kDesignViewW = 768;     // game view, status bar and mission window at 1024 x 768
-constexpr std::uint64_t kEventMs = 45'000;     // an icon stays this long (449 time units of 0x00430F20)
-constexpr std::uint64_t kMinimapMs = 500;      // the minimap texture is uploaded at most this often
+constexpr std::int32_t kLeistArt = 101001;   // the status bar's art (drawn widened instead)
+constexpr std::int32_t kLeistTextX = 750;    // its line ends here, 18 before the art's right edge
+constexpr std::int32_t kTutorArt = 111001;   // the mission window's art (drawn widened instead)
+constexpr std::int32_t kGfxTutor = 645;      // GFXTUTOR of TOOLS.INC
+constexpr std::int32_t kTutorText = 110002;  // its flowing text
+constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
+constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
+constexpr std::uint64_t kMinimapMs = 500;    // the minimap texture is uploaded at most this often
 
 /// Help text line of [LEISTE] for the gadgets of the panel's head (in the order of the texts).
 std::optional<std::size_t> help_line(std::int32_t id) {
@@ -65,6 +66,20 @@ std::optional<std::size_t> help_line(std::int32_t id) {
 /// The icon of a message (Event_UpdateStatusIcons 0x0043AFA0): types 0..3 by colour (! event,
 /// scroll treaty or trade, swords attack, lips other players), 4..7 plague, fire, drought, volcano.
 /// Which message has which type is not documented; this follows the icons.
+/// The message icons of the four types drawn per colour: red, blue, yellow, white, (military
+/// only) the pirates' skull, an empty slot; pressed six further on.
+const render::BannerArt& message_icon_art(std::uint8_t type) {
+    static const std::array<render::BannerArt, 4> kArt = [] {
+        std::array<render::BannerArt, 4> art{};
+        for (std::uint8_t t = 0; t < art.size(); ++t) {
+            art[t].first = kGfxLeiste + 1 + t * 12;
+        }
+        art[2].own = {{"anno1602:pirates", 4}};
+        return art;
+    }();
+    return kArt[std::min<std::size_t>(type, kArt.size() - 1)];
+}
+
 std::uint8_t event_type(std::uint16_t message) {
     switch (message) {
         case 0x01:
@@ -229,14 +244,14 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
     }
     if (m_mode == kModeMilitary) {
         context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr,
-                                     m_local, m_units});
+                                     m_local, m_units, m_banners});
         return m_selection_panels->military_panel_for(*context);
     }
     if (m_mode != kModeInfo || m_selection.kind == Selection::Kind::None) {
         return nullptr;
     }
-    context.emplace(
-        PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local, m_units});
+    context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local,
+                                 m_units, m_banners});
     return m_selection_panels->panel_for(m_selection, *context);
 }
 
@@ -923,8 +938,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         const Event& e = m_events[i];
         const std::uint8_t type = event_type(e.id);
         if (type < 4) {
-            m_leist.set_graphic(id, kGfxLeiste + 1 + std::min<std::int32_t>(e.banner, kLeisteLastBanner) + type * 12,
-                                6);
+            set_banner_graphic(m_leist, id, message_icon_art(type), banners.get(e.banner), 6);
         } else {
             m_leist.set_graphic(id, kGfxLeiste + 1 + 0x28 + type * 2, 1);
         }
@@ -955,7 +969,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
                 }
             }
         } else if (m_info && m_mode == kModeInfo) {
-            m_info->draw(*m_renderer, figures, colour, m_regions.side_panel, s);
+            m_info->draw(*m_renderer, figures, banners.get(colour), m_regions.side_panel, s);
             if (const auto text = m_info->help(m_leiste)) {
                 status = *text;
             }

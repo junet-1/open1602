@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "o1602/assets/figure_table.hpp"
@@ -32,14 +33,46 @@ struct Banner {
     FlagStyle flag = FlagStyle::Tinted;
     std::uint32_t flag_gfx = 0;  ///< FlagStyle::Sprites: first image in the ship sheet
     std::uint32_t flag_frames = 8;
-    /// Units drawn per colour (soldiers, riders, ...) use the original images of this colour
-    /// (0 red, 1 blue, 2 yellow, 3 white); without it they are tinted in `color` (unit_tint.hpp).
+    /// Units and interface art drawn per colour (soldiers, riders, coats of arms, message icons) use
+    /// the original images of this colour (0 red, 1 blue, 2 yellow, 3 white); without it they are
+    /// tinted in `color` (unit_tint.hpp, variant_tint.hpp).
     std::optional<std::uint8_t> unit_variant;
     /// Without unit_variant: which of four horses (0 brown, 1 grey, 2 dark brown, 3 white,
     /// UnitTintColor::mount) the riders get. add_color picks it from the banner's id, so it stays the same in
     /// every session and on every computer of a multiplayer game.
     std::uint8_t unit_mount = 3;
 };
+
+/// Interface art the original draws once per player colour (coats of arms, message icons, the
+/// cities' list icons): variant v is sprite `first + v * stride`. A banner with a drawn variant
+/// (Banner::unit_variant, the same red, blue, yellow, white order) or a sprite of its own shows
+/// that; every other banner shows variant `base` recoloured in its colour (variant_tint.hpp).
+struct BannerArt {
+    std::int32_t first = 0;
+    std::int32_t stride = 1;
+    std::uint8_t variants = 4;
+    std::uint8_t base = 3;  ///< white
+    /// Sprites drawn for one banner (Banner::id), as an offset from `first`: the pirates' skull among
+    /// the military message icons.
+    std::vector<std::pair<std::string, std::int32_t>> own;
+
+    /// The four colours of the original one after the other from `first`.
+    [[nodiscard]] static BannerArt at(std::int32_t first) {
+        BannerArt art;
+        art.first = first;
+        return art;
+    }
+};
+
+/// What to draw for a banner: a sprite, recoloured if `tint` is set.
+struct BannerArtSprite {
+    std::int32_t gfx = 0;
+    std::optional<assets::Rgba> tint;
+    friend bool operator==(const BannerArtSprite&, const BannerArtSprite&) = default;
+};
+
+/// The sprite of `art` for `banner`; no banner: the base variant as drawn.
+[[nodiscard]] BannerArtSprite banner_art(const BannerArt& art, const Banner* banner);
 
 /// Opacity of the ownership overlay diamonds.
 inline constexpr std::uint8_t kOverlayAlpha = 110;
