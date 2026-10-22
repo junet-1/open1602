@@ -17,8 +17,8 @@ The open points of this kind are listed in
   the doctor, robbers, naval battles, how far lava bombs fly, how ships of the computer players sail.
 - **Screenshots** for comparing the picture: preferably at the smallest graphics level and
   1024 × 768, and say the zoom level and the rotation of the view.
-- **Answers to yes/no questions** from section 1.3, for example whether a unit in training can be
-  sent out of the castle, or whether a burning shipyard keeps building its ship.
+- **Answers to yes/no questions** from section 1.3, for example whether a burning shipyard keeps
+  building its ship.
 - **Longer games:** savegames of an endless game after about one and three hours show how far the
   computer players get in the original.
 
