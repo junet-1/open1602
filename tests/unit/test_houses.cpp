@@ -39,9 +39,9 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_PRODTYP\n    Kind: 13\n    BGruppe: 1\n    Radius: 6\n  EndObj\n"
         "  Objekt: HAUS_BAUKOST\n    Werkzeug: 1\n    Holz: 3\n  EndObj\n"
         "  @Nummer: 4\n  Id: 20809\n  Kind: 14\n  Gfx: 20\n  Size: 4, 3\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 7\n    Radius: 16\n    Kosten: 10, 5\n  EndObj\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 7\n    Radius: 16\n    Kosten: 10, 5\n    Arbeiter: 4\n  EndObj\n"
         "  @Nummer: 5\n  Id: 20803\n  Kind: 14\n  Gfx: 40\n  Size: 2, 1\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 18\n    Radius: 8\n    Kosten: 5\n  EndObj\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 18\n    Radius: 8\n    Kosten: 5\n    Arbeiter: 2\n  EndObj\n"
         "  @Nummer: 6\n  Id: 22601\n  Kind: 12\n  Gfx: 50\n  Size: 1, 1\n"
         "EndObj\n",
         types);
@@ -252,6 +252,31 @@ TEST_CASE("houses: settlers without a chapel fall back to pioneers") {
         downgraded |= e.kind == sim::HouseEvent::Kind::Downgraded;
     }
     CHECK(downgraded);
+}
+
+TEST_CASE("einwohner: residents plus the workers of the city's buildings, for one city as for all") {
+    // The top bar counted the residents only and showed 150 where the player status, the city
+    // window and the population message (0x0047F790) counted 210 (0x0040D1C8 calls the same).
+    Town town;
+    town.place(kMarket, 10, 11);
+    town.place(kChapel, 16, 11);
+    town.finish({{10, 11}, {16, 11}});
+    sim::City other;
+    other.index = 1;
+    other.owner = 0;
+    town.world.add_city(other);
+    sim::City& city = *town.world.city(0, 0);
+    city.inhabitants = {100, 50};
+    const std::vector<std::uint32_t> all = sim::city_workers(town.world, town.buildings);
+    REQUIRE(all.size() == 2);
+    CHECK(all[0] == 6);
+    CHECK(all[1] == 0);
+    CHECK(sim::city_workers(town.world, town.buildings, city) == 6);
+    CHECK(sim::city_workers(town.world, town.buildings, *town.world.city(0, 1)) == 0);
+    CHECK(sim::city_einwohner(city, sim::city_workers(town.world, town.buildings, city)) == 156);
+    // A switched-off building keeps its workers.
+    town.world.productions()[0].enabled = false;
+    CHECK(sim::city_workers(town.world, town.buildings, city) == 6);
 }
 
 TEST_CASE("money: taxes and running costs") {
