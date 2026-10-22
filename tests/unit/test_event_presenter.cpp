@@ -117,11 +117,15 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     sim::DiplomacyNotice offer;
     offer.kind = sim::DiplomacyNotice::Kind::TradeOffered;
     offer.to = kMe;
+    offer.from = kRival;
     sim::DiplomacyNotice other = offer;
     other.to = kRival;
+    other.from = kMe;
     const auto diplomacy = g.presenter.diplomacy_notices(kMe, {offer, other});
     REQUIRE(diplomacy.size() == 1);
     CHECK(announcement(diplomacy[0])->message == 0x51);
+    // The icon in the colour of who made the offer.
+    CHECK(announcement(diplomacy[0])->about == std::optional<sim::PlayerId>(kRival));
 }
 
 TEST_CASE("event presenter: a rival's new city shows in the rival's colour, an own one says nothing") {

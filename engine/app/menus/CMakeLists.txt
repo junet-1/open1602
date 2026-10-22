@@ -2,12 +2,13 @@
 # The game's parts that need no platform: the main menu's lists, the start dialog of the endless
 # game, the multiplayer menu and its texts, the end screen, the settings files, the build tool, the
 # command sink, the questions before orders, which video plays when, what the player is told of the
-# game's events, the gestures on the map. Built without the game too, so that the tests have them.
+# game's events, the diplomacy window's strip and open offers, the gestures on the map. Built without the game too, so that the tests have them.
 
 add_library(o1602_menus
     ../src/app_settings.cpp
     ../src/build_tool.cpp
     ../src/command_sink.cpp
+    ../src/diplomacy_strip.cpp
     ../src/display_menu.cpp
     ../src/display_settings.cpp
     ../src/end_screen.cpp

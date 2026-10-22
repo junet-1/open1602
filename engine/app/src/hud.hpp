@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "diplomacy_strip.hpp"
 #include "display_menu.hpp"
 #include "end_screen.hpp"
 #include "main_menu.hpp"
@@ -167,6 +168,8 @@ public:
     /// Opens the ship or city list or the diplomacy window in the info mode (the buttons of the
     /// player status, L, Shift+L, V), or closes it if it is open; returns what the tool should do.
     std::optional<Action> toggle_window(Selection::Kind kind);
+    /// Opens the diplomacy window in the info mode at `partner` (an offer's icon in the status bar).
+    std::optional<Action> open_diplomacy(sim::PlayerId partner);
     [[nodiscard]] const Selection& selection() const noexcept { return m_selection; }
     /// Whether a window waits for a click on the map (the info mode).
     [[nodiscard]] bool picking();
@@ -383,8 +386,9 @@ private:
     std::vector<sim::Command> m_commands;
     /// The window of the current selection, nothing without one or without the game.
     [[nodiscard]] SelectionPanel* selection_panel(std::optional<PanelContext>& context);
-    std::int32_t m_gfx_baumat = 46;  ///< TOOLS.INC GFXBAUMAT
-    std::deque<Event> m_events;      ///< newest first, at most three
+    std::int32_t m_gfx_baumat = 46;          ///< TOOLS.INC GFXBAUMAT
+    std::deque<Event> m_events;              ///< newest first, at most three
+    std::vector<diplomacy::Offer> m_offers;  ///< the offers the status bar shows, as last drawn
     std::vector<std::uint8_t> m_minimap;
     std::uint64_t m_minimap_ms = 0;
     bool m_minimap_dirty = true;     ///< the texture must be uploaded again

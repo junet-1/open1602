@@ -235,6 +235,13 @@ end.continue_hint = Esc: Weiterspielen
 end.rank = Platz {1} von {2}
 end.place = {1}.
 
+# Diplomacy window with more than three partners: the coat of arms of a partner in the strip ({1}: the
+# name), and an offer not answered yet in the status bar
+diplomacy.partner = {1}: Verträge und Tribut
+diplomacy.offer.trade = {1} bietet Euch einen Handelsvertrag an
+diplomacy.offer.peace = {1} bietet Euch einen Friedensvertrag an
+diplomacy.offer.both = {1} bietet Euch einen Handels- und einen Friedensvertrag an
+
 # Window title
 title.paused = Pause
 title.speed = Tempo x{1}

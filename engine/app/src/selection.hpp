@@ -34,6 +34,9 @@ struct Selection {
     std::uint16_t x = 0;
     std::uint16_t y = 0;
     std::uint32_t ship = 0;  ///< Ship: Ship::id
+    /// Diplomacy: the partner (player number) the window shows first, 0xFF none (an offer's icon in
+    /// the status bar opens the window with its partner).
+    std::uint8_t partner = 0xFF;
     /// Building: how often the same building was clicked again since it was selected (a Kontor
     /// then shows its stock). 0 on the first click.
     std::uint16_t again = 0;
