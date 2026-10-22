@@ -98,6 +98,14 @@ std::uint8_t event_type(std::uint16_t message) {
     return kind == 5 ? 2 : kind == 4 || kind == 7 ? 1 : kind == 3 ? 3 : 0;
 }
 
+/// The end screen (ENDE.GAD), with the scroll arrows of TRANSFER.GAD for the strip of players.
+EndScreen load_end_screen(const assets::GameDirectory& game) {
+    auto ende = assets::load_gad(game, "ENDE.GAD");
+    auto transfer = assets::load_gad(game, "TRANSFER.GAD");
+    return EndScreen(ende ? std::optional<assets::GadgetLayout>(std::move(ende).value()) : std::nullopt,
+                     transfer ? &transfer.value() : nullptr);
+}
+
 }  // namespace
 
 std::unique_ptr<Hud> Hud::create(SDL_Renderer* renderer, const assets::GameDirectory& game,
@@ -118,10 +126,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
       m_renderer(std::make_unique<render::SdlUiRenderer>(renderer, game, palette, ui::ArtSize::Large)),
       m_ctrl(std::move(ctrl), 1.0),
       m_leist(std::move(leist), 1.0),
-      m_end([&]() -> std::optional<assets::GadgetLayout> {
-          auto ende = assets::load_gad(game, "ENDE.GAD");
-          return ende ? std::optional<assets::GadgetLayout>(std::move(ende).value()) : std::nullopt;
-      }()) {
+      m_end(load_end_screen(game)) {
     if (texts != nullptr) {
         m_texts = *texts;
         m_leiste = texts->section("LEISTE");
@@ -497,7 +502,7 @@ void Hud::draw_menu() {
     std::int32_t oy = 0;
     menu_origin(ox, oy);
     if (m_end_active) {
-        m_end.draw(*m_renderer, ox, oy);
+        m_renderer->draw(m_end.draw(m_renderer->fonts()), ox, oy, m_end.scale());
     } else if (multiplayer_open()) {
         m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_regions.scale);
     } else if (m_menu) {

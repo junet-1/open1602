@@ -130,7 +130,10 @@ explore button next to repair and pirates in the ship window (U-013), ship and c
 Shift+L), diplomacy window with tribute (V; confirmation before breaking a peace treaty), the
 settings of the side panel and the main menu for single player (scenarios, endless game, savegames),
 the end screen after victory or defeat as in the original (ENDE.GAD; after a victory Escape goes
-on with the game, which the original ends, with a hint over the buttons). Buildings are picked by
+on with the game, which the original ends, with a hint over the buttons; with more players than its
+four coats of arms, or players in further colours, these become a strip of all players in the order
+of their points, with the rank under each, the scroll arrows of TRANSFER.GAD on both sides and the
+shown player's rank under the name; Left and Right go through the players). Buildings are picked by
 their pictures as the units are (2026-10-22): a click on any visible pixel of a building selects it,
 also where the picture reaches over the tiles behind it, and the front-most picture wins, a building
 in front of a unit included (`render::tiles_at_pixel`). Pictures that cannot be selected (ground,

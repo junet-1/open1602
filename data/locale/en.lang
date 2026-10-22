@@ -239,6 +239,10 @@ player.colour.brown = Brown player
 # {1}: the number of the player's slot, for a player without a name
 end.player = Player {1}
 end.continue_hint = Esc: keep playing
+# With more players than coats of arms: the shown player's rank by points ({1}) of all ({2}),
+# and the rank under each coat of arms of the strip ({1})
+end.rank = Rank {1} of {2}
+end.place = #{1}
 
 # Window title
 title.paused = paused
