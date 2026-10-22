@@ -332,6 +332,14 @@ TEST_CASE("data: the computers of a new endless game stay sound over three game 
         CHECK(view[i].cities >= 1);
         CHECK(houses_of(view[i].player) >= early[i]);  // the cities grew, or at least kept their houses
     }
+    // A computer that wants more ships plans a shipyard whatever its stage (0x0042233E), so after
+    // three hours at least one of them has more than the ship it started with (the original's
+    // computers had warships after about two hours).
+    std::size_t yards = 0;
+    for (const sim::CostBuilding& b : world.cost_buildings()) {
+        yards += b.kind == sim::CostBuilding::Kind::Shipyard ? 1U : 0U;
+    }
+    CHECK(yards >= 1);
 
     auto saved = sim::write_game(world, s.buildings, &sim);
     REQUIRE(saved.ok());
