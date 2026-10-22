@@ -4,6 +4,10 @@
 // Tribut_Refresh 0x00433E70, clicks in 0x0043CE00; docs/re/ui.md): opened from the player status or
 // with V. One row per other human or computer player: trade and peace treaty (offer, withdraw,
 // accept, break) and, for computers, a hand that shows the mood; the hand opens the tribute page.
+//
+// VERTRAG.GAD has rows for three partners. With more (Open1602, up to eleven) the window is the
+// strip of diplomacy_strip.hpp: the partners' coats of arms on top, the chosen one's treaties, hand
+// and tribute below, all on one page.
 #include <algorithm>
 #include <array>
 #include <string>
@@ -11,7 +15,11 @@
 #include <vector>
 
 #include "banner_graphic.hpp"
+#include "diplomacy_strip.hpp"
 #include "panel_common.hpp"
+
+#include "o1602/platform/window.hpp"
+#include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
 
@@ -50,7 +58,7 @@ std::int32_t mood_pose(std::int32_t mood) {
 class DiplomacyPanel final : public SelectionPanel {
 public:
     DiplomacyPanel(assets::GadgetLayout vertrag, assets::GadgetLayout tribut)
-        : m_vertrag(std::move(vertrag), 1.0), m_tribut(std::move(tribut), 1.0) {
+        : m_vertrag(std::move(vertrag), 1.0), m_tribut(tribut, 1.0), m_strip(strip_layout(std::move(tribut)), 1.0) {
         // The code adds the state to the sprites the layout gives (0x0042C2D5).
         const assets::GadgetLayout& l = m_vertrag.layout();
         const auto gfx = [&](std::int32_t id, std::int32_t fallback) {
@@ -61,7 +69,7 @@ public:
         m_trade = gfx(kTrade, 563);
         m_peace = gfx(kPeace, 571);
         m_hand = gfx(kHand, 579);
-        for (std::size_t r = 0; r < kRows; ++r) {
+        for (std::size_t r = 0; r < diplomacy::kOriginalRows; ++r) {
             m_rows = r + 1;
             if (!l.index_of(kName + static_cast<std::int32_t>(r))) {
                 m_rows = r;
@@ -73,28 +81,39 @@ public:
     void set_scale(double scale) override {
         m_vertrag.set_scale(scale);
         m_tribut.set_scale(scale);
+        m_strip.set_scale(scale);
     }
-    ui::Panel& panel() override { return m_tribute ? m_tribut : m_vertrag; }
+    ui::Panel& panel() override {
+        if (m_strip_shown) {
+            return m_strip;
+        }
+        return m_tribute ? m_tribut : m_vertrag;
+    }
 
     void opened() override {
         m_tribute = false;
         m_amount = 0;
     }
     bool back() override {
-        if (m_tribute) {
+        if (m_tribute && !m_strip_shown) {
             m_tribute = false;  // right mouse / Escape: back to the treaties (0x0040A0D6)
             return true;
         }
         return false;
     }
 
-    void refresh(const Selection& /*selection*/, const PanelContext& c) override {
+    void refresh(const Selection& selection, const PanelContext& c) override {
         const std::vector<sim::PlayerId> partners = partners_of(c);
+        m_strip_shown = diplomacy::uses_strip(partners.size(), m_rows);
+        if (m_strip_shown) {
+            refresh_strip(selection, partners, c);
+            return;
+        }
         if (m_tribute && std::find(partners.begin(), partners.end(), m_partner) == partners.end()) {
             m_tribute = false;
         }
         if (m_tribute) {
-            refresh_tribute(c);
+            refresh_tribute(m_tribut, c);
             return;
         }
         for (std::size_t r = 0; r < m_rows; ++r) {
@@ -120,6 +139,21 @@ public:
 
     void clicked(const ui::PanelEvent& e, const Selection& /*selection*/, const PanelContext& c,
                  std::vector<sim::Command>& out) override {
+        if (m_strip_shown) {
+            const std::int32_t k = e.id - kStripFrame;
+            if (e.kind == ui::PanelEvent::Kind::Clicked && k >= 0 &&
+                k < static_cast<std::int32_t>(diplomacy::kMaxPartners)) {
+                const std::vector<sim::PlayerId> partners = partners_of(c);
+                if (static_cast<std::size_t>(k) < partners.size() &&
+                    partners[static_cast<std::size_t>(k)] != m_partner) {
+                    m_partner = partners[static_cast<std::size_t>(k)];
+                    m_amount = 0;
+                }
+                return;
+            }
+            clicked_tribute(e, c, out);
+            return;
+        }
         if (m_tribute) {
             clicked_tribute(e, c, out);
             return;
@@ -162,7 +196,14 @@ public:
             constexpr std::array<std::size_t, 4> kOrder = {0, 2, 1, 3};
             return panel_detail::help_line(c, (trade ? 199 : 203) + kOrder[std::min<std::size_t>(state(b, trade), 3)]);
         };
-        if (m_tribute) {
+        if (m_strip_shown) {
+            const std::int32_t k = id - kStripFrame;
+            if (k >= 0 && static_cast<std::size_t>(k) < partners.size()) {
+                const sim::Player* p = c.world().player(partners[static_cast<std::size_t>(k)]);
+                return p != nullptr ? ui::tr("diplomacy.partner", {p->name}) : std::string();
+            }
+        }
+        if (m_tribute || m_strip_shown) {
             switch (id) {
                 case kTributeTrade:
                     return treaty_line(m_partner, true);
@@ -197,7 +238,6 @@ public:
     }
 
 private:
-    static constexpr std::size_t kRows = 3;
     // VERTRAG, + row
     static constexpr std::int32_t kBoard = 56001;
     static constexpr std::int32_t kName = 56011;
@@ -207,6 +247,7 @@ private:
     static constexpr std::int32_t kPeace = 56051;
     static constexpr std::int32_t kHand = 56061;
     // TRIBUT
+    static constexpr std::int32_t kTributeBoard = 64001;
     static constexpr std::int32_t kTributeName = 64002;
     static constexpr std::int32_t kTributeShieldShadow = 64003;
     static constexpr std::int32_t kTributeShield = 64004;
@@ -219,19 +260,89 @@ private:
     static constexpr std::int32_t kLess = 64022;
     static constexpr std::int32_t kMore = 64023;
     static constexpr std::int32_t kSlider = 64024;
+    // The strip (Open1602), added to a copy of TRIBUT: + place 0..10
+    static constexpr std::int32_t kStripArms = 64101;
+    static constexpr std::int32_t kStripFrame = 64121;
+    /// PIRATORD.GAD's frame to choose a player (GFXPIRAT + 11), golden 4 further on.
+    static constexpr std::int32_t kFrameOffset = 11;
+    static constexpr std::int32_t kFramePress = 4;
+    /// An unanswered offer: the partner's frame flashes golden at this pace.
+    static constexpr std::uint64_t kOfferBlinkMs = 500;
+
+    /// TRIBUT.GAD with the treaties moved down and the strip's coats of arms and frames above them.
+    static assets::GadgetLayout strip_layout(assets::GadgetLayout layout) {
+        const std::int32_t frame_gfx = layout.constant("GFXPIRAT").value_or(543) + kFrameOffset;
+        const assets::Gadget* shield = layout.find(kTributeShield);
+        const std::int32_t arms_gfx = shield != nullptr ? shield->gfx : 548;
+        for (assets::Gadget& g : layout.gadgets) {
+            if (g.id >= kTributeBoard && g.id <= kTributeHand) {
+                g.pos[1] += diplomacy::kTreatiesShift;
+            }
+        }
+        for (std::size_t k = 0; k < diplomacy::kMaxPartners; ++k) {
+            const auto [x, y] = diplomacy::strip_slot(k, diplomacy::kMaxPartners);
+            assets::Gadget arms;
+            arms.id = kStripArms + static_cast<std::int32_t>(k);
+            arms.kind = assets::GadgetKind::Graphic;
+            arms.no_select = true;
+            arms.gfx = arms_gfx;
+            arms.pos = {x + diplomacy::kArmsInset, y + diplomacy::kArmsInset};
+            arms.size = {32, 40};
+            layout.gadgets.push_back(arms);
+            // The frame after the coat of arms: it is drawn over it and takes the clicks.
+            assets::Gadget frame;
+            frame.id = kStripFrame + static_cast<std::int32_t>(k);
+            frame.kind = assets::GadgetKind::Graphic;
+            frame.gfx = frame_gfx;
+            frame.press_offset = kFramePress;
+            frame.pos = {x, y};
+            frame.size = {diplomacy::kFrameWidth, diplomacy::kFrameHeight};
+            layout.gadgets.push_back(frame);
+        }
+        return layout;
+    }
 
     /// The other humans and computers, by player number (0x00433C1C).
     static std::vector<sim::PlayerId> partners_of(const PanelContext& c) {
-        std::vector<sim::PlayerId> out;
-        const auto& players = c.world().players();
-        for (std::size_t i = 0; i < players.size(); ++i) {
-            const auto id = static_cast<sim::PlayerId>(i);
-            if (id != c.local &&
-                (players[i].role == sim::PlayerRole::Human || players[i].role == sim::PlayerRole::Computer)) {
-                out.push_back(id);
+        return diplomacy::partners(c.world(), c.local);
+    }
+
+    /// The strip: the coats of arms of all partners, the chosen one's treaties and tribute below.
+    void refresh_strip(const Selection& selection, const std::vector<sim::PlayerId>& partners, const PanelContext& c) {
+        m_tribute = false;
+        // The window opened from an offer's icon starts with that partner.
+        if (selection.serial != m_serial) {
+            m_serial = selection.serial;
+            if (std::find(partners.begin(), partners.end(), selection.partner) != partners.end()) {
+                m_partner = selection.partner;
+                m_amount = 0;
             }
         }
-        return out;
+        if (std::find(partners.begin(), partners.end(), m_partner) == partners.end()) {
+            m_partner = partners.front();
+            m_amount = 0;
+        }
+        const std::vector<diplomacy::Offer> offers = diplomacy::open_offers(c.world(), c.local);
+        const bool flash = (platform::ticks_ms() / kOfferBlinkMs) % 2 == 0;
+        const render::BannerArt arms = render::BannerArt::at(m_shield);
+        for (std::size_t k = 0; k < diplomacy::kMaxPartners; ++k) {
+            const auto slot = static_cast<std::int32_t>(k);
+            const bool shown = k < partners.size();
+            m_strip.set_visible(kStripArms + slot, shown);
+            m_strip.set_visible(kStripFrame + slot, shown);
+            if (!shown) {
+                continue;
+            }
+            const sim::PlayerId b = partners[k];
+            const auto [x, y] = diplomacy::strip_slot(k, partners.size());
+            m_strip.set_position(kStripFrame + slot, x, y);
+            m_strip.set_position(kStripArms + slot, x + diplomacy::kArmsInset, y + diplomacy::kArmsInset);
+            set_banner_graphic(m_strip, kStripArms + slot, arms, c.banner(b));
+            const bool offer =
+                std::any_of(offers.begin(), offers.end(), [&](const diplomacy::Offer& o) { return o.from == b; });
+            m_strip.set_selected(kStripFrame + slot, b == m_partner || (offer && flash));
+        }
+        refresh_tribute(m_strip, c);
     }
 
     /// How partner b feels about the local player, with `gold` of tribute being offered.
@@ -275,32 +386,31 @@ private:
         return o;
     }
 
-    void refresh_tribute(const PanelContext& c) {
-        fill(m_tribut, m_partner, 0, c, kTributeName, kTributeShield, kTributeShieldShadow, kTributeTrade,
-             kTributePeace);
+    /// The tribute page, or the same gadgets below the strip.
+    void refresh_tribute(ui::Panel& page, const PanelContext& c) {
+        fill(page, m_partner, 0, c, kTributeName, kTributeShield, kTributeShieldShadow, kTributeTrade, kTributePeace);
         const sim::Player* p = c.world().player(m_partner);
         const bool computer = p != nullptr && p->role == sim::PlayerRole::Computer;
-        m_tribut.set_visible(kTributeHand, computer);
+        page.set_visible(kTributeHand, computer);
         if (computer) {
             // The hand shows the mood after paying (the same scaling as the payment).
-            m_tribut.set_graphic(kTributeHand, m_hand + 2 * pose(c, m_partner, m_amount), 0);
+            page.set_graphic(kTributeHand, m_hand + 2 * pose(c, m_partner, m_amount), 0);
         }
-        m_tribut.set_text(kPayLabel, c.text("GAME", 78));
-        m_tribut.set_text(kAmount, std::to_string(m_amount));
-        if (m_tribut.held() != kSlider) {
-            m_tribut.set_slider(kSlider, 0, static_cast<std::int32_t>(m_amount),
-                                static_cast<std::int32_t>(kMaxTribute));
+        page.set_text(kPayLabel, c.text("GAME", 78));
+        page.set_text(kAmount, std::to_string(m_amount));
+        if (page.held() != kSlider) {
+            page.set_slider(kSlider, 0, static_cast<std::int32_t>(m_amount), static_cast<std::int32_t>(kMaxTribute));
         }
         // Open1602: nothing to pay, or not enough money - the button says so instead of doing
         // nothing (U-034).
         const sim::Player* local = c.world().player(c.local);
-        m_tribut.set_disabled(kPay,
-                              m_amount == 0 || local == nullptr || local->money < static_cast<std::int64_t>(m_amount));
+        page.set_disabled(kPay,
+                          m_amount == 0 || local == nullptr || local->money < static_cast<std::int64_t>(m_amount));
     }
 
     void clicked_tribute(const ui::PanelEvent& e, const PanelContext& c, std::vector<sim::Command>& out) {
         if (e.kind == ui::PanelEvent::Kind::Slid && e.id == kSlider) {
-            const auto v = static_cast<std::uint32_t>(std::max(0, m_tribut.slider(kSlider, 0, kMaxTribute)));
+            const auto v = static_cast<std::uint32_t>(std::max(0, panel().slider(kSlider, 0, kMaxTribute)));
             m_amount = std::min(kMaxTribute, (v + kTributeStep / 2) / kTributeStep * kTributeStep);
             return;
         }
@@ -338,7 +448,10 @@ private:
 
     ui::Panel m_vertrag;
     ui::Panel m_tribut;
-    std::size_t m_rows = kRows;
+    ui::Panel m_strip;
+    bool m_strip_shown = false;  ///< more partners than VERTRAG has rows
+    std::uint32_t m_serial = 0;  ///< the selection last seen (a new one may name a partner)
+    std::size_t m_rows = diplomacy::kOriginalRows;
     std::int32_t m_shield = 548;
     std::int32_t m_trade = 563;
     std::int32_t m_peace = 571;

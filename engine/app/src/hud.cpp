@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "banner_graphic.hpp"
+#include "diplomacy_strip.hpp"
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/game_data.hpp"
@@ -30,6 +31,11 @@ constexpr std::int32_t kFirstMode = 30011;  // build, military, info, options
 constexpr std::int32_t kStatusLine = 100001;
 constexpr std::int32_t kFirstEvent = 100011;
 constexpr std::size_t kEvents = 3;
+// Open1602: the offers of treaties not answered yet, after the message icons (+ 0..10), each the
+// treaty message icon in the colour of the partner who made it.
+constexpr std::int32_t kFirstOffer = 100101;
+constexpr std::int32_t kOfferGap = 12;  // design pixels between the message icons and the offers
+constexpr std::uint8_t kTreatyIcon = 1;
 // TOOLS.INC: the compass (GFXMAP + 1 + rotation) and the message icons (GFXLEISTE).
 constexpr std::int32_t kGfxTafel = 0;  // GFXTAFEL: the side panel's art
 constexpr std::int32_t kGfxParchment = 17;
@@ -152,6 +158,26 @@ std::uint8_t event_type(std::uint16_t message) {
     return kind == 5 ? 2 : kind == 4 || kind == 7 ? 1 : kind == 3 ? 3 : 0;
 }
 
+/// LEIST.GAD with a place for every partner's open offer: copies of the message icon after the
+/// three of the original.
+assets::GadgetLayout with_offer_icons(assets::GadgetLayout leist) {
+    const assets::Gadget* first = leist.find(kFirstEvent);
+    if (first == nullptr) {
+        return leist;
+    }
+    const assets::Gadget icon = *first;
+    const std::int32_t step =
+        leist.find(kFirstEvent + 1) != nullptr ? leist.find(kFirstEvent + 1)->pos[0] - icon.pos[0] : icon.size[0] + 3;
+    for (std::size_t k = 0; k < diplomacy::kMaxPartners; ++k) {
+        assets::Gadget g = icon;
+        g.id = kFirstOffer + static_cast<std::int32_t>(k);
+        g.pos[0] =
+            icon.pos[0] + static_cast<std::int32_t>(kEvents) * step + kOfferGap + static_cast<std::int32_t>(k) * step;
+        leist.gadgets.push_back(g);
+    }
+    return leist;
+}
+
 /// The end screen (ENDE.GAD), with the scroll arrows of TRANSFER.GAD for the strip of players.
 EndScreen load_end_screen(const assets::GameDirectory& game) {
     auto ende = assets::load_gad(game, "ENDE.GAD");
@@ -170,7 +196,7 @@ std::unique_ptr<Hud> Hud::create(SDL_Renderer* renderer, const assets::GameDirec
         return nullptr;
     }
     return std::unique_ptr<Hud>(
-        new Hud(renderer, game, palette, std::move(ctrl).value(), std::move(leist).value(), texts));
+        new Hud(renderer, game, palette, std::move(ctrl).value(), with_offer_icons(std::move(leist).value()), texts));
 }
 
 Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,
@@ -190,6 +216,9 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     const assets::TextTable* own = m_texts ? &*m_texts : nullptr;
     for (std::size_t i = 0; i < kEvents; ++i) {
         m_leist.set_hidden(kFirstEvent + static_cast<std::int32_t>(i), true);
+    }
+    for (std::size_t k = 0; k < diplomacy::kMaxPartners; ++k) {
+        m_leist.set_visible(kFirstOffer + static_cast<std::int32_t>(k), false);
     }
     m_leist.set_hidden(kLeistArt, true);
     // The panels of the modes; without their layouts the head stays alone.
@@ -364,6 +393,25 @@ std::optional<Hud::Action> Hud::toggle_window(Selection::Kind kind) {
     m_selection = stamped_selection(m_selection, next, m_selection_serial);
     std::optional<PanelContext> context;
     if (SelectionPanel* p = selection_panel(context)) {
+        p->opened();
+    }
+    return action;
+}
+
+std::optional<Hud::Action> Hud::open_diplomacy(sim::PlayerId partner) {
+    std::optional<Action> action;
+    if (m_mode != kModeInfo) {
+        action = set_mode(kModeInfo);
+    }
+    // Always a new serial: the window takes the partner even when it is open already.
+    Selection next;
+    next.kind = Selection::Kind::Diplomacy;
+    next.partner = partner;
+    next.serial = ++m_selection_serial;
+    const bool was_open = m_selection.kind == Selection::Kind::Diplomacy;
+    m_selection = next;
+    std::optional<PanelContext> context;
+    if (SelectionPanel* p = selection_panel(context); p != nullptr && !was_open) {
         p->opened();
     }
     return action;
@@ -680,6 +728,7 @@ void Hud::draw_mission(const sim::World& world) {
 
 void Hud::reset_game() {
     m_events.clear();
+    m_offers.clear();
     m_selection = Selection{};
     m_question.reset();
     m_help.reset();
@@ -1093,9 +1142,19 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
         }
     }
     for (const ui::PanelEvent& e : leist) {
+        if (e.kind != ui::PanelEvent::Kind::Clicked) {
+            continue;
+        }
         const auto k = static_cast<std::size_t>(e.id - kFirstEvent);
-        if (e.kind == ui::PanelEvent::Kind::Clicked && k < m_events.size() && m_events[k].tile) {
+        if (k < m_events.size() && m_events[k].tile) {
             action = Action{Action::Kind::Message, m_events[k].tile->first, m_events[k].tile->second};
+        }
+        // An offer's icon opens the diplomacy window at the partner who made it.
+        const auto o = static_cast<std::size_t>(e.id - kFirstOffer);
+        if (e.id >= kFirstOffer && o < m_offers.size()) {
+            if (auto open = open_diplomacy(m_offers[o].from)) {
+                action = open;
+            }
         }
     }
     // The minimap: pressing or dragging on it moves the view there.
@@ -1231,6 +1290,20 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         m_leist.set_hidden(id, false);
         if (m_leist.hovered() == id && e.id < m_meldung.size()) {
             status = m_meldung[e.id];
+        }
+    }
+    // Offers not answered yet stay until they are (Open1602): the treaty icon in the partner's colour.
+    m_offers = m_simulation != nullptr ? diplomacy::open_offers(world, m_local) : std::vector<diplomacy::Offer>{};
+    for (std::size_t k = 0; k < diplomacy::kMaxPartners; ++k) {
+        const auto id = kFirstOffer + static_cast<std::int32_t>(k);
+        const sim::Player* from = k < m_offers.size() ? world.player(m_offers[k].from) : nullptr;
+        m_leist.set_visible(id, from != nullptr);
+        if (from == nullptr) {
+            continue;
+        }
+        set_banner_graphic(m_leist, id, message_icon_art(kTreatyIcon), banners.get(from->banner), 6);
+        if (m_leist.hovered() == id) {
+            status = diplomacy::offer_text(m_offers[k], from->name);
         }
     }
     m_ctrl.set_graphic(kCompass, kGfxCompass + m_rotation, 0);
