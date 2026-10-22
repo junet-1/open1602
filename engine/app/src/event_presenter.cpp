@@ -308,7 +308,10 @@ std::vector<Notice> EventPresenter::diplomacy_notices(sim::PlayerId local,
     std::vector<Notice> out;
     for (const sim::DiplomacyNotice& n : notices) {
         if (n.to == local) {
-            out.emplace_back(announce(kMessages[static_cast<std::size_t>(n.kind)]));
+            // The icon in the colour of the partner who acted (Open1602: with up to eleven partners the
+            // message alone does not tell who).
+            out.emplace_back(announce(kMessages[static_cast<std::size_t>(n.kind)], std::nullopt,
+                                      n.from != sim::kNoPlayer ? std::optional<sim::PlayerId>(n.from) : std::nullopt));
         }
     }
     return out;

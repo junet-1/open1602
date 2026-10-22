@@ -136,7 +136,11 @@ message videos in the minimap window, attack-move (ships and soldiers attack ene
 range, pursue them and then continue; in the savegame `STNC`), hold position (they
 only shoot at enemies in range, do not pursue), quicksave and quickload (F5, F9) and the
 explore button next to repair and pirates in the ship window (U-013), ship and city list (L,
-Shift+L), diplomacy window with tribute (V; confirmation before breaking a peace treaty), the
+Shift+L), diplomacy window with tribute (V; confirmation before breaking a peace treaty; with more
+than the three partners VERTRAG.GAD has rows for, a strip of their coats of arms in the frames of
+PIRATORD.GAD heads the window and the chosen partner's treaties, hand and tribute follow on the same
+page; offers not answered yet stay in the status bar as the treaty message icon in the partner's
+colour until they are, and a click there opens the window at that partner), the
 settings of the side panel and the main menu for single player (scenarios, endless game, savegames),
 the end screen after victory or defeat as in the original (ENDE.GAD; after a victory Escape goes
 on with the game, which the original ends, with a hint over the buttons; with more players than its

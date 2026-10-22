@@ -258,6 +258,13 @@ end.continue_hint = Esc: keep playing
 end.rank = Rank {1} of {2}
 end.place = #{1}
 
+# Diplomacy window with more than three partners: the coat of arms of a partner in the strip ({1}: the
+# name), and an offer not answered yet in the status bar
+diplomacy.partner = {1}: treaties and tribute
+diplomacy.offer.trade = {1} offers you a trade treaty
+diplomacy.offer.peace = {1} offers you a peace treaty
+diplomacy.offer.both = {1} offers you a trade treaty and a peace treaty
+
 # Window title
 title.paused = paused
 # {1}: the game speed, as 2, 4 or 8
