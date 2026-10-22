@@ -43,6 +43,59 @@ constexpr std::int32_t kTutorText = 110002;  // its flowing text
 constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
 constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
 constexpr std::uint64_t kMinimapMs = 500;    // the minimap texture is uploaded at most this often
+// TUTOR.GAD in the tutorial: six lines of text, the arrows back and forward, each a picture and
+// five parts to click.
+constexpr std::int32_t kTutorClose = 110001;
+constexpr std::int32_t kTutorLine = 110011;  // + 0..5
+constexpr std::int32_t kTutorBack = 110021;  // + 0..5
+constexpr std::int32_t kTutorNext = 110031;  // + 0..5
+constexpr std::int32_t kTutorArrowParts = 6;
+constexpr std::int32_t kTutorDesignY = 594;  // top of the window at 1024 x 768
+// BUBBLE.GAD: bubble k is the box kFirstBubble + 10 k, its two lines and its arrow after it.
+constexpr std::int32_t kFirstBubble = 111001;
+constexpr std::int32_t kBubbleParts = 4;
+constexpr std::uint64_t kTutorialFactsMs = 250;  // chapter 1 searches the town's roads this often
+
+/// What a help bubble is kept beside when the frame is larger than 1024 x 768: the side panel, the
+/// top left of the map (the signs and the resource bar), the left or the right end of the
+/// tutorial's window (its X; „weiter“ and the status line).
+enum class BubbleAnchor : std::uint8_t { SidePanel, Map, TutorLeft, TutorRight };
+
+BubbleAnchor bubble_anchor(std::uint8_t k) {
+    switch (k) {
+        case bubble::kEnd:
+            return BubbleAnchor::TutorLeft;
+        case bubble::kStatusLine:
+        case bubble::kNext:
+            return BubbleAnchor::TutorRight;
+        case bubble::kClickShip:
+        case bubble::kSailToIsland:
+        case bubble::kNoOre:
+        case bubble::kRightMouse:
+        case bubble::kClickHouse:
+        case bubble::kLetGo:
+        case bubble::kShortOfWood:
+        case bubble::kShortOfWood + 1:  // tools, bricks, money: the resource bar
+        case bubble::kShortOfWood + 2:
+        case bubble::kShortOfWood + 3:
+        case bubble::kToKontor:
+        case bubble::kPartnerKontor:
+        case bubble::kSailToPartner:
+        case bubble::kSailHome:
+        case bubble::kAttackWithLarge:
+        case bubble::kAttackWithSmall:
+        case bubble::kSelectSmall:
+        case bubble::kPatrolPoint:
+        case bubble::kSailToCoast:
+        case bubble::kFrameSoldiers:
+        case bubble::kAttackWithCavalry:
+        case bubble::kAttackWithRest:
+        case bubble::kClickLargeShip:
+            return BubbleAnchor::Map;
+        default:
+            return BubbleAnchor::SidePanel;
+    }
+}
 
 /// Help text line of [LEISTE] for the gadgets of the panel's head (in the order of the texts).
 std::optional<std::size_t> help_line(std::int32_t id) {
@@ -132,6 +185,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         m_texts = *texts;
         m_leiste = texts->section("LEISTE");
         m_meldung = texts->section("MELDUNG");
+        m_tutor_lines = texts->section("TUTOR");
     }
     const assets::TextTable* own = m_texts ? &*m_texts : nullptr;
     for (std::size_t i = 0; i < kEvents; ++i) {
@@ -188,6 +242,24 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         }
         if (const assets::Gadget* text = m_tutor->layout().find(kTutorText)) {
             m_tutor_text_size = text->size;
+        }
+    }
+    if (auto bubbles = assets::load_gad(game, "BUBBLE.GAD")) {
+        // All hidden; each frame shows the bubbles of the tutorial's step.
+        m_bubble_panel.emplace(std::move(bubbles).value(), 1.0);
+        for (const assets::Gadget& g : m_bubble_panel->layout().gadgets) {
+            if (g.kind != assets::GadgetKind::Unused) {
+                m_bubble_panel->set_visible(g.id, false);
+            }
+        }
+        const std::vector<std::string> lines = own != nullptr ? own->section("BUBBLES") : std::vector<std::string>{};
+        for (std::size_t k = 0; k < bubble::kCount; ++k) {
+            const std::int32_t id = kFirstBubble + 10 * static_cast<std::int32_t>(k);
+            for (std::size_t i = 0; i < 2; ++i) {
+                if (2 * k + i < lines.size()) {
+                    m_bubble_panel->set_text(id + 1 + static_cast<std::int32_t>(i), lines[2 * k + i]);
+                }
+            }
         }
     }
     m_ctrl.set_selected(m_mode, true);
@@ -571,11 +643,34 @@ void Hud::draw_mission(const sim::World& world) {
     }
     m_tutor->set_size(kTutorText, m_tutor_text_size[0] + extra, m_tutor_text_size[1]);
     m_renderer->draw_widened(0, kGfxTutor, window, m_regions.scale);
+    if (m_tutorial) {
+        // The tutorial (0x00430FF0): six lines of its page instead of the mission's text, „weiter“
+        // only where the chapter pages forward by hand, never "back".
+        m_tutor->set_visible(kTutorText, false);
+        const auto first = static_cast<std::size_t>(m_tutorial->page()) * Tutorial::kLinesPerPage;
+        for (std::size_t i = 0; i < Tutorial::kLinesPerPage; ++i) {
+            const auto id = kTutorLine + static_cast<std::int32_t>(i);
+            m_tutor->set_visible(id, true);
+            m_tutor->set_text(id, first + i < m_tutor_lines.size() ? m_tutor_lines[first + i] : std::string());
+        }
+        const bool next = m_tutorial->can_page_forward();
+        for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
+            m_tutor->set_visible(kTutorBack + i, false);
+            m_tutor->set_visible(kTutorNext + i, next);
+        }
+        m_renderer->draw(m_tutor->draw(m_renderer->fonts()), m_regions.tutor.x, m_regions.tutor.y, m_regions.scale);
+        return;
+    }
+    // The scroll arrows: one picture (the back arrow's) and both arrows' parts.
+    m_tutor->set_visible(kTutorText, true);
+    for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
+        m_tutor->set_visible(kTutorBack + i, true);
+        m_tutor->set_visible(kTutorNext + i, i != 0);
+    }
     m_tutor->set_text(110002, mission != nullptr && !mission->text.empty() ? mission->text : std::string("-"));
     for (std::int32_t id = 110011; id <= 110016; ++id) {
         m_tutor->set_visible(id, false);
     }
-    m_tutor->set_visible(110031, false);  // the arrows pressed
     // Clamped here, where the text and the window's width are known: "down" past the end would
     // blank the window and take as many clicks back up.
     m_tutor_line = std::min(m_tutor_line, m_tutor->max_scroll(110002, m_renderer->fonts()));
@@ -592,6 +687,142 @@ void Hud::reset_game() {
     m_commands.clear();
     m_minimap_dirty = true;
     m_tutor_line = 0;
+    m_tutorial.reset();
+    m_bubbles.clear();
+}
+
+void Hud::set_tutorial(std::optional<std::uint8_t> chapter) {
+    m_bubbles.clear();
+    m_tutorial_facts = {};
+    m_tutorial_facts_ms = 0;
+    if (!chapter || m_simulation == nullptr) {
+        m_tutorial.reset();
+        return;
+    }
+    m_tutorial.emplace(*chapter);
+    m_tutorial->start(m_simulation->world(), m_local);
+}
+
+TutorialView Hud::tutorial_view(const BuildPanel::Available& available) {
+    TutorialView v;
+    switch (m_mode) {
+        case kModeBuild:
+            v.mode = TutorialView::Mode::Build;
+            break;
+        case kModeMilitary:
+            v.mode = TutorialView::Mode::Military;
+            break;
+        case kModeInfo:
+            v.mode = m_selection.kind == Selection::Kind::Diplomacy ? TutorialView::Mode::Diplomacy
+                                                                    : TutorialView::Mode::Info;
+            break;
+        default:
+            v.mode = TutorialView::Mode::Settings;
+            break;
+    }
+    if (m_mode == kModeInfo && m_simulation != nullptr && m_buildings != nullptr) {
+        const sim::World& world = m_simulation->world();
+        switch (m_selection.kind) {
+            case Selection::Kind::Ship:
+                v.window = TutorialView::Window::Ship;
+                v.ship = m_selection.ship;
+                break;
+            case Selection::Kind::Building:
+                v.window = TutorialView::Window::Other;
+                if (m_selection.island < world.islands().size()) {
+                    const sim::IslandMap& map = world.islands()[m_selection.island].map;
+                    if (map.contains(m_selection.x, m_selection.y)) {
+                        const assets::BuildingType* b =
+                            map.sub_tile(*m_buildings, m_selection.x, m_selection.y).building;
+                        const sim::PlayerId owner = map.top(m_selection.x, m_selection.y).owner;
+                        const std::int32_t kind = b != nullptr ? b->prod_kind : 0;
+                        if (kind == sim::prod::kHouse && owner == m_local) {
+                            v.window = TutorialView::Window::OwnHouse;
+                        } else if ((kind == sim::prod::kKontor || kind == sim::prod::kMarket) && owner != m_local &&
+                                   owner != sim::kNoPlayer) {
+                            v.window = TutorialView::Window::PartnerKontor;
+                        }
+                    }
+                }
+                break;
+            case Selection::Kind::ShipList:
+            case Selection::Kind::CityList:
+                v.window = TutorialView::Window::Other;
+                break;
+            default:
+                break;
+        }
+    }
+    if (m_mode == kModeInfo || m_mode == kModeMilitary) {
+        std::optional<PanelContext> context;
+        if (SelectionPanel* p = selection_panel(context)) {
+            p->describe(v);
+            v.picking_patrol = m_mode == kModeMilitary && p->picking();
+        }
+    }
+    if (m_units != nullptr) {
+        v.units = m_units->units();
+    }
+    if (m_build) {
+        v.popup_open = m_build->popup_open();
+        v.popup_category = m_build->popup_category();
+        v.menu_building = m_build->current(available);
+    }
+    v.holding_building = m_tool_holding;
+    v.short_of_wood = m_tool_short_of_wood;
+    return v;
+}
+
+void Hud::step_tutorial(const BuildPanel::Available& available, std::uint64_t now_ms) {
+    m_bubbles.clear();
+    if (!m_tutorial || m_simulation == nullptr || m_buildings == nullptr || m_figure_table == nullptr) {
+        return;
+    }
+    const TutorialView v = tutorial_view(available);
+    // Chapter 1 searches the roads of the town: not every frame.
+    if (m_tutorial->chapter() != 1 || m_tutorial_facts_ms == 0 || now_ms < m_tutorial_facts_ms ||
+        now_ms >= m_tutorial_facts_ms + kTutorialFactsMs) {
+        m_tutorial_facts = m_tutorial->facts(v, *m_simulation, *m_buildings, *m_figure_table, m_local);
+        m_tutorial_facts_ms = std::max<std::uint64_t>(now_ms, 1);
+    }
+    m_bubbles = m_tutorial->step(v, m_tutorial_facts);
+}
+
+void Hud::draw_bubbles() {
+    if (!m_bubble_panel || m_bubbles.empty()) {
+        return;
+    }
+    const double s = m_regions.scale;
+    m_bubble_panel->set_scale(s);
+    const std::int32_t extra = std::max(0, static_cast<std::int32_t>(m_regions.tutor.w / s) - kDesignViewW);
+    for (const std::uint8_t k : m_bubbles) {
+        const std::int32_t id = kFirstBubble + 10 * k;
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+        switch (bubble_anchor(k)) {
+            case BubbleAnchor::SidePanel:
+                x = m_regions.side_panel.x - static_cast<std::int32_t>(kDesignViewW * s);
+                y = m_regions.side_panel.y;
+                break;
+            case BubbleAnchor::Map:
+                x = m_regions.game_view.x;
+                y = m_regions.game_view.y;
+                break;
+            case BubbleAnchor::TutorLeft:
+            case BubbleAnchor::TutorRight:
+                x = m_regions.tutor.x +
+                    (bubble_anchor(k) == BubbleAnchor::TutorRight ? static_cast<std::int32_t>(extra * s) : 0);
+                y = m_regions.tutor.y - static_cast<std::int32_t>(kTutorDesignY * s);
+                break;
+        }
+        for (std::int32_t i = 0; i < kBubbleParts; ++i) {
+            m_bubble_panel->set_visible(id + i, true);
+        }
+        m_renderer->draw(m_bubble_panel->draw(m_renderer->fonts()), x, y, s);
+        for (std::int32_t i = 0; i < kBubbleParts; ++i) {
+            m_bubble_panel->set_visible(id + i, false);
+        }
+    }
 }
 
 std::string Hud::crops_line(const std::array<std::pair<std::uint8_t, std::uint32_t>, 3>& crops) const {
@@ -690,9 +921,21 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down)
         return std::nullopt;
     }
     if (!m_menu_active && m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y)) {
-        // The mission's window: X closes it, the arrows scroll its text.
+        // The mission's window: X closes it, the arrows scroll its text. In the tutorial X ends the
+        // chapter and „weiter“ turns the page (0x004326E0).
         for (const ui::PanelEvent& e : m_tutor->mouse(x - m_regions.tutor.x, y - m_regions.tutor.y, down)) {
             if (e.kind != ui::PanelEvent::Kind::Clicked) {
+                continue;
+            }
+            if (m_tutorial) {
+                if (e.id == kTutorClose) {
+                    Action a{Action::Kind::EndTutorial};
+                    a.step = m_tutorial->chapter();
+                    return a;
+                }
+                if (e.id > kTutorNext && e.id < kTutorNext + kTutorArrowParts) {
+                    m_tutorial->page_forward();
+                }
                 continue;
             }
             if (e.id == 110001) {
@@ -1025,6 +1268,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
             status = *text;
         }
     }
+    step_tutorial(available, now_ms);
     draw_mission(world);
     // The minimap on the parchment.
     // Built in full once per game; then one island per frame is brought up to date and the texture
@@ -1081,6 +1325,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     }
     m_leist.set_text(kStatusLine, status);
     m_renderer->draw(m_leist.draw(m_renderer->fonts()), m_regions.status_bar.x, m_regions.status_bar.y, s);
+    draw_bubbles();
     if (m_display_open && m_display) {
         const ui::Rect r = display_rect();
         m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());

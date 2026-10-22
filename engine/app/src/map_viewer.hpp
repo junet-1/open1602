@@ -434,8 +434,9 @@ private:
     SaveSlots m_slots;            ///< names of the savegames of the panel DISK
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;
-    std::string m_tool_status;        ///< what the build tool would do at the mouse
-    std::size_t m_load_problems = 0;  ///< of the game loaded last (report_load_problems)
+    std::string m_tool_status;          ///< what the build tool would do at the mouse
+    bool m_tool_short_of_wood = false;  ///< ... and that it lacks wood for it (the tutorial's bubble)
+    std::size_t m_load_problems = 0;    ///< of the game loaded last (report_load_problems)
     struct ScreenshotRequest {
         std::filesystem::path path;
         bool notify = false;  ///< say in the status line how it went (F12)

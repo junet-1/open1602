@@ -45,6 +45,8 @@ public:
     /// pop-up takes every press on the panel).
     std::optional<Action> mouse(std::int32_t x, std::int32_t y, bool down, const Available& available, bool& consumed);
     [[nodiscard]] bool popup_open() const noexcept { return m_popup.has_value(); }
+    /// The category whose pop-up is open (its button), 0 if none.
+    [[nodiscard]] std::int32_t popup_category() const noexcept { return m_popup ? m_popup_category : 0; }
     void close_popup() noexcept { m_popup.reset(); }
 
     /// The building of the open category (nothing: demolish, or nothing available there). Picks

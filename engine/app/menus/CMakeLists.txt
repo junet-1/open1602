@@ -20,6 +20,7 @@ add_library(o1602_menus
     ../src/multiplayer_menu.cpp
     ../src/multiplayer_texts.cpp
     ../src/order_questions.cpp
+    ../src/tutorial.cpp
     ../src/video_queue.cpp
 )
 add_library(o1602::menus ALIAS o1602_menus)

@@ -312,6 +312,21 @@ std::size_t MainMenu::campaign_parts_open(const MenuScenario& s) const {
     return it != m_progress.campaigns.end() ? it->second : 0;
 }
 
+std::filesystem::path MainMenu::tutorial_file(std::uint8_t chapter) {
+    load_scenarios();
+    for (const MenuScenario& s : m_scenarios) {
+        if (s.separator || s.header.mission_number != kTutorial) {
+            continue;
+        }
+        for (const auto& [digit, path] : s.files) {
+            if (digit == chapter) {
+                return path;
+            }
+        }
+    }
+    return {};
+}
+
 bool MainMenu::open_mission(std::string_view name) {
     open();
     if (!m_host || !m_mission || name.empty()) {
@@ -332,6 +347,11 @@ void MainMenu::select_scenario(std::size_t index) {
     m_chosen = index;
     const MenuScenario& s = m_scenarios[index];
     m_variant = s.files.size() >= 2 ? s.files.front().first : 0xFF;
+    // The tutorial at the chapter of the settings, if it has that file.
+    if (s.header.mission_number == kTutorial &&
+        std::any_of(s.files.begin(), s.files.end(), [&](const auto& f) { return f.first == m_tutorial_chapter; })) {
+        m_variant = m_tutorial_chapter;
+    }
     // A campaign starts at its furthest open part.
     if (s.header.campaign != assets::ScenarioHeader::kNone) {
         const std::vector<std::uint8_t> digits = choice_digits(s);
@@ -587,6 +607,9 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                         MenuEvent ev{MenuEvent::Kind::Scenario};
                         ev.path = chosen_file();
                         ev.name = m_name;
+                        if (s.header.mission_number == kTutorial) {
+                            ev.tutorial_chapter = m_variant == 0xFF ? 0 : m_variant;
+                        }
                         out.push_back(std::move(ev));
                     }
                 } else if (e.id == kCancel) {

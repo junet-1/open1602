@@ -62,6 +62,8 @@ public:
                           std::optional<sim::PlayerId> about = std::nullopt);
     /// One of `count` voices from `base` (every second file), without a message (the menu).
     void speak(std::uint16_t base, std::uint8_t count);
+    /// Stops the voice speaking and those waiting (closing the tutorial, _MaxstreamStop).
+    void stop_voices();
     /// Hears every message with its flags (the status bar's icons in the colour of `about`, normal speed).
     using Listener =
         std::function<void(std::uint16_t message, std::uint16_t flags, std::optional<std::pair<double, double>> tile,

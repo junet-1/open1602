@@ -29,7 +29,7 @@ Status 2026-10-22. What is still open is also listed in [status.md](status.md), 
 | Section | Status |
 |---|---|
 | 1 Pirates | fixed in #58: the surrender events go out loot or not |
-| 2 Tutorial | fixed in #58: the computers of the tutorial stay idle (`TIMERS` +0xA5, savegame section `TUTR`); the tutorial windows and speech are still missing |
+| 2 Tutorial | fixed in #58: the computers of the tutorial stay idle (`TIMERS` +0xA5, savegame section `TUTR`); the tutorial windows, bubbles and speech followed ([tutorial.md](re/tutorial.md)) |
 | 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships, not yet checked again in a long run; the original's computer players are a setting (`Rules::classic_ai`), Open1602's stay the default |
 | 4 Rendering | not a difference: Open1602 was in build mode in that screenshot, which dims everything outside the own territory |
 | 7 Disasters | not a bug: the long fires of the original come from S-050 (a burning house catches fire again) and S-053 (the fire brigade also goes out for the plague), which Open1602 fixes on purpose |

@@ -65,6 +65,8 @@ struct MenuEvent {
     std::filesystem::path path{};
     std::size_t slot = 0;
     EndlessSetup endless{};
+    /// Scenario: the chapter of the tutorial, nothing for another scenario.
+    std::optional<std::uint8_t> tutorial_chapter{};
 };
 
 class MainMenu {
@@ -92,6 +94,10 @@ public:
     [[nodiscard]] const EndlessSetup& endless_setup() const noexcept { return m_endless; }
     /// Colours of Open1602's own screens (the start dialog).
     void set_form_style(const ui::FormStyle& style) { m_settings.set_style(style); }
+    /// The chapter of the tutorial the mission screen offers first (the settings' "Tutornr").
+    void set_tutorial_chapter(std::uint8_t chapter) noexcept { m_tutorial_chapter = chapter; }
+    /// The file of a chapter of the tutorial, empty if there is none.
+    [[nodiscard]] std::filesystem::path tutorial_file(std::uint8_t chapter);
     /// "Neues Spiel" on the end screen: the mission screen of the scenario called `name`
     /// (Windows-1252), else the main menu. True if the scenario was found.
     bool open_mission(std::string_view name);
@@ -150,6 +156,7 @@ private:
     GameSettingsMenu m_settings;
     EndlessSetup m_endless;
     std::uint8_t m_banner = 0;  ///< chosen on the colour screen, for the start dialog
+    std::uint8_t m_tutorial_chapter = 0;
     bool m_name_fresh = false;  ///< the name was put in, not typed: the first key replaces it
     bool m_typing = false;
 };
