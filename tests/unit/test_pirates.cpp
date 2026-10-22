@@ -208,6 +208,36 @@ TEST_CASE("pirates: a surrendered ship is plundered and the loot goes to the nes
     CHECK(!w.world.diplomacy().hostile(2, 1));
 }
 
+TEST_CASE("pirates: a surrender without loot pleases them too, so they stay at peace") {
+    World w;
+    w.start();
+    w.world.diplomacy().set_peace(w.world, 2, 0, sim::Treaty::None, 0);
+    w.world.diplomacy().set_peace(w.world, 2, 1, sim::Treaty::None, 0);
+    sim::Ship pirate = sim::make_ship("Pirat", 40, 25, 31, 2, 2);
+    pirate.cargo.resize(5);
+    pirate.cannons = 6;
+    w.world.add_ship(pirate);
+    sim::Ship merchant = sim::make_ship("Kauffahrer", 44, 25, 21, 1, 0);
+    merchant.cargo.resize(4);
+    merchant.cargo[0] = sim::CargoSlot{8, 40 * kTon, 0};  // grain: not worth taking
+    w.world.add_ship(merchant);
+    const std::uint32_t victim = w.world.ships().back().id;
+    w.run(60'000);
+    CHECK(w.count(sim::ShipEvent::Kind::WhiteFlag) == 1);
+    CHECK(w.count(sim::ShipEvent::Kind::Plundered) == 1);
+    const sim::Ship* m = w.world.ship(victim);
+    REQUIRE(m != nullptr);
+    CHECK(m->load(8) == 40 * kTon);
+    // The pirates' next look keeps the peace with the owner and makes it with every other player
+    // (original 0x00452BE0: event 9 to all, 6 to the owner); the ship is not hunted again.
+    sim::pirates_reconsider(w.world);
+    CHECK(!w.world.diplomacy().hostile(2, 1));
+    CHECK(!w.world.diplomacy().hostile(2, 0));
+    w.run(60'000);
+    CHECK(w.count(sim::ShipEvent::Kind::WhiteFlag) == 1);
+    CHECK(w.world.ship(victim) != nullptr);
+}
+
 TEST_CASE("pirates: their mood decides war and peace; buying peace at their Kontor") {
     World w;
     w.start();
