@@ -176,7 +176,9 @@ public:
     /// Everything to draw for the model, relative to the 1024 x 768 design's top left.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const MultiplayerModel& model,
                                                  const std::array<const ui::Font*, 3>& fonts);
-    std::vector<MultiplayerEvent> mouse(const MultiplayerModel& model, std::int32_t x, std::int32_t y, bool down);
+    /// The right button only reaches the start dialog's settings.
+    std::vector<MultiplayerEvent> mouse(const MultiplayerModel& model, std::int32_t x, std::int32_t y, bool down,
+                                        ui::MouseButton button = ui::MouseButton::Left);
     /// Escape: one screen back. Close on the search screen, Leave in a session; nothing when the
     /// menu went back by itself (from creating a game to the search).
     std::optional<MultiplayerEvent> back();

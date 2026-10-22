@@ -2,7 +2,8 @@
 //
 // The start dialog of a new game (ADR 0008): Open1602's own screen, the original has none. The
 // settings in groups (economy, limits, disasters, world, opponents), each a button with its value;
-// a click chooses the next value. Presets for the original's rules and Open1602's defaults.
+// a left click chooses the next value, a right click the previous one. Presets for the original's rules and Open1602's
+// defaults.
 //
 // One dialog for every kind of game: the endless game after the name and the banner, a scenario
 // after its mission screen, and the multiplayer menu, where the host chooses and the others look
@@ -44,7 +45,7 @@ public:
 
     /// Everything to draw, relative to the 1024 x 768 design's top left.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts);
-    Result mouse(std::int32_t x, std::int32_t y, bool down);
+    Result mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button = ui::MouseButton::Left);
 
 private:
     void layout();

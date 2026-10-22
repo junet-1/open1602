@@ -75,6 +75,13 @@ information fit in and the controls follow today's real-time strategy games (202
 | Escape | put the tool away |
 | Right-click | put the tool away and return to the player status |
 
+**Settings dialogs** (start dialog of a game, window „Anzeige“)
+
+| Key | Function |
+|---|---|
+| Left-click on a value | the next value (after the last the first) |
+| Right-click on a value | the previous value (before the first the last) |
+
 **Selection**
 
 | Key | Function |

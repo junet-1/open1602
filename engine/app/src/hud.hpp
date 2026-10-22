@@ -86,8 +86,10 @@ public:
     /// Whether a point belongs to the frame (the map does not see the mouse there).
     [[nodiscard]] bool covers(std::int32_t x, std::int32_t y) const noexcept;
 
-    /// The mouse in window pixels; returns what a click asked for.
-    std::optional<Action> mouse(std::int32_t x, std::int32_t y, bool down);
+    /// The mouse in window pixels; returns what a click asked for. The right button reaches only
+    /// the settings dialogs (a right click chooses a setting's previous value).
+    std::optional<Action> mouse(std::int32_t x, std::int32_t y, bool down,
+                                ui::MouseButton button = ui::MouseButton::Left);
 
     /// A message for the local player (MELDUNG number) at a world tile, in the colour of `banner`.
     void message(std::uint16_t id, sim::BannerId banner, std::optional<std::pair<double, double>> tile,
