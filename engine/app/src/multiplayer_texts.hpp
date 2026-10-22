@@ -99,6 +99,7 @@ enum class MpText : std::uint16_t {
     HostMoving,
     HostMoved,
     HostMovedYou,
+    ChooseBanner,
 };
 
 /// The catalogue key of a text ("net.player_joined").

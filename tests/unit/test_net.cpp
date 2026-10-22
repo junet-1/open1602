@@ -95,7 +95,8 @@ struct Game {
                 seat.kind == net::LobbySeat::Kind::Computer ? sim::PlayerRole::Computer : sim::PlayerRole::Human;
             players[p].status =
                 seat.kind == net::LobbySeat::Kind::Closed ? sim::PlayerStatus::Absent : sim::PlayerStatus::Playing;
-            players[p].banner = static_cast<sim::BannerId>(p);
+            // The banners chosen in the lobby, as the program gives them to the players.
+            players[p].banner = lobby.banners.empty() ? static_cast<sim::BannerId>(p) : seat.banner;
             players[p].name = seat.name;
             players[p].money = 1000;
         }
@@ -280,18 +281,20 @@ TEST_CASE("net: every message goes to bytes and back") {
     net::Lobby lobby;
     lobby.title = "Merlins Inselwelt";
     lobby.game = "Endlosspiel, Stufe 2";
-    lobby.seats = {net::LobbySeat{net::LobbySeat::Kind::Human, "Merlin", true},
-                   net::LobbySeat{net::LobbySeat::Kind::Open, "", false},
-                   net::LobbySeat{net::LobbySeat::Kind::Computer, "", true},
-                   net::LobbySeat{net::LobbySeat::Kind::Closed, "", false}};
+    lobby.seats = {net::LobbySeat{net::LobbySeat::Kind::Human, "Merlin", true, 0},
+                   net::LobbySeat{net::LobbySeat::Kind::Open, "", false, 7},
+                   net::LobbySeat{net::LobbySeat::Kind::Computer, "", true, 2},
+                   net::LobbySeat{net::LobbySeat::Kind::Closed, "", false, 0x1234}};
     lobby.password = true;
     lobby.setup = {9, 8, 7};
+    lobby.banners = {0, 1, 2, 3, 7, 8, 0x1234};
     all.emplace_back(lobby);
     all.emplace_back(net::TakeSeat{3});
     all.emplace_back(net::SetReady{true});
     all.emplace_back(net::Chat{1, "Anna", "Hallo!"});
     all.emplace_back(net::Refused{net::RefuseReason::Kicked});
     all.emplace_back(net::Standby{{net::SeatToken{1, 0x1234567890ULL}, net::SeatToken{3, 7}}, {3}});
+    all.emplace_back(net::SetBanner{0x0809});
     for (const net::Message& m : all) {
         const auto bytes = net::encode(m);
         const auto back = net::decode(bytes);
@@ -337,7 +340,7 @@ TEST_CASE("net: damaged or hostile bytes give no message") {
         for (auto& b : noise) {
             b = static_cast<std::uint8_t>(r.next());
         }
-        noise[0] = static_cast<std::uint8_t>(r.below(15));
+        noise[0] = static_cast<std::uint8_t>(r.below(16));
         if (const auto m = net::decode(noise)) {
             CHECK(net::encode(*m).size() <= noise.size() + 1024);
         }
@@ -890,6 +893,103 @@ TEST_CASE("net: a lobby: slots, password, chat and ready, then the game starts o
     anna.session->take_seat(sim::kNoPlayer);
     tick(300);
     CHECK(anna.session->local_seat() == 1);
+}
+
+TEST_CASE("net: a lobby's banners: each player chooses one, no two alike, the computer gives way") {
+    net::LoopbackNetwork network(30, 10);
+    net::Lobby setup;
+    // Four slots, the third the computer's, all with the same banner and one not on offer: the host
+    // makes them different.
+    setup.seats = {net::LobbySeat{}, net::LobbySeat{}, net::LobbySeat{net::LobbySeat::Kind::Computer, "", false},
+                   net::LobbySeat{}};
+    setup.seats[3].banner = 99;
+    setup.banners = {0, 1, 2, 3, 7, 8};
+    net::HostSession host(network.listen(), setup, 0, "Merlin", kContent);
+    const auto banners = [](const net::Lobby& lobby) {
+        std::vector<sim::BannerId> b;
+        for (const net::LobbySeat& s : lobby.seats) {
+            b.push_back(s.banner);
+        }
+        return b;
+    };
+    CHECK((banners(host.lobby()) == std::vector<sim::BannerId>{0, 1, 2, 3}));
+
+    Computer anna(network, "Anna");
+    std::vector<Computer*> all = {&anna};
+    const auto tick = [&](std::uint32_t ms) {
+        for (std::uint32_t t = 0; t < ms; t += kStepMs) {
+            network.advance(kStepMs);
+            host.update(kStepMs);
+            (void)host.take_events();
+            for (Computer* c : all) {
+                c->update(kStepMs);
+            }
+        }
+    };
+    tick(300);
+    REQUIRE(anna.session->local_seat() == 1);
+    CHECK(anna.session->lobby().seats[1].banner == 1);  // the slot's banner
+
+    // A free banner; the host's is another person's and stays his; not on offer, nothing.
+    anna.session->set_banner(7);
+    tick(300);
+    CHECK((banners(anna.session->lobby()) == std::vector<sim::BannerId>{0, 7, 2, 3}));
+    anna.session->set_banner(0);
+    anna.session->set_banner(5);
+    tick(300);
+    CHECK((banners(host.lobby()) == std::vector<sim::BannerId>{0, 7, 2, 3}));
+    // The computer's banner: the computer takes Anna's in exchange.
+    anna.session->set_banner(2);
+    tick(300);
+    CHECK((banners(anna.session->lobby()) == std::vector<sim::BannerId>{0, 2, 7, 3}));
+
+    // The host for itself and for the slots no other person plays, never for Anna.
+    CHECK(!host.set_banner(1, 8));
+    CHECK(!host.set_banner(0, 2));
+    CHECK(host.set_banner(3, 8));
+    CHECK(host.set_banner(2, 3));  // a free one: nobody gives way
+    CHECK(host.set_banner(0, 8));  // the open slot's: it takes the host's
+    CHECK((banners(host.lobby()) == std::vector<sim::BannerId>{8, 2, 3, 0}));
+    CHECK(host.set_banner(0, 8));  // the same again: fine
+
+    // The banner stays with the slot when its player goes; whoever comes next has it.
+    anna.session.reset();
+    all.clear();
+    tick(300);
+    CHECK(host.lobby().seats[1].kind == net::LobbySeat::Kind::Open);
+    CHECK(host.lobby().seats[1].banner == 2);
+    Computer bernd(network, "Bernd");
+    all = {&bernd};
+    tick(300);
+    REQUIRE(bernd.session->local_seat() == 1);
+    CHECK(bernd.session->lobby().seats[1].banner == 2);
+    bernd.session->set_banner(1);
+    bernd.session->set_ready(true);
+    tick(300);
+
+    // The game gets them; once it runs they stay.
+    std::optional<Game> host_game;
+    host_game.emplace(Game::from_lobby(host.lobby()));
+    host.start(*host_game->simulation, buildings());
+    tick(2000);
+    REQUIRE(bernd.session->playing());
+    CHECK(bernd.game.world->player(1)->banner == 1);
+    CHECK(bernd.game.world->player(0)->banner == 8);
+    CHECK(!host.set_banner(0, 7));
+    bernd.session->set_banner(7);
+    tick(300);
+    CHECK(host.lobby().seats[1].banner == 1);
+    CHECK(!bernd.session->ended());
+}
+
+TEST_CASE("net: a running game's lobby shows the players' banners and offers none") {
+    net::LoopbackNetwork network;
+    Game game = Game::fresh(2);
+    game.world->player(1)->banner = 9;
+    net::HostSession host(network.listen(), *game.simulation, buildings(), 0, "Merlin", kContent);
+    CHECK(host.lobby().banners.empty());
+    CHECK(host.lobby().seats[1].banner == 9);
+    CHECK(!host.set_banner(0, 9));
 }
 
 TEST_CASE("net: searches and answers of the game search, and hostile bytes") {

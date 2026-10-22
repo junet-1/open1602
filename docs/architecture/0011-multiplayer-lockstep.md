@@ -68,14 +68,25 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     second each). The host sets the kinds of the slots, removes players and starts when it wants;
     the game is made from the lobby and every computer gets it as it would get a running one
     (point 6). The lobby travels as a whole whenever it changes. A slot's index is the player of the
-    world, and with it the banner colour; the slots of the free trader, the pirates and the natives
-    are reserved and not shown. Every game has all its players: a slot nobody takes is played by
+    world, and each slot has a banner (point 15); the slots of the free trader, the pirates and the
+    natives are reserved and not shown. Every game has all its players: a slot nobody takes is played by
     the computer, and the host hands it to whoever comes into the running game (the command
     `PlayerControl`) and back to the computer when that player leaves.
 14. **Players.** A new endless game has four to twelve players. Four play on the original's maps;
     more get a world of their own (ADR 0008), as much sea and land per player as the original's
     500 × 350 for four. Players five on sit behind the original's seven slots (slot 7 on) with
     banners of their own colours (`BannerTable::add_more_players`), named after them.
+15. **Banners.** Each lobby slot carries a banner (`LobbySeat::banner`), and the lobby the banners on
+    offer (`Lobby::banners`): the twelve player colours for an endless game and a scenario, none for a
+    savegame or a running game, whose players keep theirs. A slot starts with the banner of its
+    number (a scenario: its player's); the host makes them different when the lobby opens. A player
+    asks for another banner of its own slot (`SetBanner`), the host sets its own and those of the
+    slots no other person plays. A banner another person has is refused; one a computer's, an open
+    or a closed slot has is swapped, so that a full lobby can still change colours. The banner
+    stays with the slot when players come and go. At the start each player of the world gets its
+    slot's banner, and the computers of an endless game the name of their colour; everything else
+    follows from the banner as in a game of one player (flags, units, the coats of arms of
+    `BannerArt`, whose pattern comes from the banner's id). Protocol version 5.
 12. **Finding games.** A host answers searches on UDP port 16021 with what the menu lists (title, host,
     game, players and slots, started, password, joining, spectators, protocol version). A computer
     looking for games asks every network of the computer by broadcast, the computer itself and the
@@ -151,7 +162,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
 
 ## Open
 
-- Choosing banners in the lobby, the endless game's own world settings over the network.
+- The endless game's own world settings over the network.
 - The computer taking over slots of players who began as humans, waiting for a disconnected player.
 - Host migration beyond the local network: the successor is reached at the address the host saw,
   on the old host's port, so on the internet only when that port is open at the successor too.

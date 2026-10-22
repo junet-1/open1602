@@ -133,6 +133,10 @@ struct ViewerOptions {
 /// game's language; players named otherwise keep their names.
 void name_more_players(sim::World& world);
 
+/// The name of a computer player by its banner's colour, in the game's language: the original's
+/// four from `colour_names` (Text.cod PLAYCOL), the further ones from Open1602's texts.
+[[nodiscard]] std::string colour_player_name(sim::BannerId banner, const std::vector<std::string>& colour_names);
+
 /// The running program: the window, the game and its presentation. Coordinates the parts that
 /// take the input (MapInput), present the game's events (EventPresenter) and play the videos
 /// (VideoController), and runs the frames.
