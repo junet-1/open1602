@@ -66,10 +66,10 @@ public:
         std::uint32_t ship = 0;
     };
     /// The modes of the panel (CTRL.GAD).
-    static constexpr std::int32_t kModeBuild = 30011;
-    static constexpr std::int32_t kModeMilitary = 30012;
-    static constexpr std::int32_t kModeInfo = 30013;
-    static constexpr std::int32_t kModeOptions = 30014;
+    static constexpr std::int32_t kModeBuild = side_mode::kBuild;
+    static constexpr std::int32_t kModeMilitary = side_mode::kMilitary;
+    static constexpr std::int32_t kModeInfo = side_mode::kInfo;
+    static constexpr std::int32_t kModeOptions = side_mode::kOptions;
 
     /// Nothing if the layouts or the panel's art are missing (the viewer then runs without frame).
     static std::unique_ptr<Hud> create(SDL_Renderer* renderer, const assets::GameDirectory& game,
