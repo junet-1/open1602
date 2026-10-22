@@ -128,6 +128,8 @@ void prepare_missions(World& world);
 /// Workers per city (city + 0x218, Arbeiter of every building with a running cost, tower or
 /// castle), indexed like World::cities().
 [[nodiscard]] std::vector<std::uint32_t> city_workers(const World& world, const assets::BuildingTable& buildings);
+/// Workers of one city, without the index of all cities (for a single city every frame).
+[[nodiscard]] std::uint32_t city_workers(const World& world, const assets::BuildingTable& buildings, const City& city);
 
 /// Military upkeep per minute per player (0x00475B00): soldiers, units in castles and on ships,
 /// cannon towers. Computer players pay none.

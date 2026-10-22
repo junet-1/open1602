@@ -1379,11 +1379,10 @@ Hud::Resources MapViewer::resources() const {
                                                        m_pending_bill->bricks >> 5U};
         }
     }
-    std::int64_t people = 0;
-    for (const std::uint32_t n : city->inhabitants) {
-        people += n;
-    }
-    r.inhabitants = people;
+    // Einwohner as the original counts them here (0x0040D1C8 calls City_Einwohner 0x0047F790):
+    // residents plus the workers of the city's buildings, the same figure as the player status,
+    // the city window and the population messages.
+    r.inhabitants = sim::city_einwohner(*city, sim::city_workers(m_state->world, m_buildings, *city));
     const sim::Player* owner = m_state->world.player(city->owner);
     if (owner != nullptr && owner->role == sim::PlayerRole::Human) {
         r.shield = owner->banner;

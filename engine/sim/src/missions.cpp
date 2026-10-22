@@ -271,10 +271,13 @@ std::uint32_t city_einwohner(const City& city, std::uint32_t workers) noexcept {
     return n;
 }
 
-std::vector<std::uint32_t> city_workers(const World& world, const assets::BuildingTable& buildings) {
-    std::vector<std::uint32_t> workers(world.cities().size(), 0);
-    const auto index = city_index(world);
-    const auto add = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+namespace {
+
+/// Calls add(island, cell, building) for every building with workers (a used production, a
+/// building with a running cost, a tower or castle) whose map cell holds a known building.
+template <typename Add>
+void for_each_workplace(const World& world, const assets::BuildingTable& buildings, Add&& add) {
+    const auto visit = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) {
         if (island >= world.islands().size()) {
             return;
         }
@@ -283,23 +286,45 @@ std::vector<std::uint32_t> city_workers(const World& world, const assets::Buildi
             return;
         }
         const MapCell& cell = map.top(x, y);
-        const auto it = index.find(city_key(island, cell.city));
         const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
-        if (it != index.end() && b != nullptr) {
-            workers[it->second] += b->workers;
+        if (b != nullptr) {
+            add(island, cell, *b);
         }
     };
     for (const Production& p : world.productions()) {
         if (p.used) {
-            add(p.island, p.x, p.y);
+            visit(p.island, p.x, p.y);
         }
     }
     for (const CostBuilding& c : world.cost_buildings()) {
-        add(c.island, c.x, c.y);
+        visit(c.island, c.x, c.y);
     }
     for (const Tower& t : world.towers()) {
-        add(t.island, t.x, t.y);
+        visit(t.island, t.x, t.y);
     }
+}
+
+}  // namespace
+
+std::vector<std::uint32_t> city_workers(const World& world, const assets::BuildingTable& buildings) {
+    std::vector<std::uint32_t> workers(world.cities().size(), 0);
+    const auto index = city_index(world);
+    for_each_workplace(world, buildings, [&](std::uint16_t island, const MapCell& cell, const assets::BuildingType& b) {
+        const auto it = index.find(city_key(island, cell.city));
+        if (it != index.end()) {
+            workers[it->second] += b.workers;
+        }
+    });
+    return workers;
+}
+
+std::uint32_t city_workers(const World& world, const assets::BuildingTable& buildings, const City& city) {
+    std::uint32_t workers = 0;
+    for_each_workplace(world, buildings, [&](std::uint16_t island, const MapCell& cell, const assets::BuildingType& b) {
+        if (island == city.island && cell.city == city.index) {
+            workers += b.workers;
+        }
+    });
     return workers;
 }
 
