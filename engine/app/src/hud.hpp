@@ -25,6 +25,7 @@
 #include "selection.hpp"
 #include "selection_panels.hpp"
 #include "side_panels.hpp"
+#include "tutorial.hpp"
 
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/palette.hpp"
@@ -58,6 +59,7 @@ public:
             Answer,        ///< the question was answered: `step` 1 yes, 0 no
             SelectShip,    ///< select `ship` and look at it (the ship list)
             Rating,        ///< the score sheets of the running game ("Bewertung")
+            EndTutorial,   ///< „Einführungsspiel beenden“ (the X of the tutorial's window): `step` the chapter
         };
         Kind kind = Kind::RotateLeft;
         double tile_x = 0.0;  ///< Minimap and Message: the world tile to look at
@@ -117,6 +119,16 @@ public:
     void set_rotation(std::uint8_t r) noexcept { m_rotation = r; }
     /// The rotation of the building to place (the preview turns with it).
     void set_building_rotation(std::uint8_t r) noexcept { m_building_rotation = r; }
+    /// What the build tool does (for the tutorial's bubbles): it holds a building to place, and
+    /// what it would place lacks wood.
+    void set_build_tool(bool holding, bool short_of_wood) noexcept {
+        m_tool_holding = holding;
+        m_tool_short_of_wood = short_of_wood;
+    }
+    /// The tutorial's chapter runs in this game, nothing: no tutorial (docs/re/tutorial.md). Its pages
+    /// show in the mission's window and its help bubbles over the frame. After set_game().
+    void set_tutorial(std::optional<std::uint8_t> chapter);
+    [[nodiscard]] const Tutorial* tutorial() const noexcept { return m_tutorial ? &*m_tutorial : nullptr; }
     /// Which buildings the local player may pick (the build menu).
     void set_available(BuildPanel::Available available) { m_available = std::move(available); }
     [[nodiscard]] std::int32_t mode() const noexcept { return m_mode; }
@@ -409,6 +421,20 @@ private:
     /// "Auftrag ansehen": the mission's text in the window above the status bar (TUTOR.GAD).
     void draw_mission(const sim::World& world);
     void draw_help();
+    /// The tutorial's step of this frame: the page of its window and the bubbles to draw.
+    void step_tutorial(const BuildPanel::Available& available, std::uint64_t now_ms);
+    [[nodiscard]] TutorialView tutorial_view(const BuildPanel::Available& available);
+    /// The help bubbles of the step, each kept beside what it points at.
+    void draw_bubbles();
+
+    std::optional<Tutorial> m_tutorial;
+    std::optional<ui::Panel> m_bubble_panel;  ///< BUBBLE.GAD
+    std::vector<std::uint8_t> m_bubbles;      ///< drawn this frame
+    std::vector<std::string> m_tutor_lines;   ///< Text.cod [TUTOR]: six lines per page
+    TutorialFacts m_tutorial_facts;
+    std::uint64_t m_tutorial_facts_ms = 0;  ///< when they were last read
+    bool m_tool_holding = false;
+    bool m_tool_short_of_wood = false;
 };
 
 }  // namespace o1602::app

@@ -1053,6 +1053,7 @@ void MapViewer::render() {
         PreviewGuard preview{m_state->world};
         std::vector<Saved>& saved = preview.cells;
         m_tool_status.clear();
+        m_tool_short_of_wood = false;
         m_pending_bill.reset();
         m_tile_marks.clear();
         layers.tile_marks = &m_tile_marks;
@@ -1082,6 +1083,7 @@ void MapViewer::render() {
                         if (!item.ok() && m_tool_status.empty()) {
                             m_tool_status = refusal_text(item.refusal);
                         }
+                        m_tool_short_of_wood |= item.refusal == sim::BuildRefusal::Wood;
                         if (item.type == nullptr || hatched) {
                             continue;
                         }
@@ -1196,6 +1198,8 @@ void MapViewer::render() {
         }
         m_hud->set_rotation(m_camera.view().rotation);
         m_hud->set_building_rotation(m_tool.rotation());
+        m_hud->set_build_tool(m_tool.mode() == BuildTool::Mode::Build && m_tool.selected() != nullptr,
+                              m_tool.mode() == BuildTool::Mode::Build && m_tool_short_of_wood);
         if (m_hud->mode() == Hud::kModeInfo && (now >= m_figures_ms + 1000 || now < m_figures_ms)) {
             // The player status: sums over all cities and units, once a second is enough.
             m_player_figures = sim::player_figures(m_state->world, m_buildings, m_figures, m_local_player);
@@ -1205,7 +1209,8 @@ void MapViewer::render() {
         const sim::Player* local = m_state->world.player(m_local_player);
         m_hud->set_resources(resources());
         // "Bewertung" would stop the game on one computer only: alone only (Screen_PlayerStatus).
-        m_hud->set_points(m_player_points, humans() <= 1);
+        // Never in the tutorial (0x0043D76B).
+        m_hud->set_points(m_player_points, humans() <= 1 && !m_state->world.game_settings().tutorial);
         m_hud->draw(m_state->world, m_buildings, m_banners, corners, now, m_player_figures,
                     static_cast<std::uint8_t>(local != nullptr ? std::min<int>(local->banner, 255) : 0));
         if (m_video->in_minimap()) {
@@ -1676,6 +1681,37 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             // The question before scuttling, disbanding or war.
             m_input->answer(action.step != 0);
             break;
+        case Hud::Action::Kind::EndTutorial: {
+            // „Einführungsspiel beenden“ (0x004326E0): the voice stops, the next chapter is kept in
+            // the settings and starts at once; after the last one the main menu, at chapter 0 again.
+            if (m_sound) {
+                m_sound->stop_voices();
+            }
+            const auto next = Tutorial::next_chapter(static_cast<std::uint8_t>(action.step));
+            m_app_settings.tutorial_chapter = next.value_or(0);
+            save_settings();
+            MainMenu* menu = m_hud->menu();
+            if (menu != nullptr) {
+                menu->set_tutorial_chapter(m_app_settings.tutorial_chapter);
+            }
+            if (next && menu != nullptr) {
+                const std::filesystem::path path = menu->tutorial_file(*next);
+                const core::Status status =
+                    path.empty() ? core::Status(core::make_error(core::ErrorCode::NotFound, "no such chapter"))
+                                 : load_game(path);
+                if (status) {
+                    break;
+                }
+                std::fprintf(stderr, "tutorial: %s\n", status.error().message.c_str());
+            }
+            m_events.drop_end_screen();
+            if (menu != nullptr) {
+                m_hud->open_menu();
+            } else {
+                m_running = false;
+            }
+            break;
+        }
         case Hud::Action::Kind::FoundKontor:
             if (m_tool.select_kontor(action.ship)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
@@ -1953,6 +1989,7 @@ void MapViewer::load_options() {
         menu->set_progress_file(data_folder() / "progress.cfg");
         menu->set_name(m_app_settings.player_name);
         menu->set_endless_setup(m_app_settings.endless);
+        menu->set_tutorial_chapter(m_app_settings.tutorial_chapter);
     }
 }
 
@@ -2192,6 +2229,17 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     if (m_hud) {
         m_hud->set_game(m_state->simulation, m_buildings, m_figures, m_local_player);
         m_hud->reset_game();
+        // The tutorial (docs/re/tutorial.md): the chapter of the settings, its window open
+        // (0x00484EAB), its speech once at the start (0x0043B500). Not saved: a loaded tutorial
+        // game starts its chapter again.
+        if (m_state->world.game_settings().tutorial && !m_session) {
+            const std::uint8_t chapter = m_app_settings.tutorial_chapter;
+            m_hud->set_tutorial(chapter);
+            m_hud->options_model().mission_window = true;
+            if (m_sound) {
+                m_sound->speak(Tutorial::speech(chapter), 1);
+            }
+        }
     }
     m_camera.set_world_size(m_state->world.width(), m_state->world.height());
     m_camera.center_on(home_tile());
@@ -2301,6 +2349,12 @@ void MapViewer::apply_menu() {
                 }
                 break;
             case MenuEvent::Kind::Scenario:
+                if (e.tutorial_chapter) {
+                    // The chapter is a setting, as the original's "Tutornr": the game reads it.
+                    m_app_settings.tutorial_chapter = *e.tutorial_chapter;
+                    save_settings();
+                    menu->set_tutorial_chapter(*e.tutorial_chapter);
+                }
                 started = load_game(e.path);
                 if (started && !e.name.empty()) {
                     // The stored name goes to the human (0x0048A680).

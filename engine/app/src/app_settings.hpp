@@ -27,7 +27,10 @@ namespace o1602::app {
 struct AppSettings {
     audio::AudioSettings audio;
     bool mission_window = false;  ///< "Auftrag ansehen"
-    std::string player_name;      ///< the name typed in the menu (Windows-1252)
+    /// The chapter of the tutorial chosen last, or the next one after „Einführungsspiel beenden“
+    /// (the original's "Tutornr"): the tutorial runs this chapter, the menu offers it first.
+    std::uint8_t tutorial_chapter = 0;
+    std::string player_name;  ///< the name typed in the menu (Windows-1252)
     /// The language of Open1602's own texts ("de", "en", ...); "auto": the installation's.
     std::string language = "auto";
     /// Whales, dolphins and krakens: on average one per screen of sea every this many seconds

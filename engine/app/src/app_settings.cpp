@@ -120,6 +120,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             }
         } else if (key == "mission_window") {
             s.mission_window = flag(value, s.mission_window);
+        } else if (key == "tutorial_chapter") {
+            s.tutorial_chapter = static_cast<std::uint8_t>(std::clamp(number(value, s.tutorial_chapter), 0, 4));
         } else if (key == "sea_creatures_every") {
             s.sea_creatures_every = std::clamp(number(value, s.sea_creatures_every), 0, 3600);
         } else if (key.starts_with("display.")) {
@@ -149,6 +151,7 @@ std::string write_settings(const AppSettings& s) {
     out += "language = " + s.language + "\n";
     out +=
         "# Whales, dolphins, krakens: on average one per screen of sea every this many seconds (original 5, 0 = off)\n";
+    out += "tutorial_chapter = " + std::to_string(s.tutorial_chapter) + "\n";
     out += "sea_creatures_every = " + std::to_string(s.sea_creatures_every) + "\n";
     if (!s.player_name.empty()) {
         out += "player_name = " + core::cp1252_to_utf8(s.player_name) + "\n";

@@ -98,6 +98,20 @@ public:
         }
     }
     [[nodiscard]] bool picking() const override { return m_pick_stop.has_value(); }
+    void describe(TutorialView& view) const override {
+        view.ship_page = m_page == Page::Root       ? TutorialView::ShipPage::Main
+                         : m_page == Page::Transfer ? TutorialView::ShipPage::Transfer
+                         : m_page == Page::Trade    ? TutorialView::ShipPage::Trade
+                                                    : TutorialView::ShipPage::Other;
+        if (m_page == Page::Transfer) {
+            view.consumer_goods = category() == kConsumerGoods;
+            for (std::int32_t k = 0; k < 4; ++k) {
+                if (m_transfer.selected(45031 + k)) {
+                    view.kontor_ware = kontor_ware(k);
+                }
+            }
+        }
+    }
     void picked(std::uint32_t x, std::uint32_t y, const Selection& s, const PanelContext& c,
                 std::vector<sim::Command>& out) override {
         const std::optional<std::uint8_t> stop = std::exchange(m_pick_stop, std::nullopt);
@@ -763,13 +777,14 @@ private:
         std::uint8_t first;
         std::uint8_t last;
     };
+    static constexpr std::int32_t kConsumerGoods = 2;  // the group "Bedarfsgüter" (45143)
     static WareRange category_range(std::int32_t cat) {
         switch (cat) {
             case 0:
                 return {22, 24};  // Baumaterial
             case 1:
                 return {11, 13};  // Waffen
-            case 2:
+            case kConsumerGoods:
                 return {14, 21};  // Bedarfsgüter
             default:
                 return {2, 10};  // Rohstoffe

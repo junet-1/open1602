@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "selection.hpp"
+#include "tutorial.hpp"
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
@@ -89,6 +90,8 @@ public:
         double y = 0.0;
     };
     [[nodiscard]] virtual std::optional<Request> take_request() { return std::nullopt; }
+    /// What the tutorial reads of the window (the ship window's page and the ware it shows).
+    virtual void describe(TutorialView& /*view*/) const {}
 };
 
 /// A window of one layout.

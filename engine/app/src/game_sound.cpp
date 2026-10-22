@@ -212,6 +212,12 @@ void GameSound::speak(std::uint16_t base, std::uint8_t count) {
     }
 }
 
+void GameSound::stop_voices() {
+    if (m_output != nullptr) {
+        m_voices.stop_all();
+    }
+}
+
 void GameSound::construction(const sim::World& world, const std::vector<sim::ConstructionEvent>& events) {
     // One sound per batch, the first building that has one (Build_PlaceBuildings 0x004090E2): a
     // dragged road or a row of houses sounds once.
