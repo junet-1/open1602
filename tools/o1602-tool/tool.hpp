@@ -85,6 +85,9 @@ int usage();
 /// The palette of --palette, or $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 core::Result<assets::Palette> load_palette(const Args& args);
 
+// bench.cpp
+int cmd_bench(const Args& args);
+
 // formats.cpp
 int cmd_chunks(const Args& args);
 int cmd_cod(const Args& args);

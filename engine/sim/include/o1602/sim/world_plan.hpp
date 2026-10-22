@@ -49,6 +49,12 @@ struct WorldSettings {
     std::uint64_t seed = 0;
 };
 
+/// Settings for a world of `players` with as much sea and land per player as the original's
+/// 500 x 350 for four (multiplayer games of more than four, o1602-tool bench): both sides grow with
+/// the square root of the players; four or fewer keep the original's size. The islands follow the
+/// area (WorldSettings::islands).
+[[nodiscard]] WorldSettings settings_for_players(std::uint8_t players);
+
 /// The start area of one player: his ship's place, his home island and how far "within reach" is.
 struct StartArea {
     std::uint32_t x = 0;  ///< world tile of the ship

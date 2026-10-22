@@ -190,6 +190,10 @@ public:
     [[nodiscard]] const std::vector<std::string>& city_names() const noexcept { return m_city_names; }
     /// One tick of game time: the commands that are due, then the steps of tick_step_names().
     void tick();
+    /// tick() that also measures its steps (benchmarks): adds the real time step i of
+    /// tick_step_names() took, in nanoseconds, to `step_ns[i]`; steps beyond the span are not
+    /// timed. The game goes on exactly as with tick().
+    void tick_timed(std::span<std::uint64_t> step_ns);
     /// The steps of a tick in the order they run (documentation and tests).
     [[nodiscard]] static std::vector<std::string_view> tick_step_names();
     /// Called at the end of every tick: for what has to follow the game tick by tick without

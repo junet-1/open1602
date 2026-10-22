@@ -341,6 +341,22 @@ TEST_CASE("simulation: the steps of a tick run in the original's order (review p
     CHECK(sim::Simulation::tick_step_names() == expected);
 }
 
+TEST_CASE("simulation: a timed tick goes on exactly like a tick and times the steps it is given") {
+    Game a;
+    Game b;
+    const std::size_t steps = sim::Simulation::tick_step_names().size();
+    std::vector<std::uint64_t> all(steps, 0);
+    std::vector<std::uint64_t> first(1, 0);  // only the first step is timed
+    for (int t = 0; t < 40; ++t) {
+        a.simulation.tick();
+        b.simulation.tick_timed(t % 2 == 0 ? std::span<std::uint64_t>(all) : std::span<std::uint64_t>(first));
+    }
+    CHECK(a.simulation.game_time_ms() == b.simulation.game_time_ms());
+    CHECK(a.simulation.state_hash() == b.simulation.state_hash());
+    b.simulation.tick_timed({});  // nothing to time
+    CHECK(b.simulation.game_time_ms() == a.simulation.game_time_ms() + sim::Simulation::kTickMs);
+}
+
 TEST_CASE("simulation: events nobody takes are dropped beyond the bound, the oldest first") {
     sim::EventBuffer<std::uint32_t> buffer;
     for (std::uint32_t i = 0; i < 3 * sim::EventBuffer<std::uint32_t>::kMaxPending; ++i) {
