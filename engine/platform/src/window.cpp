@@ -3,8 +3,45 @@
 
 #include <SDL3/SDL.h>
 #include <cstdio>
+#include <string_view>
+
+#include "o1602/core/embedded_file.hpp"
 
 namespace o1602::platform {
+
+// data/icons/window/*.bmp, compiled in by o1602_embed_files (engine/platform/CMakeLists.txt).
+namespace icons {
+extern const core::EmbeddedFile kEmbeddedFiles[];
+extern const std::size_t kEmbeddedFileCount;
+}  // namespace icons
+
+namespace {
+
+SDL_Surface* load_embedded_bmp(std::string_view name) {
+    for (std::size_t i = 0; i < icons::kEmbeddedFileCount; ++i) {
+        const core::EmbeddedFile& file = icons::kEmbeddedFiles[i];
+        if (name == file.name) {
+            return SDL_LoadBMP_IO(SDL_IOFromConstMem(file.data, file.size), true);
+        }
+    }
+    SDL_SetError("no embedded icon %.*s", static_cast<int>(name.size()), name.data());
+    return nullptr;
+}
+
+}  // namespace
+
+SDL_Surface* load_app_icon() {
+    SDL_Surface* icon = load_embedded_bmp("open1602-64");
+    if (icon == nullptr) {
+        return nullptr;
+    }
+    // The larger picture is for HiDPI screens; without it SDL scales the 64 px one up.
+    if (SDL_Surface* large = load_embedded_bmp("open1602-128"); large != nullptr) {
+        SDL_AddSurfaceAlternateImage(icon, large);
+        SDL_DestroySurface(large);  // the icon holds its own reference
+    }
+    return icon;
+}
 
 core::Error sdl_error(const std::string& what) {
     return core::make_error(core::ErrorCode::PlatformError, what + ": " + SDL_GetError());
@@ -31,6 +68,14 @@ core::Result<std::unique_ptr<Window>> Window::create(const WindowConfig& config)
     window->m_window = SDL_CreateWindow(config.title.c_str(), config.width, config.height, flags);
     if (window->m_window == nullptr) {
         return sdl_error("SDL_CreateWindow");
+    }
+    // Title bar and task bar; on Windows the program file's icon (open1602.rc) shows before this.
+    // Not fatal: some video drivers have no window icons.
+    if (SDL_Surface* icon = load_app_icon(); icon != nullptr) {
+        SDL_SetWindowIcon(window->m_window, icon);
+        SDL_DestroySurface(icon);
+    } else {
+        std::fprintf(stderr, "window icon: %s\n", SDL_GetError());
     }
     window->m_vsync = config.vsync;
     if (auto status = window->make_renderer(); !status) {
