@@ -139,6 +139,10 @@ void put(core::ByteWriter& out, const SetBanner& m) {
     out.u16(m.banner);
 }
 
+void put(core::ByteWriter& out, const Dropped& m) {
+    out.u32(m.commands);
+}
+
 void put(core::ByteWriter& out, const Standby& m) {
     out.u32(static_cast<std::uint32_t>(m.tokens.size()));
     for (const SeatToken& t : m.tokens) {
@@ -362,12 +366,14 @@ std::optional<Message> get(In& in, std::uint8_t type) {
             return get_standby(in);
         case 14:
             return SetBanner{in.u16()};
+        case 15:
+            return Dropped{in.u32()};
         default:
             return std::nullopt;
     }
 }
 
-static_assert(std::variant_size_v<Message> == 15, "a new message needs its case in get()");
+static_assert(std::variant_size_v<Message> == 16, "a new message needs its case in get()");
 
 }  // namespace
 

@@ -50,6 +50,17 @@ TEST_CASE("app settings: savegame names are written as UTF-8 and read back") {
     CHECK(app::parse_slots("1 1 M\xfchle\n").names[1] == "M\xfchle");
 }
 
+TEST_CASE("app settings: a savegame name with control or undefined bytes reads back as written") {
+    // Found by the settings fuzzer: a name that ended in an undefined byte was written with a
+    // trailing space, which the next read trimmed away.
+    const std::string input("8 [ \x01\x90\0A\x90 \x90", 11);
+    const app::SaveSlots slots = app::parse_slots(input);
+    CHECK(slots.names[8] == "A");
+    const std::string text = app::write_slots(slots);
+    CHECK(app::write_slots(app::parse_slots(text)) == text);
+    CHECK(app::parse_slots("3 1  A\tB\x81 \n").names[3] == "AB");
+}
+
 TEST_CASE("app settings: what a savegame's META says, as a line of the lists") {
     app::SaveSlots slots;
     slots.set(20, "late", 1);

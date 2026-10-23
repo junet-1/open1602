@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "o1602/net/session.hpp"
+#include "o1602/sim/command_io.hpp"
 #include "o1602/sim/save_game.hpp"
 
 namespace o1602::net {
@@ -29,6 +30,10 @@ std::uint64_t random_token() {
 constexpr std::uint32_t kWaitingFrames = 4;
 /// Pauses, resumes and renames a computer may send per second.
 constexpr std::uint32_t kMaxGameOrdersPerSecond = 4;
+/// Slot changes a computer may ask for per second, and how often the host sends the lobby at most
+/// (MS-16): each change goes to everyone, up to 64 KiB of setup.
+constexpr std::uint32_t kMaxSeatChangesPerSecond = 4;
+constexpr std::uint32_t kLobbyEveryMs = 100;
 /// Time a new connection has to send its Hello.
 constexpr std::uint32_t kGreetingMs = 10'000;
 /// Games written for computers that join or resync: a few at once, then one a second. A computer
@@ -69,14 +74,14 @@ struct HostSession::Peer {
     std::uint32_t epoch = 0;   ///< of the last game sent
     std::uint64_t frames = 0;  ///< run, as last reported
     bool lagging = false;
-    std::uint32_t stalls = 0;       ///< times the others stopped waiting for it
-    std::uint64_t token = 0;        ///< to come back to its slot (0: it watches)
-    std::uint32_t chat_lines = 0;   ///< in the current second
-    std::uint32_t game_orders = 0;  ///< pauses and renames in the current second
-    std::uint32_t greeting_ms = 0;  ///< connected without a Hello this long
-    std::uint32_t resyncs = 0;      ///< games sent after desyncs without a matching fingerprint since
-    std::uint32_t this_frame = 0;   ///< commands in the open frame
-    std::deque<FrameHash> hashes;   ///< reported ahead of the host, not compared yet
+    std::uint32_t stalls = 0;        ///< times the others stopped waiting for it
+    std::uint64_t token = 0;         ///< to come back to its slot (0: it watches)
+    std::uint32_t chat_lines = 0;    ///< in the current second
+    std::uint32_t game_orders = 0;   ///< pauses and renames in the current second
+    std::uint32_t lobby_orders = 0;  ///< slot changes in the current second
+    std::uint32_t greeting_ms = 0;   ///< connected without a Hello this long
+    std::uint32_t resyncs = 0;       ///< games sent after desyncs without a matching fingerprint since
+    std::deque<FrameHash> hashes;    ///< reported ahead of the host, not compared yet
 };
 
 HostSession::HostSession(std::unique_ptr<Transport> transport, sim::Simulation& simulation,
@@ -198,7 +203,7 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
     // The old host's slot: the computer plays it until someone takes it, as a slot left open.
     if (left != sim::kNoPlayer && left < m_lobby.seats.size() && left != m_seat) {
         forget_token(left);
-        m_open.emplace_back(sim::PlayerControl{left, true});
+        insert(sim::PlayerControl{left, true});
         if (std::find(m_computer_held.begin(), m_computer_held.end(), left) == m_computer_held.end()) {
             m_computer_held.push_back(left);
         }
@@ -232,41 +237,91 @@ void HostSession::submit(sim::Command command) {
 }
 
 void HostSession::queue(Seat from, sim::Command command) {
-    if (from == sim::kNoPlayer || command_player(command) != from) {
+    if (!started() || from == sim::kNoPlayer || command_player(command) != from) {
         return;  // a player gives orders for himself only (review point 6)
     }
-    std::uint32_t* count = &m_open_own;
-    if (from != m_seat) {
-        const auto it = std::find_if(m_peers.begin(), m_peers.end(),
-                                     [from](const auto& p) { return !p->gone && p->welcomed && p->seat == from; });
-        if (it == m_peers.end()) {
-            return;
-        }
-        count = &(*it)->this_frame;
-    }
-    // Per player, and for the frame as a whole: one frame must fit into one message. Each player
-    // has his share of it, so that a few cannot crowd out the others; what does not fit waits for
-    // the next frames, up to a few frames' worth.
-    const std::uint32_t share = frame_share();
-    if (*count >= share || m_open.size() >= kMaxCommandsPerMessage) {
-        const auto waiting = static_cast<std::size_t>(
-            std::count_if(m_overflow.begin(), m_overflow.end(), [from](const auto& w) { return w.first == from; }));
-        if (waiting < std::size_t{kWaitingFrames} * share) {
-            m_overflow.emplace_back(from, std::move(command));
-        }
+    if (from != m_seat && std::none_of(m_peers.begin(), m_peers.end(),
+                                       [from](const auto& p) { return !p->gone && p->welcomed && p->seat == from; })) {
         return;
     }
-    ++*count;
-    m_open.push_back(std::move(command));
+    if (from >= m_allowance.size()) {
+        m_allowance.resize(std::size_t{from} + 1);
+    }
+    Allowance& a = m_allowance[from];
+    if (a.waiting >= kWaitingFrames * m_share) {
+        ++a.dropped;  // more than a few frames' worth: dropped at once, before any more work (MS-9)
+        return;
+    }
+    if (auto* order = std::get_if<sim::SoldierOrder>(&command)) {
+        // The formations may differ between computers (data fixes, DS-5); the interface never names
+        // one, the places travel in `offsets`.
+        order->formation = 0xFF;
+    }
+    const auto bytes = sim::command_size(command);
+    if (!bytes) {
+        ++a.dropped;  // the others could not read it and would leave the game (MS-10)
+        return;
+    }
+    admit(Waiting{from, *bytes, std::move(command)});
 }
 
-std::uint32_t HostSession::frame_share() const {
+void HostSession::admit(Waiting w) {
+    // Per player and for the frame as a whole: one frame must fit into one message and be quick to
+    // run (MS-3). Each player has a share of it, so that a few cannot crowd out the others; what
+    // does not fit waits for the next frames, in the order it came.
+    Allowance& a = m_allowance[w.from];
+    if (a.waiting > 0 || a.commands >= m_share || a.owed >= m_work_share || m_open_work >= kFrameWork ||
+        m_open_bytes >= kMaxFrameBytes || m_open.size() >= kMaxCommandsPerMessage - kReservedCommands) {
+        ++a.waiting;
+        m_overflow.push_back(std::move(w));
+        return;
+    }
+    const std::uint64_t work = command_work(m_simulation->world(), w.command);
+    ++a.commands;
+    a.owed += work;
+    m_open_work += work;
+    m_open_bytes += w.bytes;
+    m_open.push_back(std::move(w.command));
+}
+
+void HostSession::insert(sim::Command command) {
+    if (m_open.size() < kMaxCommandsPerMessage) {
+        m_open.push_back(std::move(command));
+    } else {
+        m_inserted.push_back(std::move(command));
+    }
+}
+
+void HostSession::refresh_shares() {
     std::uint32_t players = m_seat != sim::kNoPlayer ? 1U : 0U;
     for (const auto& p : m_peers) {
         players += !p->gone && p->welcomed && p->seat != sim::kNoPlayer ? 1U : 0U;
     }
-    const auto fair = static_cast<std::uint32_t>(kMaxCommandsPerMessage / std::max(players, 1U));
-    return std::max(1U, std::min(m_config.max_commands_per_frame, fair));
+    m_share = command_share(players);
+    m_work_share = work_share(players);
+}
+
+void HostSession::tell_dropped() {
+    for (std::size_t seat = 0; seat < m_allowance.size(); ++seat) {
+        Allowance& a = m_allowance[seat];
+        if (a.dropped == 0) {
+            continue;
+        }
+        if (seat == m_seat) {
+            SessionEvent e;
+            e.kind = SessionEvent::Kind::Dropped;
+            e.seat = m_seat;
+            e.count = a.dropped;
+            event(std::move(e));
+        } else {
+            for (const auto& p : m_peers) {
+                if (!p->gone && p->welcomed && p->seat == seat) {
+                    send(p->link, Dropped{a.dropped});
+                }
+            }
+        }
+        a.dropped = 0;
+    }
 }
 
 void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick) {
@@ -296,6 +351,7 @@ void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTic
         for (const auto& p : m_peers) {
             p->chat_lines = 0;
             p->game_orders = 0;
+            p->lobby_orders = 0;
         }
     }
     // A connection that never says who it is would hold one of the few connections for good.
@@ -304,12 +360,15 @@ void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTic
             drop(*p, std::nullopt);
         }
     }
-    if (m_lobby_changed) {
+    m_lobby_wait_ms -= std::min(m_lobby_wait_ms, real_ms);
+    if (m_lobby_changed && m_lobby_wait_ms == 0) {
         m_lobby_changed = false;
+        m_lobby_wait_ms = kLobbyEveryMs;
         broadcast(m_lobby);
         lobby_event();
     }
     if (started()) {
+        refresh_shares();
         take_over_vacant(real_ms);
         update_lead(real_ms);
         run(real_ms, before_tick);
@@ -337,6 +396,7 @@ void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTic
     if (started()) {
         hand_over();
     }
+    tell_dropped();
     m_transport->flush();
 }
 
@@ -369,13 +429,18 @@ void HostSession::receive(LinkId link, std::span<const std::uint8_t> bytes) {
     } else if (const auto* report = std::get_if<Progress>(&*message)) {
         progress(*peer, *report);
     } else if (const auto* seat = std::get_if<TakeSeat>(&*message)) {
-        take_seat(*peer, seat->seat);
+        // Each move costs a Welcome and a new token; ready and banner only change the lobby, which
+        // goes out at most every kLobbyEveryMs (MS-16).
+        if (peer->lobby_orders < kMaxSeatChangesPerSecond) {
+            ++peer->lobby_orders;
+            take_seat(*peer, seat->seat);
+        }
     } else if (const auto* r = std::get_if<SetReady>(&*message)) {
         ready(*peer, r->ready);
-    } else if (const auto* line = std::get_if<Chat>(&*message)) {
-        chat(*peer, *line);
     } else if (const auto* b = std::get_if<SetBanner>(&*message)) {
         set_banner(*peer, b->banner);
+    } else if (const auto* line = std::get_if<Chat>(&*message)) {
+        chat(*peer, *line);
     } else {
         drop(*peer, RefuseReason::Invalid);
     }
@@ -445,8 +510,8 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         if (started()) {
             // The player takes the slot over from the computer, under the player's name, as
             // commands of that player like any other.
-            queue(seat, sim::PlayerControl{seat, false});
-            queue(seat, sim::PlayerRename{seat, peer.name});
+            insert(sim::PlayerControl{seat, false});
+            insert(sim::PlayerRename{seat, peer.name});
         }
     }
     send(peer.link, Welcome{kProtocolVersion, seat, peer.token});
@@ -555,15 +620,25 @@ void HostSession::close_frame() {
     m_log.push_back(Frame{std::move(m_open)});
     m_open.clear();
     ++m_closed;
-    m_open_own = 0;
-    for (const auto& p : m_peers) {
-        p->this_frame = 0;
+    m_open_work = 0;
+    m_open_bytes = 0;
+    refresh_shares();
+    for (Allowance& a : m_allowance) {
+        a.commands = 0;
+        a.owed = a.owed > m_work_share ? a.owed - m_work_share : 0;
+        a.waiting = 0;
     }
-    // The commands that waited go first into the new frame, in the order they came.
-    std::deque<std::pair<Seat, sim::Command>> waiting;
+    // What waited goes first into the new frame, in the order it came: the host's own, then the
+    // players' commands (those that do not fit again wait on).
+    std::deque<sim::Command> inserted;
+    inserted.swap(m_inserted);
+    for (sim::Command& command : inserted) {
+        insert(std::move(command));
+    }
+    std::deque<Waiting> waiting;
     waiting.swap(m_overflow);
-    for (auto& [from, command] : waiting) {
-        queue(from, std::move(command));
+    for (Waiting& w : waiting) {
+        admit(std::move(w));
     }
 }
 
@@ -764,8 +839,8 @@ void HostSession::drop(Peer& peer, std::optional<RefuseReason> tell) {
             // A slot the computer held before the player came: the computer goes on with it.
             // The host gives it in the player's stead (queue() takes orders only from those here).
             if (std::find(m_computer_held.begin(), m_computer_held.end(), peer.seat) != m_computer_held.end()) {
-                if (started() && m_open.size() < kMaxCommandsPerMessage) {
-                    m_open.emplace_back(sim::PlayerControl{peer.seat, true});
+                if (started()) {
+                    insert(sim::PlayerControl{peer.seat, true});
                 }
             } else if (started()) {
                 vacate(peer.seat);  // a person's own slot: the computer after a while
@@ -797,12 +872,12 @@ void HostSession::take_over_vacant(std::uint32_t real_ms) {
             return true;
         }
         v.second = std::min(v.second + real_ms, m_config.take_over_ms);
-        if (v.second < m_config.take_over_ms || m_open.size() >= kMaxCommandsPerMessage) {
+        if (v.second < m_config.take_over_ms) {
             return false;
         }
         const sim::Player* p = m_simulation->world().player(v.first);
         if (p != nullptr && p->active() && p->role == sim::PlayerRole::Human) {
-            m_open.emplace_back(sim::PlayerControl{v.first, true});
+            insert(sim::PlayerControl{v.first, true});
         }
         return true;
     });
@@ -1129,15 +1204,15 @@ void HostSession::kick(Seat seat) {
     }
 }
 
-void HostSession::kick_member(std::size_t member) {
-    if (member == 0 || member >= m_roster_links.size()) {
-        return;
+void HostSession::kick_member(std::size_t member, Seat seat, std::string_view name) {
+    if (member == 0 || member >= m_roster_links.size() || member >= m_roster.size() || m_roster[member].seat != seat ||
+        m_roster[member].name != name) {
+        return;  // someone else by now: the roster changed since it was shown (MS-18)
     }
     Peer* peer = peer_of(m_roster_links[member]);
-    if (peer == nullptr || peer->gone || !peer->welcomed) {
+    if (peer == nullptr || peer->gone || !peer->welcomed || peer->seat != seat) {
         return;
     }
-    const Seat seat = peer->seat;
     drop(*peer, RefuseReason::Kicked);
     if (seat != sim::kNoPlayer) {
         forget_token(seat);  // and it cannot come back with it
@@ -1171,7 +1246,7 @@ void HostSession::start(sim::Simulation& simulation, const assets::BuildingTable
         }
         p->game_due = true;
         if (p->seat != sim::kNoPlayer) {
-            queue(p->seat, sim::PlayerRename{p->seat, p->name});
+            insert(sim::PlayerRename{p->seat, p->name});
         }
     }
 }

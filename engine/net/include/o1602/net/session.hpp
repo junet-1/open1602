@@ -32,6 +32,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -41,6 +42,24 @@
 #include "o1602/sim/simulation.hpp"
 
 namespace o1602::net {
+
+/// What the commands of one frame may cost every computer, in units of about one map tile looked
+/// at (MS-3): a few milliseconds. Each player has an equal share of it per frame. A command that
+/// costs more than a player has left still goes in, and the player's next commands wait until the
+/// frames have paid it off: a large order takes frames, it does not make one frame long.
+inline constexpr std::uint64_t kFrameWork = 16'384;
+/// The bytes of one frame's commands beyond which no further player command goes into it, so that
+/// the frames a computer is sent at once stay well within a message.
+inline constexpr std::size_t kMaxFrameBytes = 64U << 10;
+/// Room in every frame for the commands the host gives itself (a slot handed to the computer, a
+/// player's name), which players' commands cannot take (MS-17).
+inline constexpr std::uint32_t kReservedCommands = 64;
+static_assert(kReservedCommands < kMaxCommandsPerMessage);
+
+/// What `command` costs every computer that carries it out, in the units of kFrameWork: a rectangle
+/// to demolish its tiles on the island, a build order its items, a soldier order its units, any
+/// other command 1. The host admits by it, and a computer paces what it sends by it.
+[[nodiscard]] std::uint64_t command_work(const sim::World& world, const sim::Command& command);
 
 struct SessionConfig {
     /// Frames between two fingerprints at normal speed (100 = 5 s), times the speed rounded up to a
@@ -60,7 +79,8 @@ struct SessionConfig {
     /// A computer the others no longer wait for gets the game anew once it is this many frames
     /// behind the host (30 s at normal speed), instead of running them all.
     std::uint32_t resync_behind = 600;
-    /// Commands one player may give per frame; more are dropped (a flood would stall everyone).
+    /// Commands one player may give per frame; more wait for the next frames, and beyond a few
+    /// frames' worth they are dropped (a flood would stall everyone).
     std::uint32_t max_commands_per_frame = 256;
     /// How often a computer tells the host how far it is (a fingerprint goes at once).
     std::uint32_t progress_interval_ms = 100;
@@ -111,6 +131,7 @@ struct SessionEvent {
         Ended,         ///< the session is over (`reason`)
         LobbyChanged,  ///< the lobby (slots, settings) changed, or it started
         Chat,          ///< `seat` (`name`) said `text`
+        Dropped,       ///< `count` commands of this computer's player were not carried out (too many at once)
     };
     Kind kind = Kind::Joined;
     Seat seat = sim::kNoPlayer;
@@ -119,6 +140,7 @@ struct SessionEvent {
     EndReason reason = EndReason::None;
     RefuseReason refused = RefuseReason::Version;
     std::string text;
+    std::uint32_t count = 0;
 };
 
 /// What the host and the other computers have in common: pacing the frames, fingerprints, events.
@@ -173,6 +195,11 @@ protected:
     void send(LinkId link, const Message& message);
     void chat_event(const Chat& chat);
     void lobby_event();
+    /// Commands each of `players` players may put into one frame: the configured limit or an equal
+    /// share of a message (less the host's reserve), whichever is less.
+    [[nodiscard]] std::uint32_t command_share(std::uint32_t players) const noexcept;
+    /// Work each of `players` players may put into one frame: an equal share of kFrameWork.
+    [[nodiscard]] static std::uint64_t work_share(std::uint32_t players) noexcept;
 
     std::unique_ptr<Transport> m_transport;
     SessionConfig m_config;
@@ -232,8 +259,9 @@ public:
     bool set_banner(Seat seat, sim::BannerId banner);
     /// Sends the computer playing `seat` away.
     void kick(Seat seat);
-    /// Sends the computer of roster()[`member`] away, a spectator too (0, the host itself: nothing).
-    void kick_member(std::size_t member);
+    /// Sends the computer of roster()[`member`] away, a spectator too (0, the host itself: nothing),
+    /// if that entry still has `seat` and `name` as shown: the roster may have changed since (MS-18).
+    void kick_member(std::size_t member, Seat seat, std::string_view name);
     /// Every human slot of another computer is ready (the host starts when it wants).
     [[nodiscard]] bool everyone_ready() const;
     /// Begins the game made from the lobby: every computer in the lobby gets it.
@@ -271,7 +299,30 @@ private:
     void broadcast(const Message& message);
     /// Moves a computer (or the host, `peer` nullptr) to `seat`, or to watching.
     void move(Peer* peer, Seat seat);
+    /// A command waiting for room in a frame (MS-9), with its size as bytes.
+    struct Waiting {
+        Seat from = sim::kNoPlayer;
+        std::size_t bytes = 0;
+        sim::Command command;
+    };
+    /// What a player may still put into frames (MS-3, MS-9).
+    struct Allowance {
+        std::uint32_t commands = 0;  ///< in the open frame
+        std::uint64_t owed = 0;      ///< work admitted beyond the shares of the frames so far
+        std::uint32_t waiting = 0;   ///< in m_overflow
+        std::uint32_t dropped = 0;   ///< not carried out since the player was last told (Dropped)
+    };
+
+    /// A command of player `from` (checked to be one of the player's and readable by the others):
+    /// into the open frame if the player's share has room, else to wait for the next frames.
     void queue(Seat from, sim::Command command);
+    void admit(Waiting w);
+    /// A command the host gives itself: into the open frame, or first into the next (never lost).
+    void insert(sim::Command command);
+    /// The players' shares of a frame, for the players there now.
+    void refresh_shares();
+    /// Tells the players whose commands were dropped (Dropped, or an event for the host's own).
+    void tell_dropped();
     void close_frame();
     void run(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick);
     void compare(Peer& peer, const FrameHash& theirs);
@@ -286,9 +337,6 @@ private:
     void init_lobby();
     /// The token of a slot (made when it is first needed).
     [[nodiscard]] std::uint64_t token_of(Seat seat);
-    /// Commands each player may put into one frame: the configured limit or an equal share of a
-    /// message, whichever is less.
-    [[nodiscard]] std::uint32_t frame_share() const;
     /// The slot's token is no longer good: the slot changed hands.
     void forget_token(Seat seat);
     /// The slot a Hello's token is good for, kNoPlayer if none (MS-1, MS-8).
@@ -312,11 +360,18 @@ private:
     std::vector<std::unique_ptr<Peer>> m_peers;
     std::deque<Frame> m_log;  ///< frames m_log_start to m_closed - 1
     std::uint64_t m_log_start = 0;
-    std::uint64_t m_closed = 0;                            ///< frames below are complete
-    std::uint64_t m_broadcast = 0;                         ///< frames below went out to every computer
-    std::vector<sim::Command> m_open;                      ///< for frame m_closed
-    std::uint32_t m_open_own = 0;                          ///< commands of the host's player in m_open
-    std::deque<std::pair<Seat, sim::Command>> m_overflow;  ///< no room in m_open: for the next frames
+    std::uint64_t m_closed = 0;           ///< frames below are complete
+    std::uint64_t m_broadcast = 0;        ///< frames below went out to every computer
+    std::vector<sim::Command> m_open;     ///< for frame m_closed
+    std::uint64_t m_open_work = 0;        ///< command_work() of the players' commands in m_open
+    std::size_t m_open_bytes = 0;         ///< their size as bytes
+    std::deque<Waiting> m_overflow;       ///< no room in m_open: for the next frames, in order
+    std::deque<sim::Command> m_inserted;  ///< the host's own that found m_open full: first in the next
+    std::vector<Allowance> m_allowance;   ///< by seat
+    /// Commands and work each player may put into one frame: the configured limit or an equal share
+    /// of a message, whichever is less, and an equal share of kFrameWork.
+    std::uint32_t m_share = 1;
+    std::uint64_t m_work_share = kFrameWork;
     std::uint16_t m_lead = 0;
     std::uint32_t m_lead_ms = 0;     ///< time since the lead last shrank
     std::deque<FrameHash> m_hashes;  ///< the host's latest fingerprints
@@ -342,7 +397,8 @@ private:
     bool m_standby_changed = true;
     bool m_roster_changed = true;
     bool m_lobby_changed = true;
-    std::uint32_t m_chat_ms = 0;  ///< into the current second of the chat limit
+    std::uint32_t m_chat_ms = 0;        ///< into the current second of the chat limit
+    std::uint32_t m_lobby_wait_ms = 0;  ///< before the lobby may be sent again (MS-16)
 };
 
 /// A computer that joins a host. It has no game until the host sends one: `load` turns the
@@ -393,6 +449,10 @@ private:
     void turn(Turn& m);
     void run(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick);
     void report(std::uint32_t real_ms);
+    /// Sends what the host would admit now of m_outgoing.
+    void send_commands();
+    /// Players in the game as the roster has them (the host's own too).
+    [[nodiscard]] std::uint32_t players() const noexcept;
 
     static constexpr LinkId kHost = 0;
     Hello m_hello;
@@ -405,7 +465,11 @@ private:
     std::uint64_t m_closed = 0;  ///< frames below have come from the host
     std::uint16_t m_lead = 0;
     std::deque<std::vector<sim::Command>> m_frames_ahead;  ///< frames m_frames to m_closed - 1
-    std::vector<sim::Command> m_outgoing;
+    std::deque<sim::Command> m_outgoing;
+    /// Pacing what goes to the host as it would admit it (MS-17): commands and work in the frames
+    /// run since the last sending, so that the host does not have to drop any.
+    std::uint32_t m_send_commands = 0;
+    std::uint64_t m_send_owed = 0;
     std::uint64_t m_reported = 0;      ///< frames last told the host
     std::uint32_t m_since_report = 0;  ///< ms
     std::optional<Standby> m_standby;  ///< from the host, if it named this computer its successor

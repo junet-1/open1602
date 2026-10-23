@@ -174,6 +174,9 @@ void MapViewer::apply_session_events() {
             case net::SessionEvent::Kind::Chat:
                 chat_line(e.name, e.text, e.seat);
                 break;
+            case net::SessionEvent::Kind::Dropped:
+                chat_line({}, mp_text(MpText::Dropped, std::to_string(e.count)), e.seat);
+                break;
         }
     }
     // A session that ends before its game ran: back to the search with the reason. One that ends
@@ -412,7 +415,7 @@ void MapViewer::handle_multiplayer(const MultiplayerEvent& e) {
             break;
         case MultiplayerEvent::Kind::KickMember:
             if (host != nullptr) {
-                host->kick_member(e.member);
+                host->kick_member(e.member, e.seat, e.text);
             }
             break;
         case MultiplayerEvent::Kind::SetBanner:
