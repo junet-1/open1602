@@ -1129,10 +1129,12 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
             avail = avail > keep ? avail - keep : 0;
         }
         n = std::min({avail, amount, space_for(ship, ware, hold)});
-        if (natives && limits && ship.owner < city.goodwill.size()) {
-            // Natives give goods for goodwill: a ton costs about a third of the base price.
-            const std::uint32_t per_ton = std::max<std::uint32_t>(1, base_price(ware) * 42U / 128U);
-            n = std::min<std::uint32_t>(n, city.goodwill[ship.owner] * kTon / per_ton);
+        if (natives && limits) {
+            // Natives give goods for goodwill: a ton costs about a third of the base price. A
+            // player without goodwill there gets nothing.
+            const std::uint64_t goodwill = ship.owner < city.goodwill.size() ? city.goodwill[ship.owner] : 0U;
+            const std::uint64_t per_ton = std::max<std::uint32_t>(1, base_price(ware) * 42U / 128U);
+            n = static_cast<std::uint32_t>(std::min<std::uint64_t>(n, goodwill * kTon / per_ton));
         }
         n -= n % kTon;  // whole tons
         if (n == 0) {
@@ -1158,8 +1160,8 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
             }
         }
         if (natives && limits && ship.owner < city.goodwill.size()) {
-            const std::uint32_t per_ton = std::max<std::uint32_t>(1, base_price(ware) * 42U / 128U);
-            const std::uint32_t used = per_ton * n / kTon;
+            const std::uint64_t per_ton = std::max<std::uint32_t>(1, base_price(ware) * 42U / 128U);
+            const auto used = static_cast<std::uint32_t>(per_ton * n / kTon);
             city.goodwill[ship.owner] = city.goodwill[ship.owner] > used ? city.goodwill[ship.owner] - used : 0;
         }
         city.goods[ware] -= n;
@@ -1215,7 +1217,8 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
             }
         }
         if (natives && limits && ship.owner < city.goodwill.size()) {
-            city.goodwill[ship.owner] += base_price(ware) * n / kTon;
+            const std::uint64_t raised = city.goodwill[ship.owner] + std::uint64_t{base_price(ware)} * n / kTon;
+            city.goodwill[ship.owner] = static_cast<std::uint32_t>(std::min<std::uint64_t>(raised, kMaxNativeGoodwill));
         }
         remove_cargo(ship, ware, n, hold);
         city.goods[ware] += n;

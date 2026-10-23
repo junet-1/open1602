@@ -39,6 +39,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_combat(world, buildings, figures),
       m_military(world, buildings, figures, m_rules, m_combat),
       m_ai(*this) {
+    fit_goodwill(world);
     m_military.set_fleet(&m_fleet);
     m_fleet.set_combat(&m_combat);
     m_fleet.set_directed([this](std::uint32_t ship) { return m_ai.directs(ship); });
