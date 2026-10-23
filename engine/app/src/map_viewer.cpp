@@ -17,6 +17,8 @@
 #include <system_error>
 #include <utility>
 
+#include "tile_status.hpp"
+
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cursor_resource.hpp"
 #include "o1602/assets/data_fixes.hpp"
@@ -852,25 +854,22 @@ void MapViewer::update(std::uint32_t delta_ms) {
     apply_construction();
 }
 
-std::string MapViewer::crops_status() const {
-    if (!m_hud || !m_hud->game_view().contains(static_cast<std::int32_t>(m_input->mouse_x()),
-                                               static_cast<std::int32_t>(m_input->mouse_y()))) {
+std::string MapViewer::tile_status() const {
+    if (!m_hud || m_hud->texts() == nullptr ||
+        !m_hud->game_view().contains(static_cast<std::int32_t>(m_input->mouse_x()),
+                                     static_cast<std::int32_t>(m_input->mouse_y()))) {
         return {};
+    }
+    // A unit drawn over the tile takes the line, as it would take the click.
+    if (const auto unit = m_input->unit_at_mouse()) {
+        return app::unit_status(m_state->world, *unit, m_figures, *m_hud->texts());
     }
     const auto spot = m_input->spot_at_mouse();
     if (!spot) {
         return {};
     }
-    const sim::WorldIsland& island = m_state->world.islands()[spot->island];
-    if (!island.explored_by(m_local_player)) {
-        return {};
-    }
-    const assets::BuildingType* b = m_buildings.by_sprite(
-        island.map.top(static_cast<std::uint32_t>(spot->x), static_cast<std::uint32_t>(spot->y)).sprite);
-    if (b == nullptr || (b->ware != sim::ware::kGrass && b->ware != sim::ware::kTree)) {
-        return {};
-    }
-    return m_hud->crops_line(island_crops(island));
+    return app::tile_status(m_state->world.islands()[spot->island], spot->x, spot->y, m_local_player, m_buildings,
+                            *m_hud->texts());
 }
 
 sim::Catchment MapViewer::world_catchment(std::uint16_t island, sim::Catchment area) const {
@@ -1239,7 +1238,7 @@ void MapViewer::render() {
         if (const std::string* notice = m_events.notice(now); notice != nullptr && !m_tool.active()) {
             m_hud->set_status(*notice);
         } else {
-            m_hud->set_status(m_tool_status.empty() && !m_tool.active() ? crops_status() : m_tool_status);
+            m_hud->set_status(m_tool_status.empty() && !m_tool.active() ? tile_status() : m_tool_status);
         }
         m_hud->set_rotation(m_camera.view().rotation);
         m_hud->set_building_rotation(m_tool.rotation());
