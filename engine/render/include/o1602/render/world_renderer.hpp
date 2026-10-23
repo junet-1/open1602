@@ -57,6 +57,16 @@ void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& 
 /// World pixel position (centre of the tile diamond) of a world tile, for scrolling to it.
 void world_tile_center(const WorldView& view, std::uint32_t x, std::uint32_t y, std::int32_t& px, std::int32_t& py);
 
+/// How far the diamond of world tile (x, y) is drawn above its place, in world pixels of `zoom`: the
+/// Posoffs of what the tile shows to `local_player` (land 20 at full zoom), of the open sea at sea.
+/// The tile marks and the build preview are drawn there, and the mouse picks the tile there.
+[[nodiscard]] std::int32_t tile_elevation(const sim::World& world, const assets::BuildingTable& buildings,
+                                          sim::PlayerId local_player, std::uint32_t x, std::uint32_t y, Zoom zoom);
+/// The most a tile is raised: Posoffs is at most 64.
+[[nodiscard]] constexpr std::int32_t max_tile_elevation(Zoom zoom) noexcept {
+    return tile_width(zoom);
+}
+
 /// Sprite of an open sea tile: ripple pattern (frame + 3x + y) mod AnimAnz (0x00489C90).
 [[nodiscard]] std::uint32_t sea_sprite(const assets::BuildingType& sea, std::uint32_t frame, std::uint32_t x,
                                        std::uint32_t y);
