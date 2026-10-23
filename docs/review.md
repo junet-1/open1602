@@ -114,9 +114,10 @@ same on every computer in a network session. Since #23 the simulation state (ver
 game speed and the pause, so a game saved while paused loads paused. A single player's commands
 while paused need no turn rule: there is no second computer to agree with.
 
-Earlier items still present: money is an unsaturated `int32` (`sim/include/o1602/sim/player.hpp`),
-`Pool::for_each` has no guard against `add()` during iteration (`sim/include/o1602/sim/pool.hpp`),
-and localized names are part of the sim state (see UI-2).
+Earlier items, checked again on 2026-10-23: money now saturates at the limits of `int32`
+(`money_plus` in `sim/include/o1602/sim/player.hpp`); `Pool::for_each` guards against `add()` during
+iteration with an `assert`, so only debug builds catch it (`sim/include/o1602/sim/pool.hpp`);
+localized names are no longer part of the sim state (UI-2).
 
 ### File formats and IO (IO)
 
@@ -158,11 +159,14 @@ and localized names are part of the sim state (see UI-2).
 | AU14 | Low | A bought ship keeps the seller's exploring, attack-move and hold state | `sim/src/ship_orders.cpp` | Fixed #19 |
 | AU15 | Low | Fallback ship name `"Ship N"` is not localized | `sim/src/trader.cpp` | Won't fix (#21: the simulation's names must not depend on the player's language; every installation has Text.cod's ship names, so the fallback does not show) |
 
-Earlier items still present: `ShipNote& note()` appends while callers iterate
-(`sim/src/ai/ai_logistics.cpp`). `City::trader_inbound` stays set when a trader gives up
-(`sim/src/trader.cpp`). Money arithmetic in ships, diplomacy and the AI wraps on `int32`. The AI
-scans the whole world after every step (`sim/src/ai/ai_core.cpp`, `ai_world.cpp`). The earlier
-`SoldierOrder` item is MP-3.
+Earlier items, checked again on 2026-10-23: `ShipNote& note()` can append to the list it is
+looked up in (`sim/src/ai/ai_logistics.cpp`), but no loop over that list calls it today.
+`City::trader_inbound` stayed set when a trader gave up or sank; the original clears it on giving up
+(`0x00454F50`), and Open1602 now clears it whenever the order ends or the trader sinks (S-119). Money
+arithmetic goes through `money_plus` and saturates. The AI looks at one foreign city after every step
+(`target_scan`, `sim/src/ai/ai_core.cpp`); the computers take about 63 % of a tick
+([performance.md](performance.md)), which is fine at about 1 ms per tick. The earlier `SoldierOrder`
+item is MP-3.
 
 ### App, UI and rendering (UI)
 

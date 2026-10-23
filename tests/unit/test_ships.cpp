@@ -388,6 +388,29 @@ TEST_CASE("ships: the free trader buys cheap goods and comes back with tools") {
     CHECK(sea.world.players()[4].money == 0);  // his own money never changes
 }
 
+TEST_CASE("ships: a trader that gives up or sinks is no longer on its way to the city (S-119)") {
+    for (const bool sinks : {false, true}) {
+        Sea sea(true);
+        sim::City& city = *sea.world.city(0, 0);
+        sim::Ship& trader = sea.add(100, 50, 29, 4);
+        trader.trader = true;
+        trader.trader_goods.resize(25);
+        const std::uint32_t id = trader.id;
+        sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+        run(fleet, sea.world, 1000);
+        REQUIRE(sea.world.ship(id)->target.kind == sim::Target::Kind::City);
+        CHECK(city.trader_inbound);
+        if (sinks) {
+            fleet.sink(*sea.world.ship(id), sim::kNoPlayer);
+        } else {
+            city.warehouse_x.reset();  // the Kontor is gone: the order ends on the way
+            run(fleet, sea.world, 1000);
+            CHECK(sea.world.ship(id)->target.empty());
+        }
+        CHECK(!city.trader_inbound);
+    }
+}
+
 TEST_CASE("ships: a scenario can keep the free trader away from a player (player +0x70 bit 2)") {
     Sea sea(true);
     sea.world.player(0)->scenario.flags = sim::scenario_flag::kNoTrader;

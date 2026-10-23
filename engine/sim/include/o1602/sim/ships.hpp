@@ -359,6 +359,7 @@ private:
     // Free trader (trader.cpp)
     void trader_tick(std::uint32_t dt_ms);
     void trader_choose(Ship& ship);
+    void trader_leave(Ship& ship);
     bool trader_trade(Ship& ship, City& city);
     void trader_restock(Ship& ship, std::uint32_t dt_ms);
     [[nodiscard]] std::uint16_t trader_max_price(std::uint8_t ware) const;

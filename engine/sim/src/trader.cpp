@@ -139,6 +139,18 @@ std::uint32_t Fleet::trader_sell_amount(const Ship& ship, const City& city, std:
     return want;
 }
 
+void Fleet::trader_leave(Ship& ship) {
+    // 0x00454F50: a trader that reaches its Kontor or gives it up is no longer on its way there
+    // (city +0x257 bit 1), so the city counts in full again when the next trader chooses. Fix S-119:
+    // also when the trader sinks or his order ends otherwise; the original keeps the mark then.
+    if (!ship.trader || ship.target.kind != Target::Kind::City) {
+        return;
+    }
+    if (City* c = m_world->city(ship.target.island, ship.target.city)) {
+        c->trader_inbound = false;
+    }
+}
+
 void Fleet::trader_choose(Ship& ship) {
     // 0x004547E0: of the 12 nearest Kontors of human and computer players (not the last one), the
     // one promising the most profit; half for a Kontor another trader is sailing to already.
