@@ -1154,14 +1154,19 @@ void Hud::message(MessageId id, sim::BannerId banner, std::optional<std::pair<do
 
 namespace {
 
-/// The colour of a world tile on the minimap.
+/// The colour of a world tile on the minimap. An island `local` has not discovered shows its ground
+/// without owners, like the map (0x00489C90).
 std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
-                                           const render::BannerTable& banners, const sim::World::Cell& c) {
+                                           const render::BannerTable& banners, const sim::World::Cell& c,
+                                           sim::PlayerId local) {
     std::array<std::uint8_t, 3> rgb{38, 70, 128};  // sea
     if (c.island == sim::World::kSea) {
         return rgb;
     }
-    const sim::MapCell& top = world.islands()[c.island].map.top(c.local_x, c.local_y);
+    const sim::WorldIsland& island = world.islands()[c.island];
+    const bool hidden = local != sim::kNoPlayer && !island.discovered_by(local);
+    const sim::MapCell& ground = island.map.ground(c.local_x, c.local_y);
+    const sim::MapCell& top = hidden && !ground.empty() ? ground : island.map.top(c.local_x, c.local_y);
     const assets::BuildingType* b = top.empty() ? nullptr : buildings.by_sprite(top.sprite);
     const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
     namespace bk = sim::building_kind;
@@ -1170,8 +1175,10 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
           : kind == bk::kForest ? std::array<std::uint8_t, 3>{60, 96, 40}
                                 : std::array<std::uint8_t, 3>{112, 132, 66};
     const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
-    if (!scenery && top.owner != sim::kNoPlayer) {
+    if (!scenery && !hidden && top.owner != sim::kNoPlayer) {
         const sim::Player* p = world.player(top.owner);
+        // Unlike the original's minimap, which never shows native villages, Open1602 shows the natives
+        // and the pirates in their colour once the island is discovered.
         const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
         if (banner != nullptr) {
             rgb = {banner->color.r, banner->color.g, banner->color.b};
@@ -1191,7 +1198,8 @@ void Hud::build_minimap(const sim::World& world, const assets::BuildingTable& bu
     m_minimap.assign(std::size_t{m_world_w} * m_world_h * 4, 0);
     for (std::uint32_t y = 0; y < m_world_h; ++y) {
         for (std::uint32_t x = 0; x < m_world_w; ++x) {
-            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, world.cell(x, y));
+            const std::array<std::uint8_t, 3> rgb =
+                minimap_colour(world, buildings, banners, world.cell(x, y), m_local);
             const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
             m_minimap[i] = rgb[0];
             m_minimap[i + 1] = rgb[1];
@@ -1214,7 +1222,7 @@ bool Hud::refresh_minimap_island(const sim::World& world, const assets::Building
             if (c.island != island) {
                 continue;
             }
-            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, c);
+            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, c, m_local);
             const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
             if (m_minimap[i] != rgb[0] || m_minimap[i + 1] != rgb[1] || m_minimap[i + 2] != rgb[2]) {
                 m_minimap[i] = rgb[0];

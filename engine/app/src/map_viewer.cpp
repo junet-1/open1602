@@ -1302,6 +1302,7 @@ void MapViewer::collect_effects() {
         f.y = island.y + e.crater.y + 2.0;
         f.z = sim::kVolcanoHeight;
         f.figure = sim::kFigureVolcano;
+        f.island = e.crater.island;
         m_effects.push_back(f);
     }
     const std::uint64_t now_us = m_state->world.time_ms() * 1000;
@@ -1313,6 +1314,7 @@ void MapViewer::collect_effects() {
         f.z = at.z;
         f.ground = sim::lava_ground(m_state->world, m_buildings, at.x, at.y);
         f.figure = sim::kFigureLava;
+        f.island = p.island;
         f.anim = p.anim;
         f.phase = static_cast<std::uint32_t>(p.launch_us / 1000);
         m_effects.push_back(f);

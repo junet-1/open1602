@@ -173,6 +173,20 @@ TEST_CASE("figures: land figure with shadow, position and depth") {
     in_crop.crop = render::kCropHidden;
     CHECK(!render::land_figure_sprites(in_crop, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
 
+    // On an island the local player has not discovered, only figures without an island (deer)
+    // show (0x00451590); kNoPlayer sees everything.
+    REQUIRE(world.add_island(sim::WorldIsland{assets::IslandHeader{}, sim::IslandMap(4, 4), 9, 19}).ok());
+    render::FigureInstance worker = deer;
+    worker.island = 0;
+    CHECK(render::land_figure_sprites(worker, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
+    layers.local_player = 0;
+    CHECK(!render::land_figure_sprites(worker, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
+    CHECK(render::land_figure_sprites(deer, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
+    world.island(0).discover(1);
+    CHECK(!render::land_figure_sprites(worker, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
+    world.island(0).discover(0);
+    CHECK(render::land_figure_sprites(worker, world, render::WorldView{render::Zoom::Large, 0}, layers, c));
+
     // Without its sheet (e.g. SGFX without derived graphics) the figure is not drawn.
     layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Tiere)].reset();
     CHECK(!render::land_figure_sprites(deer, world, render::WorldView{render::Zoom::Large, 0}, layers, f));

@@ -1064,7 +1064,8 @@ std::pair<std::int32_t, std::int32_t> MapInput::world_pixel(double sx, double sy
 std::optional<render::TileHit> MapInput::building_tile_at(double sx, double sy, const BuildingFilter& wanted) const {
     const sim::World& w = world();
     const auto accepts = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) {
-        if (island == sim::World::kSea) {
+        // An island the player has not discovered shows only its ground: nothing there to click.
+        if (island == sim::World::kSea || (local() != sim::kNoPlayer && !w.islands()[island].discovered_by(local()))) {
             return false;
         }
         return wanted(island, w.islands()[island].map.sub_tile(m_buildings, x, y));

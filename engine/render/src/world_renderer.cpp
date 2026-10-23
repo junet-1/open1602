@@ -132,6 +132,13 @@ std::optional<std::uint32_t> flag_sprite(const WorldLayers& layers, sim::BannerI
     return std::nullopt;
 }
 
+/// Whether `island` stays hidden from `player`: an island the player has not discovered shows its
+/// ground layer only, without buildings and figures (0x00489C90, 0x00451590). kNoPlayer sees all.
+bool undiscovered(const sim::World& world, sim::PlayerId player, std::uint16_t island) {
+    return player != sim::kNoPlayer && island < world.islands().size() &&
+           !world.islands()[island].discovered_by(player);
+}
+
 }  // namespace
 
 void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& height) {
@@ -633,7 +640,8 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
         return false;
     }
     const assets::FigureType* fig = layers.figures->get(figure.figure);
-    if (fig == nullptr) {
+    // 0x00486B60 makes no display figures on an island the local player has not discovered.
+    if (fig == nullptr || undiscovered(world, layers.local_player, figure.island)) {
         return false;
     }
     const WorldView view = fit_view(view_in, world);
@@ -656,15 +664,12 @@ bool building_figure_sprites(const BuildingFigure& figure, const sim::World& wor
             break;
         }
         case BuildingFigureRole::Deposit: {
-            // Drawn only for the local player who discovered the island and explored this deposit
-            // (byte 3, 0x00452098).
-            if (figure.island >= world.islands().size()) {
+            // Drawn only for the local player who discovered the island (checked above) and
+            // explored this deposit (byte 3, 0x00452098).
+            if (figure.island >= world.islands().size() || layers.local_player == sim::kNoPlayer) {
                 return false;
             }
             const sim::WorldIsland& island = world.islands()[figure.island];
-            if (!island.discovered_by(layers.local_player)) {
-                return false;
-            }
             const auto& deposits = island.header.deposits;
             const bool known = std::any_of(deposits.begin(), deposits.end(), [&](const auto& d) {
                 return d.x == figure.origin_x && d.y == figure.origin_y && d.ware != 0 &&
@@ -806,7 +811,7 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
         return false;
     }
     const assets::FigureType* type = layers.figures->get(figure.figure);
-    if (type == nullptr) {
+    if (type == nullptr || undiscovered(world, layers.local_player, figure.island)) {
         return false;
     }
     const auto base = layers.sheet_base[static_cast<std::size_t>(figure.sheet.value_or(type->sheet))];
@@ -902,7 +907,7 @@ bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, 
     }
     const assets::FigureType* fig = layers.figures->get(figure.figure);
     const auto base = layers.sheet_base[static_cast<std::size_t>(figure.sheet)];
-    if (fig == nullptr || !base) {
+    if (fig == nullptr || !base || undiscovered(world, layers.local_player, figure.island)) {
         return false;
     }
     const WorldView view = fit_view(view_in, world);
@@ -963,6 +968,7 @@ struct TileDrawer {
     const assets::BuildingTable& buildings;
     const AnimationClock& clock;
     const ProductionPhases* phases;
+    sim::PlayerId local_player;
     std::uint8_t rotation;
     std::int32_t tw;
     const assets::BuildingType* sea;
@@ -970,11 +976,12 @@ struct TileDrawer {
     std::int32_t sea_elevation;
 
     TileDrawer(const sim::World& w, const assets::BuildingTable& b, const AnimationClock& c, const WorldView& view,
-               const ProductionPhases* p)
+               const WorldLayers& layers)
         : world(w),
           buildings(b),
           clock(c),
-          phases(p),
+          phases(layers.production_phases),
+          local_player(layers.local_player),
           rotation(view.rotation),
           tw(tile_width(view.zoom)),
           sea(b.open_sea()),
@@ -1006,13 +1013,33 @@ struct TileDrawer {
         return DrawCommand{building_sprite(cell, *b, frame, rotation), sx, row_bottom - b->posoffs * tw / 64};
     }
 
+    /// Whether the tiles of `island` show only the ground layer: the local player has not
+    /// discovered it (0x00489C90 then reads the grid at island + 0xAFC instead of + 0xAF4).
+    [[nodiscard]] bool hidden(std::uint16_t island) const { return undiscovered(world, local_player, island); }
+
+    /// The cell a tile shows: the top layer, or the ground layer on a hidden island. A tile without
+    /// ground keeps its top cell (the original's ground grid has no holes); nullptr at sea.
+    [[nodiscard]] const sim::MapCell* shown(const sim::World::Cell& wc) const {
+        if (wc.island == sim::World::kSea) {
+            return nullptr;
+        }
+        const sim::IslandMap& map = world.islands()[wc.island].map;
+        if (hidden(wc.island)) {
+            const sim::MapCell& ground = map.ground(wc.local_x, wc.local_y);
+            if (!ground.empty()) {
+                return &ground;
+            }
+        }
+        return &map.top(wc.local_x, wc.local_y);
+    }
+
     /// What world tile (wx, wy) draws in the flat pass or the Highflg pass of its row; (sx,
     /// row_bottom) as in build_world_draw_list. The open sea is always flat.
     [[nodiscard]] TileSprites tile(std::uint32_t wx, std::uint32_t wy, const sim::World::Cell& wc, std::int32_t sx,
                                    std::int32_t row_bottom, bool high_pass) const {
         TileSprites out;
         const sim::IslandMap* map = wc.island != sim::World::kSea ? &world.islands()[wc.island].map : nullptr;
-        const sim::MapCell* top = map != nullptr ? &map->top(wc.local_x, wc.local_y) : nullptr;
+        const sim::MapCell* top = shown(wc);
         if (top == nullptr || top->empty()) {
             if (!high_pass && sea != nullptr) {
                 out.parts[out.count++] =
@@ -1022,6 +1049,11 @@ struct TileDrawer {
         }
         const assets::BuildingType* b = buildings.by_sprite(top->sprite);
         if ((b != nullptr && b->high) != high_pass) {
+            return out;
+        }
+        if (top != &map->top(wc.local_x, wc.local_y)) {
+            // The ground of a hidden island: one picture, no production state behind it.
+            out.parts[out.count++] = cell(*top, sx, row_bottom, sim::World::kSea, map, 0, 0);
             return out;
         }
         if (b != nullptr && b->draw_ground) {
@@ -1074,7 +1106,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     commands.reserve(static_cast<std::size_t>((viewport.width + extent.width) / half_w + 2) *
                      static_cast<std::size_t>(d_end - d_begin + 1) * 5 / 8);
 
-    const TileDrawer drawer(world, buildings, clock, view, layers.production_phases);
+    const TileDrawer drawer(world, buildings, clock, view, layers);
     const std::int32_t sea_elevation = drawer.sea_elevation;
 
     // Figures of the visible rows (ships, building flags, land figures), sorted by row and within
@@ -1162,10 +1194,11 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         std::stable_sort(marks.begin(), marks.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     }
     const auto add_overlay = [&](const sim::MapCell& cell, std::int32_t sx, std::int32_t row_bottom,
-                                 std::uint16_t island, std::uint16_t lx, std::uint16_t ly) {
+                                 std::uint16_t island, std::uint16_t lx, std::uint16_t ly, bool hidden) {
         const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
         const std::int32_t elevation = b != nullptr ? b->posoffs * tw / 64 : 0;
-        const sim::Player* p = world.player(cell.owner);
+        // An undiscovered island does not give its owners away.
+        const sim::Player* p = hidden ? nullptr : world.player(cell.owner);
         const Banner* banner = p != nullptr && layers.banners != nullptr ? layers.banners->get(p->banner) : nullptr;
         if (layers.owner_tint && banner != nullptr) {
             const assets::Rgba tint{banner->color.r, banner->color.g, banner->color.b, kOverlayAlpha};
@@ -1236,10 +1269,11 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 rw.to_world(static_cast<std::uint32_t>(vx), static_cast<std::uint32_t>(vy), wx, wy);
                 const sim::World::Cell& wc = world.cell(wx, wy);
                 const sim::IslandMap* map = nullptr;
-                const sim::MapCell* cell = nullptr;
+                // What the tile shows: on an island the local player has not discovered, its ground.
+                const sim::MapCell* cell = drawer.shown(wc);
+                const bool hidden = cell != nullptr && drawer.hidden(wc.island);
                 if (wc.island != sim::World::kSea) {
                     map = &world.islands()[wc.island].map;
-                    cell = &map->top(wc.local_x, wc.local_y);
                 }
                 if (!high_pass && circle) {
                     add_outline(vx, vy, wx, wy, sx, row_bottom, cell);
@@ -1258,7 +1292,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                                       t->kind != sim::building_kind::kSurfCorner;
                     // A building is lit or dark as a whole, whichever of its tiles is drawn.
                     TileLighting::Footprint footprint{wx, wy, 1, 1};
-                    if (t != nullptr && t->tile_count() > 1) {
+                    if (t != nullptr && t->tile_count() > 1 && !hidden) {
                         const sim::SubTile sub = map->sub_tile(buildings, wc.local_x, wc.local_y);
                         const sim::WorldIsland& isl = world.islands()[wc.island];
                         footprint.x = static_cast<std::int64_t>(isl.x) + sub.origin_x;
@@ -1276,7 +1310,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     }
                 };
                 if (!high_pass && cell != nullptr && !cell->empty()) {
-                    add_overlay(*cell, sx, row_bottom, wc.island, wc.local_x, wc.local_y);
+                    add_overlay(*cell, sx, row_bottom, wc.island, wc.local_x, wc.local_y, hidden);
                 }
                 const TileSprites drawn = drawer.tile(wx, wy, wc, sx, row_bottom, high_pass);
                 if (drawn.count == 0) {
@@ -1323,7 +1357,7 @@ void tiles_at_pixel(const sim::World& world, const assets::BuildingTable& buildi
     // from the front, per row the Highflg pass before the flat one, per pass right to left.
     const std::int32_t d_begin = std::max(0, floor_div(py - (th - 1), half_h));
     const std::int32_t d_end = std::min(rows - 1, floor_div(py + 1 + extent.height + max_elevation - (th - 1), half_h));
-    const TileDrawer drawer(world, buildings, clock, view, layers.production_phases);
+    const TileDrawer drawer(world, buildings, clock, view, layers);
     for (std::int32_t d = d_end; d >= d_begin; --d) {
         const std::int32_t row_bottom = d * half_h + th - 1;
         const std::int32_t k_lo = floor_div(px - extent.width, half_w) + d - view_h + 1;
