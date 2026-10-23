@@ -51,11 +51,18 @@ bool computer_controlled(const World& world, PlayerId p) noexcept {
 
 void Military::grid_build() {
     const std::vector<Soldier>& all = m_world->soldiers();
-    m_grid_w = static_cast<std::int32_t>((2 * m_world->width()) >> kSquareShift) + 1;
-    m_grid_h = static_cast<std::int32_t>((2 * m_world->height()) >> kSquareShift) + 1;
-    m_grid.resize(static_cast<std::size_t>(m_grid_w) * static_cast<std::size_t>(m_grid_h));
-    for (std::vector<std::uint32_t>& square : m_grid) {
-        square.clear();
+    const std::int32_t w = static_cast<std::int32_t>((2 * m_world->width()) >> kSquareShift) + 1;
+    const std::int32_t h = static_cast<std::int32_t>((2 * m_world->height()) >> kSquareShift) + 1;
+    if (w == m_grid_w && h == m_grid_h && m_grid.size() == static_cast<std::size_t>(w) * static_cast<std::size_t>(h)) {
+        // Only the squares used since the last build hold units (TB-23): a large world with few
+        // units does not clear all its squares every tick.
+        for (const std::uint32_t square : m_square_of) {
+            m_grid[square].clear();
+        }
+    } else {
+        m_grid_w = w;
+        m_grid_h = h;
+        m_grid.assign(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), {});
     }
     m_square_of.clear();
     for (std::size_t i = 0; i < all.size(); ++i) {

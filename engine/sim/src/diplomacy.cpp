@@ -453,17 +453,43 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
     if (minds_territory) {
         std::int32_t settle_penalty = 0;
         std::int32_t troop_penalty = 0;
+        const auto small_own = [&](const City& c) {
+            return c.owner == a && c.island < world.islands().size() &&
+                   world.islands()[c.island].header.template_size <= 3;
+        };
+        // Who has cities and troops on the small islands of a, in one pass over the cities and
+        // one over the soldiers instead of one per city of a (TB-8).
+        constexpr std::uint8_t kWatched = 1;
+        constexpr std::uint8_t kBCity = 2;
+        constexpr std::uint8_t kATroops = 4;
+        constexpr std::uint8_t kBTroops = 8;
+        std::vector<std::uint8_t> islands(world.islands().size(), 0);
+        bool any = false;
         for (const City& c : world.cities()) {
-            if (c.owner != a || c.island >= world.islands().size()) {
-                continue;
+            if (small_own(c)) {
+                islands[c.island] = kWatched;
+                any = true;
             }
-            if (world.islands()[c.island].header.template_size > 3) {
-                continue;
-            }
-            bool b_city = false;
+        }
+        if (any) {
             for (const City& o : world.cities()) {
-                b_city = b_city || (o.island == c.island && o.owner == b);
+                if (o.owner == b && o.island < islands.size() && islands[o.island] != 0) {
+                    islands[o.island] |= kBCity;
+                }
             }
+            for (const Soldier& s : world.soldiers()) {
+                if (s.island < islands.size() && islands[s.island] != 0) {
+                    islands[s.island] |= s.owner == b ? kBTroops : 0;
+                    islands[s.island] |= s.owner == a ? kATroops : 0;
+                }
+            }
+        }
+        for (const City& c : world.cities()) {
+            if (!small_own(c)) {
+                continue;
+            }
+            const std::uint8_t seen = islands[c.island];
+            const bool b_city = (seen & kBCity) != 0;
             bool empty = true;
             for (const std::uint32_t i : c.inhabitants) {
                 empty = empty && i == 0;
@@ -471,14 +497,8 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
             if (b_city && (cities_a <= 2 || empty)) {
                 settle_penalty = 200;
             }
-            bool b_troops = false;
-            bool a_troops = false;
-            for (const Soldier& s : world.soldiers()) {
-                if (s.island == c.island) {
-                    b_troops = b_troops || s.owner == b;
-                    a_troops = a_troops || s.owner == a;
-                }
-            }
+            const bool b_troops = (seen & kBTroops) != 0;
+            const bool a_troops = (seen & kATroops) != 0;
             if (b_troops) {
                 troop_penalty = std::max(troop_penalty, a_troops && b_city ? 60 : 200);
             }

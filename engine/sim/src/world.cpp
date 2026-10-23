@@ -95,19 +95,59 @@ PlayerId World::first_of(FactionBehaviour behaviour) const noexcept {
 }
 
 void World::add_ship(Ship ship) {
+    const bool matched = m_ship_index.matches(m_ships, m_next_ship_id);
     if (ship.id == 0) {
         ship.id = m_next_ship_id;
     }
     m_next_ship_id = std::max(m_next_ship_id, ship.id + 1);
     m_ships.push_back(std::move(ship));
+    m_ship_index.appended(m_ships, matched, m_next_ship_id);
 }
 
 void World::add_soldier(Soldier soldier) {
+    const bool matched = m_soldier_index.matches(m_soldiers, m_next_soldier_id);
     if (soldier.id == 0) {
         soldier.id = m_next_soldier_id;
     }
     m_next_soldier_id = std::max(m_next_soldier_id, soldier.id + 1);
     m_soldiers.push_back(std::move(soldier));
+    m_soldier_index.appended(m_soldiers, matched, m_next_soldier_id);
+}
+
+namespace {
+
+/// Removes the entries `gone` says so, keeping the order of the others, and tells the index.
+template <typename T, typename Gone>
+void erase_by_id(std::vector<T>& list, IdIndex& index, std::uint32_t next_id, std::vector<std::uint32_t>& removed,
+                 Gone&& gone) {
+    const bool matched = index.matches(list, next_id);
+    removed.clear();
+    std::size_t kept = 0;
+    for (std::size_t i = 0; i < list.size(); ++i) {
+        if (gone(list[i])) {
+            removed.push_back(static_cast<std::uint32_t>(i));
+        } else {
+            if (kept != i) {
+                list[kept] = std::move(list[i]);
+            }
+            ++kept;
+        }
+    }
+    if (removed.empty()) {
+        return;
+    }
+    list.erase(list.begin() + static_cast<std::ptrdiff_t>(kept), list.end());
+    index.erased(list, matched, removed);
+}
+
+}  // namespace
+
+void World::erase_soldiers(const std::function<bool(const Soldier&)>& gone) {
+    erase_by_id(m_soldiers, m_soldier_index, m_next_soldier_id, m_removed, gone);
+}
+
+void World::erase_ships(const std::function<bool(const Ship&)>& gone) {
+    erase_by_id(m_ships, m_ship_index, m_next_ship_id, m_removed, gone);
 }
 
 const Soldier* World::soldier(std::uint32_t id) const noexcept {

@@ -618,3 +618,20 @@ TEST_CASE("construction: buildings of mods may use sprites from 8192 on (review 
         "Objekt: HAUS\n  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 65534\n  Size: 1, 2\nEndObj\n", types);
     CHECK(!assets::BuildingTable::from_cod(too_far).ok());
 }
+
+TEST_CASE("construction: a soldier on the footprint stops a building, one beside it does not (TB-7)") {
+    Island island;
+    island.found();
+    const auto unit = [&](std::int32_t tx, std::int32_t ty) {
+        sim::Soldier s;
+        s.place_cell(2 * (10 + tx), 2 * (10 + ty));  // the island lies at world tile (10, 10)
+        s.owner = 1;
+        island.world.add_soldier(s);
+    };
+    unit(9, 14);   // on the house at (8, 13), 2 x 2
+    unit(16, 13);  // two tiles right of the house at (12, 13)
+    const sim::BuildPlan plan = island.build({{kHouse, 8, 13, 0, 0}, {kHouse, 12, 13, 0, 0}});
+    CHECK(plan.items[0].refusal == sim::BuildRefusal::UnitInTheWay);
+    CHECK(plan.items[1].refusal == sim::BuildRefusal::None);
+    CHECK(plan.placed == 1);
+}

@@ -255,3 +255,47 @@ TEST_CASE("diplomacy: the attitude a scenario gives a computer (player +0x70)") 
     world.set_cities({});
     CHECK(world.diplomacy().mood(world, 1, 0, 0, 0) == -170);
 }
+
+TEST_CASE("diplomacy: a computer minds others' cities and troops on its small islands (TB-8)") {
+    sim::World world(200, 100);
+    world.set_players(original_players());
+    // Islands 0 and 2 are small (size class up to 3), island 1 is large.
+    std::uint16_t x = 0;
+    for (const std::uint8_t size : {2, 5, 1}) {
+        assets::IslandHeader header;
+        header.template_size = size;
+        REQUIRE(world.add_island(sim::WorldIsland{header, sim::IslandMap(10, 10), x, 10}).ok());
+        x += 20;
+    }
+    const auto city = [&](std::uint16_t island, std::uint8_t index, sim::PlayerId owner, std::uint32_t people) {
+        sim::City c;
+        c.island = island;
+        c.index = index;
+        c.owner = owner;
+        c.inhabitants = {people};
+        world.add_city(c);
+    };
+    const auto unit = [&](std::uint16_t island, sim::PlayerId owner) {
+        sim::Soldier s;
+        s.owner = owner;
+        s.island = island;
+        world.add_soldier(s);
+    };
+    city(0, 0, 1, 100);
+    city(2, 0, 1, 0);    // empty
+    city(1, 0, 1, 100);  // large island: not minded
+    const auto mood = [&] { return world.diplomacy().mood(world, 1, 0, 0, 0); };
+    CHECK(mood() == 0);
+    // The human's troops on a large island do not matter.
+    unit(1, 0);
+    CHECK(mood() == 0);
+    // ... on a small one they do: 200.
+    unit(2, 0);
+    CHECK(mood() == -200);
+    // The human settles on island 2 next to the empty city: 200 more; the computer's own troops
+    // there with a human city lower the troop penalty to 60.
+    city(2, 1, 0, 50);
+    CHECK(mood() == -400);
+    unit(2, 1);
+    CHECK(mood() == -260);
+}

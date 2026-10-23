@@ -70,7 +70,7 @@ void Military::tick(std::uint32_t dt_ms, std::vector<ConstructionEvent>* constru
     }
     m_grid_data = nullptr;
     // The dead are gone at the end of their animation.
-    std::erase_if(m_world->soldiers(), [](const Soldier& s) { return s.owner == kNoPlayer; });
+    m_world->erase_soldiers([](const Soldier& s) { return s.owner == kNoPlayer; });
     m_castle_ms += dt_ms;
     while (m_castle_ms >= kCastleSecondMs) {
         m_castle_ms -= kCastleSecondMs;

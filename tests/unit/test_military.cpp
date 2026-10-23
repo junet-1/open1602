@@ -684,3 +684,43 @@ TEST_CASE("military: idle units look again at times spread by their number (TB-1
     CHECK(sa->motion.duration_us < 1'200'000);
     CHECK(sb->motion.duration_us < 1'200'000);
 }
+
+TEST_CASE("military: finding units by id follows adds and removals without a new build (TB-6)") {
+    sim::World world(64, 64);
+    // Ids out of order, as after loading an original game, then new units at the end.
+    for (const std::uint32_t id : {9U, 3U, 7U, 1U, 5U}) {
+        sim::Soldier s;
+        s.id = id;
+        world.add_soldier(s);
+    }
+    const auto check_all = [&] {
+        for (std::size_t i = 0; i < world.soldiers().size(); ++i) {
+            const sim::Soldier& s = world.soldiers()[i];
+            REQUIRE(world.soldier(s.id) == &s);
+        }
+    };
+    check_all();
+    for (int i = 0; i < 6; ++i) {
+        world.add_soldier(sim::Soldier{});
+        check_all();
+    }
+    CHECK(world.soldiers().back().id == 15);
+    world.erase_soldiers([](const sim::Soldier& s) { return s.id % 3 == 0; });
+    CHECK(world.soldiers().size() == 7);
+    CHECK(world.soldier(3) == nullptr);
+    CHECK(world.soldier(9) == nullptr);
+    CHECK(world.soldier(12) == nullptr);
+    check_all();
+    // The order of the others stays.
+    std::vector<std::uint32_t> ids;
+    for (const sim::Soldier& s : world.soldiers()) {
+        ids.push_back(s.id);
+    }
+    CHECK((ids == std::vector<std::uint32_t>{7, 1, 5, 10, 11, 13, 14}));
+    world.erase_soldiers([](const sim::Soldier&) { return false; });
+    world.add_soldier(sim::Soldier{});
+    check_all();
+    world.erase_soldiers([](const sim::Soldier&) { return true; });
+    CHECK(world.soldiers().empty());
+    CHECK(world.soldier(7) == nullptr);
+}

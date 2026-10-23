@@ -255,22 +255,45 @@ bool player_has_city(const World& world, std::uint16_t island, PlayerId player) 
                        [&](const City& c) { return c.island == island && c.owner == player; });
 }
 
-/// A soldier stands on the footprint (0x00442980). Open1602 also counts a soldier that is just
-/// stepping on (S-015).
-bool unit_in_the_way(const World& world, const WorldIsland& island, const Footprint& f) {
-    // Half a tile around the footprint, in the soldiers' fixed point units (ADR 0004).
-    constexpr std::int64_t kHalf = kPosUnit / 2;
-    const std::int64_t left = (std::int64_t{island.x} + f.x) * kPosUnit - kHalf;
-    const std::int64_t top = (std::int64_t{island.y} + f.y) * kPosUnit - kHalf;
-    const std::int64_t right = (std::int64_t{island.x} + f.x + f.w) * kPosUnit + kHalf;
-    const std::int64_t bottom = (std::int64_t{island.y} + f.y + f.h) * kPosUnit + kHalf;
-    for (const Soldier& s : world.soldiers()) {
-        if (s.pos_x >= left && s.pos_y >= top && s.pos_x < right && s.pos_y < bottom) {
-            return true;
+/// The soldiers over an island, by row: one pass over all soldiers per order instead of one per
+/// placed item (TB-7). Built when the first item asks.
+class UnitsOnIsland {
+public:
+    /// A soldier stands on the footprint (0x00442980). Open1602 also counts a soldier that is just
+    /// stepping on (S-015).
+    bool in_the_way(const World& world, const WorldIsland& island, const Footprint& f) {
+        // Half a tile around the footprint, in the soldiers' fixed point units (ADR 0004).
+        constexpr std::int64_t kHalf = kPosUnit / 2;
+        if (!m_built) {
+            const std::int64_t x0 = std::int64_t{island.x} * kPosUnit - kHalf;
+            const std::int64_t y0 = std::int64_t{island.y} * kPosUnit - kHalf;
+            const std::int64_t x1 = (std::int64_t{island.x} + island.map.width()) * kPosUnit + kHalf;
+            const std::int64_t y1 = (std::int64_t{island.y} + island.map.height()) * kPosUnit + kHalf;
+            for (const Soldier& s : world.soldiers()) {
+                if (s.pos_x >= x0 && s.pos_y >= y0 && s.pos_x < x1 && s.pos_y < y1) {
+                    m_units.emplace_back(s.pos_y, s.pos_x);
+                }
+            }
+            std::sort(m_units.begin(), m_units.end());
+            m_built = true;
         }
+        const std::int64_t left = (std::int64_t{island.x} + f.x) * kPosUnit - kHalf;
+        const std::int64_t top = (std::int64_t{island.y} + f.y) * kPosUnit - kHalf;
+        const std::int64_t right = (std::int64_t{island.x} + f.x + f.w) * kPosUnit + kHalf;
+        const std::int64_t bottom = (std::int64_t{island.y} + f.y + f.h) * kPosUnit + kHalf;
+        for (auto it = std::lower_bound(m_units.begin(), m_units.end(), std::pair{top, left});
+             it != m_units.end() && it->first < bottom; ++it) {
+            if (it->second >= left && it->second < right) {
+                return true;
+            }
+        }
+        return false;
     }
-    return false;
-}
+
+private:
+    std::vector<std::pair<std::int64_t, std::int64_t>> m_units;  ///< (y, x) of each soldier
+    bool m_built = false;
+};
 
 /// Planning state shared by the items of an order.
 struct Planner {
@@ -282,6 +305,7 @@ struct Planner {
     std::uint8_t city = MapCell::kNoCity;
     bool foreign = false;
     std::set<std::pair<std::int32_t, std::int32_t>> taken;  // tiles of accepted items
+    mutable UnitsOnIsland units;
 
     /// Whether the footprint fits (0x00464450 with the fixes of Open1602).
     BuildRefusal can_place(const assets::BuildingType& b, std::uint8_t city_of_tiles, std::uint8_t rotation,
@@ -320,7 +344,7 @@ struct Planner {
         static constexpr std::array<std::int32_t, 7> kNoUnitCheck = {
             kind::kRoad, kind::kGround, kind::kRuin, kind::kSquare, kind::kBridge, kind::kBeachRuin, kind::kPier};
         if (std::find(kNoUnitCheck.begin(), kNoUnitCheck.end(), b.kind) == kNoUnitCheck.end() &&
-            unit_in_the_way(world, island, f)) {
+            units.in_the_way(world, island, f)) {
             return BuildRefusal::UnitInTheWay;
         }
         return BuildRefusal::None;
@@ -720,7 +744,7 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
     }
     const WorldIsland& island = world.islands()[order.island];
     const Player* player = world.player(order.player);
-    Planner planner{world, buildings, order, island, island.map, MapCell::kNoCity, false, {}};
+    Planner planner{world, buildings, order, island, island.map, MapCell::kNoCity, false, {}, {}};
 
     // The city of the whole order: under the footprint of its first item.
     const BuildItem& first = order.items.front();

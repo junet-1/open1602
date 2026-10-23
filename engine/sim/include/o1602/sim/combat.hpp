@@ -143,6 +143,7 @@ private:
     std::vector<std::uint8_t> m_hostile;                           ///< players x players
     std::vector<std::uint8_t> m_present;                           ///< per player: has figures
     std::vector<std::uint8_t> m_enemies;                           ///< per player: an enemy has figures
+    std::vector<std::uint64_t> m_bucket_keys;                      ///< scratch of update(): the buckets' order
     std::vector<Bucketed> m_buckets;
     std::vector<Cell> m_cells;
     std::vector<Group> m_groups;
