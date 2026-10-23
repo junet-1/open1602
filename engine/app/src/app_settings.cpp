@@ -60,9 +60,19 @@ void flags(std::string_view v, std::array<bool, 8>& out) {
 
 // The files are UTF-8; the names in them are kept in Windows-1252 like all typed text (the game's
 // fonts). A value that is not UTF-8 comes from an older version, which wrote the bytes as they
-// were: it is taken as Windows-1252.
+// were: it is taken as Windows-1252. Control characters and the five bytes Windows-1252 leaves
+// undefined are dropped, and the ends trimmed, so that a name reads back as it is written.
 std::string from_file(std::string_view value) {
-    return core::is_utf8(value) ? core::utf8_to_cp1252(value) : std::string(value);
+    const std::string text = core::is_utf8(value) ? core::utf8_to_cp1252(value) : std::string(value);
+    std::string out;
+    for (const char ch : text) {
+        const auto c = static_cast<unsigned char>(ch);
+        const bool undefined = c == 0x81 || c == 0x8D || c == 0x8F || c == 0x90 || c == 0x9D;
+        if (c >= 0x20 && c != 0x7F && !undefined) {
+            out += ch;
+        }
+    }
+    return std::string(trim(out));
 }
 
 std::string flags_text(const std::array<bool, 8>& a) {
