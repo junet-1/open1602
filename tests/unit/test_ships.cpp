@@ -6,6 +6,8 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/core/byte_reader.hpp"
+#include "o1602/core/byte_writer.hpp"
 #include "o1602/sim/sea_paths.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/sim/world.hpp"
@@ -401,6 +403,99 @@ TEST_CASE("ships: a scenario can keep the free trader away from a player (player
     CHECK(count(events, sim::ShipEvent::Kind::Traded) == 0);
     CHECK(city.goods[kWood] == 30 * kTon);
     CHECK(sea.world.players()[0].money == money);
+}
+
+TEST_CASE("ships: with more than four players the free trader looks only as far as in a four-player game") {
+    Sea sea;
+    sim::Rules original = sim::Rules::original();
+    CHECK(original.trader_reach == sim::TraderReach::Original);
+    CHECK(sea.rules.trader_reach == sim::TraderReach::PerFourPlayers);
+    // Four players (slots 0 to 3): the original's 12 nearest Kontors, whatever the rule.
+    CHECK(sim::trader_reach_players(sea.world, sea.rules) == 0);
+    CHECK(sim::trader_candidates(sea.world, sea.rules, 24) == 12);
+    // Twelve players (slots 5 to 12 computers as well): the share of Kontors four of them would
+    // have, at least 3 and at most 12.
+    std::vector<sim::Player> players = sea.world.players();
+    players.resize(13);
+    for (std::size_t i = 5; i < players.size(); ++i) {
+        players[i].role = sim::PlayerRole::Computer;
+    }
+    sea.world.set_players(players);
+    CHECK(sim::trader_reach_players(sea.world, sea.rules) == 12);
+    CHECK(sim::trader_candidates(sea.world, sea.rules, 12) == 4);
+    CHECK(sim::trader_candidates(sea.world, sea.rules, 25) == 9);
+    CHECK(sim::trader_candidates(sea.world, sea.rules, 2) == 3);
+    CHECK(sim::trader_candidates(sea.world, sea.rules, 60) == 12);
+    CHECK(sim::trader_reach_players(sea.world, original) == 0);
+    CHECK(sim::trader_candidates(sea.world, original, 12) == 12);
+}
+
+TEST_CASE("ships: with more than four players a trader without profit goes where no one went for longest") {
+    Sea sea;
+    // Nine players (slots 0 to 3 and 5 to 9), three Kontors in a row on islands of their own, none of them trading.
+    std::vector<sim::Player> players = sea.world.players();
+    players.resize(10);
+    for (std::size_t i = 5; i < players.size(); ++i) {
+        players[i].role = sim::PlayerRole::Computer;
+    }
+    sea.world.set_players(players);
+    for (const std::uint32_t x : {15U, 55U, 95U}) {
+        sim::IslandMap map(6, 10);
+        for (std::int32_t y = 0; y < 10; ++y) {
+            for (std::int32_t col = 0; col < 6; ++col) {
+                REQUIRE(map.place(*sea.buildings.by_id(20101), col, y, 0, 0).ok());
+            }
+        }
+        REQUIRE(map.place(*sea.buildings.by_id(20103), 0, 4, 0, 0, 0, 0).ok());
+        for (std::uint32_t y = 0; y < 10; ++y) {
+            for (std::uint32_t col = 0; col < 6; ++col) {
+                map.set_city(col, y, 0, 0);
+            }
+        }
+        const auto island = static_cast<std::uint16_t>(sea.world.islands().size());
+        REQUIRE(sea.world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), x, 20}).ok());
+        sim::City city;
+        city.island = island;
+        city.owner = static_cast<sim::PlayerId>(island == 0 ? 0 : 4 + island);
+        city.warehouse_x = 0;
+        city.warehouse_y = 4;
+        city.capacity = 30 * kTon;
+        city.trade.resize(25);
+        sea.world.add_city(city);
+    }
+    sim::Ship& trader = sea.add(60, 45, 29, 4);
+    trader.trader = true;
+    trader.trader_goods.resize(25);
+    const std::uint32_t id = trader.id;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    // His destinations in order: each Kontor once before any of them again.
+    std::vector<std::uint16_t> chosen;
+    for (std::uint32_t t = 0; t < 1'200'000 && chosen.size() < 6; t += 50) {
+        sea.world.set_time_ms(sea.world.time_ms() + 50);
+        fleet.tick(50);
+        (void)fleet.take_events();
+        const sim::Target& target = sea.world.ship(id)->target;
+        if (target.kind == sim::Target::Kind::City && (chosen.empty() || chosen.back() != target.island)) {
+            chosen.push_back(target.island);
+        }
+    }
+    REQUIRE(chosen.size() == 6);
+    for (std::size_t i = 3; i < chosen.size(); ++i) {
+        CHECK(chosen[i] == chosen[i - 3]);
+    }
+    CHECK(chosen[0] != chosen[1]);
+    CHECK(chosen[1] != chosen[2]);
+    CHECK(chosen[0] != chosen[2]);
+    // The choices are part of the savegame: a loaded fleet writes the same.
+    core::ByteWriter out;
+    fleet.save(out);
+    const std::vector<std::uint8_t> bytes = out.take();
+    sim::Fleet loaded(sea.world, sea.buildings, sea.figures, sea.rules);
+    core::ByteReader in(bytes);
+    REQUIRE(loaded.load(in));
+    core::ByteWriter again;
+    loaded.save(again);
+    CHECK(again.take() == bytes);
 }
 
 TEST_CASE("ships: a shipyard builds a ship from wood and cloth and repairs one lying in reach") {

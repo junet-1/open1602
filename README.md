@@ -182,9 +182,10 @@ tested and not kept in step with the engine; where they disagree with `engine/as
 | Folder | Contents |
 |---|---|
 | `engine/` | Engine modules: `core`, `assets`, `sim`, `net`, `render`, `platform`, `audio`, `video`, `ui`, `app`; each has a README |
-| `tools/` | `o1602-tool` (C++, one file per command group) and unmaintained Python prototypes from reverse engineering (`tools/python/`; the C++ readers in `engine/assets` are authoritative) |
+| `tools/` | `o1602-tool` (C++, one file per command group), `make_icons.py` (renders the [application icon](data/icons/README.md)) and unmaintained Python prototypes from reverse engineering (`tools/python/`; the C++ readers in `engine/assets` are authoritative) |
 | `tests/` | Unit tests and tests against the original data ([how to run them](tests/README.md)) |
 | `docs/` | [Plan](docs/00-plan.md), [status](docs/status.md), [file formats](docs/formats/README.md), [architecture decisions](docs/architecture/README.md), [languages](docs/modding/languages.md), [messages](docs/modding/messages.md) and [data limits](docs/modding/data-limits.md) for modding |
+| `data/` | Files the engine brings itself: [interface texts](docs/modding/languages.md), the [application icon](data/icons/README.md), the Linux desktop entry |
 | `re/` | Analysis scripts and notes |
 
 The analysis of the original game (`docs/re/`) and the symbol tables (`re/symbols/`) are kept in the
@@ -200,4 +201,4 @@ code in the repository; every finding about the original is documented with its 
 ## License
 
 GPL-3.0-or-later, see [LICENSE](LICENSE). *Anno* is a trademark of Ubisoft; this project is not
-affiliated with Ubisoft, Max Design or Sunflowers.
+affiliated with Ubisoft, Max Design or Sunflowers. The application icon (`data/icons/`) is CC0 1.0.

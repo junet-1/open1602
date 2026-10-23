@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Open1602
+GenericName=Building strategy game
+GenericName[de]=Aufbaustrategiespiel
+Comment=Open-source engine for Anno 1602 (needs the original game data)
+Comment[de]=Open-Source-Engine für Anno 1602 (benötigt die Daten des Originalspiels)
+Exec=open1602
+Icon=org.open1602.Open1602
+Terminal=false
+Categories=Game;StrategyGame;
+Keywords=Anno;1602;economy;trade;island;
+Keywords[de]=Anno;1602;Wirtschaft;Handel;Insel;
+StartupWMClass=org.open1602.Open1602

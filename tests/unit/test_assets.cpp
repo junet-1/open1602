@@ -393,7 +393,6 @@ TEST_CASE("assets: a game folder typed with quotes or blanks around it is still 
 TEST_CASE("assets: installers' folders named after the game are candidates, others are not") {
     const auto parent = test::temp_path("o1602-test-install-candidates");
     std::filesystem::remove_all(parent);
-    // No name ending in a dot: Windows drops it ("1602 A.D." becomes "1602 A.D").
     for (const char* name : {"Anno 1602 Koenigsedition", "Anno 1602", "Anno 1503", "1602 AD"}) {
         std::filesystem::create_directories(parent / name);
     }
