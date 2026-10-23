@@ -98,6 +98,8 @@ struct ShipLayouts {
     assets::GadgetLayout handel;
     assets::GadgetLayout pirat;
     assets::GadgetLayout piratord;
+    /// MUSIK.GAD for its list arrows (the pages of the route editor); without it, four stops.
+    std::optional<assets::GadgetLayout> musik;
 };
 /// The ship's window with its pages (ship_panel.cpp).
 /// SHIPLIST (`ships`) or STADTLST: the lists of the player status (list_panels.cpp).

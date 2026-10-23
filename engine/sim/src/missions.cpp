@@ -255,7 +255,7 @@ void prepare_missions(World& world) {
         }
         for (const PlayerId q : m->defeat) {
             const Player* target = world.player(q);
-            if (target != nullptr && target->role == PlayerRole::Pirates) {
+            if (target != nullptr && world.behaviour(*target) == FactionBehaviour::Pirates) {
                 settings.flags |= World::GameSettings::kPirateGoal;
             }
         }
@@ -489,7 +489,7 @@ MissionCheck check_mission(const World& world, const assets::BuildingTable& buil
             if (target == nullptr || q == player) {
                 continue;  // nobody, or the mission's owner himself (missions shared by all players)
             }
-            if (target->role == PlayerRole::Natives) {
+            if (world.behaviour(*target) == FactionBehaviour::Natives) {
                 // Natives are never defeated: their villages must be gone, the last destroyed
                 // by this player.
                 all = all && !has_city(world, q) && world.diplomacy().blamed(q) == player;

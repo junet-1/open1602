@@ -111,7 +111,7 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(app::read_setup_line(read, "pirates", "many"));  // not a value: unchanged
     CHECK(read.rules.pirates == sim::Pirates::Off);
     // Pirate nests: one for every four players by default (up to four players the original's one).
-    CHECK(s.rules.pirate_nests == sim::PirateNests::PerFourPlayers);
+    CHECK(s.rules.pirate_nests == sim::PirateNests::Scaled);
     CHECK(value_of(s, SetupItem::PirateNests) == ui::tr("setup.pirate_nests.per4"));
     app::choose(s, SetupItem::PirateNests, 0);
     CHECK(s.rules.pirate_nests == sim::PirateNests::One);
@@ -119,9 +119,9 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     app::read_setup(read, app::write_setup(s));
     CHECK(read.rules.pirate_nests == sim::PirateNests::One);
     CHECK(app::read_setup_line(read, "pirate_nests", "per4"));
-    CHECK(read.rules.pirate_nests == sim::PirateNests::PerFourPlayers);
+    CHECK(read.rules.pirate_nests == sim::PirateNests::Scaled);
     // The free trader's reach: as in a four-player game by default (up to four players the original).
-    CHECK(s.rules.trader_reach == sim::TraderReach::PerFourPlayers);
+    CHECK(s.rules.trader_reach == sim::TraderReach::Scaled);
     CHECK(value_of(s, SetupItem::TraderReach) == ui::tr("setup.trader_reach.per4"));
     app::choose(s, SetupItem::TraderReach, 0);
     CHECK(s.rules.trader_reach == sim::TraderReach::Original);
@@ -129,7 +129,7 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     app::read_setup(read, app::write_setup(s));
     CHECK(read.rules.trader_reach == sim::TraderReach::Original);
     CHECK(app::read_setup_line(read, "trader_reach", "per4"));
-    CHECK(read.rules.trader_reach == sim::TraderReach::PerFourPlayers);
+    CHECK(read.rules.trader_reach == sim::TraderReach::Scaled);
 
     // The world's items count only for a world of its own.
     CHECK(!app::setup_item_used(s, SetupItem::Players));

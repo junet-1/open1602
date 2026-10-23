@@ -128,11 +128,11 @@ void write_rules(Writer& out, const Rules& r) {
     }
     // The pirate nests only when they are not one for every four players: up to four players that
     // is the original, so older games keep their bytes.
-    if (r.pirate_nests != PirateNests::PerFourPlayers) {
+    if (r.pirate_nests != PirateNests::Scaled) {
         values.emplace_back(kPirateNests, static_cast<std::uint32_t>(r.pirate_nests));
     }
     // The trader's reach likewise only when it is the original's.
-    if (r.trader_reach != TraderReach::PerFourPlayers) {
+    if (r.trader_reach != TraderReach::Scaled) {
         values.emplace_back(kTraderReach, static_cast<std::uint32_t>(r.trader_reach));
     }
     // The victory conditions only when there are any: a game without them keeps the bytes of the

@@ -215,7 +215,7 @@ TEST_CASE("scores: the end screen lists humans and computers, the local player f
     players[1].name = "Ming";
     players[2].role = sim::PlayerRole::Human;
     players[2].status = sim::PlayerStatus::Absent;
-    players[3].role = sim::PlayerRole::Pirates;
+    sim::make_neutral(players[3], sim::faction::kPirates);
     players[4].role = sim::PlayerRole::Computer;
     players[4].status = sim::PlayerStatus::Defeated;
     world.set_players(players);

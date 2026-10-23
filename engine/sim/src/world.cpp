@@ -73,6 +73,24 @@ const City* World::city(std::uint16_t island, std::uint8_t index) const noexcept
     return nullptr;
 }
 
+void World::set_factions(std::vector<Faction> factions) {
+    m_factions = factions.empty() ? base_factions() : std::move(factions);
+    for (Player& p : m_players) {
+        if (p.faction >= m_factions.size()) {
+            p.faction = faction::kSettlers;
+        }
+    }
+}
+
+PlayerId World::first_of(FactionBehaviour behaviour) const noexcept {
+    for (std::size_t p = 0; p < m_players.size(); ++p) {
+        if (this->behaviour(m_players[p]) == behaviour) {
+            return static_cast<PlayerId>(p);
+        }
+    }
+    return kNoPlayer;
+}
+
 void World::add_ship(Ship ship) {
     if (ship.id == 0) {
         ship.id = m_next_ship_id;
@@ -488,7 +506,8 @@ void add_islands(World& world, const std::vector<assets::Island>& islands, const
 void add_players(World& world, const std::vector<assets::PlayerRecord>& players) {
     std::vector<Player> slots;
     for (const auto& p : players) {
-        Player player{role_from_original(p.kind), banner_from_original(p.color), p.money, p.name};
+        Player player{role_from_original(p.kind), banner_from_original(p.color), p.money, p.name,
+                      faction_from_original(p.kind)};
         player.infra_mask = p.infra_mask;
         player.castles_built = p.castles_built;
         player.cathedrals_built = p.cathedrals_built;

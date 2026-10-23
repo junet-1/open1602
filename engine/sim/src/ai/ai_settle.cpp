@@ -579,7 +579,7 @@ void Engine::task_settle_land(AiPlayer& p) {
             continue;
         }
         const Player* o = m_world.player(c.owner);
-        if (o != nullptr && o->role == PlayerRole::Natives && island_size(island) >= 4) {
+        if (o != nullptr && m_world.behaviour(*o) == FactionBehaviour::Natives && island_size(island) >= 4) {
             continue;
         }
         const bool human = o != nullptr && o->role == PlayerRole::Human;

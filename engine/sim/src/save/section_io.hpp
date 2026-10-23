@@ -66,6 +66,13 @@ struct Decoded {
     };
     std::optional<std::vector<TileOverride>> tiles;
     std::optional<std::vector<Player>> players;
+    /// The world's factions and each player's (FACT), in the order of PLAY; without, the base
+    /// game's and the factions PLAY's role bytes give.
+    struct FactionPart {
+        std::vector<Faction> factions;
+        std::vector<FactionId> players;
+    };
+    std::optional<FactionPart> factions;
     /// Missions and the end of the game (MISN).
     struct MissionPart {
         std::vector<Mission> missions;
@@ -224,6 +231,8 @@ inline constexpr std::uint16_t kWideCoordinates = 2;
 /// Version 2 of PSTA: each player also has the switches of its scenario (Player::scenario). The writer
 /// takes it only when a player has some, so other games write the bytes of version 1 as before.
 inline constexpr std::uint16_t kScenarioSwitches = 2;
+/// FLEE version 2: every ship's route with TradeRoute::kStops stops, not the original's four.
+inline constexpr std::uint16_t kLongRoutes = 2;
 
 /// An island coordinate of ISLE and VOLC: 8 bit up to version 1, 16 bit from kWideCoordinates.
 template <class A, class T>
@@ -267,6 +276,10 @@ void write_explored(Writer& out, const World& w);
 // players.cpp: PLAY, PSTA, MISN, SCOR, DIPL.
 void write_players(Writer& out, const World& w);
 [[nodiscard]] std::vector<Player> read_players(Reader& in);
+/// Whether the world has other factions than the base game's (only then FACT is written).
+[[nodiscard]] bool has_own_factions(const World& w);
+void write_factions(Writer& out, const World& w);
+[[nodiscard]] Decoded::FactionPart read_factions(Reader& in);
 [[nodiscard]] std::uint16_t player_state_version(const World& w);
 void write_player_state(Writer& out, const World& w, std::uint16_t version);
 [[nodiscard]] std::vector<Player> read_player_state(Reader& in, std::uint16_t version);
@@ -302,8 +315,10 @@ void write_costs(Writer& out, const World& w);
 // ships.cpp: SHIP (for readers older than FLEE), FLEE.
 void write_ships(Writer& out, const World& w);
 [[nodiscard]] std::vector<Ship> read_ships(Reader& in);
-void write_fleet(Writer& out, const World& w);
-[[nodiscard]] Decoded::FleetPart read_fleet(Reader& in);
+void write_fleet(Writer& out, const World& w, std::uint16_t version);
+[[nodiscard]] Decoded::FleetPart read_fleet(Reader& in, std::uint16_t version);
+/// The version of FLEE: kLongRoutes if a route has a stop beyond the original's four.
+[[nodiscard]] std::uint16_t fleet_version(const World& w);
 
 // army.cpp: SOLD (files older than ARMY, read only), ARMY.
 [[nodiscard]] std::vector<Soldier> read_soldiers(Reader& in);

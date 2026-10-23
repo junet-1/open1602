@@ -310,9 +310,9 @@ TEST_CASE("world plan: players five on are computers behind the factions, each w
     std::vector<sim::Player> players(7);
     players[1].role = sim::PlayerRole::Computer;
     players[1].money = 30000;
-    players[4].role = sim::PlayerRole::Trader;
-    players[5].role = sim::PlayerRole::Pirates;
-    players[6].role = sim::PlayerRole::Natives;
+    sim::make_neutral(players[4], sim::faction::kTrader);
+    sim::make_neutral(players[5], sim::faction::kPirates);
+    sim::make_neutral(players[6], sim::faction::kNatives);
     world.set_players(players);
     world.add_ship(sim::make_ship("Pinasse", 10, 10, 21, 1));
     sim::WorldPlan plan;
@@ -322,7 +322,7 @@ TEST_CASE("world plan: players five on are computers behind the factions, each w
 
     REQUIRE(sim::add_players(world, plan, 6).ok());
     REQUIRE(world.players().size() == 9);
-    CHECK(world.players()[5].role == sim::PlayerRole::Pirates);  // the factions keep their slots
+    CHECK(world.players()[5].faction == sim::faction::kPirates);  // the factions keep their slots
     for (std::size_t n = 4; n < 6; ++n) {
         const sim::PlayerId slot = sim::player_slot(n);
         CHECK(slot == 7 + (n - 4));

@@ -36,8 +36,9 @@ namespace o1602::sim {
 /// Whether pirates come in this game (settings bit 0: no pirates; Rules::pirates can override it).
 [[nodiscard]] bool pirates_enabled(const World& world, const Rules& rules) noexcept;
 
-/// Nests the pirates aim for (Rules::pirate_nests): one, or one for every four human and computer
-/// players begun. Each nest brings the original's ships, so the fleet grows with them.
+/// Nests the pirates aim for (Rules::pirate_nests): one, or as the pirates' faction grows them
+/// with the human and computer players (Faction::nests; by default one for every four begun).
+/// Each nest brings the original's ships, so the fleet grows with them.
 [[nodiscard]] std::uint32_t pirate_nests(const World& world, const Rules& rules) noexcept;
 
 /// The part of the map a world tile belongs to when the pirates aim for `nests` nests: as many
@@ -46,12 +47,12 @@ namespace o1602::sim {
                                           std::uint32_t nests) noexcept;
 
 /// The human and computer players when Rules::trader_reach scales the free trader to them (more
-/// than four), else 0.
+/// than the trader's Faction::reach_players), else 0.
 [[nodiscard]] std::size_t trader_reach_players(const World& world, const Rules& rules) noexcept;
 
 /// How many of the nearest Kontors the free trader weighs when `kontors` are open to him
-/// (Rules::trader_reach): the original's 12, or with more than four human and computer players the
-/// share a four-player game would have, at least 3.
+/// (Rules::trader_reach): the original's 12, or with more human and computer players than his
+/// faction's reach_players the share a game of that many would have, at least 3.
 [[nodiscard]] std::size_t trader_candidates(const World& world, const Rules& rules, std::size_t kontors) noexcept;
 
 /// Room of one hold of a ship (0x00446A60).
@@ -101,6 +102,8 @@ struct RouteEdit {
         Start,      ///< switches the route on
         Stop,       ///< and off
         OneWay,     ///< `on`: the route ends after its last stop (computer players' supply runs)
+        /// Open1602: the stops of the ship in `target` (one of the same owner) replace this ship's.
+        CopyFrom,
     };
     PlayerId player = kNoPlayer;
     std::uint32_t ship = 0;

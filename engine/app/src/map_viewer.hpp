@@ -392,6 +392,9 @@ private:
     assets::FigureTable m_figures;
     render::BannerTable m_banners;  ///< colours and flags of the players (ADR 0007)
     MessageTable m_messages;        ///< the original's messages and the mods' (docs/modding/messages.md)
+    /// The factions a new game starts with: the base game's as the mods change them
+    /// (docs/modding/factions.md). A savegame of Open1602 keeps its own.
+    std::vector<sim::Faction> m_factions = sim::base_factions();
     /// Flags, smoke and icons: buildings do not move, so they are collected once at load.
     std::vector<render::BuildingFigure> m_building_figures;
     std::vector<std::string> m_city_names;  ///< Text.cod [STAEDTE], [SHIPS]: for every game loaded

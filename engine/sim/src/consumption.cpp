@@ -400,9 +400,8 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
         if (owner == nullptr) {
             continue;
         }
-        switch (owner->role) {
-            case PlayerRole::Human:
-            case PlayerRole::Computer:
+        switch (world.behaviour(*owner)) {
+            case FactionBehaviour::Settlers:
                 consume(*city, buildings, events);
                 // Money (0x0047F8A0): a sixth of the balance per minute, truncated towards zero
                 // every 10 s (kept: small balances cost nothing, as in the original).
@@ -413,13 +412,13 @@ void advance_cities(World& world, const assets::BuildingTable& buildings, std::v
                 allow_monument(world, *city, events);
                 remind_material_lock(world, *city, events);
                 break;
-            case PlayerRole::Natives:
+            case FactionBehaviour::Natives:
                 consume_natives(*city);
                 break;
-            case PlayerRole::Pirates:
+            case FactionBehaviour::Pirates:
                 consume_pirates(*city, world.random(RandomStream::Pirates));
                 break;
-            default:
+            case FactionBehaviour::Trader:
                 break;  // the free trader consumes nothing
         }
         // The trade statistics fade (city + 0x1F0, + 0x1F4).

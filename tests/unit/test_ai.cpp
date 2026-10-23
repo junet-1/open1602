@@ -126,8 +126,8 @@ struct Game {
         players[kHuman].money = 10000;
         players[kComputer].role = sim::PlayerRole::Computer;
         players[kComputer].money = computer_money;
-        players[kTrader].role = sim::PlayerRole::Trader;
-        players[kNatives].role = sim::PlayerRole::Natives;
+        sim::make_neutral(players[kTrader], sim::faction::kTrader);
+        sim::make_neutral(players[kNatives], sim::faction::kNatives);
         world.set_players(players);
         if (computer_ship) {
             add_ship(kComputer, 86, 45);
@@ -209,7 +209,7 @@ bool same(const std::vector<sim::ComputerPlayers::View>& a, const std::vector<si
 void add_pirates(Game& g) {
     std::vector<sim::Player> players = g.world.players();
     players.push_back(sim::Player{});
-    players.back().role = sim::PlayerRole::Pirates;
+    sim::make_neutral(players.back(), sim::faction::kPirates);
     g.world.set_players(players);
 }
 
@@ -485,7 +485,7 @@ TEST_CASE("ai: reset takes the computers from the world, and only them") {
     // A pirate slot too: the pirates are run by the same machinery.
     std::vector<sim::Player> players = g.world.players();
     players.push_back(sim::Player{});
-    players.back().role = sim::PlayerRole::Pirates;
+    sim::make_neutral(players.back(), sim::faction::kPirates);
     g.world.set_players(players);
     sim::Simulation s(g.world, g.buildings, g.figures);
     REQUIRE(run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));

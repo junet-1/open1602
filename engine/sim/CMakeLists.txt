@@ -58,6 +58,7 @@ add_library(o1602_sim
     src/validate.cpp
     src/shipyards.cpp
     src/player.cpp
+    src/faction.cpp
     src/production_cycle.cpp
     src/simulation.cpp
     src/soldiers.cpp

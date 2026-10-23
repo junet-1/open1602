@@ -109,7 +109,7 @@ void io(A& a, T& t)
 {
     a(t.player);
     a(t.ship);
-    a.enumeration(t.op, RouteEdit::Op::OneWay);
+    a.enumeration(t.op, RouteEdit::Op::CopyFrom);
     a(t.stop);
     a(t.entry);
     a(t.target);

@@ -54,6 +54,7 @@ see [o1602-chunk.md](o1602-chunk.md) for the rules.
 | `TUTR` | one byte, 1: the game is the tutorial (`TIMERS` +0xA5, [ai.md](../re/ai.md#tutorial)); written only then, optional, so a reader that does not know it loads the game as an ordinary one |
 | `ISLE` | per island: deer spots, drought, craters, deposits, fertility (version 2: 16-bit coordinates, see [o1602-chunk.md](o1602-chunk.md#section-versions)) |
 | `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `ANIM` `DISA` `VOLC` | players, cities, production list with free slots, houses, growth, shipyards and castles, animals, fires and plagues, volcanoes with lava in flight |
+| `FACT` | the world's factions (id, behaviour, the numbers they grow with: pirate nests, trader ships, trader reach; [factions.md](../modding/factions.md)) and the faction of each player (order as in `PLAY`). Written only when the factions are not the base game's, optional: a reader without it plays the base game's factions that the role byte of `PLAY` gives (0 human, 1 computer, 2 free trader, 3 pirates, 4 natives; a faction of a content package goes there as the one it acts as) |
 | `TILE` | not in the own savegame (`MAPW` holds every tile); only in the chunk of an exported `.GAM` |
 | `PSTA` | per player (order as in `PLAY`): mission, status (playing, defeated, absent), won, defeated opponents, the two counters of the defeat rules, trade statistics (purchases, sales); version 2 also the scenario switches of a computer ([o1602-chunk.md](o1602-chunk.md#section-versions)) |
 | `CSTA` | per city (island, number): trade statistics of the warehouse (purchases, sales, as city + 0x1F0/+0x1F4); if the section is missing, the values from `STADT4` apply |
@@ -63,13 +64,13 @@ see [o1602-chunk.md](o1602-chunk.md) for the rules.
 | `GLDG` | per city (island, number) that has goods statistics: the minutes closed, then per good ever booked its ledger (warning given, the running minute's and quarter's counts, the last 60 minutes and the last 48 quarters of an hour as samples of 16 flows and the stock), then whether the city keeps the figures of its window and if so their history (minutes closed, 60 minutes and 48 quarters of 13 figures, the sums of the running quarter; [ADR 0012](../architecture/0012-goods-statistics.md)); written only when a city has statistics, optional: without it the statistics start empty. Does not exist in the original |
 | `SCOR` | per player (order as in `PLAY`): soldiers killed and lost, ships sunk and lost (`PLAYER4` +0x14..+0x1A); then per city (island, number): growth of the house looked at last and the game time since it grows (monument allowances, city + 0x1F8/+0x1E4); if the section is missing, the counters from `PLAYER4` apply and the cities start without growth |
 | `MISN` | the missions (goals, loss conditions, values, text, the islands of the island goals recorded at the start) and the end of the game (time, winner) ([missions.md](../re/missions.md)) |
-| `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | ships with course, route and cargo, shipyard orders, trade settings; soldiers, towers, building damage, shots in flight, castle slots; diplomacy; island epochs; exploring |
+| `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | ships with course, route and cargo, shipyard orders, trade settings (`FLEE` version 2: routes with eight stops, see [o1602-chunk.md](o1602-chunk.md#section-versions)); soldiers, towers, building damage, shots in flight, castle slots; diplomacy; island epochs; exploring |
 | `QUEU` `STNC` | command chains of the ships and units (Shift+right-click, up to 16 destinations each); attack move and "hold position" (ADR 0010, does not exist in the original) |
 | `SIMU` | clocks of the simulation, all active figures, the state of the computer opponents, (from state version 5) the names for new cities and ships, and (from state version 6) the game speed and whether the game is paused |
 | `ORIG` | the file of the original the game comes from (savegame, scenario or the template of a new game), as chunks without the island tiles (`INSELHAUS`), about 12 KB packed. Only for the export as `.GAM`: it takes from it the bytes that Open1602 does not track, exactly as for a game loaded directly from the file. If the section is missing, the export writes defaults like a new game |
 
 The writer emits the sections in this order: `META`, `MAPW`, `RULE`, `WRLD`, `WRL2`, `TUTR`, `ISLE`, `PLAY`,
-`PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP` (only when a city has a count), `GLDG` (only when a city has statistics), `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `ANIM`, `DISA`, `VOLC`, `FLEE`,
+`FACT` (only with factions of their own), `PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP` (only when a city has a count), `GLDG` (only when a city has statistics), `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `ANIM`, `DISA`, `VOLC`, `FLEE`,
 `EPOC`, `ARMY`, `DIPL`, `XPLR`, `QUEU`, `STNC`, `ORIG` (only for a game that came from a file of the
 original) and `SIMU` (`engine/sim/src/save/sections.cpp`, `encode_sections`). `SHIP` and `SOLD`,
 the lists of older versions, are only read. The details of the sections from `RULE` onwards are in
@@ -107,7 +108,7 @@ makes the savegame unreadable (instead of wrong buildings).
 ## In the code
 
 `engine/sim/src/save/` holds the sections, a file per group: `map.cpp` (`MAPW`, `TILE`), `world.cpp`
-(`RULE`, `WRLD`, `EPOC`), `islands.cpp` (`ISLE`, `XPLR`), `players.cpp` (`PLAY`, `PSTA`, `MISN`,
+(`RULE`, `WRLD`, `EPOC`), `islands.cpp` (`ISLE`, `XPLR`), `players.cpp` (`PLAY`, `FACT`, `PSTA`, `MISN`,
 `SCOR`, `DIPL`), `cities.cpp` (`CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP`, `GLDG`, `PROD`, `HOUS`, `GROW`, `COST`), `ships.cpp` (`SHIP`,
 `FLEE`), `army.cpp` (`SOLD`, `ARMY`), `nature.cpp` (`ANIM`, `DISA`, `VOLC`) and `orders.cpp` (`QUEU`,
 `STNC`). Each record is described once, as a function `io_...(a, record)` that writes it with a

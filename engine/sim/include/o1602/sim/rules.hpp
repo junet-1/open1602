@@ -48,8 +48,8 @@ enum class Pirates : std::uint8_t {
 /// How many nests the pirates found (docs/re/pirates.md). The original has one for the whole world,
 /// which suits its four players; with more players most of them would never meet a pirate.
 enum class PirateNests : std::uint8_t {
-    One,             ///< one nest, as in the original
-    PerFourPlayers,  ///< one for every four human and computer players begun, spread over the map
+    One,     ///< one nest, as in the original
+    Scaled,  ///< as the pirates' faction grows them (one for every four players begun), spread over the map
 };
 
 /// What the free trader pays for goods (docs/re/ships.md, "Free trader").
@@ -67,8 +67,8 @@ enum class TraderPrices : std::uint8_t {
 /// original weighs the 12 nearest Kontors by profit alone, whatever the distance; on the larger maps
 /// of more than four players he then mostly sails across the world.
 enum class TraderReach : std::uint8_t {
-    Original,        ///< the 12 nearest Kontors, a random one when none promises profit
-    PerFourPlayers,  ///< with more than four players only as many as a four-player game would have
+    Original,  ///< the 12 nearest Kontors, a random one when none promises profit
+    Scaled,    ///< with more than four players (the faction's reach) only as many as four would have
 };
 
 /// The prestige buildings a condition asks for.
@@ -145,12 +145,12 @@ struct Rules {
     Volcanoes volcanoes = Volcanoes::Game;
     /// Pirates: as the game says, or switched on or off.
     Pirates pirates = Pirates::Game;
-    /// Pirate nests: one, or one for every four players. Up to four players both are the original.
-    PirateNests pirate_nests = PirateNests::PerFourPlayers;
+    /// Pirate nests: one, or as the faction scales them. Up to four players both are the original.
+    PirateNests pirate_nests = PirateNests::Scaled;
     /// Prices of the free trader.
     TraderPrices trader_prices = TraderPrices::Original;
     /// How far the free trader looks. Up to four players both are the original.
-    TraderReach trader_reach = TraderReach::PerFourPlayers;
+    TraderReach trader_reach = TraderReach::Scaled;
 
     /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
     /// settlement ship sails no city develops, a city whose colony search failed waits for it for

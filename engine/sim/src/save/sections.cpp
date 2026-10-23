@@ -78,6 +78,8 @@ constexpr std::uint32_t kTutorial = tag("TUTR");
 constexpr std::uint32_t kGiveUps = tag("CGUP");
 /// The goods statistics of the cities (City::ledger), only written when one has any.
 constexpr std::uint32_t kLedgers = tag("GLDG");
+/// The world's factions and the players' (ADR 0007), only written when they are not the base game's.
+constexpr std::uint32_t kFactions = tag("FACT");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -85,7 +87,7 @@ constexpr std::array kKnownSections = {
     kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
     kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
     kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks,
-    kPopulationMarks, kTutorial,    kGiveUps,   kLedgers};
+    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -99,6 +101,9 @@ enum class Need : std::uint8_t { Required, Optional };
 constexpr std::uint16_t max_version(std::uint32_t id) noexcept {
     if (id == kPlayerState) {
         return kScenarioSwitches;
+    }
+    if (id == kFleet) {
+        return kLongRoutes;
     }
     return id == kIslands || id == kVolcanoes ? kWideCoordinates : 1;
 }
@@ -214,6 +219,10 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
         section(out, kTiles, [&](Writer& o) { write_tiles(o, world, buildings, before); });
     }
     section(out, kPlayers, [&](Writer& o) { write_players(o, world); });
+    if (has_own_factions(world)) {
+        // Optional: a reader without it plays the base game's factions the role bytes give.
+        section(out, kFactions, [&](Writer& o) { write_factions(o, world); }, Need::Optional);
+    }
     const std::uint16_t player_state_at = player_state_version(world);
     section(
         out, kPlayerState, [&](Writer& o) { write_player_state(o, world, player_state_at); }, Need::Required,
@@ -243,7 +252,8 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
     section(out, kDisasters, [&](Writer& o) { write_disasters(o, world); });
     const std::uint16_t volcanoes_at = volcanoes_version(world);
     section(out, kVolcanoes, [&](Writer& o) { write_volcanoes(o, world, volcanoes_at); }, Need::Required, volcanoes_at);
-    section(out, kFleet, [&](Writer& o) { write_fleet(o, world); });
+    const std::uint16_t fleet_at = fleet_version(world);
+    section(out, kFleet, [&](Writer& o) { write_fleet(o, world, fleet_at); }, Need::Required, fleet_at);
     section(out, kEpochs, [&](Writer& o) { write_epochs(o, world); });
     section(out, kArmy, [&](Writer& o) { write_army(o, world); });
     section(out, kDiplomacy, [&](Writer& o) { write_diplomacy(o, world); });
@@ -366,6 +376,9 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
             case kPlayers:
                 d.players = read_players(in);
                 break;
+            case kFactions:
+                d.factions = read_factions(in);
+                break;
             case kPlayerState:
                 d.player_state = read_player_state(in, version);
                 d.player_switches = version >= kScenarioSwitches;
@@ -410,7 +423,7 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 d.ships = read_ships(in);
                 break;
             case kFleet:
-                d.fleet = read_fleet(in);
+                d.fleet = read_fleet(in, version);
                 break;
             case kEpochs:
                 d.epochs = read_epochs(in);

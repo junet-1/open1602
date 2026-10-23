@@ -309,7 +309,7 @@ private:
             return 2;
         }
         const Player* p = m_world.player(s.owner);
-        return p != nullptr && p->role == PlayerRole::Pirates ? 3 : 1;
+        return p != nullptr && m_world.behaviour(*p) == FactionBehaviour::Pirates ? 3 : 1;
     }
     /// A target as the original's object reference (docs/re/ships.md).
     [[nodiscard]] std::uint32_t ref_of(const Target& t) const {
@@ -861,23 +861,22 @@ private:
 
     // ---- Players, ships, soldiers ------------------------------------------------------------------
 
-    [[nodiscard]] static assets::PlayerKind original_kind(const Player& p) noexcept {
+    /// A faction of a content package goes out as the original's that it acts as.
+    [[nodiscard]] assets::PlayerKind original_kind(const Player& p) const noexcept {
         if (p.status == PlayerStatus::Absent) {
             return assets::PlayerKind::Absent;
         }
-        switch (p.role) {
-            case PlayerRole::Computer:
-                return assets::PlayerKind::Computer;
-            case PlayerRole::Trader:
-                return assets::PlayerKind::Trader;
-            case PlayerRole::Pirates:
-                return assets::PlayerKind::Pirate;
-            case PlayerRole::Natives:
-                return assets::PlayerKind::Natives;
-            case PlayerRole::Human:
+        switch (m_world.behaviour(p)) {
+            case FactionBehaviour::Settlers:
                 break;
+            case FactionBehaviour::Trader:
+                return assets::PlayerKind::Trader;
+            case FactionBehaviour::Pirates:
+                return assets::PlayerKind::Pirate;
+            case FactionBehaviour::Natives:
+                return assets::PlayerKind::Natives;
         }
-        return assets::PlayerKind::Human;
+        return p.role == PlayerRole::Computer ? assets::PlayerKind::Computer : assets::PlayerKind::Human;
     }
 
     void players() {
@@ -1077,9 +1076,10 @@ private:
             r[0x4C] = record != m_trader_records.end() ? record->second : std::uint8_t{0};
             const World::Cell& cell = m_world.cell(s.x, s.y);
             r[0x4D] = cell.island == World::kSea ? std::uint8_t{0xFF} : number(cell.island);
-            r[0x4F] = s.route.current;
+            // SHIP4 has the original's four stops; the others travel in the chunk O1602 only.
+            r[0x4F] = s.route.current < TradeRoute::kOriginalStops ? s.route.current : std::uint8_t{0};
             r[0x50] = static_cast<std::uint8_t>((r[0x50] & ~7U) | (s.direction & 7U));
-            for (std::size_t g = 0; g < TradeRoute::kStops; ++g) {
+            for (std::size_t g = 0; g < TradeRoute::kOriginalStops; ++g) {
                 const std::size_t o = 0x52 + 0x24 * g;
                 const RouteStop& stop = s.route.stops[g];
                 put_ref(r, o, stop.target);

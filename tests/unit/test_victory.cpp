@@ -70,7 +70,7 @@ struct Game {
         players[0].role = sim::PlayerRole::Human;
         players[1].role = sim::PlayerRole::Computer;
         players[2].role = sim::PlayerRole::Computer;
-        players[3].role = sim::PlayerRole::Natives;
+        sim::make_neutral(players[3], sim::faction::kNatives);
         for (sim::Player& p : players) {
             p.money = 10'000;
         }

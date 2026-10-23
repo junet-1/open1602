@@ -221,7 +221,8 @@ TEST_CASE("world renderer: ship hull, owner flag and row") {
     const auto figures = make_figures();
 
     sim::World world;
-    world.set_players({sim::Player{sim::PlayerRole::Human, 0, 0, ""}, sim::Player{sim::PlayerRole::Natives, 5, 0, ""}});
+    world.set_players({sim::Player{sim::PlayerRole::Human, 0, 0, ""},
+                       sim::Player{sim::PlayerRole::Neutral, 5, 0, "", sim::faction::kNatives}});
     const sim::Ship ship = sim::make_ship("Patria", 10, 20, 21, 0, 3);
 
     // Original flag images for this test (the tinted generic flag is covered in test_figures).
@@ -390,9 +391,9 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
 
     // A banner without flag sprites (like the free trader) or an unknown banner shows no flag.
     banners.add(render::Banner{"test:noflag", {}, render::FlagStyle::None, 0, 8, std::nullopt});
-    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 3, 0, ""}});
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Neutral, 3, 0, "", sim::faction::kTrader}});
     CHECK(!render::building_figure_sprites(flag, world, *buildings, view, layers, 0, s));
-    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 99, 0, ""}});
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Neutral, 99, 0, "", sim::faction::kTrader}});
     CHECK(!render::building_figure_sprites(flag, world, *buildings, view, layers, 0, s));
 }
 
@@ -401,7 +402,9 @@ TEST_CASE("players: more than the original seven slots and extra banners (ADR 00
     CHECK(sim::player_from_original(0) == 0);
     CHECK(sim::player_from_original(6) == 6);
     CHECK(sim::player_from_original(7) == sim::kNoPlayer);
-    CHECK(sim::role_from_original(assets::PlayerKind::Pirate) == sim::PlayerRole::Pirates);
+    CHECK(sim::role_from_original(assets::PlayerKind::Pirate) == sim::PlayerRole::Neutral);
+    CHECK(sim::faction_from_original(assets::PlayerKind::Pirate) == sim::faction::kPirates);
+    CHECK(sim::faction_from_original(assets::PlayerKind::Computer) == sim::faction::kSettlers);
 
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
     const auto doc = assets::cod::parse("Objekt: HAUS\n@Nummer: 0\nId: 20100\nGfx: 0\nSize: 1, 1\nEndObj\n", types);

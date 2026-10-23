@@ -1526,7 +1526,7 @@ SelectionPanels::SelectionPanels(const assets::GameDirectory& game) {
         if (ship && transfer && trade && route && lager && handel && pirat && piratord) {
             m_panels["SHIP"] = make_ship_panel(ShipLayouts{std::move(*ship), std::move(*transfer), std::move(*trade),
                                                            std::move(*route), std::move(*lager), std::move(*handel),
-                                                           std::move(*pirat), std::move(*piratord)});
+                                                           std::move(*pirat), std::move(*piratord), load("MUSIK.GAD")});
         }
     }
     if (auto werft = load("WERFT.GAD")) {

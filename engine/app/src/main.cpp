@@ -374,7 +374,7 @@ int main(int argc, char** argv) {
             if (mode == "one") {
                 options.rules.pirate_nests = sim::PirateNests::One;
             } else if (mode == "per4") {
-                options.rules.pirate_nests = sim::PirateNests::PerFourPlayers;
+                options.rules.pirate_nests = sim::PirateNests::Scaled;
             } else {
                 return usage();
             }

@@ -35,7 +35,7 @@ struct Game {
         players[kMe].role = sim::PlayerRole::Human;
         players[kOther].role = sim::PlayerRole::Computer;
         players[kOther].name = "Rot";
-        players[kTrader].role = sim::PlayerRole::Trader;
+        sim::make_neutral(players[kTrader], sim::faction::kTrader);
         players[kTrader].name = "Trader";
         world.set_players(players);
         world.add_ship(sim::make_ship("Mine", 10, 10, 21, kMe));

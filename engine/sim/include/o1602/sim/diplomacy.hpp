@@ -91,7 +91,7 @@ public:
 
     /// Default relations of a new game (0x00474380): peace between everyone except with the
     /// pirates, trade treaties of the players with the trader, the pirates and the natives.
-    void reset(const std::vector<Player>& players);
+    void reset(const std::vector<Player>& players, const std::vector<Faction>& factions);
     /// Makes room for `count` players; new pairs start at peace without trade treaty.
     void resize(std::size_t count);
     [[nodiscard]] std::size_t size() const noexcept { return m_count; }

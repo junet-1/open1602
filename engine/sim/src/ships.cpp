@@ -413,7 +413,7 @@ void Fleet::hit(std::uint32_t id, std::uint32_t damage, PlayerId attacker, bool 
     m_events.push_back(ShipEvent{ShipEvent::Kind::Attacked, ship->id, ship->owner, 0, 0, 0, by_pirates ? 1 : 0});
     const Player* owner = m_world->player(ship->owner);
     if (by_pirates && !ship->held && owner != nullptr && owner->role != PlayerRole::Human &&
-        owner->role != PlayerRole::Pirates) {
+        m_world->behaviour(*owner) != FactionBehaviour::Pirates) {
         // A computer's, the trader's or the natives' ship surrenders at once (0x00445930).
         ship->held = true;
         ship->motion.path.clear();
@@ -701,9 +701,9 @@ void Fleet::update_island(Ship& ship) {
             continue;
         }
         const Player* p = m_world->player(c.owner);
-        if (p != nullptr && p->role == PlayerRole::Natives) {
+        if (p != nullptr && m_world->behaviour(*p) == FactionBehaviour::Natives) {
             m_events.push_back(ShipEvent{ShipEvent::Kind::NativesFound, ship.id, ship.owner, found, c.index});
-        } else if (p != nullptr && p->role == PlayerRole::Pirates) {
+        } else if (p != nullptr && m_world->behaviour(*p) == FactionBehaviour::Pirates) {
             m_events.push_back(ShipEvent{ShipEvent::Kind::PiratesFound, ship.id, ship.owner, found, c.index});
         }
     }
@@ -1045,6 +1045,41 @@ bool Fleet::edit_route(const RouteEdit& e) {
         case RouteEdit::Op::OneWay:
             route.one_way = e.on;
             return true;
+        case RouteEdit::Op::CopyFrom: {
+            // Open1602: the stops of another ship of the same owner, cities only (no patrol points,
+            // no ship to meet), from the first stop on.
+            const Ship* source = e.target.kind == Target::Kind::Ship ? m_world->ship(e.target.ship) : nullptr;
+            if (source == nullptr || source == ship || source->owner != ship->owner) {
+                return false;
+            }
+            std::array<RouteStop, TradeRoute::kStops> stops{};
+            bool any = false;
+            for (std::size_t s = 0; s < TradeRoute::kStops; ++s) {
+                const RouteStop& from = source->route.stops[s];
+                if (from.target.kind == Target::Kind::City && target_valid(from.target)) {
+                    stops[s] = from;
+                    any = true;
+                }
+            }
+            if (!any) {
+                return false;
+            }
+            route.stops = stops;
+            route.current = 0;
+            while (route.stops[route.current].target.empty()) {
+                ++route.current;
+            }
+            route.problem = false;
+            route.problem_rounds = 0;
+            if (route.active) {
+                // A running route sails to its new first stop at once.
+                ship->target = route.stops[route.current].target;
+                ship->motion.path.clear();
+                ship->motion.path_index = 0;
+                ship->motion.failures = 0;
+            }
+            return true;
+        }
     }
     return false;
 }
@@ -1062,7 +1097,8 @@ bool Fleet::may_trade(PlayerId ship_owner, PlayerId city_owner) const {
     }
     // A trade treaty of the ship's owner with the Kontor's (player + 0x130); the free trader trades
     // everywhere.
-    return ship->role == PlayerRole::Trader || m_world->diplomacy().may_trade(ship_owner, city_owner);
+    return m_world->behaviour(*ship) == FactionBehaviour::Trader ||
+           m_world->diplomacy().may_trade(ship_owner, city_owner);
 }
 
 std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool to_ship, std::uint32_t amount,
@@ -1073,7 +1109,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
     city.ensure_ware(ware);
     const City::Trade* trade = city.trade_of(ware);
     const Player* owner = m_world->player(city.owner);
-    const bool natives = owner != nullptr && owner->role == PlayerRole::Natives;
+    const bool natives = owner != nullptr && m_world->behaviour(*owner) == FactionBehaviour::Natives;
     std::uint32_t n = 0;
     if (to_ship) {
         std::uint32_t avail = city.stock(ware);
@@ -1238,7 +1274,7 @@ bool Fleet::set_trade(const TradeSetting& s) {
     }
     City::Trade& t = city->trade[s.ware];
     const Player* owner = m_world->player(city->owner);
-    const bool natives = owner != nullptr && owner->role == PlayerRole::Natives;
+    const bool natives = owner != nullptr && m_world->behaviour(*owner) == FactionBehaviour::Natives;
     // A Kontor trades in at most Maxware wares to sell and its second value to buy (HAUS +0x45,
     // +0x46): the original's window allows no more, Open1602's command checks it.
     if (owner != nullptr && (owner->role == PlayerRole::Human || owner->role == PlayerRole::Computer)) {

@@ -4,6 +4,8 @@
 // with a foreign one.
 #include <algorithm>
 #include <array>
+#include <cstdlib>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -12,6 +14,7 @@
 
 #include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/ships.hpp"
+#include "o1602/ui/localization.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -27,6 +30,63 @@ constexpr std::uint8_t kFirstSoldierWare = 25;
 constexpr std::uint8_t kLastSoldierWare = 44;
 constexpr std::array<std::uint32_t, 4> kSteps{32, 5 * 32, 10 * 32, 50 * 32};  // 1, 5, 10, 50 t
 
+// Open1602's row below the four stops of ROUTE.GAD: "copy route" on the left, the list arrows of
+// MUSIK.GAD on the right to show the stops 1-4 or 5-8.
+constexpr std::int32_t kRouteCopy = 58301;
+constexpr std::int32_t kRouteUp = 58302;
+constexpr std::int32_t kRouteDown = 58303;
+constexpr std::int32_t kMusikDown = 49011;
+constexpr std::int32_t kMusikUp = 49012;
+constexpr std::int32_t kStopShift = 4;    ///< how much closer the stops move to each other
+constexpr std::int32_t kRouteRowGap = 4;  ///< between the last stop's arrows and the row
+constexpr std::int32_t kRouteRowHeight = 26;
+constexpr std::int32_t kRouteArrowGap = 4;
+constexpr std::int32_t kRouteFont = 0;  // ZEINR, as the stop names
+/// Stops ROUTE.GAD shows at once; the others are a second page.
+constexpr std::size_t kStopsShown = 4;
+
+/// ROUTE.GAD with the row of Open1602 below its stops; unchanged without MUSIK.GAD's arrows.
+assets::GadgetLayout with_route_row(assets::GadgetLayout route, const std::optional<assets::GadgetLayout>& musik) {
+    const assets::Gadget* last = route.find(58151 + static_cast<std::int32_t>(kStopsShown - 1));  // its arrow
+    const assets::Gadget* name = route.find(58011);
+    const assets::Gadget* down = musik ? musik->find(kMusikDown) : nullptr;
+    const assets::Gadget* up = musik ? musik->find(kMusikUp) : nullptr;
+    if (last == nullptr || name == nullptr || down == nullptr || up == nullptr) {
+        return route;
+    }
+    // The four stops move closer together (each a few pixels up) to make room for the row.
+    for (assets::Gadget& g : route.gadgets) {
+        const std::int32_t slot = g.id % 10 - 1;
+        if (g.id > 58000 && g.id < 58300 && slot >= 0 && slot < static_cast<std::int32_t>(kStopsShown)) {
+            g.pos[1] -= slot * kStopShift;
+        }
+    }
+    const std::int32_t top =
+        last->pos[1] + last->size[1] + kRouteRowGap;  // copied: the gadgets grow below (last is moved)
+    const std::int32_t right = name->pos[0] + name->size[0];
+    const assets::Gadget label = *name;
+    assets::Gadget arrow_down = *down;
+    arrow_down.id = kRouteDown;
+    arrow_down.base = static_cast<std::int32_t>(route.gadgets.size());
+    arrow_down.pos = {right - down->size[0], top + (kRouteRowHeight - down->size[1]) / 2};
+    route.gadgets.push_back(arrow_down);
+    assets::Gadget arrow_up = *up;
+    arrow_up.id = kRouteUp;
+    arrow_up.base = static_cast<std::int32_t>(route.gadgets.size());
+    arrow_up.pos = {right - down->size[0] - kRouteArrowGap - up->size[0], top + (kRouteRowHeight - up->size[1]) / 2};
+    route.gadgets.push_back(arrow_up);
+    assets::Gadget copy = label;  // the stop names' font and colours
+    copy.id = kRouteCopy;
+    copy.kind = assets::GadgetKind::TextLeft;
+    copy.base = static_cast<std::int32_t>(route.gadgets.size());
+    copy.block = kRouteFont;
+    copy.pos = {label.pos[0] + 4, top};
+    copy.size = {arrow_up.pos[0] - label.pos[0] - 4 - kRouteArrowGap, kRouteRowHeight};
+    copy.offset = {0, static_cast<std::int16_t>(kRouteRowHeight - 5)};
+    route.gadgets.push_back(copy);
+    return route;
+}
+
 /// SHIP (the ship), TRANSFER (with the own Kontor), TRADE (with a foreign one), ROUTE (the trade
 /// route, with LAGER and HANDEL as ware pickers) and PIRAT/PIRATORD (dealing with the pirates)
 /// (ShipPanel_Refresh 0x00436170, TransferPanel_Refresh 0x004372C0, TradePanel_Refresh 0x004377F0,
@@ -37,7 +97,7 @@ public:
         : m_ship(std::move(l.ship), 1.0),
           m_transfer(std::move(l.transfer), 1.0),
           m_trade(std::move(l.trade), 1.0),
-          m_route(std::move(l.route), 1.0),
+          m_route(with_route_row(std::move(l.route), l.musik), 1.0),
           m_pirat(std::move(l.pirat), 1.0),
           m_piratord(std::move(l.piratord), 1.0),
           m_stock(std::move(l.lager)),
@@ -69,6 +129,7 @@ public:
         if (const assets::Gadget* g = m_piratord.layout().find(kPirateArms)) {
             m_gfx_pirate_arms = g->gfx;
         }
+        m_route_row = m_route.layout().find(kRouteCopy) != nullptr;
     }
     void set_scale(double scale) override {
         for (ui::Panel* p : {&m_ship, &m_transfer, &m_trade, &m_route, &m_pirat, &m_piratord}) {
@@ -97,7 +158,7 @@ public:
                 return m_ship;
         }
     }
-    [[nodiscard]] bool picking() const override { return m_pick_stop.has_value(); }
+    [[nodiscard]] bool picking() const override { return m_pick_stop.has_value() || m_pick_copy; }
     void describe(TutorialView& view) const override {
         view.ship_page = m_page == Page::Root       ? TutorialView::ShipPage::Main
                          : m_page == Page::Transfer ? TutorialView::ShipPage::Transfer
@@ -115,8 +176,20 @@ public:
     void picked(std::uint32_t x, std::uint32_t y, const Selection& s, const PanelContext& c,
                 std::vector<sim::Command>& out) override {
         const std::optional<std::uint8_t> stop = std::exchange(m_pick_stop, std::nullopt);
+        const bool copy = std::exchange(m_pick_copy, false);
         const sim::Ship* ship = c.world().ship(s.ship);
-        if (!stop || ship == nullptr || ship->owner != c.local) {
+        if ((!stop && !copy) || ship == nullptr || ship->owner != c.local) {
+            return;
+        }
+        if (copy) {
+            if (const sim::Ship* from = route_source_near(*ship, c, x, y)) {
+                sim::RouteEdit o;
+                o.player = c.local;
+                o.ship = ship->id;
+                o.op = sim::RouteEdit::Op::CopyFrom;
+                o.target = sim::Target::other_ship(from->id);
+                out.emplace_back(o);
+            }
             return;
         }
         // Route_PickStopAt 0x00440B30: the city of the tile, any owner; no city ends the pick.
@@ -141,6 +214,7 @@ public:
             m_page = Page::Root;
             m_hold = 0;
             m_offer = 0;
+            m_route_page = 0;
         }
         const sim::Ship* ship = c.world().ship(s.ship);
         if (ship == nullptr) {
@@ -156,6 +230,7 @@ public:
         if (ship->owner != c.local || !at_kontor) {
             m_page = Page::Root;
             m_pick_stop.reset();
+            m_pick_copy = false;
         }
         switch (m_page) {
             case Page::Root:
@@ -381,8 +456,9 @@ public:
     }
 
     bool back() override {
-        if (m_pick_stop) {
+        if (m_pick_stop || m_pick_copy) {
             m_pick_stop.reset();
+            m_pick_copy = false;
             return true;
         }
         switch (m_page) {
@@ -432,7 +508,7 @@ private:
     static constexpr std::int32_t kHoldBar = 38071;
     static constexpr std::int32_t kHoldButton = 38091;
     static constexpr std::int32_t kDeadSlider = 38111;
-    // ROUTE.GAD: + stop 0..3; entries 0 and 1 of a stop.
+    // ROUTE.GAD: + the stop's place 0..3 on the page; entries 0 and 1 of a stop.
     static constexpr std::int32_t kStopName = 58011;
     static constexpr std::int32_t kStopArmsShadow = 58021;
     static constexpr std::int32_t kStopArms = 58031;
@@ -483,7 +559,7 @@ private:
             const sim::Player* owner = w.player(city.owner);
             if (city.owner == ship.owner) {
                 k.own_kontor = true;
-            } else if (owner != nullptr && owner->role == sim::PlayerRole::Pirates) {
+            } else if (owner != nullptr && w.behaviour(*owner) == sim::FactionBehaviour::Pirates) {
                 k.pirates = true;
             } else if (w.diplomacy().may_trade(ship.owner, city.owner)) {  // natives too: by treaty
                 k.foreign_kontor = true;
@@ -524,7 +600,7 @@ private:
 
     [[nodiscard]] static bool is_natives(const sim::City& city, const PanelContext& c) {
         const sim::Player* p = c.world().player(city.owner);
-        return p != nullptr && p->role == sim::PlayerRole::Natives;
+        return p != nullptr && c.world().behaviour(*p) == sim::FactionBehaviour::Natives;
     }
     [[nodiscard]] static sim::ShipCommand ship_command(const sim::Ship& ship, const PanelContext& c,
                                                        sim::ShipCommand::Op op) {
@@ -752,6 +828,8 @@ private:
                     }
                 }
                 m_page = Page::Route;
+                // The page with the stop it sails to.
+                m_route_page = m_route_row && ship.route.active ? ship.route.current / kStopsShown : 0;
                 break;
             default:
                 if (e.id >= kHoldButton && e.id < kHoldButton + 8) {
@@ -1072,12 +1150,47 @@ private:
         return city.owner != c.local && !c.world().diplomacy().may_trade(c.local, city.owner);
     }
 
+    /// The stop shown in place `slot` of the editor's page.
+    [[nodiscard]] std::uint8_t stop_at(std::size_t slot) const {
+        return static_cast<std::uint8_t>(m_route_page * kStopsShown + slot);
+    }
+    /// Pages of the editor: two with Open1602's row, the original's one without it.
+    [[nodiscard]] std::size_t route_pages() const { return m_route_row ? sim::TradeRoute::kStops / kStopsShown : 1; }
+    /// Another own ship with a route of cities by the tile clicked (ships stand out of their tile).
+    [[nodiscard]] static const sim::Ship* route_source_near(const sim::Ship& ship, const PanelContext& c,
+                                                            std::uint32_t x, std::uint32_t y) {
+        constexpr std::int32_t kReach = 2;
+        const sim::Ship* best = nullptr;
+        std::int32_t best_distance = kReach + 1;
+        for (const sim::Ship& other : c.world().ships()) {
+            if (other.id == ship.id || other.owner != ship.owner || other.sinking) {
+                continue;
+            }
+            const bool cities = std::ranges::any_of(
+                other.route.stops, [](const sim::RouteStop& st) { return st.target.kind == sim::Target::Kind::City; });
+            const std::int32_t d =
+                std::max(std::abs(static_cast<std::int32_t>(other.x) - static_cast<std::int32_t>(x)),
+                         std::abs(static_cast<std::int32_t>(other.y) - static_cast<std::int32_t>(y)));
+            if (cities && d < best_distance) {
+                best = &other;
+                best_distance = d;
+            }
+        }
+        return best;
+    }
+
     void refresh_route(const sim::Ship& ship, const PanelContext& c) {
         const auto cap = static_cast<std::int32_t>(sim::kHoldCapacity);
-        for (std::uint8_t stop = 0; stop < sim::TradeRoute::kStops; ++stop) {
+        m_route_page = std::min(m_route_page, route_pages() - 1);
+        for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
+            const std::uint8_t stop = stop_at(slot);
             const sim::City* city = stop_city(ship, c, stop);
-            const auto s = static_cast<std::int32_t>(stop);
-            m_route.set_text(kStopName + s, city != nullptr ? city->name : c.text("GAME", 46));
+            const auto s = static_cast<std::int32_t>(slot);
+            std::string name = city != nullptr ? city->name : c.text("GAME", 46);
+            if (m_route_row) {
+                name = std::to_string(stop + 1) + ". " + name;  // with eight stops their order shows
+            }
+            m_route.set_text(kStopName + s, std::move(name));
             m_route.set_visible(kStopArms + s, city != nullptr);
             m_route.set_visible(kStopArmsShadow + s, city != nullptr);
             m_route.set_selected(kStopName + s, m_pick_stop == stop);
@@ -1106,12 +1219,38 @@ private:
                 }
             }
         }
+        if (m_route_row) {
+            m_route.set_text(kRouteCopy, ui::tr("route.copy"));
+            m_route.set_disabled(kRouteUp, m_route_page == 0);
+            m_route.set_disabled(kRouteDown, m_route_page + 1 >= route_pages());
+            m_route.set_selected(kRouteCopy, m_pick_copy);
+        }
     }
 
     void clicked_route(const ui::PanelEvent& e, const sim::Ship& ship, const PanelContext& c,
                        std::vector<sim::Command>& out) {
-        for (std::uint8_t stop = 0; stop < sim::TradeRoute::kStops; ++stop) {
-            const auto s = static_cast<std::int32_t>(stop);
+        if (e.kind == ui::PanelEvent::Kind::Clicked && m_route_row) {
+            switch (e.id) {
+                case kRouteUp:
+                case kRouteDown:
+                    if (e.id == kRouteUp && m_route_page > 0) {
+                        --m_route_page;
+                    } else if (e.id == kRouteDown && m_route_page + 1 < route_pages()) {
+                        ++m_route_page;
+                    }
+                    return;
+                case kRouteCopy:
+                    // Waits for a click on another own ship on the map, whose stops this one takes.
+                    m_pick_copy = !m_pick_copy;
+                    m_pick_stop.reset();
+                    return;
+                default:
+                    break;
+            }
+        }
+        for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
+            const std::uint8_t stop = stop_at(slot);
+            const auto s = static_cast<std::int32_t>(slot);
             const sim::City* city = stop_city(ship, c, stop);
             for (std::uint8_t k = 0; k < 2; ++k) {
                 const sim::RouteEntry& entry = ship.route.stops[stop].entries[k];
@@ -1131,6 +1270,7 @@ private:
                 continue;
             }
             if (e.id == kStopName + s) {
+                m_pick_copy = false;
                 if (m_pick_stop && *m_pick_stop != stop && city != nullptr) {
                     // While choosing: another stop's name copies its city.
                     out.emplace_back(route_stop(ship, c, *m_pick_stop, ship.route.stops[stop].target));
@@ -1142,6 +1282,7 @@ private:
             }
             if (e.id == kStopSymbol + s) {
                 if (city == nullptr) {
+                    m_pick_copy = false;
                     m_pick_stop = stop;
                 } else {
                     out.emplace_back(route_stop(ship, c, stop, sim::Target{}));
@@ -1154,6 +1295,7 @@ private:
                     m_pick_entry_stop = stop;
                     m_pick_entry = k;
                     m_pick_stop.reset();
+                    m_pick_copy = false;
                     m_page = city->owner == c.local ? Page::PickOwn : Page::PickForeign;
                     return;
                 }
@@ -1169,14 +1311,32 @@ private:
 
     [[nodiscard]] std::optional<std::string> route_help(std::int32_t id, const sim::Ship& ship,
                                                         const PanelContext& c) const {
-        for (std::uint8_t stop = 0; stop < sim::TradeRoute::kStops; ++stop) {
-            const auto s = static_cast<std::int32_t>(stop);
-            const sim::City* city = stop_city(ship, c, stop);
-            if (id == kStopName + s) {
-                return help_line(c, 170);
+        if (m_route_row) {
+            const auto range = [](std::size_t page) {
+                return std::to_string(page * kStopsShown + 1) + "-" + std::to_string((page + 1) * kStopsShown);
+            };
+            switch (id) {
+                case kRouteUp:
+                    return ui::tr("route.show_stops", {range(m_route_page > 0 ? m_route_page - 1 : 0)});
+                case kRouteDown:
+                    return ui::tr("route.show_stops", {range(std::min(m_route_page + 1, route_pages() - 1))});
+                case kRouteCopy:
+                    return ui::tr("route.copy_help");
+                default:
+                    break;
             }
-            if (id == kStopSymbol + s) {
-                return help_line(c, city != nullptr ? 171 : 170);
+        }
+        for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
+            const std::uint8_t stop = stop_at(slot);
+            const auto s = static_cast<std::int32_t>(slot);
+            const sim::City* city = stop_city(ship, c, stop);
+            if (id == kStopName + s || id == kStopSymbol + s) {
+                const std::string line = help_line(c, id == kStopSymbol + s && city != nullptr ? 171 : 170);
+                // Open1602: which stop the ship sails to (or lies at) now.
+                if (city != nullptr && ship.route.active && ship.route.current == stop) {
+                    return ui::tr("route.current_stop", {line});
+                }
+                return line;
             }
             for (std::size_t k = 0; k < 2; ++k) {
                 if (id != kEntryFrame[k] + s && id != kEntryArrow[k] + s && id != kEntrySlider[k] + s) {
@@ -1249,7 +1409,7 @@ private:
         }
         if (m_page == Page::PickForeign) {
             const sim::Player* owner = c.world().player(city->owner);
-            if (owner != nullptr && owner->role == sim::PlayerRole::Natives) {
+            if (owner != nullptr && c.world().behaviour(*owner) == sim::FactionBehaviour::Natives) {
                 if (const auto w = m_lists.ware_of(id)) {
                     return ui::format_text(c.text("GAME", 50),
                                            {std::int64_t{TradeLists::amount(*city, w->first, w->second) >> 5U},
@@ -1373,6 +1533,9 @@ private:
     std::int32_t m_gfx_arrow = 605;
     std::int32_t m_gfx_pirate_arms = 548;
     std::optional<std::uint8_t> m_pick_stop;  ///< the stop whose city a click on the map chooses
+    bool m_pick_copy = false;                 ///< a click on the map chooses the ship to copy from
+    bool m_route_row = false;                 ///< the editor has Open1602's row (copy, pages)
+    std::size_t m_route_page = 0;             ///< stops 1-4 or 5-8 in the editor
     std::uint8_t m_pick_entry_stop = 0;       ///< the entry whose ware a picker chooses
     std::uint8_t m_pick_entry = 0;
     bool m_hire = false;             ///< PIRATORD: hire them (or buy peace)

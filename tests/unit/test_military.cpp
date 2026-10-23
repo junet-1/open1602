@@ -98,7 +98,7 @@ struct Field {
         players[0].role = sim::PlayerRole::Human;
         players[0].money = 10000;
         players[1].role = sim::PlayerRole::Computer;
-        players[2].role = sim::PlayerRole::Natives;
+        sim::make_neutral(players[2], sim::faction::kNatives);
         world.set_players(players);
         sim::IslandMap map(30, 20);
         for (std::int32_t y = 0; y < 20; ++y) {

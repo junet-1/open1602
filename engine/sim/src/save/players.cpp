@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The players: PLAY (who they are), PSTA (missions and defeat), MISN (the missions themselves and
-// the end of the game), SCOR (the score's counters and the monument clocks of the cities) and DIPL
-// (treaties between them).
+// The players: PLAY (who they are), FACT (their factions), PSTA (missions and defeat), MISN (the missions themselves
+// and the end of the game), SCOR (the score's counters and the monument clocks of the cities) and DIPL (treaties
+// between them).
 #include <algorithm>
 #include <array>
 
@@ -12,9 +12,34 @@ namespace o1602::sim::save {
 
 namespace {
 
+/// PLAY keeps the role byte of earlier versions: 0 human, 1 computer, 2 to 4 the base game's free
+/// trader, pirates and natives. A faction of a content package goes as the one it acts as; FACT
+/// tells which it is.
+std::uint8_t legacy_kind(const Player& p, const std::vector<Faction>& factions) noexcept {
+    const FactionBehaviour b = p.faction < factions.size() ? factions[p.faction].behaviour : FactionBehaviour::Settlers;
+    if (b != FactionBehaviour::Settlers) {
+        return static_cast<std::uint8_t>(1U + static_cast<std::uint8_t>(b));
+    }
+    return p.role == PlayerRole::Computer ? 1 : 0;
+}
+
+void from_legacy_kind(Player& p, std::uint8_t kind) noexcept {
+    if (kind >= 2 && kind <= 1U + static_cast<std::uint8_t>(kLastBehaviour)) {
+        make_neutral(p, base_faction(static_cast<FactionBehaviour>(kind - 1U)));
+    } else {
+        p.role = kind == 1 ? PlayerRole::Computer : PlayerRole::Human;
+    }
+}
+
 template <class A, class P>
-void io_player(A& a, P& p) {
-    a.u8(p.role);
+void io_player(A& a, P& p, const std::vector<Faction>& factions) {
+    if constexpr (A::kReading) {
+        std::uint8_t kind = 0;
+        a.u8(kind);
+        from_legacy_kind(p, kind);
+    } else {
+        a.u8(legacy_kind(p, factions));
+    }
     a.u16(p.banner);
     a.i32(p.money);
     a.string(p.name);
@@ -44,6 +69,24 @@ void io_player_state(A& a, P& p, std::uint16_t version) {
         a.u8(p.scenario.own_development);
         a.u8(p.scenario.rival_development);
     }
+}
+
+template <class A, class S>
+void io_scaling(A& a, S& s) {
+    a.u16(s.base);
+    a.u16(s.per);
+    a.u16(s.from);
+    a.u16(s.min);
+    a.u16(s.max);
+}
+
+template <class A, class F>
+void io_faction(A& a, F& f) {
+    a.string(f.id);
+    a.enum8(f.behaviour, kLastBehaviour);
+    io_scaling(a, f.nests);
+    io_scaling(a, f.ships);
+    a.u16(f.reach_players);
 }
 
 template <class A, class G>
@@ -187,16 +230,37 @@ void io_diplomacy(A& a, D& d) {
 }  // namespace
 
 void write_players(Writer& out, const World& w) {
-    out.list(w.players(), 8, [&](const Player& p) { io_player(out, p); });
+    out.list(w.players(), 8, [&](const Player& p) { io_player(out, p, w.factions()); });
 }
 
 std::vector<Player> read_players(Reader& in) {
     std::vector<Player> list;
-    in.list(list, 8, [&](Player& p) { io_player(in, p); });
+    const std::vector<Faction> base = base_factions();
+    in.list(list, 8, [&](Player& p) { io_player(in, p, base); });
     if (list.size() > kMaxPlayerCount) {
         in.fail();  // before the diplomacy table (players squared) is sized for them
     }
     return list;
+}
+
+bool has_own_factions(const World& w) {
+    return w.factions() != base_factions();
+}
+
+void write_factions(Writer& out, const World& w) {
+    out.list(w.factions(), 23, [&](const Faction& f) { io_faction(out, f); });
+    out.list(w.players(), 1, [&](const Player& p) { out.u8(p.faction); });
+}
+
+Decoded::FactionPart read_factions(Reader& in) {
+    Decoded::FactionPart part;
+    in.list(part.factions, 23, [&](Faction& f) { io_faction(in, f); });
+    in.list(part.players, 1, [&](FactionId& f) { in.u8(f); });
+    if (part.factions.empty() || part.factions.size() > kMaxPlayerCount ||
+        std::any_of(part.players.begin(), part.players.end(), [&](FactionId f) { return f >= part.factions.size(); })) {
+        in.fail();
+    }
+    return part;
 }
 
 std::uint16_t player_state_version(const World& w) {

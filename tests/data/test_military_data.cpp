@@ -78,12 +78,12 @@ TEST_CASE("data: soldiers, towers, castles and diplomacy of a savegame, written 
         CHECK(s.figure == 33);
         CHECK(s.health == 18 * 32);
         CHECK(s.home.kind == sim::Target::Kind::Spot);
-        CHECK(world->players()[s.owner].role == sim::PlayerRole::Natives);
+        CHECK(world->players()[s.owner].faction == sim::faction::kNatives);
     }
     CHECK(world->towers().size() == 61);
     for (const sim::Tower& t : world->towers()) {
         CHECK(t.figure == 40);
-        CHECK(world->players()[t.owner].role == sim::PlayerRole::Pirates);
+        CHECK(world->players()[t.owner].faction == sim::faction::kPirates);
     }
     // The natives' military huts hold eight trained spearmen each.
     int huts = 0;

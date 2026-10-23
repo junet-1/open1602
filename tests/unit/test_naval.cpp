@@ -72,7 +72,7 @@ struct Sea {
         std::vector<sim::Player> players(3);
         players[0].role = sim::PlayerRole::Human;
         players[1].role = sim::PlayerRole::Computer;
-        players[2].role = sim::PlayerRole::Pirates;
+        sim::make_neutral(players[2], sim::faction::kPirates);
         world.set_players(players);
         sim::IslandMap map(10, 8);
         for (std::int32_t y = 0; y < 8; ++y) {
