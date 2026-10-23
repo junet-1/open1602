@@ -21,14 +21,14 @@
 #include <algorithm>
 #include <charconv>
 #include <chrono>
-#include <filesystem>
-#include <map>
-#include <string_view>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -198,7 +198,8 @@ core::Result<assets::FigureTable> synthetic_figures() {
 /// `side` x `side` islands of 50 x 50 tiles in a sea (ground, a wood, a beach facing east), four
 /// settler players (0 and 1 human, 2 and 3 computers, each with a trading cog and a warship), the
 /// free trader, the natives and the pirates. The sea is at least `sea` tiles wide and high.
-core::Result<sim::World> synthetic_world(const assets::BuildingTable& buildings, std::uint32_t side, std::uint32_t sea) {
+core::Result<sim::World> synthetic_world(const assets::BuildingTable& buildings, std::uint32_t side,
+                                         std::uint32_t sea) {
     const std::uint32_t cell = 90;
     sim::World world(std::max(cell * side, sea), std::max(cell * side, sea));
     for (std::uint32_t iy = 0; iy < side; ++iy) {
@@ -245,10 +246,12 @@ core::Result<sim::World> synthetic_world(const assets::BuildingTable& buildings,
         // East of the first islands, in open sea.
         const std::uint32_t x = (p % side) * cell + 80;
         const std::uint32_t y = (p / side % side) * cell + 30 + (p / (side * side)) * 10;
-        sim::Ship trade = sim::make_ship("Cog " + std::to_string(p), x, y, kTradeShip, static_cast<sim::PlayerId>(p), 2);
+        sim::Ship trade =
+            sim::make_ship("Cog " + std::to_string(p), x, y, kTradeShip, static_cast<sim::PlayerId>(p), 2);
         trade.cargo.resize(4);
         world.add_ship(trade);
-        sim::Ship war = sim::make_ship("War " + std::to_string(p), x, y + 6, kWarship, static_cast<sim::PlayerId>(p), 2);
+        sim::Ship war =
+            sim::make_ship("War " + std::to_string(p), x, y + 6, kWarship, static_cast<sim::PlayerId>(p), 2);
         war.cargo.resize(3);
         war.cannons = 8;
         world.add_ship(war);
@@ -363,8 +366,8 @@ private:
         }
         if constexpr (requires { c.island; }) {
             if (point && !world.islands().empty()) {
-                c.island = static_cast<decltype(c.island)>(
-                    m_random.below(static_cast<std::uint32_t>(world.islands().size())));
+                c.island =
+                    static_cast<decltype(c.island)>(m_random.below(static_cast<std::uint32_t>(world.islands().size())));
             }
         }
         if constexpr (requires { c.target; }) {
@@ -376,7 +379,8 @@ private:
         }
         if constexpr (requires { c.partner; }) {
             if (point) {
-                c.partner = static_cast<sim::PlayerId>(m_random.below(static_cast<std::uint32_t>(world.players().size())));
+                c.partner =
+                    static_cast<sim::PlayerId>(m_random.below(static_cast<std::uint32_t>(world.players().size())));
             }
         }
     }
@@ -513,7 +517,8 @@ int run(const Args& args) {
             return synthetic_world(
                 tables.buildings,
                 static_cast<std::uint32_t>(std::clamp<std::size_t>(args.number("--islands").value_or(2), 1, 8)),
-                static_cast<std::uint32_t>(std::min<std::size_t>(args.number("--sea").value_or(0), sim::World::kMaxSide)));
+                static_cast<std::uint32_t>(
+                    std::min<std::size_t>(args.number("--sea").value_or(0), sim::World::kMaxSide)));
         }
         if (!args.positional.empty()) {
             auto bytes = core::read_file(fs::path(args.positional[0]));
@@ -640,7 +645,8 @@ int run(const Args& args) {
             }
             ++log.next;
         }
-        if (per_minute != 0 && !commanders.empty() && when.below(static_cast<std::uint32_t>(ticks_per_minute)) < per_minute) {
+        if (per_minute != 0 && !commanders.empty() &&
+            when.below(static_cast<std::uint32_t>(ticks_per_minute)) < per_minute) {
             const sim::PlayerId p = commanders[when.below(static_cast<std::uint32_t>(commanders.size()))];
             if (auto c = maker.make(*straight.world, p)) {
                 commands.push_back(*c);
@@ -684,14 +690,14 @@ int run(const Args& args) {
             max_hash_ms = std::max(max_hash_ms, hash_ms);
             max_save_ms = std::max(max_save_ms, save_ms);
             max_save_bytes = std::max(max_save_bytes, save_bytes);
-            std::printf("%llu %016llx\n", static_cast<unsigned long long>(straight.simulation->game_time_ms() /
-                                                                          sim::Simulation::kTickMs),
+            std::printf("%llu %016llx\n",
+                        static_cast<unsigned long long>(straight.simulation->game_time_ms() / sim::Simulation::kTickMs),
                         static_cast<unsigned long long>(hash));
             std::fflush(stdout);
             std::fprintf(stderr, "%-10llu %016llx %7.1f %11zu %8.1f %8.1f  ships %zu soldiers %zu cities %zu\n",
-                         static_cast<unsigned long long>(t), static_cast<unsigned long long>(hash), hash_ms,
-                         save_bytes, save_ms, load_ms, straight.world->ships().size(),
-                         straight.world->soldiers().size(), straight.world->cities().size());
+                         static_cast<unsigned long long>(t), static_cast<unsigned long long>(hash), hash_ms, save_bytes,
+                         save_ms, load_ms, straight.world->ships().size(), straight.world->soldiers().size(),
+                         straight.world->cities().size());
             if (check != 0) {
                 const std::uint64_t other = checked.simulation->state_hash();
                 if (other != hash) {
@@ -716,11 +722,12 @@ int run(const Args& args) {
             return fail(status.error());
         }
     }
-    std::fprintf(stderr,
-                 "done in %.1f s; %llu commands made up, %zu from the log; state hash at most %.1f ms, savegame at most "
-                 "%zu bytes and %.1f ms\n",
-                 ms_since(started) / 1000.0, static_cast<unsigned long long>(made), log.commands.size(), max_hash_ms,
-                 max_save_bytes, max_save_ms);
+    std::fprintf(
+        stderr,
+        "done in %.1f s; %llu commands made up, %zu from the log; state hash at most %.1f ms, savegame at most "
+        "%zu bytes and %.1f ms\n",
+        ms_since(started) / 1000.0, static_cast<unsigned long long>(made), log.commands.size(), max_hash_ms,
+        max_save_bytes, max_save_ms);
     return 0;
 }
 

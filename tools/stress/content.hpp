@@ -97,6 +97,7 @@ void declare_war(sim::World& world, const std::vector<sim::PlayerId>& players);
 
 /// Land tiles of an island where a unit can stand: ground or forest, no building.
 [[nodiscard]] std::vector<std::pair<std::uint32_t, std::uint32_t>> free_land(const sim::World& world,
-                                                                            const Tables& tables, std::uint16_t island);
+                                                                             const Tables& tables,
+                                                                             std::uint16_t island);
 
 }  // namespace o1602::stress

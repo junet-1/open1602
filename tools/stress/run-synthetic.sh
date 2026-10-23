@@ -11,6 +11,10 @@
 # "SUMMARY|CPU|VERDICT" OUT_DIR/*.log` for the overview. TIMEOUT=<seconds> stops a run that takes
 # longer (its log and CSV keep the periods measured so far). The heap* scenarios run under heaptrack
 # (or, without it, valgrind --tool=massif).
+#
+# The synthetic tables hold only the buildings the scenarios place, not what the computers need to
+# develop their cities, so the computers' share of the tick in these runs says nothing about the AI:
+# measure that with run-on-device.sh and the original data.
 set -u
 build=${1:?build directory}
 out=${2:?output directory}

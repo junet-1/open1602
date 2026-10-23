@@ -17,9 +17,8 @@
 #include "o1602/net/transport.hpp"
 
 #if defined(__GLIBC__)
-#include <malloc.h>
-
 #include <enet/enet.h>
+#include <malloc.h>
 
 using namespace o1602;
 
@@ -69,7 +68,8 @@ TEST_CASE("review: connections that send the first fragment of a large message d
     // One buffer for all: the clients' side allocates nothing of the size (ENET_PACKET_FLAG_NO_ALLOCATE).
     static std::vector<std::uint8_t> data(kSize, 7);
     for (ENetPeer* p : peers) {
-        ENetPacket* packet = enet_packet_create(data.data(), kSize, ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE);
+        ENetPacket* packet =
+            enet_packet_create(data.data(), kSize, ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE);
         REQUIRE(enet_peer_send(p, 0, packet) == 0);
     }
     const std::size_t queued = heap_bytes();

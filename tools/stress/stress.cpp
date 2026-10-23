@@ -242,9 +242,9 @@ struct Args {
     }
 };
 
-constexpr std::array<std::string_view, 10> kFlags = {"--data",      "--humans",    "--battle",     "--volcanoes",
-                                                     "--no-drain",  "--reignite",  "--eruptions",  "--keep-rules",
-                                                     "--no-save",   "--start-ships"};
+constexpr std::array<std::string_view, 10> kFlags = {"--data",     "--humans",     "--battle",    "--volcanoes",
+                                                     "--no-drain", "--reignite",   "--eruptions", "--keep-rules",
+                                                     "--no-save",  "--start-ships"};
 
 int usage() {
     std::fputs(
@@ -385,10 +385,11 @@ std::size_t add_soldiers(sim::World& world, const Tables& tables, std::size_t n,
     for (std::size_t k = 0; k < islands.size() && placed < n; ++k) {
         const auto& tiles = land[k];
         // Share of this island, by its free land.
-        std::size_t want = k + 1 == islands.size() ? n - placed
-                                                   : static_cast<std::size_t>(std::llround(
-                                                         static_cast<double>(n) * static_cast<double>(tiles.size()) /
-                                                         static_cast<double>(total_land)));
+        std::size_t want =
+            k + 1 == islands.size()
+                ? n - placed
+                : static_cast<std::size_t>(std::llround(static_cast<double>(n) * static_cast<double>(tiles.size()) /
+                                                        static_cast<double>(total_land)));
         want = std::min({want, n - placed, tiles.size()});
         const sim::PlayerId a = players[(2 * k) % players.size()];
         const sim::PlayerId b = players[(2 * k + 1) % players.size()];
@@ -495,12 +496,30 @@ ShipLoad add_ships(sim::Simulation& simulation, sim::World& world, const Tables&
         if (from == to) {
             to = list[(id + 1) % list.size()];
         }
-        bool ok = simulation.execute(sim::RouteEdit{owner, id, Op::SetStop, 0, 0, sim::Target::city_of(from->island, from->index)}).accepted;
-        ok = ok && simulation.execute(sim::RouteEdit{owner, id, Op::SetEntry, 0, 0, {}, sim::RouteEntry{assets::ware::kWood, false, 20 * 32}}).accepted;
-        ok = ok && simulation.execute(sim::RouteEdit{owner, id, Op::SetEntry, 0, 1, {}, sim::RouteEntry{assets::ware::kCloth, true, 50 * 32}}).accepted;
-        ok = ok && simulation.execute(sim::RouteEdit{owner, id, Op::SetStop, 1, 0, sim::Target::city_of(to->island, to->index)}).accepted;
-        ok = ok && simulation.execute(sim::RouteEdit{owner, id, Op::SetEntry, 1, 0, {}, sim::RouteEntry{assets::ware::kWood, true, 50 * 32}}).accepted;
-        ok = ok && simulation.execute(sim::RouteEdit{owner, id, Op::SetEntry, 1, 1, {}, sim::RouteEntry{assets::ware::kCloth, false, 20 * 32}}).accepted;
+        bool ok =
+            simulation
+                .execute(sim::RouteEdit{owner, id, Op::SetStop, 0, 0, sim::Target::city_of(from->island, from->index)})
+                .accepted;
+        ok = ok && simulation
+                       .execute(sim::RouteEdit{
+                           owner, id, Op::SetEntry, 0, 0, {}, sim::RouteEntry{assets::ware::kWood, false, 20 * 32}})
+                       .accepted;
+        ok = ok && simulation
+                       .execute(sim::RouteEdit{
+                           owner, id, Op::SetEntry, 0, 1, {}, sim::RouteEntry{assets::ware::kCloth, true, 50 * 32}})
+                       .accepted;
+        ok = ok &&
+             simulation
+                 .execute(sim::RouteEdit{owner, id, Op::SetStop, 1, 0, sim::Target::city_of(to->island, to->index)})
+                 .accepted;
+        ok = ok && simulation
+                       .execute(sim::RouteEdit{
+                           owner, id, Op::SetEntry, 1, 0, {}, sim::RouteEntry{assets::ware::kWood, true, 50 * 32}})
+                       .accepted;
+        ok = ok && simulation
+                       .execute(sim::RouteEdit{
+                           owner, id, Op::SetEntry, 1, 1, {}, sim::RouteEntry{assets::ware::kCloth, false, 20 * 32}})
+                       .accepted;
         ok = ok && simulation.execute(sim::RouteEdit{owner, id, Op::Start}).accepted;
         load.routes += ok ? 1U : 0U;
     }
@@ -521,7 +540,8 @@ std::size_t start_disasters(sim::World& world, const Tables& tables, std::size_t
         if (sim::disaster_at(world, h.island, h.x, h.y) != nullptr) {
             continue;
         }
-        started += sim::start_disaster(world, tables.buildings, h.island, sim::TilePos{h.x, h.y}, kind, 12, nullptr) ? 1U : 0U;
+        started +=
+            sim::start_disaster(world, tables.buildings, h.island, sim::TilePos{h.x, h.y}, kind, 12, nullptr) ? 1U : 0U;
     }
     return started;
 }
@@ -544,10 +564,11 @@ std::size_t erupt_all(sim::World& world, std::uint16_t seed) {
 }
 
 void print_counts(const char* label, const Counts& c) {
-    std::printf("%s islands %zu, cities %zu, houses %zu, inhabitants %llu, productions %zu, ships %zu, soldiers %zu, "
-                "walkers %zu, disasters %zu, eruptions %zu, lava %zu\n",
-                label, c.islands, c.cities, c.houses, static_cast<unsigned long long>(c.inhabitants), c.productions,
-                c.ships, c.soldiers, c.walkers, c.disasters, c.eruptions, c.lava);
+    std::printf(
+        "%s islands %zu, cities %zu, houses %zu, inhabitants %llu, productions %zu, ships %zu, soldiers %zu, "
+        "walkers %zu, disasters %zu, eruptions %zu, lava %zu\n",
+        label, c.islands, c.cities, c.houses, static_cast<unsigned long long>(c.inhabitants), c.productions, c.ships,
+        c.soldiers, c.walkers, c.disasters, c.eruptions, c.lava);
 }
 
 int run(const Args& args) {
@@ -695,7 +716,8 @@ int run(const Args& args) {
         } else {
             std::string why;
             const std::size_t founded = found_cities(simulation, *world, tables, starters, per_island, &why);
-            std::printf("cities founded: %zu%s%s\n", founded, founded == 0 ? ", refused: " : "", founded == 0 ? why.c_str() : "");
+            std::printf("cities founded: %zu%s%s\n", founded, founded == 0 ? ", refused: " : "",
+                        founded == 0 ? why.c_str() : "");
         }
     }
     top_up(*world, 200 * 32);
@@ -722,13 +744,15 @@ int run(const Args& args) {
         problem.clear();
         const auto t = Clock::now();
         const std::size_t placed = add_soldiers(*world, tables, soldiers, args.flag("--battle"), starters, &problem);
-        std::printf("soldiers: %zu placed (%s) in %.0f ms%s%s\n", placed, args.flag("--battle") ? "one battle" : "spread",
-                    ms_since(t), problem.empty() ? "" : "; LIMIT: ", problem.c_str());
+        std::printf("soldiers: %zu placed (%s) in %.0f ms%s%s\n", placed,
+                    args.flag("--battle") ? "one battle" : "spread", ms_since(t),
+                    problem.empty() ? "" : "; LIMIT: ", problem.c_str());
     }
     if (ships > 0) {
         problem.clear();
         const auto t = Clock::now();
-        const ShipLoad l = add_ships(simulation, *world, tables, ships, args.real("--traders", 0.5), starters, &problem);
+        const ShipLoad l =
+            add_ships(simulation, *world, tables, ships, args.real("--traders", 0.5), starters, &problem);
         std::printf("ships: %zu traders (%zu on routes), %zu warships in %.0f ms%s%s\n", l.traders, l.routes,
                     l.warships, ms_since(t), problem.empty() ? "" : "; LIMIT: ", problem.c_str());
     }
@@ -764,13 +788,15 @@ int run(const Args& args) {
         if (csv == nullptr) {
             return fail("cannot write " + *path);
         }
-        std::fprintf(csv, "minute,mean_us,p50_us,p99_us,max_us,over_budget,rss_mb,peak_mb,allocs_per_tick,"
-                          "alloc_bytes_per_tick,houses,inhabitants,productions,ships,soldiers,walkers,disasters,lava,"
-                          "cities,next_ship_id,next_soldier_id,pending_events\n");
+        std::fprintf(csv,
+                     "minute,mean_us,p50_us,p99_us,max_us,over_budget,rss_mb,peak_mb,allocs_per_tick,"
+                     "alloc_bytes_per_tick,houses,inhabitants,productions,ships,soldiers,walkers,disasters,lava,"
+                     "cities,next_ship_id,next_soldier_id,pending_events\n");
     }
     std::printf("(us per tick of %u ms game time; budget %.0f us at speed 8)\n", sim::Simulation::kTickMs, kBudgetUs);
-    std::printf("minute    mean     p50     p99     max >budget   RSS MB  allocs/t  houses   inhab.  ships soldiers "
-                "walkers disasters\n");
+    std::printf(
+        "minute    mean     p50     p99     max >budget   RSS MB  allocs/t  houses   inhab.  ships soldiers "
+        "walkers disasters\n");
 
     const std::vector<std::string_view> steps = sim::Simulation::tick_step_names();
     std::vector<std::uint64_t> step_ns(steps.size(), 0);
@@ -872,13 +898,14 @@ int run(const Args& args) {
                         static_cast<unsigned long long>(c.inhabitants), c.ships, c.soldiers, c.walkers, c.disasters);
             std::fflush(stdout);
             if (csv != nullptr) {
-                std::fprintf(csv, "%zu,%.2f,%.1f,%.1f,%.1f,%llu,%.1f,%.1f,%.1f,%.0f,%zu,%llu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%u,%u,%zu\n",
-                             minute, mean, p50, p99, mx, static_cast<unsigned long long>(period_over), m.rss_mb,
-                             m.peak_mb, static_cast<double>(period_allocs) / static_cast<double>(n),
-                             static_cast<double>(period_alloc_bytes) / static_cast<double>(n), c.houses,
-                             static_cast<unsigned long long>(c.inhabitants), c.productions, c.ships, c.soldiers,
-                             c.walkers, c.disasters, c.lava, c.cities, world->next_ship_id(), world->next_soldier_id(),
-                             pending);
+                std::fprintf(
+                    csv,
+                    "%zu,%.2f,%.1f,%.1f,%.1f,%llu,%.1f,%.1f,%.1f,%.0f,%zu,%llu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%u,%u,%zu\n",
+                    minute, mean, p50, p99, mx, static_cast<unsigned long long>(period_over), m.rss_mb, m.peak_mb,
+                    static_cast<double>(period_allocs) / static_cast<double>(n),
+                    static_cast<double>(period_alloc_bytes) / static_cast<double>(n), c.houses,
+                    static_cast<unsigned long long>(c.inhabitants), c.productions, c.ships, c.soldiers, c.walkers,
+                    c.disasters, c.lava, c.cities, world->next_ship_id(), world->next_soldier_id(), pending);
                 std::fflush(csv);
             }
             period_ticks.clear();
@@ -893,22 +920,25 @@ int run(const Args& args) {
 
     // ---- Summary ----
     const double cnt = static_cast<double>(all.count());
-    std::printf("\nSUMMARY ticks %llu: mean %.1f us, p50 %.0f, p99 %.0f, p99.9 %.0f, max %.0f us; over budget %llu "
-                "(%.3f%%); at speed 8 one core is %.1f%% busy\n",
-                static_cast<unsigned long long>(all.count()), all.mean(), all.quantile(0.5), all.quantile(0.99),
-                all.quantile(0.999), all.max(), static_cast<unsigned long long>(over_budget),
-                100.0 * static_cast<double>(over_budget) / cnt, all.mean() * 160.0 / 10'000.0);
-    std::printf("CPU     ticks %llu: mean %.1f us, p50 %.0f, p99 %.0f, p99.9 %.0f, max %.0f us; over budget %llu "
-                "(thread CPU time, without the time the machine ran something else)\n",
-                static_cast<unsigned long long>(cpu.count()), cpu.mean(), cpu.quantile(0.5), cpu.quantile(0.99),
-                cpu.quantile(0.999), cpu.max(), static_cast<unsigned long long>(cpu_over));
+    std::printf(
+        "\nSUMMARY ticks %llu: mean %.1f us, p50 %.0f, p99 %.0f, p99.9 %.0f, max %.0f us; over budget %llu "
+        "(%.3f%%); at speed 8 one core is %.1f%% busy\n",
+        static_cast<unsigned long long>(all.count()), all.mean(), all.quantile(0.5), all.quantile(0.99),
+        all.quantile(0.999), all.max(), static_cast<unsigned long long>(over_budget),
+        100.0 * static_cast<double>(over_budget) / cnt, all.mean() * 160.0 / 10'000.0);
+    std::printf(
+        "CPU     ticks %llu: mean %.1f us, p50 %.0f, p99 %.0f, p99.9 %.0f, max %.0f us; over budget %llu "
+        "(thread CPU time, without the time the machine ran something else)\n",
+        static_cast<unsigned long long>(cpu.count()), cpu.mean(), cpu.quantile(0.5), cpu.quantile(0.99),
+        cpu.quantile(0.999), cpu.max(), static_cast<unsigned long long>(cpu_over));
     const auto verdict = [](const Histogram& h) {
         return std::string("mean ") + (h.mean() <= kBudgetUs ? "ok" : "OVER") + ", p99 " +
                (h.quantile(0.99) <= kBudgetUs ? "ok" : "OVER") + ", max " + (h.max() <= kBudgetUs ? "ok" : "OVER");
     };
     std::printf("VERDICT wall: %s; cpu: %s (budget %.0f us)\n", verdict(all).c_str(), verdict(cpu).c_str(), kBudgetUs);
     std::printf("allocations: %.1f per tick on average, at most %llu in one tick\n",
-                static_cast<double>(g_allocations) / std::max(1.0, cnt), static_cast<unsigned long long>(max_allocs_tick));
+                static_cast<double>(g_allocations) / std::max(1.0, cnt),
+                static_cast<unsigned long long>(max_allocs_tick));
     std::printf("step           share     mean      p99      max\n");
     for (std::size_t i = 0; i < steps.size(); ++i) {
         std::printf("%-13.*s %5.1f%% %8.1f %8.0f %8.0f\n", static_cast<int>(steps[i].size()), steps[i].data(),
@@ -955,10 +985,11 @@ int run(const Args& args) {
             std::vector<std::string> load_warnings;
             auto loaded = sim::read_game(*save, tables.buildings, &load_warnings, &tables.figures);
             const double load_ms = ms_since(t);
-            std::printf("state hash %.1f ms; savegame %zu bytes (%.2f MiB, sections %.2f MiB unpacked) written in "
-                        "%.1f ms, read in %.1f ms\n",
-                        hash_ms, save->size(), static_cast<double>(save->size()) / 1048576.0,
-                        info ? static_cast<double>(info->size) / 1048576.0 : 0.0, save_ms, load_ms);
+            std::printf(
+                "state hash %.1f ms; savegame %zu bytes (%.2f MiB, sections %.2f MiB unpacked) written in "
+                "%.1f ms, read in %.1f ms\n",
+                hash_ms, save->size(), static_cast<double>(save->size()) / 1048576.0,
+                info ? static_cast<double>(info->size) / 1048576.0 : 0.0, save_ms, load_ms);
             std::printf("resync snapshot: %.2f MiB of kMaxSnapshotBytes %.0f MiB (%.1f%%)%s\n",
                         static_cast<double>(save->size()) / 1048576.0,
                         static_cast<double>(net::kMaxSnapshotBytes) / 1048576.0,
@@ -971,10 +1002,11 @@ int run(const Args& args) {
                 const Counts a = count(*world, simulation);
                 const Counts b = count(*loaded, again);
                 const std::uint64_t hash2 = again.state_hash();
-                std::printf("round trip: islands %zu/%zu, cities %zu/%zu, houses %zu/%zu, ships %zu/%zu, soldiers "
-                            "%zu/%zu, state hash %s%s\n",
-                            a.islands, b.islands, a.cities, b.cities, a.houses, b.houses, a.ships, b.ships, a.soldiers,
-                            b.soldiers, hash == hash2 ? "equal" : "DIFFERS", again.state_damaged() ? " (state damaged)" : "");
+                std::printf(
+                    "round trip: islands %zu/%zu, cities %zu/%zu, houses %zu/%zu, ships %zu/%zu, soldiers "
+                    "%zu/%zu, state hash %s%s\n",
+                    a.islands, b.islands, a.cities, b.cities, a.houses, b.houses, a.ships, b.ships, a.soldiers,
+                    b.soldiers, hash == hash2 ? "equal" : "DIFFERS", again.state_damaged() ? " (state damaged)" : "");
                 if (hash != hash2) {
                     // Both games unpacked, for finding what the round trip changed (cmp -l a b).
                     const sim::SaveOptions raw{false};

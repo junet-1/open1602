@@ -112,8 +112,8 @@ class Faulty final : public net::Transport {
 public:
     explicit Faulty(std::unique_ptr<net::Transport> inner) : m_inner(std::move(inner)) {}
 
-    bool hold = false;      ///< nothing arrives while set
-    bool swap_next = false;  ///< the next two messages that arrive swap places
+    bool hold = false;                    ///< nothing arrives while set
+    bool swap_next = false;               ///< the next two messages that arrive swap places
     std::optional<net::Standby> standby;  ///< the last Standby that came through (what the successor knows)
 
     void poll(std::vector<net::TransportEvent>& events) override {
@@ -168,8 +168,8 @@ struct Computer {
     Faulty* link = nullptr;  ///< owned by the session
     std::vector<net::SessionEvent> events;
 
-    Computer(net::LoopbackNetwork& network, std::string name, std::uint64_t token = 0, sim::PlayerId seat = sim::kNoPlayer,
-             net::SessionConfig config = {}) {
+    Computer(net::LoopbackNetwork& network, std::string name, std::uint64_t token = 0,
+             sim::PlayerId seat = sim::kNoPlayer, net::SessionConfig config = {}) {
         net::Hello hello;
         hello.content = kContent;
         hello.name = std::move(name);
@@ -224,7 +224,8 @@ struct Host {
     }
 };
 
-void run_for(net::LoopbackNetwork& network, Host& host, const std::vector<Computer*>& computers, std::uint32_t total_ms) {
+void run_for(net::LoopbackNetwork& network, Host& host, const std::vector<Computer*>& computers,
+             std::uint32_t total_ms) {
     for (std::uint32_t t = 0; t < total_ms; t += kStepMs) {
         network.advance(kStepMs);
         host.update(kStepMs);
@@ -645,9 +646,10 @@ TEST_CASE("review: a computer at two thirds of the needed speed: the others keep
         }
     }
     const double rate = static_cast<double>(host.session->frames() - start) / (5 * 60 * 20.0);
-    std::printf("  host ran %.0f%% of the frames; held %u ms in all, at most %u ms at once; slow computer loaded "
-                "the game %d times, lagging %zu times\n",
-                100.0 * rate, held_ms, longest_hold, slow.game.loads, host.count(net::SessionEvent::Kind::Lagging));
+    std::printf(
+        "  host ran %.0f%% of the frames; held %u ms in all, at most %u ms at once; slow computer loaded "
+        "the game %d times, lagging %zu times\n",
+        100.0 * rate, held_ms, longest_hold, slow.game.loads, host.count(net::SessionEvent::Kind::Lagging));
     CHECK(longest_hold <= 3000u);
     CHECK(slow.game.loads <= 3);
 }
@@ -752,7 +754,8 @@ struct Forest {
     assets::FigureTable figures;
     sim::World world;
 
-    explicit Forest(std::int32_t side) : world(static_cast<std::uint32_t>(side) + 40, static_cast<std::uint32_t>(side) + 40) {
+    explicit Forest(std::int32_t side)
+        : world(static_cast<std::uint32_t>(side) + 40, static_cast<std::uint32_t>(side) + 40) {
         const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
         const auto doc = assets::cod::parse(
             "Objekt: HAUS\n"
@@ -805,10 +808,10 @@ TEST_CASE("review: the heaviest commands a player may put into one frame: what t
         big.player = 0;
         big.island = 0;
         for (std::uint32_t i = 0; i < sim::kMaxCommandItems; ++i) {
-            big.items.push_back(sim::BuildItem{20401, static_cast<std::int32_t>(i % static_cast<std::uint32_t>(side)),
-                                               static_cast<std::int32_t>(i / static_cast<std::uint32_t>(side) %
-                                                                         static_cast<std::uint32_t>(side)),
-                                               0, 0});
+            big.items.push_back(sim::BuildItem{
+                20401, static_cast<std::int32_t>(i % static_cast<std::uint32_t>(side)),
+                static_cast<std::int32_t>(i / static_cast<std::uint32_t>(side) % static_cast<std::uint32_t>(side)), 0,
+                0});
         }
         const std::size_t bytes = sim::encode_command(big).size();
         const std::size_t per_message = net::kMaxMessageToHost / bytes;
@@ -819,10 +822,10 @@ TEST_CASE("review: the heaviest commands a player may put into one frame: what t
         start = Clock::now();
         s.tick();
         const double build_ms = ms_since(start);
-        std::printf("  island %dx%d: 256 demolish orders over it %.1f ms; %zu build orders of %u roads (%zu bytes "
-                    "each, as many as one message holds) %.1f ms\n",
-                    side, side, demolish_ms, std::min<std::size_t>(per_message, 256), sim::kMaxCommandItems, bytes,
-                    build_ms);
+        std::printf(
+            "  island %dx%d: 256 demolish orders over it %.1f ms; %zu build orders of %u roads (%zu bytes "
+            "each, as many as one message holds) %.1f ms\n",
+            side, side, demolish_ms, std::min<std::size_t>(per_message, 256), sim::kMaxCommandItems, bytes, build_ms);
         CHECK(demolish_ms < 6.25);
         CHECK(build_ms < 6.25);
     }

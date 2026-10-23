@@ -84,6 +84,9 @@ constexpr const char* kBuildingsCod =
     "  Objekt: HAUS_PRODTYP\n    Kind: 16\n    Figurnr: 38\n  EndObj\n"
     "  Objekt: HAUS_BAUKOST\n    Money: 100\n  EndObj\n"
     "  @Nummer: 22\n  Id: 21108\n  Kind: 15\n  Gfx: 80\n  Size: 4, 4\n  Posoffs: 20\n"
+    // Meadow: what demolished forest becomes (construction.cpp kMeadowId). Without it a demolition on
+    // former forest leaves the tile as it was, and the computers loop on it.
+    "  @Nummer: 23\n  Id: 22722\n  Kind: 11\n  Gfx: 96\n  Size: 1, 1\n  Posoffs: 20\n  Wegspeed: 145, 120, 170, 100\n"
     "EndObj\n";
 
 // Figures: two land units, two ships, the tower gun, carrier, cart, doctor, fireman, volcano and lava.
@@ -248,7 +251,11 @@ std::size_t found_cities(sim::Simulation& simulation, sim::World& world, const T
             bool ok = false;
             for (std::int32_t dx = 0; dx < 6 && !ok; ++dx) {
                 const auto x = static_cast<std::int32_t>(map.width()) - 7 + dx - 2;
-                sim::BuildOrder order{owner, static_cast<std::uint16_t>(i), {sim::BuildItem{kKontor, x, static_cast<std::int32_t>(y)}}, std::nullopt, true};
+                sim::BuildOrder order{owner,
+                                      static_cast<std::uint16_t>(i),
+                                      {sim::BuildItem{kKontor, x, static_cast<std::int32_t>(y)}},
+                                      std::nullopt,
+                                      true};
                 const sim::BuildPlan plan = sim::plan_build(world, tables.buildings, order);
                 if (plan.placed == 1) {
                     const sim::CommandResult r = simulation.execute(order);
@@ -304,7 +311,8 @@ std::size_t fill_cities(sim::Simulation& simulation, sim::World& world, const Ta
                 const sim::MapCell& c = map.top(x, y);
                 const sim::SubTile t = map.sub_tile(b, x, y);
                 if (c.city == index && t.building != nullptr && walkable_kind(t.building->kind)) {
-                    road.items.push_back(sim::BuildItem{kRoad, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)});
+                    road.items.push_back(
+                        sim::BuildItem{kRoad, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)});
                 }
             }
             if (!road.items.empty()) {
@@ -329,8 +337,8 @@ std::size_t fill_cities(sim::Simulation& simulation, sim::World& world, const Ta
                     if (b.by_id(id) == nullptr || b.by_id(id)->size_x != 2 || b.by_id(id)->size_y != 2) {
                         id = kHouse;
                     }
-                    order.items.push_back(sim::BuildItem{id, static_cast<std::int32_t>(x),
-                                                         static_cast<std::int32_t>(y + 1 + 2 * row)});
+                    order.items.push_back(
+                        sim::BuildItem{id, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y + 1 + 2 * row)});
                     ++here;
                 }
                 if (!order.items.empty()) {
@@ -352,7 +360,8 @@ void top_up(sim::World& world, std::uint32_t amount) {
     }
     for (std::size_t p = 0; p < world.players().size(); ++p) {
         sim::Player* player = world.player(static_cast<sim::PlayerId>(p));
-        if (player != nullptr && (player->role == sim::PlayerRole::Human || player->role == sim::PlayerRole::Computer)) {
+        if (player != nullptr &&
+            (player->role == sim::PlayerRole::Human || player->role == sim::PlayerRole::Computer)) {
             player->money = std::max(player->money, 1'000'000);
         }
     }
