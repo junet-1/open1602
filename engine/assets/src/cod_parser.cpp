@@ -453,6 +453,23 @@ private:
 // Object structure (Objekt / EndObj / Nummer / ObjFill), as in Cod_LoadHaeuser / Cod_LoadFiguren.
 
 constexpr std::int32_t kMaxObjFill = 10000;  // original: clamped to the table size (e.g. MAXHAUS = 500)
+// Records all ObjFill statements of one file may make, nested records counted: a copy holds the
+// children of its source, so nested fills multiply (HI-2). 400 times the original's 500 houses.
+constexpr std::int64_t kMaxFilledRecords = 200000;
+
+/// The record and its nested records, counted up to just over `limit`.
+std::int64_t record_count(const Object& o, std::int64_t limit) {
+    std::int64_t n = 1;
+    for (const auto& [type, records] : o.children) {
+        for (const auto& [nummer, child] : records) {
+            if (n > limit) {
+                return n;
+            }
+            n += record_count(child, limit - n);
+        }
+    }
+    return n;
+}
 
 struct Level {
     std::string type;  ///< "" for the root level
@@ -539,7 +556,22 @@ private:
             m_parser.diag(st.line, "ObjFill count " + std::to_string(count) + " out of range (clamped)");
             count = std::clamp(count, 0, kMaxObjFill);
         }
+        if (count == 0) {
+            return;
+        }
         const auto it = records.find(source_index);
+        // Fails as a whole rather than filling part of the range, so every machine gets the same table.
+        const std::int64_t left = kMaxFilledRecords - m_filled;
+        const std::int64_t size = it == records.end() ? 1 : record_count(it->second, left);
+        if (m_fill_refused || size * count > left) {
+            if (!m_fill_refused) {
+                m_parser.diag(st.line, "ObjFill would make more than " + std::to_string(kMaxFilledRecords) +
+                                           " records in this file (this and later ObjFill ignored)");
+            }
+            m_fill_refused = true;
+            return;
+        }
+        m_filled += size * count;
         const Object source = it == records.end() ? Object{} : it->second;
         for (std::int32_t i = 0; i < count; ++i) {
             const std::int64_t nummer = std::int64_t{level.nummer} + i;
@@ -554,6 +586,8 @@ private:
     Parser& m_parser;
     std::size_t m_min_values;
     std::vector<Level> m_levels;
+    std::int64_t m_filled = 0;  ///< records ObjFill made so far
+    bool m_fill_refused = false;
 };
 
 }  // namespace

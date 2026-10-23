@@ -172,6 +172,30 @@ TEST_CASE("cod: ObjFill copies whole records, relative values follow the symbol"
     CHECK(haus->at(2).field("BASE")->assigned_with_equals);
 }
 
+TEST_CASE("cod: nested ObjFill stays within a record budget and is refused as a whole") {
+    // 1 000 children per house, then 1 000 houses: a million records from a few lines (HI-2).
+    const auto doc = cod::parse(
+        "Objekt: HAUS\n"
+        "  @Nummer: 0\n"
+        "  Objekt: HAUS_PRODTYP\n"
+        "    @Nummer: 0\n"
+        "    Ware: 1\n"
+        "    ObjFill: 0, 1000\n"
+        "  EndObj;\n"
+        "  @Nummer: 1\n"
+        "  ObjFill: 0, 1000\n"
+        "  @Nummer: 2000\n"
+        "  ObjFill: 0, 5\n"  // later fills are refused too
+        "EndObj;\n",
+        kObjectTypes);
+    const auto* haus = doc.root.records("HAUS");
+    REQUIRE(haus != nullptr);
+    CHECK(haus->size() == 1);  // the big fill made nothing, rather than part of its range
+    REQUIRE(haus->at(0).records("HAUS_PRODTYP") != nullptr);
+    CHECK(haus->at(0).records("HAUS_PRODTYP")->size() == 1000);
+    CHECK(doc.diagnostics.size() == 1);
+}
+
 TEST_CASE("cod: structural errors are reported, not fatal") {
     const auto doc = cod::parse("EndObj;\nObjFill: 0\nObjekt: HAUS\nX: 1 / 0\n", kObjectTypes);
     CHECK(doc.diagnostics.size() == 4);  // EndObj, ObjFill at root, division by zero, unclosed block
