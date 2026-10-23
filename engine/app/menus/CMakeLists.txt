@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # The game's parts that need no platform: the main menu's lists, the start dialog of the endless
 # game, the multiplayer menu and its texts, the end screen, the settings files, the build tool, the
-# command sink, the questions before orders, which video plays when, what the player is told of the
+# command sink, the questions before orders, the input of ship and city names, which video plays when, what the player is told of the
 # game's events, the diplomacy window's strip and open offers, the gestures on the map. Built without the game too, so that the tests have them.
 
 add_library(o1602_menus
@@ -22,6 +22,7 @@ add_library(o1602_menus
     ../src/message_table.cpp
     ../src/multiplayer_menu.cpp
     ../src/multiplayer_texts.cpp
+    ../src/name_edit.cpp
     ../src/order_questions.cpp
     ../src/tutorial.cpp
     ../src/video_queue.cpp

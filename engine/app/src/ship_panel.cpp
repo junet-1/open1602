@@ -566,7 +566,9 @@ private:
     }
 
     void refresh_root(const sim::Ship& ship, const Context& k, const PanelContext& c) {
-        m_ship.set_text(kName, ship.name);
+        // The name: a click on it types a new one (own ships that are not sinking, 0x00436170).
+        m_ship.set_text(kName, c.shown_name(NameTarget::of(ship), ship.name));
+        m_ship.set_no_select(kName, !can_rename(c.world(), c.local, NameTarget::of(ship)));
         const bool own = !k.foreign;
         const bool idle = own && !k.moving;
         m_ship.set_visible(kTrade, idle && k.foreign_kontor);
@@ -654,6 +656,9 @@ private:
         }
         const Context k = context(ship, c);
         switch (e.id) {
+            case kName:
+                c.start_rename(NameTarget::of(ship), out);
+                break;
             case kStop: {
                 sim::ShipOrder o;
                 o.player = c.local;

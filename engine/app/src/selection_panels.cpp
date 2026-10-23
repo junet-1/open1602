@@ -410,7 +410,9 @@ public:
             if (e.kind != ui::PanelEvent::Kind::Clicked) {
                 return;
             }
-            if (e.id == city_ids::kSell || e.id == city_ids::kBuy) {
+            if (e.id == city_ids::kTitle) {
+                c.start_rename(NameTarget::of(*city), out);  // 0x0043CE00 → 0x00409910(2, …)
+            } else if (e.id == city_ids::kSell || e.id == city_ids::kBuy) {
                 m_page = Page::Kontor;
                 m_sell = e.id == city_ids::kSell;
                 m_picker = false;
@@ -452,6 +454,10 @@ public:
         }
         if (m_page != Page::Kontor) {
             return;  // the stock list only shows
+        }
+        if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == city_ids::kKTitle) {
+            c.start_rename(NameTarget::of(*city), out);  // 0x0043CE00, gadget 34002
+            return;
         }
         const std::vector<std::uint8_t> list = wares(*city);
         const std::int32_t slots = slot_count(*city, c);
@@ -620,7 +626,9 @@ private:
         const std::int64_t sales = city.sales / 480;
         const std::int64_t purchases = city.purchases / 480;
         const std::int64_t balance = tax - cost + sales - purchases;
-        m_stadt.set_text(city_ids::kTitle, city.name);
+        // The name: a click on it types a new one, also on the Kontor page.
+        m_stadt.set_text(city_ids::kTitle, c.shown_name(NameTarget::of(city), city.name));
+        m_stadt.set_no_select(city_ids::kTitle, !can_rename(c.world(), c.local, NameTarget::of(city)));
         const std::array<std::pair<std::size_t, std::int64_t>, 6> rows{
             {{15, people}, {19, tax}, {18, cost}, {64, sales}, {65, purchases}, {80, balance}}};
         for (std::size_t i = 0; i < rows.size(); ++i) {
@@ -633,7 +641,8 @@ private:
     }
 
     void refresh_kontor(const sim::City& city, const PanelContext& c) {
-        m_kontor.set_text(city_ids::kKTitle, city.name);
+        m_kontor.set_text(city_ids::kKTitle, c.shown_name(NameTarget::of(city), city.name));
+        m_kontor.set_no_select(city_ids::kKTitle, !can_rename(c.world(), c.local, NameTarget::of(city)));
         m_kontor.set_selected(city_ids::kKMode, m_sell);
         const std::vector<std::uint8_t> list = wares(city);
         const std::int32_t slots = slot_count(city, c);

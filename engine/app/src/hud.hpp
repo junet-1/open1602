@@ -23,6 +23,7 @@
 #include "main_menu.hpp"
 #include "message_table.hpp"
 #include "multiplayer_menu.hpp"
+#include "name_edit.hpp"
 #include "options_panel.hpp"
 #include "selection.hpp"
 #include "selection_panels.hpp"
@@ -248,11 +249,14 @@ public:
     /// The settings (mode 30014): what they show, and what they asked for since the last call.
     [[nodiscard]] OptionsModel& options_model() noexcept { return m_options_model; }
     [[nodiscard]] std::vector<OptionsEvent> take_option_events() { return std::exchange(m_option_events, {}); }
-    /// A name is being typed (a savegame's, the player's in the menu): the keys go there
-    /// (Windows-1252 text, Backspace 8, Enter 13).
+    /// A name is being typed (a savegame's, the player's in the menu, an own ship's or city's in
+    /// its window): the keys go there (Windows-1252 text, Backspace 8, Enter 13, Escape 27).
     [[nodiscard]] bool typing() const noexcept {
         if (m_menu_active) {
             return multiplayer_open() ? m_multiplayer->typing() : m_menu && m_menu->typing();
+        }
+        if (naming()) {
+            return true;
         }
         return m_options && m_mode == kModeOptions && m_options->editing();
     }
@@ -261,12 +265,18 @@ public:
             m_multiplayer->type(text);
         } else if (m_menu_active && m_menu) {
             m_menu->type(text);
+        } else if (naming()) {
+            m_names.type(text);
         } else if (m_options) {
             m_options->type(text);
         }
     }
     void type_key(int key) {
-        if (multiplayer_open()) {
+        if (naming()) {
+            if (auto c = m_names.key(key)) {
+                m_commands.push_back(std::move(*c));
+            }
+        } else if (multiplayer_open()) {
             for (MultiplayerEvent& e : m_multiplayer->key(m_multiplayer_model, key)) {
                 m_multiplayer_events.push_back(std::move(e));
             }
@@ -384,6 +394,11 @@ private:
     const assets::FigureTable* m_figure_table = nullptr;
     sim::PlayerId m_local = sim::kNoPlayer;
     std::vector<sim::Command> m_commands;
+    NameEdit m_names;  ///< the name of a ship or city being typed in its window
+    /// A ship's or city's name is typed in the window of the info or military mode.
+    [[nodiscard]] bool naming() const noexcept {
+        return !m_menu_active && (m_mode == kModeInfo || m_mode == kModeMilitary) && m_names.active();
+    }
     /// The window of the current selection, nothing without one or without the game.
     [[nodiscard]] SelectionPanel* selection_panel(std::optional<PanelContext>& context);
     std::int32_t m_gfx_baumat = 46;          ///< TOOLS.INC GFXBAUMAT

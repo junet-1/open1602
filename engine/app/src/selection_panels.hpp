@@ -14,6 +14,7 @@
 #include <string_view>
 #include <vector>
 
+#include "name_edit.hpp"
 #include "selection.hpp"
 #include "tutorial.hpp"
 
@@ -41,6 +42,21 @@ struct PanelContext {
     ui::UnitSelection* units = nullptr;
     /// How players are shown (coats of arms in their colour); without it the white ones.
     const render::BannerTable* banners = nullptr;
+    /// The name being typed (a click on the name of an own ship or city starts it); without it the
+    /// windows only show names.
+    NameEdit* names = nullptr;
+    /// What a window shows as the name of `target`: the world's, or the one being typed.
+    [[nodiscard]] std::string shown_name(const NameTarget& target, std::string_view world_name) const {
+        return names != nullptr ? names->shown(target, world_name) : std::string(world_name);
+    }
+    /// A click on the name of `target`: typing it starts if the local player may rename it.
+    void start_rename(const NameTarget& target, std::vector<sim::Command>& out) const {
+        if (names != nullptr) {
+            if (auto kept = names->start(world(), local, target)) {
+                out.push_back(std::move(*kept));
+            }
+        }
+    }
     [[nodiscard]] const sim::World& world() const noexcept { return simulation.world(); }
     /// The banner of a player, nothing if there is no such player or table.
     [[nodiscard]] const render::Banner* banner(sim::PlayerId p) const {
