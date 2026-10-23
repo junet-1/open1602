@@ -56,7 +56,7 @@ struct FlowTotals {
 
 class GoodsLedger {
 public:
-    static constexpr std::size_t kMinutes = 60;        ///< minutes kept one by one: the last hour
+    static constexpr std::size_t kMinutes = 60;         ///< minutes kept one by one: the last hour
     static constexpr std::size_t kQuarterMinutes = 15;  ///< minutes of a coarse sample
     static constexpr std::size_t kQuarters = 48;        ///< coarse samples kept: the last 12 hours
     static constexpr std::uint16_t kMaxSample = 0xFFFF;
@@ -77,7 +77,7 @@ public:
         std::array<std::uint32_t, kGoodsFlows> quarter{};  ///< the closed minutes of the running quarter
         std::array<Sample, kMinutes> minutes{};            ///< ring, by minute number
         std::array<Sample, kQuarters> quarters{};          ///< ring, by quarter number
-        bool used = false;    ///< something was booked once (only these are saved)
+        bool used = false;                                 ///< something was booked once (only these are saved)
         bool warned = false;  ///< the early warning of a shortage was given and not yet taken back
 
         bool operator==(const Ware&) const = default;

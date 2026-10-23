@@ -234,6 +234,14 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         m_multiplayer = std::make_unique<MultiplayerMenu>(style);
         m_menu->set_form_style(style);
         m_display = std::make_unique<DisplayMenu>(style);
+        GoodsStyle goods{style};
+        goods.in = ui::nearest_colour(palette, 70, 190, 50);
+        goods.out = ui::nearest_colour(palette, 210, 40, 30);
+        goods.stock = ui::nearest_colour(palette, 230, 200, 80);
+        goods.chart = style.field;
+        m_goods =
+            std::make_unique<GoodsWindow>(goods, own != nullptr ? own->section("WARE") : std::vector<std::string>{},
+                                          m_ctrl.layout().constant("GFXWARE").value_or(192));
         // The banners of the slots in the palette's nearest colours, grey for any further one.
         render::BannerTable banners = render::BannerTable::original();
         banners.add_more_players();
@@ -405,6 +413,10 @@ bool Hud::back() {
         m_display_open = false;
         return true;
     }
+    if (m_goods_open && !m_menu_active) {
+        goods_back();
+        return true;
+    }
     if (m_end_active) {
         if (const auto choice = m_end.back()) {
             m_end_choice = choice;
@@ -504,6 +516,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height, double ui_scale) {
     if (m_display) {
         m_display->set_scale(scale);
     }
+    if (m_goods) {
+        m_goods->set_scale(scale);
+    }
     m_end.set_scale(m_menu_scale);
     if (m_selection_panels) {
         m_selection_panels->set_scale(scale);
@@ -514,7 +529,7 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height, double ui_scale) {
 bool Hud::covers(std::int32_t x, std::int32_t y) const noexcept {
     // The mission's window takes the clicks inside it (0x0042D1C0); the menu and the window
     // "Anzeige" all of them.
-    return m_menu_active || m_display_open || m_regions.side_panel.contains(x, y) ||
+    return m_menu_active || m_display_open || m_goods_open || m_regions.side_panel.contains(x, y) ||
            m_regions.status_bar.contains(x, y) ||
            (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y));
 }
@@ -601,6 +616,14 @@ ui::Rect Hud::display_rect() const {
     const double s = m_display ? m_display->scale() : m_regions.scale;
     const auto w = static_cast<std::int32_t>(DisplayMenu::kWidth * s);
     const auto h = static_cast<std::int32_t>(DisplayMenu::kHeight * s);
+    const ui::Rect& v = m_regions.game_view;
+    return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
+}
+
+ui::Rect Hud::goods_rect() const {
+    const double s = m_goods ? m_goods->scale() : m_regions.scale;
+    const auto w = static_cast<std::int32_t>(GoodsWindow::kWidth * s);
+    const auto h = static_cast<std::int32_t>(GoodsWindow::kHeight * s);
     const ui::Rect& v = m_regions.game_view;
     return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
 }
@@ -720,6 +743,7 @@ void Hud::reset_game() {
     m_selection = Selection{};
     m_question.reset();
     m_help.reset();
+    m_goods_open = false;
     m_modal_press = ModalPress::None;
     m_commands.clear();
     m_minimap_dirty = true;
@@ -926,6 +950,13 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
         }
         return std::nullopt;
     }
+    if (m_goods_open && !m_menu_active && !m_question && !m_help) {
+        const ui::Rect r = goods_rect();
+        if (m_goods->mouse(x - r.x, y - r.y, down, button) == GoodsWindow::Result::Close) {
+            m_goods_open = false;
+        }
+        return std::nullopt;
+    }
     if (button != ui::MouseButton::Left && (m_help || m_question || m_end_active || !m_menu_active || !m_menu)) {
         return std::nullopt;  // the right button only goes through the values of the menus' dialogs
     }
@@ -1076,6 +1107,8 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
                 action = toggle_window(*list);
             } else if (m_info->take_rating()) {
                 action = Action{Action::Kind::Rating};
+            } else if (m_info->take_goods()) {
+                toggle_goods();
             }
         }
     } else if (m_mode == kModeOptions && m_options) {
@@ -1378,6 +1411,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     if (m_display_open && m_display) {
         const ui::Rect r = display_rect();
         m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+    }
+    if (m_goods_open && m_goods) {
+        const ui::Rect r = goods_rect();
+        m_renderer->draw(m_goods->draw(world, buildings, m_local, m_renderer->fonts()), r.x, r.y, m_goods->scale());
     }
     draw_question();
     draw_help();

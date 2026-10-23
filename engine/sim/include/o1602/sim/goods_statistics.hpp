@@ -69,4 +69,12 @@ struct GoodsSample {
 [[nodiscard]] std::vector<GoodsSample> goods_history(const World& world, const GoodsScope& scope, std::uint8_t ware,
                                                      bool quarters);
 
+/// The buildings of the scope that make a ware.
+struct GoodsProducers {
+    std::uint32_t total = 0;
+    std::uint32_t off = 0;  ///< switched off by the player
+};
+[[nodiscard]] GoodsProducers goods_producers(const World& world, const assets::BuildingTable& buildings,
+                                             const GoodsScope& scope, std::uint8_t ware);
+
 }  // namespace o1602::sim

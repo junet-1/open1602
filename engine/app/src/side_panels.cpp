@@ -8,6 +8,7 @@
 #include "banner_graphic.hpp"
 
 #include "o1602/sim/game_data.hpp"
+#include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
 
@@ -302,6 +303,8 @@ constexpr std::int32_t kInfoBalanceIcon = 57025;
 constexpr std::int32_t kInfoPoints = 57027;
 constexpr std::int32_t kInfoRating = 57028;
 constexpr std::array<std::int32_t, 3> kInfoLists = {57031, 57032, 57033};  // diplomacy, ships, cities
+/// Open1602's own: the line that opens the window "Warenbilanz", below "Punkte".
+constexpr std::int32_t kInfoGoods = 57040;
 /// Label gadget and its [GAME] line; the value is the gadget after it.
 constexpr std::array<std::pair<std::int32_t, std::size_t>, 8> kInfoRows = {{
     {57005, 15},  // Einwohner
@@ -316,7 +319,37 @@ constexpr std::array<std::pair<std::int32_t, std::size_t>, 8> kInfoRows = {{
 
 }  // namespace
 
-InfoPanel::InfoPanel(assets::GadgetLayout info, const assets::TextTable* texts) : m_panel(info, 1.0) {
+namespace {
+
+/// INFO.GAD with the line "Warenbilanz" below "Punkte", in the font of the other lines: "Bilanz"
+/// moves up by 5, "Punkte" with "Bewertung" by 10 (into the gaps the original leaves between its
+/// groups), so that the line fits above the list buttons.
+assets::GadgetLayout with_goods_line(assets::GadgetLayout info) {
+    const assets::Gadget* label = info.find(kInfoRows.back().first);
+    if (label == nullptr) {
+        return info;
+    }
+    assets::Gadget g = *label;
+    g.id = kInfoGoods;
+    g.kind = assets::GadgetKind::TextLeft;
+    g.color = {6, 3};  // gold, yellow while pressed
+    g.no_select = false;
+    g.pos = {label->pos[0], label->pos[1] + 20};
+    g.size = {190, 25};
+    for (assets::Gadget& m : info.gadgets) {
+        const std::int32_t up = m.id >= kInfoBalanceIcon - 2 && m.id <= kInfoBalanceIcon ? 5
+                                : m.id >= kInfoPoints - 1 && m.id <= kInfoRating         ? 10
+                                                                                         : 0;
+        m.pos[1] -= up;
+    }
+    info.gadgets.push_back(g);
+    return info;
+}
+
+}  // namespace
+
+InfoPanel::InfoPanel(assets::GadgetLayout info, const assets::TextTable* texts)
+    : m_panel(with_goods_line(std::move(info)), 1.0) {
     if (texts != nullptr) {
         m_game = texts->section("GAME");
     }
@@ -325,10 +358,10 @@ InfoPanel::InfoPanel(assets::GadgetLayout info, const assets::TextTable* texts) 
     for (const auto& [gadget, text] : kInfoRows) {
         m_panel.set_text(gadget, line(text));
     }
-    if (const assets::Gadget* g = info.find(kInfoArms)) {
+    if (const assets::Gadget* g = m_panel.layout().find(kInfoArms)) {
         m_arms = g->gfx;
     }
-    if (const assets::Gadget* g = info.find(kInfoBalanceIcon)) {
+    if (const assets::Gadget* g = m_panel.layout().find(kInfoBalanceIcon)) {
         m_balance_icon = g->gfx;
     }
 }
@@ -349,6 +382,8 @@ std::optional<Selection::Kind> InfoPanel::mouse(std::int32_t x, std::int32_t y, 
             list = Selection::Kind::CityList;
         } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kInfoRating) {
             m_rating_clicked = true;
+        } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kInfoGoods) {
+            m_goods_clicked = true;
         }
     }
     return list;
@@ -358,6 +393,9 @@ std::optional<std::string> InfoPanel::help(const std::vector<std::string>& leist
     const auto id = m_panel.hovered();
     if (!id) {
         return std::nullopt;
+    }
+    if (*id == kInfoGoods) {
+        return ui::tr("stats.open_help");
     }
     std::size_t line = 0;
     switch (*id) {
@@ -391,6 +429,7 @@ void InfoPanel::draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& 
     set_banner_graphic(m_panel, kInfoArms, arms, banner);
     set_banner_graphic(m_panel, kInfoArmsShadow, arms, banner);
     m_panel.set_graphic(kInfoBalanceIcon, m_balance_icon + (f.balance < 0 ? 1 : 0), 0);
+    m_panel.set_text(kInfoGoods, ui::tr("stats.open"));  // the language may have changed
     renderer.draw(m_panel.draw(renderer.fonts()), region.x, region.y, scale);
 }
 

@@ -159,8 +159,10 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
             std::fprintf(stderr, "%s: ware %u lasts about %u more minutes\n", name.c_str(), e.ware, e.minutes);
             if (const auto message = shortage_message(e.ware)) {
                 Announcement a = announce(*message);
-                const std::string ware = e.ware < m_ware_names.size() ? m_ware_names[e.ware] : "#" + std::to_string(e.ware);
-                a.text = ui::tr("message.running_low", {ware, name, std::to_string(std::max<std::uint16_t>(e.minutes, 1))});
+                const std::string ware =
+                    e.ware < m_ware_names.size() ? m_ware_names[e.ware] : "#" + std::to_string(e.ware);
+                a.text =
+                    ui::tr("message.running_low", {ware, name, std::to_string(std::max<std::uint16_t>(e.minutes, 1))});
                 out.emplace_back(std::move(a));
             }
         } else {

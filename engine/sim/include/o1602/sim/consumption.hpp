@@ -36,8 +36,8 @@ struct CityEvent {
     std::uint8_t city = 0;     ///< city on the island
     PlayerId owner = kNoPlayer;
     std::uint8_t ware = 0;
-    std::uint8_t infra = 0;    ///< Unlocked: INFRA number
-    std::uint8_t message = 0;  ///< Population: MELDUNG number for the owner
+    std::uint8_t infra = 0;     ///< Unlocked: INFRA number
+    std::uint8_t message = 0;   ///< Population: MELDUNG number for the owner
     std::uint16_t minutes = 0;  ///< RunningLow: game minutes the stock lasts at the current balance
     bool warned = false;        ///< Shortage: the early warning (RunningLow) came before
 };

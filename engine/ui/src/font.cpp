@@ -25,6 +25,7 @@ constexpr std::array<TextColour, kTextColours> kColours = {{
     {{240, 230, 190}, {25, 15, 9}},
     {{115, 51, 12}, {129, 131, 64}},
     {{235, 0, 0}, {88, 35, 9}},
+    {{80, 210, 60}, {16, 40, 8}},  // Open1602
 }};
 
 bool control(char c) noexcept {

@@ -931,7 +931,8 @@ TEST_CASE("save format: the goods statistics of the cities come back (GLDG)") {
     REQUIRE(back != nullptr);
     CHECK(back->ledger.minutes_closed() == 70);
     CHECK(back->ledger.warned(14));
-    CHECK(back->ledger.totals(19, 5).of(sim::GoodsFlow::Produced) == city.ledger.totals(19, 5).of(sim::GoodsFlow::Produced));
+    CHECK(back->ledger.totals(19, 5).of(sim::GoodsFlow::Produced) ==
+          city.ledger.totals(19, 5).of(sim::GoodsFlow::Produced));
     CHECK(back->ledger.last_minutes(14) == city.ledger.last_minutes(14));
     CHECK(back->ledger.last_quarters(19) == city.ledger.last_quarters(19));
     CHECK(save(*loaded, buildings) == bytes);

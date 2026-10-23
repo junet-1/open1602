@@ -79,7 +79,7 @@ TEST_CASE("goods statistics: a minute's bookings become a sample with the stock"
     l.add(kFood, GoodsFlow::Produced, 3 * kTon);
     l.add(kFood, GoodsFlow::Produced, kTon);
     l.add(kFood, GoodsFlow::Residents, 2 * kTon);
-    l.add(kFood, GoodsFlow::Residents, 0);  // nothing booked, nothing changes
+    l.add(kFood, GoodsFlow::Residents, 0);   // nothing booked, nothing changes
     CHECK(l.totals(kFood, 5).minutes == 0);  // the running minute does not count yet
     std::vector<std::uint32_t> stock(kFood + 1, 0);
     stock[kFood] = 10 * kTon;
@@ -192,7 +192,7 @@ TEST_CASE("goods statistics: the early warning comes once, before the store is e
         minute(2 * kTon);  // 18, 16, 14, 12 t left at 2 t a minute: 6 minutes and more
     }
     CHECK(events.empty());
-    minute(2 * kTon);  // 8 t: four minutes
+    minute(2 * kTon);             // 8 t: four minutes
     REQUIRE(events.size() == 2);  // both cities of the human, none of the computer
     CHECK(events[0].kind == sim::CityEvent::Kind::RunningLow);
     CHECK(events[0].ware == kCloth);

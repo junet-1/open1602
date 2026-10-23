@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include "o1602/sim/production.hpp"
+
 namespace o1602::sim {
 
 std::optional<std::uint32_t> minutes_left(std::uint64_t stock, const FlowTotals& totals) noexcept {
@@ -117,8 +119,7 @@ std::uint64_t GoodsSample::out() const noexcept {
     return sum;
 }
 
-std::vector<GoodsSample> goods_history(const World& world, const GoodsScope& scope, std::uint8_t ware,
-                                       bool quarters) {
+std::vector<GoodsSample> goods_history(const World& world, const GoodsScope& scope, std::uint8_t ware, bool quarters) {
     std::vector<GoodsSample> out;
     for (const City& c : world.cities()) {
         if (!scope.covers(c)) {
@@ -140,6 +141,25 @@ std::vector<GoodsSample> goods_history(const World& world, const GoodsScope& sco
         }
     }
     return out;
+}
+
+GoodsProducers goods_producers(const World& world, const assets::BuildingTable& buildings, const GoodsScope& scope,
+                               std::uint8_t ware) {
+    GoodsProducers count;
+    for (const Production& p : world.productions()) {
+        if (!p.used || p.island >= world.islands().size()) {
+            continue;
+        }
+        const MapCell& cell = world.islands()[p.island].map.top(p.x, p.y);
+        const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
+        const City* city = world.city(p.island, cell.city);
+        if (b == nullptr || b->ware != ware || !is_producer(*b) || city == nullptr || !scope.covers(*city)) {
+            continue;
+        }
+        ++count.total;
+        count.off += p.enabled ? 0 : 1;
+    }
+    return count;
 }
 
 }  // namespace o1602::sim
