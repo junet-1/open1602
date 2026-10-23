@@ -7,6 +7,8 @@
 #include "tile_status.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/sim/ship.hpp"
+#include "o1602/sim/soldier.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -117,4 +119,47 @@ TEST_CASE("tile status: an undiscovered island shows its terrain, not its buildi
     i.island.discovered.clear();
     CHECK(i.at(0).empty());
     CHECK(i.at(2) == "Fischgründe");
+}
+
+TEST_CASE("tile status: ships by their owner, land units by their kind") {
+    const assets::CodPredefinedSymbol types[] = {{"FIGUR", 1}};
+    auto figures = assets::FigureTable::from_cod(assets::cod::parse(
+        "Objekt: FIGUR\n  Nummer: 1\n  Kind: 3\n  Gfx: 0\n  Nummer: 2\n  Kind: 1\n  Gfx: 0\nEndObj\n", types));
+    REQUIRE(figures.ok());
+    std::string leiste = "[LEISTE]\n";
+    for (int i = 0; i < 230; ++i) {
+        leiste += i == 224   ? "Schiff\n"
+                  : i == 225 ? "Piratenschiff\n"
+                  : i == 226 ? "Freier Händler\n"
+                  : i == 227 ? "Eingeborenenkrieger\n"
+                             : "-\n";
+    }
+    const auto texts = assets::TextTable::parse(
+        leiste + "[END]\n[FIGKIND]\nUnbenützt\nInfanterist\nKavallerist\nMusketier\nKanonier\n[END]\n");
+
+    sim::World world;
+    std::vector<sim::Player> players(4);
+    players[1].role = sim::PlayerRole::Pirates;
+    players[2].role = sim::PlayerRole::Trader;
+    players[3].role = sim::PlayerRole::Natives;
+    world.set_players(std::move(players));
+    for (sim::PlayerId p = 0; p < 3; ++p) {
+        world.add_ship(sim::make_ship("", 10, 10, 0, p));
+    }
+    world.add_soldier(sim::make_soldier(5, 5, 1, kMe));
+    world.add_soldier(sim::make_soldier(6, 5, 2, 3));
+
+    const auto ship = [&](std::size_t i) {
+        return app::unit_status(world, ui::UnitRef{ui::UnitRef::Kind::Ship, world.ships()[i].id}, *figures, texts);
+    };
+    const auto soldier = [&](std::size_t i) {
+        return app::unit_status(world, ui::UnitRef{ui::UnitRef::Kind::Soldier, world.soldiers()[i].id}, *figures,
+                                texts);
+    };
+    CHECK(ship(0) == "Schiff");
+    CHECK(ship(1) == "Piratenschiff");
+    CHECK(ship(2) == "Freier Händler");
+    CHECK(soldier(0) == "Musketier");
+    CHECK(soldier(1) == "Eingeborenenkrieger");  // whatever its figure
+    CHECK(app::unit_status(world, ui::UnitRef{ui::UnitRef::Kind::Ship, 999}, *figures, texts).empty());
 }

@@ -365,7 +365,7 @@ private:
     /// circle (and a Kontor's harbour); none for other buildings and those without a circle.
     [[nodiscard]] std::optional<render::TileLighting> building_lighting(std::uint16_t island, std::uint16_t x,
                                                                         std::uint16_t y) const;
-    /// The status line over the island tile under the mouse: what stands there (0x0040A3D0).
+    /// The status line over the map under the mouse: the unit or what stands on the tile (0x0040A3D0).
     [[nodiscard]] std::string tile_status() const;
     /// Results of building and demolishing (messages, flags of new buildings).
     void apply_construction();

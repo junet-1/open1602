@@ -860,6 +860,10 @@ std::string MapViewer::tile_status() const {
                                      static_cast<std::int32_t>(m_input->mouse_y()))) {
         return {};
     }
+    // A unit drawn over the tile takes the line, as it would take the click.
+    if (const auto unit = m_input->unit_at_mouse()) {
+        return app::unit_status(m_state->world, *unit, m_figures, *m_hud->texts());
+    }
     const auto spot = m_input->spot_at_mouse();
     if (!spot) {
         return {};

@@ -19,6 +19,11 @@ namespace {
 // [GAME] lines.
 constexpr std::size_t kGameSuited = 22;    // "Geeignet für: %s: %d%% - ..."
 constexpr std::size_t kGameWithered = 37;  // "Verdorrtes Feld"
+// [LEISTE] lines of the units.
+constexpr std::size_t kLeisteShip = 224;
+constexpr std::size_t kLeistePirateShip = 225;
+constexpr std::size_t kLeisteTraderShip = 226;
+constexpr std::size_t kLeisteNativeWarrior = 227;
 // [LANDSCHAFT] line of the natives' houses on a pirate island.
 constexpr std::size_t kLandscapeNativeHut = 2;
 
@@ -85,6 +90,38 @@ std::string menu_name(std::uint32_t id, const assets::TextTable& texts) {
         }
     }
     return {};
+}
+
+std::string unit_status(const sim::World& world, const ui::UnitRef& unit, const assets::FigureTable& figures,
+                        const assets::TextTable& texts) {
+    const auto role = [&](sim::PlayerId owner) {
+        const sim::Player* p = world.player(owner);
+        return p != nullptr ? p->role : sim::PlayerRole::Human;
+    };
+    if (unit.kind == ui::UnitRef::Kind::Ship) {
+        const sim::Ship* s = world.ship(unit.id);
+        if (s == nullptr) {
+            return {};
+        }
+        switch (role(s->owner)) {
+            case sim::PlayerRole::Pirates:
+                return line(texts, "LEISTE", kLeistePirateShip);
+            case sim::PlayerRole::Trader:
+                return line(texts, "LEISTE", kLeisteTraderShip);
+            default:
+                return line(texts, "LEISTE", kLeisteShip);
+        }
+    }
+    const sim::Soldier* s = world.soldier(unit.id);
+    if (s == nullptr) {
+        return {};
+    }
+    if (role(s->owner) == sim::PlayerRole::Natives) {
+        return line(texts, "LEISTE", kLeisteNativeWarrior);
+    }
+    // [FIGKIND] by the figure's kind (FIGUR record +4).
+    const assets::FigureType* t = figures.get(s->figure);
+    return t != nullptr && t->kind >= 0 ? line(texts, "FIGKIND", static_cast<std::size_t>(t->kind)) : std::string();
 }
 
 std::string tile_status(const sim::WorldIsland& island, std::int32_t x, std::int32_t y, sim::PlayerId local,
