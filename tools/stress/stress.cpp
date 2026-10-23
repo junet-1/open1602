@@ -69,6 +69,12 @@ std::uint64_t g_allocations = 0;
 std::uint64_t g_allocated_bytes = 0;
 }  // namespace
 
+// GCC inlines these replacements into the standard containers and then sees malloc paired with
+// `delete`; the pairing is correct because both sides are replaced here.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
 void* operator new(std::size_t size) {
     ++g_allocations;
     g_allocated_bytes += size;
@@ -92,6 +98,9 @@ void operator delete(void* p, std::size_t) noexcept {
 void operator delete[](void* p, std::size_t) noexcept {
     std::free(p);
 }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 namespace o1602::stress {
 namespace {
