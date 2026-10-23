@@ -41,10 +41,25 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    (another version) is sent away after two tries. An epoch number per game sent keeps old reports of
    a computer from touching the new game.
 7. **Senders.** Every command names its player; the host takes from a computer only commands for its
-   own slot (review point 6), none from spectators, and at most 256 per frame and player. Only the
-   host sets the game speed and hands slots to the computer (`PlayerControl`); every player may pause,
-   go on and rename himself, at most four times a second. A message that makes no sense, a message to
-   the host larger than 1 MiB and a connection without `Hello` after 10 s disconnect the computer.
+   own slot (review point 6), none from spectators, and only commands every computer can read back
+   (`sim::command_size`; the host's own too). Only the host sets the game speed and hands slots to the
+   computer (`PlayerControl`); every player may pause, go on and rename himself, at most four times a
+   second. A message that makes no sense, a message to the host larger than 1 MiB and a connection
+   without `Hello` after 10 s disconnect the computer.
+   **Admission by work.** A frame holds at most 1024 commands and 64 KiB of them, 64 places kept for
+   the host's own (`PlayerControl`, names), which are never dropped. Each player has an equal share of
+   the rest (at most 256) and of the frame's work, `kFrameWork` units of about one map tile looked at
+   (`command_work`: a demolish rectangle its tiles on the island, a build order 16 per item, a soldier
+   order 4 per unit, anything else 1). A command that costs more than a player has left still goes in,
+   and that player's next commands wait until the following frames have paid it off: a rectangle over
+   a whole island takes frames, it does not make one frame seconds long for everyone (MS-3). What does
+   not fit waits for the next frames, in order, up to four frames' worth per player; beyond that the
+   host drops it and tells the player (`Dropped`). A computer sends its player's commands paced the
+   same way, so in practice only a modified one meets the limit. Soldier orders lose their
+   `formation` on the host: the formations may differ between computers (data fixes) and the
+   interface sends the places itself (DS-5).
+   In the lobby a computer may change its slot four times a second, and the host sends the lobby at
+   most every 100 ms.
 8. **Slots.** A computer gets a free human slot of the world (or the one it asks for) and a token with
    which it gets the same slot back after a lost connection. Tokens are random and belong to whoever
    holds the slot: a slot that changes hands (in the lobby, after a kick, to a newcomer) gets a new

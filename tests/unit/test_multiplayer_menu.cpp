@@ -307,6 +307,8 @@ TEST_CASE("multiplayer menu: the host sends a spectator away") {
     REQUIRE(events.size() == 1);
     CHECK(events[0].kind == MultiplayerEvent::Kind::KickMember);
     CHECK(events[0].member == 1);
+    CHECK(events[0].seat == sim::kNoPlayer);  // the entry as shown (MS-18)
+    CHECK(events[0].text == "Wilma");
 }
 
 TEST_CASE("multiplayer menu: four to twelve players, the factions' slots left out of the lobby") {

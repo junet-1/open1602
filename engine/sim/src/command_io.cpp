@@ -478,4 +478,12 @@ std::optional<Command> decode_command(std::span<const std::uint8_t> bytes) {
     return command;
 }
 
+std::optional<std::size_t> command_size(const Command& command) {
+    const std::vector<std::uint8_t> bytes = encode_command(command);
+    if (!decode_command(bytes)) {
+        return std::nullopt;
+    }
+    return bytes.size();
+}
+
 }  // namespace o1602::sim

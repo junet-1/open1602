@@ -21,6 +21,7 @@
 #include "o1602/net/loopback.hpp"
 #include "o1602/net/protocol.hpp"
 #include "o1602/net/session.hpp"
+#include "o1602/sim/command_io.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/ship.hpp"
@@ -156,7 +157,8 @@ struct Host {
     std::unique_ptr<net::HostSession> session;
     std::vector<net::SessionEvent> events;
 
-    explicit Host(net::LoopbackNetwork& network, net::SessionConfig config = {}) {
+    explicit Host(net::LoopbackNetwork& network, net::SessionConfig config = {}, Game g = Game::fresh())
+        : game(std::move(g)) {
         session = std::make_unique<net::HostSession>(network.listen(), *game.simulation, buildings(), 0, "Gastgeber",
                                                      kContent, config);
     }
@@ -622,9 +624,15 @@ TEST_CASE("net: the host sends a spectator away by its place in the roster") {
     }
     REQUIRE(wilma != 0);
 
-    host.session->kick_member(0);  // the host itself: nothing
-    host.session->kick_member(99);
-    host.session->kick_member(wilma);
+    host.session->kick_member(0, roster[0].seat, roster[0].name);  // the host itself: nothing
+    host.session->kick_member(99, sim::kNoPlayer, "Wilma");
+    // The entry is no longer the one shown (someone left and the places moved up): nothing (MS-18).
+    host.session->kick_member(wilma, sim::kNoPlayer, "Clara");
+    host.session->kick_member(wilma, 1, "Wilma");
+    run_for(network, host, {&a, &b, &c, &w}, 1000);
+    REQUIRE(!w.session->ended());
+    REQUIRE(host.session->roster().size() == 5);
+    host.session->kick_member(wilma, sim::kNoPlayer, "Wilma");
     run_for(network, host, {&a, &b, &c, &w}, 1000);
     CHECK(w.session->ended());
     REQUIRE(!w.events.empty());
@@ -1489,4 +1497,139 @@ TEST_CASE("net: a slot from the old host outside the lobby is not taken over (MS
     step_moved(next, *moved, {&back}, 1500);
     CHECK(back.session->local_seat() == sim::kNoPlayer);
     CHECK(moved->lobby().seats.size() == lobby.seats.size());
+}
+
+namespace {
+
+/// A fresh game with an empty island of `side` x `side` tiles at (20, 20), clear of the ships.
+Game game_with_island(std::uint32_t side) {
+    Game g;
+    g.world = std::make_unique<sim::World>(64 + side, 64 + side);
+    Game fresh = Game::fresh();
+    g.world->set_players(fresh.world->players());
+    for (const sim::Ship& ship : fresh.world->ships()) {
+        g.world->add_ship(ship);
+    }
+    REQUIRE(g.world->add_island(sim::WorldIsland{assets::IslandHeader{}, sim::IslandMap(side, side), 20, 20}).ok());
+    g.simulation = std::make_unique<sim::Simulation>(*g.world, buildings(), figures());
+    return g;
+}
+
+}  // namespace
+
+TEST_CASE("net: rectangles over a whole island take frames, not one long frame (MS-3)") {
+    constexpr std::uint32_t kSide = 40;
+    net::LoopbackNetwork network(5, 0);
+    Host host(network, {}, game_with_island(kSide));
+    Computer a(network, "Anna");
+    run_for(network, host, {&a}, 1000);
+    REQUIRE(a.session->playing());
+    CHECK(net::command_work(*host.game.world, sim::DemolishOrder{1, 0, {-5, -5}, {500, 500}}) == kSide * kSide);
+    CHECK(net::command_work(*host.game.world, sim::DemolishOrder{1, 7, {0, 0}, {500, 500}}) == 1);
+    (void)host.game.simulation->take_command_results();
+
+    for (int i = 0; i < 256; ++i) {
+        a.session->submit(sim::DemolishOrder{a.session->local_seat(), 0, {0, 0}, {1000, 1000}});
+    }
+    // Two players: each has half of a frame's work, so at most a few rectangles go into a frame.
+    const std::uint64_t most = net::kFrameWork / 2 / (kSide * kSide) + 1;
+    std::uint64_t carried = 0;
+    std::uint64_t widest = 0;
+    const auto count = [&] {
+        const auto results = host.game.simulation->take_command_results();
+        carried += results.size();
+        widest = std::max<std::uint64_t>(widest, results.size());
+        return true;
+    };
+    for (std::uint32_t t = 0; t < 20'000 && carried < 256; t += kStepMs) {
+        network.advance(kStepMs);
+        host.update(kStepMs, count);
+        a.update(kStepMs);
+    }
+    CHECK(carried == 256);  // all of them, none dropped
+    CHECK(widest <= most);
+    CHECK(widest >= 2);
+    CHECK(host.count(net::SessionEvent::Kind::Desync) == 0);
+    CHECK(a.count(net::SessionEvent::Kind::Dropped) == 0);
+}
+
+TEST_CASE("net: an order the others could not read is not sent; a flood is dropped and told (MS-10, MS-17)") {
+    net::LoopbackNetwork network(5, 0);
+    Host host(network);
+    Computer a(network, "Anna");
+    Computer b(network, "Bernd");
+    Computer c(network, "Clara");
+    run_for(network, host, {&a, &b, &c}, 1000);
+    REQUIRE(c.session->playing());
+    const sim::PlayerId clara = c.session->local_seat();
+
+    sim::SoldierOrder huge;
+    huge.player = 0;
+    huge.soldiers.resize(sim::kMaxCommandItems + 1);
+    CHECK(!sim::command_size(huge));
+    huge.soldiers.resize(sim::kMaxCommandItems);
+    CHECK(sim::command_size(huge).has_value());
+    huge.soldiers.resize(5000);
+    host.session->submit(huge);
+    huge.player = a.session->local_seat();
+    a.session->submit(huge);
+    run_for(network, host, {&a, &b, &c}, 500);
+    CHECK(!a.session->ended());
+    CHECK(!b.session->ended());
+    CHECK(host.count(net::SessionEvent::Kind::Dropped) == 1);
+    CHECK(a.count(net::SessionEvent::Kind::Dropped) == 1);
+
+    // The host floods far beyond what waits for room, everyone else floods too, and Clara leaves:
+    // the host's own commands still hand her slot to the computer (they are never dropped).
+    for (int i = 0; i < 3000; ++i) {
+        host.session->submit(sim::ProductionSwitch{0, 0, 1, 1});
+        a.session->submit(sim::ProductionSwitch{a.session->local_seat(), 0, 1, 1});
+        b.session->submit(sim::ProductionSwitch{b.session->local_seat(), 0, 1, 1});
+    }
+    network.cut(*c.transport);
+    run_for(network, host, {&a, &b}, 1000);
+    CHECK(host.game.world->players()[clara].role == sim::PlayerRole::Computer);
+    CHECK(a.game.world->players()[clara].role == sim::PlayerRole::Computer);
+    std::uint32_t dropped = 0;
+    for (const auto& e : host.events) {
+        dropped += e.kind == net::SessionEvent::Kind::Dropped ? e.count : 0;
+    }
+    CHECK(dropped > 1);
+    CHECK(dropped < 3000);
+    // Anna's computer paced hers: the host dropped none of them.
+    CHECK(a.count(net::SessionEvent::Kind::Dropped) == 1);
+    CHECK(host.count(net::SessionEvent::Kind::Desync) == 0);
+}
+
+TEST_CASE("net: lobby requests in a loop reach the others a few times a second (MS-16)") {
+    net::LoopbackNetwork network(5, 0);
+    net::Lobby setup;
+    setup.seats = {net::LobbySeat{}, net::LobbySeat{}, net::LobbySeat{}};
+    net::HostSession host(network.listen(), setup, 0, "Merlin", kContent);
+    Computer anna(network, "Anna");
+    Computer bernd(network, "Bernd");
+    const auto tick = [&](std::uint32_t ms, bool toggle) {
+        for (std::uint32_t t = 0; t < ms; t += kStepMs) {
+            network.advance(kStepMs);
+            host.update(kStepMs);
+            (void)host.take_events();
+            for (int i = 0; toggle && i < 20; ++i) {
+                anna.session->set_ready(i % 2 == 0);
+            }
+            anna.update(kStepMs);
+            bernd.update(kStepMs);
+        }
+    };
+    tick(500, false);
+    REQUIRE(anna.session->welcomed());
+    REQUIRE(bernd.session->welcomed());
+    const std::size_t before = bernd.count(net::SessionEvent::Kind::LobbyChanged);
+    tick(1000, true);
+    const std::size_t changes = bernd.count(net::SessionEvent::Kind::LobbyChanged) - before;
+    CHECK(changes >= 2);
+    CHECK(changes <= 1000 / 100 + 1);
+    // A change still arrives.
+    anna.session->set_ready(true);
+    tick(500, false);
+    CHECK(bernd.session->lobby().seats[anna.session->local_seat()].ready);
 }

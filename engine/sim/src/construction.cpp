@@ -1990,14 +1990,16 @@ std::vector<TilePos> plan_demolish(const World& world, const assets::BuildingTab
     const std::int32_t x1 = std::min(static_cast<std::int32_t>(map.width()) - 1, std::max(order.from.x, order.to.x));
     const std::int32_t y1 = std::min(static_cast<std::int32_t>(map.height()) - 1, std::max(order.from.y, order.to.y));
     const bool drag = x1 > x0 || y1 > y0;
-    std::set<std::pair<std::int32_t, std::int32_t>> seen;
+    // Origins already looked at, one bit per tile of the island (MS-3: a rectangle over a whole
+    // island visits every tile; a set of pairs made that several times slower).
+    std::vector<bool> seen(drag ? std::size_t{map.width()} * map.height() : 0);
     for (std::int32_t y = y0; y <= y1; ++y) {
         for (std::int32_t x = x0; x <= x1; ++x) {
             const auto b = building_at(world, buildings, order.island, {x, y});
-            if (!b || seen.contains({b->origin.x, b->origin.y})) {
+            if (!b) {
                 continue;
             }
-            seen.insert({b->origin.x, b->origin.y});
+            // Whether the building is the player's depends only on the building: no need to note it.
             const assets::BuildingType& t = *b->type;
             if (t.kind == kind::kGround || b->city == MapCell::kNoCity) {
                 continue;
@@ -2005,6 +2007,18 @@ std::vector<TilePos> plan_demolish(const World& world, const assets::BuildingTab
             const City* city = world.city(order.island, b->city);
             if (city == nullptr || city->owner != order.player) {
                 continue;
+            }
+            if (drag) {
+                if (b->origin.x < 0 || b->origin.y < 0 || static_cast<std::uint32_t>(b->origin.x) >= map.width() ||
+                    static_cast<std::uint32_t>(b->origin.y) >= map.height()) {
+                    continue;  // not a building of this island
+                }
+                const std::size_t bit =
+                    static_cast<std::size_t>(b->origin.y) * map.width() + static_cast<std::size_t>(b->origin.x);
+                if (seen[bit]) {
+                    continue;
+                }
+                seen[bit] = true;
             }
             // Unchanged original terrain stays (trees and fields excepted).
             const MapCell& top =
