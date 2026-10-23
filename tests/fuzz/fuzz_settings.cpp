@@ -12,6 +12,7 @@
 #include "endless_setup.hpp"
 #include "fuzz_support.hpp"
 #include "multiplayer_menu.hpp"
+
 #include "o1602/assets/scenario.hpp"
 #include "o1602/ui/key_bindings.hpp"
 #include "o1602/ui/localization.hpp"
@@ -48,8 +49,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     app::read_setup(setup, text);
 
     ui::KeyBindings keys;
-    const ui::KeyBindings::KeyFromName key_from_name = [](std::string_view name,
-                                                          bool) -> std::optional<std::int32_t> {
+    const ui::KeyBindings::KeyFromName key_from_name = [](std::string_view name, bool) -> std::optional<std::int32_t> {
         if (name.size() == 1) {
             return static_cast<unsigned char>(name[0]);
         }

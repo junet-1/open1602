@@ -16,12 +16,12 @@
 #include <variant>
 #include <vector>
 
-#include "fuzz_support.hpp"
-#include "test_support.hpp"
-
 #include "app_settings.hpp"
 #include "endless_setup.hpp"
+#include "fuzz_support.hpp"
 #include "multiplayer_menu.hpp"
+#include "test_support.hpp"
+
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/core/byte_writer.hpp"
@@ -53,7 +53,9 @@ void seed(std::string_view target, std::string_view name, const Bytes& bytes) {
     ++g_written;
 }
 
-Bytes text_bytes(std::string_view text) { return {text.begin(), text.end()}; }
+Bytes text_bytes(std::string_view text) {
+    return {text.begin(), text.end()};
+}
 
 Bytes with_mode(std::uint8_t mode, const Bytes& rest) {
     Bytes out{mode};
@@ -342,8 +344,8 @@ void settings_seeds() {
     seed("settings", "slots.cfg", text_bytes(app::write_slots(slots)));
     ui::KeyBindings keys;
     seed("settings", "keys.cfg", text_bytes(keys.write_text([](std::int32_t key, bool physical) {
-        return physical ? "[" + std::to_string(key) + "]" : std::string(1, static_cast<char>(key & 0x7F));
-    })));
+             return physical ? "[" + std::to_string(key) + "]" : std::string(1, static_cast<char>(key & 0x7F));
+         })));
     seed("settings", "lang", text_bytes("# comment\nmenu.start = Start\nmenu.quit = Ende\\nJetzt\n"));
     seed("settings", "hss", text_bytes("Objekt: HISCORE\n  Entry: 0, \"Name\", 1000, 3, 7\nEndObj\n"));
     seed("settings", "address", text_bytes("[::1]:4321"));

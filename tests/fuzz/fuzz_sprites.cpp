@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
@@ -27,8 +28,8 @@ const assets::Palette& grey_palette() {
             file.push_back(static_cast<std::uint8_t>(size >> (8 * i)));
         }
         for (int i = 0; i < 256; ++i) {
-            file.insert(file.end(), {static_cast<std::uint8_t>(i), static_cast<std::uint8_t>(i),
-                                     static_cast<std::uint8_t>(i), 0});
+            file.insert(file.end(),
+                        {static_cast<std::uint8_t>(i), static_cast<std::uint8_t>(i), static_cast<std::uint8_t>(i), 0});
         }
         auto chunks = assets::ChunkFile::from_bytes(std::move(file));
         fuzz::require(chunks.ok(), "palette chunk");

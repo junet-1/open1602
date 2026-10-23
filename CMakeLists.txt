@@ -76,7 +76,7 @@ if(O1602_BUILD_TESTS)
     endif()
 endif()
 
-# The fuzz targets need O1602_FUZZ; their seed writer and o1602_mod_limits build with the tests too.
-if(O1602_FUZZ OR O1602_BUILD_TESTS)
+# The fuzz targets, their seed writer and o1602_mod_limits only with O1602_FUZZ (the targets need Clang).
+if(O1602_FUZZ)
     add_subdirectory(tests/fuzz)
 endif()

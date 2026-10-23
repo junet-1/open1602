@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/assets/cod_predefined.hpp"
@@ -188,11 +189,11 @@ void buildings_cases() {
         std::string obs;
         for (const char* name : {"Wert", "Neg"}) {
             const auto it = doc.symbols.all().find(name);
-            obs += std::string(name) + "=" +
-                   (it != doc.symbols.all().end() && it->second.count >= 1
-                        ? std::to_string(it->second.values[0].integer)
-                        : std::string("?")) +
-                   " ";
+            obs +=
+                std::string(name) + "=" +
+                (it != doc.symbols.all().end() && it->second.count >= 1 ? std::to_string(it->second.values[0].integer)
+                                                                        : std::string("?")) +
+                " ";
         }
         row("both", "+-99999999999999999999.5", "range of int32: clamped", obs);
     }
@@ -213,8 +214,7 @@ void figures_cases() {
                            Field{"  Maxware: 1000", "range of the field: clamped"},
                            Field{"  Worktime: 999999999999.0", "range of the field: clamped"},
                            Field{"  Shotradius: 999999999999.0", "range of the field: clamped"},
-                           Field{"  Speed: -10", "(not documented)"},
-                           Field{"  Rotate: 0", "(not documented)"}}) {
+                           Field{"  Speed: -10", "(not documented)"}, Field{"  Rotate: 0", "(not documented)"}}) {
         const std::string text = std::string("Objekt: FIGUR\n  Nummer: 5\n") + f.line + "\nEndObj\n";
         auto t = assets::FigureTable::from_cod(assets::cod::parse(text, kFigur));
         std::string obs = t.ok() ? "loaded" : "refused";
@@ -239,10 +239,9 @@ std::string gad_line(const assets::GadgetLayout& l) {
 void gad_cases(bool bomb) {
     // Include depth: each level includes the next.
     {
-        const auto l = assets::parse_gad("Include: \"A\"\nObjekt: GADGET\n  @Nummer: 0\n  Id: 1\nEndObj\n",
-                                         [](std::string_view) -> std::optional<std::string> {
-                                             return std::string("Include: \"A\"\nX = 1\n");
-                                         });
+        const auto l = assets::parse_gad(
+            "Include: \"A\"\nObjekt: GADGET\n  @Nummer: 0\n  Id: 1\nEndObj\n",
+            [](std::string_view) -> std::optional<std::string> { return std::string("Include: \"A\"\nX = 1\n"); });
         row(".gad", "Include 5+ levels", "4 levels, rest left out with a warning", gad_line(l));
     }
     {
@@ -252,8 +251,7 @@ void gad_cases(bool bomb) {
         for (int i = 0; i < 8; ++i) {
             text += "Include: \"BIG\"\n";
         }
-        const auto l =
-            assets::parse_gad(text, [&](std::string_view) -> std::optional<std::string> { return big; });
+        const auto l = assets::parse_gad(text, [&](std::string_view) -> std::optional<std::string> { return big; });
         row(".gad", "Include 8 x 300 KB", "1 MiB in all, rest left out with a warning", gad_line(l));
     }
     for (const char* n : {"299", "300", "5000"}) {

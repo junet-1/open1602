@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/audio/wav.hpp"
 #include "o1602/video/smacker.hpp"
 

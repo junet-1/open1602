@@ -10,9 +10,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    paths: ['engine/assets/**', 'engine/sim/src/save/**', 'engine/sim/src/command_io.cpp',
-            'engine/net/**', 'engine/audio/src/wav.cpp', 'engine/video/**', 'engine/app/src/*settings*',
-            'tests/fuzz/**']
+    paths: ['engine/core/**', 'engine/assets/**', 'engine/sim/src/save/**', 'engine/sim/src/save_game.cpp',
+            'engine/sim/src/savegame*.cpp', 'engine/sim/src/validate.cpp', 'engine/sim/src/world.cpp',
+            'engine/sim/src/island_map.cpp', 'engine/sim/src/command_io.cpp', 'engine/net/**',
+            'engine/audio/src/wav.cpp', 'engine/video/**', 'engine/app/src/*settings*', 'tests/fuzz/**',
+            'tools/fuzz/**', 'cmake/Fuzzing.cmake', '.github/workflows/fuzz.yml']
   schedule:
     - cron: '17 3 * * *'  # nightly: 10 minutes per target
   workflow_dispatch:

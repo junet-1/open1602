@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/validate.hpp"

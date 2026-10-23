@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/savegame.hpp"

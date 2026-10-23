@@ -8,6 +8,7 @@
 #include <string>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_parser.hpp"

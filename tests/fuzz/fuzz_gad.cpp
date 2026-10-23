@@ -6,6 +6,7 @@
 #include <string>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/assets/gad.hpp"
 
 using namespace o1602;

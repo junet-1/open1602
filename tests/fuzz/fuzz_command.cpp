@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
 #include "o1602/sim/command_io.hpp"

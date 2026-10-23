@@ -8,6 +8,7 @@
 
 #include "fuzz_support.hpp"
 #include "multiplayer_menu.hpp"
+
 #include "o1602/net/lan.hpp"
 #include "o1602/net/protocol.hpp"
 

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "fuzz_support.hpp"
+
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/sim/save_game.hpp"
@@ -74,8 +75,8 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
                          world->height(), world->islands().size());
             for (const auto& i : world->islands()) {
                 std::fprintf(stderr, "  #%u %ux%u at %u,%u template %u size %u climate %u\n", i.header.number,
-                             i.map.width(), i.map.height(), i.x, i.y, i.header.template_number,
-                             i.header.template_size, i.header.climate);
+                             i.map.width(), i.map.height(), i.x, i.y, i.header.template_number, i.header.template_size,
+                             i.header.climate);
             }
             fuzz::fail("a loaded .GAM saved as .o1602 loads again");
         }
