@@ -62,7 +62,11 @@ constexpr std::int32_t kStopMoreRim = 58321;    // its plate: a rim
 constexpr std::int32_t kStopMorePlate = 58331;  // and the inside
 constexpr std::int32_t kMoreWidth = 26;         ///< the `+N` at the top right of the second ware
 constexpr std::int32_t kMoreHeight = 18;
-constexpr std::int32_t kMoreFont = 1;           // ZEILITTLE
+constexpr std::int32_t kMoreFont = 1;  // ZEILITTLE
+// Its glyphs carry the spacing on the right and blank rows below the digits: the text is placed
+// by these so that the ink sits in the middle of the plate.
+constexpr std::int32_t kMoreInkX = 1;
+constexpr std::int32_t kMoreInkY = 1;
 constexpr std::int32_t kMoreRimColour = 238;    // STADTFLD.COL: pale gold
 constexpr std::int32_t kMorePlateColour = 173;  // brown
 
@@ -131,7 +135,8 @@ assets::GadgetLayout with_route_row(assets::GadgetLayout route, const std::optio
         more.block = kMoreFont;
         more.pos = pos;
         more.size = {kMoreWidth, kMoreHeight};
-        more.offset = {static_cast<std::int16_t>(kMoreWidth / 2), static_cast<std::int16_t>(kMoreHeight - 3)};
+        more.offset = {static_cast<std::int16_t>(kMoreWidth / 2 + kMoreInkX),
+                       static_cast<std::int16_t>(kMoreHeight + kMoreInkY)};
         route.gadgets.push_back(more);
     }
     // The stop's page: the first stop's two wares (icon, bar background, bar, frame, slider,
