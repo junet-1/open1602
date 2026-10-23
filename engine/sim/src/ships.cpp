@@ -425,6 +425,7 @@ void Fleet::sink(Ship& ship, PlayerId attacker) {
     // Op 0x0C: the ship stops, turns to the nearest odd heading and goes down (0x0044A9A0).
     ship.sinking = true;
     ship.held = false;
+    trader_leave(ship);
     ship.queue.clear();
     ship.route.active = false;
     ship.repairing = false;
@@ -705,6 +706,7 @@ void Fleet::update_island(Ship& ship) {
 }
 
 void Fleet::finish_order(Ship& ship) {
+    trader_leave(ship);
     ship.previous = ship.target;
     ship.target = {};
     ship.motion.failures = 0;

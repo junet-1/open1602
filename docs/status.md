@@ -11,8 +11,8 @@ Links into `re/` (for example [bugs.md](re/bugs.md)) point to the private compan
 [CONTRIBUTING.md](../CONTRIBUTING.md#reverse-engineering)).
 
 **Review October 2026:** The code review of October 2026 with all findings and their status is in
-[review.md](review.md). Of its 99 findings, 85 are fixed (PRs #19 to #29, #32 and #33), 5 are left on purpose and
-9 are partly fixed; what remains of them is listed under
+[review.md](review.md). Of its 99 findings, 93 are fixed (PRs #19 to #29, #32 to #42 and #44), 5 are left on
+purpose and 1 is partly fixed; what remains of them is listed under
 [Remaining work](review.md#remaining-work).
 
 Symbols: ✅ done · 🟡 partly · ⬜ open · ❓ behaviour of the original not confirmed (needs clarification).
@@ -121,7 +121,7 @@ are listed in 2.1.
 
 | What | Where |
 |---|---|
-| **Bugs of the original**: 200 entries in the catalogue by its own count (2026-10-20), of which 107 fixed, 53 avoided, 9 switchable as a rule (S-097 to S-099 since 2026-10-22), 20 kept; open are only T-009 (Wine) and the data patches | [bugs.md](re/bugs.md) |
+| **Bugs of the original**: 217 entries in the catalogue (counted 2026-10-23), most of them fixed or avoided, some switchable as a rule (S-097 to S-099 since 2026-10-22) or kept; open are only T-009 (Wine) and the data patches | [bugs.md](re/bugs.md) |
 | **Settings** (`sim::Rules`, in the savegame): refund on demolition, ships per player (100, original 33), units per player (250, original 100), raw material guarantee, highest game speed (8, original 4), droughts, volcanoes, pirates, pirate nests per four players, trader prices, free trader's reach | [ADR 0008](architecture/0008-game-settings.md) |
 | **Custom worlds** (world generator stage 1): 200–2000 fields per side, number of islands, mix of sizes, villages, volcanic islands, gold islands (automatic or a fixed number), starting areas; chunk `O1602MAP` | [worldgen.md](re/worldgen.md) |
 | **Own save format `.o1602`**: full state (map, clocks, randomness, figures, fires, lava, diplomacy, exploration, ships, soldiers, AI) without limits, canonical, CRC-32, zlib; a saved game continues exactly. Exported `.GAM` files carry the same state in the chunk `O1602` | [o1602-save.md](formats/o1602-save.md), [o1602-chunk.md](formats/o1602-chunk.md) |
@@ -151,7 +151,7 @@ are listed in 2.1.
 | Scripts post the mods' messages (`MapViewer::announce`) | Lua (M8) | [messages.md](modding/messages.md) |
 | Lua scripts, custom scenarios and campaigns | M8, scenarios | ADR 0007 |
 | World generator stage 2 (custom island shapes, including ones larger than the templates) | deferred until everything runs | [00-plan.md](00-plan.md) |
-| Data patches for `.cod` bugs (D-001, D-002, D-011, D-012), switchable | mechanism missing | [bugs.md](re/bugs.md), ADR 0006 |
+| Data patches for `.cod` bugs (D-001, D-002, D-012, D-014), switchable | mechanism missing | [bugs.md](re/bugs.md), ADR 0006 |
 | Replays from the session's frames | M6 | [ADR 0011](architecture/0011-multiplayer-lockstep.md) |
 | Ideas: full refund shortly after building; own road pathfinding alongside that of the original; pirate distance of the difficulty level as a setting (S-068) | open, decision needed | – |
 
