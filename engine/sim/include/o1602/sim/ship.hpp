@@ -37,9 +37,12 @@ struct RouteStop {
     friend bool operator==(const RouteStop&, const RouteStop&) = default;
 };
 
-/// The automatic trade route of a ship: four stops, sailed in a loop.
+/// The automatic trade route of a ship: its stops, sailed in a loop. The original has four;
+/// Open1602 takes eight (docs/re/ships.md, "Trade routes"), the first four as the original's.
 struct TradeRoute {
-    static constexpr std::size_t kStops = 4;
+    static constexpr std::size_t kStops = 8;
+    /// Stops of the original (SHIP4, its route window, the computer players' supply runs).
+    static constexpr std::size_t kOriginalStops = 4;
     std::array<RouteStop, kStops> stops{};
     std::uint8_t current = 0;  ///< stop sailed to or lying at
     bool active = false;
@@ -66,6 +69,15 @@ struct TradeRoute {
             any = any || !s.target.empty();
         }
         return active && any;
+    }
+    /// Whether a stop beyond the original's four is set (such a route needs Open1602).
+    [[nodiscard]] bool beyond_original() const noexcept {
+        for (std::size_t s = kOriginalStops; s < kStops; ++s) {
+            if (!stops[s].target.empty()) {
+                return true;
+            }
+        }
+        return false;
     }
 };
 

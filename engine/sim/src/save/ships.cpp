@@ -14,7 +14,7 @@ namespace o1602::sim::save {
 namespace {
 
 template <class A, class S>
-void io_ship(A& a, S& s) {
+void io_ship(A& a, S& s, std::uint16_t version) {
     a.u32(s.id);
     a.string(s.name);
     a.i32(s.pos_x);
@@ -37,7 +37,9 @@ void io_ship(A& a, S& s) {
         a.u32(c.amount);
         a.u16(c.price);
     });
-    for (auto& stop : s.route.stops) {
+    const std::size_t stops = version >= kLongRoutes ? TradeRoute::kStops : TradeRoute::kOriginalStops;
+    for (std::size_t n = 0; n < stops; ++n) {
+        auto& stop = s.route.stops[n];
         io_target(a, stop.target);
         for (auto& e : stop.entries) {
             a.u8(e.ware);
@@ -121,7 +123,8 @@ void io_yard(A& a, B& b) {
 /// FLEE: the next ship id, the players who discovered each island (island number, flags), the
 /// Kontors' trade settings, the shipyard fields of the cost buildings, the ships.
 template <class A, class Id, class Discovered, class Cities, class Yards, class Ships>
-void io_fleet(A& a, Id& next_ship_id, Discovered& discovered, Cities& cities, Yards& yards, Ships& ships) {
+void io_fleet(A& a, std::uint16_t version, Id& next_ship_id, Discovered& discovered, Cities& cities, Yards& yards,
+              Ships& ships) {
     a.u32(next_ship_id);
     a.list(discovered, 5, [&](auto& item) {
         a.u8(item.first);
@@ -129,7 +132,7 @@ void io_fleet(A& a, Id& next_ship_id, Discovered& discovered, Cities& cities, Ya
     });
     a.list(cities, 12, [&](auto& c) { io_city_trade(a, c); });
     a.list(yards, 23, [&](auto& b) { io_yard(a, b); });
-    a.list(ships, 40, [&](auto& s) { io_ship(a, s); });
+    a.list(ships, 40, [&](auto& s) { io_ship(a, s, version); });
 }
 
 }  // namespace
@@ -172,18 +175,23 @@ std::vector<Ship> read_ships(Reader& in) {
     return list;
 }
 
-void write_fleet(Writer& out, const World& w) {
+std::uint16_t fleet_version(const World& w) {
+    return std::ranges::any_of(w.ships(), [](const Ship& s) { return s.route.beyond_original(); }) ? kLongRoutes
+                                                                                                   : std::uint16_t{1};
+}
+
+void write_fleet(Writer& out, const World& w, std::uint16_t version) {
     const std::uint32_t next_ship_id = w.next_ship_id();
     std::vector<std::pair<std::uint8_t, std::vector<bool>>> discovered;
     for (const WorldIsland& i : w.islands()) {
         discovered.emplace_back(i.header.number, i.discovered);
     }
-    io_fleet(out, next_ship_id, std::as_const(discovered), w.cities(), w.cost_buildings(), w.ships());
+    io_fleet(out, version, next_ship_id, std::as_const(discovered), w.cities(), w.cost_buildings(), w.ships());
 }
 
-Decoded::FleetPart read_fleet(Reader& in) {
+Decoded::FleetPart read_fleet(Reader& in, std::uint16_t version) {
     Decoded::FleetPart f;
-    io_fleet(in, f.next_ship_id, f.discovered, f.cities, f.yards, f.ships);
+    io_fleet(in, version, f.next_ship_id, f.discovered, f.cities, f.yards, f.ships);
     return f;
 }
 

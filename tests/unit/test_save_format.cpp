@@ -442,7 +442,8 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
             v(slot.price);
             s.cargo.push_back(slot);
         }
-        for (sim::RouteStop& stop : s.route.stops) {
+        for (std::size_t n = 0; n < sim::TradeRoute::kOriginalStops; ++n) {
+            sim::RouteStop& stop = s.route.stops[n];
             stop.target = target(v);
             for (sim::RouteEntry& e : stop.entries) {
                 v(e.ware);
@@ -450,7 +451,17 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
                 v(e.amount);
             }
         }
-        s.route.current = static_cast<std::uint8_t>(v.below(sim::TradeRoute::kStops));
+        if (wide) {
+            // The stops beyond the original's four (version 2 of FLEE), apart from the values
+            // above so that the narrow world keeps the bytes of version 1.
+            for (std::size_t n = sim::TradeRoute::kOriginalStops; n < sim::TradeRoute::kStops; ++n) {
+                const auto m = static_cast<std::uint32_t>(n + 8 * k);
+                s.route.stops[n].target = sim::Target::position(m * 7, m * 5);
+                s.route.stops[n].entries[n % 3] =
+                    sim::RouteEntry{static_cast<std::uint8_t>(1 + m % 24), m % 2 == 0, m * 173};
+            }
+        }
+        s.route.current = static_cast<std::uint8_t>(v.below(sim::TradeRoute::kOriginalStops));
         v(s.route.active);
         v(s.route.one_way);
         v(s.route.problem);
@@ -793,7 +804,7 @@ constexpr Golden kSaveWide[] = {
     {"ANIM", 1, 1, 20, 0x45A8858E},
     {"DISA", 1, 1, 30, 0x3FF2904C},
     {"VOLC", 2, 1, 126, 0x3DB4583E},
-    {"FLEE", 1, 1, 1299, 0xF206C9B1},
+    {"FLEE", 2, 1, 1755, 0x435A36A6},
     {"EPOC", 1, 1, 11, 0xFD024085},
     {"ARMY", 1, 1, 842, 0xC84ED2BD},
     {"DIPL", 1, 1, 1640, 0xE77D58A7},
@@ -858,7 +869,7 @@ constexpr Golden kChunkWide[] = {
     {"ANIM", 1, 1, 20, 0x45A8858E},
     {"DISA", 1, 1, 30, 0x3FF2904C},
     {"VOLC", 2, 1, 126, 0x3DB4583E},
-    {"FLEE", 1, 1, 1299, 0xF206C9B1},
+    {"FLEE", 2, 1, 1755, 0x435A36A6},
     {"EPOC", 1, 1, 11, 0xFD024085},
     {"ARMY", 1, 1, 842, 0xC84ED2BD},
     {"DIPL", 1, 1, 1640, 0xE77D58A7},

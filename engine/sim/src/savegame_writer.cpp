@@ -1076,9 +1076,10 @@ private:
             r[0x4C] = record != m_trader_records.end() ? record->second : std::uint8_t{0};
             const World::Cell& cell = m_world.cell(s.x, s.y);
             r[0x4D] = cell.island == World::kSea ? std::uint8_t{0xFF} : number(cell.island);
-            r[0x4F] = s.route.current;
+            // SHIP4 has the original's four stops; the others travel in the chunk O1602 only.
+            r[0x4F] = s.route.current < TradeRoute::kOriginalStops ? s.route.current : std::uint8_t{0};
             r[0x50] = static_cast<std::uint8_t>((r[0x50] & ~7U) | (s.direction & 7U));
-            for (std::size_t g = 0; g < TradeRoute::kStops; ++g) {
+            for (std::size_t g = 0; g < TradeRoute::kOriginalStops; ++g) {
                 const std::size_t o = 0x52 + 0x24 * g;
                 const RouteStop& stop = s.route.stops[g];
                 put_ref(r, o, stop.target);
