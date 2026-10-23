@@ -241,6 +241,9 @@ class Combat;
 /// the original's files keep its eight slots; the ones beyond the type's stay empty. Everything
 /// that puts goods or soldiers into a hold looks only at these.
 [[nodiscard]] std::size_t usable_holds(const Ship& ship, const assets::FigureTable& figures);
+/// The wares a stop of the ship's route moves: one per hold, at least the original's three, at
+/// most RouteStop::kEntries. The ones beyond stay stored (a route copied from a larger ship).
+[[nodiscard]] std::size_t usable_route_entries(const Ship& ship, const assets::FigureTable& figures);
 
 class Fleet {
 public:

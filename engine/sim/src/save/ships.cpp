@@ -38,10 +38,12 @@ void io_ship(A& a, S& s, std::uint16_t version) {
         a.u16(c.price);
     });
     const std::size_t stops = version >= kLongRoutes ? TradeRoute::kStops : TradeRoute::kOriginalStops;
+    const std::size_t entries = version >= kRouteWares ? RouteStop::kEntries : RouteStop::kOriginalEntries;
     for (std::size_t n = 0; n < stops; ++n) {
         auto& stop = s.route.stops[n];
         io_target(a, stop.target);
-        for (auto& e : stop.entries) {
+        for (std::size_t k = 0; k < entries; ++k) {
+            auto& e = stop.entries[k];
             a.u8(e.ware);
             a.boolean(e.unload);
             a.u32(e.amount);
@@ -176,8 +178,12 @@ std::vector<Ship> read_ships(Reader& in) {
 }
 
 std::uint16_t fleet_version(const World& w) {
-    return std::ranges::any_of(w.ships(), [](const Ship& s) { return s.route.beyond_original(); }) ? kLongRoutes
-                                                                                                   : std::uint16_t{1};
+    if (std::ranges::any_of(w.ships(), [](const Ship& s) { return s.route.beyond_original_entries(); })) {
+        return kRouteWares;
+    }
+    return std::ranges::any_of(w.ships(), [](const Ship& s) { return s.route.beyond_original_stops(); })
+               ? kLongRoutes
+               : std::uint16_t{1};
 }
 
 void write_fleet(Writer& out, const World& w, std::uint16_t version) {

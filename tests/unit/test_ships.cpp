@@ -425,6 +425,57 @@ TEST_CASE("ships: a route uses all eight stops, and another ship of the owner ca
     CHECK(running.target == sim::Target::city_of(1, 0));
 }
 
+TEST_CASE("ships: a stop takes as many wares as the ship has holds, beyond the original's three") {
+    // Wares 16..21 at the first city, each loaded there and delivered at the second.
+    constexpr std::uint8_t kFirst = 16;
+    constexpr std::size_t kWares = 6;
+    for (const std::uint16_t figure : {std::uint16_t{21}, std::uint16_t{29}}) {  // four and six holds
+        Sea sea(true);
+        sim::City second = *sea.world.city(0, 0);
+        sim::IslandMap map(4, 4);
+        for (std::int32_t y = 0; y < 4; ++y) {
+            for (std::int32_t x = 0; x < 4; ++x) {
+                REQUIRE(map.place(*sea.buildings.by_id(20101), x, y, 0, 0).ok());
+            }
+        }
+        REQUIRE(map.place(*sea.buildings.by_id(20103), 0, 1, 0, 0, 0, 0).ok());
+        REQUIRE(sea.world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 90, 30}).ok());
+        second.island = 1;
+        second.warehouse_x = 0;
+        second.warehouse_y = 1;
+        second.goods.assign(25, 0);
+        sea.world.add_city(second);
+        for (std::size_t w = 0; w < kWares; ++w) {
+            sea.world.city(0, 0)->goods[kFirst + w] = 20 * kTon;
+        }
+        const std::uint32_t id = sea.add(30, 25, figure).id;
+        sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+        const std::size_t holds = sim::usable_holds(*sea.world.ship(id), sea.figures);
+        REQUIRE(sim::usable_route_entries(*sea.world.ship(id), sea.figures) == holds);
+        using Op = sim::RouteEdit::Op;
+        REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 0, 0, sim::Target::city_of(0, 0)}));
+        REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 1, 0, sim::Target::city_of(1, 0)}));
+        for (std::uint8_t w = 0; w < kWares; ++w) {
+            const auto ware = static_cast<std::uint8_t>(kFirst + w);
+            REQUIRE(fleet.edit_route(
+                sim::RouteEdit{0, id, Op::SetEntry, 0, w, {}, sim::RouteEntry{ware, false, 10 * kTon}}));
+            REQUIRE(fleet.edit_route(
+                sim::RouteEdit{0, id, Op::SetEntry, 1, w, {}, sim::RouteEntry{ware, true, 50 * kTon}}));
+        }
+        CHECK(!fleet.edit_route(sim::RouteEdit{0, id, Op::SetEntry, 0, 8, {}, sim::RouteEntry{kWood, false, kTon}}));
+        CHECK(sea.world.ship(id)->route.beyond_original_entries());
+        CHECK(!sea.world.ship(id)->route.beyond_original_stops());
+        REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::Start}));
+        const auto events = run(fleet, sea.world, 60000);
+        CHECK(count(events, sim::ShipEvent::Kind::RouteWarning) == 0);
+        // One ware per hold arrived; the ones beyond stay stored but unused.
+        for (std::size_t w = 0; w < kWares; ++w) {
+            CHECK((sea.world.city(1, 0)->goods[kFirst + w] >= 10 * kTon) == (w < holds));
+            CHECK(sea.world.ship(id)->route.stops[0].entries[w].ware == kFirst + w);
+        }
+    }
+}
+
 TEST_CASE("ships: the free trader buys cheap goods and comes back with tools") {
     Sea sea(true);
     sim::City& city = *sea.world.city(0, 0);

@@ -147,6 +147,10 @@ std::size_t usable_holds(const Ship& ship, const assets::FigureTable& figures) {
     return std::min(n, ship.cargo.size());
 }
 
+std::size_t usable_route_entries(const Ship& ship, const assets::FigureTable& figures) {
+    return std::clamp(usable_holds(ship, figures), RouteStop::kOriginalEntries, RouteStop::kEntries);
+}
+
 std::size_t Fleet::holds(const Ship& ship) const {
     return usable_holds(ship, *m_figures);
 }
@@ -1011,7 +1015,8 @@ bool Fleet::edit_route(const RouteEdit& e) {
             }
             return true;
         case RouteEdit::Op::SetEntry:
-            if (e.stop >= TradeRoute::kStops || e.entry >= 3 || (e.value.ware != 0 && !is_trade_ware(e.value.ware))) {
+            if (e.stop >= TradeRoute::kStops || e.entry >= RouteStop::kEntries ||
+                (e.value.ware != 0 && !is_trade_ware(e.value.ware))) {
                 return false;  // routes carry goods; soldiers board and land by their own orders
             }
             route.stops[e.stop].entries[e.entry] = e.value;
@@ -1376,17 +1381,18 @@ bool Fleet::route_city_stop(Ship& ship, const RouteStop& stop) {
     city->ships_gave_up = 0;  // a ship got through (0x00455347)
     const bool foreign = city->owner != ship.owner;
     bool requested = false;
+    const std::size_t entries = usable_route_entries(ship, *m_figures);
     // Unloads first, then loads; entries of the same ware add up (0x00455000).
     for (int pass = 0; pass < 2; ++pass) {
         const bool unload = pass == 0;
-        std::array<bool, 3> done{};
-        for (std::size_t e = 0; e < stop.entries.size(); ++e) {
+        std::array<bool, RouteStop::kEntries> done{};
+        for (std::size_t e = 0; e < entries; ++e) {
             const RouteEntry& entry = stop.entries[e];
             if (done[e] || entry.ware == 0 || entry.unload != unload) {
                 continue;
             }
             std::uint32_t amount = 0;
-            for (std::size_t k = e; k < stop.entries.size(); ++k) {
+            for (std::size_t k = e; k < entries; ++k) {
                 if (stop.entries[k].ware == entry.ware && stop.entries[k].unload == unload) {
                     amount += stop.entries[k].amount;
                     done[k] = true;
@@ -1429,7 +1435,9 @@ bool Fleet::route_ship_stop(Ship& ship, const RouteStop& stop) {
     }
     // 0x004553C0: goods between the two ships, no money (pirates plunder this way).
     bool moved_any = false;
-    for (const RouteEntry& e : stop.entries) {
+    const std::size_t entries = usable_route_entries(ship, *m_figures);
+    for (std::size_t k = 0; k < entries; ++k) {
+        const RouteEntry& e = stop.entries[k];
         if (e.ware == 0) {
             continue;
         }
