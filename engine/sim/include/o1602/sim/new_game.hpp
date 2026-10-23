@@ -6,15 +6,18 @@
 // makes the islands (world_generator.hpp) and resets what it does not take from the file: the
 // players' control, colour and names, the game time and the clocks of droughts and volcanoes.
 // A multiplayer endless game loads Endlosspiel<D><V>.szm instead: maps of their own, and every
-// player starts with the small trading cog.
+// player starts with the small trading cog. Those are the German game's names; other languages
+// name the files their own way (find_endless_file).
 //
 // Open1602 builds the scenario as the original would have it after that reset and loads it like
 // any other, so the savegame writer has the right records to start from.
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -57,12 +60,30 @@ struct NewGameOptions {
 /// or .szm for a multiplayer game.
 [[nodiscard]] std::string endless_file(std::uint8_t difficulty, std::uint8_t layout, bool multiplayer = false);
 
+/// The German game's name of the endless scenario, Endlosspiel (the files' name without digits).
+inline constexpr std::string_view kEndlessName = "Endlosspiel";
+
+/// An endless game's file in an installation and the scenario's name in its language.
+struct EndlessFile {
+    std::filesystem::path path;
+    std::string name;  ///< the file's name without the digits, in Windows-1252: "Endlosspiel"
+};
+
+/// The file of a difficulty and layout in `game`: endless_file() as the German game names it, else
+/// the file of the same two digits in another language's name. The English game's endless levels
+/// are not called Endlosspiel; their name is that of the .szs files in Szenes whose names end in two
+/// digits and whose scenario is the endless game (SZENE_MISSNR 1), as the scenario list finds them.
+[[nodiscard]] core::Result<EndlessFile> find_endless_file(const assets::GameDirectory& game, std::uint8_t difficulty,
+                                                          std::uint8_t layout, bool multiplayer = false);
+
 /// The endless scenario as the original has it after the reset of a new game: control, colour and
 /// names of the players, the gated TIMERS fields, no editor leftovers in the ships, NAME
-/// "Endlosspiel". The world plan stays for load_world.
+/// `name` (the scenario's name in the installation's language, EndlessFile::name). The world plan
+/// stays for load_world.
 [[nodiscard]] core::Result<assets::ChunkFile> new_game_scenario(const assets::ChunkFile& endless,
                                                                 const assets::TextTable& text,
-                                                                const NewGameOptions& options);
+                                                                const NewGameOptions& options,
+                                                                std::string_view name = kEndlessName);
 
 /// Players five to `players` of an own world: computers as the level's second player, with its
 /// money and a copy of its ship at their starts, in the slots player_slot() names and with banners

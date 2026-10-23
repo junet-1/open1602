@@ -3,11 +3,16 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdio>
 #include <span>
 #include <string_view>
+#include <system_error>
 
 #include "o1602/assets/chunk_writer.hpp"
+#include "o1602/assets/scenario.hpp"
+#include "o1602/core/file.hpp"
+#include "o1602/core/text.hpp"
 #include "o1602/sim/savegame_extension.hpp"
 
 namespace o1602::sim {
@@ -21,6 +26,7 @@ constexpr std::size_t kNameOffset = 0x3C0;
 constexpr std::size_t kNameSize = 64;
 constexpr std::size_t kSecondName = 0x400;
 constexpr std::uint8_t kOriginalColours = 4;
+constexpr std::uint32_t kEndlessMission = 1;  // SZENE_MISSNR of the endless levels
 
 void put_u32(std::vector<std::uint8_t>& d, std::size_t o, std::uint32_t v) {
     for (std::size_t i = 0; i < 4; ++i) {
@@ -144,11 +150,66 @@ std::string endless_file(std::uint8_t difficulty, std::uint8_t layout, bool mult
     return buf;
 }
 
+core::Result<EndlessFile> find_endless_file(const assets::GameDirectory& game, std::uint8_t difficulty,
+                                            std::uint8_t layout, bool multiplayer) {
+    const std::string german = endless_file(difficulty, layout, multiplayer);
+    if (const auto path = game.resolve(german)) {
+        return EndlessFile{*path, std::string(kEndlessName)};
+    }
+    const auto folder = game.resolve("Szenes");
+    if (!folder) {
+        return core::make_error(core::ErrorCode::NotFound, "Szenes not found in the game directory");
+    }
+    const auto lower = [](std::string s) {
+        std::transform(s.begin(), s.end(), s.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        return s;
+    };
+    const auto is_digit = [](char c) { return std::isdigit(static_cast<unsigned char>(c)) != 0; };
+    std::vector<std::filesystem::path> files;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(*folder, ec)) {
+        if (entry.is_regular_file(ec)) {
+            files.push_back(entry.path());
+        }
+    }
+    std::sort(files.begin(), files.end());  // the same choice whatever order the file system lists
+    // The scenario's name: that of a single player level, as two digits end the levels' names.
+    std::optional<std::string> name;
+    for (const std::filesystem::path& p : files) {
+        const std::string stem = core::path_to_utf8(p.stem());
+        const std::size_t n = stem.size();
+        if (lower(core::path_to_utf8(p.extension())) != ".szs" || n < 3 || !is_digit(stem[n - 1]) ||
+            !is_digit(stem[n - 2]) || is_digit(stem[n - 3])) {
+            continue;
+        }
+        auto bytes = core::read_file(p);
+        if (!bytes) {
+            continue;
+        }
+        if (auto file = assets::ChunkFile::from_bytes(std::move(bytes).value());
+            file && assets::load_mission_number(*file) == kEndlessMission) {
+            name = stem.substr(0, n - 2);
+            break;
+        }
+    }
+    if (!name) {
+        return core::make_error(core::ErrorCode::NotFound,
+                                german + " not found in the game directory, nor an endless game of another name");
+    }
+    const std::string wanted = *name + german.substr(german.size() - 6);  // "<D><V>.szs"
+    for (const std::filesystem::path& p : files) {
+        if (lower(core::path_to_utf8(p.filename())) == lower(wanted)) {
+            return EndlessFile{p, core::utf8_to_cp1252(*name)};
+        }
+    }
+    return core::make_error(core::ErrorCode::NotFound, "Szenes/" + wanted + " not found in the game directory");
+}
+
 core::Result<assets::ChunkFile> new_game_scenario(const assets::ChunkFile& endless, const assets::TextTable& text,
-                                                  const NewGameOptions& options) {
-    static constexpr std::string_view kName = "Endlosspiel";
+                                                  const NewGameOptions& options, std::string_view name) {
     assets::ChunkWriter out;
-    out.add("NAME", std::span(reinterpret_cast<const std::uint8_t*>(kName.data()), kName.size()));
+    out.add("NAME", std::span(reinterpret_cast<const std::uint8_t*>(name.data()), name.size()));
     for (const assets::Chunk& c : endless.chunks()) {
         const auto data = endless.payload(c);
         if (c.name == "PLAYER4") {
@@ -175,16 +236,15 @@ core::Result<World> start_new_game(const assets::GameDirectory& game, const asse
     if (options.difficulty >= NewGameOptions::kDifficulties || options.layout >= NewGameOptions::kLayouts) {
         return core::make_error(core::ErrorCode::OutOfRange, "no endless game with these settings");
     }
-    const std::string path = endless_file(options.difficulty, options.layout, options.multiplayer);
-    const auto resolved = game.resolve(path);
-    if (!resolved) {
-        return core::make_error(core::ErrorCode::NotFound, path + " not found in the game directory");
+    const auto found = find_endless_file(game, options.difficulty, options.layout, options.multiplayer);
+    if (!found) {
+        return found.error();
     }
-    auto endless = assets::ChunkFile::load(*resolved);
+    auto endless = assets::ChunkFile::load(found->path);
     if (!endless) {
         return endless.error();
     }
-    auto scenario = new_game_scenario(*endless, text, options);
+    auto scenario = new_game_scenario(*endless, text, options, found->name);
     if (!scenario) {
         return scenario.error();
     }

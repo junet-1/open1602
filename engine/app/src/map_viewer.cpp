@@ -2440,7 +2440,9 @@ void MapViewer::apply_menu() {
                 continue;
         }
         if (!started) {
-            std::fprintf(stderr, "menu: %s\n", started.error().message.c_str());
+            // In the start dialog, where "Start" was clicked; error_text() also writes the log.
+            const std::string why = ui::error_text(started.error(), "menu");
+            menu->show_start_error(ui::tr("menu.start_failed", {why}));
             continue;
         }
         if (!e.name.empty() && e.name != m_app_settings.player_name) {
