@@ -335,14 +335,14 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
     }
     if (m_mode == kModeMilitary) {
         context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr,
-                                     m_local, m_units, m_banners});
+                                     m_local, m_units, m_banners, &m_names});
         return m_selection_panels->military_panel_for(*context);
     }
     if (m_mode != kModeInfo || m_selection.kind == Selection::Kind::None) {
         return nullptr;
     }
     context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local,
-                                 m_units, m_banners});
+                                 m_units, m_banners, &m_names});
     return m_selection_panels->panel_for(m_selection, *context);
 }
 
@@ -722,6 +722,7 @@ void Hud::reset_game() {
     m_help.reset();
     m_modal_press = ModalPress::None;
     m_commands.clear();
+    m_names.cancel();
     m_minimap_dirty = true;
     m_tutor_line = 0;
     m_tutorial.reset();
@@ -1054,7 +1055,14 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
         std::optional<PanelContext> context;
         if (SelectionPanel* p = selection_panel(context)) {
             for (const ui::PanelEvent& e : p->panel().mouse(x - panel.x, y - panel.y, down)) {
+                // A click elsewhere in the window keeps the name being typed.
+                m_names.begin_click();
                 p->clicked(e, m_selection, *context, m_commands);
+                if (e.kind == ui::PanelEvent::Kind::Clicked) {
+                    if (auto c = m_names.end_click()) {
+                        m_commands.push_back(std::move(*c));
+                    }
+                }
             }
             if (const auto r = p->take_request()) {
                 switch (r->kind) {
@@ -1324,6 +1332,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         if (const auto text = m_options->help(m_leiste, m_options_model)) {
             status = *text;
         }
+    }
+    // The name being typed ends with its window (or its ship or city).
+    if (auto c = m_names.end_frame(world)) {
+        m_commands.push_back(std::move(*c));
     }
     step_tutorial(available, now_ms);
     draw_mission(world);

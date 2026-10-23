@@ -55,7 +55,9 @@ public:
             return;
         }
         const bool own = ship->owner == c.local;
-        m_panel.set_text(kName, ship->name);
+        // Open1602: the name can be typed here too, as in the ship window.
+        m_panel.set_text(kName, c.shown_name(NameTarget::of(*ship), ship->name));
+        m_panel.set_no_select(kName, !can_rename(c.world(), c.local, NameTarget::of(*ship)));
         const bool moving = !ship->target.empty() || ship->motion.path_index < ship->motion.path.size();
         for (const std::int32_t id :
              {kCannonsDown, kCannons, kHealthFrame, kHealth, kHealthHover, kPatrol, kWhiteFlag, kDump}) {
@@ -101,6 +103,9 @@ public:
             return o;
         };
         switch (e.id) {
+            case kName:
+                c.start_rename(NameTarget::of(*ship), out);
+                break;
             case kStop:
                 out.emplace_back(sim::ShipOrder{c.local, ship->id, sim::Target{}});
                 break;

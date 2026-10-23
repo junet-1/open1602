@@ -30,6 +30,7 @@ add_executable(o1602_tests
     unit/test_construction.cpp
     unit/test_build_tool.cpp
     unit/test_order_questions.cpp
+    unit/test_name_edit.cpp
     unit/test_tile_status.cpp
     unit/test_app_settings.cpp
     unit/test_game_folder.cpp

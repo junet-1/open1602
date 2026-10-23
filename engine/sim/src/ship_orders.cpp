@@ -97,7 +97,7 @@ bool Fleet::command(const ShipCommand& c) {
             return dumped;
         }
         case ShipCommand::Op::Rename:
-            if (!own || c.name.empty() || c.name.size() > ShipCommand::kMaxNameLength) {
+            if (!own || ship->sinking || !valid_name(c.name, ShipCommand::kMaxNameLength)) {
                 return false;
             }
             ship->name = c.name;

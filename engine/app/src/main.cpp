@@ -82,6 +82,7 @@ int usage() {
         "  --message ID       show a message at the start, e.g. a mod's mymod:lighthouse (docs/modding/messages.md)\n"
         "  --input EVENTS     mouse and keys at frames, for tests: \"move X,Y@F;down X,Y@F;up X,Y@F;key K@F\";\n"
         "                     rdown/rup: the right button; \"wheel X,Y,N@F\": N notches (up zooms in)\n"
+        "                     \"text T@F\": T typed (a name)\n"
         "  --select I,X,Y     select the building at tile X,Y of island I (index) and look at it\n"
         "  --select ship:N    select the N-th ship of the game (index) and look at it; unit:N a land unit\n"
         "  --load FILE        open a savegame of Open1602 (.o1602) or a file of the original by its path\n"
@@ -119,7 +120,8 @@ bool parse_number(std::string_view text, std::int32_t& value) {
     return std::from_chars(text.data(), text.data() + text.size(), value).ec == std::errc{};
 }
 
-/// "move X,Y@F;down X,Y@F;up X,Y@F;key K@F" (K: SDL key code, "+ctrl" / "+shift" after it).
+/// "move X,Y@F;down X,Y@F;up X,Y@F;key K@F;text T@F" (K: SDL key code, "+ctrl" / "+shift" after
+/// it; T: text typed, as the platform's text input gives it).
 bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::ScriptedInput>& out) {
     using Input = o1602::app::ViewerOptions::ScriptedInput;
     while (!text.empty()) {
@@ -139,7 +141,10 @@ bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::S
             return false;
         }
         in.frame = static_cast<std::uint32_t>(frame);
-        if (verb == "key") {
+        if (verb == "text") {
+            in.kind = Input::Kind::Text;
+            in.text = std::string(args);
+        } else if (verb == "key") {
             in.kind = Input::Kind::Key;
             std::string_view key = args;
             struct Suffix {

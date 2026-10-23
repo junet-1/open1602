@@ -17,6 +17,11 @@ namespace o1602::sim {
 using core::ErrorCode;
 using core::make_error;
 
+bool valid_name(std::string_view name, std::size_t max_length) noexcept {
+    return !name.empty() && name.size() <= max_length &&
+           std::none_of(name.begin(), name.end(), [](char c) { return static_cast<unsigned char>(c) < 0x20; });
+}
+
 World::World(std::uint32_t width, std::uint32_t height)
     : m_width(width), m_height(height), m_cells(std::size_t{width} * height) {}
 
