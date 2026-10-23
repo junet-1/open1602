@@ -111,7 +111,7 @@ core::Result<Font> Font::from_sheet(const assets::SpriteSheet& sheet) {
 
 std::size_t Font::fix_accents() {
     // À-Å, È-Ï, Ñ-Ö, Ù-Ý (Windows-1252): the capitals with a mark above them.
-    constexpr std::array<std::pair<unsigned char, unsigned char>, 4> kCapitals = {
+    constexpr std::array<std::pair<unsigned, unsigned>, 4> kCapitals = {
         {{0xC0, 0xC5}, {0xC8, 0xCF}, {0xD1, 0xD6}, {0xD9, 0xDD}}};
     std::size_t changed = 0;
     for (const auto& [first, last] : kCapitals) {
