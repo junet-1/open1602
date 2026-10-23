@@ -2,6 +2,7 @@
 #include "o1602/sim/goods_ledger.hpp"
 
 #include <algorithm>
+#include <climits>
 
 namespace o1602::sim {
 
@@ -35,6 +36,56 @@ FlowTotals& FlowTotals::operator+=(const FlowTotals& other) noexcept {
     }
     minutes = std::max(minutes, other.minutes);
     return *this;
+}
+
+void CitySample::set(CityFigure f, std::int64_t v) noexcept {
+    value[static_cast<std::size_t>(f)] = static_cast<std::int32_t>(std::clamp<std::int64_t>(v, INT32_MIN, INT32_MAX));
+}
+
+void CitySample::set_class(std::size_t c, std::int64_t v) noexcept {
+    if (c < kCityClasses) {
+        set(static_cast<CityFigure>(static_cast<std::size_t>(CityFigure::Class) + c), v);
+    }
+}
+
+void CityHistory::close_minute(const CitySample& sample) {
+    State& s = m_state;
+    s.minutes[s.closed % kMinutes] = sample;
+    for (std::size_t f = 0; f < kCityFigures; ++f) {
+        s.quarter[f] += sample.value[f];
+    }
+    if ((s.closed + 1) % kQuarterMinutes == 0) {
+        CitySample q;
+        for (std::size_t f = 0; f < kCityFigures; ++f) {
+            q.value[f] = static_cast<std::int32_t>(s.quarter[f] / static_cast<std::int64_t>(kQuarterMinutes));
+        }
+        s.quarters[(s.closed / kQuarterMinutes) % kQuarters] = q;
+        s.quarter = {};
+    }
+    ++s.closed;
+}
+
+std::vector<CitySample> CityHistory::last_minutes() const {
+    const State& s = m_state;
+    const std::uint32_t n = std::min(s.closed, static_cast<std::uint32_t>(kMinutes));
+    std::vector<CitySample> out;
+    out.reserve(n);
+    for (std::uint32_t k = n; k >= 1; --k) {
+        out.push_back(s.minutes[(s.closed - k) % kMinutes]);
+    }
+    return out;
+}
+
+std::vector<CitySample> CityHistory::last_quarters() const {
+    const State& s = m_state;
+    const std::uint32_t done = s.closed / kQuarterMinutes;
+    const std::uint32_t n = std::min(done, static_cast<std::uint32_t>(kQuarters));
+    std::vector<CitySample> out;
+    out.reserve(n);
+    for (std::uint32_t k = n; k >= 1; --k) {
+        out.push_back(s.quarters[(done - k) % kQuarters]);
+    }
+    return out;
 }
 
 GoodsLedger::Ware& GoodsLedger::ware(std::uint8_t ware) {

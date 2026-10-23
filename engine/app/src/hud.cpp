@@ -256,6 +256,12 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         goods.red = ui::nearest_colour(palette, 170, 20, 10);
         goods.stock = ui::nearest_colour(palette, 150, 115, 70);
         goods.shadow = ui::nearest_colour(palette, 0, 0, 0);
+        // The lines of the charts: taxes or the first class green, then red, blue, ochre, purple, grey.
+        constexpr std::array<std::array<std::uint8_t, 3>, 6> kSeries = {
+            {{0, 120, 30}, {170, 20, 10}, {30, 60, 160}, {190, 130, 20}, {120, 40, 130}, {90, 90, 90}}};
+        for (std::size_t i = 0; i < kSeries.size(); ++i) {
+            goods.series[i] = ui::nearest_colour(palette, kSeries[i][0], kSeries[i][1], kSeries[i][2]);
+        }
         // A building's name as the build menu gives it (Text.cod, by its place in its category).
         GoodsWindow::BuildingNames building_names;
         if (own != nullptr) {
@@ -272,6 +278,15 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         m_goods =
             std::make_unique<GoodsWindow>(goods, own != nullptr ? own->section("WARE") : std::vector<std::string>{},
                                           m_ctrl.layout().constant("GFXWARE").value_or(192), std::move(building_names));
+        if (own != nullptr) {
+            // The classes of inhabitants as the house window names them ([GAME] 3 and on).
+            const std::vector<std::string> lines = own->section("GAME");
+            std::vector<std::string> classes;
+            for (std::size_t k = 3; k < 3 + sim::kCityClasses && k < lines.size(); ++k) {
+                classes.push_back(lines[k]);
+            }
+            m_goods->set_class_names(std::move(classes));
+        }
         m_goods_shadow = goods.shadow;
         m_goods_parchment = parchment_pixels(GoodsWindow::kWidth, GoodsWindow::kHeight);
         // The banners of the slots in the palette's nearest colours, grey for any further one.
@@ -1451,7 +1466,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         const ui::Rect r = display_rect();
         m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
     }
-    if (m_goods_open && m_goods) {
+    if (m_goods_open && m_goods && m_figure_table != nullptr) {
         const ui::Rect r = goods_rect();
         // A shadow at the lower right, the parchment, then the window's ink.
         ui::DrawItem shadow;
@@ -1464,7 +1479,8 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         shadow.half = true;
         m_renderer->draw({shadow}, 0, 0, 1.0);
         m_renderer->image(2, m_goods_parchment, GoodsWindow::kWidth, GoodsWindow::kHeight, r, false);
-        m_renderer->draw(m_goods->draw(world, buildings, m_local, m_renderer->fonts()), r.x, r.y, m_goods->scale());
+        m_renderer->draw(m_goods->draw(world, buildings, *m_figure_table, m_local, m_renderer->fonts()), r.x, r.y,
+                         m_goods->scale());
     }
     draw_question();
     draw_help();

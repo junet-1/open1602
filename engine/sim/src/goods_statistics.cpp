@@ -3,6 +3,7 @@
 
 #include <algorithm>
 
+#include "o1602/sim/mission.hpp"
 #include "o1602/sim/production.hpp"
 
 namespace o1602::sim {
@@ -50,15 +51,53 @@ void warn_of_shortages(City& city, const std::vector<std::uint8_t>& consumer_goo
 
 void close_goods_minute(World& world, const assets::BuildingTable& buildings, std::vector<CityEvent>* events) {
     const std::vector<std::uint8_t> goods = consumer_goods(buildings);
+    std::optional<std::vector<std::int32_t>> costs;  // only once a human player's city needs them
+    std::optional<std::vector<std::uint32_t>> workers;
     for (std::size_t i = 0; i < world.cities().size(); ++i) {
         const City& c = world.cities()[i];
         City& city = *world.city(c.island, c.index);
         city.ledger.close_minute(city.goods);
         const Player* owner = world.player(city.owner);
-        if (owner != nullptr && owner->role == PlayerRole::Human) {
-            warn_of_shortages(city, goods, events);
+        if (owner == nullptr || owner->role != PlayerRole::Human) {
+            continue;  // nobody ever sees the figures of computer players and natives
+        }
+        warn_of_shortages(city, goods, events);
+        if (!costs) {
+            costs = running_costs(world, buildings);
+            workers = city_workers(world, buildings);
+        }
+        CitySample s;
+        s.set(CityFigure::Taxes, tax_income(city, buildings));
+        s.set(CityFigure::RunningCosts, i < costs->size() ? (*costs)[i] : 0);
+        s.set(CityFigure::Sales, city.sales / 480);
+        s.set(CityFigure::Purchases, city.purchases / 480);
+        s.set(CityFigure::Inhabitants, city_einwohner(city, i < workers->size() ? (*workers)[i] : 0));
+        for (std::size_t k = 0; k < city.inhabitants.size(); ++k) {
+            s.set_class(k, city.inhabitants[k]);
+        }
+        city.history.close_minute(s);
+    }
+}
+
+std::vector<CitySample> city_history(const World& world, const GoodsScope& scope, bool quarters) {
+    // The cities' samples of the same minute added up, aligned at the newest.
+    std::vector<CitySample> sum;
+    for (const City& c : world.cities()) {
+        if (!scope.covers(c)) {
+            continue;
+        }
+        const std::vector<CitySample> own = quarters ? c.history.last_quarters() : c.history.last_minutes();
+        if (own.size() > sum.size()) {
+            sum.insert(sum.begin(), own.size() - sum.size(), CitySample{});
+        }
+        const std::size_t offset = sum.size() - own.size();
+        for (std::size_t k = 0; k < own.size(); ++k) {
+            for (std::size_t f = 0; f < kCityFigures; ++f) {
+                sum[offset + k].value[f] += own[k].value[f];
+            }
         }
     }
+    return sum;
 }
 
 std::vector<std::uint16_t> goods_islands(const World& world, PlayerId player) {

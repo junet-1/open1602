@@ -550,6 +550,62 @@ stats.short_of_raw = {1} without raw material
 stats.switched_off = {1} switched off
 # The help of a good in a Kontor's stock: {1} the trend in tons a minute, {2} the minutes it is averaged over
 stats.kontor_help = {1} t/min over the last {2} min, click for the goods balance
+# The tabs of the window
+stats.tab.goods = Goods
+stats.tab.producers = Producers
+stats.tab.population = Population
+stats.tab.trade = Trade
+stats.tab.finances = Finances
+# {1}: a whole number of percent
+stats.percent = {1} %
+# The tab "Producers": every kind of production building of the cities
+stats.prod.building = Building
+stats.prod.count = Number
+stats.prod.utilisation = Utilisation
+stats.prod.working = Working
+stats.prod.short = No raw material
+stats.prod.off = Off
+stats.prod.costs = Costs
+stats.prod.empty = None of your cities has production buildings yet.
+# {1}: the buildings, {2}: their running costs
+stats.prod.hint = {1} buildings, running costs {2}. Utilisation as in each building's window. Click a row for its good.
+# The tab "Population"
+stats.pop.class = Class
+stats.pop.inhabitants = Inhabitants
+stats.pop.satisfaction = Satisfaction
+stats.pop.tax = Tax
+stats.pop.total = All inhabitants
+# {1}: how many more (or fewer) than {2} game minutes ago
+stats.pop.growth = {1} in the last {2} min
+stats.pop.supply = Supply of the needs
+# {1}: the minutes chosen
+stats.pop.hint = Satisfaction and taxes now; the supply over the last {1} game minutes. The total includes the workers of the buildings, as in the player status.
+# The tab "Trade": what the Kontors bought and sold in the time chosen
+stats.trade.bought = Bought t
+stats.trade.paid = Paid
+stats.trade.price = Avg. price
+stats.trade.sold = Sold t
+stats.trade.earned = Earned
+stats.trade.partner = Trading partner
+stats.trade.balance = Balance
+stats.trade.trader = Free trader
+stats.trade.players = Ships of other players
+stats.trade.total = Total
+stats.trade.empty = No trade at your Kontors in this time.
+# {1}: the minutes chosen
+stats.trade.hint = Tons and gold of the last {1} game minutes at your Kontors. Click a good for its details.
+# The tab "Finances": gold per minute as in the city window
+stats.fin.now = Now
+# {1}: the minutes chosen
+stats.fin.average = Avg. {1} min
+stats.fin.taxes = Tax income
+stats.fin.costs = Running costs
+stats.fin.military = Military costs
+stats.fin.sales = Sales
+stats.fin.purchases = Purchases
+stats.fin.balance = Balance
+stats.fin.balance_short = Balance
+stats.fin.hint = Gold per minute as in the city window. Military costs belong to all islands together and have no history.
 
 # The early warning of a shortage, in the status bar (in the voice of "Es fehlt an ..."): {1} the
 # good (from Text.cod), {2} the city, {3} game minutes the stock lasts at the current balance

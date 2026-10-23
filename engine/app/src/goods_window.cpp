@@ -6,6 +6,8 @@
 #include <string_view>
 #include <utility>
 
+#include "goods_window_parts.hpp"
+
 #include "o1602/assets/game_data.hpp"
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/goods_statistics.hpp"
@@ -15,34 +17,8 @@ namespace o1602::app {
 
 namespace {
 
-using Id = ui::Form::Id;
+using namespace goods_parts;
 using sim::GoodsFlow;
-using ui::Align;
-using ui::Rect;
-
-constexpr Id kIsland = 1;
-constexpr Id kWindow = 2;
-constexpr Id kAllGoods = 3;
-constexpr Id kClose = 4;
-constexpr Id kBack = 5;
-constexpr Id kChartHour = 6;
-constexpr Id kChartDay = 7;
-constexpr Id kPageUp = 8;
-constexpr Id kPageDown = 9;
-constexpr Id kRow = 100;  // + ware
-
-constexpr std::int32_t kFontNormal = 0;
-constexpr std::int32_t kFontSmall = 1;
-
-constexpr std::int32_t kMargin = 14;
-constexpr std::int32_t kSelectorX = 188;
-constexpr std::int32_t kSelectorY = 44;
-constexpr std::int32_t kSelectorW = 368;
-constexpr std::int32_t kSelectorH = 28;
-constexpr std::int32_t kHeaderY = 114;
-constexpr std::int32_t kTableY = 140;
-constexpr std::int32_t kRowH = 30;
-constexpr std::int32_t kFooterY = GoodsWindow::kHeight - 40;
 
 /// The table's columns: where the numbers end (right aligned) and what heads them.
 struct Column {
@@ -62,26 +38,6 @@ constexpr std::array<Column, 7> kColumns = {{
 }};
 constexpr std::int32_t kSparkX = 668;
 constexpr std::int32_t kSparkW = 52;
-constexpr std::int32_t kScrollX = GoodsWindow::kWidth - 18;
-constexpr std::int32_t kScrollW = 6;
-
-/// The groups of the table, in the order of the original's Kontor window.
-struct Group {
-    std::string_view title;
-    std::vector<std::uint8_t> wares;
-};
-const std::array<Group, 4>& groups() {
-    namespace w = assets::ware;
-    static const std::array<Group, 4> list = {{
-        {"stats.group.consumer",
-         {w::kFood, w::kTobaccoGoods, w::kSpices, w::kCocoa, w::kAlcohol, w::kCloth, w::kClothes, w::kJewellery}},
-        {"stats.group.building", {w::kTools, w::kWood, w::kBricks}},
-        {"stats.group.raw",
-         {w::kOre, w::kGold, w::kWool, w::kSugar, w::kTobacco, w::kMeat, w::kGrain, w::kFlour, w::kIron}},
-        {"stats.group.weapons", {w::kSwords, w::kMuskets, w::kCannons}},
-    }};
-    return list;
-}
 
 /// What came in from outside the production: bought, own ships, given back.
 std::uint64_t imported(const sim::FlowTotals& t) {
@@ -95,10 +51,6 @@ std::uint64_t consumed(const sim::FlowTotals& t) {
 /// What left the cities: sold, own ships, lost to a full warehouse.
 std::uint64_t exported(const sim::FlowTotals& t) {
     return t.of(GoodsFlow::Sold) + t.of(GoodsFlow::ShippedOut) + t.of(GoodsFlow::Lost);
-}
-
-std::uint64_t tons(std::uint64_t units) {
-    return units / assets::kStockUnitsPerTon;
 }
 
 /// The flows of a good's page, with their texts.
@@ -122,91 +74,6 @@ constexpr std::array<FlowLine, 7> kOutflows = {{
 }};
 
 }  // namespace
-
-/// Draw items in design units, turned into pixels of the form's scale.
-class GoodsWindow::Painter {
-public:
-    Painter(double scale, const std::array<const ui::Font*, 3>& fonts) : m_scale(scale), m_fonts(fonts) {}
-
-    [[nodiscard]] std::vector<ui::DrawItem>& items() noexcept { return m_out; }
-
-    /// A rectangle of a palette colour; `half`: at half strength over what lies below.
-    void fill(Rect r, std::uint8_t colour, bool half = false) {
-        if (r.w <= 0 || r.h <= 0) {
-            return;
-        }
-        ui::DrawItem d;
-        d.kind = ui::DrawItem::Kind::Fill;
-        d.x = px(r.x);
-        d.y = px(r.y);
-        d.w = std::max(1, px(r.x + r.w) - d.x);
-        d.h = std::max(1, px(r.y + r.h) - d.y);
-        d.colour = colour;
-        d.half = half;
-        m_out.push_back(d);
-    }
-    /// An outline `width` thick.
-    void outline(Rect r, std::uint8_t colour, std::int32_t width = 1) {
-        fill(Rect{r.x, r.y, r.w, width}, colour);
-        fill(Rect{r.x, r.y + r.h - width, r.w, width}, colour);
-        fill(Rect{r.x, r.y + width, width, r.h - 2 * width}, colour);
-        fill(Rect{r.x + r.w - width, r.y + width, width, r.h - 2 * width}, colour);
-    }
-    /// A triangle pointing left or right, its tip at (x, y).
-    void arrow(std::int32_t x, std::int32_t y, bool left, std::int32_t size, std::uint8_t colour) {
-        for (std::int32_t i = 0; i < size; ++i) {
-            fill(Rect{left ? x + i : x - i, y - i, 1, 2 * i + 1}, colour);
-        }
-    }
-    /// Text in the box, vertically centred and cut to its width.
-    void text(Rect r, std::string t, Align align, std::int32_t colour, std::int32_t font = kFontNormal) {
-        const ui::Font* f = m_fonts[static_cast<std::size_t>(font)];
-        const double height = f != nullptr ? f->height() / f->design_scale() : 18.0;
-        ui::DrawItem d;
-        d.kind = ui::DrawItem::Kind::Text;
-        d.block = font;
-        d.colour = colour;
-        d.align = align;
-        d.text = ui::fit_text(f, std::move(t), std::max(r.w, 0), false);
-        const std::int32_t x = align == Align::Left ? r.x : align == Align::Right ? r.x + r.w : r.x + r.w / 2;
-        d.x = px(x);
-        d.y = px(r.y + static_cast<std::int32_t>((r.h + height) / 2));
-        m_out.push_back(std::move(d));
-    }
-    /// Text wrapped into lines `line` apart, as many as fit the box.
-    void paragraph(Rect r, const std::string& t, std::int32_t colour, std::int32_t font, std::int32_t line) {
-        const ui::Font* f = m_fonts[static_cast<std::size_t>(font)];
-        const std::vector<std::string> lines =
-            f != nullptr ? ui::wrap_text(*f, t, static_cast<std::uint32_t>(std::max(0.0, r.w * f->design_scale())))
-                         : std::vector<std::string>{t};
-        for (std::size_t i = 0; i < lines.size(); ++i) {
-            const std::int32_t y = r.y + static_cast<std::int32_t>(i) * line;
-            if (y + line > r.y + r.h) {
-                break;
-            }
-            text(Rect{r.x, y, r.w, line}, lines[i], Align::Left, colour, font);
-        }
-    }
-    /// A sprite of TOOLS fitted into the box.
-    void sprite(Rect r, std::int32_t gfx) {
-        ui::DrawItem d;
-        d.kind = ui::DrawItem::Kind::Sprite;
-        d.block = 0;
-        d.gfx = gfx;
-        d.x = px(r.x);
-        d.y = px(r.y);
-        d.w = px(r.x + r.w) - d.x;
-        d.h = px(r.y + r.h) - d.y;
-        m_out.push_back(d);
-    }
-
-private:
-    [[nodiscard]] std::int32_t px(std::int32_t v) const { return ui::to_pixels(v, m_scale); }
-
-    std::vector<ui::DrawItem> m_out;
-    double m_scale;
-    const std::array<const ui::Font*, 3>& m_fonts;
-};
 
 GoodsWindow::GoodsWindow(GoodsStyle style, std::vector<std::string> ware_names, std::int32_t ware_icon,
                          BuildingNames building_names)
@@ -251,13 +118,14 @@ void GoodsWindow::wheel(std::int32_t notches) noexcept {
     if (m_detail) {
         return;
     }
-    const std::size_t last = m_row_count > kRows ? m_row_count - kRows : 0;
+    const std::size_t last = m_row_count > m_visible_rows ? m_row_count - m_visible_rows : 0;
     const auto step = static_cast<std::size_t>(std::abs(notches)) * 3;
     m_scroll = notches > 0 ? (m_scroll > step ? m_scroll - step : 0) : std::min(last, m_scroll + step);
 }
 
 std::vector<ui::DrawItem> GoodsWindow::draw(const sim::World& world, const assets::BuildingTable& buildings,
-                                            sim::PlayerId player, const std::array<const ui::Font*, 3>& fonts) {
+                                            const assets::FigureTable& figures, sim::PlayerId player,
+                                            const std::array<const ui::Font*, 3>& fonts) {
     m_islands = sim::goods_islands(world, player);
     if (m_island && std::ranges::find(m_islands, *m_island) == m_islands.end()) {
         m_island.reset();  // the city there was lost
@@ -270,7 +138,24 @@ std::vector<ui::DrawItem> GoodsWindow::draw(const sim::World& world, const asset
     if (m_detail) {
         layout_detail(world, buildings, player, *m_detail, below, above);
     } else {
-        layout_table(world, player, below, above);
+        layout_tabs();
+        switch (m_tab) {
+            case Tab::Goods:
+                layout_table(world, player, below, above);
+                break;
+            case Tab::Producers:
+                layout_producers(world, buildings, figures, player, below, above);
+                break;
+            case Tab::Population:
+                layout_population(world, buildings, player, below, above);
+                break;
+            case Tab::Trade:
+                layout_trade(world, player, below, above);
+                break;
+            case Tab::Finances:
+                layout_finances(world, buildings, figures, player, below, above);
+                break;
+        }
     }
     std::vector<ui::DrawItem> out = std::move(below.items());
     std::vector<ui::DrawItem> form = m_form.draw(fonts);
@@ -328,7 +213,7 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
     const ui::FormStyle& st = s.form;
     const sim::GoodsScope scope{player, m_island};
     const std::uint32_t window = minutes();
-    m_form.check(kAllGoods, Rect{kWidth - 190, 84, 170, 24}, ui::tr("stats.all_goods"), m_all_goods);
+    m_form.check(kAllGoods, Rect{kWidth - 160, kFooterY + 4, 146, 24}, ui::tr("stats.all_goods"), m_all_goods);
 
     // The rows: group headings and the goods worth showing.
     struct Line {
@@ -354,6 +239,7 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
         }
     }
     m_row_count = lines.size();
+    m_visible_rows = kRows;
     m_scroll = std::min(m_scroll, m_row_count > kRows ? m_row_count - kRows : 0);
 
     // The heading of the table.
@@ -441,24 +327,13 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
         above.fill(Rect{kSparkX, mid, kSparkW, 1}, s.shade);
     }
     // The scroll bar: a click above or below the thumb turns a page.
-    if (m_row_count > kRows) {
-        const std::int32_t track = static_cast<std::int32_t>(kRows) * kRowH;
-        const auto thumb_h = std::max<std::int32_t>(
-            20, track * static_cast<std::int32_t>(kRows) / static_cast<std::int32_t>(m_row_count));
-        const auto thumb_y = kTableY + (track - thumb_h) * static_cast<std::int32_t>(m_scroll) /
-                                           static_cast<std::int32_t>(m_row_count - kRows);
-        m_form.row(kPageUp, Rect{kScrollX - 4, kTableY, kScrollW + 8, thumb_y - kTableY}, false);
-        m_form.row(kPageDown, Rect{kScrollX - 4, thumb_y + thumb_h, kScrollW + 8, kTableY + track - thumb_y - thumb_h},
-                   false);
-        below.fill(Rect{kScrollX, kTableY, kScrollW, track}, s.band, true);
-        below.fill(Rect{kScrollX, thumb_y, kScrollW, thumb_h}, s.shade);
-    }
+    layout_scroll_bar(below);
     // Below the table: what the figures mean.
     below.fill(Rect{kMargin, kFooterY - 4, kWidth - 2 * kMargin, 1}, s.shade);
     const std::string hint = known < window && known != 0
                                  ? ui::tr("stats.hint_short", {std::to_string(known), std::to_string(window)})
                                  : ui::tr("stats.hint", {std::to_string(window)});
-    above.paragraph(Rect{kMargin + 2, kFooterY, kWidth - 2 * kMargin, 34}, hint, st.dim, kFontSmall, 17);
+    above.paragraph(Rect{kMargin + 2, kFooterY, kWidth - 2 * kMargin - 170, 34}, hint, st.dim, kFontSmall, 17);
 }
 
 void GoodsWindow::layout_detail(const sim::World& world, const assets::BuildingTable& buildings, sim::PlayerId player,
@@ -751,14 +626,19 @@ GoodsWindow::Result GoodsWindow::mouse(std::int32_t x, std::int32_t y, bool down
             m_long_chart = true;
             break;
         case kPageUp:
-            m_scroll = m_scroll > kRows ? m_scroll - kRows : 0;
+            m_scroll = m_scroll > m_visible_rows ? m_scroll - m_visible_rows : 0;
             break;
         case kPageDown:
-            m_scroll += kRows;  // clamped when laid out
+            m_scroll += m_visible_rows;  // clamped when laid out
             break;
         default:
-            if (*id >= kRow && *id < kRow + 256) {
+            if (*id >= kTab && *id < kTab + static_cast<Id>(kTabs)) {
+                m_tab = static_cast<Tab>(*id - kTab);
+                m_scroll = 0;
+            } else if (*id >= kRow && *id < kRow + 256) {
                 m_detail = static_cast<std::uint8_t>(*id - kRow);
+            } else if (*id >= kProducerRow && static_cast<std::size_t>(*id - kProducerRow) < m_row_wares.size()) {
+                m_detail = m_row_wares[static_cast<std::size_t>(*id - kProducerRow)];
             }
             break;
     }

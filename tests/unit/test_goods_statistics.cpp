@@ -248,3 +248,25 @@ TEST_CASE("goods statistics: a city taken by another player starts afresh") {
     CHECK(!l.used(kFood));
     CHECK(!l.warned(kFood));
 }
+
+TEST_CASE("goods statistics: a city's figures are kept by minute and by quarter") {
+    sim::CityHistory h;
+    for (std::int32_t m = 0; m < 75; ++m) {
+        sim::CitySample s;
+        s.set(sim::CityFigure::Taxes, m);
+        s.set_class(1, 2 * m);
+        h.close_minute(s);
+    }
+    const std::vector<sim::CitySample> minutes = h.last_minutes();
+    REQUIRE(minutes.size() == sim::CityHistory::kMinutes);
+    CHECK(minutes.front().of(sim::CityFigure::Taxes) == 15);
+    CHECK(minutes.back().of(sim::CityFigure::Taxes) == 74);
+    CHECK(minutes.back().of_class(1) == 148);
+    const std::vector<sim::CitySample> quarters = h.last_quarters();
+    REQUIRE(quarters.size() == 5);
+    CHECK(quarters.front().of(sim::CityFigure::Taxes) == 7);  // 0..14 on average
+    CHECK(quarters.back().of(sim::CityFigure::Taxes) == 67);  // 60..74
+    sim::CitySample big;
+    big.set(sim::CityFigure::Sales, std::int64_t{1} << 40);
+    CHECK(big.of(sim::CityFigure::Sales) == INT32_MAX);
+}

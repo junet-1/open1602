@@ -18,6 +18,7 @@ add_library(o1602_menus
     ../src/event_presenter.cpp
     ../src/game_folder.cpp
     ../src/game_settings_menu.cpp
+    ../src/goods_tabs.cpp
     ../src/goods_window.cpp
     ../src/high_score_file.cpp
     ../src/map_gestures.cpp
@@ -27,6 +28,7 @@ add_library(o1602_menus
     ../src/multiplayer_texts.cpp
     ../src/parchment.cpp
     ../src/order_questions.cpp
+    ../src/production_utilisation.cpp
     ../src/tile_status.cpp
     ../src/tutorial.cpp
     ../src/video_queue.cpp

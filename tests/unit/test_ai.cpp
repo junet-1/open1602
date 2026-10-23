@@ -362,7 +362,7 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
-    constexpr std::uint64_t kExpected = 0x0b11f8499e3f039cULL;  // with the goods statistics (GLDG)
+    constexpr std::uint64_t kExpected = 0xff0f23ab6d3433daULL;  // with the goods statistics (GLDG, 16 flows)
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }

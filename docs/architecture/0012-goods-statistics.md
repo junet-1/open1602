@@ -16,7 +16,9 @@ before a good the people need runs out.
    - in: `Produced`, `Bought`, `ShippedIn`, `Returned`;
    - out: `Residents`, `Workshops`, `Military`, `Construction`, `Sold`, `ShippedOut`, `Lost`;
    - and `Demand`, which is not a movement: what the inhabitants asked for. Together with
-     `Residents` it gives how well they were supplied.
+     `Residents` it gives how well they were supplied;
+   - and four that count gold, not goods: `SoldValue` and `BoughtValue`, what the Kontor earned
+     and paid for the good, and `TraderSoldValue` and `TraderBoughtValue`, the free trader's share.
 
    Production and the raw material of a cycle are booked at the building when the cycle ends
    (`production_cycle.cpp`), not when a carrier brings the goods to the warehouse. The statistics
@@ -80,6 +82,26 @@ before a good the people need runs out.
    it is below 0.05 t. A click on a good opens its page in the window "Warenbilanz" for the
    city's island. The trend is a setting of the window "Anzeige" (`display.goods_trend` in
    settings.cfg, on at first), since it adds to the original's picture.
+
+8. **The other tabs.** Beside "Waren" the window has four tabs, all for the scope chosen above:
+   - "Betriebe": every kind of production building with its number, its utilisation as the
+     building window shows it (`app/production_utilisation.hpp`, the original's Prod_Utilisation),
+     how many work, wait for raw material or are switched off, and their running costs. A click
+     opens the page of its good.
+   - "Bevölkerung": the inhabitants of each class with their satisfaction and taxes now, all of
+     them and how many more than an hour ago, the supply of each need over the time chosen, and the
+     classes over the last hour or 12 hours as a chart.
+   - "Handel": per good the tons bought and sold at the Kontor in the time chosen, the gold and the
+     average price per ton, and below it the trade with the free trader and with other players'
+     ships. A click opens the page of the good.
+   - "Finanzen": tax income, running costs, sales, purchases and the balance now (as the city
+     window computes them) and on average over the time chosen, and their chart; the military
+     costs only for all islands together, since soldiers and ships belong to no island.
+
+   The history of the last two comes from `sim::CityHistory` (`City::history`): every game minute,
+   for the cities of human players only, the city window's figures and the inhabitants of each
+   class become a sample, kept like the goods by minute for an hour and by quarter for 12 hours.
+   It is saved with the ledger in `GLDG` and is part of the state hash like it.
 
 ## Consequences
 

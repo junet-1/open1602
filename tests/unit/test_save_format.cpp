@@ -919,8 +919,14 @@ TEST_CASE("save format: the goods statistics of the cities come back (GLDG)") {
         city.book(19, sim::GoodsFlow::Produced, 10 + m);
         city.book(14, sim::GoodsFlow::Residents, 3 * m);
         city.ledger.close_minute(city.goods);
+        sim::CitySample s;
+        s.set(sim::CityFigure::Taxes, 100 + m);
+        s.set(sim::CityFigure::Sales, -7);
+        s.set_class(2, 40 * m);
+        city.history.close_minute(s);
     }
     city.book(19, sim::GoodsFlow::Sold, 32);  // the running minute
+    city.book(19, sim::GoodsFlow::SoldValue, 75);
     city.ledger.set_warned(14, true);
     const core::Bytes bytes = save(world, buildings);
     std::vector<std::string> warnings;
@@ -935,5 +941,7 @@ TEST_CASE("save format: the goods statistics of the cities come back (GLDG)") {
           city.ledger.totals(19, 5).of(sim::GoodsFlow::Produced));
     CHECK(back->ledger.last_minutes(14) == city.ledger.last_minutes(14));
     CHECK(back->ledger.last_quarters(19) == city.ledger.last_quarters(19));
+    CHECK(back->history == city.history);
+    CHECK(back->history.last_quarters().size() == 4);
     CHECK(save(*loaded, buildings) == bytes);
 }

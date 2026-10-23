@@ -298,6 +298,7 @@ core::Status apply_decoded(World& world, Decoded& d) {
             for (Decoded::CityLedger& st : *d.ledgers) {
                 if (City* c = world.city(st.island, st.index)) {
                     c->ledger = std::move(st.ledger);
+                    c->history = std::move(st.history);
                 }
             }
         }

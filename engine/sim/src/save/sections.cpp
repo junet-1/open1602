@@ -227,7 +227,7 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
         section(out, kGiveUps, [&](Writer& o) { write_give_up_counts(o, world); }, Need::Optional);
     }
     if (std::ranges::any_of(world.cities(), [](const City& c) {
-            return c.ledger.minutes_closed() != 0 || !c.ledger.wares().empty();
+            return c.ledger.minutes_closed() != 0 || !c.ledger.wares().empty() || c.history.minutes_closed() != 0;
         })) {
         section(out, kLedgers, [&](Writer& o) { write_ledgers(o, world); }, Need::Optional);
     }

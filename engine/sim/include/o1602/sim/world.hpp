@@ -189,6 +189,9 @@ struct City {
     /// Where the goods came from and went to, by game minute (Open1602's goods statistics; the
     /// game never reads it). Every change of `goods` books its share here (book()).
     GoodsLedger ledger;
+    /// The figures of the city window by game minute (Open1602's statistics; the game never reads
+    /// it).
+    CityHistory history;
 
     [[nodiscard]] const Trade* trade_of(std::uint8_t ware) const noexcept {
         return ware < trade.size() ? &trade[ware] : nullptr;

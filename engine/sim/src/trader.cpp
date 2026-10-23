@@ -278,6 +278,9 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
             earn_from_trade(*owner, std::int64_t{price} * n / kTon);
         }
         city.sales += 32 * (std::int64_t{price} * n / kTon);
+        const auto earned = static_cast<std::uint32_t>(std::int64_t{price} * n / kTon);
+        city.book(w, GoodsFlow::SoldValue, earned);
+        city.book(w, GoodsFlow::TraderSoldValue, earned);
         add_good(ship, w, n, price);
         traded = true;
         m_events.push_back(ShipEvent{ShipEvent::Kind::Traded, ship.id, ship.owner, city.island, city.index, w,
@@ -297,6 +300,9 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
             pay_for_trade(*owner, std::int64_t{price} * n / kTon);
         }
         city.purchases += 32 * (std::int64_t{price} * n / kTon);
+        const auto paid = static_cast<std::uint32_t>(std::int64_t{price} * n / kTon);
+        city.book(w, GoodsFlow::BoughtValue, paid);
+        city.book(w, GoodsFlow::TraderBoughtValue, paid);
         TraderGood* g = good_of(ship, w);
         g->amount -= std::min(n, g->amount);
         g->age = 0;

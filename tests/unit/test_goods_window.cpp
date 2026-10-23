@@ -22,6 +22,7 @@ constexpr std::uint8_t kFood = 14;
 constexpr std::uint8_t kWood = 23;
 constexpr std::uint32_t kTon = 32;
 constexpr std::array<const ui::Font*, 3> kNoFonts{};
+const assets::FigureTable kFigures{};
 
 /// A human (0) with cities on islands 0 and 1, and an ally (1) with a city on island 0.
 sim::World make_world() {
@@ -88,12 +89,13 @@ void click(GoodsWindow& w, ui::Form::Id id, ui::MouseButton button = ui::MouseBu
             return;
         }
     }
-    REQUIRE(!"no such widget");
+    REQUIRE(false);  // no such widget
 }
 
 constexpr ui::Form::Id kIsland = 1;
 constexpr ui::Form::Id kWindow = 2;
 constexpr ui::Form::Id kBack = 5;
+constexpr ui::Form::Id kTab = 10;
 constexpr ui::Form::Id kRow = 100;
 
 }  // namespace
@@ -122,7 +124,7 @@ TEST_CASE("goods window: only the player's own cities, all islands or one") {
     }
     GoodsWindow w(app::GoodsStyle{}, names(25), 192);
     w.open();
-    auto items = w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
+    auto items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
     CHECK(shows(w, kRow + kWood));
     CHECK(!shows(w, kRow + kFood));      // only the ally made food
     CHECK(draws_text(items, tons(14)));  // 10 t + 4 t
@@ -132,7 +134,7 @@ TEST_CASE("goods window: only the player's own cities, all islands or one") {
     click(w, kIsland);  // the first island: Eastport
     REQUIRE(w.island().has_value());
     CHECK(*w.island() == 0);
-    items = w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
+    items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
     CHECK(draws_text(items, tons(10)));
     CHECK(std::ranges::any_of(w.form().widgets(), [](const ui::Form::Widget& x) { return x.text == "Eastport"; }));
     click(w, kIsland);
@@ -143,9 +145,9 @@ TEST_CASE("goods window: only the player's own cities, all islands or one") {
     CHECK(*w.island() == 1);
 
     // The ally sees only its own city.
-    (void)w.draw(world, assets::BuildingTable{}, 1, kNoFonts);
+    (void)w.draw(world, assets::BuildingTable{}, kFigures, 1, kNoFonts);
     CHECK(!w.island().has_value());  // its island list has no island 1
-    items = w.draw(world, assets::BuildingTable{}, 1, kNoFonts);
+    items = w.draw(world, assets::BuildingTable{}, kFigures, 1, kNoFonts);
     CHECK(draws_text(items, tons(100)));
     CHECK(shows(w, kRow + kFood));
 }
@@ -153,7 +155,7 @@ TEST_CASE("goods window: only the player's own cities, all islands or one") {
 TEST_CASE("goods window: the time window goes 1, 5, 15, 60 minutes, five at first") {
     GoodsWindow w(app::GoodsStyle{}, names(25), 192);
     sim::World world = make_world();
-    (void)w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
+    (void)w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
     CHECK(w.minutes() == 5);
     click(w, kWindow);
     CHECK(w.minutes() == 15);
@@ -174,11 +176,11 @@ TEST_CASE("goods window: a click on a good opens its page, Escape goes back to t
     c.ledger.close_minute(c.goods);
     GoodsWindow w(app::GoodsStyle{}, names(25), 192);
     w.open();
-    (void)w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
+    (void)w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
     click(w, kRow + kWood);
     REQUIRE(w.detail().has_value());
     CHECK(*w.detail() == kWood);
-    const auto items = w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
+    const auto items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
     CHECK(draws_text(items, "ware23"));
     CHECK(draws_text(items, "+4.0 " + ui::tr("stats.per_minute")));  // 6 t in, 2 t out in the one minute there is
     CHECK(shows(w, kBack));
@@ -195,4 +197,54 @@ TEST_CASE("goods window: the parchment is the same on every computer") {
     for (std::size_t i = 3; i < a.size(); i += 4) {
         REQUIRE(a[i] == 255);  // opaque
     }
+}
+
+TEST_CASE("goods window: the tabs, and the trade and finances of one's own cities") {
+    sim::World world = make_world();
+    sim::City& c = city(world, 0, 0);
+    c.book(kWood, GoodsFlow::Sold, 4 * kTon);
+    c.book(kWood, GoodsFlow::SoldValue, 120);
+    c.book(kWood, GoodsFlow::TraderSoldValue, 30);
+    c.book(kFood, GoodsFlow::Bought, 2 * kTon);
+    c.book(kFood, GoodsFlow::BoughtValue, 50);
+    city(world, 0, 1).book(kWood, GoodsFlow::SoldValue, 999);  // the ally's: never shown
+    for (const auto& [island, index] : {std::pair<std::uint16_t, std::uint8_t>{0, 0}, {0, 1}}) {
+        sim::City& x = city(world, island, index);
+        x.ledger.close_minute(x.goods);
+    }
+    sim::CitySample s;
+    s.set(sim::CityFigure::Taxes, 80);
+    s.set(sim::CityFigure::RunningCosts, 30);
+    s.set(sim::CityFigure::Inhabitants, 150);
+    s.set_class(0, 150);
+    c.history.close_minute(s);
+    c.inhabitants = {150};
+
+    GoodsWindow w(app::GoodsStyle{}, names(25), 192);
+    w.open();
+    (void)w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
+    CHECK(w.tab() == GoodsWindow::Tab::Goods);
+    click(w, kTab + static_cast<ui::Form::Id>(GoodsWindow::Tab::Trade));
+    CHECK(w.tab() == GoodsWindow::Tab::Trade);
+    auto items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
+    CHECK(draws_text(items, "ware23"));
+    CHECK(draws_text(items, "120"));  // earned with wood
+    CHECK(draws_text(items, "30"));   // average price per ton, and the free trader's share
+    CHECK(draws_text(items, "50"));   // paid for food
+    CHECK(draws_text(items, "+70"));  // the balance of all
+    CHECK(!draws_text(items, "999"));
+    click(w, kRow + kWood);  // a good of the trade opens its page
+    CHECK(w.detail() == std::optional<std::uint8_t>(kWood));
+    CHECK(w.back());
+    CHECK(w.tab() == GoodsWindow::Tab::Trade);
+
+    click(w, kTab + static_cast<ui::Form::Id>(GoodsWindow::Tab::Finances));
+    items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
+    CHECK(draws_text(items, "80"));  // the taxes of the last minute on average
+    click(w, kTab + static_cast<ui::Form::Id>(GoodsWindow::Tab::Population));
+    items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
+    CHECK(draws_text(items, "150"));
+    click(w, kTab + static_cast<ui::Form::Id>(GoodsWindow::Tab::Producers));
+    items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
+    CHECK(draws_text(items, ui::tr("stats.prod.empty")));
 }

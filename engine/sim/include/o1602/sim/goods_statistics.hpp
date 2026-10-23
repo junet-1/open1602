@@ -46,6 +46,9 @@ struct GoodsScope {
     }
 };
 
+/// The figures of the scope's cities by minute (or quarter), added up, oldest first; only human
+/// players' cities keep them.
+[[nodiscard]] std::vector<CitySample> city_history(const World& world, const GoodsScope& scope, bool quarters);
 /// The islands where the player has a city, in island order.
 [[nodiscard]] std::vector<std::uint16_t> goods_islands(const World& world, PlayerId player);
 /// The flows of a ware over the last `minutes` game minutes in the scope.

@@ -115,6 +115,24 @@ void io_ledger_ware(A& a, W& w) {
     samples(w.quarters);
 }
 
+/// GLDG: a city's CityHistory.
+template <class A, class S>
+void io_city_history(A& a, S& s) {
+    a.u32(s.closed);
+    const auto samples = [&](auto& ring) {
+        for (auto& sample : ring) {
+            for (auto& v : sample.value) {
+                a.i32(v);
+            }
+        }
+    };
+    samples(s.minutes);
+    samples(s.quarters);
+    for (auto& v : s.quarter) {
+        a.i64(v);
+    }
+}
+
 template <class A, class P>
 void io_production(A& a, P& p) {
     a.u16(p.island);
@@ -234,11 +252,11 @@ std::vector<Decoded::GiveUpCount> read_give_up_counts(Reader& in) {
 void write_ledgers(Writer& out, const World& w) {
     std::vector<const City*> kept;
     for (const City& c : w.cities()) {
-        if (c.ledger.minutes_closed() != 0 || !c.ledger.wares().empty()) {
+        if (c.ledger.minutes_closed() != 0 || !c.ledger.wares().empty() || c.history.minutes_closed() != 0) {
             kept.push_back(&c);
         }
     }
-    out.list(kept, 11, [&](const City* c) {
+    out.list(kept, 12, [&](const City* c) {
         out.u16(c->island);
         out.u8(c->index);
         out.u32(c->ledger.minutes_closed());
@@ -253,12 +271,19 @@ void write_ledgers(Writer& out, const World& w) {
             out.u8(ware);
             io_ledger_ware(out, c->ledger.wares()[ware]);
         });
+        // The figures of the city window: only human players' cities have them.
+        const bool history = c->history.minutes_closed() != 0;
+        out.boolean(history);
+        if (history) {
+            CityHistory::State s = c->history.state();
+            io_city_history(out, s);
+        }
     });
 }
 
 std::vector<Decoded::CityLedger> read_ledgers(Reader& in) {
     std::vector<Decoded::CityLedger> list;
-    in.list(list, 11, [&](Decoded::CityLedger& c) {
+    in.list(list, 12, [&](Decoded::CityLedger& c) {
         in.u16(c.island);
         in.u8(c.index);
         std::uint32_t closed = 0;
@@ -277,6 +302,13 @@ std::vector<Decoded::CityLedger> read_ledgers(Reader& in) {
             wares[ware] = std::move(w);
         }
         c.ledger.restore(std::move(wares), closed);
+        bool history = false;
+        in.boolean(history);
+        if (history) {
+            CityHistory::State s;
+            io_city_history(in, s);
+            c.history.restore(std::move(s));
+        }
     });
     return list;
 }

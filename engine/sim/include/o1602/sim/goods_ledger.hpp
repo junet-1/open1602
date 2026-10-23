@@ -29,8 +29,14 @@ enum class GoodsFlow : std::uint8_t {
     ShippedOut,    ///< out: an own ship loaded at the Kontor
     Lost,          ///< out: did not fit into the full warehouse
     Demand,        ///< what the inhabitants asked for; not a movement (with Residents: the supply)
+    // Not goods but gold, for the trade at the Kontor (the tab "Handel"): what the city earned with
+    // Sold and paid for Bought, and the free trader's share of each.
+    SoldValue,
+    BoughtValue,
+    TraderSoldValue,
+    TraderBoughtValue,
 };
-inline constexpr std::size_t kGoodsFlows = 12;
+inline constexpr std::size_t kGoodsFlows = 16;
 
 [[nodiscard]] constexpr bool is_inflow(GoodsFlow f) noexcept {
     return f <= GoodsFlow::Returned;
@@ -52,6 +58,64 @@ struct FlowTotals {
         return static_cast<std::int64_t>(in()) - static_cast<std::int64_t>(out());
     }
     FlowTotals& operator+=(const FlowTotals& other) noexcept;
+};
+
+/// What the window of a city shows, as numbers kept by minute (the tabs "Bevölkerung" and
+/// "Finanzen"): the moving averages of the city window and its inhabitants.
+enum class CityFigure : std::uint8_t {
+    Taxes,         ///< tax income (consumption.hpp, tax_income)
+    RunningCosts,  ///< running costs of its buildings
+    Sales,         ///< City::sales / 480, the moving average per minute
+    Purchases,     ///< City::purchases / 480
+    Inhabitants,   ///< all of them, as the player status counts them (with the workers of farms)
+    Class,         ///< + class: inhabitants of each class (BuildingTable::resident_classes)
+};
+/// Classes of inhabitants kept: the original's five and room for more.
+inline constexpr std::size_t kCityClasses = 8;
+inline constexpr std::size_t kCityFigures = static_cast<std::size_t>(CityFigure::Class) + kCityClasses;
+
+struct CitySample {
+    std::array<std::int32_t, kCityFigures> value{};
+
+    [[nodiscard]] std::int32_t of(CityFigure f) const noexcept { return value[static_cast<std::size_t>(f)]; }
+    [[nodiscard]] std::int32_t of_class(std::size_t c) const noexcept {
+        return c < kCityClasses ? value[static_cast<std::size_t>(CityFigure::Class) + c] : 0;
+    }
+    void set(CityFigure f, std::int64_t v) noexcept;
+    void set_class(std::size_t c, std::int64_t v) noexcept;
+    bool operator==(const CitySample&) const = default;
+};
+
+/// A city's figures by game minute: the last hour one by one, the last twelve hours by quarters
+/// (their average minute). Fixed size, integers only.
+class CityHistory {
+public:
+    static constexpr std::size_t kMinutes = 60;
+    static constexpr std::size_t kQuarterMinutes = 15;
+    static constexpr std::size_t kQuarters = 48;
+
+    void close_minute(const CitySample& sample);
+    void clear() noexcept { *this = CityHistory{}; }
+    [[nodiscard]] std::uint32_t minutes_closed() const noexcept { return m_state.closed; }
+    /// The samples of the last hour, or the last twelve hours by quarters, oldest first.
+    [[nodiscard]] std::vector<CitySample> last_minutes() const;
+    [[nodiscard]] std::vector<CitySample> last_quarters() const;
+
+    // For the savegame (save/cities.cpp).
+    struct State {
+        std::array<CitySample, kMinutes> minutes{};
+        std::array<CitySample, kQuarters> quarters{};
+        std::array<std::int64_t, kCityFigures> quarter{};  ///< sums of the running quarter
+        std::uint32_t closed = 0;
+        bool operator==(const State&) const = default;
+    };
+    [[nodiscard]] const State& state() const noexcept { return m_state; }
+    void restore(State state) { m_state = std::move(state); }
+
+    bool operator==(const CityHistory&) const = default;
+
+private:
+    State m_state;
 };
 
 class GoodsLedger {

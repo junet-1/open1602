@@ -106,11 +106,12 @@ struct Decoded {
         std::uint8_t ships_gave_up = 0;
     };
     std::optional<std::vector<GiveUpCount>> give_up_counts;
-    /// The goods statistics of the cities (GLDG): island, index, City::ledger.
+    /// The goods statistics of the cities (GLDG): island, index, City::ledger and City::history.
     struct CityLedger {
         std::uint16_t island = 0;
         std::uint8_t index = 0;
         GoodsLedger ledger;
+        CityHistory history;
     };
     std::optional<std::vector<CityLedger>> ledgers;
     /// The score's counters (SCOR), in the order of PLAY, and the cities' monument clocks.

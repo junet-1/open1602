@@ -1890,6 +1890,7 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
         if (City* c = world.city(order.island, city)) {
             c->owner = order.player;
             c->ledger.clear();  // the new owner's statistics start with the city
+            c->history.clear();
         }
         ConstructionEvent e;
         e.kind = ConstructionEvent::Kind::CityTaken;
