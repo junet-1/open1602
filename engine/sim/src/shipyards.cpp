@@ -15,6 +15,9 @@ namespace {
 constexpr std::uint32_t kSecondMs = 1000;
 constexpr std::uint16_t kIdleSeconds = 11;        // a cycle that could not start waits this long
 constexpr std::uint32_t kFetchThreshold = 0x180;  // material for three cycles or less: fetch more
+
+constexpr std::uint8_t kLaunchesToComplain = 100;  // failed launches before a computer complains
+constexpr std::int32_t kYardComplaint = 8;         // reach of the count round the shipyard (0x004287B0)
 constexpr std::uint8_t kMaxIdle = 15;
 constexpr std::uint8_t kSmallYardSize = 3;
 constexpr auto kShipTypes = static_cast<std::uint8_t>(figure::kShips.size());
@@ -228,6 +231,14 @@ void Fleet::yard_cycle(CostBuilding& yard) {
                 yard.order = CostBuilding::kNoOrder;
                 yard.progress = 0;
                 yard.enabled = false;
+            } else if (++yard.failed_launches >= kLaunchesToComplain) {
+                // 0x00479508: after 100 tries (about 18 minutes) a computer owner looks for the
+                // ships in the way (0x00428920 with 2). The original measures from the shipyard
+                // its computer has noted, Open1602 from this one; a computer builds only one.
+                yard.failed_launches = 0;
+                const WorldIsland& home = m_world->islands()[yard.island];
+                complain_of_ships(home.map.top(yard.x, yard.y).owner, static_cast<std::int32_t>(home.x + yard.x),
+                                  static_cast<std::int32_t>(home.y + yard.y), kYardComplaint);
             }
             yard.countdown = kIdleSeconds;
             return;

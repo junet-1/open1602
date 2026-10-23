@@ -675,6 +675,11 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
         const sim::City& city = world.cities()[c];
         v(world.city(city.island, city.index)->population_message);
     }
+    // CGUP came later still.
+    for (std::size_t c = 0; c < world.cities().size(); ++c) {
+        const sim::City& city = world.cities()[c];
+        v(world.city(city.island, city.index)->ships_gave_up);
+    }
     return world;
 }
 
@@ -740,6 +745,7 @@ constexpr Golden kSaveNarrow[] = {
     {"CSTA", 1, 1, 42, 0x2AD09545},
     {"MLCK", 1, 1, 26, 0x763D1485},
     {"CPOP", 1, 1, 12, 0xB3A6798A},
+    {"CGUP", 1, 0, 12, 0xAD80A19D},
     {"SCOR", 1, 1, 70, 0x9488157B},
     {"PROD", 1, 1, 116, 0x24D09C54},
     {"HOUS", 1, 1, 64, 0x8D864860},
@@ -773,6 +779,7 @@ constexpr Golden kSaveWide[] = {
     {"CSTA", 1, 1, 42, 0x70987BC5},
     {"MLCK", 1, 1, 26, 0xC45417C3},
     {"CPOP", 1, 1, 12, 0x822F95B4},
+    {"CGUP", 1, 0, 12, 0xDD9F271A},
     {"SCOR", 1, 1, 70, 0xC46D7A86},
     {"PROD", 1, 1, 116, 0x4814F74A},
     {"HOUS", 1, 1, 64, 0x15190742},
@@ -804,6 +811,7 @@ constexpr Golden kChunkNarrow[] = {
     {"CSTA", 1, 1, 42, 0x2AD09545},
     {"MLCK", 1, 1, 26, 0x763D1485},
     {"CPOP", 1, 1, 12, 0xB3A6798A},
+    {"CGUP", 1, 0, 12, 0xAD80A19D},
     {"SCOR", 1, 1, 70, 0x9488157B},
     {"PROD", 1, 1, 116, 0x24D09C54},
     {"HOUS", 1, 1, 64, 0x8D864860},
@@ -835,6 +843,7 @@ constexpr Golden kChunkWide[] = {
     {"CSTA", 1, 1, 42, 0x70987BC5},
     {"MLCK", 1, 1, 26, 0xC45417C3},
     {"CPOP", 1, 1, 12, 0x822F95B4},
+    {"CGUP", 1, 0, 12, 0xDD9F271A},
     {"SCOR", 1, 1, 70, 0xC46D7A86},
     {"PROD", 1, 1, 116, 0x4814F74A},
     {"HOUS", 1, 1, 64, 0x15190742},

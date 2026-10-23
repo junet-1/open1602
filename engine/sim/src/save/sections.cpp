@@ -74,6 +74,8 @@ constexpr std::uint32_t kQueues = tag("QUEU");
 constexpr std::uint32_t kStances = tag("STNC");
 /// The tutorial flag of the world (TIMERS +0xA5), only written when set.
 constexpr std::uint32_t kTutorial = tag("TUTR");
+/// The ships that gave up their way to each Kontor (city + 0x252), only written when one did.
+constexpr std::uint32_t kGiveUps = tag("CGUP");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -81,7 +83,7 @@ constexpr std::array kKnownSections = {
     kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
     kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
     kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks,
-    kPopulationMarks, kTutorial};
+    kPopulationMarks, kTutorial,    kGiveUps};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -219,6 +221,9 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
     section(out, kCityState, [&](Writer& o) { write_city_state(o, world); });
     section(out, kMaterialClocks, [&](Writer& o) { write_material_clocks(o, world); });
     section(out, kPopulationMarks, [&](Writer& o) { write_population_marks(o, world); });
+    if (std::ranges::any_of(world.cities(), [](const City& c) { return c.ships_gave_up != 0; })) {
+        section(out, kGiveUps, [&](Writer& o) { write_give_up_counts(o, world); }, Need::Optional);
+    }
     section(out, kScores, [&](Writer& o) { write_scores(o, world); });
     section(out, kProductions, [&](Writer& o) { write_productions(o, world); });
     section(out, kHouses, [&](Writer& o) { write_houses(o, world); });
@@ -369,6 +374,9 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 break;
             case kMaterialClocks:
                 d.material_clocks = read_material_clocks(in);
+                break;
+            case kGiveUps:
+                d.give_up_counts = read_give_up_counts(in);
                 break;
             case kPopulationMarks:
                 d.population_marks = read_population_marks(in);

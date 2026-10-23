@@ -99,6 +99,13 @@ struct Decoded {
         std::uint8_t population_message = 0;
     };
     std::optional<std::vector<PopulationMark>> population_marks;
+    /// The ships that gave up on a Kontor (CGUP): island, index, City::ships_gave_up.
+    struct GiveUpCount {
+        std::uint16_t island = 0;
+        std::uint8_t index = 0;
+        std::uint8_t ships_gave_up = 0;
+    };
+    std::optional<std::vector<GiveUpCount>> give_up_counts;
     /// The score's counters (SCOR), in the order of PLAY, and the cities' monument clocks.
     struct ScorePart {
         struct Counters {
@@ -271,6 +278,8 @@ void write_material_clocks(Writer& out, const World& w);
 [[nodiscard]] std::vector<Decoded::MaterialClock> read_material_clocks(Reader& in);
 void write_population_marks(Writer& out, const World& w);
 [[nodiscard]] std::vector<Decoded::PopulationMark> read_population_marks(Reader& in);
+void write_give_up_counts(Writer& out, const World& w);
+[[nodiscard]] std::vector<Decoded::GiveUpCount> read_give_up_counts(Reader& in);
 void write_productions(Writer& out, const World& w);
 [[nodiscard]] Decoded::ProductionPart read_productions(Reader& in);
 void write_houses(Writer& out, const World& w);
