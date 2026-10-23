@@ -499,6 +499,7 @@ stats.empty = No city of yours has goods yet.
 stats.decimal_point = .
 # How long a stock lasts: {1} game minutes, {1} game hours
 stats.minutes = {1} min
+stats.under_minute = < 1 min
 stats.hours = {1} h
 # In "Lasts": nothing left in store while more goes out than comes in
 stats.gone = empty

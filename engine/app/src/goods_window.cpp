@@ -104,6 +104,9 @@ std::string GoodsWindow::lasts_text(std::optional<std::uint32_t> minutes) {
     if (!minutes) {
         return {};
     }
+    if (*minutes == 0) {
+        return ui::tr("stats.under_minute");  // some is left, but not for a whole minute
+    }
     if (*minutes < 100) {
         return ui::tr("stats.minutes", {std::to_string(*minutes)});
     }

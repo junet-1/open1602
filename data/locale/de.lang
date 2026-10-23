@@ -462,6 +462,7 @@ stats.col.trend = 60 Min
 stats.empty = Noch keine Ihrer Städte hat Waren.
 stats.decimal_point = ,
 stats.minutes = {1} Min
+stats.under_minute = < 1 Min
 stats.hours = {1} Std
 stats.gone = leer
 stats.hint = Tonnen pro Minute, Durchschnitt der letzten {1} Spielminuten. Klick auf eine Ware zeigt Einzelheiten.

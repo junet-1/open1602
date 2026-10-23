@@ -109,6 +109,7 @@ TEST_CASE("goods window: tons per minute with one decimal, and how long a stock 
     CHECK(GoodsWindow::rate_text(32, 0) == "-");
     CHECK(GoodsWindow::lasts_text(std::nullopt).empty());
     CHECK(GoodsWindow::lasts_text(12) == "12 min");
+    CHECK(GoodsWindow::lasts_text(0) == "< 1 min");
     CHECK(GoodsWindow::lasts_text(150) == "2 h");
 }
 
