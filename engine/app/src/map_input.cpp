@@ -736,7 +736,7 @@ void MapInput::handle_event(const SDL_Event& event) {
             }
             if (event.button.button == SDL_BUTTON_LEFT && m_hud && m_hud->picking()) {
                 // A window waits for a place on the map (a unit's destination).
-                if (const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y)) {
+                if (const auto tile = tile_at_mouse()) {
                     m_hud->map_click(static_cast<std::uint32_t>(tile->x), static_cast<std::uint32_t>(tile->y));
                 }
                 break;
@@ -871,8 +871,15 @@ void MapInput::set_mode(std::int32_t mode) {
     }
 }
 
+std::optional<render::TilePos> MapInput::tile_at(double sx, double sy) const {
+    const sim::World& w = world();
+    const render::Zoom zoom = m_camera.view().zoom;
+    return m_camera.ground_tile_at_screen(
+        sx, sy, [&](render::TilePos t) { return render::tile_elevation(w, m_buildings, local(), t.x, t.y, zoom); });
+}
+
 std::optional<BuildTool::Spot> MapInput::spot_at_mouse() const {
-    const auto tile = m_camera.tile_at_screen(m_mouse_x, m_mouse_y);
+    const auto tile = tile_at_mouse();
     if (!tile) {
         return std::nullopt;
     }
@@ -1082,7 +1089,8 @@ std::pair<std::int32_t, std::int32_t> MapInput::world_pixel(double sx, double sy
 std::optional<render::TileHit> MapInput::building_tile_at(double sx, double sy, const BuildingFilter& wanted) const {
     const sim::World& w = world();
     const auto accepts = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) {
-        if (island == sim::World::kSea) {
+        // An island the player has not discovered shows only its ground: nothing there to click.
+        if (island == sim::World::kSea || (local() != sim::kNoPlayer && !w.islands()[island].discovered_by(local()))) {
             return false;
         }
         return wanted(island, w.islands()[island].map.sub_tile(m_buildings, x, y));
@@ -1097,7 +1105,7 @@ std::optional<render::TileHit> MapInput::building_tile_at(double sx, double sy, 
             }
         }
     }
-    const auto tile = m_camera.tile_at_screen(sx, sy);
+    const auto tile = tile_at(sx, sy);
     if (!tile || tile->x >= w.width() || tile->y >= w.height()) {
         return std::nullopt;
     }
@@ -1221,7 +1229,7 @@ void MapInput::map_order(double x, double y, bool queue) {
     if (m_units.empty() || m_units.owner(world()) != local()) {
         return;
     }
-    const auto tile = m_camera.tile_at_screen(x, y);
+    const auto tile = tile_at(x, y);
     if (pick == Pick::Patrol) {
         if (!tile) {
             return;

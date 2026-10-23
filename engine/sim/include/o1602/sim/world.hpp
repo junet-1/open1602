@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -93,6 +94,11 @@ struct WorldIsland {
 [[nodiscard]] inline bool deposit_known(const assets::IslandHeader::Deposit& d, PlayerId p) noexcept {
     return p < 32 && (d.mask >> p & 1U) != 0;
 }
+
+/// Whether `name` can name a player, a city or a ship (the renames of PlayerRename, CityOrder and
+/// ShipCommand): 1 to `max_length` bytes of Windows-1252 and no control character, since names come
+/// from the network too and must not break lines of lists and files.
+[[nodiscard]] bool valid_name(std::string_view name, std::size_t max_length) noexcept;
 
 /// A city: the settlement of one player on one island (STADT4 in the original).
 struct City {

@@ -107,7 +107,7 @@ struct ViewerOptions {
     bool menu = false;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
     struct ScriptedInput {
-        enum class Kind : std::uint8_t { Move, Down, Up, Key, Wheel };
+        enum class Kind : std::uint8_t { Move, Down, Up, Key, Wheel, Text };
         Kind kind = Kind::Move;
         std::uint32_t frame = 0;
         float x = 0.0F;
@@ -115,6 +115,7 @@ struct ViewerOptions {
         std::int32_t key = 0;   ///< Key: SDL key code; Wheel: notches (up: zoom in)
         std::uint16_t mod = 0;  ///< Key: SDL_KMOD_CTRL, SDL_KMOD_SHIFT
         bool right = false;     ///< Down/Up: the right button
+        std::string text;       ///< Text: typed as the platform's text input (UTF-8)
     };
     std::vector<ScriptedInput> input;
     /// Select the building on this island tile at the start (island index, x, y) and look at it.
@@ -271,6 +272,8 @@ private:
     core::Status start_multiplayer();
     /// What the multiplayer session reported this frame: lines of the chat, the menu's screens.
     void apply_session_events();
+    /// A chat line for each person's slot the computer took over since the last frame.
+    void announce_take_overs();
     /// The game a host sent: replaces the world (also after a desync); nullptr if it cannot be read.
     sim::Simulation* load_from_host(std::span<const std::uint8_t> save);
     /// Fingerprint of the game data the simulation depends on: computers of a multiplayer game
@@ -409,6 +412,7 @@ private:
     /// A multiplayer game: drives the simulation in place of Simulation::advance().
     std::unique_ptr<net::Session> m_session;
     bool m_host_game_loaded = false;                ///< this client runs the game its host sent
+    std::vector<sim::PlayerRole> m_session_roles;   ///< who steered each player last frame (empty: not yet)
     std::string m_host_address;                     ///< of the host joined
     std::uint16_t m_host_port = net::kDefaultPort;  ///< of the host joined: the successor hosts on it too
     bool m_migrating = false;                       ///< following a successor, its game not here yet

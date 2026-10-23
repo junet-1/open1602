@@ -102,6 +102,11 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
         m_trail.position(trail_key(h), f.x, f.y);
         f.figure = w.figure;
         f.z = slot.z;
+        // Every walker but the deer shows only on an island the local player has discovered
+        // (0x00451590: kinds 4 to 0x12 except 0x11).
+        if (w.kind != sim::WalkerKind::Deer) {
+            f.island = w.island;
+        }
         // Workers, hunters, grazing animals and deer are cut by the crops and trees they stand in
         // (case 0x0C of 0x0044FA90): a woodcutter at work vanishes into the tree.
         if (w.kind == sim::WalkerKind::Harvester || w.kind == sim::WalkerKind::Hunter ||

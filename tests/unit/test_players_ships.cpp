@@ -381,6 +381,13 @@ TEST_CASE("world renderer: warehouse flags in the owner's colour") {
     CHECK(s.parts[0].y == 232 - 64 - 1);
     CHECK(s.row == (232 + 40 - 1) / 16);  // sorted by y + Posoffs[1]
 
+    // No display figures on an island the local player has not discovered (0x00486B60).
+    layers.local_player = 0;
+    CHECK(!render::building_figure_sprites(flag, world, *buildings, view, layers, 200, s));
+    world.island(0).discover(0);
+    CHECK(render::building_figure_sprites(flag, world, *buildings, view, layers, 200, s));
+    layers.local_player = sim::kNoPlayer;
+
     // A banner without flag sprites (like the free trader) or an unknown banner shows no flag.
     banners.add(render::Banner{"test:noflag", {}, render::FlagStyle::None, 0, 8, std::nullopt});
     world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Trader, 3, 0, ""}});

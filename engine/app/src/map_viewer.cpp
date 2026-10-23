@@ -584,6 +584,10 @@ int MapViewer::run() {
                     e.key.mod = in.mod;
                     e.key.down = true;
                     break;
+                case ViewerOptions::ScriptedInput::Kind::Text:
+                    e.type = SDL_EVENT_TEXT_INPUT;
+                    e.text.text = in.text.c_str();  // the options outlive the event
+                    break;
                 case ViewerOptions::ScriptedInput::Kind::Wheel:
                     e.type = SDL_EVENT_MOUSE_WHEEL;
                     e.wheel.y = static_cast<float>(in.key);
@@ -832,8 +836,10 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_session->update(delta_ms, before_tick);
         update_lan_beacon();
         m_tick_fraction = m_session->tick_fraction();
+        announce_take_overs();
         apply_session_events();  // may end the session
     } else {
+        m_session_roles.clear();
         m_state->simulation.advance(delta_ms, before_tick);
         m_tick_fraction = m_state->simulation.tick_fraction();
     }
@@ -1303,6 +1309,7 @@ void MapViewer::collect_effects() {
         f.y = island.y + e.crater.y + 2.0;
         f.z = sim::kVolcanoHeight;
         f.figure = sim::kFigureVolcano;
+        f.island = e.crater.island;
         m_effects.push_back(f);
     }
     const std::uint64_t now_us = m_state->world.time_ms() * 1000;
@@ -1314,6 +1321,7 @@ void MapViewer::collect_effects() {
         f.z = at.z;
         f.ground = sim::lava_ground(m_state->world, m_buildings, at.x, at.y);
         f.figure = sim::kFigureLava;
+        f.island = p.island;
         f.anim = p.anim;
         f.phase = static_cast<std::uint32_t>(p.launch_us / 1000);
         m_effects.push_back(f);
@@ -1627,7 +1635,7 @@ Hud::Resources MapViewer::resources() const {
         r.money_cost = m_pending_bill->money;
     }
     // The city on the tile under the mouse.
-    const auto tile = m_camera.tile_at_screen(m_input->mouse_x(), m_input->mouse_y());
+    const auto tile = m_input->tile_at_mouse();
     if (!tile || tile->x >= m_state->world.width() || tile->y >= m_state->world.height()) {
         return r;
     }
@@ -1820,7 +1828,7 @@ std::string MapViewer::debug_title(double fps) {
     std::snprintf(scale, sizeof scale, " x%.2f%s", m_camera.scale(), m_map_canvas->used() ? " (canvas)" : "");
     std::string title = "Open1602 - " + game_title() + " | " + zoom_name(view.zoom) + scale + " | rotation " +
                         std::to_string(view.rotation);
-    if (const auto tile = m_camera.tile_at_screen(m_input->mouse_x(), m_input->mouse_y())) {
+    if (const auto tile = m_input->tile_at_mouse()) {
         title += " | tile " + std::to_string(tile->x) + "," + std::to_string(tile->y);
         const auto& cell = m_state->world.cell(tile->x, tile->y);
         if (cell.island != sim::World::kSea) {

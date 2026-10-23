@@ -390,14 +390,14 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
     }
     if (m_mode == kModeMilitary) {
         context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr,
-                                     m_local, m_units, m_banners});
+                                     m_local, m_units, m_banners, &m_names});
         return m_selection_panels->military_panel_for(*context);
     }
     if (m_mode != kModeInfo || m_selection.kind == Selection::Kind::None) {
         return nullptr;
     }
     context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local,
-                                 m_units, m_banners, m_goods_trend});
+                                 m_units, m_banners, &m_names, m_goods_trend});
     return m_selection_panels->panel_for(m_selection, *context);
 }
 
@@ -793,6 +793,7 @@ void Hud::reset_game() {
     m_goods_open = false;
     m_modal_press = ModalPress::None;
     m_commands.clear();
+    m_names.cancel();
     m_minimap_dirty = true;
     m_tutor_line = 0;
     m_tutorial.reset();
@@ -1132,7 +1133,14 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
         std::optional<PanelContext> context;
         if (SelectionPanel* p = selection_panel(context)) {
             for (const ui::PanelEvent& e : p->panel().mouse(x - panel.x, y - panel.y, down)) {
+                // A click elsewhere in the window keeps the name being typed.
+                m_names.begin_click();
                 p->clicked(e, m_selection, *context, m_commands);
+                if (e.kind == ui::PanelEvent::Kind::Clicked) {
+                    if (auto c = m_names.end_click()) {
+                        m_commands.push_back(std::move(*c));
+                    }
+                }
             }
             if (const auto r = p->take_request()) {
                 switch (r->kind) {
@@ -1241,14 +1249,19 @@ void Hud::message(MessageId id, sim::BannerId banner, std::optional<std::pair<do
 
 namespace {
 
-/// The colour of a world tile on the minimap.
+/// The colour of a world tile on the minimap. An island `local` has not discovered shows its ground
+/// without owners, like the map (0x00489C90).
 std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
-                                           const render::BannerTable& banners, const sim::World::Cell& c) {
+                                           const render::BannerTable& banners, const sim::World::Cell& c,
+                                           sim::PlayerId local) {
     std::array<std::uint8_t, 3> rgb{38, 70, 128};  // sea
     if (c.island == sim::World::kSea) {
         return rgb;
     }
-    const sim::MapCell& top = world.islands()[c.island].map.top(c.local_x, c.local_y);
+    const sim::WorldIsland& island = world.islands()[c.island];
+    const bool hidden = local != sim::kNoPlayer && !island.discovered_by(local);
+    const sim::MapCell& ground = island.map.ground(c.local_x, c.local_y);
+    const sim::MapCell& top = hidden && !ground.empty() ? ground : island.map.top(c.local_x, c.local_y);
     const assets::BuildingType* b = top.empty() ? nullptr : buildings.by_sprite(top.sprite);
     const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
     namespace bk = sim::building_kind;
@@ -1257,8 +1270,10 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
           : kind == bk::kForest ? std::array<std::uint8_t, 3>{60, 96, 40}
                                 : std::array<std::uint8_t, 3>{112, 132, 66};
     const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
-    if (!scenery && top.owner != sim::kNoPlayer) {
+    if (!scenery && !hidden && top.owner != sim::kNoPlayer) {
         const sim::Player* p = world.player(top.owner);
+        // Unlike the original's minimap, which never shows native villages, Open1602 shows the natives
+        // and the pirates in their colour once the island is discovered.
         const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
         if (banner != nullptr) {
             rgb = {banner->color.r, banner->color.g, banner->color.b};
@@ -1278,7 +1293,8 @@ void Hud::build_minimap(const sim::World& world, const assets::BuildingTable& bu
     m_minimap.assign(std::size_t{m_world_w} * m_world_h * 4, 0);
     for (std::uint32_t y = 0; y < m_world_h; ++y) {
         for (std::uint32_t x = 0; x < m_world_w; ++x) {
-            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, world.cell(x, y));
+            const std::array<std::uint8_t, 3> rgb =
+                minimap_colour(world, buildings, banners, world.cell(x, y), m_local);
             const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
             m_minimap[i] = rgb[0];
             m_minimap[i + 1] = rgb[1];
@@ -1301,7 +1317,7 @@ bool Hud::refresh_minimap_island(const sim::World& world, const assets::Building
             if (c.island != island) {
                 continue;
             }
-            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, c);
+            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, c, m_local);
             const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
             if (m_minimap[i] != rgb[0] || m_minimap[i + 1] != rgb[1] || m_minimap[i + 2] != rgb[2]) {
                 m_minimap[i] = rgb[0];
@@ -1403,6 +1419,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         if (const auto text = m_options->help(m_leiste, m_options_model)) {
             status = *text;
         }
+    }
+    // The name being typed ends with its window (or its ship or city).
+    if (auto c = m_names.end_frame(world)) {
+        m_commands.push_back(std::move(*c));
     }
     step_tutorial(available, now_ms);
     draw_mission(world);

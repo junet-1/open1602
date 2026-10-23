@@ -57,6 +57,16 @@ void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& 
 /// World pixel position (centre of the tile diamond) of a world tile, for scrolling to it.
 void world_tile_center(const WorldView& view, std::uint32_t x, std::uint32_t y, std::int32_t& px, std::int32_t& py);
 
+/// How far the diamond of world tile (x, y) is drawn above its place, in world pixels of `zoom`: the
+/// Posoffs of what the tile shows to `local_player` (land 20 at full zoom), of the open sea at sea.
+/// The tile marks and the build preview are drawn there, and the mouse picks the tile there.
+[[nodiscard]] std::int32_t tile_elevation(const sim::World& world, const assets::BuildingTable& buildings,
+                                          sim::PlayerId local_player, std::uint32_t x, std::uint32_t y, Zoom zoom);
+/// The most a tile is raised: Posoffs is at most 64.
+[[nodiscard]] constexpr std::int32_t max_tile_elevation(Zoom zoom) noexcept {
+    return tile_width(zoom);
+}
+
 /// Sprite of an open sea tile: ripple pattern (frame + 3x + y) mod AnimAnz (0x00489C90).
 [[nodiscard]] std::uint32_t sea_sprite(const assets::BuildingType& sea, std::uint32_t frame, std::uint32_t x,
                                        std::uint32_t y);
@@ -137,6 +147,9 @@ struct FigureInstance {
     /// Sheet of the images. The original picks it by the figure's draw kind (soldiers: SOLDAT.BSH),
     /// not by Blocknr, which many figures lack; nothing = Blocknr.
     std::optional<assets::FigureSheet> sheet;
+    /// Island the figure belongs to: it is seen only once the local player has discovered that
+    /// island (0x00451590). sim::World::kSea: everywhere (deer, kind 0x11, are not checked).
+    std::uint16_t island = sim::World::kSea;
 };
 
 /// A figure of an effect hanging or flying over the world: the fire over an erupting volcano
@@ -155,6 +168,9 @@ struct EffectFigure {
     assets::FigureSheet sheet = assets::FigureSheet::Effekte;
     std::uint8_t direction = 0;         ///< 0..7
     std::optional<std::uint8_t> frame;  ///< a frame of its own instead of one from the time
+    /// Island the effect belongs to (volcano fire and lava, kinds 0x20 and 0x21): seen only once the
+    /// local player has discovered it (0x00451590). sim::World::kSea: everywhere.
+    std::uint16_t island = sim::World::kSea;
 };
 
 /// Smoke of a ship's broadside (KANONSHOT1, KANONSHOT2), drawn with the ship (0x00447880).
@@ -316,6 +332,9 @@ struct WorldLayers {
     /// the atlas bases of their sheets (`sheet_base`) and follow the buildings' production state.
     const std::vector<BuildingFigure>* building_figures = nullptr;
     /// Player whose buildings show status icons (the original: the local player). kNoPlayer: none.
+    /// Islands this player has not discovered show only their ground layer, without buildings,
+    /// building figures or land figures (0x00489C90, 0x00486B60, 0x00451590); with kNoPlayer every
+    /// island shows everything.
     sim::PlayerId local_player = sim::kNoPlayer;
     /// Sets of figures on land (animals, soldiers, ...) with their shadows. Needs `figures` and the
     /// atlas bases of their sheets (`sheet_base`, e.g. from WorldGraphics::base); figures whose sheet

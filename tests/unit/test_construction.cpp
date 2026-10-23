@@ -182,8 +182,12 @@ struct Island {
 
 TEST_CASE("construction: the first Kontor at the coast founds a city, paid from the ship") {
     Island island;
+    CHECK(!island.world.islands()[0].discovered_by(1));
     const sim::BuildPlan plan = island.build({{kKontor, 5, 10, 0, 0}}, 0);
     REQUIRE(plan.placed == 1);
+    // The city of a human or a computer shows its island to every player (0x00468DD2).
+    CHECK(island.world.islands()[0].discovered_by(0));
+    CHECK(island.world.islands()[0].discovered_by(1));
     // The long side faces the beach on the left (0x00467AF0).
     CHECK(plan.items[0].rotation == 2);
     REQUIRE(island.world.cities().size() == 1);
