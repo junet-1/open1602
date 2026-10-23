@@ -91,6 +91,8 @@ jobs:
   compare:
     name: Compare the hashes of all platforms
     needs: hashes
+    # Also when a platform failed: the hashes of the others still show where they part.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     steps:
       # Pin to the commit SHA of the release like the other actions (Dependabot keeps it current).
