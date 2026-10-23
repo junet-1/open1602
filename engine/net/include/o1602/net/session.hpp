@@ -291,6 +291,8 @@ private:
     [[nodiscard]] std::uint32_t frame_share() const;
     /// The slot's token is no longer good: the slot changed hands.
     void forget_token(Seat seat);
+    /// The slot a Hello's token is good for, kNoPlayer if none (MS-1, MS-8).
+    [[nodiscard]] Seat seat_of_token(const Hello& m);
     /// Tells the successor what it needs to carry the game on, if that changed (Standby).
     void hand_over();
     [[nodiscard]] Peer* peer_of(LinkId link);
@@ -324,6 +326,10 @@ private:
     /// (kGameCostMs a game, kGameCreditMs at most; it grows with real time).
     std::uint32_t m_game_credit_ms = 4'000;
     std::vector<std::pair<Seat, std::uint64_t>> m_tokens;  ///< seat and token, to come back to it
+    std::uint64_t m_salt = 0;  ///< for the verifiers of m_tokens the successor gets (Standby)
+    /// After a host migration: the slots an earlier host handed out tokens for, by verifier, until
+    /// their players are back (then m_tokens has their tokens).
+    std::vector<SeatToken> m_verifiers;
     std::vector<Seat> m_computer_held;  ///< open at the start: the computer plays it while nobody does
     /// A person's slot left in the running game, and how long it has stood empty: the computer
     /// takes it over after SessionConfig::take_over_ms.

@@ -6,6 +6,7 @@
 #include "wire.hpp"
 
 #include "o1602/core/byte_writer.hpp"
+#include "o1602/core/hash.hpp"
 #include "o1602/sim/command_io.hpp"
 
 namespace o1602::net {
@@ -142,7 +143,8 @@ void put(core::ByteWriter& out, const Standby& m) {
     out.u32(static_cast<std::uint32_t>(m.tokens.size()));
     for (const SeatToken& t : m.tokens) {
         out.u8(t.seat);
-        out.u64(t.token);
+        out.u64(t.salt);
+        out.u64(t.verifier);
     }
     out.u32(static_cast<std::uint32_t>(m.computer_held.size()));
     for (const Seat s : m.computer_held) {
@@ -186,7 +188,7 @@ Welcome get_welcome(In& in) {
 Refused get_refused(In& in) {
     Refused m;
     const std::uint8_t reason = in.u8();
-    if (reason > static_cast<std::uint8_t>(RefuseReason::Kicked)) {
+    if (reason > static_cast<std::uint8_t>(RefuseReason::Taken)) {
         in.fail();
     }
     m.reason = static_cast<RefuseReason>(reason);
@@ -308,7 +310,8 @@ Standby get_standby(In& in) {
     for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
         SeatToken t;
         t.seat = in.u8();
-        t.token = in.u64();
+        t.salt = in.u64();
+        t.verifier = in.u64();
         m.tokens.push_back(t);
     }
     const std::uint32_t held = in.count(kMaxLobbySeats);
@@ -399,6 +402,18 @@ std::uint64_t fingerprint(std::span<const std::uint8_t> data, std::uint64_t seed
         h *= 0x100000001b3ULL;
     }
     return h;
+}
+
+std::uint64_t token_verifier(std::uint64_t token, std::uint64_t salt) noexcept {
+    core::ByteWriter in;
+    in.u64(salt);
+    in.u64(token);
+    const auto digest = core::sha256(in.data());
+    std::uint64_t v = 0;
+    for (std::size_t k = 0; k < 8; ++k) {
+        v |= std::uint64_t{digest[k]} << (8 * k);
+    }
+    return v;
 }
 
 }  // namespace o1602::net

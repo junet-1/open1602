@@ -87,7 +87,8 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, sim::Simulation& 
       m_buildings(&buildings),
       m_name(std::move(name)),
       m_content(content),
-      m_lead(m_config.min_lead) {
+      m_lead(m_config.min_lead),
+      m_salt(random_token()) {
     m_seat = seat;
     // The lobby of a running game: its human slots are open, and so are the computer players'
     // (the computer plays one until someone comes and again when he leaves).
@@ -117,7 +118,8 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, Lobby lobby, Seat
       m_buildings(nullptr),
       m_name(std::move(name)),
       m_content(content),
-      m_lead(m_config.min_lead) {
+      m_lead(m_config.min_lead),
+      m_salt(random_token()) {
     m_lobby = std::move(lobby);
     if (m_lobby.seats.size() > kMaxLobbySeats) {
         m_lobby.seats.resize(kMaxLobbySeats);
@@ -146,7 +148,8 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
       m_buildings(&buildings),
       m_name(client.m_hello.name),
       m_content(client.m_hello.content),
-      m_lead(m_config.min_lead) {
+      m_lead(m_config.min_lead),
+      m_salt(random_token()) {
     m_config.password = client.m_hello.password;
     m_config.join_running = client.m_lobby.join_running;
     m_config.spectators = client.m_lobby.spectators;
@@ -162,16 +165,27 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
     }
     m_closed = client.m_closed;
     m_broadcast = m_closed;
+    m_lobby = client.m_lobby;
     if (client.m_standby) {
+        // What the old host sent is checked like anything from the network: a slot outside the
+        // lobby would be written outside it (MS-8).
+        const auto good = [&](Seat s) {
+            return s < m_lobby.seats.size() && s != m_seat && m_lobby.seats[s].kind != LobbySeat::Kind::Closed;
+        };
         for (const SeatToken& t : client.m_standby->tokens) {
-            m_tokens.emplace_back(t.seat, t.token);
+            if (good(t.seat) && t.verifier != 0) {
+                m_verifiers.push_back(t);
+            }
         }
-        m_computer_held = client.m_standby->computer_held;
+        for (const Seat s : client.m_standby->computer_held) {
+            if (good(s) && std::find(m_computer_held.begin(), m_computer_held.end(), s) == m_computer_held.end()) {
+                m_computer_held.push_back(s);
+            }
+        }
     }
     const auto old_host =
         std::find_if(client.m_roster.begin(), client.m_roster.end(), [](const Member& m) { return m.host; });
     const Seat left = old_host != client.m_roster.end() ? old_host->seat : sim::kNoPlayer;
-    m_lobby = client.m_lobby;
     m_lobby.started = true;
     for (std::size_t s = 0; s < m_lobby.seats.size(); ++s) {
         if (s == m_seat) {
@@ -380,21 +394,25 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         drop(peer, RefuseReason::Password);
         return;
     }
-    Seat seat = sim::kNoPlayer;
-    if (m.token != 0) {
-        const auto it =
-            std::find_if(m_tokens.begin(), m_tokens.end(), [&](const auto& t) { return t.second == m.token; });
-        // In the lobby a slot is only kept while the computer is in.
-        // Never the host's own slot (it has no token, but one handed out before the host took it).
-        if (it != m_tokens.end() && it->first != m_seat && (started() || free_seat(it->first) == it->first)) {
-            seat = it->first;
-            // Its old connection has not timed out yet: this is the same player, back.
-            const auto old = std::find_if(m_peers.begin(), m_peers.end(), [&](const auto& p) {
-                return p.get() != &peer && !p->gone && p->welcomed && p->seat == seat;
-            });
-            if (old != m_peers.end()) {
-                drop(**old, std::nullopt);
-            }
+    Seat seat = seat_of_token(m);
+    if (seat != sim::kNoPlayer) {
+        // A token never takes a slot from a connection that is still there (MS-1): whoever holds
+        // it plays on, and the token is good again once that connection has ended.
+        const auto old = std::find_if(m_peers.begin(), m_peers.end(), [&](const auto& p) {
+            return p.get() != &peer && !p->gone && p->welcomed && p->seat == seat;
+        });
+        if (old != m_peers.end()) {
+            drop(peer, RefuseReason::Taken);
+            return;
+        }
+        if (const auto v = std::find_if(m_verifiers.begin(), m_verifiers.end(),
+                                        [&](const SeatToken& t) { return t.seat == seat; });
+            v != m_verifiers.end()) {
+            // Back after the host changed: from now on this host knows the token itself.
+            m_verifiers.erase(v);
+            forget_token(seat);
+            m_tokens.emplace_back(seat, m.token);
+            m_standby_changed = true;
         }
     }
     if (seat == sim::kNoPlayer && m.returning && m_config.spectators) {
@@ -863,10 +881,14 @@ void HostSession::hand_over() {
         m_standby_link.reset();
         return;
     }
+    // Verifiers, not the tokens: the successor must not be able to take others' slots on this
+    // host while it still runs (MS-1). Slots whose players have not come back since a migration
+    // pass on the earlier host's verifiers as they are.
     Standby standby;
     for (const auto& [seat, token] : m_tokens) {
-        standby.tokens.push_back(SeatToken{seat, token});
+        standby.tokens.push_back(SeatToken{seat, m_salt, token_verifier(token, m_salt)});
     }
+    standby.tokens.insert(standby.tokens.end(), m_verifiers.begin(), m_verifiers.end());
     standby.computer_held = m_computer_held;
     if (m_standby_link == (*successor)->link && standby == m_standby) {
         return;
@@ -902,6 +924,32 @@ std::uint64_t HostSession::token_of(Seat seat) {
 
 void HostSession::forget_token(Seat seat) {
     m_standby_changed |= std::erase_if(m_tokens, [&](const auto& t) { return t.first == seat; }) > 0;
+    m_standby_changed |= std::erase_if(m_verifiers, [&](const SeatToken& t) { return t.seat == seat; }) > 0;
+}
+
+Seat HostSession::seat_of_token(const Hello& m) {
+    if (m.token == 0) {
+        return sim::kNoPlayer;
+    }
+    // In the lobby a slot is only kept while the computer is in.
+    // Never the host's own slot (it has no token, but one handed out before the host took it).
+    const auto good = [&](Seat s) {
+        return s < m_lobby.seats.size() && s != m_seat && (started() || free_seat(s) == s);
+    };
+    const auto it = std::find_if(m_tokens.begin(), m_tokens.end(), [&](const auto& t) { return t.second == m.token; });
+    if (it != m_tokens.end()) {
+        return good(it->first) ? it->first : sim::kNoPlayer;
+    }
+    // The tokens of the old host count only for those that follow it here (returning).
+    if (m.returning) {
+        const auto found = std::find_if(m_verifiers.begin(), m_verifiers.end(), [&](const SeatToken& t) {
+            return t.verifier == token_verifier(m.token, t.salt);
+        });
+        if (found != m_verifiers.end() && good(found->seat)) {
+            return found->seat;
+        }
+    }
+    return sim::kNoPlayer;
 }
 
 // --- The lobby ---

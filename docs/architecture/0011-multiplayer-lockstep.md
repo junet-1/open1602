@@ -48,7 +48,8 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
 8. **Slots.** A computer gets a free human slot of the world (or the one it asks for) and a token with
    which it gets the same slot back after a lost connection. Tokens are random and belong to whoever
    holds the slot: a slot that changes hands (in the lobby, after a kick, to a newcomer) gets a new
-   one, and the host's own slot takes none. In a game hosted while it runs (`--host`), the computer
+   one, and the host's own slot takes none. A token never takes a slot from a connection that is
+   still there: the newcomer is refused (`Taken`) and may come again once that connection has ended. In a game hosted while it runs (`--host`), the computer
    players' slots are open as well: the computer plays such a slot until someone takes it and again
    after he leaves. Without a free slot it watches. A slot that a person left stands empty for
    60 s (time to come back after a broken connection); then the computer plays it on under the
@@ -109,8 +110,11 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     the game moves on to a successor instead of standing still:
     - *Who.* The host names the successor in every `Roster`: of the computers that play a slot and
       run the game (not loading, not lagging), the one with the lowest slot, with its address as
-      the host sees it. Only that computer gets `Standby` from the host: the tokens of all slots
-      and the slots the computer plays until someone comes, sent again whenever they change.
+      the host sees it. Only that computer gets `Standby` from the host: for each slot a verifier of
+      its token, the first 8 bytes of SHA-256 of a salt the host drew and the token, and the slots
+      the computer plays until someone comes, sent again whenever they change. Not the tokens
+      themselves: the successor could take any slot with them while the host still runs. Slots the
+      `Standby` names that the lobby does not have, or that are closed, are dropped.
       Everyone has the same roster, so everyone agrees on the successor.
     - *The successor* makes a `HostSession` from its ended `ClientSession` and listens on the port
       of the old host. The game goes on from the frame its own game is at; the frames the old host
@@ -121,8 +125,9 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
       `Hello::returning` set. It connects to the successor's address (the address of the old host if
       the host saw the successor on its own computer), again every half second while the successor
       is not there yet, for 30 s; the successor may notice the host's leaving later than they do.
-      The successor takes them back into their slots by their tokens; one without a slot (a
-      spectator, or one whose slot was taken) watches instead of taking a free slot.
+      The successor takes them back into their slots by their tokens, checked against the
+      verifiers and only with `Hello::returning`; one without a slot (a spectator, or one whose
+      slot was taken) watches instead of taking a free slot.
     - *Lockstep.* Every computer that comes back gets the successor's game as a savegame (point 6),
       with the frames closed after it. So all continue from one state, whatever frames each had
       received or run when the host left: frames of the old host beyond the successor's are dropped
@@ -160,8 +165,9 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
   (point 5). The host writes games for joining computers a few at once and then at most one a second.
 - A host behind a router needs UDP port 16020 (or the one it chose) forwarded for players on the
   internet; the menu says so.
-- The host tells every computer the address of the successor, and the successor the tokens of all
-  slots (it becomes the host, who knows them anyway). Changing the host costs one savegame sent to
+- The host tells every computer the address of the successor, and the successor verifiers of the
+  slots' tokens, not the tokens: the successor is a player too, and the host still runs while it
+  holds them. Changing the host costs one savegame sent to
   every computer, as at the start.
 
 ## Open
