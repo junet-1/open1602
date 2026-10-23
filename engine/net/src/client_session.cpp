@@ -22,20 +22,25 @@ ClientSession::ClientSession(std::unique_ptr<Transport> transport, Hello hello, 
 }
 
 ClientSession::ClientSession(const ClientSession& old, Connect connect)
-    : Session(connect(), old.m_config), m_hello(old.m_hello), m_load(old.m_load), m_connect(std::move(connect)) {
+    : Session(connect(), old.m_config),
+      m_hello(old.m_hello),
+      m_load(old.m_load),
+      m_connect(connect),
+      m_reconnect(std::move(connect)) {
     m_hello.seat = old.m_seat;
     m_hello.token = old.m_token;
     m_hello.returning = true;
 }
 
 bool ClientSession::hosts_next() const noexcept {
-    return m_ended && m_end_reason == EndReason::HostLeft && m_simulation != nullptr && m_lobby.started &&
-           m_seat != sim::kNoPlayer && m_successor == m_seat && m_standby.has_value();
+    return m_ended && m_end_reason == EndReason::HostLeft && (m_host_leaving || m_host_gone) &&
+           m_simulation != nullptr && m_lobby.started && m_seat != sim::kNoPlayer && m_successor == m_seat &&
+           m_standby.has_value();
 }
 
 bool ClientSession::can_migrate() const noexcept {
-    if (!m_ended || m_end_reason != EndReason::HostLeft || m_simulation == nullptr || !m_lobby.started ||
-        m_successor == sim::kNoPlayer) {
+    if (!m_ended || m_end_reason != EndReason::HostLeft || !(m_host_leaving || m_host_gone) ||
+        m_simulation == nullptr || !m_lobby.started || m_successor == sim::kNoPlayer) {
         return false;
     }
     return m_successor == m_seat ? hosts_next() : !m_successor_address.empty();
@@ -96,9 +101,17 @@ void ClientSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeT
     if (m_connect && !m_welcomed) {
         // Following a successor that may not host yet: connect again until it takes this computer in.
         m_migration_ms += real_ms;
-        if (m_migration_ms >= m_config.migration_ms) {
-            end(EndReason::ConnectFailed);
+        if (m_migration_ms >= (m_reconnecting ? m_config.reconnect_ms : m_config.migration_ms)) {
             m_transport.reset();
+            if (m_reconnecting) {
+                // The host cannot be reached again: gone, as if it had left (it may still run, but
+                // nobody can tell from here). Now the successor may carry the game on.
+                m_reconnecting = false;
+                m_host_gone = true;
+                end(EndReason::HostLeft);
+            } else {
+                end(EndReason::ConnectFailed);
+            }
             return;
         }
         if (!m_transport && (m_retry_ms += real_ms) >= kRetryMs) {
@@ -124,6 +137,10 @@ void ClientSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeT
                 if (m_connect && !m_welcomed) {
                     m_connected = false;
                     m_transport.reset();  // and again in a moment
+                    break;
+                }
+                if (m_welcomed && !m_host_leaving && m_reconnect && m_simulation != nullptr && m_lobby.started) {
+                    reconnect();  // only this computer's connection may have broken (MS-2)
                     break;
                 }
                 end(m_welcomed ? EndReason::HostLeft : EndReason::ConnectFailed);
@@ -162,13 +179,19 @@ void ClientSession::receive(std::span<const std::uint8_t> bytes) {
             return;
         }
         m_welcomed = true;
+        m_reconnecting = false;
         m_seat = welcome->seat;
         m_token = welcome->token;
         SessionEvent e;
         e.kind = SessionEvent::Kind::Welcomed;
         e.seat = m_seat;
         event(std::move(e));
-    } else if (const auto* refused = std::get_if<Refused>(&*message)) {
+    } else if (const auto* refused = std::get_if<Refused>(&*message);
+               refused != nullptr && m_reconnecting && refused->reason == RefuseReason::Taken) {
+        // The host has not noticed yet that the old connection broke: again in a moment.
+        m_connected = false;
+        m_transport.reset();
+    } else if (refused != nullptr) {
         SessionEvent e;
         e.kind = SessionEvent::Kind::Ended;
         e.reason = EndReason::Refused;
@@ -204,6 +227,11 @@ void ClientSession::receive(std::span<const std::uint8_t> bytes) {
             e.seat = s;
             e.frame = desync->frame;
             event(std::move(e));
+        }
+    } else if (auto* leaving = std::get_if<HostLeaving>(&*message)) {
+        m_host_leaving = true;
+        if (!leaving->successor_address.empty()) {
+            m_successor_address = std::move(leaving->successor_address);
         }
     } else if (const auto* dropped = std::get_if<Dropped>(&*message)) {
         SessionEvent e;
@@ -341,6 +369,28 @@ void ClientSession::send_commands() {
             m_transport->send(kHost, bytes);
         }
     }
+}
+
+void ClientSession::reconnect() {
+    m_connect = m_reconnect;
+    m_reconnecting = true;
+    m_welcomed = false;
+    m_connected = false;
+    m_transport.reset();
+    m_migration_ms = 0;
+    m_retry_ms = kRetryMs;  // at once
+    m_hello.seat = m_seat;
+    m_hello.token = m_token;
+    m_hello.returning = false;
+    // The frames in hand are of the old connection; the host sends the game anew. Until then
+    // nothing this computer reports may be taken for the new game (epoch 0 is none).
+    m_frames_ahead.clear();
+    m_closed = m_frames;
+    m_epoch = 0;
+    SessionEvent e;
+    e.kind = SessionEvent::Kind::Reconnecting;
+    e.seat = m_seat;
+    event(std::move(e));
 }
 
 void ClientSession::report(std::uint32_t real_ms) {

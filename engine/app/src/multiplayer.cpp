@@ -181,6 +181,9 @@ void MapViewer::apply_session_events() {
             case net::SessionEvent::Kind::Dropped:
                 chat_line({}, mp_text(MpText::Dropped, std::to_string(e.count)), e.seat);
                 break;
+            case net::SessionEvent::Kind::Reconnecting:
+                chat_line({}, mp_text(MpText::Reconnecting));
+                break;
         }
     }
     // A session that ends before its game ran: back to the search with the reason. One that ends
@@ -729,9 +732,16 @@ core::Status MapViewer::join_game(const std::string& address, std::uint16_t port
         hello.token = m_rejoin->token;
     }
     m_local_player = sim::kNoPlayer;  // until the host sends the game
-    m_session = std::make_unique<net::ClientSession>(
+    auto client = std::make_unique<net::ClientSession>(
         std::move(transport).value(), hello,
         [this](std::span<const std::uint8_t> save) { return load_from_host(save); });
+    // A broken connection: back to this host first; only if it cannot be reached, on to the
+    // successor (MS-2).
+    client->reconnect_with([address, port]() -> std::unique_ptr<net::Transport> {
+        auto again = net::enet_connect(address, port);
+        return again ? std::move(again).value() : nullptr;
+    });
+    m_session = std::move(client);
     m_command_sink.set_session(m_session.get());
     if (m_hud && m_hud->multiplayer() != nullptr) {
         m_hud->multiplayer_model().chat.clear();

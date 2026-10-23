@@ -76,7 +76,8 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    on by default, shown in the lobby and passed to a successor host); without it, a slot that was
    left gives no commands until someone comes back. The player's name is set as a `PlayerRename`
    of that player.
-9. **Same data.** When a computer joins, the host checks the protocol version and a fingerprint of the
+9. **Same data.** When a computer joins, the host checks the protocol version (from the first three
+   bytes of `Hello`, which never change, so that any other version is told so) and a fingerprint of the
    game data the simulation depends on (`haeuser.cod`, `figuren.cod`), and the game's password if it
    has one. The names for new cities and ships (`Text.cod` of the installation that began the game)
    are part of the simulation's saved state, so they reach every computer with the game and
@@ -126,9 +127,17 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     does not stop the menu.
 15. **Host migration.** When the host leaves a running game (it quits or its connection breaks),
     the game moves on to a successor instead of standing still:
+    - *When.* A host that quits says so (`HostLeaving`, with the successor's address) before it
+      disconnects; then everyone moves on at once. A connection that just breaks is not taken as the
+      host leaving, since only this computer's own link may be down (MS-2): the computer first tries
+      to get back into its slot at the host with its token, every half second for 10 s
+      (`reconnect_ms`; the chat says so), and gets the host's game anew if it does. Only if the host
+      cannot be reached does it take the host for gone and move on as below. A host that still holds
+      the old connection refuses with `Taken`, which only means "again in a moment".
     - *Who.* The host names the successor in every `Roster`: of the computers that play a slot and
       run the game (not loading, not lagging), the one with the lowest slot, with its address as
-      the host sees it. Only that computer gets `Standby` from the host: for each slot a verifier of
+      the host sees it (the address only to computers that play; spectators get it with
+      `HostLeaving`). Only that computer gets `Standby` from the host: for each slot a verifier of
       its token, the first 8 bytes of SHA-256 of a salt the host drew and the token, and the slots
       the computer plays until someone comes, sent again whenever they change. Not the tokens
       themselves: the successor could take any slot with them while the host still runs. Slots the

@@ -24,7 +24,9 @@
 namespace o1602::net {
 
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
-inline constexpr std::uint16_t kProtocolVersion = 9;
+/// The first three bytes of a Hello (its type and this version) never change, so that a computer of
+/// another version is told so (RefuseReason::Version) rather than refused as nonsense (MS-22).
+inline constexpr std::uint16_t kProtocolVersion = 10;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
@@ -261,8 +263,15 @@ struct Dropped {
     std::uint32_t commands = 0;
 };
 
+/// (Host) The host ends the session on purpose: the computers move on to the successor at once
+/// (`successor_address`, which spectators get only now). A connection that just breaks is not that:
+/// a computer first tries to get back to its host (MS-2).
+struct HostLeaving {
+    std::string successor_address;
+};
+
 using Message = std::variant<Hello, CommandBatch, Progress, Welcome, Refused, Snapshot, Turn, Roster, Desync, Lobby,
-                             TakeSeat, SetReady, Chat, Standby, SetBanner, Dropped>;
+                             TakeSeat, SetReady, Chat, Standby, SetBanner, Dropped, HostLeaving>;
 
 [[nodiscard]] std::vector<std::uint8_t> encode(const Message& message);
 /// Nothing if the bytes are cut off, too long, of an unknown type or out of range.

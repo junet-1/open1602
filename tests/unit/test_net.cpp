@@ -1222,7 +1222,8 @@ TEST_CASE("net: the host names the playing computer with the lowest slot its suc
     CHECK(host->session->successor_address() == "loopback:1");
     for (const Computer* x : {&a, &b, &c, &w}) {
         CHECK(x->session->successor() == 1);
-        CHECK(x->session->successor_address() == "loopback:1");
+        // The address only to those who play; spectators get it when the host leaves (MS-25).
+        CHECK(x->session->successor_address() == (x == &w ? "" : "loopback:1"));
     }
     CHECK(b.session->successor_name() == "Anna");
 
@@ -1459,6 +1460,7 @@ TEST_CASE("net: a slot from the old host outside the lobby is not taken over (MS
     const std::uint64_t token = 0x5EC0DE;
     std::vector<net::TransportEvent> events;
     bool answered = false;  // only the Hello: a second Welcome in a running game is nonsense
+    net::LinkId anna = 0;
     for (int i = 0; i < 20; ++i) {
         network.advance(kStepMs);
         events.clear();
@@ -1466,6 +1468,7 @@ TEST_CASE("net: a slot from the old host outside the lobby is not taken over (MS
         for (const auto& e : events) {
             if (e.kind == net::TransportEvent::Kind::Received && !answered) {
                 answered = true;
+                anna = e.link;
                 old_host->send(e.link, net::encode(net::Welcome{net::kProtocolVersion, 1, 0xA77A}));
                 old_host->send(e.link, net::encode(lobby));
                 old_host->send(e.link, net::encode(net::Snapshot{1, 0, 1, false, *save}));
@@ -1479,6 +1482,7 @@ TEST_CASE("net: a slot from the old host outside the lobby is not taken over (MS
         }
         a.update(kStepMs);
     }
+    old_host->send(anna, net::encode(net::HostLeaving{}));  // leaving on purpose
     old_host.reset();
     notice_host_left(network, {&a});
     REQUIRE(a.session->hosts_next());
@@ -1741,4 +1745,121 @@ TEST_CASE("net: during a host migration a newcomer does not take a returning pla
     step_moved(next, moved, {&stranger, &b}, 3000);
     REQUIRE(b.session->playing());
     CHECK(b.session->local_seat() == bernd);
+}
+
+TEST_CASE("net: the successor whose own link breaks comes back, it does not host a second game (MS-2)") {
+    net::LoopbackNetwork network(10, 0);
+    Host host(network);
+    Computer a(network, "Anna");  // the successor
+    Computer b(network, "Bernd");
+    for (Computer* x : {&a, &b}) {
+        x->session->reconnect_with([&network] { return network.connect(); });
+    }
+    run_for(network, host, {&a, &b}, 2000);
+    REQUIRE(host.session->successor() == a.session->local_seat());
+    const sim::PlayerId anna = a.session->local_seat();
+
+    network.cut(*a.transport);  // only Anna's link: the host and Bernd play on
+    run_for(network, host, {&a, &b}, 3000);
+    CHECK(a.count(net::SessionEvent::Kind::Reconnecting) == 1);
+    CHECK(!a.session->ended());
+    CHECK(!a.session->hosts_next());
+    REQUIRE(a.session->playing());
+    CHECK(a.session->local_seat() == anna);
+    CHECK(host.session->roster().size() == 3);
+    run_for(network, host, {&a, &b}, 6000);
+    CHECK(host.session->fingerprints_matched() == host.session->fingerprints_compared());
+    CHECK(host.count(net::SessionEvent::Kind::Desync) == 0);
+}
+
+TEST_CASE("net: a host that vanishes without a word: after trying it again, the successor carries on (MS-2)") {
+    net::LoopbackNetwork network(10, 0);
+    net::SessionConfig config;
+    config.reconnect_ms = 1500;
+    auto host = std::make_unique<Host>(network, config);
+    Computer a(network, "Anna", 0, kContent, config);
+    Computer b(network, "Bernd", 0, kContent, config);
+    for (Computer* x : {&a, &b}) {
+        x->session->reconnect_with([&network] { return network.connect(); });
+    }
+    run_for(network, *host, {&a, &b}, 2000);
+    REQUIRE(host->session->successor() == a.session->local_seat());
+    // Every link breaks at once and the host is gone (its HostLeaving reaches nobody).
+    network.cut(*a.transport);
+    network.cut(*b.transport);
+    host.reset();
+    for (std::uint32_t t = 0; t < 1000; t += kStepMs) {
+        network.advance(kStepMs);
+        a.update(kStepMs);
+        b.update(kStepMs);
+    }
+    CHECK(!a.session->ended());  // still trying the host
+    for (std::uint32_t t = 0; t < 2000; t += kStepMs) {
+        network.advance(kStepMs);
+        a.update(kStepMs);
+        b.update(kStepMs);
+    }
+    REQUIRE(a.session->ended());
+    CHECK(a.session->end_reason() == net::EndReason::HostLeft);
+    CHECK(a.session->hosts_next());
+    CHECK(b.session->can_migrate());
+}
+
+TEST_CASE("net: a host that leaves on purpose: the others move on at once, spectators too (MS-2, MS-25)") {
+    net::LoopbackNetwork network(10, 0);
+    auto host = std::make_unique<Host>(network);
+    Computer a(network, "Anna");
+    Computer b(network, "Bernd");
+    Computer c(network, "Clara");
+    Computer w(network, "Wilma");  // watches
+    for (Computer* x : {&a, &b, &c, &w}) {
+        x->session->reconnect_with([&network] { return network.connect(); });
+    }
+    run_for(network, *host, {&a, &b, &c, &w}, 1500);
+    REQUIRE(w.session->local_seat() == sim::kNoPlayer);
+    CHECK(w.session->successor_address().empty());
+    host.reset();
+    notice_host_left(network, {&a, &b, &c, &w});
+    CHECK(a.count(net::SessionEvent::Kind::Reconnecting) == 0);
+    CHECK(a.session->hosts_next());
+    CHECK(b.session->can_migrate());
+    CHECK(w.session->can_migrate());
+    CHECK(w.session->successor_address() == "loopback:1");
+}
+
+TEST_CASE("net: a computer of another version is told so, however its Hello looks (MS-22)") {
+    net::LoopbackNetwork network(5, 0);
+    Host host(network);
+    for (const std::uint16_t version :
+         {std::uint16_t{net::kProtocolVersion - 1}, std::uint16_t{net::kProtocolVersion + 1}}) {
+        auto link = network.connect();
+        net::Hello hello;
+        hello.content = kContent;
+        hello.name = "Zukunft";
+        std::vector<std::uint8_t> bytes = net::encode(hello);
+        bytes[1] = static_cast<std::uint8_t>(version & 0xFF);
+        bytes[2] = static_cast<std::uint8_t>(version >> 8);
+        bytes.push_back(0x42);  // a field this version does not know
+        std::vector<net::TransportEvent> events;
+        std::optional<net::RefuseReason> refused;
+        for (int i = 0; i < 30 && !refused; ++i) {
+            network.advance(kStepMs);
+            host.update(kStepMs);
+            events.clear();
+            link->poll(events);
+            for (const auto& e : events) {
+                if (e.kind == net::TransportEvent::Kind::Connected) {
+                    link->send(0, bytes);
+                } else if (e.kind == net::TransportEvent::Kind::Received) {
+                    if (const auto m = net::decode(e.data)) {
+                        if (const auto* r = std::get_if<net::Refused>(&*m)) {
+                            refused = r->reason;
+                        }
+                    }
+                }
+            }
+        }
+        REQUIRE(refused.has_value());
+        CHECK(*refused == net::RefuseReason::Version);
+    }
 }

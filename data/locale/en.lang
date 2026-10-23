@@ -207,6 +207,7 @@ net.computer_took_over = The computer plays on for {1}.
 net.lagging = {1} lags behind; the game goes on.
 net.desync = {1} diverged and gets the game anew.
 net.dropped = {1} of your orders were not carried out: too many at once.
+net.reconnecting = The connection to the host broke; trying to get back in.
 net.waiting = Waiting for the other players ...
 net.host_port = Hosting on UDP port {1}
 net.cannot_host = Cannot host: {1}

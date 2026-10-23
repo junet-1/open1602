@@ -185,6 +185,7 @@ net.computer_took_over = Der Computer spielt für {1} weiter.
 net.lagging = {1} hängt; das Spiel geht weiter.
 net.desync = {1} wich ab und bekommt das Spiel neu.
 net.dropped = {1} Eurer Befehle wurden nicht ausgeführt: zu viele auf einmal.
+net.reconnecting = Die Verbindung zum Gastgeber ist abgebrochen; Euer Rechner versucht, wieder hineinzukommen.
 net.waiting = Warte auf die Mitspieler ...
 net.host_port = Gastgeber auf UDP-Port {1}
 net.cannot_host = Kein Spiel möglich: {1}
