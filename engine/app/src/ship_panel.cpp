@@ -1302,6 +1302,18 @@ private:
     [[nodiscard]] bool shown(const WareGadgets& w, const sim::Ship& ship, const PanelContext& c) const {
         return !m_stop_page || !spare(w, ship, c) || ship.route.stops[w.stop].entries[w.entry] != sim::RouteEntry{};
     }
+    /// Wares of a stop beyond the two of the list.
+    [[nodiscard]] static std::size_t wares_beyond_list(const sim::RouteStop& stop) {
+        return static_cast<std::size_t>(std::count_if(stop.entries.begin() + kEntriesShown, stop.entries.end(),
+                                                      [](const sim::RouteEntry& r) { return r.ware != 0; }));
+    }
+    /// `+N` on a stop of the list: the wares beyond the two shown, or `+` once both are set (a free
+    /// one is chosen in the list itself).
+    [[nodiscard]] static bool more_shown(const sim::RouteStop& stop) {
+        const bool list_full = std::all_of(stop.entries.begin(), stop.entries.begin() + kEntriesShown,
+                                           [](const sim::RouteEntry& r) { return r.ware != 0; });
+        return list_full || wares_beyond_list(stop) > 0;
+    }
     /// The next stop with a city before (`step` -1) or after (+1) `from`.
     [[nodiscard]] static std::optional<std::uint8_t> neighbour_stop(const sim::Ship& ship, const PanelContext& c,
                                                                     std::uint8_t from, int step) {
@@ -1364,7 +1376,7 @@ private:
             m_route.set_visible(kStopArmsShadow + s, city != nullptr);
             if (m_route_row) {
                 for (const std::int32_t id : {kStopMoreRim, kStopMorePlate, kStopMore}) {
-                    m_route.set_visible(id + s, city != nullptr && !m_stop_page);
+                    m_route.set_visible(id + s, city != nullptr && !m_stop_page && more_shown(ship.route.stops[stop]));
                 }
             }
             if (slot >= slots()) {
@@ -1383,10 +1395,7 @@ private:
                                    c.banner(city->owner));
             }
             if (m_route_row && !m_stop_page) {
-                // `+N`: the wares beyond the two shown, `+` if there are none yet.
-                const auto& entries = ship.route.stops[stop].entries;
-                const auto more = std::count_if(entries.begin() + kEntriesShown, entries.end(),
-                                                [](const sim::RouteEntry& r) { return r.ware != 0; });
+                const std::size_t more = wares_beyond_list(ship.route.stops[stop]);
                 m_route.set_text(kStopMore + s, more > 0 ? "+" + std::to_string(more) : std::string("+"));
             }
         }
