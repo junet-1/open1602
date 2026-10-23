@@ -269,7 +269,7 @@ core::Result<sim::World> synthetic_world(const assets::BuildingTable& buildings,
 template <std::size_t... I>
 sim::Command command_of_index(std::size_t index, std::index_sequence<I...>) {
     sim::Command out;
-    ((index == I ? (out = sim::Command{std::in_place_index<I>}, true) : false) || ...);
+    static_cast<void>(((index == I ? (out = sim::Command{std::in_place_index<I>}, true) : false) || ...));
     return out;
 }
 
