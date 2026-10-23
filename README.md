@@ -96,7 +96,9 @@ ctest --preset release
 
 Install Visual Studio 2026 (or its Build Tools) with the workload "Desktop development with C++"; it
 brings CMake and Ninja. SDL 3 and zlib come from [vcpkg](https://vcpkg.io), which the `vcpkg` preset
-uses. In an **x64 Native Tools Command Prompt for VS 2026** (or the matching Developer PowerShell):
+uses. Open1602 is 64-bit only, so open the **x64 Native Tools Command Prompt for VS 2026** from the
+start menu (not the "Developer Command Prompt", which targets 32-bit x86, and not a plain PowerShell
+or terminal, which has no compiler). In it:
 
 ```bat
 git clone https://github.com/microsoft/vcpkg C:\vcpkg
@@ -107,6 +109,15 @@ cmake --preset vcpkg
 cmake --build --preset vcpkg
 ctest --preset vcpkg
 ```
+
+`set VCPKG_ROOT=...` works in the Command Prompt only and lasts until it is closed, so repeat it in
+every new prompt. In PowerShell, for example a Developer PowerShell started with `-Arch amd64`, write
+`$env:VCPKG_ROOT = "C:\vcpkg"` instead; there `set` silently does nothing for CMake, which then fails
+with "Could not find toolchain file: /scripts/buildsystems/vcpkg.cmake". Visual Studio's prompts may
+already point VCPKG_ROOT at the vcpkg bundled with it; the line above switches to the clone, which is
+what CI tests. vcpkg picks the 64-bit triplet `x64-windows` from the x64 prompt by itself; in a 32-bit
+prompt the configure step stops with a hint. After a failed first configure, delete `build\vcpkg` and
+run `cmake --preset vcpkg` again.
 
 The `vcpkg` preset builds the game and copies `SDL3.dll` next to it; `vcpkg.json` pins the versions
 with its `builtin-baseline`. Started by a double click, the game shows fatal errors in a message box
