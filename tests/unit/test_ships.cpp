@@ -8,6 +8,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
+#include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/sea_paths.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/sim/world.hpp"
@@ -409,6 +410,109 @@ TEST_CASE("ships: a trader that gives up or sinks is no longer on its way to the
         }
         CHECK(!city.trader_inbound);
     }
+}
+
+/// An island of 20 x 12 tiles at (40, 20) with a lake inside it (local columns 10..15, rows 3..8)
+/// and a Kontor of `owner` on its west coast; ships in the lake cannot reach the Kontor.
+void add_lake_island(Sea& sea, sim::PlayerId owner) {
+    sim::IslandMap map(20, 12);
+    for (std::int32_t y = 0; y < 12; ++y) {
+        for (std::int32_t x = 0; x < 20; ++x) {
+            const bool lake = x >= 10 && x <= 15 && y >= 3 && y <= 8;
+            REQUIRE(map.place(*sea.buildings.by_id(lake ? 20102 : 20101), x, y, 0, 0).ok());
+        }
+    }
+    REQUIRE(map.place(*sea.buildings.by_id(20103), 0, 4, 0, owner, 0, 0).ok());
+    for (std::uint32_t y = 0; y < 12; ++y) {
+        for (std::uint32_t x = 0; x < 20; ++x) {
+            map.set_city(x, y, 0, owner);
+        }
+    }
+    REQUIRE(sea.world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 40, 20}).ok());
+    sim::City city;
+    city.island = 0;
+    city.index = 0;
+    city.owner = owner;
+    city.name = "Port";
+    city.warehouse_x = 0;
+    city.warehouse_y = 4;
+    city.capacity = 30 * kTon;
+    city.ensure_ware(24);
+    city.trade.resize(25);
+    sea.world.add_city(city);
+}
+
+/// Sends `n` ships of the human from the lake to the Kontor, 12 tiles away; each gives up.
+/// Returns the events.
+std::vector<sim::ShipEvent> give_up(Sea& sea, sim::Fleet& fleet, std::uint32_t n) {
+    for (std::uint32_t i = 0; i < n; ++i) {
+        const std::uint32_t id = sea.add(52, 23 + i).id;
+        REQUIRE(fleet.order(sim::ShipOrder{0, id, sim::Target::city_of(0, 0)}));
+    }
+    return run(fleet, sea.world, 20000);
+}
+
+std::size_t blamed(const sim::World& world, sim::PlayerId by, sim::PlayerId whom) {
+    const auto& events = world.diplomacy().events(by);
+    return static_cast<std::size_t>(std::count_if(events.begin(), events.end(), [&](const sim::DiplomacyEvent& e) {
+        return e.type == sim::DiplomacyEventType::ShipsNearby && e.partner == whom;
+    }));
+}
+
+TEST_CASE("ships: four ships that give up a computer's Kontor make it blame the human ships near it") {
+    Sea sea;
+    add_lake_island(sea, 1);
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    REQUIRE(count(give_up(sea, fleet, 3), sim::ShipEvent::Kind::GaveUp) == 3);
+    CHECK(sea.world.city(0, 0)->ships_gave_up == 3);
+    CHECK(blamed(sea.world, 1, 0) == 0);
+    REQUIRE(count(give_up(sea, fleet, 1), sim::ShipEvent::Kind::GaveUp) == 1);
+    CHECK(sea.world.city(0, 0)->ships_gave_up == 0);
+    CHECK(blamed(sea.world, 1, 0) == 1);
+
+    // Not at peace, or a human's Kontor: nobody is blamed.
+    Sea war;
+    add_lake_island(war, 1);
+    war.world.diplomacy().relation(1, 0).peace = sim::Treaty::None;
+    sim::Fleet war_fleet(war.world, war.buildings, war.figures, war.rules);
+    give_up(war, war_fleet, 4);
+    CHECK(blamed(war.world, 1, 0) == 0);
+    Sea own;
+    add_lake_island(own, 0);
+    sim::Fleet own_fleet(own.world, own.buildings, own.figures, own.rules);
+    give_up(own, own_fleet, 4);
+    CHECK(own.world.city(0, 0)->ships_gave_up == 0);
+}
+
+TEST_CASE("ships: a computer's shipyard that cannot launch its ship 100 times blames the human ships near it") {
+    Sea sea;
+    // An island of ground only, 40 x 40: the yard in its middle finds no water within its Radius.
+    sim::IslandMap map(40, 40);
+    for (std::int32_t y = 0; y < 40; ++y) {
+        for (std::int32_t x = 0; x < 40; ++x) {
+            REQUIRE(map.place(*sea.buildings.by_id(20101), x, y, 0, 0).ok());
+        }
+    }
+    REQUIRE(map.place(*sea.buildings.by_id(20104), 18, 18, 0, 1, 0, 0).ok());
+    for (std::uint32_t y = 0; y < 40; ++y) {
+        for (std::uint32_t x = 0; x < 40; ++x) {
+            map.set_city(x, y, 0, 1);  // the computer's land
+        }
+    }
+    REQUIRE(sea.world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 40, 10}).ok());
+    sim::CostBuilding yard{sim::CostBuilding::Kind::Shipyard, 0, 18, 18, true};
+    yard.order = 0;
+    yard.progress = 1000 * kTon;  // finished long ago
+    sea.world.add_cost_building(yard);
+    sea.add(60, 30);  // a ship of the human 4 tiles from the yard
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    run(fleet, sea.world, 1080 * 1000);  // 99 tries, 11 s apart
+    CHECK(sea.world.cost_buildings()[0].failed_launches == 99);
+    CHECK(blamed(sea.world, 1, 0) == 0);
+    run(fleet, sea.world, 11 * 1000);
+    CHECK(sea.world.cost_buildings()[0].failed_launches == 0);
+    CHECK(blamed(sea.world, 1, 0) == 1);
+    CHECK(sea.world.ships().size() == 1);  // still no new ship
 }
 
 TEST_CASE("ships: a scenario can keep the free trader away from a player (player +0x70 bit 2)") {

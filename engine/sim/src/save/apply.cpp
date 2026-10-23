@@ -287,6 +287,13 @@ core::Status apply_decoded(World& world, Decoded& d) {
                 }
             }
         }
+        if (d.give_up_counts) {
+            for (const Decoded::GiveUpCount& st : *d.give_up_counts) {
+                if (City* c = world.city(st.island, st.index)) {
+                    c->ships_gave_up = st.ships_gave_up;
+                }
+            }
+        }
         if (d.scores) {
             for (const Decoded::ScorePart::CityClock& st : d.scores->cities) {
                 if (City* c = world.city(st.island, st.index)) {
@@ -359,6 +366,7 @@ core::Status apply_decoded(World& world, Decoded& d) {
             b.countdown = y.countdown;
             b.repair_ship = y.repair_ship;
             b.idle_cycles = y.idle_cycles;
+            b.failed_launches = y.failed_launches;
             b.fetching = y.fetching;
         }
         world.ships() = std::move(d.fleet->ships);

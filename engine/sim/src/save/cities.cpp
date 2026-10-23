@@ -84,6 +84,15 @@ void io_population_mark(A& a, C& c) {
     a.u8(c.population_message);
 }
 
+/// CGUP: the ships that gave up their way to the Kontor of a City (writing) or of
+/// Decoded::GiveUpCount (reading).
+template <class A, class C>
+void io_give_up_count(A& a, C& c) {
+    a.u16(c.island);
+    a.u8(c.index);
+    a.u8(c.ships_gave_up);
+}
+
 template <class A, class P>
 void io_production(A& a, P& p) {
     a.u16(p.island);
@@ -188,6 +197,16 @@ void write_material_clocks(Writer& out, const World& w) {
 
 void write_population_marks(Writer& out, const World& w) {
     out.list(w.cities(), 4, [&](const City& c) { io_population_mark(out, c); });
+}
+
+void write_give_up_counts(Writer& out, const World& w) {
+    out.list(w.cities(), 4, [&](const City& c) { io_give_up_count(out, c); });
+}
+
+std::vector<Decoded::GiveUpCount> read_give_up_counts(Reader& in) {
+    std::vector<Decoded::GiveUpCount> list;
+    in.list(list, 4, [&](Decoded::GiveUpCount& c) { io_give_up_count(in, c); });
+    return list;
 }
 
 std::vector<Decoded::PopulationMark> read_population_marks(Reader& in) {

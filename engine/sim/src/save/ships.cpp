@@ -113,8 +113,7 @@ void io_yard(A& a, B& b) {
     a.u8(b.rate);
     a.u16(b.countdown);
     a.u32(b.repair_ship);
-    std::uint8_t reserved = 0;  // was a launch retry counter without effect; kept for the format
-    a.u8(reserved);
+    a.u8(b.failed_launches);  // a reserved byte (always 0) before it counted again
     a.u8(b.idle_cycles);
     a.boolean(b.fetching);
 }

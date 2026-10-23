@@ -26,6 +26,10 @@ constexpr std::uint32_t kFollowMs = 2000;      // re-plan towards a moving targe
 constexpr std::uint32_t kKontorStopMs = 3000;  // route stop at a Kontor with something requested
 constexpr std::uint32_t kShipStopMs = 2000;    // route stop at a ship
 constexpr std::uint8_t kMaxFailures = 2;       // the order is given up after the third failed plan
+
+constexpr std::uint8_t kGiveUpsToComplain = 4;  // ships giving up a Kontor before its computer complains
+constexpr std::int32_t kKontorComplaint = 16;   // reach of the count round the Kontor (0x00428640)
+
 constexpr std::uint32_t kTon = 32;
 constexpr std::size_t kMaxSteps = 64;  // decisions of one ship in one tick (a guard)
 // A tile takes 6 250 000 * divisor / Speed microseconds straight, sqrt 2 times that diagonally
@@ -705,6 +709,52 @@ void Fleet::update_island(Ship& ship) {
     }
 }
 
+void Fleet::gave_up_city(const Target& target) {
+    // 0x00454F50: every ship that gives up its way to a Kontor counts, whoever owns it; the fourth
+    // makes a computer owner look for the culprits (0x00428920 with 1).
+    City* city = m_world->city(target.island, target.city);
+    if (city == nullptr || !city->warehouse_x || !city->warehouse_y || ++city->ships_gave_up < kGiveUpsToComplain) {
+        return;
+    }
+    city->ships_gave_up = 0;
+    const WorldIsland& isl = m_world->islands()[city->island];
+    complain_of_ships(city->owner, static_cast<std::int32_t>(isl.x + *city->warehouse_x),
+                      static_cast<std::int32_t>(isl.y + *city->warehouse_y), kKontorComplaint);
+}
+
+void Fleet::complain_of_ships(PlayerId owner, std::int32_t x, std::int32_t y, std::int32_t reach) {
+    // 0x00428640 / 0x004287B0: only a computer complains. It counts the other players' ships whose
+    // distance max + 0.33 * min (in tiles, from the ship's centre) is at most `reach`, then blames the
+    // first human with ships there that it is at peace with: event 10, -100 on its mood.
+    const Player* complainer = m_world->player(owner);
+    if (complainer == nullptr || complainer->role != PlayerRole::Computer) {
+        return;
+    }
+    const std::int64_t cx = std::int64_t{x} * kShipUnit;
+    const std::int64_t cy = std::int64_t{y} * kShipUnit;
+    const std::int64_t limit = std::int64_t{reach} * kShipUnit * 100;
+    std::vector<bool> near(m_world->players().size(), false);
+    for (const Ship& s : m_world->ships()) {
+        if (s.owner == owner || s.owner >= near.size()) {
+            continue;
+        }
+        const std::int64_t dx = std::abs(std::int64_t{s.pos_x} - cx);
+        const std::int64_t dy = std::abs(std::int64_t{s.pos_y} - cy);
+        if (std::max(dx, dy) * 100 + std::min(dx, dy) * 33 <= limit) {
+            near[s.owner] = true;
+        }
+    }
+    Diplomacy& d = m_world->diplomacy();
+    for (std::size_t p = 0; p < near.size(); ++p) {
+        const auto b = static_cast<PlayerId>(p);
+        if (near[p] && m_world->players()[p].role == PlayerRole::Human &&
+            d.relation(owner, b).peace == Treaty::Signed) {
+            d.add_event(owner, b, DiplomacyEventType::ShipsNearby, m_world->time_ms());
+            return;
+        }
+    }
+}
+
 void Fleet::finish_order(Ship& ship) {
     trader_leave(ship);
     ship.previous = ship.target;
@@ -863,6 +913,9 @@ void Fleet::decide(Ship& ship) {
             ++m.failures;
             if (m.failures > kMaxFailures) {
                 m_events.push_back(ShipEvent{ShipEvent::Kind::GaveUp, ship.id, ship.owner});
+                if (ship.target.kind == Target::Kind::City) {
+                    gave_up_city(ship.target);
+                }
                 if (ship.route.active) {
                     route_next_stop(ship);  // the next stop instead of trying forever
                 } else {
@@ -1284,6 +1337,7 @@ bool Fleet::route_city_stop(Ship& ship, const RouteStop& stop) {
     if (city == nullptr || !may_trade(ship.owner, city->owner)) {
         return false;  // no treaty: skipped without a warning, like the original
     }
+    city->ships_gave_up = 0;  // a ship got through (0x00455347)
     const bool foreign = city->owner != ship.owner;
     bool requested = false;
     // Unloads first, then loads; entries of the same ware add up (0x00455000).

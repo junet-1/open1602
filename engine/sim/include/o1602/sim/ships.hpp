@@ -328,6 +328,11 @@ private:
     void explore_step(Ship& ship);
     void stop_exploring(Ship& ship);
     void finish_order(Ship& ship);
+    /// A ship gave up its way to the Kontor of `target` (0x00454F50 with 1).
+    void gave_up_city(const Target& target);
+    /// A computer's complaint (0x00428640, 0x004287B0): the first human player at peace with
+    /// `owner` that has ships within `reach` tiles of the world tile (x, y) gets event 10.
+    void complain_of_ships(PlayerId owner, std::int32_t x, std::int32_t y, std::int32_t reach);
     void route_next_stop(Ship& ship);
     bool route_city_stop(Ship& ship, const RouteStop& stop);
     bool route_ship_stop(Ship& ship, const RouteStop& stop);

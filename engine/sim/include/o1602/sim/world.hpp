@@ -172,6 +172,9 @@ struct City {
     /// from them uses it up. Indexed by PlayerId.
     std::vector<std::uint32_t> goodwill;
     bool trader_inbound = false;  ///< a free trader sails here (city + 0x257 bit 1)
+    /// Ships that gave up their way to the Kontor since the last route stop there (city + 0x252);
+    /// at four, a computer owner blames the human ships near it (Fleet, docs/re/ships.md).
+    std::uint8_t ships_gave_up = 0;
     /// Game time a building of the city was last hit (city + 0x1EC): the natives send more warriors
     /// for 10 minutes after.
     std::uint64_t last_attacked_ms = 0;
@@ -334,6 +337,9 @@ struct CostBuilding {
     std::uint32_t repair_ship = 0;  ///< Ship::id being repaired, 0 = none
     std::uint8_t idle_cycles = 0;   ///< cycles without material, at most 15
     bool fetching = false;          ///< its pack donkey is out
+    /// Finished ships that found no free water to be launched on (WERFT + 0x10); at 100 a computer
+    /// owner blames the human ships near the yard.
+    std::uint8_t failed_launches = 0;
     /// Castles (MILITAR, 0x0055EB80): weapons in store (swords, muskets, cannons, 1/32 t) and the
     /// training slots (3, 5 or 8 used by castle size). `countdown` counts the seconds to the next
     /// training step.
