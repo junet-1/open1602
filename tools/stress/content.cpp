@@ -273,6 +273,14 @@ std::size_t fill_cities(sim::Simulation& simulation, sim::World& world, const Ta
     const assets::BuildingTable& b = tables.buildings;
     const std::array<std::uint32_t, 6> special{kMarket, kWorkshop, kKlinik, kBrunnen, kWorkshop, kHouse};
     std::size_t placed = 0;
+    // Every build level unlocked, as late in a game (the original's tables lock most buildings).
+    const std::size_t levels = std::min<std::size_t>(b.infra_levels().size(), 32);
+    const std::uint32_t all = levels >= 32 ? 0xFFFFFFFFU : (1U << levels) - 1U;
+    for (const sim::PlayerId p : owners) {
+        if (sim::Player* player = world.player(p)) {
+            player->infra_mask |= all;
+        }
+    }
     // Copy: building changes the city list.
     std::vector<std::pair<std::uint16_t, std::uint8_t>> cities;
     for (const sim::City& c : world.cities()) {
@@ -306,6 +314,17 @@ std::size_t fill_cities(sim::Simulation& simulation, sim::World& world, const Ta
             for (std::uint32_t row = 0; row < 2; ++row) {
                 sim::BuildOrder order{owner, island, {}, std::nullopt, true};
                 for (std::uint32_t x = 1; x + 3 < map.width() && here < max_per_city; x += 2, ++slot) {
+                    // Only plots wholly in this city: an order belongs to the city under its first item.
+                    const std::uint32_t py = y + 1 + 2 * row;
+                    bool inside = true;
+                    for (std::uint32_t dy = 0; dy < 2 && inside; ++dy) {
+                        for (std::uint32_t dx = 0; dx < 2 && inside; ++dx) {
+                            inside = py + dy < map.height() && map.top(x + dx, py + dy).city == index;
+                        }
+                    }
+                    if (!inside) {
+                        continue;
+                    }
                     std::uint32_t id = slot % 7 == 6 ? special[(slot / 7) % special.size()] : kHouse;
                     if (b.by_id(id) == nullptr || b.by_id(id)->size_x != 2 || b.by_id(id)->size_y != 2) {
                         id = kHouse;

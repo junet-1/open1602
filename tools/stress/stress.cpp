@@ -204,7 +204,7 @@ public:
     }
 
 private:
-    std::array<std::uint64_t, 1400> m_buckets{};
+    std::array<std::uint64_t, 2100> m_buckets{};
     std::uint64_t m_count = 0;
     double m_sum = 0.0;
     double m_max = 0.0;
@@ -921,6 +921,24 @@ int run(const Args& args) {
     }
     print_counts("end:", count(*world, simulation));
     std::printf("ids: next ship %u, next soldier %u\n", world->next_ship_id(), world->next_soldier_id());
+    {
+        // Health 0 means "full" to a loader (ships of old files): a ship or unit that is going
+        // down with health 0 comes back whole from a savegame or a resync snapshot.
+        std::size_t sinking = 0;
+        std::size_t ships_zero = 0;
+        std::size_t dying = 0;
+        std::size_t soldiers_zero = 0;
+        for (const sim::Ship& s : world->ships()) {
+            sinking += s.sinking ? 1U : 0U;
+            ships_zero += s.health == 0 ? 1U : 0U;
+        }
+        for (const sim::Soldier& s : world->soldiers()) {
+            dying += s.dying() ? 1U : 0U;
+            soldiers_zero += s.health == 0 ? 1U : 0U;
+        }
+        std::printf("going down at the end: ships sinking %zu (health 0: %zu), units dying %zu (health 0: %zu)\n",
+                    sinking, ships_zero, dying, soldiers_zero);
+    }
 
     if (!args.flag("--no-save")) {
         auto t = Clock::now();
