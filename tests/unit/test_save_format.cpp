@@ -203,7 +203,12 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
     std::vector<sim::Player> players(kPlayers);
     for (std::size_t p = 0; p < players.size(); ++p) {
         sim::Player& pl = players[p];
-        pl.role = p == 0 ? sim::PlayerRole::Human : static_cast<sim::PlayerRole>(1 + v.below(4));
+        // A computer, or the free trader, the pirates or the natives.
+        const std::uint32_t kind = p == 0 ? 0 : 1 + v.below(4);
+        pl.role = kind == 0 ? sim::PlayerRole::Human : sim::PlayerRole::Computer;
+        if (kind >= 2) {
+            sim::make_neutral(pl, sim::base_faction(static_cast<sim::FactionBehaviour>(kind - 1)));
+        }
         v(pl.banner);
         v(pl.money);
         pl.name = v.text();

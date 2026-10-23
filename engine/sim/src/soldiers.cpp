@@ -40,8 +40,9 @@ constexpr std::int32_t kSquareShift = 4;  // squares of 16 x 16 cells for near_u
 
 bool computer_controlled(const World& world, PlayerId p) noexcept {
     const Player* player = world.player(p);
-    return player != nullptr && (player->role == PlayerRole::Computer || player->role == PlayerRole::Natives ||
-                                 player->role == PlayerRole::Pirates);
+    return player != nullptr &&
+           (player->role == PlayerRole::Computer || world.behaviour(*player) == FactionBehaviour::Natives ||
+            world.behaviour(*player) == FactionBehaviour::Pirates);
 }
 
 }  // namespace
@@ -694,7 +695,7 @@ void Military::decide(Soldier& s) {
         }
         if (s.target.empty() && now >= s.last_attack_ms + kWanderAfterMs) {
             const Player* p = m_world->player(s.owner);
-            if (p != nullptr && p->role == PlayerRole::Natives) {
+            if (p != nullptr && m_world->behaviour(*p) == FactionBehaviour::Natives) {
                 (void)wander(s);
             }
         }

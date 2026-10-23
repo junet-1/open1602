@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <filesystem>
 #include <optional>
 #include <random>
 #include <span>
@@ -111,13 +112,15 @@ const char* zoom_name(render::Zoom zoom) {
     }
 }
 
-std::string player_label(const sim::Player& p, sim::PlayerId slot, const render::BannerTable& banners) {
+std::string player_label(const sim::Player& p, sim::PlayerId slot, const render::BannerTable& banners,
+                         const sim::World& world) {
     std::string label = "player " + std::to_string(slot);
     if (const render::Banner* b = banners.get(p.banner)) {
         const auto colon = b->id.find(':');
         label += " " + (colon == std::string::npos ? b->id : b->id.substr(colon + 1));
     }
-    return label + " (" + sim::role_name(p.role) + ")";
+    // A neutral slot by its faction ("anno1602:pirates"), the settlers by who steers them.
+    return label + " (" + (p.role == sim::PlayerRole::Neutral ? world.faction(p).id : sim::role_name(p.role)) + ")";
 }
 
 }  // namespace
@@ -159,6 +162,35 @@ std::string colour_player_name(sim::BannerId banner, const std::vector<std::stri
     return "Player " + std::to_string(banner + 1);
 }
 
+namespace {
+
+/// The base game's factions as the mods change them (<data folder>/mods/<package>/factions.toml),
+/// the packages in the order of their names.
+std::vector<sim::Faction> load_mod_factions(const std::filesystem::path& mods) {
+    std::vector<sim::Faction> factions = sim::base_factions();
+    std::error_code ec;
+    std::vector<std::filesystem::path> packages;
+    for (const auto& entry : std::filesystem::directory_iterator(mods, ec)) {
+        if (entry.is_directory(ec)) {
+            packages.push_back(entry.path());
+        }
+    }
+    std::sort(packages.begin(), packages.end());
+    std::vector<std::string> problems;
+    for (const std::filesystem::path& folder : packages) {
+        if (const auto bytes = core::read_file(folder / sim::kFactionFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            sim::apply_faction_file(factions, core::path_to_utf8(folder.filename()), text, problems);
+        }
+    }
+    for (const std::string& p : problems) {
+        std::fprintf(stderr, "mods: %s\n", p.c_str());
+    }
+    return factions;
+}
+
+}  // namespace
+
 core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDirectory& game,
                                                            const ViewerOptions& options) {
     auto buildings = assets::BuildingTable::load(game);
@@ -186,6 +218,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
     }
     std::vector<std::string> warnings;
+    std::vector<sim::Faction> factions = load_mod_factions(data_folder() / "mods");
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
     if (options.menu || joining) {
@@ -196,6 +229,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             return texts.error();
         }
         world = sim::start_new_game(game, *buildings, *texts, *options.new_game, &warnings);
+        if (world) {
+            world->set_factions(factions);
+        }
     } else {
         auto bytes = core::read_file(options.scenario);
         if (!bytes) {
@@ -209,6 +245,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                 return file.error();
             }
             world = sim::load_world(*file, *buildings, game, &warnings, options.world);
+            if (world) {
+                world->set_factions(factions);  // the original's files have none of their own
+            }
         }
     }
     if (!world) {
@@ -221,7 +260,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     banners.add_more_players();
     for (std::size_t i = 0; i < world->players().size(); ++i) {
         const auto& p = world->players()[i];
-        std::fprintf(stderr, "%s, money %d\n", player_label(p, static_cast<sim::PlayerId>(i), banners).c_str(),
+        std::fprintf(stderr, "%s, money %d\n", player_label(p, static_cast<sim::PlayerId>(i), banners, *world).c_str(),
                      p.money);
     }
     std::fprintf(stderr, "%zu islands, %zu ships\n", world->islands().size(), world->ships().size());
@@ -236,6 +275,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
 
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
                                                     std::move(palette).value(), std::move(figures).value(), options));
+    viewer->m_factions = std::move(factions);
     viewer->m_banners =
         render::BannerTable::original(&viewer->m_figures, render::BannerOptions{options.original_flags});
     viewer->m_banners.add_more_players();
@@ -438,7 +478,8 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_figures(std::move(figures)),
       m_options(std::move(options)),
       m_state(std::make_unique<GameState>(std::move(world), m_buildings, m_figures, m_options.rules)),
-      m_events([this](const sim::Player& p, sim::PlayerId id) { return player_label(p, id, m_banners); }),
+      m_events(
+          [this](const sim::Player& p, sim::PlayerId id) { return player_label(p, id, m_banners, m_state->world); }),
       m_clock(m_buildings),
       m_tool(m_buildings) {
     m_command_sink.set_simulation(&m_state->simulation);
@@ -1835,7 +1876,7 @@ std::string MapViewer::debug_title(double fps) {
                 title += ", " + core::cp1252_to_utf8(city->name);
             }
             if (const sim::Player* p = m_state->world.player(top.owner)) {
-                title += ", " + player_label(*p, top.owner, m_banners);
+                title += ", " + player_label(*p, top.owner, m_banners, m_state->world);
             }
             title += ")";
         }
@@ -1850,7 +1891,7 @@ std::string MapViewer::debug_title(double fps) {
         const std::uint32_t health = soldier->health != 0 ? soldier->health : max;
         title += " | unit #" + std::to_string(soldier->figure);
         if (const sim::Player* p = m_state->world.player(soldier->owner)) {
-            title += " (" + player_label(*p, soldier->owner, m_banners) + ")";
+            title += " (" + player_label(*p, soldier->owner, m_banners, m_state->world) + ")";
         }
         title += " " + std::to_string(health * 100 / max) + " %";
     } else if (units.size() > 1) {
@@ -1865,7 +1906,7 @@ std::string MapViewer::debug_title(double fps) {
     if (const sim::Ship* ship = selected_ship) {
         title += " | ship " + core::cp1252_to_utf8(ship->name);
         if (const sim::Player* p = m_state->world.player(ship->owner)) {
-            title += " (" + player_label(*p, ship->owner, m_banners) + ")";
+            title += " (" + player_label(*p, ship->owner, m_banners, m_state->world) + ")";
         }
         char info[64];
         std::snprintf(info, sizeof info, " %.1f tiles/s", m_state->simulation.fleet().speed_milli(*ship) / 1000.0);
@@ -2248,6 +2289,9 @@ core::Result<sim::World> MapViewer::read_world(const std::filesystem::path& path
             return file.error();
         }
         world = sim::load_world(*file, m_buildings, m_game, &warnings, m_options.world);
+        if (world) {
+            world->set_factions(m_factions);  // the original's files have none of their own
+        }
     }
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
@@ -2358,6 +2402,7 @@ core::Status MapViewer::start_endless(std::uint8_t level, sim::BannerId banner, 
     if (!world) {
         return world.error();
     }
+    world->set_factions(m_factions);
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }

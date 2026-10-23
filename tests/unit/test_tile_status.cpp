@@ -139,9 +139,9 @@ TEST_CASE("tile status: ships by their owner, land units by their kind") {
 
     sim::World world;
     std::vector<sim::Player> players(4);
-    players[1].role = sim::PlayerRole::Pirates;
-    players[2].role = sim::PlayerRole::Trader;
-    players[3].role = sim::PlayerRole::Natives;
+    sim::make_neutral(players[1], sim::faction::kPirates);
+    sim::make_neutral(players[2], sim::faction::kTrader);
+    sim::make_neutral(players[3], sim::faction::kNatives);
     world.set_players(std::move(players));
     for (sim::PlayerId p = 0; p < 3; ++p) {
         world.add_ship(sim::make_ship("", 10, 10, 0, p));

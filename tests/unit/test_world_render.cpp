@@ -214,7 +214,7 @@ TEST_CASE("world renderer: an island the local player has not discovered shows o
     // village or a foreign city on it stays unseen until a ship of the player comes near.
     const auto table = make_table();
     sim::World world;
-    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Natives, 1, 0, ""}});
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Neutral, 1, 0, "", sim::faction::kNatives}});
     auto island = make_island(10, 20, 2, 2);
     for (std::int32_t y = 0; y < 2; ++y) {
         for (std::int32_t x = 0; x < 2; ++x) {

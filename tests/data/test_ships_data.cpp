@@ -103,7 +103,7 @@ TEST_CASE("data: twenty minutes at sea: ships stay on water, traders trade, nobo
                 // Pirates sail to their hideout, whose narrow harbour another pirate may block;
                 // their own behaviour comes with the military.
                 const sim::Player* owner = world->player(e.player);
-                const bool pirate = owner != nullptr && owner->role == sim::PlayerRole::Pirates;
+                const bool pirate = owner != nullptr && owner->faction == sim::faction::kPirates;
                 gave_up += e.kind == sim::ShipEvent::Kind::GaveUp && !pirate ? 1U : 0U;
             }
             for (const sim::Ship& s : world->ships()) {

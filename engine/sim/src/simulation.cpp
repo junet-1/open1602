@@ -826,9 +826,10 @@ void Simulation::players_tick() {
         const bool city = owns_city(*m_world, id);
         const bool ship = owns_ship(*m_world, id);
         switch (p.role) {
-            case PlayerRole::Pirates:
-                // Only when a mission asks to defeat them (settings bit 5).
-                if ((m_world->game_settings().flags & World::GameSettings::kPirateGoal) != 0 && !city && !ship) {
+            case PlayerRole::Neutral:
+                // Only the pirates, when a mission asks to defeat them (settings bit 5).
+                if (m_world->behaviour(p) == FactionBehaviour::Pirates &&
+                    (m_world->game_settings().flags & World::GameSettings::kPirateGoal) != 0 && !city && !ship) {
                     defeat(id, GameEvent::Reason::Retired, true);
                 }
                 break;
@@ -857,9 +858,6 @@ void Simulation::players_tick() {
                     // Nothing left: at once alone, after 200 s with other humans in the game.
                     defeat(id, GameEvent::Reason::NoPossessions, true);
                 }
-                break;
-            case PlayerRole::Trader:
-            case PlayerRole::Natives:
                 break;
         }
     }
@@ -916,7 +914,7 @@ void Simulation::defeat(PlayerId id, GameEvent::Reason reason, bool blame) {
     const PlayerId by = blame ? m_world->diplomacy().blamed(id) : kNoPlayer;
     m_game_events.push(GameEvent{GameEvent::Kind::PlayerDefeated, id, by, reason});
     Player* k = by != id ? m_world->player(by) : nullptr;
-    if (k == nullptr || p->role == PlayerRole::Natives) {
+    if (k == nullptr || m_world->behaviour(*p) == FactionBehaviour::Natives) {
         return;
     }
     k->opponents_defeated = static_cast<std::uint16_t>(std::min(k->opponents_defeated + 1, 0xFFFF));

@@ -9,12 +9,8 @@ const char* role_name(PlayerRole role) noexcept {
             return "human";
         case PlayerRole::Computer:
             return "computer";
-        case PlayerRole::Trader:
-            return "free trader";
-        case PlayerRole::Pirates:
-            return "pirates";
-        case PlayerRole::Natives:
-            return "natives";
+        case PlayerRole::Neutral:
+            return "neutral";
     }
     return "?";
 }

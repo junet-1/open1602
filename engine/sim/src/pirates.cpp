@@ -23,12 +23,7 @@ constexpr std::uint32_t kPlunderAmount = 50 * 32;
 }  // namespace
 
 PlayerId Fleet::pirates() const {
-    for (std::size_t p = 0; p < m_world->players().size(); ++p) {
-        if (m_world->players()[p].role == PlayerRole::Pirates) {
-            return static_cast<PlayerId>(p);
-        }
-    }
-    return kNoPlayer;
+    return m_world->first_of(FactionBehaviour::Pirates);
 }
 
 std::uint32_t pirate_max_ships(const World& world) noexcept {
@@ -65,11 +60,15 @@ std::uint32_t pirate_nests(const World& world, const Rules& rules) noexcept {
     if (rules.pirate_nests == PirateNests::One) {
         return 1;
     }
+    const Player* pirates = world.player(world.first_of(FactionBehaviour::Pirates));
+    if (pirates == nullptr) {
+        return 1;
+    }
     std::uint32_t players = 0;
     for (const Player& p : world.players()) {
         players += p.role == PlayerRole::Human || p.role == PlayerRole::Computer ? 1U : 0U;
     }
-    return std::max<std::uint32_t>(1, (players + 3) / 4);
+    return std::max<std::uint32_t>(1, world.faction(*pirates).nests.of(players));
 }
 
 std::uint32_t pirate_region(const World& world, std::uint32_t x, std::uint32_t y, std::uint32_t nests) noexcept {

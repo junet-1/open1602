@@ -430,9 +430,27 @@ public:
     void set_players(std::vector<Player> players) {
         m_players = std::move(players);
         if (m_diplomacy.size() != m_players.size()) {
-            m_diplomacy.reset(m_players);
+            m_diplomacy.reset(m_players, m_factions);
         }
     }
+
+    /// The factions of this game (ADR 0007, section 3): the base game's (base_factions()) at
+    /// their indices first, those of content packages after them.
+    [[nodiscard]] const std::vector<Faction>& factions() const noexcept { return m_factions; }
+    /// Replaces the factions; a player of a faction that is no longer there becomes a settler.
+    void set_factions(std::vector<Faction> factions);
+    /// The faction a player belongs to; the settlers' for a faction the world does not have.
+    [[nodiscard]] const Faction& faction(const Player& player) const noexcept {
+        return player.faction < m_factions.size() ? m_factions[player.faction] : m_factions[faction::kSettlers];
+    }
+    [[nodiscard]] FactionBehaviour behaviour(const Player& player) const noexcept { return faction(player).behaviour; }
+    /// Whether the player `p` is one of a faction that acts as `behaviour`; false for nobody.
+    [[nodiscard]] bool acts_as(PlayerId p, FactionBehaviour behaviour) const noexcept {
+        const Player* player = this->player(p);
+        return player != nullptr && this->behaviour(*player) == behaviour;
+    }
+    /// The first player of a faction that acts as `behaviour`, kNoPlayer if there is none.
+    [[nodiscard]] PlayerId first_of(FactionBehaviour behaviour) const noexcept;
     /// Adds a ship; one without an id gets the next free one.
     void add_ship(Ship ship);
     /// Ship with this id, nullptr if it is gone.
@@ -619,6 +637,7 @@ private:
     std::uint32_t m_height;
     std::vector<WorldIsland> m_islands;
     std::vector<Player> m_players;
+    std::vector<Faction> m_factions = base_factions();
     std::vector<Ship> m_ships;
     std::uint32_t m_next_ship_id = 1;
     IdIndex m_ship_index;

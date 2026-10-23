@@ -52,7 +52,7 @@ core::Status check(const World& w, const Decoded& d) {
     }
     const std::size_t players = d.players ? d.players->size() : w.players().size();
     if ((d.player_state && d.player_state->size() != players) || (d.scores && d.scores->players.size() != players) ||
-        (d.diplomacy && d.diplomacy->size() != players)) {
+        (d.diplomacy && d.diplomacy->size() != players) || (d.factions && d.factions->players.size() != players)) {
         return bad("player sections do not match");
     }
     const std::size_t costs = d.costs ? d.costs->size() : w.cost_buildings().size();
@@ -205,6 +205,14 @@ core::Status apply_decoded(World& world, Decoded& d) {
             kept_switches.push_back(p.scenario);
         }
         world.set_players(std::move(*d.players));
+    }
+    if (d.factions) {
+        std::vector<Player> players = world.players();
+        for (std::size_t i = 0; i < players.size(); ++i) {
+            players[i].faction = d.factions->players[i];
+        }
+        world.set_players(std::move(players));
+        world.set_factions(std::move(d.factions->factions));
     }
     if (d.missions) {
         world.set_missions(std::move(d.missions->missions));

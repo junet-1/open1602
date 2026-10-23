@@ -86,7 +86,7 @@ std::optional<std::string> order_question(const sim::World& world, const assets:
     const sim::PlayerId other = target_owner(world, target);
     const sim::Player* p = world.player(other);
     const sim::Diplomacy& d = world.diplomacy();
-    if (p == nullptr || other == local || p->role == sim::PlayerRole::Trader || local >= d.size() ||
+    if (p == nullptr || other == local || world.behaviour(*p) == sim::FactionBehaviour::Trader || local >= d.size() ||
         other >= d.size() || d.relation(local, other).peace == sim::Treaty::None) {
         return std::nullopt;
     }

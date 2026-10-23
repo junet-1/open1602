@@ -308,7 +308,7 @@ void Military::natives_tick() {
     const std::uint64_t now = m_world->time_ms();
     for (const City& found : m_world->cities()) {
         const Player* owner = m_world->player(found.owner);
-        if (owner == nullptr || owner->role != PlayerRole::Natives) {
+        if (owner == nullptr || m_world->behaviour(*owner) != FactionBehaviour::Natives) {
             continue;
         }
         const bool alarmed =

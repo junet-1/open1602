@@ -19,9 +19,9 @@ std::vector<sim::Player> original_players() {
     for (std::size_t i = 1; i < 4; ++i) {
         p[i].role = sim::PlayerRole::Computer;
     }
-    p[4].role = sim::PlayerRole::Trader;
-    p[5].role = sim::PlayerRole::Pirates;
-    p[6].role = sim::PlayerRole::Natives;
+    sim::make_neutral(p[4], sim::faction::kTrader);
+    sim::make_neutral(p[5], sim::faction::kPirates);
+    sim::make_neutral(p[6], sim::faction::kNatives);
     for (auto& player : p) {
         player.money = 20'000;
     }
@@ -32,7 +32,7 @@ std::vector<sim::Player> original_players() {
 
 TEST_CASE("diplomacy: a new game starts with the original's table") {
     sim::Diplomacy d;
-    d.reset(original_players());
+    d.reset(original_players(), sim::base_factions());
     // Rows as the original's reset (0x00474380) and the Endlosspiel files have them.
     const int peace[7][7] = {{3, 3, 3, 3, 3, 0, 3}, {3, 3, 3, 3, 3, 0, 3}, {3, 3, 3, 3, 3, 0, 3}, {3, 3, 3, 3, 3, 0, 3},
                              {3, 3, 3, 3, 3, 3, 3}, {0, 0, 0, 0, 3, 3, 0}, {3, 3, 3, 3, 3, 0, 3}};

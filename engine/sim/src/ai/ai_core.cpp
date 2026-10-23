@@ -84,12 +84,12 @@ void Engine::reset() {
     m_state.players.clear();
     for (std::size_t i = 0; i < m_world.players().size(); ++i) {
         const Player& pl = m_world.players()[i];
-        if (pl.role != PlayerRole::Computer && pl.role != PlayerRole::Pirates) {
+        if (pl.role != PlayerRole::Computer && m_world.behaviour(pl) != FactionBehaviour::Pirates) {
             continue;
         }
         AiPlayer p;
         p.player = static_cast<PlayerId>(i);
-        p.pirates = pl.role == PlayerRole::Pirates;
+        p.pirates = m_world.behaviour(pl) == FactionBehaviour::Pirates;
         init_player(p);
         m_state.players.push_back(std::move(p));
     }
@@ -137,7 +137,7 @@ void Engine::tick(std::uint32_t dt_ms) {
             continue;  // defeated players do nothing (controller 9)
         }
         if (p.pirates) {
-            if (pl->role != PlayerRole::Pirates) {
+            if (m_world.behaviour(*pl) != FactionBehaviour::Pirates) {
                 continue;
             }
             // The pirates take one step every 10 s (0x00429FD0).

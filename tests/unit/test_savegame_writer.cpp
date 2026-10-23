@@ -136,9 +136,9 @@ sim::World make_world(const assets::BuildingTable& buildings) {
     players[kComputer].name = "Rechner";
     players[kComputer].castles_built = 1;
     players[kComputer].scenario = {sim::scenario_flag::kPassive | sim::scenario_flag::kOwnSize, 0, 2200, 0, 0};
-    players[kTrader].role = sim::PlayerRole::Trader;
+    sim::make_neutral(players[kTrader], sim::faction::kTrader);
     players[kTrader].banner = 4;
-    players[kPirates].role = sim::PlayerRole::Pirates;
+    sim::make_neutral(players[kPirates], sim::faction::kPirates);
     players[kPirates].banner = 5;
     world.set_players(players);
     sim::Relation& war = world.diplomacy().relation(kHuman, kComputer);

@@ -345,8 +345,8 @@ int cmd_render_world(const Args& args) {
     }
     for (const auto& p : world->players()) {
         const render::Banner* b = banners.get(p.banner);
-        std::printf("player: %s, banner %s, money %d\n", sim::role_name(p.role), b != nullptr ? b->id.c_str() : "?",
-                    p.money);
+        std::printf("player: %s, %s, banner %s, money %d\n", sim::role_name(p.role), world->faction(p).id.c_str(),
+                    b != nullptr ? b->id.c_str() : "?", p.money);
     }
     std::printf("%zu building figures (flags, smoke, status icons)\n", building_figures.size());
 

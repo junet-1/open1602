@@ -64,7 +64,11 @@ a clear message.
   "nobody". This allows up to 254 slots. The real upper limit is set by the lobby and the game rules.
 - **Control and faction are separate.** A slot is controlled by a human, an AI or
   nobody (neutral). It belongs to a faction: settlers, traders, pirates, natives
-  or a faction from a mod. Until factions become data, `sim::PlayerRole` maps the roles of the original (the computer opponents build on it too).
+  or a faction from a mod. `sim::PlayerRole` is the control (human, computer, neutral), `Player::faction`
+  an index into the world's factions (`sim::World::factions()`, `sim::Faction`); a faction names the
+  behaviour the simulation gives it (one of the original's four until scripts can give one,
+  `sim::FactionBehaviour`). The world saves its factions with the game (section `FACT`), so a game keeps
+  them whatever is installed later and every computer of a multiplayer game gets the host's.
 - **Neutral factions scale with the player count.** Their data contains rules such as "pirates:
   ships = base value + k · settler players" or "traders: one route per n warehouses". This way the
   world adapts to five or eight players.
@@ -144,7 +148,7 @@ a clear message.
 | `sim::World::kWidth/kHeight`, `Cell` with 8-bit island number and coordinates | 500 × 350, 255 islands, islands up to 255 × 255 | ✅ size per world, 16 bits |
 | Buildings, figures | `.cod` numbers as index | ⬜ content registry with ids (with the first custom content) |
 | Goods | fixed list of the original | ⬜ the economy simulation is done with the original's list; a free goods list comes with content packs (M8) |
-| Factions, scaling of neutral players | – | ⬜ `sim::PlayerRole` is still a fixed enum; the computer opponents (2026-10-18) build on it, factions as data are still pending |
+| Factions, scaling of neutral players | – | 🟡 control and faction apart, factions as data in the world with their numbers (pirate nests, trader ships and reach, `sim::Scaling`), changed by `factions.toml` ([factions.md](../modding/factions.md)); factions of a package's own need slots and a behaviour of their own (M8) |
 | Player count at game start, saving | 4 players at start, 7 players, 150 ships, 400 soldiers, 350 towers in the savegame | ⬜ the world plan supports 16 players; saving beyond the original limits is done with the own format `.o1602` ([ADR 0009](0009-own-save-format.md)) |
 | Island generator | – | 🟡 stage 1: custom worlds from the original templates (200–2000 tiles, [worldgen.md](../re/worldgen.md)); stage 2 with custom island shapes postponed |
 | Messages of the status bar | MELDUNG numbers 0–0x6F, texts only from `Text.cod` | ✅ `app::MessageTable`: the original's at their numbers, packages' after them, from `mods/<package>/messages.toml` ([messages.md](../modding/messages.md)); a package's id is its folder's name until manifests come |

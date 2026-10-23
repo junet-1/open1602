@@ -77,8 +77,8 @@ struct World {
         players[0].role = sim::PlayerRole::Human;
         players[0].money = 20'000;
         players[1].role = sim::PlayerRole::Computer;
-        players[2].role = sim::PlayerRole::Pirates;
-        players[3].role = sim::PlayerRole::Natives;
+        sim::make_neutral(players[2], sim::faction::kPirates);
+        sim::make_neutral(players[3], sim::faction::kNatives);
         world.set_players(players);
         sim::IslandMap map(12, 10);
         for (std::int32_t y = 0; y < 10; ++y) {
@@ -272,11 +272,11 @@ TEST_CASE("pirates: one nest for every four players begun, each with the origina
         return std::pair{early, game.pirate_ships()};
     };
     using Counts = std::pair<std::size_t, std::size_t>;
-    CHECK(fleet(sim::PirateNests::PerFourPlayers) == Counts(2, 4));
+    CHECK(fleet(sim::PirateNests::Scaled) == Counts(2, 4));
     CHECK(fleet(sim::PirateNests::One) == Counts(1, 2));
 
     // The choice stays with the savegame.
-    for (const sim::PirateNests choice : {sim::PirateNests::One, sim::PirateNests::PerFourPlayers}) {
+    for (const sim::PirateNests choice : {sim::PirateNests::One, sim::PirateNests::Scaled}) {
         sim::Rules saved;
         saved.pirate_nests = choice;
         w.world.set_saved_rules(saved);
@@ -289,9 +289,38 @@ TEST_CASE("pirates: one nest for every four players begun, each with the origina
     }
 }
 
+TEST_CASE("factions: the pirates' faction says how their nests grow, and the game keeps it") {
+    World w;
+    std::vector<sim::Player> players = w.world.players();
+    players.resize(9);
+    for (std::size_t i = 4; i < players.size(); ++i) {
+        players[i].role = sim::PlayerRole::Computer;  // seven human and computer players
+    }
+    w.world.set_players(players);
+    CHECK(sim::pirate_nests(w.world, w.rules) == 2);
+    std::vector<sim::Faction> factions = sim::base_factions();
+    factions[sim::faction::kPirates].nests.per = 2;
+    w.world.set_factions(factions);
+    CHECK(sim::pirate_nests(w.world, w.rules) == 4);
+    sim::Rules one;
+    one.pirate_nests = sim::PirateNests::One;
+    CHECK(sim::pirate_nests(w.world, one) == 1);
+
+    auto bytes = sim::write_game(w.world, w.buildings);
+    REQUIRE(bytes.ok());
+    auto back = sim::read_game(*bytes, w.buildings);
+    REQUIRE(back.ok());
+    CHECK(back->factions() == factions);
+    CHECK(back->players()[2].faction == sim::faction::kPirates);
+    CHECK(back->players()[2].role == sim::PlayerRole::Neutral);
+    CHECK(back->players()[3].faction == sim::faction::kNatives);
+    CHECK(back->players()[1].role == sim::PlayerRole::Computer);
+    CHECK(sim::pirate_nests(*back, w.rules) == 4);
+}
+
 TEST_CASE("free trader: the reach of the rule stays with the savegame") {
     World w;
-    for (const sim::TraderReach choice : {sim::TraderReach::Original, sim::TraderReach::PerFourPlayers}) {
+    for (const sim::TraderReach choice : {sim::TraderReach::Original, sim::TraderReach::Scaled}) {
         sim::Rules saved;
         saved.trader_reach = choice;
         w.world.set_saved_rules(saved);

@@ -264,7 +264,7 @@ int cmd_new_world(const Args& args) {
     std::size_t villages_made = 0;
     for (const sim::City& c : world->cities()) {
         const sim::Player* p = world->player(c.owner);
-        villages_made += p != nullptr && p->role == sim::PlayerRole::Natives ? 1U : 0U;
+        villages_made += p != nullptr && world->behaviour(*p) == sim::FactionBehaviour::Natives ? 1U : 0U;
     }
     std::printf("native villages %zu\n", villages_made);
     auto bytes = sim::write_savegame(*world, *buildings);
