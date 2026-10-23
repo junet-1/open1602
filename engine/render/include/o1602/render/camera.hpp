@@ -14,6 +14,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <utility>
 
@@ -29,6 +30,16 @@ struct TilePos {
 
 /// World tile whose diamond contains the world pixel (px, py), or nothing outside the map.
 [[nodiscard]] std::optional<TilePos> world_tile_at(const WorldView& view, double px, double py);
+/// Height of a world tile's diamond above its flat place, in world pixels (tile_elevation).
+using TileElevation = std::function<std::int32_t(TilePos)>;
+
+/// World tile whose diamond, drawn `elevation` pixels higher (0..max_elevation), contains the world
+/// pixel (px, py): the front-most of them, as it is drawn over those behind it. The land is raised
+/// above the sea (Posoffs), so the tile under the mouse is not the flat one below it. Without such
+/// a tile (below a raised tile, where its coast falls to a lower one) the flat one, nothing outside
+/// the map.
+[[nodiscard]] std::optional<TilePos> world_ground_tile_at(const WorldView& view, double px, double py,
+                                                          std::int32_t max_elevation, const TileElevation& elevation);
 /// The same point in world tiles as fractions (tile (x, y) covers x..x+1, y..y+1), also outside
 /// the map: for the frame of the visible part on the minimap.
 [[nodiscard]] std::pair<double, double> world_point_at(const WorldView& view, double px, double py);
@@ -112,6 +123,10 @@ public:
 
     /// World tile under a screen point.
     [[nodiscard]] std::optional<TilePos> tile_at_screen(double sx, double sy) const;
+    /// World tile whose raised diamond is under a screen point (world_ground_tile_at): the tile the
+    /// player sees there.
+    [[nodiscard]] std::optional<TilePos> ground_tile_at_screen(double sx, double sy,
+                                                               const TileElevation& elevation) const;
     /// World point (in fractional tiles) under a screen point, also beyond the map's edge.
     [[nodiscard]] std::pair<double, double> point_at_screen(double sx, double sy) const;
     /// Screen point of a world pixel (units drawn over the map).

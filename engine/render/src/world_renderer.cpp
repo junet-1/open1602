@@ -139,6 +139,22 @@ bool undiscovered(const sim::World& world, sim::PlayerId player, std::uint16_t i
            !world.islands()[island].discovered_by(player);
 }
 
+/// The cell a tile shows to `player`: the top layer, or the ground layer on a hidden island. A tile
+/// without ground keeps its top cell (the original's ground grid has no holes); nullptr at sea.
+const sim::MapCell* shown_cell(const sim::World& world, sim::PlayerId player, const sim::World::Cell& wc) {
+    if (wc.island == sim::World::kSea) {
+        return nullptr;
+    }
+    const sim::IslandMap& map = world.islands()[wc.island].map;
+    if (undiscovered(world, player, wc.island)) {
+        const sim::MapCell& ground = map.ground(wc.local_x, wc.local_y);
+        if (!ground.empty()) {
+            return &ground;
+        }
+    }
+    return &map.top(wc.local_x, wc.local_y);
+}
+
 }  // namespace
 
 void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& height) {
@@ -146,6 +162,21 @@ void world_pixel_size(const WorldView& view, std::int32_t& width, std::int32_t& 
     const auto diag = static_cast<std::int32_t>(rw.width + rw.height);
     width = diag * (tile_width(view.zoom) / 2);
     height = diag * (tile_height(view.zoom) / 2);
+}
+
+std::int32_t tile_elevation(const sim::World& world, const assets::BuildingTable& buildings, sim::PlayerId local_player,
+                            std::uint32_t x, std::uint32_t y, Zoom zoom) {
+    const std::int32_t tw = tile_width(zoom);
+    if (x >= world.width() || y >= world.height()) {
+        return 0;
+    }
+    const sim::MapCell* cell = shown_cell(world, local_player, world.cell(x, y));
+    if (cell == nullptr || cell->empty()) {
+        const assets::BuildingType* sea = buildings.open_sea();
+        return sea != nullptr ? sea->posoffs * tw / 64 : 0;
+    }
+    const assets::BuildingType* b = buildings.by_sprite(cell->sprite);
+    return b != nullptr ? b->posoffs * tw / 64 : 0;
 }
 
 void world_tile_center(const WorldView& view, std::uint32_t x, std::uint32_t y, std::int32_t& px, std::int32_t& py) {
@@ -1017,20 +1048,9 @@ struct TileDrawer {
     /// discovered it (0x00489C90 then reads the grid at island + 0xAFC instead of + 0xAF4).
     [[nodiscard]] bool hidden(std::uint16_t island) const { return undiscovered(world, local_player, island); }
 
-    /// The cell a tile shows: the top layer, or the ground layer on a hidden island. A tile without
-    /// ground keeps its top cell (the original's ground grid has no holes); nullptr at sea.
+    /// The cell a tile shows (shown_cell).
     [[nodiscard]] const sim::MapCell* shown(const sim::World::Cell& wc) const {
-        if (wc.island == sim::World::kSea) {
-            return nullptr;
-        }
-        const sim::IslandMap& map = world.islands()[wc.island].map;
-        if (hidden(wc.island)) {
-            const sim::MapCell& ground = map.ground(wc.local_x, wc.local_y);
-            if (!ground.empty()) {
-                return &ground;
-            }
-        }
-        return &map.top(wc.local_x, wc.local_y);
+        return shown_cell(world, local_player, wc);
     }
 
     /// What world tile (wx, wy) draws in the flat pass or the Highflg pass of its row; (sx,

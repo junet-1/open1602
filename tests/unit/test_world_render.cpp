@@ -624,6 +624,70 @@ TEST_CASE("camera: world_tile_at inverts world_tile_center for all zooms and rot
     }
 }
 
+TEST_CASE("camera: the mouse picks a raised tile where it is drawn, not the flat tile below (all zooms, rotations)") {
+    // The 2x2 building stands on land (Posoffs 20): its diamonds are drawn 20 * tw / 64 pixels higher
+    // than the sea around it. The demolish hatch lies on the drawn diamond, so the tile picked under the
+    // mouse must be that one too.
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 2, 2);
+    REQUIRE(island.map.place(*table.by_id(20100), 0, 0, 0, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    for (int z = 0; z < 3; ++z) {
+        for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+            const render::WorldView view{static_cast<render::Zoom>(z), rotation};
+            const std::int32_t tw = render::tile_width(view.zoom);
+            const std::int32_t hw = tw / 2;
+            const std::int32_t hh = render::tile_height(view.zoom) / 2;
+            const std::int32_t raised = 20 * tw / 64;
+            const auto elevation = [&](render::TilePos t) {
+                return render::tile_elevation(world, table, sim::kNoPlayer, t.x, t.y, view.zoom);
+            };
+            CHECK(elevation({10, 20}) == raised);
+            CHECK(elevation({11, 21}) == raised);
+            CHECK(elevation({9, 20}) == 0);  // the open sea
+            CHECK(elevation({600, 20}) == 0);
+            const auto pick = [&](double px, double py) {
+                return render::world_ground_tile_at(view, px, py, render::max_tile_elevation(view.zoom), elevation);
+            };
+            for (const auto& [x, y] :
+                 {std::pair{10U, 20U}, std::pair{11U, 20U}, std::pair{10U, 21U}, std::pair{11U, 21U}}) {
+                std::int32_t px = 0;
+                std::int32_t py = 0;
+                render::world_tile_center(view, x, y, px, py);
+                py -= raised;  // where it is drawn
+                const render::TilePos expected{x, y};
+                CHECK(pick(px, py) == expected);
+                CHECK(pick(px - hw + 1.5, py) == expected);
+                CHECK(pick(px + hw - 1.5, py) == expected);
+                CHECK(pick(px, py - hh + 0.75) == expected);
+                CHECK(pick(px, py + hh - 0.75) == expected);
+                CHECK(render::world_tile_at(view, px, py) != expected);  // the flat tile is another one
+            }
+            // The sea away from the island is flat: the same tile as without heights.
+            for (const auto& [x, y] : {std::pair{100U, 200U}, std::pair{0U, 0U}, std::pair{499U, 349U}}) {
+                std::int32_t px = 0;
+                std::int32_t py = 0;
+                render::world_tile_center(view, x, y, px, py);
+                CHECK(pick(px, py) == (render::TilePos{x, y}));
+            }
+            CHECK(!pick(-100, -100).has_value());
+        }
+    }
+    // Rotation 0: the raised corner tile is drawn over the sea tile behind it, and the sea tile in
+    // front shows where the land rose from.
+    const render::WorldView view{render::Zoom::Large, 0};
+    const auto elevation = [&](render::TilePos t) {
+        return render::tile_elevation(world, table, sim::kNoPlayer, t.x, t.y, view.zoom);
+    };
+    std::int32_t px = 0;
+    std::int32_t py = 0;
+    render::world_tile_center(view, 9, 19, px, py);
+    CHECK(render::world_ground_tile_at(view, px, py, 64, elevation) == (render::TilePos{10, 20}));
+    render::world_tile_center(view, 12, 22, px, py);
+    CHECK(render::world_ground_tile_at(view, px, py, 64, elevation) == (render::TilePos{12, 22}));
+}
+
 TEST_CASE("camera: zoom, rotation and pixel scale keep the anchored tile in place") {
     render::Camera camera;
     camera.set_screen(1280, 800, 1);

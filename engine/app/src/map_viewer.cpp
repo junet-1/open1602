@@ -1631,7 +1631,7 @@ Hud::Resources MapViewer::resources() const {
         r.money_cost = m_pending_bill->money;
     }
     // The city on the tile under the mouse.
-    const auto tile = m_camera.tile_at_screen(m_input->mouse_x(), m_input->mouse_y());
+    const auto tile = m_input->tile_at_mouse();
     if (!tile || tile->x >= m_state->world.width() || tile->y >= m_state->world.height()) {
         return r;
     }
@@ -1824,7 +1824,7 @@ std::string MapViewer::debug_title(double fps) {
     std::snprintf(scale, sizeof scale, " x%.2f%s", m_camera.scale(), m_map_canvas->used() ? " (canvas)" : "");
     std::string title = "Open1602 - " + game_title() + " | " + zoom_name(view.zoom) + scale + " | rotation " +
                         std::to_string(view.rotation);
-    if (const auto tile = m_camera.tile_at_screen(m_input->mouse_x(), m_input->mouse_y())) {
+    if (const auto tile = m_input->tile_at_mouse()) {
         title += " | tile " + std::to_string(tile->x) + "," + std::to_string(tile->y);
         const auto& cell = m_state->world.cell(tile->x, tile->y);
         if (cell.island != sim::World::kSea) {

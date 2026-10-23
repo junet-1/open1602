@@ -50,6 +50,39 @@ std::optional<TilePos> world_tile_at(const WorldView& view, double px, double py
     return view_to_world(view, vx, vy);
 }
 
+std::optional<TilePos> world_ground_tile_at(const WorldView& view, double px, double py, std::int32_t max_elevation,
+                                            const TileElevation& elevation) {
+    std::int32_t vw = 0;
+    std::int32_t vh = 0;
+    view_size(view, vw, vh);
+    const double half_w = tile_width(view.zoom) / 2.0;
+    const double half_h = tile_height(view.zoom) / 2.0;
+    // As world_tile_at. A tile raised by e pixels contains the point if its flat diamond contains
+    // the point e pixels lower, so the candidates are the tiles on the vertical line from the point
+    // down by max_elevation: walked from tile to tile, the depth (vx + vy) only grows, the last hit
+    // is the front-most.
+    const double s = px / half_w - vh;
+    const double t0 = py / half_h - 1.0;
+    const double t_end = t0 + std::max(max_elevation, 0) / half_h;
+    const auto at = [&](double t) {
+        return std::pair{static_cast<std::int32_t>(std::floor((s + t) / 2.0 + 0.5)),
+                         static_cast<std::int32_t>(std::floor((t - s) / 2.0 + 0.5))};
+    };
+    std::optional<TilePos> best;
+    for (double t = t0; t <= t_end;) {
+        const auto [vx, vy] = at(t);
+        if (vx >= 0 && vy >= 0 && vx < vw && vy < vh) {
+            const TilePos tile = view_to_world(view, vx, vy);
+            if (at(t0 + elevation(tile) / half_h) == std::pair{vx, vy}) {
+                best = tile;
+            }
+        }
+        // The next tile down the line: where vx or vy steps up.
+        t = std::max(std::min(2.0 * vx + 1.0 - s, 2.0 * vy + 1.0 + s), t + 1e-9);
+    }
+    return best ? best : world_tile_at(view, px, py);
+}
+
 std::pair<double, double> world_point_at(const WorldView& view, double px, double py) {
     std::int32_t vw = 0;
     std::int32_t vh = 0;
@@ -241,6 +274,13 @@ std::optional<TilePos> Camera::tile_at_screen(double sx, double sy) const {
     double py = 0;
     screen_to_world(sx, sy, px, py);
     return world_tile_at(m_view, px, py);
+}
+
+std::optional<TilePos> Camera::ground_tile_at_screen(double sx, double sy, const TileElevation& elevation) const {
+    double px = 0;
+    double py = 0;
+    screen_to_world(sx, sy, px, py);
+    return world_ground_tile_at(m_view, px, py, max_tile_elevation(m_view.zoom), elevation);
 }
 
 std::pair<double, double> Camera::point_at_screen(double sx, double sy) const {
