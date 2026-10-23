@@ -246,6 +246,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         viewer->m_city_names = texts->section("STAEDTE");
         viewer->m_ship_names = texts->section("SHIPS");
         viewer->m_campaign_labels = texts->section("KAMPAGNE");
+        viewer->m_events.set_ware_names(texts->section("WARE"));
         viewer->m_state->simulation.offer_names(viewer->m_city_names, viewer->m_ship_names);
     }
     viewer->m_soldiers.reset(viewer->m_state->world, viewer->m_buildings, viewer->m_figures);

@@ -436,6 +436,8 @@ display.off = aus
 display.hint = Jede Größe: am Fensterrand ziehen. Vollbild: F11 oder Alt+Eingabe. Zoom: Mausrad, doppelt oder halb so groß mit Strg+Plus und Strg+Minus.
 display.close = Schließen
 
+message.running_low = {1} wird knapp in {2}: reicht noch etwa {3} Min
+
 # A further colour's victory in a race, in the status bar (the original speaks only its four)
 message.won = {1} konnte seinen Auftrag erfüllen!
 message.won.orange = Der orange Spieler konnte seinen Auftrag erfüllen!

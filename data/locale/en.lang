@@ -468,6 +468,10 @@ display.off = off
 display.hint = Any size: drag the window's edge. Full screen: F11 or Alt+Enter. Zoom: the mouse wheel, twice or half the size with Ctrl+Plus and Ctrl+Minus.
 display.close = Close
 
+# The early warning of a shortage, in the status bar (in the voice of "Es fehlt an ..."): {1} the
+# good (from Text.cod), {2} the city, {3} game minutes the stock lasts at the current balance
+message.running_low = {1} is running short in {2}: about {3} min left
+
 # A further colour's victory in a race, in the status bar (the original speaks only its four)
 message.won = {1} has fulfilled their task!
 message.won.orange = The orange player has fulfilled their task!
