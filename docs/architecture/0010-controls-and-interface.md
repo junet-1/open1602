@@ -63,6 +63,7 @@ information fit in and the controls follow today's real-time strategy games (202
 | O | options |
 | L / Shift+L | ship list / city list |
 | V | diplomacy (treaties; German „Verträge“) |
+| F2 | goods balance „Warenbilanz“ (Open1602, ADR 0012) |
 
 **Building**
 

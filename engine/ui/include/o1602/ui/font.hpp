@@ -22,13 +22,23 @@ namespace o1602::ui {
 /// Palette index for every palette index: what a glyph pixel becomes.
 using Recolour = std::array<std::uint8_t, 256>;
 
-/// The ten text colours of the original (0x00494870): body and shadow as RGB, matched to the
-/// nearest palette colour.
+/// The ten text colours of the original (0x00494870) and Open1602's inks for its parchment windows
+/// (10 and up): body and shadow as RGB, matched to the nearest palette colour.
 struct TextColour {
     std::array<std::uint8_t, 3> body{};
     std::array<std::uint8_t, 3> shadow{};
 };
-inline constexpr std::size_t kTextColours = 10;
+inline constexpr std::size_t kTextColours = 16;
+/// The font slots a renderer offers (ui/resources.hpp font_file): normal, small, large, medium.
+inline constexpr std::size_t kFontSlots = 4;
+/// Open1602's inks on parchment: dark brown, faded, green (more coming in) and red (more going out).
+inline constexpr std::int32_t kTextInk = 10;
+inline constexpr std::int32_t kTextInkFaded = 11;
+inline constexpr std::int32_t kTextInkGreen = 12;
+inline constexpr std::int32_t kTextInkRed = 13;
+/// Open1602's bright green and red with a black shadow, over the original's art (the Kontor's stock).
+inline constexpr std::int32_t kTextBrightGreen = 14;
+inline constexpr std::int32_t kTextBrightRed = 15;
 [[nodiscard]] const TextColour& text_colour(std::size_t index) noexcept;
 
 /// Nearest palette colour by squared RGB distance, the first of equals (0x004031B0).
@@ -49,6 +59,9 @@ public:
     void set_design_scale(double scale) noexcept { m_design_scale = scale; }
     /// Height of the cell (the same for every glyph).
     [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
+    /// Rows from the middle of the digits' ink to the bottom of the cell: text is centred on a line
+    /// by its ink, not by its cell, whose lower rows are only for descenders.
+    [[nodiscard]] double ink_drop() const noexcept { return m_ink_drop; }
     /// Rows a glyph reaches above the cell: 0 unless fix_accents() moved accents there.
     [[nodiscard]] std::uint32_t above() const noexcept { return m_above; }
     /// D-012: the accents of the capitals À .. Ý reach above the cell, and the font files keep their
@@ -73,6 +86,7 @@ private:
     std::vector<Glyph> m_glyphs;
     std::uint32_t m_height = 0;
     std::uint32_t m_above = 0;
+    double m_ink_drop = 0.0;
     double m_design_scale = 1.0;
 };
 

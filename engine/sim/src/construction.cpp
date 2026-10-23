@@ -1898,6 +1898,8 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
         }
         if (City* c = world.city(order.island, city)) {
             c->owner = order.player;
+            c->ledger.clear();  // the new owner's statistics start with the city
+            c->history.clear();
         }
         ConstructionEvent e;
         e.kind = ConstructionEvent::Kind::CityTaken;
@@ -1929,7 +1931,9 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
     } else if (City* c = world.city(order.island, city)) {
         const auto take = [&](std::uint8_t ware, std::uint32_t amount) {
             if (ware < c->goods.size()) {
-                c->goods[ware] -= std::min(c->goods[ware], amount);
+                const std::uint32_t taken = std::min(c->goods[ware], amount);
+                c->goods[ware] -= taken;
+                c->book(ware, GoodsFlow::Construction, taken);
             }
         };
         take(m.tools, plan.bill.tools);
@@ -2123,6 +2127,7 @@ DemolishResult execute_demolish(World& world, const assets::BuildingTable& build
                     }
                     const std::uint32_t added = std::min(amount, room);
                     city->goods[ware] += added;
+                    city->book(ware, GoodsFlow::Returned, added);
                     booked += added;
                 };
                 give(m.tools, share(cost.tools), result.refund.tools);

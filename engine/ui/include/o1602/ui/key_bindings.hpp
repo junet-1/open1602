@@ -44,6 +44,7 @@ enum class KeyAction : std::uint16_t {
     ShipList,
     CityList,
     Diplomacy,
+    GoodsStatistics,  ///< the window "Warenbilanz" (Open1602)
     // Building
     RotateBuilding,
     PickBuilding,

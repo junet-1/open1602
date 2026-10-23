@@ -4,8 +4,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <utility>
 
 #include "panel_common.hpp"
+#include "production_utilisation.hpp"
 
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/game_data.hpp"
@@ -13,6 +15,7 @@
 #include "o1602/sim/mission.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/ui/build_menu.hpp"
+#include "o1602/ui/localization.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -63,33 +66,8 @@ std::string building_name(const assets::BuildingType& b, const PanelContext& c) 
     return {};
 }
 
-/// Productivity in percent (Prod_Utilisation 0x0047D290): goods made in the statistics window
-/// against what the building makes at full speed, for farms, hunters and fishers with the walk of
-/// their worker.
 std::int64_t utilisation(const sim::Production& p, const assets::BuildingType& b, const PanelContext& c) {
-    const std::int64_t window = p.elapsed;
-    std::int64_t n = 0;
-    switch (b.prod_kind) {
-        case 1:  // HANDWERK
-        case 4:  // WEIDETIER
-            n = b.interval != 0 ? window * 32 / b.interval : 0;
-            break;
-        case 2:    // PLANTAGE
-        case 5:    // JAGDHAUS
-        case 6: {  // FISCHEREI
-            const double reach = b.radius <= 1 ? 2.2 : b.radius == 2 ? 3.0 : b.radius == 3 ? 4.0 : 5.0;
-            const assets::FigureType* worker = c.figures.get(b.worker_figure);
-            const double speed = worker != nullptr ? worker->speed * 0.0001 : 0.0;
-            const double work = worker != nullptr ? worker->work_time_ms / 1000.0 : 0.0;
-            const auto walk = speed > 0.0 ? static_cast<std::int64_t>(reach / (speed * 50.0) + work) : 0;
-            const std::int64_t cycle = ((walk * b.raw_amount) >> 5) + b.interval;
-            n = cycle != 0 ? window * 32 / cycle : 0;
-            break;
-        }
-        default:
-            return 100;
-    }
-    return n == 0 ? 100 : std::min<std::int64_t>(100, std::int64_t{p.produced} * 100 / n);
+    return production_utilisation(p, b, c.figures);
 }
 
 /// What remains of a raw material beside the share the running cycle already took (0x0047D540).
@@ -395,7 +373,7 @@ public:
                 }
                 break;
             case Page::Stock:
-                m_lager.refresh(*city, false);
+                m_lager.refresh(*city, false, c.goods_trend);
                 break;
         }
     }
@@ -452,8 +430,20 @@ public:
             }
             return;
         }
+        if (m_page == Page::Stock) {
+            // Open1602's own: a good of the stock opens its page in the window "Warenbilanz".
+            const std::optional<std::uint8_t> w = m_lager.ware_of(e.id);
+            if (e.kind == ui::PanelEvent::Kind::Clicked && w && *w != 0 && city->owner == c.local) {
+                Request r;
+                r.kind = Request::Kind::Goods;
+                r.ware = *w;
+                r.island = city->island;
+                m_request = r;
+            }
+            return;
+        }
         if (m_page != Page::Kontor) {
-            return;  // the stock list only shows
+            return;
         }
         if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == city_ids::kKTitle) {
             c.start_rename(NameTarget::of(*city), out);  // 0x0043CE00, gadget 34002
@@ -538,6 +528,12 @@ public:
         }
         if (m_page == Page::Stock || m_picker) {
             const std::optional<std::uint8_t> w = m_lager.ware_of(id);
+            if (w && *w != 0 && m_page == Page::Stock) {
+                const std::string trend = StockList::trend_text(*city, *w);
+                return stock_text(*w) + " - " +
+                       ui::tr("stats.kontor_help",
+                              {trend.empty() ? std::string("0") : trend, std::to_string(StockList::kTrendMinutes)});
+            }
             if (w && *w != 0) {
                 return stock_text(*w);
             }
@@ -572,6 +568,8 @@ public:
                 return std::nullopt;
         }
     }
+
+    std::optional<Request> take_request() override { return std::exchange(m_request, std::nullopt); }
 
 private:
     enum class Page : std::uint8_t { City, Kontor, Stock };
@@ -708,6 +706,7 @@ private:
     ui::Panel m_stadt;
     ui::Panel m_kontor;
     StockList m_lager;
+    std::optional<Request> m_request;
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 192;
     std::int32_t m_balance_icon = 0;

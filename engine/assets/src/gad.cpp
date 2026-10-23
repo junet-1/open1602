@@ -120,9 +120,15 @@ GadgetLayout parse_gad(std::string_view text,
         return layout;
     }
     // As many gadgets as the highest Nummer says (ObjFill's default records beyond it do not count).
-    layout.gadgets.resize(static_cast<std::size_t>(highest->second) + 1);
+    std::int32_t last = highest->second;
+    if (last >= kMaxGadgets) {
+        layout.warnings.push_back("gadget " + std::to_string(last) + ": more than " + std::to_string(kMaxGadgets) +
+                                  " gadgets, the rest is left out");
+        last = kMaxGadgets - 1;
+    }
+    layout.gadgets.resize(static_cast<std::size_t>(last) + 1);
     for (const auto& [nummer, r] : *records) {
-        if (nummer < 0 || nummer > highest->second) {
+        if (nummer < 0 || nummer > last) {
             continue;
         }
         Gadget& g = layout.gadgets[static_cast<std::size_t>(nummer)];

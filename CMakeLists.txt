@@ -3,6 +3,19 @@
 
 cmake_minimum_required(VERSION 3.25)
 
+# Checked before project(), which loads the toolchain and builds the vcpkg packages: an unset
+# VCPKG_ROOT or a 32-bit Visual Studio prompt would otherwise fail later with a less clear message.
+if(CMAKE_TOOLCHAIN_FILE AND NOT EXISTS "${CMAKE_TOOLCHAIN_FILE}")
+    message(FATAL_ERROR "Toolchain file \"${CMAKE_TOOLCHAIN_FILE}\" not found. For the vcpkg preset set "
+        "VCPKG_ROOT to the vcpkg folder first: \"set VCPKG_ROOT=C:\\vcpkg\" in the Command Prompt, "
+        "\"$env:VCPKG_ROOT = 'C:\\vcpkg'\" in PowerShell. Then delete the build folder and configure again.")
+endif()
+if(CMAKE_HOST_WIN32 AND DEFINED ENV{VSCMD_ARG_TGT_ARCH}
+        AND NOT "$ENV{VSCMD_ARG_TGT_ARCH}" MATCHES "^(x64|arm64)$")
+    message(FATAL_ERROR "This Visual Studio prompt targets $ENV{VSCMD_ARG_TGT_ARCH}, but Open1602 is 64-bit "
+        "only. Open the \"x64 Native Tools Command Prompt for VS 2026\" instead.")
+endif()
+
 project(Open1602
     VERSION 0.1.0
     DESCRIPTION "Open-source engine reimplementation for Anno 1602"

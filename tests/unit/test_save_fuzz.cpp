@@ -513,3 +513,31 @@ TEST_CASE("save fuzz: the chunk in a .GAM refuses a required section of a later 
     CHECK(status.error().code == core::ErrorCode::Unsupported);
     CHECK(untouched.ships()[0].name == "Untouched");
 }
+
+TEST_CASE("save fuzz: islands of one tile round-trip, an island without tiles is refused") {
+    const assets::BuildingTable buildings = make_buildings();
+    sim::World world(40, 30);
+    for (std::uint16_t i = 0; i < 3; ++i) {
+        sim::IslandMap map(1, 1);
+        REQUIRE(map.place(*buildings.by_id(kGround), 0, 0, 0, 0).ok());
+        map.capture_ground();
+        assets::IslandHeader header;
+        header.number = static_cast<std::uint8_t>(i);
+        header.width = 1;
+        header.height = 1;
+        REQUIRE(world.add_island(sim::WorldIsland{header, std::move(map), 5U + 10U * i, 5}).ok());
+    }
+    world.set_players(std::vector<sim::Player>(2));
+    REQUIRE(sim::validate(world).ok());
+    auto bytes = sim::write_game(world, buildings);
+    REQUIRE(bytes.ok());
+    auto loaded = sim::read_game(*bytes, buildings);
+    REQUIRE(loaded.ok());  // HI-16: a minimum record of 64 bytes refused this file
+    CHECK(loaded->islands().size() == 3);
+
+    assets::IslandHeader empty;
+    empty.number = 9;
+    CHECK(!world.add_island(sim::WorldIsland{empty, sim::IslandMap(0, 4), 30, 20}).ok());  // HI-15
+    CHECK(!world.add_island(sim::WorldIsland{empty, sim::IslandMap(4, 0), 30, 20}).ok());
+    CHECK(world.islands().size() == 3);
+}

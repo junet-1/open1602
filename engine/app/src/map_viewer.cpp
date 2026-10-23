@@ -286,6 +286,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         viewer->m_city_names = texts->section("STAEDTE");
         viewer->m_ship_names = texts->section("SHIPS");
         viewer->m_campaign_labels = texts->section("KAMPAGNE");
+        viewer->m_events.set_ware_names(texts->section("WARE"));
         viewer->m_state->simulation.offer_names(viewer->m_city_names, viewer->m_ship_names);
     }
     viewer->m_soldiers.reset(viewer->m_state->world, viewer->m_buildings, viewer->m_figures);
@@ -1558,6 +1559,9 @@ void MapViewer::apply_display(const DisplaySettings& display) {
     if (display.vsync != before.vsync) {
         m_window->set_vsync(display.vsync);
     }
+    if (m_hud) {
+        m_hud->set_goods_trend(display.goods_trend);
+    }
     if (display.free_zoom != before.free_zoom) {
         m_zoom_target = 0.0;
         if (!display.free_zoom) {
@@ -2086,6 +2090,7 @@ void MapViewer::load_options() {
     if (!m_hud) {
         return;
     }
+    m_hud->set_goods_trend(m_app_settings.display.goods_trend);
     OptionsModel& model = m_hud->options_model();
     model.audio = m_app_settings.audio;
     model.mission_window = m_app_settings.mission_window;

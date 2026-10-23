@@ -302,6 +302,14 @@ core::Status apply_decoded(World& world, Decoded& d) {
                 }
             }
         }
+        if (d.ledgers) {
+            for (Decoded::CityLedger& st : *d.ledgers) {
+                if (City* c = world.city(st.island, st.index)) {
+                    c->ledger = std::move(st.ledger);
+                    c->history = std::move(st.history);
+                }
+            }
+        }
         if (d.scores) {
             for (const Decoded::ScorePart::CityClock& st : d.scores->cities) {
                 if (City* c = world.city(st.island, st.index)) {

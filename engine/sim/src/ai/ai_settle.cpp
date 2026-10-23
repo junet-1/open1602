@@ -705,6 +705,7 @@ void Engine::unload_at(City& c, Ship& ship, bool keep_basics, bool destroy) {
         const std::uint32_t room = c.capacity > c.goods[slot.ware] ? c.capacity - c.goods[slot.ware] : 0;
         const std::uint32_t moved = std::min(room, slot.amount);
         c.goods[slot.ware] += moved;
+        c.book(slot.ware, GoodsFlow::ShippedIn, moved);
         slot.amount -= moved;
         if (destroy) {
             slot.amount = 0;

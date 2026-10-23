@@ -32,6 +32,8 @@ Open1602: `assets::parse_gad`, `assets::load_gad` (`engine/assets/src/gad.cpp`),
 - Predefined: `GADGET = 1`, `MAXGADGET = 300` and the kinds `GAD_UNUSED` … `GAD_TEXTFL` (0–10).
 - `Include` reads the file at this point into the same symbol table (path relative to the layout).
 - The number of gadgets is the **highest `Nummer` + 1**; the 300 default records of `ObjFill` do not count.
+  Open1602 reads at most 4096 gadgets per file (`kMaxGadgets`); gadgets with a higher `Nummer` are left out
+  with a warning.
 - **Value pairs keep their second value:** the loader copies the value slots of the symbol, not what the line
   wrote. `Color: 5` takes over the second value of the last `Color:` line, `@Pos: +30` changes only x.
 - Unknown keys are skipped (`Moveselflg` in `CHAT.GAD`); unknown symbols are 0 (in

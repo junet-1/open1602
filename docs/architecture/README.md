@@ -16,3 +16,4 @@ Short, dated decisions with their rationale. New decision = new file
 | [0009](0009-own-save-format.md) | Own save format `.o1602`; original files only read and exported | accepted |
 | [0010](0010-controls-and-interface.md) | Controls and interface: modern controls (right-click, minimap, command chains), freely assignable keys, confirmations | accepted |
 | [0011](0011-multiplayer-lockstep.md) | Multiplayer: lockstep through the host, resync by savegame, ENet, lobby and LAN search, host migration | accepted |
+| [0012](0012-goods-statistics.md) | Goods statistics: a ledger per city booked where goods move, the window "Warenbilanz", the early warning of a shortage | accepted |

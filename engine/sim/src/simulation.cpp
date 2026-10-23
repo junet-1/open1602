@@ -8,6 +8,7 @@
 #include "save/sections.hpp"
 
 #include "o1602/core/hash.hpp"
+#include "o1602/sim/goods_statistics.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/victory.hpp"
@@ -519,8 +520,11 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                 continue;
             }
             if (City* c = m_world->city(events[i].island, events[i].city)) {
-                for (std::uint32_t& g : c->goods) {
-                    g = std::min(g, c->capacity);
+                for (std::size_t w = 0; w < c->goods.size(); ++w) {
+                    if (c->goods[w] > c->capacity) {
+                        c->book(static_cast<std::uint8_t>(w), GoodsFlow::Lost, c->goods[w] - c->capacity);
+                        c->goods[w] = c->capacity;
+                    }
                 }
             }
         }
@@ -532,7 +536,7 @@ std::span<const Simulation::TickStep> Simulation::tick_steps() noexcept {
     // production (0x0047DAF0), then the cities (0x0047F8A0) and houses (0x0047B9C0), ..., the
     // computer players after the players' tick (AI_Tick 0x0042B4B0) and the figures last
     // (0x00451890). Changing the order changes the game.
-    static constexpr std::array<TickStep, 15> kSteps = {{
+    static constexpr std::array<TickStep, 16> kSteps = {{
         {"diplomacy", &Simulation::diplomacy_step},
         {"growth", &Simulation::growth_step},
         {"production", &Simulation::production_step},
@@ -548,6 +552,7 @@ std::span<const Simulation::TickStep> Simulation::tick_steps() noexcept {
         {"ships", &Simulation::ships_step},
         {"soldiers", &Simulation::soldiers_step},
         {"logistics", &Simulation::logistics_step},
+        {"statistics", &Simulation::statistics_step},  // Open1602's own, last: it only watches
     }};
     return kSteps;
 }
@@ -655,6 +660,13 @@ void Simulation::city_events_step() {
         m_logistics.spawn_robber(r);
     }
     m_robbers.clear();
+}
+
+void Simulation::statistics_step() {
+    // The goods statistics take their sample at the end of every game minute.
+    if (m_time_ms % kGoodsMinuteMs == 0) {
+        close_goods_minute(*m_world, *m_buildings, m_city_events.sink());
+    }
 }
 
 void Simulation::houses_step() {

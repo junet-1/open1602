@@ -931,3 +931,39 @@ TEST_CASE("save format: every field read comes back where it was written") {
         CHECK(sim::encode_extension(bare, buildings, nullptr, {}) == chunk);
     }
 }
+
+TEST_CASE("save format: the goods statistics of the cities come back (GLDG)") {
+    const auto buildings = make_buildings();
+    sim::World world = make_world(buildings, false);
+    REQUIRE(!world.cities().empty());
+    sim::City& city = *world.city(world.cities()[0].island, world.cities()[0].index);
+    for (std::uint32_t m = 0; m < 70; ++m) {
+        city.book(19, sim::GoodsFlow::Produced, 10 + m);
+        city.book(14, sim::GoodsFlow::Residents, 3 * m);
+        city.ledger.close_minute(city.goods);
+        sim::CitySample s;
+        s.set(sim::CityFigure::Taxes, 100 + m);
+        s.set(sim::CityFigure::Sales, -7);
+        s.set_class(2, 40 * m);
+        city.history.close_minute(s);
+    }
+    city.book(19, sim::GoodsFlow::Sold, 32);  // the running minute
+    city.book(19, sim::GoodsFlow::SoldValue, 75);
+    city.ledger.set_warned(14, true);
+    const core::Bytes bytes = save(world, buildings);
+    std::vector<std::string> warnings;
+    auto loaded = sim::read_game(bytes, buildings, &warnings);
+    REQUIRE(loaded.ok());
+    CHECK(warnings.empty());
+    const sim::City* back = loaded->city(city.island, city.index);
+    REQUIRE(back != nullptr);
+    CHECK(back->ledger.minutes_closed() == 70);
+    CHECK(back->ledger.warned(14));
+    CHECK(back->ledger.totals(19, 5).of(sim::GoodsFlow::Produced) ==
+          city.ledger.totals(19, 5).of(sim::GoodsFlow::Produced));
+    CHECK(back->ledger.last_minutes(14) == city.ledger.last_minutes(14));
+    CHECK(back->ledger.last_quarters(19) == city.ledger.last_quarters(19));
+    CHECK(back->history == city.history);
+    CHECK(back->history.last_quarters().size() == 4);
+    CHECK(save(*loaded, buildings) == bytes);
+}

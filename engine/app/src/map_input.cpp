@@ -173,6 +173,7 @@ void MapInput::setup_keys() {
     general(chord(SDLK_L), KeyAction::ShipList);
     general(chord(SDLK_L, false, true), KeyAction::CityList);
     general(chord(SDLK_V), KeyAction::Diplomacy);
+    general(chord(SDLK_F2), KeyAction::GoodsStatistics);
     general(chord(SDLK_DELETE), KeyAction::DemolishTool);
     // Groups: keys 1 .. 9, 0 are groups 0 .. 9.
     const std::array<SDL_Scancode, 10> digits{SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
@@ -335,6 +336,10 @@ void MapInput::handle_key(int key, int scancode, std::uint16_t mod) {
         m_hud->close_display();
         return;
     }
+    if (m_hud && m_hud->goods_open() && key == SDLK_ESCAPE) {
+        m_hud->goods_back();
+        return;
+    }
     if (const auto b = m_keys.find_pressed(key_context(), press)) {
         run_action(*b);
     }
@@ -472,6 +477,11 @@ void MapInput::run_action(const ui::KeyBinding& b) {
                                                                                         : Selection::Kind::CityList)) {
                     m_host.apply_hud(*a);
                 }
+            }
+            break;
+        case KeyAction::GoodsStatistics:
+            if (m_hud) {
+                m_hud->toggle_goods();
             }
             break;
         case KeyAction::Diplomacy:
@@ -798,6 +808,14 @@ void MapInput::handle_event(const SDL_Event& event) {
             break;
         case SDL_EVENT_MOUSE_WHEEL: {  // U-001: the original has no wheel zoom
             const float y = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event.wheel.y : event.wheel.y;
+            if (m_hud && m_hud->goods_open()) {
+                // The window "Warenbilanz" scrolls its table, the map stays.
+                m_wheel_rest += y;
+                const auto notches = static_cast<std::int32_t>(m_wheel_rest);
+                m_wheel_rest -= static_cast<float>(notches);
+                m_hud->goods_wheel(notches);
+                break;
+            }
             if (y != 0.0F) {
                 // Touchpads send parts of a notch: the free zoom follows them finely.
                 m_host.zoom_by(-static_cast<double>(y), static_cast<double>(event.wheel.mouse_x),

@@ -20,6 +20,7 @@
 #include "diplomacy_strip.hpp"
 #include "display_menu.hpp"
 #include "end_screen.hpp"
+#include "goods_window.hpp"
 #include "main_menu.hpp"
 #include "message_table.hpp"
 #include "multiplayer_menu.hpp"
@@ -207,15 +208,42 @@ public:
     };
     void show_help(std::vector<HelpLine> lines) { m_help = std::move(lines); }
     [[nodiscard]] bool helping() const noexcept { return m_help.has_value(); }
-    /// A question, the key overview or the window "Anzeige" is open: it takes every click.
-    [[nodiscard]] bool modal() const noexcept { return m_question.has_value() || m_help.has_value() || m_display_open; }
+    /// A question, the key overview or the window "Anzeige" or "Warenbilanz" is open: it takes every
+    /// click.
+    [[nodiscard]] bool modal() const noexcept {
+        return m_question.has_value() || m_help.has_value() || m_display_open || m_goods_open;
+    }
+    /// The window "Warenbilanz" over the map (goods_window.hpp): opened, or closed when open.
+    void toggle_goods() noexcept {
+        m_goods_open = !m_goods_open && m_goods != nullptr;
+        if (m_goods_open) {
+            m_goods->open();
+            m_display_open = false;
+        }
+    }
+    [[nodiscard]] bool goods_open() const noexcept { return m_goods_open; }
+    /// Escape in the window "Warenbilanz": a good's page back to the table, else the window closes.
+    void goods_back() noexcept {
+        if (m_goods_open && !m_goods->back()) {
+            m_goods_open = false;
+        }
+    }
+    /// The mouse wheel over the map while the window "Warenbilanz" is open: its table scrolls.
+    void goods_wheel(std::int32_t notches) noexcept {
+        if (m_goods_open) {
+            m_goods->wheel(notches);
+        }
+    }
     /// The window "Anzeige" over the map (display_menu.hpp) showing `model`.
     void open_display(DisplayModel model) {
         m_display_model = std::move(model);
         m_display_open = m_display != nullptr;
+        m_goods_open = m_goods_open && !m_display_open;
         m_display_changed = false;
     }
     void close_display() noexcept { m_display_open = false; }
+    /// The goods trend under the stock of a Kontor (DisplaySettings::goods_trend).
+    void set_goods_trend(bool on) noexcept { m_goods_trend = on; }
     [[nodiscard]] bool display_open() const noexcept { return m_display_open; }
     /// Keeps the window's size the window shows up to date (the player drags the edge meanwhile).
     void set_display_window(WindowSize size) noexcept { m_display_model.window = size; }
@@ -429,6 +457,13 @@ private:
     bool m_display_changed = false;
     /// Top left of the window "Anzeige" on the screen (centred on the map).
     [[nodiscard]] ui::Rect display_rect() const;
+    std::unique_ptr<GoodsWindow> m_goods;
+    bool m_goods_open = false;
+    std::vector<std::uint8_t> m_goods_parchment;  ///< its ground, RGBA (parchment.hpp)
+    std::uint8_t m_goods_shadow = 0;
+    bool m_goods_trend = true;
+    /// The window "Warenbilanz" on the screen (centred on the map).
+    [[nodiscard]] ui::Rect goods_rect() const;
     double m_menu_scale = 1.0;  ///< of the menus over the whole window: as large as fits
     std::unique_ptr<OptionsPanel> m_options;
     OptionsModel m_options_model;

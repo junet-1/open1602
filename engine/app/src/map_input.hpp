@@ -256,6 +256,7 @@ private:
     double m_mouse_x = 0.0;                            ///< in output pixels
     double m_mouse_y = 0.0;
     bool m_left_down = false;   ///< the left mouse button, for the frame's buttons
+    float m_wheel_rest = 0.0F;  ///< wheel notches begun (touchpads) the goods window did not scroll yet
     bool m_text_input = false;  ///< the platform's text input is on (a name is typed)
 };
 

@@ -12,8 +12,11 @@ size memory and refuse or cut what lies outside. These are the limits.
 | `haeuser.cod` | `Arbeiter` | 65535 | clamped |
 | `figuren.cod` | `Nummer` | 0 to 1023 | the file is refused |
 | both | `ObjFill` | 10000 copies | clamped, with a warning |
+| both | `ObjFill`, all statements of a file | 200000 records made, nested records counted | the statement that would pass it and every later `ObjFill` are ignored, with a warning |
+| `.gad` | `Nummer` of a gadget | 0 to 4095 (4096 gadgets per file; the original had 300) | gadgets above it are left out, with a warning |
 | both | a number with a decimal point | the range of a 32-bit integer | clamped |
 | both | times, amounts, health, radius (`Worktime`, `Maxenergy`, ...) | the range of the field | clamped (`core::saturating_cast`) |
+| `.gam`, `.szs` | width and height of an island | at least 1 tile | the island is left out, with a warning |
 | `.gad` | `Include` | 4 levels deep, 1 MiB of text in all | the rest is left out, with a warning |
 
 Decimal numbers become integers by truncating toward zero and clamping, never by a plain cast:

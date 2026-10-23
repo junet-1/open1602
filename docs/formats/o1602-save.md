@@ -61,6 +61,7 @@ see [o1602-chunk.md](o1602-chunk.md) for the rules.
 | `MLCK` | per city (island, number): the game time the building material was locked or the people last complained about it (city + 0x1E8; message 0x48 every 18 minutes); if the section is missing, the clock starts at the next city tick |
 | `CPOP` | per city (island, number): the last population message (city + 0x253, `STADT4` +0x05; 0x11 = 100 inhabitants … 0x1D = 9000, each comes once); if the section is missing, the value from `STADT4` applies |
 | `CGUP` | per city (island, number): the ships that gave up their way to its Kontor since a route last stopped there (city + 0x252; at four a computer owner complains, [ships.md](../re/ships.md#free-trader)); written only when a city has some, optional: without it the counts start at 0 |
+| `GLDG` | per city (island, number) that has goods statistics: the minutes closed, then per good ever booked its ledger (warning given, the running minute's and quarter's counts, the last 60 minutes and the last 48 quarters of an hour as samples of 16 flows and the stock), then whether the city keeps the figures of its window and if so their history (minutes closed, 60 minutes and 48 quarters of 13 figures, the sums of the running quarter; [ADR 0012](../architecture/0012-goods-statistics.md)); written only when a city has statistics, optional: without it the statistics start empty. Does not exist in the original |
 | `SCOR` | per player (order as in `PLAY`): soldiers killed and lost, ships sunk and lost (`PLAYER4` +0x14..+0x1A); then per city (island, number): growth of the house looked at last and the game time since it grows (monument allowances, city + 0x1F8/+0x1E4); if the section is missing, the counters from `PLAYER4` apply and the cities start without growth |
 | `MISN` | the missions (goals, loss conditions, values, text, the islands of the island goals recorded at the start) and the end of the game (time, winner) ([missions.md](../re/missions.md)) |
 | `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | ships with course, route and cargo, shipyard orders, trade settings (`FLEE` version 2: routes with eight stops, version 3: stops with eight wares, see [o1602-chunk.md](o1602-chunk.md#section-versions)); soldiers, towers, building damage, shots in flight, castle slots; diplomacy; island epochs; exploring |
@@ -69,7 +70,7 @@ see [o1602-chunk.md](o1602-chunk.md) for the rules.
 | `ORIG` | the file of the original the game comes from (savegame, scenario or the template of a new game), as chunks without the island tiles (`INSELHAUS`), about 12 KB packed. Only for the export as `.GAM`: it takes from it the bytes that Open1602 does not track, exactly as for a game loaded directly from the file. If the section is missing, the export writes defaults like a new game |
 
 The writer emits the sections in this order: `META`, `MAPW`, `RULE`, `WRLD`, `WRL2`, `TUTR`, `ISLE`, `PLAY`,
-`FACT` (only with factions of their own), `PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP` (only when a city has a count), `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `ANIM`, `DISA`, `VOLC`, `FLEE`,
+`FACT` (only with factions of their own), `PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP` (only when a city has a count), `GLDG` (only when a city has statistics), `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `ANIM`, `DISA`, `VOLC`, `FLEE`,
 `EPOC`, `ARMY`, `DIPL`, `XPLR`, `QUEU`, `STNC`, `ORIG` (only for a game that came from a file of the
 original) and `SIMU` (`engine/sim/src/save/sections.cpp`, `encode_sections`). `SHIP` and `SOLD`,
 the lists of older versions, are only read. The details of the sections from `RULE` onwards are in
@@ -108,7 +109,7 @@ makes the savegame unreadable (instead of wrong buildings).
 
 `engine/sim/src/save/` holds the sections, a file per group: `map.cpp` (`MAPW`, `TILE`), `world.cpp`
 (`RULE`, `WRLD`, `EPOC`), `islands.cpp` (`ISLE`, `XPLR`), `players.cpp` (`PLAY`, `FACT`, `PSTA`, `MISN`,
-`SCOR`, `DIPL`), `cities.cpp` (`CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP`, `PROD`, `HOUS`, `GROW`, `COST`), `ships.cpp` (`SHIP`,
+`SCOR`, `DIPL`), `cities.cpp` (`CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP`, `GLDG`, `PROD`, `HOUS`, `GROW`, `COST`), `ships.cpp` (`SHIP`,
 `FLEE`), `army.cpp` (`SOLD`, `ARMY`), `nature.cpp` (`ANIM`, `DISA`, `VOLC`) and `orders.cpp` (`QUEU`,
 `STNC`). Each record is described once, as a function `io_...(a, record)` that writes it with a
 `save::Writer` and reads it with a `save::Reader` (`archive.hpp`); the method names give the width in

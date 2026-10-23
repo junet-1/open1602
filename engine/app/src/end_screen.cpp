@@ -248,7 +248,7 @@ void EndScreen::set_scale(double scale) {
     }
 }
 
-std::vector<ui::DrawItem> EndScreen::draw(const std::array<const ui::Font*, 3>& fonts) const {
+std::vector<ui::DrawItem> EndScreen::draw(const std::array<const ui::Font*, ui::kFontSlots>& fonts) const {
     std::vector<ui::DrawItem> items;
     if (m_panel) {
         items = m_panel->draw(fonts);

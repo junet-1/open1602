@@ -789,6 +789,7 @@ std::optional<std::uint32_t> Fleet::arrive_at_target(Ship& ship) {
                     c->ensure_ware(slot.ware);
                     const std::uint32_t n = std::min(slot.amount, c->free_space(slot.ware));
                     c->goods[slot.ware] += n;
+                    c->book(slot.ware, GoodsFlow::ShippedIn, n);
                     slot.amount -= n;
                     if (slot.amount == 0) {
                         slot = CargoSlot{};
@@ -1149,6 +1150,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
                 if (Player* seller = m_world->player(city.owner); seller != nullptr && !natives) {
                     earn_from_trade(*seller, value);
                     city.sales += 32 * value;
+                    city.book(ware, GoodsFlow::SoldValue, static_cast<std::uint32_t>(value));
                 }
             }
         }
@@ -1158,6 +1160,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
             city.goodwill[ship.owner] = city.goodwill[ship.owner] > used ? city.goodwill[ship.owner] - used : 0;
         }
         city.goods[ware] -= n;
+        city.book(ware, ship.owner == city.owner ? GoodsFlow::ShippedOut : GoodsFlow::Sold, n);
         add_cargo(ship, ware, n, price);
     } else {
         const std::uint32_t have = [&] {
@@ -1202,6 +1205,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
                 const std::int64_t value = std::int64_t{price} * n / kTon;
                 pay_for_trade(*buyer, value);
                 city.purchases += 32 * value;
+                city.book(ware, GoodsFlow::BoughtValue, static_cast<std::uint32_t>(value));
             }
             if (Player* seller = m_world->player(ship.owner); seller != nullptr && !ship.trader) {
                 earn_from_trade(*seller, std::int64_t{price} * n / kTon);
@@ -1212,6 +1216,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
         }
         remove_cargo(ship, ware, n, hold);
         city.goods[ware] += n;
+        city.book(ware, ship.owner == city.owner ? GoodsFlow::ShippedIn : GoodsFlow::Bought, n);
     }
     if (price != 0 && ship.owner != city.owner && !natives) {
         // Trade makes friends (op 0x4A from 0x00484450): the Kontor's owner by half the value, the

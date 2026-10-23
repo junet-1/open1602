@@ -88,6 +88,9 @@ struct GadgetLayout {
 
 /// Most gadgets of one file in the original (MAXGADGET); Open1602 takes more (L-010).
 inline constexpr std::size_t kOriginalMaxGadgets = 300;
+/// Most gadgets Open1602 reads from one file: gadgets with a higher Nummer are left out with a
+/// warning, so a stray "Nummer: 2000000000" cannot ask for gigabytes (HI-2).
+inline constexpr std::int32_t kMaxGadgets = 4096;
 
 /// Reads a layout from its text. `include` returns the text of an included file ("TOOLS.INC")
 /// relative to the layout, nothing if it is missing (then the constants stay 0, with a warning).

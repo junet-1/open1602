@@ -88,8 +88,8 @@ void SdlUiRenderer::release_textures() {
     m_checker = Texture{};
 }
 
-std::array<const ui::Font*, 3> SdlUiRenderer::fonts() const noexcept {
-    std::array<const ui::Font*, 3> f{};
+std::array<const ui::Font*, ui::kFontSlots> SdlUiRenderer::fonts() const noexcept {
+    std::array<const ui::Font*, ui::kFontSlots> f{};
     for (std::size_t i = 0; i < f.size(); ++i) {
         f[i] = m_fonts[i] ? &*m_fonts[i] : nullptr;
     }
@@ -226,16 +226,18 @@ SdlUiRenderer::Texture SdlUiRenderer::text(const std::string& s, std::int32_t fo
         return *cached;
     }
     Texture t;
-    const ui::Font* f = font >= 0 && font < 3 && m_fonts[static_cast<std::size_t>(font)]
-                            ? &*m_fonts[static_cast<std::size_t>(font)]
-                            : nullptr;
+    const ui::Font* f =
+        font >= 0 && font < static_cast<std::int32_t>(ui::kFontSlots) && m_fonts[static_cast<std::size_t>(font)]
+            ? &*m_fonts[static_cast<std::size_t>(font)]
+            : nullptr;
     if (f != nullptr) {
         assets::IndexedImage canvas;
         canvas.width = f->width(s) + 2;            // glyphs may overhang the last advance
         canvas.height = f->height() + f->above();  // the accents above the cell (D-012)
         canvas.indices.assign(std::size_t{canvas.width} * canvas.height, 0);
         canvas.opaque.assign(canvas.indices.size(), 0);
-        const ui::Recolour& recolour = m_colours[static_cast<std::size_t>(std::clamp(colour, 0, 9))];
+        const ui::Recolour& recolour =
+            m_colours[static_cast<std::size_t>(std::clamp(colour, 0, static_cast<std::int32_t>(ui::kTextColours) - 1))];
         f->draw(canvas, s, 0, static_cast<std::int32_t>(canvas.height), recolour);
         t = make(canvas.to_rgba(m_palette), static_cast<std::int32_t>(canvas.width),
                  static_cast<std::int32_t>(canvas.height));
@@ -366,9 +368,23 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
     };
     for (const ui::DrawItem& d : items) {
         switch (d.kind) {
-            case ui::DrawItem::Kind::Sprite:
-                blit(sprite(d.block, d.gfx, kModeSprite, 0, d.tint), d.x, d.y, d.half);
+            case ui::DrawItem::Kind::Sprite: {
+                const Texture t = sprite(d.block, d.gfx, kModeSprite, 0, d.tint);
+                if (d.w > 0 && d.h > 0 && t.texture != nullptr && t.w > 0 && t.h > 0) {
+                    // Fitted into the box, its proportions kept and centred (icons in Open1602's windows).
+                    const double fit = std::min(static_cast<double>(d.w) / t.w, static_cast<double>(d.h) / t.h);
+                    const double w = std::round(t.w * fit);
+                    const double h = std::round(t.h * fit);
+                    SDL_SetTextureAlphaMod(t.texture, d.half ? 128 : 255);
+                    const SDL_FRect dst{static_cast<float>(ox + d.x + std::trunc((d.w - w) / 2)),
+                                        static_cast<float>(oy + d.y + std::trunc((d.h - h) / 2)), static_cast<float>(w),
+                                        static_cast<float>(h)};
+                    SDL_RenderTexture(m_renderer, t.texture, nullptr, &dst);
+                } else {
+                    blit(t, d.x, d.y, d.half);
+                }
                 break;
+            }
             case ui::DrawItem::Kind::SpriteMask:
                 // The shadow of the build menu's building: the original fills it solid black, which
                 // looks harsh today; translucent like the figures' shadows (as the History Edition).

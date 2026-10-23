@@ -17,6 +17,7 @@
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/sim/diplomacy.hpp"
+#include "o1602/sim/goods_ledger.hpp"
 #include "o1602/sim/id_index.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/mission.hpp"
@@ -191,6 +192,12 @@ struct City {
     /// moving average per minute (the city window).
     std::int64_t purchases = 0;
     std::int64_t sales = 0;
+    /// Where the goods came from and went to, by game minute (Open1602's goods statistics; the
+    /// game never reads it). Every change of `goods` books its share here (book()).
+    GoodsLedger ledger;
+    /// The figures of the city window by game minute (Open1602's statistics; the game never reads
+    /// it).
+    CityHistory history;
 
     [[nodiscard]] const Trade* trade_of(std::uint8_t ware) const noexcept {
         return ware < trade.size() ? &trade[ware] : nullptr;
@@ -218,6 +225,9 @@ struct City {
         return room < 32 ? 0 : room;
     }
     /// Makes sure the per-ware lists cover `ware`.
+    /// Books a movement of goods in the city's statistics (GoodsLedger), in 1/32 t.
+    void book(std::uint8_t ware, GoodsFlow flow, std::uint32_t amount) { ledger.add(ware, flow, amount); }
+
     void ensure_ware(std::uint8_t ware) {
         if (ware >= goods.size()) {
             goods.resize(std::size_t{ware} + 1, 0);

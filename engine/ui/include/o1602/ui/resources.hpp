@@ -39,13 +39,15 @@ enum class ArtSize : std::uint8_t { Small, Medium, Large };  ///< 640, 800, 1024
 
 /// Font of a slot: 0 normal (ZEINR), 1 small (ZEILITTLE), 2 large, digits only (ZEILARGE). The small
 /// screen asks for ZEI20VL.ZEI, which no edition has; the original then takes ZEI20V (as here).
+/// Slot 3 is Open1602's own: a medium font with a shadow for the rows of its parchment windows.
 [[nodiscard]] constexpr std::string_view font_file(std::int32_t slot, ArtSize size) noexcept {
-    constexpr std::string_view kFiles[3][3] = {
+    constexpr std::string_view kFiles[4][3] = {
         {"TOOLGFX/ZEI14V.ZEI", "TOOLGFX/ZEI16V.ZEI", "TOOLGFX/ZEI20V.ZEI"},
         {"TOOLGFX/ZEI9A.ZEI", "TOOLGFX/ZEI11A.ZEI", "TOOLGFX/ZEI14A.ZEI"},
         {"TOOLGFX/ZEI20V.ZEI", "TOOLGFX/ZEI24V.ZEI", "TOOLGFX/ZEI28V.ZEI"},
+        {"TOOLGFX/ZEI9A.ZEI", "TOOLGFX/ZEI11A.ZEI", "TOOLGFX/ZEI14V.ZEI"},
     };
-    return slot >= 0 && slot < 3 ? kFiles[slot][static_cast<std::size_t>(size)] : std::string_view{};
+    return slot >= 0 && slot < 4 ? kFiles[slot][static_cast<std::size_t>(size)] : std::string_view{};
 }
 
 }  // namespace o1602::ui

@@ -293,3 +293,31 @@ TEST_CASE("event presenter: notes stay in the status line for a few seconds, the
     CHECK(chat.back().text == "104");
     app::add_chat_line(nullptr, app::ChatLine{}, false);  // no panel: nothing to keep
 }
+
+TEST_CASE("event presenter: a good running short is told early, its shortage then only in the log") {
+    Game g;
+    g.presenter.set_ware_names(std::vector<std::string>(sim::ware::kJewellery + 1, "Ware"));
+    sim::CityEvent low;
+    low.kind = sim::CityEvent::Kind::RunningLow;
+    low.owner = kMe;
+    low.ware = sim::ware::kFood + 1;  // tobacco goods
+    low.minutes = 4;
+    sim::CityEvent rival = low;
+    rival.owner = kRival;
+    rival.city = 1;
+    sim::CityEvent told = low;
+    told.kind = sim::CityEvent::Kind::Shortage;
+    told.warned = true;
+    sim::CityEvent sudden = told;
+    sudden.warned = false;
+    const auto notices = g.presenter.city_events(g.world, kMe, {low, rival, told, sudden});
+    REQUIRE(notices.size() == 2);
+    const app::Announcement* early = announcement(notices[0]);
+    REQUIRE(early != nullptr);
+    CHECK(early->message == 0x35);  // in the voice of "Es fehlt an Tabakwaren"
+    CHECK(early->voice);
+    CHECK(early->text.find("Mine") != std::string::npos);
+    CHECK(early->text.find('4') != std::string::npos);
+    CHECK(announcement(notices[1])->message == 0x35);  // no warning came before: the original's
+    CHECK(announcement(notices[1])->text.empty());
+}

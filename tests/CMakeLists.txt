@@ -25,6 +25,8 @@ add_executable(o1602_tests
     unit/test_logistics.cpp
     unit/test_raw_producers.cpp
     unit/test_consumption.cpp
+    unit/test_goods_statistics.cpp
+    unit/test_goods_window.cpp
     unit/test_random.cpp
     unit/test_houses.cpp
     unit/test_island_events.cpp
@@ -81,6 +83,7 @@ add_executable(o1602_tests
     data/test_ui_data.cpp
     data/test_video_data.cpp
     data/test_save_continuity.cpp
+    data/test_goods_data.cpp
     data/test_net_data.cpp
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render o1602::audio o1602::ui o1602::video o1602::net o1602::menus)

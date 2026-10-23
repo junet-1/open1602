@@ -130,7 +130,7 @@ public:
     void set_scroll(std::int32_t id, std::int32_t line);
     /// Last first line that still fills the flowing text's box (0 if the text fits); callers clamp
     /// their scroll to it so "down" past the end does not blank the window (UI-12).
-    [[nodiscard]] std::int32_t max_scroll(std::int32_t id, const std::array<const Font*, 3>& fonts) const;
+    [[nodiscard]] std::int32_t max_scroll(std::int32_t id, const std::array<const Font*, kFontSlots>& fonts) const;
     /// Another sprite and pressed step for a gadget (0x004077C0, 0x00407840): message icons. With
     /// `tint` the sprite is recoloured (a player colour the art was not drawn in).
     void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset,
@@ -152,7 +152,7 @@ public:
     [[nodiscard]] std::optional<std::int32_t> held() const;
 
     /// Everything to draw, in paint order. `fonts` are the three font slots (for flowing text).
-    [[nodiscard]] std::vector<DrawItem> draw(const std::array<const Font*, 3>& fonts) const;
+    [[nodiscard]] std::vector<DrawItem> draw(const std::array<const Font*, kFontSlots>& fonts) const;
 
 private:
     struct State {
@@ -168,10 +168,10 @@ private:
     };
     /// A flowing text's wrapped lines and how many fit its box; nothing if it draws no text.
     [[nodiscard]] std::optional<std::pair<std::vector<std::string>, std::int32_t>> flow_lines(
-        std::size_t index, const std::array<const Font*, 3>& fonts) const;
+        std::size_t index, const std::array<const Font*, kFontSlots>& fonts) const;
     [[nodiscard]] std::optional<std::size_t> hit(std::int32_t x, std::int32_t y) const;
     void draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint8_t state,
-                     const std::array<const Font*, 3>& fonts) const;
+                     const std::array<const Font*, kFontSlots>& fonts) const;
     void slide(std::size_t index, std::int32_t gx, std::int32_t gy);
     [[nodiscard]] std::uint8_t state_of(std::size_t index) const;
 

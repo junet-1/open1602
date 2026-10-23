@@ -103,7 +103,7 @@ bool GameSettingsMenu::back() noexcept {
     return false;
 }
 
-std::vector<ui::DrawItem> GameSettingsMenu::draw(const std::array<const ui::Font*, 3>& fonts) {
+std::vector<ui::DrawItem> GameSettingsMenu::draw(const std::array<const ui::Font*, ui::kFontSlots>& fonts) {
     layout();
     return m_form.draw(fonts);
 }

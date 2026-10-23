@@ -354,6 +354,7 @@ private:
             const std::uint32_t t = std::min(city.goods[ware], amount);
             if (t >= 32) {
                 city.goods[ware] -= t;
+                city.book(ware, GoodsFlow::Construction, t);
             }
         };
         take(m.tools, cost.tools);
