@@ -515,6 +515,40 @@ TEST_CASE("save game: the original's chunks of a .GAM alone hold the synthetic w
     CHECK(original_chunks_only(loaded, buildings) == bytes);
 }
 
+TEST_CASE("save game: a route beyond the original's four stops keeps them in Open1602's chunk only") {
+    const auto buildings = make_buildings();
+    sim::World world = make_world(buildings);
+    sim::Ship* ship = nullptr;
+    for (sim::Ship& s : world.ships()) {
+        ship = s.name == "Seeadler" ? &s : ship;
+    }
+    REQUIRE(ship != nullptr);
+    ship->route.stops[5].target = sim::Target::city_of(0, 0);
+    ship->route.stops[5].entries[1] = sim::RouteEntry{kTools, false, 32 * 7};
+    ship->route.current = 5;
+    const sim::Ship expected = *ship;
+    auto bytes = sim::write_savegame(world, buildings);
+    REQUIRE(bytes.ok());
+    const sim::World whole = load(*bytes, buildings);
+    for (const sim::Ship& s : whole.ships()) {
+        if (s.name == "Seeadler") {
+            CHECK(s.route.stops == expected.route.stops);
+            CHECK(s.route.current == 5);
+        }
+    }
+    // The original sees the first four stops, and the route from its start.
+    const sim::World original = load(original_chunks_only(world, buildings), buildings);
+    for (const sim::Ship& s : original.ships()) {
+        if (s.name == "Seeadler") {
+            for (std::size_t n = 0; n < sim::TradeRoute::kStops; ++n) {
+                CHECK(s.route.stops[n] ==
+                      (n < sim::TradeRoute::kOriginalStops ? expected.route.stops[n] : sim::RouteStop{}));
+            }
+            CHECK(s.route.current == 0);
+        }
+    }
+}
+
 TEST_CASE("save game: seats that changed hands since the source file are written as they are now") {
     const auto buildings = make_buildings();
     // Loaded from a .GAM: the players' records come from the file.

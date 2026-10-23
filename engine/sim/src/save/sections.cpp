@@ -98,6 +98,9 @@ constexpr std::uint16_t max_version(std::uint32_t id) noexcept {
     if (id == kPlayerState) {
         return kScenarioSwitches;
     }
+    if (id == kFleet) {
+        return kLongRoutes;
+    }
     return id == kIslands || id == kVolcanoes ? kWideCoordinates : 1;
 }
 
@@ -236,7 +239,8 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
     section(out, kDisasters, [&](Writer& o) { write_disasters(o, world); });
     const std::uint16_t volcanoes_at = volcanoes_version(world);
     section(out, kVolcanoes, [&](Writer& o) { write_volcanoes(o, world, volcanoes_at); }, Need::Required, volcanoes_at);
-    section(out, kFleet, [&](Writer& o) { write_fleet(o, world); });
+    const std::uint16_t fleet_at = fleet_version(world);
+    section(out, kFleet, [&](Writer& o) { write_fleet(o, world, fleet_at); }, Need::Required, fleet_at);
     section(out, kEpochs, [&](Writer& o) { write_epochs(o, world); });
     section(out, kArmy, [&](Writer& o) { write_army(o, world); });
     section(out, kDiplomacy, [&](Writer& o) { write_diplomacy(o, world); });
@@ -400,7 +404,7 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 d.ships = read_ships(in);
                 break;
             case kFleet:
-                d.fleet = read_fleet(in);
+                d.fleet = read_fleet(in, version);
                 break;
             case kEpochs:
                 d.epochs = read_epochs(in);

@@ -243,6 +243,12 @@ diplomacy.offer.trade = {1} bietet Euch einen Handelsvertrag an
 diplomacy.offer.peace = {1} bietet Euch einen Friedensvertrag an
 diplomacy.offer.both = {1} bietet Euch einen Handels- und einen Friedensvertrag an
 
+# Trade route editor: the row below the stops, and the stop the ship sails to now
+route.copy = Route kopieren
+route.copy_help = Die Zielpunkte eines anderen Eurer Schiffe übernehmen: das Schiff auf der Karte anklicken
+route.show_stops = Zielpunkte {1} zeigen
+route.current_stop = {1} (wird gerade angefahren)
+
 # Window title
 title.paused = Pause
 title.speed = Tempo x{1}

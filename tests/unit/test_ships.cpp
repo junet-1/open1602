@@ -364,6 +364,67 @@ TEST_CASE("ships: a trade route loads where it should and delivers at the next s
     CHECK(sea.world.ship(id)->route.active);
 }
 
+TEST_CASE("ships: a route uses all eight stops, and another ship of the owner can take its stops") {
+    Sea sea(true);
+    sim::City second = *sea.world.city(0, 0);
+    sim::IslandMap map(4, 4);
+    for (std::int32_t y = 0; y < 4; ++y) {
+        for (std::int32_t x = 0; x < 4; ++x) {
+            REQUIRE(map.place(*sea.buildings.by_id(20101), x, y, 0, 0).ok());
+        }
+    }
+    REQUIRE(map.place(*sea.buildings.by_id(20103), 0, 1, 0, 0, 0, 0).ok());
+    REQUIRE(sea.world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 90, 30}).ok());
+    second.island = 1;
+    second.warehouse_x = 0;
+    second.warehouse_y = 1;
+    second.goods.assign(25, 0);
+    sea.world.add_city(second);
+    sea.world.city(0, 0)->goods[kWood] = 30 * kTon;
+    const std::uint32_t id = sea.add(30, 25).id;
+    const std::uint32_t copy_id = sea.add(32, 25).id;
+    sim::Ship& stranger = sea.add(34, 25);
+    stranger.owner = 1;
+    const std::uint32_t stranger_id = stranger.id;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    using Op = sim::RouteEdit::Op;
+    // The first stop and the last of eight; the six between stay empty.
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 0, 0, sim::Target::city_of(0, 0)}));
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetEntry, 0, 0, {}, sim::RouteEntry{kWood, false, 20 * kTon}}));
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 7, 0, sim::Target::city_of(1, 0)}));
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::SetEntry, 7, 1, {}, sim::RouteEntry{kWood, true, 50 * kTon}}));
+    CHECK(!fleet.edit_route(sim::RouteEdit{0, id, Op::SetStop, 8, 0, sim::Target::city_of(1, 0)}));
+    CHECK(sea.world.ship(id)->route.beyond_original());
+    // Taking the stops: only from a ship of the same owner, never from itself or a stranger.
+    const auto copy = [&](sim::PlayerId player, std::uint32_t to, std::uint32_t from) {
+        sim::RouteEdit e{player, to, Op::CopyFrom};
+        e.target = sim::Target::other_ship(from);
+        return fleet.edit_route(e);
+    };
+    CHECK(!copy(0, copy_id, copy_id));
+    CHECK(!copy(0, copy_id, stranger_id));
+    CHECK(!copy(1, stranger_id, id));
+    CHECK(!copy(0, id, copy_id));  // nothing to take: no city on its route
+    REQUIRE(copy(0, copy_id, id));
+    CHECK(sea.world.ship(copy_id)->route.stops == sea.world.ship(id)->route.stops);
+    CHECK(!sea.world.ship(copy_id)->route.active);
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, id, Op::Start}));
+    auto events = run(fleet, sea.world, 60000);
+    CHECK(count(events, sim::ShipEvent::Kind::RouteWarning) == 0);
+    // It loaded at the first stop and delivered at the eighth.
+    CHECK(sea.world.city(1, 0)->goods[kWood] >= 20 * kTon);
+    CHECK(sea.world.city(0, 0)->goods[kWood] <= 10 * kTon);
+    // A running route takes the new stops at once and sails to the first of them.
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, copy_id, Op::SetStop, 2, 0, sim::Target::city_of(1, 0)}));
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, copy_id, Op::ClearStop, 0}));
+    REQUIRE(fleet.edit_route(sim::RouteEdit{0, copy_id, Op::ClearStop, 7}));
+    REQUIRE(copy(0, id, copy_id));
+    const sim::Ship& running = *sea.world.ship(id);
+    CHECK(running.route.active);
+    CHECK(running.route.current == 2);
+    CHECK(running.target == sim::Target::city_of(1, 0));
+}
+
 TEST_CASE("ships: the free trader buys cheap goods and comes back with tools") {
     Sea sea(true);
     sim::City& city = *sea.world.city(0, 0);

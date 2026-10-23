@@ -484,7 +484,7 @@ bool Engine::home_supply_route(AiPlayer& p, Ship& s, City& home) {
         back.entries[1] = RouteEntry{second->ware, true, 50 * kTon};
     }
     stops.push_back(back);
-    if (stops.size() > TradeRoute::kStops) {
+    if (stops.size() > TradeRoute::kOriginalStops) {  // the supply runs of the original
         stops.erase(stops.begin());
     }
     RouteEdit clear;

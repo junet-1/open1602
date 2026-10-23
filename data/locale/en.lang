@@ -266,6 +266,13 @@ diplomacy.offer.trade = {1} offers you a trade treaty
 diplomacy.offer.peace = {1} offers you a peace treaty
 diplomacy.offer.both = {1} offers you a trade treaty and a peace treaty
 
+# Trade route editor: the row below the stops (copy a route, show the stops {1} as 1-4 or 5-8),
+# and the help line of the stop the ship sails to now ({1}: the original's help line)
+route.copy = Copy route
+route.copy_help = Take the stops of another of your ships: click on it on the map
+route.show_stops = Show the stops {1}
+route.current_stop = {1} (the ship sails here now)
+
 # Window title
 title.paused = paused
 # {1}: the game speed, as 2, 4 or 8

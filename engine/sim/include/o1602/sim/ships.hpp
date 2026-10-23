@@ -101,6 +101,8 @@ struct RouteEdit {
         Start,      ///< switches the route on
         Stop,       ///< and off
         OneWay,     ///< `on`: the route ends after its last stop (computer players' supply runs)
+        /// Open1602: the stops of the ship in `target` (one of the same owner) replace this ship's.
+        CopyFrom,
     };
     PlayerId player = kNoPlayer;
     std::uint32_t ship = 0;

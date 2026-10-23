@@ -106,22 +106,27 @@ also fits with changed graphics; an unknown Id makes the chunk invalid.
 ## Section versions
 
 All sections are of version 1, except two that have a version 2 since islands can be wider or
-higher than 255 tiles (SC-13), and `PSTA`, whose version 2 carries the scenario switches:
+higher than 255 tiles (SC-13), `PSTA`, whose version 2 carries the scenario switches, and `FLEE`,
+whose version 2 carries trade routes with eight stops:
 
 | Section | Version 1 | Version 2 |
 |---|---|---|
 | `ISLE` | x and y of the eight deer spots and of the craters as u8 | the same as u16 |
 | `VOLC` | x and y of the last crater and of each eruption's crater as u8 (after the u16 island) | the same as u16 |
 | `PSTA` | as in the table above | per player in addition the switches a scenario gives a computer (u32 bits, u16 rival and own inhabitants, u8 own and rival development; `PLAYER4` +0x1C..+0x25) |
+| `FLEE` | per ship the route's four stops of the original | per ship the route's eight stops (Open1602's route editor), the same record per stop |
 
 The writer takes version 2 of `ISLE` and `VOLC` only when one of these coordinates is above 255,
-and version 2 of `PSTA` only when a player has scenario switches. A version 1 `PSTA` keeps the
+version 2 of `PSTA` only when a player has scenario switches, and version 2 of `FLEE` only when a
+route has a stop beyond the fourth. A version 1 `PSTA` keeps the
 switches the chunks of the original brought (`PLAYER4`). A world whose
 coordinates fit one byte (every world of the original, and every one written before) gives the
 bytes of version 1 as before, which older readers still load; a reader of this version reads both.
 A file with version 2 needs an Open1602 that knows it: an older one refuses it, since these
 sections are required. Version 2 of `ISLE` and `VOLC` never occurs in the chunk of a `.GAM`: the
-export refuses islands wider or higher than 255 tiles.
+export refuses islands wider or higher than 255 tiles. Version 2 of `FLEE` can: the ship records of the
+original (`SHIP4`) then hold the first four stops, and the route from its first stop when the ship
+sails to a later one; the original plays the route with these, Open1602 reads all eight from the chunk.
 
 ## Safety when loading
 

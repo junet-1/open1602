@@ -1044,6 +1044,41 @@ bool Fleet::edit_route(const RouteEdit& e) {
         case RouteEdit::Op::OneWay:
             route.one_way = e.on;
             return true;
+        case RouteEdit::Op::CopyFrom: {
+            // Open1602: the stops of another ship of the same owner, cities only (no patrol points,
+            // no ship to meet), from the first stop on.
+            const Ship* source = e.target.kind == Target::Kind::Ship ? m_world->ship(e.target.ship) : nullptr;
+            if (source == nullptr || source == ship || source->owner != ship->owner) {
+                return false;
+            }
+            std::array<RouteStop, TradeRoute::kStops> stops{};
+            bool any = false;
+            for (std::size_t s = 0; s < TradeRoute::kStops; ++s) {
+                const RouteStop& from = source->route.stops[s];
+                if (from.target.kind == Target::Kind::City && target_valid(from.target)) {
+                    stops[s] = from;
+                    any = true;
+                }
+            }
+            if (!any) {
+                return false;
+            }
+            route.stops = stops;
+            route.current = 0;
+            while (route.stops[route.current].target.empty()) {
+                ++route.current;
+            }
+            route.problem = false;
+            route.problem_rounds = 0;
+            if (route.active) {
+                // A running route sails to its new first stop at once.
+                ship->target = route.stops[route.current].target;
+                ship->motion.path.clear();
+                ship->motion.path_index = 0;
+                ship->motion.failures = 0;
+            }
+            return true;
+        }
     }
     return false;
 }
