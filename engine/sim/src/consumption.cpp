@@ -62,9 +62,12 @@ std::uint32_t available(const City& c, std::uint8_t ware) {
     return c.available(ware);
 }
 
+/// The inhabitants (settlers, natives, pirates) use goods of the warehouse.
 void take(City& c, std::uint8_t ware, std::uint32_t amount) {
     c.ensure_ware(ware);
-    c.goods[ware] -= std::min(amount, c.goods[ware]);
+    const std::uint32_t taken = std::min(amount, c.goods[ware]);
+    c.goods[ware] -= taken;
+    c.book(ware, GoodsFlow::Residents, taken);
 }
 
 }  // namespace
@@ -123,6 +126,7 @@ void consume(City& city, const assets::BuildingTable& buildings, std::vector<Cit
             // balance, docs/re/consumption.md).
             const std::uint64_t want = (s.demand - s.supplied) / kSupplyUnit + 1;
             const auto got = static_cast<std::uint32_t>(std::min<std::uint64_t>(want, available(city, w)));
+            city.book(w, GoodsFlow::Demand, static_cast<std::uint32_t>(std::min<std::uint64_t>(want, UINT32_MAX)));
             if (got != 0) {
                 take(city, w, got);
                 s.supplied += std::uint64_t{got} * kSupplyUnit;
@@ -136,7 +140,9 @@ void consume(City& city, const assets::BuildingTable& buildings, std::vector<Cit
         if (s.ratio < s.history[0] && s.history[0] < s.history[1]) {
             if (events != nullptr) {
                 if (s.history[2] >= kFull) {
-                    events->push_back(CityEvent{CityEvent::Kind::Shortage, city.island, city.index, city.owner, w});
+                    CityEvent e{CityEvent::Kind::Shortage, city.island, city.index, city.owner, w};
+                    e.warned = city.ledger.warned(w);
+                    events->push_back(e);
                 } else if (w == buildings.food_ware() && s.ratio <= kHungerLevel) {
                     events->push_back(CityEvent{CityEvent::Kind::Hunger, city.island, city.index, city.owner, w});
                 }

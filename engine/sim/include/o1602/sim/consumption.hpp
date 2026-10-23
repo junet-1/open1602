@@ -29,6 +29,7 @@ struct CityEvent {
         Monument,        ///< the owner may build one more monument ("Das treue Volk will Euch ein Denkmal setzen!")
         MaterialLocked,  ///< the owner still keeps the building material from the people (message 0x48)
         Population,      ///< the city passed a mark of inhabitants: `message` 0x11 (100) .. 0x1D (9000)
+        RunningLow,      ///< Open1602: `ware` lasts only `minutes` more (goods_statistics.hpp, early warning)
     };
     Kind kind = Kind::Shortage;
     std::uint16_t island = 0;  ///< index into World::islands()
@@ -37,6 +38,8 @@ struct CityEvent {
     std::uint8_t ware = 0;
     std::uint8_t infra = 0;    ///< Unlocked: INFRA number
     std::uint8_t message = 0;  ///< Population: MELDUNG number for the owner
+    std::uint16_t minutes = 0;  ///< RunningLow: game minutes the stock lasts at the current balance
+    bool warned = false;        ///< Shortage: the early warning (RunningLow) came before
 };
 
 /// Unlocks the build levels a city reached for its owner (0x0047F8A0): level n once the city has

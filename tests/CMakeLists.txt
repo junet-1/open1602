@@ -24,6 +24,7 @@ add_executable(o1602_tests
     unit/test_logistics.cpp
     unit/test_raw_producers.cpp
     unit/test_consumption.cpp
+    unit/test_goods_statistics.cpp
     unit/test_random.cpp
     unit/test_houses.cpp
     unit/test_island_events.cpp

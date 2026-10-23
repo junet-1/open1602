@@ -336,7 +336,7 @@ TEST_CASE("commands: a slot changes hands between the computer and a person") {
 TEST_CASE("simulation: the steps of a tick run in the original's order (review point 28)") {
     const std::vector<std::string_view> expected = {"diplomacy", "growth", "production", "cities",   "city events",
                                                     "houses",    "upkeep", "disasters",  "islands",  "volcanoes",
-                                                    "computers", "combat", "ships",      "soldiers", "logistics"};
+                                                    "computers", "combat", "ships",      "soldiers", "logistics", "statistics"};
     CHECK(sim::Simulation::tick_step_names() == expected);
 }
 

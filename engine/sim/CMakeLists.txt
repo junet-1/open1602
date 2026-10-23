@@ -18,6 +18,8 @@ add_library(o1602_sim
     src/consumption.cpp
     src/disasters.cpp
     src/drag_path.cpp
+    src/goods_ledger.cpp
+    src/goods_statistics.cpp
     src/growth.cpp
     src/houses.cpp
     src/island_events.cpp

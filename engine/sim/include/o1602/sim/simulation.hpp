@@ -300,6 +300,7 @@ private:
     void ships_step();
     void soldiers_step();
     void logistics_step();
+    void statistics_step();
     /// Sends a carrier with `ware` to the shipyard or castle at (x, y); false if it cannot go.
     bool send_yard_carrier(std::uint16_t island, std::uint16_t x, std::uint16_t y, std::uint8_t ware);
     /// Keeps every event buffer within EventBuffer::kMaxPending.

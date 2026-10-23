@@ -271,7 +271,9 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         }
         const std::uint16_t price = city.trade[w].sell_price;
         city.ensure_ware(w);
-        city.goods[w] -= std::min(n, city.goods[w]);
+        const std::uint32_t taken = std::min(n, city.goods[w]);
+        city.goods[w] -= taken;
+        city.book(w, GoodsFlow::Sold, taken);
         if (owner != nullptr) {
             earn_from_trade(*owner, std::int64_t{price} * n / kTon);
         }
@@ -290,6 +292,7 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
         const std::uint16_t price = city.trade[w].buy_price;
         city.ensure_ware(w);
         city.goods[w] += n;
+        city.book(w, GoodsFlow::Bought, n);
         if (owner != nullptr) {
             pay_for_trade(*owner, std::int64_t{price} * n / kTon);
         }

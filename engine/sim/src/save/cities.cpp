@@ -93,6 +93,28 @@ void io_give_up_count(A& a, C& c) {
     a.u8(c.ships_gave_up);
 }
 
+/// GLDG: one good of a GoodsLedger.
+template <class A, class W>
+void io_ledger_ware(A& a, W& w) {
+    a.boolean(w.warned);
+    for (auto& c : w.current) {
+        a.u32(c);
+    }
+    for (auto& c : w.quarter) {
+        a.u32(c);
+    }
+    const auto samples = [&](auto& ring) {
+        for (auto& s : ring) {
+            for (auto& f : s.flow) {
+                a.u16(f);
+            }
+            a.u32(s.stock);
+        }
+    };
+    samples(w.minutes);
+    samples(w.quarters);
+}
+
 template <class A, class P>
 void io_production(A& a, P& p) {
     a.u16(p.island);
@@ -206,6 +228,56 @@ void write_give_up_counts(Writer& out, const World& w) {
 std::vector<Decoded::GiveUpCount> read_give_up_counts(Reader& in) {
     std::vector<Decoded::GiveUpCount> list;
     in.list(list, 4, [&](Decoded::GiveUpCount& c) { io_give_up_count(in, c); });
+    return list;
+}
+
+void write_ledgers(Writer& out, const World& w) {
+    std::vector<const City*> kept;
+    for (const City& c : w.cities()) {
+        if (c.ledger.minutes_closed() != 0 || !c.ledger.wares().empty()) {
+            kept.push_back(&c);
+        }
+    }
+    out.list(kept, 11, [&](const City* c) {
+        out.u16(c->island);
+        out.u8(c->index);
+        out.u32(c->ledger.minutes_closed());
+        // Only the goods that ever moved or were in store.
+        std::vector<std::uint8_t> used;
+        for (std::size_t i = 0; i < c->ledger.wares().size(); ++i) {
+            if (c->ledger.wares()[i].used) {
+                used.push_back(static_cast<std::uint8_t>(i));
+            }
+        }
+        out.list(used, 1, [&](std::uint8_t ware) {
+            out.u8(ware);
+            io_ledger_ware(out, c->ledger.wares()[ware]);
+        });
+    });
+}
+
+std::vector<Decoded::CityLedger> read_ledgers(Reader& in) {
+    std::vector<Decoded::CityLedger> list;
+    in.list(list, 11, [&](Decoded::CityLedger& c) {
+        in.u16(c.island);
+        in.u8(c.index);
+        std::uint32_t closed = 0;
+        in.u32(closed);
+        std::vector<std::pair<std::uint8_t, GoodsLedger::Ware>> read;
+        in.list(read, 1, [&](std::pair<std::uint8_t, GoodsLedger::Ware>& e) {
+            in.u8(e.first);
+            io_ledger_ware(in, e.second);
+            e.second.used = true;
+        });
+        std::vector<GoodsLedger::Ware> wares;
+        for (auto& [ware, w] : read) {
+            if (ware >= wares.size()) {
+                wares.resize(std::size_t{ware} + 1);
+            }
+            wares[ware] = std::move(w);
+        }
+        c.ledger.restore(std::move(wares), closed);
+    });
     return list;
 }
 

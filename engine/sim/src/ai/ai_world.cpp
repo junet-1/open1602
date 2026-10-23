@@ -301,6 +301,8 @@ std::uint32_t Engine::island_region(std::uint16_t island, std::uint32_t nests) c
 }
 
 void Engine::add_goods(City& c, std::uint8_t w, std::uint32_t amount) {
+    // The computer players' gifts to themselves are neither production nor trade: not booked in
+    // the goods statistics (nobody else may see them anyway).
     c.ensure_ware(w);
     const std::uint32_t room = c.capacity > c.goods[w] ? c.capacity - c.goods[w] : 0;
     c.goods[w] += std::min(amount, room);
@@ -310,6 +312,7 @@ std::uint32_t Engine::remove_goods(City& c, std::uint8_t w, std::uint32_t amount
     c.ensure_ware(w);
     const std::uint32_t taken = std::min(amount, c.goods[w]);
     c.goods[w] -= taken;
+    c.book(w, GoodsFlow::Construction, taken);
     return taken;
 }
 

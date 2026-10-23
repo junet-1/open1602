@@ -106,6 +106,13 @@ struct Decoded {
         std::uint8_t ships_gave_up = 0;
     };
     std::optional<std::vector<GiveUpCount>> give_up_counts;
+    /// The goods statistics of the cities (GLDG): island, index, City::ledger.
+    struct CityLedger {
+        std::uint16_t island = 0;
+        std::uint8_t index = 0;
+        GoodsLedger ledger;
+    };
+    std::optional<std::vector<CityLedger>> ledgers;
     /// The score's counters (SCOR), in the order of PLAY, and the cities' monument clocks.
     struct ScorePart {
         struct Counters {
@@ -280,6 +287,8 @@ void write_population_marks(Writer& out, const World& w);
 [[nodiscard]] std::vector<Decoded::PopulationMark> read_population_marks(Reader& in);
 void write_give_up_counts(Writer& out, const World& w);
 [[nodiscard]] std::vector<Decoded::GiveUpCount> read_give_up_counts(Reader& in);
+void write_ledgers(Writer& out, const World& w);
+[[nodiscard]] std::vector<Decoded::CityLedger> read_ledgers(Reader& in);
 void write_productions(Writer& out, const World& w);
 [[nodiscard]] Decoded::ProductionPart read_productions(Reader& in);
 void write_houses(Writer& out, const World& w);
