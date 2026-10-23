@@ -115,7 +115,9 @@ every new prompt. In PowerShell, for example a Developer PowerShell started with
 `$env:VCPKG_ROOT = "C:\vcpkg"` instead; there `set` silently does nothing for CMake, which then fails
 with "Could not find toolchain file: /scripts/buildsystems/vcpkg.cmake". Visual Studio's prompts may
 already point VCPKG_ROOT at the vcpkg bundled with it; the line above switches to the clone, which is
-what CI tests. vcpkg picks the 64-bit triplet `x64-windows` from the x64 prompt by itself; in a 32-bit
+what CI tests. `bootstrap-vcpkg.bat` has no 32- or 64-bit variant: it always downloads the 64-bit `vcpkg.exe`
+(the ARM64 one on ARM). Which architecture the packages and the game are built for comes from the
+prompt: vcpkg picks the 64-bit triplet `x64-windows` from the x64 prompt by itself; in a 32-bit
 prompt the configure step stops with a hint. After a failed first configure, delete `build\vcpkg` and
 run `cmake --preset vcpkg` again.
 
