@@ -16,8 +16,20 @@ stable multiplayer and room for new features, quality-of-life improvements and m
 Open1602 contains **no** game files. You need your own copy of *Anno 1602*, for example the GOG
 "Königsedition" (*Anno 1602 – Creation of a New World*). The game speaks the language of your
 installation: a German Anno 1602 gives a German game, an English one an English game
-([details](docs/modding/languages.md)). Tell Open1602 where the installation is with the environment
-variable `ANNO1602_DIR` (or `--game-dir DIR` on the command line):
+([details](docs/modding/languages.md)).
+
+Open1602 finds a GOG installation on its own: on Windows through the folder GOG's installer records
+and in `C:\GOG Games` and `GOG Galaxy\Games` under Program Files, on Linux and macOS in
+`~/GOG Games`, `~/Games/Heroic`, `~/Games` and the default Wine prefix (a folder whose name contains
+"1602"). The game files are only read, so the installation can stay under Program Files. If it
+finds none, Open1602 asks for the folder of the installation with the system's folder dialog and
+remembers it (`game_folder` in `settings.cfg` in the user's data folder); it asks again only when
+that folder is moved or deleted. On Linux the dialog needs the desktop portal or `zenity`.
+
+Open1602 looks in this order: `--game-dir DIR` on the command line, the environment variable
+`ANNO1602_DIR`, the folder chosen in the dialog, the usual folders above, and only then asks. A
+folder given with `--game-dir` or `ANNO1602_DIR` is never replaced: if it is wrong, Open1602 says so
+and ends. To set the variable:
 
 | Shell | Command |
 |---|---|
@@ -27,7 +39,7 @@ variable `ANNO1602_DIR` (or `--game-dir DIR` on the command line):
 | cmd | `set ANNO1602_DIR=C:\GOG Games\Anno 1602` |
 
 To keep it set, add the line to `~/.bashrc` / `~/.zshrc`, use `set -Ux` once in fish, or `setx ANNO1602_DIR "..."`
-on Windows. On Linux and macOS the GOG installer can be unpacked without Windows:
+on Windows. Quotes around the path are ignored, so `set ANNO1602_DIR="C:\GOG Games\Anno 1602"` works too. On Linux and macOS the GOG installer can be unpacked without Windows:
 `innoextract setup_anno_1602*.exe` (or install it through Heroic or Wine).
 
 ## Building

@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <span>
 #include <string>
@@ -13,6 +14,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cod.hpp"
+#include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
@@ -363,4 +365,41 @@ TEST_CASE("core: doubles from data files become integers the same way everywhere
     CHECK(core::saturating_cast<std::int32_t>(-2.9) == -2);
     CHECK(core::saturating_cast<std::uint8_t>(std::numeric_limits<double>::quiet_NaN()) == 0);
     CHECK(core::saturating_cast<std::int64_t>(1e30) == std::numeric_limits<std::int64_t>::max());
+}
+
+TEST_CASE("assets: a game folder typed with quotes or blanks around it is still found") {
+    using assets::GameDirectory;
+    CHECK(GameDirectory::clean_path_text("\"C:\\Users\\Jonas\\Documents\\Anno 1602\"") ==
+          "C:\\Users\\Jonas\\Documents\\Anno 1602");
+    CHECK(GameDirectory::clean_path_text("C:\\GOG Games\\Anno 1602\"") == "C:\\GOG Games\\Anno 1602");  // "...\"
+    CHECK(GameDirectory::clean_path_text("  /home/a/Anno 1602 \r\n") == "/home/a/Anno 1602");
+    CHECK(GameDirectory::clean_path_text(" \" /games/anno \" ") == "/games/anno");
+    CHECK(GameDirectory::clean_path_text("\"\"").empty());
+    CHECK(GameDirectory::clean_path_text("/plain") == "/plain");
+
+    const auto root = test::temp_path("o1602-test-quoted-game-dir");
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root / "TOOLGFX");
+    std::filesystem::create_directories(root / "GFX");
+    for (const char* file : {"Haeuser.cod", "Figuren.cod", "TOOLGFX/STADTFLD.COL", "GFX/STADTFLD.BSH"}) {
+        std::ofstream(root / file) << "";
+    }
+    CHECK(!GameDirectory::open(core::path_from_utf8("\"" + core::path_to_utf8(root) + "\"")));
+    CHECK(GameDirectory::open(
+        core::path_from_utf8(GameDirectory::clean_path_text("\"" + core::path_to_utf8(root) + "\""))));
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("assets: installers' folders named after the game are candidates, others are not") {
+    const auto parent = test::temp_path("o1602-test-install-candidates");
+    std::filesystem::remove_all(parent);
+    for (const char* name : {"Anno 1602 Koenigsedition", "Anno 1602", "Anno 1503", "1602 AD"}) {
+        std::filesystem::create_directories(parent / name);
+    }
+    std::ofstream(parent / "Anno 1602.txt") << "";  // a file, not a folder
+    const std::vector<std::filesystem::path> expected{parent / "1602 AD", parent / "Anno 1602",
+                                                      parent / "Anno 1602 Koenigsedition"};
+    CHECK(assets::GameDirectory::folders_named_1602(parent) == expected);
+    CHECK(assets::GameDirectory::folders_named_1602(parent / "missing").empty());
+    std::filesystem::remove_all(parent);
 }

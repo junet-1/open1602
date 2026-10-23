@@ -14,6 +14,7 @@ add_library(o1602_menus
     ../src/end_screen.cpp
     ../src/endless_setup.cpp
     ../src/event_presenter.cpp
+    ../src/game_folder.cpp
     ../src/game_settings_menu.cpp
     ../src/high_score_file.cpp
     ../src/map_gestures.cpp

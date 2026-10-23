@@ -5,12 +5,13 @@
 //   open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH] [--zoom 0|1|2]
 //            [--owners] [--original-sheets] [--frames N] [--screenshot out.png]
 //
-// The game directory defaults to $ANNO1602_DIR. Without a game the program starts in the main menu
-// (--menu forces it); with --no-panel the scenario defaults to "Szenes/Das Atoll.szs".
-// A relative scenario path is looked up in the game directory first. --savegame NAME opens a
-// savegame by the name shown in the game (looked up in Game.dat, e.g. "Merlin01" ->
-// SAVEGAME/game00.gam) or by file name. Scenarios and savegames share one format. --load FILE opens
-// a savegame of Open1602 (.o1602, docs/formats/o1602-save.md) or any file of the original by its path.
+// The game directory defaults to $ANNO1602_DIR, else to the folder chosen before, else to an
+// installation in the usual folders; without any the player chooses it (game_folder.hpp). Without a
+// game the program starts in the main menu (--menu forces it); with --no-panel the scenario defaults to "Szenes/Das
+// Atoll.szs". A relative scenario path is looked up in the game directory first. --savegame NAME opens a savegame by
+// the name shown in the game (looked up in Game.dat, e.g. "Merlin01" -> SAVEGAME/game00.gam) or by file name. Scenarios
+// and savegames share one format. --load FILE opens a savegame of Open1602 (.o1602, docs/formats/o1602-save.md) or any
+// file of the original by its path.
 
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_main.h>
@@ -24,12 +25,16 @@
 #include <string_view>
 #include <vector>
 
+#include "app_settings.hpp"
 #include "diagnostics.hpp"
+#include "game_folder.hpp"
+#include "game_folder_dialog.hpp"
 #include "map_viewer.hpp"
 
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
+#include "o1602/ui/localization.hpp"
 
 using namespace o1602;
 
@@ -527,12 +532,28 @@ int main(int argc, char** argv) {
         }
     }
 
-    auto game = game_dir.empty() ? assets::GameDirectory::from_environment()
-                                 : assets::GameDirectory::open(core::path_from_utf8(game_dir));
-    if (!game) {
-        app::report_fatal(game.error().message + "\n(set ANNO1602_DIR or pass --game-dir)");
+    // --game-dir, ANNO1602_DIR, the folder chosen before, the usual folders; else the player is asked.
+    const std::filesystem::path settings_file = app::MapViewer::data_folder() / "settings.cfg";
+    app::AppSettings settings;
+    if (auto bytes = core::read_file(settings_file)) {
+        settings = app::parse_settings(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()),
+                                       settings);
+    }
+    app::GameFolderSearch search = app::find_game_folder(game_dir, settings.game_folder,
+                                                         core::environment_variable(assets::GameDirectory::kEnvVar));
+    if (!search.game && search.ask) {
+        ui::set_language(app::startup_language(options.language, settings.language),
+                         app::MapViewer::data_folder() / "locale");
+        search.game = app::ask_for_game_folder(search, settings_file);
+        if (!search.game) {
+            return 1;
+        }
+    }
+    if (!search.game) {
+        app::report_fatal(search.error.message + "\n(set ANNO1602_DIR or pass --game-dir)");
         return 1;
     }
+    const assets::GameDirectory* game = &*search.game;
     std::string savegame_path;
     if (!savegame.empty()) {
         // The name shown in the game (Game.dat, "SPIELNAME") or a file name in SAVEGAME/.

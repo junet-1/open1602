@@ -477,3 +477,16 @@ message.won.light_blue = The light blue player has fulfilled their task!
 message.won.lime = The lime player has fulfilled their task!
 message.won.purple = The purple player has fulfilled their task!
 message.won.brown = The brown player has fulfilled their task!
+
+# The game's folder, asked for at the start when none is found (in the system's dialogs, which may
+# lack letters beyond Latin-1: no typographic quotes or ellipsis)
+game_folder.none_found = Open1602 needs the files of an installed Anno 1602 (for example the GOG Königsedition), but found none in the usual folders.
+# {1}: why (game_folder.missing or game_folder.not_installation)
+game_folder.saved_invalid = The game folder chosen last time can no longer be used.\n{1}
+game_folder.missing = This folder does not exist (any more):\n{1}
+# {1}: the folder, {2}: a file of the game
+game_folder.not_installation = This folder is not an Anno 1602 installation, the file {2} is missing:\n{1}
+game_folder.choose_prompt = Please choose the folder of your Anno 1602 installation (the one with 1602.exe in it). Open1602 remembers it.
+game_folder.choose = Choose folder
+game_folder.quit = Quit
+game_folder.dialog_title = Choose the Anno 1602 folder

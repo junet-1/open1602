@@ -31,6 +31,8 @@ struct AppSettings {
     /// (the original's "Tutornr"): the tutorial runs this chapter, the menu offers it first.
     std::uint8_t tutorial_chapter = 0;
     std::string player_name;  ///< the name typed in the menu (Windows-1252)
+    /// The installation chosen in the folder dialog at the start (UTF-8); "" if none was chosen.
+    std::string game_folder;
     /// The language of Open1602's own texts ("de", "en", ...); "auto": the installation's.
     std::string language = "auto";
     /// Whales, dolphins and krakens: on average one per screen of sea every this many seconds
@@ -51,6 +53,9 @@ struct AppSettings {
 /// "key = value" lines; unknown keys are passed over, missing ones keep `defaults`.
 [[nodiscard]] AppSettings parse_settings(std::string_view text, const AppSettings& defaults);
 [[nodiscard]] std::string write_settings(const AppSettings& settings);
+/// `text` (a settings file) with the line of `key` set to `value`: the first such line is replaced
+/// (any others go), or the line is added at the end; every other line stays as it is.
+[[nodiscard]] std::string set_setting_line(std::string_view text, std::string_view key, std::string_view value);
 
 /// The savegames of the panel DISK: a name and the number of human players per slot. The original
 /// has twelve slots; Open1602 keeps as many as are used plus one free slot at the end, at least
