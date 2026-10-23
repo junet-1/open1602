@@ -40,6 +40,8 @@ constexpr std::uint32_t kShipClear = 5;          // from a start to the nearest 
 constexpr std::uint32_t kTilesPerIsland = 9500;  // the original: 17-20 islands on 500 x 350
 constexpr std::uint32_t kPlanIslands = 18;       // islands the original's resource counts are made for
 constexpr std::uint32_t kPlanPlayers = 4;
+constexpr std::uint64_t kPlanStream = 0x5701'D0A1ULL;        // the islands
+constexpr std::uint64_t kStartOrderStream = 0x5701'D0A2ULL;  // which player gets which start area
 
 // Ore, crop and treasure entries of the original's plans per level (Endlosspiel<D><V>.szs).
 constexpr std::array<std::uint32_t, 6> kCropBuildings = {21336, 21342, 21340, 21332, 21344, 21338};
@@ -119,7 +121,7 @@ std::int32_t isqrt(std::int64_t v) {
 class Planner {
 public:
     Planner(const WorldSettings& s, const std::vector<TemplateInfo>& templates, std::vector<std::string>* warnings)
-        : m_s(s), m_templates(templates), m_warnings(warnings), m_random(s.seed, 0x5701'D0A1ULL) {}
+        : m_s(s), m_templates(templates), m_warnings(warnings), m_random(s.seed, kPlanStream) {}
 
     core::Result<WorldPlan> run();
 
@@ -699,7 +701,19 @@ WorldPlan Planner::finish() {
     }
     plan.treasures[0] = ScenarioPlan::Resource{id::kGoldsmith, scaled(kTreasures[d]), 0};
 
-    // Starts: all at one place with the original's offsets, or one area per player.
+    // Starts: all at one place with the original's offsets, or one area per player. Separate
+    // areas go to the players in a random order (Fisher-Yates), else the first player, the human
+    // in a single-player game, always got the same side of the map. The order has a stream of its
+    // own, so a seed still gives the same islands, and every computer of a multiplayer game the
+    // same order.
+    std::vector<std::size_t> area_of(m_starts.size());
+    for (std::size_t i = 0; i < area_of.size(); ++i) {
+        area_of[i] = i;
+    }
+    Random draw_area(m_s.seed, kStartOrderStream);
+    for (std::size_t i = area_of.size(); i > 1; --i) {
+        std::swap(area_of[i - 1], area_of[draw_area.below(static_cast<std::uint32_t>(i))]);
+    }
     static constexpr std::array<Point, 8> kTogether = {
         {{0, 0}, {0, -7}, {-5, 5}, {-4, -1}, {5, 4}, {6, -5}, {-7, -6}, {2, 8}}};
     for (std::size_t p = 0; p < m_s.players; ++p) {
@@ -711,9 +725,10 @@ WorldPlan Planner::finish() {
             a.y = static_cast<std::uint32_t>(m_starts[0].y + o.y);
             a.home_island = 0xFF;
         } else {
-            a.x = static_cast<std::uint32_t>(m_starts[p].x);
-            a.y = static_cast<std::uint32_t>(m_starts[p].y);
-            a.home_island = m_home[p] >= 0 ? number[static_cast<std::size_t>(m_home[p])] : std::uint8_t{0xFF};
+            const std::size_t i = area_of[p];
+            a.x = static_cast<std::uint32_t>(m_starts[i].x);
+            a.y = static_cast<std::uint32_t>(m_starts[i].y);
+            a.home_island = m_home[i] >= 0 ? number[static_cast<std::size_t>(m_home[i])] : std::uint8_t{0xFF};
         }
         a.reach = m_reach;
         out.starts.push_back(a);
