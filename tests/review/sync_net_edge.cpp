@@ -796,10 +796,15 @@ TEST_CASE("review: the heaviest commands a player may put into one frame: what t
         Forest f(side);
         sim::Simulation s(f.world, f.buildings, f.figures);
         s.tick();
-        // The host lets a player put min(256, 1024 / players) commands into a frame.
+        // The host admits commands into a frame while its work is below kFrameWork (P2: by their
+        // cost, not their number); the orders below are as many as it lets into one frame.
         const std::uint64_t now = s.next_tick();
-        for (int i = 0; i < 256; ++i) {
-            s.schedule(now, sim::DemolishOrder{0, 0, {0, 0}, {side - 1, side - 1}});
+        const sim::Command demolish = sim::DemolishOrder{0, 0, {0, 0}, {side - 1, side - 1}};
+        const std::uint64_t demolish_work = net::command_work(f.world, demolish);
+        int demolish_count = 0;
+        for (std::uint64_t work = 0; demolish_count < 256 && work < net::kFrameWork; work += demolish_work) {
+            s.schedule(now, demolish);
+            ++demolish_count;
         }
         auto start = Clock::now();
         s.tick();
@@ -818,16 +823,20 @@ TEST_CASE("review: the heaviest commands a player may put into one frame: what t
         const std::size_t bytes = sim::encode_command(big).size();
         const std::size_t per_message = net::kMaxMessageToHost / bytes;
         const std::uint64_t then = s.next_tick();
-        for (std::size_t i = 0; i < std::min<std::size_t>(per_message, 256); ++i) {
+        const std::uint64_t big_work = net::command_work(f.world, big);
+        std::size_t big_count = 0;
+        for (std::uint64_t work = 0; big_count < std::min<std::size_t>(per_message, 256) && work < net::kFrameWork;
+             work += big_work) {
             s.schedule(then, big);
+            ++big_count;
         }
         start = Clock::now();
         s.tick();
         const double build_ms = ms_since(start);
         std::printf(
-            "  island %dx%d: 256 demolish orders over it %.1f ms; %zu build orders of %u roads (%zu bytes "
-            "each, as many as one message holds) %.1f ms\n",
-            side, side, demolish_ms, std::min<std::size_t>(per_message, 256), sim::kMaxCommandItems, bytes, build_ms);
+            "  island %dx%d: %d demolish orders over it %.1f ms; %zu build orders of %u roads (%zu bytes "
+            "each) %.1f ms\n",
+            side, side, demolish_count, demolish_ms, big_count, sim::kMaxCommandItems, bytes, build_ms);
         CHECK(demolish_ms < 6.25);
         CHECK(build_ms < 6.25);
     }
