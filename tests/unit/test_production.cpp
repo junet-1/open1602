@@ -171,6 +171,7 @@ TEST_CASE("production: smoke and status icons on buildings") {
     REQUIRE(island.map.place(*buildings.by_id(20503), 1, 1, 0, 0, 0).ok());  // player 0
     REQUIRE(island.map.place(*buildings.by_id(20503), 4, 4, 1, 0, 1).ok());  // player 1, rotated
     REQUIRE(island.map.place(*buildings.by_id(20503), 4, 0, 0, 0).ok());     // no city: nothing
+    island.discover(0);  // the local player's own island: its figures show
     REQUIRE(world.add_island(std::move(island)).ok());
 
     const auto all = render::collect_building_figures(world, buildings, figures);

@@ -209,6 +209,63 @@ TEST_CASE("world renderer: islands replace the sea, buildings use their elevatio
     CHECK(cy == 30 * 4 + 4);
 }
 
+TEST_CASE("world renderer: an island the local player has not discovered shows only its ground") {
+    // The original draws such an island from its ground grid (island + 0xAFC, 0x00489C90): a native
+    // village or a foreign city on it stays unseen until a ship of the player comes near.
+    const auto table = make_table();
+    sim::World world;
+    world.set_players({sim::Player{}, sim::Player{sim::PlayerRole::Natives, 1, 0, ""}});
+    auto island = make_island(10, 20, 2, 2);
+    for (std::int32_t y = 0; y < 2; ++y) {
+        for (std::int32_t x = 0; x < 2; ++x) {
+            REQUIRE(island.map.place(*table.by_id(21201), x, y, 0, 0).ok());
+        }
+    }
+    island.map.capture_ground();
+    REQUIRE(island.map.build(*table.by_id(20100), 0, 0, 0, 0, 1, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+
+    render::WorldView view;
+    view.zoom = render::Zoom::Small;
+    render::Viewport all;
+    render::world_pixel_size(view, all.width, all.height);
+    render::WorldLayers layers;
+    layers.extent = render::SpriteExtent{16, 8};
+    layers.owner_tint = true;
+    render::BannerTable banners;
+    banners.add(render::Banner{"test:natives", {}, render::FlagStyle::None, 0, 8, std::nullopt});
+    banners.add(render::Banner{"test:natives2", {}, render::FlagStyle::None, 0, 8, std::nullopt});
+    layers.banners = &banners;
+    const auto count = [&](sim::PlayerId local, std::size_t& house, std::size_t& tint) {
+        layers.local_player = local;
+        std::vector<render::DrawCommand> commands;
+        render::build_world_draw_list(world, table, clock, view, all, layers, commands);
+        house = 0;
+        tint = 0;
+        for (const auto& c : commands) {
+            house += c.mode == render::DrawCommand::Mode::Normal && c.sprite >= 100 && c.sprite < 116 ? 1 : 0;
+            tint += c.sprite == render::DrawCommand::kOverlayDiamond ? 1 : 0;
+        }
+        CHECK(commands.size() >= std::size_t{500} * 350);
+    };
+    std::size_t house = 0;
+    std::size_t tint = 0;
+    count(sim::kNoPlayer, house, tint);  // no local player: everything shows
+    CHECK(house == 4);
+    CHECK(tint == 4);
+    count(0, house, tint);  // undiscovered: the sea of the ground, no owners
+    CHECK(house == 0);
+    CHECK(tint == 0);
+    world.island(0).discover(1);
+    count(0, house, tint);  // another player's discovery does not count
+    CHECK(house == 0);
+    world.island(0).discover(0);
+    count(0, house, tint);
+    CHECK(house == 4);
+    CHECK(tint == 4);
+}
+
 TEST_CASE("world renderer: marked tiles get a diamond on top of everything") {
     const auto table = make_table();
     sim::World world;

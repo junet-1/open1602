@@ -137,6 +137,9 @@ struct FigureInstance {
     /// Sheet of the images. The original picks it by the figure's draw kind (soldiers: SOLDAT.BSH),
     /// not by Blocknr, which many figures lack; nothing = Blocknr.
     std::optional<assets::FigureSheet> sheet;
+    /// Island the figure belongs to: it is seen only once the local player has discovered that
+    /// island (0x00451590). sim::World::kSea: everywhere (deer, kind 0x11, are not checked).
+    std::uint16_t island = sim::World::kSea;
 };
 
 /// A figure of an effect hanging or flying over the world: the fire over an erupting volcano
@@ -155,6 +158,9 @@ struct EffectFigure {
     assets::FigureSheet sheet = assets::FigureSheet::Effekte;
     std::uint8_t direction = 0;         ///< 0..7
     std::optional<std::uint8_t> frame;  ///< a frame of its own instead of one from the time
+    /// Island the effect belongs to (volcano fire and lava, kinds 0x20 and 0x21): seen only once the
+    /// local player has discovered it (0x00451590). sim::World::kSea: everywhere.
+    std::uint16_t island = sim::World::kSea;
 };
 
 /// Smoke of a ship's broadside (KANONSHOT1, KANONSHOT2), drawn with the ship (0x00447880).
@@ -316,6 +322,9 @@ struct WorldLayers {
     /// the atlas bases of their sheets (`sheet_base`) and follow the buildings' production state.
     const std::vector<BuildingFigure>* building_figures = nullptr;
     /// Player whose buildings show status icons (the original: the local player). kNoPlayer: none.
+    /// Islands this player has not discovered show only their ground layer, without buildings,
+    /// building figures or land figures (0x00489C90, 0x00486B60, 0x00451590); with kNoPlayer every
+    /// island shows everything.
     sim::PlayerId local_player = sim::kNoPlayer;
     /// Sets of figures on land (animals, soldiers, ...) with their shadows. Needs `figures` and the
     /// atlas bases of their sheets (`sheet_base`, e.g. from WorldGraphics::base); figures whose sheet

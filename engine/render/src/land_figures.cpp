@@ -272,6 +272,8 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
         f.owner = s.owner;
         f.z = spawn_height(world, buildings, f.x, f.y, true);  // 0x0045E1F0 with 0x00451180
         f.sheet = assets::FigureSheet::Soldat;                 // draw kind 4 (0x0044FA90)
+        // Kind 4 shows only on an island the local player has discovered (0x00451590).
+        f.island = s.island;
         AnimState state;
         std::uint8_t sim_anim = 0;
         const std::size_t last = lookup(m_last_index, s.id);
