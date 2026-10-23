@@ -37,10 +37,11 @@ public:
         }
         return b != 0;
     }
-    /// A count of at most `limit` things.
+    /// A count of at most `limit` things, each at least one byte: no more than the bytes left, so
+    /// that a short message cannot make the reader reserve room for the limit (MS-26).
     std::uint32_t count(std::uint32_t limit) {
         const std::uint32_t n = u32();
-        if (n > limit) {
+        if (n > limit || n > m_reader.remaining()) {
             fail();
             return 0;
         }

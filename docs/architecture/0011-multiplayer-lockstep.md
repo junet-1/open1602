@@ -45,7 +45,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    (`sim::command_size`; the host's own too). Only the host sets the game speed and hands slots to the
    computer (`PlayerControl`); every player may pause, go on and rename himself, at most four times a
    second. A message that makes no sense, a message to the host larger than 1 MiB and a connection
-   without `Hello` after 10 s disconnect the computer.
+   without `Hello` after 3 s disconnect the computer.
    **Admission by work.** A frame holds at most 1024 commands and 64 KiB of them, 64 places kept for
    the host's own (`PlayerControl`, names), which are never dropped. Each player has an equal share of
    the rest (at most 256) and of the frame's work, `kFrameWork` units of about one map tile looked at
@@ -85,7 +85,13 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
 10. **Transport.** Messages travel reliably and in order over ENet 1.3.18 (`third_party/enet`, MIT,
     shipped unchanged so that the build needs no network). The sessions only know the interface
     `net::Transport`; the tests have an in-memory network with latency, jitter and cuts, and a relay
-    or Steam can be plugged in later.
+    or Steam can be plugged in later. A packet is at most 1 MiB + 64 KiB both ways (ENet holds what
+    it receives of a packet until it is whole, so a large limit let anyone make the host hold 32 MiB
+    per connection, MS-7); larger messages, a game or many frames at once, travel as `Part`s of
+    256 KiB, one after another, and are put together by the computer (up to 32 MiB). The host
+    encodes a game once for every computer that gets it in the same update. At most 4 connections
+    come from one address, the host takes at most 8 spectators (`max_spectators`), and a computer it
+    kicked does not come back in the same session unless it returns to a slot with its token (MS-12).
 11. **Lobby.** A host may start without a game: it holds a `Lobby` with the title, a description of
     what is played and the slots of the game to come (open, a human, a computer player, closed).
     Computers come in, take open slots or watch, say they are ready and chat (at most 5 lines a
@@ -115,7 +121,9 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     game, players and slots, started, password, joining, spectators, protocol version). A computer
     looking for games asks every network of the computer by broadcast, the computer itself and the
     hosts it joined before directly,
-    every 3 s, and forgets a game that has not answered for 6 s. Nothing of this is needed to join:
+    every 3 s, and forgets a game that has not answered for 6 s. A host answers computers of the local
+    network always, others (a forwarded port) twice a second each and 16 times a second in all: the
+    answer is about 16 times the search, and a search's sender can be forged (MS-21). Nothing of this is needed to join:
     an address alone does it too, so games on the internet need no server in between.
 13. **The menu is Open1602's own.** The original's network screens (DirectPlay sessions, its lobby)
     are not used. Open1602's menu has three screens: finding a game (the list fills by itself, an

@@ -34,8 +34,9 @@ constexpr std::uint32_t kMaxGameOrdersPerSecond = 4;
 /// (MS-16): each change goes to everyone, up to 64 KiB of setup.
 constexpr std::uint32_t kMaxSeatChangesPerSecond = 4;
 constexpr std::uint32_t kLobbyEveryMs = 100;
-/// Time a new connection has to send its Hello.
-constexpr std::uint32_t kGreetingMs = 10'000;
+/// Time a new connection has to send its Hello (MS-12: short, so that connections that never say
+/// who they are do not hold the few there are).
+constexpr std::uint32_t kGreetingMs = 3'000;
 /// Games written for computers that join or resync: a few at once, then one a second. A computer
 /// that leaves and comes back in a loop cannot make the host write the whole game more often.
 constexpr std::uint32_t kGameCostMs = 1'000;
@@ -493,6 +494,13 @@ void HostSession::hello(Peer& peer, const Hello& m) {
             m_standby_changed = true;
         }
     }
+    if (seat == sim::kNoPlayer && !peer.address.empty() &&
+        std::find(m_banned.begin(), m_banned.end(), peer.address) != m_banned.end()) {
+        // A computer sent away in this session does not come straight back (MS-12); others from the
+        // same address still return to their slots with their tokens.
+        drop(peer, RefuseReason::Kicked);
+        return;
+    }
     if (seat == sim::kNoPlayer && m.returning && m_config.spectators) {
         // After the host changed, without its slot (it watched, or someone took the slot): it
         // watches, rather than taking a slot it did not have.
@@ -508,6 +516,15 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         }
         // Someone new in the slot: whoever had it before cannot come back with the old token.
         forget_token(seat);
+    }
+    if (seat == sim::kNoPlayer) {
+        const auto watching = std::count_if(m_peers.begin(), m_peers.end(), [&](const auto& p) {
+            return p.get() != &peer && !p->gone && p->welcomed && p->seat == sim::kNoPlayer;
+        });
+        if (static_cast<std::uint64_t>(watching) >= m_config.max_spectators) {
+            drop(peer, RefuseReason::Full);  // each spectator holds a connection and gets the game (MS-12)
+            return;
+        }
     }
     peer.welcomed = true;
     peer.game_due = started();
@@ -767,7 +784,7 @@ void HostSession::broadcast_frames() {
     const std::vector<std::uint8_t> bytes = encode(turn);
     for (const auto& p : m_peers) {
         if (!p->gone && p->state != Peer::State::Greeting) {
-            m_transport->send(p->link, bytes);
+            send_bytes(p->link, bytes);
         }
     }
     m_broadcast = m_closed;
@@ -776,16 +793,20 @@ void HostSession::broadcast_frames() {
 void HostSession::send_game(Peer& peer) {
     peer.game_due = false;
     if (!m_game) {
-        // Written once for all computers that get it in this update.
+        // Written and encoded once for all computers that get it in this update.
         auto save = sim::write_game(m_simulation->world(), *m_buildings, m_simulation);
         if (!save || save.value().size() > kMaxSnapshotBytes) {
             drop(peer, RefuseReason::Closed);  // the game cannot be written: nobody can come in
             return;
         }
-        m_game = Snapshot{0, m_frames, m_simulation->speed(), m_simulation->paused(), std::move(save).value()};
+        m_game = encode(Snapshot{0, m_frames, m_simulation->speed(), m_simulation->paused(), std::move(save).value()});
     }
-    m_game->epoch = ++peer.epoch;
-    send(peer.link, *m_game);
+    // The epoch is the first field after the type (protocol.cpp), little endian.
+    const std::uint32_t epoch = ++peer.epoch;
+    for (std::size_t i = 0; i < 4; ++i) {
+        (*m_game)[1 + i] = static_cast<std::uint8_t>(epoch >> (8 * i));
+    }
+    send_bytes(peer.link, *m_game);
     // The frames closed beyond the game sent; later ones follow with everyone's.
     Turn turn;
     turn.first = m_frames;
@@ -1002,7 +1023,7 @@ void HostSession::broadcast(const Message& message) {
     const std::vector<std::uint8_t> bytes = encode(message);
     for (const auto& p : m_peers) {
         if (!p->gone && p->welcomed) {
-            m_transport->send(p->link, bytes);
+            send_bytes(p->link, bytes);
         }
     }
 }
@@ -1237,6 +1258,7 @@ void HostSession::kick(Seat seat) {
     const auto holder = std::find_if(m_peers.begin(), m_peers.end(),
                                      [&](const auto& p) { return !p->gone && p->welcomed && p->seat == seat; });
     if (seat != sim::kNoPlayer && holder != m_peers.end()) {
+        ban((*holder)->address);
         drop(**holder, RefuseReason::Kicked);
         forget_token(seat);  // and it cannot come back with it
     }
@@ -1251,9 +1273,16 @@ void HostSession::kick_member(std::size_t member, Seat seat, std::string_view na
     if (peer == nullptr || peer->gone || !peer->welcomed || peer->seat != seat) {
         return;
     }
+    ban(peer->address);
     drop(*peer, RefuseReason::Kicked);
     if (seat != sim::kNoPlayer) {
         forget_token(seat);  // and it cannot come back with it
+    }
+}
+
+void HostSession::ban(const std::string& address) {
+    if (!address.empty() && std::find(m_banned.begin(), m_banned.end(), address) == m_banned.end()) {
+        m_banned.push_back(address);
     }
 }
 

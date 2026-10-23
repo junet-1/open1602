@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/net/protocol.hpp"
 
+#include <algorithm>
 #include <utility>
 
 #include "wire.hpp"
@@ -145,6 +146,12 @@ void put(core::ByteWriter& out, const Dropped& m) {
 
 void put(core::ByteWriter& out, const HostLeaving& m) {
     out.string(m.successor_address);
+}
+
+void put(core::ByteWriter& out, const Part& m) {
+    out.u32(m.total);
+    out.u32(static_cast<std::uint32_t>(m.bytes.size()));
+    out.bytes(m.bytes);
 }
 
 void put(core::ByteWriter& out, const Standby& m) {
@@ -330,6 +337,21 @@ Standby get_standby(In& in) {
     return m;
 }
 
+Part get_part(In& in) {
+    Part m;
+    m.total = in.u32();
+    if (m.total > kMaxMessageBytes) {
+        in.fail();
+    }
+    const std::uint32_t n = in.count(static_cast<std::uint32_t>(kPartBytes));
+    if (const auto bytes = in.ok() ? in.reader().bytes(n) : std::nullopt) {
+        m.bytes.assign(bytes->begin(), bytes->end());
+    } else {
+        in.fail();
+    }
+    return m;
+}
+
 Chat get_chat(In& in) {
     Chat m;
     m.seat = in.u8();
@@ -374,12 +396,14 @@ std::optional<Message> get(In& in, std::uint8_t type) {
             return Dropped{in.u32()};
         case 16:
             return HostLeaving{in.text(kMaxAddressLength)};
+        case 17:
+            return get_part(in);
         default:
             return std::nullopt;
     }
 }
 
-static_assert(std::variant_size_v<Message> == 17, "a new message needs its case in get()");
+static_assert(std::variant_size_v<Message> == 18, "a new message needs its case in get()");
 
 }  // namespace
 
@@ -388,6 +412,22 @@ std::vector<std::uint8_t> encode(const Message& message) {
     out.u8(static_cast<std::uint8_t>(message.index()));
     std::visit([&out](const auto& m) { put(out, m); }, message);
     return out.take();
+}
+
+std::vector<std::vector<std::uint8_t>> packets(std::span<const std::uint8_t> message) {
+    std::vector<std::vector<std::uint8_t>> out;
+    if (message.size() <= kMaxPacketBytes) {
+        out.emplace_back(message.begin(), message.end());
+        return out;
+    }
+    Part part;
+    part.total = static_cast<std::uint32_t>(message.size());
+    for (std::size_t at = 0; at < message.size(); at += kPartBytes) {
+        const auto piece = message.subspan(at, std::min(kPartBytes, message.size() - at));
+        part.bytes.assign(piece.begin(), piece.end());
+        out.push_back(encode(part));
+    }
+    return out;
 }
 
 std::optional<Message> decode(std::span<const std::uint8_t> bytes) {
