@@ -451,10 +451,11 @@ bool trim_trade_settings(City& city, const assets::BuildingType& kontor) {
 void fit_goodwill(World& world) {
     const std::size_t players = world.players().size();
     for (const City& c : world.cities()) {
-        City& city = *world.city(c.island, c.index);
-        if (!world.acts_as(city.owner, FactionBehaviour::Natives)) {
+        City* found = world.city(c.island, c.index);
+        if (found == nullptr || !world.acts_as(found->owner, FactionBehaviour::Natives)) {
             continue;
         }
+        City& city = *found;
         for (std::size_t p = city.goodwill.size(); p < players; ++p) {
             const PlayerRole role = world.players()[p].role;
             city.goodwill.push_back(role == PlayerRole::Human || role == PlayerRole::Computer ? kNativeGoodwillStart
