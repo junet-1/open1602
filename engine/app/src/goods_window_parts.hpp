@@ -38,7 +38,8 @@ constexpr Id kRow = 100;          // + ware
 constexpr Id kProducerRow = 400;  // + row of the tab "Betriebe"
 
 constexpr std::int32_t kFontNormal = 0;
-constexpr std::int32_t kFontSmall = 1;
+constexpr std::int32_t kFontSmall = 1;   // column heads, axes, hints
+constexpr std::int32_t kFontMedium = 3;  // the rows, with a shadow
 
 constexpr std::int32_t kMargin = 14;
 constexpr std::int32_t kSelectorX = 188;
@@ -88,7 +89,7 @@ public:
     using Rect = ui::Rect;
     using Align = ui::Align;
 
-    Painter(double scale, const std::array<const ui::Font*, 3>& fonts) : m_scale(scale), m_fonts(fonts) {}
+    Painter(double scale, const std::array<const ui::Font*, ui::kFontSlots>& fonts) : m_scale(scale), m_fonts(fonts) {}
 
     [[nodiscard]] std::vector<ui::DrawItem>& items() noexcept { return m_out; }
 
@@ -123,7 +124,6 @@ public:
     /// Text in the box, vertically centred and cut to its width.
     void text(Rect r, std::string t, Align align, std::int32_t colour, std::int32_t font = goods_parts::kFontNormal) {
         const ui::Font* f = m_fonts[static_cast<std::size_t>(font)];
-        const double height = f != nullptr ? f->height() / f->design_scale() : 18.0;
         ui::DrawItem d;
         d.kind = ui::DrawItem::Kind::Text;
         d.block = font;
@@ -132,7 +132,7 @@ public:
         d.text = ui::fit_text(f, std::move(t), std::max(r.w, 0), false);
         const std::int32_t x = align == Align::Left ? r.x : align == Align::Right ? r.x + r.w : r.x + r.w / 2;
         d.x = px(x);
-        d.y = px(r.y + static_cast<std::int32_t>((r.h + height) / 2));
+        d.y = px(ui::text_bottom(f, r.y, r.h));
         m_out.push_back(std::move(d));
     }
     /// Text wrapped into lines `line` apart, as many as fit the box.
@@ -167,7 +167,7 @@ private:
 
     std::vector<ui::DrawItem> m_out;
     double m_scale;
-    const std::array<const ui::Font*, 3>& m_fonts;
+    const std::array<const ui::Font*, ui::kFontSlots>& m_fonts;
 };
 
 }  // namespace o1602::app

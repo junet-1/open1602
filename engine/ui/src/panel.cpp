@@ -139,7 +139,7 @@ void Panel::set_scroll(std::int32_t id, std::int32_t line) {
     }
 }
 
-std::int32_t Panel::max_scroll(std::int32_t id, const std::array<const Font*, 3>& fonts) const {
+std::int32_t Panel::max_scroll(std::int32_t id, const std::array<const Font*, kFontSlots>& fonts) const {
     const auto i = m_layout.index_of(id);
     const auto flow = i ? flow_lines(*i, fonts) : std::nullopt;
     if (!flow) {
@@ -149,11 +149,11 @@ std::int32_t Panel::max_scroll(std::int32_t id, const std::array<const Font*, 3>
 }
 
 std::optional<std::pair<std::vector<std::string>, std::int32_t>> Panel::flow_lines(
-    std::size_t index, const std::array<const Font*, 3>& fonts) const {
+    std::size_t index, const std::array<const Font*, kFontSlots>& fonts) const {
     // 0x00407D7D: width Size.x, line height Posoffs.y, lines Size.y / Posoffs.y.
     const assets::Gadget& g = m_layout.gadgets[index];
     const State& s = m_state[index];
-    const Font* font = g.block >= 0 && g.block < 3 ? fonts[static_cast<std::size_t>(g.block)] : nullptr;
+    const Font* font = g.block >= 0 && g.block < static_cast<std::int32_t>(kFontSlots) ? fonts[static_cast<std::size_t>(g.block)] : nullptr;
     if (g.kind != GadgetKind::TextFlow || font == nullptr || g.offset[1] <= 0 || s.text.empty()) {
         return std::nullopt;
     }
@@ -265,7 +265,7 @@ std::uint8_t Panel::state_of(std::size_t index) const {
 }
 
 void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint8_t state,
-                        const std::array<const Font*, 3>& fonts) const {
+                        const std::array<const Font*, kFontSlots>& fonts) const {
     const assets::Gadget& g = m_layout.gadgets[index];
     const State& s = m_state[index];
     const double k = m_scale;
@@ -386,7 +386,7 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
     }
 }
 
-std::vector<DrawItem> Panel::draw(const std::array<const Font*, 3>& fonts) const {
+std::vector<DrawItem> Panel::draw(const std::array<const Font*, kFontSlots>& fonts) const {
     std::vector<DrawItem> out;
     for (std::size_t i = 0; i < m_layout.gadgets.size(); ++i) {
         const assets::Gadget& g = m_layout.gadgets[i];

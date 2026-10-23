@@ -21,7 +21,7 @@ namespace {
 constexpr std::uint8_t kFood = 14;
 constexpr std::uint8_t kWood = 23;
 constexpr std::uint32_t kTon = 32;
-constexpr std::array<const ui::Font*, 3> kNoFonts{};
+constexpr std::array<const ui::Font*, ui::kFontSlots> kNoFonts{};
 const assets::FigureTable kFigures{};
 
 /// A human (0) with cities on islands 0 and 1, and an ally (1) with a city on island 0.

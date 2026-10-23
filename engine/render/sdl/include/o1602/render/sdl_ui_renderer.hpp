@@ -40,7 +40,7 @@ public:
 
     [[nodiscard]] ui::ArtSize art_size() const noexcept { return m_size; }
     /// The three font slots, for panels that wrap text.
-    [[nodiscard]] std::array<const ui::Font*, 3> fonts() const noexcept;
+    [[nodiscard]] std::array<const ui::Font*, ui::kFontSlots> fonts() const noexcept;
     /// Size of a sprite of a sheet at the art's own scale, nothing if there is none.
     [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> sprite_size(std::int32_t block,
                                                                                    std::int32_t gfx) const;
@@ -90,7 +90,7 @@ private:
     assets::Palette m_palette;
     ui::ArtSize m_size;
     std::array<std::optional<assets::SpriteSheet>, 5> m_sheets;
-    std::array<std::optional<ui::Font>, 3> m_fonts;
+    std::array<std::optional<ui::Font>, ui::kFontSlots> m_fonts;
     std::array<ui::Recolour, ui::kTextColours> m_colours{};
     /// Block, gfx, mode, colour, tint (0: none, else 0x01RRGGBB), its stride, variants, pattern, base (a byte each),
     /// shape.

@@ -58,7 +58,7 @@ public:
     bool back() noexcept;
 
     /// Everything to draw, relative to the 1024 x 768 design's top left.
-    [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts);
+    [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, ui::kFontSlots>& fonts);
     Result mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button = ui::MouseButton::Left);
 
 private:

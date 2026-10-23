@@ -125,7 +125,7 @@ void GoodsWindow::wheel(std::int32_t notches) noexcept {
 
 std::vector<ui::DrawItem> GoodsWindow::draw(const sim::World& world, const assets::BuildingTable& buildings,
                                             const assets::FigureTable& figures, sim::PlayerId player,
-                                            const std::array<const ui::Font*, 3>& fonts) {
+                                            const std::array<const ui::Font*, ui::kFontSlots>& fonts) {
     m_islands = sim::goods_islands(world, player);
     if (m_island && std::ranges::find(m_islands, *m_island) == m_islands.end()) {
         m_island.reset();  // the city there was lost
@@ -193,7 +193,7 @@ void GoodsWindow::layout_head(const sim::World& world, sim::PlayerId player, Pai
         }
     }
     const Rect selector{kSelectorX, kSelectorY, kSelectorW, kSelectorH};
-    m_form.cycle_button(kIsland, selector, island, m_islands.size() > 1);
+    m_form.cycle_button(kIsland, selector, island, !m_islands.empty());
     above.arrow(selector.x + 9, selector.y + selector.h / 2, true, 7, s.dark);
     above.arrow(selector.x + selector.w - 9, selector.y + selector.h / 2, false, 7, s.dark);
     above.text(Rect{kWidth - 110, 38, 90, 16}, ui::tr("stats.period"), Align::Centre, st.dim, kFontSmall);
@@ -204,7 +204,7 @@ void GoodsWindow::layout_head(const sim::World& world, sim::PlayerId player, Pai
         m_form.row(kBack, back, false);
         above.arrow(back.x + 4, back.y + back.h / 2, true, 6, s.dark);
         above.text(Rect{back.x + 16, back.y, back.w - 16, back.h}, ui::tr("stats.overview"), Align::Left, st.text,
-                   kFontSmall);
+                   kFontMedium);
     }
 }
 
@@ -259,7 +259,7 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
         const Line& l = lines[m_scroll + i];
         const std::int32_t y = kTableY + static_cast<std::int32_t>(i) * kRowH;
         if (!l.ware) {
-            above.text(Rect{kMargin + 2, y + 4, 400, kRowH - 4}, ui::tr(l.title), Align::Left, st.text, kFontSmall);
+            above.text(Rect{kMargin + 2, y + 4, 400, kRowH - 4}, ui::tr(l.title), Align::Left, st.text, kFontMedium);
             continue;
         }
         const std::uint8_t w = *l.ware;
@@ -274,7 +274,7 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
         const bool quiet = l.stock == 0 && l.totals.in() == 0 && l.totals.out() == 0;
         const std::int32_t tone = quiet ? st.dim : st.text;
         above.text(Rect{kNameX, y, kColumns[0].right - kColumnW - kNameX, kRowH}, ware_name(w), Align::Left, tone,
-                   kFontSmall);
+                   kFontMedium);
         const sim::FlowTotals& t = l.totals;
         const std::uint32_t m = std::max<std::uint32_t>(t.minutes, 1);
         const auto rate = [&](std::uint64_t v) {
@@ -289,20 +289,20 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
         };
         for (std::size_t c = 0; c < values.size(); ++c) {
             above.text(Rect{kColumns[c].right - kColumnW, y, kColumnW, kRowH}, values[c], Align::Right, tone,
-                       kFontSmall);
+                       kFontMedium);
         }
         const std::int64_t net = t.net();
         above.text(Rect{kColumns[5].right - kColumnW, y, kColumnW, kRowH}, rate_text(net, m, true), Align::Right,
                    net > 0   ? ui::kTextInkGreen
                    : net < 0 ? ui::kTextInkRed
                              : tone,
-                   kFontSmall);
+                   kFontMedium);
         const std::optional<std::uint32_t> left = sim::minutes_left(l.stock, t);
         above.text(Rect{kColumns[6].right - kColumnW, y, kColumnW, kRowH},
                    !left          ? std::string("-")
                    : l.stock == 0 ? ui::tr("stats.gone")
                                   : lasts_text(left),
-                   Align::Right, left && *left < 10 ? ui::kTextInkRed : tone, kFontSmall);
+                   Align::Right, left && *left < 10 ? ui::kTextInkRed : tone, kFontMedium);
         // The balance of each of the last minutes: green above the line, red below.
         const std::vector<sim::GoodsSample> history = sim::goods_history(world, scope, w, false);
         const std::int32_t mid = y + kRowH / 2;
@@ -354,7 +354,7 @@ void GoodsWindow::layout_detail(const sim::World& world, const assets::BuildingT
     above.text(Rect{kMargin + 60, 112, 300, 18},
                ui::tr("stats.stock", {std::to_string(tons(stock)), std::to_string(tons(room))}), Align::Left, st.dim,
                kFontSmall);
-    above.text(Rect{kWidth - 330, 86, 180, 26}, ui::tr("stats.col.balance"), Align::Right, st.text, kFontSmall);
+    above.text(Rect{kWidth - 330, 86, 180, 26}, ui::tr("stats.col.balance"), Align::Right, st.text, kFontMedium);
     above.text(Rect{kWidth - 150, 84, 136, 30}, rate_text(net, m, true) + " " + ui::tr("stats.per_minute"),
                Align::Right,
                net > 0   ? ui::kTextInkGreen
@@ -424,16 +424,16 @@ void GoodsWindow::layout_detail(const sim::World& world, const assets::BuildingT
     constexpr std::int32_t kHalf = kWidth / 2;
     const auto column = [&](std::int32_t x0, std::int32_t x1, std::string_view title, std::uint64_t total,
                             const std::vector<Bar>& bars, std::uint8_t colour, std::int32_t ink) {
-        above.text(Rect{x0, kColumnsY, 200, kLineH}, ui::tr(title), Align::Left, st.text, kFontSmall);
+        above.text(Rect{x0, kColumnsY, 200, kLineH}, ui::tr(title), Align::Left, st.text, kFontMedium);
         above.text(Rect{x1 - 120, kColumnsY, 120, kLineH},
                    rate_text(static_cast<std::int64_t>(total), m) + " " + ui::tr("stats.per_minute"), Align::Right, ink,
-                   kFontSmall);
+                   kFontMedium);
         std::int32_t y = kColumnsY + kLineH + 6;
         const std::int32_t bar_x = x0 + (x1 - x0) * 46 / 100;
         const std::int32_t bar_w = (x1 - x0) * 37 / 100;
         for (const Bar& b : bars) {
             const std::int32_t tone = b.value == 0 ? st.dim : st.text;
-            above.text(Rect{x0, y, bar_x - x0 - 6, kLineH}, b.label, Align::Left, tone, kFontSmall);
+            above.text(Rect{x0, y, bar_x - x0 - 6, kLineH}, b.label, Align::Left, tone, kFontMedium);
             below.fill(Rect{bar_x, y + 5, bar_w, kLineH - 10}, s.band, true);
             above.outline(Rect{bar_x, y + 5, bar_w, kLineH - 10}, s.shade);
             above.fill(
@@ -442,7 +442,7 @@ void GoodsWindow::layout_detail(const sim::World& world, const assets::BuildingT
                 colour);
             above.text(Rect{x1 - 50, y, 50, kLineH},
                        b.value == 0 ? std::string("-") : rate_text(static_cast<std::int64_t>(b.value), m), Align::Right,
-                       tone, kFontSmall);
+                       tone, kFontMedium);
             y += kLineH;
         }
         return y;
@@ -457,7 +457,7 @@ void GoodsWindow::layout_detail(const sim::World& world, const assets::BuildingT
 
     // The chart: in (green) and out (red) per minute as lines, the stock as a brown area.
     const std::int32_t head_y = columns_end + 6;
-    above.text(Rect{kMargin + 2, head_y, 200, 24}, ui::tr("stats.history"), Align::Left, st.text, kFontSmall);
+    above.text(Rect{kMargin + 2, head_y, 200, 24}, ui::tr("stats.history"), Align::Left, st.text, kFontMedium);
     m_form.button(kChartHour, Rect{kWidth - 210, head_y, 90, 24}, ui::tr("stats.chart_60min"), true, !m_long_chart);
     m_form.button(kChartDay, Rect{kWidth - 110, head_y, 90, 24}, ui::tr("stats.chart_12h"), true, m_long_chart);
     const std::int32_t legend_h = 22;
@@ -585,7 +585,7 @@ void GoodsWindow::layout_detail(const sim::World& world, const assets::BuildingT
         const std::int32_t y = kFooterY + static_cast<std::int32_t>(i) * 17;
         above.text(Rect{kMargin + 6, y, 210, 17}, facts[i].first, Align::Left, st.dim, kFontSmall);
         above.text(Rect{kMargin + 230, y, kWidth - kMargin - 240, 17}, facts[i].second, Align::Left, st.text,
-                   kFontSmall);
+                   kFontMedium);
     }
 }
 

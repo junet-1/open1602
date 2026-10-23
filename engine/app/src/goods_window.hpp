@@ -95,7 +95,7 @@ public:
     /// parchment. It lays the window out; mouse() answers what was drawn last.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const sim::World& world, const assets::BuildingTable& buildings,
                                                  const assets::FigureTable& figures, sim::PlayerId player,
-                                                 const std::array<const ui::Font*, 3>& fonts);
+                                                 const std::array<const ui::Font*, ui::kFontSlots>& fonts);
     /// The mouse in pixels relative to the window's top left.
     Result mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button = ui::MouseButton::Left);
 

@@ -41,7 +41,7 @@ public:
 
     /// Everything to draw, relative to the window's top left.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const DisplayModel& model,
-                                                 const std::array<const ui::Font*, 3>& fonts);
+                                                 const std::array<const ui::Font*, ui::kFontSlots>& fonts);
     /// The mouse in pixels relative to the window's top left; a click changes `model`.
     Result mouse(std::int32_t x, std::int32_t y, bool down, DisplayModel& model,
                  ui::MouseButton button = ui::MouseButton::Left);

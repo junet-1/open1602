@@ -100,7 +100,7 @@ bool DisplayMenu::choose(DisplayModel& model, Item item, bool forward) {
     return false;
 }
 
-std::vector<ui::DrawItem> DisplayMenu::draw(const DisplayModel& model, const std::array<const ui::Font*, 3>& fonts) {
+std::vector<ui::DrawItem> DisplayMenu::draw(const DisplayModel& model, const std::array<const ui::Font*, ui::kFontSlots>& fonts) {
     layout(model);
     return m_form.draw(fonts);
 }

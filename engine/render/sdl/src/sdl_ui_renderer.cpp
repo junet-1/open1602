@@ -88,8 +88,8 @@ void SdlUiRenderer::release_textures() {
     m_checker = Texture{};
 }
 
-std::array<const ui::Font*, 3> SdlUiRenderer::fonts() const noexcept {
-    std::array<const ui::Font*, 3> f{};
+std::array<const ui::Font*, ui::kFontSlots> SdlUiRenderer::fonts() const noexcept {
+    std::array<const ui::Font*, ui::kFontSlots> f{};
     for (std::size_t i = 0; i < f.size(); ++i) {
         f[i] = m_fonts[i] ? &*m_fonts[i] : nullptr;
     }
@@ -226,9 +226,10 @@ SdlUiRenderer::Texture SdlUiRenderer::text(const std::string& s, std::int32_t fo
         return *cached;
     }
     Texture t;
-    const ui::Font* f = font >= 0 && font < 3 && m_fonts[static_cast<std::size_t>(font)]
-                            ? &*m_fonts[static_cast<std::size_t>(font)]
-                            : nullptr;
+    const ui::Font* f =
+        font >= 0 && font < static_cast<std::int32_t>(ui::kFontSlots) && m_fonts[static_cast<std::size_t>(font)]
+            ? &*m_fonts[static_cast<std::size_t>(font)]
+            : nullptr;
     if (f != nullptr) {
         assets::IndexedImage canvas;
         canvas.width = f->width(s) + 2;            // glyphs may overhang the last advance

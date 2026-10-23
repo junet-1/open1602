@@ -39,6 +39,9 @@ struct FormStyle {
 /// field being typed in, its start left out, so that the caret stays in sight). Without a font
 /// every byte is 9 units wide.
 [[nodiscard]] std::string fit_text(const Font* font, std::string text, double width, bool keep_end);
+/// Where the bottom of the cell of text goes, design units, so that its ink sits in the middle of
+/// the line from `y`, `height` high (the digits' ink, Font::ink_drop()).
+[[nodiscard]] std::int32_t text_bottom(const Font* font, std::int32_t y, std::int32_t height);
 
 /// The mouse button of a press or release.
 enum class MouseButton : std::uint8_t { Left, Right };
@@ -94,7 +97,7 @@ public:
     [[nodiscard]] bool released() const noexcept { return m_released; }
 
     /// Everything to draw, in pixels of the region. `fonts` cut texts to their boxes.
-    [[nodiscard]] std::vector<DrawItem> draw(const std::array<const Font*, 3>& fonts) const;
+    [[nodiscard]] std::vector<DrawItem> draw(const std::array<const Font*, kFontSlots>& fonts) const;
 
     /// The widgets' boxes and texts as laid out, for tests and the owner.
     struct Widget {

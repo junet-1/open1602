@@ -2,6 +2,7 @@
 #include "o1602/ui/form.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <string_view>
 #include <utility>
 
@@ -17,10 +18,6 @@ constexpr double kFallbackText = 18;  ///< text height without a font
 /// Width and height of text in design units.
 double text_width(const Font* font, std::string_view s) {
     return font != nullptr ? font->width(s) / font->design_scale() : 9.0 * static_cast<double>(s.size());
-}
-
-double text_height(const Font* font) {
-    return font != nullptr ? font->height() / font->design_scale() : kFallbackText;
 }
 
 Form::Widget make(Form::Widget::Kind kind, Form::Id id, Rect r, std::string text = {}) {
@@ -76,6 +73,13 @@ std::string fit_text(const Font* font, std::string s, double width, bool keep_en
     }
     s.resize(lo);
     return s + "...";
+}
+
+std::int32_t text_bottom(const Font* font, std::int32_t y, std::int32_t height) {
+    if (font == nullptr) {
+        return y + static_cast<std::int32_t>((height + kFallbackText) / 2);
+    }
+    return y + static_cast<std::int32_t>(std::lround(height / 2.0 + font->ink_drop() / font->design_scale()));
 }
 
 void Form::panel(Rect r) {
@@ -187,8 +191,10 @@ std::int32_t Form::colour_of(Tone tone) const noexcept {
     return m_style.text;
 }
 
-std::vector<DrawItem> Form::draw(const std::array<const Font*, 3>& fonts) const {
-    const Font* font = m_style.font >= 0 && m_style.font < 3 ? fonts[static_cast<std::size_t>(m_style.font)] : nullptr;
+std::vector<DrawItem> Form::draw(const std::array<const Font*, kFontSlots>& fonts) const {
+    const Font* font = m_style.font >= 0 && m_style.font < static_cast<std::int32_t>(kFontSlots)
+                           ? fonts[static_cast<std::size_t>(m_style.font)]
+                           : nullptr;
     const double s = m_scale;
     const auto px = [s](std::int32_t v) { return to_pixels(v, s); };
     std::vector<DrawItem> out;
@@ -227,7 +233,7 @@ std::vector<DrawItem> Form::draw(const std::array<const Font*, 3>& fonts) const 
                                : align == Align::Right ? r.x + r.w - kPadding
                                                        : r.x + r.w / 2;
         d.x = px(x);
-        d.y = px(r.y + static_cast<std::int32_t>((r.h + text_height(font)) / 2));
+        d.y = px(text_bottom(font, r.y, r.h));
         out.push_back(std::move(d));
     };
     const auto raster = [&](Rect r) {

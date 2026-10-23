@@ -89,7 +89,7 @@ void GoodsWindow::layout_scroll_bar(Painter& below) {
 void GoodsWindow::layout_chart(std::int32_t top, const std::vector<Series>& series, Painter& below, Painter& above) {
     const GoodsStyle& s = m_style;
     const ui::FormStyle& st = s.form;
-    above.text(Rect{kMargin + 2, top, 200, 24}, ui::tr("stats.history"), Align::Left, st.text, kFontSmall);
+    above.text(Rect{kMargin + 2, top, 200, 24}, ui::tr("stats.history"), Align::Left, st.text, kFontMedium);
     m_form.button(kChartHour, Rect{kWidth - 210, top, 90, 24}, ui::tr("stats.chart_60min"), true, !m_long_chart);
     m_form.button(kChartDay, Rect{kWidth - 110, top, 90, 24}, ui::tr("stats.chart_12h"), true, m_long_chart);
     const std::int32_t legend_h = 20;
@@ -282,8 +282,8 @@ void GoodsWindow::layout_producers(const sim::World& world, const assets::Buildi
         above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, m_ware_icon + k.ware);
         const std::string name = m_building_names ? m_building_names(k.building) : std::string();
         above.text(Rect{kNameX, y, kCountR - 70 - kNameX, kRowH}, name.empty() ? ware_name(k.ware) : name, Align::Left,
-                   st.text, kFontSmall);
-        above.text(Rect{kCountR - 60, y, 60, kRowH}, std::to_string(k.count), Align::Right, st.text, kFontSmall);
+                   st.text, kFontMedium);
+        above.text(Rect{kCountR - 60, y, 60, kRowH}, std::to_string(k.count), Align::Right, st.text, kFontMedium);
         const std::int64_t percent = k.on != 0 ? k.utilisation / k.on : 0;
         below.fill(Rect{kBarX, y + 9, kBarW, kRowH - 18}, s.band, true);
         above.outline(Rect{kBarX, y + 9, kBarW, kRowH - 18}, s.shade);
@@ -292,13 +292,13 @@ void GoodsWindow::layout_producers(const sim::World& world, const assets::Buildi
                    : percent >= 40 ? s.stock
                                    : s.red);
         above.text(Rect{kPercentR - 46, y, 46, kRowH}, k.on != 0 ? std::to_string(percent) + " %" : std::string("-"),
-                   Align::Right, k.on != 0 && percent < 40 ? ui::kTextInkRed : st.text, kFontSmall);
-        above.text(Rect{kWorkingR - 50, y, 50, kRowH}, std::to_string(k.working), Align::Right, st.text, kFontSmall);
+                   Align::Right, k.on != 0 && percent < 40 ? ui::kTextInkRed : st.text, kFontMedium);
+        above.text(Rect{kWorkingR - 50, y, 50, kRowH}, std::to_string(k.working), Align::Right, st.text, kFontMedium);
         above.text(Rect{kShortR - 50, y, 50, kRowH}, k.short_of_raw != 0 ? std::to_string(k.short_of_raw) : "-",
-                   Align::Right, k.short_of_raw != 0 ? ui::kTextInkRed : st.dim, kFontSmall);
+                   Align::Right, k.short_of_raw != 0 ? ui::kTextInkRed : st.dim, kFontMedium);
         above.text(Rect{kOffR - 36, y, 36, kRowH}, k.off != 0 ? std::to_string(k.off) : "-", Align::Right,
-                   k.off != 0 ? st.text : st.dim, kFontSmall);
-        above.text(Rect{kCostsR - 56, y, 56, kRowH}, std::to_string(k.costs), Align::Right, st.text, kFontSmall);
+                   k.off != 0 ? st.text : st.dim, kFontMedium);
+        above.text(Rect{kCostsR - 56, y, 56, kRowH}, std::to_string(k.costs), Align::Right, st.text, kFontMedium);
     }
     layout_scroll_bar(below);
     below.fill(Rect{kMargin, kFooterY - 4, kWidth - 2 * kMargin, 1}, s.shade);
@@ -361,8 +361,8 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
         }
         below.fill(Rect{kMargin + 4, y + 8, 10, 10}, s.series[k % s.series.size()]);
         above.text(Rect{kMargin + 20, y, kCountR - 50 - kMargin - 20, kLineH},
-                   k < m_class_names.size() ? m_class_names[k] : std::to_string(k + 1), Align::Left, tone, kFontSmall);
-        above.text(Rect{kCountR - 50, y, 50, kLineH}, std::to_string(c.inhabitants), Align::Right, tone, kFontSmall);
+                   k < m_class_names.size() ? m_class_names[k] : std::to_string(k + 1), Align::Left, tone, kFontMedium);
+        above.text(Rect{kCountR - 50, y, 50, kLineH}, std::to_string(c.inhabitants), Align::Right, tone, kFontMedium);
         if (c.inhabitants != 0) {
             const std::int64_t percent = c.satisfaction * 100 / (c.inhabitants * 128);
             below.fill(Rect{kBarX, y + 7, kBarW, kLineH - 14}, s.band, true);
@@ -374,10 +374,10 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
                 : percent >= 70 ? s.stock
                                 : s.red);
             above.text(Rect{kBarX + kBarW + 4, y, 46, kLineH}, std::to_string(percent) + " %", Align::Left,
-                       percent < 70 ? ui::kTextInkRed : tone, kFontSmall);
+                       percent < 70 ? ui::kTextInkRed : tone, kFontMedium);
             above.text(Rect{kTaxR - 50, y, 50, kLineH},
                        ui::tr("stats.percent", {std::to_string(c.tax / c.inhabitants / 4)}), Align::Right, tone,
-                       kFontSmall);
+                       kFontMedium);
         }
         y += kLineH;
     }
@@ -385,8 +385,8 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
     below.fill(Rect{kMargin, y + 2, kLeftW - kMargin + 4, 1}, s.shade);
     y += 6;
     above.text(Rect{kMargin + 20, y, kCountR - 50 - kMargin - 20, kLineH}, ui::tr("stats.pop.total"), Align::Left,
-               st.text, kFontSmall);
-    above.text(Rect{kCountR - 50, y, 50, kLineH}, std::to_string(all), Align::Right, st.text, kFontSmall);
+               st.text, kFontMedium);
+    above.text(Rect{kCountR - 50, y, 50, kLineH}, std::to_string(all), Align::Right, st.text, kFontMedium);
     if (!hour.empty()) {
         const std::int64_t growth = all - hour.front().of(CityFigure::Inhabitants);
         above.text(Rect{kBarX, y, kLeftW - kBarX, kLineH},
@@ -394,7 +394,7 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
                    growth > 0   ? ui::kTextInkGreen
                    : growth < 0 ? ui::kTextInkRed
                                 : st.dim,
-                   kFontSmall);
+                   kFontMedium);
     }
     const std::int32_t left_end = y + kLineH;
 
@@ -417,7 +417,7 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
         any = true;
         const auto percent =
             static_cast<std::int64_t>(std::min<std::uint64_t>(100, t.of(GoodsFlow::Residents) * 100 / demand));
-        above.text(Rect{kRightX, sy, name_w - 6, kSupplyH}, ware_name(w), Align::Left, st.text, kFontSmall);
+        above.text(Rect{kRightX, sy, name_w - 6, kSupplyH}, ware_name(w), Align::Left, st.text, kFontMedium);
         below.fill(Rect{bar_x, sy + 5, bar_w, kSupplyH - 10}, s.band, true);
         above.outline(Rect{bar_x, sy + 5, bar_w, kSupplyH - 10}, s.shade);
         above.fill(Rect{bar_x + 1, sy + 6, static_cast<std::int32_t>(percent * (bar_w - 2) / 100), kSupplyH - 12},
@@ -425,7 +425,7 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
                    : percent >= 60 ? s.stock
                                    : s.red);
         above.text(Rect{kWidth - kMargin - 46, sy, 46, kSupplyH}, std::to_string(percent) + " %", Align::Right,
-                   percent < 60 ? ui::kTextInkRed : st.text, kFontSmall);
+                   percent < 60 ? ui::kTextInkRed : st.text, kFontMedium);
         sy += kSupplyH;
     }
     if (!any) {
@@ -526,7 +526,7 @@ void GoodsWindow::layout_trade(const sim::World& world, sim::PlayerId player, Pa
         below.fill(Rect{kMargin + 2, y + 2, 30, kRowH - 4}, s.dark);
         above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, m_ware_icon + l.ware);
         above.text(Rect{kNameX, y, kCols[0].first - kColW - kNameX, kRowH}, ware_name(l.ware), Align::Left, st.text,
-                   kFontSmall);
+                   kFontMedium);
         const std::uint64_t bought = t.of(GoodsFlow::Bought);
         const std::uint64_t sold = t.of(GoodsFlow::Sold);
         const std::array<std::string, 6> values = {
@@ -541,7 +541,7 @@ void GoodsWindow::layout_trade(const sim::World& world, sim::PlayerId player, Pa
             const std::int32_t ink = c == 1 && bought != 0 ? ui::kTextInkRed
                                      : c == 4 && sold != 0 ? ui::kTextInkGreen
                                                            : (values[c] == "-" ? st.dim : st.text);
-            above.text(Rect{kCols[c].first - kColW, y, kColW, kRowH}, values[c], Align::Right, ink, kFontSmall);
+            above.text(Rect{kCols[c].first - kColW, y, kColW, kRowH}, values[c], Align::Right, ink, kFontMedium);
         }
     }
     layout_scroll_bar(below);
@@ -553,17 +553,17 @@ void GoodsWindow::layout_trade(const sim::World& world, sim::PlayerId player, Pa
     constexpr std::int32_t kBalanceR = 660;
     const auto partner = [&](std::int32_t y, const std::string& name, std::int64_t earned, std::int64_t paid,
                              std::int32_t tone) {
-        above.text(Rect{kMargin + 6, y, 260, kPartnerH}, name, Align::Left, tone, kFontSmall);
+        above.text(Rect{kMargin + 6, y, 260, kPartnerH}, name, Align::Left, tone, kFontMedium);
         above.text(Rect{kEarnedR - 100, y, 100, kPartnerH}, std::to_string(earned), Align::Right,
-                   earned != 0 ? ui::kTextInkGreen : st.dim, kFontSmall);
+                   earned != 0 ? ui::kTextInkGreen : st.dim, kFontMedium);
         above.text(Rect{kPaidR - 100, y, 100, kPartnerH}, std::to_string(paid), Align::Right,
-                   paid != 0 ? ui::kTextInkRed : st.dim, kFontSmall);
+                   paid != 0 ? ui::kTextInkRed : st.dim, kFontMedium);
         const std::int64_t balance = earned - paid;
         above.text(Rect{kBalanceR - 100, y, 100, kPartnerH}, number_text(balance, true), Align::Right,
                    balance > 0   ? ui::kTextInkGreen
                    : balance < 0 ? ui::kTextInkRed
                                  : st.dim,
-                   kFontSmall);
+                   kFontMedium);
     };
     above.text(Rect{kMargin + 6, partners_y, 260, kPartnerH}, ui::tr("stats.trade.partner"), Align::Left, st.dim,
                kFontSmall);
@@ -637,16 +637,16 @@ void GoodsWindow::layout_finances(const sim::World& world, const assets::Buildin
                           int sign, std::uint8_t colour) {
         // sign: +1 income, -1 expense, 0 the balance (coloured by its own sign).
         below.fill(Rect{kMargin + 4, y + 8, 10, 8}, colour);
-        above.text(Rect{kMargin + 20, y, 260, kLineH}, ui::tr(key), Align::Left, st.text, kFontSmall);
+        above.text(Rect{kMargin + 20, y, 260, kLineH}, ui::tr(key), Align::Left, st.text, kFontMedium);
         const auto ink = [&](std::int64_t v) {
             const std::int64_t signed_v = sign == 0 ? v : sign * v;
             return v == 0 ? st.dim : signed_v > 0 ? ui::kTextInkGreen : ui::kTextInkRed;
         };
         above.text(Rect{kNowR - 100, y, 100, kLineH}, value ? number_text(*value, sign == 0) : std::string("-"),
-                   Align::Right, value ? ink(*value) : st.dim, kFontSmall);
+                   Align::Right, value ? ink(*value) : st.dim, kFontMedium);
         above.text(Rect{kAverageR - 100, y, 100, kLineH},
                    avg && n != 0 ? number_text(*avg, sign == 0) : std::string("-"), Align::Right,
-                   avg && n != 0 ? ink(*avg) : st.dim, kFontSmall);
+                   avg && n != 0 ? ink(*avg) : st.dim, kFontMedium);
         y += kLineH;
     };
     const std::int64_t balance = now[0] - now[1] - military.value_or(0) + now[2] - now[3];

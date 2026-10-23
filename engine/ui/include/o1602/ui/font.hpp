@@ -29,6 +29,8 @@ struct TextColour {
     std::array<std::uint8_t, 3> shadow{};
 };
 inline constexpr std::size_t kTextColours = 16;
+/// The font slots a renderer offers (ui/resources.hpp font_file): normal, small, large, medium.
+inline constexpr std::size_t kFontSlots = 4;
 /// Open1602's inks on parchment: dark brown, faded, green (more coming in) and red (more going out).
 inline constexpr std::int32_t kTextInk = 10;
 inline constexpr std::int32_t kTextInkFaded = 11;
@@ -57,6 +59,9 @@ public:
     void set_design_scale(double scale) noexcept { m_design_scale = scale; }
     /// Height of the cell (the same for every glyph).
     [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
+    /// Rows from the middle of the digits' ink to the bottom of the cell: text is centred on a line
+    /// by its ink, not by its cell, whose lower rows are only for descenders.
+    [[nodiscard]] double ink_drop() const noexcept { return m_ink_drop; }
     /// Rows a glyph reaches above the cell: 0 unless fix_accents() moved accents there.
     [[nodiscard]] std::uint32_t above() const noexcept { return m_above; }
     /// D-012: the accents of the capitals À .. Ý reach above the cell, and the font files keep their
@@ -81,6 +86,7 @@ private:
     std::vector<Glyph> m_glyphs;
     std::uint32_t m_height = 0;
     std::uint32_t m_above = 0;
+    double m_ink_drop = 0.0;
     double m_design_scale = 1.0;
 };
 
