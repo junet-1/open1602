@@ -75,6 +75,9 @@ core::Status validate(const World& w) {
             return bad("two islands with the number " + std::to_string(island.header.number));
         }
         numbers[island.header.number] = true;
+        if (map.width() == 0 || map.height() == 0) {
+            return bad("island " + std::to_string(i) + " has no tiles");
+        }
         if (std::uint64_t{island.x} + map.width() > w.width() || std::uint64_t{island.y} + map.height() > w.height()) {
             return bad("island " + std::to_string(i) + " lies outside the map");
         }

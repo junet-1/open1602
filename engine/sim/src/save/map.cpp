@@ -208,7 +208,9 @@ core::Result<World> read_map(Reader& in, const assets::BuildingTable& buildings)
         return make_error(ErrorCode::InvalidFormat, "save: impossible world size");
     }
     World world(width, height);
-    const std::uint32_t islands = in.in().count(64);
+    // The smallest island record: a header with an empty name (18 bytes), position and size (16)
+    // and one tile in both layers (20). A larger minimum refuses saves of worlds with 1x1 islands.
+    const std::uint32_t islands = in.in().count(54);
     for (std::uint32_t i = 0; i < islands && in.ok(); ++i) {
         assets::IslandHeader header;
         io_header(in, header);

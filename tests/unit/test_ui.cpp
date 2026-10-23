@@ -125,6 +125,16 @@ TEST_CASE("ui: a GAD file that includes itself again and again stays bounded") {
     CHECK(!l.warnings.empty());
 }
 
+TEST_CASE("ui: a GAD file with a huge Nummer keeps at most kMaxGadgets gadgets") {
+    const auto l = assets::parse_gad(
+        "Objekt: GADGET\n  @Nummer: 2000000000\n  Id: 7\n  Kind: 1\n  @Nummer: 3\n"
+        "  Id: 8\n  Kind: 1\nEndObj\n");
+    CHECK(l.gadgets.size() == static_cast<std::size_t>(assets::kMaxGadgets));  // not 2 billion (HI-2)
+    CHECK(l.find(8) == &l.gadgets[3]);
+    CHECK(l.find(7) == nullptr);  // beyond the limit, left out with a warning
+    CHECK(!l.warnings.empty());
+}
+
 TEST_CASE("ui: regions of the screen and the original's rounding") {
     const auto r = ui::screen_regions(1024, 768);
     CHECK((r.side_panel == ui::Rect{768, 0, 256, 768}));
