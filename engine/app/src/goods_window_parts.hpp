@@ -75,6 +75,36 @@ inline const std::array<Group, 4>& groups() {
     return list;
 }
 
+/// The groups for `player`'s cities: the original's goods, then any other good booked in them (one
+/// that a mod adds) under "Further goods", by its number.
+inline std::vector<Group> groups_of(const sim::World& world, sim::PlayerId player) {
+    std::vector<Group> out(groups().begin(), groups().end());
+    const auto known = [&](std::uint8_t ware) {
+        return std::any_of(out.begin(), out.end(), [&](const Group& g) {
+            return std::find(g.wares.begin(), g.wares.end(), ware) != g.wares.end();
+        });
+    };
+    std::vector<std::uint8_t> further;
+    for (const sim::City& c : world.cities()) {
+        if (c.owner != player) {
+            continue;
+        }
+        const std::size_t count = std::min<std::size_t>(c.ledger.wares().size(), 256);
+        for (std::size_t w = 2; w < count; ++w) {
+            const auto ware = static_cast<std::uint8_t>(w);
+            if (c.ledger.used(ware) && !known(ware) &&
+                std::find(further.begin(), further.end(), ware) == further.end()) {
+                further.push_back(ware);
+            }
+        }
+    }
+    if (!further.empty()) {
+        std::sort(further.begin(), further.end());
+        out.push_back(Group{"stats.group.other", std::move(further)});
+    }
+    return out;
+}
+
 inline std::uint64_t tons(std::uint64_t units) {
     return units / assets::kStockUnitsPerTon;
 }

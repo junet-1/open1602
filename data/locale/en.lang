@@ -484,6 +484,7 @@ stats.group.consumer = Consumer goods
 stats.group.building = Building materials
 stats.group.raw = Raw materials and intermediates
 stats.group.weapons = Weapons
+stats.group.other = Further goods
 stats.col.good = Good
 stats.col.stock = Stock t
 stats.col.produced = Produced

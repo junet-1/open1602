@@ -224,7 +224,7 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
     };
     std::vector<Line> lines;
     std::uint32_t known = 0;  // minutes the figures cover (fewer at the start)
-    for (const Group& g : groups()) {
+    for (const Group& g : groups_of(world, player)) {
         const std::size_t heading = lines.size();
         lines.push_back(Line{std::nullopt, g.title, {}, 0});
         for (const std::uint8_t w : g.wares) {

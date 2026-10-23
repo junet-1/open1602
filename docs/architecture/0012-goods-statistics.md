@@ -62,7 +62,8 @@ before a good the people need runs out.
    player status (INFO.GAD). The game goes on behind it.
    - The table: the island (all, or one, by its city's name), the time averaged over (1, 5, 15 or
      60 game minutes; 5 at first) and the goods grouped as consumer goods, building material, raw
-     materials and intermediates, and weapons. The columns are stock, produced, imported, used,
+     materials and intermediates, and weapons; any other good booked in the player's cities (one a
+     mod adds) follows under "Further goods", as the ledger takes any ware number. The columns are stock, produced, imported, used,
      exported, balance (green or red) and how long the stock lasts, plus the stock over the last
      46 minutes as a small chart.
    - A click on a good opens its page: the stock and the room for it, the balance and when the

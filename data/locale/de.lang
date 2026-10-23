@@ -449,6 +449,7 @@ stats.group.consumer = Verbrauchsgüter
 stats.group.building = Baumaterial
 stats.group.raw = Rohstoffe und Zwischenprodukte
 stats.group.weapons = Waffen
+stats.group.other = Weitere Waren
 stats.col.good = Ware
 stats.col.stock = Lager t
 stats.col.produced = Erzeugt

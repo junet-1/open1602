@@ -110,6 +110,10 @@ void StockList::refresh(const sim::City& city, bool picker, bool trend) {
     const std::int32_t last = kLastTradeWare + 1;
     m_panel.set_visible(kLIcon + last, picker);
     m_panel.set_visible(kLFrame + last, picker);
+    // It holds no good: no stock bar, no trade marks (they showed as a red stroke in the empty place).
+    for (const std::int32_t id : {kLBar, kLMarker, kLCorner}) {
+        m_panel.set_visible(id + last, false);
+    }
     if (picker) {
         m_panel.set_graphic(kLIcon + last, m_gfx_empty, 0);
     }

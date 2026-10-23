@@ -248,3 +248,22 @@ TEST_CASE("goods window: the tabs, and the trade and finances of one's own citie
     items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
     CHECK(draws_text(items, ui::tr("stats.prod.empty")));
 }
+
+TEST_CASE("goods window: a good the original does not know (a mod's) shows under further goods") {
+    constexpr std::uint8_t kModWare = 30;
+    sim::World world = make_world();
+    sim::City& c = city(world, 0, 0);
+    c.ensure_ware(kModWare);
+    c.goods[kModWare] = 6 * kTon;
+    c.book(kModWare, GoodsFlow::Produced, 2 * kTon);
+    c.ledger.close_minute(c.goods);
+    GoodsWindow w(app::GoodsStyle{}, names(31), 192);
+    w.open();
+    const auto items = w.draw(world, assets::BuildingTable{}, kFigures, 0, kNoFonts);
+    CHECK(shows(w, kRow + kModWare));
+    CHECK(draws_text(items, ui::tr("stats.group.other")));
+    CHECK(draws_text(items, "ware30"));
+    // Not for the ally, who never booked it.
+    (void)w.draw(world, assets::BuildingTable{}, kFigures, 1, kNoFonts);
+    CHECK(!shows(w, kRow + kModWare));
+}

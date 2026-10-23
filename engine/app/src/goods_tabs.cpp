@@ -471,7 +471,7 @@ void GoodsWindow::layout_trade(const sim::World& world, sim::PlayerId player, Pa
     std::vector<Line> lines;
     std::array<std::int64_t, 2> trader{};  // earned, paid
     std::array<std::int64_t, 2> all{};
-    for (const Group& g : groups()) {
+    for (const Group& g : groups_of(world, player)) {
         for (const std::uint8_t w : g.wares) {
             const sim::FlowTotals t = sim::goods_totals(world, scope, w, window);
             all[0] += static_cast<std::int64_t>(t.of(GoodsFlow::SoldValue));
