@@ -30,7 +30,7 @@ jobs:
           - { name: Linux GCC,    os: ubuntu-24.04, cxx: g++,     preset: ci }
           - { name: Linux Clang,  os: ubuntu-24.04, cxx: clang++, preset: ci }
           - { name: Linux ASan,   os: ubuntu-24.04, cxx: clang++, preset: asan }
-          - { name: Windows MSVC, os: windows-2022, cxx: cl,      preset: ci }
+          - { name: Windows MSVC, os: windows-2025, cxx: cl,      preset: ci }
           - { name: macOS Clang,  os: macos-14,     cxx: clang++, preset: ci }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -88,7 +88,7 @@ jobs:
         include:
           - { name: Linux,      os: ubuntu-24.04, preset: ci }
           - { name: Linux ASan, os: ubuntu-24.04, preset: asan }  # the game's start under ASan/UBSan
-          - { name: Windows,    os: windows-2022, preset: ci }
+          - { name: Windows,    os: windows-2025, preset: ci }
           - { name: macOS,      os: macos-14,     preset: ci }
     env:
       SDL_VERSION: 3.2.24
@@ -168,7 +168,7 @@ jobs:
 
   vcpkg:
     name: Game (vcpkg preset, Windows)
-    runs-on: windows-2022
+    runs-on: windows-2025
     env:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
     steps:
@@ -192,7 +192,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/vcpkg-cache
-          key: vcpkg-${{ hashFiles('vcpkg.json') }}-windows-2022
+          key: vcpkg-${{ hashFiles('vcpkg.json') }}-windows-2025
 
       - name: Configure
         run: cmake --preset vcpkg

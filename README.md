@@ -54,8 +54,8 @@ cd open1602
 Requirements on every platform: CMake ≥ 3.25, Ninja, a 64-bit C++20 compiler and, for the game
 itself, **SDL 3** and **zlib** (savegames and screenshots are compressed with it). The libraries,
 tests and tools also build without zlib, but then cannot read or write compressed savegames. CI
-builds with GCC 13, Clang 18, AppleClang 15 and MSVC 2022; older compilers may work but are not
-tested. 32-bit platforms are not supported.
+builds with GCC 13, Clang 18, AppleClang 15 and MSVC from Visual Studio 2026; older compilers may
+work but are not tested. 32-bit platforms are not supported.
 
 Without `-DO1602_BUILD_GAME=ON` only the libraries, the tests and `o1602-tool` are built, not the game.
 The presets are in [CMakePresets.json](CMakePresets.json): `release` for playing, `debug` and `asan`
@@ -94,9 +94,9 @@ ctest --preset release
 
 ### Windows
 
-Install Visual Studio 2022 (or its Build Tools) with the workload "Desktop development with C++"; it
+Install Visual Studio 2026 (or its Build Tools) with the workload "Desktop development with C++"; it
 brings CMake and Ninja. SDL 3 and zlib come from [vcpkg](https://vcpkg.io), which the `vcpkg` preset
-uses. In an **x64 Native Tools Command Prompt for VS 2022** (or the matching Developer PowerShell):
+uses. In an **x64 Native Tools Command Prompt for VS 2026** (or the matching Developer PowerShell):
 
 ```bat
 git clone https://github.com/microsoft/vcpkg C:\vcpkg
