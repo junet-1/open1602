@@ -54,6 +54,8 @@ Military::Military(World& world, const assets::BuildingTable& buildings, const a
 
 void Military::tick(std::uint32_t dt_ms, std::vector<ConstructionEvent>* construction) {
     const std::uint32_t budget = dt_ms * 1000U;
+    m_plans_left = kPlansPerTick;
+    m_tick_ms = dt_ms;
     // By id, so that a unit added on the way could not break the loop.
     m_ids.clear();
     for (const Soldier& s : m_world->soldiers()) {

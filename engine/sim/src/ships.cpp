@@ -56,11 +56,16 @@ std::uint32_t interpolate(std::uint32_t i, std::initializer_list<std::pair<std::
 }
 
 bool in_circle(std::int32_t dx, std::int32_t dy, std::uint32_t radius) {
-    static const std::vector<std::uint8_t> kCircle5 = circle_half_widths(kReach);
-    const std::vector<std::uint8_t>& circle = radius == kReach ? kCircle5 : circle_half_widths(radius);
     const std::int32_t ax = dx < 0 ? -dx : dx;
     const std::int32_t ay = dy < 0 ? -dy : dy;
-    return ay <= static_cast<std::int32_t>(radius) && ax <= circle[static_cast<std::size_t>(ay)];
+    if (ay > static_cast<std::int32_t>(radius)) {
+        return false;
+    }
+    // The shared table: no allocation per call (TB-3). Larger circles are not used in the tick.
+    if (radius <= 0xFF) {
+        return ax <= circle_table(static_cast<std::uint8_t>(radius))[static_cast<std::size_t>(ay)];
+    }
+    return ax <= circle_half_widths(radius)[static_cast<std::size_t>(ay)];
 }
 
 std::int32_t tile_of(std::int32_t pos) noexcept {
@@ -380,10 +385,72 @@ bool Fleet::at_target(const Ship& ship, const Target& target) const {
     return reached(*m_world, *m_buildings, m_sea, target, ship.x, ship.y);
 }
 
+// ---- Ships nearby (TB-4) ------------------------------------------------------------------------
+
+void Fleet::build_squares() {
+    const std::vector<Ship>& ships = m_world->ships();
+    m_square_cols = (m_world->width() + kSquareTiles - 1) / kSquareTiles + 1;
+    m_square_rows = (m_world->height() + kSquareTiles - 1) / kSquareTiles + 1;
+    m_squares.resize(std::size_t{m_square_cols} * m_square_rows);
+    for (std::vector<std::uint32_t>& square : m_squares) {
+        square.clear();
+    }
+    for (std::size_t i = 0; i < ships.size(); ++i) {
+        const std::uint32_t col = std::min<std::uint32_t>(ships[i].x / kSquareTiles, m_square_cols - 1);
+        const std::uint32_t row = std::min<std::uint32_t>(ships[i].y / kSquareTiles, m_square_rows - 1);
+        m_squares[std::size_t{row} * m_square_cols + col].push_back(static_cast<std::uint32_t>(i));
+    }
+    m_squared_ships = ships.size();
+    m_squares_valid = true;
+}
+
+template <class Visit>
+void Fleet::near_ships(std::int32_t x, std::int32_t y, std::int32_t range, Visit&& visit) const {
+    const std::vector<Ship>& ships = m_world->ships();
+    if (!m_squares_valid) {
+        for (const Ship& o : ships) {
+            if (visit(o)) {
+                return;
+            }
+        }
+        return;
+    }
+    const auto clamp = [](std::int32_t v, std::uint32_t n) {
+        return static_cast<std::uint32_t>(std::clamp<std::int32_t>(v, 0, static_cast<std::int32_t>(n) - 1));
+    };
+    const std::int32_t reach = range + kSquareSlack;
+    const std::uint32_t c0 = clamp((x - reach) / kSquareTiles - ((x - reach) < 0 ? 1 : 0), m_square_cols);
+    const std::uint32_t c1 = clamp((x + reach) / kSquareTiles, m_square_cols);
+    const std::uint32_t r0 = clamp((y - reach) / kSquareTiles - ((y - reach) < 0 ? 1 : 0), m_square_rows);
+    const std::uint32_t r1 = clamp((y + reach) / kSquareTiles, m_square_rows);
+    m_near.clear();
+    for (std::uint32_t row = r0; row <= r1; ++row) {
+        for (std::uint32_t col = c0; col <= c1; ++col) {
+            const std::vector<std::uint32_t>& square = m_squares[std::size_t{row} * m_square_cols + col];
+            m_near.insert(m_near.end(), square.begin(), square.end());
+        }
+    }
+    // In the order of the ship list, as the scans over all ships were.
+    std::sort(m_near.begin(), m_near.end());
+    for (const std::uint32_t i : m_near) {
+        if (i < ships.size() && visit(ships[i])) {
+            return;
+        }
+    }
+    for (std::size_t i = m_squared_ships; i < ships.size(); ++i) {
+        if (visit(ships[i])) {
+            return;
+        }
+    }
+}
+
 // ---- Movement ----------------------------------------------------------------------------------
 
 void Fleet::tick(std::uint32_t dt_ms) {
     const std::uint32_t budget = dt_ms * 1000U;
+    m_plans_left = kPlansPerTick;
+    m_tick_ms = dt_ms;
+    build_squares();
     // By id, so that a ship added on the way could not break the loop.
     m_ids.clear();
     for (const Ship& s : m_world->ships()) {
@@ -394,6 +461,7 @@ void Fleet::tick(std::uint32_t dt_ms) {
             advance(*s, budget);
         }
     }
+    m_squares_valid = false;
     // Sunk ships are gone with their cargo (Figure_Free 0x00443520). The wreck the original leaves
     // for about 22 s is only a picture (render::CombatEffects).
     std::erase_if(m_world->ships(), [](const Ship& s) { return s.sinking && s.owner == kNoPlayer; });
@@ -586,15 +654,16 @@ bool Fleet::plan(Ship& ship, std::int32_t radius) {
         r.shift_y = (k & 2U) != 0 ? radius / 2 : -radius / 2;
         r.soft_ships = true;
     }
-    for (const Ship& o : m_world->ships()) {
+    near_ships(ship.x, ship.y, kObstacleRange, [&](const Ship& o) {
         if (o.id == ship.id || std::abs(o.x - ship.x) >= kObstacleRange || std::abs(o.y - ship.y) >= kObstacleRange) {
-            continue;
+            return false;
         }
         if (ship.target.kind == Target::Kind::Ship && o.id == ship.target.ship) {
-            continue;  // the ship it sails to is no obstacle
+            return false;  // the ship it sails to is no obstacle
         }
         r.ships.push_back(SeaPlan::Obstacle{o.x, o.y, o.motion.phase == ShipMotion::Phase::Run});
-    }
+        return false;
+    });
     // Water near the cannon towers of players at war with the ship's owner (0x00455A20 with
     // 0x0046AA20): a square of 16 tiles around each. The original raises the cost around every
     // tower of an island with a hostile city, also the towers of allies; Open1602 only around
@@ -651,11 +720,12 @@ bool Fleet::local_detour(Ship& ship) {
     const std::int32_t gx = x;
     const std::int32_t gy = y;
     r.goal = [gx, gy](std::int32_t cx, std::int32_t cy) { return cx == gx && cy == gy; };
-    for (const Ship& o : m_world->ships()) {
+    near_ships(ship.x, ship.y, kObstacleRange, [&](const Ship& o) {
         if (o.id != ship.id && std::abs(o.x - ship.x) < kObstacleRange && std::abs(o.y - ship.y) < kObstacleRange) {
             r.ships.push_back(SeaPlan::Obstacle{o.x, o.y, o.motion.phase == ShipMotion::Phase::Run});
         }
-    }
+        return false;
+    });
     SeaCourse course = m_planner.plan(m_sea, r);
     if (!course.reached_goal || course.path.empty()) {
         return false;
@@ -849,22 +919,22 @@ void Fleet::choose_next_target(Ship& ship) {
 
 bool Fleet::ship_ahead(const Ship& ship) const {
     // Another ship within kLookAhead in the direction the ship sails (0x004538A0).
-    for (const Ship& o : m_world->ships()) {
+    bool ahead = false;
+    near_ships(ship.x, ship.y, kLookAhead, [&](const Ship& o) {
         if (o.id == ship.id) {
-            continue;
+            return false;
         }
         const std::int32_t dx = o.x - ship.x;
         const std::int32_t dy = o.y - ship.y;
         if (std::abs(dx) >= kLookAhead || std::abs(dy) >= kLookAhead || (dx == 0 && dy == 0)) {
-            continue;
+            return false;
         }
         const std::int32_t sx = step_x(ship.direction);
         const std::int32_t sy = step_y(ship.direction);
-        if ((sx != 0 && dx * sx > 0) || (sy != 0 && dy * sy > 0)) {
-            return true;
-        }
-    }
-    return false;
+        ahead = (sx != 0 && dx * sx > 0) || (sy != 0 && dy * sy > 0);
+        return ahead;
+    });
+    return ahead;
 }
 
 void Fleet::decide(Ship& ship) {
@@ -903,7 +973,7 @@ void Fleet::decide(Ship& ship) {
     } else if (ship.target.kind == Target::Kind::Ship) {
         // Following a moving ship: a new course at most every 2 s (0x00452370).
         const std::uint64_t now = m_world->time_ms() * 1000ULL;
-        if (now >= m.next_follow_us && !at_target(ship, ship.target)) {
+        if (now >= m.next_follow_us && m_plans_left != 0 && !at_target(ship, ship.target)) {
             m.next_follow_us = now + kFollowMs * 1000ULL;
             want_plan = true;
             radius = kFollowRadius;
@@ -916,7 +986,13 @@ void Fleet::decide(Ship& ship) {
             local_detour(ship);
         }
     }
+    if (want_plan && m_plans_left == 0) {
+        // No search left in this tick: the ship tries again in the next one.
+        start_wait(ship, std::max<std::uint32_t>(1, m_tick_ms));
+        return;
+    }
     if (want_plan) {
+        --m_plans_left;
         if (!plan(ship, radius)) {
             ++m.failures;
             if (m.failures > kMaxFailures) {

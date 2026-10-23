@@ -247,6 +247,10 @@ class Combat;
 
 class Fleet {
 public:
+    /// Course searches of all ships in one tick (TB-1). A search costs up to a few ms; ships over
+    /// the budget wait for the next tick, in the order of the ship list, so every peer does the same.
+    static constexpr std::uint32_t kPlansPerTick = 8;
+
     Fleet(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures, const Rules& rules);
 
     /// One tick of game time: every ship moves; at the end of a run it decides what to do.
@@ -321,6 +325,11 @@ private:
     std::optional<std::uint32_t> arrive_at_target(Ship& ship);
     /// The next target of a ship without an order: its route, the trader's or the pirates' choice.
     void choose_next_target(Ship& ship);
+    void build_squares();
+    /// Calls visit(ship) for the ships within `range` tiles (Chebyshev) of (x, y) and maybe a few
+    /// more, in the order of World::ships(); stops when visit returns true.
+    template <class Visit>
+    void near_ships(std::int32_t x, std::int32_t y, std::int32_t range, Visit&& visit) const;
     [[nodiscard]] bool ship_ahead(const Ship& ship) const;
     void start_wait(Ship& ship, std::uint32_t ms);
     bool start_next_run(Ship& ship);
@@ -393,6 +402,19 @@ private:
     const Rules* m_rules;
     SeaMap m_sea;
     SeaPlanner m_planner;
+    // Ships by squares of kSquareTiles tiles, built at the start of a tick (TB-4): index into
+    // World::ships(). Ships move less than kSquareSlack tiles in a tick; ships added since are
+    // looked at one by one.
+    static constexpr std::int32_t kSquareTiles = 8;
+    static constexpr std::int32_t kSquareSlack = 4;
+    std::vector<std::vector<std::uint32_t>> m_squares;
+    std::uint32_t m_square_cols = 0;
+    std::uint32_t m_square_rows = 0;
+    std::size_t m_squared_ships = 0;
+    bool m_squares_valid = false;
+    mutable std::vector<std::uint32_t> m_near;  ///< scratch of near_ships()
+    std::uint32_t m_plans_left = 0;             ///< course searches still allowed in this tick (TB-1)
+    std::uint32_t m_tick_ms = 0;                ///< game time of the running tick
     std::vector<ShipEvent> m_events;
     std::vector<std::uint32_t> m_ids;  ///< scratch of tick(): the ships in their order
     std::vector<FetchRequest> m_fetch;

@@ -13,6 +13,8 @@ namespace {
 
 constexpr std::size_t kMaxSteps = 16;
 constexpr std::uint32_t kIdleMs = 1000;        // idle units look again every second
+constexpr std::uint32_t kIdleSpread = 8;       // ... spread over 8 steps by unit id
+constexpr std::uint32_t kIdleStepMs = 25;      // of 25 ms each
 constexpr std::uint32_t kAttackWaitMs = 1000;  // and stand a second after an attack
 constexpr std::uint32_t kWanderAfterMs = 2000;
 constexpr std::uint32_t kFollowMs = 3000;  // re-plan towards a moving target (soldier + 0x14)
@@ -121,6 +123,11 @@ const assets::FigureType* Military::type_of(const Soldier& s) const {
     return m_figures->get(s.figure);
 }
 
+std::uint32_t Military::idle_ms(const Soldier& s) noexcept {
+    // Spread by unit so that units idle since the same tick do not all look again in one tick (TB-1).
+    return kIdleMs + (s.id % kIdleSpread) * kIdleStepMs;
+}
+
 void Military::start_wait(Soldier& s, std::uint32_t ms) {
     SoldierMotion& m = s.motion;
     m.phase = SoldierMotion::Phase::Wait;
@@ -134,7 +141,7 @@ void Military::advance(Soldier& s, std::uint32_t budget_us) {
         if (m.phase == SoldierMotion::Phase::Idle) {
             decide(s);
             if (m.phase == SoldierMotion::Phase::Idle) {
-                start_wait(s, kIdleMs);
+                start_wait(s, idle_ms(s));
             }
             continue;
         }
@@ -167,7 +174,7 @@ void Military::advance(Soldier& s, std::uint32_t budget_us) {
         m.phase = SoldierMotion::Phase::Idle;
         decide(s);
         if (m.phase == SoldierMotion::Phase::Idle) {
-            start_wait(s, kIdleMs);
+            start_wait(s, idle_ms(s));
         }
         if (budget_us == 0) {
             return;
@@ -388,6 +395,7 @@ bool Military::plan_to(Soldier& s, const Target& target, std::int32_t radius, bo
     if (type == nullptr || !cells) {
         return false;
     }
+    m_plans_left = m_plans_left != 0 ? m_plans_left - 1 : 0;
     LandPlan r;
     r.start_x = s.cell_x();
     r.start_y = s.cell_y();
@@ -594,7 +602,7 @@ void Military::decide(Soldier& s) {
     SoldierMotion& m = s.motion;
     const assets::FigureType* type = type_of(s);
     if (type == nullptr || s.away()) {
-        start_wait(s, kIdleMs);
+        start_wait(s, idle_ms(s));
         return;
     }
     // At the end of a run the soldier stands on a cell centre (0x00456D00 step 1).
@@ -602,6 +610,11 @@ void Military::decide(Soldier& s) {
     if (const std::uint16_t island = m_combat->land().island_at(s.cell_x() / 2, s.cell_y() / 2);
         island != World::kSea) {
         s.island = island;
+    }
+    if (m_plans_left == 0) {
+        // No way search left in this tick: the unit decides in the next one (TB-1).
+        start_wait(s, std::max<std::uint32_t>(1, m_tick_ms));
+        return;
     }
     if (!s.target.empty() && !target_valid(s.target)) {
         next_queued(s);
@@ -639,6 +652,7 @@ void Military::decide(Soldier& s) {
             const bool hunter = computer_controlled(*m_world, s.owner) || s.patrol.active || s.attack_move;
             if (enemy.empty() && !s.hold && (hunter || (melee && !walking))) {
                 std::size_t tried = 0;
+                bool out_of_plans = false;
                 for (const Candidate& c : candidates) {
                     if (!hunter) {
                         const auto cells = target_cells(c.unit);
@@ -657,10 +671,18 @@ void Military::decide(Soldier& s) {
                         }
                         continue;
                     }
+                    if (m_plans_left == 0) {
+                        out_of_plans = true;
+                        break;
+                    }
                     if (plan_to(s, c.unit, kChaseRadius, true)) {
                         chase = c.unit;
                         break;
                     }
+                }
+                if (out_of_plans && !chase) {
+                    start_wait(s, std::max<std::uint32_t>(1, m_tick_ms));
+                    return;
                 }
             }
         }
@@ -671,7 +693,7 @@ void Military::decide(Soldier& s) {
         }
         // Out of range or sight: walk into range (step 6); holding its position it waits.
         if (s.hold) {
-            start_wait(s, kIdleMs);
+            start_wait(s, idle_ms(s));
             return;
         }
         if (!plan_to(s, enemy, kPlanRadius, true)) {
@@ -680,7 +702,7 @@ void Military::decide(Soldier& s) {
                 next_queued(s);
                 s.failures = 0;
             }
-            start_wait(s, kIdleMs);
+            start_wait(s, idle_ms(s));
             return;
         }
     } else if (chase) {
@@ -706,7 +728,7 @@ void Military::decide(Soldier& s) {
                     next_queued(s);
                     s.failures = 0;
                 }
-                start_wait(s, kIdleMs);
+                start_wait(s, idle_ms(s));
                 return;
             }
         }
@@ -722,7 +744,7 @@ void Military::decide(Soldier& s) {
         if (s.anim == kAnimWalk) {
             s.anim = kAnimStand;
         }
-        start_wait(s, kIdleMs);
+        start_wait(s, idle_ms(s));
     }
 }
 
