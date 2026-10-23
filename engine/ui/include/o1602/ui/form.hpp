@@ -30,6 +30,9 @@ struct FormStyle {
     std::int32_t heading = 3;
     std::int32_t dim = 1;
     std::int32_t warning = 9;
+    /// Grounds of buttons, fields and rows at half strength over what lies below (a parchment), and
+    /// buttons that cannot be pressed faded instead of rastered.
+    bool translucent = false;
 };
 
 /// The text cut to `width` design units: its end replaced by "..." (or, with `keep_end`, for a

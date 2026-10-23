@@ -143,9 +143,9 @@ std::vector<GoodsSample> goods_history(const World& world, const GoodsScope& sco
     return out;
 }
 
-GoodsProducers goods_producers(const World& world, const assets::BuildingTable& buildings, const GoodsScope& scope,
-                               std::uint8_t ware) {
-    GoodsProducers count;
+std::vector<GoodsProducers> goods_producers(const World& world, const assets::BuildingTable& buildings,
+                                            const GoodsScope& scope, std::uint8_t ware) {
+    std::vector<GoodsProducers> kinds;
     for (const Production& p : world.productions()) {
         if (!p.used || p.island >= world.islands().size()) {
             continue;
@@ -156,10 +156,26 @@ GoodsProducers goods_producers(const World& world, const assets::BuildingTable& 
         if (b == nullptr || b->ware != ware || !is_producer(*b) || city == nullptr || !scope.covers(*city)) {
             continue;
         }
-        ++count.total;
-        count.off += p.enabled ? 0 : 1;
+        auto kind = std::ranges::find(kinds, b->id, &GoodsProducers::building);
+        if (kind == kinds.end()) {
+            kinds.push_back(GoodsProducers{b->id});
+            kind = kinds.end() - 1;
+        }
+        ++kind->count;
+        if (!p.enabled) {
+            ++kind->off;
+        } else if (p.rate != 0) {
+            ++kind->working;
+        } else if (is_trade_ware(b->raw_ware) && p.raw < b->raw_amount) {
+            ++kind->short_of_raw;
+        }
+        if (p.elapsed != 0) {
+            kind->recent += std::uint64_t{p.produced} * 3600 / p.elapsed;
+        }
     }
-    return count;
+    std::ranges::stable_sort(kinds,
+                             [](const GoodsProducers& a, const GoodsProducers& b) { return a.recent > b.recent; });
+    return kinds;
 }
 
 }  // namespace o1602::sim

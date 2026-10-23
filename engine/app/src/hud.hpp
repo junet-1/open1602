@@ -442,6 +442,8 @@ private:
     [[nodiscard]] ui::Rect display_rect() const;
     std::unique_ptr<GoodsWindow> m_goods;
     bool m_goods_open = false;
+    std::vector<std::uint8_t> m_goods_parchment;  ///< its ground, RGBA (parchment.hpp)
+    std::uint8_t m_goods_shadow = 0;
     /// The window "Warenbilanz" on the screen (centred on the map).
     [[nodiscard]] ui::Rect goods_rect() const;
     double m_menu_scale = 1.0;  ///< of the menus over the whole window: as large as fits

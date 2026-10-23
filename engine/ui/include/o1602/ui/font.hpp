@@ -22,15 +22,18 @@ namespace o1602::ui {
 /// Palette index for every palette index: what a glyph pixel becomes.
 using Recolour = std::array<std::uint8_t, 256>;
 
-/// The ten text colours of the original (0x00494870) and Open1602's green (10, a positive balance):
-/// body and shadow as RGB, matched to the nearest palette colour.
+/// The ten text colours of the original (0x00494870) and Open1602's inks for its parchment windows
+/// (10 and up): body and shadow as RGB, matched to the nearest palette colour.
 struct TextColour {
     std::array<std::uint8_t, 3> body{};
     std::array<std::uint8_t, 3> shadow{};
 };
-inline constexpr std::size_t kTextColours = 11;
-/// Open1602's own text colour: green, for a positive balance (red is 9).
-inline constexpr std::int32_t kTextGreen = 10;
+inline constexpr std::size_t kTextColours = 14;
+/// Open1602's inks on parchment: dark brown, faded, green (more coming in) and red (more going out).
+inline constexpr std::int32_t kTextInk = 10;
+inline constexpr std::int32_t kTextInkFaded = 11;
+inline constexpr std::int32_t kTextInkGreen = 12;
+inline constexpr std::int32_t kTextInkRed = 13;
 [[nodiscard]] const TextColour& text_colour(std::size_t index) noexcept;
 
 /// Nearest palette colour by squared RGB distance, the first of equals (0x004031B0).

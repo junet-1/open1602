@@ -10,10 +10,12 @@
 #include "banner_graphic.hpp"
 #include "diplomacy_strip.hpp"
 #include "endless_setup.hpp"
+#include "parchment.hpp"
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
+#include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
 #include "o1602/ui/text_format.hpp"
 
@@ -234,14 +236,44 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         m_multiplayer = std::make_unique<MultiplayerMenu>(style);
         m_menu->set_form_style(style);
         m_display = std::make_unique<DisplayMenu>(style);
-        GoodsStyle goods{style};
-        goods.in = ui::nearest_colour(palette, 70, 190, 50);
-        goods.out = ui::nearest_colour(palette, 210, 40, 30);
-        goods.stock = ui::nearest_colour(palette, 230, 200, 80);
-        goods.chart = style.field;
+        // The window "Warenbilanz" as a parchment: ink on sandstone, the grounds at half strength.
+        GoodsStyle goods;
+        goods.form.translucent = true;
+        goods.form.frame = ui::nearest_colour(palette, 90, 60, 25);
+        goods.form.ground = ui::nearest_colour(palette, 150, 105, 55);
+        goods.form.field = goods.form.ground;
+        goods.form.hover = ui::nearest_colour(palette, 175, 154, 124);
+        goods.form.selected = ui::nearest_colour(palette, 120, 80, 35);
+        goods.form.text = ui::kTextInk;
+        goods.form.heading = ui::kTextInk;
+        goods.form.dim = ui::kTextInkFaded;
+        goods.form.warning = ui::kTextInkRed;
+        goods.dark = ui::nearest_colour(palette, 40, 24, 8);
+        goods.light = ui::nearest_colour(palette, 245, 230, 195);
+        goods.shade = ui::nearest_colour(palette, 95, 65, 30);
+        goods.band = ui::nearest_colour(palette, 150, 105, 55);
+        goods.green = ui::nearest_colour(palette, 0, 120, 30);
+        goods.red = ui::nearest_colour(palette, 170, 20, 10);
+        goods.stock = ui::nearest_colour(palette, 150, 115, 70);
+        goods.shadow = ui::nearest_colour(palette, 0, 0, 0);
+        // A building's name as the build menu gives it (Text.cod, by its place in its category).
+        GoodsWindow::BuildingNames building_names;
+        if (own != nullptr) {
+            building_names = [names = *own](std::uint32_t id) -> std::string {
+                const ui::BuildCategory* category = ui::original_build_menu().category_of(id);
+                if (category == nullptr) {
+                    return {};
+                }
+                const auto index = category->index_of(id);
+                const std::vector<std::string> list = names.section(category->names);
+                return index && *index < list.size() ? list[*index] : std::string{};
+            };
+        }
         m_goods =
             std::make_unique<GoodsWindow>(goods, own != nullptr ? own->section("WARE") : std::vector<std::string>{},
-                                          m_ctrl.layout().constant("GFXWARE").value_or(192));
+                                          m_ctrl.layout().constant("GFXWARE").value_or(192), std::move(building_names));
+        m_goods_shadow = goods.shadow;
+        m_goods_parchment = parchment_pixels(GoodsWindow::kWidth, GoodsWindow::kHeight);
         // The banners of the slots in the palette's nearest colours, grey for any further one.
         render::BannerTable banners = render::BannerTable::original();
         banners.add_more_players();
@@ -1414,6 +1446,17 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     }
     if (m_goods_open && m_goods) {
         const ui::Rect r = goods_rect();
+        // A shadow at the lower right, the parchment, then the window's ink.
+        ui::DrawItem shadow;
+        shadow.kind = ui::DrawItem::Kind::Fill;
+        shadow.x = r.x + 8;
+        shadow.y = r.y + 8;
+        shadow.w = r.w;
+        shadow.h = r.h;
+        shadow.colour = m_goods_shadow;
+        shadow.half = true;
+        m_renderer->draw({shadow}, 0, 0, 1.0);
+        m_renderer->image(2, m_goods_parchment, GoodsWindow::kWidth, GoodsWindow::kHeight, r, false);
         m_renderer->draw(m_goods->draw(world, buildings, m_local, m_renderer->fonts()), r.x, r.y, m_goods->scale());
     }
     draw_question();

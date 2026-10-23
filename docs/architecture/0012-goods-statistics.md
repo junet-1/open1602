@@ -63,11 +63,17 @@ before a good the people need runs out.
      materials and intermediates, and weapons. The columns are stock, produced, imported, used,
      exported, balance (green or red) and how long the stock lasts, plus the stock over the last
      46 minutes as a small chart.
-   - A click on a good opens its page: the stock and the room for it, how well the inhabitants were
-     supplied, the buildings making it, each flow with a bar, and a chart of the last hour or 12 hours
-     (green in, red out, the stock as a gold line).
-   - It is drawn in the colours of Open1602's other windows (dark ground, gold frame), not as
-     parchment.
+   - A click on a good opens its page: the stock and the room for it, the balance and when the
+     stock runs out or the store is full, each flow with a bar, and a chart of the last hour or
+     12 hours (green in, red out, the stock as a brown area, an axis for each). Production is
+     split by the kinds of building making the good ("Webstube (3)"): the ledger books only the
+     total, so the page shares it out by what each kind made in its recent cycles
+     (`sim::goods_producers`, from the buildings' own statistics, `Production::produced` over
+     `elapsed`). Below, how well the inhabitants were supplied and how many producers work, wait
+     for raw material or are switched off.
+   - It is drawn on a parchment like the original's windows: a sandstone ground made once from a
+     fixed seed (`app/parchment.hpp`) under ink-coloured text (`ui::kTextInk` and its green and
+     red), with the form's grounds at half strength (`ui::FormStyle::translucent`).
 
 ## Consequences
 

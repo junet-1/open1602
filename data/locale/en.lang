@@ -476,11 +476,7 @@ stats.open_help = Goods balance: what your cities produce, buy, use and sell (F2
 stats.title = Goods balance
 # {1}: how many islands the player has cities on
 stats.all_islands = All islands ({1})
-# {1}: game minutes the figures are averaged over
-stats.window = Last {1} min
 stats.all_goods = All goods
-stats.back = Back to the list
-stats.close = Close
 stats.group.consumer = Consumer goods
 stats.group.building = Building materials
 stats.group.raw = Raw materials and intermediates
@@ -493,7 +489,7 @@ stats.col.consumed = Used
 stats.col.exported = Exported
 stats.col.balance = Balance
 stats.col.lasts = Lasts
-stats.col.trend = Stock
+stats.col.trend = 60 min
 stats.empty = No city of yours has goods yet.
 # Between the whole tons and the tenths of a figure
 stats.decimal_point = .
@@ -506,14 +502,10 @@ stats.gone = empty
 stats.hint = Tons per minute, average of the last {1} game minutes. Click a good for its details.
 # {1}: the minutes recorded so far (a game just begun or loaded), {2}: the minutes chosen
 stats.hint_short = Tons per minute over the {1} game minutes recorded so far (of {2}).
-stats.unit = Tons per minute, average of the last {1} game minutes.
 # {1}: tons in store, {2}: room for the good in the warehouses
 stats.stock = In store: {1} t of {2} t
-# {1}: percent of what the inhabitants asked for that they got
-stats.supply = Inhabitants supplied: {1} %
-# {1}: buildings making the good, {2}: how many of them are switched off
-stats.producers = Producers: {1}
-stats.producers_off = Producers: {1} ({2} switched off)
+stats.supply = Supply of the inhabitants
+stats.producers = Producers
 stats.inflow = Coming in
 stats.outflow = Going out
 stats.flow.produced = Produced
@@ -527,14 +519,34 @@ stats.flow.construction = Building
 stats.flow.sold = Sold at the Kontor
 stats.flow.shipped_out = Loaded by own ships
 stats.flow.lost = Lost (warehouse full)
-stats.chart_60min = Chart: last hour
-stats.chart_12h = Chart: last 12 hours
-stats.axis_60min = 60 min ago
-stats.axis_12h = 12 h ago
+stats.chart_60min = 60 min
+stats.chart_12h = 12 h
 stats.axis_now = now
 stats.no_data = Nothing recorded yet
-# The chart's scale: {1} tons per minute at the top of a bar, {2} tons at the top of the stock line
-stats.chart_scale = green in, red out: up to {1} t/min; gold: stock up to {2} t
+# The window's parchment style: the time chosen, the way back from a good, tons and tons a minute
+stats.period = Period
+stats.overview = Overview
+stats.tons = {1} t
+stats.per_minute = t/min
+# How long the stock lasts ({1}: "12 min"), when the store is full at the balance ({1}: "3 h")
+stats.lasts = lasts {1}
+stats.full_in = Store full in about {1}
+stats.full = The store is full
+# A kind of building making the good: {1} its name, {2} how many
+stats.producer = {1} ({2})
+stats.history = History
+# The chart's time axis: {1} minutes or hours ago
+stats.axis_minutes = -{1} min
+stats.axis_hours = -{1} h
+stats.legend_in = Coming in (t/min)
+stats.legend_out = Going out (t/min)
+stats.legend_stock = Stock (t)
+# {1}: percent of what the inhabitants asked for that they got, {2}: what they asked for in tons a minute
+stats.supply_value = {1} % (demand {2} t/min)
+# The buildings making the good: {1} of {2} at work, {1} waiting for raw material, {1} switched off
+stats.working = {1} of {2} working
+stats.short_of_raw = {1} without raw material
+stats.switched_off = {1} switched off
 
 # The early warning of a shortage, in the status bar (in the voice of "Es fehlt an ..."): {1} the
 # good (from Text.cod), {2} the city, {3} game minutes the stock lasts at the current balance

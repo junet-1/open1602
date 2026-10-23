@@ -7,6 +7,7 @@
 
 #include "../test_framework.hpp"
 #include "goods_window.hpp"
+#include "parchment.hpp"
 
 #include "o1602/sim/goods_statistics.hpp"
 #include "o1602/ui/localization.hpp"
@@ -66,6 +67,11 @@ bool shows(const GoodsWindow& w, ui::Form::Id id) {
     return std::ranges::any_of(list, [&](const ui::Form::Widget& x) { return x.id == id; });
 }
 
+/// The stock in the table, e.g. "14 t".
+std::string tons(int value) {
+    return ui::tr("stats.tons", {std::to_string(value)});
+}
+
 bool draws_text(const std::vector<ui::DrawItem>& items, const std::string& text) {
     return std::ranges::any_of(
         items, [&](const ui::DrawItem& d) { return d.kind == ui::DrawItem::Kind::Text && d.text == text; });
@@ -118,16 +124,16 @@ TEST_CASE("goods window: only the player's own cities, all islands or one") {
     w.open();
     auto items = w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
     CHECK(shows(w, kRow + kWood));
-    CHECK(!shows(w, kRow + kFood));  // only the ally made food
-    CHECK(draws_text(items, "14"));  // 10 t + 4 t
-    CHECK(!draws_text(items, "100"));
-    CHECK(!draws_text(items, "114"));
+    CHECK(!shows(w, kRow + kFood));      // only the ally made food
+    CHECK(draws_text(items, tons(14)));  // 10 t + 4 t
+    CHECK(!draws_text(items, tons(100)));
+    CHECK(!draws_text(items, tons(114)));
 
     click(w, kIsland);  // the first island: Eastport
     REQUIRE(w.island().has_value());
     CHECK(*w.island() == 0);
     items = w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
-    CHECK(draws_text(items, "10"));
+    CHECK(draws_text(items, tons(10)));
     CHECK(std::ranges::any_of(w.form().widgets(), [](const ui::Form::Widget& x) { return x.text == "Eastport"; }));
     click(w, kIsland);
     CHECK(*w.island() == 1);
@@ -140,7 +146,7 @@ TEST_CASE("goods window: only the player's own cities, all islands or one") {
     (void)w.draw(world, assets::BuildingTable{}, 1, kNoFonts);
     CHECK(!w.island().has_value());  // its island list has no island 1
     items = w.draw(world, assets::BuildingTable{}, 1, kNoFonts);
-    CHECK(draws_text(items, "100"));
+    CHECK(draws_text(items, tons(100)));
     CHECK(shows(w, kRow + kFood));
 }
 
@@ -174,9 +180,19 @@ TEST_CASE("goods window: a click on a good opens its page, Escape goes back to t
     CHECK(*w.detail() == kWood);
     const auto items = w.draw(world, assets::BuildingTable{}, 0, kNoFonts);
     CHECK(draws_text(items, "ware23"));
-    CHECK(draws_text(items, "+4.0"));  // 6 t in, 2 t out in the one minute there is
+    CHECK(draws_text(items, "+4.0 " + ui::tr("stats.per_minute")));  // 6 t in, 2 t out in the one minute there is
     CHECK(shows(w, kBack));
     CHECK(w.back());
     CHECK(!w.detail().has_value());
     CHECK(!w.back());  // on the table Escape closes the window
+}
+
+TEST_CASE("goods window: the parchment is the same on every computer") {
+    const std::vector<std::uint8_t> a = app::parchment_pixels(40, 30);
+    CHECK(a.size() == 40U * 30U * 4U);
+    CHECK(a == app::parchment_pixels(40, 30));
+    CHECK(a != app::parchment_pixels(40, 30, 4));
+    for (std::size_t i = 3; i < a.size(); i += 4) {
+        REQUIRE(a[i] == 255);  // opaque
+    }
 }

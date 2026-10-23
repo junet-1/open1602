@@ -6,11 +6,13 @@
 // stock lasts at that balance. A click on a good shows where it came from and went to, and its
 // last hour (or twelve hours) as a chart. Only the local player's cities: allies and trading
 // partners never see each other's figures. The window only reads the world; the game goes on
-// behind it.
+// behind it. It is drawn as a parchment in the original's style: the owner lays the parchment
+// (parchment.hpp) under what draw() returns.
 #pragma once
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -21,29 +23,38 @@
 
 namespace o1602::app {
 
-/// The colours of the window: the form's and the palette colours of the charts.
+/// The colours of the window: the form's (translucent, with the inks of ui/font.hpp) and the
+/// palette colours of frames, bands and charts.
 struct GoodsStyle {
     ui::FormStyle form;
-    std::uint8_t in = 0;     ///< green: goods coming in
-    std::uint8_t out = 0;    ///< red: goods going out
-    std::uint8_t stock = 0;  ///< the stock's line and the small charts
-    std::uint8_t chart = 0;  ///< the ground of a chart
+    std::uint8_t dark = 0;    ///< the frame's outline and the ink of lines
+    std::uint8_t light = 0;   ///< the frame's lit edge
+    std::uint8_t shade = 0;   ///< the frame's shaded edge, separator lines
+    std::uint8_t band = 0;    ///< every other row, the ground of bars (at half strength)
+    std::uint8_t green = 0;   ///< goods coming in
+    std::uint8_t red = 0;     ///< goods going out
+    std::uint8_t stock = 0;   ///< the stock in the chart (at half strength)
+    std::uint8_t shadow = 0;  ///< the window's shadow (at half strength)
 };
 
 class GoodsWindow {
 public:
     enum class Result : std::uint8_t { None, Close };
     /// The window's size in design units (it is centred over the map).
-    static constexpr std::int32_t kWidth = 760;
-    static constexpr std::int32_t kHeight = 580;
+    static constexpr std::int32_t kWidth = 744;
+    static constexpr std::int32_t kHeight = 690;
     /// The time the figures are averaged over, game minutes; the default is the second.
     static constexpr std::array<std::uint32_t, 4> kWindows = {1, 5, 15, 60};
     /// Rows of the table shown at once.
     static constexpr std::size_t kRows = 16;
 
+    /// The name the build menu gives a building (Text.cod), by its Id.
+    using BuildingNames = std::function<std::string(std::uint32_t)>;
+
     /// `ware_names`: Text.cod [WARE] by ware number; `ware_icon`: the sprite of ware 0 in TOOLS
     /// (GFXWARE).
-    GoodsWindow(GoodsStyle style, std::vector<std::string> ware_names, std::int32_t ware_icon);
+    GoodsWindow(GoodsStyle style, std::vector<std::string> ware_names, std::int32_t ware_icon,
+                BuildingNames building_names = {});
 
     void set_scale(double scale) { m_form.set_scale(scale); }
     [[nodiscard]] double scale() const noexcept { return m_form.scale(); }
@@ -64,8 +75,8 @@ public:
     /// The mouse wheel over the window: notches, up positive.
     void wheel(std::int32_t notches) noexcept;
 
-    /// Everything to draw for `player`'s cities, relative to the window's top left. It lays the
-    /// window out; mouse() answers what was drawn last.
+    /// Everything to draw for `player`'s cities, relative to the window's top left, over the
+    /// parchment. It lays the window out; mouse() answers what was drawn last.
     [[nodiscard]] std::vector<ui::DrawItem> draw(const sim::World& world, const assets::BuildingTable& buildings,
                                                  sim::PlayerId player, const std::array<const ui::Font*, 3>& fonts);
     /// The mouse in pixels relative to the window's top left.
@@ -84,17 +95,17 @@ public:
     [[nodiscard]] static std::string lasts_text(std::optional<std::uint32_t> minutes);
 
 private:
-    void layout_table(const sim::World& world, sim::PlayerId player, const std::array<const ui::Font*, 3>& fonts,
-                      std::vector<ui::DrawItem>& extra);
+    class Painter;
+    void layout_head(const sim::World& world, sim::PlayerId player, Painter& below, Painter& above);
+    void layout_table(const sim::World& world, sim::PlayerId player, Painter& below, Painter& above);
     void layout_detail(const sim::World& world, const assets::BuildingTable& buildings, sim::PlayerId player,
-                       std::uint8_t ware, const std::array<const ui::Font*, 3>& fonts,
-                       std::vector<ui::DrawItem>& extra);
-    void layout_controls(const sim::World& world, sim::PlayerId player);
+                       std::uint8_t ware, Painter& below, Painter& above);
     [[nodiscard]] std::string ware_name(std::uint8_t ware) const;
 
     GoodsStyle m_style;
     std::vector<std::string> m_ware_names;
     std::int32_t m_ware_icon = 0;
+    BuildingNames m_building_names;
     ui::Form m_form;
 
     std::optional<std::uint16_t> m_island;  ///< nothing: all of the player's islands

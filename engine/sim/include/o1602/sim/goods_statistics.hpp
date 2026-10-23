@@ -69,12 +69,19 @@ struct GoodsSample {
 [[nodiscard]] std::vector<GoodsSample> goods_history(const World& world, const GoodsScope& scope, std::uint8_t ware,
                                                      bool quarters);
 
-/// The buildings of the scope that make a ware.
+/// The buildings of the scope that make a ware, of one kind (a fishery, a hunter's hut).
 struct GoodsProducers {
-    std::uint32_t total = 0;
-    std::uint32_t off = 0;  ///< switched off by the player
+    std::uint32_t building = 0;  ///< the kind (HAUS Id)
+    std::uint32_t count = 0;
+    std::uint32_t working = 0;       ///< in a cycle now
+    std::uint32_t short_of_raw = 0;  ///< switched on, idle, its raw material (a trade good) missing
+    std::uint32_t off = 0;           ///< switched off by the player
+    /// What they made lately, 1/32 t per hour: each building's own statistics window (the last
+    /// two to four minutes, as its window shows its productivity).
+    std::uint64_t recent = 0;
 };
-[[nodiscard]] GoodsProducers goods_producers(const World& world, const assets::BuildingTable& buildings,
-                                             const GoodsScope& scope, std::uint8_t ware);
+/// The kinds of buildings making the ware, the most productive first.
+[[nodiscard]] std::vector<GoodsProducers> goods_producers(const World& world, const assets::BuildingTable& buildings,
+                                                          const GoodsScope& scope, std::uint8_t ware);
 
 }  // namespace o1602::sim

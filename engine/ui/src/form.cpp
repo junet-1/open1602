@@ -192,7 +192,7 @@ std::vector<DrawItem> Form::draw(const std::array<const Font*, 3>& fonts) const 
     const double s = m_scale;
     const auto px = [s](std::int32_t v) { return to_pixels(v, s); };
     std::vector<DrawItem> out;
-    const auto fill = [&](Rect r, std::uint8_t colour) {
+    const auto fill = [&](Rect r, std::uint8_t colour, bool ground = false) {
         DrawItem d;
         d.kind = DrawItem::Kind::Fill;
         d.x = px(r.x);
@@ -200,11 +200,20 @@ std::vector<DrawItem> Form::draw(const std::array<const Font*, 3>& fonts) const 
         d.w = px(r.x + r.w) - d.x;
         d.h = px(r.y + r.h) - d.y;
         d.colour = colour;
+        d.half = ground && m_style.translucent;
         out.push_back(d);
     };
     const auto framed = [&](Rect r, std::uint8_t inside) {
-        fill(r, m_style.frame);
-        fill(Rect{r.x + kBorder, r.y + kBorder, r.w - 2 * kBorder, r.h - 2 * kBorder}, inside);
+        if (m_style.translucent) {
+            // Only the outline, the parchment shows through the ground.
+            fill(Rect{r.x, r.y, r.w, kBorder}, m_style.frame);
+            fill(Rect{r.x, r.y + r.h - kBorder, r.w, kBorder}, m_style.frame);
+            fill(Rect{r.x, r.y + kBorder, kBorder, r.h - 2 * kBorder}, m_style.frame);
+            fill(Rect{r.x + r.w - kBorder, r.y + kBorder, kBorder, r.h - 2 * kBorder}, m_style.frame);
+        } else {
+            fill(r, m_style.frame);
+        }
+        fill(Rect{r.x + kBorder, r.y + kBorder, r.w - 2 * kBorder, r.h - 2 * kBorder}, inside, true);
     };
     const auto text = [&](Rect r, std::string t, Align align, std::int32_t colour, bool keep_end = false) {
         const double room = r.w - 2.0 * kPadding;
@@ -263,8 +272,10 @@ std::vector<DrawItem> Form::draw(const std::array<const Font*, 3>& fonts) const 
             case Widget::Kind::Button: {
                 const bool pressed = hover && held && *m_pressed == w.id;
                 framed(w.rect, w.on || pressed ? m_style.selected : hover ? m_style.hover : m_style.ground);
-                text(w.rect, w.text, Align::Centre, w.on ? m_style.heading : m_style.text);
-                if (!w.enabled) {
+                // On a parchment a button that cannot be pressed is only faded; elsewhere rastered.
+                const bool faded = !w.enabled && m_style.translucent;
+                text(w.rect, w.text, Align::Centre, faded ? m_style.dim : w.on ? m_style.heading : m_style.text);
+                if (!w.enabled && !faded) {
                     raster(w.rect);
                 }
                 break;
@@ -287,7 +298,7 @@ std::vector<DrawItem> Form::draw(const std::array<const Font*, 3>& fonts) const 
             }
             case Widget::Kind::Row:
                 if (w.on || hover) {
-                    fill(w.rect, w.on ? m_style.selected : m_style.hover);
+                    fill(w.rect, w.on ? m_style.selected : m_style.hover, true);
                 }
                 break;
         }

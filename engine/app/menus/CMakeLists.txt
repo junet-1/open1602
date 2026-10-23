@@ -25,6 +25,7 @@ add_library(o1602_menus
     ../src/message_table.cpp
     ../src/multiplayer_menu.cpp
     ../src/multiplayer_texts.cpp
+    ../src/parchment.cpp
     ../src/order_questions.cpp
     ../src/tile_status.cpp
     ../src/tutorial.cpp
