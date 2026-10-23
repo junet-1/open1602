@@ -77,7 +77,8 @@ struct SessionConfig {
     /// gets the game anew.
     std::uint32_t stall_ms = 10'000;
     /// A computer the others no longer wait for gets the game anew once it is this many frames
-    /// behind the host (30 s at normal speed), instead of running them all.
+    /// behind the host at normal speed (30 s), as many times more at a higher speed, instead of
+    /// running them all.
     std::uint32_t resync_behind = 600;
     /// Commands one player may give per frame; more wait for the next frames, and beyond a few
     /// frames' worth they are dropped (a flood would stall everyone).
@@ -339,7 +340,7 @@ private:
     void broadcast_frames();
     void forget_frames();
     void update_lead(std::uint32_t real_ms);
-    void watch_stalls(std::uint32_t real_ms, bool held);
+    void watch_stalls(std::uint32_t real_ms, bool stalled);
     void drop(Peer& peer, std::optional<RefuseReason> tell);
     void refresh_roster();
     void init_lobby();
@@ -365,6 +366,9 @@ private:
     [[nodiscard]] std::uint64_t slowest() const;
     /// Frames the host may be ahead of a computer at the current speed.
     [[nodiscard]] std::uint64_t ahead_frames() const;
+    /// Frames behind the host after which a lagging computer gets the game anew (resync_behind,
+    /// scaled by the speed).
+    [[nodiscard]] std::uint64_t resync_frames() const;
 
     sim::Simulation* m_simulation;
     const assets::BuildingTable* m_buildings;
