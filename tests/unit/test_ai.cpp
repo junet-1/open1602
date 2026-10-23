@@ -9,6 +9,7 @@
 #include <span>
 #include <vector>
 
+#include "../../engine/sim/src/ai/ai_archive.hpp"
 #include "../test_framework.hpp"
 
 #include "o1602/assets/building_table.hpp"
@@ -397,6 +398,52 @@ TEST_CASE("ai: a game saved while the computer is under way goes on as if never 
         CHECK(a.cities_of(kComputer) == 1);
     }
     CHECK(under_way);
+}
+
+TEST_CASE("ai: a saved state with values out of range is refused, not run") {
+    Game g;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    run(s, 8'000);
+    const std::vector<std::uint8_t> bytes = saved(s.computers());
+    sim::ai::State good;
+    {
+        core::ByteReader in(bytes);
+        sim::StateIn reader(in);
+        REQUIRE(reader.u32() == 1);
+        sim::ai::Loader loader(reader);
+        loader(good);
+        REQUIRE(reader.ok());
+        REQUIRE(!good.players.empty());
+    }
+    const auto loads = [&](sim::ai::State state) {
+        core::ByteWriter out;
+        out.u32(1);
+        sim::ai::Saver saver(out);
+        saver(state);
+        const std::vector<std::uint8_t> data = out.take();
+        core::ByteReader in(data);
+        sim::ComputerPlayers computers(s);
+        return computers.load(in);
+    };
+    CHECK(loads(good));
+    sim::ai::State bad = good;
+    bad.players[0].search.segment = -2'000'000'000;  // crashed the first step after loading
+    CHECK(!loads(bad));
+    bad = good;
+    bad.players[0].search.slot = 0xFF;
+    CHECK(!loads(bad));
+    bad = good;
+    bad.players.push_back(bad.players[0]);  // one computer acting twice a tick
+    CHECK(!loads(bad));
+    bad = good;
+    bad.players[0].player = 200;
+    CHECK(!loads(bad));
+    bad = good;
+    bad.players[0].stack = {sim::ai::kDevelop, sim::ai::kDevelop};
+    CHECK(!loads(bad));
+    bad = good;
+    bad.players[0].stack = {0xEE};
+    CHECK(!loads(bad));
 }
 
 TEST_CASE("ai: the names for new cities and ships travel with the saved game") {

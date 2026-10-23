@@ -139,10 +139,12 @@ using Body = std::span<const std::uint8_t>;
 /// Calls `fn(id, version, body)` for every section this version reads (a known identifier up to its
 /// max_version);
 /// an error if the sections are damaged or `fn` returns false. A section of a later version is
-/// skipped and reported in `warnings`, or fails the load if it is required (kRequired).
+/// skipped and reported in `warnings`, or fails the load if it is required (kRequired). A section
+/// that comes twice fails the load: no writer makes one, and which of the two counts is a guess.
 template <class Fn>
 core::Status for_each_section(std::span<const std::uint8_t> data, std::vector<std::string>* warnings, Fn&& fn) {
     core::ByteReader reader(data);
+    std::vector<std::uint32_t> seen;
     while (!reader.at_end()) {
         const auto id = reader.u32();
         const auto section_version = reader.u16();
@@ -155,6 +157,10 @@ core::Status for_each_section(std::span<const std::uint8_t> data, std::vector<st
         if (!body) {
             return make_error(ErrorCode::InvalidFormat, "O1602: damaged section header");
         }
+        if (std::find(seen.begin(), seen.end(), *id) != seen.end()) {
+            return make_error(ErrorCode::InvalidFormat, "O1602: section " + tag_name(*id) + " twice");
+        }
+        seen.push_back(*id);
         if (*section_version == 0 || *section_version > max_version(*id) ||
             std::find(kKnownSections.begin(), kKnownSections.end(), *id) == kKnownSections.end()) {
             const std::string what = "section " + tag_name(*id) + " (version " + std::to_string(*section_version) + ")";
@@ -464,11 +470,17 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
             default:
                 return true;  // META, MAPW (read before)
         }
-        damaged = damaged || !in.ok();
+        // A reader that leaves bytes over does not read what the writer wrote (HI-9).
+        const bool whole = id == kSimulation || id == kOrigin || sr.remaining() == 0;
+        damaged = damaged || !in.ok() || !whole;
         return !damaged;
     });
     if (!status) {
         return status;
+    }
+    // Every Open1602 writes these; a file without one would load with an empty part.
+    if (!d.world || !d.islands || !d.players) {
+        return make_error(ErrorCode::InvalidFormat, "O1602: the world, its islands or its players are missing");
     }
     return apply_decoded(world, d);
 }

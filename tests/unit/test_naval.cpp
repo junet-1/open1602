@@ -12,6 +12,7 @@
 #include "o1602/sim/combat.hpp"
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/ships.hpp"
+#include "o1602/sim/validate.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -149,6 +150,50 @@ TEST_CASE("naval: an idle warship turns its broadside to an enemy in range and s
     CHECK(s.world.ship(victim) == nullptr);
     CHECK(s.world.ship(warship) != nullptr);
     CHECK(s.world.diplomacy().relation(1, 0).damage >= 50 * 32);
+}
+
+TEST_CASE("naval: a sinking ship keeps health 0 when the game is loaded during its sinking") {
+    Sea s;
+    s.start();
+    const std::uint32_t victim = s.add(15, 40, kTrade, 1, 0, 0);
+    s.fleet->hit(victim, 1'000'000, 0, false);
+    const sim::Ship* v = s.world.ship(victim);
+    REQUIRE(v != nullptr);
+    REQUIRE(v->sinking);
+    CHECK(v->health == 0);
+    // What a load or a resync does: the parts of the game are built anew on the world.
+    const sim::Fleet loaded(s.world, s.buildings, s.figures, s.rules);
+    CHECK(s.world.ship(victim)->health == 0);
+    // A ship of an older file, which has no health, still gets the full health.
+    const std::uint32_t old = s.add(30, 40, kTrade, 1, 0, 0);
+    s.world.ship(old)->health = 0;
+    const sim::Fleet again(s.world, s.buildings, s.figures, s.rules);
+    CHECK(s.world.ship(old)->health != 0);
+}
+
+TEST_CASE("naval: a loaded ship under way must start and end its run on the map") {
+    Sea s;
+    const std::uint32_t id = s.add(15, 40, kTrade, 0, 0, 2);
+    sim::Ship& ship = *s.world.ship(id);
+    sim::ShipMotion& m = ship.motion;
+    m.phase = sim::ShipMotion::Phase::Run;
+    m.count = 3;
+    m.from_x = 15 * sim::kShipUnit + sim::kShipUnit / 2;
+    m.from_y = 40 * sim::kShipUnit + sim::kShipUnit / 2;
+    m.duration_us = 3'000'000;
+    CHECK(sim::validate(s.world).ok());
+    // The crafted save of the device run: far east of the map, for about 71 minutes.
+    m.from_x = 6'488'063;
+    m.duration_us = 0xFF000000U;
+    CHECK(!sim::validate(s.world).ok());
+    // On the map at the start but off it at the end.
+    m.from_x = 98 * sim::kShipUnit;
+    m.count = 5;
+    CHECK(!sim::validate(s.world).ok());
+    m.count = 1;
+    CHECK(sim::validate(s.world).ok());
+    m.path_index = 1;  // past the end of an empty course
+    CHECK(!sim::validate(s.world).ok());
 }
 
 TEST_CASE("naval: ships at peace and unarmed ships do not fight") {

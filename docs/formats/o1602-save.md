@@ -42,7 +42,8 @@ sections it does not know and versions it cannot read, and reports each in the l
 versions can thus add parts without invalidating older savegames. Flag bit 0 marks a section as
 **required**: a reader that cannot read such a section loads nothing (a game without it would run
 differently, e.g. desynchronise in multiplayer). All sections are required except `META` and `ORIG`;
-see [o1602-chunk.md](o1602-chunk.md) for the rules.
+see [o1602-chunk.md](o1602-chunk.md) for the rules. A file is refused if a section comes twice, if a
+section it reads has bytes left over after its data, or if `WRLD`, `ISLE` or `PLAY` is missing.
 
 | Identifier | Contents |
 |---|---|

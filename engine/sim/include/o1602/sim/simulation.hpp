@@ -140,7 +140,9 @@ public:
 
     /// Whether the state of the running game a world carries (a game saved by Open1602) can be
     /// read whole; true for a world without one. Builds the parts of a game on the world to try,
-    /// without running anything, so that a loader can refuse a damaged file before the game starts.
+    /// without running a tick, so that a loader can refuse a damaged file before the game starts.
+    /// Building the parts may normalise the world as a load does (ships of older files get their
+    /// health), so it must leave a world of a running game as it is.
     [[nodiscard]] static bool state_readable(World& world, const assets::BuildingTable& buildings,
                                              const assets::FigureTable& figures);
 

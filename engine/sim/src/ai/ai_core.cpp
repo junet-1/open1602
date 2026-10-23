@@ -121,6 +121,36 @@ void Engine::adopt_new_computers() {
     }
 }
 
+bool Engine::accepts(const State& state) const {
+    // A save or snapshot is input like any other: a crafted one must not make a step index outside
+    // a list (a negative road segment crashed the first step) or make a computer act twice a tick.
+    constexpr std::int32_t kMaxSpan = 1 << 16;  // far beyond any road or distance on a 4096 map
+    std::vector<bool> seen(m_world.players().size(), false);
+    for (const AiPlayer& p : state.players) {
+        if (p.player >= seen.size() || seen[p.player]) {
+            return false;
+        }
+        seen[p.player] = true;
+        if (p.stack.size() > kMaxStack) {
+            return false;
+        }
+        for (std::size_t i = 0; i < p.stack.size(); ++i) {
+            const std::uint8_t task = p.stack[i];
+            if (task < kSettleArea || task > kDenkmal ||
+                std::find(p.stack.begin(), p.stack.begin() + static_cast<std::ptrdiff_t>(i), task) !=
+                    p.stack.begin() + static_cast<std::ptrdiff_t>(i)) {
+                return false;
+            }
+        }
+        const Search& s = p.search;
+        if (s.segment < 0 || s.slot >= kSlots || s.remaining < -kMaxSpan || s.remaining > kMaxSpan ||
+            s.extra < -kMaxSpan || s.extra > kMaxSpan) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void Engine::tick(std::uint32_t dt_ms) {
     if (!m_state.initialised) {
         reset();
@@ -623,7 +653,7 @@ bool ComputerPlayers::load(core::ByteReader& in) {
     ai::State state;
     ai::Loader loader(reader);
     loader(state);
-    if (!reader.ok()) {
+    if (!reader.ok() || !m_engine->accepts(state)) {
         return false;
     }
     *m_state = std::move(state);

@@ -139,6 +139,9 @@ public:
     void init_player(AiPlayer& p);
     /// Gives every computer slot without a state one (reset() makes them for the slots of the start).
     void adopt_new_computers();
+    /// Whether a state read from a save or a host's snapshot can be run on this world: every
+    /// value a step uses as an index or a count is in range (HI-1).
+    [[nodiscard]] bool accepts(const State& state) const;
 
 private:
     // ---- ai_core.cpp ----
