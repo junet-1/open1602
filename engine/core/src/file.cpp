@@ -12,7 +12,15 @@
 
 #if defined(_WIN32)
 #include <io.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #else
+#include <fcntl.h>
 #include <unistd.h>
 #endif
 
@@ -84,6 +92,31 @@ Result<Bytes> read_file(const fs::path& path) {
     return data;
 }
 
+Result<FileHead> read_file_head(const fs::path& path, std::size_t max_bytes) {
+    std::error_code ec;
+    if (fs::exists(path, ec) && !fs::is_regular_file(path, ec)) {
+        return make_error(ErrorCode::IoError, "not a file: " + path_to_utf8(path));
+    }
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        return make_error(ErrorCode::NotFound, "cannot open file: " + path_to_utf8(path));
+    }
+    in.seekg(0, std::ios::end);
+    const auto end = in.tellg();
+    if (end < 0) {
+        return make_error(ErrorCode::IoError, "cannot determine size: " + path_to_utf8(path));
+    }
+    in.seekg(0, std::ios::beg);
+    FileHead head;
+    head.size = static_cast<std::uint64_t>(end);
+    head.bytes.resize(static_cast<std::size_t>(std::min<std::uint64_t>(head.size, max_bytes)));
+    if (!head.bytes.empty() &&
+        !in.read(reinterpret_cast<char*>(head.bytes.data()), static_cast<std::streamsize>(head.bytes.size()))) {
+        return make_error(ErrorCode::IoError, "cannot read file: " + path_to_utf8(path));
+    }
+    return head;
+}
+
 Status write_file(const fs::path& path, std::span<const std::uint8_t> data) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) {
@@ -125,6 +158,30 @@ Status write_durable(const fs::path& path, std::span<const std::uint8_t> data) {
     return Ok{};
 }
 
+/// Renames `from` to `to`, replacing it, and has the new name on the disk before returning, so
+/// that a power loss right after it does not leave only the .tmp file (DS-6).
+void rename_durable(const fs::path& from, const fs::path& to, std::error_code& ec) {
+#if defined(_WIN32)
+    if (MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0) {
+        ec = std::error_code(static_cast<int>(GetLastError()), std::system_category());
+    }
+#else
+    fs::rename(from, to, ec);
+    if (ec) {
+        return;
+    }
+    // The directory holds the name. Some file systems cannot flush a directory; the rename stands.
+    fs::path folder = to.parent_path();
+    if (folder.empty()) {
+        folder = ".";
+    }
+    if (const int fd = ::open(folder.c_str(), O_RDONLY); fd >= 0) {
+        (void)::fsync(fd);
+        ::close(fd);
+    }
+#endif
+}
+
 }  // namespace
 
 Status write_file_atomic(const fs::path& path, std::span<const std::uint8_t> data) {
@@ -135,7 +192,7 @@ Status write_file_atomic(const fs::path& path, std::span<const std::uint8_t> dat
         fs::remove(temp, ec);
         return status;
     }
-    fs::rename(temp, path, ec);
+    rename_durable(temp, path, ec);
     if (ec) {
         fs::remove(temp, ec);
         return make_error(ErrorCode::IoError, "cannot write " + path_to_utf8(path) + ": " + ec.message());

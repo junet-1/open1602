@@ -22,8 +22,8 @@ namespace o1602::core {
 /// The data of a zlib stream, which must be exactly `size` bytes long.
 [[nodiscard]] Result<std::vector<std::uint8_t>> zlib_inflate(std::span<const std::uint8_t> stream, std::size_t size);
 
-/// The first `size` bytes of a zlib stream's data (fewer if the data is shorter), without
-/// unpacking the rest: for the head of a savegame.
+/// The first `size` bytes of a zlib stream's data (fewer if the data, or the part of the stream
+/// given, is shorter), without unpacking the rest: for the head of a savegame.
 [[nodiscard]] Result<std::vector<std::uint8_t>> zlib_inflate_prefix(std::span<const std::uint8_t> stream,
                                                                     std::size_t size);
 

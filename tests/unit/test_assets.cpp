@@ -283,6 +283,29 @@ TEST_CASE("file: a full disk is an error, and an atomic write keeps the old file
     fs::remove_all(dir, ec);
 }
 
+TEST_CASE("file: the head of a file is its first bytes, with the size of the whole") {
+    namespace fs = std::filesystem;
+    const fs::path dir = test::temp_path("o1602_test_head");
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    REQUIRE(fs::create_directories(dir));
+    std::vector<std::uint8_t> data(1000);
+    for (std::size_t i = 0; i < data.size(); ++i) {
+        data[i] = static_cast<std::uint8_t>(i);
+    }
+    REQUIRE(core::write_file_atomic(dir / "a.bin", data).ok());
+    const auto head = core::read_file_head(dir / "a.bin", 100);
+    REQUIRE(head.ok());
+    CHECK(head->size == 1000);
+    CHECK(head->bytes == std::vector<std::uint8_t>(data.begin(), data.begin() + 100));
+    const auto whole = core::read_file_head(dir / "a.bin", 5000);
+    REQUIRE(whole.ok());
+    CHECK(whole->bytes == data);
+    CHECK(!core::read_file_head(dir / "missing.bin", 100).ok());
+    CHECK(!core::read_file_head(dir, 100).ok());
+    fs::remove_all(dir, ec);
+}
+
 TEST_CASE("file: paths go to and from UTF-8 unchanged (a user named Juergen)") {
     namespace fs = std::filesystem;
     const std::string name = "J\xC3\xBCrgen";  // "Jürgen" in UTF-8

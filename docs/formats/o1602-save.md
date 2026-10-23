@@ -133,7 +133,9 @@ reads them all; `apply.cpp` checks what was read against the world and applies i
 ## Limits of this version
 
 - A world has at most 4096 tiles per side (a larger one is refused when reading). The unpacked
-  sections have at most 256 MiB; a larger game is neither written nor read.
+  sections have at most 20 bytes per tile of the world (`MAPW` needs that much for land) plus
+  128 MiB, and never more than 1 GiB; a file without `META` at most 256 MiB. A larger game is not
+  written (refused before it is packed) and a file promising more is refused before it is unpacked.
 - Islands are addressed by their number (8 bit) in some sections: every island needs a number of its
   own (`validate` refuses two with the same number). An island can be larger than 255 × 255 tiles (up to the
   world size): its craters and deer spots then use version 2 of `ISLE` and `VOLC`. Such a game cannot

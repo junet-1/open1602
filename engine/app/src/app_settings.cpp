@@ -294,8 +294,9 @@ void read_slot_meta(SaveSlots& slots, const std::filesystem::path& folder, std::
         if (slots.names[i].empty()) {
             continue;
         }
-        if (const auto bytes = core::read_file(slot_file(folder, i))) {
-            if (const auto info = sim::save_info(*bytes)) {
+        // Only the head of each file: a list of large games starts quickly (FB-15).
+        if (const auto head = core::read_file_head(slot_file(folder, i), sim::kSaveInfoHead)) {
+            if (const auto info = sim::save_info(head->bytes, head->size)) {
                 slots.meta[i] = info->meta;
             }
         }
