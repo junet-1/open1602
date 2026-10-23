@@ -41,6 +41,8 @@ struct PanelContext {
     ui::UnitSelection* units = nullptr;
     /// How players are shown (coats of arms in their colour); without it the white ones.
     const render::BannerTable* banners = nullptr;
+    /// The goods trend under the stock of a Kontor (DisplaySettings::goods_trend).
+    bool goods_trend = false;
     [[nodiscard]] const sim::World& world() const noexcept { return simulation.world(); }
     /// The banner of a player, nothing if there is no such player or table.
     [[nodiscard]] const render::Banner* banner(sim::PlayerId p) const {
@@ -82,10 +84,13 @@ public:
     /// What the window asks of the interface beyond commands (once).
     struct Request {
         /// FoundKontor: the building tool places a Kontor; SelectShip: select `ship` and look at it;
-        /// Centre: look at world tile (x, y).
-        enum class Kind : std::uint8_t { FoundKontor, SelectShip, Centre };
+        /// Centre: look at world tile (x, y); Goods: the page of `ware` in the window "Warenbilanz",
+        /// for the cities on `island`.
+        enum class Kind : std::uint8_t { FoundKontor, SelectShip, Centre, Goods };
         Kind kind = Kind::FoundKontor;
         std::uint32_t ship = 0;  ///< FoundKontor: the ship whose cargo pays
+        std::uint8_t ware = 0;
+        std::uint16_t island = 0;
         double x = 0.0;
         double y = 0.0;
     };

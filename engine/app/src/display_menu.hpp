@@ -27,11 +27,11 @@ class DisplayMenu {
 public:
     enum class Result : std::uint8_t { None, Changed, Close };
     /// The rows, top to bottom.
-    enum class Item : std::uint8_t { Mode, WindowSize, UiScale, Zoom, ZoomDrawing, Vsync };
-    static constexpr std::size_t kItems = 6;
+    enum class Item : std::uint8_t { Mode, WindowSize, UiScale, Zoom, ZoomDrawing, Vsync, GoodsTrend };
+    static constexpr std::size_t kItems = 7;
     /// The window's size in design units (it is centred over the map).
     static constexpr std::int32_t kWidth = 560;
-    static constexpr std::int32_t kHeight = 470;
+    static constexpr std::int32_t kHeight = 510;
 
     explicit DisplayMenu(ui::FormStyle style = {}) : m_form(style) {}
 

@@ -40,10 +40,17 @@ inline const sim::City* city_at(const Selection& s, const PanelContext& c) {
 /// (StockPanel_Refresh 0x00434810).
 class StockList {
 public:
+    /// Minutes the goods trend is averaged over (the window "Warenbilanz" opens on the same).
+    static constexpr std::uint32_t kTrendMinutes = 5;
+
     explicit StockList(assets::GadgetLayout layout);
     [[nodiscard]] ui::Panel& panel() noexcept { return m_panel; }
-    /// As a picker, the 24th place shows the empty frame that chooses no ware.
-    void refresh(const sim::City& city, bool picker);
+    /// As a picker, the 24th place shows the empty frame that chooses no ware. With `trend`, under
+    /// each good what came in more than went out per minute over the last kTrendMinutes (green), or
+    /// the other way round (red); nothing while it is less than 0.05 t (DisplaySettings::goods_trend).
+    void refresh(const sim::City& city, bool picker, bool trend = false);
+    /// The trend of a good as shown: "+1.4", "-0.3"; empty if it is not shown.
+    [[nodiscard]] static std::string trend_text(const sim::City& city, std::uint8_t ware);
     /// The ware of a frame: 2..24, 0 for the empty frame, nothing for other gadgets.
     [[nodiscard]] std::optional<std::uint8_t> ware_of(std::int32_t id) const;
 

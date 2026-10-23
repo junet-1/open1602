@@ -64,6 +64,13 @@ public:
         m_detail.reset();
         m_scroll = 0;
     }
+    /// Opens on the page of `ware` for the player's cities on `island` (a click on the good in a
+    /// Kontor's stock).
+    void open_ware(std::uint8_t ware, std::uint16_t island) noexcept {
+        m_detail = ware;
+        m_island = island;
+        m_scroll = 0;
+    }
     /// Escape: from a good's page back to the table; false on the table (the window closes).
     bool back() noexcept {
         if (!m_detail) {

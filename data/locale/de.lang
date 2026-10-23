@@ -432,6 +432,7 @@ display.zoom_drawing = Zwischen den Stufen
 display.zoom_smooth = scharf und weich
 display.zoom_pixels = einfache Pixel
 display.vsync = V-Sync
+display.goods_trend = Warentrend im Kontor
 display.on = an
 display.off = aus
 display.hint = Jede Größe: am Fensterrand ziehen. Vollbild: F11 oder Alt+Eingabe. Zoom: Mausrad, doppelt oder halb so groß mit Strg+Plus und Strg+Minus.
@@ -500,6 +501,7 @@ stats.supply_value = {1} % (Bedarf {2} t/Min)
 stats.working = {1} von {2} arbeiten
 stats.short_of_raw = {1} ohne Rohstoffe
 stats.switched_off = {1} abgeschaltet
+stats.kontor_help = {1} t/Min in den letzten {2} Min, Klick zeigt die Warenbilanz
 
 message.running_low = {1} wird knapp in {2}: reicht noch etwa {3} Min
 

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <utility>
 
 #include "panel_common.hpp"
 
@@ -13,6 +14,7 @@
 #include "o1602/sim/mission.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/ui/build_menu.hpp"
+#include "o1602/ui/localization.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -395,7 +397,7 @@ public:
                 }
                 break;
             case Page::Stock:
-                m_lager.refresh(*city, false);
+                m_lager.refresh(*city, false, c.goods_trend);
                 break;
         }
     }
@@ -450,8 +452,20 @@ public:
             }
             return;
         }
+        if (m_page == Page::Stock) {
+            // Open1602's own: a good of the stock opens its page in the window "Warenbilanz".
+            const std::optional<std::uint8_t> w = m_lager.ware_of(e.id);
+            if (e.kind == ui::PanelEvent::Kind::Clicked && w && *w != 0 && city->owner == c.local) {
+                Request r;
+                r.kind = Request::Kind::Goods;
+                r.ware = *w;
+                r.island = city->island;
+                m_request = r;
+            }
+            return;
+        }
         if (m_page != Page::Kontor) {
-            return;  // the stock list only shows
+            return;
         }
         const std::vector<std::uint8_t> list = wares(*city);
         const std::int32_t slots = slot_count(*city, c);
@@ -532,6 +546,12 @@ public:
         }
         if (m_page == Page::Stock || m_picker) {
             const std::optional<std::uint8_t> w = m_lager.ware_of(id);
+            if (w && *w != 0 && m_page == Page::Stock) {
+                const std::string trend = StockList::trend_text(*city, *w);
+                return stock_text(*w) + " - " +
+                       ui::tr("stats.kontor_help",
+                              {trend.empty() ? std::string("0") : trend, std::to_string(StockList::kTrendMinutes)});
+            }
             if (w && *w != 0) {
                 return stock_text(*w);
             }
@@ -566,6 +586,8 @@ public:
                 return std::nullopt;
         }
     }
+
+    std::optional<Request> take_request() override { return std::exchange(m_request, std::nullopt); }
 
 private:
     enum class Page : std::uint8_t { City, Kontor, Stock };
@@ -699,6 +721,7 @@ private:
     ui::Panel m_stadt;
     ui::Panel m_kontor;
     StockList m_lager;
+    std::optional<Request> m_request;
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 192;
     std::int32_t m_balance_icon = 0;

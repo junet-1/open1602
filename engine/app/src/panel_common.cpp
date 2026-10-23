@@ -4,7 +4,10 @@
 #include <algorithm>
 #include <string_view>
 
+#include "goods_window.hpp"
+
 #include "o1602/sim/ships.hpp"
+#include "o1602/ui/font.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app::panel_detail {
@@ -18,9 +21,47 @@ constexpr std::int32_t kLFrame = 44079;
 constexpr std::int32_t kLMarker = 44109;
 constexpr std::int32_t kLCorner = 44139;
 constexpr std::int32_t kLDeadSlider = 44171;
+// Open1602's own: the goods trend under each icon, in green and in red, on a dark ground.
+constexpr std::int32_t kLTrendUp = 44301;
+constexpr std::int32_t kLTrendDown = 44331;
+constexpr std::int32_t kLTrendGround = 44361;
+
+/// LAGER.GAD with small text at the foot of every good's icon, left of its bar, in green or in
+/// red, on a half dark ground so that it reads over the picture.
+assets::GadgetLayout with_trend(assets::GadgetLayout layout) {
+    for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
+        const assets::Gadget* icon = layout.find(kLIcon + w);
+        if (icon == nullptr) {
+            continue;
+        }
+        assets::Gadget ground;
+        ground.id = kLTrendGround + w;
+        ground.kind = assets::GadgetKind::Fill;
+        ground.no_select = true;
+        ground.half = true;
+        ground.color = {0, 0};  // black
+        ground.pos = {icon->pos[0] + 2, icon->pos[1] + icon->size[1] - 15};
+        ground.size = {38, 13};
+        layout.gadgets.push_back(ground);
+        assets::Gadget g;
+        g.kind = assets::GadgetKind::TextLeft;
+        g.no_select = true;
+        g.block = 1;  // ZEILITTLE
+        g.pos = icon->pos;
+        g.size = {40, icon->size[1]};
+        g.offset = {4, static_cast<std::int16_t>(icon->size[1] - 3)};
+        g.id = kLTrendUp + w;
+        g.color = {ui::kTextBrightGreen, ui::kTextBrightGreen};
+        layout.gadgets.push_back(g);
+        g.id = kLTrendDown + w;
+        g.color = {ui::kTextBrightRed, ui::kTextBrightRed};
+        layout.gadgets.push_back(g);
+    }
+    return layout;
+}
 }  // namespace
 
-StockList::StockList(assets::GadgetLayout layout) : m_panel(std::move(layout), 1.0) {
+StockList::StockList(assets::GadgetLayout layout) : m_panel(with_trend(std::move(layout)), 1.0) {
     const assets::GadgetLayout& l = m_panel.layout();
     m_gfx_ware = l.constant("GFXWARE").value_or(192);
     m_gfx_empty = l.constant("GFXWARELEER").value_or(188) + kEmptyHold;
@@ -32,10 +73,22 @@ StockList::StockList(assets::GadgetLayout layout) : m_panel(std::move(layout), 1
     m_panel.set_visible(kLCorner + kLastTradeWare + 1, false);  // never shown
 }
 
-void StockList::refresh(const sim::City& city, bool picker) {
+std::string StockList::trend_text(const sim::City& city, std::uint8_t ware) {
+    const sim::FlowTotals t = city.ledger.totals(ware, kTrendMinutes);
+    const std::string text = GoodsWindow::rate_text(t.net(), t.minutes, true);
+    return text == "0" || text == "-" ? std::string() : text;
+}
+
+void StockList::refresh(const sim::City& city, bool picker, bool trend) {
     m_panel.set_text(kLTitle, city.name);
     const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city.capacity, 1));
     for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
+        const std::string rate = trend && !picker ? trend_text(city, w) : std::string();
+        const bool up = !rate.empty() && rate.front() == '+';
+        m_panel.set_visible(kLTrendGround + w, !rate.empty());
+        m_panel.set_visible(kLTrendUp + w, up);
+        m_panel.set_visible(kLTrendDown + w, !rate.empty() && !up);
+        m_panel.set_text(up ? kLTrendUp + w : kLTrendDown + w, rate);
         const sim::City::Trade* t = city.trade_of(w);
         m_panel.set_graphic(kLIcon + w, m_gfx_ware + w, 0);
         m_panel.set_slider(kLBar + w, 1, static_cast<std::int32_t>(city.stock(w)), cap);

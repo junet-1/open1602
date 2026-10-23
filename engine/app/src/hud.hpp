@@ -241,6 +241,8 @@ public:
         m_display_changed = false;
     }
     void close_display() noexcept { m_display_open = false; }
+    /// The goods trend under the stock of a Kontor (DisplaySettings::goods_trend).
+    void set_goods_trend(bool on) noexcept { m_goods_trend = on; }
     [[nodiscard]] bool display_open() const noexcept { return m_display_open; }
     /// Keeps the window's size the window shows up to date (the player drags the edge meanwhile).
     void set_display_window(WindowSize size) noexcept { m_display_model.window = size; }
@@ -444,6 +446,7 @@ private:
     bool m_goods_open = false;
     std::vector<std::uint8_t> m_goods_parchment;  ///< its ground, RGBA (parchment.hpp)
     std::uint8_t m_goods_shadow = 0;
+    bool m_goods_trend = true;
     /// The window "Warenbilanz" on the screen (centred on the map).
     [[nodiscard]] ui::Rect goods_rect() const;
     double m_menu_scale = 1.0;  ///< of the menus over the whole window: as large as fits

@@ -28,12 +28,15 @@ struct TextColour {
     std::array<std::uint8_t, 3> body{};
     std::array<std::uint8_t, 3> shadow{};
 };
-inline constexpr std::size_t kTextColours = 14;
+inline constexpr std::size_t kTextColours = 16;
 /// Open1602's inks on parchment: dark brown, faded, green (more coming in) and red (more going out).
 inline constexpr std::int32_t kTextInk = 10;
 inline constexpr std::int32_t kTextInkFaded = 11;
 inline constexpr std::int32_t kTextInkGreen = 12;
 inline constexpr std::int32_t kTextInkRed = 13;
+/// Open1602's bright green and red with a black shadow, over the original's art (the Kontor's stock).
+inline constexpr std::int32_t kTextBrightGreen = 14;
+inline constexpr std::int32_t kTextBrightRed = 15;
 [[nodiscard]] const TextColour& text_colour(std::size_t index) noexcept;
 
 /// Nearest palette colour by squared RGB distance, the first of equals (0x004031B0).

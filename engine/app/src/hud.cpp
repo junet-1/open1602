@@ -382,7 +382,7 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
         return nullptr;
     }
     context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local,
-                                 m_units, m_banners});
+                                 m_units, m_banners, m_goods_trend});
     return m_selection_panels->panel_for(m_selection, *context);
 }
 
@@ -1131,6 +1131,13 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
                         break;
                     case SelectionPanel::Request::Kind::Centre:
                         action = Action{Action::Kind::Message, r->x, r->y};
+                        break;
+                    case SelectionPanel::Request::Kind::Goods:
+                        if (m_goods) {
+                            m_goods->open_ware(r->ware, r->island);
+                            m_goods_open = true;
+                            m_display_open = false;
+                        }
                         break;
                 }
             }

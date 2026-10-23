@@ -1510,6 +1510,9 @@ void MapViewer::apply_display(const DisplaySettings& display) {
     if (display.vsync != before.vsync) {
         m_window->set_vsync(display.vsync);
     }
+    if (m_hud) {
+        m_hud->set_goods_trend(display.goods_trend);
+    }
     if (display.free_zoom != before.free_zoom) {
         m_zoom_target = 0.0;
         if (!display.free_zoom) {
@@ -2038,6 +2041,7 @@ void MapViewer::load_options() {
     if (!m_hud) {
         return;
     }
+    m_hud->set_goods_trend(m_app_settings.display.goods_trend);
     OptionsModel& model = m_hud->options_model();
     model.audio = m_app_settings.audio;
     model.mission_window = m_app_settings.mission_window;

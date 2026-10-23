@@ -74,6 +74,12 @@ before a good the people need runs out.
    - It is drawn on a parchment like the original's windows: a sandstone ground made once from a
      fixed seed (`app/parchment.hpp`) under ink-coloured text (`ui::kTextInk` and its green and
      red), with the form's grounds at half strength (`ui::FormStyle::translucent`).
+7. **The trend at the Kontor.** The stock page of one's own Kontor or market (LAGER.GAD) shows at
+   the foot of each good's icon what came in more than went out per minute over the last 5 game
+   minutes of that city, green, or the other way round, red, on a half dark ground; nothing while
+   it is below 0.05 t. A click on a good opens its page in the window "Warenbilanz" for the
+   city's island. The trend is a setting of the window "Anzeige" (`display.goods_trend` in
+   settings.cfg, on at first), since it adds to the original's picture.
 
 ## Consequences
 
