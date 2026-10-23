@@ -144,6 +144,8 @@ public:
 
     /// Island tile under the mouse, nullopt over the sea.
     [[nodiscard]] std::optional<BuildTool::Spot> spot_at_mouse() const;
+    /// The ship or land unit under the mouse, as a click would pick it.
+    [[nodiscard]] std::optional<ui::UnitRef> unit_at_mouse() const { return unit_at(m_mouse_x, m_mouse_y); }
     [[nodiscard]] double mouse_x() const noexcept { return m_mouse_x; }
     [[nodiscard]] double mouse_y() const noexcept { return m_mouse_y; }
     [[nodiscard]] ui::UnitSelection& units() noexcept { return m_units; }

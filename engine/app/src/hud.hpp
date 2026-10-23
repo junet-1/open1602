@@ -123,9 +123,8 @@ public:
     }
     /// Text of the status line when the mouse is on no gadget (the build tool's report).
     void set_status(std::string text) { m_status = std::move(text); }
-    /// The status line over grass and trees of an explored island (0x0040A3D0, Text.cod GAME 22):
-    /// "Geeignet für: Tabak: 100% - ...", for the climate's three crops (ware, fertility in percent).
-    [[nodiscard]] std::string crops_line(const std::array<std::pair<std::uint8_t, std::uint32_t>, 3>& crops) const;
+    /// The texts of Text.cod the windows show, null before they are loaded.
+    [[nodiscard]] const assets::TextTable* texts() const noexcept { return m_texts ? &*m_texts : nullptr; }
     /// The view rotation for the compass, 0..3.
     void set_rotation(std::uint8_t r) noexcept { m_rotation = r; }
     /// The rotation of the building to place (the preview turns with it).
