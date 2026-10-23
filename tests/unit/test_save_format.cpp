@@ -499,13 +499,14 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
         v(s.near_island);
         v(s.source_slot);
         s.motion.phase = static_cast<sim::ShipMotion::Phase>(v.below(5));
-        v(s.motion.count);
+        // A run, where the phase is one, must start and end on the map (validate).
+        s.motion.count = static_cast<std::uint8_t>(v.below(16));
         v(s.motion.elapsed_us);
         v(s.motion.duration_us);
-        v(s.motion.from_x);
-        v(s.motion.from_y);
+        s.motion.from_x = static_cast<std::int32_t>(16 * 4096 + v.below(368 * 4096));
+        s.motion.from_y = static_cast<std::int32_t>(16 * 4096 + v.below(268 * 4096));
         s.motion.path = {v.next<std::uint8_t>(), v.next<std::uint8_t>(), v.next<std::uint8_t>()};
-        v(s.motion.path_index);
+        s.motion.path_index = static_cast<std::uint8_t>(v.below(4));
         v(s.motion.radius);
         v(s.motion.failures);
         v(s.motion.turn_to);
@@ -544,13 +545,13 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
         v(s.source_slot);
         s.motion.phase = static_cast<sim::SoldierMotion::Phase>(v.below(5));
         s.motion.direction = static_cast<std::uint8_t>(v.below(8));
-        v(s.motion.count);
+        s.motion.count = static_cast<std::uint8_t>(v.below(129));
         v(s.motion.elapsed_us);
         v(s.motion.duration_us);
-        v(s.motion.from_x);
-        v(s.motion.from_y);
+        s.motion.from_x = static_cast<std::int32_t>(70 * 4096 + v.below(260 * 4096));
+        s.motion.from_y = static_cast<std::int32_t>(70 * 4096 + v.below(160 * 4096));
         s.motion.path = {v.next<std::uint8_t>(), v.next<std::uint8_t>()};
-        v(s.motion.path_index);
+        s.motion.path_index = static_cast<std::uint8_t>(v.below(3));
         world.add_soldier(s);
     }
     world.set_next_soldier_id(12);
@@ -776,9 +777,9 @@ constexpr Golden kSaveNarrow[] = {
     {"ANIM", 1, 1, 20, 0x86AEF97B},
     {"DISA", 1, 1, 30, 0x5BCDD397},
     {"VOLC", 1, 1, 122, 0x1FEE9F6C},
-    {"FLEE", 1, 1, 1289, 0xDB13FE9E},
+    {"FLEE", 1, 1, 1289, 0xCD0A3C2E},
     {"EPOC", 1, 1, 9, 0xD322D3E6},
-    {"ARMY", 1, 1, 842, 0x9D932289},
+    {"ARMY", 1, 1, 842, 0x53D74BB0},
     {"DIPL", 1, 1, 1640, 0xE500956A},
     {"XPLR", 1, 1, 46, 0xC4686738},
     {"QUEU", 1, 1, 148, 0x52E1525C},
@@ -810,9 +811,9 @@ constexpr Golden kSaveWide[] = {
     {"ANIM", 1, 1, 20, 0x45A8858E},
     {"DISA", 1, 1, 30, 0x3FF2904C},
     {"VOLC", 2, 1, 126, 0x3DB4583E},
-    {"FLEE", 3, 1, 2475, 0x359C3A4F},
+    {"FLEE", 3, 1, 2475, 0x78D4078B},
     {"EPOC", 1, 1, 11, 0xFD024085},
-    {"ARMY", 1, 1, 842, 0xC84ED2BD},
+    {"ARMY", 1, 1, 842, 0x21ECF2E9},
     {"DIPL", 1, 1, 1640, 0xE77D58A7},
     {"XPLR", 1, 1, 67, 0x743711C9},
     {"QUEU", 1, 1, 148, 0x58163040},
@@ -843,9 +844,9 @@ constexpr Golden kChunkNarrow[] = {
     {"ANIM", 1, 1, 20, 0x86AEF97B},
     {"DISA", 1, 1, 30, 0x5BCDD397},
     {"VOLC", 1, 1, 122, 0x1FEE9F6C},
-    {"FLEE", 1, 1, 1289, 0xDB13FE9E},
+    {"FLEE", 1, 1, 1289, 0xCD0A3C2E},
     {"EPOC", 1, 1, 9, 0xD322D3E6},
-    {"ARMY", 1, 1, 842, 0x9D932289},
+    {"ARMY", 1, 1, 842, 0x53D74BB0},
     {"DIPL", 1, 1, 1640, 0xE500956A},
     {"XPLR", 1, 1, 46, 0xC4686738},
     {"QUEU", 1, 1, 148, 0x52E1525C},
@@ -875,9 +876,9 @@ constexpr Golden kChunkWide[] = {
     {"ANIM", 1, 1, 20, 0x45A8858E},
     {"DISA", 1, 1, 30, 0x3FF2904C},
     {"VOLC", 2, 1, 126, 0x3DB4583E},
-    {"FLEE", 3, 1, 2475, 0x359C3A4F},
+    {"FLEE", 3, 1, 2475, 0x78D4078B},
     {"EPOC", 1, 1, 11, 0xFD024085},
-    {"ARMY", 1, 1, 842, 0xC84ED2BD},
+    {"ARMY", 1, 1, 842, 0x21ECF2E9},
     {"DIPL", 1, 1, 1640, 0xE77D58A7},
     {"XPLR", 1, 1, 67, 0x743711C9},
     {"QUEU", 1, 1, 148, 0x58163040},

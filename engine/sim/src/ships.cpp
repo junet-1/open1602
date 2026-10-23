@@ -117,8 +117,11 @@ Fleet::Fleet(World& world, const assets::BuildingTable& buildings, const assets:
     m_sea.rebuild(world, buildings);
     for (Ship& s : world.ships()) {
         const assets::FigureType* type = type_of(s);
-        if (type != nullptr && (s.health == 0 || s.health > type->ship.max_health) && type->ship.max_health != 0) {
-            s.health = type->ship.max_health;  // older files have no health
+        // Older files have no health; a sinking ship has 0 on purpose and keeps it, or a game loaded
+        // during a sea battle would differ from the running one until the ship is gone.
+        if (type != nullptr && ((s.health == 0 && !s.sinking) || s.health > type->ship.max_health) &&
+            type->ship.max_health != 0) {
+            s.health = type->ship.max_health;
         }
         if (s.cargo.empty()) {
             s.cargo.resize(type != nullptr && type->ship.cargo_slots != 0 ? type->ship.cargo_slots : 1U);

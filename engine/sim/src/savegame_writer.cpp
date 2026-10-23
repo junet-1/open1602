@@ -1074,8 +1074,9 @@ private:
             r[0x4B] = owner_byte(s.owner);
             const auto record = m_trader_records.find(s.id);
             r[0x4C] = record != m_trader_records.end() ? record->second : std::uint8_t{0};
-            const World::Cell& cell = m_world.cell(s.x, s.y);
-            r[0x4D] = cell.island == World::kSea ? std::uint8_t{0xFF} : number(cell.island);
+            const bool on_map = m_world.contains(s.x, s.y);
+            const std::uint16_t island = on_map ? m_world.cell(s.x, s.y).island : World::kSea;
+            r[0x4D] = island == World::kSea ? std::uint8_t{0xFF} : number(island);
             // SHIP4 has the original's four stops of three wares; the others travel in the chunk O1602
             // only.
             r[0x4F] = s.route.current < TradeRoute::kOriginalStops ? s.route.current : std::uint8_t{0};

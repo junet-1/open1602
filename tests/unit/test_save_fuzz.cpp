@@ -487,6 +487,57 @@ TEST_CASE("save fuzz: a section that does not match the size of the one it compl
     CHECK(refused.error().message.find("explored islands do not match") != std::string::npos);
 }
 
+TEST_CASE("save fuzz: a missing core section, a section twice or bytes left over refuse the file") {
+    Game game;
+    const std::vector<Section> sections = sections_of(game.file);
+    const auto span_of = [&](const Section& s) {
+        return std::pair{game.file.begin() + static_cast<std::ptrdiff_t>(s.at),
+                         game.file.begin() + static_cast<std::ptrdiff_t>(s.at + kSectionHeader + s.size)};
+    };
+    const auto without = [&](std::string_view tag) {
+        const Section* s = find(sections, tag);
+        REQUIRE(s != nullptr);
+        const auto [from, to] = span_of(*s);
+        core::Bytes file(game.file.begin(), from);
+        file.insert(file.end(), to, game.file.end());
+        reseal(file);
+        return file;
+    };
+    const auto twice = [&](std::string_view tag) {
+        const Section* s = find(sections, tag);
+        REQUIRE(s != nullptr);
+        const auto [from, to] = span_of(*s);
+        core::Bytes file(game.file.begin(), to);
+        file.insert(file.end(), from, to);
+        file.insert(file.end(), to, game.file.end());
+        reseal(file);
+        return file;
+    };
+    const auto longer = [&](std::string_view tag) {
+        const Section* s = find(sections, tag);
+        REQUIRE(s != nullptr);
+        const auto [from, to] = span_of(*s);
+        core::Bytes file(game.file.begin(), to);
+        file.push_back(0);
+        file.insert(file.end(), to, game.file.end());
+        put_u32(file, s->at + 8, s->size + 1);
+        reseal(file);
+        return file;
+    };
+    REQUIRE(sim::read_game(game.file, game.buildings, nullptr, &game.figures).ok());
+    for (const char* tag : {"WRLD", "ISLE", "PLAY"}) {
+        CHECK(!sim::read_game(without(tag), game.buildings, nullptr, &game.figures).ok());
+    }
+    for (const char* tag : {"PLAY", "QUEU", "STNC", "CITY"}) {
+        auto refused = sim::read_game(twice(tag), game.buildings, nullptr, &game.figures);
+        REQUIRE(!refused.ok());
+        CHECK(refused.error().message.find("twice") != std::string::npos);
+    }
+    for (const char* tag : {"PLAY", "CITY", "FLEE", "ARMY", "DIPL"}) {
+        CHECK(!sim::read_game(longer(tag), game.buildings, nullptr, &game.figures).ok());
+    }
+}
+
 TEST_CASE("save fuzz: the chunk in a .GAM refuses a required section of a later version, unchanged world") {
     Game game;
     const std::vector<std::uint8_t> before = {'s', 'o', 'm', 'e', ' ', 'c', 'h', 'u', 'n', 'k', 's'};

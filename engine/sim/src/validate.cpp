@@ -7,6 +7,10 @@
 #include <string>
 #include <vector>
 
+#include "o1602/sim/sea_paths.hpp"
+#include "o1602/sim/soldier.hpp"
+#include "o1602/sim/target.hpp"
+
 namespace o1602::sim {
 
 namespace {
@@ -33,6 +37,19 @@ public:
             }
         }
         return true;
+    }
+
+    /// A position in 1/4096 tile on the map.
+    [[nodiscard]] bool position(std::int64_t x, std::int64_t y) const noexcept {
+        return x >= 0 && y >= 0 && x < std::int64_t{m_w.width()} * kShipUnit &&
+               y < std::int64_t{m_w.height()} * kShipUnit;
+    }
+    /// A run of `count` steps of `unit` from (x, y) in `direction` starts and ends on the map, so
+    /// that every point between, where a tick may put the unit, is on it too (HI-19).
+    [[nodiscard]] bool run(std::int32_t x, std::int32_t y, std::uint8_t direction, std::uint8_t count,
+                           std::int32_t unit) const noexcept {
+        const std::int64_t way = std::int64_t{count} * unit;
+        return position(x, y) && position(x + step_x(direction) * way, y + step_y(direction) * way);
     }
 
 private:
@@ -108,6 +125,11 @@ core::Status validate(const World& w) {
         if (!w.contains(ship.x, ship.y) || !c.owner(ship.owner)) {
             return bad("ship " + std::to_string(ship.id) + " outside the map or of an unknown player");
         }
+        const ShipMotion& m = ship.motion;
+        if ((m.phase == ShipMotion::Phase::Run && !c.run(m.from_x, m.from_y, ship.direction, m.count, kShipUnit)) ||
+            m.path_index > m.path.size()) {
+            return bad("ship " + std::to_string(ship.id) + " under way off the map");
+        }
     }
     for (const Soldier& s : w.soldiers()) {
         const bool inside =
@@ -115,6 +137,11 @@ core::Status validate(const World& w) {
             w.contains(static_cast<std::uint32_t>(s.pos_x) >> 12U, static_cast<std::uint32_t>(s.pos_y) >> 12U);
         if (!inside || !c.owner(s.owner) || (s.island != 0xFFFF && !c.island(s.island))) {
             return bad("unit " + std::to_string(s.id) + " outside the map or of an unknown player");
+        }
+        const SoldierMotion& m = s.motion;
+        if ((m.phase == SoldierMotion::Phase::Run && !c.run(m.from_x, m.from_y, m.direction, m.count, kCellUnit)) ||
+            m.path_index > m.path.size()) {
+            return bad("unit " + std::to_string(s.id) + " under way off the map");
         }
     }
     if (!ids_unique(w.ships(), w.next_ship_id()) || !ids_unique(w.soldiers(), w.next_soldier_id())) {
