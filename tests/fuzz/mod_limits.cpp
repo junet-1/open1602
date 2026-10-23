@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// o1602_mod_limits [bomb]
+// o1602_mod_limits [bomb | objfill]
 //
 // Measures how the loaders of modded data treat values at and beyond the limits of
 // docs/modding/data-limits.md: synthetic haeuser.cod, figuren.cod and .gad files, one value
@@ -8,7 +8,8 @@
 // Run it in a UBSan build to see the values that overflow inside the loader. A building table that
 // loads with extreme values is then used in a small running game (built, saved, loaded, validated).
 //
-// "bomb" also runs the inputs that need a lot of memory (nested ObjFill, a GAD Nummer of 2^31);
+// "bomb" also runs the inputs that need a lot of memory (a GAD Nummer of 2 * 10^8, then nested
+// ObjFill), "objfill" only the nested ObjFill;
 // run those under a memory limit (ulimit -v).
 #include <cstdint>
 #include <cstdio>
@@ -134,7 +135,7 @@ void buildings_cases() {
          [](const assets::BuildingType& b) { return "resident_class=" + std::to_string(b.resident_class); }},
         {"  Objekt: HAUS_PRODTYP\n    Erzbergnr: 300\n  EndObj", "range of the field: clamped",
          [](const assets::BuildingType& b) { return "ore_mountain=" + std::to_string(b.ore_mountain); }},
-        {"  Objekt: HAUS_PRODTYP\n    Prodmenge: 1e30\n  EndObj", "range of the field: clamped",
+        {"  Objekt: HAUS_PRODTYP\n    Prodmenge: 999999999999.0\n  EndObj", "range of the field: clamped",
          [](const assets::BuildingType& b) { return "produce_amount=" + std::to_string(b.produce_amount); }},
         {"  Objekt: HAUS_PRODTYP\n    Interval: 2147483647\n  EndObj", "range of the field: clamped",
          [](const assets::BuildingType& b) { return "interval=" + std::to_string(b.interval); }},
@@ -148,7 +149,7 @@ void buildings_cases() {
          [](const assets::BuildingType& b) { return "walk_speed[0]=" + std::to_string(b.walk_speed[0]); }},
         {"  Randwachs: 20000000", "range of the field: clamped",
          [](const assets::BuildingType& b) { return "edge_growth=" + std::to_string(b.edge_growth); }},
-        {"  Maxenergy: 1e12", "range of the field: clamped (saturating_cast)",
+        {"  Maxenergy: 999999999999.0", "range of the field: clamped (saturating_cast)",
          [](const assets::BuildingType& b) { return "max_health=" + std::to_string(b.max_health); }},
         {"  Rotate: 4000000000", "number beyond int32: clamped",
          [](const assets::BuildingType& b) { return "rotate=" + std::to_string(b.rotate); }},
@@ -183,10 +184,17 @@ void buildings_cases() {
     }
     // A decimal beyond int32
     {
-        const auto doc = assets::cod::parse("Wert = 1e20\nNeg = -1e20\n");
-        const auto* w = doc.root.field("Wert");
-        row("both", "1e20 / -1e20", "range of int32: clamped",
-            "symbols=" + std::to_string(doc.symbols.all().size()) + (w != nullptr ? " field" : ""));
+        const auto doc = assets::cod::parse("Wert = 99999999999999999999.5\nNeg = -99999999999999999999.5\n");
+        std::string obs;
+        for (const char* name : {"Wert", "Neg"}) {
+            const auto it = doc.symbols.all().find(name);
+            obs += std::string(name) + "=" +
+                   (it != doc.symbols.all().end() && it->second.count >= 1
+                        ? std::to_string(it->second.values[0].integer)
+                        : std::string("?")) +
+                   " ";
+        }
+        row("both", "+-99999999999999999999.5", "range of int32: clamped", obs);
     }
 }
 
@@ -203,8 +211,8 @@ void figures_cases() {
     };
     for (const Field& f : {Field{"  Maxtrag: 200000000", "range of the field: clamped"},
                            Field{"  Maxware: 1000", "range of the field: clamped"},
-                           Field{"  Worktime: 1e12", "range of the field: clamped"},
-                           Field{"  Shotradius: 1e15", "range of the field: clamped"},
+                           Field{"  Worktime: 999999999999.0", "range of the field: clamped"},
+                           Field{"  Shotradius: 999999999999.0", "range of the field: clamped"},
                            Field{"  Speed: -10", "(not documented)"},
                            Field{"  Rotate: 0", "(not documented)"}}) {
         const std::string text = std::string("Objekt: FIGUR\n  Nummer: 5\n") + f.line + "\nEndObj\n";
@@ -306,41 +314,44 @@ void game_with_extremes() {
         row("game", "extreme table", "loads", "refused: " + table.error().message);
         return;
     }
-    sim::World world(600, 600);
-    sim::IslandMap map(255, 255);
-    for (std::int32_t y = 0; y < 255; ++y) {
-        for (std::int32_t x = 0; x < 255; ++x) {
-            (void)map.place(*table->by_id(20101), x, y, 0, 0);
+    // Island 0: the 255 x 255 producer covers it whole; island 1: the building of Nummer 65535.
+    sim::World world(700, 400);
+    std::string obs;
+    for (std::uint16_t i = 0; i < 2; ++i) {
+        sim::IslandMap map(255, 255);
+        for (std::int32_t y = 0; y < 255; ++y) {
+            for (std::int32_t x = 0; x < 255; ++x) {
+                (void)map.place(*table->by_id(20101), x, y, 0, 0);
+            }
+        }
+        map.capture_ground();
+        const auto status = i == 0 ? map.build(*table->by_id(23500), 0, 0, 0, 0, 0, 0)
+                                   : map.build(*table->by_id(20000), 10, 10, 0, 0, 0, 0);
+        obs += std::string(i == 0 ? "255x255" : "Nummer 65535") + (status ? " placed, " : " NOT placed, ");
+        assets::IslandHeader header;
+        header.number = static_cast<std::uint8_t>(i);
+        header.width = 255;
+        header.height = 255;
+        if (auto added = world.add_island(sim::WorldIsland{header, std::move(map), 20U + 300U * i, 20}); !added) {
+            obs += "island refused: " + added.error().message + ", ";
         }
     }
-    map.capture_ground();
-    assets::IslandHeader header;
-    header.number = 0;
-    header.width = 255;
-    header.height = 255;
-    (void)world.add_island(sim::WorldIsland{header, std::move(map), 20, 20});
     std::vector<sim::Player> players(2);
     players[0].role = sim::PlayerRole::Human;
     players[0].money = 1'000'000;
     players[1].role = sim::PlayerRole::Computer;
     world.set_players(players);
+    sim::City city;
+    city.island = 0;
+    city.index = 0;
+    city.owner = 0;
+    city.name = "Mod";
+    world.add_city(city);
     const assets::FigureTable figures;
     sim::Simulation simulation(world, *table, figures);
-    sim::BuildOrder big;
-    big.player = sim::kNoPlayer;
-    big.island = 0;
-    big.items = {{23500, 0, 0, 0, 0}};
-    const auto r1 = simulation.execute(big);
-    sim::BuildOrder small;
-    small.player = sim::kNoPlayer;
-    small.island = 0;
-    small.items = {{20000, 0, 0, 0, 0}};
-    const auto r2 = simulation.execute(small);
     for (int t = 0; t < 200; ++t) {
         simulation.tick();
     }
-    std::string obs = "255x255 built: " + std::string(r1.build && r1.build->placed > 0 ? "yes" : "no") +
-                      ", 20000 built: " + std::string(r2.build && r2.build->placed > 0 ? "yes" : "no");
     const auto valid = sim::validate(world);
     obs += valid ? ", valid after 200 ticks" : ", INVALID: " + valid.error().message;
     auto saved = sim::write_game(world, *table, &simulation, sim::SaveOptions{false});
@@ -357,6 +368,10 @@ void game_with_extremes() {
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (argc > 1 && std::strcmp(argv[1], "objfill") == 0) {
+        objfill_bomb();  // alone, so that its memory can be measured
+        return 0;
+    }
     const bool bomb = argc > 1 && std::strcmp(argv[1], "bomb") == 0;
     std::setvbuf(stdout, nullptr, _IOLBF, 0);  // every row is out before a sanitizer stops the program
     std::printf("| File | Value | data-limits.md | Observed |\n|---|---|---|---|\n");

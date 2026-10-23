@@ -22,10 +22,16 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
 
     static const app::AppSettings defaults;
     const app::AppSettings settings = app::parse_settings(text, defaults);
-    const std::string written = app::write_settings(settings);
+    // One round may still normalise (bytes Windows-1252 leaves undefined become U+FFFD when
+    // written and are dropped when read back); from then on the file must stay as it is.
+    const std::string first = app::write_settings(settings);
+    const std::string written = app::write_settings(app::parse_settings(first, defaults));
     const std::string again = app::write_settings(app::parse_settings(written, defaults));
     if (again != written) {
-        std::fprintf(stderr, "--- first\n%s--- second\n%s", written.c_str(), again.c_str());
+        std::fputs("--- first\n", stderr);
+        std::fwrite(written.data(), 1, written.size(), stderr);
+        std::fputs("--- second\n", stderr);
+        std::fwrite(again.data(), 1, again.size(), stderr);
         fuzz::fail("settings.cfg written, read and written again differ");
     }
 

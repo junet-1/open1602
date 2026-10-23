@@ -17,6 +17,7 @@ if [ $# -lt 3 ]; then
     echo "usage: $0 <build-dir> <seconds-per-target> <work-dir> [target ...]" >&2
     exit 2
 fi
+here=$(cd "$(dirname "$0")" && pwd)
 build=$1
 seconds=$2
 work=$3
@@ -36,17 +37,21 @@ run_one() {
     if [ -d "$work/seeds/$t" ]; then
         cp -n "$work/seeds/$t"/* "$corpus"/ 2>/dev/null
     fi
+    local extra=()
+    local dict="$here/../../tests/fuzz/$t.dict"
+    if [ -f "$dict" ]; then
+        extra+=(-dict="$dict")
+    fi
+    if [ "${FUZZ_KEEP_GOING:-0}" = 1 ]; then
+        # Long runs: one fuzzing process at a time that is restarted after each finding.
+        extra+=(-fork=1 -ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1)
+    fi
     # -rss_limit_mb / -malloc_limit_mb: a single input that asks for more is a finding (hostile
     # files must not make the game allocate gigabytes). -timeout: one input slower than 10 s is one.
     ASAN_OPTIONS=${ASAN_OPTIONS:-detect_leaks=1:allocator_may_return_null=0} \
     UBSAN_OPTIONS=${UBSAN_OPTIONS:-print_stacktrace=1:halt_on_error=1} \
-    local keep_going=()
-    if [ "${FUZZ_KEEP_GOING:-0}" = 1 ]; then
-        # Long runs: one fuzzing process at a time that is restarted after each finding.
-        keep_going=(-fork=1 -ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1)
-    fi
     "$build/tests/fuzz/fuzz_$t" -max_total_time="$seconds" -timeout=10 -rss_limit_mb=2048 \
-        -malloc_limit_mb=1024 -print_final_stats=1 -artifact_prefix="$artifacts/" "${keep_going[@]}" "$corpus" \
+        -malloc_limit_mb=1024 -print_final_stats=1 -artifact_prefix="$artifacts/" "${extra[@]}" "$corpus" \
         >"$work/$t.log" 2>&1
     local rc=$?
     local found
