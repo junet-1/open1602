@@ -121,7 +121,8 @@ are listed in 2.1.
 
 | What | Where |
 |---|---|
-| **Bugs of the original**: 217 entries in the catalogue (counted 2026-10-23), most of them fixed or avoided, some switchable as a rule (S-097 to S-099 since 2026-10-22) or kept; open are only T-009 (Wine) and the data patches | [bugs.md](re/bugs.md) |
+| **Bugs of the original**: 217 entries in the catalogue (counted 2026-10-23), most of them fixed or avoided, some switchable as a rule (S-097 to S-099 since 2026-10-22) or kept; open is only T-009 (Wine) | [bugs.md](re/bugs.md) |
+| **Corrections of the original's data** (2026-10-23): the bakery's building sound (`Backer.wav`, D-001), the pirate Kontor's flag (D-002), the accents of capitals above the letter instead of a line below it (D-012), a place of its own for every unit of the block formation (D-014); applied to the tables after loading, only where the data still has the original's value; off with `data_fixes = off` in `settings.cfg` or `--original-data` | [ADR 0006](architecture/0006-handling-original-bugs.md), [bugs.md](re/bugs.md) |
 | **Settings** (`sim::Rules`, in the savegame): refund on demolition, ships per player (100, original 33), units per player (250, original 100), raw material guarantee, highest game speed (8, original 4), droughts, volcanoes, pirates, pirate nests per four players, trader prices, free trader's reach | [ADR 0008](architecture/0008-game-settings.md) |
 | **Custom worlds** (world generator stage 1): 200–2000 fields per side, number of islands, mix of sizes, villages, volcanic islands, gold islands (automatic or a fixed number), starting areas; chunk `O1602MAP` | [worldgen.md](re/worldgen.md) |
 | **Own save format `.o1602`**: full state (map, clocks, randomness, figures, fires, lava, diplomacy, exploration, ships, soldiers, AI) without limits, canonical, CRC-32, zlib; a saved game continues exactly. Exported `.GAM` files carry the same state in the chunk `O1602` | [o1602-save.md](formats/o1602-save.md), [o1602-chunk.md](formats/o1602-chunk.md) |
@@ -151,7 +152,6 @@ are listed in 2.1.
 | Scripts post the mods' messages (`MapViewer::announce`) | Lua (M8) | [messages.md](modding/messages.md) |
 | Lua scripts, custom scenarios and campaigns | M8, scenarios | ADR 0007 |
 | World generator stage 2 (custom island shapes, including ones larger than the templates) | deferred until everything runs | [00-plan.md](00-plan.md) |
-| Data patches for `.cod` bugs (D-001, D-002, D-012, D-014), switchable | mechanism missing | [bugs.md](re/bugs.md), ADR 0006 |
 | Replays from the session's frames | M6 | [ADR 0011](architecture/0011-multiplayer-lockstep.md) |
 | Ideas: full refund shortly after building; own road pathfinding alongside that of the original; pirate distance of the difficulty level as a setting (S-068) | open, decision needed | – |
 

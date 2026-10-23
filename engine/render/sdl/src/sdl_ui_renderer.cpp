@@ -34,7 +34,7 @@ std::vector<std::uint8_t> checker_pixels() {
 }  // namespace
 
 SdlUiRenderer::SdlUiRenderer(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,
-                             ui::ArtSize size)
+                             ui::ArtSize size, bool data_fixes)
     : m_renderer(renderer), m_palette(palette), m_size(size), m_texts(kMaxTexts) {
     for (std::int32_t b = 0; b < static_cast<std::int32_t>(m_sheets.size()); ++b) {
         if (const auto path = game.resolve(ui::sheet_file(b, size))) {
@@ -46,6 +46,9 @@ SdlUiRenderer::SdlUiRenderer(SDL_Renderer* renderer, const assets::GameDirectory
     for (std::int32_t f = 0; f < static_cast<std::int32_t>(m_fonts.size()); ++f) {
         if (auto font = ui::Font::load(game, ui::font_file(f, size))) {
             font->set_design_scale(ui::art_scale(size));
+            if (data_fixes) {
+                (void)font->fix_accents();
+            }
             m_fonts[static_cast<std::size_t>(f)] = std::move(font).value();
         }
     }
@@ -228,8 +231,8 @@ SdlUiRenderer::Texture SdlUiRenderer::text(const std::string& s, std::int32_t fo
                             : nullptr;
     if (f != nullptr) {
         assets::IndexedImage canvas;
-        canvas.width = f->width(s) + 2;  // glyphs may overhang the last advance
-        canvas.height = f->height();
+        canvas.width = f->width(s) + 2;            // glyphs may overhang the last advance
+        canvas.height = f->height() + f->above();  // the accents above the cell (D-012)
         canvas.indices.assign(std::size_t{canvas.width} * canvas.height, 0);
         canvas.opaque.assign(canvas.indices.size(), 0);
         const ui::Recolour& recolour = m_colours[static_cast<std::size_t>(std::clamp(colour, 0, 9))];

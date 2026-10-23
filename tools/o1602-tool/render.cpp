@@ -14,6 +14,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/chunk_file.hpp"
+#include "o1602/assets/data_fixes.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
@@ -164,6 +165,10 @@ int cmd_render_world(const Args& args) {
     auto figures = assets::FigureTable::load(*game);
     if (!figures) {
         return fail(figures.error());
+    }
+    if (!args.flag("--original-data")) {
+        (void)assets::fixes::fix_buildings(*buildings);
+        (void)assets::fixes::fix_figures(*figures);
     }
     // --build "ID@X,Y[,R];..." places buildings for the first human player (world tiles).
     if (const auto it = args.options.find("--build"); it != args.options.end()) {

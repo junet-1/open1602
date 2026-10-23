@@ -179,6 +179,8 @@ public:
         std::int32_t y = 0;
     };
     [[nodiscard]] const std::vector<std::vector<FormationSlot>>& formations() const noexcept { return m_formations; }
+    /// The same for corrections of the data after loading (data_fixes.hpp).
+    [[nodiscard]] std::vector<std::vector<FormationSlot>>& formations() noexcept { return m_formations; }
 
     [[nodiscard]] const FigureType* get(std::uint32_t number) const noexcept {
         return number < m_types.size() && m_types[number].defined ? &m_types[number] : nullptr;

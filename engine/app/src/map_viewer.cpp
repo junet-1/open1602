@@ -19,6 +19,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cursor_resource.hpp"
+#include "o1602/assets/data_fixes.hpp"
 #include "o1602/assets/high_scores.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
@@ -166,6 +167,22 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     if (!figures) {
         return figures.error();
     }
+    // settings.cfg as it was left: how the window opens (the rest is read with load_options()) and
+    // whether the original's data is corrected, before anything draws from the tables.
+    AppSettings remembered;
+    if (auto bytes = core::read_file(data_folder() / "settings.cfg")) {
+        remembered = parse_settings(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()), {});
+    }
+    const bool data_fixes = remembered.data_fixes && !options.original_data;
+    if (data_fixes) {
+        std::vector<std::string_view> fixed = assets::fixes::fix_buildings(*buildings);
+        for (const std::string_view id : assets::fixes::fix_figures(*figures)) {
+            fixed.push_back(id);
+        }
+        for (const std::string_view id : fixed) {
+            std::fprintf(stderr, "data fix %.*s\n", static_cast<int>(id.size()), id.data());
+        }
+    }
     std::vector<std::string> warnings;
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
@@ -236,12 +253,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         return sdl.error();
     }
     viewer->m_sdl = std::move(sdl).value();
-    // How the game was shown last time (the rest of settings.cfg is read with load_options()):
-    // the window opens as it was left. --size wins over the size remembered.
-    if (auto bytes = core::read_file(data_folder() / "settings.cfg")) {
-        viewer->m_app_settings.display =
-            parse_settings(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()), {}).display;
-    }
+    // The window opens as it was left; --size wins over the size remembered.
+    viewer->m_app_settings.display = remembered.display;
     const DisplaySettings& display = viewer->m_app_settings.display;
     platform::WindowConfig config;
     config.title = "Open1602";
@@ -287,8 +300,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     }
     if (options.frame) {
         const auto texts = assets::TextTable::load(game);
-        viewer->m_hud =
-            Hud::create(viewer->m_window->sdl_renderer(), game, viewer->m_palette, texts ? &texts.value() : nullptr);
+        viewer->m_hud = Hud::create(viewer->m_window->sdl_renderer(), game, viewer->m_palette,
+                                    texts ? &texts.value() : nullptr, data_fixes);
         if (!viewer->m_hud) {
             std::fprintf(stderr, "no panel: the interface's files are missing\n");
         } else {

@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "o1602/assets/cod_parser.hpp"
@@ -189,6 +190,10 @@ public:
 
     [[nodiscard]] const std::vector<BuildingType>& types() const noexcept { return m_types; }
     [[nodiscard]] const BuildingType* by_id(std::uint32_t id) const noexcept;
+    /// The same for corrections of the data after loading (data_fixes.hpp).
+    [[nodiscard]] BuildingType* by_id(std::uint32_t id) noexcept {
+        return const_cast<BuildingType*>(std::as_const(*this).by_id(id));
+    }
     /// Building whose base sprite range [gfx, gfx + tile_count) contains `sprite`.
     [[nodiscard]] const BuildingType* by_sprite(std::uint32_t sprite) const noexcept;
     /// Building by its Nummer in haeuser.cod. Crops are three records in a row: growing, ripe

@@ -26,7 +26,7 @@ namespace o1602::audio {
 
 /// The original's sound numbers (WAV_* of the .cod files, 0..91).
 using SampleId = std::uint16_t;
-inline constexpr std::size_t kSampleCount = 92;
+inline constexpr std::size_t kSampleCount = 93;  ///< the original's 92 and Open1602's kWavBakery
 inline constexpr SampleId kWavNothing = 0;
 inline constexpr SampleId kWavDeadGuy = 11;        ///< a unit killed
 inline constexpr SampleId kWavSelect = 34;         ///< a click on the panel
@@ -35,7 +35,10 @@ inline constexpr SampleId kWavSoldierAttack = 73;  ///< + 0..5
 inline constexpr SampleId kWavShipAttack = 79;     ///< + 0..3
 inline constexpr SampleId kWavSoldierMove = 83;    ///< + 0..3
 inline constexpr SampleId kWavShipMove = 87;       ///< + 0..4
-inline constexpr SampleId kWavTest = 58;           ///< "Test" of the effects' volume (plantage.wav, 0x0049572D)
+/// Open1602 (D-001): SAMPLES/Backer.wav, which the original never loads, for the bakery that names
+/// the undefined WAV_BAECKER (assets::fixes::kBakerySound).
+inline constexpr SampleId kWavBakery = 92;
+inline constexpr SampleId kWavTest = 58;  ///< "Test" of the effects' volume (plantage.wav, 0x0049572D)
 
 /// File of a sound relative to the game directory ("SAMPLES/kanone5.wav"), nothing for the
 /// numbers the original leaves silent (GameInit 0x00494870).

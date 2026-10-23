@@ -73,6 +73,8 @@ struct ViewerOptions {
     bool derive_small_figures = true;
     /// The original red/blue/yellow/white flag images instead of the tinted generic flag.
     bool original_flags = false;
+    /// The original's data without the corrections settings.cfg `data_fixes` switches on.
+    bool original_data = false;
     /// The window's size (--size); 0: the size it had last time (settings.cfg), else 1280 x 800.
     std::int32_t width = 0;
     std::int32_t height = 0;
