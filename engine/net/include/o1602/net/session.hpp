@@ -103,6 +103,10 @@ struct SessionConfig {
     /// (Host migration) How long a computer whose host left tries to get into the successor's game;
     /// the successor may notice the host's leaving a few seconds later than the others.
     std::uint32_t migration_ms = 30'000;
+    /// (After a broken connection, not a host that left on purpose) How long a computer tries to get
+    /// back into its host's game, with its token, before it takes the host for gone and moves on to
+    /// the successor (MS-2). Needs ClientSession::reconnect_with().
+    std::uint32_t reconnect_ms = 10'000;
 };
 
 enum class EndReason : std::uint8_t {
@@ -132,6 +136,7 @@ struct SessionEvent {
         LobbyChanged,  ///< the lobby (slots, settings) changed, or it started
         Chat,          ///< `seat` (`name`) said `text`
         Dropped,       ///< `count` commands of this computer's player were not carried out (too many at once)
+        Reconnecting,  ///< (computer) the connection to the host broke; it tries to get back in
     };
     Kind kind = Kind::Joined;
     Seat seat = sim::kNoPlayer;
@@ -429,6 +434,11 @@ public:
     void set_ready(bool ready);
     /// In the lobby: asks for `banner` (one of Lobby::banners) for this computer's slot.
     void set_banner(sim::BannerId banner);
+    /// How to connect to the host again: when the connection breaks in the running game (and the
+    /// host did not say it leaves), the computer tries to get back into its slot for
+    /// SessionConfig::reconnect_ms before it moves on to the successor. Without, it only moves on
+    /// when the host said it leaves.
+    void reconnect_with(Connect connect) { m_reconnect = std::move(connect); }
 
     /// Taken in by the host (in the lobby or the game).
     [[nodiscard]] bool welcomed() const noexcept { return m_welcomed; }
@@ -441,7 +451,9 @@ public:
     /// The host left the running game and it can move on: this computer hosts it next
     /// (hosts_next()), or follows the successor at successor_address().
     [[nodiscard]] bool can_migrate() const noexcept;
-    /// The host left and named this computer its successor, with what it needs (Standby).
+    /// The host left and named this computer its successor, with what it needs (Standby). Only
+    /// when the host said it leaves, or it could not be reached again (MS-2): a computer whose own
+    /// connection broke would host a second game beside the host's.
     [[nodiscard]] bool hosts_next() const noexcept;
     /// The name of the successor as the roster has it.
     [[nodiscard]] std::string successor_name() const;
@@ -456,6 +468,8 @@ private:
     void report(std::uint32_t real_ms);
     /// Sends what the host would admit now of m_outgoing.
     void send_commands();
+    /// The connection to the host broke: back into the slot with the token (m_reconnect).
+    void reconnect();
     /// Players in the game as the roster has them (the host's own too).
     [[nodiscard]] std::uint32_t players() const noexcept;
 
@@ -479,6 +493,10 @@ private:
     std::uint32_t m_since_report = 0;  ///< ms
     std::optional<Standby> m_standby;  ///< from the host, if it named this computer its successor
     Connect m_connect;                 ///< following a successor: connects again after a failure
+    Connect m_reconnect;               ///< to the host, after a broken connection (reconnect_with())
+    bool m_host_leaving = false;       ///< the host said it leaves (HostLeaving)
+    bool m_reconnecting = false;       ///< trying to get back to the host with m_connect
+    bool m_host_gone = false;          ///< it could not be reached again: as good as left
     std::uint32_t m_migration_ms = 0;  ///< since it began to follow
     std::uint32_t m_retry_ms = 0;      ///< since the last connection failed
 };

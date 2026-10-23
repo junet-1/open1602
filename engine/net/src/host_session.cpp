@@ -228,6 +228,8 @@ void HostSession::init_lobby() {
 }
 
 HostSession::~HostSession() {
+    // Leaving on purpose: the others move on to the successor at once (MS-2).
+    broadcast(HostLeaving{m_successor_address});
     for (const auto& p : m_peers) {
         m_transport->disconnect(p->link);
     }
@@ -419,6 +421,11 @@ void HostSession::receive(LinkId link, std::span<const std::uint8_t> bytes) {
     }
     if (bytes.size() > kMaxMessageToHost) {
         drop(*peer, RefuseReason::Invalid);  // a computer sends commands and reports, never games
+        return;
+    }
+    if (!peer->welcomed && bytes.size() >= 3 && bytes[0] == 0 &&
+        static_cast<std::uint16_t>(bytes[1] | (bytes[2] << 8)) != kProtocolVersion) {
+        drop(*peer, RefuseReason::Version);  // a Hello of another version, whatever follows (MS-22)
         return;
     }
     auto message = decode(bytes);
@@ -952,7 +959,14 @@ void HostSession::refresh_roster() {
         }
     }
     m_standby_changed = true;
-    broadcast(Roster{m_roster, m_successor, m_successor_address});
+    // The successor's address only to those who play: spectators get it when the host leaves (MS-25).
+    const std::vector<std::uint8_t> players = encode(Roster{m_roster, m_successor, m_successor_address});
+    const std::vector<std::uint8_t> spectators = encode(Roster{m_roster, m_successor, {}});
+    for (const auto& p : m_peers) {
+        if (!p->gone && p->welcomed) {
+            m_transport->send(p->link, p->seat != sim::kNoPlayer ? players : spectators);
+        }
+    }
 }
 
 void HostSession::hand_over() {
