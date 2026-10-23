@@ -30,8 +30,8 @@ Status 2026-10-22. What is still open is also listed in [status.md](status.md), 
 |---|---|
 | 1 Pirates | fixed in #58: the surrender events go out loot or not |
 | 2 Tutorial | fixed in #58: the computers of the tutorial stay idle (`TIMERS` +0xA5, savegame section `TUTR`); the tutorial windows, bubbles and speech followed ([tutorial.md](re/tutorial.md)) |
-| 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships, not yet checked again in a long run; the original's computer players are a setting (`Rules::classic_ai`), Open1602's stay the default |
-| 4 Rendering | not a difference: Open1602 was in build mode in that screenshot, which dims everything outside the own territory |
+| 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships; a six-hour run from `game00.gam` on 2026-10-23 gave each computer a warship within 30 minutes and six warships between them after six hours; the original's computer players are a setting (`Rules::classic_ai`), Open1602's stay the default |
+| 4 Rendering | not a difference: Open1602 was in build mode in that screenshot, which dims everything outside the own territory; the top bar shows the goods of the town under the mouse in both |
 | 7 Disasters | not a bug: the long fires of the original come from S-050 (a burning house catches fire again) and S-053 (the fire brigade also goes out for the plague), which Open1602 fixes on purpose |
 | 8, 9 | the notes are updated (#56, #12 and #13 of `open1602-re`) |
 | Other observations | the tool prints names as UTF-8 (#56); the driver `tools/original/original_wine.py` is not merged yet |
@@ -196,7 +196,10 @@ same in each step. Differences seen:
   should not apply here: the island is discovered and in view.
 - Open1602 shows the goods of the town in the top bar while the camera is over the island; the
   original showed only the gold in the same position (it shows the goods when the town is
-  selected).
+  selected). Follow-up: both show the goods of the town under the mouse cursor, not under the
+  camera; the original's hover handler `0x0040A190` stores the city of the tile under the mouse
+  (`0x006C3040`), which `Hud_DrawResourceBar 0x0040D160` shows. In the original's screenshot the
+  mouse was not over the town.
 
 Screenshots: `shots/cmp_rot1.png` (left the original, right Open1602), `b2_rot_grid.png` and
 `n1_rot_grid.png` (all four views).
