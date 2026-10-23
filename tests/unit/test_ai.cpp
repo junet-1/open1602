@@ -363,7 +363,7 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
-    constexpr std::uint64_t kExpected = 0xd68d39ab8c5fa1ebULL;  // with the goods statistics (GLDG, 16 flows)
+    constexpr std::uint64_t kExpected = 0x1e00d08465af95d8ULL;  // AI state version 2 (GB-5)
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }
@@ -409,7 +409,7 @@ TEST_CASE("ai: a saved state with values out of range is refused, not run") {
     {
         core::ByteReader in(bytes);
         sim::StateIn reader(in);
-        REQUIRE(reader.u32() == 1);
+        REQUIRE(reader.u32() == sim::ai::kStateVersion);
         sim::ai::Loader loader(reader);
         loader(good);
         REQUIRE(reader.ok());
@@ -417,7 +417,7 @@ TEST_CASE("ai: a saved state with values out of range is refused, not run") {
     }
     const auto loads = [&](sim::ai::State state) {
         core::ByteWriter out;
-        out.u32(1);
+        out.u32(sim::ai::kStateVersion);
         sim::ai::Saver saver(out);
         saver(state);
         const std::vector<std::uint8_t> data = out.take();
@@ -444,6 +444,33 @@ TEST_CASE("ai: a saved state with values out of range is refused, not run") {
     bad = good;
     bad.players[0].stack = {0xEE};
     CHECK(!loads(bad));
+}
+
+TEST_CASE("ai: a state of version 1 loads and goes on as the same state") {
+    Game g;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    run(s, 8'000);
+    const std::vector<std::uint8_t> now = saved(s.computers());
+    sim::ai::State state;
+    {
+        core::ByteReader in(now);
+        sim::StateIn reader(in);
+        REQUIRE(reader.u32() == sim::ai::kStateVersion);
+        sim::ai::Loader loader(reader);
+        loader(state);
+        REQUIRE(reader.ok());
+    }
+    // As version 1 wrote it: with an (empty) list of attack plans and a state byte per island.
+    core::ByteWriter old;
+    old.u32(1);
+    sim::ai::Saver saver(old, 1);
+    saver(state);
+    const std::vector<std::uint8_t> v1 = old.take();
+    CHECK(v1.size() > now.size());
+    core::ByteReader in(v1);
+    sim::ComputerPlayers computers(s);
+    REQUIRE(computers.load(in));
+    CHECK(saved(computers) == now);
 }
 
 TEST_CASE("ai: the names for new cities and ships travel with the saved game") {

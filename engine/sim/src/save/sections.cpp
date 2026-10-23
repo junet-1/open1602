@@ -105,6 +105,9 @@ constexpr std::uint16_t max_version(std::uint32_t id) noexcept {
     if (id == kFleet) {
         return kRouteWares;
     }
+    if (id == kScores) {
+        return kWideScores;
+    }
     return id == kIslands || id == kVolcanoes ? kWideCoordinates : 1;
 }
 
@@ -246,7 +249,8 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
         })) {
         section(out, kLedgers, [&](Writer& o) { write_ledgers(o, world); }, Need::Optional);
     }
-    section(out, kScores, [&](Writer& o) { write_scores(o, world); });
+    const std::uint16_t scores_at = scores_version(world);
+    section(out, kScores, [&](Writer& o) { write_scores(o, world, scores_at); }, Need::Required, scores_at);
     section(out, kProductions, [&](Writer& o) { write_productions(o, world); });
     section(out, kHouses, [&](Writer& o) { write_houses(o, world); });
     section(out, kGrowth, [&](Writer& o) { write_growth(o, world); });
@@ -411,7 +415,7 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 d.ledgers = read_ledgers(in);
                 break;
             case kScores:
-                d.scores = read_scores(in);
+                d.scores = read_scores(in, version);
                 break;
             case kProductions:
                 d.productions = read_productions(in);

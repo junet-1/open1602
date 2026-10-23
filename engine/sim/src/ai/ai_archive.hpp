@@ -20,8 +20,10 @@ namespace o1602::sim::ai {
 
 class Saver {
 public:
-    explicit Saver(core::ByteWriter& out) : m_out(out) {}
+    /// Writes the newest version; an older one only for the tests of the loader.
+    explicit Saver(core::ByteWriter& out, std::uint32_t version = kStateVersion) : m_out(out), m_version(version) {}
     static constexpr bool kLoading = false;
+    [[nodiscard]] std::uint32_t version() const { return m_version; }
     void operator()(bool& v) { m_out.boolean(v); }
     void operator()(std::uint8_t& v) { m_out.u8(v); }
     void operator()(std::uint16_t& v) { m_out.u16(v); }
@@ -64,12 +66,15 @@ public:
 
 private:
     core::ByteWriter& m_out;
+    std::uint32_t m_version;
 };
 
 class Loader {
 public:
-    explicit Loader(StateIn& in) : m_in(in) {}
+    explicit Loader(StateIn& in, std::uint32_t version = kStateVersion) : m_in(in), m_version(version) {}
     static constexpr bool kLoading = true;
+    /// The state version read.
+    [[nodiscard]] std::uint32_t version() const { return m_version; }
     void operator()(bool& v) { v = m_in.boolean(); }
     void operator()(std::uint8_t& v) { v = m_in.u8(); }
     void operator()(std::uint16_t& v) { v = m_in.u16(); }
@@ -113,6 +118,7 @@ public:
 
 private:
     StateIn& m_in;
+    std::uint32_t m_version;
 };
 
 template <class A>
@@ -271,7 +277,10 @@ void io(A& a, ShipNote& n) {
 
 template <class A>
 void io(A& a, IslandWatch& w) {
-    a(w.state);
+    if (a.version() < 2) {
+        std::uint8_t state = 0;  // read nowhere
+        a(state);
+    }
     a(w.next_ms);
 }
 
@@ -316,7 +325,10 @@ void io(A& a, AiPlayer& p) {
     a(p.recruit_cursor);
     a(p.target_cursor);
     a(p.previous_mood);
-    a(p.attacks);
+    if (a.version() < 2) {
+        std::vector<AttackPlan> attacks;  // never planned
+        a(attacks);
+    }
     a(p.diplomacy_ms);
     a(p.seen_treaties);
     a(p.diplomacy_due);

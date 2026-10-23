@@ -226,6 +226,31 @@ TEST_CASE("save game: the fingerprint of the running game sees every tile, and o
     CHECK(other.state_hash() == built);
 }
 
+TEST_CASE("save game: fight counters beyond 65 535 come back whole, smaller ones keep SCOR 1 (LC-9)") {
+    const auto buildings = make_buildings();
+    sim::World world = make_world(buildings);
+    REQUIRE(!world.players().empty());
+    {
+        auto narrow = sim::write_game(world, buildings, nullptr, sim::SaveOptions{false});
+        REQUIRE(narrow.ok());
+        CHECK(section_version(*narrow, "SCOR") == 1);
+    }
+    std::vector<sim::Player> players = world.players();
+    players[0].soldiers_killed = 100'000;
+    players[0].ships_lost = 70'000;
+    players[0].soldiers_lost = 5;
+    sim::add_count(players[0].soldiers_lost, 0xFFFFFFFFU);  // stops at the top, never wraps
+    world.set_players(players);
+    auto bytes = sim::write_game(world, buildings, nullptr, sim::SaveOptions{false});
+    REQUIRE(bytes.ok());
+    CHECK(section_version(*bytes, "SCOR") == 2);
+    auto loaded = sim::read_game(*bytes, buildings);
+    REQUIRE(loaded.ok());
+    CHECK(loaded->players()[0].soldiers_killed == 100'000);
+    CHECK(loaded->players()[0].ships_lost == 70'000);
+    CHECK(loaded->players()[0].soldiers_lost == 0xFFFFFFFFU);
+}
+
 TEST_CASE("save game: craters and deer spots beyond 255 tiles come back whole (SC-13)") {
     const auto buildings = make_buildings();
     // A world that fits 8 bits keeps version 1 of ISLE and VOLC: the bytes of earlier versions.

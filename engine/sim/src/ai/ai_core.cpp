@@ -21,7 +21,6 @@ namespace {
 
 constexpr std::uint64_t kReinitMs = 3'600'000;  // 0x00429070: re-init after 3600 s
 constexpr std::uint32_t kDiplomacyMs = 30'000;  // P+0x83 > 5: six phases of 5 s
-constexpr std::uint32_t kStateVersion = 1;
 
 /// Crop the first colony of a computer must grow fully (0x00429070), by its slot.
 std::uint8_t first_crop(PlayerId player) {
@@ -647,11 +646,12 @@ void ComputerPlayers::save(core::ByteWriter& out) const {
 
 bool ComputerPlayers::load(core::ByteReader& in) {
     StateIn reader(in);
-    if (reader.u32() != ai::kStateVersion || !reader.ok()) {
+    const std::uint32_t version = reader.u32();
+    if (!reader.ok() || version < ai::kFirstStateVersion || version > ai::kStateVersion) {
         return false;
     }
     ai::State state;
-    ai::Loader loader(reader);
+    ai::Loader loader(reader, version);
     loader(state);
     if (!reader.ok() || !m_engine->accepts(state)) {
         return false;

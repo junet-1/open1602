@@ -103,10 +103,12 @@ struct Player {
     /// Fights for the score (PLAYER4 +0x14 .. +0x1A, runtime +0x92 ..): soldiers this player killed
     /// and lost, ships it sank and lost. A sunk ship counts its soldiers aboard as killed and lost
     /// too. Kills count only for humans and computers (the pirates earn nothing).
-    std::uint16_t soldiers_killed = 0;
-    std::uint16_t soldiers_lost = 0;
-    std::uint16_t ships_sunk = 0;
-    std::uint16_t ships_lost = 0;
+    /// 32 bits (the original's 16 stop at 65 535, below the kills of a game with 100 000 soldiers);
+    /// the .GAM export writes them saturated to 16.
+    std::uint32_t soldiers_killed = 0;
+    std::uint32_t soldiers_lost = 0;
+    std::uint32_t ships_sunk = 0;
+    std::uint32_t ships_lost = 0;
     /// 5-s checks in a row with money below -1000 and no positive balance (40 = bankrupt) and
     /// with no city and no ship in a multiplayer game (40 = defeated). The original keeps one
     /// counter for both and never resets it (S-107).
@@ -131,6 +133,9 @@ struct Player {
 /// Adds to one of a player's counters, which stop at their largest value.
 constexpr void add_count(std::uint16_t& counter, std::uint32_t n) noexcept {
     counter = static_cast<std::uint16_t>(std::min<std::uint32_t>(std::uint32_t{counter} + n, 0xFFFF));
+}
+constexpr void add_count(std::uint32_t& counter, std::uint32_t n) noexcept {
+    counter = static_cast<std::uint32_t>(std::min<std::uint64_t>(std::uint64_t{counter} + n, 0xFFFFFFFFU));
 }
 
 /// Owner number of the original files (island tile attribute, SHIP4, PLAYER4 slot): 0..6 are the

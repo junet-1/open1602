@@ -87,6 +87,11 @@ constexpr std::array<std::int32_t, 512> make_sine() {
     return t;
 }
 constexpr std::array<std::int32_t, 512> kSine = make_sine();
+// The table is part of the game every computer must run the same (the lava's way): pinned, so
+// that a compiler that rounds the series above differently fails to build instead (DS-7).
+static_assert(kSine[0] == 0 && kSine[1] == 804 && kSine[43] == 33000 && kSine[85] == 56621);
+static_assert(kSine[128] == 65536 && kSine[200] == 41576 && kSine[300] == -33692 && kSine[384] == -65536);
+static_assert(kSine[511] == -804);
 
 std::int64_t sine(std::uint32_t i) noexcept {
     return kSine[i & 511U];

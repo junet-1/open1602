@@ -159,11 +159,14 @@ void io_game_end(A& a, E& end) {
 /// SCOR: the counters of a Player (writing) or of Decoded::ScorePart::Counters (reading), which has
 /// the same names.
 template <class A, class P>
-void io_score_counters(A& a, P& p) {
-    a.u16(p.soldiers_killed);
-    a.u16(p.soldiers_lost);
-    a.u16(p.ships_sunk);
-    a.u16(p.ships_lost);
+void io_score_counters(A& a, P& p, std::uint16_t version) {
+    for (auto* counter : {&p.soldiers_killed, &p.soldiers_lost, &p.ships_sunk, &p.ships_lost}) {
+        if (version >= kWideScores) {
+            a.u32(*counter);
+        } else {
+            a.u16(*counter);
+        }
+    }
 }
 
 /// SCOR: the monument clock of a City (writing) or of Decoded::ScorePart::CityClock (reading).
@@ -292,14 +295,22 @@ Decoded::MissionPart read_missions(Reader& in, std::size_t islands) {
     return part;
 }
 
-void write_scores(Writer& out, const World& w) {
-    out.list(w.players(), 8, [&](const Player& p) { io_score_counters(out, p); });
+std::uint16_t scores_version(const World& w) {
+    const bool wide = std::ranges::any_of(w.players(), [](const Player& p) {
+        return std::max({p.soldiers_killed, p.soldiers_lost, p.ships_sunk, p.ships_lost}) > 0xFFFF;
+    });
+    return wide ? kWideScores : 1;
+}
+
+void write_scores(Writer& out, const World& w, std::uint16_t version) {
+    out.list(w.players(), version >= kWideScores ? 16 : 8,
+             [&](const Player& p) { io_score_counters(out, p, version); });
     out.list(w.cities(), 15, [&](const City& c) { io_city_clock(out, c); });
 }
 
-Decoded::ScorePart read_scores(Reader& in) {
+Decoded::ScorePart read_scores(Reader& in, std::uint16_t version) {
     Decoded::ScorePart part;
-    in.list(part.players, 8, [&](auto& p) { io_score_counters(in, p); });
+    in.list(part.players, version >= kWideScores ? 16 : 8, [&](auto& p) { io_score_counters(in, p, version); });
     in.list(part.cities, 15, [&](auto& c) { io_city_clock(in, c); });
     return part;
 }
