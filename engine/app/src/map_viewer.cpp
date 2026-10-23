@@ -581,6 +581,10 @@ int MapViewer::run() {
                     e.key.mod = in.mod;
                     e.key.down = true;
                     break;
+                case ViewerOptions::ScriptedInput::Kind::Text:
+                    e.type = SDL_EVENT_TEXT_INPUT;
+                    e.text.text = in.text.c_str();  // the options outlive the event
+                    break;
                 case ViewerOptions::ScriptedInput::Kind::Wheel:
                     e.type = SDL_EVENT_MOUSE_WHEEL;
                     e.wheel.y = static_cast<float>(in.key);

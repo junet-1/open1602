@@ -107,7 +107,7 @@ struct ViewerOptions {
     bool menu = false;
     /// Mouse input played at given frames (smoke tests of the interface without a person).
     struct ScriptedInput {
-        enum class Kind : std::uint8_t { Move, Down, Up, Key, Wheel };
+        enum class Kind : std::uint8_t { Move, Down, Up, Key, Wheel, Text };
         Kind kind = Kind::Move;
         std::uint32_t frame = 0;
         float x = 0.0F;
@@ -115,6 +115,7 @@ struct ViewerOptions {
         std::int32_t key = 0;   ///< Key: SDL key code; Wheel: notches (up: zoom in)
         std::uint16_t mod = 0;  ///< Key: SDL_KMOD_CTRL, SDL_KMOD_SHIFT
         bool right = false;     ///< Down/Up: the right button
+        std::string text;       ///< Text: typed as the platform's text input (UTF-8)
     };
     std::vector<ScriptedInput> input;
     /// Select the building on this island tile at the start (island index, x, y) and look at it.
