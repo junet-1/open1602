@@ -70,7 +70,13 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
         fuzz::require(saved.ok(), "a loaded .GAM saves");
         auto again = sim::read_game(*saved, fuzz::buildings(), nullptr, &fuzz::figures());
         if (!again) {
-            std::fprintf(stderr, "%s\n", again.error().message.c_str());
+            std::fprintf(stderr, "%s\nworld %ux%u, %zu islands:\n", again.error().message.c_str(), world->width(),
+                         world->height(), world->islands().size());
+            for (const auto& i : world->islands()) {
+                std::fprintf(stderr, "  #%u %ux%u at %u,%u template %u size %u climate %u\n", i.header.number,
+                             i.map.width(), i.map.height(), i.x, i.y, i.header.template_number,
+                             i.header.template_size, i.header.climate);
+            }
             fuzz::fail("a loaded .GAM saved as .o1602 loads again");
         }
     }
