@@ -43,7 +43,7 @@ Status 2026-10-22. What is still open is also listed in [status.md](status.md), 
   subreaper. That keeps it the ancestor of `1602.exe`, so with Yama `ptrace_scope` 1 it may read
   and write `/proc/<pid>/mem`. Windows addresses are Linux addresses under Wine, so the game's
   globals could be read live (game time `0x005B6040`, players `0x005B7680` + 0x280·p, cities
-  `0x005DBAE0` + 0x258·i, ships `0x004CF358` + 0x218·i, islands `0x005E6B20` + 0x2C00·i,
+  `0x005DBAE0` + 0x258·i, ships `0x004CF358` + 0x218·i, islands `0x005E6B20` + 0xB00·i,
   disasters `0x005A5100`).
 - One instance ran in Merlin's installation (the 3-hour endless game). Three more ran in copies of
   the prefix and the game folder, so that loading Merlin's savegames and poking timers changed

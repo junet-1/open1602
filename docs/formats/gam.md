@@ -192,7 +192,7 @@ is the count in Merlin01 after a few minutes of play.
 
 | Chunk | Record | Writer | Runtime table | Contents |
 |---|---|---|---|---|
-| `INSEL5`, `INSELHAUS` | [scp.md](scp.md) | `0x00468740` | islands `0x005E6B20` (0x2C00 each) | island header, two tile layers |
+| `INSEL5`, `INSELHAUS` | [scp.md](scp.md) | `0x00468740` | islands `0x005E6B20` (0xB00 each) | island header, two tile layers |
 | `HIRSCH2` | 8 | `0x00468740` | island + 0x6C, 8 per island | deer: island number, x, y, –, u32 timer in ms (153) |
 | `PLAYER4` | 0x430 | `0x00478363` | – | players (above) |
 | `SHIP4` | 0x1B4 | `0x004600C0` | `0x004CF358`, 150 × 0x218 | ships (above, 14) |
