@@ -61,6 +61,14 @@ std::optional<std::uint16_t> wish_message(std::uint8_t infra) {
     }
 }
 
+/// „Es fehlt an …“ by the goods' order, food (0x34) to jewellery (0x3B); other goods have none.
+std::optional<std::uint16_t> shortage_message(std::uint8_t ware) {
+    if (ware >= sim::ware::kFood && ware <= sim::ware::kJewellery) {
+        return static_cast<std::uint16_t>(0x34 + ware - sim::ware::kFood);
+    }
+    return std::nullopt;
+}
+
 }  // namespace
 
 std::array<std::pair<std::uint8_t, std::uint32_t>, 3> island_crops(const sim::WorldIsland& island) {
@@ -147,11 +155,21 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
             }
         } else if (e.kind == sim::CityEvent::Kind::Population) {
             out.emplace_back(announce(e.message));
+        } else if (e.kind == sim::CityEvent::Kind::RunningLow) {
+            std::fprintf(stderr, "%s: ware %u lasts about %u more minutes\n", name.c_str(), e.ware, e.minutes);
+            if (const auto message = shortage_message(e.ware)) {
+                Announcement a = announce(*message);
+                const std::string ware =
+                    e.ware < m_ware_names.size() ? m_ware_names[e.ware] : "#" + std::to_string(e.ware);
+                a.text =
+                    ui::tr("message.running_low", {ware, name, std::to_string(std::max<std::uint16_t>(e.minutes, 1))});
+                out.emplace_back(std::move(a));
+            }
         } else {
             std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
-            // „Es fehlt an …“ by the goods' order, food (0x34) to jewellery (0x3B).
-            if (e.ware >= sim::ware::kFood && e.ware <= sim::ware::kJewellery) {
-                out.emplace_back(announce(static_cast<std::uint16_t>(0x34 + e.ware - sim::ware::kFood)));
+            // Told already, before the store ran empty (RunningLow).
+            if (const auto message = shortage_message(e.ware); message && !e.warned) {
+                out.emplace_back(announce(*message));
             }
         }
     }

@@ -206,6 +206,7 @@ void Fleet::pirates_step() {
             City* nest = m_world->city(found.island, found.index);
             if (nest != nullptr && nest->stock(ware::kFood) > kNestFoodMin) {
                 nest->goods[ware::kFood] -= kNestFoodCost;
+                nest->book(ware::kFood, GoodsFlow::Residents, kNestFoodCost);
                 pirate_nest_sales(*nest);
             }
         }

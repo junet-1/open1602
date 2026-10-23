@@ -131,6 +131,32 @@ void finish_cycle(Production& p, const assets::BuildingType& b, std::uint32_t in
     }
 }
 
+namespace {
+
+/// What an ended cycle made and used, in its city's goods statistics (GoodsLedger). Markets and
+/// warehouses only pass goods on.
+void book_cycle(World& world, const Production& before, const Production& after, const assets::BuildingType& b,
+                std::uint8_t city_index) {
+    if (!is_producer(b)) {
+        return;
+    }
+    City* city = world.city(after.island, city_index);
+    if (city == nullptr) {
+        return;
+    }
+    if (after.stock > before.stock && is_trade_ware(b.ware)) {
+        city->book(b.ware, GoodsFlow::Produced, after.stock - before.stock);
+    }
+    if (before.raw > after.raw && is_trade_ware(b.raw_ware)) {
+        city->book(b.raw_ware, GoodsFlow::Workshops, before.raw - after.raw);
+    }
+    if (before.raw2 > after.raw2 && is_trade_ware(b.raw2_ware)) {
+        city->book(b.raw2_ware, GoodsFlow::Workshops, before.raw2 - after.raw2);
+    }
+}
+
+}  // namespace
+
 void advance_production(World& world, const assets::BuildingTable& buildings, std::vector<ProductionEvent>* events) {
     std::vector<Production>& list = world.productions();
     for (std::size_t i = 0; i < list.size(); ++i) {
@@ -149,7 +175,9 @@ void advance_production(World& world, const assets::BuildingTable& buildings, st
         if (b == nullptr) {
             continue;
         }
+        const Production before = p;
         finish_cycle(p, *b, static_cast<std::uint32_t>(i), events);
+        book_cycle(world, before, p, *b, cell.city);
     }
 }
 

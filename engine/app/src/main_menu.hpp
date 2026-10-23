@@ -120,7 +120,7 @@ public:
     bool open_mission(std::string_view name);
 
     /// The screen's gadgets, relative to the full screen region.
-    [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts);
+    [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, ui::kFontSlots>& fonts);
     /// The right button only reaches the start dialog's settings.
     std::vector<MenuEvent> mouse(std::int32_t x, std::int32_t y, bool down,
                                  ui::MouseButton button = ui::MouseButton::Left);

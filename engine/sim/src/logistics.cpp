@@ -985,6 +985,7 @@ void Logistics::deliver(Walker& w) {
         const std::uint32_t room = city->capacity > city->goods[w.ware] ? city->capacity - city->goods[w.ware] : 0;
         const std::uint32_t added = std::min<std::uint32_t>(w.load, room);
         city->goods[w.ware] += added;
+        city->book(w.ware, GoodsFlow::Lost, w.load - added);
         if (hb->type->prod_kind == static_cast<std::int32_t>(ProductionKind::Markt)) {
             // The market counts deliveries for its stalls (0x0047D940 -> +0x10).
             home.produced = clamp_u16(home.produced + added);

@@ -623,7 +623,7 @@ void MainMenu::refresh_colour() {
     }
 }
 
-std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, 3>& fonts) {
+std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, ui::kFontSlots>& fonts) {
     ui::Panel* p = panel();
     if (p == nullptr) {
         return {};

@@ -25,6 +25,14 @@ constexpr std::array<TextColour, kTextColours> kColours = {{
     {{240, 230, 190}, {25, 15, 9}},
     {{115, 51, 12}, {129, 131, 64}},
     {{235, 0, 0}, {88, 35, 9}},
+    // Open1602's inks on parchment
+    {{48, 30, 12}, {222, 206, 166}},
+    {{110, 85, 55}, {214, 194, 150}},
+    {{0, 120, 30}, {222, 206, 166}},
+    {{170, 20, 10}, {222, 206, 166}},
+    // Open1602's bright colours over the original's art
+    {{100, 240, 70}, {0, 0, 0}},
+    {{255, 90, 60}, {0, 0, 0}},
 }};
 
 bool control(char c) noexcept {
@@ -106,6 +114,26 @@ core::Result<Font> Font::from_sheet(const assets::SpriteSheet& sheet) {
     if (font.m_glyphs.empty()) {
         return core::make_error(core::ErrorCode::InvalidFormat, "font without glyphs");
     }
+    // The middle of the digits' ink, which every font has, above the bottom of the cell.
+    double drops = 0.0;
+    int digits = 0;
+    for (unsigned char c = '0'; c <= '9' && font.has(c); ++c) {
+        const assets::IndexedImage& image = font.m_glyphs[c - 0x20U].image;
+        std::uint32_t top = image.height;
+        std::uint32_t bottom = 0;
+        for (std::uint32_t y = 0; y < image.height; ++y) {
+            const auto row = image.opaque.begin() + static_cast<std::ptrdiff_t>(std::size_t{y} * image.width);
+            if (std::any_of(row, row + image.width, [](std::uint8_t o) { return o != 0; })) {
+                top = std::min(top, y);
+                bottom = y + 1;
+            }
+        }
+        if (top < bottom) {
+            drops += image.height - (top + bottom) / 2.0;
+            ++digits;
+        }
+    }
+    font.m_ink_drop = digits > 0 ? drops / digits : font.m_height / 2.0;
     return font;
 }
 

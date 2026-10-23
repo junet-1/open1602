@@ -97,6 +97,7 @@ bool Military::castle(const CastleOrder& o) {
     if (o.player != kNoPlayer && owner != o.player) {
         return false;
     }
+    City* city = m_world->city(o.island, m_world->islands()[o.island].map.top(o.x, o.y).city);
     const auto b = building_at(*m_world, *m_buildings, o.island, {o.x, o.y});
     if (!b) {
         return false;
@@ -128,6 +129,9 @@ bool Military::castle(const CastleOrder& o) {
                        c->weapons[weapon - kFirstWeapon] >= type->combat.weapon_amount) {
                 c->weapons[weapon - kFirstWeapon] -= type->combat.weapon_amount;
                 slot.armed = true;
+                if (city != nullptr) {
+                    city->book(weapon, GoodsFlow::Military, type->combat.weapon_amount);
+                }
             }
             c->slots.push_back(slot);
             return true;
@@ -168,8 +172,11 @@ bool Military::castle(const CastleOrder& o) {
             if (slot.armed && type != nullptr && type->combat.max_health != 0) {
                 const std::uint8_t weapon = type->combat.weapon_ware;
                 if (weapon >= kFirstWeapon && weapon < kFirstWeapon + c->weapons.size()) {
-                    c->weapons[weapon - kFirstWeapon] +=
-                        slot.health * type->combat.weapon_amount / type->combat.max_health;
+                    const std::uint32_t back = slot.health * type->combat.weapon_amount / type->combat.max_health;
+                    c->weapons[weapon - kFirstWeapon] += back;
+                    if (city != nullptr) {
+                        city->book(weapon, GoodsFlow::Returned, back);
+                    }
                 }
             }
             c->slots.erase(c->slots.begin() + o.slot);

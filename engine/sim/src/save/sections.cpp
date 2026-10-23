@@ -76,6 +76,8 @@ constexpr std::uint32_t kStances = tag("STNC");
 constexpr std::uint32_t kTutorial = tag("TUTR");
 /// The ships that gave up their way to each Kontor (city + 0x252), only written when one did.
 constexpr std::uint32_t kGiveUps = tag("CGUP");
+/// The goods statistics of the cities (City::ledger), only written when one has any.
+constexpr std::uint32_t kLedgers = tag("GLDG");
 /// The world's factions and the players' (ADR 0007), only written when they are not the base game's.
 constexpr std::uint32_t kFactions = tag("FACT");
 
@@ -85,7 +87,7 @@ constexpr std::array kKnownSections = {
     kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
     kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
     kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks,
-    kPopulationMarks, kTutorial,    kGiveUps,   kFactions};
+    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -232,6 +234,11 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
     section(out, kPopulationMarks, [&](Writer& o) { write_population_marks(o, world); });
     if (std::ranges::any_of(world.cities(), [](const City& c) { return c.ships_gave_up != 0; })) {
         section(out, kGiveUps, [&](Writer& o) { write_give_up_counts(o, world); }, Need::Optional);
+    }
+    if (std::ranges::any_of(world.cities(), [](const City& c) {
+            return c.ledger.minutes_closed() != 0 || !c.ledger.wares().empty() || c.history.minutes_closed() != 0;
+        })) {
+        section(out, kLedgers, [&](Writer& o) { write_ledgers(o, world); }, Need::Optional);
     }
     section(out, kScores, [&](Writer& o) { write_scores(o, world); });
     section(out, kProductions, [&](Writer& o) { write_productions(o, world); });
@@ -393,6 +400,9 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 break;
             case kPopulationMarks:
                 d.population_marks = read_population_marks(in);
+                break;
+            case kLedgers:
+                d.ledgers = read_ledgers(in);
                 break;
             case kScores:
                 d.scores = read_scores(in);

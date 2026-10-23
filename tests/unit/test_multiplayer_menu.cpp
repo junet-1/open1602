@@ -25,7 +25,7 @@ using app::MultiplayerMenu;
 
 namespace {
 
-constexpr std::array<const ui::Font*, 3> kNoFonts = {nullptr, nullptr, nullptr};
+constexpr std::array<const ui::Font*, ui::kFontSlots> kNoFonts = {nullptr, nullptr, nullptr};
 
 /// Where the text is drawn (its anchor in design pixels), if the screen shows it.
 std::optional<std::pair<std::int32_t, std::int32_t>> find_text(MultiplayerMenu& menu,

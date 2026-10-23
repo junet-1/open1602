@@ -38,6 +38,7 @@ constexpr std::pair<KeyAction, std::string_view> kNames[] = {
     {KeyAction::ShipList, "ship_list"},
     {KeyAction::CityList, "city_list"},
     {KeyAction::Diplomacy, "diplomacy"},
+    {KeyAction::GoodsStatistics, "goods_statistics"},
     {KeyAction::RotateBuilding, "rotate_building"},
     {KeyAction::PickBuilding, "pick_building"},
     {KeyAction::DemolishTool, "demolish_tool"},

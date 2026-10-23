@@ -151,6 +151,9 @@ bool read_display_line(DisplaySettings& s, std::string_view key, std::string_vie
     if (key == "vsync") {
         return read_flag(value, s.vsync);
     }
+    if (key == "goods_trend") {
+        return read_flag(value, s.goods_trend);
+    }
     return false;
 }
 
@@ -165,6 +168,8 @@ std::string write_display(const DisplaySettings& s) {
     out += std::string("display.free_zoom = ") + on_off(s.free_zoom) + "\n";
     out += std::string("display.smooth_zoom = ") + on_off(s.smooth_zoom) + "\n";
     out += std::string("display.vsync = ") + on_off(s.vsync) + "\n";
+    out += "# Under each good of a Kontor's stock how much more comes in or goes out per minute\n";
+    out += std::string("display.goods_trend = ") + on_off(s.goods_trend) + "\n";
     return out;
 }
 

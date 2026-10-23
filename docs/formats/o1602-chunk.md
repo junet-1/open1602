@@ -64,7 +64,7 @@ chunks of the original say then applies. Later versions can thus add parts witho
 savegames.
 
 In the chunk the writer emits `RULE` (when the settings are known), `WRLD`, `ISLE`, `TILE`, `PLAY`,
-`PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP` (only when a city has a count), `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `SHIP`, `ANIM`, `DISA`, `VOLC`,
+`PSTA`, `MISN`, `CITY`, `CSTA`, `MLCK`, `CPOP`, `CGUP` (only when a city has a count), `GLDG` (only when a city has statistics), `SCOR`, `PROD`, `HOUS`, `GROW`, `COST`, `SHIP`, `ANIM`, `DISA`, `VOLC`,
 `FLEE`, `EPOC`, `ARMY`, `DIPL`, `XPLR`, `QUEU`, `STNC` and `SIMU`, in this order. `META`, `MAPW`,
 `WRL2` and `ORIG` exist only in the own savegame ([o1602-save.md](o1602-save.md)).
 
@@ -90,6 +90,7 @@ older readers, marked optional.
 | `MLCK` | per city (island, number) the game time the building material was locked or the people last complained about it |
 | `CPOP` | per city (island, number) the last population message |
 | `CGUP` | per city (island, number) the ships that gave up their way to its Kontor (city + 0x252); optional |
+| `GLDG` | per city (island, number) its goods statistics: minutes closed, per good the ledger (counts of the running minute and quarter, 60 minute and 48 quarter samples of 16 flows and the stock, warning given), then the history of the city window's figures if the city keeps one (human players only); optional ([ADR 0012](../architecture/0012-goods-statistics.md)) |
 | `SCOR` | the score's counters per player (soldiers killed and lost, ships sunk and lost), then per city the growth of the house looked at last and the game time since it grows |
 | `FLEE` | ships in full (position in 1/4096 tile, course, holds with price, trade route, destinations with the original's reference, the trader's goods), next ship number, discovered islands, trade settings and affection of the cities, shipyard fields (order, build points, wood, cloth, tick, repair, failed launches: a byte that was reserved and 0 before); `SHIP` remains for older readers |
 | `ARMY` | soldiers in full (position in 1/4096 tile, hit points, home, destination, planning, clocks, patrol, path), next soldier number, cannon towers, building damage, shots in flight, weapons and slots of the castles |

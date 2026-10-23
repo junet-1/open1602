@@ -143,7 +143,7 @@ TEST_CASE("ui: regions of the screen and the original's rounding") {
 TEST_CASE("ui: a panel draws by state and answers the mouse") {
     ui::Panel panel(layout(), 1.0);
     panel.set_text(501, "Ja");
-    const std::array<const ui::Font*, 3> fonts{};
+    const std::array<const ui::Font*, ui::kFontSlots> fonts{};
     auto items = panel.draw(fonts);
     REQUIRE(items.size() == 3);  // the arrow, one text (the other is empty), the bar
     CHECK(items[0].kind == ui::DrawItem::Kind::Sprite);
@@ -287,7 +287,7 @@ TEST_CASE("ui: a flowing text scrolls no further than its last full window (UI-1
         "  EndObj\n",
         [](std::string_view) -> std::optional<std::string> { return std::nullopt; });
     const ui::Font font = test_font();
-    const std::array<const ui::Font*, 3> fonts{&font, nullptr, nullptr};
+    const std::array<const ui::Font*, ui::kFontSlots> fonts{&font, nullptr, nullptr};
     ui::Panel panel(flow, 1.0);
     CHECK(panel.max_scroll(110002, fonts) == 0);  // no text yet
     panel.set_text(110002, "aa bb cc dd ee");     // three lines
@@ -598,7 +598,7 @@ TEST_CASE("ui: cutting text to a width finds the same cut as trying one byte aft
     ui::Font font = test_font();
     ui::Font scaled = test_font();
     scaled.set_design_scale(0.625);
-    const std::array<const ui::Font*, 3> fonts = {&font, &scaled, nullptr};
+    const std::array<const ui::Font*, ui::kFontSlots> fonts = {&font, &scaled, nullptr};
     // Narrow and wide glyphs, bytes without a glyph and control characters, which end the measure.
     const std::string alphabet = std::string("aW .\x01\x80") + '\0';
     std::uint32_t seed = 12345;

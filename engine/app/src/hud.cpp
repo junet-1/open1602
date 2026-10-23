@@ -10,10 +10,12 @@
 #include "banner_graphic.hpp"
 #include "diplomacy_strip.hpp"
 #include "endless_setup.hpp"
+#include "parchment.hpp"
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
+#include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
 #include "o1602/ui/text_format.hpp"
 
@@ -234,6 +236,59 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         m_multiplayer = std::make_unique<MultiplayerMenu>(style);
         m_menu->set_form_style(style);
         m_display = std::make_unique<DisplayMenu>(style);
+        // The window "Warenbilanz" as a parchment: ink on sandstone, the grounds at half strength.
+        GoodsStyle goods;
+        goods.form.translucent = true;
+        goods.form.frame = ui::nearest_colour(palette, 90, 60, 25);
+        goods.form.ground = ui::nearest_colour(palette, 150, 105, 55);
+        goods.form.field = goods.form.ground;
+        goods.form.hover = ui::nearest_colour(palette, 175, 154, 124);
+        goods.form.selected = ui::nearest_colour(palette, 120, 80, 35);
+        goods.form.text = ui::kTextInk;
+        goods.form.heading = ui::kTextInk;
+        goods.form.dim = ui::kTextInkFaded;
+        goods.form.warning = ui::kTextInkRed;
+        goods.dark = ui::nearest_colour(palette, 40, 24, 8);
+        goods.light = ui::nearest_colour(palette, 245, 230, 195);
+        goods.shade = ui::nearest_colour(palette, 95, 65, 30);
+        goods.band = ui::nearest_colour(palette, 150, 105, 55);
+        goods.green = ui::nearest_colour(palette, 0, 120, 30);
+        goods.red = ui::nearest_colour(palette, 170, 20, 10);
+        goods.stock = ui::nearest_colour(palette, 150, 115, 70);
+        goods.shadow = ui::nearest_colour(palette, 0, 0, 0);
+        // The lines of the charts: taxes or the first class green, then red, blue, ochre, purple, grey.
+        constexpr std::array<std::array<std::uint8_t, 3>, 6> kSeries = {
+            {{0, 120, 30}, {170, 20, 10}, {30, 60, 160}, {190, 130, 20}, {120, 40, 130}, {90, 90, 90}}};
+        for (std::size_t i = 0; i < kSeries.size(); ++i) {
+            goods.series[i] = ui::nearest_colour(palette, kSeries[i][0], kSeries[i][1], kSeries[i][2]);
+        }
+        // A building's name as the build menu gives it (Text.cod, by its place in its category).
+        GoodsWindow::BuildingNames building_names;
+        if (own != nullptr) {
+            building_names = [names = *own](std::uint32_t id) -> std::string {
+                const ui::BuildCategory* category = ui::original_build_menu().category_of(id);
+                if (category == nullptr) {
+                    return {};
+                }
+                const auto index = category->index_of(id);
+                const std::vector<std::string> list = names.section(category->names);
+                return index && *index < list.size() ? list[*index] : std::string{};
+            };
+        }
+        m_goods =
+            std::make_unique<GoodsWindow>(goods, own != nullptr ? own->section("WARE") : std::vector<std::string>{},
+                                          m_ctrl.layout().constant("GFXWARE").value_or(192), std::move(building_names));
+        if (own != nullptr) {
+            // The classes of inhabitants as the house window names them ([GAME] 3 and on).
+            const std::vector<std::string> lines = own->section("GAME");
+            std::vector<std::string> classes;
+            for (std::size_t k = 3; k < 3 + sim::kCityClasses && k < lines.size(); ++k) {
+                classes.push_back(lines[k]);
+            }
+            m_goods->set_class_names(std::move(classes));
+        }
+        m_goods_shadow = goods.shadow;
+        m_goods_parchment = parchment_pixels(GoodsWindow::kWidth, GoodsWindow::kHeight);
         // The banners of the slots in the palette's nearest colours, grey for any further one.
         render::BannerTable banners = render::BannerTable::original();
         banners.add_more_players();
@@ -342,7 +397,7 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
         return nullptr;
     }
     context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local,
-                                 m_units, m_banners, &m_names});
+                                 m_units, m_banners, &m_names, m_goods_trend});
     return m_selection_panels->panel_for(m_selection, *context);
 }
 
@@ -403,6 +458,10 @@ std::optional<Hud::Action> Hud::open_diplomacy(sim::PlayerId partner) {
 bool Hud::back() {
     if (m_display_open && !m_menu_active) {
         m_display_open = false;
+        return true;
+    }
+    if (m_goods_open && !m_menu_active) {
+        goods_back();
         return true;
     }
     if (m_end_active) {
@@ -504,6 +563,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height, double ui_scale) {
     if (m_display) {
         m_display->set_scale(scale);
     }
+    if (m_goods) {
+        m_goods->set_scale(scale);
+    }
     m_end.set_scale(m_menu_scale);
     if (m_selection_panels) {
         m_selection_panels->set_scale(scale);
@@ -514,7 +576,7 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height, double ui_scale) {
 bool Hud::covers(std::int32_t x, std::int32_t y) const noexcept {
     // The mission's window takes the clicks inside it (0x0042D1C0); the menu and the window
     // "Anzeige" all of them.
-    return m_menu_active || m_display_open || m_regions.side_panel.contains(x, y) ||
+    return m_menu_active || m_display_open || m_goods_open || m_regions.side_panel.contains(x, y) ||
            m_regions.status_bar.contains(x, y) ||
            (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y));
 }
@@ -601,6 +663,14 @@ ui::Rect Hud::display_rect() const {
     const double s = m_display ? m_display->scale() : m_regions.scale;
     const auto w = static_cast<std::int32_t>(DisplayMenu::kWidth * s);
     const auto h = static_cast<std::int32_t>(DisplayMenu::kHeight * s);
+    const ui::Rect& v = m_regions.game_view;
+    return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
+}
+
+ui::Rect Hud::goods_rect() const {
+    const double s = m_goods ? m_goods->scale() : m_regions.scale;
+    const auto w = static_cast<std::int32_t>(GoodsWindow::kWidth * s);
+    const auto h = static_cast<std::int32_t>(GoodsWindow::kHeight * s);
     const ui::Rect& v = m_regions.game_view;
     return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
 }
@@ -720,6 +790,7 @@ void Hud::reset_game() {
     m_selection = Selection{};
     m_question.reset();
     m_help.reset();
+    m_goods_open = false;
     m_modal_press = ModalPress::None;
     m_commands.clear();
     m_names.cancel();
@@ -927,6 +998,13 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
         }
         return std::nullopt;
     }
+    if (m_goods_open && !m_menu_active && !m_question && !m_help) {
+        const ui::Rect r = goods_rect();
+        if (m_goods->mouse(x - r.x, y - r.y, down, button) == GoodsWindow::Result::Close) {
+            m_goods_open = false;
+        }
+        return std::nullopt;
+    }
     if (button != ui::MouseButton::Left && (m_help || m_question || m_end_active || !m_menu_active || !m_menu)) {
         return std::nullopt;  // the right button only goes through the values of the menus' dialogs
     }
@@ -1077,6 +1155,13 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
                     case SelectionPanel::Request::Kind::Centre:
                         action = Action{Action::Kind::Message, r->x, r->y};
                         break;
+                    case SelectionPanel::Request::Kind::Goods:
+                        if (m_goods) {
+                            m_goods->open_ware(r->ware, r->island);
+                            m_goods_open = true;
+                            m_display_open = false;
+                        }
+                        break;
                 }
             }
         } else if (m_info && m_mode == kModeInfo) {
@@ -1084,6 +1169,8 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
                 action = toggle_window(*list);
             } else if (m_info->take_rating()) {
                 action = Action{Action::Kind::Rating};
+            } else if (m_info->take_goods()) {
+                toggle_goods();
             }
         }
     } else if (m_mode == kModeOptions && m_options) {
@@ -1398,6 +1485,22 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     if (m_display_open && m_display) {
         const ui::Rect r = display_rect();
         m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+    }
+    if (m_goods_open && m_goods && m_figure_table != nullptr) {
+        const ui::Rect r = goods_rect();
+        // A shadow at the lower right, the parchment, then the window's ink.
+        ui::DrawItem shadow;
+        shadow.kind = ui::DrawItem::Kind::Fill;
+        shadow.x = r.x + 8;
+        shadow.y = r.y + 8;
+        shadow.w = r.w;
+        shadow.h = r.h;
+        shadow.colour = m_goods_shadow;
+        shadow.half = true;
+        m_renderer->draw({shadow}, 0, 0, 1.0);
+        m_renderer->image(2, m_goods_parchment, GoodsWindow::kWidth, GoodsWindow::kHeight, r, false);
+        m_renderer->draw(m_goods->draw(world, buildings, *m_figure_table, m_local, m_renderer->fonts()), r.x, r.y,
+                         m_goods->scale());
     }
     draw_question();
     draw_help();

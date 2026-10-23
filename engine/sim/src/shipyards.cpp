@@ -196,8 +196,18 @@ void Fleet::yard_cycle(CostBuilding& yard) {
     }
     // 1. The running cycle ends.
     if (yard.rate != 0) {
-        yard.wood -= std::min(yard.wood, scaled(b->raw_amount, yard.rate));
-        yard.cloth -= std::min(yard.cloth, scaled(b->raw2_amount, yard.rate));
+        const std::uint32_t wood = std::min(yard.wood, scaled(b->raw_amount, yard.rate));
+        const std::uint32_t cloth = std::min(yard.cloth, scaled(b->raw2_amount, yard.rate));
+        yard.wood -= wood;
+        yard.cloth -= cloth;
+        if (City* city = m_world->city(yard.island, cell.city)) {
+            if (is_trade_ware(b->raw_ware)) {
+                city->book(b->raw_ware, GoodsFlow::Workshops, wood);
+            }
+            if (is_trade_ware(b->raw2_ware)) {
+                city->book(b->raw2_ware, GoodsFlow::Workshops, cloth);
+            }
+        }
         const std::uint32_t points = scaled(b->produce_amount, yard.rate);
         Ship* ship = yard.repair_ship != 0 ? m_world->ship(yard.repair_ship) : nullptr;
         if (ship != nullptr && ship->repairing &&

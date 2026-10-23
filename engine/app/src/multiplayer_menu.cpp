@@ -241,7 +241,7 @@ void MultiplayerMenu::show_lobby() {
 }
 
 std::vector<ui::DrawItem> MultiplayerMenu::draw(const MultiplayerModel& model,
-                                                const std::array<const ui::Font*, 3>& fonts) {
+                                                const std::array<const ui::Font*, ui::kFontSlots>& fonts) {
     if (m_screen == Screen::Settings) {
         return m_settings.draw(fonts);
     }

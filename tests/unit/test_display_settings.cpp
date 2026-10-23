@@ -22,6 +22,7 @@ TEST_CASE("display settings: written to settings.cfg and read back") {
     s.display.free_zoom = false;
     s.display.smooth_zoom = false;
     s.display.vsync = false;
+    s.display.goods_trend = false;
     const std::string text = app::write_settings(s);
     CHECK(text.find("display.window = 1600x900\n") != std::string::npos);
     const app::AppSettings back = app::parse_settings(text, app::AppSettings{});
@@ -34,6 +35,7 @@ TEST_CASE("display settings: written to settings.cfg and read back") {
     CHECK(none.display.free_zoom);
     CHECK(none.display.smooth_zoom);
     CHECK(none.display.vsync);
+    CHECK(none.display.goods_trend);
 }
 
 TEST_CASE("display settings: damaged lines keep what was there") {
@@ -117,6 +119,9 @@ TEST_CASE("display menu: each row chooses its next value") {
     CHECK(!app::DisplayMenu::choose_next(model, Item::ZoomDrawing));  // the original's levels: whole scales
     CHECK(app::DisplayMenu::choose_next(model, Item::Vsync));
     CHECK(!model.settings.vsync);
+    CHECK(app::DisplayMenu::value_text(model, Item::GoodsTrend) == "on");
+    CHECK(app::DisplayMenu::choose_next(model, Item::GoodsTrend));
+    CHECK(!model.settings.goods_trend);
 }
 
 TEST_CASE("display menu: a click on a row changes it, the button closes the window") {

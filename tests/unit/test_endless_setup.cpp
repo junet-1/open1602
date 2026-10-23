@@ -24,7 +24,7 @@ using app::SetupItem;
 
 namespace {
 
-constexpr std::array<const ui::Font*, 3> kNoFonts = {nullptr, nullptr, nullptr};
+constexpr std::array<const ui::Font*, ui::kFontSlots> kNoFonts = {nullptr, nullptr, nullptr};
 
 std::optional<std::pair<std::int32_t, std::int32_t>> find_text(app::GameSettingsMenu& menu, const std::string& text) {
     for (const ui::DrawItem& d : menu.draw(kNoFonts)) {

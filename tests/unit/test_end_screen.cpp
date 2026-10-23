@@ -24,7 +24,7 @@ using app::EndScreen;
 
 namespace {
 
-constexpr std::array<const ui::Font*, 3> kNoFonts = {nullptr, nullptr, nullptr};
+constexpr std::array<const ui::Font*, ui::kFontSlots> kNoFonts = {nullptr, nullptr, nullptr};
 constexpr std::int32_t kSlot0 = 36051;
 constexpr std::int32_t kSlotX = 416;  // ENDE.GAD: 416, 467, 517, 568
 constexpr std::int32_t kSlotStep = 51;

@@ -103,7 +103,7 @@ int usage() {
         "  F5 / F9        quick save / quick load     F12, Print               screenshot\n"
         "  F1             these keys over the map     F11, Alt+Enter           window / full screen\n"
         "  Ctrl + / Ctrl - the map twice / half as large\n"
-        "  B K I O        build, military, info, options\n"
+        "  B K I O        build, military, info, options   F2  goods balance\n"
         "  left mouse     select (drag: rectangle, Shift: add, Ctrl/double: all alike on screen)\n"
         "  right mouse    order (also on the minimap; Shift: queued)\n"
         "  Ctrl+1..0      store a group  Shift+1..0 add to it  1..0 select it (twice: go there)\n"

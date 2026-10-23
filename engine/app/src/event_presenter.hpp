@@ -73,6 +73,8 @@ public:
     explicit EventPresenter(PlayerLabel label);
     /// The players' banners, for messages that name a colour (none: the colourless ones).
     void set_banners(const render::BannerTable* banners) noexcept { m_banners = banners; }
+    /// The goods' names (Text.cod [WARE], by ware number, Windows-1252) for Open1602's messages.
+    void set_ware_names(std::vector<std::string> names) { m_ware_names = std::move(names); }
 
     /// The end screen comes this long after the message of a decided game when it has no video,
     /// after an own defeat without one the shorter time (docs/re/missions.md "Sieg"; with a video
@@ -84,7 +86,9 @@ public:
 
     // What the simulation reported, for the local player `local`, in the order to play it.
 
-    /// Hunger and monuments (MELDUNG 0x33, 0x31); shortages and new build levels only in the log.
+    /// Hunger, monuments, wishes for buildings and shortages (MELDUNG 0x33, 0x31, 0x3C.., 0x34..). A
+    /// good running short is told early (Open1602: in the voice of „Es fehlt an …“, with how long
+    /// the stock lasts); its shortage then only goes to the log.
     [[nodiscard]] std::vector<Notice> city_events(const sim::World& world, sim::PlayerId local,
                                                   const std::vector<sim::CityEvent>& events) const;
     /// Discoveries and exploring of the local player's ships, in the log (their voices come from
@@ -153,6 +157,7 @@ private:
 
     PlayerLabel m_label;
     const render::BannerTable* m_banners = nullptr;
+    std::vector<std::string> m_ware_names;
     std::optional<EndPending> m_end_pending;
     bool m_end_shown = false;            ///< once per game (a won game may go on)
     std::uint32_t m_defeat_variant = 0;  ///< own counter for 1010/2020 (no game random numbers)

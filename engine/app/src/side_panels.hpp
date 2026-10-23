@@ -90,6 +90,8 @@ public:
     std::optional<Selection::Kind> mouse(std::int32_t x, std::int32_t y, bool down);
     /// Whether "Bewertung" was clicked since the last call.
     [[nodiscard]] bool take_rating() noexcept { return std::exchange(m_rating_clicked, false); }
+    /// Whether "Warenbilanz" (Open1602's own line) was clicked since the last call.
+    [[nodiscard]] bool take_goods() noexcept { return std::exchange(m_goods_clicked, false); }
     /// "Punkte" (57027, Player_ComputeScore's total) and whether "Bewertung" can be pressed.
     void set_points(std::int64_t points, bool rating);
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste) const;
@@ -102,6 +104,7 @@ private:
     std::int32_t m_arms = 0;          ///< sprite of the coat of arms of colour 0 (render::BannerArt)
     std::int32_t m_balance_icon = 0;  ///< sprite of the balance icon (green; red is the next)
     bool m_rating_clicked = false;
+    bool m_goods_clicked = false;
 };
 
 }  // namespace o1602::app

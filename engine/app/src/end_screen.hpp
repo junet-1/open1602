@@ -54,7 +54,7 @@ public:
 
     /// Everything to draw over the whole 1024 x 768 design, relative to its top left, in pixels
     /// at scale().
-    [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, 3>& fonts) const;
+    [[nodiscard]] std::vector<ui::DrawItem> draw(const std::array<const ui::Font*, ui::kFontSlots>& fonts) const;
     /// The mouse relative to the design's top left, in pixels.
     std::optional<Choice> mouse(std::int32_t x, std::int32_t y, bool down);
     /// Escape: back to a running game, or into a won one (Open1602: the original has no keys on

@@ -27,6 +27,9 @@ struct DisplaySettings {
     /// off: straight with uneven pixels (cheapest).
     bool smooth_zoom = true;
     bool vsync = true;  ///< frames wait for the screen
+    /// The goods trend at the Kontor: under each good of its stock what comes in more than goes
+    /// out per minute, green, or the other way round, red (docs/architecture/0012-goods-statistics.md).
+    bool goods_trend = true;
 
     friend bool operator==(const DisplaySettings&, const DisplaySettings&) = default;
 };
