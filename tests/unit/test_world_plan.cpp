@@ -254,6 +254,41 @@ TEST_CASE("world plan: settings change the amount of islands, their sizes, villa
     }
 }
 
+TEST_CASE("world plan: separate start areas go to the players in an order drawn from the seed") {
+    // The first player (the human of a single-player game) must not always get the same side.
+    for (const std::uint8_t players : {std::uint8_t{2}, std::uint8_t{4}, std::uint8_t{8}}) {
+        sim::WorldSettings s;
+        s.players = players;
+        std::set<std::pair<std::uint32_t, std::uint32_t>> first;
+        std::set<std::pair<std::uint32_t, std::uint32_t>> areas;
+        for (std::uint64_t seed = 1; seed <= 40; ++seed) {
+            s.seed = seed;
+            auto plan = sim::plan_world(s, templates());
+            REQUIRE(plan.ok());
+            REQUIRE(plan->starts.size() == players);
+            first.emplace(plan->starts[0].x, plan->starts[0].y);
+            for (const sim::StartArea& st : plan->starts) {
+                areas.emplace(st.x, st.y);
+            }
+        }
+        // The areas are the same for every seed (the layout's geometry), only who gets which varies.
+        CHECK(areas.size() == players);
+        CHECK(first.size() == players);
+    }
+    // The same seed gives every computer the same order (multiplayer).
+    sim::WorldSettings s;
+    s.seed = 5;
+    auto a = sim::plan_world(s, templates());
+    auto b = sim::plan_world(s, templates());
+    REQUIRE(a.ok());
+    REQUIRE(b.ok());
+    for (std::size_t p = 0; p < a->starts.size(); ++p) {
+        CHECK(a->starts[p].x == b->starts[p].x);
+        CHECK(a->starts[p].y == b->starts[p].y);
+        CHECK(a->starts[p].home_island == b->starts[p].home_island);
+    }
+}
+
 TEST_CASE("world plan: together, all ships start at one place, as in the original") {
     sim::WorldSettings s;
     s.starts = sim::WorldSettings::Starts::Together;
