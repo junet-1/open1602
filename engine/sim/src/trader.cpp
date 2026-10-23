@@ -46,15 +46,26 @@ std::uint32_t kontor_key(const City& c) {
 
 }  // namespace
 
+namespace {
+
+/// The free trader's Faction::reach_players, 0 without a trader.
+std::size_t trader_reach(const World& world) noexcept {
+    const Player* trader = world.player(world.first_of(FactionBehaviour::Trader));
+    return trader != nullptr ? world.faction(*trader).reach_players : 0U;
+}
+
+}  // namespace
+
 std::size_t trader_reach_players(const World& world, const Rules& rules) noexcept {
-    if (rules.trader_reach == TraderReach::Original) {
+    const std::size_t reach = trader_reach(world);
+    if (rules.trader_reach == TraderReach::Original || reach == 0) {
         return 0;
     }
     std::size_t players = 0;
     for (const Player& p : world.players()) {
         players += p.role == PlayerRole::Human || p.role == PlayerRole::Computer ? 1U : 0U;
     }
-    return players > kOriginalPlayers ? players : 0;
+    return players > reach ? players : 0;
 }
 
 std::size_t trader_candidates(const World& world, const Rules& rules, std::size_t kontors) noexcept {
@@ -63,8 +74,8 @@ std::size_t trader_candidates(const World& world, const Rules& rules, std::size_
         return kCandidates;
     }
     // The map grows with the players (settings_for_players), so this keeps him within about the
-    // part of it a four-player game would have.
-    const std::size_t share = (kontors * kOriginalPlayers + players - 1) / players;
+    // part of it a game of reach_players (four) would have.
+    const std::size_t share = (kontors * trader_reach(world) + players - 1) / players;
     return std::clamp<std::size_t>(share, 3, kCandidates);
 }
 
@@ -378,13 +389,7 @@ void Fleet::trader_restock(Ship& ship, std::uint32_t dt_ms) {
 }
 
 void Fleet::spawn_trader() {
-    PlayerId trader = kNoPlayer;
-    for (std::size_t p = 0; p < m_world->players().size(); ++p) {
-        if (m_world->players()[p].role == PlayerRole::Trader) {
-            trader = static_cast<PlayerId>(p);
-            break;
-        }
-    }
+    const PlayerId trader = m_world->first_of(FactionBehaviour::Trader);
     const assets::FigureType* type = m_figures->get(figure::kTrader);
     if (trader == kNoPlayer || type == nullptr) {
         return;
@@ -471,8 +476,10 @@ void Fleet::trader_tick(std::uint32_t dt_ms) {
     if ((m_world->game_settings().flags & World::GameSettings::kNoTrader) != 0) {
         return;
     }
-    // One trader for every three Kontors (none with fewer than two), at most one new per pass.
-    const std::uint32_t wanted = kontors < 2 ? 0U : (kontors + 2U) / 3U;
+    // By default one trader for every three Kontors (none with fewer than two), at most one new
+    // per pass.
+    const Player* trader = m_world->player(m_world->first_of(FactionBehaviour::Trader));
+    const std::uint32_t wanted = trader != nullptr ? m_world->faction(*trader).ships.of(kontors) : 0U;
     std::uint32_t traders = 0;
     for (const Ship& s : m_world->ships()) {
         traders += s.trader ? 1U : 0U;  // counted anew: a sunk trader is replaced (S-080)

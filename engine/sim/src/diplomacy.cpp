@@ -34,13 +34,19 @@ std::int32_t interpolate(std::initializer_list<Knot> knots, std::int32_t x) noex
     return prev != nullptr ? prev->v : 0;
 }
 
-bool acts_diplomatically(PlayerRole role) noexcept {
-    return role == PlayerRole::Human || role == PlayerRole::Computer;
+/// Only the settlers make and break treaties; the neutral factions answer.
+bool acts_diplomatically(FactionBehaviour behaviour) noexcept {
+    return behaviour == FactionBehaviour::Settlers;
 }
 
 PlayerRole role_of(const World& world, PlayerId p) noexcept {
     const Player* player = world.player(p);
     return player != nullptr ? player->role : PlayerRole::Human;
+}
+
+FactionBehaviour behaviour_of(const World& world, PlayerId p) noexcept {
+    const Player* player = world.player(p);
+    return player != nullptr ? world.behaviour(*player) : FactionBehaviour::Settlers;
 }
 
 /// A byte table of the original filled piece by piece (Table_InterpByte 0x00403370, exactly: 8.8
@@ -137,7 +143,10 @@ void Diplomacy::resize(std::size_t count) {
     m_count = count;
 }
 
-void Diplomacy::reset(const std::vector<Player>& players) {
+void Diplomacy::reset(const std::vector<Player>& players, const std::vector<Faction>& factions) {
+    const auto behaviour = [&](const Player& p) {
+        return p.faction < factions.size() ? factions[p.faction].behaviour : FactionBehaviour::Settlers;
+    };
     m_count = 0;
     m_pairs.clear();
     m_events.clear();
@@ -145,27 +154,25 @@ void Diplomacy::reset(const std::vector<Player>& players) {
     resize(players.size());
     for (std::size_t a = 0; a < m_count; ++a) {
         for (std::size_t b = 0; b < m_count; ++b) {
-            const PlayerRole ra = players[a].role;
-            const PlayerRole rb = players[b].role;
+            const FactionBehaviour ra = behaviour(players[a]);
+            const FactionBehaviour rb = behaviour(players[b]);
             Relation& r = m_pairs[a * m_count + b];
-            const bool pirates = ra == PlayerRole::Pirates || rb == PlayerRole::Pirates;
+            const bool pirates = ra == FactionBehaviour::Pirates || rb == FactionBehaviour::Pirates;
             // Peace with everyone except the pirates; the pirates are at peace only with the
             // trader and themselves.
-            r.peace = pirates && !(ra == PlayerRole::Trader || rb == PlayerRole::Trader || a == b) ? Treaty::None
-                                                                                                   : Treaty::Signed;
+            r.peace = pirates && !(ra == FactionBehaviour::Trader || rb == FactionBehaviour::Trader || a == b)
+                          ? Treaty::None
+                          : Treaty::Signed;
             Treaty trade = Treaty::None;
             switch (ra) {
-                case PlayerRole::Human:
-                case PlayerRole::Computer:
-                    trade = rb == PlayerRole::Trader || rb == PlayerRole::Pirates || rb == PlayerRole::Natives
-                                ? Treaty::Signed
-                                : Treaty::None;
+                case FactionBehaviour::Settlers:
+                    trade = acts_diplomatically(rb) ? Treaty::None : Treaty::Signed;
                     break;
-                case PlayerRole::Trader:
-                case PlayerRole::Natives:
+                case FactionBehaviour::Trader:
+                case FactionBehaviour::Natives:
                     trade = acts_diplomatically(rb) ? Treaty::Signed : Treaty::None;
                     break;
-                case PlayerRole::Pirates:
+                case FactionBehaviour::Pirates:
                     trade = a == b ? Treaty::Signed : Treaty::None;
                     break;
             }
@@ -216,14 +223,14 @@ bool Diplomacy::set_peace(const World& world, PlayerId a, PlayerId b, Treaty v, 
     if (a == b || a >= m_count || b >= m_count || relation(a, b).peace == v || v == Treaty::Received) {
         return false;
     }
-    const PlayerRole ra = role_of(world, a);
-    const PlayerRole rb = role_of(world, b);
+    const FactionBehaviour ra = behaviour_of(world, a);
+    const FactionBehaviour rb = behaviour_of(world, b);
     Relation& ab = relation(a, b);
     Relation& ba = relation(b, a);
     switch (v) {
         case Treaty::None:
             // War cancels a trade treaty, except with the pirates.
-            if (ra != PlayerRole::Pirates && rb != PlayerRole::Pirates &&
+            if (ra != FactionBehaviour::Pirates && rb != FactionBehaviour::Pirates &&
                 (ab.trade == Treaty::Received || ab.trade == Treaty::Signed)) {
                 ab.trade = Treaty::None;
                 ba.trade = Treaty::None;
@@ -252,7 +259,7 @@ bool Diplomacy::set_peace(const World& world, PlayerId a, PlayerId b, Treaty v, 
             break;
         case Treaty::Signed:
             // Natives and the trader make a trade treaty with the peace.
-            if (!acts_diplomatically(ra) && ra != PlayerRole::Pirates) {
+            if (!acts_diplomatically(ra) && ra != FactionBehaviour::Pirates) {
                 ab.trade = Treaty::Signed;
                 ba.trade = Treaty::Signed;
             }
@@ -422,7 +429,8 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
     m -= static_cast<std::int32_t>(std::min<std::uint32_t>(100, r.damage / 4));
 
     // Territory: computer players and pirates mind others on their small islands.
-    const PlayerRole ra = role_of(world, a);
+    const bool minds_territory =
+        role_of(world, a) == PlayerRole::Computer || behaviour_of(world, a) == FactionBehaviour::Pirates;
     std::uint64_t size_a = 0;
     std::uint64_t size_b = 0;
     std::uint32_t cities_a = 0;
@@ -442,7 +450,7 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
             development_b = std::max(development_b, city_development(c));
         }
     }
-    if (ra == PlayerRole::Computer || ra == PlayerRole::Pirates) {
+    if (minds_territory) {
         std::int32_t settle_penalty = 0;
         std::int32_t troop_penalty = 0;
         for (const City& c : world.cities()) {
@@ -530,12 +538,7 @@ std::uint32_t price_base(std::int64_t money, const std::array<std::uint32_t, 7>&
 }
 
 PlayerId pirate_player(const World& world) noexcept {
-    for (std::size_t p = 0; p < world.players().size(); ++p) {
-        if (world.players()[p].role == PlayerRole::Pirates) {
-            return static_cast<PlayerId>(p);
-        }
-    }
-    return kNoPlayer;
+    return world.first_of(FactionBehaviour::Pirates);
 }
 
 }  // namespace
@@ -575,7 +578,7 @@ bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
             return true;
         }
         const Player* target = world.player(order.target);
-        if (target == nullptr || order.target == order.player || !acts_diplomatically(target->role)) {
+        if (target == nullptr || order.target == order.player || !acts_diplomatically(world.behaviour(*target))) {
             return false;
         }
         const std::uint32_t price = pirate_bribe_price(world, pirates, order.player, order.target);
@@ -590,8 +593,8 @@ bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
     }
     const Player* self = world.player(order.player);
     const Player* partner = world.player(order.partner);
-    if (self == nullptr || partner == nullptr || order.player == order.partner || !acts_diplomatically(partner->role) ||
-        !acts_diplomatically(self->role)) {
+    if (self == nullptr || partner == nullptr || order.player == order.partner ||
+        !acts_diplomatically(world.behaviour(*partner)) || !acts_diplomatically(world.behaviour(*self))) {
         return false;
     }
     Diplomacy& d = world.diplomacy();
@@ -677,7 +680,7 @@ void pirates_reconsider(World& world) {
     }
     Diplomacy& d = world.diplomacy();
     for (std::size_t b = 0; b < world.players().size(); ++b) {
-        if (!acts_diplomatically(world.players()[b].role)) {
+        if (!acts_diplomatically(world.behaviour(world.players()[b]))) {
             continue;
         }
         const auto pb = static_cast<PlayerId>(b);

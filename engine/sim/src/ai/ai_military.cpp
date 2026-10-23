@@ -470,7 +470,7 @@ void Engine::buy_pirate_peace(AiPlayer& p) {
     // 0x00428AF0: with more than 10,000 gold and a price above 1000.
     PlayerId pirates = kNoPlayer;
     for (std::size_t i = 0; i < m_world.players().size(); ++i) {
-        if (m_world.players()[i].role == PlayerRole::Pirates) {
+        if (m_world.behaviour(m_world.players()[i]) == FactionBehaviour::Pirates) {
             pirates = static_cast<PlayerId>(i);
         }
     }
@@ -874,7 +874,7 @@ void Engine::target_scan(AiPlayer& p) {
             return;
         }
         ok = attack_ok(p, t);
-    } else if (o->role == PlayerRole::Natives && !at_peace) {
+    } else if (m_world.behaviour(*o) == FactionBehaviour::Natives && !at_peace) {
         ok = attack_ok(p, t);
     }
     if (ok) {
@@ -889,9 +889,9 @@ std::vector<PlayerId> Engine::island_enemies(const AiPlayer& a, std::uint16_t is
     // Hostile humans or natives here: soldiers of theirs or a city.
     std::vector<PlayerId> enemies;
     for (std::size_t b = 0; b < m_world.players().size(); ++b) {
-        const PlayerRole role = m_world.players()[b].role;
+        const Player& pl = m_world.players()[b];
         const auto pb = static_cast<PlayerId>(b);
-        if ((role != PlayerRole::Human && role != PlayerRole::Natives) ||
+        if ((pl.role != PlayerRole::Human && m_world.behaviour(pl) != FactionBehaviour::Natives) ||
             m_world.diplomacy().relation(a.player, pb).peace == Treaty::Signed) {
             continue;
         }
@@ -1144,7 +1144,7 @@ void Engine::diplomacy(AiPlayer& p) {
                     } else {
                         PlayerId pirates = kNoPlayer;
                         for (std::size_t i = 0; i < m_world.players().size(); ++i) {
-                            if (m_world.players()[i].role == PlayerRole::Pirates) {
+                            if (m_world.behaviour(m_world.players()[i]) == FactionBehaviour::Pirates) {
                                 pirates = static_cast<PlayerId>(i);
                             }
                         }

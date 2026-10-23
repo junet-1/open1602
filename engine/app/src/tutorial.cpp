@@ -84,7 +84,7 @@ std::uint8_t ship_actions(const sim::Simulation& simulation, const assets::Build
     if (const auto index = sim::kontor_in_reach(w, buildings, ship.x, ship.y)) {
         const sim::City& city = w.cities()[*index];
         const sim::Player* owner = w.player(city.owner);
-        if (owner != nullptr && owner->role == sim::PlayerRole::Pirates) {
+        if (owner != nullptr && w.behaviour(*owner) == sim::FactionBehaviour::Pirates) {
             m = static_cast<std::uint8_t>((m & ~ship_action::kIsland) | ship_action::kPirates);
         } else if (city.owner == ship.owner || w.diplomacy().may_trade(ship.owner, city.owner)) {
             m |= ship_action::kTrade;

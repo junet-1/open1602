@@ -324,7 +324,7 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
         case SetupItem::TraderPrices:
             return r.trader_prices == sim::TraderPrices::Market ? 1 : 0;
         case SetupItem::TraderReach:
-            return r.trader_reach == sim::TraderReach::PerFourPlayers ? 1 : 0;
+            return r.trader_reach == sim::TraderReach::Scaled ? 1 : 0;
         case SetupItem::Ships:
             return nearest(kShips, r.max_ships_per_player);
         case SetupItem::Units:
@@ -422,7 +422,7 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             r.trader_prices = choice == 1 ? sim::TraderPrices::Market : sim::TraderPrices::Original;
             break;
         case SetupItem::TraderReach:
-            r.trader_reach = choice == 1 ? sim::TraderReach::PerFourPlayers : sim::TraderReach::Original;
+            r.trader_reach = choice == 1 ? sim::TraderReach::Scaled : sim::TraderReach::Original;
             break;
         case SetupItem::Ships:
             r.max_ships_per_player = kShips[choice];

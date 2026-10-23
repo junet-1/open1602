@@ -597,7 +597,7 @@ TEST_CASE("new game: an endless game: its islands from the plan, the same seed t
         CHECK(ship->x == 470);  // where the level put it
         CHECK(ship->y == 40U + 40U * p);
     }
-    CHECK(world->players()[4].role == sim::PlayerRole::Trader);
+    CHECK(world->players()[4].faction == sim::faction::kTrader);
     CHECK(world->game_settings().difficulty == 1);
     CHECK(world->game_settings().pirate_interval_s == 1'500);  // not the level's
 

@@ -47,7 +47,7 @@ bool Fleet::naval_combat(Ship& ship) {
         return false;
     }
     const Player* owner = m_world->player(ship.owner);
-    const bool pirate = owner != nullptr && owner->role == PlayerRole::Pirates;
+    const bool pirate = owner != nullptr && m_world->behaviour(*owner) == FactionBehaviour::Pirates;
     const Diplomacy& dipl = m_world->diplomacy();
     const auto hostile = [&](const Target& t) {
         const auto f = m_combat->fighter(t);
@@ -88,7 +88,7 @@ bool Fleet::naval_combat(Ship& ship) {
                 const Ship* prey = c.unit.kind == Target::Kind::Ship ? m_world->ship(c.unit.ship) : nullptr;
                 const Player* prey_owner = prey != nullptr ? m_world->player(prey->owner) : nullptr;
                 const bool worth = !pirate || (prey != nullptr && !prey->trader && prey_owner != nullptr &&
-                                               prey_owner->role != PlayerRole::Pirates);
+                                               m_world->behaviour(*prey_owner) != FactionBehaviour::Pirates);
                 if (worth && c.unit.kind != Target::Kind::Soldier) {
                     fight = c.unit;
                     chase = true;

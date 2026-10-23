@@ -180,7 +180,7 @@ bool Military::declare_war_by_attack(PlayerId self, const Target& target) {
     }
     const Player* p = m_world->player(other);
     // SetRelation(self, other, 0) (0x004760E0): also an offer of peace on either side ends.
-    if (p == nullptr || p->role == PlayerRole::Trader || self >= m_world->diplomacy().size() ||
+    if (p == nullptr || m_world->behaviour(*p) == FactionBehaviour::Trader || self >= m_world->diplomacy().size() ||
         other >= m_world->diplomacy().size() || m_world->diplomacy().relation(self, other).peace == Treaty::None) {
         return false;
     }
@@ -318,7 +318,7 @@ void Military::tower_think(Tower& t) {
         return;
     }
     const Player* owner = m_world->player(t.owner);
-    const bool pirate_tower = owner != nullptr && owner->role == PlayerRole::Pirates;
+    const bool pirate_tower = owner != nullptr && m_world->behaviour(*owner) == FactionBehaviour::Pirates;
     const std::uint64_t now = m_world->time_ms();
     for (const Candidate& c : m_combat->rank(*me, m_combat->hostiles(self), kTowerSight8)) {
         if (!c.near) {
@@ -436,7 +436,7 @@ void Military::hit(const PendingHit& h, std::vector<ConstructionEvent>* construc
             if (m_fleet != nullptr) {
                 const Player* attacker = m_world->player(h.attacker);
                 m_fleet->hit(h.target.ship, h.damage, h.attacker,
-                             attacker != nullptr && attacker->role == PlayerRole::Pirates &&
+                             attacker != nullptr && m_world->behaviour(*attacker) == FactionBehaviour::Pirates &&
                                  h.shooter.kind == Target::Kind::Ship);
             }
             break;
@@ -498,7 +498,8 @@ void Military::damage_building(std::uint16_t island, std::uint16_t x, std::uint1
     const Target what = Target::building(island, ox, oy);
     const std::uint8_t city = cell.city;
     const Player* owner = m_world->player(victim);
-    const bool natives = owner != nullptr && owner->role == PlayerRole::Natives && city != MapCell::kNoCity;
+    const bool natives =
+        owner != nullptr && m_world->behaviour(*owner) == FactionBehaviour::Natives && city != MapCell::kNoCity;
     if (destroy_building(*m_world, *m_buildings, island, {ox, oy}, construction)) {
         m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::BuildingDestroyed, {}, what, attacker, victim});
         m_combat->island_changed(island);
@@ -544,7 +545,7 @@ void Military::curse(std::uint16_t island, std::uint8_t city, bool dissolved) {
     }
     PlayerId natives = kNoPlayer;
     for (std::size_t p = 0; p < m_world->players().size(); ++p) {
-        if (m_world->players()[p].role == PlayerRole::Natives) {
+        if (m_world->behaviour(m_world->players()[p]) == FactionBehaviour::Natives) {
             natives = static_cast<PlayerId>(p);
         }
     }

@@ -94,29 +94,31 @@ std::string menu_name(std::uint32_t id, const assets::TextTable& texts) {
 
 std::string unit_status(const sim::World& world, const ui::UnitRef& unit, const assets::FigureTable& figures,
                         const assets::TextTable& texts) {
-    const auto role = [&](sim::PlayerId owner) {
+    const auto behaviour = [&](sim::PlayerId owner) {
         const sim::Player* p = world.player(owner);
-        return p != nullptr ? p->role : sim::PlayerRole::Human;
+        return p != nullptr ? world.behaviour(*p) : sim::FactionBehaviour::Settlers;
     };
     if (unit.kind == ui::UnitRef::Kind::Ship) {
         const sim::Ship* s = world.ship(unit.id);
         if (s == nullptr) {
             return {};
         }
-        switch (role(s->owner)) {
-            case sim::PlayerRole::Pirates:
+        switch (behaviour(s->owner)) {
+            case sim::FactionBehaviour::Pirates:
                 return line(texts, "LEISTE", kLeistePirateShip);
-            case sim::PlayerRole::Trader:
+            case sim::FactionBehaviour::Trader:
                 return line(texts, "LEISTE", kLeisteTraderShip);
-            default:
-                return line(texts, "LEISTE", kLeisteShip);
+            case sim::FactionBehaviour::Settlers:
+            case sim::FactionBehaviour::Natives:
+                break;
         }
+        return line(texts, "LEISTE", kLeisteShip);
     }
     const sim::Soldier* s = world.soldier(unit.id);
     if (s == nullptr) {
         return {};
     }
-    if (role(s->owner) == sim::PlayerRole::Natives) {
+    if (behaviour(s->owner) == sim::FactionBehaviour::Natives) {
         return line(texts, "LEISTE", kLeisteNativeWarrior);
     }
     // [FIGKIND] by the figure's kind (FIGUR record +4).

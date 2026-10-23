@@ -483,7 +483,7 @@ private:
             const sim::Player* owner = w.player(city.owner);
             if (city.owner == ship.owner) {
                 k.own_kontor = true;
-            } else if (owner != nullptr && owner->role == sim::PlayerRole::Pirates) {
+            } else if (owner != nullptr && w.behaviour(*owner) == sim::FactionBehaviour::Pirates) {
                 k.pirates = true;
             } else if (w.diplomacy().may_trade(ship.owner, city.owner)) {  // natives too: by treaty
                 k.foreign_kontor = true;
@@ -524,7 +524,7 @@ private:
 
     [[nodiscard]] static bool is_natives(const sim::City& city, const PanelContext& c) {
         const sim::Player* p = c.world().player(city.owner);
-        return p != nullptr && p->role == sim::PlayerRole::Natives;
+        return p != nullptr && c.world().behaviour(*p) == sim::FactionBehaviour::Natives;
     }
     [[nodiscard]] static sim::ShipCommand ship_command(const sim::Ship& ship, const PanelContext& c,
                                                        sim::ShipCommand::Op op) {
@@ -1249,7 +1249,7 @@ private:
         }
         if (m_page == Page::PickForeign) {
             const sim::Player* owner = c.world().player(city->owner);
-            if (owner != nullptr && owner->role == sim::PlayerRole::Natives) {
+            if (owner != nullptr && c.world().behaviour(*owner) == sim::FactionBehaviour::Natives) {
                 if (const auto w = m_lists.ware_of(id)) {
                     return ui::format_text(c.text("GAME", 50),
                                            {std::int64_t{TradeLists::amount(*city, w->first, w->second) >> 5U},

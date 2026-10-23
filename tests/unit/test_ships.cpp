@@ -68,7 +68,7 @@ struct Sea {
         players[0].money = 10000;
         players[1].role = sim::PlayerRole::Computer;
         players[1].money = 10000;
-        players[4].role = sim::PlayerRole::Trader;
+        sim::make_neutral(players[4], sim::faction::kTrader);
         world.set_players(players);
         if (!island) {
             return;
@@ -536,7 +536,7 @@ TEST_CASE("ships: with more than four players the free trader looks only as far 
     Sea sea;
     sim::Rules original = sim::Rules::original();
     CHECK(original.trader_reach == sim::TraderReach::Original);
-    CHECK(sea.rules.trader_reach == sim::TraderReach::PerFourPlayers);
+    CHECK(sea.rules.trader_reach == sim::TraderReach::Scaled);
     // Four players (slots 0 to 3): the original's 12 nearest Kontors, whatever the rule.
     CHECK(sim::trader_reach_players(sea.world, sea.rules) == 0);
     CHECK(sim::trader_candidates(sea.world, sea.rules, 24) == 12);

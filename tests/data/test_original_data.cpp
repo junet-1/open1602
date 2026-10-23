@@ -1426,7 +1426,7 @@ TEST_CASE("data: crops of the players stand on fertile tiles (0x004684A0)") {
                     continue;  // only field crops
                 }
                 const sim::Player* owner = world.player(cell.owner);
-                if (owner == nullptr || owner->role == sim::PlayerRole::Natives) {
+                if (owner == nullptr || owner->faction == sim::faction::kNatives) {
                     continue;
                 }
                 ++fields;

@@ -11,6 +11,7 @@
 #include <string>
 
 #include "o1602/assets/scenario.hpp"
+#include "o1602/sim/faction.hpp"
 
 namespace o1602::sim {
 
@@ -24,14 +25,12 @@ inline constexpr std::size_t kMaxPlayerCount = kNoPlayer;
 /// provides the original colours 0..6 as banners 0..6; mods add more.
 using BannerId = std::uint16_t;
 
-/// Role of a player slot. Stands for the controller (human, computer) and the fixed factions of
-/// the original until factions become data (ADR 0007, section 3).
+/// Who steers a player slot (ADR 0007, section 3). What the slot is, settlers or one of the
+/// neutral factions, is its faction (Player::faction).
 enum class PlayerRole : std::uint8_t {
     Human,
     Computer,
-    Trader,  ///< free trader
-    Pirates,
-    Natives,
+    Neutral,  ///< nobody: the faction's own behaviour (the trader, the pirates, the natives)
 };
 
 /// Whether a player is still in the game (the original's controller 9 and 10).
@@ -78,6 +77,8 @@ struct Player {
     BannerId banner = 0;
     std::int32_t money = 0;
     std::string name;
+    /// Index into World::factions(): the settlers unless the slot is one of a neutral faction.
+    FactionId faction = faction::kSettlers;
     /// Unlocked build levels: bit n - 1 = INFRA number n (BuildingTable::infra_levels()). A level
     /// stays unlocked once one city of the player reached it (0x0047F8A0).
     std::uint32_t infra_mask = 0;
@@ -146,15 +147,37 @@ constexpr void add_count(std::uint16_t& counter, std::uint32_t n) noexcept {
         case assets::PlayerKind::Computer:
             return PlayerRole::Computer;
         case assets::PlayerKind::Trader:
-            return PlayerRole::Trader;
         case assets::PlayerKind::Pirate:
-            return PlayerRole::Pirates;
         case assets::PlayerKind::Natives:
-            return PlayerRole::Natives;
+            return PlayerRole::Neutral;
         case assets::PlayerKind::Human:
             break;
     }
     return PlayerRole::Human;
+}
+
+/// The base faction of a PLAYER4 slot (base_factions()).
+[[nodiscard]] constexpr FactionId faction_from_original(assets::PlayerKind kind) noexcept {
+    switch (kind) {
+        case assets::PlayerKind::Trader:
+            return faction::kTrader;
+        case assets::PlayerKind::Pirate:
+            return faction::kPirates;
+        case assets::PlayerKind::Natives:
+            return faction::kNatives;
+        case assets::PlayerKind::Human:
+        case assets::PlayerKind::Computer:
+        case assets::PlayerKind::Defeated:
+        case assets::PlayerKind::Absent:
+            break;
+    }
+    return faction::kSettlers;
+}
+
+/// Makes `player` a slot of the neutral faction `faction`, steered by its own behaviour.
+constexpr void make_neutral(Player& player, FactionId faction) noexcept {
+    player.role = PlayerRole::Neutral;
+    player.faction = faction;
 }
 
 [[nodiscard]] constexpr PlayerStatus status_from_original(assets::PlayerKind kind) noexcept {

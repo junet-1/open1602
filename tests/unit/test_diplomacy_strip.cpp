@@ -27,9 +27,9 @@ std::vector<sim::Player> twelve_players() {
     for (std::size_t i = 2; i < 12; ++i) {
         p[i].role = sim::PlayerRole::Computer;
     }
-    p[12].role = sim::PlayerRole::Trader;
-    p[13].role = sim::PlayerRole::Pirates;
-    p[14].role = sim::PlayerRole::Natives;
+    sim::make_neutral(p[12], sim::faction::kTrader);
+    sim::make_neutral(p[13], sim::faction::kPirates);
+    sim::make_neutral(p[14], sim::faction::kNatives);
     for (std::size_t i = 0; i < p.size(); ++i) {
         p[i].name = "P" + std::to_string(i);
     }
