@@ -1175,7 +1175,7 @@ void Hud::message(MessageId id, sim::BannerId banner, std::optional<std::pair<do
 namespace {
 
 /// The colour of a world tile on the minimap. An island `local` has not discovered shows its ground
-/// without owners, like the map (0x00489C90); the natives' land never has their colour.
+/// without owners, like the map (0x00489C90).
 std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
                                            const render::BannerTable& banners, const sim::World::Cell& c,
                                            sim::PlayerId local) {
@@ -1197,9 +1197,9 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
     const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
     if (!scenery && !hidden && top.owner != sim::kNoPlayer) {
         const sim::Player* p = world.player(top.owner);
-        // The original's minimap never shows a native village, discovered or not (checked under Wine).
-        const render::Banner* banner =
-            p != nullptr && p->role != sim::PlayerRole::Natives ? banners.get(p->banner) : nullptr;
+        // Unlike the original's minimap, which never shows native villages, Open1602 shows the natives
+        // and the pirates in their colour once the island is discovered.
+        const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
         if (banner != nullptr) {
             rgb = {banner->color.r, banner->color.g, banner->color.b};
         }
