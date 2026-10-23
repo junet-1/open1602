@@ -642,13 +642,13 @@ TEST_CASE("military: at most a fixed number of way searches per tick, the others
         ids.push_back(f.add(kSword, 0, 2 * 12, 2 * 11 + 2 * i).id);
     }
     for (std::size_t i = 0; i < ids.size(); ++i) {
-        const std::int32_t cy = 2 * 11 + 2 * static_cast<std::int32_t>(i);
+        const std::uint32_t cy = 2 * 11 + 2 * static_cast<std::uint32_t>(i);
         REQUIRE(f.military->order(sim::SoldierOrder{0, {ids[i]}, sim::Target::spot(2 * 30, cy)}));
     }
     const auto planned = [&] {
         std::size_t n = 0;
         for (const std::uint32_t id : ids) {
-            n += f.world.soldier(id)->motion.path.empty() ? 0 : 1;
+            n += f.world.soldier(id)->motion.path.empty() ? 0U : 1U;
         }
         return n;
     };

@@ -981,12 +981,12 @@ TEST_CASE("ships: at most a fixed number of course searches per tick, the others
     sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
     for (std::size_t i = 0; i < ids.size(); ++i) {
         REQUIRE(
-            fleet.order(sim::ShipOrder{0, ids[i], sim::Target::position(100, 5 + 2 * static_cast<std::int32_t>(i))}));
+            fleet.order(sim::ShipOrder{0, ids[i], sim::Target::position(100, 5 + 2 * static_cast<std::uint32_t>(i))}));
     }
     const auto planned = [&] {
         std::size_t n = 0;
         for (const std::uint32_t id : ids) {
-            n += sea.world.ship(id)->motion.path.empty() ? 0 : 1;
+            n += sea.world.ship(id)->motion.path.empty() ? 0U : 1U;
         }
         return n;
     };
