@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <bit>
 #include <utility>
+#include <variant>
 
 namespace o1602::net {
 
@@ -11,8 +12,38 @@ namespace {
 
 constexpr std::uint32_t kTickMs = sim::Simulation::kTickMs;
 constexpr std::uint32_t kMaxOwedMs = kTickMs * sim::Simulation::kMaxTicksPerAdvance;
+/// command_work() of one item of a build order and one unit of a soldier order, in tiles.
+constexpr std::uint64_t kBuildItemWork = 16;
+constexpr std::uint64_t kSoldierWork = 4;
 
 }  // namespace
+
+std::uint64_t command_work(const sim::World& world, const sim::Command& command) {
+    if (const auto* demolish = std::get_if<sim::DemolishOrder>(&command)) {
+        // The tiles of the rectangle on the island (plan_demolish looks at each).
+        if (demolish->island >= world.islands().size()) {
+            return 1;
+        }
+        const sim::IslandMap& map = world.islands()[demolish->island].map;
+        const std::int64_t x0 = std::max(0, std::min(demolish->from.x, demolish->to.x));
+        const std::int64_t y0 = std::max(0, std::min(demolish->from.y, demolish->to.y));
+        const std::int64_t x1 =
+            std::min(std::int64_t{map.width()} - 1, std::int64_t{std::max(demolish->from.x, demolish->to.x)});
+        const std::int64_t y1 =
+            std::min(std::int64_t{map.height()} - 1, std::int64_t{std::max(demolish->from.y, demolish->to.y)});
+        if (x1 < x0 || y1 < y0) {
+            return 1;
+        }
+        return static_cast<std::uint64_t>((x1 - x0 + 1) * (y1 - y0 + 1));
+    }
+    if (const auto* build = std::get_if<sim::BuildOrder>(&command)) {
+        return 1 + build->items.size() * kBuildItemWork;
+    }
+    if (const auto* soldiers = std::get_if<sim::SoldierOrder>(&command)) {
+        return 1 + soldiers->soldiers.size() * kSoldierWork;
+    }
+    return 1;
+}
 
 const char* describe(EndReason reason) noexcept {
     switch (reason) {
@@ -135,6 +166,15 @@ void Session::chat_event(const Chat& chat) {
     e.name = chat.name;
     e.text = chat.text;
     event(std::move(e));
+}
+
+std::uint32_t Session::command_share(std::uint32_t players) const noexcept {
+    const std::uint32_t fair = (kMaxCommandsPerMessage - kReservedCommands) / std::max(players, 1U);
+    return std::max(1U, std::min(m_config.max_commands_per_frame, fair));
+}
+
+std::uint64_t Session::work_share(std::uint32_t players) noexcept {
+    return std::max<std::uint64_t>(1, kFrameWork / std::max(players, 1U));
 }
 
 void Session::send(LinkId link, const Message& message) {

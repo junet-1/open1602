@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "o1602/net/session.hpp"
+#include "o1602/sim/command_io.hpp"
 
 namespace o1602::net {
 
@@ -76,6 +77,15 @@ void ClientSession::submit(sim::Command command) {
     if (m_ended || m_simulation == nullptr || m_seat == sim::kNoPlayer || command_player(command) != m_seat) {
         return;
     }
+    if (!sim::command_size(command)) {
+        // The others could not read it: the host would drop it (MS-10).
+        SessionEvent e;
+        e.kind = SessionEvent::Kind::Dropped;
+        e.seat = m_seat;
+        e.count = 1;
+        event(std::move(e));
+        return;
+    }
     m_outgoing.push_back(std::move(command));
 }
 
@@ -134,24 +144,7 @@ void ClientSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeT
     if (m_simulation != nullptr) {
         run(real_ms, before_tick);
     }
-    while (!m_outgoing.empty()) {
-        // As many as fit into one message the host takes (large build orders take room).
-        std::size_t n = std::min<std::size_t>(m_outgoing.size(), kMaxCommandsPerMessage);
-        std::vector<std::uint8_t> bytes;
-        for (;;) {
-            CommandBatch batch;
-            batch.commands.assign(m_outgoing.begin(), m_outgoing.begin() + static_cast<std::ptrdiff_t>(n));
-            bytes = encode(batch);
-            if (bytes.size() <= kMaxMessageToHost || n == 1) {
-                break;
-            }
-            n /= 2;
-        }
-        m_outgoing.erase(m_outgoing.begin(), m_outgoing.begin() + static_cast<std::ptrdiff_t>(n));
-        if (bytes.size() <= kMaxMessageToHost) {
-            m_transport->send(kHost, bytes);
-        }
-    }
+    send_commands();
     report(real_ms);
     m_transport->flush();
 }
@@ -212,6 +205,12 @@ void ClientSession::receive(std::span<const std::uint8_t> bytes) {
             e.frame = desync->frame;
             event(std::move(e));
         }
+    } else if (const auto* dropped = std::get_if<Dropped>(&*message)) {
+        SessionEvent e;
+        e.kind = SessionEvent::Kind::Dropped;
+        e.seat = m_seat;
+        e.count = dropped->commands;
+        event(std::move(e));
     } else {
         end(EndReason::ProtocolError);  // a message only computers send
     }
@@ -237,6 +236,8 @@ void ClientSession::load(Snapshot& m) {
     m_frames_ahead.clear();
     m_pending_ms = 0;
     m_outgoing.clear();  // given in the old game: they would act on the new one
+    m_send_commands = 0;
+    m_send_owed = 0;
     SessionEvent e;
     e.kind = SessionEvent::Kind::Loaded;
     e.seat = m_seat;
@@ -294,9 +295,52 @@ void ClientSession::run(std::uint32_t real_ms, const sim::Simulation::BeforeTick
             m_since_report = 0;
         }
         ++done;
+        // A frame gone by: the host closed one more too, with a share for this computer's player.
+        m_send_commands = 0;
+        m_send_owed -= std::min(m_send_owed, work_share(players()));
     }
     m_waiting = done < due && m_frames == m_closed;
     ran(done);
+}
+
+std::uint32_t ClientSession::players() const noexcept {
+    return static_cast<std::uint32_t>(
+        std::count_if(m_roster.begin(), m_roster.end(), [](const Member& m) { return m.seat != sim::kNoPlayer; }));
+}
+
+void ClientSession::send_commands() {
+    // Paced as the host admits them (MS-17): a player's share of commands and work per frame run,
+    // so that a burst waits here, not at the host, which drops what waits too long.
+    if (m_simulation == nullptr) {
+        return;
+    }
+    const std::uint32_t share = command_share(players());
+    const std::uint64_t work = work_share(players());
+    std::size_t n = 0;
+    while (n < m_outgoing.size() && m_send_commands < share && m_send_owed < work) {
+        ++m_send_commands;
+        m_send_owed += command_work(m_simulation->world(), m_outgoing[n]);
+        ++n;
+    }
+    while (n > 0) {
+        // As many as fit into one message the host takes (large build orders take room).
+        std::size_t take = n;
+        std::vector<std::uint8_t> bytes;
+        for (;;) {
+            CommandBatch batch;
+            batch.commands.assign(m_outgoing.begin(), m_outgoing.begin() + static_cast<std::ptrdiff_t>(take));
+            bytes = encode(batch);
+            if (bytes.size() <= kMaxMessageToHost || take == 1) {
+                break;
+            }
+            take /= 2;
+        }
+        m_outgoing.erase(m_outgoing.begin(), m_outgoing.begin() + static_cast<std::ptrdiff_t>(take));
+        n -= take;
+        if (bytes.size() <= kMaxMessageToHost) {
+            m_transport->send(kHost, bytes);
+        }
+    }
 }
 
 void ClientSession::report(std::uint32_t real_ms) {

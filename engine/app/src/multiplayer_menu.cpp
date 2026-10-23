@@ -666,7 +666,7 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
                 const std::int32_t y = y_free + 46 + static_cast<std::int32_t>(m_watchers.size()) * 40;
                 f.label(Rect{688, y, 130, 38}, roster[i].name, Align::Left, Tone::Dim);
                 f.button(kWatcherKick + static_cast<Id>(m_watchers.size()), Rect{822, y, 150, 38}, tr(MpText::Kick));
-                m_watchers.push_back(i);
+                m_watchers.push_back({i, roster[i].name});
             }
         }
     }
@@ -900,8 +900,12 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                 event(MultiplayerEvent::Kind::TakeSeat)->seat = static_cast<sim::PlayerId>(id - kSeatTake);
                 m_ready = false;
             } else if (id >= kWatcherKick && id < kWatcherKick + static_cast<Id>(m_watchers.size())) {
-                event(MultiplayerEvent::Kind::KickMember)->member =
-                    m_watchers[static_cast<std::size_t>(id - kWatcherKick)];
+                // The entry as shown: the host kicks it only if the roster still has it there (MS-18).
+                const auto& [member, name] = m_watchers[static_cast<std::size_t>(id - kWatcherKick)];
+                MultiplayerEvent* e = event(MultiplayerEvent::Kind::KickMember);
+                e->member = member;
+                e->seat = sim::kNoPlayer;
+                e->text = name;
             } else if (id >= kSeatBanner && id < kSeatBanner + static_cast<Id>(kMaxSeats)) {
                 const auto s = static_cast<std::size_t>(id - kSeatBanner);
                 m_banner_seat = m_banner_seat == s ? std::nullopt : std::optional(s);

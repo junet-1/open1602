@@ -105,7 +105,7 @@ struct MultiplayerEvent {
         TakeSeat,    ///< take slot `seat` (kNoPlayer: watch)
         SetSeat,     ///< (host) slot `seat` becomes `seat_kind`
         Kick,        ///< (host) send the player of `seat` away
-        KickMember,  ///< (host) send the computer of roster entry `member` away (a spectator too)
+        KickMember,  ///< (host) send the spectator of roster entry `member` (`seat`, `text` as shown) away
         Ready,       ///< ready (`ready`) or not
         Say,         ///< chat `text`
         Name,        ///< the player's name changed to `text`
@@ -257,7 +257,8 @@ private:
     bool m_ready = false;
     std::optional<std::size_t> m_banner_seat;     ///< the slot whose banner is being chosen
     std::vector<sim::BannerId> m_banner_choices;  ///< the banners of the buttons shown, in order
-    std::vector<std::size_t> m_watchers;          ///< (host) roster entries of the spectators shown with a kick button
+    /// (Host) The roster entries and names of the spectators shown with a kick button.
+    std::vector<std::pair<std::size_t, std::string>> m_watchers;
 };
 
 }  // namespace o1602::app

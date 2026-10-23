@@ -8,6 +8,7 @@
 // the end of the variant and never reordered, so older bytes keep their meaning.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -39,5 +40,10 @@ void write_scheduled(core::ByteWriter& out, const ScheduledCommand& command);
 /// Convenience: one command as a block of bytes and back (the whole block must be used).
 [[nodiscard]] std::vector<std::uint8_t> encode_command(const Command& command);
 [[nodiscard]] std::optional<Command> decode_command(std::span<const std::uint8_t> bytes);
+
+/// The size of `command` as bytes if every computer reads it back; nothing if a reader would refuse
+/// it (a list longer than kMaxCommandItems, a text longer than kMaxCommandText, a value out of
+/// range). Such a command would make the whole message that carries it nonsense to the others.
+[[nodiscard]] std::optional<std::size_t> command_size(const Command& command);
 
 }  // namespace o1602::sim
