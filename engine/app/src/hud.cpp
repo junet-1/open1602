@@ -862,26 +862,6 @@ void Hud::draw_bubbles() {
     }
 }
 
-std::string Hud::crops_line(const std::array<std::pair<std::uint8_t, std::uint32_t>, 3>& crops) const {
-    constexpr std::size_t kGameSuited = 22;
-    constexpr std::uint8_t kFirstRaw = sim::ware::kCornField;  // [ROHST] starts with grain
-    if (!m_texts) {
-        return {};
-    }
-    const std::vector<std::string>& game = m_texts->section("GAME");
-    const std::vector<std::string>& raw = m_texts->section("ROHST");
-    const auto name = [&](std::uint8_t ware) -> std::string_view {
-        const std::size_t i = ware >= kFirstRaw ? std::size_t{ware} - kFirstRaw : raw.size();
-        return i < raw.size() ? std::string_view(raw[i]) : std::string_view();
-    };
-    if (game.size() <= kGameSuited) {
-        return {};
-    }
-    return ui::format_text(game[kGameSuited],
-                           {name(crops[0].first), std::int64_t{crops[0].second}, name(crops[1].first),
-                            std::int64_t{crops[1].second}, name(crops[2].first), std::int64_t{crops[2].second}});
-}
-
 void Hud::draw_help() {
     if (!m_help) {
         return;
