@@ -36,3 +36,9 @@ o1602_set_warnings(o1602_fuzz_seeds)
 add_executable(o1602_mod_limits mod_limits.cpp)
 target_link_libraries(o1602_mod_limits PRIVATE o1602::assets o1602::sim)
 o1602_set_warnings(o1602_mod_limits)
+
+# Both link libraries built with the coverage instrumentation, so they need its runtime (without
+# libFuzzer's main) also when no sanitizer brings it along.
+foreach(helper IN ITEMS o1602_fuzz_seeds o1602_mod_limits)
+    target_link_options(${helper} PRIVATE -fsanitize=fuzzer-no-link)
+endforeach()
