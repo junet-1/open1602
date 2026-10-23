@@ -135,6 +135,7 @@ GameSettingsMenu::Result GameSettingsMenu::mouse(std::int32_t x, std::int32_t y,
     } else if (*id == kBack) {
         return back() ? Result::None : Result::Back;
     } else if (*id == kStart && editable) {
+        m_error.clear();
         return Result::Start;
     }
     return Result::None;
@@ -205,8 +206,12 @@ void GameSettingsMenu::layout() {
     }
     // The hint below the lower column; three lines of it fit above the buttons.
     const std::int32_t hint_y = std::max({kHintY, left_y, right_y});
-    f.paragraph(Rect{40, hint_y, 944, kBottomY - 4 - hint_y},
-                ui::tr(victory ? "setup.hint.victory" : hint_key(m_scope)), Tone::Dim);
+    if (!m_error.empty()) {
+        f.paragraph(Rect{40, hint_y, 944, kBottomY - 4 - hint_y}, m_error, Tone::Warning);
+    } else {
+        f.paragraph(Rect{40, hint_y, 944, kBottomY - 4 - hint_y},
+                    ui::tr(victory ? "setup.hint.victory" : hint_key(m_scope)), Tone::Dim);
+    }
     f.button(kBack, Rect{40, kBottomY, 180, 44}, ui::tr("setup.back"));
     if (!editable) {
         return;

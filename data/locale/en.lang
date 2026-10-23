@@ -38,6 +38,7 @@ notice.screenshot_failed = Screenshot failed: {1}
 # {1}: the number of the scenario's variant
 menu.part = Part {1}
 menu.default_name = Nameless
+menu.start_failed = The game could not be started: {1}
 # {1}: the number of the slot
 save.default_name = Savegame {1}
 # A savegame in the lists: {1} the player's name, {2} the time played, {3} x {4} the map's size

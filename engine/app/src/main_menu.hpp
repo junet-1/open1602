@@ -102,6 +102,15 @@ public:
     [[nodiscard]] const EndlessSetup& scenario_setup() const noexcept { return m_scenario; }
     /// Colours of Open1602's own screens (the start dialog).
     void set_form_style(const ui::FormStyle& style) { m_settings.set_style(style); }
+    /// Why the game the start dialog asked for did not start, shown in the dialog. False if the
+    /// dialog is not open (the message is then only in the log).
+    bool show_start_error(std::string text) {
+        if (m_screen != Screen::Settings) {
+            return false;
+        }
+        m_settings.set_error(std::move(text));
+        return true;
+    }
     /// The chapter of the tutorial the mission screen offers first (the settings' "Tutornr").
     void set_tutorial_chapter(std::uint8_t chapter) noexcept { m_tutorial_chapter = chapter; }
     /// The file of a chapter of the tutorial, empty if there is none.

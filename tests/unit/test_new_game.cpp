@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <random>
 #include <span>
 #include <string>
@@ -27,6 +28,7 @@
 #include "o1602/sim/ai.hpp"
 #include "o1602/sim/new_game.hpp"
 #include "o1602/sim/savegame_extension.hpp"
+#include "o1602/sim/score.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/validate.hpp"
 #include "o1602/sim/world_plan.hpp"
@@ -163,7 +165,8 @@ std::vector<std::uint8_t> random_table() {
 
 /// An endless level as the editor saved it (Endlosspiel<D><V>.szs); the ships of the slots from
 /// `large_from` on are large trading cogs.
-std::vector<std::uint8_t> endless_bytes(std::uint16_t large_from = 5) {
+/// `mission`: the SZENE_MISSNR chunk the original's levels have (1 in the .szs, 0 in the .szm).
+std::vector<std::uint8_t> endless_bytes(std::uint16_t large_from = 5, std::optional<std::uint32_t> mission = {}) {
     std::vector<std::uint8_t> timers(kEndlessTimersSize, 0);
     timers[0x10] = 0x77;             // not reset: kept
     timers[0xA6] = 1;                // the level's difficulty: kept
@@ -172,6 +175,11 @@ std::vector<std::uint8_t> endless_bytes(std::uint16_t large_from = 5) {
     std::vector<std::uint8_t> bytes;
     test::put_chunk(bytes, "NAME", {'L', 'e', 'v', 'e', 'l'});
     test::put_chunk(bytes, "CUSTOM", {1, 2, 3, 4});
+    if (mission) {
+        std::vector<std::uint8_t> number;
+        test::put_u32(number, *mission);
+        test::put_chunk(bytes, "SZENE_MISSNR", number);
+    }
     test::put_chunk(bytes, "SZENE", level_plan());
     test::put_chunk(bytes, "RANDTAB", random_table());
     test::put_chunk(bytes, "PLAYER4", level_players());
@@ -220,12 +228,15 @@ std::vector<std::uint8_t> template_file(std::uint8_t climate, std::uint8_t size,
 /// island template (a native version of every third), the endless level of difficulty 1,
 /// layout 2, and that of difficulty 0, layout 0 for one player and for several as the original's
 /// files have them: large cogs for slots 2 and 3 in the .szs, small ones for all in the .szm.
+/// Without `level_name` the levels have the German game's names (sim::endless_file); with it they
+/// are called as another language calls them, `level_name` and the two digits, and only their
+/// SZENE_MISSNR tells them from other scenarios (as in Decoy12.szs, which is none).
 struct FakeInstallation {
     std::filesystem::path root;
     assets::GameDirectory game;
 
-    FakeInstallation() {
-        root = test::temp_path("o1602_new_game");
+    explicit FakeInstallation(std::string_view level_name = {}) {
+        root = test::temp_path(level_name.empty() ? "o1602_new_game" : "o1602_new_game_named");
         std::filesystem::remove_all(root);
         for (const char* dir : {"toolgfx", "gfx", "Szenes", "Nord", "Sued", "NordNat", "SuedNat"}) {
             std::filesystem::create_directories(root / dir);
@@ -244,9 +255,17 @@ struct FakeInstallation {
                 }
             }
         }
-        write(sim::endless_file(1, 2), endless_bytes());
-        write(sim::endless_file(0, 0), endless_bytes(2));
-        write(sim::endless_file(0, 0, true), endless_bytes());
+        if (level_name.empty()) {
+            write(sim::endless_file(1, 2), endless_bytes());
+            write(sim::endless_file(0, 0), endless_bytes(2));
+            write(sim::endless_file(0, 0, true), endless_bytes());
+        } else {
+            const std::string level = "Szenes/" + std::string(level_name);
+            write("Szenes/Decoy12.szs", endless_bytes());
+            write(level + "12.szs", endless_bytes(5, 1));
+            write(level + "00.szs", endless_bytes(2, 1));
+            write(level + "00.szm", endless_bytes(5, 0));
+        }
         auto opened = assets::GameDirectory::open(root);
         REQUIRE(opened.ok());
         game = std::move(opened).value();
@@ -523,6 +542,34 @@ TEST_CASE("new game: a multiplayer endless game starts every player with the sma
     auto missing = sim::start_new_game(fake.game, buildings(), texts(), o);
     REQUIRE(!missing.ok());
     CHECK(missing.error().code == core::ErrorCode::NotFound);
+}
+
+TEST_CASE("new game: the levels of an installation in another language are found by their scenario") {
+    // The English game does not call its levels Endlosspiel: Start in the dialog did nothing.
+    static const FakeInstallation fake("Endless Game");
+    const auto german = sim::find_endless_file(installation().game, 1, 2);
+    REQUIRE(german.ok());
+    CHECK(german->path.filename() == "Endlosspiel12.szs");
+    CHECK(german->name == "Endlosspiel");
+    const auto found = sim::find_endless_file(fake.game, 1, 2);
+    REQUIRE(found.ok());
+    CHECK(found->path.filename() == "Endless Game12.szs");
+    CHECK(found->name == "Endless Game");
+    const auto multi = sim::find_endless_file(fake.game, 0, 0, true);
+    REQUIRE(multi.ok());
+    CHECK(multi->path.filename() == "Endless Game00.szm");
+    const auto missing = sim::find_endless_file(fake.game, 1, 2, true);
+    REQUIRE(!missing.ok());
+    CHECK(missing.error().code == core::ErrorCode::NotFound);
+
+    // The game is that of the German installation, under the installation's name.
+    auto world = sim::start_new_game(fake.game, buildings(), texts(), options(7));
+    REQUIRE(world.ok());
+    auto same = sim::start_new_game(installation().game, buildings(), texts(), options(7));
+    REQUIRE(same.ok());
+    CHECK(world->islands().size() == same->islands().size());
+    CHECK(sim::game_identity(*world).name == "Endless Game");
+    CHECK(sim::game_identity(*same).name == "Endlosspiel");
 }
 
 TEST_CASE("new game: an endless game: its islands from the plan, the same seed the same world") {

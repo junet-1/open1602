@@ -13,6 +13,8 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "endless_setup.hpp"
@@ -40,7 +42,12 @@ public:
         m_scope = scope;
         m_mode = scope == SetupScope::Savegame ? Mode::View : mode;
         m_page = Page::Settings;
+        m_error.clear();
     }
+    /// Shows `text` in place of the hint: why the game did not start. A click on "Start" takes it
+    /// away again.
+    void set_error(std::string text) { m_error = std::move(text); }
+    [[nodiscard]] const std::string& error() const noexcept { return m_error; }
     [[nodiscard]] const EndlessSetup& setup() const noexcept { return m_setup; }
     [[nodiscard]] SetupScope scope() const noexcept { return m_scope; }
     [[nodiscard]] Mode mode() const noexcept { return m_mode; }
@@ -65,6 +72,7 @@ private:
     SetupScope m_scope = SetupScope::Endless;
     Mode m_mode = Mode::Start;
     Page m_page = Page::Settings;
+    std::string m_error;
 };
 
 }  // namespace o1602::app

@@ -28,6 +28,7 @@ notice.screenshot_failed = Bildschirmfoto fehlgeschlagen: {1}
 # Menus and savegames
 menu.part = Teil {1}
 menu.default_name = Namenlos
+menu.start_failed = Das Spiel ließ sich nicht starten: {1}
 save.default_name = Spielstand {1}
 save.details = {1}, gespielt {2}, Karte {3} x {4}
 save.time = {1}:{2} Std.
