@@ -448,6 +448,24 @@ bool trim_trade_settings(City& city, const assets::BuildingType& kontor) {
     return true;
 }
 
+void fit_goodwill(World& world) {
+    const std::size_t players = world.players().size();
+    for (const City& c : world.cities()) {
+        City& city = *world.city(c.island, c.index);
+        if (!world.acts_as(city.owner, FactionBehaviour::Natives)) {
+            continue;
+        }
+        for (std::size_t p = city.goodwill.size(); p < players; ++p) {
+            const PlayerRole role = world.players()[p].role;
+            city.goodwill.push_back(role == PlayerRole::Human || role == PlayerRole::Computer ? kNativeGoodwillStart
+                                                                                              : 0U);
+        }
+        for (std::uint32_t& g : city.goodwill) {
+            g = std::min(g, kMaxNativeGoodwill);
+        }
+    }
+}
+
 PlayerId first_human_player(const World& world) noexcept {
     const auto& players = world.players();
     for (std::size_t i = 0; i < players.size() && i < kNoPlayer; ++i) {

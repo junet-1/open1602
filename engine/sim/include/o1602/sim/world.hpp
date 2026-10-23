@@ -100,6 +100,12 @@ struct WorldIsland {
 /// from the network too and must not break lines of lists and files.
 [[nodiscard]] bool valid_name(std::string_view name, std::size_t max_length) noexcept;
 
+/// Natives' goodwill towards a player who starts a game (0x0046A220).
+inline constexpr std::uint32_t kNativeGoodwillStart = 200;
+/// Goodwill never grows above this: far above what trade reaches against the decay (tens of
+/// thousands), and low enough that no product with it leaves 32 bits.
+inline constexpr std::uint32_t kMaxNativeGoodwill = 1'000'000;
+
 /// A city: the settlement of one player on one island (STADT4 in the original).
 struct City {
     std::uint16_t island = 0;  ///< index into World::islands()
@@ -176,7 +182,8 @@ struct City {
     };
     std::vector<Trade> trade;  ///< per ware
     /// Natives: goodwill towards each player (city + 0x206); selling to them raises it, buying
-    /// from them uses it up. Indexed by PlayerId.
+    /// from them uses it up. Indexed by PlayerId, one entry per player (fit_goodwill); a player
+    /// without an entry gets nothing.
     std::vector<std::uint32_t> goodwill;
     bool trader_inbound = false;  ///< a free trader sails here (city + 0x257 bit 1)
     /// Ships that gave up their way to the Kontor since the last route stop there (city + 0x252);
@@ -695,6 +702,12 @@ private:
 /// it allows, all the city's trade settings are switched off (0x00481EE0). True if they were.
 /// Data without Maxware (both 0) sets no limit.
 bool trim_trade_settings(City& city, const assets::BuildingType& kontor);
+
+/// Gives every natives' city one goodwill entry per player: the original's records have seven,
+/// so players five on (ids 7 on) had none and bought without limit. A new entry is
+/// kNativeGoodwillStart for a human or computer player, 0 for the others; every entry is at most
+/// kMaxNativeGoodwill. Run when a game starts or is loaded.
+void fit_goodwill(World& world);
 
 /// The player at this computer until there is a lobby: the first human player, kNoPlayer if none.
 [[nodiscard]] PlayerId first_human_player(const World& world) noexcept;

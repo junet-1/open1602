@@ -14,6 +14,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/combat.hpp"
 #include "o1602/sim/consumption.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/ships.hpp"
@@ -555,4 +556,70 @@ TEST_CASE("pirates: random places at sea are clamped to the map, as Pirate_Rando
         on_edge += t.y == 0 || t.y == 59 ? 1U : 0U;
     }
     CHECK(on_edge >= 2);
+}
+
+TEST_CASE("natives: trading with them is limited by goodwill for every player, the fifth too") {
+    World w;
+    // Eight players, so that the fifth player has the id 7 (player_slot(4)).
+    std::vector<sim::Player> players = w.world.players();
+    players.resize(8);
+    for (std::size_t p = 4; p < 7; ++p) {
+        players[p].role = sim::PlayerRole::Neutral;  // the faction slots between
+    }
+    w.world.set_players(players);
+    // The nest becomes a natives' village selling and buying tobacco goods for goodwill.
+    constexpr std::uint8_t kWare = 15;
+    sim::City& village = *w.world.city(0, 0);
+    village.owner = 3;
+    village.goods[kWare] = 20 * kTon;
+    village.trade[kWare].sell = true;
+    village.trade[kWare].buy = true;
+    village.trade[kWare].limit = 30 * kTon;
+    village.goodwill = {200, 200, 0, 0};  // as the original's records: no entry for id 7
+    for (const sim::PlayerId p : {sim::PlayerId{0}, sim::PlayerId{7}}) {
+        w.world.diplomacy().relation(p, 3).trade = sim::Treaty::Signed;
+        w.world.diplomacy().relation(3, p).trade = sim::Treaty::Signed;
+    }
+    w.start();
+    const auto ship_of = [&](sim::PlayerId owner) {
+        sim::Ship s = sim::make_ship("Bote", 58, 24, 21, owner);
+        s.cargo.resize(4);
+        w.world.add_ship(s);
+        return w.world.ships().back().id;
+    };
+    const std::uint32_t first = ship_of(0);
+    const std::uint32_t fifth = ship_of(7);
+    const auto buy = [&](std::uint32_t ship, sim::PlayerId owner) {
+        return w.fleet->transfer(sim::CargoTransfer{owner, ship, kWare, true, 20 * kTon, 0xFF});
+    };
+    const auto per_ton = std::max<std::uint32_t>(1, sim::base_price(kWare) * 42U / 128U);
+    const std::uint32_t limit = 200 * kTon / per_ton / kTon * kTon;
+    REQUIRE(limit > 0);
+    REQUIRE(limit < 20 * kTon);
+
+    // Without an entry the fifth player gets nothing, never everything.
+    CHECK(buy(fifth, 7) == 0);
+    // Each player starts with the same goodwill.
+    sim::fit_goodwill(w.world);
+    REQUIRE(village.goodwill.size() == 8);
+    CHECK(village.goodwill[7] == sim::kNativeGoodwillStart);
+    CHECK(village.goodwill[4] == 0);  // a faction, no player
+    CHECK(buy(first, 0) == limit);
+    CHECK(buy(fifth, 7) == limit);
+    CHECK(village.goodwill[0] == village.goodwill[7]);
+    CHECK(village.goodwill[0] < 200);
+    // Used up: no more.
+    CHECK(buy(first, 0) == 0);
+    // Selling to them earns goodwill, the base price a ton.
+    const std::uint32_t before = village.goodwill[7];
+    const std::uint32_t sold = w.fleet->transfer(sim::CargoTransfer{7, fifth, kWare, false, limit, 0xFF});
+    CHECK(sold == limit);
+    CHECK(village.goodwill[7] == before + sim::base_price(kWare) * sold / kTon);
+
+    // Goodwill stays below its cap and never wraps (a crafted save).
+    village.goodwill[0] = 4'000'000'000U;
+    sim::fit_goodwill(w.world);
+    CHECK(village.goodwill[0] == sim::kMaxNativeGoodwill);
+    CHECK(w.fleet->transfer(sim::CargoTransfer{0, first, kWare, false, limit, 0xFF}) == limit);
+    CHECK(village.goodwill[0] == sim::kMaxNativeGoodwill);
 }

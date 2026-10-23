@@ -203,7 +203,7 @@ void consume_natives(City& city) {
     // Their goodwill fades towards 49 (0x0047EB30): 1/128 every 10 s while above it.
     for (std::uint32_t& g : city.goodwill) {
         if (g > kNativeGoodwillFloor) {
-            g = g * 127 / 128;
+            g = static_cast<std::uint32_t>(std::uint64_t{g} * 127 / 128);
         }
     }
 }
