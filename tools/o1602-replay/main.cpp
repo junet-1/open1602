@@ -330,9 +330,13 @@ private:
     }
     void aim_target(sim::Target& t, const sim::World& world, sim::PlayerId player) {
         switch (m_random.below(4)) {
-            case 0:
-                t = sim::Target::position(m_random.below(world.width()), m_random.below(world.height()));
+            case 0: {
+                // One draw per statement: the order of function arguments differs between compilers.
+                const std::uint32_t x = m_random.below(world.width());
+                const std::uint32_t y = m_random.below(world.height());
+                t = sim::Target::position(x, y);
                 break;
+            }
             case 1:
                 t = sim::Target::other_ship(any_ship(world, player, false));
                 break;
