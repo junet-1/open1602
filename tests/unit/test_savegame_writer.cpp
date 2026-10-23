@@ -4,6 +4,7 @@
 // gives the same bytes, and the original's chunks alone (what the original keeps when it saves the
 // game again) hold what the original knows.
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -515,7 +516,7 @@ TEST_CASE("save game: the original's chunks of a .GAM alone hold the synthetic w
     CHECK(original_chunks_only(loaded, buildings) == bytes);
 }
 
-TEST_CASE("save game: a route beyond the original's four stops keeps them in Open1602's chunk only") {
+TEST_CASE("save game: a route beyond the original's four stops and three wares keeps them in Open1602's chunk only") {
     const auto buildings = make_buildings();
     sim::World world = make_world(buildings);
     sim::Ship* ship = nullptr;
@@ -525,6 +526,7 @@ TEST_CASE("save game: a route beyond the original's four stops keeps them in Ope
     REQUIRE(ship != nullptr);
     ship->route.stops[5].target = sim::Target::city_of(0, 0);
     ship->route.stops[5].entries[1] = sim::RouteEntry{kTools, false, 32 * 7};
+    ship->route.stops[0].entries[5] = sim::RouteEntry{kTools, true, 32 * 9};
     ship->route.current = 5;
     const sim::Ship expected = *ship;
     auto bytes = sim::write_savegame(world, buildings);
@@ -536,13 +538,15 @@ TEST_CASE("save game: a route beyond the original's four stops keeps them in Ope
             CHECK(s.route.current == 5);
         }
     }
-    // The original sees the first four stops, and the route from its start.
+    // The original sees the first four stops with three wares each, and the route from its start.
     const sim::World original = load(original_chunks_only(world, buildings), buildings);
     for (const sim::Ship& s : original.ships()) {
         if (s.name == "Seeadler") {
             for (std::size_t n = 0; n < sim::TradeRoute::kStops; ++n) {
-                CHECK(s.route.stops[n] ==
-                      (n < sim::TradeRoute::kOriginalStops ? expected.route.stops[n] : sim::RouteStop{}));
+                sim::RouteStop seen = n < sim::TradeRoute::kOriginalStops ? expected.route.stops[n] : sim::RouteStop{};
+                std::fill(seen.entries.begin() + sim::RouteStop::kOriginalEntries, seen.entries.end(),
+                          sim::RouteEntry{});
+                CHECK(s.route.stops[n] == seen);
             }
             CHECK(s.route.current == 0);
         }

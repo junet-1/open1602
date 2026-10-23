@@ -1076,14 +1076,15 @@ private:
             r[0x4C] = record != m_trader_records.end() ? record->second : std::uint8_t{0};
             const World::Cell& cell = m_world.cell(s.x, s.y);
             r[0x4D] = cell.island == World::kSea ? std::uint8_t{0xFF} : number(cell.island);
-            // SHIP4 has the original's four stops; the others travel in the chunk O1602 only.
+            // SHIP4 has the original's four stops of three wares; the others travel in the chunk O1602
+            // only.
             r[0x4F] = s.route.current < TradeRoute::kOriginalStops ? s.route.current : std::uint8_t{0};
             r[0x50] = static_cast<std::uint8_t>((r[0x50] & ~7U) | (s.direction & 7U));
             for (std::size_t g = 0; g < TradeRoute::kOriginalStops; ++g) {
                 const std::size_t o = 0x52 + 0x24 * g;
                 const RouteStop& stop = s.route.stops[g];
                 put_ref(r, o, stop.target);
-                for (std::size_t e = 0; e < stop.entries.size(); ++e) {
+                for (std::size_t e = 0; e < RouteStop::kOriginalEntries; ++e) {
                     const std::size_t eo = o + 4 + 8 * e;
                     const RouteEntry& entry = stop.entries[e];
                     const assets::BuildingType* stored_type = m_buildings.by_id(get16(r, eo) + kIdOffset);

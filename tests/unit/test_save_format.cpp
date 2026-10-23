@@ -445,20 +445,26 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
         for (std::size_t n = 0; n < sim::TradeRoute::kOriginalStops; ++n) {
             sim::RouteStop& stop = s.route.stops[n];
             stop.target = target(v);
-            for (sim::RouteEntry& e : stop.entries) {
-                v(e.ware);
-                v(e.unload);
-                v(e.amount);
+            for (std::size_t e = 0; e < sim::RouteStop::kOriginalEntries; ++e) {
+                v(stop.entries[e].ware);
+                v(stop.entries[e].unload);
+                v(stop.entries[e].amount);
             }
         }
         if (wide) {
-            // The stops beyond the original's four (version 2 of FLEE), apart from the values
-            // above so that the narrow world keeps the bytes of version 1.
+            // The stops beyond the original's four and the wares beyond its three (versions 2
+            // and 3 of FLEE), apart from the values above so that the narrow world keeps the bytes
+            // of version 1.
             for (std::size_t n = sim::TradeRoute::kOriginalStops; n < sim::TradeRoute::kStops; ++n) {
                 const auto m = static_cast<std::uint32_t>(n + 8 * k);
                 s.route.stops[n].target = sim::Target::position(m * 7, m * 5);
                 s.route.stops[n].entries[n % 3] =
                     sim::RouteEntry{static_cast<std::uint8_t>(1 + m % 24), m % 2 == 0, m * 173};
+            }
+            for (std::size_t n = 0; n < sim::TradeRoute::kStops; ++n) {
+                const auto m = static_cast<std::uint32_t>(n + 8 * k);
+                s.route.stops[n].entries[sim::RouteStop::kOriginalEntries + n % 5] =
+                    sim::RouteEntry{static_cast<std::uint8_t>(1 + (m * 3) % 24), m % 3 == 0, m * 97};
             }
         }
         s.route.current = static_cast<std::uint8_t>(v.below(sim::TradeRoute::kOriginalStops));
@@ -804,7 +810,7 @@ constexpr Golden kSaveWide[] = {
     {"ANIM", 1, 1, 20, 0x45A8858E},
     {"DISA", 1, 1, 30, 0x3FF2904C},
     {"VOLC", 2, 1, 126, 0x3DB4583E},
-    {"FLEE", 2, 1, 1755, 0x435A36A6},
+    {"FLEE", 3, 1, 2475, 0x359C3A4F},
     {"EPOC", 1, 1, 11, 0xFD024085},
     {"ARMY", 1, 1, 842, 0xC84ED2BD},
     {"DIPL", 1, 1, 1640, 0xE77D58A7},
@@ -869,7 +875,7 @@ constexpr Golden kChunkWide[] = {
     {"ANIM", 1, 1, 20, 0x45A8858E},
     {"DISA", 1, 1, 30, 0x3FF2904C},
     {"VOLC", 2, 1, 126, 0x3DB4583E},
-    {"FLEE", 2, 1, 1755, 0x435A36A6},
+    {"FLEE", 3, 1, 2475, 0x359C3A4F},
     {"EPOC", 1, 1, 11, 0xFD024085},
     {"ARMY", 1, 1, 842, 0xC84ED2BD},
     {"DIPL", 1, 1, 1640, 0xE77D58A7},

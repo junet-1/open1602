@@ -250,6 +250,10 @@ route.copy = Route kopieren
 route.copy_help = Die Zielpunkte eines anderen Eurer Schiffe übernehmen: das Schiff auf der Karte anklicken
 route.show_stops = Zielpunkte {1} zeigen
 route.current_stop = {1} (wird gerade angefahren)
+route.stop_wares = Alle {1} Waren dieses Zielpunkts zeigen
+route.show_stop = Zielpunkt {1} zeigen
+route.back = Zurück zur Route
+route.no_hold = Kein Laderaum frei: die Ware bleibt für größere Schiffe in der Route
 
 # Window title
 title.paused = Pause

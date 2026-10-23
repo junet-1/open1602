@@ -225,6 +225,8 @@ inline constexpr std::uint16_t kWideCoordinates = 2;
 inline constexpr std::uint16_t kScenarioSwitches = 2;
 /// FLEE version 2: every ship's route with TradeRoute::kStops stops, not the original's four.
 inline constexpr std::uint16_t kLongRoutes = 2;
+/// FLEE version 3: every stop with RouteStop::kEntries wares, not the original's three.
+inline constexpr std::uint16_t kRouteWares = 3;
 
 /// An island coordinate of ISLE and VOLC: 8 bit up to version 1, 16 bit from kWideCoordinates.
 template <class A, class T>
@@ -307,7 +309,8 @@ void write_ships(Writer& out, const World& w);
 [[nodiscard]] std::vector<Ship> read_ships(Reader& in);
 void write_fleet(Writer& out, const World& w, std::uint16_t version);
 [[nodiscard]] Decoded::FleetPart read_fleet(Reader& in, std::uint16_t version);
-/// The version of FLEE: kLongRoutes if a route has a stop beyond the original's four.
+/// The version of FLEE: kRouteWares if a stop has a ware beyond the original's three, kLongRoutes
+/// if a route has a stop beyond the original's four, 1 otherwise.
 [[nodiscard]] std::uint16_t fleet_version(const World& w);
 
 // army.cpp: SOLD (files older than ARMY, read only), ARMY.

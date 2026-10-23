@@ -32,8 +32,13 @@ struct RouteEntry {
 };
 
 struct RouteStop {
+    /// Wares per stop: the original has three; Open1602 takes as many as a ship has holds, at most
+    /// eight (docs/re/ships.md, "Trade routes"), the first three as the original's.
+    static constexpr std::size_t kEntries = 8;
+    /// Wares of the original (SHIP4, the computer players' supply runs, the pirates' plunder).
+    static constexpr std::size_t kOriginalEntries = 3;
     Target target;  ///< a city (Kontor), or a ship or position for computer players and pirates
-    std::array<RouteEntry, 3> entries{};
+    std::array<RouteEntry, kEntries> entries{};
     friend bool operator==(const RouteStop&, const RouteStop&) = default;
 };
 
@@ -71,7 +76,7 @@ struct TradeRoute {
         return active && any;
     }
     /// Whether a stop beyond the original's four is set (such a route needs Open1602).
-    [[nodiscard]] bool beyond_original() const noexcept {
+    [[nodiscard]] bool beyond_original_stops() const noexcept {
         for (std::size_t s = kOriginalStops; s < kStops; ++s) {
             if (!stops[s].target.empty()) {
                 return true;
@@ -79,6 +84,18 @@ struct TradeRoute {
         }
         return false;
     }
+    /// Whether a stop has a ware beyond the original's three (such a route needs Open1602).
+    [[nodiscard]] bool beyond_original_entries() const noexcept {
+        for (const RouteStop& s : stops) {
+            for (std::size_t e = RouteStop::kOriginalEntries; e < RouteStop::kEntries; ++e) {
+                if (s.entries[e] != RouteEntry{}) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    [[nodiscard]] bool beyond_original() const noexcept { return beyond_original_stops() || beyond_original_entries(); }
 };
 
 /// A ware the free trader carries (the original's HANDLER record; not in the holds).

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -44,8 +45,33 @@ constexpr std::int32_t kRouteArrowGap = 4;
 constexpr std::int32_t kRouteFont = 0;  // ZEINR, as the stop names
 /// Stops ROUTE.GAD shows at once; the others are a second page.
 constexpr std::size_t kStopsShown = 4;
+/// Wares of a stop ROUTE.GAD shows in the list of stops; the others are on the stop's own page.
+constexpr std::size_t kEntriesShown = 2;
+// Open1602's page of one stop: its board as the first stop's, below it all its wares in two columns
+// (the list's two entries, repeated per row); `+N` on each stop of the list opens it. Ids + the
+// ware 0..7 of the stop.
+constexpr std::int32_t kStopMore = 58311;  // + the stop's place 0..3 on the page
+constexpr std::int32_t kWareIcon = 58410;
+constexpr std::int32_t kWareBack = 58420;
+constexpr std::int32_t kWareBar = 58430;
+constexpr std::int32_t kWareFrame = 58440;
+constexpr std::int32_t kWareSlider = 58450;
+constexpr std::int32_t kWareArrow = 58460;
+constexpr std::int32_t kWareRowPitch = 76;
+constexpr std::int32_t kStopMoreRim = 58321;    // its plate: a rim
+constexpr std::int32_t kStopMorePlate = 58331;  // and the inside
+constexpr std::int32_t kMoreWidth = 26;         ///< the `+N` at the top right of the second ware
+constexpr std::int32_t kMoreHeight = 18;
+constexpr std::int32_t kMoreFont = 1;  // ZEILITTLE
+// Its glyphs carry the spacing on the right and blank rows below the digits: the text is placed
+// by these so that the ink sits in the middle of the plate.
+constexpr std::int32_t kMoreInkX = 1;
+constexpr std::int32_t kMoreInkY = 1;
+constexpr std::int32_t kMoreRimColour = 238;    // STADTFLD.COL: pale gold
+constexpr std::int32_t kMorePlateColour = 173;  // brown
 
-/// ROUTE.GAD with the row of Open1602 below its stops; unchanged without MUSIK.GAD's arrows.
+/// ROUTE.GAD with Open1602's row below its stops, the `+N` of each stop and the gadgets of a stop's
+/// page; unchanged without MUSIK.GAD's arrows.
 assets::GadgetLayout with_route_row(assets::GadgetLayout route, const std::optional<assets::GadgetLayout>& musik) {
     const assets::Gadget* last = route.find(58151 + static_cast<std::int32_t>(kStopsShown - 1));  // its arrow
     const assets::Gadget* name = route.find(58011);
@@ -84,6 +110,54 @@ assets::GadgetLayout with_route_row(assets::GadgetLayout route, const std::optio
     copy.size = {arrow_up.pos[0] - label.pos[0] - 4 - kRouteArrowGap, kRouteRowHeight};
     copy.offset = {0, static_cast<std::int16_t>(kRouteRowHeight - 5)};
     route.gadgets.push_back(copy);
+    // `+N` at the top right of each stop's second ware, on a small plate: its own page.
+    for (std::int32_t slot = 0; slot < static_cast<std::int32_t>(kStopsShown); ++slot) {
+        const assets::Gadget* icon = route.find(58201 + slot);
+        if (icon == nullptr) {
+            continue;
+        }
+        const std::array<std::int32_t, 2> pos{icon->pos[0] + icon->size[0] - kMoreWidth, icon->pos[1]};
+        for (const bool rim : {true, false}) {
+            assets::Gadget plate;
+            plate.id = (rim ? kStopMoreRim : kStopMorePlate) + slot;
+            plate.kind = assets::GadgetKind::Fill;
+            plate.base = static_cast<std::int32_t>(route.gadgets.size());
+            plate.no_select = true;
+            plate.color = {rim ? kMoreRimColour : kMorePlateColour, rim ? kMoreRimColour : kMorePlateColour};
+            plate.pos = rim ? pos : std::array<std::int32_t, 2>{pos[0] + 1, pos[1] + 1};
+            plate.size = rim ? std::array<std::int32_t, 2>{kMoreWidth, kMoreHeight}
+                             : std::array<std::int32_t, 2>{kMoreWidth - 2, kMoreHeight - 2};
+            route.gadgets.push_back(plate);
+        }
+        assets::Gadget more = label;
+        more.id = kStopMore + slot;
+        more.base = static_cast<std::int32_t>(route.gadgets.size());
+        more.block = kMoreFont;
+        more.pos = pos;
+        more.size = {kMoreWidth, kMoreHeight};
+        more.offset = {static_cast<std::int16_t>(kMoreWidth / 2 + kMoreInkX),
+                       static_cast<std::int16_t>(kMoreHeight + kMoreInkY)};
+        route.gadgets.push_back(more);
+    }
+    // The stop's page: the first stop's two wares (icon, bar background, bar, frame, slider,
+    // arrow of the left and right entry), one row of them per two wares.
+    constexpr std::array<std::int32_t, 6> kParts{58101, 58111, 58121, 58131, 58141, 58151};
+    constexpr std::array<std::int32_t, 6> kWare{kWareIcon, kWareBack, kWareBar, kWareFrame, kWareSlider, kWareArrow};
+    for (std::size_t w = 0; w < sim::RouteStop::kEntries; ++w) {
+        const auto column = static_cast<std::int32_t>(w % kEntriesShown);
+        const auto row = static_cast<std::int32_t>(w / kEntriesShown);
+        for (std::size_t part = 0; part < kParts.size(); ++part) {
+            const assets::Gadget* g = route.find(kParts[part] + 100 * column);
+            if (g == nullptr) {
+                continue;
+            }
+            assets::Gadget ware = *g;
+            ware.id = kWare[part] + static_cast<std::int32_t>(w);
+            ware.base = static_cast<std::int32_t>(route.gadgets.size());
+            ware.pos[1] += row * kWareRowPitch;
+            route.gadgets.push_back(ware);
+        }
+    }
     return route;
 }
 
@@ -215,6 +289,7 @@ public:
             m_hold = 0;
             m_offer = 0;
             m_route_page = 0;
+            m_stop_page.reset();
         }
         const sim::Ship* ship = c.world().ship(s.ship);
         if (ship == nullptr) {
@@ -471,6 +546,14 @@ public:
             case Page::PirateOrder:
                 m_page = Page::Pirates;
                 return true;
+            case Page::Route:
+                if (m_stop_page) {
+                    m_route_page = *m_stop_page / kStopsShown;
+                    m_stop_page.reset();
+                    return true;
+                }
+                m_page = Page::Root;
+                return true;
             default:
                 m_page = Page::Root;
                 return true;
@@ -509,12 +592,13 @@ private:
     static constexpr std::int32_t kHoldButton = 38091;
     static constexpr std::int32_t kDeadSlider = 38111;
     // ROUTE.GAD: + the stop's place 0..3 on the page; entries 0 and 1 of a stop.
+    static constexpr std::int32_t kStopBoard = 58001;
     static constexpr std::int32_t kStopName = 58011;
     static constexpr std::int32_t kStopArmsShadow = 58021;
     static constexpr std::int32_t kStopArms = 58031;
     static constexpr std::int32_t kStopSymbol = 58041;
     static constexpr std::array<std::int32_t, 2> kEntryIcon{58101, 58201};
-    [[maybe_unused]] static constexpr std::array<std::int32_t, 2> kEntryBack{58111, 58211};
+    static constexpr std::array<std::int32_t, 2> kEntryBack{58111, 58211};
     static constexpr std::array<std::int32_t, 2> kEntryBar{58121, 58221};
     static constexpr std::array<std::int32_t, 2> kEntryFrame{58131, 58231};
     static constexpr std::array<std::int32_t, 2> kEntrySlider{58141, 58241};
@@ -828,6 +912,7 @@ private:
                     }
                 }
                 m_page = Page::Route;
+                m_stop_page.reset();
                 // The page with the stop it sails to.
                 m_route_page = m_route_row && ship.route.active ? ship.route.current / kStopsShown : 0;
                 break;
@@ -1150,9 +1235,94 @@ private:
         return city.owner != c.local && !c.world().diplomacy().may_trade(c.local, city.owner);
     }
 
-    /// The stop shown in place `slot` of the editor's page.
+    /// The gadgets of one ware of a stop, in the list of stops or on the stop's page.
+    struct WareGadgets {
+        std::uint8_t stop = 0;
+        std::uint8_t entry = 0;
+        std::int32_t icon = 0;
+        std::int32_t back = 0;
+        std::int32_t bar = 0;
+        std::int32_t frame = 0;
+        std::int32_t slider = 0;
+        std::int32_t arrow = 0;
+    };
+    static_assert(kStopsShown * kEntriesShown == sim::RouteStop::kEntries, "the list and a stop's page show as many");
+    using Wares = std::array<WareGadgets, sim::RouteStop::kEntries>;
+
+    /// Places of stops in the editor: the four of the list, or the one stop of its page.
+    [[nodiscard]] std::size_t slots() const { return m_stop_page ? 1 : kStopsShown; }
+    /// The stop shown in place `slot` of the editor.
     [[nodiscard]] std::uint8_t stop_at(std::size_t slot) const {
+        if (m_stop_page) {
+            return *m_stop_page;
+        }
         return static_cast<std::uint8_t>(m_route_page * kStopsShown + slot);
+    }
+    /// The list's wares (two of each stop) or those of the stop on its page (all of them).
+    [[nodiscard]] static Wares list_wares(std::size_t page) {
+        Wares out{};
+        for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
+            const auto s = static_cast<std::int32_t>(slot);
+            for (std::size_t e = 0; e < kEntriesShown; ++e) {
+                out[slot * kEntriesShown + e] = {static_cast<std::uint8_t>(page * kStopsShown + slot),
+                                                 static_cast<std::uint8_t>(e),
+                                                 kEntryIcon[e] + s,
+                                                 kEntryBack[e] + s,
+                                                 kEntryBar[e] + s,
+                                                 kEntryFrame[e] + s,
+                                                 kEntrySlider[e] + s,
+                                                 kEntryArrow[e] + s};
+            }
+        }
+        return out;
+    }
+    [[nodiscard]] static Wares page_wares(std::uint8_t stop) {
+        Wares out{};
+        for (std::size_t k = 0; k < out.size(); ++k) {
+            const auto w = static_cast<std::int32_t>(k);
+            out[k] = {stop,
+                      static_cast<std::uint8_t>(k),
+                      kWareIcon + w,
+                      kWareBack + w,
+                      kWareBar + w,
+                      kWareFrame + w,
+                      kWareSlider + w,
+                      kWareArrow + w};
+        }
+        return out;
+    }
+    [[nodiscard]] Wares wares_shown() const {
+        return m_stop_page ? page_wares(*m_stop_page) : list_wares(m_route_page);
+    }
+    /// A ware the ship has no hold for (stored for larger ships, e.g. from a copied route).
+    [[nodiscard]] static bool spare(const WareGadgets& w, const sim::Ship& ship, const PanelContext& c) {
+        return w.entry >= sim::usable_route_entries(ship, c.figures);
+    }
+    /// A ware of the stop's page that is drawn: one per hold, and the spare ones that are set.
+    [[nodiscard]] bool shown(const WareGadgets& w, const sim::Ship& ship, const PanelContext& c) const {
+        return !m_stop_page || !spare(w, ship, c) || ship.route.stops[w.stop].entries[w.entry] != sim::RouteEntry{};
+    }
+    /// Wares of a stop beyond the two of the list.
+    [[nodiscard]] static std::size_t wares_beyond_list(const sim::RouteStop& stop) {
+        return static_cast<std::size_t>(std::count_if(stop.entries.begin() + kEntriesShown, stop.entries.end(),
+                                                      [](const sim::RouteEntry& r) { return r.ware != 0; }));
+    }
+    /// `+N` on a stop of the list: the wares beyond the two shown, or `+` once both are set (a free
+    /// one is chosen in the list itself).
+    [[nodiscard]] static bool more_shown(const sim::RouteStop& stop) {
+        const bool list_full = std::all_of(stop.entries.begin(), stop.entries.begin() + kEntriesShown,
+                                           [](const sim::RouteEntry& r) { return r.ware != 0; });
+        return list_full || wares_beyond_list(stop) > 0;
+    }
+    /// The next stop with a city before (`step` -1) or after (+1) `from`.
+    [[nodiscard]] static std::optional<std::uint8_t> neighbour_stop(const sim::Ship& ship, const PanelContext& c,
+                                                                    std::uint8_t from, int step) {
+        for (int k = from + step; k >= 0 && k < static_cast<int>(sim::TradeRoute::kStops); k += step) {
+            if (stop_city(ship, c, static_cast<std::size_t>(k)) != nullptr) {
+                return static_cast<std::uint8_t>(k);
+            }
+        }
+        return std::nullopt;
     }
     /// Pages of the editor: two with Open1602's row, the original's one without it.
     [[nodiscard]] std::size_t route_pages() const { return m_route_row ? sim::TradeRoute::kStops / kStopsShown : 1; }
@@ -1182,17 +1352,41 @@ private:
     void refresh_route(const sim::Ship& ship, const PanelContext& c) {
         const auto cap = static_cast<std::int32_t>(sim::kHoldCapacity);
         m_route_page = std::min(m_route_page, route_pages() - 1);
+        if (m_stop_page && (!m_route_row || stop_city(ship, c, *m_stop_page) == nullptr)) {
+            m_stop_page.reset();  // the stop was cleared
+        }
+        // The list's stops and wares, or the first stop's board and the wares of the stop's page.
         for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
-            const std::uint8_t stop = stop_at(slot);
-            const sim::City* city = stop_city(ship, c, stop);
             const auto s = static_cast<std::int32_t>(slot);
+            for (const std::int32_t id : {kStopBoard, kStopName, kStopSymbol}) {
+                m_route.set_visible(id + s, slot < slots());
+            }
+            for (std::size_t e = 0; e < kEntriesShown; ++e) {
+                for (const std::int32_t id :
+                     {kEntryIcon[e], kEntryBack[e], kEntryBar[e], kEntryFrame[e], kEntrySlider[e], kEntryArrow[e]}) {
+                    m_route.set_visible(id + s, !m_stop_page);
+                }
+            }
+        }
+        for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
+            const auto s = static_cast<std::int32_t>(slot);
+            const std::uint8_t stop = stop_at(slot);
+            const sim::City* city = slot < slots() ? stop_city(ship, c, stop) : nullptr;
+            m_route.set_visible(kStopArms + s, city != nullptr);
+            m_route.set_visible(kStopArmsShadow + s, city != nullptr);
+            if (m_route_row) {
+                for (const std::int32_t id : {kStopMoreRim, kStopMorePlate, kStopMore}) {
+                    m_route.set_visible(id + s, city != nullptr && !m_stop_page && more_shown(ship.route.stops[stop]));
+                }
+            }
+            if (slot >= slots()) {
+                continue;
+            }
             std::string name = city != nullptr ? city->name : c.text("GAME", 46);
             if (m_route_row) {
                 name = std::to_string(stop + 1) + ". " + name;  // with eight stops their order shows
             }
             m_route.set_text(kStopName + s, std::move(name));
-            m_route.set_visible(kStopArms + s, city != nullptr);
-            m_route.set_visible(kStopArmsShadow + s, city != nullptr);
             m_route.set_selected(kStopName + s, m_pick_stop == stop);
             m_route.set_graphic(kStopSymbol + s, m_gfx_stop + (city != nullptr ? 0 : 1), 0);
             if (city != nullptr) {
@@ -1200,30 +1394,56 @@ private:
                 set_banner_graphic(m_route, kStopArmsShadow + s, render::BannerArt::at(m_gfx_arms),
                                    c.banner(city->owner));
             }
-            const bool lock = city == nullptr || locked(*city, c);
-            for (std::size_t e = 0; e < 2; ++e) {
-                const sim::RouteEntry& entry = ship.route.stops[stop].entries[e];
-                const bool off = city == nullptr || entry.ware == 0 || lock;
-                m_route.set_graphic(kEntryIcon[e] + s,
-                                    city != nullptr && entry.ware != 0 ? m_gfx_ware + entry.ware : m_gfx_empty, 0);
-                m_route.set_visible(kEntryBar[e] + s, !off);
-                m_route.set_disabled(kEntrySlider[e] + s, off);
-                m_route.set_disabled(kEntryFrame[e] + s, lock);
-                // The direction is fixed at another's city by what it buys and sells.
-                m_route.set_disabled(kEntryArrow[e] + s, off || city->owner != c.local);
-                m_route.set_graphic(kEntryArrow[e] + s, m_gfx_arrow + (entry.unload ? 2 : 0), 0);
-                const auto amount = static_cast<std::int32_t>(std::min(entry.amount, sim::kHoldCapacity));
-                m_route.set_slider(kEntryBar[e] + s, 1, off ? 0 : amount, cap);
-                if (m_route.held() != kEntrySlider[e] + s) {
-                    m_route.set_slider(kEntrySlider[e] + s, 1, off ? 0 : amount, cap);
-                }
+            if (m_route_row && !m_stop_page) {
+                const std::size_t more = wares_beyond_list(ship.route.stops[stop]);
+                m_route.set_text(kStopMore + s, more > 0 ? "+" + std::to_string(more) : std::string("+"));
             }
         }
         if (m_route_row) {
-            m_route.set_text(kRouteCopy, ui::tr("route.copy"));
-            m_route.set_disabled(kRouteUp, m_route_page == 0);
-            m_route.set_disabled(kRouteDown, m_route_page + 1 >= route_pages());
-            m_route.set_selected(kRouteCopy, m_pick_copy);
+            for (const WareGadgets& w : page_wares(0)) {
+                for (const std::int32_t id : {w.icon, w.back, w.bar, w.frame, w.slider, w.arrow}) {
+                    m_route.set_visible(id, false);
+                }
+            }
+        }
+        for (const WareGadgets& w : wares_shown()) {
+            if (!shown(w, ship, c)) {
+                continue;
+            }
+            const sim::City* city = stop_city(ship, c, w.stop);
+            const bool no_hold = spare(w, ship, c);
+            const bool lock = city == nullptr || locked(*city, c) || no_hold;
+            const sim::RouteEntry& entry = ship.route.stops[w.stop].entries[w.entry];
+            const bool off = city == nullptr || entry.ware == 0 || lock;
+            for (const std::int32_t id : {w.icon, w.back, w.frame, w.slider, w.arrow}) {
+                m_route.set_visible(id, true);
+            }
+            m_route.set_graphic(w.icon, city != nullptr && entry.ware != 0 ? m_gfx_ware + entry.ware : m_gfx_empty, 0);
+            m_route.set_disabled(w.icon, no_hold);
+            m_route.set_visible(w.bar, !off);
+            m_route.set_disabled(w.slider, off);
+            m_route.set_disabled(w.frame, lock);
+            // The direction is fixed at another's city by what it buys and sells.
+            m_route.set_disabled(w.arrow, off || city->owner != c.local);
+            m_route.set_graphic(w.arrow, m_gfx_arrow + (entry.unload ? 2 : 0), 0);
+            const auto amount = static_cast<std::int32_t>(std::min(entry.amount, sim::kHoldCapacity));
+            m_route.set_slider(w.bar, 1, off ? 0 : amount, cap);
+            if (m_route.held() != w.slider) {
+                m_route.set_slider(w.slider, 1, off ? 0 : amount, cap);
+            }
+        }
+        if (m_route_row) {
+            if (m_stop_page) {
+                m_route.set_text(kRouteCopy, ui::tr("route.back"));
+                m_route.set_disabled(kRouteUp, !neighbour_stop(ship, c, *m_stop_page, -1));
+                m_route.set_disabled(kRouteDown, !neighbour_stop(ship, c, *m_stop_page, 1));
+                m_route.set_selected(kRouteCopy, false);
+            } else {
+                m_route.set_text(kRouteCopy, ui::tr("route.copy"));
+                m_route.set_disabled(kRouteUp, m_route_page == 0);
+                m_route.set_disabled(kRouteDown, m_route_page + 1 >= route_pages());
+                m_route.set_selected(kRouteCopy, m_pick_copy);
+            }
         }
     }
 
@@ -1233,13 +1453,25 @@ private:
             switch (e.id) {
                 case kRouteUp:
                 case kRouteDown:
-                    if (e.id == kRouteUp && m_route_page > 0) {
+                    if (m_stop_page) {
+                        // The previous or next stop's page.
+                        m_stop_page =
+                            neighbour_stop(ship, c, *m_stop_page, e.id == kRouteUp ? -1 : 1).value_or(*m_stop_page);
+                        m_pick_stop.reset();
+                    } else if (e.id == kRouteUp && m_route_page > 0) {
                         --m_route_page;
                     } else if (e.id == kRouteDown && m_route_page + 1 < route_pages()) {
                         ++m_route_page;
                     }
                     return;
                 case kRouteCopy:
+                    if (m_stop_page) {
+                        // Back to the list, on the page with this stop.
+                        m_route_page = *m_stop_page / kStopsShown;
+                        m_stop_page.reset();
+                        m_pick_stop.reset();
+                        return;
+                    }
                     // Waits for a click on another own ship on the map, whose stops this one takes.
                     m_pick_copy = !m_pick_copy;
                     m_pick_stop.reset();
@@ -1247,28 +1479,57 @@ private:
                 default:
                     break;
             }
-        }
-        for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
-            const std::uint8_t stop = stop_at(slot);
-            const auto s = static_cast<std::int32_t>(slot);
-            const sim::City* city = stop_city(ship, c, stop);
-            for (std::uint8_t k = 0; k < 2; ++k) {
-                const sim::RouteEntry& entry = ship.route.stops[stop].entries[k];
-                if (e.kind == ui::PanelEvent::Kind::Slid && e.id == kEntrySlider[k] + s && city != nullptr &&
-                    entry.ware != 0 && !locked(*city, c)) {
-                    // Whole 1/32 t like the original (no rounding to tons).
-                    sim::RouteEntry v = entry;
-                    v.amount = static_cast<std::uint32_t>(
-                        m_route.slider(e.id, 1, static_cast<std::int32_t>(sim::kHoldCapacity)));
-                    if (v.amount != entry.amount) {
-                        out.emplace_back(route_entry(ship, c, stop, k, v));
-                    }
-                    return;
+            if (!m_stop_page && e.id >= kStopMore && e.id < kStopMore + static_cast<std::int32_t>(kStopsShown)) {
+                const std::uint8_t stop = stop_at(static_cast<std::size_t>(e.id - kStopMore));
+                if (stop_city(ship, c, stop) != nullptr) {
+                    m_stop_page = stop;
+                    m_pick_stop.reset();
+                    m_pick_copy = false;
                 }
+                return;
+            }
+        }
+        for (const WareGadgets& w : wares_shown()) {
+            const sim::City* city = stop_city(ship, c, w.stop);
+            if (city == nullptr || locked(*city, c) || spare(w, ship, c)) {
+                continue;
+            }
+            const sim::RouteEntry& entry = ship.route.stops[w.stop].entries[w.entry];
+            if (e.kind == ui::PanelEvent::Kind::Slid && e.id == w.slider && entry.ware != 0) {
+                // Whole 1/32 t like the original (no rounding to tons).
+                sim::RouteEntry v = entry;
+                v.amount =
+                    static_cast<std::uint32_t>(m_route.slider(e.id, 1, static_cast<std::int32_t>(sim::kHoldCapacity)));
+                if (v.amount != entry.amount) {
+                    out.emplace_back(route_entry(ship, c, w.stop, w.entry, v));
+                }
+                return;
             }
             if (e.kind != ui::PanelEvent::Kind::Clicked) {
                 continue;
             }
+            if (e.id == w.frame) {
+                m_pick_entry_stop = w.stop;
+                m_pick_entry = w.entry;
+                m_pick_stop.reset();
+                m_pick_copy = false;
+                m_page = city->owner == c.local ? Page::PickOwn : Page::PickForeign;
+                return;
+            }
+            if (e.id == w.arrow && city->owner == c.local && entry.ware != 0) {
+                sim::RouteEntry v = entry;
+                v.unload = !v.unload;
+                out.emplace_back(route_entry(ship, c, w.stop, w.entry, v));
+                return;
+            }
+        }
+        if (e.kind != ui::PanelEvent::Kind::Clicked) {
+            return;
+        }
+        for (std::size_t slot = 0; slot < slots(); ++slot) {
+            const std::uint8_t stop = stop_at(slot);
+            const auto s = static_cast<std::int32_t>(slot);
+            const sim::City* city = stop_city(ship, c, stop);
             if (e.id == kStopName + s) {
                 m_pick_copy = false;
                 if (m_pick_stop && *m_pick_stop != stop && city != nullptr) {
@@ -1289,23 +1550,6 @@ private:
                 }
                 return;
             }
-            for (std::uint8_t k = 0; k < 2; ++k) {
-                const sim::RouteEntry& entry = ship.route.stops[stop].entries[k];
-                if (e.id == kEntryFrame[k] + s && city != nullptr && !locked(*city, c)) {
-                    m_pick_entry_stop = stop;
-                    m_pick_entry = k;
-                    m_pick_stop.reset();
-                    m_pick_copy = false;
-                    m_page = city->owner == c.local ? Page::PickOwn : Page::PickForeign;
-                    return;
-                }
-                if (e.id == kEntryArrow[k] + s && city != nullptr && city->owner == c.local && entry.ware != 0) {
-                    sim::RouteEntry v = entry;
-                    v.unload = !v.unload;
-                    out.emplace_back(route_entry(ship, c, stop, k, v));
-                    return;
-                }
-            }
         }
     }
 
@@ -1315,18 +1559,30 @@ private:
             const auto range = [](std::size_t page) {
                 return std::to_string(page * kStopsShown + 1) + "-" + std::to_string((page + 1) * kStopsShown);
             };
+            const auto stop_line = [&](int step) -> std::optional<std::string> {
+                if (const auto k = neighbour_stop(ship, c, *m_stop_page, step)) {
+                    return ui::tr("route.show_stop", {std::to_string(*k + 1)});
+                }
+                return std::nullopt;
+            };
             switch (id) {
                 case kRouteUp:
-                    return ui::tr("route.show_stops", {range(m_route_page > 0 ? m_route_page - 1 : 0)});
+                    return m_stop_page ? stop_line(-1)
+                                       : ui::tr("route.show_stops", {range(m_route_page > 0 ? m_route_page - 1 : 0)});
                 case kRouteDown:
-                    return ui::tr("route.show_stops", {range(std::min(m_route_page + 1, route_pages() - 1))});
+                    return m_stop_page
+                               ? stop_line(1)
+                               : ui::tr("route.show_stops", {range(std::min(m_route_page + 1, route_pages() - 1))});
                 case kRouteCopy:
-                    return ui::tr("route.copy_help");
+                    return ui::tr(m_stop_page ? "route.back" : "route.copy_help");
                 default:
                     break;
             }
+            if (!m_stop_page && id >= kStopMore && id < kStopMore + static_cast<std::int32_t>(kStopsShown)) {
+                return ui::tr("route.stop_wares", {std::to_string(sim::usable_route_entries(ship, c.figures))});
+            }
         }
-        for (std::size_t slot = 0; slot < kStopsShown; ++slot) {
+        for (std::size_t slot = 0; slot < slots(); ++slot) {
             const std::uint8_t stop = stop_at(slot);
             const auto s = static_cast<std::int32_t>(slot);
             const sim::City* city = stop_city(ship, c, stop);
@@ -1338,20 +1594,27 @@ private:
                 }
                 return line;
             }
-            for (std::size_t k = 0; k < 2; ++k) {
-                if (id != kEntryFrame[k] + s && id != kEntryArrow[k] + s && id != kEntrySlider[k] + s) {
-                    continue;
-                }
-                const sim::RouteEntry& entry = ship.route.stops[stop].entries[k];
-                if (city == nullptr || entry.ware == 0) {
-                    return std::nullopt;
-                }
-                // RoutePanel_EntryText 0x00430B80: own city load/unload, another's buy/sell.
-                const bool own = city->owner == c.local;
-                const std::size_t line = own ? (entry.unload ? 53 : 51) : (entry.unload ? 55 : 54);
-                return ui::format_text(c.text("GAME", line), {std::int64_t{entry.amount >> 5U},
-                                                              std::string_view(c.text("WARE", entry.ware))});
+        }
+        for (const WareGadgets& w : wares_shown()) {
+            if (id != w.frame && id != w.arrow && id != w.slider && id != w.icon) {
+                continue;
             }
+            const sim::City* city = stop_city(ship, c, w.stop);
+            const sim::RouteEntry& entry = ship.route.stops[w.stop].entries[w.entry];
+            if (city == nullptr || !shown(w, ship, c)) {
+                return std::nullopt;
+            }
+            if (spare(w, ship, c)) {
+                return ui::tr("route.no_hold");
+            }
+            if (entry.ware == 0) {
+                return std::nullopt;
+            }
+            // RoutePanel_EntryText 0x00430B80: own city load/unload, another's buy/sell.
+            const bool own = city->owner == c.local;
+            const std::size_t line = own ? (entry.unload ? 53 : 51) : (entry.unload ? 55 : 54);
+            return ui::format_text(c.text("GAME", line),
+                                   {std::int64_t{entry.amount >> 5U}, std::string_view(c.text("WARE", entry.ware))});
         }
         return std::nullopt;
     }
@@ -1536,6 +1799,7 @@ private:
     bool m_pick_copy = false;                 ///< a click on the map chooses the ship to copy from
     bool m_route_row = false;                 ///< the editor has Open1602's row (copy, pages)
     std::size_t m_route_page = 0;             ///< stops 1-4 or 5-8 in the editor
+    std::optional<std::uint8_t> m_stop_page;  ///< the stop whose page of wares the editor shows
     std::uint8_t m_pick_entry_stop = 0;       ///< the entry whose ware a picker chooses
     std::uint8_t m_pick_entry = 0;
     bool m_hire = false;             ///< PIRATORD: hire them (or buy peace)

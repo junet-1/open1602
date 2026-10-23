@@ -274,6 +274,10 @@ route.copy = Copy route
 route.copy_help = Take the stops of another of your ships: click on it on the map
 route.show_stops = Show the stops {1}
 route.current_stop = {1} (the ship sails here now)
+route.stop_wares = Show all {1} wares of this stop
+route.show_stop = Show stop {1}
+route.back = Back to the route
+route.no_hold = No hold free on this ship: the ware stays in the route for larger ships
 
 # Window title
 title.paused = paused

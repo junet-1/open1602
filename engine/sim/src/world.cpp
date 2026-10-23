@@ -268,7 +268,7 @@ void load_ships(World& world, const assets::ChunkFile& file, const assets::Build
         for (std::size_t r = 0; r < s.route.size(); ++r) {
             RouteStop& stop = ship.route.stops[r];
             stop.target = target_from_ref(world, s.route[r].ref);
-            for (std::size_t e = 0; e < stop.entries.size(); ++e) {
+            for (std::size_t e = 0; e < s.route[r].entries.size(); ++e) {
                 const auto& in = s.route[r].entries[e];
                 stop.entries[e] = RouteEntry{ware_of_producer(buildings, in.producer), in.unload, in.amount};
             }

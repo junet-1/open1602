@@ -101,7 +101,7 @@ constexpr std::uint16_t max_version(std::uint32_t id) noexcept {
         return kScenarioSwitches;
     }
     if (id == kFleet) {
-        return kLongRoutes;
+        return kRouteWares;
     }
     return id == kIslands || id == kVolcanoes ? kWideCoordinates : 1;
 }
