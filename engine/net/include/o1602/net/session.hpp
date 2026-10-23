@@ -339,6 +339,9 @@ private:
     [[nodiscard]] std::uint64_t token_of(Seat seat);
     /// The slot's token is no longer good: the slot changed hands.
     void forget_token(Seat seat);
+    /// Keeps a person's slot from newcomers for `ms`, for its player to come back with the token.
+    void reserve(Seat seat, std::uint32_t ms);
+    [[nodiscard]] bool reserved(Seat seat) const;
     /// The slot a Hello's token is good for, kNoPlayer if none (MS-1, MS-8).
     [[nodiscard]] Seat seat_of_token(const Hello& m);
     /// Tells the successor what it needs to carry the game on, if that changed (Standby).
@@ -389,6 +392,8 @@ private:
     /// A person's slot left in the running game, and how long it has stood empty: the computer
     /// takes it over after SessionConfig::take_over_ms.
     std::vector<std::pair<Seat, std::uint32_t>> m_vacant;
+    /// A person's slot left in the running game, and how much longer newcomers do not get it (MS-5).
+    std::vector<std::pair<Seat, std::uint32_t>> m_reserved;
     std::uint64_t m_compared = 0;
     std::uint64_t m_matched = 0;
     std::vector<LinkId> m_roster_links;    ///< the link of each roster() entry (unused for the host's own)

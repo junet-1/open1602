@@ -127,6 +127,10 @@ void MapViewer::apply_session_events() {
             case net::SessionEvent::Kind::Welcomed:
                 std::fprintf(stderr, "multiplayer: in as %s\n",
                              e.seat == sim::kNoPlayer ? "spectator" : ("player " + std::to_string(e.seat)).c_str());
+                if (const net::ClientSession* client = client_session();
+                    client != nullptr && e.seat != sim::kNoPlayer) {
+                    m_rejoin = Rejoin{m_host_address, m_host_port, e.seat, client->token()};
+                }
                 if (m_hud && m_hud->multiplayer_open() &&
                     m_hud->multiplayer()->screen() == MultiplayerMenu::Screen::Connecting) {
                     m_hud->multiplayer()->show_lobby();
@@ -719,6 +723,11 @@ core::Status MapViewer::join_game(const std::string& address, std::uint16_t port
     }
     hello.name = name.empty() ? ui::tr("menu.default_name") : name;
     hello.password = password;
+    if (m_rejoin && m_rejoin->address == address && m_rejoin->port == port) {
+        // Back to the host this computer played at: its own slot, not the next free one (MS-4).
+        hello.seat = m_rejoin->seat;
+        hello.token = m_rejoin->token;
+    }
     m_local_player = sim::kNoPlayer;  // until the host sends the game
     m_session = std::make_unique<net::ClientSession>(
         std::move(transport).value(), hello,

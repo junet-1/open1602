@@ -418,8 +418,17 @@ private:
     std::vector<sim::PlayerRole> m_session_roles;   ///< who steered each player last frame (empty: not yet)
     std::string m_host_address;                     ///< of the host joined
     std::uint16_t m_host_port = net::kDefaultPort;  ///< of the host joined: the successor hosts on it too
-    bool m_migrating = false;                       ///< following a successor, its game not here yet
-    std::string m_successor_name;                   ///< the one followed
+    /// The slot this computer last played and its token, at the host it was taken in by: joining the
+    /// same host again asks for that slot back (MS-4), for as long as the program runs.
+    struct Rejoin {
+        std::string address;
+        std::uint16_t port = net::kDefaultPort;
+        sim::PlayerId seat = sim::kNoPlayer;
+        std::uint64_t token = 0;
+    };
+    std::optional<Rejoin> m_rejoin;
+    bool m_migrating = false;      ///< following a successor, its game not here yet
+    std::string m_successor_name;  ///< the one followed
     /// The local player's commands: to m_state's simulation, or to m_session while there is one.
     CommandSink m_command_sink;
     std::unique_ptr<net::LanBrowser> m_lan_browser;  ///< while the multiplayer menu looks for games

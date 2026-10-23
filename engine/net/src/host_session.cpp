@@ -198,6 +198,8 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
         } else if (m_lobby.seats[s].kind == LobbySeat::Kind::Human) {
             occupy(m_lobby.seats[s], LobbySeat::Kind::Open);  // until its player is back
             vacate(static_cast<Seat>(s));                     // or the computer takes it over
+            // Kept for its player, who may notice the host's leaving seconds after a newcomer (MS-14).
+            reserve(static_cast<Seat>(s), std::max(m_config.take_over_ms, m_config.migration_ms));
         }
     }
     // The old host's slot: the computer plays it until someone takes it, as a slot left open.
@@ -369,6 +371,10 @@ void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTic
     }
     if (started()) {
         refresh_shares();
+        std::erase_if(m_reserved, [real_ms](auto& r) {
+            r.second -= std::min(r.second, real_ms);
+            return r.second == 0;
+        });
         take_over_vacant(real_ms);
         update_lead(real_ms);
         run(real_ms, before_tick);
@@ -507,6 +513,7 @@ void HostSession::hello(Peer& peer, const Hello& m) {
         peer.token = token_of(seat);
         occupy(m_lobby.seats[seat], LobbySeat::Kind::Human, peer.name, false);
         std::erase_if(m_vacant, [seat](const auto& v) { return v.first == seat; });
+        std::erase_if(m_reserved, [seat](const auto& r) { return r.first == seat; });
         if (started()) {
             // The player takes the slot over from the computer, under the player's name, as
             // commands of that player like any other.
@@ -843,7 +850,8 @@ void HostSession::drop(Peer& peer, std::optional<RefuseReason> tell) {
                     insert(sim::PlayerControl{peer.seat, true});
                 }
             } else if (started()) {
-                vacate(peer.seat);  // a person's own slot: the computer after a while
+                vacate(peer.seat);                          // a person's own slot: the computer after a while
+                reserve(peer.seat, m_config.take_over_ms);  // and nobody new until then (MS-5)
             }
         }
         SessionEvent e;
@@ -892,6 +900,9 @@ Seat HostSession::free_seat(Seat wanted) const {
     const auto free = [&](std::size_t s) {
         if (s >= m_lobby.seats.size() || seat_taken(static_cast<Seat>(s))) {
             return false;
+        }
+        if (reserved(static_cast<Seat>(s))) {
+            return false;  // its player may come back with the token (MS-5)
         }
         if (!started()) {
             return m_lobby.seats[s].kind == LobbySeat::Kind::Open;
@@ -998,8 +1009,21 @@ std::uint64_t HostSession::token_of(Seat seat) {
 }
 
 void HostSession::forget_token(Seat seat) {
+    std::erase_if(m_reserved, [seat](const auto& r) { return r.first == seat; });
     m_standby_changed |= std::erase_if(m_tokens, [&](const auto& t) { return t.first == seat; }) > 0;
     m_standby_changed |= std::erase_if(m_verifiers, [&](const SeatToken& t) { return t.seat == seat; }) > 0;
+}
+
+void HostSession::reserve(Seat seat, std::uint32_t ms) {
+    std::erase_if(m_reserved, [seat](const auto& r) { return r.first == seat; });
+    m_reserved.emplace_back(seat, ms);
+}
+
+bool HostSession::reserved(Seat seat) const {
+    // Only while someone can come back: the slot has a token (or a verifier from the old host).
+    return std::any_of(m_reserved.begin(), m_reserved.end(), [seat](const auto& r) { return r.first == seat; }) &&
+           (std::any_of(m_tokens.begin(), m_tokens.end(), [seat](const auto& t) { return t.first == seat; }) ||
+            std::any_of(m_verifiers.begin(), m_verifiers.end(), [seat](const SeatToken& t) { return t.seat == seat; }));
 }
 
 Seat HostSession::seat_of_token(const Hello& m) {

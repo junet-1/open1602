@@ -1633,3 +1633,112 @@ TEST_CASE("net: lobby requests in a loop reach the others a few times a second (
     tick(500, false);
     CHECK(bernd.session->lobby().seats[anna.session->local_seat()].ready);
 }
+
+TEST_CASE("net: a newcomer does not get the slot of a player whose link just broke (MS-5)") {
+    net::LoopbackNetwork network(15, 0);
+    Host host(network);
+    Computer a(network, "Anna");
+    Computer b(network, "Bernd");
+    run_for(network, host, {&a, &b}, 2000);
+    REQUIRE(b.session->playing());
+    const sim::PlayerId bernd = b.session->local_seat();
+    const std::uint64_t token = b.session->token();
+
+    network.cut(*b.transport);
+    run_for(network, host, {&a}, 1000);
+    Computer stranger(network, "Mallory");
+    run_for(network, host, {&a, &stranger}, 1500);
+    REQUIRE(stranger.session->playing());
+    CHECK(stranger.session->local_seat() != bernd);
+
+    Computer back(network, "Bernd", token);
+    run_for(network, host, {&a, &stranger, &back}, 1500);
+    REQUIRE(back.session->playing());
+    CHECK(back.session->local_seat() == bernd);
+    CHECK(host.game.world->players()[bernd].role == sim::PlayerRole::Human);
+    CHECK(host.count(net::SessionEvent::Kind::Desync) == 0);
+}
+
+TEST_CASE("net: without joining the running game, a player whose link broke still comes back (MS-6)") {
+    net::LoopbackNetwork network(15, 0);
+    net::SessionConfig config;
+    config.join_running = false;
+    net::Lobby setup;
+    setup.seats = {net::LobbySeat{}, net::LobbySeat{}, net::LobbySeat{}};
+    net::HostSession host(network.listen(), setup, 0, "Merlin", kContent, config);
+    Game host_game = Game::from_lobby(host.lobby());
+    const auto tick = [&](std::uint32_t ms, const std::vector<Computer*>& all) {
+        for (std::uint32_t t = 0; t < ms; t += kStepMs) {
+            network.advance(kStepMs);
+            host.update(kStepMs);
+            (void)host.take_events();
+            for (Computer* c : all) {
+                c->update(kStepMs);
+            }
+        }
+    };
+    Computer anna(network, "Anna");
+    Computer bernd(network, "Bernd");
+    tick(500, {&anna, &bernd});
+    REQUIRE(bernd.session->welcomed());
+    host.start(*host_game.simulation, buildings());
+    tick(2000, {&anna, &bernd});
+    REQUIRE(bernd.session->playing());
+    const sim::PlayerId seat = bernd.session->local_seat();
+    const std::uint64_t token = bernd.session->token();
+
+    network.cut(*bernd.transport);
+    tick(1000, {&anna});
+    Computer stranger(network, "Mallory");
+    tick(1000, {&anna, &stranger});
+    CHECK(stranger.session->ended());  // nobody new comes into the running game
+    Computer back(network, "Bernd", token);
+    tick(2000, {&anna, &back});
+    REQUIRE(back.session->playing());
+    CHECK(back.session->local_seat() == seat);
+}
+
+TEST_CASE("net: once the time to come back is over, a newcomer may take the slot") {
+    net::LoopbackNetwork network(15, 0);
+    net::SessionConfig config;
+    config.take_over_ms = 2000;
+    Host host(network, config);
+    Computer a(network, "Anna");
+    Computer b(network, "Bernd");
+    Computer c(network, "Clara");  // the computer's slot: the only other one
+    run_for(network, host, {&a, &b, &c}, 2000);
+    REQUIRE(b.session->playing());
+    const sim::PlayerId bernd = b.session->local_seat();
+    network.cut(*b.transport);
+    run_for(network, host, {&a, &c}, 3000);
+    CHECK(host.game.world->players()[bernd].role == sim::PlayerRole::Computer);
+    Computer d(network, "Dora");
+    run_for(network, host, {&a, &c, &d}, 1500);
+    REQUIRE(d.session->playing());
+    CHECK(d.session->local_seat() == bernd);
+}
+
+TEST_CASE("net: during a host migration a newcomer does not take a returning player's slot (MS-14)") {
+    net::LoopbackNetwork network(15, 0);
+    net::LoopbackNetwork next(15, 5);
+    auto host = std::make_unique<Host>(network);
+    Computer a(network, "Anna");
+    Computer b(network, "Bernd");
+    run_for(network, *host, {&a, &b}, 2000);
+    REQUIRE(b.session->playing());
+    const sim::PlayerId bernd = b.session->local_seat();
+
+    host.reset();
+    notice_host_left(network, {&a, &b});
+    REQUIRE(a.session->hosts_next());
+    net::HostSession moved(next.listen(), *a.session, buildings());
+    // A newcomer is quicker than Bernd, who notices the host's leaving later.
+    Computer stranger(next, "Mallory");
+    step_moved(next, moved, {&stranger}, 1500);
+    REQUIRE(stranger.session->playing());
+    CHECK(stranger.session->local_seat() != bernd);
+    follow(next, b);
+    step_moved(next, moved, {&stranger, &b}, 3000);
+    REQUIRE(b.session->playing());
+    CHECK(b.session->local_seat() == bernd);
+}

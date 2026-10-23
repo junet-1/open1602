@@ -61,14 +61,17 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    In the lobby a computer may change its slot four times a second, and the host sends the lobby at
    most every 100 ms.
 8. **Slots.** A computer gets a free human slot of the world (or the one it asks for) and a token with
-   which it gets the same slot back after a lost connection. Tokens are random and belong to whoever
+   which it gets the same slot back after a lost connection; the program keeps the token of the host
+   it played at and sends it when it joins that host again (MS-4), also when the host lets nobody new
+   into the running game. Tokens are random and belong to whoever
    holds the slot: a slot that changes hands (in the lobby, after a kick, to a newcomer) gets a new
    one, and the host's own slot takes none. A token never takes a slot from a connection that is
    still there: the newcomer is refused (`Taken`) and may come again once that connection has ended. In a game hosted while it runs (`--host`), the computer
    players' slots are open as well: the computer plays such a slot until someone takes it and again
    after he leaves. Without a free slot it watches. A slot that a person left stands empty for
-   60 s (time to come back after a broken connection); then the computer plays it on under the
-   player's name (`PlayerControl` from the host, announced in the chat), until the player or
+   60 s (time to come back after a broken connection) and no newcomer gets it in that time, nor while
+   a host migration may still bring its player back (MS-5, MS-14); then the computer plays it on under
+   the player's name (`PlayerControl` from the host, announced in the chat), until the player or
    someone new takes it. The host chooses this on the create screen ("Computer replaces leavers",
    on by default, shown in the lobby and passed to a successor host); without it, a slot that was
    left gives no commands until someone comes back. The player's name is set as a `PlayerRename`
