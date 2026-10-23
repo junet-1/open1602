@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 namespace o1602::ui {
 
@@ -106,6 +107,43 @@ core::Result<Font> Font::from_sheet(const assets::SpriteSheet& sheet) {
         return core::make_error(core::ErrorCode::InvalidFormat, "font without glyphs");
     }
     return font;
+}
+
+std::size_t Font::fix_accents() {
+    // À-Å, È-Ï, Ñ-Ö, Ù-Ý (Windows-1252): the capitals with a mark above them.
+    constexpr std::array<std::pair<unsigned, unsigned>, 4> kCapitals = {
+        {{0xC0, 0xC5}, {0xC8, 0xCF}, {0xD1, 0xD6}, {0xD9, 0xDD}}};
+    std::size_t changed = 0;
+    for (const auto& [first, last] : kCapitals) {
+        for (unsigned c = first; c <= last && has(static_cast<unsigned char>(c)); ++c) {
+            assets::IndexedImage& image = m_glyphs[c - 0x20U].image;
+            const auto row_set = [&](std::uint32_t y) {
+                const auto row = image.opaque.begin() + static_cast<std::ptrdiff_t>(std::size_t{y} * image.width);
+                return std::any_of(row, row + image.width, [](std::uint8_t o) { return o != 0; });
+            };
+            if (image.height != m_height) {
+                continue;  // already moved
+            }
+            std::uint32_t rows = 0;  // the set rows at the bottom of the cell
+            while (rows < image.height && row_set(image.height - 1 - rows)) {
+                ++rows;
+            }
+            if (rows == 0 || rows == image.height) {
+                continue;  // nothing there, or no empty row between them and the letter
+            }
+            // The image becomes `rows` taller: those rows on top of the cell, their place in it empty.
+            const std::size_t moved = std::size_t{rows} * image.width;
+            const auto split = static_cast<std::ptrdiff_t>(image.indices.size() - moved);
+            std::rotate(image.indices.begin(), image.indices.begin() + split, image.indices.end());
+            std::rotate(image.opaque.begin(), image.opaque.begin() + split, image.opaque.end());
+            image.indices.resize(image.indices.size() + moved, 0);
+            image.opaque.resize(image.opaque.size() + moved, 0);
+            image.height += rows;
+            m_above = std::max(m_above, rows);
+            ++changed;
+        }
+    }
+    return changed;
 }
 
 std::uint32_t Font::width(std::string_view text) const noexcept {

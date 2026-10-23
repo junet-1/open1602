@@ -6,6 +6,7 @@
 #include <cmath>
 #include <filesystem>
 
+#include "o1602/assets/data_fixes.hpp"
 #include "o1602/core/file.hpp"
 
 namespace o1602::audio {
@@ -13,7 +14,8 @@ namespace o1602::audio {
 namespace {
 
 // Files of the sound numbers as GameInit loads them (0x004954A6..0x00495973); numbers 54 and 68
-// share the file of 55 and 53 (0x004957BE). Empty: the original leaves them silent.
+// share the file of 55 and 53 (0x004957BE). Empty: the original leaves them silent. The last one
+// is Open1602's (kWavBakery, D-001).
 constexpr std::array<const char*, kSampleCount> kSampleFiles = {
     nullptr,    "kanone5",  "kanone7",  "kanone6",  "kanone8",  "muskete1", "schwert1", "schwert2", "schwert3",
     "schwert4", "schwert5", "arg1",     nullptr,    "mahenW",   "dongelW",  "hack1",    "hack2",    "stein1",
@@ -25,8 +27,9 @@ constexpr std::array<const char*, kSampleCount> kSampleFiles = {
     "triumph",  nullptr,    nullptr,    "wirtshs",  "wohnhaus", "steinmtz", "vulkan1",  "vulkan2",  "vulkan3",
     nullptr,    "sdtattk1", "sdtattk2", "sdtattk3", "sdtattk4", "sdtattk5", "sdtattk6", "shpattk1", "shpattk2",
     "shpattk3", "shpattk4", "sdtmove1", "sdtmove2", "sdtmove3", "sdtmove4", "shpmove1", "shpmove2", "shpmove3",
-    "shpmove4", "shpmove5",
+    "shpmove4", "shpmove5", "backer",
 };
+static_assert(kWavBakery == assets::fixes::kBakerySound, "the bakery's sound has one number");
 
 // The messages' voices and videos (0x0049B210, 0x70 entries): kind, first voice, voices, videos,
 // flags.

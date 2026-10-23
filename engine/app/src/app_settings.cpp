@@ -126,6 +126,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             s.tutorial_chapter = static_cast<std::uint8_t>(std::clamp(number(value, s.tutorial_chapter), 0, 4));
         } else if (key == "sea_creatures_every") {
             s.sea_creatures_every = std::clamp(number(value, s.sea_creatures_every), 0, 3600);
+        } else if (key == "data_fixes") {
+            s.data_fixes = flag(value, s.data_fixes);
         } else if (key.starts_with("display.")) {
             (void)read_display_line(s.display, key.substr(8), value);
         } else if (key.starts_with("endless.")) {
@@ -160,10 +162,12 @@ std::string write_settings(const AppSettings& s) {
         out += "# The Anno 1602 installation chosen at the start\n";
         out += "game_folder = " + s.game_folder + "\n";
     }
+    out += "tutorial_chapter = " + std::to_string(s.tutorial_chapter) + "\n";
     out +=
         "# Whales, dolphins, krakens: on average one per screen of sea every this many seconds (original 5, 0 = off)\n";
-    out += "tutorial_chapter = " + std::to_string(s.tutorial_chapter) + "\n";
     out += "sea_creatures_every = " + std::to_string(s.sea_creatures_every) + "\n";
+    out += "# Corrections of the original's data (D-001, D-002, D-012, D-014); off: the data as it is\n";
+    out += std::string("data_fixes = ") + (s.data_fixes ? "on" : "off") + "\n";
     if (!s.player_name.empty()) {
         out += "player_name = " + core::cp1252_to_utf8(s.player_name) + "\n";
     }

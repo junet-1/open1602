@@ -30,7 +30,11 @@ savegames of the original and preserve the feel of the game.
    original behaviour. `Rules` is part of the savegame and of the multiplayer session, so that all
    participants have the same rules.
 5. **Data bugs (D):** The `.cod` interpreter stays faithful to the original. Corrections come as
-   data patches that can be switched off and are applied after loading.
+   data patches that can be switched off and are applied after loading (`assets/data_fixes.hpp`,
+   `ui::Font::fix_accents`; `data_fixes` in `settings.cfg`, `--original-data`). A patch replaces only
+   the value the original files have, so changed or modded data stays as it is. The patches so far
+   may differ between the computers of a game (picture, sound, the places of a formation, which the
+   interface sends with the order); one the simulation itself depends on would belong in `sim::Rules`.
 6. **Traceability:** Code that fixes an entry names its id (`// Fix S-002: …`).
    Every correction gets a test. `re/scripts/check_bug_refs.py` checks that every id mentioned in the code
    exists in the catalogue. The catalogue lives in the private repository `open1602-re`, so the check

@@ -141,7 +141,7 @@ Objekt: HAUS
 
 | File | Symbols | Records | Notable |
 |---|---|---|---|
-| `haeuser.cod` | 617 of max. 650 | 500 `HAUS` (496 distinct `Id`), 30 `BAUINFRA`, 5 `BGRUPPE` | `WAV_BAECKER`, `FAHNEKONTOR` undefined → 0 (see [bugs.md](../re/bugs.md)) |
+| `haeuser.cod` | 617 of max. 650 | 500 `HAUS` (496 distinct `Id`), 30 `BAUINFRA`, 5 `BGRUPPE` | `WAV_BAECKER`, `FAHNEKONTOR` undefined → 0 (see [bugs.md](../re/bugs.md); a data patch corrects both, D-001, D-002) |
 | `figuren.cod` | 371 | 119 `FIGUR`, 3 `FORMATION` | `FIGTYP_KANONTURM`, `FIGTYP_PIRATSHIP` undefined → 0 |
 
 Cross-check: all tile IDs of the island template `NORD/big.scp` (+20000) exist as an `Id` in

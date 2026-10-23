@@ -134,3 +134,24 @@ TEST_CASE("data: the fonts of the three screen sizes, umlauts and the text colou
     }
     CHECK(joined == text);
 }
+
+TEST_CASE("data: the accents of the capitals stand above them in every font that has them (D-012)") {
+    const auto game = game_or_skip("TOOLGFX/ZEI20V.ZEI");
+    // How many capitals keep part of their accent in the cell's last rows (counted 2026-10-23).
+    const std::array<std::pair<const char*, std::size_t>, 4> kFonts = {{{"TOOLGFX/ZEI14V.ZEI", 21},
+                                                                        {"TOOLGFX/ZEI16H.ZEI", 13},
+                                                                        {"TOOLGFX/ZEI20H.ZEI", 21},
+                                                                        {"TOOLGFX/ZEI20V.ZEI", 15}}};
+    for (const auto& [file, capitals] : kFonts) {
+        auto font = ui::Font::load(game, file);
+        REQUIRE(font.ok());
+        const std::uint32_t cell = font->height();
+        CHECK(font->fix_accents() == capitals);
+        CHECK(font->height() == cell);
+        CHECK(font->above() >= 1);
+        CHECK(font->above() <= 4);
+    }
+    auto plain = ui::Font::load(game, "TOOLGFX/ZEI16V.ZEI");  // its accents fit
+    REQUIRE(plain.ok());
+    CHECK(plain->fix_accents() == 0);
+}

@@ -78,7 +78,7 @@ public:
 
     /// Nothing if the layouts or the panel's art are missing (the viewer then runs without frame).
     static std::unique_ptr<Hud> create(SDL_Renderer* renderer, const assets::GameDirectory& game,
-                                       const assets::Palette& palette, const assets::TextTable* texts);
+                                       const assets::Palette& palette, const assets::TextTable* texts, bool data_fixes);
 
     /// Lays the frame out for the window at the interface's scale `ui_scale` (screen pixels per pixel
     /// of the 1024 x 768 design; the menus always fill the window as far as they fit); returns the
@@ -337,7 +337,7 @@ public:
 
 private:
     Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,
-        assets::GadgetLayout ctrl, assets::GadgetLayout leist, const assets::TextTable* texts);
+        assets::GadgetLayout ctrl, assets::GadgetLayout leist, const assets::TextTable* texts, bool data_fixes);
     /// What the build tool should do in the build mode now.
     [[nodiscard]] std::optional<Action> build_tool_action();
     void draw_resources();

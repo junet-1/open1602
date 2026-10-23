@@ -49,12 +49,19 @@ public:
     void set_design_scale(double scale) noexcept { m_design_scale = scale; }
     /// Height of the cell (the same for every glyph).
     [[nodiscard]] std::uint32_t height() const noexcept { return m_height; }
+    /// Rows a glyph reaches above the cell: 0 unless fix_accents() moved accents there.
+    [[nodiscard]] std::uint32_t above() const noexcept { return m_above; }
+    /// D-012: the accents of the capitals À .. Ý reach above the cell, and the font files keep their
+    /// upper rows in the cell's last rows, where they show as a line under the letter. Moves those
+    /// rows (below an empty row) back above the cell; returns how many glyphs it changed.
+    std::size_t fix_accents();
     /// Whether the font has a glyph for the byte (the large fonts have only codes 32..64).
     [[nodiscard]] bool has(unsigned char c) const noexcept { return c >= 0x20 && c - 0x20U < m_glyphs.size(); }
     /// Width of the text up to its first control character; bytes without a glyph count 0.
     [[nodiscard]] std::uint32_t width(std::string_view text) const noexcept;
-    /// Draws the text with its cell's bottom at `bottom`, starting at x (left aligned). Pixels outside
-    /// the canvas are left out; returns the width.
+    /// Draws the text with its cell's bottom at `bottom`, starting at x (left aligned); accents moved
+    /// by fix_accents() reach above() rows above the cell. Pixels outside the canvas are left out;
+    /// returns the width.
     std::uint32_t draw(assets::IndexedImage& canvas, std::string_view text, std::int32_t x, std::int32_t bottom,
                        const Recolour& colour) const;
 
@@ -65,6 +72,7 @@ private:
     };
     std::vector<Glyph> m_glyphs;
     std::uint32_t m_height = 0;
+    std::uint32_t m_above = 0;
     double m_design_scale = 1.0;
 };
 

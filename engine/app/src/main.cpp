@@ -43,9 +43,9 @@ namespace {
 int usage() {
     std::fputs(
         "usage: open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH]\n"
-        "                [--zoom 0|1|2]\n"
-        "                [--owners] [--original-sheets] [--original-flags] [--refund MODE] [--droughts MODE]\n"
-        "                [--volcanoes MODE] [--pirates MODE] [--pirate-nests MODE] [--ai MODE] [--frames N]\n"
+        "                [--zoom 0|1|2] [--frames N]\n"
+        "                [--owners] [--original-sheets] [--original-flags] [--original-data] [--refund MODE]\n"
+        "                [--droughts MODE] [--volcanoes MODE] [--pirates MODE] [--pirate-nests MODE] [--ai MODE]\n"
         "                [--new-game DIFFICULTY [--layout 0-2] [--name NAME] [--colour 0-3]] [--seed N]\n"
         "                [--islands original|seed]\n"
         "                [--world WxH] [--players 1-12] [--island-count C] [--island-sizes S] [--villages C]\n"
@@ -62,6 +62,7 @@ int usage() {
         "                     number, starts spread (default) or together\n"
         "  --original-sheets  no figures at the smallest zoom level, as in the original\n"
         "  --original-flags   original flag images instead of the tinted generic flag\n"
+        "  --original-data    the original's data without its corrections (D-001 ...; settings.cfg data_fixes)\n"
         "  --refund MODE      what demolishing gives back: none (original), partial[:PERCENT] (default 50), full\n"
         "  --droughts MODE    game (as the game's difficulty says, original), off, rare, normal, frequent\n"
         "  --volcanoes MODE   game (as the game's settings say, original), off, on\n"
@@ -285,6 +286,8 @@ int main(int argc, char** argv) {
             options.derive_small_figures = false;
         } else if (arg == "--original-flags") {
             options.original_flags = true;
+        } else if (arg == "--original-data") {
+            options.original_data = true;
         } else if (arg == "--frames" && has_value) {
             std::int32_t frames = 0;
             if (!parse_number(argv[++i], frames) || frames < 0) {

@@ -64,12 +64,13 @@ int usage() {
         "                           [--anim N] [--no-template] [--base FILE.scp]\n"
         "  o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]\n"
         "                          [--tile X,Y] [--size WxH] [--owners] [--original-sheets] [--original-flags]\n"
-        "                          [--banner P:RRGGBB] [--simulate SECONDS] [--walkers]\n"
+        "                          [--original-data] [--banner P:RRGGBB] [--simulate SECONDS] [--walkers]\n"
         "                          [--build \"ID@X,Y[,R];...\"]  (world tiles, for the first human player)\n"
         "                          (default: whole world at zoom 2; --simulate: run the economy first; "
         "--original-sheets: no figures where the\n"
         "                          original has no graphics for them; --original-flags: the original flag\n"
-        "                          images instead of the tinted generic flag)\n",
+        "                          images instead of the tinted generic flag; --original-data: without the\n"
+        "                          corrections of the original's data, D-001 ...)\n",
         stderr);
     return 2;
 }

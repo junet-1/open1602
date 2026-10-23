@@ -25,7 +25,9 @@
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/assets/data_fixes.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/assets/game_data.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/palette.hpp"
@@ -257,6 +259,18 @@ TEST_CASE("data: building table from haeuser.cod") {
     CHECK(baeckerei->worker_count == 1);
     CHECK(baeckerei->ware != 0);
     CHECK(baeckerei->raw_ware != 0);
+}
+
+TEST_CASE("data: the corrections of the original's data find what they correct (D-001, D-002, D-014)") {
+    const auto game = require_game();
+    auto buildings = original_buildings(game);
+    auto figures = assets::FigureTable::load(game);
+    REQUIRE(figures.ok());
+    CHECK((assets::fixes::fix_buildings(buildings) == std::vector<std::string_view>{"D-001", "D-002"}));
+    CHECK((assets::fixes::fix_figures(*figures) == std::vector<std::string_view>{"D-014"}));
+    // The flag figure the pirate Kontor gets exists, and so does the bakery's sound file.
+    CHECK(figures->get(buildings.by_id(assets::id::kPirateKontor)->attached_figures[0]) != nullptr);
+    CHECK(game.resolve("SAMPLES/Backer.wav").has_value());
 }
 
 TEST_CASE("data: islands of a scenario build complete maps and render without missing sprites") {

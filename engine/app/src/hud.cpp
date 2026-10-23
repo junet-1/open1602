@@ -172,21 +172,21 @@ EndScreen load_end_screen(const assets::GameDirectory& game) {
 }  // namespace
 
 std::unique_ptr<Hud> Hud::create(SDL_Renderer* renderer, const assets::GameDirectory& game,
-                                 const assets::Palette& palette, const assets::TextTable* texts) {
+                                 const assets::Palette& palette, const assets::TextTable* texts, bool data_fixes) {
     auto ctrl = assets::load_gad(game, "CTRL.GAD");
     auto leist = assets::load_gad(game, "LEIST.GAD");
     if (!ctrl || !leist || !game.resolve(ui::sheet_file(0, ui::ArtSize::Large))) {
         return nullptr;
     }
-    return std::unique_ptr<Hud>(
-        new Hud(renderer, game, palette, std::move(ctrl).value(), with_offer_icons(std::move(leist).value()), texts));
+    return std::unique_ptr<Hud>(new Hud(renderer, game, palette, std::move(ctrl).value(),
+                                        with_offer_icons(std::move(leist).value()), texts, data_fixes));
 }
 
 Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,
-         assets::GadgetLayout ctrl, assets::GadgetLayout leist, const assets::TextTable* texts)
+         assets::GadgetLayout ctrl, assets::GadgetLayout leist, const assets::TextTable* texts, bool data_fixes)
     : m_sdl(renderer),
       m_palette(palette),
-      m_renderer(std::make_unique<render::SdlUiRenderer>(renderer, game, palette, ui::ArtSize::Large)),
+      m_renderer(std::make_unique<render::SdlUiRenderer>(renderer, game, palette, ui::ArtSize::Large, data_fixes)),
       m_ctrl(std::move(ctrl), 1.0),
       m_leist(std::move(leist), 1.0),
       m_end(load_end_screen(game)) {

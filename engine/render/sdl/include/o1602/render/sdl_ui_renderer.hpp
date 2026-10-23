@@ -31,9 +31,9 @@ namespace o1602::render {
 class SdlUiRenderer {
 public:
     /// Loads the interface's sheets and fonts of one art size from the game directory (missing ones
-    /// draw nothing).
+    /// draw nothing); `data_fixes`: with the accents of the fonts' capitals in place (D-012).
     SdlUiRenderer(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,
-                  ui::ArtSize size);
+                  ui::ArtSize size, bool data_fixes = true);
     ~SdlUiRenderer();
     SdlUiRenderer(const SdlUiRenderer&) = delete;
     SdlUiRenderer& operator=(const SdlUiRenderer&) = delete;
