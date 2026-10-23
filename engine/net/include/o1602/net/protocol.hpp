@@ -24,7 +24,7 @@
 namespace o1602::net {
 
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
-inline constexpr std::uint16_t kProtocolVersion = 7;
+inline constexpr std::uint16_t kProtocolVersion = 8;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
@@ -103,6 +103,7 @@ enum class RefuseReason : std::uint8_t {
     Invalid,   ///< the computer sent what makes no sense
     Password,  ///< a wrong password
     Kicked,    ///< the host sent it away
+    Taken,     ///< the slot of the token is played from another computer that is still there
 };
 
 struct Refused {
@@ -232,15 +233,22 @@ struct Chat {
 
 // --- Host migration ---
 
+/// A slot and what its token is checked against: token_verifier(token, salt), not the token, so
+/// that the successor cannot use it to take the slot while the old host still runs.
 struct SeatToken {
     Seat seat = sim::kNoPlayer;
-    std::uint64_t token = 0;
+    std::uint64_t salt = 0;  ///< drawn by the host that gave the token out
+    std::uint64_t verifier = 0;
     friend bool operator==(const SeatToken&, const SeatToken&) = default;
 };
 
+/// What a token is checked against after the host changed: the first 8 bytes of
+/// SHA-256(salt, token), both little endian. One way: the verifier does not give the token away.
+[[nodiscard]] std::uint64_t token_verifier(std::uint64_t token, std::uint64_t salt) noexcept;
+
 /// (Host, to its successor only) What the successor needs to carry the game on when the host leaves:
-/// the slots' tokens, so that the others get their slots back, and the slots the computer plays
-/// until someone comes. Sent again whenever it changes.
+/// the slots' token verifiers, so that the others get their slots back, and the slots the computer
+/// plays until someone comes. Sent again whenever it changes.
 struct Standby {
     std::vector<SeatToken> tokens;
     std::vector<Seat> computer_held;

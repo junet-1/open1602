@@ -294,7 +294,7 @@ TEST_CASE("net: every message goes to bytes and back") {
     all.emplace_back(net::SetReady{true});
     all.emplace_back(net::Chat{1, "Anna", "Hallo!"});
     all.emplace_back(net::Refused{net::RefuseReason::Kicked});
-    all.emplace_back(net::Standby{{net::SeatToken{1, 0x1234567890ULL}, net::SeatToken{3, 7}}, {3}});
+    all.emplace_back(net::Standby{{net::SeatToken{1, 0xABCDEF, 0x1234567890ULL}, net::SeatToken{3, 5, 7}}, {3}});
     all.emplace_back(net::SetBanner{0x0809});
     for (const net::Message& m : all) {
         const auto bytes = net::encode(m);
@@ -1402,4 +1402,91 @@ TEST_CASE("net: after the host changed, players come back into their slots, newc
     CHECK(a.game.world->player(3)->role == sim::PlayerRole::Computer);
     CHECK(b.game.world->player(3)->role == sim::PlayerRole::Computer);
     CHECK(moved.fingerprints_matched() == moved.fingerprints_compared());
+}
+
+TEST_CASE("net: a slot's token does not take it from a computer that is still there (MS-1)") {
+    net::LoopbackNetwork network(20, 0);
+    Host host(network);
+    Computer a(network, "Anna");
+    Computer b(network, "Bernd");
+    run_for(network, host, {&a, &b}, 2000);
+    REQUIRE(b.session->playing());
+    const sim::PlayerId bernd = b.session->local_seat();
+
+    // A second connection with Bernd's own token, while Bernd plays on.
+    Computer thief(network, "Mallory", b.session->token());
+    run_for(network, host, {&a, &b, &thief}, 1500);
+    CHECK(thief.session->ended());
+    CHECK(thief.session->end_reason() == net::EndReason::Refused);
+    CHECK(thief.session->local_seat() != bernd);
+    CHECK(!b.session->ended());
+    CHECK(b.session->local_seat() == bernd);
+}
+
+TEST_CASE("net: the successor gets verifiers of the slots' tokens, never the tokens (MS-1)") {
+    const std::uint64_t token = 0x1BC5BCFBEBEB8465ULL;
+    const std::uint64_t v = net::token_verifier(token, 77);
+    CHECK(v != token);
+    CHECK(v == net::token_verifier(token, 77));
+    CHECK(v != net::token_verifier(token, 78));      // another host's salt
+    CHECK(v != net::token_verifier(token + 1, 77));  // another token
+}
+
+TEST_CASE("net: a slot from the old host outside the lobby is not taken over (MS-8)") {
+    // An old host that hands its successor a slot the lobby does not have, then leaves.
+    net::LoopbackNetwork network(10, 0);
+    net::LoopbackNetwork next(10, 0);
+    auto old_host = network.listen();
+    Computer a(network, "Anna");
+    Game world = Game::fresh();
+    const auto save = sim::write_game(*world.world, buildings(), world.simulation.get());
+    REQUIRE(save.ok());
+    net::Lobby lobby;
+    lobby.started = true;
+    for (std::size_t p = 0; p < world.world->players().size(); ++p) {
+        net::LobbySeat seat;
+        seat.kind = p < 2 ? net::LobbySeat::Kind::Human : net::LobbySeat::Kind::Open;
+        lobby.seats.push_back(seat);
+    }
+    const std::uint64_t token = 0x5EC0DE;
+    std::vector<net::TransportEvent> events;
+    bool answered = false;  // only the Hello: a second Welcome in a running game is nonsense
+    for (int i = 0; i < 20; ++i) {
+        network.advance(kStepMs);
+        events.clear();
+        old_host->poll(events);
+        for (const auto& e : events) {
+            if (e.kind == net::TransportEvent::Kind::Received && !answered) {
+                answered = true;
+                old_host->send(e.link, net::encode(net::Welcome{net::kProtocolVersion, 1, 0xA77A}));
+                old_host->send(e.link, net::encode(lobby));
+                old_host->send(e.link, net::encode(net::Snapshot{1, 0, 1, false, *save}));
+                old_host->send(e.link, net::encode(net::Roster{{{0, "Alt", net::Member::State::Playing, true},
+                                                                {1, "Anna", net::Member::State::Playing, false}},
+                                                               1,
+                                                               "loopback:1"}));
+                old_host->send(
+                    e.link, net::encode(net::Standby{{net::SeatToken{200, 9, net::token_verifier(token, 9)}}, {201}}));
+            }
+        }
+        a.update(kStepMs);
+    }
+    old_host.reset();
+    notice_host_left(network, {&a});
+    REQUIRE(a.session->hosts_next());
+    auto moved = std::make_unique<net::HostSession>(next.listen(), *a.session, buildings());
+    // Someone comes back with the token of that slot: it gets no slot (and nothing is written
+    // outside the lobby).
+    net::Hello hello;
+    hello.content = kContent;
+    hello.name = "Bernd";
+    hello.token = token;
+    hello.returning = true;
+    auto link = next.connect();
+    Computer back(next, "Bernd");
+    back.session = std::make_unique<net::ClientSession>(
+        std::move(link), hello, [&back](std::span<const std::uint8_t> s) { return back.game.load(s); });
+    step_moved(next, *moved, {&back}, 1500);
+    CHECK(back.session->local_seat() == sim::kNoPlayer);
+    CHECK(moved->lobby().seats.size() == lobby.seats.size());
 }

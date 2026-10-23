@@ -52,6 +52,8 @@ const char* describe(RefuseReason reason) noexcept {
             return "wrong password";
         case RefuseReason::Kicked:
             return "sent away by the host";
+        case RefuseReason::Taken:
+            return "the slot is played from another computer";
     }
     return "";
 }

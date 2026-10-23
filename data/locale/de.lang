@@ -220,6 +220,7 @@ net.refused.desync = Dieser Rechner weicht immer wieder vom Gastgeber ab.
 net.refused.invalid = Dieser Rechner hat Unverständliches geschickt.
 net.refused.password = Falsches Kennwort.
 net.refused.kicked = Der Gastgeber hat Euch entfernt.
+net.refused.taken = Euer Platz wird noch von einem anderen Rechner aus gespielt.
 
 # Players five to twelve of a new world, named after their colours
 player.colour.orange = Oranger Spieler
