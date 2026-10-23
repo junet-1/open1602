@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Unit tests for the asset loaders using small synthetic files (no original data needed).
 
+#include <array>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -335,6 +336,29 @@ TEST_CASE("core: xxh64 gives the values of xxHash's reference implementation") {
         bytes.push_back(static_cast<std::uint8_t>(c));
     }
     CHECK(core::xxh64(bytes) == 0xF104EC2A5DD9F46FULL);
+}
+
+TEST_CASE("core: sha256 gives the values of FIPS 180-4's examples") {
+    const auto hex = [](const std::array<std::uint8_t, 32>& d) {
+        std::string s;
+        for (const std::uint8_t b : d) {
+            s += "0123456789abcdef"[b >> 4];
+            s += "0123456789abcdef"[b & 15];
+        }
+        return s;
+    };
+    const auto text = [](std::string_view t) {
+        return std::span(reinterpret_cast<const std::uint8_t*>(t.data()), t.size());
+    };
+    CHECK(hex(core::sha256({})) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    CHECK(hex(core::sha256(text("abc"))) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    // Two blocks of padding: 56 bytes leave no room for the length in the first.
+    CHECK(hex(core::sha256(text("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"))) ==
+          "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1");
+    const std::vector<std::uint8_t> million(1'000'000, 'a');
+    CHECK(hex(core::sha256(million)) == "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
+    const std::vector<std::uint8_t> block(64, 'x');
+    CHECK(hex(core::sha256(block)) == "7ce100971f64e7001e8fe5a51973ecdfe1ced42befe7ee8d5fd6219506b5393c");
 }
 
 TEST_CASE("core: a ByteWriter writes lists of numbers little-endian and reuses a buffer from its start") {

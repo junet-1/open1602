@@ -242,6 +242,7 @@ net.refused.desync = This computer keeps diverging from the host.
 net.refused.invalid = This computer sent what makes no sense.
 net.refused.password = Wrong password.
 net.refused.kicked = The host sent you away.
+net.refused.taken = Your slot is still being played from another computer.
 
 # Players five to twelve of a new world, named after their colours
 player.colour.orange = Orange player

@@ -168,6 +168,8 @@ std::string mp_text(net::RefuseReason reason) {
             return ui::tr("net.refused.password");
         case net::RefuseReason::Kicked:
             return ui::tr("net.refused.kicked");
+        case net::RefuseReason::Taken:
+            return ui::tr("net.refused.taken");
     }
     return {};
 }

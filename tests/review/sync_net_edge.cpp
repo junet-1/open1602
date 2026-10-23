@@ -361,13 +361,15 @@ TEST_CASE("review: the successor cannot use the tokens it holds for the migratio
     REQUIRE(host.session->successor() == a.session->local_seat());
     REQUIRE(a.link->standby.has_value());
     const sim::PlayerId bernd = b.session->local_seat();
+    // Since MS-1 was fixed the successor holds verifiers, not tokens: the most it can try is Bernd's
+    // verifier in place of his token.
     std::uint64_t token = 0;
     for (const net::SeatToken& t : a.link->standby->tokens) {
-        token = t.seat == bernd ? t.token : token;
+        token = t.seat == bernd ? t.verifier : token;
     }
-    std::printf("  the successor holds %zu tokens, Bernd's among them: %d\n", a.link->standby->tokens.size(),
+    std::printf("  the successor holds %zu verifiers, Bernd's among them: %d\n", a.link->standby->tokens.size(),
                 token != 0);
-    // Anna's computer connects a second time with Bernd's token.
+    // Anna's computer connects a second time with what it holds for Bernd's slot.
     Computer thief(network, "Bernd", token);
     run_for(network, host, {&a, &b, &thief}, 1500);
     std::printf("  second connection in slot %u; Bernd ended %d (%s)\n",
