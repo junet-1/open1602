@@ -9,6 +9,7 @@
 
 #include "map_viewer.hpp"
 
+#include "o1602/assets/game_content.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/platform/window.hpp"
@@ -24,17 +25,7 @@ constexpr std::uint64_t kSearchEveryMs = 3000;
 }  // namespace
 
 std::uint64_t MapViewer::content_fingerprint() const {
-    // The tables the simulation computes with. The names for new cities and ships travel with the
-    // game (Simulation::offer_names), so installations in other languages play together.
-    std::uint64_t h = net::fingerprint({});
-    for (const char* file : {"haeuser.cod", "figuren.cod"}) {
-        if (const auto path = m_game.resolve(file)) {
-            if (const auto bytes = core::read_file(*path)) {
-                h = net::fingerprint(*bytes, h);
-            }
-        }
-    }
-    return h;
+    return assets::content_fingerprint(m_game);
 }
 
 net::HostSession* MapViewer::host_session() const noexcept {
