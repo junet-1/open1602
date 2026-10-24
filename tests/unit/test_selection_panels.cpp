@@ -63,8 +63,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
 /// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
 /// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), MILITAR (40002..40130),
 /// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), SKSHIP (51002..51100),
-/// MKSHIP (50002..50040), SKSOLDAT (65002..65030), MKSOLDAT (52002..52040), INFRA (62002..62021)
-/// and HANDEL (53002..53100) layouts and the GAME and
+/// MKSHIP (50002..50040), SKSOLDAT (65002..65030), MKSOLDAT (52002..52040), VERTRAG (56001..56070),
+/// TRIBUT (64001..64030), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -147,6 +147,16 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "MKSOLDAT.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 56001; id <= 56070; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "VERTRAG.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 64001; id <= 64030; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "TRIBUT.GAD", gad(ids));
         ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
@@ -964,4 +974,79 @@ TEST_CASE("selection panels: the military windows of one land unit and of a grou
     group->refresh(none, c);
     group->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 52021}, none, c, out);
     CHECK(out.size() == 2);
+}
+
+TEST_CASE("selection panels: the diplomacy window offers and accepts treaties and pays a tribute") {
+    Game g("o1602-test-selection-vertrag");
+    Town t;
+    std::vector<sim::Player> players(3);
+    players[0].money = 150;
+    players[1].role = sim::PlayerRole::Computer;
+    players[1].name = "Rival";
+    players[2].name = "Friend";
+    t.world.set_players(players);
+    t.world.diplomacy().relation(kLocal, 2).peace = sim::Treaty::Received;
+    t.world.diplomacy().relation(2, kLocal).peace = sim::Treaty::Offered;
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    Selection window;
+    window.kind = Selection::Kind::Diplomacy;
+    SelectionPanel* p = panels.panel_for(window, c);
+    REQUIRE(p != nullptr);
+    p->opened();
+    p->refresh(window, c);
+    auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Rival") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Friend") != shown.end());
+
+    // A row per partner: no trade treaty with the computer yet (offer one), the human's peace
+    // offer (accept it).
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 56041}, window, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 56052}, window, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 56043}, window, c, out);  // no third partner
+    REQUIRE(out.size() == 2);
+    const auto* offer = std::get_if<sim::DiplomacyOrder>(&out[0]);
+    REQUIRE(offer != nullptr);
+    CHECK(offer->kind == sim::DiplomacyOrder::Kind::Trade);
+    CHECK(offer->partner == 1);
+    CHECK(offer->value == sim::Treaty::Offered);
+    const auto* accept = std::get_if<sim::DiplomacyOrder>(&out[1]);
+    REQUIRE(accept != nullptr);
+    CHECK(accept->kind == sim::DiplomacyOrder::Kind::Peace);
+    CHECK(accept->partner == 2);
+    CHECK(accept->value == sim::Treaty::Signed);
+    out.clear();
+
+    // The hand opens the tribute page; 200 gold are more than the player has, so paying waits.
+    const ui::Panel* treaties = &p->panel();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 56061}, window, c, out);
+    CHECK(&p->panel() != treaties);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 64023}, window, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 64023}, window, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 64023}, window, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 64022}, window, c, out);
+    p->refresh(window, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Rival") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "200") != shown.end());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 64008}, window, c, out);
+    CHECK(out.empty());
+    t.world.player(kLocal)->money = 1000;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 64008}, window, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* tribute = std::get_if<sim::DiplomacyOrder>(&out[0]);
+    REQUIRE(tribute != nullptr);
+    CHECK(tribute->kind == sim::DiplomacyOrder::Kind::Tribute);
+    CHECK(tribute->partner == 1);
+    CHECK(tribute->gold == 200);
+    p->refresh(window, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "0") != shown.end());  // the amount starts again
+
+    // Escape goes back to the treaties, and no further.
+    CHECK(p->back());
+    CHECK(&p->panel() == treaties);
+    CHECK(!p->back());
 }
