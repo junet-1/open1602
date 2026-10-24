@@ -26,12 +26,26 @@ void TickTrail::sort() {
 }
 
 void TickTrail::position(std::uint64_t key, double& x, double& y) const noexcept {
-    const auto it =
-        std::lower_bound(m_was.begin(), m_was.end(), key, [](const Was& w, std::uint64_t k) { return w.key < k; });
-    if (it == m_was.end() || it->key != key) {
+    std::size_t hint = 0;
+    position(key, x, y, hint);
+}
+
+void TickTrail::position(std::uint64_t key, double& x, double& y, std::size_t& hint) const noexcept {
+    const auto less = [](const Was& w, std::uint64_t k) { return w.key < k; };
+    std::size_t i = hint <= m_was.size() && (hint == 0 || m_was[hint - 1].key < key) ? hint : 0;
+    // A few steps on from the last key, else a search in what is left.
+    for (int steps = 0; i < m_was.size() && m_was[i].key < key; ++i) {
+        if (++steps == 8) {
+            const auto first = m_was.begin() + static_cast<std::ptrdiff_t>(i);
+            i = static_cast<std::size_t>(std::lower_bound(first, m_was.end(), key, less) - m_was.begin());
+            break;
+        }
+    }
+    hint = i;
+    if (i == m_was.size() || m_was[i].key != key) {
         return;
     }
-    tick_lerp(it->x, it->y, x, y, m_fraction, kMaxStep, x, y);
+    tick_lerp(m_was[i].x, m_was[i].y, x, y, m_fraction, kMaxStep, x, y);
 }
 
 }  // namespace o1602::render

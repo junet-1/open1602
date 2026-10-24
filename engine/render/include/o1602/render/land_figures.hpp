@@ -94,6 +94,9 @@ private:
     /// The instance of a soldier in `index` (sorted by id), kNone if there is none.
     static constexpr std::size_t kNone = static_cast<std::size_t>(-1);
     [[nodiscard]] static std::size_t lookup(const std::vector<Entry>& index, std::uint32_t id) noexcept;
+    /// Same, for ids asked in rising order: `hint` keeps the place of the last one (TickTrail).
+    [[nodiscard]] static std::size_t lookup(const std::vector<Entry>& index, std::uint32_t id,
+                                            std::size_t& hint) noexcept;
 
     std::vector<std::uint8_t> m_sim_anims;  ///< Soldier::anim per instance, when its animation started
     std::vector<Entry> m_index;             ///< by Soldier::id
