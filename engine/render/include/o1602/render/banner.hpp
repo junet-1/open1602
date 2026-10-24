@@ -32,6 +32,7 @@ struct Banner {
     assets::Rgba color;  ///< display colour and flag tint
     FlagStyle flag = FlagStyle::Tinted;
     std::uint32_t flag_gfx = 0;  ///< FlagStyle::Sprites: first image in the ship sheet
+    /// FlagStyle::Sprites: how many; the tinted flag has its template's (FlagTemplate::frames).
     std::uint32_t flag_frames = 8;
     /// Units and interface art drawn per colour (soldiers, riders, coats of arms, message icons) use
     /// the original images of this colour (0 red, 1 blue, 2 yellow, 3 white); without it they are

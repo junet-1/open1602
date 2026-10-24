@@ -27,9 +27,11 @@ bool SdlMapCanvas::begin(const RenderPlan& plan) {
     if (plan.direct) {
         return true;
     }
-    // Grown only, by an eighth at a time, so that resizing the window or zooming does not make a
-    // new texture every frame.
-    if (m_texture == nullptr || plan.width > m_width || plan.height > m_height) {
+    // Grown by an eighth at a time, so that resizing the window or zooming does not make a new
+    // texture every frame; made again when it is more than twice as wide and high as needed (a
+    // window back from 4K, FB-35).
+    if (m_texture == nullptr || plan.width > m_width || plan.height > m_height ||
+        (plan.width * 2 < m_width && plan.height * 2 < m_height)) {
         release();
         const std::int32_t w = plan.width + plan.width / 8;
         const std::int32_t h = plan.height + plan.height / 8;

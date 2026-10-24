@@ -33,10 +33,17 @@ public:
         return &it->second->value;
     }
 
-    /// Adds a text that is not cached. While the cache is full, its least recently used text that
-    /// was not used in this frame is handed to `evict` and removed.
+    /// Adds a text. While the cache is full, its least recently used text that was not used in this
+    /// frame is handed to `evict` and removed. A text cached already has its old value handed to
+    /// `evict` and replaced.
     template <typename Evict>
     Value& insert(std::string_view text, std::int32_t font, std::int32_t colour, Value value, Evict&& evict) {
+        if (const auto it = m_index.find(Key{text, font, colour}); it != m_index.end()) {
+            const auto entry = it->second;
+            m_index.erase(it);
+            std::invoke(evict, entry->value);
+            m_entries.erase(entry);
+        }
         while (m_entries.size() >= m_capacity && !m_entries.empty() && m_entries.back().frame != m_frame) {
             Entry& old = m_entries.back();
             m_index.erase(Key{old.text, old.font, old.colour});

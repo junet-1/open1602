@@ -55,8 +55,8 @@ struct FigureAnim {
     AnimKind kind = AnimKind::None;
     std::uint32_t offset = 0;        ///< AnimOffs: first sprite relative to the figure's Gfx
     std::uint32_t add = 0;           ///< AnimAdd: sprite step per frame (none given: 0, 0x004413A9)
-    std::uint32_t count = 1;         ///< AnimAnz: frames
-    std::uint32_t repeat = 1;        ///< AnimRept: runs before `kind` applies
+    std::uint32_t count = 1;         ///< AnimAnz: frames (1 to 255)
+    std::uint32_t repeat = 1;        ///< AnimRept: runs before `kind` applies (1 to 255)
     std::uint32_t speed_ms = 100;    ///< AnimSpeed: duration of one frame
     std::uint32_t rotate = 0;        ///< sprite step per direction (Rotate, default: the figure's)
     std::vector<std::uint8_t> next;  ///< AnimNr

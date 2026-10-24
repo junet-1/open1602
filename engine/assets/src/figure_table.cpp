@@ -102,8 +102,10 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
                 anim.kind = static_cast<AnimKind>(std::clamp(a.integer("Kind", 0, 1), 0, 3));  // ENDLESS by default
                 anim.offset = static_cast<std::uint32_t>(std::max(0, a.integer("AnimOffs")));
                 anim.add = static_cast<std::uint32_t>(std::max(0, a.integer("AnimAdd", 0, 0)));
-                anim.count = static_cast<std::uint32_t>(std::max(1, a.integer("AnimAnz", 0, 1)));
-                anim.repeat = static_cast<std::uint32_t>(std::max(1, a.integer("AnimRept", 0, 1)));
+                // At most 255 frames and runs: the animation's state counts them in a byte, and
+                // with more an animation would never end (FB-19).
+                anim.count = static_cast<std::uint32_t>(std::clamp(a.integer("AnimAnz", 0, 1), 1, 255));
+                anim.repeat = static_cast<std::uint32_t>(std::clamp(a.integer("AnimRept", 0, 1), 1, 255));
                 anim.speed_ms = static_cast<std::uint32_t>(std::max(1, a.integer("AnimSpeed", 0, 100)));
                 anim.rotate = a.field("Rotate") != nullptr
                                   ? static_cast<std::uint32_t>(std::max(0, a.integer("Rotate")))

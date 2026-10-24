@@ -1213,3 +1213,18 @@ TEST_CASE("render: the text cache gives up the least recently used texts, never 
     std::sort(left.begin(), left.end());
     CHECK((left == std::vector<int>{4, 5, 6}));
 }
+
+TEST_CASE("render: a text inserted twice replaces its value, the old one is given up (FB-35)") {
+    render::TextCache<int> cache(4);
+    std::vector<int> evicted;
+    const auto evict = [&evicted](int v) { evicted.push_back(v); };
+    cache.insert("gold", 0, 4, 1, evict);
+    cache.insert("gold", 0, 4, 2, evict);
+    CHECK(cache.size() == 1);
+    CHECK((evicted == std::vector<int>{1}));
+    REQUIRE(cache.find("gold", 0, 4) != nullptr);
+    CHECK(*cache.find("gold", 0, 4) == 2);
+    std::vector<int> left;
+    cache.for_each([&left](int v) { left.push_back(v); });
+    CHECK((left == std::vector<int>{2}));
+}

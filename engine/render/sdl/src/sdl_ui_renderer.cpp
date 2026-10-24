@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <utility>
+#include <vector>
 
 #include "o1602/render/shape_tint.hpp"
 #include "o1602/render/variant_tint.hpp"
@@ -18,6 +20,9 @@ constexpr int kModeMask = 1;
 constexpr int kModeRaster = 2;
 constexpr std::size_t kMaxTexts = 512;  // cached text textures before the least recently used go
 constexpr std::int32_t kCheckerSize = 64;
+// RGBA bytes of interface sprites kept: far more than the interface draws at a time, so that only
+// sprites of tints no longer shown go.
+constexpr std::size_t kMaxSpriteBytes = std::size_t{96} << 20U;
 constexpr std::uint8_t kMaskAlpha = 110;  // opacity of a GraphicFill shadow
 
 /// A checkerboard (black, every second pixel) for disabled gadgets and 50 % fills.
@@ -63,11 +68,40 @@ SdlUiRenderer::~SdlUiRenderer() {
             SDL_DestroyTexture(t.texture);
         }
     };
-    destroy(m_sprites);
+    for (auto& [k, s] : m_sprites) {
+        SDL_DestroyTexture(s.texture.texture);
+    }
     m_texts.for_each([](const Texture& t) { SDL_DestroyTexture(t.texture); });
     destroy(m_images);
     if (m_checker.texture != nullptr) {
         SDL_DestroyTexture(m_checker.texture);
+    }
+}
+
+void SdlUiRenderer::next_frame() {
+    m_texts.next_frame();
+    ++m_frame;
+    if (m_sprite_bytes > kMaxSpriteBytes) {
+        trim_sprites(kMaxSpriteBytes / 4 * 3);
+    }
+}
+
+void SdlUiRenderer::trim_sprites(std::size_t bytes) {
+    std::vector<std::pair<std::uint64_t, std::map<SpriteKey, CachedSprite>::iterator>> by_age;
+    by_age.reserve(m_sprites.size());
+    for (auto it = m_sprites.begin(); it != m_sprites.end(); ++it) {
+        by_age.emplace_back(it->second.frame, it);
+    }
+    std::sort(by_age.begin(), by_age.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (const auto& [frame, it] : by_age) {
+        if (m_sprite_bytes <= bytes || frame == m_frame) {
+            break;
+        }
+        const Texture& t = it->second.texture;
+        m_sprite_bytes -= std::min(m_sprite_bytes,
+                                   std::size_t{static_cast<std::uint32_t>(t.w)} * static_cast<std::uint32_t>(t.h) * 4);
+        SDL_DestroyTexture(t.texture);
+        m_sprites.erase(it);
     }
 }
 
@@ -78,7 +112,11 @@ void SdlUiRenderer::release_textures() {
         }
         map.clear();
     };
-    destroy(m_sprites);
+    for (auto& [k, s] : m_sprites) {
+        SDL_DestroyTexture(s.texture.texture);
+    }
+    m_sprites.clear();
+    m_sprite_bytes = 0;
     m_texts.for_each([](const Texture& t) { SDL_DestroyTexture(t.texture); });
     m_texts = TextCache<Texture>(kMaxTexts);
     destroy(m_images);
@@ -187,7 +225,8 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
         tinting ? (std::uint32_t{tint->variants} << 16U) | (std::uint32_t{tint->pattern} << 8U) | tint->base : 0U,
         tinting && tint->shape ? std::optional<std::int32_t>(*tint->shape) : std::nullopt};
     if (const auto it = m_sprites.find(key); it != m_sprites.end()) {
-        return it->second;
+        it->second.frame = m_frame;
+        return it->second.texture;
     }
     Texture t;
     if (block >= 0 && block < static_cast<std::int32_t>(m_sheets.size()) && m_sheets[static_cast<std::size_t>(block)] &&
@@ -218,7 +257,8 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
             t = make(rgba, static_cast<std::int32_t>(image->width), static_cast<std::int32_t>(image->height));
         }
     }
-    m_sprites.emplace(key, t);
+    m_sprites.emplace(key, CachedSprite{t, m_frame});
+    m_sprite_bytes += std::size_t{static_cast<std::uint32_t>(t.w)} * static_cast<std::uint32_t>(t.h) * 4;
     return t;
 }
 
@@ -419,11 +459,17 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
                 }
                 if (m_checker.texture != nullptr && d.w > 0 && d.h > 0) {
                     SDL_SetTextureAlphaMod(m_checker.texture, 255);
-                    const SDL_FRect src{0.0F, 0.0F, static_cast<float>(std::min(d.w, kCheckerSize)),
-                                        static_cast<float>(std::min(d.h, kCheckerSize))};
-                    const SDL_FRect dst{static_cast<float>(ox + d.x), static_cast<float>(oy + d.y),
-                                        static_cast<float>(d.w), static_cast<float>(d.h)};
-                    SDL_RenderTexture(m_renderer, m_checker.texture, &src, &dst);
+                    // Tiled, not stretched: a wider rect keeps the pattern's pixels (FB-21).
+                    for (std::int32_t ty = 0; ty < d.h; ty += kCheckerSize) {
+                        for (std::int32_t tx = 0; tx < d.w; tx += kCheckerSize) {
+                            const auto tw = static_cast<float>(std::min(d.w - tx, kCheckerSize));
+                            const auto th = static_cast<float>(std::min(d.h - ty, kCheckerSize));
+                            const SDL_FRect src{0.0F, 0.0F, tw, th};
+                            const SDL_FRect dst{static_cast<float>(ox + d.x + tx), static_cast<float>(oy + d.y + ty),
+                                                tw, th};
+                            SDL_RenderTexture(m_renderer, m_checker.texture, &src, &dst);
+                        }
+                    }
                 }
                 break;
         }
