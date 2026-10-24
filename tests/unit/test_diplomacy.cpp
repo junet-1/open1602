@@ -261,7 +261,7 @@ TEST_CASE("diplomacy: a computer minds others' cities and troops on its small is
     world.set_players(original_players());
     // Islands 0 and 2 are small (size class up to 3), island 1 is large.
     std::uint16_t x = 0;
-    for (const std::uint8_t size : {2, 5, 1}) {
+    for (const std::uint8_t size : {std::uint8_t{2}, std::uint8_t{5}, std::uint8_t{1}}) {
         assets::IslandHeader header;
         header.template_size = size;
         REQUIRE(world.add_island(sim::WorldIsland{header, sim::IslandMap(10, 10), x, 10}).ok());
