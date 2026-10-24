@@ -427,7 +427,7 @@ private:
     void slot_ok(AiPlayer& p, std::uint8_t slot);
     std::uint16_t slot_fail(AiPlayer& p, std::uint8_t slot);
     [[nodiscard]] std::int32_t slot_present(const AiPlayer& p, std::uint8_t slot) const;
-    void demolish_tile(AiPlayer& p, std::int32_t x, std::int32_t y);
+    std::size_t demolish_tile(AiPlayer& p, std::int32_t x, std::int32_t y);  ///< buildings removed
 
     Simulation& m_sim;
     World& m_world;

@@ -590,9 +590,15 @@ void Engine::order_ship(AiPlayer& p) {
     if (!p.yard_valid) {
         // Without a yard the computer plans one (0x0042233E: when a building task is on top of its
         // stack, 0x00421D30), whatever its stage; the stage lists ask for it only from the merchants
-        // on. Without this a computer never had more than its first ship.
+        // on. Without this a computer never had more than its first ship. The original plans it
+        // right here and so replaces the search of the paused task (GB-2); Open1602 leaves the
+        // request for the next develop step; the original's computers keep the quirk.
         if (top(p) > kSurvey) {
-            need_shipyard(p);
+            if (classic()) {
+                need_shipyard(p);
+            } else {
+                p.yard_wanted = true;
+            }
         }
         return;
     }

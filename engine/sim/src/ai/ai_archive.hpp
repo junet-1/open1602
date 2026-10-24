@@ -335,6 +335,9 @@ void io(A& a, AiPlayer& p) {
     a(p.ships);
     a(p.fleet_target);
     a(p.ships_per_city);
+    if (a.version() >= 3) {
+        a(p.yard_wanted);
+    }
 }
 
 template <class A>

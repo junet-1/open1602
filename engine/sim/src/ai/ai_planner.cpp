@@ -43,6 +43,12 @@ void Engine::task_develop(AiPlayer& p) {
     if (c == nullptr || r == nullptr || peaceful(p)) {
         return;
     }
+    if (p.yard_wanted) {
+        p.yard_wanted = false;
+        if (!p.yard_valid && need_shipyard(p)) {
+            return;
+        }
+    }
     run_stage(p, *c, *r);
 }
 

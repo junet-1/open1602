@@ -933,6 +933,8 @@ void Engine::task_abandon(AiPlayer& p) {
     const std::uint16_t island = c->island;
     const std::uint8_t index = c->index;
     const IslandMap& map = island_of(island).map;
+    // At most 25 removals per step. A refused order is skipped, and a pass that removes nothing
+    // gives up: the city stays (GB-3; the original repeats the pass every step until the re-init).
     std::uint32_t done = 0;
     bool others = false;
     for (std::uint32_t y = 0; y < map.height() && done < 25; ++y) {
@@ -948,9 +950,16 @@ void Engine::task_abandon(AiPlayer& p) {
                 continue;  // last
             }
             others = true;
-            demolish_tile(p, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y));
-            ++done;
+            if (demolish_tile(p, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)) != 0) {
+                ++done;
+            }
         }
+    }
+    if (others && done == 0) {
+        log(p, "abandon: nothing could be demolished, the city stays");
+        pop(p);
+        r->flags &= ~city_flag::kAbandon;
+        return;
     }
     if (others) {
         return;

@@ -363,7 +363,7 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
-    constexpr std::uint64_t kExpected = 0x7699a6336c56d123ULL;  // timers spread over the period (P13)
+    constexpr std::uint64_t kExpected = 0x1888a73d67f2bb83ULL;  // deferred yard request, guard posts (P18)
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }
@@ -471,6 +471,47 @@ TEST_CASE("ai: a state of version 1 loads and goes on as the same state") {
     sim::ComputerPlayers computers(s);
     REQUIRE(computers.load(in));
     CHECK(saved(computers) == now);
+}
+
+TEST_CASE("ai: a state of version 2 loads without a yard request") {
+    Game g;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    run(s, 8'000);
+    sim::ai::State state;
+    {
+        const std::vector<std::uint8_t> now = saved(s.computers());
+        core::ByteReader in(now);
+        sim::StateIn reader(in);
+        REQUIRE(reader.u32() == sim::ai::kStateVersion);
+        sim::ai::Loader loader(reader);
+        loader(state);
+        REQUIRE(reader.ok());
+    }
+    REQUIRE(!state.players.empty());
+    for (sim::ai::AiPlayer& p : state.players) {
+        p.yard_wanted = true;  // version 2 has no room for it
+    }
+    core::ByteWriter old;
+    old.u32(2);
+    sim::ai::Saver saver(old, 2);
+    saver(state);
+    const std::vector<std::uint8_t> v2 = old.take();
+    core::ByteReader in(v2);
+    sim::ComputerPlayers computers(s);
+    REQUIRE(computers.load(in));
+    // Saved again as version 3: one byte more per computer, and no request.
+    const std::vector<std::uint8_t> again = saved(computers);
+    CHECK(again.size() == v2.size() + state.players.size());
+    core::ByteReader back(again);
+    sim::StateIn reader(back);
+    REQUIRE(reader.u32() == sim::ai::kStateVersion);
+    sim::ai::State loaded;
+    sim::ai::Loader loader(reader);
+    loader(loaded);
+    REQUIRE(reader.ok());
+    for (const sim::ai::AiPlayer& p : loaded.players) {
+        CHECK(!p.yard_wanted);
+    }
 }
 
 TEST_CASE("ai: the names for new cities and ships travel with the saved game") {

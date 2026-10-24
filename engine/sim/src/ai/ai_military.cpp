@@ -13,6 +13,9 @@ namespace o1602::sim::ai {
 
 namespace {
 
+/// Guard posts kept per city (the original's list at R+0x188).
+constexpr std::size_t kMaxPosts = 64;
+
 std::uint32_t family_index(std::uint32_t figure) {
     const auto v = assets::FigureTable::unit_variant(figure);
     const std::uint32_t family = v ? v->family : figure;
@@ -293,15 +296,26 @@ void Engine::queue_unit(AiPlayer& p, const CastleEntry& castle, std::uint32_t fa
 
 bool Engine::guard_post(AiPlayer& p, City& c, CityPlan& r, std::int32_t& x, std::int32_t& y, bool& at_yard) {
     // 0x00425460: the markets of the city in turn, then the own shipyard.
-    if (r.posts.empty()) {
+    const auto market_at = [&](std::int32_t mx, std::int32_t my) {
+        const Tile t = tile(c.island, mx, my);
+        return t.valid() && t.city == c.index && t.prod == prod::kMarket && !t.type->destroyed;
+    };
+    // The original fills the list once per plan (until the hourly re-init). Open1602 fills it again
+    // when the survey counts more markets than it holds or the next post is no market any more
+    // (GB-4), so new markets get guards and soldiers stop going to a burnt one. The original's
+    // computers keep their list.
+    const std::size_t markets = std::min<std::size_t>(r.slots[kSlotMarket].count, kMaxPosts);
+    const bool stale =
+        !classic() && (r.posts.size() < markets || (r.post_cursor < r.posts.size() &&
+                                                    !market_at(r.posts[r.post_cursor].x, r.posts[r.post_cursor].y)));
+    if (r.posts.empty() || stale) {
+        r.posts.clear();
         const IslandMap& map = island_of(c.island).map;
         for (const Production& pr : m_world.productions()) {
             if (!pr.used || pr.island != c.island || !map.contains(pr.x, pr.y)) {
                 continue;
             }
-            const Tile t = tile(c.island, pr.x, pr.y);
-            if (t.valid() && t.city == c.index && t.prod == prod::kMarket && !t.type->destroyed &&
-                r.posts.size() < 64) {
+            if (market_at(pr.x, pr.y) && r.posts.size() < kMaxPosts) {
                 r.posts.push_back(GuardPost{pr.x, pr.y});
             }
         }
