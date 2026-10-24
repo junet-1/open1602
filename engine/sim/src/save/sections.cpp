@@ -80,6 +80,8 @@ constexpr std::uint32_t kGiveUps = tag("CGUP");
 constexpr std::uint32_t kLedgers = tag("GLDG");
 /// The world's factions and the players' (ADR 0007), only written when they are not the base game's.
 constexpr std::uint32_t kFactions = tag("FACT");
+/// The values of the balance (balance.hpp, MD-9), only written when they are not the original's.
+constexpr std::uint32_t kBalance = tag("BALA");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -87,7 +89,7 @@ constexpr std::array kKnownSections = {
     kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
     kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
     kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks,
-    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers};
+    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers,  kBalance};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -231,6 +233,14 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
     if (has_own_factions(world)) {
         // Optional: a reader without it plays the base game's factions the role bytes give.
         section(out, kFactions, [&](Writer& o) { write_factions(o, world); }, Need::Optional);
+    }
+    if (world.balance() != Balance{}) {
+        // Required: a reader without it would compute another game.
+        section(out, kBalance, [&](Writer& o) {
+            for (const BalanceField& f : kBalanceFields) {
+                o.u32(world.balance().*f.value);
+            }
+        });
     }
     const std::uint16_t player_state_at = player_state_version(world);
     section(
@@ -389,6 +399,17 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
             case kFactions:
                 d.factions = read_factions(in);
                 break;
+            case kBalance: {
+                Balance b;
+                for (const BalanceField& f : kBalanceFields) {
+                    in.u32(b.*f.value);
+                }
+                if (!valid(b)) {
+                    in.fail();
+                }
+                d.balance = b;
+                break;
+            }
             case kPlayerState:
                 d.player_state = read_player_state(in, version);
                 d.player_switches = version >= kScenarioSwitches;

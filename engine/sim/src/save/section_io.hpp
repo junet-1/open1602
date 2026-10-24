@@ -73,6 +73,7 @@ struct Decoded {
         std::vector<FactionId> players;
     };
     std::optional<FactionPart> factions;
+    std::optional<Balance> balance;
     /// Missions and the end of the game (MISN).
     struct MissionPart {
         std::vector<Mission> missions;

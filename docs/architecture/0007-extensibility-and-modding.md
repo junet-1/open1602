@@ -152,4 +152,5 @@ a clear message.
 | Player count at game start, saving | 4 players at start, 7 players, 150 ships, 400 soldiers, 350 towers in the savegame | ⬜ the world plan supports 16 players; saving beyond the original limits is done with the own format `.o1602` ([ADR 0009](0009-own-save-format.md)) |
 | Island generator | – | 🟡 stage 1: custom worlds from the original templates (200–2000 tiles, [worldgen.md](../re/worldgen.md)); stage 2 with custom island shapes postponed |
 | Messages of the status bar | MELDUNG numbers 0–0x6F, texts only from `Text.cod` | ✅ `app::MessageTable`: the original's at their numbers, packages' after them, from `mods/<package>/messages.toml` ([messages.md](../modding/messages.md)); a package's id is its folder's name until manifests come |
+| Numbers of the balance in the code | trader, castles, disasters as constants | ✅ `sim::Balance` in the world, changed by `balance.toml` ([balance.md](../modding/balance.md)) |
 | Lua, campaigns, content packages | – | ⬜ own milestones (M8) |

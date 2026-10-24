@@ -390,6 +390,7 @@ private:
     /// The factions a new game starts with: the base game's as the mods change them
     /// (docs/modding/factions.md). A savegame of Open1602 keeps its own.
     std::vector<sim::Faction> m_factions = sim::base_factions();
+    sim::Balance m_balance;  ///< the numbers a new game starts with, as the mods change them (docs/modding/balance.md)
     /// Flags, smoke and icons: buildings do not move, so they are collected once at load.
     std::vector<render::BuildingFigure> m_building_figures;
     std::vector<std::string> m_city_names;  ///< Text.cod [STAEDTE], [SHIPS]: for every game loaded

@@ -31,8 +31,6 @@ constexpr std::array<std::array<std::uint8_t, 8>, 2> kFireTakes = {{
 constexpr std::array<std::uint8_t, 8> kRobberPastGallows = {0, 0, 1, 0, 0, 0, 0, 1};
 
 constexpr std::uint32_t kSpreadTiles = 20;  // the area search collects at most 20 tiles
-constexpr std::uint8_t kPlagueRadius = 4;
-constexpr std::uint32_t kFireSpreadChance = 19;  // of 128 per epoch
 
 /// Chance of 128 that a plague house infects a neighbour, by how full it is (0x005A7758): linear
 /// through (0, 0), (25, 25), (38, 51), (128, 64) over inhabitants * 128 / the largest house.
@@ -193,7 +191,7 @@ void spread_plague(World& world, const assets::BuildingTable& buildings, const D
     }
     const std::uint8_t city = h->city;
     const std::vector<TilePos> tiles = reach(
-        world, buildings, d.island, *source, kPlagueRadius,
+        world, buildings, d.island, *source, static_cast<std::uint8_t>(world.balance().plague_radius),
         [&](const assets::BuildingType& b, const MapCell& c) { return b.prod_kind == prod::kHouse && c.city == city; },
         [&](const assets::BuildingType& b, const MapCell& c) { return walkable(b, c, WalkClass::Land); });
     if (tiles.empty()) {
@@ -239,7 +237,7 @@ bool conducts_fire(const assets::BuildingType& b) noexcept {
 void spread_fire(World& world, const assets::BuildingTable& buildings, const Disaster& d,
                  std::vector<DisasterEvent>* events) {
     Random& random = world.random(RandomStream::Events);
-    if (random.below(128) >= kFireSpreadChance) {
+    if (random.below(128) >= world.balance().fire_spread) {  // of 128 per epoch
         return;
     }
     const auto source = building_at(world, buildings, d.island, {d.x, d.y});
