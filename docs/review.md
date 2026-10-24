@@ -2196,6 +2196,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | FB-2 | #179 | Soldiers outside the drawn box get no height lookup and their animations wait until they are in view: 100 000 soldiers 4.1 → 3.2 ms per frame with a 40 × 25-tile view (the bench has no islands, so the height lookup is cheap there). |
 | TB-19 | #180 | The sea map is updated only in the box of tiles a batch of construction events touched on each island (with #169: once per island per batch). |
 | TB-9 (part) | #181 | Whether a target city is defenceless comes from one scan of its island per tile revision, for all cities on it. |
+| BT-22 (part) | #182 | A clang-tidy CI job over `engine/` (bugprone, performance, concurrency, cert error handling, clang analyzer; warnings as errors; config in `.clang-tidy`). It found a real division by zero in the mixer (an empty looping sound) and about 30 smaller sites, all fixed. |
 
 ### Still open
 
