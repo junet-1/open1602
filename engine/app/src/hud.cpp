@@ -375,7 +375,17 @@ void Hud::draw_resources() {
     }
     if (r.inhabitants) {
         if (r.shield >= 0) {
-            icon(m_gfx_baumat + 17 + std::min(r.shield, 3), 666);
+            // The owner's banner: drawn for the original four, recoloured for the others (LC-5).
+            const render::Banner* banner =
+                m_banners != nullptr ? m_banners->get(static_cast<sim::BannerId>(r.shield)) : nullptr;
+            const render::BannerArt art = render::BannerArt::at(m_gfx_baumat + 17);
+            const render::BannerArtSprite sprite =
+                banner != nullptr ? render::banner_art(art, banner)
+                                  : render::BannerArtSprite{art.first + std::min(r.shield, 3), std::nullopt};
+            icon(sprite.gfx, 666);
+            if (sprite.tint) {
+                items.back().tint = ui::ColourTint{*sprite.tint, art.stride, art.variants, art.base, sprite.pattern};
+            }
         } else {
             icon(m_gfx_baumat + 15, 646);
         }

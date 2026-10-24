@@ -121,11 +121,11 @@ inline constexpr std::size_t kSetupItems = static_cast<std::size_t>(SetupItem::C
 /// How many values an item offers.
 [[nodiscard]] std::size_t setup_choices(SetupItem item) noexcept;
 /// The value the setup has, or the nearest one an item offers (a setting from settings.cfg or the
-/// command line may lie between them).
+/// command line may lie between them; setup_value shows it as it is).
 [[nodiscard]] std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept;
 /// Sets an item to one of its values (an index beyond them is ignored).
 void choose(EndlessSetup& setup, SetupItem item, std::size_t choice);
-/// The next value, after the last the first.
+/// The next value, after the last the first; from a value none of the choices is, the nearest.
 void choose_next(EndlessSetup& setup, SetupItem item);
 /// The previous value, before the first the last.
 void choose_previous(EndlessSetup& setup, SetupItem item);
@@ -136,8 +136,11 @@ void choose_previous(EndlessSetup& setup, SetupItem item);
 /// The item's name and a value's text in the language of the interface (Windows-1252).
 [[nodiscard]] std::string setup_label(SetupItem item);
 [[nodiscard]] std::string setup_value(SetupItem item, std::size_t choice);
-/// The text of the value the setup has (the automatic size with the size it gives).
+/// The text of the value the setup has (the automatic size with the size it gives); a value none of
+/// the choices is (from settings.cfg or a host) as it is, marked as its own.
 [[nodiscard]] std::string setup_value(const EndlessSetup& setup, SetupItem item);
+/// Whether the setup has a value for the item that none of its choices is.
+[[nodiscard]] bool setup_value_custom(const EndlessSetup& setup, SetupItem item);
 
 /// One "endless.<key> = value" line of settings.cfg (key without the prefix); false if the key is
 /// not one of them. A value it does not know keeps the setting.

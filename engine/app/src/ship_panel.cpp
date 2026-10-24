@@ -70,6 +70,38 @@ constexpr std::int32_t kMoreInkY = 1;
 constexpr std::int32_t kMoreRimColour = 238;    // STADTFLD.COL: pale gold
 constexpr std::int32_t kMorePlateColour = 173;  // brown
 
+// Open1602's arrows to page through the pirates' targets (PIRATORD.GAD has three), copied from
+// TRANSFER.GAD's goods arrows (45007, 45008) as the end screen's.
+constexpr std::int32_t kPirateFirstChoice = 55031;
+constexpr std::int32_t kPirateChoices = 3;
+constexpr std::int32_t kPirateLeft = 55041;
+constexpr std::int32_t kPirateRight = 55042;
+
+/// PIRATORD.GAD with the scroll arrows of TRANSFER.GAD at both ends of its row of players to hire
+/// the pirates against (LC-4); unchanged if either lacks its gadgets.
+assets::GadgetLayout with_pirate_arrows(assets::GadgetLayout piratord, const assets::GadgetLayout& transfer) {
+    const assets::Gadget* first = piratord.find(kPirateFirstChoice);
+    const assets::Gadget* last = piratord.find(kPirateFirstChoice + kPirateChoices - 1);
+    if (first == nullptr || last == nullptr) {
+        return piratord;
+    }
+    const std::int32_t middle = first->pos[1] + first->size[1] / 2;
+    const std::int32_t left_end = first->pos[0];
+    const std::int32_t right_end = last->pos[0] + last->size[0];  // copied: the gadgets grow below
+    for (const auto& [from, to] : {std::pair{45007, kPirateLeft}, std::pair{45008, kPirateRight}}) {
+        const assets::Gadget* g = transfer.find(from);
+        if (g == nullptr) {
+            return piratord;
+        }
+        assets::Gadget arrow = *g;
+        arrow.id = to;
+        arrow.base = static_cast<std::int32_t>(piratord.gadgets.size());
+        arrow.pos = {to == kPirateLeft ? std::max(0, left_end - g->size[0]) : right_end, middle - g->size[1] / 2};
+        piratord.gadgets.push_back(arrow);
+    }
+    return piratord;
+}
+
 /// ROUTE.GAD with Open1602's row below its stops, the `+N` of each stop and the gadgets of a stop's
 /// page; unchanged without MUSIK.GAD's arrows.
 assets::GadgetLayout with_route_row(assets::GadgetLayout route, const std::optional<assets::GadgetLayout>& musik) {
@@ -173,7 +205,7 @@ public:
           m_trade(std::move(l.trade), 1.0),
           m_route(with_route_row(std::move(l.route), l.musik), 1.0),
           m_pirat(std::move(l.pirat), 1.0),
-          m_piratord(std::move(l.piratord), 1.0),
+          m_piratord(with_pirate_arrows(std::move(l.piratord), m_transfer.layout()), 1.0),
           m_stock(std::move(l.lager)),
           m_lists(std::move(l.handel)) {
         const assets::GadgetLayout& sl = m_ship.layout();
@@ -606,9 +638,9 @@ private:
     // PIRAT.GAD, PIRATORD.GAD.
     static constexpr std::int32_t kBuyPeace = 54004;
     static constexpr std::int32_t kHire = 54005;
-    static constexpr std::int32_t kPirateText = 55011;    // + line 0..2
-    static constexpr std::int32_t kPirateArms = 55021;    // + player 0..2
-    static constexpr std::int32_t kPirateChoice = 55031;  // + player 0..2
+    static constexpr std::int32_t kPirateText = 55011;                 // + line 0..2
+    static constexpr std::int32_t kPirateArms = 55021;                 // + player 0..2
+    static constexpr std::int32_t kPirateChoice = kPirateFirstChoice;  // + shown player 0..2
     static constexpr std::int32_t kPay = 55004;
     static constexpr std::int32_t kCostLabel = 55005;
     static constexpr std::int32_t kCost = 55006;
@@ -1725,19 +1757,28 @@ private:
         m_piratord.set_text(kPirateText + 1, c.text("GAME", m_hire ? 40 : 42));
         m_piratord.set_text(kPirateText + 2, c.text("GAME", 43));
         m_piratord.set_visible(kPirateText + 2, !m_hire);
-        if (m_hire_choice >= static_cast<std::int32_t>(m_opponents.size())) {
+        const auto opponents = static_cast<std::int32_t>(m_opponents.size());
+        if (m_hire_choice >= opponents) {
             m_hire_choice = 0;
         }
-        for (std::int32_t k = 0; k < 3; ++k) {
-            const bool shown = m_hire && k < static_cast<std::int32_t>(m_opponents.size());
+        // Three at a time; the arrows page through the others (LC-4).
+        m_hire_first = std::clamp(m_hire_first, 0, std::max(0, opponents - kPirateChoices));
+        for (std::int32_t k = 0; k < kPirateChoices; ++k) {
+            const std::int32_t o = m_hire_first + k;
+            const bool shown = m_hire && o < opponents;
             m_piratord.set_visible(kPirateArms + k, shown);
             m_piratord.set_visible(kPirateChoice + k, shown);
-            m_piratord.set_selected(kPirateChoice + k, k == m_hire_choice);
+            m_piratord.set_selected(kPirateChoice + k, o == m_hire_choice);
             if (shown) {
                 set_banner_graphic(m_piratord, kPirateArms + k, render::BannerArt::at(m_gfx_pirate_arms),
-                                   c.banner(m_opponents[static_cast<std::size_t>(k)]));
+                                   c.banner(m_opponents[static_cast<std::size_t>(o)]));
             }
         }
+        const bool scrolls = m_hire && opponents > kPirateChoices;
+        m_piratord.set_visible(kPirateLeft, scrolls);
+        m_piratord.set_visible(kPirateRight, scrolls);
+        m_piratord.set_disabled(kPirateLeft, m_hire_first == 0);
+        m_piratord.set_disabled(kPirateRight, m_hire_first + kPirateChoices >= opponents);
         m_piratord.set_text(kCostLabel, c.text("GAME", 45));
         m_piratord.set_text(kCost, std::to_string(pirate_cost(c)));
     }
@@ -1754,8 +1795,12 @@ private:
             }
             return;
         }
-        if (e.id >= kPirateChoice && e.id < kPirateChoice + 3) {
-            m_hire_choice = e.id - kPirateChoice;
+        if (e.id >= kPirateChoice && e.id < kPirateChoice + kPirateChoices) {
+            m_hire_choice = m_hire_first + e.id - kPirateChoice;
+            return;
+        }
+        if (e.id == kPirateLeft || e.id == kPirateRight) {
+            m_hire_first += e.id == kPirateLeft ? -1 : 1;  // refresh_pirates keeps it in range
             return;
         }
         const sim::City* city = m_city ? c.world().city(m_city->first, m_city->second) : nullptr;
@@ -1804,6 +1849,7 @@ private:
     std::uint8_t m_pick_entry = 0;
     bool m_hire = false;             ///< PIRATORD: hire them (or buy peace)
     std::int32_t m_hire_choice = 0;  ///< whom, among the other players
+    std::int32_t m_hire_first = 0;   ///< the first of them shown
     std::vector<sim::PlayerId> m_opponents;
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 192;

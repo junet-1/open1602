@@ -28,9 +28,12 @@ constexpr std::array<std::uint8_t, 3> kRefundPercents = {25, 50, 75};  // betwee
 constexpr std::array<std::uint32_t, 4> kShips = {33, 100, 200, 0};     // 0: unlimited
 constexpr std::array<std::uint32_t, 4> kUnits = {100, 250, 500, 0};
 constexpr std::array<std::uint32_t, 2> kSpeeds = {4, 8};
-/// Map sizes: smaller than the original's, its 500 x 350, then larger ones of the same shape.
-constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 5> kSizes = {
-    {{350, 250}, {500, 350}, {700, 490}, {1000, 700}, {1400, 980}}};
+/// Map sizes: smaller than the original's, its 500 x 350, then larger ones of the same shape, then
+/// the generator's largest (sim::WorldSettings::kMaxSide).
+constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 7> kSizes = {
+    {{350, 250}, {500, 350}, {700, 490}, {1000, 700}, {1400, 980}, {2000, 1400}, {2000, 2000}}};
+static_assert(kSizes.back().first <= sim::WorldSettings::kMaxSide &&
+              kSizes.back().second <= sim::WorldSettings::kMaxSide);
 constexpr std::uint8_t kFewestPlayers = 2;
 constexpr auto kMostPlayers = static_cast<std::uint8_t>(sim::kMaxPlayers);  // as in multiplayer
 constexpr std::array<Amount, 3> kIslandAmounts = {Amount::Few, Amount::Normal, Amount::Many};
@@ -160,7 +163,8 @@ bool read_victory_line(sim::VictoryConditions& v, std::string_view key, std::str
     if (key == "inhabitants") {
         v.inhabitants = n.value_or(v.inhabitants);
     } else if (key == "class") {
-        if (n && *n <= kLastWinClass) {
+        // As the dialog: pioneers are every city's start, so "pioneers or higher" would be won at once.
+        if (n && *n >= kFirstWinClass && *n <= kLastWinClass) {
             v.resident_class = static_cast<std::uint8_t>(*n);
         }
     } else if (key == "class_inhabitants") {
@@ -225,6 +229,9 @@ sim::WorldSettings EndlessSetup::world_settings() const {
     return w;
 }
 
+// Without the level and the seed: they are chosen apart from the dialog (the level by the player's
+// start, the seed anew for every game), and the dialog's "original" and "defaults" buttons compare
+// what it shows.
 bool operator==(const EndlessSetup& a, const EndlessSetup& b) noexcept {
     const sim::WorldSettings& x = a.world;
     const sim::WorldSettings& y = b.world;
@@ -341,11 +348,12 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             if (setup.auto_size) {
                 return 0;
             }
-            std::array<std::uint32_t, kSizes.size()> widths{};
+            // Two sizes share a width: the nearest by area (in thousands of tiles, which keeps them apart).
+            std::array<std::uint32_t, kSizes.size()> areas{};
             for (std::size_t i = 0; i < kSizes.size(); ++i) {
-                widths[i] = kSizes[i].first;
+                areas[i] = kSizes[i].first * kSizes[i].second / 1000;
             }
-            return 1 + nearest(widths, std::max<std::uint32_t>(w.width, 1));
+            return 1 + nearest(areas, std::max<std::uint32_t>(w.width * w.height / 1000, 1));
         }
         case SetupItem::Players:
             return static_cast<std::size_t>(std::clamp(w.players, kFewestPlayers, kMostPlayers) - kFewestPlayers);
@@ -526,14 +534,17 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
 void choose_next(EndlessSetup& setup, SetupItem item) {
     const std::size_t n = setup_choices(item);
     if (n != 0) {
-        choose(setup, item, (setup_choice(setup, item) + 1) % n);
+        // From a value of its own the first step goes to the nearest offered one (one players: 2).
+        const std::size_t step = setup_value_custom(setup, item) ? 0 : 1;
+        choose(setup, item, (setup_choice(setup, item) + step) % n);
     }
 }
 
 void choose_previous(EndlessSetup& setup, SetupItem item) {
     const std::size_t n = setup_choices(item);
     if (n != 0) {
-        choose(setup, item, (setup_choice(setup, item) + n - 1) % n);
+        const std::size_t step = setup_value_custom(setup, item) ? 0 : n - 1;
+        choose(setup, item, (setup_choice(setup, item) + step) % n);
     }
 }
 
@@ -580,9 +591,11 @@ std::string victory_text(const sim::VictoryConditions& v) {
         return {};
     }
     std::string parts;
-    const auto add = [&parts](SetupItem item, const std::string& value) {
-        parts += parts.empty() ? "" : "; ";
-        parts += setup_label(item) + ": " + value;
+    const auto append = [&parts](const std::string& part) {
+        parts = parts.empty() ? part : ui::tr("setup.victory.next", {parts, part});
+    };
+    const auto add = [&](SetupItem item, const std::string& value) {
+        append(ui::tr("setup.victory.part", {setup_label(item), value}));
     };
     if (v.inhabitants != 0) {
         add(SetupItem::WinInhabitants, grouped(v.inhabitants));
@@ -603,8 +616,7 @@ std::string victory_text(const sim::VictoryConditions& v) {
         add(SetupItem::WinIslands, ui::tr("setup.win.percent", {std::to_string(v.islands_percent)}));
     }
     if (v.eliminate) {
-        parts += parts.empty() ? "" : "; ";
-        parts += setup_label(SetupItem::WinEliminate);
+        append(setup_label(SetupItem::WinEliminate));
     }
     if (v.score != 0) {
         add(SetupItem::WinScore, grouped(v.score));
@@ -689,6 +701,9 @@ EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players) {
     if (setup.world.players > sim::kOriginalPlayers) {
         setup.own_world = true;
     }
+    // Every computer runs every tick in step with the slowest: no more than the dialog offers, for
+    // which the tick budget holds (LC-8). A game alone may go faster through settings.cfg.
+    setup.rules.max_game_speed = std::clamp<std::uint32_t>(setup.rules.max_game_speed, 1, kSpeeds.back());
     return setup;
 }
 
@@ -838,10 +853,97 @@ std::string setup_value(SetupItem item, std::size_t choice) {
     return {};
 }
 
+namespace {
+
+template <class T, std::size_t N>
+bool offered(const std::array<T, N>& values, T v) {
+    return std::find(values.begin(), values.end(), v) != values.end();
+}
+
+/// The setup's own value as text when none of the item's choices is exactly it (settings.cfg or a
+/// host may set any), or nothing: the dialog shows what the game will use (LC-7).
+std::optional<std::string> custom_value(const EndlessSetup& setup, SetupItem item) {
+    const sim::Rules& r = setup.rules;
+    const sim::VictoryConditions& v = r.victory;
+    const sim::WorldSettings& w = setup.world;
+    const auto condition = [](const auto& values, std::uint32_t value, std::string_view key) {
+        return value == 0 || offered(values, value) ? std::nullopt
+                                                    : std::optional<std::string>(ui::tr(key, {grouped(value)}));
+    };
+    switch (item) {
+        case SetupItem::Refund:
+            if (r.demolish_refund == sim::Refund::Partial && !offered(kRefundPercents, r.refund_percent)) {
+                return ui::tr("setup.refund.partial", {std::to_string(r.refund_percent)});
+            }
+            break;
+        case SetupItem::Ships:
+            if (!offered(kShips, r.max_ships_per_player)) {
+                return number_text(r.max_ships_per_player);
+            }
+            break;
+        case SetupItem::Units:
+            if (!offered(kUnits, r.max_army)) {
+                return number_text(r.max_army);
+            }
+            break;
+        case SetupItem::GameSpeed:
+            if (!offered(kSpeeds, r.max_game_speed)) {
+                return ui::tr("setup.speed.value", {std::to_string(r.max_game_speed)});
+            }
+            break;
+        case SetupItem::WorldSize:
+            if (!setup.auto_size && !offered(kSizes, std::pair{w.width, w.height})) {
+                return ui::tr("setup.size.value", {std::to_string(w.width), std::to_string(w.height)});
+            }
+            break;
+        case SetupItem::Players:
+            if (w.players < kFewestPlayers || w.players > kMostPlayers) {
+                return std::to_string(w.players);
+            }
+            break;
+        case SetupItem::GoldIslands:
+            if (!offered(kGoldIslands, std::uint32_t{w.gold_islands})) {
+                return std::to_string(w.gold_islands);
+            }
+            break;
+        case SetupItem::WinInhabitants:
+            return condition(kWinInhabitants, v.inhabitants, "setup.win.number");
+        case SetupItem::WinClassInhabitants:
+            return condition(kWinClassInhabitants, v.class_inhabitants, "setup.win.number");
+        case SetupItem::WinMoney:
+            return condition(kWinMoney, v.money, "setup.win.gold");
+        case SetupItem::WinBalance:
+            return condition(kWinBalance, v.balance, "setup.win.balance.value");
+        case SetupItem::WinIslands:
+            return condition(kWinIslands, std::uint32_t{v.islands_percent}, "setup.win.percent");
+        case SetupItem::WinScore:
+            return condition(kWinScore, v.score, "setup.win.number");
+        case SetupItem::WinTimeLimit:
+            if (v.time_limit_minutes != 0 && !offered(kWinMinutes, v.time_limit_minutes)) {
+                const std::uint32_t m = v.time_limit_minutes;
+                return m % 60 == 0 ? ui::tr("setup.win.hours", {std::to_string(m / 60)})
+                                   : ui::tr("setup.win.minutes", {std::to_string(m)});
+            }
+            break;
+        default:
+            break;
+    }
+    return std::nullopt;
+}
+
+}  // namespace
+
+bool setup_value_custom(const EndlessSetup& setup, SetupItem item) {
+    return custom_value(setup, item).has_value();
+}
+
 std::string setup_value(const EndlessSetup& setup, SetupItem item) {
     if (item == SetupItem::WorldSize && setup.auto_size) {
         const sim::WorldSettings w = setup.world_settings();
         return ui::tr("setup.size.auto", {std::to_string(w.width), std::to_string(w.height)});
+    }
+    if (const auto custom = custom_value(setup, item)) {
+        return ui::tr("setup.value.own", {*custom});
     }
     return setup_value(item, setup_choice(setup, item));
 }
@@ -976,10 +1078,11 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("own_world", on_off(setup.own_world));
     line("world", setup.auto_size ? "auto" : std::to_string(w.width) + "x" + std::to_string(w.height));
     line("players", std::to_string(w.players));
-    line("islands", kAmountNames[static_cast<std::size_t>(w.islands)]);
+    line("islands", kAmountNames[std::min<std::size_t>(static_cast<std::size_t>(w.islands), kAmountNames.size() - 1)]);
     line("island_sizes", kSizeNames[std::min<std::size_t>(static_cast<std::size_t>(w.sizes), 2)]);
-    line("villages", kAmountNames[static_cast<std::size_t>(w.natives)]);
-    line("volcano_islands", kAmountNames[static_cast<std::size_t>(w.volcanoes)]);
+    line("villages", kAmountNames[std::min<std::size_t>(static_cast<std::size_t>(w.natives), kAmountNames.size() - 1)]);
+    line("volcano_islands",
+         kAmountNames[std::min<std::size_t>(static_cast<std::size_t>(w.volcanoes), kAmountNames.size() - 1)]);
     line("gold_islands", w.gold_islands == 0 ? "auto" : std::to_string(w.gold_islands));
     line("starts", kStartNames[w.starts == Starts::Together ? 1 : 0]);
     const sim::VictoryConditions& v = r.victory;

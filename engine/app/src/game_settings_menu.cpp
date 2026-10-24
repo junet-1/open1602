@@ -33,7 +33,7 @@ constexpr std::int32_t kHintY = 592;  ///< the hint's top when the groups end ab
 
 constexpr std::int32_t kTop = 84;
 constexpr std::int32_t kGap = 8;
-constexpr std::int32_t kRowH = 36;
+constexpr std::int32_t kRowH = 32;  // room for three lines of hint or error below the endless game's items (FB-32)
 constexpr std::int32_t kLabelW = 236;
 constexpr std::int32_t kValueW = 196;
 
