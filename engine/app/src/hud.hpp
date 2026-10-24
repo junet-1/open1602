@@ -373,7 +373,7 @@ public:
               const std::array<std::pair<double, double>, 4>& view, std::uint64_t now_ms,
               const sim::PlayerFigures& figures, std::uint8_t colour);
     /// After the frame is shown (the text cache keeps what the frame drew).
-    void next_frame() noexcept { m_renderer->next_frame(); }
+    void next_frame() { m_renderer->next_frame(); }
 
 private:
     Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,

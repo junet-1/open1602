@@ -118,16 +118,18 @@ constexpr std::uint16_t kFigureFahneWeiss = assets::figure::kWhiteFlag;
 /// Image `frame` of a banner's flag: the tinted generic flag or the banner's own sprites.
 std::optional<std::uint32_t> flag_sprite(const WorldLayers& layers, sim::BannerId id, std::uint64_t frame) {
     const Banner* banner = layers.banners != nullptr ? layers.banners->get(id) : nullptr;
-    if (banner == nullptr || banner->flag_frames == 0) {
+    if (banner == nullptr) {
         return std::nullopt;
     }
-    const auto f = static_cast<std::uint32_t>(frame % banner->flag_frames);
+    // The tinted flag has as many images as its template, of which the atlas holds one block per
+    // banner; own sprites as many as the banner says (FB-33).
     if (banner->flag == FlagStyle::Tinted && layers.banner_flags != nullptr && id < layers.banner_flags->size() &&
-        (*layers.banner_flags)[id]) {
-        return *(*layers.banner_flags)[id] + f;
+        (*layers.banner_flags)[id] && layers.banners->flag_template() && layers.banners->flag_template()->frames > 0) {
+        return *(*layers.banner_flags)[id] +
+               static_cast<std::uint32_t>(frame % layers.banners->flag_template()->frames);
     }
-    if (banner->flag == FlagStyle::Sprites) {
-        return layers.ship_base + banner->flag_gfx + f;
+    if (banner->flag == FlagStyle::Sprites && banner->flag_frames > 0) {
+        return layers.ship_base + banner->flag_gfx + static_cast<std::uint32_t>(frame % banner->flag_frames);
     }
     return std::nullopt;
 }

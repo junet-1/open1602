@@ -77,6 +77,27 @@ TEST_CASE("figures: ANIM objects and the sprite formula of 0x0044F8F0") {
     CHECK(assets::figure_sprite(*shadow, 1, 4, 2, 0) == 8 + 2 * 8);
 }
 
+TEST_CASE("figures: an animation of more than 255 frames or runs still ends (FB-19)") {
+    const assets::CodPredefinedSymbol types[] = {{"FIGUR", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: FIGUR\n"
+        "  Nummer: 5\n  Gfx: 0\n  Blocknr: 5\n  Rotate: 8\n"
+        "  Objekt: ANIM\n"
+        "    Nummer: 0\n    Kind: 3\n    AnimAnz: 300\n    AnimSpeed: 1\n    AnimRept: 400\n    AnimNr: 1\n"
+        "    Nummer: 1\n    Kind: 1\n    AnimAnz: 2\n    AnimSpeed: 1\n"
+        "  EndObj\n"
+        "EndObj\n",
+        types);
+    auto table = assets::FigureTable::from_cod(doc);
+    REQUIRE(table.ok());
+    const assets::FigureType& f = *table->get(5);
+    CHECK(f.anim(0)->count == 255);
+    CHECK(f.anim(0)->repeat == 255);
+    render::AnimState s;
+    render::advance_animation(s, f, 255 * 255);
+    CHECK(s.anim == 1);  // JUMPTO after 255 runs of 255 frames
+}
+
 TEST_CASE("figures: animation stepping like 0x0045D0B0") {
     const auto figures = make_deer();
     const assets::FigureType& deer = *figures.get(89);
@@ -310,6 +331,7 @@ TEST_CASE("flags: one tinted block per banner in the atlas and in the draw list"
     render::BannerTable banners;
     banners.add_color("test:red", {255, 0, 0, 255});
     banners.add_color("test:blue", {0, 0, 255, 255});
+    banners.set_flag_template(render::FlagTemplate{0, 4, true});  // the four images of the sheet
     const std::vector<std::optional<std::uint32_t>> banner_flags = {atlas->sheet_base(1), atlas->sheet_base(1) + 4};
     render::WorldLayers layers;
     layers.figures = &*figures;
@@ -325,7 +347,11 @@ TEST_CASE("flags: one tinted block per banner in the atlas and in the draw list"
     REQUIRE(s.has_flag);
     CHECK(s.flag.sprite == atlas->sheet_base(1) + 4);
     REQUIRE(render::ship_sprites(sim::make_ship("A", 10, 20, 21, 1, 0), world, render::WorldView{}, layers, 200, s));
-    CHECK(s.flag.sprite == atlas->sheet_base(1) + 4 + 2);  // frame 200 / 90 = 2 (of 8, wraps at the block)
+    CHECK(s.flag.sprite == atlas->sheet_base(1) + 4 + 2);  // frame 200 / 90 = 2
+    // The template's four images per block, not the banner's flag_frames (8): frame 450 / 90 = 5
+    // is image 1 of the banner's block, not the first of the next (FB-33).
+    REQUIRE(render::ship_sprites(sim::make_ship("A", 10, 20, 21, 1, 0), world, render::WorldView{}, layers, 450, s));
+    CHECK(s.flag.sprite == atlas->sheet_base(1) + 4 + 1);
     // Without the atlas block (e.g. graphics loaded without banners) there is no flag.
     layers.banner_flags = nullptr;
     REQUIRE(render::ship_sprites(sim::make_ship("A", 10, 20, 21, 1, 0), world, render::WorldView{}, layers, 0, s));

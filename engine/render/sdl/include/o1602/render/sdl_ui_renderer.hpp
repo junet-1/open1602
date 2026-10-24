@@ -63,7 +63,8 @@ public:
     void image(int key, const std::vector<std::uint8_t>& rgba, std::int32_t width, std::int32_t height,
                const ui::Rect& at, bool update);
     /// After a frame is shown: its texts' textures may be given up again when the cache is full.
-    void next_frame() noexcept { m_texts.next_frame(); }
+    /// Sprites not drawn for longest go too while they take more than a cap (FB-23).
+    void next_frame();
     /// The render device was reset and the textures lost their contents: all go and are made
     /// again when next drawn (an image from the pixels given then).
     void release_textures();
@@ -96,7 +97,16 @@ private:
     /// shape.
     using SpriteKey = std::tuple<std::int32_t, std::int32_t, int, std::int32_t, std::uint32_t, std::int32_t,
                                  std::uint32_t, std::optional<std::int32_t>>;
-    std::map<SpriteKey, Texture> m_sprites;
+    struct CachedSprite {
+        Texture texture;
+        std::uint64_t frame = 0;  ///< the frame it was last drawn in
+    };
+    std::map<SpriteKey, CachedSprite> m_sprites;
+    std::size_t m_sprite_bytes = 0;  ///< RGBA bytes of the cached sprites
+    std::uint64_t m_frame = 0;
+    /// Releases the sprites drawn longest ago, never those of this frame, until they take at most
+    /// `bytes`.
+    void trim_sprites(std::size_t bytes);
     TextCache<Texture> m_texts;
     std::map<int, Texture> m_images;
     Texture m_checker;  ///< made when first needed

@@ -30,6 +30,15 @@ bool MouseCursors::set_image(Shape shape, std::uint32_t width, std::uint32_t hei
     if (surface == nullptr) {
         return false;
     }
+    // Twice and three times as large for displays that scale the window (FB-24): SDL takes the
+    // image that fits the display's scale. The pixels are doubled, as the art is pixel art.
+    for (const int factor : {2, 3}) {
+        if (SDL_Surface* large = SDL_ScaleSurface(surface, static_cast<int>(width) * factor,
+                                                  static_cast<int>(height) * factor, SDL_SCALEMODE_NEAREST)) {
+            SDL_AddSurfaceAlternateImage(surface, large);
+            SDL_DestroySurface(large);  // the surface keeps its own reference
+        }
+    }
     SDL_Cursor* cursor = SDL_CreateColorCursor(surface, static_cast<int>(hot_x), static_cast<int>(hot_y));
     SDL_DestroySurface(surface);
     if (cursor == nullptr) {
