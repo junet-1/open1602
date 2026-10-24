@@ -162,6 +162,7 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
     m_config.join_running = client.m_lobby.join_running;
     m_config.spectators = client.m_lobby.spectators;
     m_config.computer_takes_over = client.m_lobby.computer_takes_over;
+    m_config.host_pauses_only = client.m_lobby.host_pauses_only;
     m_seat = client.m_seat;
     // The game goes on from this computer's frame. The frames the old host closed beyond it are
     // as good as any: every computer gets them with this game. What the others had beyond them
@@ -220,6 +221,7 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
 void HostSession::init_lobby() {
     m_lobby.join_running = m_config.join_running;
     m_lobby.computer_takes_over = m_config.computer_takes_over;
+    m_lobby.host_pauses_only = m_config.host_pauses_only;
     m_lobby.spectators = m_config.spectators;
     m_lobby.password = !m_config.password.empty();
     m_lobby.title.resize(std::min(m_lobby.title.size(), kMaxTitleLength));
@@ -571,8 +573,8 @@ void HostSession::commands(Peer& peer, CommandBatch& m) {
             continue;
         }
         if (const auto* speed = std::get_if<sim::GameSpeedOrder>(&c)) {
-            if (speed->op == sim::GameSpeedOrder::Op::SetSpeed) {
-                continue;
+            if (speed->op == sim::GameSpeedOrder::Op::SetSpeed || m_config.host_pauses_only) {
+                continue;  // with host_pauses_only, pausing and resuming too (MS-20)
             }
         }
         if (std::holds_alternative<sim::GameSpeedOrder>(c) || std::holds_alternative<sim::PlayerRename>(c)) {

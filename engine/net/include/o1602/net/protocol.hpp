@@ -26,7 +26,7 @@ namespace o1602::net {
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
 /// The first three bytes of a Hello (its type and this version) never change, so that a computer of
 /// another version is told so (RefuseReason::Version) rather than refused as nonsense (MS-22).
-inline constexpr std::uint16_t kProtocolVersion = 11;
+inline constexpr std::uint16_t kProtocolVersion = 12;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
@@ -220,6 +220,8 @@ struct Lobby {
     std::vector<sim::BannerId> banners;
     /// The computer plays the slots of persons who left the running game (SessionConfig).
     bool computer_takes_over = true;
+    /// Only the host pauses and resumes the game; the others' pauses are refused (MS-20).
+    bool host_pauses_only = false;
     friend bool operator==(const Lobby&, const Lobby&) = default;
 };
 

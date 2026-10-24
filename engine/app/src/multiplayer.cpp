@@ -191,6 +191,9 @@ void MapViewer::apply_session_events() {
             case net::SessionEvent::Kind::Reconnecting:
                 session_line(MpText::Reconnecting);
                 break;
+            case net::SessionEvent::Kind::PauseRefused:
+                session_line(MpText::PauseRefused);
+                break;
         }
     }
     // A session that ends before its game ran: back to the search with the reason. One that ends
@@ -557,6 +560,7 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
     config.join_running = setup.join_running;
     config.spectators = setup.spectators;
     config.computer_takes_over = setup.computer_takes_over;
+    config.host_pauses_only = setup.host_pauses_only;
     auto transport = net::enet_listen(setup.port);
     if (!transport) {
         return transport.error();

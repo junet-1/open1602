@@ -120,6 +120,7 @@ void put(core::ByteWriter& out, const Lobby& m) {
         out.u16(b);
     }
     out.boolean(m.computer_takes_over);
+    out.boolean(m.host_pauses_only);
 }
 
 void put(core::ByteWriter& out, const TakeSeat& m) {
@@ -315,6 +316,7 @@ Lobby get_lobby(In& in) {
         m.banners.push_back(in.u16());
     }
     m.computer_takes_over = in.boolean();
+    m.host_pauses_only = in.boolean();
     return m;
 }
 
