@@ -19,5 +19,7 @@ using assets::base_price;
 using assets::is_soldier_ware;
 using assets::is_trade_ware;
 using assets::kBasePrices;
+using assets::kFullSupply;
+using assets::kStockUnitsPerTon;
 
 }  // namespace o1602::sim

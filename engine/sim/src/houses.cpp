@@ -15,7 +15,7 @@ namespace {
 namespace hs = house_service;
 
 constexpr std::uint32_t kInhabitantUnits = 64;  // inhabitants are counted in 1/64
-constexpr std::uint8_t kFull = 128;
+constexpr std::uint8_t kFull = kFullSupply;
 constexpr std::uint8_t kNoMarket = 6;  // market distance class without (or far from) a market
 constexpr std::size_t kMaxNeighbourTiles = 40;
 
@@ -222,7 +222,6 @@ private:
             return result;
         }
         const Catchment area = catchment_of(*type, cell.rotation, {h.x, h.y});
-        constexpr std::uint8_t kUniformSpeed = 3;  // Wegspeed[3]: 100 % everywhere
         m_finder.begin(map, m_buildings, area, WalkClass::Land, kUniformSpeed, false);
         const TilePos corner = m_finder.window_min();
         for (std::uint32_t j = 0; j < m_finder.window_height(); ++j) {

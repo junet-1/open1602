@@ -150,11 +150,12 @@ private:
 
 /// A player's diplomatic action (the diplomacy panel 0x0043CE00, docs/re/diplomacy.md).
 struct DiplomacyOrder {
+    static constexpr std::uint32_t kMaxTribute = 10'000;  ///< gold of one tribute at most
     enum class Kind : std::uint8_t {
         Peace,     ///< `value`: Offered (offer), Signed (accept an offer), None (withdraw or break)
         Trade,     ///< the same for the trade treaty
         Gesture,   ///< `friendly` or not: remembered by the partner
-        Tribute,   ///< `gold` (at most 10000) goes to the partner and makes him friendlier
+        Tribute,   ///< `gold` (at most kMaxTribute) goes to the partner and makes him friendlier
         BuyPeace,  ///< with `ship` at a pirate Kontor: pay the pirates for peace (B.6)
         Bribe,     ///< with `ship` at a pirate Kontor: pay the pirates to fight `target`
     };

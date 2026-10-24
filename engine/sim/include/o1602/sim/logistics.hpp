@@ -23,6 +23,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/disasters.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/pool.hpp"
 #include "o1602/sim/production_cycle.hpp"
@@ -168,7 +169,7 @@ public:
     /// Game time per tick (Simulation::kTickMs).
     static constexpr std::uint32_t kTickMs = 50;
     /// The original's carrier (TRAEGER), sent for the second raw material of non-workshops.
-    static constexpr std::uint16_t kCarrierFigure = 80;
+    static constexpr std::uint16_t kCarrierFigure = figure::kCarrier;
     /// Walker::home of figures without a home building (deer).
     static constexpr std::uint32_t kNoHome = 0xFFFFFFFFU;
 

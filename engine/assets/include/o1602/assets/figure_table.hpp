@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/assets/game_data.hpp"
 #include "o1602/core/result.hpp"
 
 namespace o1602::assets {
@@ -150,11 +151,11 @@ struct UnitVariant {
 class FigureTable {
 public:
     /// First figures of the unit families of the original (figure numbers 1..16, 4 colours each).
-    static constexpr std::array<std::uint32_t, 4> kUnitFamilies = {1, 5, 9, 13};
+    static constexpr std::array<std::uint32_t, 4> kUnitFamilies = figure::kUnitFamilies;
     static constexpr std::uint8_t kUnitVariants = 4;
 
     /// Ship flags by player colour (table at 0x00498F2C): FAHNE1..4, FAHNEPIRAT.
-    static constexpr std::array<std::uint32_t, 5> kFlagFigures = {106, 107, 108, 109, 110};
+    static constexpr std::array<std::uint32_t, 5> kFlagFigures = figure::kFlags;
 
     static core::Result<FigureTable> from_cod(const cod::Document& figuren);
     static core::Result<FigureTable> load(const GameDirectory& game);

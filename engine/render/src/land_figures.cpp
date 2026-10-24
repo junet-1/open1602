@@ -8,9 +8,9 @@
 namespace o1602::render {
 
 namespace {
-constexpr std::int32_t kLandPosoffs = 20;  // HIGHBODEN
-constexpr std::int32_t kBeachRuin = 29;    // HAUS Kind STRANDRUINE
-constexpr std::int32_t kPier = 30;
+constexpr std::int32_t kLandPosoffs = 20;                      // HIGHBODEN
+constexpr std::int32_t kBeachRuin = assets::kind::kBeachRuin;  // HAUS Kind STRANDRUINE
+constexpr std::int32_t kPier = assets::kind::kPier;
 }  // namespace
 
 double spawn_height(const sim::World& world, const assets::BuildingTable& buildings, double x, double y,
@@ -47,14 +47,14 @@ double spawn_height(const sim::World& world, const assets::BuildingTable& buildi
 namespace {
 
 // Wares of the crops (Text.cod order).
-constexpr std::uint8_t kGrain = 45;
-constexpr std::uint8_t kTobacco = 46;
-constexpr std::uint8_t kSpices = 47;
-constexpr std::uint8_t kSugar = 48;
-constexpr std::uint8_t kCotton = 49;
-constexpr std::uint8_t kGrapes = 50;
-constexpr std::uint8_t kCocoa = 51;
-constexpr std::uint8_t kTree = 53;
+constexpr std::uint8_t kGrain = assets::ware::kCornField;
+constexpr std::uint8_t kTobacco = assets::ware::kTobaccoField;
+constexpr std::uint8_t kSpices = assets::ware::kSpiceField;
+constexpr std::uint8_t kSugar = assets::ware::kSugarField;
+constexpr std::uint8_t kCotton = assets::ware::kCottonField;
+constexpr std::uint8_t kGrapes = assets::ware::kWineField;
+constexpr std::uint8_t kCocoa = assets::ware::kCocoaField;
+constexpr std::uint8_t kTree = assets::ware::kTree;
 
 /// Share hidden by a growing crop of `ware` at growth stage 0, 1, 2, 3, 4 and later (tables at
 /// 0x004514FC, 0x00451520-0x00451550).
@@ -137,9 +137,9 @@ std::uint16_t crop_cut(const sim::World& world, const assets::BuildingTable& bui
         default:
             break;
     }
-    constexpr std::int32_t kRipe = 9;
-    constexpr std::int32_t kGrowing = 10;
-    constexpr std::int32_t kQuarry = 11;
+    constexpr std::int32_t kRipe = assets::prod::kRipe;
+    constexpr std::int32_t kGrowing = assets::prod::kGrowing;
+    constexpr std::int32_t kQuarry = assets::prod::kQuarry;
     if (b->prod_kind == kGrowing) {
         // The crop is the ware of the ripe record that follows the growing one (HAUS + 0xA9).
         const assets::BuildingType* ripe = buildings.by_record(b->record + 1);

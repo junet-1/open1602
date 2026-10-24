@@ -26,20 +26,21 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/disasters.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/island_map.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
 
-inline constexpr std::uint32_t kVolcanoRecordId = 21108;  ///< IDFELS+7, the big ore mountain
-inline constexpr std::size_t kMaxCraters = 2;             ///< per island
-inline constexpr std::uint32_t kMaxCraterCount = 20;      ///< the interval table ends there
+inline constexpr std::uint32_t kVolcanoRecordId = id::kBigOreMountain;
+inline constexpr std::size_t kMaxCraters = 2;         ///< per island
+inline constexpr std::uint32_t kMaxCraterCount = 20;  ///< the interval table ends there
 inline constexpr std::uint8_t kLavaThrows = 141;
-inline constexpr std::uint16_t kFigureVolcano = 68;  ///< VULKAN: the fire over the mountain
-inline constexpr std::uint16_t kFigureLava = 69;     ///< VULKANFIRE1: a lump of lava
-inline constexpr std::uint32_t kLavaSpeed = 600;     ///< Speed of VULKANFIRE1 in figuren.cod
-inline constexpr double kVolcanoHeight = 3.2;        ///< height of the VULKAN figure, half tile widths
+inline constexpr std::uint16_t kFigureVolcano = figure::kVolcano;
+inline constexpr std::uint16_t kFigureLava = figure::kLava;
+inline constexpr std::uint32_t kLavaSpeed = 600;  ///< Speed of VULKANFIRE1 in figuren.cod
+inline constexpr double kVolcanoHeight = 3.2;     ///< height of the VULKAN figure, half tile widths
 inline constexpr std::uint8_t kLavaFireDuration = 20;
 
 struct VolcanoEvent {

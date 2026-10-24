@@ -33,7 +33,7 @@ constexpr std::uint8_t kTowerRadius = 8;      // towers protect the land within 
 constexpr std::array<std::int32_t, 8> kRealBuildings = {kind::kTower,      kind::kTowerBeach, kind::kBuilding,
                                                         kind::kBeachHouse, kind::kMine,       kind::kHq,
                                                         kind::kHarbour,    kind::kMill};
-constexpr std::uint32_t kMeadowId = 22722;  // IDWEIDE + 21: what demolished forest becomes
+constexpr std::uint32_t kMeadowId = id::kMeadow;
 
 bool is_beach(std::int32_t k) noexcept {
     return k >= kind::kBeach && k <= kind::kBeachVariant;
@@ -1615,7 +1615,7 @@ public:
     }
 
     /// Restores the original ground under a removed building (0x00464B40): the ground layer, or
-    /// meadow where it was forest.
+    /// meadow where it was forest (the forest ground itself when the data has no meadow).
     void restore_ground(const Footprint& f, std::uint8_t city) {
         IslandMap& m = map();
         const assets::BuildingType* meadow = m_buildings.by_id(kMeadowId);
@@ -1626,7 +1626,7 @@ public:
                 const MapCell top = m.top(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
                 const MapCell& ground = m.ground(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
                 const assets::BuildingType* g = ground.empty() ? nullptr : m_buildings.by_sprite(ground.sprite);
-                if (g == nullptr || g->kind == kind::kForest) {
+                if (g == nullptr || (g->kind == kind::kForest && meadow != nullptr)) {
                     if (meadow != nullptr) {
                         (void)m.build(*meadow, tx, ty, 0, 0, top.owner, city);
                     }

@@ -13,7 +13,7 @@ namespace o1602::sim {
 
 namespace {
 
-constexpr std::uint32_t kTon = 32;
+constexpr std::uint32_t kTon = kStockUnitsPerTon;
 constexpr std::uint32_t kTraderCheckMs = 10'000;  // one pass over the cities (city epoch)
 constexpr std::uint32_t kRestockMs = 60'000;      // S-078: the original counts run ends
 constexpr std::uint32_t kMaxHeld = 50 * kTon;     // per ware

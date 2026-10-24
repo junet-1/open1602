@@ -9,8 +9,8 @@ namespace o1602::assets::fixes {
 
 namespace {
 
-constexpr std::uint32_t kBakery = 20503;                // IDHANDW+2
-constexpr std::uint16_t kKontorFlag = 60;               // FAHNEKONTOR1: the flag on the first Kontor
+constexpr std::uint32_t kBakery = id::kBakery;
+constexpr std::uint16_t kKontorFlag = figure::kKontorFlag;
 constexpr std::size_t kBlock = 2;                       // FORM_QUAD
 constexpr std::size_t kBlockSlot = 17;                  // the third place of the right-hand row
 constexpr FigureTable::FormationSlot kBlockWas{2, -1};  // slot 15's place again

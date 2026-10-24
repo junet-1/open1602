@@ -89,7 +89,7 @@ inline constexpr std::int32_t kPirateStepMs = 10'000;
 inline constexpr std::int32_t kBudgetFew = 16;
 inline constexpr std::int32_t kBudgetMany = 8;
 inline constexpr std::size_t kMaxStack = 256;
-inline constexpr std::int32_t kTon = 32;
+inline constexpr auto kTon = static_cast<std::int32_t>(kStockUnitsPerTon);
 
 /// A tile as the AI reads it: the record of the top layer, growing crops taken as their ripe
 /// record (the original's normalisation of ROHSTWACHS tiles).

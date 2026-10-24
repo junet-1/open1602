@@ -25,7 +25,7 @@ namespace o1602::app {
 
 namespace {
 
-constexpr std::uint32_t kMaxTribute = 10'000;
+constexpr std::uint32_t kMaxTribute = sim::DiplomacyOrder::kMaxTribute;
 constexpr std::uint32_t kTributeStep = 100;
 
 /// The next value of a treaty button (0x0043FC83): none -> offer, offered or signed -> none

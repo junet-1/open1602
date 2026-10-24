@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -185,8 +186,12 @@ public:
 
     /// Builds the table from an interpreted haeuser.cod (records with Id 0 are unused slots).
     static core::Result<BuildingTable> from_cod(const cod::Document& haeuser);
-    /// Reads and interprets haeuser.cod of an installation.
+    /// Reads and interprets haeuser.cod of an installation; refused when a record of id::kRequired
+    /// is missing (MD-1), since demolition, volcanoes and ruins place them.
     static core::Result<BuildingTable> load(const GameDirectory& game);
+
+    /// The first record of id::kRequired the table lacks.
+    [[nodiscard]] std::optional<std::uint32_t> missing() const noexcept;
 
     [[nodiscard]] const std::vector<BuildingType>& types() const noexcept { return m_types; }
     [[nodiscard]] const BuildingType* by_id(std::uint32_t id) const noexcept;

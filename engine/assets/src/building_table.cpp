@@ -360,7 +360,7 @@ const BuildingType* BuildingTable::first_house(std::size_t resident_class) const
 const BuildingType* BuildingTable::ruin_record(std::uint8_t ruin, bool beach) const noexcept {
     // 0x00462F6A: land and beach ruins of wooden houses, brick houses, plantations, field paths,
     // roads and mines (IDRUINE = 22601 + offset). The Kontor and market ruins follow (not used yet).
-    constexpr std::uint32_t kIdRuine = 22601;
+    constexpr std::uint32_t kIdRuine = id::kRuin;
     constexpr std::array<std::uint32_t, 8> kRuins = {0, 9, 10, 19, 20, 30, 35, 40};
     std::size_t slot = ruin;
     if (beach && (slot == 0 || slot == 2)) {
@@ -386,7 +386,23 @@ core::Result<BuildingTable> BuildingTable::load(const GameDirectory& game) {
     if (!bytes) {
         return bytes.error();
     }
-    return from_cod(cod::parse(decode_cod(*bytes), cod_predefined_haeuser()));
+    auto table = from_cod(cod::parse(decode_cod(*bytes), cod_predefined_haeuser()));
+    if (table) {
+        if (const auto id = table->missing()) {
+            return make_error(ErrorCode::InvalidFormat,
+                              "haeuser.cod has no HAUS with Id " + std::to_string(*id) + ", which the game needs");
+        }
+    }
+    return table;
+}
+
+std::optional<std::uint32_t> BuildingTable::missing() const noexcept {
+    for (const std::uint32_t id : id::kRequired) {
+        if (by_id(id) == nullptr) {
+            return id;
+        }
+    }
+    return std::nullopt;
 }
 
 }  // namespace o1602::assets

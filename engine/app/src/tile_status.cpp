@@ -28,8 +28,7 @@ constexpr std::size_t kLeisteNativeWarrior = 227;
 constexpr std::size_t kLandscapeNativeHut = 2;
 
 /// The list the original keeps after the build menu's (0x00498610), named from [LANDSCHAFT].
-constexpr std::array<std::uint32_t, 17> kLandscapeIds = {22201, 22202, 22203, 22204, 22205, 22231, 22232, 22233, 22234,
-                                                         22235, 22211, 22221, 22222, 22223, 22241, 21304, 22802};
+constexpr auto kLandscapeIds = sim::id::kLandscape;
 
 std::string line(const assets::TextTable& texts, std::string_view section, std::size_t i) {
     const std::vector<std::string>& lines = texts.section(section);

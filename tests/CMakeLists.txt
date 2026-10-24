@@ -118,6 +118,11 @@ endif()
 add_test(NAME layering COMMAND ${CMAKE_COMMAND} -DENGINE_DIR=${PROJECT_SOURCE_DIR}/engine
                                 -P ${PROJECT_SOURCE_DIR}/cmake/CheckLayering.cmake)
 
+# The building records of haeuser.cod are named only in assets/game_data.hpp
+# (cmake/CheckGameNumbers.cmake, MD-1).
+add_test(NAME game_numbers COMMAND ${CMAKE_COMMAND} -DENGINE_DIR=${PROJECT_SOURCE_DIR}/engine
+                                   -P ${PROJECT_SOURCE_DIR}/cmake/CheckGameNumbers.cmake)
+
 # Smoke tests of o1602-tool on small synthetic files (tests/tool/write_tool_files.cpp), so they run
 # without the original data: every command that can, and the errors for a missing, truncated or
 # foreign file. tests/tool/expect.cmake checks the exit code and the output together.
