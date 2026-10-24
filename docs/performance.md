@@ -92,7 +92,17 @@ o1602-tool bench                                    # new own world, 8 players (
 o1602-tool bench --players 8 --world 500x350 --minutes 120 --period 10
 o1602-tool bench SAVEGAME/game00.gam --minutes 60   # a savegame of the original or of Open1602
 o1602-tool bench --minutes 600 --out late.o1602     # keep the end state, e.g. for the game's --load
+o1602-tool bench --minutes 60 --repeat 5            # the fastest of five runs per tick, for comparing code
 ```
+
+Tick times are the CPU time of the game thread where the system has a precise per-thread clock
+(Linux, macOS); elsewhere, and with `--wall`, they are wall-clock times. A single run's p99 and
+maximum still include cache misses and frequency changes caused by other programs, and with a
+wall clock they include the time other programs had the core: on a busy machine the same
+deterministic run gave a founding-phase maximum of 12-45 ms against 2.9 ms. The game runs the
+same ticks every time, so `--repeat N` runs it N times and keeps the fastest time of each tick:
+use it, not a single run, when two versions of the code are compared. `bench` also prints the
+share of ticks over the 6.25 ms a tick has at speed 8 and the load average.
 
 Without `--world` the world is as large as a multiplayer game of that many players makes it
 (`sim::settings_for_players`: the original's 500 x 350 for four, both sides growing with the square
