@@ -66,6 +66,8 @@ public:
         virtual void toggle_owners() = 0;
         /// F11, Alt+Enter: window or full screen.
         virtual void toggle_fullscreen() = 0;
+        /// The Pause key: the original's pause with its video (without videos the game still stops).
+        virtual void toggle_pause_video() = 0;
         /// Where Home goes without a selection.
         [[nodiscard]] virtual render::TilePos home_tile() const = 0;
         /// The graphics of the zoom level shown; null while they are not there.

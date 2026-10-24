@@ -23,6 +23,7 @@ constexpr std::pair<KeyAction, std::string_view> kNames[] = {
     {KeyAction::JumpToMessage, "jump_to_message"},
     {KeyAction::CentreOnSelection, "centre_on_selection"},
     {KeyAction::Pause, "pause"},
+    {KeyAction::PauseVideo, "pause_video"},
     {KeyAction::SpeedUp, "speed_up"},
     {KeyAction::SpeedDown, "speed_down"},
     {KeyAction::QuickSave, "quick_save"},

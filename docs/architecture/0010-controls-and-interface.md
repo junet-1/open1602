@@ -46,7 +46,8 @@ information fit in and the controls follow today's real-time strategy games (202
 | F11, Alt+Enter | window or full screen |
 | Space | jump to the last message |
 | Home | centre view on the selection |
-| F3, Pause | pause |
+| F3 | pause |
+| Pause | pause with the original's pause video (U-018) |
 | Num+ / Num− | game speed |
 | F5 / F9 | quicksave / quickload |
 | F10, Escape (when there is nothing to cancel) | game menu |

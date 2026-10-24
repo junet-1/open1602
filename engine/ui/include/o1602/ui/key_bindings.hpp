@@ -28,6 +28,7 @@ enum class KeyAction : std::uint16_t {
     JumpToMessage,
     CentreOnSelection,
     Pause,
+    PauseVideo,  ///< the original's pause: the game stops, the pause video loops (U-018)
     SpeedUp,
     SpeedDown,
     QuickSave,
