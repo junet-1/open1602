@@ -228,6 +228,9 @@ public:
             m_goods_open = false;
         }
     }
+    /// The mouse wheel at (`x`, `y`): over the side panel the window there scrolls if it can (the
+    /// ship and city lists); false if nothing took it.
+    bool panel_wheel(std::int32_t x, std::int32_t y, std::int32_t notches);
     /// The mouse wheel over the map while the window "Warenbilanz" is open: its table scrolls.
     void goods_wheel(std::int32_t notches) noexcept {
         if (m_goods_open) {

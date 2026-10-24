@@ -97,6 +97,8 @@ public:
     virtual bool back() { return false; }
     /// The window was opened anew (lists start at their first page).
     virtual void opened() {}
+    /// The mouse wheel over the window (`notches` up positive); false if the window does not scroll.
+    virtual bool wheel(std::int32_t /*notches*/) { return false; }
     /// What the window asks of the interface beyond commands (once).
     struct Request {
         /// FoundKontor: the building tool places a Kontor; SelectShip: select `ship` and look at it;

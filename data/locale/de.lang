@@ -593,3 +593,10 @@ game_folder.choose_prompt = Bitte wählt den Ordner Eurer Anno-1602-Installation
 game_folder.choose = Ordner wählen
 game_folder.quit = Beenden
 game_folder.dialog_title = Anno-1602-Ordner wählen
+# The ship and city lists ordered by a click on the heading: {1} the list, {2} its rows, {3} the order
+list.heading.ordered = {1} ({2}, {3})
+list.order.name = nach Name
+list.order.idle = untätige zuerst
+list.order.damaged = beschädigte zuerst
+list.order.help.ships = Klick: Schiffe nach Name, untätige oder beschädigte zuerst, oder wie im Original ordnen
+list.order.help.cities = Klick: Städte nach Name oder wie im Original ordnen

@@ -657,3 +657,10 @@ game_folder.choose_prompt = Please choose the folder of your Anno 1602 installat
 game_folder.choose = Choose folder
 game_folder.quit = Quit
 game_folder.dialog_title = Choose the Anno 1602 folder
+# The ship and city lists ordered by a click on the heading: {1} the list, {2} its rows, {3} the order
+list.heading.ordered = {1} ({2}, {3})
+list.order.name = by name
+list.order.idle = idle first
+list.order.damaged = damaged first
+list.order.help.ships = Click: order the ships by name, idle or damaged first, or as the original
+list.order.help.cities = Click: order the cities by name or as the original
