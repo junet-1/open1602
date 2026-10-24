@@ -34,6 +34,7 @@
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/growth.hpp"
+#include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
@@ -285,6 +286,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         // The mods' messages (<data folder>/mods/<package>/messages.toml).
         std::vector<std::string> problems;
         viewer->m_messages.load_mods(data_folder() / "mods", problems);
+        // and their buildings in the build menu (build_menu.toml), before the panels take it
+        ui::set_build_menu(
+            ui::load_build_menu_mods(ui::original_build_menu(), data_folder() / "mods", viewer->m_buildings, problems));
         for (const std::string& p : problems) {
             std::fprintf(stderr, "mods: %s\n", p.c_str());
         }
