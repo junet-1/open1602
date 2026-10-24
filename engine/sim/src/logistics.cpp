@@ -1006,21 +1006,41 @@ void Logistics::deliver(Walker& w) {
     w.load = 0;
 }
 
-void Logistics::building_removed(std::uint32_t production) {
-    std::vector<Handle> gone;
+void Logistics::buildings_removed(std::span<const std::uint32_t> productions) {
+    if (productions.empty()) {
+        return;
+    }
+    // The first place of each building in the list: a figure ends with the first of its buildings.
+    std::unordered_map<std::uint32_t, std::size_t> place;
+    for (std::size_t i = 0; i < productions.size(); ++i) {
+        place.emplace(productions[i], i);
+    }
+    std::vector<std::pair<std::size_t, Handle>> gone;
     m_walkers.for_each([&](Handle h, const Walker& w) {
-        if (w.home == production || (w.source && *w.source == production)) {
-            gone.push_back(h);
+        std::size_t first = productions.size();
+        if (const auto it = place.find(w.home); it != place.end()) {
+            first = it->second;
+        }
+        if (w.source) {
+            if (const auto it = place.find(*w.source); it != place.end()) {
+                first = std::min(first, it->second);
+            }
+        }
+        if (first < productions.size()) {
+            gone.emplace_back(first, h);
         }
     });
-    for (const Handle h : gone) {
+    std::stable_sort(gone.begin(), gone.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (const auto& [first, h] : gone) {
         if (Walker* w = m_walkers.get(h)) {
             w->load = 0;
             finish(h, *w);
         }
     }
-    if (production < m_jobs.size()) {
-        m_jobs[production] = 0;
+    for (const std::uint32_t production : productions) {
+        if (production < m_jobs.size()) {
+            m_jobs[production] = 0;
+        }
     }
 }
 
