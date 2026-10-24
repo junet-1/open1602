@@ -24,6 +24,9 @@ Several table entries can point to the same record (e.g. the first four entries 
 not touch: in `MAEHER`, `SOLDAT`, `TIERE`, `TRAEGER` and part of `SHIP` 16 unreferenced
 bytes lie between two of them. Open1602 refuses a record whose `length` is below 16 or
 leaves the chunk, and decodes nothing beyond it (HI-8).
+A sprite's height is no bound on its data: transparent rows at the bottom get no `0xFE`, and
+the 100 empty sprites are just `0xFF`. The original claims at most 3 418 pixels per RLE byte;
+Open1602 refuses more than 16 384 (HI-7).
 
 ## RLE encoding
 

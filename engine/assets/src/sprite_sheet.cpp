@@ -20,6 +20,9 @@ constexpr std::uint32_t kMaxDimension = 4096;
 /// Pixels all sprites of one sheet may claim together (HI-18): 256 M, far above the original's
 /// largest sheets. Decoding takes two bytes per pixel, and a font keeps all its glyphs.
 constexpr std::uint64_t kMaxSheetPixels = std::uint64_t{256} << 20;
+/// Pixels a sprite may claim per byte of its RLE data (HI-7). Transparent rows at the bottom cost
+/// no byte, so the rows are no bound; the original's sprites claim at most 3 418 pixels per byte.
+constexpr std::uint64_t kMaxPixelsPerByte = 16384;
 }  // namespace
 
 std::vector<std::uint8_t> IndexedImage::to_rgba(const Palette& palette) const {
@@ -86,13 +89,12 @@ core::Result<SpriteSheet> SpriteSheet::from_chunk_file(ChunkFile file) {
         if (info.length < kRecordHeaderSize || info.length > data.size() - info.offset) {
             return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(i) + " has an invalid length");
         }
-        // Every row but the last ends with a byte of its own (0xFE): a sprite cannot have more rows
-        // than bytes follow it (HI-7, HI-18). Several offsets may point at one record, so the sheet
-        // as a whole has a budget too.
-        const std::size_t rle_bytes = info.length - kRecordHeaderSize;
-        if (info.height > rle_bytes + 1) {
+        // A few bytes cannot claim a huge sprite (HI-7, HI-18). Several offsets may point at one
+        // record, so the sheet as a whole has a budget too.
+        const std::uint64_t rle_bytes = info.length - kRecordHeaderSize;
+        if (std::uint64_t{info.width} * info.height > kMaxPixelsPerByte * rle_bytes) {
             return make_error(ErrorCode::InvalidFormat,
-                              "sprite " + std::to_string(i) + " claims more rows than its data holds");
+                              "sprite " + std::to_string(i) + " claims more pixels than its data can hold");
         }
         pixels += std::uint64_t{info.width} * info.height;
         if (pixels > kMaxSheetPixels) {
