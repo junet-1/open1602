@@ -367,6 +367,24 @@ bool TintedUnitSource::pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) 
     if (g == nullptr || g->variants == 0) {
         return false;
     }
+    UnitTemplateOptions options;
+    options.base = g->base;
+    options.body = body(*g, i);
+    options.mounted = g->mounted;
+    const bool brown = g->mounted && m_colors[i / m_block].mount == kMountBrown;
+    if (brown) {
+        options.mount_brightness = kMountBrownBrightness;
+    }
+    const std::uint64_t key =
+        std::uint64_t{g->offset + k} | (std::uint64_t{options.body} << 32U) | (std::uint64_t{brown} << 40U);
+    {
+        const std::scoped_lock lock(m_templates_mutex);
+        if (const auto it = m_templates.find(key); it != m_templates.end()) {
+            rgba = it->second;
+            tint_rgba(rgba, m_colors[i / m_block].color);
+            return true;
+        }
+    }
     std::vector<std::vector<std::uint8_t>> images(g->variants);
     std::vector<RgbaView> views(g->variants);
     for (std::uint8_t v = 0; v < g->variants; ++v) {
@@ -378,19 +396,16 @@ bool TintedUnitSource::pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) 
             views[v] = RgbaView{images[v].data(), w, h};
         }
     }
-    UnitTemplateOptions options;
-    options.base = g->base;
-    options.body = body(*g, i);
-    options.mounted = g->mounted;
-    if (g->mounted && m_colors[i / m_block].mount == kMountBrown) {
-        options.mount_brightness = kMountBrownBrightness;
-    }
     if (views[options.base].pixels == nullptr || views[options.body].pixels == nullptr) {
         return false;
     }
     std::uint32_t w = 0;
     std::uint32_t h = 0;
     unit_template(views, m_variant_colors, options, rgba, w, h);
+    {
+        const std::scoped_lock lock(m_templates_mutex);
+        m_templates.emplace(key, rgba);
+    }
     tint_rgba(rgba, m_colors[i / m_block].color);
     return true;
 }

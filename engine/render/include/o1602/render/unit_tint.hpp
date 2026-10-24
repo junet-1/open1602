@@ -8,8 +8,10 @@
 #pragma once
 
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include "o1602/assets/palette.hpp"
@@ -108,6 +110,10 @@ private:
     std::vector<assets::Rgba> m_variant_colors;
     std::vector<UnitTintColor> m_colors;
     std::uint32_t m_block = 0;
+    /// The templates made so far, by image of a block, body variant and horse brightness: they do
+    /// not depend on the colour, so each is made once, not once per banner (FB-25).
+    mutable std::mutex m_templates_mutex;
+    mutable std::unordered_map<std::uint64_t, std::vector<std::uint8_t>> m_templates;
 };
 
 }  // namespace o1602::render
