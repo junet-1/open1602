@@ -100,7 +100,16 @@ bool is_open1602_save(std::span<const std::uint8_t> bytes) noexcept {
 
 core::Result<core::Bytes> write_game(const World& world, const assets::BuildingTable& buildings,
                                      const Simulation* simulation, const SaveOptions& options) {
-    const core::Bytes sections =
+    auto sections = encode_game(world, buildings, simulation);
+    if (!sections) {
+        return sections.error();
+    }
+    return pack_game(*sections, options);
+}
+
+core::Result<core::Bytes> encode_game(const World& world, const assets::BuildingTable& buildings,
+                                      const Simulation* simulation) {
+    core::Bytes sections =
         save::encode_sections(world, buildings, simulation, save::TileMode::Full, std::span<const std::uint8_t>{});
     // Before packing: a game too large to read back fails at once, not after seconds of deflate,
     // and with a message that says why (DS-4).
@@ -110,6 +119,10 @@ core::Result<core::Bytes> write_game(const World& world, const assets::BuildingT
                                                         std::to_string(sections.size() >> 20) + " MiB of " +
                                                         std::to_string(max_size_for(meta) >> 20) + " MiB)");
     }
+    return sections;
+}
+
+core::Result<core::Bytes> pack_game(const core::Bytes& sections, const SaveOptions& options) {
     std::uint16_t flags = 0;
     core::Bytes stored;
     if (options.compress && core::has_zlib()) {

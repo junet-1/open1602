@@ -101,6 +101,12 @@ world with 100 islands of 180 x 180 tiles in the cloud (Clang, `-O2`): the first
 86 ms for writing that game unpacked as a whole. `o1602-tool bench` prints the first fingerprint and
 the next one 100 ticks later, as a session takes them.
 
+A game for a computer that joins or resyncs is written in two steps (`sim::encode_game` and
+`sim::pack_game`): the host writes the sections on the game thread, and zlib, most of the cost
+(for that synthetic world 86 ms of 504 ms), runs on a worker while the game goes on. The computer
+gets the game with the frames the host ran meanwhile; after `SessionConfig::pack_wait_ms` (5 s in
+the game) the host waits for it.
+
 ### Drawing
 
 The game with the dense world, SDL's software renderer (no GPU), vsync off, speed 1:

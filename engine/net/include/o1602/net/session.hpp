@@ -28,6 +28,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <future>
 #include <memory>
 #include <optional>
 #include <span>
@@ -95,6 +96,11 @@ struct SessionConfig {
     /// it again. Without: the slot gives no orders until its player is back.
     bool computer_takes_over = true;
     std::uint32_t take_over_ms = 60'000;
+    /// (Host, also after a host migration) How long, in real time, a game for a computer that
+    /// joins or resyncs may pack on a worker while the game goes on before the host waits for it
+    /// (TB-26). 0 waits at once, as a test that steps time faster than it passes needs; the game
+    /// gives a few seconds.
+    std::uint32_t pack_wait_ms = 0;
     /// Desyncs of one computer within this many fingerprints after it got the game anew: it
     /// cannot follow the host (another build?) and is sent away.
     std::uint32_t max_resyncs = 2;
@@ -336,7 +342,12 @@ private:
     void run(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick);
     void compare(Peer& peer, const FrameHash& theirs);
     void desync(Peer& peer, std::uint64_t frame);
-    void send_game(Peer& peer);
+    /// Writes the game for the computers it is due to and starts packing it on a worker (TB-26).
+    void start_packing();
+    /// Sends a game packed by now to those it was packed for; after `real_ms` more of packing in
+    /// all than SessionConfig::pack_wait_ms it waits for it.
+    void deliver_packed(std::uint32_t real_ms);
+    void send_game(Peer& peer, std::uint64_t frame);
     void broadcast_frames();
     void forget_frames();
     void update_lead(std::uint32_t real_ms);
@@ -393,6 +404,18 @@ private:
     std::uint32_t m_lead_ms = 0;     ///< time since the lead last shrank
     std::deque<FrameHash> m_hashes;  ///< the host's latest fingerprints
     std::uint32_t m_held_ms = 0;     ///< how long the host has been waiting for a computer
+    /// A game being packed for computers that join or resync: its sections were written on the
+    /// game thread after `frame` frames, with that speed and pause; zlib, most of the cost of a
+    /// large game, runs on a worker while the game goes on (TB-26). The computers it is for wait
+    /// with Peer::packing set; the frames from `frame` on are kept for them.
+    struct Packing {
+        std::future<core::Result<std::vector<std::uint8_t>>> file;
+        std::uint64_t frame = 0;
+        std::uint32_t speed = 1;
+        bool paused = false;
+        std::uint32_t waited_ms = 0;
+    };
+    std::optional<Packing> m_packing;
     /// The game as sent in this update: a Snapshot message, encoded once for every computer that
     /// gets it (MS-23); each gets its own epoch written in.
     std::optional<std::vector<std::uint8_t>> m_game;
