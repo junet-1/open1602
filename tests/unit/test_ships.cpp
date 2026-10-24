@@ -731,7 +731,8 @@ TEST_CASE("ships: with more than four players a trader without profit goes where
     const std::vector<std::uint8_t> bytes = out.take();
     sim::Fleet loaded(sea.world, sea.buildings, sea.figures, sea.rules);
     core::ByteReader in(bytes);
-    REQUIRE(loaded.load(in));
+    REQUIRE(loaded.load(in, fleet.state_version()));
+    CHECK(fleet.state_version() == 5);  // with the choices
     core::ByteWriter again;
     loaded.save(again);
     CHECK(again.take() == bytes);

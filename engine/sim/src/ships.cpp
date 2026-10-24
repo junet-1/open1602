@@ -1548,11 +1548,12 @@ bool Fleet::route_ship_stop(Ship& ship, const RouteStop& stop) {
 
 namespace o1602::sim {
 
+std::uint16_t Fleet::state_version() const noexcept {
+    return m_trader_choices != 0 || !m_trader_chosen.empty() ? 5 : 4;
+}
+
 void Fleet::save(core::ByteWriter& out) const {
-    // Version 5 only with the free traders' choices of Rules::trader_reach: a game of up to four
-    // players keeps the bytes of the versions before them.
-    const bool trader_choices = m_trader_choices != 0 || !m_trader_chosen.empty();
-    out.u16(trader_choices ? 5 : 4);
+    const bool trader_choices = state_version() == 5;
     out.u32(m_trader_ms);
     out.u32(m_yard_ms);
     out.u32(m_tools_given);
@@ -1594,12 +1595,11 @@ void Fleet::save(core::ByteWriter& out) const {
     }
 }
 
-bool Fleet::load(core::ByteReader& reader) {
-    StateIn in(reader);
-    const std::uint16_t version = in.u16();
-    if (version < 1 || version > 5) {
-        return false;
+core::Status Fleet::load(core::ByteReader& reader, std::uint16_t version) {
+    if (version < 1 || version > kMaxStateVersion) {
+        return core::make_error(core::ErrorCode::Unsupported, "FLET: version " + std::to_string(version));
     }
+    StateIn in(reader);
     const std::uint32_t trader = in.u32();
     const std::uint32_t yard = in.u32();
     const std::uint32_t tools = in.u32();
@@ -1646,7 +1646,7 @@ bool Fleet::load(core::ByteReader& reader) {
         });
     }
     if (!in.ok()) {
-        return false;
+        return core::make_error(core::ErrorCode::InvalidFormat, "FLET: cut off");
     }
     m_pirate_ms = pirate_ms;
     m_pirate_spawn_ms = pirate_spawn_ms;
@@ -1670,7 +1670,7 @@ bool Fleet::load(core::ByteReader& reader) {
     m_tools_given = tools;
     m_tools_quota = quota;
     m_name_index = name;
-    return true;
+    return core::Ok{};
 }
 
 }  // namespace o1602::sim

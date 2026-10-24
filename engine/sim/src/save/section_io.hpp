@@ -239,6 +239,9 @@ inline constexpr std::uint16_t kRouteWares = 3;
 /// SCOR version 2: the fight counters of the players are 32 bit, not 16 (LC-9). The writer takes it
 /// only when a counter needs it, so other games write the bytes of version 1 as before.
 inline constexpr std::uint16_t kWideScores = 2;
+/// SIMU version 2: the state of the running game in parts with their own versions (SIMC, LOGI,
+/// FLET, MILI, AIST; Simulation::save_state, DS-3). Version 1 held them in one block.
+inline constexpr std::uint16_t kSectionedSimulation = 2;
 
 /// An island coordinate of ISLE and VOLC: 8 bit up to version 1, 16 bit from kWideCoordinates.
 template <class A, class T>

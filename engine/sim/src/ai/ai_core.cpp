@@ -653,26 +653,31 @@ void ComputerPlayers::reset() {
     m_engine->reset();
 }
 
+std::uint16_t ComputerPlayers::state_version() noexcept {
+    return static_cast<std::uint16_t>(ai::kStateVersion);
+}
+
 void ComputerPlayers::save(core::ByteWriter& out) const {
-    out.u32(ai::kStateVersion);
     ai::Saver saver(out);
     saver(*m_state);
 }
 
-bool ComputerPlayers::load(core::ByteReader& in) {
-    StateIn reader(in);
-    const std::uint32_t version = reader.u32();
-    if (!reader.ok() || version < ai::kFirstStateVersion || version > ai::kStateVersion) {
-        return false;
+core::Status ComputerPlayers::load(core::ByteReader& in, std::uint16_t version) {
+    if (version < ai::kFirstStateVersion || version > ai::kStateVersion) {
+        return core::make_error(core::ErrorCode::Unsupported, "AIST: version " + std::to_string(version));
     }
+    StateIn reader(in);
     ai::State state;
     ai::Loader loader(reader, version);
     loader(state);
-    if (!reader.ok() || !m_engine->accepts(state)) {
-        return false;
+    if (!reader.ok()) {
+        return core::make_error(core::ErrorCode::InvalidFormat, "AIST: cut off");
+    }
+    if (!m_engine->accepts(state)) {
+        return core::make_error(core::ErrorCode::InvalidFormat, "AIST: the computers' state does not fit the world");
     }
     *m_state = std::move(state);
-    return true;
+    return core::Ok{};
 }
 
 bool ComputerPlayers::directs(std::uint32_t ship) const {

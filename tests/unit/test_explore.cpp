@@ -187,7 +187,7 @@ TEST_CASE("explore: a running exploration is saved with the fleet (S-092)") {
     c.world.ship(id)->explore_steps = 0;
     sim::Fleet loaded(c.world, c.buildings, c.figures, c.rules);
     core::ByteReader in(out.data());
-    REQUIRE(loaded.load(in));
+    REQUIRE(loaded.load(in, c.fleet->state_version()));
     CHECK(c.world.ship(id)->explore_steps == steps);
     CHECK(c.world.ship(id)->explore_next_ms == next);
 }

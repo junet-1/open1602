@@ -363,7 +363,8 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
-    constexpr std::uint64_t kExpected = 0xb4191ee670e223c0ULL;  // names left empty without Text.cod (MD-10)
+    constexpr std::uint64_t kExpected =
+        0xf5d0f3ec5453d4eeULL;  // names left empty without Text.cod (MD-10); SIMU in parts (DS-3)
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }
@@ -409,7 +410,6 @@ TEST_CASE("ai: a saved state with values out of range is refused, not run") {
     {
         core::ByteReader in(bytes);
         sim::StateIn reader(in);
-        REQUIRE(reader.u32() == sim::ai::kStateVersion);
         sim::ai::Loader loader(reader);
         loader(good);
         REQUIRE(reader.ok());
@@ -417,13 +417,12 @@ TEST_CASE("ai: a saved state with values out of range is refused, not run") {
     }
     const auto loads = [&](sim::ai::State state) {
         core::ByteWriter out;
-        out.u32(sim::ai::kStateVersion);
         sim::ai::Saver saver(out);
         saver(state);
         const std::vector<std::uint8_t> data = out.take();
         core::ByteReader in(data);
         sim::ComputerPlayers computers(s);
-        return computers.load(in);
+        return computers.load(in, sim::ComputerPlayers::state_version());
     };
     CHECK(loads(good));
     sim::ai::State bad = good;
@@ -455,21 +454,19 @@ TEST_CASE("ai: a state of version 1 loads and goes on as the same state") {
     {
         core::ByteReader in(now);
         sim::StateIn reader(in);
-        REQUIRE(reader.u32() == sim::ai::kStateVersion);
         sim::ai::Loader loader(reader);
         loader(state);
         REQUIRE(reader.ok());
     }
     // As version 1 wrote it: with an (empty) list of attack plans and a state byte per island.
     core::ByteWriter old;
-    old.u32(1);
     sim::ai::Saver saver(old, 1);
     saver(state);
     const std::vector<std::uint8_t> v1 = old.take();
     CHECK(v1.size() > now.size());
     core::ByteReader in(v1);
     sim::ComputerPlayers computers(s);
-    REQUIRE(computers.load(in));
+    REQUIRE(computers.load(in, 1));
     CHECK(saved(computers) == now);
 }
 
@@ -482,7 +479,6 @@ TEST_CASE("ai: a state of version 2 loads without a yard request") {
         const std::vector<std::uint8_t> now = saved(s.computers());
         core::ByteReader in(now);
         sim::StateIn reader(in);
-        REQUIRE(reader.u32() == sim::ai::kStateVersion);
         sim::ai::Loader loader(reader);
         loader(state);
         REQUIRE(reader.ok());
@@ -492,19 +488,17 @@ TEST_CASE("ai: a state of version 2 loads without a yard request") {
         p.yard_wanted = true;  // version 2 has no room for it
     }
     core::ByteWriter old;
-    old.u32(2);
     sim::ai::Saver saver(old, 2);
     saver(state);
     const std::vector<std::uint8_t> v2 = old.take();
     core::ByteReader in(v2);
     sim::ComputerPlayers computers(s);
-    REQUIRE(computers.load(in));
+    REQUIRE(computers.load(in, 2));
     // Saved again as version 3: one byte more per computer, and no request.
     const std::vector<std::uint8_t> again = saved(computers);
     CHECK(again.size() == v2.size() + state.players.size());
     core::ByteReader back(again);
     sim::StateIn reader(back);
-    REQUIRE(reader.u32() == sim::ai::kStateVersion);
     sim::ai::State loaded;
     sim::ai::Loader loader(reader);
     loader(loaded);
@@ -544,7 +538,7 @@ TEST_CASE("ai: the state of the computers goes to bytes and back whole") {
     const auto bytes = saved(s.computers());
     sim::ComputerPlayers copy(s);
     core::ByteReader in(bytes);
-    REQUIRE(copy.load(in));
+    REQUIRE(copy.load(in, sim::ComputerPlayers::state_version()));
     CHECK(in.at_end());
     CHECK(same(copy.view(), s.computers().view()));
     CHECK(saved(copy) == bytes);
@@ -565,7 +559,7 @@ TEST_CASE("ai: damaged state is refused and leaves the computers as they were") 
     {
         const auto earlier = saved(t.computers());
         core::ByteReader in(earlier);
-        REQUIRE(copy.load(in));
+        REQUIRE(copy.load(in, sim::ComputerPlayers::state_version()));
     }
     const auto before = saved(copy);
     REQUIRE(before != bytes);
@@ -574,23 +568,21 @@ TEST_CASE("ai: damaged state is refused and leaves the computers as they were") 
     std::size_t accepted = 0;
     for (std::size_t n = 0; n < bytes.size(); ++n) {
         core::ByteReader in(std::span(bytes.data(), n));
-        accepted += copy.load(in) ? 1U : 0U;
+        accepted += copy.load(in, sim::ComputerPlayers::state_version()) ? 1U : 0U;
     }
     CHECK(accepted == 0);
     CHECK(saved(copy) == before);
 
     // An unknown version, and garbage after the right one.
-    auto version = bytes;
-    version[0] = 0x63;
     {
-        core::ByteReader in(version);
-        CHECK(!copy.load(in));
+        core::ByteReader in(bytes);
+        CHECK(!copy.load(in, 0x63));
     }
     for (const std::uint8_t fill : {std::uint8_t{0xFF}, std::uint8_t{0x7F}, std::uint8_t{0x01}}) {
         std::vector<std::uint8_t> garbage(4096, fill);
         std::copy_n(bytes.begin(), 4, garbage.begin());
         core::ByteReader in(garbage);
-        CHECK(!copy.load(in));
+        CHECK(!copy.load(in, sim::ComputerPlayers::state_version()));
     }
     CHECK(saved(copy) == before);
 }

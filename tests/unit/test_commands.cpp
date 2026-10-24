@@ -269,24 +269,23 @@ TEST_CASE("commands: a saved game keeps its speed and its pause; older saves loa
     CHECK(b->paused());
     CHECK(b->speed() == 4);
 
-    // Version 5 ended after the names: without the speed and the pause the game runs at speed 1.
-    std::vector<std::uint8_t> v5 = state;
-    v5.resize(v5.size() - 5);
-    v5[0] = 5;
-    v5[1] = 0;
-    const auto [gc, c] = load(v5);
-    CHECK(!c->state_damaged());
-    CHECK(!c->paused());
-    CHECK(c->speed() == 1);
+    // The speed and the pause end the part SIMC, the first after the u16 of the state (a part's
+    // header is 12 bytes, its size at +8). Games of state version 5 had neither and run at speed 1
+    // (tests/unit/saves, "save game: games of every earlier state version load").
+    REQUIRE(state[2] == 'S' && state[3] == 'I' && state[4] == 'M' && state[5] == 'C');
+    const std::size_t clocks_end = 14 + (std::size_t{state[10]} | std::size_t{state[11]} << 8 |
+                                         std::size_t{state[12]} << 16 | std::size_t{state[13]} << 24);
+    REQUIRE(clocks_end <= state.size());
 
     // A pause flag other than 0 or 1, or speed 0, marks the state as damaged.
     std::vector<std::uint8_t> bad = state;
-    bad[state.size() - 1] = 2;
+    bad[clocks_end - 1] = 2;
     const auto [gd, d] = load(bad);
     CHECK(d->state_damaged());
     CHECK(!d->paused());
     bad = state;
-    std::fill(bad.end() - 5, bad.end() - 1, std::uint8_t{0});
+    std::fill(bad.begin() + static_cast<std::ptrdiff_t>(clocks_end) - 5,
+              bad.begin() + static_cast<std::ptrdiff_t>(clocks_end) - 1, std::uint8_t{0});
     const auto [ge, e] = load(bad);
     CHECK(e->state_damaged());
 }

@@ -387,7 +387,7 @@ TEST_CASE("save fuzz: the writer marks the sections the game cannot do without a
     const std::vector<Section> sections = sections_of(game.file);
     REQUIRE(find(sections, "MAPW") != nullptr);
     for (const Section& s : sections) {
-        CHECK(s.version == 1);
+        CHECK(s.version == (s.tag == "SIMU" ? 2 : 1));  // SIMU 2: the running game's state in parts (DS-3)
         const bool optional = s.tag == "META" || s.tag == "ORIG";
         CHECK((s.flags == 0) == optional);
     }

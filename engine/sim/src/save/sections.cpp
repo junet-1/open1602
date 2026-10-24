@@ -110,6 +110,9 @@ constexpr std::uint16_t max_version(std::uint32_t id) noexcept {
     if (id == kScores) {
         return kWideScores;
     }
+    if (id == kSimulation) {
+        return kSectionedSimulation;
+    }
     return id == kIslands || id == kVolcanoes ? kWideCoordinates : 1;
 }
 
@@ -295,10 +298,16 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
             Need::Optional);  // only for the export as .GAM
     }
     if (simulation != nullptr) {
-        section(out, kSimulation, [&](Writer& o) { simulation->save_state(o.out()); });
-    } else if (!world.simulation_state().empty()) {
-        // A world loaded but not yet run keeps the figures it was saved with.
-        section(out, kSimulation, [&](Writer& o) { o.out().bytes(world.simulation_state()); });
+        section(
+            out, kSimulation, [&](Writer& o) { simulation->save_state(o.out()); }, Need::Required,
+            kSectionedSimulation);
+    } else if (const std::vector<std::uint8_t>& state = world.simulation_state(); !state.empty()) {
+        // A world loaded but not yet run keeps the figures it was saved with, in the version they
+        // came in: a state in parts begins with 7 (Simulation::save_state), the earlier ones with 1..6.
+        const bool in_parts = state.size() >= 2 && (state[0] | state[1] << 8) == 7;
+        section(
+            out, kSimulation, [&](Writer& o) { o.out().bytes(state); }, Need::Required,
+            in_parts ? kSectionedSimulation : std::uint16_t{1});
     }
 }
 

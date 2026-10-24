@@ -58,6 +58,8 @@ __pycache__/
 *.lnk
 # Open1602's own savegames carry the original file they came from (section ORIG)
 *.o1602
+# except the synthetic games of the save tests (no original data, tests/unit/saves/README.md)
+!/tests/unit/saves/*.o1602
 /gamedata/
 /export/
 /exports/

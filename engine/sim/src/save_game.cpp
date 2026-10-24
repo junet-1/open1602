@@ -191,8 +191,11 @@ core::Result<World> read_game(std::span<const std::uint8_t> bytes, const assets:
     if (auto status = validate(*world); !status) {
         return status.error();
     }
-    if (figures != nullptr && !Simulation::state_readable(*world, buildings, *figures)) {
-        return make_error(ErrorCode::InvalidFormat, "savegame: the state of the running game is damaged (SIMU)");
+    if (figures != nullptr) {
+        if (auto status = Simulation::state_readable(*world, buildings, *figures); !status) {
+            return make_error(status.error().code,
+                              "savegame: the state of the running game is damaged (" + status.error().message + ")");
+        }
     }
     return world;
 }
