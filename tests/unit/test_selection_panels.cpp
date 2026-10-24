@@ -19,6 +19,7 @@
 #include "o1602/assets/text_table.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
+#include "o1602/ui/unit_selection.hpp"
 
 using namespace o1602;
 using app::PanelContext;
@@ -61,8 +62,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
 
 /// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
 /// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), MILITAR (40002..40130),
-/// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), INFRA (62002..62021) and
-/// HANDEL (53002..53100) layouts and the GAME and
+/// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), SKSHIP (51002..51100),
+/// MKSHIP (50002..50040), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -125,6 +126,16 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "LAGER.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 51002; id <= 51100; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "SKSHIP.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 50002; id <= 50040; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "MKSHIP.GAD", gad(ids));
         ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
@@ -777,4 +788,94 @@ TEST_CASE("selection panels: the own Kontor shows the city, edits its trade list
     CHECK(request->ware == kSold);
     CHECK(request->island == 0);
     CHECK(out.empty());
+}
+
+TEST_CASE("selection panels: the military windows of one ship and of a fleet give their orders") {
+    Game g("o1602-test-selection-skship");
+    Town t;
+    sim::Ship avenger = sim::make_ship("Avenger", 20, 30, 0, kLocal);
+    avenger.cannons = 2;
+    avenger.cargo = {sim::CargoSlot{sim::ware::kCannons, 2 * 32}, sim::CargoSlot{}};
+    t.world.add_ship(avenger);
+    t.world.add_ship(sim::make_ship("Escort", 22, 30, 0, kLocal));
+    t.world.add_ship(sim::make_ship("Raider", 25, 30, 0, kOther));
+    const std::uint32_t own = t.world.ships()[0].id;
+    const std::uint32_t escort = t.world.ships()[1].id;
+    const std::uint32_t foreign = t.world.ships()[2].id;
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    ui::UnitSelection units;
+    PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    CHECK(panels.military_panel_for(c) == nullptr);  // nothing selected
+    c.units = &units;
+    CHECK(panels.military_panel_for(c) == nullptr);
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, own});
+    const Selection none;
+    SelectionPanel* p = panels.military_panel_for(c);
+    REQUIRE(p != nullptr);
+    p->refresh(none, c);
+    const auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Avenger") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "2") != shown.end());  // mounted cannons
+
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51023}, none, c, out);  // white flag
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51011}, none, c, out);  // a cannon off
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51091}, none, c, out);  // the cannons' hold
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51092}, none, c, out);  // an empty hold
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51024}, none, c, out);  // overboard
+    REQUIRE(out.size() == 4);
+    const auto op = [&](std::size_t i) {
+        const auto* o = std::get_if<sim::ShipCommand>(&out[i]);
+        REQUIRE(o != nullptr);
+        CHECK(o->ship == own);
+        CHECK(o->player == kLocal);
+        return o->op;
+    };
+    CHECK(op(0) == sim::ShipCommand::Op::WhiteFlag);
+    CHECK(std::get_if<sim::ShipCommand>(&out[0])->on);
+    CHECK(op(1) == sim::ShipCommand::Op::UnmountCannon);
+    CHECK(op(2) == sim::ShipCommand::Op::MountCannon);
+    CHECK(std::get_if<sim::ShipCommand>(&out[2])->hold == 0);
+    CHECK(op(3) == sim::ShipCommand::Op::Dump);
+    out.clear();
+
+    // Patrol: the far end is the next click on the map.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51022}, none, c, out);
+    CHECK(p->picking());
+    p->picked(12, 9, none, c, out);
+    CHECK(!p->picking());
+    REQUIRE(out.size() == 1);
+    const auto* patrol = std::get_if<sim::ShipCommand>(&out[0]);
+    REQUIRE(patrol != nullptr);
+    CHECK(patrol->op == sim::ShipCommand::Op::Patrol);
+    CHECK(patrol->x == 12);
+    CHECK(patrol->y == 9);
+    out.clear();
+
+    // Another player's ship: the window shows it, its buttons do nothing.
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, foreign});
+    p = panels.military_panel_for(c);
+    REQUIRE(p != nullptr);
+    p->refresh(none, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51023}, none, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51024}, none, c, out);
+    CHECK(out.empty());
+
+    // A fleet: the white flag for every ship.
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, own});
+    units.toggle(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, escort});
+    REQUIRE(units.size() == 2);
+    SelectionPanel* fleet = panels.military_panel_for(c);
+    REQUIRE(fleet != nullptr);
+    CHECK(fleet != p);
+    fleet->refresh(none, c);
+    fleet->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 50022}, none, c, out);
+    REQUIRE(out.size() == 2);
+    for (const sim::Command& o : out) {
+        const auto* flag = std::get_if<sim::ShipCommand>(&o);
+        REQUIRE(flag != nullptr);
+        CHECK(flag->op == sim::ShipCommand::Op::WhiteFlag);
+        CHECK(flag->on);
+    }
 }
