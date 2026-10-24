@@ -33,11 +33,84 @@ std::uint32_t city_param(const City& c) {
 // ---------------------------------------------------------------------------------------------
 // Armies (0x0040EAE0, 0x0040ED50)
 
-std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
-    std::array<std::uint32_t, 4> n{};
+const Engine::Census* Engine::census() const {
+    if (!m_in_tick) {
+        return nullptr;
+    }
+    Census& c = m_census;
+    if (c.valid) {
+        return &c;
+    }
+    c.players = m_world.players().size();
+    c.islands = m_world.islands().size();
+    c.on_island.assign(c.players * c.islands, 0);
+    c.army.assign(c.players, {});
+    c.aboard.assign(c.players, {});
+    c.cannons.assign(c.players, 0);
+    c.own_ships.resize(c.players);
+    for (auto& list : c.own_ships) {
+        list.clear();
+    }
     for (const Soldier& s : m_world.soldiers()) {
-        if (s.owner == owner && !s.dying()) {
-            ++n[family_index(s.figure)];
+        if (s.owner >= c.players) {
+            continue;
+        }
+        if (!s.away() && s.island < c.islands) {
+            ++c.on_island[std::size_t{s.owner} * c.islands + s.island];
+        }
+        if (!s.dying()) {
+            ++c.army[s.owner][family_index(s.figure)];
+        }
+    }
+    const auto& ships = m_world.ships();
+    for (std::size_t i = 0; i < ships.size(); ++i) {
+        const Ship& s = ships[i];
+        if (s.owner >= c.players) {
+            continue;
+        }
+        for (const CargoSlot& slot : s.cargo) {
+            if (is_soldier_ware(slot.ware)) {
+                ++c.aboard[s.owner][family_index(static_cast<std::uint32_t>(slot.ware - ware::kSoldierOffset))];
+            }
+        }
+        if (!s.sinking) {
+            c.cannons[s.owner] += s.cannons;
+            if (!s.trader) {
+                c.own_ships[s.owner].push_back(static_cast<std::uint32_t>(i));
+            }
+        }
+    }
+    c.valid = true;
+    return &c;
+}
+
+std::vector<Ship*> Engine::own_ships(const AiPlayer& p) {
+    std::vector<Ship*> out;
+    if (const Census* c = census(); c != nullptr && p.player < c->players) {
+        out.reserve(c->own_ships[p.player].size());
+        for (const std::uint32_t i : c->own_ships[p.player]) {
+            out.push_back(&m_world.ships()[i]);
+        }
+        return out;
+    }
+    for (Ship& s : m_world.ships()) {
+        if (s.owner == p.player && !s.sinking && !s.trader) {
+            out.push_back(&s);
+        }
+    }
+    return out;
+}
+
+std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
+    const Census* census = this->census();
+    std::array<std::uint32_t, 4> n{};
+    if (census != nullptr && owner < census->players) {
+        n = census->army[owner];
+    } else {
+        for (const Soldier& s : m_world.soldiers()) {
+            if (s.owner == owner && !s.dying()) {
+                ++n[family_index(s.figure)];
+            }
         }
     }
     for (const CostBuilding& b : m_world.cost_buildings()) {
@@ -50,6 +123,12 @@ std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
                 ++n[family_index(slot.figure)];
             }
         }
+    }
+    if (census != nullptr && owner < census->players) {
+        for (std::size_t i = 0; i < 4; ++i) {
+            n[i] += census->aboard[owner][i];
+        }
+        return n;
     }
     for (const Ship& s : m_world.ships()) {
         if (s.owner != owner) {
@@ -123,6 +202,9 @@ bool Engine::stronger(PlayerId a, PlayerId b) const {
     // on both sides, so only the armies count (S-102).
     const auto w = unit_weights();
     const auto fleet = [&](PlayerId q) {
+        if (const Census* c = census(); c != nullptr && q < c->players) {
+            return c->cannons[q];
+        }
         std::uint32_t n = 0;
         for (const Ship& s : m_world.ships()) {
             n += s.owner == q && !s.sinking ? s.cannons : 0U;
@@ -133,6 +215,9 @@ bool Engine::stronger(PlayerId a, PlayerId b) const {
 }
 
 std::uint32_t Engine::soldiers_on_island(PlayerId owner, std::uint16_t island) const {
+    if (const Census* c = census(); c != nullptr && owner < c->players && island < c->islands) {
+        return c->on_island[std::size_t{owner} * c->islands + island];
+    }
     std::uint32_t n = 0;
     for (const Soldier& s : m_world.soldiers()) {
         n += s.owner == owner && s.island == island && !s.away() ? 1U : 0U;
@@ -680,6 +765,32 @@ void Engine::plan_landing(AiPlayer& p, Ship& s, ShipNote& n) {
         mission_end(p, s, n);
         return;
     }
+    // The danger, gathered once (TB-10): hostile soldiers on the island and hostile towers on it
+    // (tile positions), hostile ships near it (world positions); a ship farther than 16 tiles
+    // from the island's rectangle reaches no beach tile.
+    std::vector<std::pair<std::int32_t, std::int32_t>> soldiers;
+    for (const Soldier& o : m_world.soldiers()) {
+        if (o.island == island && m_world.diplomacy().hostile(p.player, o.owner)) {
+            soldiers.emplace_back(o.pos_x / kPosUnit, o.pos_y / kPosUnit);
+        }
+    }
+    std::vector<std::pair<std::int32_t, std::int32_t>> towers;
+    for (const Tower& tw : m_world.towers()) {
+        if (tw.island == island && m_world.diplomacy().hostile(p.player, tw.owner)) {
+            towers.emplace_back(tw.x, tw.y);
+        }
+    }
+    std::vector<std::pair<std::int32_t, std::int32_t>> ships;
+    const auto ix0 = static_cast<std::int32_t>(isl.x);
+    const auto iy0 = static_cast<std::int32_t>(isl.y);
+    const auto ix1 = ix0 + static_cast<std::int32_t>(map.width()) - 1;
+    const auto iy1 = iy0 + static_cast<std::int32_t>(map.height()) - 1;
+    for (const Ship& o : m_world.ships()) {
+        if (o.x >= ix0 - 16 && o.x <= ix1 + 16 && o.y >= iy0 - 16 && o.y <= iy1 + 16 &&
+            m_world.diplomacy().hostile(p.player, o.owner)) {
+            ships.emplace_back(o.x, o.y);
+        }
+    }
     // Beach tiles within 24 tiles of a target, scored by the danger around them.
     std::int32_t best = 10000;
     std::int32_t bx = 0;
@@ -701,23 +812,15 @@ void Engine::plan_landing(AiPlayer& p, Ship& s, ShipNote& n) {
             std::int32_t score = 1000 + near * 4;
             const std::int32_t wx = static_cast<std::int32_t>(isl.x + x);
             const std::int32_t wy = static_cast<std::int32_t>(isl.y + y);
-            for (const Soldier& o : m_world.soldiers()) {
-                if (o.island == island && m_world.diplomacy().hostile(p.player, o.owner) &&
-                    sea_distance(o.pos_x / kPosUnit - wx, o.pos_y / kPosUnit - wy) <= 16) {
-                    score += 10;
-                }
+            for (const auto& [ox, oy] : soldiers) {
+                score += sea_distance(ox - wx, oy - wy) <= 16 ? 10 : 0;
             }
-            for (const Tower& tw : m_world.towers()) {
-                if (tw.island == island && m_world.diplomacy().hostile(p.player, tw.owner) &&
-                    sea_distance(static_cast<std::int32_t>(tw.x) - static_cast<std::int32_t>(x),
-                                 static_cast<std::int32_t>(tw.y) - static_cast<std::int32_t>(y)) <= 10) {
-                    score += 100;
-                }
+            for (const auto& [tx, ty] : towers) {
+                score +=
+                    sea_distance(tx - static_cast<std::int32_t>(x), ty - static_cast<std::int32_t>(y)) <= 10 ? 100 : 0;
             }
-            for (const Ship& o : m_world.ships()) {
-                if (m_world.diplomacy().hostile(p.player, o.owner) && sea_distance(o.x - wx, o.y - wy) <= 16) {
-                    score += 30;
-                }
+            for (const auto& [ox, oy] : ships) {
+                score += sea_distance(ox - wx, oy - wy) <= 16 ? 30 : 0;
             }
             if (score < best) {
                 best = score;

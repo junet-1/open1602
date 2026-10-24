@@ -435,6 +435,23 @@ private:
     Player m_nobody;  ///< stands in for a player slot that is gone
     /// Producers by ware (0x006C2B20): up to four records per ware, in file order.
     std::vector<std::vector<const assets::BuildingType*>> m_producers;
+
+    /// Soldiers and ships counted once per AI tick (TB-9): the computers ask for them per island
+    /// and per player many times a tick. Used only inside tick(), where the units change only
+    /// through execute(), which drops it; elsewhere the queries walk the lists as before.
+    struct Census {
+        bool valid = false;
+        std::size_t players = 0;
+        std::size_t islands = 0;
+        std::vector<std::uint32_t> on_island;               ///< [owner * islands + island], not away
+        std::vector<std::array<std::uint32_t, 4>> army;     ///< [owner] by family: living soldiers
+        std::vector<std::array<std::uint32_t, 4>> aboard;   ///< [owner] by family: soldiers in holds
+        std::vector<std::uint32_t> cannons;                 ///< [owner]: cannons of ships afloat
+        std::vector<std::vector<std::uint32_t>> own_ships;  ///< [owner]: slots of own_ships()
+    };
+    [[nodiscard]] const Census* census() const;
+    mutable Census m_census;
+    bool m_in_tick = false;
 };
 
 /// Ring iterator (0x00410A80 and relatives): ring d (Chebyshev distance d + 1) around the
