@@ -698,6 +698,22 @@ bool Simulation::control_player(const PlayerControl& order) {
     return true;
 }
 
+namespace {
+
+/// Whether an event can change the towers of its island: they depend on the tower buildings and
+/// on the city of the tiles they stand on, which only markets, Kontors and towers change (TB-19).
+bool towers_affected(const ConstructionEvent& e) {
+    if ((e.kind != ConstructionEvent::Kind::Placed && e.kind != ConstructionEvent::Kind::Removed) ||
+        e.type == nullptr) {
+        return true;
+    }
+    const std::int32_t p = e.type->prod_kind;
+    return p == prod::kTower || p == prod::kMarket || p == prod::kKontor || e.type->kind == kind::kTower ||
+           e.type->kind == kind::kTowerBeach;
+}
+
+}  // namespace
+
 void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_t first) {
     bool storage = false;
     for (std::size_t i = first; i < events.size(); ++i) {
@@ -732,7 +748,9 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
         if (e.kind == ConstructionEvent::Kind::Placed || e.kind == ConstructionEvent::Kind::Removed) {
             touch(m_coast_islands, e.island);
         }
-        touch(m_tower_islands, e.island);
+        if (towers_affected(e)) {
+            touch(m_tower_islands, e.island);
+        }
     }
     for (const std::uint16_t island : m_coast_islands) {
         m_fleet.island_changed(island);
