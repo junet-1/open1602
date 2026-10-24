@@ -2204,6 +2204,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | BT-2 (part) | #187 | Tests of the ship list (paging, wheel, order by name, selecting a ship) and the city list (own cities only, centring on the warehouse or the island) with synthetic SHIPLIST and STADTLST layouts. |
 | BT-2 (part) | #188 | Tests of the windows of public buildings (INFRA: city, name, running cost, build menu icon), houses (SIEDLER: class, inhabitants, taxes, the tax buttons) and foreign Kontors (HANDEL only with a trade treaty). |
 | BT-2 (part) | #189 | Tests of the shipyard (WERFT/BAUSHIP), castle (MILITAR), own Kontor (STADT/KONTOR/LAGER) and the military ship windows (SKSHIP/MKSHIP). They found a use after free in the stock window: `with_trend` read a LAGER.GAD gadget through a pointer after pushing to the same vector (every game start with the original file); fixed. |
+| BT-2 (part) | #190 | Tests of the land unit windows (SKSOLDAT/MKSOLDAT), the diplomacy window (VERTRAG/TRIBUT) and the ship window (SHIP: sale, cannons, scuttle, route editor, founding, buying another's ship). Every selection window now has a test; coverage 79.6 % lines, 90.3 % functions. |
 
 ### Still open
 
@@ -2214,7 +2215,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-9 | A scratch arena for the AI's temporary vectors. | S |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
 | BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
-| BT-2 | Tests for the other selection windows (ship, city, house, units, lists) with synthetic GAD layouts; the side panels still draw with the SDL renderer. | M |
+| BT-2 | The options window gets its tests in #191; the side panels (hud) still draw with the SDL renderer and have no tests. | S |
 
 Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
