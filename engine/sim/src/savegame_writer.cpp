@@ -401,7 +401,7 @@ private:
     void islands() {
         const std::vector<std::uint16_t> order = island_order();
         // Source tiles of each island and layer: the random bits the original keeps per tile.
-        std::map<std::pair<std::uint8_t, std::size_t>, std::unordered_map<std::uint32_t, assets::IslandTile>> tiles;
+        std::map<std::pair<std::uint16_t, std::size_t>, std::unordered_map<std::uint32_t, assets::IslandTile>> tiles;
         if (m_source.file() != nullptr) {
             if (auto loaded = assets::load_islands(*m_source.file())) {
                 for (const assets::Island& island : *loaded) {

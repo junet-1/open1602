@@ -668,7 +668,8 @@ TEST_CASE("save fuzz: a world of more than 256 islands keeps the numbers beyond 
 
 TEST_CASE("save fuzz: the runs of a compact map column must cover it exactly (DS-4)") {
     Game game;
-    const Section* map = find(sections_of(game.file), "MAPW");
+    const std::vector<Section> sections = sections_of(game.file);
+    const Section* map = find(sections, "MAPW");
     REQUIRE(map != nullptr);
     REQUIRE(map->version == 2);
     // The first column written as runs: a byte 1, the number of runs, then each run's length and
