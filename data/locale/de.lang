@@ -597,6 +597,6 @@ game_folder.dialog_title = Anno-1602-Ordner wählen
 list.heading.ordered = {3}
 list.order.name = Nach Name
 list.order.idle = Untätige zuerst
-list.order.damaged = Beschädigte zuerst
+list.order.damaged = Schäden zuerst
 list.order.help.ships = Klick: Schiffe nach Name, untätige oder beschädigte zuerst, oder wie im Original ordnen
 list.order.help.cities = Klick: Städte nach Name oder wie im Original ordnen
