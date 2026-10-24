@@ -47,6 +47,12 @@ else()
     endforeach()
 endif()
 
+# protocol.c computes a field's offset as `&((ENetProtocolHeader *) 0)->sentTime`, which UBSan
+# reports as undefined; with -fno-sanitize-recover the first network test would stop there.
+if("undefined" IN_LIST O1602_SANITIZE AND NOT MSVC)
+    target_compile_options(o1602_enet PRIVATE -fno-sanitize=undefined)
+endif()
+
 # Third-party code: built quietly, never with the engine's warnings as errors.
 if(MSVC)
     target_compile_options(o1602_enet PRIVATE /W0)

@@ -47,6 +47,11 @@ if(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
+# The checks of libstdc++ (bounds of operator[], front() of an empty container) in every Debug
+# build; other standard libraries ignore the definition. Set here and not in the presets'
+# CMAKE_CXX_FLAGS, which would replace MSVC's defaults (/EHsc) and the user's CXXFLAGS.
+add_compile_definitions($<$<CONFIG:Debug>:_GLIBCXX_ASSERTIONS>)
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 include(Sanitizers)
