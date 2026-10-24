@@ -2202,6 +2202,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-11 (part) | #185 | The AI's survey (task 8) and road layout (task 7) reuse the last scan of a city while no tile of its island changed: the survey visits only the building origins it found, the layout copies the segments. Same hashes; in the arena 80 % of surveys and 82 % of layouts skip the island passes. |
 | BT-2 (part) | #186 | The selection windows (production, public, house, city, shipyard, castle, ship, unit, list, diplomacy and options windows; 5 500 lines) are in `o1602_menus`, built without SDL (Ctrl and the clock come with `PanelContext`); first tests of the production window with a synthetic PROD layout. Coverage now counts them: floor 76 % lines, 87 % functions. |
 | BT-2 (part) | #187 | Tests of the ship list (paging, wheel, order by name, selecting a ship) and the city list (own cities only, centring on the warehouse or the island) with synthetic SHIPLIST and STADTLST layouts. |
+| BT-2 (part) | #188 | Tests of the windows of public buildings (INFRA: city, name, running cost, build menu icon), houses (SIEDLER: class, inhabitants, taxes, the tax buttons) and foreign Kontors (HANDEL only with a trade treaty). |
 
 ### Still open
 
