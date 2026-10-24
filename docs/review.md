@@ -2185,6 +2185,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-9 | #167 | `attack_ok` tests its cheap conditions first. |
 | TB-19 | #168 | Towers are rescanned only for events that can change them. |
 | TB-22 | #169 | Removed buildings end their figures in one pass per batch. |
+| FB-25 | #171 | The atlas sprites are decoded on up to 8 threads and placed in the same order. On the desktop machine atlas preparation went from 570 to 225 ms and the first frame from 767 to 427 ms; the atlas is byte-identical. |
 
 ### Still open
 
@@ -2197,7 +2198,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-19, TB-22, TB-25 | Dirty rectangles for the sea and land maps; `update_services` by dirty rectangle; the other world-wide scans of TB-22; TB-25. | M |
 | FB-2, FB-16, FB-17, FB-18 | Lazy soldier figure sync; per-frame panel caches; a position index for the tower lookup and ambient work. | M |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
-| FB-25 | The unit tints are still made for all 8 banners, whatever the number of players (about 350 ms); parallel decoding and the atlas cache file. | M |
+| FB-25 | The unit tints are still made for all 8 banners, whatever the number of players; the atlas cache file. | M |
 | BT-1 | Military scenarios in the AI arena, a main-menu test. | M |
 | BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
 | DS-2 | The `determinism.yml` workflow and `o1602-replay`: the review's tool branch is not on the remote. Four golden hashes in CI on three platforms cover it in part (#147). | M |
