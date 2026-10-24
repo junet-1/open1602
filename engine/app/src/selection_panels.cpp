@@ -1025,8 +1025,6 @@ const sim::CostBuilding* cost_building_at(const Selection& s, const PanelContext
     return nullptr;
 }
 
-constexpr std::uint16_t kFirstShipFigure = sim::figure::kShips[0];  // HANDEL1; the types are kShips
-
 /// WERFT (the yard and its order) and BAUSHIP (the choice of the ship type)
 /// (ShipyardPanel_Refresh 0x00435B40, ShipTypePanel_Refresh 0x00435EF0).
 class ShipyardPanel final : public SelectionPanel {
@@ -1077,7 +1075,7 @@ public:
             for (std::int32_t k = 0; k < 4; ++k) {
                 m_bauship.set_selected(kType + k, k == m_type);
             }
-            if (const assets::FigureType* f = c.figures.get(kFirstShipFigure + 2U * m_type)) {
+            if (const assets::FigureType* f = c.figures.get(sim::figure::ship_figure(m_type))) {
                 m_bauship.set_text(60015, ui::format_text(tons, {std::int64_t{f->ship.cargo_slots} * 50}));
                 m_bauship.set_text(60017, std::to_string(f->ship.max_cannons));
                 m_bauship.set_text(60019, ui::format_text(c.text("GAME", 47), {std::int64_t{f->speed / 20}}));
@@ -1105,7 +1103,7 @@ public:
         m_werft.set_visible(39017, order);
         m_werft.set_selected(39018, !yard->enabled);
         if (order) {
-            const assets::FigureType* f = c.figures.get(kFirstShipFigure + 2U * yard->order);
+            const assets::FigureType* f = c.figures.get(sim::figure::ship_figure(yard->order));
             const std::uint32_t need = f != nullptr ? std::max<std::uint32_t>(f->ship.build_amount, 1) : 1;
             m_werft.set_slider(
                 39012, 1,
@@ -1276,9 +1274,8 @@ public:
             }
             const sim::CastleSlot& slot = castle->slots[static_cast<std::size_t>(k)];
             const assets::FigureType* f = c.figures.get(slot.figure);
-            const std::int32_t kind = f != nullptr ? f->kind : 1;
-            // The soldier icons follow the wares: four colours per kind of unit.
-            m_panel.set_graphic(40031 + k, m_gfx_ware + 21 + colour + 4 * kind, 0);
+            // The soldier icons are the wares of the units (wSOLDAT1 ...), in their colours.
+            m_panel.set_graphic(40031 + k, m_gfx_ware + sim::unit_ware(slot.figure), 0);
             m_panel.set_disabled(40031 + k, slot.training);
             m_panel.set_text(40071 + k, std::to_string(std::min<std::uint32_t>(slot.progress, 320) * 10 / 320));
             const std::uint32_t max = f != nullptr ? std::max<std::uint32_t>(f->combat.max_health, 1) : 1;
@@ -1427,9 +1424,9 @@ public:
     }
 
 private:
-    /// SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1 of a colour: 1 + colour + 4 * unit.
+    /// SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1 (the chosen family) of a colour.
     [[nodiscard]] std::uint16_t unit_figure(std::int32_t colour) const noexcept {
-        return static_cast<std::uint16_t>(1 + colour + 4 * m_unit);
+        return sim::figure::unit_figure(static_cast<std::size_t>(m_unit), colour);
     }
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 192;

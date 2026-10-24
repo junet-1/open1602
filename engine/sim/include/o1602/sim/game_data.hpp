@@ -23,6 +23,8 @@ using assets::kBasePrices;
 using assets::kFullSupply;
 using assets::kResidentClasses;
 using assets::kStockUnitsPerTon;
+using assets::unit_of_ware;
+using assets::unit_ware;
 using assets::ware_group;
 using assets::WareGroup;
 
