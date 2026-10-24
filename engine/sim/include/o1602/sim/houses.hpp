@@ -13,6 +13,7 @@
 #pragma once
 
 #include <cstdint>
+#include <set>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -87,6 +88,10 @@ struct HouseEvent {
 /// Recomputes which markets, Kontors and public buildings reach each house of island `island`
 /// (0x00482120): buildings of the same city whose Radius covers the house from their centre.
 void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island);
+/// The same for the houses of `cities` on island `island` only (a building changes only its own
+/// city's services).
+void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                     const std::set<std::uint8_t>& cities);
 /// The same for every island.
 void update_services(World& world, const assets::BuildingTable& buildings);
 
