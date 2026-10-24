@@ -53,15 +53,19 @@ constexpr Id kTakeOver = 55;
 constexpr Id kListRow = 200;  ///< + row
 constexpr std::size_t kListRows = 11;
 // The lobby
-constexpr Id kSeatKind = 300;           ///< + slot
-constexpr Id kSeatTake = 400;           ///< + slot
-constexpr Id kSeatKick = 500;           ///< + slot
-constexpr std::size_t kMaxSeats = 100;  ///< slot numbers the ids above leave room for
-constexpr Id kWatcherKick = 700;        ///< + row of the spectators the host can send away
+constexpr Id kWatcherKick = 700;  ///< + row of the spectators the host can send away
 constexpr std::size_t kWatcherRows = 5;
-constexpr Id kSeatBanner = 800;    ///< + slot: choose its banner
 constexpr Id kBannerChoice = 900;  ///< + button of the colours on offer
 constexpr std::size_t kMaxBannerChoices = 100;
+/// Every slot a lobby can have (LC-1): each range below leaves room for all of them.
+constexpr std::size_t kMaxSeats = net::kMaxLobbySeats;
+constexpr Id kSeatRange = 300;
+static_assert(kMaxSeats <= static_cast<std::size_t>(kSeatRange));
+static_assert(kBannerChoice + static_cast<Id>(kMaxBannerChoices) <= 1000);
+constexpr Id kSeatKind = 1000;                      ///< + slot
+constexpr Id kSeatTake = kSeatKind + kSeatRange;    ///< + slot
+constexpr Id kSeatKick = kSeatTake + kSeatRange;    ///< + slot
+constexpr Id kSeatBanner = kSeatKick + kSeatRange;  ///< + slot: choose its banner
 constexpr std::size_t kBannerColumns = 6;
 constexpr Id kChat = 60;
 constexpr Id kLeave = 61;

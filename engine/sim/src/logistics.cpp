@@ -1200,7 +1200,9 @@ bool Logistics::plan_deer(Walker& w) {
     std::vector<std::uint8_t>& goal = m_deer_goal;
     state.assign(n, kBlocked);
     goal.assign(n, 0);
-    auto at = [&](std::int32_t x, std::int32_t y) { return static_cast<std::size_t>(y * width + x); };
+    auto at = [&](std::int32_t x, std::int32_t y) {
+        return static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+    };
     for (std::int32_t j = 0; j < height; ++j) {
         for (std::int32_t i = 0; i < width; ++i) {
             const TilePos t{corner.x + i, corner.y + j};

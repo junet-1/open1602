@@ -286,7 +286,7 @@ core::Status add_players(World& world, const WorldPlan& plan, std::uint8_t playe
     }
     std::vector<Player> slots = world.players();
     if (players > kMaxPlayers || slots.size() < 2 || slots.size() > kFirstExtraPlayer || plan.starts.size() < players) {
-        return core::make_error(core::ErrorCode::OutOfRange, "no room for " + std::to_string(players) + " players");
+        return core::make_error(core::ErrorCode::LimitExceeded, "no room for " + std::to_string(players) + " players");
     }
     // The second slot is a computer as the level's file has it: money, unlocks, its ship.
     const Player model = slots[1];

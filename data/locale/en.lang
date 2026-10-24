@@ -325,6 +325,7 @@ build.refusal.ship_too_far = the ship is too far away
 error.io = the file could not be read or written
 error.not_found = the file does not exist
 error.damaged = the file is damaged or no savegame
+error.limit = more than the game holds: {1}
 error.unsupported = the file needs a newer Open1602 or other game data
 error.platform = the system refused
 

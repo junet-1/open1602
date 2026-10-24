@@ -179,7 +179,7 @@ int cmd_bench(const Args& args) {
         options.world.guarantee_resources = true;
         // Without --world as large as a multiplayer game of that many players makes it.
         sim::WorldSettings settings = sim::settings_for_players(static_cast<std::uint8_t>(
-            std::clamp<std::size_t>(args.number("--players").value_or(8), 1, sim::WorldSettings::kMaxPlayers)));
+            std::clamp<std::size_t>(args.number("--players").value_or(8), 1, sim::kMaxPlayers)));
         if (const auto size = args.pair("--world", 'x')) {
             settings.width = static_cast<std::uint32_t>(std::max(0, size->first));
             settings.height = static_cast<std::uint32_t>(std::max(0, size->second));

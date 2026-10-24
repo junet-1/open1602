@@ -117,7 +117,8 @@ void Military::near_units(std::int32_t cx, std::int32_t cy, std::int32_t r, Visi
     const std::int32_t y1 = std::clamp((cy + r) >> kSquareShift, 0, m_grid_h - 1);
     for (std::int32_t sy = y0; sy <= y1; ++sy) {
         for (std::int32_t sx = x0; sx <= x1; ++sx) {
-            for (const std::uint32_t i : m_grid[static_cast<std::size_t>(sy * m_grid_w + sx)]) {
+            for (const std::uint32_t i : m_grid[static_cast<std::size_t>(sy) * static_cast<std::size_t>(m_grid_w) +
+                                                static_cast<std::size_t>(sx)]) {
                 if (visit(all[i])) {
                     return;
                 }

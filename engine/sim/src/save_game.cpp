@@ -106,9 +106,9 @@ core::Result<core::Bytes> write_game(const World& world, const assets::BuildingT
     // and with a message that says why (DS-4).
     const SaveMeta meta{world.width(), world.height(), 0, {}};
     if (sections.size() > max_size_for(meta)) {
-        return make_error(ErrorCode::OutOfRange, "savegame: the game is too large (" +
-                                                     std::to_string(sections.size() >> 20) + " MiB of " +
-                                                     std::to_string(max_size_for(meta) >> 20) + " MiB)");
+        return make_error(ErrorCode::LimitExceeded, "savegame: the game is too large (" +
+                                                        std::to_string(sections.size() >> 20) + " MiB of " +
+                                                        std::to_string(max_size_for(meta) >> 20) + " MiB)");
     }
     std::uint16_t flags = 0;
     core::Bytes stored;
@@ -123,7 +123,7 @@ core::Result<core::Bytes> write_game(const World& world, const assets::BuildingT
         stored = sections;
     }
     if (stored.size() > 0xFFFFFFFFULL) {
-        return make_error(ErrorCode::OutOfRange, "savegame: the game is too large");
+        return make_error(ErrorCode::LimitExceeded, "savegame: the game is too large");
     }
     core::ByteWriter out;
     out.bytes(kMagic);

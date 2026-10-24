@@ -122,7 +122,7 @@ void roll_drought(World& world, std::uint16_t i, std::uint8_t level, std::vector
     // Only islands of human or computer players get it; a computer city halves it.
     bool settled = false;
     std::uint64_t duration = level >= 3 ? kLongDroughtMs : kDroughtMs;
-    std::array<const City*, 8> slots{};
+    std::array<const City*, kCitySlotsPerIsland> slots{};
     for (const City& c : world.cities()) {
         if (c.island == i && c.index < slots.size()) {
             slots[c.index] = &c;

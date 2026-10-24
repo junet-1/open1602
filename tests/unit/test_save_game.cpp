@@ -319,7 +319,7 @@ TEST_CASE("save game: craters and deer spots beyond 255 tiles come back whole (S
     // instead of cutting x = 280 down to 24.
     auto chunks = sim::savegame_chunks(world, buildings);
     REQUIRE(!chunks.ok());
-    CHECK(chunks.error().code == core::ErrorCode::OutOfRange);
+    CHECK(chunks.error().code == core::ErrorCode::LimitExceeded);
     CHECK(chunks.error().message.find("255") != std::string::npos);
     CHECK(!sim::write_savegame(world, buildings).ok());
 }
