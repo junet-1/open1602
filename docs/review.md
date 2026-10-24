@@ -2206,6 +2206,8 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | BT-2 (part) | #189 | Tests of the shipyard (WERFT/BAUSHIP), castle (MILITAR), own Kontor (STADT/KONTOR/LAGER) and the military ship windows (SKSHIP/MKSHIP). They found a use after free in the stock window: `with_trend` read a LAGER.GAD gadget through a pointer after pushing to the same vector (every game start with the original file); fixed. |
 | BT-2 (part) | #190 | Tests of the land unit windows (SKSOLDAT/MKSOLDAT), the diplomacy window (VERTRAG/TRIBUT) and the ship window (SHIP: sale, cannons, scuttle, route editor, founding, buying another's ship). Every selection window now has a test; coverage 79.6 % lines, 90.3 % functions. |
 | BT-2 (part) | #191 | Tests of the options window (OPTION, MUSIK, DISK, ANNO pages); the coverage floor in CI goes to 79 % lines and 89.5 % functions. |
+| FB-14 | #192 | Videos are read frame by frame from the file (`Smacker::open_file`); only the header, frame table and trees stay in memory. The data test compares every frame and the sound with the in-memory reader. |
+| TB-9 | #193 | Measured instead of a general arena: the AI's site test (`can_place` → `plan_build`) made 88 % of the allocations in the arena hour. It now reuses its order and plan, and the last item of an order records no tiles: 637 402 → 73 716 allocations, same golden hash. |
 
 ### Still open
 
@@ -2213,8 +2215,6 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 |---|---|---|
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
 | TB-11, TB-13 | A survey kept up from construction events (#185 reuses it only while the island is unchanged); the rest of the settlement search (each search is bounded since #128; counts cached since #176). | M |
-| TB-9 | A scratch arena for the AI's temporary vectors. | S |
-| FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
 | BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
 | BT-2 | The side panels (hud) still draw with the SDL renderer and have no tests. | S |
 
