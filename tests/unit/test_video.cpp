@@ -2,7 +2,9 @@
 // Smacker videos (docs/formats/smk.md), with small files built bit by bit, and where the game
 // shows them.
 
+#include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <initializer_list>
 #include <vector>
 
@@ -10,6 +12,7 @@
 #include "video_queue.hpp"
 
 #include "o1602/assets/high_scores.hpp"
+#include "o1602/core/file.hpp"
 #include "o1602/video/smacker.hpp"
 
 using namespace o1602;
@@ -458,6 +461,54 @@ TEST_CASE("smacker: a frame rate that wrapped to nothing in 32 bits is refused (
     CHECK(!video::Smacker::open(file).ok());
     put32(file, 16, 1000);
     CHECK(video::Smacker::open(file).ok());
+}
+
+TEST_CASE("smacker: from a file the frames are read one by one, with the same pictures and sound (FB-14)") {
+    namespace fs = std::filesystem;
+    Frame first;
+    first.palette = new_colour(0x3F, 0x00, 0x10);
+    first.audio = {{0x80, 0xC0, 0x40}};
+    Frame second;
+    second.audio = {{0x40, 0x80}};
+    const auto bytes = smacker_file(8, 4, -6666, constant_type_trees(0x2A07), {first, second}, {0x4000'5622U});
+    const fs::path dir = test::temp_path("o1602_test_smacker");
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    REQUIRE(fs::create_directories(dir));
+    REQUIRE(core::write_file(dir / "video.smk", bytes).ok());
+
+    auto memory = video::Smacker::open(bytes);
+    auto file = video::Smacker::open_file(dir / "video.smk");
+    REQUIRE(memory.ok());
+    REQUIRE(file.ok());
+    CHECK(file->info().frames == 2);
+    // Twice through, the second time after rewind() (a looping video).
+    for (int pass = 0; pass < 2; ++pass) {
+        while (!memory->finished()) {
+            REQUIRE(memory->next().ok());
+            REQUIRE(file->next().ok());
+            CHECK(file->palette() == memory->palette());
+            CHECK(std::equal(file->pixels().begin(), file->pixels().end(), memory->pixels().begin(),
+                             memory->pixels().end()));
+        }
+        CHECK(file->finished());
+        memory->rewind();
+        file->rewind();
+    }
+    auto sound = file->audio(0);
+    REQUIRE(sound.ok());
+    CHECK(sound->samples == memory->audio(0)->samples);
+    CHECK(sound->samples.size() == 5);
+
+    // Cut short on the disk: refused when opened, as from memory.
+    for (std::size_t cut : {std::size_t{0}, std::size_t{0x40}, std::size_t{0x68}, bytes.size() - 1}) {
+        const std::vector<std::uint8_t> part(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(cut));
+        REQUIRE(core::write_file(dir / "short.smk", part).ok());
+        CHECK(!video::Smacker::open_file(dir / "short.smk").ok());
+        CHECK(!video::Smacker::open(part).ok());
+    }
+    CHECK(!video::Smacker::open_file(dir / "missing.smk").ok());
+    fs::remove_all(dir, ec);
 }
 
 TEST_CASE("videos: messages in the minimap, the rest and messages without a minimap on the whole screen") {
