@@ -237,7 +237,10 @@ std::vector<Soldier*> Engine::soldiers_near(PlayerId owner, const City& c, std::
     const std::int32_t kx = static_cast<std::int32_t>(isl.x) + *c.warehouse_x;
     const std::int32_t ky = static_cast<std::int32_t>(isl.y) + *c.warehouse_y;
     for (Soldier& s : m_world.soldiers()) {
-        if (s.owner != owner || s.island != c.island || s.away() || out.size() >= max) {
+        if (out.size() >= max) {
+            break;
+        }
+        if (s.owner != owner || s.island != c.island || s.away()) {
             continue;
         }
         if (sea_distance(s.pos_x / kPosUnit - kx, s.pos_y / kPosUnit - ky) <= range) {
@@ -882,10 +885,8 @@ Ship* Engine::best_armed_ship(AiPlayer& p, const Target& ref, std::uint32_t max_
 // Looking for a target (0x004298F0, after every step)
 
 bool Engine::attack_ok(AiPlayer& p, const City& t) {
-    // 0x00429810
-    if (city_defenceless(m_world, m_buildings, t.island, t.index) || building_count(t) <= 4) {
-        return false;
-    }
+    // 0x00429810. The original's conditions, the cheap ones first: none has a side effect, so the
+    // answer is the same, but most targets fail before the island or the world is walked (TB-9).
     for (const ShipNote& n : p.ships) {
         if (n.mission >= 5 && n.mission <= 9) {
             const City* c = city(static_cast<std::uint16_t>(n.param >> 8), static_cast<std::uint8_t>(n.param & 0xFF));
@@ -899,7 +900,10 @@ bool Engine::attack_ok(AiPlayer& p, const City& t) {
     if (home == nullptr || soldiers_on_island(p.player, t.island) >= 10) {
         return false;
     }
-    return soldiers_near(p.player, *home, 8, 16).size() >= 4;
+    if (building_count(t) <= 4 || city_defenceless(m_world, m_buildings, t.island, t.index)) {
+        return false;
+    }
+    return soldiers_near(p.player, *home, 8, 4).size() >= 4;
 }
 
 void Engine::start_attack(AiPlayer& p, const City& t) {
