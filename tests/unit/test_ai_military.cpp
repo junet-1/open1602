@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The computers' soldiers on an island (BT-1, the island controller of docs/re/ai.md): at peace
 // they gather at their Kontor or, without a city there, are disbanded; at war they go for the
-// enemy's soldiers, or for the markets, Kontor and houses of an enemy city on the island.
+// enemy's soldiers, or for the markets, Kontor and houses of an enemy city on the island. Every
+// 6 s a colony sends the soldiers beside its Kontor to guard a market.
 
 #include <algorithm>
 #include <cstdint>
@@ -22,6 +23,7 @@ namespace {
 constexpr std::uint32_t kGround = 20101;
 constexpr std::uint32_t kHouse = 20103;
 constexpr std::uint32_t kKontor = 20108;
+constexpr std::uint32_t kMarket = 20809;
 constexpr std::uint16_t kSword = 1;
 
 constexpr sim::PlayerId kHuman = 0;
@@ -38,6 +40,9 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 2\n  Id: 20108\n  Kind: 35\n  Gfx: 30\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
         "  KreuzBase: 6\n  Ausbauflg: 1\n  Ruinenr: 255\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // Kontor
+        "  @Nummer: 3\n  Id: 20809\n  Kind: 14\n  Gfx: 40\n  Size: 4, 3\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+        "  Ruinenr: 255\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 7\n    Radius: 16\n  EndObj\n"  // market
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -108,23 +113,25 @@ struct Island {
             h.city = city;
             world.add_house(h);
         }
-        if (id == kKontor) {
+        if (id == kKontor || id == kMarket) {
             sim::Production p;
             p.island = island;
             p.x = ux;
             p.y = uy;
             world.set_production(p);
+        }
+        if (id == kKontor) {
             world.city(island, city)->warehouse_x = ux;
             world.city(island, city)->warehouse_y = uy;
         }
     }
 
-    void add(sim::PlayerId owner, std::int32_t cx, std::int32_t cy) {
+    void add(sim::PlayerId owner, std::int32_t cx, std::int32_t cy, std::uint16_t island = 0) {
         sim::Soldier s;
         s.place_cell(cx, cy);
         s.figure = kSword;
         s.owner = owner;
-        s.island = 0;
+        s.island = island;
         world.add_soldier(s);
     }
 
@@ -228,4 +235,24 @@ TEST_CASE("ai military: at war, soldiers go for the Kontor and the houses of an 
     REQUIRE(map.top(70, 8).owner == kHuman);
     run(s, 5 * 60'000);
     CHECK(map.top(70, 8).empty() || map.top(70, 8).owner != kHuman);  // the Kontor has fallen
+}
+
+TEST_CASE("ai military: at peace, soldiers beside the Kontor of a colony are sent to guard its market") {
+    Island a;
+    a.build(kKontor, 10, 8, kComputer, 0);
+    a.build(kMarket, 50, 8, kComputer, 0);
+    for (std::int32_t k = 0; k < 4; ++k) {
+        a.add(kComputer, 2 * (10 + 10) + k, 2 * (10 + 10));
+    }
+    a.add(kHuman, 2 * (100 + 4), 2 * (10 + 4), 1);  // an army to measure against, on the islet
+    sim::Simulation s(a.world, a.buildings, a.figures);
+    run(s, 10'000);  // the first 6-s look at the city
+    const auto mine = a.soldiers(kComputer);
+    REQUIRE(mine.size() == 4);
+    const sim::Target post = sim::Target::spot(2 * (10 + 50) + 1, 2 * (10 + 8) + 1);
+    std::size_t guarding = 0;
+    for (const sim::Soldier* soldier : mine) {
+        guarding += soldier->target == post ? 1U : 0U;
+    }
+    CHECK(guarding == 4);  // a colony keeps no reserve at its Kontor
 }
