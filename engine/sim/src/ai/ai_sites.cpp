@@ -19,6 +19,12 @@ namespace o1602::sim::ai {
 namespace {
 
 constexpr std::int32_t kRings = 16;
+/// Road positions one search step may try before it yields (TB-12). The cursor stays in
+/// `p.search`, so the next step goes on where this one stopped. Without the cap a built-up city
+/// with no free site walked its whole road list with up to four `plan_build` calls per position.
+constexpr std::int32_t kSearchPositions = 32;
+/// Island rows the wide quarry and mine search scans per step (TB-15).
+constexpr std::int32_t kMineRows = 8;
 
 /// The coast for the scoring (Kind 5, 23, 25, 26, 27, 29).
 bool coast(std::int32_t k) {
@@ -326,7 +332,7 @@ bool Engine::search_houses(AiPlayer& p) {
     if (b == nullptr) {
         return true;
     }
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -419,7 +425,7 @@ bool Engine::search_houses(AiPlayer& p) {
         if (!advance_cursor(p, 2)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -433,7 +439,7 @@ bool Engine::search_workshop(AiPlayer& p, bool cannons) {
         return true;
     }
     const std::uint8_t raw = b->raw_ware;
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -489,7 +495,7 @@ bool Engine::search_workshop(AiPlayer& p, bool cannons) {
         if (!advance_cursor(p, cannons ? 0 : 2)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -502,7 +508,7 @@ bool Engine::search_stonemason(AiPlayer& p) {
     if (b == nullptr) {
         return true;
     }
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -540,7 +546,7 @@ bool Engine::search_stonemason(AiPlayer& p) {
         if (!advance_cursor(p, 2)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -554,7 +560,7 @@ bool Engine::search_farm(AiPlayer& p, bool woodcutter) {
         return true;
     }
     const std::uint8_t own = b->ware;
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -648,7 +654,7 @@ bool Engine::search_farm(AiPlayer& p, bool woodcutter) {
         if (!advance_cursor(p, 6)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -661,7 +667,7 @@ bool Engine::search_grain(AiPlayer& p) {
     if (b == nullptr) {
         return true;
     }
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -720,7 +726,7 @@ bool Engine::search_grain(AiPlayer& p) {
         if (!advance_cursor(p, 4)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -791,7 +797,7 @@ bool Engine::search_market(AiPlayer& p) {
         return true;
     }
     const std::int32_t min_dist = r->slots[kSlotMarket].count == 0 ? 5 : 8;
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -844,7 +850,7 @@ bool Engine::search_market(AiPlayer& p) {
         if (!advance_cursor(p, 0)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -894,7 +900,7 @@ bool Engine::search_public(AiPlayer& p) {
         }
         return 0;
     };
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -932,7 +938,7 @@ bool Engine::search_public(AiPlayer& p) {
         if (!advance_cursor(p, 0)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -945,7 +951,7 @@ bool Engine::search_military(AiPlayer& p) {
     if (b == nullptr) {
         return true;
     }
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -991,7 +997,7 @@ bool Engine::search_military(AiPlayer& p) {
         if (!advance_cursor(p, 0)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -1004,7 +1010,7 @@ bool Engine::search_denkmal(AiPlayer& p) {
     if (b == nullptr) {
         return true;
     }
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -1031,7 +1037,7 @@ bool Engine::search_denkmal(AiPlayer& p) {
         if (!advance_cursor(p, 2)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -1044,7 +1050,7 @@ bool Engine::search_pirate_houses(AiPlayer& p) {
     if (b == nullptr) {
         return true;
     }
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -1076,7 +1082,7 @@ bool Engine::search_pirate_houses(AiPlayer& p) {
         if (!advance_cursor(p, 2)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -1130,7 +1136,7 @@ std::int32_t Engine::coast_walk(AiPlayer& p, std::int32_t x, std::int32_t y, std
 }
 
 std::int32_t Engine::mountain_walk(AiPlayer& p, std::int32_t x, std::int32_t y, std::uint8_t dir, std::uint8_t w,
-                                   std::int32_t* ox, std::int32_t* oy, std::int32_t max_steps, bool bind) {
+                                   std::int32_t* ox, std::int32_t* oy, std::int32_t max_steps, bool bind, bool commit) {
     const auto& d = kStep[dir & 3U];
     for (std::int32_t steps = 0; steps < 16; ++steps) {
         const Tile t = tile(p.island, x, y);
@@ -1168,6 +1174,9 @@ std::int32_t Engine::mountain_walk(AiPlayer& p, std::int32_t x, std::int32_t y, 
         WorldIsland& isl = m_world.island(p.island);
         for (auto& dep : isl.header.deposits) {
             if (dep.ware == w && dep.x == rock.ox && dep.y == rock.oy && dep.amount > 0) {
+                if (!commit) {
+                    return steps;
+                }
                 if (p.player < 32) {
                     dep.mask |= 1U << p.player;
                 }
@@ -1290,7 +1299,7 @@ bool Engine::search_shipyard(AiPlayer& p) {
     if (b == nullptr) {
         return true;
     }
-    for (;;) {
+    for (std::int32_t visited = 1;; ++visited) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
             return true;
         }
@@ -1345,7 +1354,7 @@ bool Engine::search_shipyard(AiPlayer& p) {
         if (!advance_cursor(p, 0)) {
             return true;
         }
-        if (any) {
+        if (any || visited >= kSearchPositions) {
             return false;
         }
     }
@@ -1357,10 +1366,7 @@ bool Engine::search_mine(AiPlayer& p, std::uint8_t w) {
     Search& s = p.search;
     for (std::int32_t k = 0; k < 4; ++k) {
         if (s.segment >= static_cast<std::int32_t>(p.segments.size())) {
-            if (!classic()) {
-                search_mine_wide(p, w);
-            }
-            return true;
+            return classic() || search_mine_wide(p, w);
         }
         const Segment& g = p.segments[static_cast<std::size_t>(s.segment)];
         for (const std::uint8_t dir :
@@ -1398,20 +1404,20 @@ bool Engine::search_mine(AiPlayer& p, std::uint8_t w) {
     return false;
 }
 
-void Engine::search_mine_wide(AiPlayer& p, std::uint8_t w) {
+bool Engine::search_mine_wide(AiPlayer& p, std::uint8_t w) {
     // Open1602 (S-099): the original only walks from the road runs and only up to seven tiles, so a
     // market in front of the hill or a river at its foot leaves many cities without a quarry (and
     // therefore without bricks) for good. When that walk found nothing, every road tile of the city
-    // is tried in all four directions with up to twelve tiles of new road; the shortest road wins.
-    struct Candidate {
-        std::int32_t steps;
-        std::int32_t x;
-        std::int32_t y;
-        std::uint8_t dir;
-    };
-    std::vector<Candidate> found;
+    // is tried in all four directions with up to twelve tiles of new road; the shortest road wins,
+    // the first in row order among equals.
+    //
+    // A few rows per step (TB-15): `phase` is the next row and `extra` the steps of the best road
+    // so far (`best` > 0 once there is one). The deposit is only bound once the scan is done.
+    Search& s = p.search;
     const IslandMap& map = m_world.islands()[p.island].map;
-    for (std::int32_t y = 0; y < static_cast<std::int32_t>(map.height()); ++y) {
+    const std::int32_t height = static_cast<std::int32_t>(map.height());
+    const std::int32_t end = std::min(height, s.phase + kMineRows);
+    for (std::int32_t y = s.phase; y < end; ++y) {
         for (std::int32_t x = 0; x < static_cast<std::int32_t>(map.width()); ++x) {
             const Tile t = tile(p.island, x, y);
             if (t.city != p.city || (t.kind != kind::kRoad && t.kind != kind::kBridge)) {
@@ -1421,33 +1427,40 @@ void Engine::search_mine_wide(AiPlayer& p, std::uint8_t w) {
                 std::int32_t ox = 0;
                 std::int32_t oy = 0;
                 const std::int32_t steps =
-                    mountain_walk(p, x + kStep[dir][0], y + kStep[dir][1], dir, w, &ox, &oy, 13, false);
-                if (steps >= 0) {
-                    found.push_back(Candidate{steps, x, y, dir});
+                    mountain_walk(p, x + kStep[dir][0], y + kStep[dir][1], dir, w, &ox, &oy, 13, true, false);
+                if (steps >= 0 && (s.best < 1 || steps < s.extra)) {
+                    s.best = std::max<std::int32_t>(1, (14 - steps) * 8);
+                    s.best_x0 = x;
+                    s.best_y0 = y;
+                    s.best_x1 = ox;
+                    s.best_y1 = oy;
+                    s.rotation = dir;
+                    s.extra = steps;
                 }
             }
         }
     }
-    std::stable_sort(found.begin(), found.end(),
-                     [](const Candidate& a, const Candidate& b) { return a.steps < b.steps; });
-    Search& s = p.search;
-    for (const Candidate& c : found) {
+    s.phase = end;
+    if (end < height) {
+        return false;
+    }
+    if (s.best > 0) {
+        // The world may have changed since the row was scanned: walk once more and bind the deposit.
+        const auto dir = static_cast<std::uint8_t>(s.rotation & 3);
         std::int32_t ox = 0;
         std::int32_t oy = 0;
         const std::int32_t steps =
-            mountain_walk(p, c.x + kStep[c.dir][0], c.y + kStep[c.dir][1], c.dir, w, &ox, &oy, 13, true);
+            mountain_walk(p, s.best_x0 + kStep[dir][0], s.best_y0 + kStep[dir][1], dir, w, &ox, &oy, 13, true);
         if (steps < 0) {
-            continue;
+            s.best = 0;
+        } else {
+            s.best = std::max<std::int32_t>(1, (14 - steps) * 8);
+            s.best_x1 = ox;
+            s.best_y1 = oy;
+            s.extra = steps;
         }
-        s.best = std::max<std::int32_t>(1, (14 - steps) * 8);
-        s.best_x0 = c.x;
-        s.best_y0 = c.y;
-        s.best_x1 = ox;
-        s.best_y1 = oy;
-        s.rotation = c.dir;
-        s.extra = steps;
-        return;
     }
+    return true;
 }
 
 }  // namespace o1602::sim::ai

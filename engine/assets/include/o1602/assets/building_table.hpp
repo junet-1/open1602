@@ -195,7 +195,14 @@ public:
         return const_cast<BuildingType*>(std::as_const(*this).by_id(id));
     }
     /// Building whose base sprite range [gfx, gfx + tile_count) contains `sprite`.
-    [[nodiscard]] const BuildingType* by_sprite(std::uint32_t sprite) const noexcept;
+    /// Inline: the AI asks this for every tile it looks at (TB-18).
+    [[nodiscard]] const BuildingType* by_sprite(std::uint32_t sprite) const noexcept {
+        if (sprite >= m_by_sprite.size()) {
+            return nullptr;
+        }
+        const std::int32_t index = m_by_sprite[sprite];
+        return index < 0 ? nullptr : &m_types[static_cast<std::size_t>(index)];
+    }
     /// Building by its Nummer in haeuser.cod. Crops are three records in a row: growing, ripe
     /// and withered (docs/re/growth.md).
     [[nodiscard]] const BuildingType* by_record(std::uint32_t record) const noexcept;

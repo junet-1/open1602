@@ -330,14 +330,6 @@ const BuildingType* BuildingTable::by_record(std::uint32_t record) const noexcep
     return index < 0 ? nullptr : &m_types[static_cast<std::size_t>(index)];
 }
 
-const BuildingType* BuildingTable::by_sprite(std::uint32_t sprite) const noexcept {
-    if (sprite >= m_by_sprite.size()) {
-        return nullptr;
-    }
-    const std::int32_t index = m_by_sprite[sprite];
-    return index < 0 ? nullptr : &m_types[static_cast<std::size_t>(index)];
-}
-
 core::Result<BuildingTable> BuildingTable::load(const GameDirectory& game) {
     const auto path = game.resolve("haeuser.cod");
     if (!path) {

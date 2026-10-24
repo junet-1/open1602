@@ -320,11 +320,12 @@ private:
     bool search_fisher(AiPlayer& p);
     bool search_shipyard(AiPlayer& p);
     bool search_mine(AiPlayer& p, std::uint8_t ware);
-    void search_mine_wide(AiPlayer& p, std::uint8_t ware);
+    bool search_mine_wide(AiPlayer& p, std::uint8_t ware);
     std::int32_t coast_walk(AiPlayer& p, std::int32_t x, std::int32_t y, std::uint8_t dir, std::int32_t* cx,
                             std::int32_t* cy, bool water);
     std::int32_t mountain_walk(AiPlayer& p, std::int32_t x, std::int32_t y, std::uint8_t dir, std::uint8_t ware,
-                               std::int32_t* ox, std::int32_t* oy, std::int32_t max_steps = 7, bool bind = true);
+                               std::int32_t* ox, std::int32_t* oy, std::int32_t max_steps = 7, bool bind = true,
+                               bool commit = true);
     [[nodiscard]] std::int32_t free_run(std::uint16_t island, std::uint8_t city, std::int32_t x, std::int32_t y,
                                         std::uint8_t dir) const;
     bool farm_room(AiPlayer& p, const assets::BuildingType& b, std::int32_t x0, std::int32_t y0, std::int32_t x1,

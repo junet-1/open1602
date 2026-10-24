@@ -115,6 +115,9 @@ void Engine::pick_island(AiPlayer& p) {
         return;
     }
     Settlement& s = p.settle;
+    if (settle_ship(p) == nullptr && own_ships(p).empty()) {
+        return;  // nothing to sail with: no island scans until there is a ship again (TB-13)
+    }
     if (p.pirates) {
         // Pirates: the first island whose size class is at most the pass number (smallest first).
         // A further nest (Rules::pirate_nests) goes to a part of the map without one, as long as
@@ -179,6 +182,11 @@ void Engine::pick_island(AiPlayer& p) {
             continue;
         }
         if (island_size(i) < (p.cities <= 1 ? 2U : 1U)) {
+            continue;
+        }
+        // The free land task 2 counts never exceeds the island's rectangle (TB-13).
+        const IslandMap& map = island_of(i).map;
+        if (std::int64_t{map.width()} * std::int64_t{map.height()} < std::int64_t{s.need}) {
             continue;
         }
         s.island = i;
