@@ -211,3 +211,15 @@ TEST_CASE("window: the application icon is compiled in, with a larger picture fo
     CHECK(a == 1.0F);
     SDL_DestroySurface(icon);
 }
+
+TEST_CASE("window: with vertical sync on, frames that do not wait for the screen are held to its rate") {
+    // A frame a whole refresh after the last waited for the screen: nothing more.
+    CHECK(platform::frame_hold_ns(16'700'000, 60.0F) == 0);
+    CHECK(platform::frame_hold_ns(15'000'000, 60.0F) == 0);  // 90 % of a refresh
+    // One that came at once (a hidden window, a screen switched off) waits for 90 % of it.
+    CHECK(platform::frame_hold_ns(0, 60.0F) == 15'000'000);
+    CHECK(platform::frame_hold_ns(1'000'000, 240.0F) == 2'750'000);
+    // An unknown refresh rate counts as 60 Hz.
+    CHECK(platform::frame_hold_ns(0, 0.0F) == 15'000'000);
+    CHECK(platform::frame_hold_ns(0, 5000.0F) == 15'000'000);
+}
