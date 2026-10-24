@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The windows of what the player selects (BT-2) without the original data: a folder with the files
-// an installation needs and synthetic PROD, SHIPLIST and STADTLST layouts with one gadget per Id the windows
-// know, a world with a bakery of the local player and one of another player, ships and cities.
+// an installation needs and synthetic layouts with one gadget per Id the windows know, a world with
+// workshops, a chapel, a house and a Kontor of the local and another player, ships and cities.
 
 #include <algorithm>
 #include <filesystem>
@@ -35,13 +35,18 @@ constexpr std::uint32_t kBakery = 20503;
 constexpr std::int32_t kStop = 37009;
 constexpr std::int32_t kPickup = 37010;
 constexpr std::int32_t kCostValue = 37006;
+constexpr std::uint32_t kChapel = 20809;  // DIVERS, second in the build menu
+constexpr std::uint32_t kKontor = 22101;
+constexpr std::uint32_t kHouse = 20001;
+constexpr std::int32_t kInfraIcon = 62021;
 
-/// A layout with these gadget Ids, each a text box of its own place.
-std::string gad(const std::vector<std::int32_t>& ids) {
+/// A layout with these gadget Ids, each a text box of its own place (`graphic` a sprite).
+std::string gad(const std::vector<std::int32_t>& ids, std::int32_t graphic = 0) {
     std::string out = "Objekt: GADGET\n";
     for (std::size_t i = 0; i < ids.size(); ++i) {
         out += "  @Nummer: " + std::to_string(i) + "\n  Id: " + std::to_string(ids[i]) +
-               "\n  Kind: 6\n  Pos: " + std::to_string(static_cast<int>(i % 20) * 30) + ", " +
+               "\n  Kind: " + (ids[i] == graphic ? "2" : "6") +
+               "\n  Pos: " + std::to_string(static_cast<int>(i % 20) * 30) + ", " +
                std::to_string(100 + static_cast<int>(i / 20) * 20) + "\n  Size: 20, 10\n";
     }
     return out + "EndObj\n";
@@ -52,8 +57,9 @@ void write(const std::filesystem::path& file, const std::string& text) {
     std::ofstream(file, std::ios::binary) << text;
 }
 
-/// An installation with the PROD (37002..37041), SHIPLIST (61002..61063) and STADTLST
-/// (63002..63063) layouts and the GAME texts the windows show.
+/// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
+/// SIEDLER (36002..36100), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
+/// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
     std::optional<assets::GameDirectory> dir;
@@ -80,6 +86,21 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "STADTLST.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 36002; id <= 36100; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "SIEDLER.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 62002; id <= 62021; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "INFRA.GAD", gad(ids, kInfraIcon));
+        ids.clear();
+        for (std::int32_t id = 53002; id <= 53100; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "HANDEL.GAD", gad(ids));
         auto opened = assets::GameDirectory::open(root);
         REQUIRE(opened.ok());
         dir = std::move(opened).value();
@@ -89,6 +110,10 @@ struct Game {
                     : i == 48 ? "%d%%\n"
                     : i == 49 ? "%dt\n"
                               : "Text " + std::to_string(i) + "\n";
+        }
+        game += "[DIVERS]\n";
+        for (int i = 0; i < 16; ++i) {
+            game += "Divers " + std::to_string(i) + "\n";
         }
         texts = assets::TextTable::parse(game);
     }
@@ -100,14 +125,30 @@ struct Game {
     Game& operator=(const Game&) = delete;
 };
 
-/// A bakery (HANDWERK) with running costs 25 at work and 10 at rest.
+/// A bakery (HANDWERK) with running costs 25 at work and 10 at rest, a chapel with 8, a Kontor and
+/// a house of the first class (tax 1.5).
 assets::BuildingTable make_buildings() {
-    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}};
     const auto doc = assets::cod::parse(
+        "Objekt: BGRUPPE\n"
+        "  Nummer: 0\n  Prozent: 50\n  Maxwohn: 2\n  Steuer: 1.5\n"
+        "EndObj\n"
         "Objekt: HAUS\n"
         "  @Nummer: 0\n  Id: 20503\n  Gfx: 0\n  Size: 2, 2\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Maxlager: 4\n    Ware: 10\n    Rohstoff: 5\n"
         "    Rohmenge: 1\n    Prodmenge: 1\n    Interval: 20\n    Kosten: 25, 10\n  EndObj\n"
+        "EndObj\n"
+        "Objekt: HAUS\n"
+        "  @Nummer: 1\n  Id: 20809\n  Gfx: 100\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 18\n    Kosten: 8\n  EndObj\n"
+        "EndObj\n"
+        "Objekt: HAUS\n"
+        "  @Nummer: 2\n  Id: 22101\n  Gfx: 200\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n  EndObj\n"
+        "EndObj\n"
+        "Objekt: HAUS\n"
+        "  @Nummer: 3\n  Id: 20001\n  Gfx: 300\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 13\n    BGruppe: 0\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -115,7 +156,9 @@ assets::BuildingTable make_buildings() {
     return std::move(table).value();
 }
 
-/// One island with a bakery of the local player at (2, 2) and one of another player at (6, 2).
+/// One island with a bakery of the local player at (2, 2) and one of another player at (6, 2), a
+/// chapel and a house of the local player at (9, 2) and (9, 5) in its city 3 and a Kontor of the
+/// other at (6, 5) in its city 4 (the tests add the cities they need).
 struct Town {
     assets::BuildingTable buildings = make_buildings();
     assets::FigureTable figures;
@@ -125,6 +168,9 @@ struct Town {
         sim::IslandMap map(12, 8);
         REQUIRE(map.place(*buildings.by_id(kBakery), 2, 2, 0, 0, kLocal).ok());
         REQUIRE(map.place(*buildings.by_id(kBakery), 6, 2, 0, 0, kOther).ok());
+        REQUIRE(map.place(*buildings.by_id(kChapel), 9, 2, 0, 0, kLocal, 3).ok());
+        REQUIRE(map.place(*buildings.by_id(kKontor), 6, 5, 0, 0, kOther, 4).ok());
+        REQUIRE(map.place(*buildings.by_id(kHouse), 9, 5, 0, 0, kLocal, 3).ok());
         sim::WorldIsland island{assets::IslandHeader{}, std::move(map), 4, 4};
         island.header.width = 12;
         island.header.height = 8;
@@ -138,6 +184,12 @@ struct Town {
             p.enabled = true;
             world.set_production(p);
         }
+        sim::House house;
+        house.x = 9;
+        house.y = 5;
+        house.city = 3;
+        house.inhabitants64 = 2 * 64;
+        world.add_house(house);
     }
 };
 
@@ -332,4 +384,121 @@ TEST_CASE("selection panels: the city list shows the own cities, not those witho
     REQUIRE(request.has_value());
     CHECK(request->x == 4 + 6);
     CHECK(request->y == 4 + 4);
+}
+
+namespace {
+
+void add_city(sim::World& world, std::uint8_t index, sim::PlayerId owner, const char* name) {
+    sim::City c;
+    c.island = 0;
+    c.index = index;
+    c.owner = owner;
+    c.name = name;
+    world.add_city(c);
+}
+
+Selection building(std::uint16_t x, std::uint16_t y) {
+    Selection s = bakery_at(x);
+    s.y = y;
+    return s;
+}
+
+}  // namespace
+
+TEST_CASE("selection panels: a public building shows its city, name, running cost and build menu icon") {
+    Game g("o1602-test-selection-infra");
+    Town t;
+    add_city(t.world, 3, kLocal, "Haven");
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const Selection chapel = building(9, 2);
+    SelectionPanel* p = panels.panel_for(chapel, c);
+    REQUIRE(p != nullptr);
+    p->refresh(chapel, c);
+    const auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Divers 1") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Betriebskosten") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "8") != shown.end());
+    // The icon: GFXBAUHAUS (81 without the constant) + the DIVERS icons from 71 + its place 1.
+    const auto items = p->panel().draw(kNoFonts);
+    CHECK(std::any_of(items.begin(), items.end(), [](const ui::DrawItem& d) {
+        return d.kind == ui::DrawItem::Kind::Sprite && d.gfx == 81 + 71 + 1;
+    }));
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 62004}, chapel, c, out);
+    CHECK(out.empty());
+}
+
+TEST_CASE("selection panels: a foreign Kontor opens its trade lists only with a trade treaty") {
+    Game g("o1602-test-selection-handel");
+    Town t;
+    add_city(t.world, 4, kOther, "Elsewhere");
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const Selection kontor = building(6, 5);
+    // Foreign buildings other than Kontor and market have no window, nor has the Kontor without a
+    // trade treaty.
+    CHECK(panels.panel_for(bakery_at(6), c) == nullptr);
+    CHECK(panels.panel_for(kontor, c) == nullptr);
+
+    t.world.diplomacy().relation(kLocal, kOther).trade = sim::Treaty::Signed;
+    t.world.diplomacy().relation(kOther, kLocal).trade = sim::Treaty::Signed;
+    SelectionPanel* p = panels.panel_for(kontor, c);
+    REQUIRE(p != nullptr);
+    p->refresh(kontor, c);
+    const auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Elsewhere") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Text 35") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Text 36") != shown.end());
+}
+
+TEST_CASE("selection panels: a house shows its class and city taxes, its buttons change the tax rate") {
+    Game g("o1602-test-selection-siedler");
+    Town t;
+    sim::City haven;
+    haven.island = 0;
+    haven.index = 3;
+    haven.owner = kLocal;
+    haven.name = "Haven";
+    haven.inhabitants = {40};
+    haven.tax_rate = {128};
+    t.world.add_city(haven);
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const Selection house = building(9, 5);
+    SelectionPanel* p = panels.panel_for(house, c);
+    REQUIRE(p != nullptr);
+    p->refresh(house, c);
+    const auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Text 3") != shown.end());  // the class's name
+    CHECK(std::find(shown.begin(), shown.end(), "40") != shown.end());      // its inhabitants in the city
+    // Taxes per minute: trunc(1.5 * 16 / 3) = 8, 8 * 40 * 6 / 32 = 60 at the normal rate.
+    CHECK(std::find(shown.begin(), shown.end(), "60") != shown.end());
+
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 36006}, house, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 36005}, house, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 36013}, house, c, out);  // no button
+    REQUIRE(out.size() == 2);
+    const auto* up = std::get_if<sim::CityOrder>(&out[0]);
+    REQUIRE(up != nullptr);
+    CHECK(up->op == sim::CityOrder::Op::TaxRate);
+    CHECK(up->player == kLocal);
+    CHECK(up->city == 3);
+    CHECK(up->resident_class == 0);
+    CHECK(up->rate == 132);
+    const auto* down = std::get_if<sim::CityOrder>(&out[1]);
+    REQUIRE(down != nullptr);
+    CHECK(down->rate == 124);
+
+    // Run by the game, the higher rate brings more: 60 * 132 / 128.
+    simulation.execute(out[0]);
+    p->refresh(house, c);
+    const auto after = texts(*p);
+    CHECK(std::find(after.begin(), after.end(), std::to_string(60 * 132 / 128)) != after.end());
 }
