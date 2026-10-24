@@ -31,8 +31,9 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    `Simulation::state_hash()`: XXH64 over the sections of an `.o1602` savegame, unpacked, without
    the original's file the game came from (it never changes) and without the file's header and
    CRC-32. The host compares it with its own; not every tick, because each fingerprint writes the
-   game in memory (about 1 ms on a 500 × 350 map, 3 ms on 800 × 600, into a buffer kept from one
-   fingerprint to the next).
+   game in memory into a buffer kept from one fingerprint to the next: on a real 12-player late game
+   in a 2000 × 2000 world 8 to 9 ms on a fast desktop (Ryzen 9 7900X3D), about two to three times
+   that on the minimum machine ([performance.md](../performance.md)).
 6. **One way for the start, joining, reconnecting and desyncs: the savegame.** The host sends a
    computer its game as an `.o1602` savegame ([ADR 0009](0009-own-save-format.md)) together
    with the speed, the pause and the frames already closed after it. That is how a computer comes into
@@ -98,15 +99,15 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     second each). The host sets the kinds of the slots, removes players and starts when it wants;
     the game is made from the lobby and every computer gets it as it would get a running one
     (point 6). The lobby travels as a whole whenever it changes. A slot's index is the player of the
-    world, and each slot has a banner (point 15); the slots of the free trader, the pirates and the
+    world, and each slot has a banner (point 13); the slots of the free trader, the pirates and the
     natives are reserved and not shown. Every game has all its players: a slot nobody takes is played by
     the computer, and the host hands it to whoever comes into the running game (the command
     `PlayerControl`) and back to the computer when that player leaves.
-14. **Players.** A new endless game has four to twelve players. Four play on the original's maps;
+12. **Players.** A new endless game has four to twelve players. Four play on the original's maps;
     more get a world of their own (ADR 0008), as much sea and land per player as the original's
     500 × 350 for four. Players five on sit behind the original's seven slots (slot 7 on) with
     banners of their own colours (`BannerTable::add_more_players`), named after them.
-15. **Banners.** Each lobby slot carries a banner (`LobbySeat::banner`), and the lobby the banners on
+13. **Banners.** Each lobby slot carries a banner (`LobbySeat::banner`), and the lobby the banners on
     offer (`Lobby::banners`): the twelve player colours for an endless game and a scenario, none for a
     savegame or a running game, whose players keep theirs. A slot starts with the banner of its
     number (a scenario: its player's); the host makes them different when the lobby opens. A player
@@ -117,7 +118,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     slot's banner, and the computers of an endless game the name of their colour; everything else
     follows from the banner as in a game of one player (flags, units, the coats of arms of
     `BannerArt`, whose pattern comes from the banner's id). Protocol version 6.
-12. **Finding games.** A host answers searches on UDP port 16021 with what the menu lists (title, host,
+14. **Finding games.** A host answers searches on UDP port 16021 with what the menu lists (title, host,
     game, players and slots, started, password, joining, spectators, protocol version). A computer
     looking for games asks every network of the computer by broadcast, the computer itself and the
     hosts it joined before directly,
@@ -125,7 +126,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     network always, others (a forwarded port) twice a second each and 16 times a second in all: the
     answer is about 16 times the search, and a search's sender can be forged (MS-21). Nothing of this is needed to join:
     an address alone does it too, so games on the internet need no server in between.
-13. **The menu is Open1602's own.** The original's network screens (DirectPlay sessions, its lobby)
+15. **The menu is Open1602's own.** The original's network screens (DirectPlay sessions, its lobby)
     are not used. Open1602's menu has three screens: finding a game (the list fills by itself, an
     address can be typed, hosts joined before are remembered), creating one (a new endless game with
     its level and world number, a scenario or a savegame; title, password, shown on the local
@@ -133,7 +134,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
     (slots, ready, chat, start; the host removes players and spectators). Its texts follow the
     language of the installation. Host names are looked up beside the game, so a slow name server
     does not stop the menu.
-15. **Host migration.** When the host leaves a running game (it quits or its connection breaks),
+16. **Host migration.** When the host leaves a running game (it quits or its connection breaks),
     the game moves on to a successor instead of standing still:
     - *When.* A host that quits says so (`HostLeaving`, with the successor's address) before it
       disconnects; then everyone moves on at once. A connection that just breaks is not taken as the

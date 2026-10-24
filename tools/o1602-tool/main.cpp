@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// o1602-tool - inspect and convert original Anno 1602 data files.
+// o1602-tool - inspect and convert original Anno 1602 data files, make own worlds, measure the
+// simulation. usage() below lists every command with its options (o1602-tool without arguments
+// prints it). The commands for the original's files:
 //
 //   o1602-tool chunks     <file>                         list chunks of any chunk container
 //   o1602-tool cod        <file.cod> [out.txt]           decode a .cod script to UTF-8 text
@@ -16,6 +18,7 @@
 //   o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]
 //                           [--tile X,Y] [--size WxH] [--owners]
 //                                                        render the world map or a part of it
+//   o1602-tool export, new-world, bench, smk, state      see usage()
 //
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 //

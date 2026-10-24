@@ -10,10 +10,12 @@ Status: accepted · 2026-10-16
    - no dependency on system time, frame rate or platform.
 2. Every player action is a serialisable **command** (`Command`) that is applied at a defined
    tick. Presentation and UI only read the state.
-3. A **hash** is computed over the state every tick.
+3. A **hash** (fingerprint) is computed over the state at fixed frames: in multiplayer every
+   `SessionConfig::hash_interval` frames (100 by default, five seconds at speed 1), and compared
+   between the computers (ADR 0011).
 
 ## Rationale
-- **Multiplayer** via lockstep: only commands are transmitted; the hash detects desyncs immediately.
+- **Multiplayer** via lockstep: only commands are transmitted; the hash detects a desync within one interval.
 - **Replays, tests, headless servers** come almost for free.
 - **Stability over long sessions**: entities in pools with stable IDs instead of scattered allocations;
   no allocation in the tick hot path.

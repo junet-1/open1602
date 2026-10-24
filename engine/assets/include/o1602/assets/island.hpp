@@ -21,12 +21,13 @@ struct IslandHeader {
     std::uint16_t pos_x = 0;  ///< position on the 500x350 world map
     std::uint16_t pos_y = 0;
 
-    // Template reference (INSEL5 only, offsets 0x60..0x65). Islands in scenarios and savegames store
-    // only their deviations from an island template (.SCP); the base terrain comes from the template.
+    // Template reference (offsets 0x60..0x65, read from any header of at least 0x66 bytes: INSEL4,
+    // INSEL5). Islands in scenarios and savegames store only their deviations from an island template
+    // (.SCP); the base terrain comes from the template.
     static constexpr std::uint16_t kNoTemplate = 0xFFFF;
     std::uint16_t template_number = kNoTemplate;  ///< file number (e.g. 12 -> big12.scp)
     std::uint16_t template_size = 0;              ///< 0 lit, 1 mit, 2 med, 3 big, 4 lar
-    std::uint8_t climate = 0;                     ///< 0 Nord, 1 Sued
+    std::uint8_t climate = 0;                     ///< 0 Nord, 1 Sued (2, 3 name Nord and Sued again)
     bool stored_complete = false;                 ///< all tiles are stored, no template needed
 
     /// Ore and gold deposits (INSEL5 +0x1C, 8 bytes each, count at +0x1A; island record +0x20).

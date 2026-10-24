@@ -61,7 +61,9 @@ a clear message.
 ### 3. Players and factions
 
 - `sim::PlayerId` is an index into the match's player list (8 bits). `sim::kNoPlayer` (0xFF) stands for
-  "nobody". This allows up to 254 slots. The real upper limit is set by the lobby and the game rules.
+  "nobody". This leaves room for 255 slots (0 to 254). The game itself holds at most
+  `sim::kMaxPlayers` (12) players with a start (`engine/sim/include/o1602/sim/limits.hpp`); the
+  lobby, the start dialogs and the world generator use that.
 - **Control and faction are separate.** A slot is controlled by a human, an AI or
   nobody (neutral). It belongs to a faction: settlers, traders, pirates, natives
   or a faction from a mod. `sim::PlayerRole` is the control (human, computer, neutral), `Player::faction`
@@ -103,8 +105,12 @@ a clear message.
 
 - **The world size is a property of the map** (`sim::World::width()/height()`). Original maps
   have 500 × 350 tiles.
-- **Islands have no size limit** other than memory. Tile coordinates and island numbers
-  are 16 bits wide; the original uses 8 bits (L-003).
+- **Island limits** (`sim/limits.hpp`, [data-limits.md](../modding/data-limits.md)): a world is at
+  most 4096 tiles on a side (`kMaxWorldSide`). Island indexes in the world and in commands are 16 bits,
+  but the island number in the islands' files and in the save sections that name an island is still
+  one byte as in the original (L-003), so a world saves at most 256 islands and the generator places
+  at most 250. An island is at most 255 tiles wide and high, as its record's size fields are one
+  byte (LC-2).
 - **Island generator:** deterministic from a seed (multiplayer, repeatability). It
   works with height and moisture maps from noise functions and generates coasts, mountains,
   rivers, forests and raw materials from them. The rules (climate zone, size, shape, frequencies) are data.
@@ -145,11 +151,11 @@ a clear message.
 | `sim::Player` | colour as `assets::PlayerColor` (0–6), kind as `assets::PlayerKind` | ✅ `BannerId` and `PlayerRole` |
 | `render::player_rgb`, `FigureTable::flag_for_color` in the renderer | 7 fixed colours, 5 flags | ✅ `render::BannerTable` with tinted single flag, any colours |
 | Overlay colour `DrawCommand::tint` | index into the 7 colours | ✅ RGBA directly in the command |
-| `sim::World::kWidth/kHeight`, `Cell` with 8-bit island number and coordinates | 500 × 350, 255 islands, islands up to 255 × 255 | ✅ size per world, 16 bits |
+| `sim::World::kWidth/kHeight`, `Cell` with 8-bit island number and coordinates | 500 × 350, 255 islands, islands up to 255 × 255 | 🟡 size per world up to 4096², island indexes 16 bits; island numbers in files and saves 8 bits (256 islands), islands up to 255 × 255 (LC-2) |
 | Buildings, figures | `.cod` numbers as index | ⬜ content registry with ids (with the first custom content) |
 | Goods | fixed list of the original | ⬜ the economy simulation is done with the original's list; a free goods list comes with content packs (M8) |
 | Factions, scaling of neutral players | – | 🟡 control and faction apart, factions as data in the world with their numbers (pirate nests, trader ships and reach, `sim::Scaling`), changed by `factions.toml` ([factions.md](../modding/factions.md)); factions of a package's own need slots and a behaviour of their own (M8) |
-| Player count at game start, saving | 4 players at start, 7 players, 150 ships, 400 soldiers, 350 towers in the savegame | ⬜ the world plan supports 16 players; saving beyond the original limits is done with the own format `.o1602` ([ADR 0009](0009-own-save-format.md)) |
+| Player count at game start, saving | 4 players at start, 7 players, 150 ships, 400 soldiers, 350 towers in the savegame | ⬜ the game supports 12 players (`sim::kMaxPlayers`); saving beyond the original limits is done with the own format `.o1602` ([ADR 0009](0009-own-save-format.md)) |
 | Island generator | – | 🟡 stage 1: custom worlds from the original templates (200–2000 tiles, [worldgen.md](../re/worldgen.md)); stage 2 with custom island shapes postponed |
 | Messages of the status bar | MELDUNG numbers 0–0x6F, texts only from `Text.cod` | ✅ `app::MessageTable`: the original's at their numbers, packages' after them, from `mods/<package>/messages.toml` ([messages.md](../modding/messages.md)); a package's id is its folder's name until manifests come |
 | Numbers of the balance in the code | trader, castles, disasters as constants | ✅ `sim::Balance` in the world, changed by `balance.toml` ([balance.md](../modding/balance.md)) |

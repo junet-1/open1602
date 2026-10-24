@@ -13,6 +13,7 @@ size memory and refuse or cut what lies outside. These are the limits.
 | `haeuser.cod` | `BGruppe` of a house (resident classes) | 5 classes, Pioniere to Aristokraten (the needs of each class are the rules' table) | the file is refused |
 | `haeuser.cod` | `Bauinfra`, `INFRA_*` levels | 0 to 32 (the levels a player has reached are one 32-bit mask) | the file is refused |
 | `haeuser.cod` | `Figurnr` | 0 to 65535 | the file is refused |
+| `haeuser.cod` | `Gfx` and the sprites of the building after it (one a tile) | below 65535 (the island map keeps 16-bit sprite numbers, 0xFFFF is an empty tile) | the file is refused |
 | `haeuser.cod` | `Money` of `HAUS_BAUKOST` | 0 or more (a negative cost would pay for building) | the file is refused |
 | `haeuser.cod` | `Maxlager`, `Prozent` (and every amount scaled to 1/32 t) | the range of a 32-bit unsigned number after scaling | saturated |
 | `haeuser.cod` | `Wegspeed`, `Randwachs` | 0 to 400 and 0 to 200 before the scaling (no signed overflow) | clamped |
@@ -20,7 +21,7 @@ size memory and refuse or cut what lies outside. These are the limits.
 | `figuren.cod` | `Nummer` | 0 to 1023 | the file is refused |
 | both | `ObjFill` | 10000 copies | clamped, with a warning |
 | both | `ObjFill`, all statements of a file | 200000 records made, nested records counted | the statement that would pass it and every later `ObjFill` are ignored, with a warning |
-| `.gad` | `Nummer` of a gadget | 0 to 4095 (4096 gadgets per file; the original had 300) | gadgets above it are left out, with a warning |
+| `.gad` | `Nummer` of a gadget | 0 to 4095 (4096 gadgets per file; the original's `MAXGADGET` was 300, [gad.md](../formats/gad.md)) | gadgets above it are left out, with a warning |
 | both | a number with a decimal point | the range of a 32-bit integer | clamped |
 | both | times, amounts, health, radius (`Worktime`, `Maxenergy`, ...) | the range of the field | clamped (`core::saturating_cast`) |
 | `.gam`, `.szs` | width and height of an island | at least 1 tile | the island is left out, with a warning |

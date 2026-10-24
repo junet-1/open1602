@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """List the import address table of a PE32 file as CSV-like lines: <IAT address> <dll>!<function>.
 
-  re/scripts/pe_imports.py 1602.exe > re/symbols/imports.txt
+  re/scripts/pe_imports.py 1602.exe > re/symbols/imports_1602exe.txt
 """
 import struct,sys
 d=open(sys.argv[1],'rb').read()
