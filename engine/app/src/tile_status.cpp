@@ -80,8 +80,8 @@ bool named_by_kind(const assets::BuildingType& b) {
 }  // namespace
 
 std::string menu_name(std::uint32_t id, const assets::TextTable& texts) {
-    if (const ui::BuildCategory* cat = ui::original_build_menu().category_of(id)) {
-        return line(texts, cat->names, cat->index_of(id).value_or(0));
+    if (const ui::BuildCategory* cat = ui::build_menu().category_of(id)) {
+        return cat->name(cat->index_of(id).value_or(0), texts.section(cat->names));
     }
     for (std::size_t i = 0; i < kLandscapeIds.size(); ++i) {
         if (kLandscapeIds[i] == id) {

@@ -208,7 +208,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     m_leist.set_hidden(kLeistArt, true);
     // The panels of the modes; without their layouts the head stays alone.
     if (auto bau = assets::load_gad(game, "BAU.GAD")) {
-        m_build = std::make_unique<BuildPanel>(std::move(bau).value(), ui::original_build_menu(), own);
+        m_build = std::make_unique<BuildPanel>(std::move(bau).value(), ui::build_menu(), own);
     }
     if (auto info = assets::load_gad(game, "INFO.GAD")) {
         m_info = std::make_unique<InfoPanel>(std::move(info).value(), own);
@@ -266,13 +266,11 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         GoodsWindow::BuildingNames building_names;
         if (own != nullptr) {
             building_names = [names = *own](std::uint32_t id) -> std::string {
-                const ui::BuildCategory* category = ui::original_build_menu().category_of(id);
+                const ui::BuildCategory* category = ui::build_menu().category_of(id);
                 if (category == nullptr) {
                     return {};
                 }
-                const auto index = category->index_of(id);
-                const std::vector<std::string> list = names.section(category->names);
-                return index && *index < list.size() ? list[*index] : std::string{};
+                return category->name(category->index_of(id).value_or(0), names.section(category->names));
             };
         }
         m_goods =

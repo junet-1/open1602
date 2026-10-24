@@ -59,9 +59,9 @@ const assets::BuildingType* building_at(const Selection& s, const PanelContext& 
 
 /// The name of a building as the build menu calls it (Haus_GetMenuName 0x0042D230).
 std::string building_name(const assets::BuildingType& b, const PanelContext& c) {
-    const ui::BuildMenuDefinition& menu = ui::original_build_menu();
-    if (const ui::BuildCategory* cat = menu.category_of(b.id)) {
-        return c.text(cat->names, cat->index_of(b.id).value_or(0));
+    if (const ui::BuildCategory* cat = ui::build_menu().category_of(b.id)) {
+        return c.texts != nullptr ? cat->name(cat->index_of(b.id).value_or(0), c.texts->section(cat->names))
+                                  : std::string();
     }
     return {};
 }
@@ -252,10 +252,10 @@ public:
         m_panel.set_text(62003, c.text("GAME", kGameRunningCost));
         m_panel.set_text(62004, std::to_string(b->running_cost));
         // The building's icon of the build menu (Haus_GetMenuIcon 0x0042D3A0).
-        const ui::BuildMenuDefinition& menu = ui::original_build_menu();
-        if (const ui::BuildCategory* cat = menu.category_of(b->id)) {
-            const auto index = static_cast<std::int32_t>(cat->index_of(b->id).value_or(0));
-            m_panel.set_graphic(62021, m_gfx_bauhaus + cat->icon_offset + index, 0);
+        const ui::BuildCategory* cat = ui::build_menu().category_of(b->id);
+        if (const ui::BuildButton* button =
+                cat != nullptr ? cat->button_at(cat->index_of(b->id).value_or(0)) : nullptr) {
+            m_panel.set_graphic(62021, m_gfx_bauhaus + button->icon, 0);
             m_panel.set_visible(62021, true);
         } else {
             m_panel.set_visible(62021, false);

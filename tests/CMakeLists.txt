@@ -57,6 +57,7 @@ add_executable(o1602_tests
     unit/test_end_screen.cpp
     unit/test_audio.cpp
     unit/test_ui.cpp
+    unit/test_build_menu.cpp
     unit/test_tutorial.cpp
     unit/test_localization.cpp
     unit/test_unit_selection.cpp
