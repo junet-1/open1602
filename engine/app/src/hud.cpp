@@ -10,6 +10,7 @@
 #include "banner_graphic.hpp"
 #include "diplomacy_strip.hpp"
 #include "endless_setup.hpp"
+#include "names.hpp"
 #include "parchment.hpp"
 
 #include "o1602/audio/game_audio.hpp"
@@ -1398,7 +1399,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         }
         set_banner_graphic(m_leist, id, message_icon_art(kTreatyIcon), banners.get(from->banner), 6);
         if (m_leist.hovered() == id) {
-            status = diplomacy::offer_text(m_offers[k], from->name);
+            status = diplomacy::offer_text(m_offers[k], player_name(*from));
         }
     }
     m_ctrl.set_graphic(kCompass, kGfxCompass + m_rotation, 0);

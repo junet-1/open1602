@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "names.hpp"
 #include "selection_panels.hpp"
 
 namespace o1602::app {

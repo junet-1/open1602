@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "goods_window_parts.hpp"
+#include "names.hpp"
 
 #include "o1602/assets/game_data.hpp"
 #include "o1602/assets/savegame.hpp"
@@ -190,7 +191,7 @@ void GoodsWindow::layout_head(const sim::World& world, sim::PlayerId player, Pai
     if (m_island) {
         for (const sim::City& c : world.cities()) {
             if (c.owner == player && c.island == *m_island) {
-                island = c.name;
+                island = city_name(c);
                 break;
             }
         }

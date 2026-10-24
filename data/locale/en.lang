@@ -247,6 +247,13 @@ net.refused.kicked = The host sent you away.
 net.refused.taken = Your slot is still being played from another computer.
 
 # Players five to twelve of a new world, named after their colours
+player.colour.red = Red player
+player.colour.blue = Blue player
+player.colour.yellow = Yellow player
+player.colour.white = White player
+player.default = Player {1}
+city.default = City {2} on island {1}
+ship.default = Ship {1}
 player.colour.orange = Orange player
 player.colour.purple = Purple player
 player.colour.teal = Teal player

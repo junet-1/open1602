@@ -56,7 +56,7 @@ public:
         }
         const bool own = ship->owner == c.local;
         // Open1602: the name can be typed here too, as in the ship window.
-        m_panel.set_text(kName, c.shown_name(NameTarget::of(*ship), ship->name));
+        m_panel.set_text(kName, c.shown_name(NameTarget::of(*ship), ship_name(*ship)));
         m_panel.set_no_select(kName, !can_rename(c.world(), c.local, NameTarget::of(*ship)));
         const bool moving = !ship->target.empty() || ship->motion.path_index < ship->motion.path.size();
         for (const std::int32_t id :

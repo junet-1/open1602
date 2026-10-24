@@ -432,7 +432,7 @@ TEST_CASE("new game: the reset of an endless level sets players, clocks and ship
     CHECK(std::ranges::equal(again->data(), scenario->data()));
 }
 
-TEST_CASE("new game: colours wrap, names fall back to English, a long name is cut to 63 bytes") {
+TEST_CASE("new game: colours wrap, names without [PLAYCOL] stay empty (MD-10), a long name is cut to 63 bytes") {
     const auto level = endless();
     const assets::TextTable none = assets::TextTable::parse("");
     sim::NewGameOptions o = options(1);
@@ -446,9 +446,9 @@ TEST_CASE("new game: colours wrap, names fall back to English, a long name is cu
     CHECK((*players)[0].color == assets::PlayerColor::Red);
     CHECK((*players)[0].name == std::string(63, 'x'));
     CHECK((*players)[1].color == assets::PlayerColor::Blue);
-    CHECK((*players)[1].name == "Blue player");
-    CHECK((*players)[2].name == "Yellow player");
-    CHECK((*players)[3].name == "White player");
+    CHECK((*players)[1].name.empty());  // the game shows it in its language (app::player_name)
+    CHECK((*players)[2].name.empty());
+    CHECK((*players)[3].name.empty());
 }
 
 TEST_CASE("new game: an own world's scenario puts the players' ships at their starts") {

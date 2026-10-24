@@ -761,7 +761,7 @@ private:
 
     void refresh_root(const sim::Ship& ship, const Context& k, const PanelContext& c) {
         // The name: a click on it types a new one (own ships that are not sinking, 0x00436170).
-        m_ship.set_text(kName, c.shown_name(NameTarget::of(ship), ship.name));
+        m_ship.set_text(kName, c.shown_name(NameTarget::of(ship), ship_name(ship)));
         m_ship.set_no_select(kName, !can_rename(c.world(), c.local, NameTarget::of(ship)));
         const bool own = !k.foreign;
         const bool idle = own && !k.moving;
@@ -1037,8 +1037,8 @@ private:
             m_page = Page::Root;
             return;
         }
-        m_transfer.set_text(45122, ship.name);
-        m_transfer.set_text(45124, city->name);
+        m_transfer.set_text(45122, ship_name(ship));
+        m_transfer.set_text(45124, city_name(*city));
         const std::int32_t cat = category();
         const auto [first, last] = category_range(cat);
         const bool scrolls = last - first + 1 > 4;
@@ -1143,8 +1143,8 @@ private:
             return;
         }
         const bool natives = is_natives(*city, c);
-        m_trade.set_text(33122, ship.name);
-        m_trade.set_text(33124, city->name);
+        m_trade.set_text(33122, ship_name(ship));
+        m_trade.set_text(33124, city_name(*city));
         const assets::BuildingType* kontor = sim::kontor_of(c.world(), c.buildings, *city);
         const std::int32_t places = std::min<std::int32_t>(kontor != nullptr ? kontor->max_wares : 8, 8);
         m_offers.clear();
@@ -1416,7 +1416,7 @@ private:
             if (slot >= slots()) {
                 continue;
             }
-            std::string name = city != nullptr ? city->name : c.text("GAME", 46);
+            std::string name = city != nullptr ? city_name(*city) : c.text("GAME", 46);
             if (m_route_row) {
                 name = std::to_string(stop + 1) + ". " + name;  // with eight stops their order shows
             }

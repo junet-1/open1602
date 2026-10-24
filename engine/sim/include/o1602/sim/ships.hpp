@@ -392,6 +392,7 @@ private:
     void yard_cycle(CostBuilding& yard);
     bool launch(CostBuilding& yard);
     CostBuilding* yard_at(std::uint16_t island, std::uint16_t x, std::uint16_t y);
+    /// The next name of Text.cod's [SHIPS], round robin; empty without names.
     std::string next_ship_name();
 
     World* m_world;

@@ -200,7 +200,7 @@ public:
             const std::int32_t k = id - kStripFrame;
             if (k >= 0 && static_cast<std::size_t>(k) < partners.size()) {
                 const sim::Player* p = c.world().player(partners[static_cast<std::size_t>(k)]);
-                return p != nullptr ? ui::tr("diplomacy.partner", {p->name}) : std::string();
+                return p != nullptr ? ui::tr("diplomacy.partner", {player_name(*p)}) : std::string();
             }
         }
         if (m_tribute || m_strip_shown) {
@@ -361,7 +361,7 @@ private:
         if (player == nullptr) {
             return;
         }
-        p.set_text(name + row, player->name);
+        p.set_text(name + row, player_name(*player));
         const render::BannerArt arms = render::BannerArt::at(m_shield);
         set_banner_graphic(p, shield + row, arms, c.banner(b));
         set_banner_graphic(p, shadow + row, arms, c.banner(b));
