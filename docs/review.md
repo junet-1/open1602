@@ -2189,6 +2189,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | FB-17 | #172 | A tower shot finds its tower through a map by tile, made once per call. |
 | FB-2 (part) | #173 | The soldier figures walk the trail and last frame's index in id order instead of two searches per soldier, and sort only when needed. Sync and advance per frame: 100 000 soldiers 11.9 → 3.4 ms, 50 000 6.0 → 1.8 ms. |
 | BT-1 (part) | #174 | Four arena scenarios for the island controller: disbanding and gathering at peace, hunting enemy soldiers and attacking an enemy city at war. |
+| BT-1 (part) | #175 | A main-menu test with synthetic BASE, HOST, MISSION and FARBWAHL layouts: events, scenario list, mission screen, rules dialog, scrolling, loading. |
 
 ### Still open
 
@@ -2201,10 +2202,11 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-19, TB-22, TB-25 | Dirty rectangles for the sea and land maps; `update_services` by dirty rectangle; the other world-wide scans of TB-22; TB-25. | M |
 | FB-2 | Per-soldier work (height, sprite) only for soldiers in view. | M |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
-| FB-25 | The unit tints are still made for all 8 banners, whatever the number of players; the atlas cache file. | M |
-| BT-1 | Recruiting, guards and landings in the AI arena; a main-menu test. | M |
+| BT-1 | Recruiting, guards and landings in the AI arena. | M |
 | BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
 | DS-2 | The `determinism.yml` workflow and `o1602-replay`: the review's tool branch is not on the remote. Four golden hashes in CI on three platforms cover it in part (#147). | M |
+
+Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
 Closed by reading without a change: FB-16 and FB-18 (each a scan of the cost buildings or a few texts per frame for what is on screen, microseconds even in large worlds).
 
