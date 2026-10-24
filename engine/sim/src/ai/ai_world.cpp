@@ -19,7 +19,11 @@ Tile Engine::tile(std::uint16_t island, std::int32_t x, std::int32_t y) const {
         return t;
     }
     const IslandMap& map = m_world.islands()[island].map;
-    const MapCell& c = map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
+    return tile_of(map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y)), x, y);
+}
+
+Tile Engine::tile_of(const MapCell& c, std::int32_t x, std::int32_t y) const {
+    Tile t;
     t.city = c.city;
     t.owner = c.owner;
     if (c.empty()) {
