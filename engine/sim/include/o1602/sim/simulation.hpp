@@ -248,10 +248,15 @@ public:
     /// savegame, and so does not continue exactly as it was saved. Worth telling the player.
     [[nodiscard]] bool state_damaged() const noexcept { return m_state_damaged; }
     /// A fingerprint of the whole game (XXH64 over the sections of the savegame, unpacked, without
-    /// the original's file the game came from): equal on every computer of a multiplayer game
-    /// after the same tick, or the games have diverged. Exchanged every few seconds, not every
-    /// tick, as it costs writing the game in memory (a few milliseconds on a large map).
+    /// the original's file the game came from, and with the map's tiles as the hashes of their
+    /// blocks): equal on every computer of a multiplayer game after the same tick, or the games have
+    /// diverged. Exchanged every few seconds, not every tick, as it costs writing the game in
+    /// memory but for the tiles: of these only the blocks that changed since the last fingerprint
+    /// are hashed again (TB-26).
     [[nodiscard]] std::uint64_t state_hash() const;
+    /// The same fingerprint taken anew from every tile, without the blocks' hashes kept: what
+    /// state_hash() must give (a test of the blocks' revisions).
+    [[nodiscard]] std::uint64_t state_hash_anew() const;
 
     /// Eruptions and what the lava hit since the last call.
     [[nodiscard]] std::vector<VolcanoEvent> take_volcano_events() { return m_volcano_events.take(); }
@@ -315,8 +320,10 @@ private:
     std::uint32_t m_speed = 1;
     bool m_paused = false;
     bool m_state_damaged = false;
-    /// What state_hash() wrote last time, kept for its memory (so not from two threads at once).
+    /// What state_hash() wrote last time, kept for its memory, and the hashes of the blocks of each
+    /// island's tiles (so not from two threads at once).
     mutable std::vector<std::uint8_t> m_hash_buffer;
+    mutable std::vector<std::vector<BlockHash>> m_block_hashes;
     bool m_behind = false;
     std::uint64_t m_time_ms = 0;
     std::uint32_t m_pending_ms = 0;     ///< game time not yet run as a tick

@@ -40,10 +40,21 @@ struct SubTile {
     std::int32_t origin_y = 0;
 };
 
+/// The fingerprint of a block of an island's tiles and the revision of the block it was taken at
+/// (Simulation::state_hash()).
+struct BlockHash {
+    std::uint64_t revision = 0;  ///< 0: none taken yet; revisions start at 1
+    std::uint64_t hash = 0;
+};
+
 /// Tile grid of one island with two layers: buildings/terrain on top and the ground below
 /// (the original keeps the latter in a second grid at island + 0xAFC).
 class IslandMap {
 public:
+    /// Tiles on a side of a block: the fingerprint of the game hashes an island's tiles block by
+    /// block and takes again only the blocks that changed since the last one (TB-26).
+    static constexpr std::uint32_t kBlockSide = 16;
+
     IslandMap(std::uint32_t width, std::uint32_t height);
 
     [[nodiscard]] std::uint32_t width() const noexcept { return m_width; }
@@ -53,15 +64,28 @@ public:
     [[nodiscard]] bool contains(std::int32_t x, std::int32_t y) const noexcept {
         return x >= 0 && y >= 0 && static_cast<std::uint32_t>(x) < m_width && static_cast<std::uint32_t>(y) < m_height;
     }
+    /// Blocks across and down; block k covers columns (k % blocks_x()) * kBlockSide on and rows
+    /// (k / blocks_x()) * kBlockSide on, the last ones of a row or column fewer.
+    [[nodiscard]] std::uint32_t blocks_x() const noexcept { return (m_width + kBlockSide - 1) / kBlockSide; }
+    [[nodiscard]] std::uint32_t blocks_y() const noexcept { return (m_height + kBlockSide - 1) / kBlockSide; }
+    /// A number that every change of a tile in the block (either layer) replaces by a new one,
+    /// unique among all maps: equal revisions mean equal tiles. A copy of the map shares the
+    /// revisions while it is the same.
+    [[nodiscard]] std::uint64_t block_revision(std::size_t block) const { return m_revisions[block]; }
 
     /// Changes the picture of a tile in place (a field ripening or harvested: the original swaps
     /// the sprite bits of the grid word, 0x0047CA80 / 0x0047C830).
-    void set_sprite(std::uint32_t x, std::uint32_t y, std::uint16_t sprite) { m_top[index(x, y)].sprite = sprite; }
+    void set_sprite(std::uint32_t x, std::uint32_t y, std::uint16_t sprite) {
+        m_top[index(x, y)].sprite = sprite;
+        touch(x, y);
+    }
     void set_rotation(std::uint32_t x, std::uint32_t y, std::uint8_t rotation) {
         m_top[index(x, y)].rotation = static_cast<std::uint8_t>(rotation & 3U);
+        touch(x, y);
     }
     void set_anim_phase(std::uint32_t x, std::uint32_t y, std::uint8_t phase) {
         m_top[index(x, y)].anim_phase = static_cast<std::uint8_t>(phase & 0x0FU);
+        touch(x, y);
     }
 
     /// Places a building with its top-left footprint corner at (x, y), exactly like the original
@@ -85,7 +109,10 @@ public:
 
     /// Takes the current picture as the original terrain of every tile (the ground layer the
     /// original keeps at island + 0xAFC).
-    void capture_ground() { m_ground = m_top; }
+    void capture_ground() {
+        m_ground = m_top;
+        touch_all();
+    }
 
     /// Demolishing: the tile shows its ground again (sprite, rotation, phase); city and owner stay.
     void restore_ground(std::uint32_t x, std::uint32_t y) {
@@ -94,16 +121,24 @@ public:
         t.sprite = g.sprite;
         t.rotation = g.rotation;
         t.anim_phase = g.anim_phase;
+        touch(x, y);
     }
 
     /// Sets a tile of either layer as it was saved (Open1602's own savegame chunk).
-    void set_top_cell(std::uint32_t x, std::uint32_t y, const MapCell& cell) { m_top[index(x, y)] = cell; }
-    void set_ground_cell(std::uint32_t x, std::uint32_t y, const MapCell& cell) { m_ground[index(x, y)] = cell; }
+    void set_top_cell(std::uint32_t x, std::uint32_t y, const MapCell& cell) {
+        m_top[index(x, y)] = cell;
+        touch(x, y);
+    }
+    void set_ground_cell(std::uint32_t x, std::uint32_t y, const MapCell& cell) {
+        m_ground[index(x, y)] = cell;
+        touch(x, y);
+    }
 
     /// Territory: the city (and its owner) a tile belongs to.
     void set_city(std::uint32_t x, std::uint32_t y, std::uint8_t city, PlayerId owner) {
         m_top[index(x, y)].city = city;
         m_top[index(x, y)].owner = owner;
+        touch(x, y);
     }
 
     /// Replaces the building whose footprint lies at (x, y) by another one of the same size in
@@ -129,6 +164,12 @@ private:
     core::Status write(const assets::BuildingType& building, std::int32_t x, std::int32_t y, std::uint8_t rotation,
                        std::uint8_t anim_phase, PlayerId owner, std::uint8_t city, Mode mode, std::uint8_t random = 0);
     [[nodiscard]] std::size_t index(std::uint32_t x, std::uint32_t y) const { return std::size_t{y} * m_width + x; }
+    /// A new revision for the block of tile (x, y) (block_revision()).
+    void touch(std::uint32_t x, std::uint32_t y) {
+        m_revisions[std::size_t{y / kBlockSide} * blocks_x() + x / kBlockSide] = next_revision();
+    }
+    void touch_all();
+    [[nodiscard]] static std::uint64_t next_revision() noexcept;
     static SubTile sub_tile_of(const MapCell& cell, const assets::BuildingTable& buildings, std::uint32_t x,
                                std::uint32_t y);
 
@@ -136,6 +177,7 @@ private:
     std::uint32_t m_height;
     std::vector<MapCell> m_top;
     std::vector<MapCell> m_ground;
+    std::vector<std::uint64_t> m_revisions;  ///< per block
 };
 
 /// Whether a building belongs to the land of a city (0x00480B70): roads, piers, crop fields, towers,

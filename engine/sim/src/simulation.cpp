@@ -89,13 +89,22 @@ core::Status Simulation::state_readable(World& world, const assets::BuildingTabl
 std::uint64_t Simulation::state_hash() const {
     // The sections of the savegame as they are, without the file around them: neither packed nor
     // checked with a CRC-32, and without the original's file the game came from, which never
-    // changes. XXH64 takes them eight bytes at a time.
-    // The buffer is kept from one fingerprint to the next: written anew, a game of several
-    // megabytes would cost an allocation and its growth each time.
+    // changes. XXH64 takes them eight bytes at a time. The tiles, most of a large game, go in as
+    // the hashes of their blocks, kept from one fingerprint to the next for the blocks that stay.
+    // The buffer is kept too: written anew, a game of a megabyte would cost an allocation and its
+    // growth each time.
     core::ByteWriter out(std::move(m_hash_buffer));
-    save::encode_sections(out, *m_world, *m_buildings, this, save::TileMode::Full, {}, save::Origin::Leave);
+    save::encode_sections(out, *m_world, *m_buildings, this, save::TileMode::Full, {}, save::Origin::Leave,
+                          &m_block_hashes);
     m_hash_buffer = out.take();
     return core::xxh64(m_hash_buffer);
+}
+
+std::uint64_t Simulation::state_hash_anew() const {
+    std::vector<std::vector<BlockHash>> blocks;
+    core::ByteWriter out;
+    save::encode_sections(out, *m_world, *m_buildings, this, save::TileMode::Full, {}, save::Origin::Leave, &blocks);
+    return core::xxh64(out.data());
 }
 
 namespace {

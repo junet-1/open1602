@@ -206,8 +206,8 @@ core::Bytes encode_sections(const World& world, const assets::BuildingTable& bui
 }
 
 void encode_sections(core::ByteWriter& out, const World& world, const assets::BuildingTable& buildings,
-                     const Simulation* simulation, TileMode tiles, std::span<const std::uint8_t> before,
-                     Origin origin) {
+                     const Simulation* simulation, TileMode tiles, std::span<const std::uint8_t> before, Origin origin,
+                     std::vector<std::vector<BlockHash>>* block_hashes) {
     if (tiles == TileMode::Full) {
         // For a list of savegames; a reader takes only the fingerprint (world_from_sections).
         section(
@@ -222,7 +222,16 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                 o.string(p != nullptr ? p->name : std::string());
             },
             Need::Optional);
-        section(out, kMap, [&](Writer& o) { write_map(o, world, buildings); }, Need::Required, kCompactMap);
+        section(
+            out, kMap,
+            [&](Writer& o) {
+                if (block_hashes != nullptr) {
+                    write_map_fingerprint(o, world, buildings, *block_hashes);
+                } else {
+                    write_map(o, world, buildings);
+                }
+            },
+            Need::Required, kCompactMap);
     }
     // The settings: those of the running game, or those the world was loaded with.
     if (simulation != nullptr || world.saved_rules()) {

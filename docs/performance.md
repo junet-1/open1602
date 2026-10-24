@@ -90,7 +90,16 @@ it took 11 to 13 ms (500 x 350) and 28 ms (800 x 600). On a real 12-player late 
 2000 x 2000 world it took 8 to 9 ms and a savegame for a joining computer about 0.11 s on a fast
 desktop (Ryzen 9 7900X3D, 2026-10, the review's device run), which is about two to three times as
 fast per core as the minimum machine: there a fingerprint costs most of a tick's budget every five
-seconds. Making it incremental is planned (TB-26).
+seconds.
+
+Since TB-26 the fingerprint no longer writes the tiles: each island's tiles are hashed in blocks of
+16 x 16, and a block is hashed again only after one of its tiles changed (every change of a tile
+gives its block a new revision, `IslandMap::block_revision`). The rest of the game is still written
+as before, but without the tiles that is a small part of a large game. On a synthetic 2000 x 2000
+world with 100 islands of 180 x 180 tiles in the cloud (Clang, `-O2`): the first fingerprint
+29 ms, one without changes 0.1 ms, one after 1000 tiles changed on random islands 6 ms, against
+86 ms for writing that game unpacked as a whole. `o1602-tool bench` prints the first fingerprint and
+the next one 100 ticks later, as a session takes them.
 
 ### Drawing
 

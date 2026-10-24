@@ -30,10 +30,12 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    rounded up to a power of two, so about every 5 s of real time) each computer sends the host its
    `Simulation::state_hash()`: XXH64 over the sections of an `.o1602` savegame, unpacked, without
    the original's file the game came from (it never changes) and without the file's header and
-   CRC-32. The host compares it with its own; not every tick, because each fingerprint writes the
-   game in memory into a buffer kept from one fingerprint to the next: on a real 12-player late game
-   in a 2000 × 2000 world 8 to 9 ms on a fast desktop (Ryzen 9 7900X3D), about two to three times
-   that on the minimum machine ([performance.md](../performance.md)).
+   CRC-32, and with the map's tiles as the XXH64 of each block of 16 × 16 tiles. The host compares
+   it with its own; not every tick, because each fingerprint writes the game but for the tiles in
+   memory, into a buffer kept from one fingerprint to the next. A block is hashed again only after
+   one of its tiles changed, so the tiles, most of a large game, cost little after the first
+   fingerprint (TB-26; before, on a real 12-player late game in a 2000 × 2000 world, 8 to 9 ms on a
+   fast desktop, [performance.md](../performance.md)).
 6. **One way for the start, joining, reconnecting and desyncs: the savegame.** The host sends a
    computer its game as an `.o1602` savegame ([ADR 0009](0009-own-save-format.md)) together
    with the speed, the pause and the frames already closed after it. That is how a computer comes into
@@ -197,8 +199,8 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
 - Videos, menus and windows do not pause the game in multiplayer (M-018); only pause commands do, for
   everyone. The automatic return to speed 1 at a fire or an attack works only on the host.
 - Loading savegames and starting new games is blocked during a session.
-- The fingerprint costs writing the game in memory on every computer about every 5 s of real time
-  (point 5). The host writes games for joining computers a few at once and then at most one a second.
+- The fingerprint costs writing the game but for the tiles in memory on every computer about every
+  5 s of real time, and hashing the blocks of tiles that changed (point 5). The host writes games for joining computers a few at once and then at most one a second.
 - A host behind a router needs UDP port 16020 (or the one it chose) forwarded for players on the
   internet; the menu says so.
 - The host tells every computer the address of the successor, and the successor verifiers of the

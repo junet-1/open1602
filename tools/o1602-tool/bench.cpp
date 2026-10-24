@@ -313,8 +313,16 @@ int cmd_bench(const Args& args) {
                     step_us / ticks, static_cast<double>(step_max_ns[i]) / 1000.0);
     }
 
-    // The multiplayer fingerprint (net::Session, every hash_interval frames) and a save.
+    // The multiplayer fingerprint (net::Session, every hash_interval frames) and a save. The first
+    // fingerprint hashes every block of tiles; the next one, 100 ticks (5 s of game time) later as in
+    // a session, only the blocks that changed in between (TB-26).
     auto start = Clock::now();
+    const auto first_hash = simulation->state_hash();
+    const double first_hash_ms = ms_since(start);
+    for (int t = 0; t < 100; ++t) {
+        simulation->tick();
+    }
+    start = Clock::now();
     const auto hash = simulation->state_hash();
     const double hash_ms = ms_since(start);
     start = Clock::now();
@@ -323,8 +331,8 @@ int cmd_bench(const Args& args) {
     if (!save) {
         return fail(save.error());
     }
-    std::printf("state hash %.1f ms%s; savegame %zu bytes in %.1f ms\n", hash_ms, hash ? "" : " (failed)", save->size(),
-                save_ms);
+    std::printf("state hash %.1f ms, the first %.1f ms%s; savegame %zu bytes in %.1f ms\n", hash_ms, first_hash_ms,
+                hash != 0 && first_hash != 0 ? "" : " (failed)", save->size(), save_ms);
     if (const auto memory = peak_memory_mb()) {
         std::printf("peak memory %.0f MB\n", *memory);
     }

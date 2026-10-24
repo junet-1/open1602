@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Placement, tile attributes and sprite selection (docs/re/rendering.md).
 
+#include <functional>
 #include <set>
+#include <utility>
+#include <vector>
 
 #include "../test_framework.hpp"
 
@@ -177,4 +180,54 @@ TEST_CASE("island map: template is placed below the island's own entries") {
     CHECK(map.ground(2, 2).sprite == 10);  // template tile kept as ground
     const auto without = sim::IslandMap::from_island(island, *table);
     CHECK(without.top(0, 0).empty());
+}
+
+TEST_CASE("island map: every change of a tile gives its block, and only its block, a new revision (TB-26)") {
+    const auto b = make_building(100, 2, 3);
+    sim::IslandMap map(40, 40);  // blocks of 16 x 16 tiles: 3 x 3, the last ones 8 wide or high
+    REQUIRE(map.blocks_x() == 3);
+    REQUIRE(map.blocks_y() == 3);
+    const auto revisions = [&] {
+        std::vector<std::uint64_t> out;
+        for (std::size_t k = 0; k < 9; ++k) {
+            out.push_back(map.block_revision(k));
+        }
+        return out;
+    };
+    // Which blocks a change gave a new revision.
+    const auto changed = [&](const std::vector<std::uint64_t>& before) {
+        std::set<std::size_t> out;
+        for (std::size_t k = 0; k < 9; ++k) {
+            if (map.block_revision(k) != before[k]) {
+                out.insert(k);
+            }
+        }
+        return out;
+    };
+    std::vector<std::uint64_t> before = revisions();
+    CHECK(std::set<std::uint64_t>(before.begin(), before.end()).size() == 9);
+    const std::vector<std::pair<std::set<std::size_t>, std::function<void()>>> changes = {
+        {{0}, [&] { map.set_sprite(1, 2, 7); }},
+        {{4}, [&] { map.set_rotation(17, 16, 2); }},
+        {{8}, [&] { map.set_anim_phase(39, 39, 3); }},
+        {{2}, [&] { map.restore_ground(32, 15); }},
+        {{6}, [&] { map.set_top_cell(3, 20 + 16, sim::MapCell{}); }},
+        {{5}, [&] { map.set_ground_cell(33, 17, sim::MapCell{}); }},
+        {{3}, [&] { map.set_city(0, 31, 1, 0); }},
+        {{0, 1, 3, 4}, [&] { REQUIRE(map.place(b, 15, 14, 0, 0).ok()); }},  // columns 15-16, rows 14-16
+        {{4}, [&] { REQUIRE(map.build(b, 20, 18, 0, 0, 0, 0).ok()); }},
+        {{4, 7}, [&] { REQUIRE(map.replace(b, 20, 30, 0, 0).ok()); }},           // rows 30-32
+        {{6, 7}, [&] { REQUIRE(map.load(b, 14, 36, 1, 0, 0, 0, true).ok()); }},  // rotated: columns 14-16
+        {{0, 1, 2, 3, 4, 5, 6, 7, 8}, [&] { map.capture_ground(); }},
+    };
+    for (const auto& [blocks, change] : changes) {
+        before = revisions();
+        change();
+        CHECK(changed(before) == blocks);
+    }
+    before = revisions();
+    CHECK(!map.place(b, 39, 0, 0, 0).ok());  // does not fit: nothing changes
+    CHECK(changed(before).empty());
+    const sim::IslandMap copy = map;  // the same tiles, the same revisions
+    CHECK(copy.block_revision(4) == map.block_revision(4));
 }
