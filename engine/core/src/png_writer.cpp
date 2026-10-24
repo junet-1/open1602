@@ -4,13 +4,10 @@
 #include <algorithm>
 #include <cassert>
 #include <string_view>
+#include <utility>
 
 #include "o1602/core/compress.hpp"
 #include "o1602/core/file.hpp"
-
-#if defined(O1602_HAVE_ZLIB)
-#include <zlib.h>
-#endif
 
 namespace o1602::core {
 
@@ -32,14 +29,9 @@ void put_chunk(std::vector<std::uint8_t>& out, std::string_view type, std::span<
 }
 
 std::vector<std::uint8_t> zlib_compress(std::span<const std::uint8_t> raw) {
-#if defined(O1602_HAVE_ZLIB)
-    uLongf size = compressBound(static_cast<uLong>(raw.size()));
-    std::vector<std::uint8_t> compressed(size);
-    if (compress2(compressed.data(), &size, raw.data(), static_cast<uLong>(raw.size()), 6) == Z_OK) {
-        compressed.resize(size);
-        return compressed;
+    if (auto compressed = zlib_deflate(raw)) {  // the one checked path (compress.hpp)
+        return std::move(compressed).value();
     }
-#endif
     // Fallback: zlib stream made of stored deflate blocks.
     std::vector<std::uint8_t> out = {0x78, 0x01};
     std::size_t pos = 0;

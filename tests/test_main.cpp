@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <map>
+#include <string>
 #include <string_view>
 
 #include "test_framework.hpp"
@@ -38,6 +40,7 @@ int main(int argc, char** argv) {
     int run = 0;
     int skipped = 0;
     int failed_tests = 0;
+    std::map<std::string, int> skip_reasons;  // a summary at the end: which data was missing
     for (const auto& test : registry()) {
         const bool is_data = std::string_view(test.name).starts_with("data:");
         if ((data == DataTests::Exclude && is_data) || (data == DataTests::Only && !is_data) ||
@@ -50,6 +53,7 @@ int main(int argc, char** argv) {
             test.fn();
         } catch (const Skip& s) {
             std::printf("[ SKIP ] %s (%s)\n", test.name, s.reason.c_str());
+            ++skip_reasons[s.reason];
             skip = true;
         } catch (const Failure&) {
             // already reported
@@ -71,6 +75,12 @@ int main(int argc, char** argv) {
             ++failed_tests;
         }
         std::printf("[%s] %s\n", ok ? "  OK  " : " FAIL ", test.name);
+    }
+    if (!skip_reasons.empty()) {
+        std::printf("\nskipped, by reason:\n");
+        for (const auto& [reason, count] : skip_reasons) {
+            std::printf("  %4d  %s\n", count, reason.c_str());
+        }
     }
     std::printf("\n%d run, %d failed, %d skipped\n", run, failed_tests, skipped);
     if (failed_tests != 0) {

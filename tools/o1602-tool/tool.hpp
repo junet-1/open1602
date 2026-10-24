@@ -4,12 +4,14 @@
 
 #pragma once
 
+#include <algorithm>
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <map>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -22,19 +24,54 @@ namespace o1602::tool {
 
 namespace fs = std::filesystem;
 
-/// Simple "--name value" / "--flag" option lookup.
+/// The options that take no value: the word after one of them is a positional argument
+/// ("render-world --owners a.gam out.png").
+inline constexpr std::string_view kFlags[] = {
+    "--no-template", "--original-data", "--original-flags", "--original-sheets", "--owners", "--production",
+    "--sheet",       "--together",      "--via-own",        "--walkers",         "--wall",   "--wares",
+};
+/// The options whose value is a whole number.
+inline constexpr std::string_view kNumbers[] = {
+    "--anim",    "--count",  "--every",    "--first", "--gold-islands", "--island", "--level", "--minutes", "--period",
+    "--players", "--repeat", "--rotation", "--seed",  "--simulate",     "--time",   "--wav",   "--zoom",
+};
+
+/// A whole number that is the whole text ("6O" is none, not 6).
+[[nodiscard]] inline std::optional<std::size_t> parse_number(std::string_view text) {
+    std::size_t value = 0;
+    const auto [ptr, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (ec != std::errc{} || ptr != text.data() + text.size()) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+/// Simple "--name value" / "--flag" option lookup. Problems with the arguments (an option without
+/// its value, a number that is none) are collected in `problems`; main() refuses to run with them.
 struct Args {
     std::vector<std::string_view> positional;
     std::map<std::string_view, std::string_view> options;
+    std::vector<std::string> problems;
 
     Args(int argc, char** argv) {
+        const auto is_flag = [](std::string_view a) {
+            return std::find(std::begin(kFlags), std::end(kFlags), a) != std::end(kFlags);
+        };
         for (int i = 2; i < argc; ++i) {
             const std::string_view arg = argv[i];
-            if (arg.starts_with("--")) {
-                const bool has_value = i + 1 < argc && !std::string_view(argv[i + 1]).starts_with("--");
-                options[arg] = has_value ? std::string_view(argv[++i]) : std::string_view();
-            } else {
+            if (!arg.starts_with("--")) {
                 positional.push_back(arg);
+            } else if (is_flag(arg)) {
+                options[arg] = std::string_view();
+            } else if (i + 1 < argc && !std::string_view(argv[i + 1]).starts_with("--")) {
+                options[arg] = argv[++i];
+            } else {
+                problems.push_back(std::string(arg) + " needs a value");
+            }
+        }
+        for (const std::string_view name : kNumbers) {
+            if (const auto it = options.find(name); it != options.end() && !parse_number(it->second)) {
+                problems.push_back(std::string(name) + ": '" + std::string(it->second) + "' is not a whole number");
             }
         }
     }
@@ -43,15 +80,7 @@ struct Args {
 
     [[nodiscard]] std::optional<std::size_t> number(std::string_view name) const {
         const auto it = options.find(name);
-        if (it == options.end()) {
-            return std::nullopt;
-        }
-        std::size_t value = 0;
-        const auto [ptr, ec] = std::from_chars(it->second.data(), it->second.data() + it->second.size(), value);
-        if (ec != std::errc{}) {
-            return std::nullopt;
-        }
-        return value;
+        return it == options.end() ? std::nullopt : parse_number(it->second);
     }
 
     /// "--name A<sep>B" as two numbers, e.g. "--tile 120,80" or "--size 1920x1080".

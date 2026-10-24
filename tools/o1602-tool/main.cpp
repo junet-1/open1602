@@ -22,6 +22,7 @@
 // The commands live in formats.cpp, savegames.cpp, render.cpp and video.cpp (declared in tool.hpp).
 
 #include <cstdio>
+#include <string>
 #include <string_view>
 
 #include "tool.hpp"
@@ -100,6 +101,12 @@ int main(int argc, char** argv) {
     }
     const std::string_view command = argv[1];
     const Args args(argc, argv);
+    if (!args.problems.empty()) {
+        for (const std::string& p : args.problems) {
+            std::fprintf(stderr, "error: %s\n", p.c_str());
+        }
+        return 2;
+    }
     if (command == "chunks") {
         return cmd_chunks(args);
     }

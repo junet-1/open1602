@@ -80,5 +80,10 @@ TEST_CASE("command sink: in multiplayer the session takes the command, not the s
 TEST_CASE("command sink: without a game a command is dropped") {
     app::CommandSink sink;
     sink.submit(sim::PlayerRename{0, "Neu"});  // must not crash
-    CHECK(true);
+    // A game that ended (the sink told so) gets nothing of what comes afterwards.
+    Game g;
+    sink.set_simulation(&g.simulation);
+    sink.set_simulation(nullptr);
+    sink.submit(sim::PlayerRename{0, "Neu"});
+    CHECK(g.name_now() == "Alt");
 }

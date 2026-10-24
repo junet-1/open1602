@@ -175,9 +175,7 @@ struct FakeGame {
     assets::GameDirectory game;
 
     explicit FakeGame(const Contents& contents) {
-        root = std::filesystem::temp_directory_path() /
-               ("o1602_worldgen_" + std::to_string(std::random_device{}()) + "_" +
-                std::to_string(reinterpret_cast<std::uintptr_t>(this) & 0xFFFFFU));
+        root = test::temp_path("o1602_worldgen_" + std::to_string(reinterpret_cast<std::uintptr_t>(this) & 0xFFFFFU));
         std::filesystem::remove_all(root);
         for (const char* dir : {"toolgfx", "gfx", "Nord", "Sued", "NordNat", "SuedNat"}) {
             std::filesystem::create_directories(root / dir);
