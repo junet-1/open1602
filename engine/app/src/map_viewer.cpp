@@ -24,6 +24,7 @@
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/cursor_resource.hpp"
 #include "o1602/assets/data_fixes.hpp"
+#include "o1602/assets/game_content.hpp"
 #include "o1602/assets/high_scores.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
@@ -135,19 +136,11 @@ namespace {
 /// the packages in the order of their names.
 std::vector<sim::Faction> load_mod_factions(const std::filesystem::path& mods) {
     std::vector<sim::Faction> factions = sim::base_factions();
-    std::error_code ec;
-    std::vector<std::filesystem::path> packages;
-    for (const auto& entry : std::filesystem::directory_iterator(mods, ec)) {
-        if (entry.is_directory(ec)) {
-            packages.push_back(entry.path());
-        }
-    }
-    std::sort(packages.begin(), packages.end());
     std::vector<std::string> problems;
-    for (const std::filesystem::path& folder : packages) {
-        if (const auto bytes = core::read_file(folder / sim::kFactionFile)) {
+    for (const assets::ModPackage& package : assets::mod_packages(mods)) {
+        if (const auto bytes = core::read_file(package.folder / sim::kFactionFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-            sim::apply_faction_file(factions, core::path_to_utf8(folder.filename()), text, problems);
+            sim::apply_faction_file(factions, package.id, text, problems);
         }
     }
     for (const std::string& p : problems) {

@@ -6,6 +6,7 @@
 #include <charconv>
 #include <system_error>
 
+#include "o1602/assets/game_content.hpp"
 #include "o1602/audio/wav.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
@@ -310,23 +311,14 @@ core::Status MessageTable::load_package(std::string_view package, std::string_vi
 }
 
 void MessageTable::load_mods(const std::filesystem::path& mods, std::vector<std::string>& warnings) {
-    std::error_code ec;
-    std::vector<std::filesystem::path> packages;
-    for (const auto& entry : std::filesystem::directory_iterator(mods, ec)) {
-        if (entry.is_directory(ec)) {
-            packages.push_back(entry.path());
-        }
-    }
     // By name, the same order on every system (a manifest's load order comes with M8).
-    std::sort(packages.begin(), packages.end());
-    for (const std::filesystem::path& folder : packages) {
-        const auto bytes = core::read_file(folder / kFileName);
+    for (const assets::ModPackage& package : assets::mod_packages(mods)) {
+        const auto bytes = core::read_file(package.folder / kFileName);
         if (!bytes) {
             continue;  // a package without messages
         }
-        const std::string package = core::path_to_utf8(folder.filename());
         const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-        if (const auto status = load_package(package, text, folder, warnings); !status) {
+        if (const auto status = load_package(package.id, text, package.folder, warnings); !status) {
             warnings.push_back(status.error().message);
         }
     }
