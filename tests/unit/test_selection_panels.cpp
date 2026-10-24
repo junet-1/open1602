@@ -63,7 +63,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
 /// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
 /// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), MILITAR (40002..40130),
 /// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), SKSHIP (51002..51100),
-/// MKSHIP (50002..50040), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
+/// MKSHIP (50002..50040), SKSOLDAT (65002..65030), MKSOLDAT (52002..52040), INFRA (62002..62021)
+/// and HANDEL (53002..53100) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -136,6 +137,16 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "MKSHIP.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 65002; id <= 65030; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "SKSOLDAT.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 52002; id <= 52040; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "MKSOLDAT.GAD", gad(ids));
         ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
@@ -878,4 +889,79 @@ TEST_CASE("selection panels: the military windows of one ship and of a fleet giv
         CHECK(flag->op == sim::ShipCommand::Op::WhiteFlag);
         CHECK(flag->on);
     }
+}
+
+TEST_CASE("selection panels: the military windows of one land unit and of a group give their orders") {
+    Game g("o1602-test-selection-sksoldat");
+    Town t;
+    t.world.add_soldier(sim::make_soldier(20, 30, 0, kLocal));
+    t.world.add_soldier(sim::make_soldier(21, 30, 0, kLocal));
+    t.world.add_soldier(sim::make_soldier(25, 30, 0, kOther));
+    const std::uint32_t own = t.world.soldiers()[0].id;
+    const std::uint32_t second = t.world.soldiers()[1].id;
+    const std::uint32_t foreign = t.world.soldiers()[2].id;
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    ui::UnitSelection units;
+    PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    c.units = &units;
+    const Selection none;
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Soldier, own});
+    SelectionPanel* p = panels.military_panel_for(c);
+    REQUIRE(p != nullptr);
+    p->refresh(none, c);
+
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 65021}, none, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 65023}, none, c, out);
+    REQUIRE(out.size() == 2);
+    const auto* stop = std::get_if<sim::SoldierCommand>(&out[0]);
+    REQUIRE(stop != nullptr);
+    CHECK(stop->op == sim::SoldierCommand::Op::Stop);
+    CHECK(stop->soldier == own);
+    const auto* disband = std::get_if<sim::SoldierCommand>(&out[1]);
+    REQUIRE(disband != nullptr);
+    CHECK(disband->op == sim::SoldierCommand::Op::Disband);
+    out.clear();
+
+    // Patrol between where it stands and the tile clicked on the map.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 65022}, none, c, out);
+    CHECK(p->picking());
+    CHECK(p->back());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 65022}, none, c, out);
+    p->picked(12, 9, none, c, out);
+    CHECK(!p->picking());
+    REQUIRE(out.size() == 3);
+    const auto* from = std::get_if<sim::SoldierCommand>(&out[0]);
+    const auto* to = std::get_if<sim::SoldierCommand>(&out[1]);
+    const auto* go = std::get_if<sim::SoldierCommand>(&out[2]);
+    REQUIRE(from != nullptr);
+    REQUIRE(to != nullptr);
+    REQUIRE(go != nullptr);
+    CHECK(from->op == sim::SoldierCommand::Op::SetWaypoint);
+    CHECK(from->index == 0);
+    CHECK(from->point == sim::Target::spot(40, 60));
+    CHECK(to->index == 1);
+    CHECK(to->point == sim::Target::tile_spot(12, 9));
+    CHECK(go->op == sim::SoldierCommand::Op::Patrol);
+    CHECK(go->on);
+    out.clear();
+
+    // Another player's unit takes no orders.
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Soldier, foreign});
+    p = panels.military_panel_for(c);
+    REQUIRE(p != nullptr);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 65023}, none, c, out);
+    CHECK(out.empty());
+
+    // A group: "stop all" stops each unit.
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Soldier, own});
+    units.toggle(t.world, ui::UnitRef{ui::UnitRef::Kind::Soldier, second});
+    REQUIRE(units.size() == 2);
+    SelectionPanel* group = panels.military_panel_for(c);
+    REQUIRE(group != nullptr);
+    CHECK(group != p);
+    group->refresh(none, c);
+    group->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 52021}, none, c, out);
+    CHECK(out.size() == 2);
 }
