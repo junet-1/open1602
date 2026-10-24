@@ -14,10 +14,8 @@ namespace o1602::sim {
 namespace {
 
 constexpr std::uint16_t kTrained = 320;               // training points of a finished unit
-constexpr std::uint16_t kTickSeconds = 10;            // Interval of the castles; 11 s when nothing was trained
 constexpr std::uint8_t kFirstWeapon = ware::kSwords;  // SCHWERTER, MUSKETEN, KANONEN
 constexpr std::uint32_t kFullHold = kHoldCapacity;    // a soldier at full health fills a hold ("50 t")
-constexpr std::int32_t kUnloadRange = 6;              // tiles from the ship
 
 }  // namespace
 
@@ -230,7 +228,9 @@ void Military::castle_second(CostBuilding& c) {
                     MilitaryEvent::Kind::UnitTrained, {}, Target::building(c.island, c.x, c.y), owner, owner});
             }
         }
-        c.countdown = added ? kTickSeconds : static_cast<std::uint16_t>(kTickSeconds + 1);
+        // Balance::castle_interval_s; a second more when nothing was trained.
+        const auto interval = static_cast<std::uint16_t>(m_world->balance().castle_interval_s);
+        c.countdown = added ? interval : static_cast<std::uint16_t>(interval + 1);
     }
     // Weapons: from the store, or a pack donkey fetches them from the city.
     for (CastleSlot& slot : c.slots) {
@@ -432,18 +432,20 @@ bool Military::unload(const UnloadOrder& o) {
     if (ship == nullptr || ship->sinking || (o.player != kNoPlayer && ship->owner != o.player)) {
         return false;
     }
-    // Land within 6 tiles of the ship (0x00448D90): the nearest cell soldiers can stand on.
+    // Land within 6 tiles of the ship (0x00448D90, Balance::castle_unload_range): the nearest cell
+    // soldiers can stand on.
+    const auto range = static_cast<std::int32_t>(m_world->balance().castle_unload_range);
     const std::int32_t sx = 2 * ship->x + 1;
     const std::int32_t sy = 2 * ship->y + 1;
     std::optional<std::pair<std::int32_t, std::int32_t>> landing;
     std::int32_t best = 0;
-    for (std::int32_t cy = sy - 2 * kUnloadRange; cy <= sy + 2 * kUnloadRange; ++cy) {
-        for (std::int32_t cx = sx - 2 * kUnloadRange; cx <= sx + 2 * kUnloadRange; ++cx) {
+    for (std::int32_t cy = sy - 2 * range; cy <= sy + 2 * range; ++cy) {
+        for (std::int32_t cx = sx - 2 * range; cx <= sx + 2 * range; ++cx) {
             if (m_combat->land().cell(cx, cy, 0) != LandMap::Cell::Walk) {
                 continue;
             }
             const std::int32_t d = sea_distance(cx - sx, cy - sy);
-            if (d <= 2 * kUnloadRange && (!landing || d < best)) {
+            if (d <= 2 * range && (!landing || d < best)) {
                 landing = std::pair{cx, cy};
                 best = d;
             }

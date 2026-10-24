@@ -611,6 +611,7 @@ core::Status MapViewer::start_hosted_game() {
             return made.error();
         }
         made->set_factions(m_factions);
+        made->set_balance(m_balance);
         for (const auto& w : warnings) {
             std::fprintf(stderr, "warning: %s\n", w.c_str());
         }

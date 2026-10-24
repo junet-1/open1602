@@ -17,6 +17,7 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/result.hpp"
+#include "o1602/sim/balance.hpp"
 #include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/goods_ledger.hpp"
 #include "o1602/sim/id_index.hpp"
@@ -457,6 +458,10 @@ public:
     [[nodiscard]] const std::vector<Faction>& factions() const noexcept { return m_factions; }
     /// Replaces the factions; a player of a faction that is no longer there becomes a settler.
     void set_factions(std::vector<Faction> factions);
+    /// The values of the balance this game plays with (balance.hpp): the original's unless a
+    /// package changed them before the game started.
+    [[nodiscard]] const Balance& balance() const noexcept { return m_balance; }
+    void set_balance(const Balance& balance) noexcept { m_balance = balance; }
     /// The faction a player belongs to; the settlers' for a faction the world does not have.
     [[nodiscard]] const Faction& faction(const Player& player) const noexcept {
         return player.faction < m_factions.size() ? m_factions[player.faction] : m_factions[faction::kSettlers];
@@ -660,6 +665,7 @@ private:
     std::vector<WorldIsland> m_islands;
     std::vector<Player> m_players;
     std::vector<Faction> m_factions = base_factions();
+    Balance m_balance;
     std::vector<Ship> m_ships;
     std::uint32_t m_next_ship_id = 1;
     IdIndex m_ship_index;

@@ -132,21 +132,31 @@ std::string player_label(const sim::Player& p, sim::PlayerId slot, const render:
 
 namespace {
 
-/// The base game's factions as the mods change them (<data folder>/mods/<package>/factions.toml),
-/// the packages in the order of their names.
-std::vector<sim::Faction> load_mod_factions(const std::filesystem::path& mods) {
+/// What a new game starts with as the mods change it.
+struct ModRules {
     std::vector<sim::Faction> factions = sim::base_factions();
+    sim::Balance balance;
+};
+
+/// The base game's factions and numbers as the mods change them (<data folder>/mods/<package>/
+/// factions.toml and balance.toml), the packages in the order of their names.
+ModRules load_mod_rules(const std::filesystem::path& mods) {
+    ModRules rules;
     std::vector<std::string> problems;
     for (const assets::ModPackage& package : assets::mod_packages(mods)) {
         if (const auto bytes = core::read_file(package.folder / sim::kFactionFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-            sim::apply_faction_file(factions, package.id, text, problems);
+            sim::apply_faction_file(rules.factions, package.id, text, problems);
+        }
+        if (const auto bytes = core::read_file(package.folder / sim::kBalanceFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            sim::apply_balance_file(rules.balance, package.id, text, problems);
         }
     }
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
-    return factions;
+    return rules;
 }
 
 }  // namespace
@@ -178,7 +188,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
     }
     std::vector<std::string> warnings;
-    std::vector<sim::Faction> factions = load_mod_factions(data_folder() / "mods");
+    ModRules rules = load_mod_rules(data_folder() / "mods");
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
     if (options.menu || joining) {
@@ -190,7 +200,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
         world = sim::start_new_game(game, *buildings, *texts, *options.new_game, &warnings);
         if (world) {
-            world->set_factions(factions);
+            world->set_factions(rules.factions);
+            world->set_balance(rules.balance);
         }
     } else {
         auto bytes = core::read_file(options.scenario);
@@ -206,7 +217,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             }
             world = sim::load_world(*file, *buildings, game, &warnings, options.world);
             if (world) {
-                world->set_factions(factions);  // the original's files have none of their own
+                world->set_factions(rules.factions);  // the original's files have none of their own
+                world->set_balance(rules.balance);
             }
         }
     }
@@ -235,7 +247,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
 
     std::unique_ptr<MapViewer> viewer(new MapViewer(game, std::move(buildings).value(), std::move(world).value(),
                                                     std::move(palette).value(), std::move(figures).value(), options));
-    viewer->m_factions = std::move(factions);
+    viewer->m_factions = std::move(rules.factions);
+    viewer->m_balance = rules.balance;
     viewer->m_banners =
         render::BannerTable::original(&viewer->m_figures, render::BannerOptions{options.original_flags});
     viewer->m_banners.add_more_players();
@@ -2293,6 +2306,7 @@ core::Result<sim::World> MapViewer::read_world(const std::filesystem::path& path
         world = sim::load_world(*file, m_buildings, m_game, &warnings, m_options.world);
         if (world) {
             world->set_factions(m_factions);  // the original's files have none of their own
+            world->set_balance(m_balance);
         }
     }
     for (const auto& w : warnings) {
@@ -2405,6 +2419,7 @@ core::Status MapViewer::start_endless(std::uint8_t level, sim::BannerId banner, 
         return world.error();
     }
     world->set_factions(m_factions);
+    world->set_balance(m_balance);
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }

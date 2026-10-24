@@ -281,6 +281,37 @@ TEST_CASE("disasters: plague spreads to half full houses of the city, fire over 
     CHECK(count(town.events, sim::DisasterEvent::Kind::Started, true) >= 2);
 }
 
+TEST_CASE("disasters: a package's balance stops plague and fire from spreading (MD-9)") {
+    Town town;
+    town.place(kCitizenHouse, 4, 8);
+    town.place(kCitizenHouse, 7, 8);
+    town.place(kPioneerHouse, 20, 4);
+    town.place(kForest, 22, 4);
+    town.place(kForest, 22, 5);
+    town.place(kPioneerHouse, 23, 4);
+    town.finish({});
+    town.add_house(4, 8, 2, 15);
+    town.add_house(7, 8, 2, 15);
+    town.add_house(20, 4, 0, 2);
+    town.add_house(23, 4, 0, 2);
+    sim::Balance balance;
+    balance.plague_radius = 0;
+    balance.fire_spread = 0;
+    town.world.set_balance(balance);
+
+    for (int round = 0; round < 10; ++round) {
+        sim::start_disaster(town.world, town.buildings, 0, {4, 8}, sim::Disaster::Kind::Plague, sim::kPlagueDuration,
+                            nullptr);
+        sim::start_disaster(town.world, town.buildings, 0, {20, 4}, sim::Disaster::Kind::Fire, sim::kFireDuration,
+                            nullptr);
+        for (int i = 0; i < 20; ++i) {
+            town.epoch();
+            CHECK(town.at(7, 8) == nullptr);
+            CHECK(town.at(23, 4) == nullptr);
+        }
+    }
+}
+
 TEST_CASE("disasters: doctors cure on foot, firemen put out fires along the roads") {
     Town town;
     town.place(kKlinik, 2, 8);

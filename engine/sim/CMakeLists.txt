@@ -60,6 +60,7 @@ add_library(o1602_sim
     src/shipyards.cpp
     src/player.cpp
     src/faction.cpp
+    src/balance.cpp
     src/production_cycle.cpp
     src/simulation.cpp
     src/soldiers.cpp

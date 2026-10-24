@@ -15,9 +15,6 @@ namespace {
 
 constexpr std::uint32_t kTon = kStockUnitsPerTon;
 constexpr std::uint32_t kTraderCheckMs = 10'000;  // one pass over the cities (city epoch)
-constexpr std::uint32_t kRestockMs = 60'000;      // S-078: the original counts run ends
-constexpr std::uint32_t kMaxHeld = 50 * kTon;     // per ware
-constexpr std::uint32_t kMaxBuy = 10 * kTon;      // per ware and visit
 constexpr std::uint8_t kAgeLimit = 5;
 constexpr std::size_t kCandidates = 12;
 
@@ -110,17 +107,19 @@ std::uint32_t Fleet::trader_buy_amount(const Ship& ship, const City& city, std::
     if (have != 0 && ware < ship.trader_goods.size() && ship.trader_goods[ware].age > 1) {
         return 0;
     }
-    if (have >= kMaxHeld) {
+    const Balance& balance = m_world->balance();
+    const std::uint32_t max_held = balance.trader_max_held * kTon;
+    if (have >= max_held) {
         return 0;
     }
     const std::uint32_t keep = t->keep + city.reserved_of(ware);
     const std::uint32_t stock = city.stock(ware);
     std::uint32_t avail = stock > keep ? stock - keep : 0U;
-    avail = std::min(avail, kMaxHeld - have);
+    avail = std::min(avail, max_held - have);
     if (avail < kTon || t->sell_price > trader_max_price(ware)) {
         return 0;
     }
-    return std::min(avail, kMaxBuy);
+    return std::min(avail, balance.trader_max_buy * kTon);
 }
 
 std::uint32_t Fleet::trader_sell_amount(const Ship& ship, const City& city, std::uint8_t ware) const {
@@ -338,7 +337,8 @@ bool Fleet::trader_trade(Ship& ship, City& city) {
 
 void Fleet::trader_restock(Ship& ship, std::uint32_t dt_ms) {
     // Tools and, once someone mines iron, iron ore come to him from nowhere (0x00454C90, 0x00454D20),
-    // unless players offer enough of them.
+    // unless players offer enough of them; the original counts run ends (S-078).
+    const std::uint32_t restock_ms = m_world->balance().trader_restock_s * 1000U;
     const auto supplied = [&](std::uint8_t ware, std::uint32_t max_price) {
         if (m_rules->trader_prices != TraderPrices::Market || ware >= m_market.size()) {
             return false;  // the original's statistics are empty: never enough (S-077)
@@ -349,7 +349,7 @@ void Fleet::trader_restock(Ship& ship, std::uint32_t dt_ms) {
     };
     if (held(ship, ware::kTools) < 7 * kTon) {
         ship.trader_tools_ms += dt_ms;
-        if (ship.trader_tools_ms >= kRestockMs) {
+        if (ship.trader_tools_ms >= restock_ms) {
             ship.trader_tools_ms = 0;
             if (!supplied(ware::kTools, base_price(ware::kTools) * 115U / 128U)) {
                 const std::uint32_t n = m_tools_given < m_tools_quota ? 4 * kTon : kTon;
@@ -364,7 +364,7 @@ void Fleet::trader_restock(Ship& ship, std::uint32_t dt_ms) {
     }
     if (held(ship, ware::kOre) < 5 * kTon) {
         ship.trader_ore_ms += dt_ms;
-        if (ship.trader_ore_ms >= kRestockMs) {
+        if (ship.trader_ore_ms >= restock_ms) {
             ship.trader_ore_ms = 0;
             // Set for good when an iron mine is built (0x00481450).
             bool iron_mined = (m_world->game_settings().flags & World::GameSettings::kIronMined) != 0;
