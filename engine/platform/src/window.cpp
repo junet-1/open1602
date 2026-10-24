@@ -69,6 +69,11 @@ core::Result<std::unique_ptr<Window>> Window::create(const WindowConfig& config)
     if (window->m_window == nullptr) {
         return sdl_error("SDL_CreateWindow");
     }
+    if (config.fullscreen) {
+        // Wayland applies the full screen only after SDL_CreateWindow returns; the software
+        // renderer would make its surface at the window's size before, and keep it (P29).
+        (void)SDL_SyncWindow(window->m_window);
+    }
     // Title bar and task bar; on Windows the program file's icon (open1602.rc) shows before this.
     // Not fatal: some video drivers have no window icons.
     if (SDL_Surface* icon = load_app_icon(); icon != nullptr) {
