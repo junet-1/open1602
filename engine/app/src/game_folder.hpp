@@ -39,7 +39,8 @@ struct GameFolderSearch {
 [[nodiscard]] core::Result<assets::GameDirectory> open_chosen_folder(const std::filesystem::path& folder);
 
 /// Why `folder` is no installation, in the current language (UTF-8, for the system's dialogs): it
-/// does not exist, or a file of the game is missing. Empty if it is one.
+/// does not exist, it holds several installations (the player chooses one), or a file of the game
+/// is missing. Empty if it is one.
 [[nodiscard]] std::string folder_problem(const std::filesystem::path& folder);
 
 /// A text of the current language in UTF-8 with {1}, {2}, ... replaced by `args`, which are UTF-8 as

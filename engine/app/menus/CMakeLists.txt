@@ -4,11 +4,12 @@
 # command sink, the questions before orders, the input of ship and city names, the status line over
 # the map, which video plays when, what the player is told of the game's events, the diplomacy
 # window's strip and open offers, the window "Warenbilanz", the gestures on the map. Built without
-# the game too, so that the tests have them.
+# the game too, so that the tests have them. Also the command line of the program.
 
 add_library(o1602_menus
     ../src/app_settings.cpp
     ../src/build_tool.cpp
+    ../src/command_line.cpp
     ../src/command_sink.cpp
     ../src/diplomacy_strip.cpp
     ../src/display_menu.cpp

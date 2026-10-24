@@ -660,6 +660,8 @@ game_folder.saved_invalid = The game folder chosen last time can no longer be us
 game_folder.missing = This folder does not exist (any more):\n{1}
 # {1}: the folder, {2}: a file of the game
 game_folder.not_installation = This folder is not an Anno 1602 installation, the file {2} is missing:\n{1}
+# {1}: the folder, {2}: the installations in it, one per line, each after a line break
+game_folder.several = This folder holds several Anno 1602 installations. Please choose one of them:\n{1}{2}
 game_folder.choose_prompt = Please choose the folder of your Anno 1602 installation (the one with 1602.exe in it). Open1602 remembers it.
 game_folder.choose = Choose folder
 game_folder.quit = Quit

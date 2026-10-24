@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Unit tests for the asset loaders using small synthetic files (no original data needed).
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <filesystem>
@@ -476,4 +477,28 @@ TEST_CASE("assets: installers' folders named after the game are candidates, othe
     CHECK(assets::GameDirectory::folders_named_1602(parent) == expected);
     CHECK(assets::GameDirectory::folders_named_1602(parent / "missing").empty());
     std::filesystem::remove_all(parent);
+}
+
+TEST_CASE("assets: the candidates below a home folder include Wine, CrossOver and Bottles prefixes") {
+    const auto home = test::temp_path("o1602-test-home-candidates");
+    std::filesystem::remove_all(home);
+    const std::vector<std::filesystem::path> installs{
+        home / "GOG Games" / "Anno 1602",
+        home / ".wine" / "drive_c" / "GOG Games" / "Anno 1602",
+        home / "Library" / "Application Support" / "CrossOver" / "Bottles" / "Anno" / "drive_c" / "GOG Games" /
+            "Anno 1602 A.D",
+        home / ".local" / "share" / "bottles" / "bottles" / "Games" / "drive_c" / "Program Files (x86)" / "Sunflowers" /
+            "Anno 1602",
+        home / "Games" / "anno-1602" / "drive_c" / "GOG Games" / "Anno 1602",
+        home / "Applications" / "Anno 1602",
+    };
+    for (const auto& folder : installs) {
+        std::filesystem::create_directories(folder);
+    }
+    const auto found = assets::GameDirectory::home_candidates(home);
+    for (const auto& folder : installs) {
+        CHECK(std::find(found.begin(), found.end(), folder) != found.end());
+    }
+    CHECK(assets::GameDirectory::home_candidates(home / "missing").empty());
+    std::filesystem::remove_all(home);
 }

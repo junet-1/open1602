@@ -41,6 +41,29 @@ void add_named_below(std::vector<fs::path>& out, const fs::path& parent) {
     }
 }
 
+/// The folders of a Windows drive where the game is usually installed: GOG's, GOG Galaxy's and the
+/// CD installer's (Program Files, Sunflowers' folder there, or the drive itself).
+void add_windows_drive(std::vector<fs::path>& out, const fs::path& drive) {
+    add_named_below(out, drive / "GOG Games");
+    for (const char* program_files : {"Program Files (x86)", "Program Files"}) {
+        add_named_below(out, drive / program_files / "GOG Galaxy" / "Games");
+        add_named_below(out, drive / program_files / "GOG Games");
+        add_named_below(out, drive / program_files / "Sunflowers");
+        add_named_below(out, drive / program_files);
+    }
+    add_named_below(out, drive);
+}
+
+/// The drive C of each Wine prefix in `parent` (CrossOver's and Bottles' bottles).
+void add_prefixes_below(std::vector<fs::path>& out, const fs::path& parent) {
+    std::error_code ec;
+    for (fs::directory_iterator it(parent, ec), last; !ec && it != last; it.increment(ec)) {
+        if (it->is_directory(ec)) {
+            add_windows_drive(out, it->path() / "drive_c");
+        }
+    }
+}
+
 std::optional<fs::path> environment_path(const char* name) {
     const auto value = core::environment_variable(name);
     if (!value) {
@@ -50,28 +73,35 @@ std::optional<fs::path> environment_path(const char* name) {
 }
 
 #if defined(_WIN32)
-/// The install folders GOG's installer records, one subkey per game with a "path" value.
+/// The install folders GOG's installer records below `games`, one subkey per game with a "path" value.
+void add_gog_games(std::vector<fs::path>& out, HKEY root, const wchar_t* games) {
+    HKEY key = nullptr;
+    if (RegOpenKeyExW(root, games, 0, KEY_READ, &key) != ERROR_SUCCESS) {
+        return;
+    }
+    std::array<wchar_t, 256> subkey{};
+    for (DWORD index = 0;; ++index) {
+        auto subkey_size = static_cast<DWORD>(subkey.size());
+        if (RegEnumKeyExW(key, index, subkey.data(), &subkey_size, nullptr, nullptr, nullptr, nullptr) !=
+            ERROR_SUCCESS) {
+            break;
+        }
+        std::array<wchar_t, MAX_PATH * 2> value{};
+        auto value_size = static_cast<DWORD>(value.size() * sizeof(wchar_t));
+        if (RegGetValueW(key, subkey.data(), L"path", RRF_RT_REG_SZ, nullptr, value.data(), &value_size) ==
+            ERROR_SUCCESS) {
+            add_if_folder(out, fs::path(value.data()));
+        }
+    }
+    RegCloseKey(key);
+}
+
+/// The install folders GOG's installer records, for all users and for this one.
 void add_gog_registry(std::vector<fs::path>& out) {
-    for (const wchar_t* games : {L"SOFTWARE\\WOW6432Node\\GOG.com\\Games", L"SOFTWARE\\GOG.com\\Games"}) {
-        HKEY key = nullptr;
-        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, games, 0, KEY_READ, &key) != ERROR_SUCCESS) {
-            continue;
+    for (const HKEY root : {HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER}) {
+        for (const wchar_t* games : {L"SOFTWARE\\WOW6432Node\\GOG.com\\Games", L"SOFTWARE\\GOG.com\\Games"}) {
+            add_gog_games(out, root, games);
         }
-        std::array<wchar_t, 256> subkey{};
-        for (DWORD index = 0;; ++index) {
-            auto subkey_size = static_cast<DWORD>(subkey.size());
-            if (RegEnumKeyExW(key, index, subkey.data(), &subkey_size, nullptr, nullptr, nullptr, nullptr) !=
-                ERROR_SUCCESS) {
-                break;
-            }
-            std::array<wchar_t, MAX_PATH * 2> value{};
-            auto value_size = static_cast<DWORD>(value.size() * sizeof(wchar_t));
-            if (RegGetValueW(key, subkey.data(), L"path", RRF_RT_REG_SZ, nullptr, value.data(), &value_size) ==
-                ERROR_SUCCESS) {
-                add_if_folder(out, fs::path(value.data()));
-            }
-        }
-        RegCloseKey(key);
     }
 }
 #endif
@@ -113,24 +143,43 @@ std::vector<fs::path> GameDirectory::installation_candidates() {
     std::vector<fs::path> out;
 #if defined(_WIN32)
     add_gog_registry(out);
-    const fs::path drive = environment_path("SystemDrive").value_or(fs::path("C:"));
-    add_named_below(out, drive / "/GOG Games");  // "C:" / "/GOG Games" is C:\GOG Games
     for (const char* program_files : {"ProgramFiles(x86)", "ProgramFiles"}) {
         if (const auto folder = environment_path(program_files)) {
             add_named_below(out, *folder / "GOG Galaxy" / "Games");
             add_named_below(out, *folder / "GOG Games");
         }
     }
+    // "C:" / "/" is C:\, the drive's root.
+    add_windows_drive(out, environment_path("SystemDrive").value_or(fs::path("C:")) / "/");
 #else
     if (const auto home = environment_path("HOME"); home && !home->empty()) {
-        add_named_below(out, *home / "GOG Games");
-        add_named_below(out, *home / "Games" / "Heroic");  // Heroic Games Launcher
-        add_named_below(out, *home / "Games");
-        for (const char* windows_folder : {"GOG Games", "Program Files (x86)/GOG Galaxy/Games"}) {
-            add_named_below(out, *home / ".wine" / "drive_c" / windows_folder);
+        out = home_candidates(*home);
+    }
+#if defined(__APPLE__)
+    add_named_below(out, "/Applications");
+#endif
+#endif
+    return out;
+}
+
+std::vector<fs::path> GameDirectory::home_candidates(const fs::path& home) {
+    std::vector<fs::path> out;
+    add_named_below(out, home / "GOG Games");
+    add_named_below(out, home / "Games" / "Heroic");  // Heroic Games Launcher
+    add_named_below(out, home / "Games");             // Lutris
+    add_named_below(out, home / "Applications");
+    add_windows_drive(out, home / ".wine" / "drive_c");
+    add_prefixes_below(out, home / "Library" / "Application Support" / "CrossOver" / "Bottles");
+    add_prefixes_below(out, home / ".local" / "share" / "bottles" / "bottles");
+    add_prefixes_below(out, home / ".var" / "app" / "com.usebottles.bottles" / "data" / "bottles" / "bottles");
+    add_prefixes_below(out, home / "Games" / "Heroic" / "Prefixes");
+    // Lutris: a prefix per game, in the game's folder.
+    std::error_code ec;
+    for (fs::directory_iterator it(home / "Games", ec), last; !ec && it != last; it.increment(ec)) {
+        if (it->is_directory(ec) && it->path().filename() != "Heroic") {
+            add_windows_drive(out, it->path() / "drive_c");
         }
     }
-#endif
     return out;
 }
 

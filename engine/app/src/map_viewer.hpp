@@ -24,6 +24,7 @@
 #include "multiplayer_menu.hpp"
 #include "names.hpp"
 #include "video_controller.hpp"
+#include "viewer_options.hpp"
 #include "zoom_graphics.hpp"
 
 #include "o1602/assets/building_table.hpp"
@@ -63,79 +64,6 @@ union SDL_Event;
 namespace o1602::app {
 
 class MainMenu;
-
-struct ViewerOptions {
-    std::filesystem::path scenario;    ///< scenario (.szs / .szm), savegame (.gam) or Open1602 savegame (.o1602)
-    std::uint32_t max_frames = 0;      ///< stop after N frames (0 = run until closed); for smoke tests
-    std::filesystem::path screenshot;  ///< write the last frame as PNG before exiting
-    std::filesystem::path save;        ///< save the game before exiting (.o1602, or .gam for the original)
-    render::Zoom zoom = render::Zoom::Large;
-    bool show_owners = false;  ///< start with the ownership view
-    /// Show figures at the smallest zoom level from half-size graphics of the middle level (the
-    /// original shows none there). Off: only the sheets the original has.
-    bool derive_small_figures = true;
-    /// The original red/blue/yellow/white flag images instead of the tinted generic flag.
-    bool original_flags = false;
-    /// The original's data without the corrections settings.cfg `data_fixes` switches on.
-    bool original_data = false;
-    /// The window's size (--size); 0: the size it had last time (settings.cfg), else 1280 x 800.
-    std::int32_t width = 0;
-    std::int32_t height = 0;
-    sim::Rules rules;  ///< settings of the game (refund on demolishing, ...)
-    /// Start a new endless game instead of loading `scenario`.
-    std::optional<sim::NewGameOptions> new_game;
-    /// How the islands of a scenario that makes them at the start are drawn (also --scenario
-    /// Szenes/Endlosspiel00.szs).
-    sim::WorldStart world;
-    bool frame = true;    ///< the original's panel and status bar around the map
-    bool effects = true;  ///< sounds and voice messages (also off in the original's Game.dat)
-    bool music = true;
-    bool videos = true;                  ///< the videos of messages, victory, defeat and pause
-    bool intro = false;                  ///< the logos and the intro before the game (the original always shows them)
-    std::optional<std::uint16_t> video;  ///< one video before the game (VideoSmk number)
-    /// A message to show when the game starts (its id, "mymod:lighthouse"): to try a mod's messages.
-    std::string message;
-    /// The original's mouse: the left button gives orders too, the right one only cancels
-    /// (ADR 0010: Open1602 orders with the right button).
-    bool original_mouse = false;
-    /// Ask before scuttling, disbanding and declaring war by an attack (ADR 0010).
-    bool confirm = true;
-    /// The key settings (ADR 0010); empty: keys.cfg in the user's data folder, written with the
-    /// defaults if it is not there yet.
-    std::filesystem::path keys_file;
-    /// The language of Open1602's own texts ("de", "en", ...); empty: settings.cfg, else the
-    /// language of the installation (ui/localization.hpp).
-    std::string language;
-    /// Start in the main menu instead of a game (no game was named on the command line).
-    bool menu = false;
-    /// Mouse input played at given frames (smoke tests of the interface without a person).
-    struct ScriptedInput {
-        enum class Kind : std::uint8_t { Move, Down, Up, Key, Wheel, Text };
-        Kind kind = Kind::Move;
-        std::uint32_t frame = 0;
-        float x = 0.0F;
-        float y = 0.0F;
-        std::int32_t key = 0;   ///< Key: SDL key code; Wheel: notches (up: zoom in)
-        std::uint16_t mod = 0;  ///< Key: SDL_KMOD_CTRL, SDL_KMOD_SHIFT
-        bool right = false;     ///< Down/Up: the right button
-        std::string text;       ///< Text: typed as the platform's text input (UTF-8)
-    };
-    std::vector<ScriptedInput> input;
-    /// Select the building on this island tile at the start (island index, x, y) and look at it.
-    std::optional<std::array<std::uint16_t, 3>> select;
-    std::optional<std::uint32_t> select_ship;     ///< index into the game's ships
-    std::optional<std::uint32_t> select_soldier;  ///< index into the game's land units
-    /// A multiplayer game (ADR 0011): host the game named, or join a host and play the game it sends.
-    struct Multiplayer {
-        enum class Role : std::uint8_t { Host, Join };
-        Role role = Role::Host;
-        std::string address;  ///< Join: the host's name or IPv4 address
-        std::uint16_t port = net::kDefaultPort;
-        std::string name;      ///< the player's name for the others; empty: the menu's
-        std::string password;  ///< Join: the game's password, if it has one
-    };
-    std::optional<Multiplayer> multiplayer;
-};
 
 /// The running program: the window, the game and its presentation. Coordinates the parts that
 /// take the input (MapInput), present the game's events (EventPresenter) and play the videos
