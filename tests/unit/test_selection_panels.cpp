@@ -39,6 +39,7 @@ constexpr std::uint32_t kChapel = 20809;  // DIVERS, second in the build menu
 constexpr std::uint32_t kKontor = 22101;
 constexpr std::uint32_t kHouse = 20001;
 constexpr std::uint32_t kYard = 22111;
+constexpr std::uint32_t kCastle = 22521;
 constexpr std::int32_t kInfraIcon = 62021;
 
 /// A layout with these gadget Ids, each a text box of its own place (`graphic` a sprite).
@@ -59,8 +60,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
 }
 
 /// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
-/// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), INFRA (62002..62021) and
-/// HANDEL (53002..53100) layouts and the GAME and
+/// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), MILITAR (40002..40130),
+/// INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -104,6 +105,11 @@ struct Game {
         }
         write(root / "GADDATA" / "BAUSHIP.GAD", gad(ids));
         ids.clear();
+        for (std::int32_t id = 40002; id <= 40130; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "MILITAR.GAD", gad(ids));
+        ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
         }
@@ -138,7 +144,8 @@ struct Game {
 };
 
 /// A bakery (HANDWERK) with running costs 25 at work and 10 at rest, a chapel with 8, a Kontor and
-/// a house of the first class (tax 1.5) and a small shipyard (three tiles wide, costs 30 and 12).
+/// a house of the first class (tax 1.5), a small shipyard (three tiles wide, costs 30 and 12) and a
+/// castle with three training places.
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}};
     const auto doc = assets::cod::parse(
@@ -166,6 +173,10 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 4\n  Id: 22111\n  Gfx: 400\n  Size: 3, 2\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 14\n    Rohstoff: 4\n    Workstoff: 9\n    Rohmenge: 2\n"
         "    Workmenge: 1\n    Kosten: 30, 12\n  EndObj\n"
+        "EndObj\n"
+        "Objekt: HAUS\n"
+        "  @Nummer: 5\n  Id: 22521\n  Gfx: 500\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 15\n    Maxware: 3\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -174,8 +185,9 @@ assets::BuildingTable make_buildings() {
 }
 
 /// One island with a bakery of the local player at (2, 2) and one of another player at (6, 2), a
-/// chapel, a house and a shipyard of the local player at (9, 2), (9, 5) and (1, 5) in its city 3 and
-/// a Kontor of the other at (6, 5) in its city 4 (the tests add the cities they need).
+/// chapel, a house, a shipyard and a castle of the local player at (9, 2), (9, 5), (1, 5) and (10, 6)
+/// in its city 3 and a Kontor of the other at (6, 5) in its city 4 (the tests add the cities they
+/// need).
 struct Town {
     assets::BuildingTable buildings = make_buildings();
     assets::FigureTable figures;
@@ -189,6 +201,7 @@ struct Town {
         REQUIRE(map.place(*buildings.by_id(kKontor), 6, 5, 0, 0, kOther, 4).ok());
         REQUIRE(map.place(*buildings.by_id(kHouse), 9, 5, 0, 0, kLocal, 3).ok());
         REQUIRE(map.place(*buildings.by_id(kYard), 1, 5, 0, 0, kLocal, 3).ok());
+        REQUIRE(map.place(*buildings.by_id(kCastle), 10, 6, 0, 0, kLocal, 3).ok());
         sim::WorldIsland island{assets::IslandHeader{}, std::move(map), 4, 4};
         island.header.width = 12;
         island.header.height = 8;
@@ -214,6 +227,12 @@ struct Town {
         yard.wood = 3 * 32;
         yard.cloth = 32;
         world.add_cost_building(yard);
+        sim::CostBuilding castle;
+        castle.kind = sim::CostBuilding::Kind::Castle;
+        castle.x = 10;
+        castle.y = 6;
+        castle.weapons = {2 * 32, 0, 32};
+        world.add_cost_building(castle);
     }
 };
 
@@ -588,4 +607,72 @@ TEST_CASE("selection panels: the shipyard window orders a ship of the types a sm
     CHECK(p->panel().selected(39018));
     shown = texts(*p);
     CHECK(std::find(shown.begin(), shown.end(), "12") != shown.end());  // running cost at rest
+}
+
+TEST_CASE("selection panels: the castle window recruits, shows the training and sends the unit out") {
+    Game g("o1602-test-selection-militar");
+    Town t;
+    add_city(t.world, 3, kLocal, "Haven");
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const Selection castle = building(10, 6);
+    SelectionPanel* p = panels.panel_for(castle, c);
+    REQUIRE(p != nullptr);
+    p->refresh(castle, c);
+    auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "2t") != shown.end());  // swords in store
+    CHECK(std::find(shown.begin(), shown.end(), "1t") != shown.end());  // cannons
+
+    // Recruiting: the first place, the unit of the owner's colour; nothing else sends a command.
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40022}, castle, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40009}, castle, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Pressed, 40009}, castle, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* recruit = std::get_if<sim::CastleOrder>(&out[0]);
+    REQUIRE(recruit != nullptr);
+    CHECK(recruit->op == sim::CastleOrder::Op::Recruit);
+    CHECK(recruit->slot == 0);
+    CHECK(recruit->player == kLocal);
+    CHECK(recruit->x == 10);
+    CHECK(recruit->y == 6);
+
+    // A unit half trained in the second place: its progress in tenths; chosen, it can be given up
+    // or sent to a spot picked on the map.
+    sim::CastleSlot first;
+    first.figure = recruit->figure;
+    first.progress = 320;
+    sim::CastleSlot second;
+    second.figure = recruit->figure;
+    second.progress = 160;
+    t.world.cost_buildings()[1].slots = {first, second};
+    p->refresh(castle, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "10") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "5") != shown.end());
+    out.clear();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40092}, castle, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40003}, castle, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* cancel = std::get_if<sim::CastleOrder>(&out[0]);
+    REQUIRE(cancel != nullptr);
+    CHECK(cancel->op == sim::CastleOrder::Op::Cancel);
+    CHECK(cancel->slot == 1);
+    out.clear();
+    CHECK(!p->picking());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40004}, castle, c, out);
+    CHECK(p->picking());
+    CHECK(p->back());
+    CHECK(!p->picking());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40004}, castle, c, out);
+    p->picked(3, 4, castle, c, out);
+    CHECK(!p->picking());
+    REQUIRE(out.size() == 1);
+    const auto* release = std::get_if<sim::CastleOrder>(&out[0]);
+    REQUIRE(release != nullptr);
+    CHECK(release->op == sim::CastleOrder::Op::Release);
+    CHECK(release->slot == 1);
+    CHECK(release->spot == sim::Target::spot(7, 9));
 }
