@@ -17,6 +17,7 @@
 
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
+#include "o1602/core/result.hpp"
 #include "o1602/sim/player.hpp"
 
 namespace o1602::sim {
@@ -49,8 +50,13 @@ public:
     /// it against him (diplomacy event 5).
     void city_founded(std::uint16_t island, std::uint8_t city);
 
+    /// The version save() writes, the section AIST of the running game's state (DS-3); load()
+    /// reads every version from the first.
+    [[nodiscard]] static std::uint16_t state_version() noexcept;
     void save(core::ByteWriter& out) const;
-    bool load(core::ByteReader& in);
+    /// Restores what save() of `version` wrote; an error if the data is damaged or the computers'
+    /// engine cannot take it (nothing changed then).
+    core::Status load(core::ByteReader& in, std::uint16_t version);
 
     /// What a computer player is doing, for tests and the debug display.
     struct View {

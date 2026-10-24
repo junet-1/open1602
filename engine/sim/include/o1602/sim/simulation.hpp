@@ -139,12 +139,12 @@ public:
                Rules rules = Rules::open1602());
 
     /// Whether the state of the running game a world carries (a game saved by Open1602) can be
-    /// read whole; true for a world without one. Builds the parts of a game on the world to try,
-    /// without running a tick, so that a loader can refuse a damaged file before the game starts.
+    /// read whole (the error names the part that is not); Ok for a world without one. Builds the parts of a game on the
+    /// world to try, without running a tick, so that a loader can refuse a damaged file before the game starts.
     /// Building the parts may normalise the world as a load does (ships of older files get their
     /// health), so it must leave a world of a running game as it is.
-    [[nodiscard]] static bool state_readable(World& world, const assets::BuildingTable& buildings,
-                                             const assets::FigureTable& figures);
+    [[nodiscard]] static core::Status state_readable(World& world, const assets::BuildingTable& buildings,
+                                                     const assets::FigureTable& figures);
 
     /// Advances by `real_ms` of real time at the current speed; runs whole ticks and keeps the rest,
     /// at most kMaxTicksPerAdvance and only while `before_tick` agrees. Time owed beyond one more
@@ -276,7 +276,8 @@ private:
     bool game_speed(const GameSpeedOrder& order);
     bool rename_player(const PlayerRename& order);
     bool control_player(const PlayerControl& order);
-    bool restore_state(const std::vector<std::uint8_t>& state);
+    core::Status restore_state(const std::vector<std::uint8_t>& state);
+    core::Status restore_legacy_state(core::ByteReader& reader, std::uint16_t version);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);
 
     /// A step of tick(); see tick_steps() for the order and why.

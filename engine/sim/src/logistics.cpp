@@ -2062,7 +2062,10 @@ void Logistics::save(core::ByteWriter& out) const {
     }
 }
 
-bool Logistics::load(core::ByteReader& reader, std::uint16_t version) {
+core::Status Logistics::load(core::ByteReader& reader, std::uint16_t version) {
+    if (version < 1 || version > kStateVersion) {
+        return core::make_error(core::ErrorCode::Unsupported, "LOGI: version " + std::to_string(version));
+    }
     StateIn in(reader);
     std::vector<std::pair<std::optional<Walker>, std::uint32_t>> slots;
     const std::uint32_t n = in.count(5);  // no reserve: a walker takes far more memory than its 5 bytes
@@ -2105,14 +2108,14 @@ bool Logistics::load(core::ByteReader& reader, std::uint16_t version) {
         *v = in.u64();
     }
     if (!in.ok()) {
-        return false;
+        return core::make_error(core::ErrorCode::InvalidFormat, "LOGI: figures cut off or not fitting the world");
     }
     m_walkers.restore(std::move(slots));
     m_jobs = std::move(jobs);
     m_reserved_tiles = std::move(tiles);
     m_stats = stats;
     m_hunt_calls.clear();
-    return true;
+    return core::Ok{};
 }
 
 }  // namespace o1602::sim

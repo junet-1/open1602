@@ -66,7 +66,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
             return;  // a game saved by Open1602 continues where it was
         }
         m_state_damaged = true;
-        restore_state(fresh.take());
+        (void)restore_state(fresh.take());
     }
     // As the original after every load: the computer players look at the world anew (0x0042B710).
     m_ai.reset();
@@ -77,10 +77,10 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     update_services(world, buildings);
 }
 
-bool Simulation::state_readable(World& world, const assets::BuildingTable& buildings,
-                                const assets::FigureTable& figures) {
+core::Status Simulation::state_readable(World& world, const assets::BuildingTable& buildings,
+                                        const assets::FigureTable& figures) {
     if (world.simulation_state().empty()) {
-        return true;
+        return core::Ok{};
     }
     Simulation probe(world, buildings, figures, Rules::open1602(), Parts{});
     return probe.restore_state(world.simulation_state());
@@ -137,56 +137,262 @@ void Simulation::offer_names(std::vector<std::string> cities, std::vector<std::s
     }
 }
 
-void Simulation::save_state(core::ByteWriter& out) const {
-    constexpr std::uint16_t kVersion = 6;
-    out.u16(kVersion);
-    out.u32(m_production_ms);
-    out.u32(m_city_ms);
-    out.u32(m_disaster_ms);
-    out.u32(m_upkeep_ms);
-    out.u32(m_island_ms);
-    m_logistics.save(out);
-    m_fleet.save(out);
-    m_military.save(out);
-    m_ai.save(out);
-    write_names(out, m_city_names);
-    write_names(out, m_fleet.ship_names());
-    out.u32(m_speed);
-    out.u8(m_paused ? 1 : 0);
+namespace {
+
+// The state of the running game (the section SIMU) is a list of parts, each a section of its own
+// as in the savegame (tag, version, flags, size; save/sections.cpp), so that one part can change
+// without the others and a reader knows what it cannot read (DS-3). It begins with the u16
+// kSectionedState; the bodies of the earlier versions 1 to 6 began with their version and held
+// the parts one after the other without a frame (restore_legacy_state).
+constexpr std::uint16_t kSectionedState = 7;
+
+constexpr std::uint32_t part_tag(const char (&s)[5]) noexcept {
+    return static_cast<std::uint32_t>(static_cast<unsigned char>(s[0])) |
+           static_cast<std::uint32_t>(static_cast<unsigned char>(s[1])) << 8 |
+           static_cast<std::uint32_t>(static_cast<unsigned char>(s[2])) << 16 |
+           static_cast<std::uint32_t>(static_cast<unsigned char>(s[3])) << 24;
 }
 
-bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
-    if (state.empty()) {
-        return false;
+/// The clocks of the simulation, the names for new cities and ships, the speed and the pause.
+constexpr std::uint32_t kClocksPart = part_tag("SIMC");
+constexpr std::uint32_t kLogisticsPart = part_tag("LOGI");
+constexpr std::uint32_t kFleetPart = part_tag("FLET");
+constexpr std::uint32_t kMilitaryPart = part_tag("MILI");
+/// The computers' plans: optional, as a reader that cannot read them lets the computers look at
+/// the world anew, as after loading an original savegame.
+constexpr std::uint32_t kComputersPart = part_tag("AIST");
+constexpr std::uint16_t kClocksVersion = 1;
+constexpr std::uint16_t kRequiredPart = 1;  ///< flag: a reader that cannot read the part must not load
+
+template <class Fn>
+void write_part(core::ByteWriter& out, std::uint32_t id, std::uint16_t version, bool required, Fn&& body) {
+    out.u32(id);
+    out.u16(version);
+    out.u16(required ? kRequiredPart : 0);
+    const std::size_t size_at = out.size();
+    out.u32(0);
+    const std::size_t start = out.size();
+    body();
+    out.patch_u32(size_at, static_cast<std::uint32_t>(out.size() - start));
+}
+
+std::string part_name(std::uint32_t id) {
+    std::string name;
+    for (std::uint32_t i = 0; i < 4; ++i) {
+        const auto c = static_cast<char>((id >> (8 * i)) & 0xFFU);
+        name.push_back(c >= ' ' && c <= '~' ? c : '?');
     }
+    return name;
+}
+
+core::Status damaged(std::string what) {
+    return core::make_error(core::ErrorCode::InvalidFormat, "SIMU: " + std::move(what));
+}
+
+/// Reads all of a part through `load(reader, version)`: bytes left over are damage too, as the
+/// reader did not read what the writer wrote.
+template <class Load>
+core::Status load_part(std::span<const std::uint8_t> body, std::uint32_t id, std::uint16_t version, Load&& load) {
+    core::ByteReader reader(body);
+    if (auto status = load(reader, version); !status) {
+        return damaged(status.error().message);
+    }
+    if (!reader.at_end()) {
+        return damaged(part_name(id) + ": " + std::to_string(reader.remaining()) + " bytes not read");
+    }
+    return core::Ok{};
+}
+
+}  // namespace
+
+void Simulation::save_state(core::ByteWriter& out) const {
+    out.u16(kSectionedState);
+    write_part(out, kClocksPart, kClocksVersion, true, [&] {
+        out.u32(m_production_ms);
+        out.u32(m_city_ms);
+        out.u32(m_disaster_ms);
+        out.u32(m_upkeep_ms);
+        out.u32(m_island_ms);
+        write_names(out, m_city_names);
+        write_names(out, m_fleet.ship_names());
+        out.u32(m_speed);
+        out.u8(m_paused ? 1 : 0);
+    });
+    write_part(out, kLogisticsPart, Logistics::kStateVersion, true, [&] { m_logistics.save(out); });
+    write_part(out, kFleetPart, m_fleet.state_version(), true, [&] { m_fleet.save(out); });
+    write_part(out, kMilitaryPart, Military::kStateVersion, true, [&] { m_military.save(out); });
+    write_part(out, kComputersPart, ComputerPlayers::state_version(), false, [&] { m_ai.save(out); });
+}
+
+core::Status Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     core::ByteReader reader(state);
-    StateIn in(reader);
-    const std::uint16_t version = in.u16();
-    if (version < 1 || version > 6) {
-        return false;
+    const auto version = reader.u16();
+    if (!version) {
+        return damaged("empty");
     }
+    if (*version >= 1 && *version <= 6) {
+        return restore_legacy_state(reader, *version);
+    }
+    if (*version != kSectionedState) {
+        return core::make_error(core::ErrorCode::Unsupported,
+                                "SIMU: version " + std::to_string(*version) + " needs a newer Open1602");
+    }
+    // Every part found first, then read in a fixed order.
+    struct Part {
+        std::uint16_t version = 0;
+        std::span<const std::uint8_t> body;
+    };
+    std::optional<Part> clocks, logistics, fleet, military, computers;
+    while (!reader.at_end()) {
+        const auto id = reader.u32();
+        const auto part_version = reader.u16();
+        const auto flags = reader.u16();
+        const auto size = reader.u32();
+        const auto body = id && part_version && flags && size ? reader.bytes(*size) : std::nullopt;
+        if (!body) {
+            return damaged("a part's header is cut off");
+        }
+        std::optional<Part>* slot = nullptr;
+        std::uint16_t max_version = 0;
+        switch (*id) {
+            case kClocksPart:
+                slot = &clocks;
+                max_version = kClocksVersion;
+                break;
+            case kLogisticsPart:
+                slot = &logistics;
+                max_version = Logistics::kStateVersion;
+                break;
+            case kFleetPart:
+                slot = &fleet;
+                max_version = Fleet::kMaxStateVersion;
+                break;
+            case kMilitaryPart:
+                slot = &military;
+                max_version = Military::kStateVersion;
+                break;
+            case kComputersPart:
+                slot = &computers;
+                max_version = ComputerPlayers::state_version();
+                break;
+            default:
+                break;
+        }
+        const std::string what = part_name(*id) + " (version " + std::to_string(*part_version) + ")";
+        if (slot == nullptr || *part_version == 0 || *part_version > max_version) {
+            if ((*flags & kRequiredPart) != 0) {
+                return core::make_error(core::ErrorCode::Unsupported, "SIMU: " + what + " needs a newer Open1602");
+            }
+            continue;  // a part of a later Open1602 the game can do without
+        }
+        if (slot->has_value()) {
+            return damaged(part_name(*id) + " twice");
+        }
+        *slot = Part{*part_version, *body};
+    }
+    if (!clocks || !logistics || !fleet || !military) {
+        return damaged("a part is missing");
+    }
+
+    core::ByteReader clock_reader(clocks->body);
+    StateIn in(clock_reader);
     const std::uint32_t production = in.u32();
     const std::uint32_t city = in.u32();
     const std::uint32_t disaster = in.u32();
     const std::uint32_t upkeep = in.u32();
     const std::uint32_t island = in.u32();
+    std::vector<std::string> cities;
+    std::vector<std::string> ships;
+    const bool names = read_names(in, cities) && read_names(in, ships);
+    const std::uint32_t speed = in.u32();
+    const std::uint8_t pause = in.u8();
+    if (!in.ok() || !names || !clock_reader.at_end() || speed == 0 || pause > 1) {
+        return damaged("SIMC cut off or out of range");
+    }
     // A clock at or past its period would fire on every tick until it has caught up.
     if (production >= kProductionPeriodMs || city >= kCityTickMs || disaster >= kDisasterEpochMs ||
         upkeep >= kUpkeepPeriodMs || island >= Logistics::kIslandEpochMs) {
-        return false;
+        return damaged("SIMC: a clock past its period");
     }
-    if (!in.ok() || !m_logistics.load(reader, version)) {
-        return false;
+    const auto load_logistics = [&](core::ByteReader& r, std::uint16_t v) { return m_logistics.load(r, v); };
+    const auto load_fleet = [&](core::ByteReader& r, std::uint16_t v) { return m_fleet.load(r, v); };
+    const auto load_military = [&](core::ByteReader& r, std::uint16_t v) { return m_military.load(r, v); };
+    const auto load_computers = [&](core::ByteReader& r, std::uint16_t v) { return m_ai.load(r, v); };
+    if (auto s = load_part(logistics->body, kLogisticsPart, logistics->version, load_logistics); !s) {
+        return s;
     }
-    if (version >= 2 && !m_fleet.load(reader)) {
-        return false;
+    if (auto s = load_part(fleet->body, kFleetPart, fleet->version, load_fleet); !s) {
+        return s;
     }
-    if (version >= 3 && !m_military.load(reader)) {
-        return false;
+    if (auto s = load_part(military->body, kMilitaryPart, military->version, load_military); !s) {
+        return s;
+    }
+    if (computers) {
+        if (auto s = load_part(computers->body, kComputersPart, computers->version, load_computers); !s) {
+            return s;
+        }
+    } else {
+        m_ai.reset();  // a later version's plans, or none: the computers look at the world anew
+    }
+    m_production_ms = production;
+    m_city_ms = city;
+    m_disaster_ms = disaster;
+    m_upkeep_ms = upkeep;
+    m_island_ms = island;
+    m_city_names = std::move(cities);
+    m_fleet.set_ship_names(std::move(ships));
+    set_speed(speed);
+    m_paused = pause != 0;
+    return core::Ok{};
+}
+
+core::Status Simulation::restore_legacy_state(core::ByteReader& reader, std::uint16_t version) {
+    // Versions 1 to 6 (until 2026-10): the parts one after the other, each new version adding one
+    // at the end. Kept for the games saved with them (tests/unit/saves).
+    StateIn in(reader);
+    const std::uint32_t production = in.u32();
+    const std::uint32_t city = in.u32();
+    const std::uint32_t disaster = in.u32();
+    const std::uint32_t upkeep = in.u32();
+    const std::uint32_t island = in.u32();
+    if (!in.ok()) {
+        return damaged("cut off");
+    }
+    if (production >= kProductionPeriodMs || city >= kCityTickMs || disaster >= kDisasterEpochMs ||
+        upkeep >= kUpkeepPeriodMs || island >= Logistics::kIslandEpochMs) {
+        return damaged("a clock past its period");
+    }
+    // Version 1 had the walkers before shipyards had pack donkeys.
+    if (auto s = m_logistics.load(reader, version >= 2 ? 2 : 1); !s) {
+        return damaged(s.error().message);
+    }
+    if (version >= 2) {
+        // The fleet's state began with its own version.
+        const auto fleet = reader.u16();
+        if (!fleet) {
+            return damaged("FLET cut off");
+        }
+        if (auto s = m_fleet.load(reader, *fleet); !s) {
+            return damaged(s.error().message);
+        }
+    }
+    if (version >= 3) {
+        // The military's clocks had no version: in version 3 they ended the state, with one, two
+        // or three of them; from version 4 on the computers' state followed all three.
+        const std::uint16_t military =
+            version == 3 ? static_cast<std::uint16_t>(std::clamp<std::size_t>(reader.remaining() / 4, 1, 3)) : 3;
+        if (auto s = m_military.load(reader, military); !s) {
+            return damaged(s.error().message);
+        }
     }
     if (version >= 4) {
-        if (!m_ai.load(reader)) {
-            return false;
+        // The computers' state began with its own version (u32).
+        const auto computers = reader.u32();
+        if (!computers || *computers > 0xFFFF) {
+            return damaged("AIST cut off");
+        }
+        if (auto s = m_ai.load(reader, static_cast<std::uint16_t>(*computers)); !s) {
+            return damaged(s.error().message);
         }
     } else {
         m_ai.reset();  // games of earlier versions had no computer players' state
@@ -194,7 +400,7 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     std::vector<std::string> cities;
     std::vector<std::string> ships;
     if (version >= 5 && (!read_names(in, cities) || !read_names(in, ships))) {
-        return false;
+        return damaged("names cut off");
     }
     // Games of earlier versions did not keep the speed and the pause: they load running at speed 1.
     std::uint32_t speed = 1;
@@ -203,7 +409,7 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
         speed = in.u32();
         const std::uint8_t pause = in.u8();
         if (!in.ok() || speed == 0 || pause > 1) {
-            return false;
+            return damaged("speed cut off or out of range");
         }
         paused = pause != 0;
     }
@@ -218,7 +424,7 @@ bool Simulation::restore_state(const std::vector<std::uint8_t>& state) {
     }
     set_speed(speed);
     m_paused = paused;
-    return true;
+    return core::Ok{};
 }
 
 void Simulation::set_speed(std::uint32_t speed) noexcept {

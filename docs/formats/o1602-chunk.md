@@ -99,7 +99,7 @@ older readers, marked optional.
 | `DIPL` | diplomacy: per player pair peace, trade, time of war, tribute, trade and damage; per player all 32 events and the culprit ([diplomacy.md](../re/diplomacy.md)) |
 | `QUEU` | command chains: per ship, then per soldier with a queue, the id and up to 16 waiting destinations (Shift+right-click) |
 | `STNC` | per ship, then per soldier with a stance, the id and the flags attack move (bit 0) and hold position (bit 1) (ADR 0010) |
-| `SIMU` | clocks of the simulation and figures (own version number at the start; from version 2 with the shipyards' pack mules and the fleet clocks, from 3 with the military, from 4 with the state of the computer opponents, itself with a version number) |
+| `SIMU` | the state of the running game, below |
 
 Buildings are stored as **Id** (from `haeuser.cod`) and sub-tile, not as image number, so that a savegame
 also fits with changed graphics; an unknown Id makes the chunk invalid.
@@ -133,6 +133,9 @@ original (`SHIP4`) then hold the first four stops, and the route from its first 
 sails to a later one; the original plays the route with these, Open1602 reads all eight from the chunk.
 Version 3 too: `SHIP4` then holds the first three wares of each of these stops.
 
+`SIMU` is always written in version 2 (the state in parts, [below](#simu)); version 1 is still read.
+An Open1602 from before 2026-10-24 refuses a file with `SIMU` 2, as the section is required.
+
 ## Safety when loading
 
 - **Fingerprint:** if it does not match (another tool has changed the chunks of the original), Open1602
@@ -155,3 +158,25 @@ Version 3 too: `SHIP4` then holds the first three wares of each of these stops.
   unit limit 250) this is reachable ([savegame-writer.md](../re/savegame-writer.md#open)).
 - Commands not yet executed between two ticks are not saved (saving
   happens between the ticks).
+
+## SIMU
+
+The state of the running game that the world does not hold (`Simulation::save_state`). From
+section version 2 (2026-10, DS-3) the body is the u16 `7` followed by parts, each with the header
+of a section (tag, u16 version, u16 flags with bit 0 "required", u32 size) and its own version:
+
+| Part | Version | Required | Contents |
+|---|---|---|---|
+| `SIMC` | 1 | yes | the clocks of production, cities, disasters, upkeep and islands (u32 each, in ms within their periods), the names for new cities and for new ships (u32 count, strings), the speed (u32, not 0) and the pause (u8, 0 or 1) |
+| `LOGI` | 2 | yes | the figures (walkers) with their slots and generations, the jobs, the reserved tiles and the statistics; version 1 is without the shipyards' pack donkeys |
+| `FLET` | 4 or 5 | yes | the fleet's clocks, the free trader's tools, the pirates' clock, running explorations, the market statistics of the last pass; version 5 with the free traders' choices under `Rules::trader_reach` |
+| `MILI` | 3 | yes | the clocks of regeneration (1), the castles (2) and the natives (3) |
+| `AIST` | 3 | no | the plans of the computer opponents; a reader that cannot read this part lets them look at the world anew |
+
+A part of a later version or with an unknown tag is skipped if not required; otherwise the game is
+refused with the part's name ("SIMU: LOGI (version 3) needs a newer Open1602"). A part whose body
+holds more than its reader takes is damage. Section version 1 held the same in one block, its own
+u16 version (1 to 6) first and every later version adding at the end: 2 the shipyards' pack donkeys
+and the fleet, 3 the military, 4 the computers (with a u32 version), 5 the names, 6 the speed and
+the pause. Open1602 still reads those; `tests/unit/saves` keeps a game of each.
+

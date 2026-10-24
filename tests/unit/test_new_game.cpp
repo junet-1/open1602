@@ -663,7 +663,7 @@ TEST_CASE("new game: an own world with six players: the plan's size and starts, 
     }
     CHECK(!a.state_damaged());
     // And the same on every platform (golden hash, DS-2): a planned world, five computers.
-    test::check_golden("six players after 60 s", a.state_hash(), 0x3f13e01e2b7609c3ULL);
+    test::check_golden("six players after 60 s", a.state_hash(), 0xebdbeb6c018993d4ULL);  // SIMU in parts (DS-3)
 }
 
 TEST_CASE("new game: a colour the level's file does not have is swapped with the player who had it") {

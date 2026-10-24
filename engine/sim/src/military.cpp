@@ -9,6 +9,7 @@
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/sea_paths.hpp"
 #include "o1602/sim/ships.hpp"
+#include "o1602/sim/state_io.hpp"
 
 namespace o1602::sim {
 
@@ -580,32 +581,22 @@ void Military::save(core::ByteWriter& out) const {
     out.u32(m_native_ticks);
 }
 
-bool Military::load(core::ByteReader& in) {
+core::Status Military::load(core::ByteReader& reader, std::uint16_t version) {
+    if (version < 1 || version > kStateVersion) {
+        return core::make_error(core::ErrorCode::Unsupported, "MILI: version " + std::to_string(version));
+    }
     // Read whole first, then taken over: a failed load leaves the clocks as they were.
-    const auto regen = in.u32();
-    if (!regen) {
-        return false;
+    StateIn in(reader);
+    const std::uint32_t regen = in.u32();
+    const std::uint32_t castle_ms = version >= 2 ? in.u32() % kCastleSecondMs : m_castle_ms;
+    const std::uint32_t native_ticks = version >= 3 ? in.u32() : m_native_ticks;
+    if (!in.ok()) {
+        return core::make_error(core::ErrorCode::InvalidFormat, "MILI: cut off");
     }
-    std::uint32_t castle_ms = m_castle_ms;
-    std::uint32_t native_ticks = m_native_ticks;
-    if (!in.at_end()) {
-        const auto castle = in.u32();
-        if (!castle) {
-            return false;
-        }
-        castle_ms = *castle % kCastleSecondMs;
-    }
-    if (!in.at_end()) {
-        const auto ticks = in.u32();
-        if (!ticks) {
-            return false;
-        }
-        native_ticks = *ticks;
-    }
-    m_regen_ms = *regen % kRegenEpochMs;
+    m_regen_ms = regen % kRegenEpochMs;
     m_castle_ms = castle_ms;
     m_native_ticks = native_ticks;
-    return true;
+    return core::Ok{};
 }
 
 }  // namespace o1602::sim

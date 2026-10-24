@@ -4,9 +4,13 @@
 // that does not hold together.
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string_view>
 
 #include "../test_framework.hpp"
+#include "golden.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/core/compress.hpp"
@@ -504,4 +508,119 @@ TEST_CASE("save game: a damaged state of the running game is refused when loadin
     REQUIRE(fresh.ok());
     sim::Simulation started(*fresh, buildings, figures);
     CHECK(started.state_damaged());
+}
+
+namespace {
+
+core::Bytes stored_save(int version) {
+    const std::filesystem::path path =
+        std::filesystem::path(O1602_TEST_SAVES) / ("simu-v" + std::to_string(version) + ".o1602");
+    std::ifstream in(path, std::ios::binary);
+    REQUIRE(in.good());
+    return core::Bytes(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+}
+
+/// Where the part `name` of the running game's state starts in a savegame written unpacked, or 0.
+std::size_t part_at(const core::Bytes& bytes, std::string_view name) {
+    const std::string_view text(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    const std::size_t simu = text.find("SIMU", 32);
+    const std::size_t at = simu == std::string_view::npos ? simu : text.find(name, simu);
+    return at == std::string_view::npos ? 0 : at;
+}
+
+/// The checksum of an unpacked savegame made right after its sections were changed.
+void fix_crc(core::Bytes& bytes) {
+    constexpr std::size_t kHeader = 32;
+    const std::uint32_t crc = core::crc32(std::span(bytes).subspan(kHeader));
+    for (std::size_t b = 0; b < 4; ++b) {
+        bytes[24 + b] = static_cast<std::uint8_t>(crc >> (8 * b));
+    }
+}
+
+}  // namespace
+
+TEST_CASE("save game: games of every earlier state version load and run on as they did (DS-3)") {
+    if (!core::has_zlib()) {
+        return;  // the stored games are packed
+    }
+    // tests/unit/saves: the same small game saved by Open1602 with SIMU state versions 1 to 6 (the
+    // last before the parts), and the world after 200 more ticks as those versions ran it. Versions
+    // 1 to 3 had no state of the computers, so these start them anew.
+    const auto buildings = make_buildings();
+    const assets::FigureTable figures;
+    for (int version = 1; version <= 6; ++version) {
+        const core::Bytes bytes = stored_save(version);
+        auto loaded = sim::read_game(bytes, buildings, nullptr, &figures);
+        REQUIRE(loaded.ok());
+        // Saved again before it runs: the state goes through as it came and still loads.
+        auto again = sim::write_game(*loaded, buildings, nullptr, sim::SaveOptions{false});
+        REQUIRE(again.ok());
+        REQUIRE(sim::read_game(*again, buildings, nullptr, &figures).ok());
+
+        sim::Simulation simulation(*loaded, buildings, figures);
+        CHECK(!simulation.state_damaged());
+        CHECK(simulation.speed() == (version >= 6 ? 3U : 1U));  // version 6 kept the speed
+        for (int t = 0; t < 200; ++t) {
+            simulation.tick();
+        }
+        test::check_golden(("state version " + std::to_string(version)).c_str(), test::world_hash(*loaded, buildings),
+                           version <= 3 ? 0xb5ce949d8957936aULL : 0xcddabbcaee45a3cfULL);
+
+        // Saved in parts, it comes back with the same game.
+        auto parts = sim::write_game(*loaded, buildings, &simulation, sim::SaveOptions{false});
+        REQUIRE(parts.ok());
+        CHECK(part_at(*parts, "AIST") != 0);
+        auto back = sim::read_game(*parts, buildings, nullptr, &figures);
+        REQUIRE(back.ok());
+        sim::Simulation resumed(*back, buildings, figures);
+        CHECK(!resumed.state_damaged());
+        CHECK(resumed.state_hash() == simulation.state_hash());
+    }
+}
+
+TEST_CASE("save game: a part of the state from a later Open1602 is skipped if optional, else refused (DS-3)") {
+    const auto buildings = make_buildings();
+    const assets::FigureTable figures;
+    sim::World world = make_world(buildings);
+    sim::Simulation simulation(world, buildings, figures);
+    for (int t = 0; t < 20; ++t) {
+        simulation.tick();
+    }
+    auto bytes = sim::write_game(world, buildings, &simulation, sim::SaveOptions{false});
+    REQUIRE(bytes.ok());
+
+    // The computers' plans of a later version (part header: tag, then the u16 version): the game
+    // loads, and the computers look at the world anew.
+    core::Bytes later_ai = *bytes;
+    const std::size_t ai = part_at(later_ai, "AIST");
+    REQUIRE(ai != 0);
+    later_ai[ai + 4] = 0x63;
+    later_ai[ai + 5] = 0;
+    fix_crc(later_ai);
+    auto loaded = sim::read_game(later_ai, buildings, nullptr, &figures);
+    REQUIRE(loaded.ok());
+    sim::Simulation started(*loaded, buildings, figures);
+    CHECK(!started.state_damaged());
+
+    // The figures of a later version are required: the file is refused and says why.
+    core::Bytes later_walkers = *bytes;
+    const std::size_t walkers = part_at(later_walkers, "LOGI");
+    REQUIRE(walkers != 0);
+    later_walkers[walkers + 4] = 0x63;
+    later_walkers[walkers + 5] = 0;
+    fix_crc(later_walkers);
+    auto refused = sim::read_game(later_walkers, buildings, nullptr, &figures);
+    REQUIRE(!refused.ok());
+    CHECK(refused.error().message.find("LOGI (version 99) needs a newer Open1602") != std::string::npos);
+
+    // A part's body that holds more than its reader takes is damage, not something to pass over.
+    core::Bytes longer = *bytes;
+    const std::size_t military = part_at(longer, "MILI");
+    REQUIRE(military != 0);
+    longer[military + 4] = 2;  // version 2 reads two of the three clocks
+    longer[military + 5] = 0;
+    fix_crc(longer);
+    auto damaged = sim::read_game(longer, buildings, nullptr, &figures);
+    REQUIRE(!damaged.ok());
+    CHECK(damaged.error().message.find("MILI: 4 bytes not read") != std::string::npos);
 }
