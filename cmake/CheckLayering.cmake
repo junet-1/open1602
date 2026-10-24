@@ -15,7 +15,8 @@ if(NOT DEFINED ENGINE_DIR)
 endif()
 
 # <directory below engine/> = <modules whose headers it may include>, matching the links in
-# engine/*/CMakeLists.txt. engine/app (the game and o1602::menus) may include everything.
+# engine/*/CMakeLists.txt. engine/app (the game) may include everything; the parts of it in
+# o1602::menus are checked below.
 set(rules
     "core=core"
     "assets=core assets"
@@ -57,6 +58,37 @@ foreach(rule IN LISTS rules)
                 file(RELATIVE_PATH rel "${ENGINE_DIR}/.." "${file}")
                 string(STRIP "${line}" line)
                 list(APPEND violations "${rel}: ${line} (engine/${dir} may include: ${allowed_text})")
+            endif()
+        endforeach()
+    endforeach()
+endforeach()
+
+# o1602::menus: the sources engine/app/menus/CMakeLists.txt lists (and the headers beside them)
+# are built without the platform, so that tests and tools have them (LC-17): no platform,
+# render_sdl, video or SDL.
+set(menus_allowed core assets audio net render sim ui)
+string(REPLACE ";" ", " menus_allowed_text "${menus_allowed}")
+file(READ "${ENGINE_DIR}/app/menus/CMakeLists.txt" menus_list)
+string(REGEX MATCHALL "\\.\\./src/[a-z_]+\\.cpp" menus_sources "${menus_list}")
+if(NOT menus_sources)
+    list(APPEND violations "engine/app/menus: no sources found (rule out of date?)")
+endif()
+foreach(source IN LISTS menus_sources)
+    string(REPLACE "../src/" "${ENGINE_DIR}/app/src/" file "${source}")
+    string(REGEX REPLACE "\\.cpp$" ".hpp" header "${file}")
+    foreach(f IN ITEMS "${file}" "${header}")
+        if(NOT EXISTS "${f}")
+            continue()
+        endif()
+        math(EXPR checked "${checked} + 1")
+        file(STRINGS "${f}" includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"](o1602/[a-z_]+/|SDL3/)")
+        foreach(line IN LISTS includes)
+            string(REGEX MATCH "(o1602/([a-z_]+)/|SDL3/)" _ "${line}")
+            set(module "${CMAKE_MATCH_2}")
+            if(NOT CMAKE_MATCH_2 OR NOT module IN_LIST menus_allowed)
+                file(RELATIVE_PATH rel "${ENGINE_DIR}/.." "${f}")
+                string(STRIP "${line}" line)
+                list(APPEND violations "${rel}: ${line} (o1602::menus may include: ${menus_allowed_text})")
             endif()
         endforeach()
     endforeach()

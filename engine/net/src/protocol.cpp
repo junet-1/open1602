@@ -447,15 +447,6 @@ sim::PlayerId command_player(const sim::Command& command) noexcept {
     return std::visit([](const auto& c) { return c.player; }, command);
 }
 
-std::uint64_t fingerprint(std::span<const std::uint8_t> data, std::uint64_t seed) noexcept {
-    std::uint64_t h = seed;
-    for (const std::uint8_t b : data) {
-        h ^= b;
-        h *= 0x100000001b3ULL;
-    }
-    return h;
-}
-
 std::uint64_t token_verifier(std::uint64_t token, std::uint64_t salt) noexcept {
     core::ByteWriter in;
     in.u64(salt);

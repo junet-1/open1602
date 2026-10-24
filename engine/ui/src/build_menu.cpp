@@ -6,6 +6,7 @@
 #include <system_error>
 #include <utility>
 
+#include "o1602/assets/game_content.hpp"
 #include "o1602/core/data_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
@@ -317,24 +318,14 @@ core::Status apply_build_menu_package(BuildMenuDefinition& menu, std::string_vie
 BuildMenuDefinition load_build_menu_mods(const BuildMenuDefinition& menu, const std::filesystem::path& mods,
                                          const assets::BuildingTable& buildings, std::vector<std::string>& warnings) {
     BuildMenuDefinition out = menu;
-    std::error_code ec;
-    std::vector<std::filesystem::path> packages;
-    for (const auto& entry : std::filesystem::directory_iterator(mods, ec)) {
-        if (entry.is_directory(ec)) {
-            packages.push_back(entry.path());
-        }
-    }
     // By name, the same order on every system, as the packages' messages.
-    std::sort(packages.begin(), packages.end());
-    for (const std::filesystem::path& folder : packages) {
-        const auto bytes = core::read_file(folder / kBuildMenuFile);
+    for (const assets::ModPackage& package : assets::mod_packages(mods)) {
+        const auto bytes = core::read_file(package.folder / kBuildMenuFile);
         if (!bytes) {
             continue;  // a package that leaves the menu as it is
         }
         const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-        if (const auto status =
-                apply_build_menu_package(out, core::path_to_utf8(folder.filename()), text, buildings, warnings);
-            !status) {
+        if (const auto status = apply_build_menu_package(out, package.id, text, buildings, warnings); !status) {
             warnings.push_back(status.error().message);
         }
     }

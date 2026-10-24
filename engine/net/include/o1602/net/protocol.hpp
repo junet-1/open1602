@@ -304,8 +304,4 @@ using Message = std::variant<Hello, CommandBatch, Progress, Welcome, Refused, Sn
 /// The player a command acts for (every command names one).
 [[nodiscard]] sim::PlayerId command_player(const sim::Command& command) noexcept;
 
-/// FNV-1a 64 over data, continuing from `seed`: for content fingerprints over several files.
-[[nodiscard]] std::uint64_t fingerprint(std::span<const std::uint8_t> data,
-                                        std::uint64_t seed = 0xcbf29ce484222325ULL) noexcept;
-
 }  // namespace o1602::net
