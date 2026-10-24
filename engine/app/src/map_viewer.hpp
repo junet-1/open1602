@@ -113,6 +113,7 @@ private:
     void quit() override { m_running = false; }
     void toggle_owners() override { m_show_owners = !m_show_owners; }
     void toggle_fullscreen() override;
+    void toggle_pause_video() override;
 
     /// The window's events; the rest goes to the input.
     void handle_event(const SDL_Event& event);
@@ -267,9 +268,6 @@ private:
     /// will (M8); false if there is no such message.
     bool announce(std::string_view id, const MessageArgs& args = {},
                   std::optional<std::pair<double, double>> tile = std::nullopt);
-    /// The pause of the original (Pause key) while a video fills the window: the game stops or
-    /// goes on, the pause video loops (VideoController::toggle_pause).
-    void toggle_pause_video();
     void zoom_by(double steps, double sx, double sy) override;
     void scale_by(int direction, double sx, double sy) override;
     /// Free zoom: goes on towards the magnification asked for (smoothly, a few frames).

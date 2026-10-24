@@ -158,7 +158,7 @@ void MapInput::setup_keys() {
     general(chord(SDLK_SPACE), KeyAction::JumpToMessage);
     general(chord(SDLK_HOME), KeyAction::CentreOnSelection);
     general(chord(SDLK_F3), KeyAction::Pause);
-    general(chord(SDLK_PAUSE), KeyAction::Pause);
+    general(chord(SDLK_PAUSE), KeyAction::PauseVideo);
     general(chord(SDLK_KP_PLUS), KeyAction::SpeedUp);
     general(chord(SDLK_KP_MINUS), KeyAction::SpeedDown);
     general(chord(SDLK_F5), KeyAction::QuickSave);
@@ -428,6 +428,9 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             m_commands.submit(sim::GameSpeedOrder{
                 local(), simulation().paused() ? sim::GameSpeedOrder::Op::Resume : sim::GameSpeedOrder::Op::Pause,
                 simulation().speed()});
+            break;
+        case KeyAction::PauseVideo:
+            m_host.toggle_pause_video();
             break;
         case KeyAction::SpeedUp:
             m_commands.submit(

@@ -316,6 +316,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             const std::uint16_t n = *options.video;
             viewer->m_video->request(n, 0, false, n == 8 || n == 9 || n == 58);
         }
+        // Started now, not in the first frame: an Escape scripted for frame 0 already skips them.
+        viewer->m_video->frame(platform::ticks_ms(), false);
     }
     if (options.frame) {
         const auto texts = assets::TextTable::load(game);
