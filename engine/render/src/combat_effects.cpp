@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <unordered_map>
 
 #include "o1602/render/land_figures.hpp"
 #include "o1602/sim/logistics.hpp"
@@ -15,6 +16,10 @@ namespace {
 constexpr std::uint16_t kNoFigure = 0xFFFF;  // NOOBJEKT: swordsmen leave no hit
 /// Height of the hit on a building (Projectile_Hit 0x00445930); ships are hit at 0.
 constexpr double kBuildingHitHeight = 1.0;
+
+std::uint64_t tile_key(std::uint16_t island, std::uint16_t x, std::uint16_t y) {
+    return static_cast<std::uint64_t>(island) << 32U | static_cast<std::uint64_t>(x) << 16U | y;
+}
 
 const assets::FigureType* effect_type(const assets::FigureTable& figures, std::uint16_t figure) {
     return figure != 0 && figure != kNoFigure ? figures.get(figure) : nullptr;
@@ -65,6 +70,7 @@ void CombatEffects::reset() noexcept {
 void CombatEffects::military(const sim::World& world, const assets::BuildingTable& buildings,
                              const assets::FigureTable& figures, std::span<const sim::MilitaryEvent> events) {
     const std::uint64_t now = world.time_ms();
+    std::unordered_map<std::uint64_t, const sim::Tower*> tower_index;
     for (const sim::MilitaryEvent& e : events) {
         if (e.kind == sim::MilitaryEvent::Kind::Hit) {
             // Projectile_Hit 0x00445930: the shooter's Hitfignr where the shot landed, at the height
@@ -97,11 +103,22 @@ void CombatEffects::military(const sim::World& world, const assets::BuildingTabl
         } else if (e.kind == sim::MilitaryEvent::Kind::Shot && e.unit.kind == sim::Target::Kind::Building) {
             // Fx_SpawnTowerShot 0x00447F00: the tower's Shotfignr Fahnoffs[0] out from its centre
             // towards where it aims, Fahnoffs[2] high, turned like the tower.
-            const auto& towers = world.towers();
-            const auto tower = std::find_if(towers.begin(), towers.end(), [&](const sim::Tower& t) {
-                return t.island == e.unit.island && t.x == e.unit.x && t.y == e.unit.y;
-            });
-            const assets::FigureType* tower_type = tower != towers.end() ? figures.get(tower->figure) : nullptr;
+            // Towers by origin, made at the first shot of the call (FB-17); the first tower at a
+            // tile wins, as a linear search would find it.
+            if (tower_index.empty()) {
+                const auto& towers = world.towers();
+                tower_index.reserve(towers.size());
+                for (const sim::Tower& t : towers) {
+                    tower_index.emplace(tile_key(t.island, t.x, t.y), &t);
+                }
+            }
+            const sim::Tower* tower = nullptr;
+            if (e.unit.x <= 0xFFFFU && e.unit.y <= 0xFFFFU) {
+                const auto found = tower_index.find(tile_key(e.unit.island, static_cast<std::uint16_t>(e.unit.x),
+                                                             static_cast<std::uint16_t>(e.unit.y)));
+                tower = found != tower_index.end() ? found->second : nullptr;
+            }
+            const assets::FigureType* tower_type = tower != nullptr ? figures.get(tower->figure) : nullptr;
             const assets::FigureType* type =
                 tower_type != nullptr ? effect_type(figures, tower_type->combat.shot_figure) : nullptr;
             if (type == nullptr) {
