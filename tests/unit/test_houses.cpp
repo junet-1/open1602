@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Houses: coverage by public buildings, growth, upgrade, downgrade, ruins (docs/re/houses.md).
 
+#include <array>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -333,4 +335,42 @@ TEST_CASE("world: cities are found by island and number after adding, removing a
     world.set_cities(loaded);
     CHECK(found(7, 4));
     CHECK(!found(0, 2));
+}
+
+TEST_CASE("houses: the panel's required buildings come from the needs of each class (MD-2)") {
+    // Class_RequiredServices 0x0047F320 of the original.
+    constexpr std::array<std::uint32_t, 5> kOriginal{0x01, 0x03, 0x0F, 0x3D, 0xF9};
+    static_assert(kOriginal.size() == sim::kResidentClasses);
+    for (std::uint8_t c = 0; c < kOriginal.size(); ++c) {
+        CHECK(sim::required_panel_services(c) == kOriginal[c]);
+    }
+    CHECK(sim::required_panel_services(5) == 0);
+}
+
+TEST_CASE("game data: ware groups and unlock levels are tables (MD-3, MD-8)") {
+    CHECK(sim::ware_group(sim::ware::kNone) == sim::WareGroup::None);
+    CHECK(sim::ware_group(sim::ware::kAll) == sim::WareGroup::None);
+    CHECK(sim::ware_group(sim::ware::kOre) == sim::WareGroup::Trade);
+    CHECK(sim::ware_group(sim::ware::kBricks) == sim::WareGroup::Trade);
+    CHECK(sim::ware_group(sim::ware::kFirstSoldier) == sim::WareGroup::Soldier);
+    CHECK(sim::ware_group(sim::ware::kLastSoldier) == sim::WareGroup::Soldier);
+    CHECK(sim::ware_group(sim::ware::kCornField) == sim::WareGroup::Field);
+    CHECK(sim::ware_group(sim::ware::kTreasure) == sim::WareGroup::Field);
+    CHECK(sim::ware_group(59) == sim::WareGroup::None);
+    CHECK(sim::ware_group(1000) == sim::WareGroup::None);
+
+    // Levels by bit n - 1; the fleets grow at 2D, 3C, 4B and 5A as Pirates_MaxShips does.
+    sim::Player p;
+    CHECK(p.unlocked(sim::infra::kNone));
+    CHECK(!p.unlocked(sim::infra::kLevel2A));
+    CHECK(p.ship_step() == 0);
+    p.infra_mask = 1U << (sim::infra::kLevel2D - 1);
+    CHECK(p.ship_step() == 1);
+    p.infra_mask |= 1U << (sim::infra::kLevel4B - 1);
+    CHECK(p.ship_step() == 3);
+    p.infra_mask = 1U << (sim::infra::kLevel5B - 1);
+    CHECK(p.unlocked(sim::infra::kLevel5B));
+    CHECK(!p.unlocked(sim::infra::kMaxLevel + 1));
+    CHECK(sim::infra::ware_level(sim::ware::kJewellery) == sim::infra::kLevel4A);
+    CHECK(sim::infra::ware_level(sim::ware::kCloth) == sim::infra::kNone);
 }

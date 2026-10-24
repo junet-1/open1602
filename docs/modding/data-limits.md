@@ -10,6 +10,8 @@ size memory and refuse or cut what lies outside. These are the limits.
 | `haeuser.cod` | `Nummer` | 0 to 65535 | the file is refused |
 | `haeuser.cod` | `Size` | 1 to 255 tiles each way (an island of the original is at most 255 wide) | above: the file is refused; 0 or less is read as 1 |
 | `haeuser.cod` | `Ware`, `Rohstoff`, `Workstoff`, `BGruppe`, `Erzbergnr`, `Ruinenr` | 0 to 255 (a negative `Ruinenr` is no ruin) | the file is refused |
+| `haeuser.cod` | `BGruppe` of a house (resident classes) | 5 classes, Pioniere to Aristokraten (the needs of each class are the rules' table) | the file is refused |
+| `haeuser.cod` | `Bauinfra`, `INFRA_*` levels | 0 to 32 (the levels a player has reached are one 32-bit mask) | the file is refused |
 | `haeuser.cod` | `Figurnr` | 0 to 65535 | the file is refused |
 | `haeuser.cod` | `Money` of `HAUS_BAUKOST` | 0 or more (a negative cost would pay for building) | the file is refused |
 | `haeuser.cod` | `Maxlager`, `Prozent` (and every amount scaled to 1/32 t) | the range of a 32-bit unsigned number after scaling | saturated |

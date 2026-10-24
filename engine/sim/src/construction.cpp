@@ -17,10 +17,10 @@ namespace o1602::sim {
 namespace {
 
 // Unlock levels with a count limit (record Bauinfra).
-constexpr std::uint8_t kInfraCastle = 11;
-constexpr std::uint8_t kInfraCathedral = 12;
-constexpr std::uint8_t kInfraArch = 13;
-constexpr std::uint8_t kInfraMonument = 14;
+constexpr std::uint8_t kInfraCastle = infra::kCastle;
+constexpr std::uint8_t kInfraCathedral = infra::kCathedral;
+constexpr std::uint8_t kInfraArch = infra::kArch;
+constexpr std::uint8_t kInfraMonument = infra::kMonument;
 /// A castle or cathedral makes its city proud: city + 0x200 += 25 * 32 (command 0x4B of 0x004084D0).
 constexpr std::uint32_t kPrideBonus = 25 * 32;
 

@@ -79,6 +79,11 @@ struct HouseEvent {
 /// 0x0047B200). A church also counts as a chapel and a college as a school; a Kontor is no market.
 [[nodiscard]] std::uint32_t panel_services(const House& house) noexcept;
 
+/// What class `resident_class` needs of public buildings in the panel's layout
+/// (Class_RequiredServices 0x0047F320), from the same table as has_services: of each choice the
+/// market, else the lesser building (a chapel for a chapel or church). 0 beyond the table.
+[[nodiscard]] std::uint32_t required_panel_services(std::uint8_t resident_class) noexcept;
+
 /// Recomputes which markets, Kontors and public buildings reach each house of island `island`
 /// (0x00482120): buildings of the same city whose Radius covers the house from their centre.
 void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island);

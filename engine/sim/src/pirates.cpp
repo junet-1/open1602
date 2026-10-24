@@ -27,19 +27,14 @@ PlayerId Fleet::pirates() const {
 }
 
 std::uint32_t pirate_max_ships(const World& world) noexcept {
-    // Pirates_MaxShips 0x0040F310: by the highest level any player reached. Bit 18 (75 settlers)
-    // would allow one ship, but the pirates need at least two to start (original).
+    // Pirates_MaxShips 0x0040F310: by the highest level any player reached (infra::kShipSteps).
+    // Level 2D (75 settlers) would allow one ship, but the pirates need at least two to start (original).
     std::uint32_t best = 0;
     for (const Player& p : world.players()) {
         if (p.role != PlayerRole::Human && p.role != PlayerRole::Computer) {
             continue;
         }
-        const std::uint32_t m = (p.infra_mask >> 30 & 1U) != 0   ? 4U
-                                : (p.infra_mask >> 29 & 1U) != 0 ? 3U
-                                : (p.infra_mask >> 24 & 1U) != 0 ? 2U
-                                : (p.infra_mask >> 18 & 1U) != 0 ? 1U
-                                                                 : 0U;
-        best = std::max(best, m);
+        best = std::max(best, p.ship_step());
     }
     return best;
 }

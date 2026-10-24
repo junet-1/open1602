@@ -19,9 +19,7 @@ namespace {
 
 using namespace panel_detail;
 
-constexpr std::uint8_t kCannonWare = 13;
-constexpr std::uint8_t kFirstSoldierWare = 25;
-constexpr std::uint8_t kLastSoldierWare = 44;
+constexpr std::uint8_t kCannonWare = sim::ware::kCannons;
 
 bool ctrl_held() {
     return (SDL_GetModState() & SDL_KMOD_CTRL) != 0;
@@ -137,7 +135,7 @@ public:
                         break;
                     }
                     const sim::CargoSlot& slot = ship->cargo[h];
-                    if (slot.ware >= kFirstSoldierWare && slot.ware <= kLastSoldierWare && slot.amount != 0) {
+                    if (sim::is_soldier_ware(slot.ware) && slot.amount != 0) {
                         sim::UnloadOrder o;
                         o.player = c.local;
                         o.ship = ship->id;

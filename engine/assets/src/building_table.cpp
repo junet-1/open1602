@@ -392,6 +392,18 @@ core::Result<BuildingTable> BuildingTable::load(const GameDirectory& game) {
             return make_error(ErrorCode::InvalidFormat,
                               "haeuser.cod has no HAUS with Id " + std::to_string(*id) + ", which the game needs");
         }
+        // The rules know the needs of kResidentClasses classes and infra::kMaxLevel levels (MD-2,
+        // MD-8): more would be given another class's needs or never be unlocked.
+        if (table->resident_classes().size() > kResidentClasses) {
+            return make_error(ErrorCode::LimitExceeded,
+                              "haeuser.cod: " + std::to_string(table->resident_classes().size()) +
+                                  " resident classes, at most " + std::to_string(kResidentClasses));
+        }
+        if (table->infra_levels().size() > std::size_t{infra::kMaxLevel} + 1) {
+            return make_error(ErrorCode::LimitExceeded, "haeuser.cod: unlock level " +
+                                                            std::to_string(table->infra_levels().size() - 1) +
+                                                            ", at most " + std::to_string(infra::kMaxLevel));
+        }
     }
     return table;
 }
