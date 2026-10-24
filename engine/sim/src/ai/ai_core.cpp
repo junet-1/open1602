@@ -60,6 +60,7 @@ Engine::Engine(Simulation& sim, State& state)
 }
 
 CommandResult Engine::execute(const Command& command) {
+    m_census.valid = false;  // a command may add, move or remove units
     return m_sim.execute(command);
 }
 
@@ -159,6 +160,15 @@ void Engine::tick(std::uint32_t dt_ms) {
         m_state.islands.resize(m_world.islands().size());
     }
     const auto dt = static_cast<std::int32_t>(dt_ms);
+    m_census.valid = false;
+    m_in_tick = true;
+    struct Leave {
+        Engine& e;
+        ~Leave() {
+            e.m_in_tick = false;
+            e.m_census.valid = false;
+        }
+    } leave{*this};
     island_controller();
     for (AiPlayer& p : m_state.players) {
         const Player* pl = m_world.player(p.player);

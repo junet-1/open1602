@@ -78,16 +78,6 @@ private:
 
 }  // namespace
 
-std::vector<Ship*> Engine::own_ships(const AiPlayer& p) {
-    std::vector<Ship*> out;
-    for (Ship& s : m_world.ships()) {
-        if (s.owner == p.player && !s.sinking && !s.trader) {
-            out.push_back(&s);
-        }
-    }
-    return out;
-}
-
 Ship* Engine::settle_ship(AiPlayer& p) {
     if (p.settle.ship == 0) {
         return nullptr;
