@@ -157,6 +157,64 @@ TEST_CASE("units: riders keep one of the drawn horses") {
     CHECK(banners.get(a)->unit_mount < 4);
 }
 
+TEST_CASE("units: each template is made once and gives the same images (FB-25)") {
+    // One rider family, 4 variants of one 3 x 3 image: sash on top, horse below.
+    class Sheet final : public render::SpriteSource {
+    public:
+        explicit Sheet(std::vector<std::vector<std::uint8_t>> images) : m_images(std::move(images)) {}
+        [[nodiscard]] std::uint32_t count() const override { return static_cast<std::uint32_t>(m_images.size()); }
+        void size(std::uint32_t, std::uint32_t& width, std::uint32_t& height) const override { width = height = 3; }
+        bool pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) const override {
+            ++reads;
+            rgba = m_images[i];
+            return true;
+        }
+        mutable int reads = 0;
+
+    private:
+        std::vector<std::vector<std::uint8_t>> m_images;
+    };
+    const std::uint8_t sash[4][3] = {{200, 40, 10}, {0, 0, 200}, {230, 200, 40}, {230, 230, 230}};
+    const std::uint8_t horse[4][3] = {{137, 86, 13}, {120, 120, 124}, {89, 42, 20}, {220, 220, 220}};
+    std::vector<std::vector<std::uint8_t>> images;
+    for (int v = 0; v < 4; ++v) {
+        std::vector<std::uint8_t> image;
+        for (int p = 0; p < 9; ++p) {
+            const std::uint8_t* c = p < 3 ? sash[v] : horse[v];
+            image.insert(image.end(), {c[0], c[1], c[2], 255});
+        }
+        images.push_back(std::move(image));
+    }
+    const Sheet sheet(images);
+    render::UnitImageGroup group;
+    group.first = 0;
+    group.stride = 1;
+    group.variants = 4;
+    group.base = 3;
+    group.mounted = true;
+    const std::vector<assets::Rgba> variants(render::BannerTable::kDefaultColors.begin(),
+                                             render::BannerTable::kDefaultColors.begin() + 4);
+    const render::UnitTintColor green{{30, 170, 40, 255}, 0};
+    const render::UnitTintColor purple{{120, 40, 160, 255}, 1};
+    const render::UnitTintColor teal{{20, 150, 150, 255}, 0};
+    const render::TintedUnitSource source(sheet, {group}, variants, {green, purple, teal, green});
+    std::vector<std::vector<std::uint8_t>> out(4);
+    for (std::uint32_t i = 0; i < 4; ++i) {
+        REQUIRE(source.pixels(i, out[i]));
+    }
+    CHECK(sheet.reads == 8);  // two templates (brown and grey horse), not four
+    CHECK(out[0] == out[3]);
+    CHECK(out[0] != out[2]);          // same horse, other colour
+    CHECK(out[0][16] != out[1][16]);  // other horse
+    // The same as made alone.
+    for (std::uint32_t i = 0; i < 3; ++i) {
+        const render::TintedUnitSource alone(sheet, {group}, variants, {i == 0 ? green : i == 1 ? purple : teal});
+        std::vector<std::uint8_t> single;
+        REQUIRE(alone.pixels(0, single));
+        CHECK(single == out[i]);
+    }
+}
+
 TEST_CASE("units: soldiers in the colour of their owner's banner") {
     const assets::CodPredefinedSymbol types[] = {{"FIGUR", 1}};
     const auto doc = assets::cod::parse(
