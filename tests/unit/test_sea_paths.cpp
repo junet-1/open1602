@@ -295,6 +295,18 @@ TEST_CASE("sea paths: open sea and island water are sailable, land, piers and th
     sea.update_island(world, buildings, 0);
     CHECK(!sea.sailable(6, 6));
     CHECK(sea.sailable(4, 5));
+
+    // A box of the island updates only its tiles (TB-19); boxes reaching past the island are clipped.
+    REQUIRE(world.island(0).map.place(*buildings.by_id(kWater), 2, 1, 0, 0).ok());
+    REQUIRE(world.island(0).map.place(*buildings.by_id(kWater), 1, 1, 0, 0).ok());
+    sea.update_island(world, buildings, 0, 2, 0, 3, 2);
+    CHECK(sea.sailable(7, 6));   // the pier's tile is water now
+    CHECK(!sea.sailable(6, 6));  // outside the box: not looked at
+    sea.update_island(world, buildings, 0, -5, -5, 1, 1);
+    CHECK(sea.sailable(6, 6));
+    sea.update_island(world, buildings, 0, 10, 10, 20, 20);  // beyond the island: nothing
+    sea.update_island(world, buildings, 0, -3, -3, -1, -1);
+    CHECK(sea.sailable(4, 5));
 }
 
 TEST_CASE("sea paths: courses are as cheap as a reference Dijkstra finds, on sailable tiles only") {

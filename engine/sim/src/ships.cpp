@@ -548,6 +548,10 @@ void Fleet::island_changed(std::uint16_t island) {
     m_sea.update_island(*m_world, *m_buildings, island);
 }
 
+void Fleet::island_changed(std::uint16_t island, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1) {
+    m_sea.update_island(*m_world, *m_buildings, island, x0, y0, x1, y1);
+}
+
 void Fleet::advance(Ship& ship, std::uint32_t budget_us) {
     for (std::size_t step = 0; step < kMaxSteps; ++step) {
         ShipMotion& m = ship.motion;

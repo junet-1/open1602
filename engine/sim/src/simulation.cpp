@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <limits>
 
 #include "save/sections.hpp"
 
@@ -749,16 +750,33 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
             }
         };
         if (e.kind == ConstructionEvent::Kind::Placed || e.kind == ConstructionEvent::Kind::Removed) {
-            touch(m_coast_islands, e.island);
+            // The building's tiles, whichever way it is turned; without a type the whole island.
+            constexpr std::int32_t kAll = std::numeric_limits<std::int32_t>::max() / 2;
+            const std::int32_t size =
+                e.type != nullptr ? static_cast<std::int32_t>(std::max(e.type->size_x, e.type->size_y)) : kAll;
+            const std::int32_t x0 = e.type != nullptr ? e.x : 0;
+            const std::int32_t y0 = e.type != nullptr ? e.y : 0;
+            const std::int32_t x1 = x0 + size - 1;
+            const std::int32_t y1 = y0 + size - 1;
+            const auto it = std::find_if(m_coast_islands.begin(), m_coast_islands.end(),
+                                         [&](const CoastChange& c) { return c.island == e.island; });
+            if (it == m_coast_islands.end()) {
+                m_coast_islands.push_back(CoastChange{e.island, x0, y0, x1, y1});
+            } else {
+                it->x0 = std::min(it->x0, x0);
+                it->y0 = std::min(it->y0, y0);
+                it->x1 = std::max(it->x1, x1);
+                it->y1 = std::max(it->y1, y1);
+            }
         }
         if (towers_affected(e)) {
             touch(m_tower_islands, e.island);
         }
     }
     m_logistics.buildings_removed(removed);
-    for (const std::uint16_t island : m_coast_islands) {
-        m_fleet.island_changed(island);
-        m_combat.island_changed(island);
+    for (const CoastChange& c : m_coast_islands) {
+        m_fleet.island_changed(c.island, c.x0, c.y0, c.x1, c.y1);
+        m_combat.island_changed(c.island);
     }
     for (const std::uint16_t island : m_tower_islands) {
         m_military.update_towers(island);
