@@ -58,8 +58,8 @@ builds with GCC 13, Clang 18, AppleClang 15 and MSVC from Visual Studio 2026; ol
 work but are not tested. 32-bit platforms are not supported.
 
 Without `-DO1602_BUILD_GAME=ON` only the libraries, the tests and `o1602-tool` are built, not the game.
-The presets are in [CMakePresets.json](CMakePresets.json): `release` for playing, `debug` and `asan`
-(AddressSanitizer + UBSan) for development, `ci` (warnings as errors) as in CI, `vcpkg` for Windows.
+The presets are in [CMakePresets.json](CMakePresets.json): `release` for playing, `debug`, `asan`
+(AddressSanitizer + UBSan) and `tsan` (ThreadSanitizer) for development, `ci` (warnings as errors) as in CI, `vcpkg` for Windows.
 
 ### Linux
 

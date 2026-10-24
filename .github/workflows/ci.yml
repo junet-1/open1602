@@ -26,12 +26,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # cc compiles ENet (C), cxx the rest: both from the same compiler, so that a sanitizer job
+        # links one runtime.
         include:
-          - { name: Linux GCC,    os: ubuntu-24.04, cxx: g++,     preset: ci }
-          - { name: Linux Clang,  os: ubuntu-24.04, cxx: clang++, preset: ci }
-          - { name: Linux ASan,   os: ubuntu-24.04, cxx: clang++, preset: asan }
-          - { name: Windows MSVC, os: windows-2025, cxx: cl,      preset: ci }
-          - { name: macOS Clang,  os: macos-14,     cxx: clang++, preset: ci }
+          - { name: Linux GCC,     os: ubuntu-24.04, cc: gcc,   cxx: g++,     preset: ci }
+          - { name: Linux Clang,   os: ubuntu-24.04, cc: clang, cxx: clang++, preset: ci }
+          - { name: Linux ASan,    os: ubuntu-24.04, cc: clang, cxx: clang++, preset: asan }
+          - { name: Linux TSan,    os: ubuntu-24.04, cc: clang, cxx: clang++, preset: tsan }
+          - { name: Windows MSVC,  os: windows-2025, cc: cl,    cxx: cl,      preset: ci }
+          # Debug off Linux: asserts and the debug checks of MSVC's STL run there too.
+          - { name: Windows Debug, os: windows-2025, cc: cl,    cxx: cl,      preset: debug }
+          - { name: macOS Clang,   os: macos-14,     cc: clang, cxx: clang++, preset: ci }
+          - { name: macOS Debug,   os: macos-14,     cc: clang, cxx: clang++, preset: debug }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -70,7 +76,7 @@ jobs:
       - name: Configure
         shell: bash
         run: >
-          cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          cmake --preset ${{ matrix.preset }} -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
           -DCMAKE_PREFIX_PATH="${{ runner.temp }}/zlib" ${{ runner.os == 'Windows' && '-DZLIB_USE_STATIC_LIBS=ON' || '' }}
 
       - name: Build
