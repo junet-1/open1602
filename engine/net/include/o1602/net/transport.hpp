@@ -13,9 +13,13 @@
 
 namespace o1602::net {
 
-/// The largest message a transport carries: a whole game (protocol.hpp kMaxSnapshotBytes) and the
-/// header of its message.
+/// The largest message a session puts together: a whole game (protocol.hpp kMaxSnapshotBytes) and
+/// the header of its message.
 inline constexpr std::size_t kMaxMessageBytes = (32U << 20) + (64U << 10);
+/// The largest message a transport carries in one piece, both ways (MS-7): larger ones travel in
+/// parts (protocol.hpp Part), so that nobody can make the other side hold 32 MiB for a message that
+/// never completes.
+inline constexpr std::size_t kMaxPacketBytes = (1U << 20) + (64U << 10);
 
 /// One connection of a transport; the host has one per computer, a computer one to the host.
 using LinkId = std::uint32_t;

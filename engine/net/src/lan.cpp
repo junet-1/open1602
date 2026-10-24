@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <deque>
 #include <enet/enet.h>
@@ -43,6 +44,18 @@ constexpr std::size_t kMaxDatagram = 1024;
 constexpr std::size_t kMaxDatagramsPerUpdate = 64;
 constexpr std::size_t kMaxGames = 64;
 constexpr std::size_t kKeptSearches = 16;
+
+/// Answers a second to sources outside the local network, each and in all (MS-21).
+constexpr std::uint32_t kMaxAnswersPerSource = 2;
+constexpr std::uint32_t kMaxPublicAnswers = 16;
+
+/// An IPv4 address of this computer or the local network: loopback, private, link-local.
+bool is_local(const ENetAddress& address) {
+    std::array<std::uint8_t, 4> ip{};
+    std::memcpy(ip.data(), &address.host, ip.size());  // network order: the first byte first
+    return ip[0] == 127 || ip[0] == 10 || (ip[0] == 172 && (ip[1] & 0xF0) == 16) || (ip[0] == 192 && ip[1] == 168) ||
+           (ip[0] == 169 && ip[1] == 254);
+}
 
 bool starts_with(std::span<const std::uint8_t> bytes, const std::array<std::uint8_t, 6>& magic) {
     return bytes.size() >= magic.size() && std::equal(magic.begin(), magic.end(), bytes.begin());
@@ -184,15 +197,40 @@ public:
             if (!bytes) {
                 break;
             }
-            if (const auto nonce = decode_search(*bytes)) {
+            if (const auto nonce = decode_search(*bytes); nonce && may_answer(from)) {
                 send_to(m_socket.get(), from, encode_answer(*nonce, m_info));
             }
         }
     }
 
 private:
+    /// An answer is about 16 times the size of a search, and the source of a datagram can be forged
+    /// (MS-21): computers of the local network get every answer; others, which reach a forwarded
+    /// port from the internet, a few a second each and kMaxPublicAnswers a second in all.
+    bool may_answer(const ENetAddress& from) {
+        if (is_local(from)) {
+            return true;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        if (now - m_second >= std::chrono::seconds(1)) {
+            m_second = now;
+            m_public_answers = 0;
+            m_answered.clear();
+        }
+        std::uint32_t& to_this = m_answered[from.host];
+        if (m_public_answers >= kMaxPublicAnswers || to_this >= kMaxAnswersPerSource) {
+            return false;
+        }
+        ++m_public_answers;
+        ++to_this;
+        return true;
+    }
+
     Socket m_socket;
     GameInfo m_info;
+    std::chrono::steady_clock::time_point m_second{};
+    std::uint32_t m_public_answers = 0;
+    std::map<enet_uint32, std::uint32_t> m_answered;  ///< answers per source in this second
 };
 
 class EnetBrowser final : public LanBrowser {
@@ -301,13 +339,19 @@ private:
                 lookup->done.store(true, std::memory_order_release);
             } else {
                 const std::uint16_t port = m_port;
-                const auto look_up = [lookup, name, port] {
+                // The lookup holds ENet itself: the thread may outlive the browser, and ENet must
+                // not be shut down (WSACleanup on Windows) while it runs (MS-24).
+                const bool library = EnetLibrary::acquire();
+                const auto look_up = [lookup, name, port, library] {
                     ENetAddress found{};
-                    if (enet_address_set_host(&found, name.c_str()) == 0) {
+                    if (library && enet_address_set_host(&found, name.c_str()) == 0) {
                         found.port = port;
                         lookup->address = found;
                     }
                     lookup->done.store(true, std::memory_order_release);
+                    if (library) {
+                        EnetLibrary::release();
+                    }
                 };
                 try {
                     std::thread(look_up).detach();

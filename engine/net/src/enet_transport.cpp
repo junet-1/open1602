@@ -17,10 +17,13 @@ namespace {
 using detail::EnetLibrary;
 
 constexpr std::size_t kChannels = 1;
-/// ENet applies its packet limit to what a host sends and receives alike, and the host sends whole
-/// games. HostSession refuses large messages from computers itself. (protocol.hpp is not included
-/// here: on Windows ENet brings windows.h, whose macros near and far break the game's headers.)
-constexpr std::size_t kMaxPacket = kMaxMessageBytes;
+/// ENet applies its packet limit to what a host sends and receives alike, and holds what it receives
+/// of a packet until the packet is whole: so the limit is small, and games travel in parts (MS-7).
+/// (protocol.hpp is not included here: on Windows ENet brings windows.h, whose macros near and far
+/// break the game's headers.)
+constexpr std::size_t kMaxPacket = kMaxPacketBytes;
+/// Connections from one address at most (ENet's default is 4095): a few computers behind one router.
+constexpr std::size_t kDuplicatePeers = 4;
 constexpr enet_uint32 kTimeoutMinMs = 5000;
 constexpr enet_uint32 kTimeoutMaxMs = 15000;
 
@@ -160,6 +163,7 @@ core::Result<std::unique_ptr<Transport>> enet_listen(std::uint16_t port, std::si
     }
     host->maximumPacketSize = kMaxPacket;
     host->maximumWaitingData = kMaxPacket;
+    host->duplicatePeers = kDuplicatePeers;
     return std::unique_ptr<Transport>(std::make_unique<EnetTransport>(host, false));
 }
 
@@ -178,6 +182,8 @@ core::Result<std::unique_ptr<Transport>> enet_connect(const std::string& address
         EnetLibrary::release();
         return core::make_error(core::ErrorCode::PlatformError, "cannot open a UDP socket");
     }
+    host->maximumPacketSize = kMaxPacket;  // the same on both ends (MS-11)
+    host->maximumWaitingData = kMaxPacket;
     ENetPeer* peer = enet_host_connect(host, &to, kChannels, 0);
     if (peer == nullptr) {
         enet_host_destroy(host);

@@ -84,8 +84,9 @@ struct SessionConfig {
     std::uint32_t max_commands_per_frame = 256;
     /// How often a computer tells the host how far it is (a fingerprint goes at once).
     std::uint32_t progress_interval_ms = 100;
-    /// Computers without a free player slot may watch.
+    /// Computers without a free player slot may watch, this many at most (MS-12).
     bool spectators = true;
+    std::uint32_t max_spectators = kDefaultMaxSpectators;
     /// Computers may come into a running game (else only back into their own slot).
     bool join_running = true;
     /// (Host) The computer plays the slot of a person who left the running game, once it has stood
@@ -198,6 +199,8 @@ protected:
     void event(SessionEvent e) { m_events.push_back(std::move(e)); }
     void end(EndReason reason);
     void send(LinkId link, const Message& message);
+    /// An encoded message: whole, or in Parts if it is larger than a transport carries (MS-7).
+    void send_bytes(LinkId link, std::span<const std::uint8_t> bytes);
     void chat_event(const Chat& chat);
     void lobby_event();
     /// Commands each of `players` players may put into one frame: the configured limit or an equal
@@ -344,6 +347,8 @@ private:
     [[nodiscard]] std::uint64_t token_of(Seat seat);
     /// The slot's token is no longer good: the slot changed hands.
     void forget_token(Seat seat);
+    /// A kicked computer's address: no newcomer from there for the rest of the session (MS-12).
+    void ban(const std::string& address);
     /// Keeps a person's slot from newcomers for `ms`, for its player to come back with the token.
     void reserve(Seat seat, std::uint32_t ms);
     [[nodiscard]] bool reserved(Seat seat) const;
@@ -384,7 +389,9 @@ private:
     std::uint32_t m_lead_ms = 0;     ///< time since the lead last shrank
     std::deque<FrameHash> m_hashes;  ///< the host's latest fingerprints
     std::uint32_t m_held_ms = 0;     ///< how long the host has been waiting for a computer
-    std::optional<Snapshot> m_game;  ///< the game as sent in this update
+    /// The game as sent in this update: a Snapshot message, encoded once for every computer that
+    /// gets it (MS-23); each gets its own epoch written in.
+    std::optional<std::vector<std::uint8_t>> m_game;
     /// Games the host may still write for computers that join or resync, in milliseconds of credit
     /// (kGameCostMs a game, kGameCreditMs at most; it grows with real time).
     std::uint32_t m_game_credit_ms = 4'000;
@@ -402,6 +409,7 @@ private:
     std::uint64_t m_compared = 0;
     std::uint64_t m_matched = 0;
     std::vector<LinkId> m_roster_links;    ///< the link of each roster() entry (unused for the host's own)
+    std::vector<std::string> m_banned;     ///< addresses of computers kicked: not taken in again (MS-12)
     std::optional<LinkId> m_standby_link;  ///< the successor, as last told
     Standby m_standby;                     ///< what it was told
     bool m_standby_changed = true;
@@ -485,6 +493,8 @@ private:
     std::uint16_t m_lead = 0;
     std::deque<std::vector<sim::Command>> m_frames_ahead;  ///< frames m_frames to m_closed - 1
     std::deque<sim::Command> m_outgoing;
+    std::vector<std::uint8_t> m_part;  ///< the pieces so far of a message that comes in Parts
+    std::uint32_t m_part_total = 0;    ///< its size
     /// Pacing what goes to the host as it would admit it (MS-17): commands and work in the frames
     /// run since the last sending, so that the host does not have to drop any.
     std::uint32_t m_send_commands = 0;

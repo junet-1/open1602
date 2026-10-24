@@ -172,6 +172,30 @@ void ClientSession::receive(std::span<const std::uint8_t> bytes) {
         end(EndReason::ProtocolError);
         return;
     }
+    if (auto* part = std::get_if<Part>(&*message)) {
+        // A large message in pieces, one after another (MS-7): read once it is whole.
+        if ((!m_part.empty() && part->total != m_part_total) || part->total <= kMaxPacketBytes ||
+            m_part.size() + part->bytes.size() > part->total) {
+            end(EndReason::ProtocolError);
+            return;
+        }
+        m_part_total = part->total;
+        m_part.insert(m_part.end(), part->bytes.begin(), part->bytes.end());
+        if (m_part.size() == m_part_total) {
+            const std::vector<std::uint8_t> whole = std::move(m_part);
+            m_part.clear();
+            if (whole[0] == static_cast<std::uint8_t>(Message(Part{}).index())) {
+                end(EndReason::ProtocolError);  // parts of parts
+                return;
+            }
+            receive(whole);
+        }
+        return;
+    }
+    if (!m_part.empty()) {
+        end(EndReason::ProtocolError);  // another message between the pieces of one
+        return;
+    }
     if (const auto* welcome = std::get_if<Welcome>(&*message)) {
         // Again in the lobby when this computer moves to another slot.
         if ((m_welcomed && m_lobby.started) || welcome->protocol != kProtocolVersion) {
@@ -387,6 +411,7 @@ void ClientSession::reconnect() {
     m_frames_ahead.clear();
     m_closed = m_frames;
     m_epoch = 0;
+    m_part.clear();
     SessionEvent e;
     e.kind = SessionEvent::Kind::Reconnecting;
     e.seat = m_seat;

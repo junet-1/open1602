@@ -26,7 +26,7 @@ namespace o1602::net {
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
 /// The first three bytes of a Hello (its type and this version) never change, so that a computer of
 /// another version is told so (RefuseReason::Version) rather than refused as nonsense (MS-22).
-inline constexpr std::uint16_t kProtocolVersion = 10;
+inline constexpr std::uint16_t kProtocolVersion = 11;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
@@ -37,6 +37,12 @@ inline constexpr std::uint32_t kMaxSnapshotBytes = 32U << 20;
 static_assert(kMaxSnapshotBytes + (64U << 10) <= kMaxMessageBytes, "a game must fit into one message");
 /// The largest message a computer sends the host (its commands and reports; the host refuses more).
 inline constexpr std::size_t kMaxMessageToHost = 1U << 20;
+static_assert(kMaxMessageToHost < kMaxPacketBytes, "a computer's messages travel whole");
+/// The bytes of a message in one Part.
+inline constexpr std::size_t kPartBytes = 256U << 10;
+static_assert(kPartBytes + 64 < kMaxPacketBytes);
+/// Spectators a host takes at most (MS-12), beyond the players.
+inline constexpr std::uint32_t kDefaultMaxSpectators = 8;
 inline constexpr std::size_t kMaxPasswordLength = 64;
 inline constexpr std::size_t kMaxTitleLength = 64;
 inline constexpr std::size_t kMaxChatLength = 200;
@@ -263,6 +269,14 @@ struct Dropped {
     std::uint32_t commands = 0;
 };
 
+/// (Host) A piece of a message larger than kMaxPacketBytes (MS-7, MS-11): a game, or many frames at
+/// once. `total` is the size of the whole message, the same in every piece; the pieces of one
+/// message come one after another, and the computer reads the message once it has them all.
+struct Part {
+    std::uint32_t total = 0;
+    std::vector<std::uint8_t> bytes;
+};
+
 /// (Host) The host ends the session on purpose: the computers move on to the successor at once
 /// (`successor_address`, which spectators get only now). A connection that just breaks is not that:
 /// a computer first tries to get back to its host (MS-2).
@@ -271,9 +285,12 @@ struct HostLeaving {
 };
 
 using Message = std::variant<Hello, CommandBatch, Progress, Welcome, Refused, Snapshot, Turn, Roster, Desync, Lobby,
-                             TakeSeat, SetReady, Chat, Standby, SetBanner, Dropped, HostLeaving>;
+                             TakeSeat, SetReady, Chat, Standby, SetBanner, Dropped, HostLeaving, Part>;
 
 [[nodiscard]] std::vector<std::uint8_t> encode(const Message& message);
+/// What goes over the transport for an encoded message: the message itself, or the encoded Parts of
+/// one larger than kMaxPacketBytes.
+[[nodiscard]] std::vector<std::vector<std::uint8_t>> packets(std::span<const std::uint8_t> message);
 /// Nothing if the bytes are cut off, too long, of an unknown type or out of range.
 [[nodiscard]] std::optional<Message> decode(std::span<const std::uint8_t> bytes);
 

@@ -178,8 +178,17 @@ std::uint64_t Session::work_share(std::uint32_t players) noexcept {
 }
 
 void Session::send(LinkId link, const Message& message) {
-    const std::vector<std::uint8_t> bytes = encode(message);
-    m_transport->send(link, bytes);
+    send_bytes(link, encode(message));
+}
+
+void Session::send_bytes(LinkId link, std::span<const std::uint8_t> bytes) {
+    if (bytes.size() <= kMaxPacketBytes) {
+        m_transport->send(link, bytes);
+        return;
+    }
+    for (const std::vector<std::uint8_t>& packet : packets(bytes)) {
+        m_transport->send(link, packet);
+    }
 }
 
 }  // namespace o1602::net

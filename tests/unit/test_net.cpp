@@ -1863,3 +1863,100 @@ TEST_CASE("net: a computer of another version is told so, however its Hello look
         CHECK(*refused == net::RefuseReason::Version);
     }
 }
+
+TEST_CASE("net: a message larger than a packet travels in parts and arrives whole (MS-7, MS-11)") {
+    // Up to a packet: as it is.
+    const std::vector<std::uint8_t> small(net::kMaxPacketBytes, 7);
+    REQUIRE(net::packets(small).size() == 1);
+    CHECK(net::packets(small).front() == small);
+
+    // A fake host sends a game, then a Turn of many frames that only fits into parts.
+    net::LoopbackNetwork network(5, 0);
+    auto host = network.listen();
+    Computer a(network, "Anna");
+    Game world = Game::fresh();
+    const auto save = sim::write_game(*world.world, buildings(), world.simulation.get());
+    REQUIRE(save.ok());
+    net::Lobby lobby;
+    lobby.started = true;
+    lobby.seats.resize(world.world->players().size());
+    net::Turn turn;
+    turn.first = 0;
+    turn.closed = 400;
+    for (std::uint64_t f = 0; f < turn.closed; ++f) {
+        net::FrameCommands frame{f, {}};
+        for (int i = 0; i < 300; ++i) {
+            frame.commands.emplace_back(sim::ProductionSwitch{1, 0, 1, 1});
+        }
+        turn.frames.push_back(std::move(frame));
+    }
+    const std::vector<std::uint8_t> bytes = net::encode(turn);
+    REQUIRE(bytes.size() > net::kMaxPacketBytes);
+    const auto parts = net::packets(bytes);
+    REQUIRE(parts.size() > 1);
+    for (const auto& p : parts) {
+        CHECK(p.size() <= net::kMaxPacketBytes);
+    }
+    std::vector<net::TransportEvent> events;
+    bool answered = false;
+    for (int i = 0; i < 20; ++i) {
+        network.advance(kStepMs);
+        events.clear();
+        host->poll(events);
+        for (const auto& e : events) {
+            if (e.kind == net::TransportEvent::Kind::Received && !answered) {
+                answered = true;
+                host->send(e.link, net::encode(net::Welcome{net::kProtocolVersion, 1, 0xA77A}));
+                host->send(e.link, net::encode(lobby));
+                host->send(e.link, net::encode(net::Snapshot{1, 0, 1, true, *save}));
+                for (const auto& p : parts) {
+                    host->send(e.link, p);
+                }
+            }
+        }
+        a.update(0);  // it catches up on them, a few at a time
+    }
+    REQUIRE(a.session->playing());
+    CHECK(!a.session->ended());
+    CHECK(a.session->frames() + a.session->frames_in_hand() == 400);
+    CHECK(a.session->frames() > 0);
+
+    // Another message between the pieces of one is nonsense.
+    Computer b(network, "Bernd");
+    answered = false;
+    for (int i = 0; i < 20; ++i) {
+        network.advance(kStepMs);
+        events.clear();
+        host->poll(events);
+        for (const auto& e : events) {
+            if (e.kind == net::TransportEvent::Kind::Received && !answered) {
+                answered = true;
+                host->send(e.link, net::encode(net::Welcome{net::kProtocolVersion, 2, 0xB0B}));
+                host->send(e.link, parts.front());
+                host->send(e.link, net::encode(lobby));
+            }
+        }
+        b.update(0);
+    }
+    CHECK(b.session->ended());
+    CHECK(b.session->end_reason() == net::EndReason::ProtocolError);
+}
+
+TEST_CASE("net: the host takes a few spectators, not any number (MS-12)") {
+    net::LoopbackNetwork network(5, 0);
+    net::SessionConfig config;
+    config.max_spectators = 2;
+    Host host(network, config);
+    Computer a(network, "Anna");
+    Computer b(network, "Bernd");
+    Computer c(network, "Clara");  // every slot taken
+    Computer w1(network, "W1");
+    Computer w2(network, "W2");
+    Computer w3(network, "W3");
+    run_for(network, host, {&a, &b, &c, &w1, &w2, &w3}, 1500);
+    CHECK(w1.session->playing());
+    CHECK(w2.session->playing());
+    CHECK(w3.session->ended());
+    REQUIRE(!w3.events.empty());
+    CHECK(w3.events.back().refused == net::RefuseReason::Full);
+}
