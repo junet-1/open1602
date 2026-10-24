@@ -364,7 +364,7 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
     constexpr std::uint64_t kExpected =
-        0xf5d0f3ec5453d4eeULL;  // names left empty without Text.cod (MD-10); SIMU in parts (DS-3)
+        0x80421a0e0c2dbe60ULL;  // names left empty without Text.cod (MD-10); SIMU in parts (DS-3); compact MAPW (DS-4)
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }

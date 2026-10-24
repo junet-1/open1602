@@ -740,5 +740,5 @@ TEST_CASE("military: a battle of two armies develops the same on every platform 
     }
     f.run(45'000);
     CHECK(f.count(sim::MilitaryEvent::Kind::SoldierKilled) > 0);
-    test::check_golden("battle after 45 s", test::world_hash(f.world, f.buildings), 0x51d1df21f8ae369eULL);
+    test::check_golden("battle after 45 s", test::world_hash(f.world, f.buildings), 0xa7553b4617753756ULL);
 }

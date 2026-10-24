@@ -521,5 +521,5 @@ TEST_CASE("disasters: fire and plague in a city develop the same on every platfo
         town.epoch();
     }
     test::check_golden("fire and plague after 60 epochs", test::world_hash(town.world, town.buildings),
-                       0x27601f9e549c65a9ULL);
+                       0x5edc304ab021342bULL);
 }

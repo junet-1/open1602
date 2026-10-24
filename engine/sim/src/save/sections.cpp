@@ -105,7 +105,16 @@ constexpr std::uint16_t max_version(std::uint32_t id) noexcept {
         return kScenarioSwitches;
     }
     if (id == kFleet) {
-        return kRouteWares;
+        return kWideDiscovered;
+    }
+    if (id == kMap) {
+        return kCompactMap;
+    }
+    if (id == kEpochs) {
+        return kWideEpochs;
+    }
+    if (id == kIslands) {
+        return kWideIslands;
     }
     if (id == kScores) {
         return kWideScores;
@@ -213,7 +222,7 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                 o.string(p != nullptr ? p->name : std::string());
             },
             Need::Optional);
-        section(out, kMap, [&](Writer& o) { write_map(o, world, buildings); });
+        section(out, kMap, [&](Writer& o) { write_map(o, world, buildings); }, Need::Required, kCompactMap);
     }
     // The settings: those of the running game, or those the world was loaded with.
     if (simulation != nullptr || world.saved_rules()) {
@@ -277,7 +286,8 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
     section(out, kVolcanoes, [&](Writer& o) { write_volcanoes(o, world, volcanoes_at); }, Need::Required, volcanoes_at);
     const std::uint16_t fleet_at = fleet_version(world);
     section(out, kFleet, [&](Writer& o) { write_fleet(o, world, fleet_at); }, Need::Required, fleet_at);
-    section(out, kEpochs, [&](Writer& o) { write_epochs(o, world); });
+    const std::uint16_t epochs_at = epochs_version(world);
+    section(out, kEpochs, [&](Writer& o) { write_epochs(o, world, epochs_at); }, Need::Required, epochs_at);
     section(out, kArmy, [&](Writer& o) { write_army(o, world); });
     section(out, kDiplomacy, [&](Writer& o) { write_diplomacy(o, world); });
     section(out, kExplored, [&](Writer& o) { write_explored(o, world); });
@@ -342,7 +352,7 @@ core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, 
                                         std::vector<std::string>* warnings) {
     std::optional<core::Result<World>> world;
     bool meta_ok = true;
-    const auto status = for_each_section(sections, warnings, [&](std::uint32_t id, std::uint16_t, Body body) {
+    const auto status = for_each_section(sections, warnings, [&](std::uint32_t id, std::uint16_t version, Body body) {
         core::ByteReader sr(body);
         StateIn in(sr);
         if (id == kMeta) {
@@ -353,7 +363,7 @@ core::Result<World> world_from_sections(std::span<const std::uint8_t> sections, 
             meta_ok = in.ok() && fingerprint == buildings_fingerprint(buildings);
         } else if (id == kMap && !world) {
             Reader reader(in);
-            world = read_map(reader, buildings);
+            world = read_map(reader, buildings, version);
         }
         return true;
     });
@@ -466,7 +476,7 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 d.fleet = read_fleet(in, version);
                 break;
             case kEpochs:
-                d.epochs = read_epochs(in);
+                d.epochs = read_epochs(in, version);
                 break;
             case kSoldiers:
                 d.soldiers = read_soldiers(in);

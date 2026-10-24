@@ -116,9 +116,17 @@ whose version 2 carries trade routes with eight stops and version 3 stops with e
 | `VOLC` | x and y of the last crater and of each eruption's crater as u8 (after the u16 island) | the same as u16 |
 | `PSTA` | as in the table above | per player in addition the switches a scenario gives a computer (u32 bits, u16 rival and own inhabitants, u8 own and rival development; `PLAYER4` +0x1C..+0x25) |
 | `FLEE` | per ship the route's four stops of the original | per ship the route's eight stops (Open1602's route editor), the same record per stop |
+| `EPOC` | per island its number as u8 and the phase | the number as u16 |
 
 `FLEE` version 3: the eight stops of version 2, each with eight wares instead of the original's
 three (one per hold of the ship, Open1602's page of a stop), the same record per ware.
+`FLEE` version 4: version 3 with the island number of each discovered-by entry as u16.
+`ISLE` version 3: version 2 with the island number and the x and y of each deposit as u16.
+`MAPW` (own savegame only) version 2: see [o1602-save.md](o1602-save.md).
+
+The writer takes version 3 of `ISLE`, version 2 of `EPOC` and version 4 of `FLEE` only when an
+island's number is above 255 (more than 256 islands) or, for `ISLE`, a deposit lies beyond 255.
+None of them occurs in the chunk of a `.GAM`, whose islands the original numbers in one byte.
 
 The writer takes version 2 of `ISLE` and `VOLC` only when one of these coordinates is above 255,
 version 2 of `PSTA` only when a player has scenario switches, version 2 of `FLEE` only when a

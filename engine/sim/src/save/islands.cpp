@@ -13,7 +13,11 @@ namespace {
 
 template <class A, class I>
 void io_island(A& a, I& i, std::uint16_t version) {
-    a.u8(i.number);
+    if (version >= kWideIslands) {
+        a.u16(i.number);
+    } else {
+        a.u8(i.number);
+    }
     a.u8(i.deer_phase);
     for (auto& s : i.deer_spots) {
         a.boolean(s.used);
@@ -30,10 +34,15 @@ void io_island(A& a, I& i, std::uint16_t version) {
         a.u16(c.steps_left);
     });
     a.boolean(i.volcano_erupted);
-    a.list(i.deposits, 7, [&](auto& d) {
+    a.list(i.deposits, version >= kWideIslands ? 9 : 7, [&](auto& d) {
         a.u8(d.ware);
-        a.u8(d.x);
-        a.u8(d.y);
+        if (version >= kWideIslands) {
+            a.u16(d.x);
+            a.u16(d.y);
+        } else {
+            a.u8(d.x);
+            a.u8(d.y);
+        }
         a.u8(d.mask);  // the first 8 players; all bits in XPLR
         a.u8(d.kind);
         a.u16(d.amount);
@@ -49,8 +58,16 @@ void io_explored(A& a, E& e) {
 
 }  // namespace
 
-/// The version of ISLE: kWideCoordinates if a deer spot or a crater lies beyond 8 bits.
+/// The version of ISLE: kWideIslands if an island's number or a deposit lies beyond 8 bits, else
+/// kWideCoordinates if a deer spot or a crater does.
 std::uint16_t islands_version(const World& w) {
+    for (const WorldIsland& i : w.islands()) {
+        const bool deposits = std::any_of(i.header.deposits.begin(), i.header.deposits.end(),
+                                          [](const assets::IslandHeader::Deposit& d) { return wide(d.x, d.y); });
+        if (i.header.number > 0xFF || deposits) {
+            return kWideIslands;
+        }
+    }
     for (const WorldIsland& i : w.islands()) {
         const bool spots =
             std::any_of(i.deer_spots.begin(), i.deer_spots.end(), [](const DeerSpot& s) { return wide(s.x, s.y); });

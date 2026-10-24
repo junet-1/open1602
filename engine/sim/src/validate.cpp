@@ -84,7 +84,7 @@ core::Status validate(const World& w) {
     // Islands are addressed by their 8-bit number (state sections, the original's format). Their
     // size is not bound here: craters and deer spots keep 16-bit coordinates, and only the export
     // to the original's format (8-bit coordinates) refuses islands wider than 255 tiles.
-    std::array<bool, 256> numbers{};
+    std::vector<bool> numbers(std::size_t{0xFFFF} + 1);
     for (std::size_t i = 0; i < w.islands().size(); ++i) {
         const WorldIsland& island = w.islands()[i];
         const IslandMap& map = island.map;

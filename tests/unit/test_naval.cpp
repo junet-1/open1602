@@ -312,5 +312,5 @@ TEST_CASE("naval: a sea fight with pirates develops the same on every platform (
     s.add(26, 52, kWarship, 2, 8, 0);
     s.run(90'000);
     CHECK(s.count(sim::ShipEvent::Kind::Sunk) + s.count(sim::ShipEvent::Kind::WhiteFlag) > 0);
-    test::check_golden("sea fight after 90 s", test::world_hash(s.world, s.buildings), 0x512c13da6eb998d4ULL);
+    test::check_golden("sea fight after 90 s", test::world_hash(s.world, s.buildings), 0x5fc48cd29a13999fULL);
 }

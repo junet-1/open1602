@@ -205,8 +205,10 @@ private:
                 std::all_of(i.craters.begin(), i.craters.end(), [&](const Crater& c) { return fits(c.x, c.y); });
             const bool spots = std::all_of(i.deer_spots.begin(), i.deer_spots.end(),
                                            [&](const DeerSpot& d) { return !d.used || fits(d.x, d.y); });
-            if (!craters || !spots) {
-                return make_error(ErrorCode::LimitExceeded, "a crater or deer spot of island " +
+            const bool deposits = std::all_of(i.header.deposits.begin(), i.header.deposits.end(),
+                                              [&](const assets::IslandHeader::Deposit& d) { return fits(d.x, d.y); });
+            if (!craters || !spots || !deposits) {
+                return make_error(ErrorCode::LimitExceeded, "a crater, deer spot or deposit of island " +
                                                                 std::to_string(i.header.number) + " beyond 255 tiles");
             }
         }
@@ -238,7 +240,10 @@ private:
         return core::Ok{};
     }
 
-    [[nodiscard]] std::uint8_t number(std::uint16_t island) const { return m_world.islands()[island].header.number; }
+    /// The island's number in the original's one byte (check() refused numbers above it).
+    [[nodiscard]] std::uint8_t number(std::uint16_t island) const {
+        return static_cast<std::uint8_t>(m_world.islands()[island].header.number);
+    }
 
     /// Places of the ships in the original's table of 150: the place a ship was loaded from, the
     /// first free one for the others. The free trader's ships get HANDLER records in order.
@@ -396,7 +401,7 @@ private:
     void islands() {
         const std::vector<std::uint16_t> order = island_order();
         // Source tiles of each island and layer: the random bits the original keeps per tile.
-        std::map<std::pair<std::uint8_t, std::size_t>, std::unordered_map<std::uint32_t, assets::IslandTile>> tiles;
+        std::map<std::pair<std::uint16_t, std::size_t>, std::unordered_map<std::uint32_t, assets::IslandTile>> tiles;
         if (m_source.file() != nullptr) {
             if (auto loaded = assets::load_islands(*m_source.file())) {
                 for (const assets::Island& island : *loaded) {
@@ -433,7 +438,7 @@ private:
                 }
             }
         }
-        r[0] = h.number;
+        r[0] = static_cast<std::uint8_t>(h.number);  // fits: check()
         // The island template the original builds the island from (+0x60..+0x65).
         if (h.chunk_name == "INSEL5" || h.raw.empty()) {
             put16(r, 0x60, h.template_number);
@@ -476,8 +481,8 @@ private:
             if (k < h.deposits.size()) {
                 const auto& d = h.deposits[k];
                 r[o] = d.ware;
-                r[o + 1] = d.x;
-                r[o + 2] = d.y;
+                r[o + 1] = static_cast<std::uint8_t>(d.x);  // fits: check()
+                r[o + 2] = static_cast<std::uint8_t>(d.y);
                 r[o + 3] = static_cast<std::uint8_t>(d.mask);
                 r[o + 4] = d.kind;
                 put16(r, o + 6, d.amount);
@@ -585,7 +590,7 @@ private:
                 continue;
             }
             core::Bytes r = start(raw, key3(island.header.number, s.x, s.y), kDeerSize);
-            r[0] = island.header.number;
+            r[0] = static_cast<std::uint8_t>(island.header.number);
             r[1] = static_cast<std::uint8_t>(s.x);  // fits: check()
             r[2] = static_cast<std::uint8_t>(s.y);
             put32(r, 4, clamp32(s.respawn_ms / 100));
