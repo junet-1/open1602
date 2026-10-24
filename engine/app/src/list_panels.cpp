@@ -54,7 +54,7 @@ public:
         // The page is kept within the list (it shrinks when ships sink or cities change hands).
         m_first = std::min(m_first, last_first());
         // The original leaves the heading empty; Open1602 names the list and counts its rows. An
-        // order chosen takes the name's place: the banner holds about 25 letters before the arms.
+        // order chosen takes the place of both: the banner holds about 185 px before the arms.
         const std::string heading = panel_detail::help_line(c, m_ships ? 214 : 215);
         const std::string count = std::to_string(m_rows.size());
         m_panel.set_text(m_base + kHeading, m_order == Order::Table ? heading + " (" + count + ")"

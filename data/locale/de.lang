@@ -594,7 +594,7 @@ game_folder.choose = Ordner wählen
 game_folder.quit = Beenden
 game_folder.dialog_title = Anno-1602-Ordner wählen
 # The ship and city lists ordered by a click on the heading: {1} the list, {2} its rows, {3} the order
-list.heading.ordered = {3} ({2})
+list.heading.ordered = {3}
 list.order.name = Nach Name
 list.order.idle = Untätige zuerst
 list.order.damaged = Beschädigte zuerst
