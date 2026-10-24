@@ -215,6 +215,35 @@ bool Window::maximized() const {
     return (SDL_GetWindowFlags(m_window) & SDL_WINDOW_MAXIMIZED) != 0;
 }
 
+void Window::present() {
+    SDL_RenderPresent(m_renderer);
+    if (!m_vsync) {
+        return;
+    }
+    float hz = 0.0F;
+    if (const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(m_window)); mode != nullptr) {
+        hz = mode->refresh_rate;
+    }
+    std::uint64_t now = SDL_GetTicksNS();
+    if (m_last_present_ns != 0) {
+        if (const std::uint64_t hold = frame_hold_ns(now - m_last_present_ns, hz); hold != 0) {
+            SDL_DelayPrecise(hold);
+            now = SDL_GetTicksNS();
+        }
+    }
+    m_last_present_ns = now;
+}
+
+std::uint64_t frame_hold_ns(std::uint64_t since_last_ns, float refresh_hz) noexcept {
+    // A frame waited for by the screen comes a whole refresh after the last; only one that comes
+    // much sooner (below 90 % of the refresh) is held back.
+    if (!(refresh_hz >= 24.0F && refresh_hz <= 1000.0F)) {
+        refresh_hz = 60.0F;
+    }
+    const auto least = static_cast<std::uint64_t>(0.9e9 / static_cast<double>(refresh_hz));
+    return since_last_ns < least ? least - since_last_ns : 0;
+}
+
 void Window::set_vsync(bool on) {
     m_vsync = on;
     if (m_renderer != nullptr) {

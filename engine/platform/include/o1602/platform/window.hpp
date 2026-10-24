@@ -93,6 +93,11 @@ public:
     [[nodiscard]] bool maximized() const;
     /// Frames wait for the screen (vertical sync); kept when the renderer is made again.
     void set_vsync(bool on);
+    /// Shows the frame drawn. With vertical sync on, a frame that comes back much sooner than the
+    /// screen's refresh (a hidden window, a screen switched off: the compositor then does not
+    /// wait) is held back to about the refresh rate, so the program does not spin at thousands of
+    /// frames a second. With vertical sync off frames are not limited.
+    void present();
     /// Name of the active render backend (e.g. "vulkan", "opengl", "direct3d11", "software").
     [[nodiscard]] std::string renderer_name() const;
     /// Largest texture the renderer accepts (0 = unknown).
@@ -104,7 +109,12 @@ private:
     SDL_Window* m_window = nullptr;
     SDL_Renderer* m_renderer = nullptr;
     bool m_vsync = true;
+    std::uint64_t m_last_present_ns = 0;
 };
+
+/// How long Window::present() holds back a frame shown `since_last_ns` after the last one, on a
+/// screen of `refresh_hz` (0 or a value out of 24..1000: 60 assumed): up to 90 % of a refresh.
+[[nodiscard]] std::uint64_t frame_hold_ns(std::uint64_t since_last_ns, float refresh_hz) noexcept;
 
 /// Milliseconds since SDL_Init (monotonic).
 [[nodiscard]] std::uint64_t ticks_ms();

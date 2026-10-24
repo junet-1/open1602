@@ -2651,7 +2651,7 @@ void MapViewer::present() {
             }
         }
     }
-    SDL_RenderPresent(m_window->sdl_renderer());
+    m_window->present();
     if (m_hud) {
         m_hud->next_frame();
     }
