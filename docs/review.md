@@ -2192,6 +2192,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | BT-1 (part) | #175 | A main-menu test with synthetic BASE, HOST, MISSION and FARBWAHL layouts: events, scenario list, mission screen, rules dialog, scrolling, loading. |
 | TB-13 (part) | #176 | The AI caches the free green and tree counts of an island per block revision for the site search. |
 | TB-22 (part) | #177 | Constructions without a territory change recompute the services of the touched cities only. |
+| BT-1 (part) | #178 | A fifth arena scenario: a colony sends the soldiers beside its Kontor to guard its market. Guards walk back to the Kontor once they arrive, as in the original (`0x0042ABD0`). |
 
 ### Still open
 
@@ -2204,7 +2205,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-19, TB-22, TB-25 | Dirty rectangles for the sea and land maps; `update_services` by dirty rectangle (by city since #177); the other world-wide scans of TB-22; TB-25. | M |
 | FB-2 | Per-soldier work (height, sprite) only for soldiers in view. | M |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
-| BT-1 | Recruiting, guards and landings in the AI arena. | M |
+| BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
 | BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
 | DS-2 | The `determinism.yml` workflow and `o1602-replay`: the review's tool branch is not on the remote. Four golden hashes in CI on three platforms cover it in part (#147). | M |
 
