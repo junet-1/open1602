@@ -17,8 +17,9 @@
 namespace o1602::sim::ai {
 
 /// Version of the saved state of the computer players. 2 dropped what nothing read (GB-5): the
-/// attack plans and the islands' state byte. Every version from kFirstStateVersion on loads.
-inline constexpr std::uint32_t kStateVersion = 2;
+/// attack plans and the islands' state byte. 3 added the deferred yard request (GB-2). Every
+/// version from kFirstStateVersion on loads.
+inline constexpr std::uint32_t kStateVersion = 3;
 inline constexpr std::uint32_t kFirstStateVersion = 1;
 
 /// Task ids of the original's dispatcher (AI_RunTask 0x00429AA0). The numbers are kept so the
@@ -380,6 +381,7 @@ struct AiPlayer {
     Reservation reserved;
     // Own shipyard (+0x434..+0x43C)
     bool yard_valid = false;
+    bool yard_wanted = false;  ///< Open1602 (GB-2): the 10-s logistics asked for a yard (state 3)
     std::uint16_t yard_island = 0;
     std::uint16_t yard_x = 0;
     std::uint16_t yard_y = 0;

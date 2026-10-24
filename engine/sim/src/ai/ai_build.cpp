@@ -215,14 +215,14 @@ std::size_t Engine::build(AiPlayer& p, std::vector<BuildItem> items, bool orient
     return r.build ? r.build->placed : 0;
 }
 
-void Engine::demolish_tile(AiPlayer& p, std::int32_t x, std::int32_t y) {
+std::size_t Engine::demolish_tile(AiPlayer& p, std::int32_t x, std::int32_t y) {
     log(p, "demolish %d,%d id %u", x, y, tile(p.island, x, y).valid() ? tile(p.island, x, y).type->id : 0U);
     DemolishOrder order;
     order.player = p.player;
     order.island = p.island;
     order.from = TilePos{x, y};
     order.to = TilePos{x, y};
-    execute(order);
+    return execute(order).demolished;
 }
 
 std::int32_t Engine::road_line(AiPlayer& p, std::int32_t x, std::int32_t y, std::int32_t len, std::uint8_t dir,
