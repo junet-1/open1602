@@ -21,6 +21,9 @@ namespace {
 
 /// How often the menu asks the network for games while it shows the search.
 constexpr std::uint64_t kSearchEveryMs = 3000;
+/// A game for a computer that joins packs on a worker while the game goes on, this long at most
+/// before the host waits for it (SessionConfig::pack_wait_ms, TB-26).
+constexpr std::uint32_t kPackWaitMs = 5'000;
 
 }  // namespace
 
@@ -51,8 +54,10 @@ core::Status MapViewer::start_multiplayer() {
         if (name.empty()) {
             name = ui::tr("menu.default_name");
         }
+        net::SessionConfig config;
+        config.pack_wait_ms = kPackWaitMs;
         m_session = std::make_unique<net::HostSession>(std::move(transport).value(), m_state->simulation, m_buildings,
-                                                       m_local_player, name, content_fingerprint());
+                                                       m_local_player, name, content_fingerprint(), config);
         m_command_sink.set_session(m_session.get());
         m_command_sink.submit(sim::PlayerRename{m_local_player, name});
         std::fprintf(stderr, "multiplayer: hosting on UDP port %u as player %u\n", static_cast<unsigned>(mp.port),
@@ -547,6 +552,7 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
         seat = static_cast<sim::PlayerId>(open != lobby.seats.end() ? open - lobby.seats.begin() : 0);
     }
     net::SessionConfig config;
+    config.pack_wait_ms = kPackWaitMs;
     config.password = setup.password;
     config.join_running = setup.join_running;
     config.spectators = setup.spectators;
@@ -737,9 +743,11 @@ core::Status MapViewer::join_game(const std::string& address, std::uint16_t port
         hello.token = m_rejoin->token;
     }
     m_local_player = sim::kNoPlayer;  // until the host sends the game
+    net::SessionConfig config;
+    config.pack_wait_ms = kPackWaitMs;  // for when this computer hosts next
     auto client = std::make_unique<net::ClientSession>(
         std::move(transport).value(), hello,
-        [this](std::span<const std::uint8_t> save) { return load_from_host(save); });
+        [this](std::span<const std::uint8_t> save) { return load_from_host(save); }, config);
     // A broken connection: back to this host first; only if it cannot be reached, on to the
     // successor (MS-2).
     client->reconnect_with([address, port]() -> std::unique_ptr<net::Transport> {

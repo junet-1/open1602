@@ -58,6 +58,14 @@ struct SaveInfo {
                                                    const Simulation* simulation = nullptr,
                                                    const SaveOptions& options = {});
 
+/// write_game in two steps, so that the second can run on another thread while the game goes on
+/// (a multiplayer host packing the game for a computer that joins, TB-26): the sections, unpacked,
+/// as they are now (refused if the game is too large to read back), and the file around them.
+/// pack_game reads nothing but `sections`, so any thread may call it.
+[[nodiscard]] core::Result<core::Bytes> encode_game(const World& world, const assets::BuildingTable& buildings,
+                                                    const Simulation* simulation = nullptr);
+[[nodiscard]] core::Result<core::Bytes> pack_game(const core::Bytes& sections, const SaveOptions& options = {});
+
 /// The header of a savegame and its META section (checks magic and version, not the data; unpacks
 /// only the head of the sections).
 [[nodiscard]] core::Result<SaveInfo> save_info(std::span<const std::uint8_t> bytes);

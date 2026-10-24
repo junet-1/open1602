@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <algorithm>
+#include <chrono>
 #include <limits>
 #include <random>
 #include <utility>
@@ -70,6 +71,7 @@ struct HostSession::Peer {
     bool gone = false;  ///< dropped; removed at the end of the update
     bool welcomed = false;
     bool game_due = false;  ///< send it the game at the end of this update
+    bool packing = false;   ///< its game is being packed (m_packing)
     Seat seat = sim::kNoPlayer;
     std::string name;
     std::uint32_t epoch = 0;   ///< of the last game sent
@@ -382,20 +384,16 @@ void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTic
         update_lead(real_ms);
         run(real_ms, before_tick);
         broadcast_frames();
-        m_game.reset();
+        deliver_packed(real_ms);
         m_game_credit_ms = std::min(kGameCreditMs, m_game_credit_ms + std::min(real_ms, kGameCreditMs));
-        if (m_game_credit_ms >= kGameCostMs) {
-            // Without credit, who waits for a game gets it with the next one (game_due stays set).
-            for (std::size_t i = 0; i < m_peers.size(); ++i) {
-                if (m_peers[i]->game_due) {
-                    send_game(*m_peers[i]);
-                }
-            }
-            if (m_game) {
-                m_game_credit_ms -= kGameCostMs;  // one game written for all who got it now
-            }
+        // Without credit, or while a game is being packed, who waits for a game gets the next one
+        // (game_due stays set).
+        const bool due = std::any_of(m_peers.begin(), m_peers.end(), [](const auto& p) { return p->game_due; });
+        if (due && !m_packing && m_game_credit_ms >= kGameCostMs) {
+            m_game_credit_ms -= kGameCostMs;  // one game written for all it is due to now
+            start_packing();
+            deliver_packed(0);  // at once if the host does not let it pack while the game goes on
         }
-        m_game.reset();
         forget_frames();
     }
     std::erase_if(m_peers, [](const auto& p) { return p->gone; });
@@ -693,7 +691,7 @@ std::uint64_t HostSession::resync_frames() const {
 std::uint64_t HostSession::slowest() const {
     std::uint64_t frames = std::numeric_limits<std::uint64_t>::max();
     for (const auto& p : m_peers) {
-        if (!p->gone && p->state == Peer::State::Playing && !p->lagging) {
+        if (!p->gone && p->state == Peer::State::Playing && !p->lagging && !p->packing) {
             frames = std::min(frames, p->frames);
         }
     }
@@ -747,7 +745,8 @@ void HostSession::run(std::uint32_t real_ms, const sim::Simulation::BeforeTick& 
 
 void HostSession::watch_stalls(std::uint32_t real_ms, bool stalled) {
     const auto holding = [&](const Peer& p) {
-        return !p.gone && p.state == Peer::State::Playing && !p.lagging && p.frames + ahead_frames() <= m_frames;
+        return !p.gone && p.state == Peer::State::Playing && !p.lagging && !p.packing &&
+               p.frames + ahead_frames() <= m_frames;
     };
     // A computer that has held everyone up before gets a quarter of the time: one that stalls
     // again and again would otherwise stop the game for the full time each time.
@@ -797,36 +796,86 @@ void HostSession::broadcast_frames() {
     }
     const std::vector<std::uint8_t> bytes = encode(turn);
     for (const auto& p : m_peers) {
-        if (!p->gone && p->state != Peer::State::Greeting) {
+        if (!p->gone && p->state != Peer::State::Greeting && !p->packing) {  // its game is on the way
             send_bytes(p->link, bytes);
         }
     }
     m_broadcast = m_closed;
 }
 
-void HostSession::send_game(Peer& peer) {
-    peer.game_due = false;
-    if (!m_game) {
-        // Written and encoded once for all computers that get it in this update.
-        auto save = sim::write_game(m_simulation->world(), *m_buildings, m_simulation);
-        if (!save || save.value().size() > kMaxSnapshotBytes) {
-            drop(peer, RefuseReason::Closed);  // the game cannot be written: nobody can come in
-            return;
+void HostSession::start_packing() {
+    // Written once for all computers it is due to now, on the game thread: the game as it is after
+    // m_frames frames. Only the packing, which reads nothing but these bytes, goes to a worker.
+    auto sections = sim::encode_game(m_simulation->world(), *m_buildings, m_simulation);
+    for (const auto& p : m_peers) {
+        if (!p->game_due) {
+            continue;
         }
-        m_game = encode(Snapshot{0, m_frames, m_simulation->speed(), m_simulation->paused(), std::move(save).value()});
+        p->game_due = false;
+        if (!sections) {
+            drop(*p, RefuseReason::Closed);  // the game cannot be written: nobody can come in
+            continue;
+        }
+        // From now on what it says about the game it had is no longer of interest (progress()
+        // takes the epoch of the game on its way), nobody waits for it, and it gets no frames
+        // until its game comes with those run since.
+        p->packing = true;
+        ++p->epoch;
+        p->lagging = false;
+        p->hashes.clear();
+        m_roster_changed = true;
     }
+    if (!sections) {
+        return;
+    }
+    m_packing =
+        Packing{std::async(std::launch::async, [bytes = std::move(sections).value()] { return sim::pack_game(bytes); }),
+                m_frames, m_simulation->speed(), m_simulation->paused()};
+}
+
+void HostSession::deliver_packed(std::uint32_t real_ms) {
+    if (!m_packing) {
+        return;
+    }
+    m_packing->waited_ms += real_ms;
+    if (m_packing->waited_ms >= m_config.pack_wait_ms) {
+        m_packing->file.wait();
+    } else if (m_packing->file.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        return;
+    }
+    auto file = m_packing->file.get();
+    const Packing packing = {{}, m_packing->frame, m_packing->speed, m_packing->paused, 0};
+    m_packing.reset();
+    if (!file || file->size() > kMaxSnapshotBytes) {
+        for (const auto& p : m_peers) {
+            if (std::exchange(p->packing, false)) {
+                drop(*p, RefuseReason::Closed);
+            }
+        }
+        return;
+    }
+    m_game = encode(Snapshot{0, packing.frame, packing.speed, packing.paused, std::move(file).value()});
+    for (const auto& p : m_peers) {
+        if (std::exchange(p->packing, false) && !p->gone) {
+            send_game(*p, packing.frame);
+        }
+    }
+    m_game.reset();
+}
+
+void HostSession::send_game(Peer& peer, std::uint64_t first) {
     // The epoch is the first field after the type (protocol.cpp), little endian.
-    const std::uint32_t epoch = ++peer.epoch;
     for (std::size_t i = 0; i < 4; ++i) {
-        (*m_game)[1 + i] = static_cast<std::uint8_t>(epoch >> (8 * i));
+        (*m_game)[1 + i] = static_cast<std::uint8_t>(peer.epoch >> (8 * i));
     }
     send_bytes(peer.link, *m_game);
-    // The frames closed beyond the game sent; later ones follow with everyone's.
+    // The frames closed beyond the game sent: those the host ran while it was packed, and those
+    // closed ahead; later ones follow with everyone's.
     Turn turn;
-    turn.first = m_frames;
+    turn.first = first;
     turn.closed = m_closed;
     turn.lead = m_lead;
-    for (std::uint64_t f = m_frames; f < m_closed; ++f) {
+    for (std::uint64_t f = first; f < m_closed; ++f) {
         const Frame& frame = m_log[static_cast<std::size_t>(f - m_log_start)];
         if (!frame.commands.empty()) {
             turn.frames.push_back(FrameCommands{f, frame.commands});
@@ -834,7 +883,7 @@ void HostSession::send_game(Peer& peer) {
     }
     send(peer.link, turn);
     peer.state = Peer::State::Loading;
-    peer.frames = m_frames;
+    peer.frames = first;
     peer.lagging = false;
     peer.hashes.clear();
     m_roster_changed = true;
@@ -842,7 +891,10 @@ void HostSession::send_game(Peer& peer) {
 
 void HostSession::forget_frames() {
     // Kept: what has not gone out yet, and what the host has not run (for a game sent now).
-    const std::uint64_t keep = std::min(m_frames, m_broadcast);
+    std::uint64_t keep = std::min(m_frames, m_broadcast);
+    if (m_packing) {
+        keep = std::min(keep, m_packing->frame);  // for the game on its way
+    }
     while (m_log_start < keep) {
         m_log.pop_front();
         ++m_log_start;
@@ -877,6 +929,7 @@ void HostSession::drop(Peer& peer, std::optional<RefuseReason> tell) {
     }
     peer.gone = true;
     peer.game_due = false;
+    peer.packing = false;
     if (tell) {
         send(peer.link, Refused{*tell});
     }
@@ -976,9 +1029,9 @@ void HostSession::refresh_roster() {
         if (p->gone || !p->welcomed) {
             continue;
         }
-        const Member::State state = p->lagging                         ? Member::State::Lagging
-                                    : p->state == Peer::State::Playing ? Member::State::Playing
-                                                                       : Member::State::Loading;
+        const Member::State state = p->lagging                                        ? Member::State::Lagging
+                                    : p->state == Peer::State::Playing && !p->packing ? Member::State::Playing
+                                                                                      : Member::State::Loading;
         m_roster.push_back(Member{p->seat, p->name, state, false});
         m_roster_links.push_back(p->link);
     }
@@ -988,7 +1041,7 @@ void HostSession::refresh_roster() {
     m_successor_address.clear();
     for (const auto& p : m_peers) {
         if (!p->gone && p->welcomed && p->seat != sim::kNoPlayer && p->seat < m_successor &&
-            p->state == Peer::State::Playing && !p->lagging && !p->address.empty()) {
+            p->state == Peer::State::Playing && !p->lagging && !p->packing && !p->address.empty()) {
             m_successor = p->seat;
             m_successor_address = p->address;
         }

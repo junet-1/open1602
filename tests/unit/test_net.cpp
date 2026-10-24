@@ -406,6 +406,41 @@ TEST_CASE("net: two computers join, everyone plays, all games stay the same") {
     CHECK(host.session->kept_frames() <= host.session->lead() + 2u);  // nothing piles up
 }
 
+TEST_CASE("net: a game packed while the host plays on reaches the computer with the frames run since (TB-26)") {
+    net::LoopbackNetwork network(40, 25);
+    net::SessionConfig config;
+    config.pack_wait_ms = 60'000;  // never waits for it: the game goes on until it is packed
+    Host host(network, config);
+    run_for(network, host, {}, 1000);
+    Computer a(network, "Anna", 0, kContent, config);
+    sim::Random r(7, 1);
+    // The host gives orders in every step, so the frames run while the game packs carry commands.
+    const std::uint64_t joined_at = host.session->frames();
+    for (int i = 0; i < 2000 && !a.session->playing(); ++i) {
+        host.session->submit(sim::PlayerRename{0, random_name(r)});
+        step(network, host, {&a});
+        std::this_thread::sleep_for(std::chrono::microseconds(200));  // time for the worker
+    }
+    REQUIRE(a.session->playing());
+    CHECK(host.session->frames() > joined_at);
+    CHECK(a.game.loads == 1);
+    run_for(network, host, {&a}, 2000);
+
+    FrameProbe ph{host.session->frames() + 60, {}};
+    FrameProbe pa = ph;
+    for (int i = 0; i < 400 && !(ph.hash && pa.hash); ++i) {
+        network.advance(kStepMs);
+        host.update(kStepMs, ph.at(*host.session, host.game));
+        a.update(kStepMs, pa.at(*a.session, a.game));
+    }
+    REQUIRE(ph.hash.has_value());
+    CHECK(pa.hash == ph.hash);
+    CHECK(host.count(net::SessionEvent::Kind::Desync) == 0);
+    CHECK(host.session->fingerprints_matched() == host.session->fingerprints_compared());
+    CHECK(a.game.loads == 1);
+    CHECK(host.session->kept_frames() <= host.session->lead() + 2u);  // the frames kept for it are let go
+}
+
 TEST_CASE("net: nobody gives orders for another player") {
     net::LoopbackNetwork network(10, 0);
     Host host(network);

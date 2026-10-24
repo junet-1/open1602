@@ -40,7 +40,9 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    computer its game as an `.o1602` savegame ([ADR 0009](0009-own-save-format.md)) together
    with the speed, the pause and the frames already closed after it. That is how a computer comes into
    the game at the start, into a running game, back after a lost connection, and back into step after
-   a desync (M-003). The host is always right. A computer that diverges again right after loading
+   a desync (M-003). The host writes the game's sections on the game thread and packs them on a
+   worker while the game goes on (TB-26); the computer gets the game as it was then, with the frames
+   run since. The host is always right. A computer that diverges again right after loading
    (another version) is sent away after two tries. An epoch number per game sent keeps old reports of
    a computer from touching the new game.
 7. **Senders.** Every command names its player; the host takes from a computer only commands for its
@@ -200,7 +202,8 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
   everyone. The automatic return to speed 1 at a fire or an attack works only on the host.
 - Loading savegames and starting new games is blocked during a session.
 - The fingerprint costs writing the game but for the tiles in memory on every computer about every
-  5 s of real time, and hashing the blocks of tiles that changed (point 5). The host writes games for joining computers a few at once and then at most one a second.
+  5 s of real time, and hashing the blocks of tiles that changed (point 5). The host writes games for joining computers a few at once and then at most one a second; it packs
+  them on a worker.
 - A host behind a router needs UDP port 16020 (or the one it chose) forwarded for players on the
   internet; the menu says so.
 - The host tells every computer the address of the successor, and the successor verifiers of the
