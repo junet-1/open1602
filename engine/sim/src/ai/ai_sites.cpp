@@ -18,6 +18,8 @@ namespace o1602::sim::ai {
 
 namespace {
 
+/// Rings of the original searches. A search whose callback only looks at d below some limit
+/// passes that limit instead (TB-11): the rings past it cost `tile()` calls and change nothing.
 constexpr std::int32_t kRings = 16;
 /// Road positions one search step may try before it yields (TB-12). The cursor stays in
 /// `p.search`, so the next step goes on where this one stopped. Without the cap a built-up city
@@ -369,7 +371,7 @@ bool Engine::search_houses(AiPlayer& p) {
             }
             any = true;
             Acc acc;
-            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, kRings,
+            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, 14,
                   [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                       if (coast(t.kind) && d < 8) {
                           acc.score += d - 8;
@@ -478,7 +480,7 @@ bool Engine::search_workshop(AiPlayer& p, bool cannons) {
             }
             any = true;
             Acc acc;
-            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, kRings,
+            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, 9,
                   [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                       if (d == 0 && (t.kind == kind::kRoad || t.kind == kind::kBridge)) {
                           acc.road = true;
@@ -545,7 +547,7 @@ bool Engine::search_stonemason(AiPlayer& p) {
             }
             any = true;
             Acc acc;
-            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, kRings,
+            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, 13,
                   [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                       if (d == 0 && (t.kind == kind::kRoad || t.kind == kind::kBridge)) {
                           acc.road = true;
@@ -609,7 +611,7 @@ bool Engine::search_farm(AiPlayer& p, bool woodcutter) {
                 if (!woodcutter) {
                     acc.score = 2 * s.remaining;
                 }
-                rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, kRings,
+                rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, 13,
                       [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                           if (d <= 1 && (t.kind == kind::kRoad || t.kind == kind::kBridge)) {
                               acc.road = true;
@@ -712,7 +714,7 @@ bool Engine::search_grain(AiPlayer& p) {
             }
             any = true;
             Acc acc;
-            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, kRings,
+            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, 13,
                   [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                       if (d <= 1 && (t.kind == kind::kRoad || t.kind == kind::kBridge)) {
                           acc.road = true;
@@ -990,7 +992,7 @@ bool Engine::search_military(AiPlayer& p) {
             any = true;
             Acc acc;
             acc.score = 1000;
-            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, kRings,
+            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, 9,
                   [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                       if (d == 0 && (t.kind == kind::kRoad || t.kind == kind::kBridge)) {
                           acc.road = true;
@@ -1087,7 +1089,7 @@ bool Engine::search_pirate_houses(AiPlayer& p) {
             }
             any = true;
             std::int32_t score = 4000;
-            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, kRings,
+            rings(p, RingFilter::Own, c.x0, c.y0, c.x1, c.y1, 6,
                   [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                       if (coast(t.kind) && d < 6) {
                           score -= 4 << (6 - d);
@@ -1289,7 +1291,7 @@ bool Engine::search_fisher(AiPlayer& p) {
                 continue;
             }
             Acc acc;
-            rings(p, RingFilter::OwnOrSea, cx, cy, cx, cy, kRings,
+            rings(p, RingFilter::OwnOrSea, cx, cy, cx, cy, 13,
                   [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t d) {
                       if (t.origin && market_or_kontor(t) && d < 13) {
                           acc.market = true;
