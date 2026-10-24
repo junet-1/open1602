@@ -2,7 +2,8 @@
 // The computers' soldiers on an island (BT-1, the island controller of docs/re/ai.md): at peace
 // they gather at their Kontor or, without a city there, are disbanded; at war they go for the
 // enemy's soldiers, or for the markets, Kontor and houses of an enemy city on the island. Every
-// 6 s a colony sends the soldiers beside its Kontor to guard a market.
+// 6 s a colony sends the soldiers beside its Kontor to guard a market, and a city with a castle
+// trains units there until its army is half again as strong as the strongest human one.
 
 #include <algorithm>
 #include <cstdint>
@@ -24,14 +25,17 @@ constexpr std::uint32_t kGround = 20101;
 constexpr std::uint32_t kHouse = 20103;
 constexpr std::uint32_t kKontor = 20108;
 constexpr std::uint32_t kMarket = 20809;
+constexpr std::uint32_t kCastle = 22521;
+constexpr std::uint32_t kSwordsmith = 20511;
 constexpr std::uint16_t kSword = 1;
 
 constexpr sim::PlayerId kHuman = 0;
 constexpr sim::PlayerId kComputer = 1;
 
 assets::BuildingTable make_buildings() {
-    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}};
     const auto doc = assets::cod::parse(
+        "Objekt: BGRUPPE\n  Nummer: 0\n  Prozent: 0\n  Maxwohn: 8\n  Steuer: 1.4\nEndObj\n"
         "Objekt: HAUS\n"
         "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"  // open ground
         "  @Nummer: 1\n  Id: 20103\n  Kind: 14\n  Gfx: 2\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
@@ -43,6 +47,12 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 3\n  Id: 20809\n  Kind: 14\n  Gfx: 40\n  Size: 4, 3\n  Maxenergy: 20\n  NoShotFlg: 1\n"
         "  Ruinenr: 255\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 7\n    Radius: 16\n  EndObj\n"  // market
+        "  @Nummer: 4\n  Id: 22521\n  Kind: 14\n  Gfx: 60\n  Size: 3, 3\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+        "  Ruinenr: 255\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 15\n    Maxware: 3\n    Prodmenge: 2\n  EndObj\n"  // castle
+        "  @Nummer: 5\n  Id: 20511\n  Kind: 14\n  Gfx: 70\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+        "  Ruinenr: 255\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Ware: 11\n    Rohstoff: 10\n    Radius: 4\n  EndObj\n"  // swords
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -113,12 +123,21 @@ struct Island {
             h.city = city;
             world.add_house(h);
         }
-        if (id == kKontor || id == kMarket) {
+        if (id == kKontor || id == kMarket || id == kCastle || id == kSwordsmith) {
             sim::Production p;
             p.island = island;
             p.x = ux;
             p.y = uy;
             world.set_production(p);
+        }
+        if (id == kCastle) {
+            sim::CostBuilding castle;
+            castle.kind = sim::CostBuilding::Kind::Castle;
+            castle.island = island;
+            castle.x = ux;
+            castle.y = uy;
+            castle.weapons = {10 * 32, 0, 0};
+            world.add_cost_building(castle);
         }
         if (id == kKontor) {
             world.city(island, city)->warehouse_x = ux;
@@ -255,4 +274,43 @@ TEST_CASE("ai military: at peace, soldiers beside the Kontor of a colony are sen
         guarding += soldier->target == post ? 1U : 0U;
     }
     CHECK(guarding == 4);  // a colony keeps no reserve at its Kontor
+}
+
+TEST_CASE("ai military: a computer with a castle and a sword smith trains swordsmen and sends them to its Kontor") {
+    Island a;
+    a.build(kKontor, 10, 8, kComputer, 0);
+    a.build(kMarket, 30, 8, kComputer, 0);  // recruiting starts from a guard post
+    a.build(kCastle, 40, 8, kComputer, 0);  // found by the survey
+    a.build(kSwordsmith, 46, 8, kComputer, 0);
+    a.world.city(0, 0)->inhabitants = {48};         // room for 48 / 16 = 3 units
+    a.add(kHuman, 2 * (100 + 4), 2 * (10 + 4), 1);  // the army to outdo: one swordsman
+    sim::Simulation s(a.world, a.buildings, a.figures);
+    const auto castle = [&]() -> const sim::CostBuilding* {
+        for (const sim::CostBuilding& c : a.world.cost_buildings()) {
+            if (c.kind == sim::CostBuilding::Kind::Castle) {
+                return &c;
+            }
+        }
+        return nullptr;
+    };
+    run(s, 30'000);
+    REQUIRE(castle() != nullptr);
+    REQUIRE(castle()->slots.size() == 1);
+    CHECK(castle()->slots[0].figure == kSword);
+    CHECK(castle()->weapons[0] < 10 * 32);  // paid with the castle's swords
+    run(s, 4 * 60'000);
+    REQUIRE(castle() != nullptr);
+    CHECK(castle()->slots.empty());
+    // One and a half times the human army: the second swordsman is enough.
+    const auto mine = a.soldiers(kComputer);
+    REQUIRE(mine.size() == 2);
+    for (const sim::Soldier* soldier : mine) {
+        CHECK(soldier->figure == kSword);
+        CHECK(soldier->home == sim::Target::building(0, 40, 8));
+        // Beside the Kontor (half tiles 40..43, 36..39), where the castle sends them.
+        const std::int32_t cx = soldier->pos_x / (sim::kPosUnit / 2);
+        const std::int32_t cy = soldier->pos_y / (sim::kPosUnit / 2);
+        CHECK(std::abs(cx - 41) <= 4);
+        CHECK(std::abs(cy - 37) <= 4);
+    }
 }
