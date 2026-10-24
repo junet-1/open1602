@@ -190,6 +190,7 @@ bool walker_visible_at(const sim::World& world, const assets::BuildingTable& bui
 void LandFigures::clear() {
     m_instances.clear();
     m_states.clear();
+    m_out_of_view.clear();
 }
 
 void LandFigures::add(const FigureInstance& instance, const assets::FigureTable& figures, std::uint8_t anim,
@@ -207,6 +208,9 @@ void LandFigures::add(const FigureInstance& instance, const assets::FigureTable&
 
 void LandFigures::advance(std::uint32_t dt_ms, const assets::FigureTable& figures) {
     for (std::size_t i = 0; i < m_instances.size(); ++i) {
+        if (i < m_out_of_view.size() && m_out_of_view[i] != 0) {
+            continue;
+        }
         if (const assets::FigureType* type = figures.get(m_instances[i].figure)) {
             advance_animation(m_states[i], *type, dt_ms);
             m_instances[i].anim = m_states[i].anim;
@@ -249,13 +253,14 @@ void SoldierFigures::capture(const sim::World& world) {
 }
 
 void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& buildings,
-                          const assets::FigureTable& figures, double fraction) {
+                          const assets::FigureTable& figures, double fraction, const TileBox& view) {
     // The last frame's animations, as they ran since.
     std::swap(m_states, m_last_states);
     std::swap(m_sim_anims, m_last_sim_anims);
     std::swap(m_index, m_last_index);
     m_instances.clear();
     m_states.clear();
+    m_out_of_view.clear();
     m_sim_anims.clear();
     m_index.clear();
     m_trail.set_fraction(fraction);
@@ -272,8 +277,11 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
         f.figure = s.figure;
         f.direction = s.direction;
         f.owner = s.owner;
-        f.z = spawn_height(world, buildings, f.x, f.y, true);  // 0x0045E1F0 with 0x00451180
-        f.sheet = assets::FigureSheet::Soldat;                 // draw kind 4 (0x0044FA90)
+        const bool seen = view.contains(f.x, f.y);
+        if (seen) {
+            f.z = spawn_height(world, buildings, f.x, f.y, true);  // 0x0045E1F0 with 0x00451180
+        }
+        f.sheet = assets::FigureSheet::Soldat;  // draw kind 4 (0x0044FA90)
         // Kind 4 shows only on an island the local player has discovered (0x00451590).
         f.island = s.island;
         AnimState state;
@@ -299,6 +307,7 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
         m_index.push_back(Entry{s.id, static_cast<std::uint32_t>(m_instances.size())});
         m_instances.push_back(f);
         m_states.push_back(state);
+        m_out_of_view.push_back(seen ? 0 : 1);
         m_sim_anims.push_back(sim_anim);
     }
     // The soldiers come in the order of their ids, so this is mostly sorted already.
