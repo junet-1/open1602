@@ -42,6 +42,47 @@ public:
         return lookup(id);
     }
 
+    /// Before a change of the list through World: whether the index matches it now.
+    template <typename T>
+    [[nodiscard]] bool matches(const std::vector<T>& list, std::uint32_t next_id) const noexcept {
+        return m_data == static_cast<const void*>(list.data()) && m_size == list.size() && m_next_id == next_id;
+    }
+
+    /// The list got one entry at its end and the index matched it before (TB-6): no new build when
+    /// its id is the largest, as a new unit's is.
+    template <typename T>
+    void appended(const std::vector<T>& list, bool matched, std::uint32_t next_id) {
+        if (!matched || list.empty() || (!m_entries.empty() && m_entries.back().id >= list.back().id)) {
+            m_data = nullptr;  // built anew at the next find
+            return;
+        }
+        m_entries.push_back({list.back().id, static_cast<std::uint32_t>(list.size() - 1)});
+        m_data = list.data();
+        m_size = list.size();
+        m_next_id = next_id;
+    }
+
+    /// The entries at `removed` (ascending slots of the list before) left it, the others kept their
+    /// order (TB-6): the index follows in one pass instead of sorting anew.
+    template <typename T>
+    void erased(const std::vector<T>& list, bool matched, const std::vector<std::uint32_t>& removed) {
+        if (!matched) {
+            m_data = nullptr;
+            return;
+        }
+        std::size_t kept = 0;
+        for (const Entry& e : m_entries) {
+            const auto it = std::lower_bound(removed.begin(), removed.end(), e.slot);
+            if (it != removed.end() && *it == e.slot) {
+                continue;
+            }
+            m_entries[kept++] = {e.id, e.slot - static_cast<std::uint32_t>(it - removed.begin())};
+        }
+        m_entries.resize(kept);
+        m_data = list.data();
+        m_size = list.size();
+    }
+
 private:
     struct Entry {
         std::uint32_t id;

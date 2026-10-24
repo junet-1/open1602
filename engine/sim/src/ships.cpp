@@ -464,7 +464,7 @@ void Fleet::tick(std::uint32_t dt_ms) {
     m_squares_valid = false;
     // Sunk ships are gone with their cargo (Figure_Free 0x00443520). The wreck the original leaves
     // for about 22 s is only a picture (render::CombatEffects).
-    std::erase_if(m_world->ships(), [](const Ship& s) { return s.sinking && s.owner == kNoPlayer; });
+    m_world->erase_ships([](const Ship& s) { return s.sinking && s.owner == kNoPlayer; });
     trader_tick(dt_ms);
     yards_tick(dt_ms);
     pirates_tick(dt_ms);

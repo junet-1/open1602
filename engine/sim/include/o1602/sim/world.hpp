@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -473,6 +474,8 @@ public:
     /// Ship with this id, nullptr if it is gone.
     [[nodiscard]] const Ship* ship(std::uint32_t id) const noexcept;
     [[nodiscard]] Ship* ship(std::uint32_t id) noexcept;
+    /// Removes the ships `gone` says so; the others keep their order.
+    void erase_ships(const std::function<bool(const Ship&)>& gone);
     /// Id the next new ship gets.
     [[nodiscard]] std::uint32_t next_ship_id() const noexcept { return m_next_ship_id; }
     void set_next_ship_id(std::uint32_t id) noexcept { m_next_ship_id = id; }
@@ -496,6 +499,8 @@ public:
     /// Unit with this id, nullptr if it is gone.
     [[nodiscard]] const Soldier* soldier(std::uint32_t id) const noexcept;
     [[nodiscard]] Soldier* soldier(std::uint32_t id) noexcept;
+    /// Removes the units `gone` says so; the others keep their order.
+    void erase_soldiers(const std::function<bool(const Soldier&)>& gone);
     [[nodiscard]] std::uint32_t next_soldier_id() const noexcept { return m_next_soldier_id; }
     void set_next_soldier_id(std::uint32_t id) noexcept { m_next_soldier_id = id; }
 
@@ -663,6 +668,7 @@ private:
     std::vector<Soldier> m_soldiers;
     std::uint32_t m_next_soldier_id = 1;
     IdIndex m_soldier_index;
+    std::vector<std::uint32_t> m_removed;  ///< scratch of erase_ships() and erase_soldiers()
     std::vector<Tower> m_towers;
     std::vector<BuildingDamage> m_building_damage;
     std::vector<PendingHit> m_hits;

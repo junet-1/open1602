@@ -313,6 +313,9 @@ void Military::natives_tick() {
     constexpr std::uint32_t kAlarmed = 7;
     ++m_native_ticks;
     const std::uint64_t now = m_world->time_ms();
+    const std::size_t players = m_world->players().size();
+    const std::size_t islands = m_world->islands().size();
+    std::vector<std::uint32_t> counts;
     for (const City& found : m_world->cities()) {
         const Player* owner = m_world->player(found.owner);
         if (owner == nullptr || m_world->behaviour(*owner) != FactionBehaviour::Natives) {
@@ -324,10 +327,20 @@ void Military::natives_tick() {
             continue;
         }
         const std::uint32_t wanted = alarmed ? kAlarmed : kCalm;
-        std::uint32_t out = 0;
-        for (const Soldier& s : m_world->soldiers()) {
-            out += s.owner == found.owner && s.island == found.island && !s.dying() ? 1U : 0U;
+        // Units out by owner and island, counted once in this step instead of once per city
+        // (TB-23); the warriors sent below are added to it.
+        if (counts.empty()) {
+            counts.assign(players * islands, 0);
+            for (const Soldier& s : m_world->soldiers()) {
+                if (s.owner < players && s.island < islands && !s.dying()) {
+                    ++counts[std::size_t{s.owner} * islands + s.island];
+                }
+            }
         }
+        if (found.owner >= players || found.island >= islands) {
+            continue;
+        }
+        std::uint32_t& out = counts[std::size_t{found.owner} * islands + found.island];
         for (CostBuilding& hut : m_world->cost_buildings()) {
             if (out >= wanted) {
                 break;

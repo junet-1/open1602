@@ -224,12 +224,14 @@ void Combat::update() {
                 {Target::other_ship(s.id), s.owner, s.near_island, s.pos_x / kEighth, s.pos_y / kEighth, true});
         }
     }
+    const std::size_t ships = m_entries.size();
     for (const Soldier& s : m_world->soldiers()) {
         if (!s.away() && s.owner != kNoPlayer) {
             m_entries.push_back(
                 {Target::soldier(s.id), s.owner, s.island, s.pos_x / kEighth, s.pos_y / kEighth, false});
         }
     }
+    const std::size_t units = m_entries.size() - ships;
     for (const Tower& t : m_world->towers()) {
         if (t.owner == kNoPlayer || t.island >= m_world->islands().size()) {
             continue;
@@ -240,10 +242,7 @@ void Combat::update() {
     }
     const std::size_t n = m_entries.size();
     m_index.clear();
-    for (std::size_t i = 0; i < n; ++i) {
-        m_index.emplace_back(key_of(m_entries[i].unit), static_cast<std::uint32_t>(i));
-    }
-    std::stable_sort(m_index.begin(), m_index.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    m_neighbours.clear();
 
     // Who is hostile to whom, once per tick instead of per pair.
     const Diplomacy& d = m_world->diplomacy();
@@ -265,12 +264,32 @@ void Combat::update() {
         }
     }
     m_enemies.assign(players, 0);
+    bool fight = false;
     for (std::size_t a = 0; a < players; ++a) {
         for (std::size_t b = 0; b < players; ++b) {
             if (m_present[b] != 0 && m_hostile[a * players + b] != 0) {
                 m_enemies[a] = 1;
+                fight = fight || m_present[a] != 0;
             }
         }
+    }
+    if (!fight) {
+        // Nobody present has an enemy present (peace, TB-5): every list is empty, no sorting.
+        m_entries.clear();
+        m_first.assign(1, 0);
+        return;
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+        m_index.emplace_back(key_of(m_entries[i].unit), static_cast<std::uint32_t>(i));
+    }
+    // Ships, units and towers are each in the order of their ids as a rule: with the towers
+    // (buildings) before the units, as the keys go, the index is sorted without sorting (TB-5).
+    // Equal keys only come from one list, whose order the rotation keeps: the stable sort's result.
+    std::rotate(m_index.begin() + static_cast<std::ptrdiff_t>(ships),
+                m_index.begin() + static_cast<std::ptrdiff_t>(ships + units), m_index.end());
+    const auto by_key = [](const auto& a, const auto& b) { return a.first < b.first; };
+    if (!std::is_sorted(m_index.begin(), m_index.end(), by_key)) {
+        std::stable_sort(m_index.begin(), m_index.end(), by_key);
     }
 
     // Buckets of kSight tiles: a figure sees only figures in its own and the eight around it.
@@ -280,14 +299,37 @@ void Combat::update() {
     // Farthest distance a figure in sight can have (sea_distance of kSight8 in both axes).
     constexpr std::int32_t kMaxSeenDistance = kSight8 + kSight8 / 4;
     const auto bucket_of = [](std::int32_t v) { return v >= 0 ? v / kSight8 : -((-v + kSight8 - 1) / kSight8); };
-    m_buckets.clear();
-    for (std::size_t i = 0; i < n; ++i) {
+    // Sorted by (bucket row, bucket column, owner, entry): as one 64-bit key each when the values
+    // fit, which sorts several times faster than the records (TB-5).
+    constexpr std::int32_t kBias = 1 << 15;
+    constexpr std::size_t kMaxEntries = std::size_t{1} << 24U;
+    m_bucket_keys.clear();
+    bool packed = n < kMaxEntries;
+    for (std::size_t i = 0; i < n && packed; ++i) {
         const Entry& e = m_entries[i];
-        m_buckets.push_back({bucket_of(e.x8), bucket_of(e.y8), e.x8, e.y8, static_cast<std::uint32_t>(i), e.owner});
+        const std::int32_t bx = bucket_of(e.x8) + kBias;
+        const std::int32_t by = bucket_of(e.y8) + kBias;
+        packed = bx >= 0 && bx <= 0xFFFF && by >= 0 && by <= 0xFFFF;
+        m_bucket_keys.push_back(std::uint64_t(std::uint32_t(by)) << 48U | std::uint64_t(std::uint32_t(bx)) << 32U |
+                                std::uint64_t{e.owner} << 24U | i);
     }
-    std::sort(m_buckets.begin(), m_buckets.end(), [](const Bucketed& a, const Bucketed& b) {
-        return std::tie(a.by, a.bx, a.owner, a.entry) < std::tie(b.by, b.bx, b.owner, b.entry);
-    });
+    m_buckets.clear();
+    if (packed) {
+        std::sort(m_bucket_keys.begin(), m_bucket_keys.end());
+        for (const std::uint64_t key : m_bucket_keys) {
+            const auto i = static_cast<std::uint32_t>(key & 0xFFFFFFU);
+            const Entry& e = m_entries[i];
+            m_buckets.push_back({bucket_of(e.x8), bucket_of(e.y8), e.x8, e.y8, i, e.owner});
+        }
+    } else {
+        for (std::size_t i = 0; i < n; ++i) {
+            const Entry& e = m_entries[i];
+            m_buckets.push_back({bucket_of(e.x8), bucket_of(e.y8), e.x8, e.y8, static_cast<std::uint32_t>(i), e.owner});
+        }
+        std::sort(m_buckets.begin(), m_buckets.end(), [](const Bucketed& a, const Bucketed& b) {
+            return std::tie(a.by, a.bx, a.owner, a.entry) < std::tie(b.by, b.bx, b.owner, b.entry);
+        });
+    }
     // The buckets in use with their owner groups.
     m_cells.clear();
     m_groups.clear();
