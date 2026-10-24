@@ -2203,6 +2203,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | BT-2 (part) | #186 | The selection windows (production, public, house, city, shipyard, castle, ship, unit, list, diplomacy and options windows; 5 500 lines) are in `o1602_menus`, built without SDL (Ctrl and the clock come with `PanelContext`); first tests of the production window with a synthetic PROD layout. Coverage now counts them: floor 76 % lines, 87 % functions. |
 | BT-2 (part) | #187 | Tests of the ship list (paging, wheel, order by name, selecting a ship) and the city list (own cities only, centring on the warehouse or the island) with synthetic SHIPLIST and STADTLST layouts. |
 | BT-2 (part) | #188 | Tests of the windows of public buildings (INFRA: city, name, running cost, build menu icon), houses (SIEDLER: class, inhabitants, taxes, the tax buttons) and foreign Kontors (HANDEL only with a trade treaty). |
+| BT-2 (part) | #189 | Tests of the shipyard (WERFT/BAUSHIP), castle (MILITAR), own Kontor (STADT/KONTOR/LAGER) and the military ship windows (SKSHIP/MKSHIP). They found a use after free in the stock window: `with_trend` read a LAGER.GAD gadget through a pointer after pushing to the same vector (every game start with the original file); fixed. |
 
 ### Still open
 
