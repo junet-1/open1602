@@ -1555,7 +1555,7 @@ bool Engine::need_kontor(AiPlayer& p, std::uint32_t level) {
     if (have == 0 || have >= level || r->slots[kSlotKontor].attempts >= 2) {
         return false;
     }
-    const assets::BuildingType* b = by_id(id::kKontor1 + 2 * have);
+    const assets::BuildingType* b = by_id(id::kontor(have + 1));
     if (b == nullptr || !unlocked(p, *b)) {
         return false;
     }
