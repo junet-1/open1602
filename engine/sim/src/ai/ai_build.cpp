@@ -1083,9 +1083,23 @@ void Engine::task_survey(AiPlayer& p) {
     const assets::BuildingType* weberei = by_id(id::kWeberei);
     const bool weberei_ok = weberei != nullptr && unlocked(p, *weberei);
     SurveyFinds finds;
-    for (std::uint32_t y = 0; y < map.height(); ++y) {
-        for (std::uint32_t x = 0; x < map.width(); ++x) {
+    // Only the tiles of the city's buildings count. While no tile of the island changed, they are
+    // where the last survey found them; the rest of the island is skipped (TB-11).
+    const std::uint64_t revision = island_revision(p.island);
+    CityScans& known = city_scans(p.island, p.city);
+    if (known.survey_revision == revision) {
+        for (const auto& [x, y] : known.survey_tiles) {
             survey_tile(p, *c, *r, x, y, finds);
+        }
+    } else {
+        known.survey_revision = revision;
+        known.survey_tiles.clear();
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                if (survey_tile(p, *c, *r, x, y, finds)) {
+                    known.survey_tiles.emplace_back(static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y));
+                }
+            }
         }
     }
     r->slots[kSlotKontor].count = static_cast<std::uint16_t>(kontor_level(*c));
@@ -1116,7 +1130,7 @@ void Engine::task_survey(AiPlayer& p) {
     r->flags |= city_flag::kSurveyed;
 }
 
-void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t x, std::uint32_t y,
+bool Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t x, std::uint32_t y,
                          SurveyFinds& finds) {
     const auto count = [&](std::uint8_t k) {
         ++r.slots[k].count;
@@ -1126,48 +1140,48 @@ void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t 
     const auto iy = static_cast<std::int32_t>(y);
     const Tile t = tile(p.island, ix, iy);
     if (!t.valid() || !t.origin || t.city != p.city || t.prod == prod::kRipe || t.prod == prod::kGrowing) {
-        return;
+        return false;
     }
     const std::uint8_t w = t.ware;
     const std::uint8_t raw = t.raw;
     switch (t.prod) {
         case prod::kHouse:
             count(kSlotHouses);
-            return;
+            return true;
         case prod::kKapelle:
             count(kSlotKapelle);
-            return;
+            return true;
         case prod::kWirt:
             count(kSlotWirt);
-            return;
+            return true;
         case prod::kSchule:
             count(kSlotSchule);
-            return;
+            return true;
         case prod::kKlinik:
             count(kSlotKlinik);
             r.doctor = std::pair{static_cast<std::uint16_t>(x), static_cast<std::uint16_t>(y)};
-            return;
+            return true;
         case prod::kKirche:
             count(kSlotKirche);
-            return;
+            return true;
         case prod::kBadehaus:
             count(kSlotBadehaus);
-            return;
+            return true;
         case prod::kHochschule:
             count(kSlotHochschule);
-            return;
+            return true;
         case prod::kTheater:
             count(kSlotTheater);
-            return;
+            return true;
         case prod::kGalgen:
             count(kSlotGalgen);
-            return;
+            return true;
         case prod::kBrunnen:
             count(kSlotBrunnen);
-            return;
+            return true;
         case prod::kPirateHouse:
             count(kSlotPirateHouses);
-            return;
+            return true;
         case prod::kShipyard:
             r.slots[kSlotShipyard].count = t.type->id == id::kShipyardBig ? 2 : 1;
             p.present[kSlotShipyard] = true;
@@ -1175,7 +1189,7 @@ void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t 
             p.yard_island = p.island;
             p.yard_x = static_cast<std::uint16_t>(x);
             p.yard_y = static_cast<std::uint16_t>(y);
-            return;
+            return true;
         case prod::kMilitary:
             if (p.castles.size() < 3) {
                 CastleEntry e;
@@ -1187,10 +1201,10 @@ void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t 
                 p.castle_island = p.island;
             }
             count(kSlotCastle);
-            return;
+            return true;
         case prod::kMarket:
             count(kSlotMarket);
-            return;
+            return true;
         default:
             break;
     }
@@ -1203,10 +1217,10 @@ void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t 
         } else if (idv == id::kPirateTower || idv == id::kPirateTowerAlt) {
             count(kSlotPirateTower);
         }
-        return;
+        return true;
     }
     if (w <= 1 || ((t.prod < prod::kWorkshop || t.prod > prod::kFisher) && t.prod != prod::kQuarry)) {
-        return;
+        return true;
     }
     // Producers by ware and raw material.
     if (w == m_buildings.food_ware()) {
@@ -1217,7 +1231,7 @@ void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t 
     }
     const std::optional<std::uint8_t> slot = producer_slot(w, raw, t.type->id);
     if (!slot) {
-        return;
+        return true;
     }
     count(*slot);
     if (*slot == kSlotSheep) {
@@ -1231,6 +1245,7 @@ void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t 
             finds.starved_mines.emplace_back(ix, iy);
         }
     }
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------------
