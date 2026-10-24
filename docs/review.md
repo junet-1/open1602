@@ -2197,6 +2197,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-19 | #180 | The sea map is updated only in the box of tiles a batch of construction events touched on each island (with #169: once per island per batch). |
 | TB-9 (part) | #181 | Whether a target city is defenceless comes from one scan of its island per tile revision, for all cities on it. |
 | BT-22 (part) | #182 | A clang-tidy CI job over `engine/` (bugprone, performance, concurrency, cert error handling, clang analyzer; warnings as errors; config in `.clang-tidy`). It found a real division by zero in the mixer (an empty looping sound) and about 30 smaller sites, all fixed. |
+| BT-22 | #183 | CI compiles the 11 Python scripts (syntax). With #182 and the coverage floor, only a macOS app bundle is left, which cannot be tested here. |
 
 ### Still open
 
