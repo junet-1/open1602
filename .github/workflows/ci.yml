@@ -329,3 +329,6 @@ jobs:
         run: |
           clang-format-18 --version
           find engine tools tests \( -name '*.cpp' -o -name '*.hpp' \) -print0 | xargs -0 clang-format-18 --dry-run --Werror
+      - name: Check the Python scripts compile
+        # Syntax only: the tools run on the developer's machine, with the original data (BT-22).
+        run: git ls-files -z '*.py' | xargs -0 python3 -c 'import sys; [compile(open(f, encoding="utf-8").read(), f, "exec") for f in sys.argv[1:]]'
