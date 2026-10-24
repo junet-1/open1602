@@ -20,6 +20,9 @@ constexpr std::uint32_t kMaxDimension = 4096;
 /// Pixels all sprites of one sheet may claim together (HI-18): 256 M, far above the original's
 /// largest sheets. Decoding takes two bytes per pixel, and a font keeps all its glyphs.
 constexpr std::uint64_t kMaxSheetPixels = std::uint64_t{256} << 20;
+/// Pixels a sprite may claim per byte of its RLE data (HI-7). Transparent rows at the bottom cost
+/// no byte, so the rows are no bound; the original's sprites claim at most 3 418 pixels per byte.
+constexpr std::uint64_t kMaxPixelsPerByte = 16384;
 }  // namespace
 
 std::vector<std::uint8_t> IndexedImage::to_rgba(const Palette& palette) const {
@@ -79,13 +82,19 @@ core::Result<SpriteSheet> SpriteSheet::from_chunk_file(ChunkFile file) {
         if (info.width > kMaxDimension || info.height > kMaxDimension) {
             return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(i) + " has invalid size");
         }
-        // Every row but the last ends with a byte of its own (0xFE): a sprite cannot have more rows
-        // than bytes follow it (HI-7, HI-18). Several offsets may point at one record, so the sheet
-        // as a whole has a budget too.
-        const std::size_t rle_bytes = data.size() - info.offset - kRecordHeaderSize;
-        if (info.height > rle_bytes + 1) {
+        // The record's length (header, RLE data up to 0xFF, padded to 4 bytes with 0xFE) holds in all
+        // 47 294 records of the original's 61 sheets: a record that leaves its chunk or has no room
+        // for its header is refused, and the decoder reads nothing beyond it (HI-8). Records need
+        // not touch: some sheets have 16 unused bytes between two.
+        if (info.length < kRecordHeaderSize || info.length > data.size() - info.offset) {
+            return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(i) + " has an invalid length");
+        }
+        // A few bytes cannot claim a huge sprite (HI-7, HI-18). Several offsets may point at one
+        // record, so the sheet as a whole has a budget too.
+        const std::uint64_t rle_bytes = info.length - kRecordHeaderSize;
+        if (std::uint64_t{info.width} * info.height > kMaxPixelsPerByte * rle_bytes) {
             return make_error(ErrorCode::InvalidFormat,
-                              "sprite " + std::to_string(i) + " claims more rows than its data holds");
+                              "sprite " + std::to_string(i) + " claims more pixels than its data can hold");
         }
         pixels += std::uint64_t{info.width} * info.height;
         if (pixels > kMaxSheetPixels) {
@@ -123,7 +132,7 @@ core::Result<IndexedImage> SpriteSheet::decode(std::size_t index, std::uint32_t 
     image.opaque.assign(pixel_count, 0);
 
     // RLE stream: repeated [skip][count][count palette indices], 0xFE = next row, 0xFF = end.
-    core::ByteReader reader(data);
+    core::ByteReader reader(data.first(std::size_t{info.offset} + info.length));
     (void)reader.seek(info.offset + kRecordHeaderSize);
     std::uint32_t x = 0;
     std::uint32_t y = 0;
