@@ -15,7 +15,10 @@ namespace o1602::app {
 void setup_diagnostics();
 
 /// An error that ends the program: on stderr, and in a message box (UTF-8 text), on Linux and macOS
-/// only when stderr is not a terminal.
+/// only when stderr is not a terminal; never after set_dialogs(false).
 void report_fatal(std::string_view message);
+
+/// false: report_fatal() shows no message box (--no-dialogs, a run from a script).
+void set_dialogs(bool on);
 
 }  // namespace o1602::app

@@ -59,6 +59,10 @@ TEST_CASE("command line: options and their values") {
     CHECK(!c->options.effects);
     const std::array<std::uint16_t, 3> tile{3, 10, 20};
     CHECK(c->options.select == tile);
+    // A run of N frames comes from a script: no dialog waits for a click (P29).
+    CHECK(!c->dialogs);
+    CHECK(parse({})->dialogs);
+    CHECK(!parse({"--no-dialogs"})->dialogs);
 }
 
 TEST_CASE("command line: a new game with its own world, and the player's name") {

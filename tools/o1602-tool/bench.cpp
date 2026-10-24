@@ -232,8 +232,11 @@ int cmd_bench(const Args& args) {
             ++handed_over;
         }
         if (run == 0) {
-            std::printf("world %ux%u, %zu islands, %zu players handed to the computer; %zu game minutes",
-                        world->width(), world->height(), world->islands().size(), handed_over, minutes);
+            std::printf(
+                "world %ux%u, %zu islands, %zu players, all played by the computer (%zu human ones handed "
+                "over); %zu game minutes",
+                world->width(), world->height(), world->islands().size(), world->players().size(), handed_over,
+                minutes);
             if (repeats > 1) {
                 std::printf(", fastest of %zu runs per tick", repeats);
             }
@@ -331,7 +334,8 @@ int cmd_bench(const Args& args) {
     if (!save) {
         return fail(save.error());
     }
-    std::printf("state hash %.1f ms, the first %.1f ms%s; savegame %zu bytes in %.1f ms\n", hash_ms, first_hash_ms,
+    std::printf("state hash %016llx in %.1f ms, the first %.1f ms%s; savegame %zu bytes in %.1f ms\n",
+                static_cast<unsigned long long>(hash), hash_ms, first_hash_ms,
                 hash != 0 && first_hash != 0 ? "" : " (failed)", save->size(), save_ms);
     if (const auto memory = peak_memory_mb()) {
         std::printf("peak memory %.0f MB\n", *memory);

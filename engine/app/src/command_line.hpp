@@ -32,6 +32,10 @@ struct CommandLine {
     std::optional<sim::NewGameOptions> new_game;
     std::optional<std::uint8_t> layout;  ///< --layout
     std::optional<std::uint64_t> seed;   ///< --seed
+    /// false with --no-dialogs or --frames N: a run from a script, where a message box or the
+    /// folder question would wait for a click nobody gives (the desktop's dialog helper may not
+    /// even end on SIGTERM). The message goes to stderr only.
+    bool dialogs = true;
 };
 
 /// "move X,Y@F;down X,Y@F;up X,Y@F;key K@F;text T@F;wheel X,Y,N@F" (K: SDL key code, "+ctrl" /

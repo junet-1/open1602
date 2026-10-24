@@ -79,6 +79,8 @@ int usage() {
         "  --no-videos        no videos of messages, victory, defeat and pause\n"
         "  --original-mouse   the original's mouse: orders with the left button, the right one cancels\n"
         "  --no-confirm       no questions before scuttling, disbanding and declaring war\n"
+        "  --no-dialogs       no message boxes and no question for the game's folder: errors on stderr only\n"
+        "                     (also with --frames N, for scripts)\n"
         "  --keys FILE        key settings (default: keys.cfg in the user's data folder; F1 shows the keys)\n"
         "  --language CODE    language of Open1602's own texts, e.g. en, de (default: the installation's)\n"
         "  --intro            the two logos and the intro first, as the original's start (Escape skips them)\n"
@@ -133,6 +135,7 @@ int run_program(int argc, char** argv) {
     app::CommandLine& command = *parsed;
     app::ViewerOptions& options = command.options;
     std::string scenario = command.scenario;
+    app::set_dialogs(command.dialogs);
 
     // --game-dir, ANNO1602_DIR, the folder chosen before, the usual folders; else the player is asked.
     const std::filesystem::path settings_file = app::MapViewer::data_folder() / "settings.cfg";
@@ -143,7 +146,7 @@ int run_program(int argc, char** argv) {
     }
     app::GameFolderSearch search = app::find_game_folder(command.game_dir, settings.game_folder,
                                                          core::environment_variable(assets::GameDirectory::kEnvVar));
-    if (!search.game && search.ask) {
+    if (!search.game && search.ask && command.dialogs) {
         ui::set_language(app::startup_language(options.language, settings.language),
                          app::MapViewer::data_folder() / "locale");
         search.game = app::ask_for_game_folder(search, settings_file);
