@@ -119,11 +119,11 @@ void Engine::subsidy(AiPlayer& p, std::int32_t m) {
     }
     const auto& mat = m_buildings.materials();
     const auto u = static_cast<std::uint32_t>(m);
-    if (p.score >= 1 && p.present[kSlotWoodcutter] && c->stock(mat.wood) < kCheats.subsidy_wood * kTon) {
-        add_goods(*c, mat.wood, kCheats.subsidy_wood * kTon * u);
+    if (p.score >= 1 && p.present[kSlotWoodcutter] && c->stock(mat.wood) < kCheats.subsidy_wood * kStockUnitsPerTon) {
+        add_goods(*c, mat.wood, kCheats.subsidy_wood * kStockUnitsPerTon * u);
     }
-    if (p.score >= 2 && c->stock(mat.tools) < kCheats.subsidy_tools * kTon) {
-        add_goods(*c, mat.tools, kCheats.subsidy_tools * kTon * u);
+    if (p.score >= 2 && c->stock(mat.tools) < kCheats.subsidy_tools * kStockUnitsPerTon) {
+        add_goods(*c, mat.tools, kCheats.subsidy_tools * kStockUnitsPerTon * u);
     }
     // The bricks of the original need a score of 20, which never comes (docs/re/ai.md).
     if (population(*c, 2) >= 50) {

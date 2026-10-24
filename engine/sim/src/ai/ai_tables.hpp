@@ -191,19 +191,19 @@ struct Cheats {
     std::int32_t steady_money = 379;    ///< ... gets this much
     std::int32_t founding_below = 500;  ///< a founding with less money than this ...
     std::int32_t founding_money = 799;  ///< ... gets this much
-    std::int32_t founding_bricks = 8;   ///< tons into a new city
+    std::uint32_t founding_bricks = 8;  ///< tons into a new city
     /// Task 5's subsidy of a computer that is behind (0x00428370), per step: money below the
     /// first number gets the second, below the third (from settlers on) the fourth.
     std::int32_t subsidy_poor_below = 4733, subsidy_poor = 797;
     std::int32_t subsidy_below = 9376, subsidy = 1793;
     /// Tons of wood and tools while the stock is below as much.
-    std::int32_t subsidy_wood = 7, subsidy_tools = 3;
+    std::uint32_t subsidy_wood = 7, subsidy_tools = 3;
     /// The colony subsidy: one ware per call into a city that is behind, while its stock (tons)
     /// is below the first number, in this order; food before the second inhabited city, bricks after.
-    std::int32_t wood_below = 19, wood = 13;
-    std::int32_t tools_below = 15, tools = 9;
-    std::int32_t food_below = 19, food = 9;
-    std::int32_t bricks_below = 19, bricks = 9;
+    std::uint32_t wood_below = 19, wood = 13;
+    std::uint32_t tools_below = 15, tools = 9;
+    std::uint32_t food_below = 19, food = 9;
+    std::uint32_t bricks_below = 19, bricks = 9;
 };
 inline constexpr Cheats kCheats{};
 
