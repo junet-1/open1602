@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
@@ -148,6 +149,32 @@ public:
 
     /// Inverse of place() for one tile (original 0x00463250): building and placement origin.
     [[nodiscard]] SubTile sub_tile(const assets::BuildingTable& buildings, std::uint32_t x, std::uint32_t y) const;
+    /// The placement origin of the tile (x, y) whose cell shows `building` (its by_sprite()
+    /// record); inline, as the computers ask for it on every tile they look at (TB-11).
+    [[nodiscard]] static std::pair<std::int32_t, std::int32_t> origin_of(const MapCell& cell,
+                                                                         const assets::BuildingType& building,
+                                                                         std::uint32_t x, std::uint32_t y) noexcept {
+        const auto px = static_cast<std::int32_t>(x);
+        const auto py = static_cast<std::int32_t>(y);
+        const auto w = static_cast<std::int32_t>(building.size_x);
+        const auto h = static_cast<std::int32_t>(building.size_y);
+        const auto d = static_cast<std::int32_t>(cell.sprite - building.gfx);
+        if (d == 0 && w == 1 && h == 1) {
+            return {px, py};  // most of an island: ground, coast, trees
+        }
+        const std::int32_t row = d / w;
+        const std::int32_t col = d % w;
+        switch (cell.rotation & 3U) {  // original 0x00463250
+            case 0:
+                return {px - col, py - row};
+            case 1:
+                return {px + 1 + row - h, py - col};
+            case 2:
+                return {px + 1 + col - w, py + 1 + row - h};
+            default:
+                return {px - row, py + 1 + col - w};
+        }
+    }
     /// The same for the ground layer.
     [[nodiscard]] SubTile ground_sub_tile(const assets::BuildingTable& buildings, std::uint32_t x,
                                           std::uint32_t y) const;

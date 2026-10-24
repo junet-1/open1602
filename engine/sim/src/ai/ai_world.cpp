@@ -29,10 +29,10 @@ Tile Engine::tile(std::uint16_t island, std::int32_t x, std::int32_t y) const {
     if (b == nullptr) {
         return t;
     }
-    const SubTile st = map.sub_tile(m_buildings, static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
-    t.ox = st.origin_x;
-    t.oy = st.origin_y;
-    t.origin = st.origin_x == x && st.origin_y == y;
+    const auto [ox, oy] = IslandMap::origin_of(c, *b, static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
+    t.ox = ox;
+    t.oy = oy;
+    t.origin = ox == x && oy == y;
     // Growing and withered crops count as the ripe crop (the original adds or takes one record).
     const assets::BuildingType* n = b;
     if (b->prod_kind == prod::kGrowing) {
