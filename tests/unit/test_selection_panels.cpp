@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The windows of what the player selects (BT-2) without the original data: a folder with the files
-// an installation needs and a synthetic PROD layout with one gadget per Id the window knows, a
-// world with a bakery of the local player and one of another player.
+// an installation needs and synthetic PROD, SHIPLIST and STADTLST layouts with one gadget per Id the windows
+// know, a world with a bakery of the local player and one of another player, ships and cities.
 
 #include <algorithm>
 #include <filesystem>
@@ -52,7 +52,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
     std::ofstream(file, std::ios::binary) << text;
 }
 
-/// An installation with the PROD layout (37002..37041) and the GAME texts the window shows.
+/// An installation with the PROD (37002..37041), SHIPLIST (61002..61063) and STADTLST
+/// (63002..63063) layouts and the GAME texts the windows show.
 struct Game {
     std::filesystem::path root;
     std::optional<assets::GameDirectory> dir;
@@ -69,6 +70,16 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "PROD.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 61002; id <= 61063; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "SHIPLIST.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 63002; id <= 63063; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "STADTLST.GAD", gad(ids));
         auto opened = assets::GameDirectory::open(root);
         REQUIRE(opened.ok());
         dir = std::move(opened).value();
@@ -200,4 +211,125 @@ TEST_CASE("selection panels: the production window's buttons stop the workshop a
     const auto shown = texts(*p);
     CHECK(std::find(shown.begin(), shown.end(), "10") != shown.end());
     CHECK(p->help(kCostValue, bakery_at(2), c) == std::nullopt);
+}
+
+namespace {
+
+constexpr std::int32_t kListHeading = 61002;
+constexpr std::int32_t kListPageDown = 61005;
+constexpr std::int32_t kListPageUp = 61006;
+constexpr std::int32_t kListName = 61031;
+
+/// Fifteen ships of the local player named "Ship 14" down to "Ship 0", one sinking, one foreign.
+void add_ships(sim::World& world) {
+    for (std::uint32_t k = 0; k < 15; ++k) {
+        world.add_ship(sim::make_ship("Ship " + std::to_string(14 - k), 20 + k, 2, 0, kLocal, 2));
+    }
+    sim::Ship sinking = sim::make_ship("Sinking", 20, 30, 0, kLocal, 2);
+    sinking.sinking = true;
+    world.add_ship(sinking);
+    world.add_ship(sim::make_ship("Foreign", 25, 30, 0, kOther, 2));
+}
+
+}  // namespace
+
+TEST_CASE("selection panels: the ship list shows the own ships 13 a page, ordered on a click on the heading") {
+    Game g("o1602-test-selection-shiplist");
+    Town t;
+    add_ships(t.world);
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    Selection list;
+    list.kind = Selection::Kind::ShipList;
+    SelectionPanel* p = panels.panel_for(list, c);
+    REQUIRE(p != nullptr);
+    p->opened();
+    p->refresh(list, c);
+    auto shown = texts(*p);
+    // The table's order: the first ship added first; neither the sinking nor the foreign ship.
+    CHECK(std::find(shown.begin(), shown.end(), "Ship 14") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Ship 2") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Ship 1") == shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Sinking") == shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Foreign") == shown.end());
+    CHECK(std::any_of(shown.begin(), shown.end(),
+                      [](const std::string& s) { return s.find("(15)") != std::string::npos; }));
+
+    // The next page has the last two; the wheel goes back row by row.
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, kListPageDown}, list, c, out);
+    p->refresh(list, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Ship 1") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Ship 0") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Ship 14") == shown.end());
+    CHECK(p->wheel(1));
+    p->refresh(list, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Ship 2") != shown.end());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, kListPageUp}, list, c, out);
+
+    // A click on the heading orders by name: "Ship 0" first, and a click on it selects that ship.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, kListHeading}, list, c, out);
+    p->refresh(list, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, kListName}, list, c, out);
+    const auto request = p->take_request();
+    REQUIRE(request.has_value());
+    CHECK(request->kind == SelectionPanel::Request::Kind::SelectShip);
+    const sim::Ship* first = t.world.ship(request->ship);
+    REQUIRE(first != nullptr);
+    CHECK(first->name == "Ship 0");
+    CHECK(!p->take_request().has_value());
+    CHECK(out.empty());  // the list sends no commands
+}
+
+TEST_CASE("selection panels: the city list shows the own cities, not those without a trade treaty") {
+    Game g("o1602-test-selection-citylist");
+    Town t;
+    const auto city = [&](std::uint8_t index, sim::PlayerId owner, const char* name, bool warehouse) {
+        sim::City c;
+        c.island = 0;
+        c.index = index;
+        c.owner = owner;
+        c.name = name;
+        if (warehouse) {
+            c.warehouse_x = 3;
+            c.warehouse_y = 1;
+        }
+        t.world.add_city(c);
+    };
+    city(0, kLocal, "Zeta", true);
+    city(1, kLocal, "Alpha", false);
+    city(2, kOther, "Other", true);
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    Selection list;
+    list.kind = Selection::Kind::CityList;
+    SelectionPanel* p = panels.panel_for(list, c);
+    REQUIRE(p != nullptr);
+    p->opened();
+    p->refresh(list, c);
+    const auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Zeta") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Alpha") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Other") == shown.end());
+
+    // In the table's order Zeta comes first; a click on it goes to its warehouse on the world map.
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 63031}, list, c, out);
+    auto request = p->take_request();
+    REQUIRE(request.has_value());
+    CHECK(request->kind == SelectionPanel::Request::Kind::Centre);
+    CHECK(request->x == 4 + 3);
+    CHECK(request->y == 4 + 1);
+    // Ordered by name, Alpha comes first; without a warehouse it is the island's middle.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 63002}, list, c, out);
+    p->refresh(list, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 63031}, list, c, out);
+    request = p->take_request();
+    REQUIRE(request.has_value());
+    CHECK(request->x == 4 + 6);
+    CHECK(request->y == 4 + 4);
 }
