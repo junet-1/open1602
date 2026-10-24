@@ -13,6 +13,7 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/island_templates.hpp"
 #include "o1602/sim/player.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/volcanoes.hpp"
@@ -24,15 +25,12 @@ namespace {
 using assets::ScenarioPlan;
 using Amount = WorldSettings::Amount;
 
-// Largest template of each size class (lit, mit, med, big, lar); all templates of a class have
-// this size except NORD med (30..50 x 30..52).
-constexpr std::array<std::uint32_t, 5> kClassWidth = {30, 40, 50, 70, 100};
-constexpr std::array<std::uint32_t, 5> kClassHeight = {30, 40, 52, 60, 90};
-// Templates the original draws from per climate and class (0x0049A868).
-constexpr std::array<std::array<std::uint16_t, 5>, 2> kTemplateCount = {{{51, 48, 36, 67, 5}, {49, 45, 48, 63, 6}}};
-constexpr std::array<const char*, 2> kClimateDir = {"Nord", "Sued"};
-constexpr std::array<const char*, 2> kNativeDir = {"NordNat", "SuedNat"};
-constexpr std::array<const char*, 5> kSizeName = {"lit", "mit", "med", "big", "lar"};
+using templates::kClassHeight;
+using templates::kClassWidth;
+using templates::kTemplateCount;
+using templates::template_path;
+// A band of the map that allows both climates; an island whose climate is not decided yet.
+constexpr std::uint8_t kEither = climate::kCount;
 
 constexpr std::uint32_t kEdge = 20;              // the original's plans keep 20 tiles to the map edge
 constexpr std::uint32_t kGap = 8;                // water between two island rectangles (templates add a ring)
@@ -74,13 +72,6 @@ std::int32_t cosine(std::int32_t k) {
     return sine(k + 16);
 }
 
-std::string template_path(std::uint8_t climate, std::uint8_t size, std::uint16_t number, bool natives) {
-    char buf[64];
-    std::snprintf(buf, sizeof(buf), "%s/%s%02u.scp", (natives ? kNativeDir : kClimateDir)[climate & 1U],
-                  kSizeName[std::min<std::size_t>(size, 4)], static_cast<unsigned>(number));
-    return buf;
-}
-
 struct Rect {
     std::int32_t x = 0;
     std::int32_t y = 0;
@@ -94,7 +85,7 @@ struct Rect {
 struct Planned {
     Rect rect;
     std::uint8_t size = 0;
-    std::uint8_t climate = 2;  ///< 0 north, 1 south, 2 not yet decided
+    std::uint8_t climate = kEither;  ///< climate::kNorth, kSouth, or kEither: not yet decided
     bool home = false;
     std::uint16_t template_number = ScenarioPlan::kRandomTemplate;
 };
@@ -425,7 +416,7 @@ bool Planner::place_for_climate(std::size_t start, std::uint8_t climate) {
     // An island near the start whose centre lies in a band that allows the climate: directions
     // towards that band first (north up), from far to near, middle islands before small ones.
     const Point& st = m_starts[start];
-    const std::int32_t toward = climate == 0 ? 48 : 16;  // 1/64 turns: up or down
+    const std::int32_t toward = climate == climate::kNorth ? 48 : 16;  // 1/64 turns: up or down
     for (std::uint8_t size = 2;; --size) {
         const auto cw = static_cast<std::int32_t>(kClassWidth[size]);
         const auto ch = static_cast<std::int32_t>(kClassHeight[size]);
@@ -437,7 +428,7 @@ bool Planner::place_for_climate(std::size_t start, std::uint8_t climate) {
                 const std::int32_t cy = st.y + r * sine(a) / 10000;
                 const Rect rect{cx - cw / 2, cy - ch / 2, cw, ch};
                 const std::uint8_t b = band(rect);
-                if ((b != 2 && b != climate) || !fits(rect)) {
+                if ((b != kEither && b != climate) || !fits(rect)) {
                     continue;
                 }
                 Planned p;
@@ -458,8 +449,8 @@ void Planner::decide_climates() {
     std::vector<bool> free(m_islands.size());
     for (std::size_t i = 0; i < m_islands.size(); ++i) {
         const std::uint8_t b = band(m_islands[i].rect);
-        free[i] = b == 2;
-        m_islands[i].climate = b == 2 ? static_cast<std::uint8_t>(m_random.below(2)) : b;
+        free[i] = b == kEither;
+        m_islands[i].climate = b == kEither ? static_cast<std::uint8_t>(m_random.below(climate::kCount)) : b;
     }
     if (m_s.starts == WorldSettings::Starts::Together) {
         return;
@@ -488,7 +479,7 @@ void Planner::decide_climates() {
         return true;
     };
     for (std::size_t s = 0; s < m_starts.size(); ++s) {
-        for (std::uint8_t climate = 0; climate < 2; ++climate) {
+        for (std::uint8_t climate = 0; climate < climate::kCount; ++climate) {
             while (count(s, climate, std::nullopt) < kNeeded[climate]) {
                 std::optional<std::size_t> flip;
                 for (const std::size_t i : in_reach(s)) {
@@ -516,22 +507,22 @@ void Planner::decide_climates() {
                         m_islands[*any].climate = climate;
                         continue;
                     }
-                    warn("start " + std::to_string(s) + " has no island of the " + (climate == 0 ? "north" : "south") +
-                         " within reach");
+                    warn("start " + std::to_string(s) + " has no island of the " +
+                         (climate == climate::kNorth ? "north" : "south") + " within reach");
                     break;
                 }
-                free.push_back(band(m_islands.back().rect) == 2);
+                free.push_back(band(m_islands.back().rect) == kEither);
             }
         }
     }
     kNeeded = {2, 1};
     for (std::size_t s = 0; s < m_starts.size(); ++s) {
-        if (count(s, 0, std::nullopt) >= 2) {
+        if (count(s, climate::kNorth, std::nullopt) >= 2) {
             continue;
         }
         for (const std::size_t i : in_reach(s)) {
-            if (free[i] && m_islands[i].climate == 1 && may_flip(i)) {
-                m_islands[i].climate = 0;
+            if (free[i] && m_islands[i].climate == climate::kSouth && may_flip(i)) {
+                m_islands[i].climate = climate::kNorth;
                 break;
             }
         }
@@ -641,7 +632,7 @@ WorldPlan Planner::finish() {
     out.height = m_s.height;
     out.shared_start = m_s.starts == WorldSettings::Starts::Together && m_s.players > 1;
     ScenarioPlan& plan = out.plan;
-    std::array<std::uint32_t, 2> per_climate{};
+    std::array<std::uint32_t, climate::kCount> per_climate{};
     for (std::size_t k = 0; k < order.size(); ++k) {
         const Planned& p = m_islands[order[k]];
         number[order[k]] = static_cast<std::uint8_t>(k);
@@ -773,9 +764,9 @@ core::Result<WorldPlan> Planner::run() {
     decide_climates();  // while there is still room for an island a start needs
     place_rest(total);
     for (Planned& island : m_islands) {
-        if (island.climate == 2) {
+        if (island.climate == kEither) {
             const std::uint8_t b = band(island.rect);
-            island.climate = b == 2 ? static_cast<std::uint8_t>(m_random.below(2)) : b;
+            island.climate = b == kEither ? static_cast<std::uint8_t>(m_random.below(climate::kCount)) : b;
         }
     }
     choose_templates();
@@ -786,8 +777,8 @@ core::Result<WorldPlan> Planner::run() {
 
 std::vector<TemplateInfo> island_templates(const assets::GameDirectory& game, const assets::BuildingTable& buildings) {
     std::vector<TemplateInfo> out;
-    for (std::uint8_t climate = 0; climate < 2; ++climate) {
-        for (std::uint8_t size = 0; size < 5; ++size) {
+    for (std::uint8_t climate = 0; climate < climate::kCount; ++climate) {
+        for (std::uint8_t size = 0; size < templates::kSizeClasses; ++size) {
             for (std::uint16_t number = 0; number < kTemplateCount[climate][size]; ++number) {
                 const auto path = game.resolve(template_path(climate, size, number, false));
                 if (!path) {

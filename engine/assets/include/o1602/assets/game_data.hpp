@@ -314,6 +314,13 @@ inline constexpr std::int32_t kPublicLast = kSchloss;
 }  // namespace prod
 
 /// Figure numbers (figuren.cod).
+/// The climates of islands (island header +0x64), each with its template folders and crops.
+namespace climate {
+inline constexpr std::uint8_t kNorth = 0;  ///< Nord: grain, tobacco, sugar cane, wine ...
+inline constexpr std::uint8_t kSouth = 1;  ///< Sued: cotton, spices, cocoa ...
+inline constexpr std::uint8_t kCount = 2;
+}  // namespace climate
+
 namespace figure {
 /// The families of land units, each with four levels: SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1.
 inline constexpr std::array<std::uint32_t, 4> kUnitFamilies{1, 5, 9, 13};

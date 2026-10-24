@@ -654,8 +654,8 @@ std::uint32_t island_fertility(const WorldIsland& island, std::uint8_t ware) noe
     }
     // Without the bit, the crops of the climate still grow half: tobacco, sugar cane and wine in
     // the north, spices, cotton and cocoa in the south.
-    const bool north = island.header.climate == 0;
-    const bool south = island.header.climate == 1;
+    const bool north = island.header.climate == climate::kNorth;
+    const bool south = island.header.climate == climate::kSouth;
     if ((north &&
          (ware == sim::ware::kTobaccoField || ware == sim::ware::kSugarField || ware == sim::ware::kWineField)) ||
         (south &&
