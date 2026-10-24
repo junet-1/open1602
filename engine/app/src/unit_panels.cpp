@@ -4,7 +4,6 @@
 // ship (SKSHIP), one land unit (SKSOLDAT), a group of ships (MKSHIP) or of land units (MKSOLDAT).
 // They work on the selection (filters, formations) and give orders; scuttling and disbanding are
 // asked about by the map view (ADR 0010).
-#include <SDL3/SDL.h>
 #include <algorithm>
 #include <string_view>
 
@@ -20,10 +19,6 @@ namespace {
 using namespace panel_detail;
 
 constexpr std::uint8_t kCannonWare = sim::ware::kCannons;
-
-bool ctrl_held() {
-    return (SDL_GetModState() & SDL_KMOD_CTRL) != 0;
-}
 
 const sim::Ship* the_ship(const PanelContext& c) {
     if (c.units == nullptr || c.units->size() != 1 || c.units->kind() != ui::UnitRef::Kind::Ship) {
@@ -393,9 +388,9 @@ public:
             }
         } else if (!m_ships && id >= 31 && id <= 34) {
             // Keep only this kind, with Ctrl remove it (0x0044C3D0).
-            units.filter_kinds(c.world(), c.figures, 1U << static_cast<std::uint32_t>(id - 30), !ctrl_held());
+            units.filter_kinds(c.world(), c.figures, 1U << static_cast<std::uint32_t>(id - 30), !c.ctrl);
         } else if (!m_ships && id == 35) {
-            units.filter_wounded(c.world(), c.figures, !ctrl_held());
+            units.filter_wounded(c.world(), c.figures, !c.ctrl);
         }
     }
 

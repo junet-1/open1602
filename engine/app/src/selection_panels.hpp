@@ -23,7 +23,6 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/render/banner.hpp"
-#include "o1602/render/sdl_ui_renderer.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/ui/panel.hpp"
 #include "o1602/ui/unit_selection.hpp"
@@ -59,6 +58,10 @@ struct PanelContext {
     }
     /// The goods trend under the stock of a Kontor (DisplaySettings::goods_trend).
     bool goods_trend = false;
+    /// Ctrl is held (the unit windows' filters then remove a kind instead of keeping it).
+    bool ctrl = false;
+    /// Real time in milliseconds, for what blinks (the diplomacy window's open offers).
+    std::uint64_t now_ms = 0;
     [[nodiscard]] const sim::World& world() const noexcept { return simulation.world(); }
     /// The banner of a player, nothing if there is no such player or table.
     [[nodiscard]] const render::Banner* banner(sim::PlayerId p) const {

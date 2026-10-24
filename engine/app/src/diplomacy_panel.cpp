@@ -18,7 +18,6 @@
 #include "diplomacy_strip.hpp"
 #include "panel_common.hpp"
 
-#include "o1602/platform/window.hpp"
 #include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
@@ -323,7 +322,7 @@ private:
             m_amount = 0;
         }
         const std::vector<diplomacy::Offer> offers = diplomacy::open_offers(c.world(), c.local);
-        const bool flash = (platform::ticks_ms() / kOfferBlinkMs) % 2 == 0;
+        const bool flash = (c.now_ms / kOfferBlinkMs) % 2 == 0;
         const render::BannerArt arms = render::BannerArt::at(m_shield);
         for (std::size_t k = 0; k < diplomacy::kMaxPartners; ++k) {
             const auto slot = static_cast<std::int32_t>(k);
