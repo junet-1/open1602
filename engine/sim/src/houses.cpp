@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <set>
 
 #include "o1602/sim/disasters.hpp"
 #include "o1602/sim/game_data.hpp"
@@ -548,7 +549,11 @@ std::uint32_t required_panel_services(std::uint8_t resident_class) noexcept {
     return panel;
 }
 
-void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island) {
+namespace {
+
+/// update_services of one island; with `cities`, only for the houses of those cities.
+void services_on(World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                 const std::set<std::uint8_t>* cities) {
     struct Source {
         std::uint8_t city;
         std::int32_t x;
@@ -565,6 +570,9 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
             continue;
         }
         const MapCell& cell = map.top(p.x, p.y);
+        if (cities != nullptr && cities->count(cell.city) == 0) {
+            continue;
+        }
         const assets::BuildingType* b = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
         if (b == nullptr) {
             continue;
@@ -584,7 +592,7 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
     const auto by_city = [](const Source& s, std::uint8_t c) { return s.city < c; };
     const Tables& t = tables();
     for (House& house : world.houses()) {
-        if (house.island != island) {
+        if (house.island != island || (cities != nullptr && cities->count(house.city) == 0)) {
             continue;
         }
         const MapCell& cell = map.top(house.x, house.y);
@@ -622,6 +630,17 @@ void update_services(World& world, const assets::BuildingTable& buildings, std::
         }
         house.services_complete = has_services(house, house.resident_class);
     }
+}
+
+}  // namespace
+
+void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island) {
+    services_on(world, buildings, island, nullptr);
+}
+
+void update_services(World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                     const std::set<std::uint8_t>& cities) {
+    services_on(world, buildings, island, &cities);
 }
 
 void update_services(World& world, const assets::BuildingTable& buildings) {

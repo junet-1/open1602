@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -191,6 +192,27 @@ TEST_CASE("houses: growth rates like the original's tables") {
     CHECK(sim::growth_rate(city, h) == -226);  // 11 % per visit, docs/re/houses.md
     h.services = 0;                            // nothing at all
     CHECK(sim::growth_rate(city, h) == -514);
+}
+
+TEST_CASE("houses: services recomputed for some cities leave the others alone") {
+    Town town;
+    town.place(kMarket, 10, 11);
+    town.place(kPioneerHouse, 14, 13);
+    town.place(kPioneerHouse, 18, 13);
+    town.finish({{10, 11}});
+    town.add_house(14, 13, 0, 64);
+    town.add_house(18, 13, 0, 64);
+    town.world.house(0, 18, 13)->city = 1;  // a house the cells call city 0, kept apart
+    sim::update_services(town.world, town.buildings, 0, std::set<std::uint8_t>{1});
+    CHECK(!town.world.house(0, 14, 13)->market);  // city 0 not asked for: untouched
+    CHECK(!town.world.house(0, 18, 13)->market);  // city 1 has no market
+    sim::update_services(town.world, town.buildings, 0, std::set<std::uint8_t>{0});
+    CHECK(town.world.house(0, 14, 13)->market);
+    CHECK(town.world.house(0, 14, 13)->services_complete);
+    CHECK(!town.world.house(0, 18, 13)->market);
+    // The same as the whole island for the city asked for.
+    sim::update_services(town.world, town.buildings, 0);
+    CHECK(town.world.house(0, 14, 13)->market_distance == 1);
 }
 
 TEST_CASE("houses: a full house rises to the next class with building material") {

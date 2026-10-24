@@ -1125,9 +1125,10 @@ public:
                         }
                     }
                 }
+                services_of(h->city);
                 m_world.remove_house(m_island, ox, oy);
             }
-            m_services = true;
+            services_of(old.city);
         }
         if (p == prod::kShipyard || p == prod::kMilitary) {
             std::erase_if(m_world.cost_buildings(),
@@ -1136,7 +1137,7 @@ public:
         if (p == prod::kMarket || p == prod::kKontor || p == prod::kTower || old.type->kind == kind::kTower ||
             old.type->kind == kind::kTowerBeach) {
             m_territory = true;
-            m_services = true;
+            services_of(old.city);
             m_storage_cities.insert(old.city);
             if (p == prod::kKontor) {
                 if (City* c = m_world.city(m_island, old.city);
@@ -1147,7 +1148,7 @@ public:
             }
         }
         if (is_public(p)) {
-            m_services = true;
+            services_of(old.city);
         }
         return state;
     }
@@ -1180,7 +1181,7 @@ public:
             m_world.set_production(entry);
             if (p == prod::kMarket || p == prod::kKontor) {
                 m_territory = true;
-                m_services = true;
+                services_of(city);
                 m_storage_cities.insert(city);
                 if (p == prod::kKontor && !c->warehouse_x) {
                     c->warehouse_x = ux;
@@ -1193,7 +1194,7 @@ public:
                 }
             }
             if (is_public(p)) {
-                m_services = true;
+                services_of(city);
             }
         }
         if (p == prod::kGrowing && !b.withered) {  // a withered field waits for the end of the drought
@@ -1220,7 +1221,7 @@ public:
                 c->inhabitants.resize(std::size_t{b.resident_class} + 1, 0);
             }
             c->inhabitants[b.resident_class] += 1;
-            m_services = true;
+            services_of(city);
         }
         if (p == prod::kShipyard) {
             m_world.add_cost_building(CostBuilding{CostBuilding::Kind::Shipyard, m_island, ux, uy, false});
@@ -1753,6 +1754,8 @@ public:
         }
     }
 
+    void services_of(std::uint8_t city) { m_service_cities.insert(city); }
+
     void move_house(House& h, std::uint8_t next) {
         City* from = m_world.city(m_island, h.city);
         City* to = m_world.city(m_island, next);
@@ -1765,8 +1768,9 @@ public:
             }
             to->inhabitants[h.resident_class] += h.inhabitants();
         }
+        services_of(h.city);
+        services_of(next);
         h.city = next;
-        m_services = true;
     }
 
     /// What falls to ruins when its land is lost (0x00480B70): buildings, roads, piers and crop
@@ -1801,7 +1805,7 @@ public:
         e.kind = ConstructionEvent::Kind::CityDissolved;
         e.city = index;
         emit(e);
-        m_services = true;
+        services_of(index);
     }
 
     /// After the changes: territory, services and warehouse room.
@@ -1812,8 +1816,12 @@ public:
         if (m_territory) {
             recheck_territory();
         }
-        if (m_services) {
+        if (m_territory && !m_service_cities.empty()) {
+            // Land changed hands: houses and service buildings may have changed city.
             update_services(m_world, m_buildings, m_island);
+        } else if (!m_service_cities.empty()) {
+            // A house looks only at its own city's buildings: only these cities changed (TB-22).
+            update_services(m_world, m_buildings, m_island, m_service_cities);
         }
         for (const std::uint8_t c : m_storage_cities) {
             ConstructionEvent e;
@@ -1829,7 +1837,8 @@ private:
     std::uint16_t m_island;
     std::vector<ConstructionEvent>* m_events;
     bool m_territory = false;
-    bool m_services = false;
+    /// Cities whose houses' services must be recomputed in finish().
+    std::set<std::uint8_t> m_service_cities;
     std::set<std::uint8_t> m_storage_cities;
     std::size_t m_growth_before;       ///< growth entries before this change
     std::vector<TilePos> m_forgotten;  ///< removed growing tiles
