@@ -259,6 +259,20 @@ jobs:
           path: coverage/
           if-no-files-found: error
 
+      - name: Coverage floor
+        # A change may not lower the coverage much (BT-1): the floor is a little below what the
+        # tests reached on 2026-10-24 (lines 80.6 %, functions 90.8 %). Raise it as tests are added.
+        run: |
+          python3 -I - <<'EOF'
+          import json
+          floor = {"line_percent": 80.0, "function_percent": 90.0}
+          summary = json.load(open("coverage/summary.json"))
+          low = [f"{k}: {summary[k]:.1f} % < {v} %" for k, v in floor.items() if summary[k] < v]
+          for line in low:
+              print(f"::error::coverage below its floor, {line}")
+          raise SystemExit(1 if low else 0)
+          EOF
+
   checks:
     name: Formatting
     runs-on: ubuntu-24.04
