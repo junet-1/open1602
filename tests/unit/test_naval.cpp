@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "../test_framework.hpp"
+#include "golden.hpp"
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/cod.hpp"
@@ -289,4 +290,27 @@ TEST_CASE("naval: an attack move hunts an enemy off the way and sails on; holdin
     s.run(20'000);
     CHECK(s.world.ship(warship)->x == 80);
     CHECK(s.world.ship(other) != nullptr);
+}
+
+TEST_CASE("naval: a sea fight with pirates develops the same on every platform (golden hash)") {
+    Sea s;
+    s.start();
+    s.world.diplomacy().set_peace(s.world, 0, 1, sim::Treaty::None, 0);
+    s.world.diplomacy().set_peace(s.world, 2, 1, sim::Treaty::None, 0);
+    s.world.diplomacy().set_peace(s.world, 2, 0, sim::Treaty::None, 0);
+    // Two warships of the human sail east, hunting on the way; a computer's warship and merchant,
+    // and a pirate, wait off the island.
+    for (std::uint32_t i = 0; i < 2; ++i) {
+        const std::uint32_t w = s.add(8, 44 + 4 * i, kWarship, 0, 8, 2);
+        sim::ShipOrder order{0, w, sim::Target::position(90, 46)};
+        order.attack_move = true;
+        REQUIRE(s.fleet->order(order));
+    }
+    s.add(60, 45, kWarship, 1, 6, 6);
+    const std::uint32_t merchant = s.add(30, 50, kTrade, 1, 0, 2);
+    s.world.ship(merchant)->cargo[0] = sim::CargoSlot{21, 20 * 32, 0};
+    s.add(26, 52, kWarship, 2, 8, 0);
+    s.run(90'000);
+    CHECK(s.count(sim::ShipEvent::Kind::Sunk) + s.count(sim::ShipEvent::Kind::WhiteFlag) > 0);
+    test::check_golden("sea fight after 90 s", test::world_hash(s.world, s.buildings), 0x512c13da6eb998d4ULL);
 }

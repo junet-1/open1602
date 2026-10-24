@@ -72,3 +72,9 @@ add_library(o1602::sim ALIAS o1602_sim)
 target_include_directories(o1602_sim PUBLIC include)
 target_link_libraries(o1602_sim PUBLIC o1602::assets)
 o1602_set_warnings(o1602_sim)
+# The same results on every machine (ADR 0004): no fused multiply-add where the source has two
+# operations, which compilers for arm64 contract by default (DS-2). MSVC contracts only with
+# /fp:fast, which is not set.
+if(NOT MSVC)
+    target_compile_options(o1602_sim PRIVATE -ffp-contract=off)
+endif()

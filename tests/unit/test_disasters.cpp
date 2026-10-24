@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "../test_framework.hpp"
+#include "golden.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/sim/disasters.hpp"
@@ -496,4 +497,29 @@ TEST_CASE("disasters: a gallows keeps three of four robbers away (S-055)") {
     CHECK(without < 860);
     CHECK(with > without / 6);
     CHECK(with < without / 3);
+}
+
+TEST_CASE("disasters: fire and plague in a city develop the same on every platform (golden hash)") {
+    Town town;
+    for (std::int32_t x = 2; x < 14; x += 3) {
+        town.place(kCitizenHouse, x, 8);
+    }
+    town.place(kPioneerHouse, 20, 4);
+    town.place(kForest, 22, 4);
+    town.place(kForest, 22, 5);
+    town.place(kPioneerHouse, 23, 4);
+    town.finish({});
+    for (std::uint16_t x = 2; x < 14; x += 3) {
+        town.add_house(x, 8, 2, 15);
+    }
+    town.add_house(20, 4, 0, 2);
+    town.add_house(23, 4, 0, 2);
+    sim::start_disaster(town.world, town.buildings, 0, {2, 8}, sim::Disaster::Kind::Plague, sim::kPlagueDuration,
+                        nullptr);
+    sim::start_disaster(town.world, town.buildings, 0, {20, 4}, sim::Disaster::Kind::Fire, sim::kFireDuration, nullptr);
+    for (int i = 0; i < 60; ++i) {
+        town.epoch();
+    }
+    test::check_golden("fire and plague after 60 epochs", test::world_hash(town.world, town.buildings),
+                       0x27601f9e549c65a9ULL);
 }
