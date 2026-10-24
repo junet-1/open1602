@@ -2195,6 +2195,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | BT-1 (part) | #178 | A fifth arena scenario: a colony sends the soldiers beside its Kontor to guard its market. Guards walk back to the Kontor once they arrive, as in the original (`0x0042ABD0`). |
 | FB-2 | #179 | Soldiers outside the drawn box get no height lookup and their animations wait until they are in view: 100 000 soldiers 4.1 → 3.2 ms per frame with a 40 × 25-tile view (the bench has no islands, so the height lookup is cheap there). |
 | TB-19 | #180 | The sea map is updated only in the box of tiles a batch of construction events touched on each island (with #169: once per island per batch). |
+| TB-9 (part) | #181 | Whether a target city is defenceless comes from one scan of its island per tile revision, for all cities on it. |
 
 ### Still open
 
@@ -2203,7 +2204,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
 | TB-11, TB-13 | Incremental island survey and road-segment rebuilds; the rest of the settlement search (each search is bounded since #128; counts cached since #176). | L |
 | TB-14 | A shared AI work budget per tick (part 2). | M |
-| TB-9 | A cached `building_count` per city; a scratch arena. | S |
+| TB-9 | A cached `building_count` per city (it reads the house and production lists, so the tile revision is no key for it); a scratch arena. | S |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
 | BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
 | BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
