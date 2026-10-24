@@ -24,6 +24,7 @@ size memory and refuse or cut what lies outside. These are the limits.
 | both | a number with a decimal point | the range of a 32-bit integer | clamped |
 | both | times, amounts, health, radius (`Worktime`, `Maxenergy`, ...) | the range of the field | clamped (`core::saturating_cast`) |
 | `.gam`, `.szs` | width and height of an island | at least 1 tile | the island is left out, with a warning |
+| `build_menu.toml` | `row`, `position` of a building | 6 rows a pop-up, 4 buildings a row; `id` a record of `haeuser.cod` | the table is passed over, with a warning |
 | `.gad` | `Include` | 4 levels deep, 1 MiB of text in all | the rest is left out, with a warning |
 | both | diagnostics of a file | 1000 messages | one more says that more follow; the rest are not listed |
 | `.bsh`, `.zei` | rows of a sprite | no more than the bytes that follow its header, plus one | the file is refused |

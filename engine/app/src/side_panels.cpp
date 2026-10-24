@@ -80,11 +80,8 @@ void BuildPanel::set_scale(double scale) {
 }
 
 std::string BuildPanel::name_of(const ui::BuildCategory& category, std::size_t index) const {
-    if (m_texts == nullptr) {
-        return {};
-    }
-    const auto& names = m_texts->section(category.names);
-    return index < names.size() ? names[index] : std::string();
+    static const std::vector<std::string> kNone;
+    return category.name(index, m_texts != nullptr ? m_texts->section(category.names) : kNone);
 }
 
 bool BuildPanel::demolish() const noexcept {
