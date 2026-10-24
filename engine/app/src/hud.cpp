@@ -14,6 +14,7 @@
 #include "parchment.hpp"
 
 #include "o1602/audio/game_audio.hpp"
+#include "o1602/platform/window.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/ui/build_menu.hpp"
@@ -400,6 +401,8 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
     if (m_mode == kModeMilitary) {
         context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr,
                                      m_local, m_units, m_banners, &m_names});
+        context->ctrl = (SDL_GetModState() & SDL_KMOD_CTRL) != 0;
+        context->now_ms = platform::ticks_ms();
         return m_selection_panels->military_panel_for(*context);
     }
     if (m_mode != kModeInfo || m_selection.kind == Selection::Kind::None) {
@@ -407,6 +410,8 @@ SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
     }
     context.emplace(PanelContext{*m_simulation, *m_buildings, *m_figure_table, m_texts ? &*m_texts : nullptr, m_local,
                                  m_units, m_banners, &m_names, m_goods_trend});
+    context->ctrl = (SDL_GetModState() & SDL_KMOD_CTRL) != 0;
+    context->now_ms = platform::ticks_ms();
     return m_selection_panels->panel_for(m_selection, *context);
 }
 
