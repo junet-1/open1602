@@ -64,7 +64,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
 /// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), MILITAR (40002..40130),
 /// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), SKSHIP (51002..51100),
 /// MKSHIP (50002..50040), SKSOLDAT (65002..65030), MKSOLDAT (52002..52040), VERTRAG (56001..56070),
-/// TRIBUT (64001..64030), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
+/// TRIBUT (64001..64030), INFRA (62002..62021), HANDEL (53002..53100) and the ship window's (SHIP,
+/// TRANSFER, TRADE, ROUTE, PIRAT, PIRATORD) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -157,6 +158,20 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "TRIBUT.GAD", gad(ids));
+        // The ship's window and its pages.
+        const auto range = [&](const char* file, std::int32_t first, std::int32_t last) {
+            ids.clear();
+            for (std::int32_t id = first; id <= last; ++id) {
+                ids.push_back(id);
+            }
+            write(root / "GADDATA" / file, gad(ids));
+        };
+        range("SHIP.GAD", 38001, 38111);
+        range("TRANSFER.GAD", 45002, 45160);
+        range("TRADE.GAD", 33002, 33060);
+        range("ROUTE.GAD", 58001, 58100);
+        range("PIRAT.GAD", 54002, 54010);
+        range("PIRATORD.GAD", 55002, 55045);
         ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
@@ -1049,4 +1064,87 @@ TEST_CASE("selection panels: the diplomacy window offers and accepts treaties an
     CHECK(p->back());
     CHECK(&p->panel() == treaties);
     CHECK(!p->back());
+}
+
+TEST_CASE("selection panels: the ship window gives the orders of a ship at sea and near a free island") {
+    Game g("o1602-test-selection-ship");
+    Town t;
+    sim::Ship own = sim::make_ship("Pioneer", 30, 30, 0, kLocal);
+    own.cannons = 1;
+    own.cargo = {sim::CargoSlot{sim::ware::kCannons, 32}, sim::CargoSlot{}};
+    t.world.add_ship(own);
+    t.world.add_ship(sim::make_ship("Coaster", 17, 8, 0, kLocal));  // 2 tiles off the island
+    sim::Ship offered = sim::make_ship("Bargain", 33, 30, 0, kOther);
+    offered.for_sale = true;
+    t.world.add_ship(offered);
+    t.world.add_ship(sim::make_ship("Stranger", 35, 30, 0, kOther));
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const auto ship = [&](std::size_t i) {
+        Selection s;
+        s.kind = Selection::Kind::Ship;
+        s.ship = t.world.ships()[i].id;
+        s.serial = static_cast<std::uint32_t>(i + 1);
+        return s;
+    };
+    const Selection pioneer = ship(0);
+    SelectionPanel* p = panels.panel_for(pioneer, c);
+    REQUIRE(p != nullptr);
+    p->refresh(pioneer, c);
+    const auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Pioneer") != shown.end());
+
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38004}, pioneer, c, out);  // offer for sale
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38006}, pioneer, c, out);  // a cannon off
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38091}, pioneer, c, out);  // the cannon's hold
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38025}, pioneer, c, out);  // scuttle
+    REQUIRE(out.size() == 4);
+    const auto op = [&](std::size_t i) {
+        const auto* o = std::get_if<sim::ShipCommand>(&out[i]);
+        REQUIRE(o != nullptr);
+        CHECK(o->ship == pioneer.ship);
+        return o->op;
+    };
+    CHECK(op(0) == sim::ShipCommand::Op::OfferForSale);
+    CHECK(op(1) == sim::ShipCommand::Op::UnmountCannon);
+    CHECK(op(2) == sim::ShipCommand::Op::MountCannon);
+    CHECK(op(3) == sim::ShipCommand::Op::Scuttle);
+    out.clear();
+
+    // The route editor is a page of its own; Escape comes back.
+    const ui::Panel* root = &p->panel();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38021}, pioneer, c, out);
+    CHECK(&p->panel() != root);
+    p->refresh(pioneer, c);
+    CHECK(p->back());
+    CHECK(&p->panel() == root);
+    CHECK(!p->back());
+    CHECK(out.empty());
+
+    // Close to an island without an own city: "found a Kontor" asks the building tool for one.
+    const Selection coaster = ship(1);
+    REQUIRE(panels.panel_for(coaster, c) == p);
+    p->refresh(coaster, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38017}, coaster, c, out);
+    const auto request = p->take_request();
+    REQUIRE(request.has_value());
+    CHECK(request->kind == SelectionPanel::Request::Kind::FoundKontor);
+    CHECK(request->ship == coaster.ship);
+
+    // Another player's ship: bought if it is offered, otherwise nothing.
+    const Selection bargain = ship(2);
+    p->refresh(bargain, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38025}, bargain, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38004}, bargain, c, out);
+    const Selection stranger = ship(3);
+    p->refresh(stranger, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38004}, stranger, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* buy = std::get_if<sim::ShipCommand>(&out[0]);
+    REQUIRE(buy != nullptr);
+    CHECK(buy->op == sim::ShipCommand::Op::Buy);
+    CHECK(buy->ship == bargain.ship);
+    CHECK(buy->player == kLocal);
 }
