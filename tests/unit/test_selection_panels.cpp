@@ -19,6 +19,7 @@
 #include "o1602/assets/text_table.hpp"
 #include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
+#include "o1602/ui/unit_selection.hpp"
 
 using namespace o1602;
 using app::PanelContext;
@@ -38,6 +39,8 @@ constexpr std::int32_t kCostValue = 37006;
 constexpr std::uint32_t kChapel = 20809;  // DIVERS, second in the build menu
 constexpr std::uint32_t kKontor = 22101;
 constexpr std::uint32_t kHouse = 20001;
+constexpr std::uint32_t kYard = 22111;
+constexpr std::uint32_t kCastle = 22521;
 constexpr std::int32_t kInfraIcon = 62021;
 
 /// A layout with these gadget Ids, each a text box of its own place (`graphic` a sprite).
@@ -58,7 +61,9 @@ void write(const std::filesystem::path& file, const std::string& text) {
 }
 
 /// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
-/// SIEDLER (36002..36100), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
+/// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), MILITAR (40002..40130),
+/// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), SKSHIP (51002..51100),
+/// MKSHIP (50002..50040), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -91,6 +96,46 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "SIEDLER.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 39002; id <= 39042; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "WERFT.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 60002; id <= 60052; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "BAUSHIP.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 40002; id <= 40130; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "MILITAR.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 43002; id <= 43030; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "STADT.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 34002; id <= 34081; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "KONTOR.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 44002; id <= 44400; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "LAGER.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 51002; id <= 51100; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "SKSHIP.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 50002; id <= 50040; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "MKSHIP.GAD", gad(ids));
         ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
@@ -126,7 +171,8 @@ struct Game {
 };
 
 /// A bakery (HANDWERK) with running costs 25 at work and 10 at rest, a chapel with 8, a Kontor and
-/// a house of the first class (tax 1.5).
+/// a house of the first class (tax 1.5), a small shipyard (three tiles wide, costs 30 and 12) and a
+/// castle with three training places; the Kontor sells four wares and buys two.
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}};
     const auto doc = assets::cod::parse(
@@ -144,11 +190,20 @@ assets::BuildingTable make_buildings() {
         "EndObj\n"
         "Objekt: HAUS\n"
         "  @Nummer: 2\n  Id: 22101\n  Gfx: 200\n  Size: 2, 2\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n  EndObj\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Maxware: 4, 2\n  EndObj\n"
         "EndObj\n"
         "Objekt: HAUS\n"
         "  @Nummer: 3\n  Id: 20001\n  Gfx: 300\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 13\n    BGruppe: 0\n  EndObj\n"
+        "EndObj\n"
+        "Objekt: HAUS\n"
+        "  @Nummer: 4\n  Id: 22111\n  Gfx: 400\n  Size: 3, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 14\n    Rohstoff: 4\n    Workstoff: 9\n    Rohmenge: 2\n"
+        "    Workmenge: 1\n    Kosten: 30, 12\n  EndObj\n"
+        "EndObj\n"
+        "Objekt: HAUS\n"
+        "  @Nummer: 5\n  Id: 22521\n  Gfx: 500\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 15\n    Maxware: 3\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -157,8 +212,9 @@ assets::BuildingTable make_buildings() {
 }
 
 /// One island with a bakery of the local player at (2, 2) and one of another player at (6, 2), a
-/// chapel and a house of the local player at (9, 2) and (9, 5) in its city 3 and a Kontor of the
-/// other at (6, 5) in its city 4 (the tests add the cities they need).
+/// chapel, a house, a shipyard, a castle and a Kontor of the local player at (9, 2), (9, 5), (1, 5),
+/// (10, 6) and (4, 0) in its city 3 and a Kontor of the other at (6, 5) in its city 4 (the tests
+/// add the cities they need).
 struct Town {
     assets::BuildingTable buildings = make_buildings();
     assets::FigureTable figures;
@@ -171,6 +227,9 @@ struct Town {
         REQUIRE(map.place(*buildings.by_id(kChapel), 9, 2, 0, 0, kLocal, 3).ok());
         REQUIRE(map.place(*buildings.by_id(kKontor), 6, 5, 0, 0, kOther, 4).ok());
         REQUIRE(map.place(*buildings.by_id(kHouse), 9, 5, 0, 0, kLocal, 3).ok());
+        REQUIRE(map.place(*buildings.by_id(kYard), 1, 5, 0, 0, kLocal, 3).ok());
+        REQUIRE(map.place(*buildings.by_id(kCastle), 10, 6, 0, 0, kLocal, 3).ok());
+        REQUIRE(map.place(*buildings.by_id(kKontor), 4, 0, 0, 0, kLocal, 3).ok());
         sim::WorldIsland island{assets::IslandHeader{}, std::move(map), 4, 4};
         island.header.width = 12;
         island.header.height = 8;
@@ -190,6 +249,18 @@ struct Town {
         house.city = 3;
         house.inhabitants64 = 2 * 64;
         world.add_house(house);
+        sim::CostBuilding yard;
+        yard.x = 1;
+        yard.y = 5;
+        yard.wood = 3 * 32;
+        yard.cloth = 32;
+        world.add_cost_building(yard);
+        sim::CostBuilding castle;
+        castle.kind = sim::CostBuilding::Kind::Castle;
+        castle.x = 10;
+        castle.y = 6;
+        castle.weapons = {2 * 32, 0, 32};
+        world.add_cost_building(castle);
     }
 };
 
@@ -501,4 +572,310 @@ TEST_CASE("selection panels: a house shows its class and city taxes, its buttons
     p->refresh(house, c);
     const auto after = texts(*p);
     CHECK(std::find(after.begin(), after.end(), std::to_string(60 * 132 / 128)) != after.end());
+}
+
+TEST_CASE("selection panels: the shipyard window orders a ship of the types a small yard builds") {
+    Game g("o1602-test-selection-werft");
+    Town t;
+    add_city(t.world, 3, kLocal, "Haven");
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const Selection yard = building(1, 5);
+    SelectionPanel* p = panels.panel_for(yard, c);
+    REQUIRE(p != nullptr);
+    p->refresh(yard, c);
+    auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "30") != shown.end());  // running cost at work
+    CHECK(std::find(shown.begin(), shown.end(), "3t") != shown.end());  // wood in the yard
+    CHECK(std::find(shown.begin(), shown.end(), "1t") != shown.end());  // cloth
+    CHECK(!p->panel().selected(39018));
+
+    // "Order" opens the type choice; a small yard has no big types: a pick of HANDEL2 falls back to
+    // HANDEL1, KRIEG1 stays.
+    std::vector<sim::Command> out;
+    const ui::Panel* yard_page = &p->panel();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 39016}, yard, c, out);
+    CHECK(&p->panel() != yard_page);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 60004}, yard, c, out);
+    p->refresh(yard, c);
+    CHECK(p->panel().selected(60003));
+    CHECK(!p->panel().selected(60004));
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 60005}, yard, c, out);
+    p->refresh(yard, c);
+    CHECK(p->panel().selected(60005));
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(out.empty());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 60022}, yard, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* build = std::get_if<sim::ShipyardOrder>(&out[0]);
+    REQUIRE(build != nullptr);
+    CHECK(build->op == sim::ShipyardOrder::Op::Build);
+    CHECK(build->ship_type == 2);
+    CHECK(build->player == kLocal);
+    CHECK(build->x == 1);
+    CHECK(build->y == 5);
+    CHECK(&p->panel() == yard_page);  // back on the yard's page
+
+    // Escape leaves the type choice too; the stop button switches the yard off.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 39016}, yard, c, out);
+    CHECK(p->back());
+    CHECK(!p->back());
+    out.clear();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 39018}, yard, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* stop = std::get_if<sim::ShipyardOrder>(&out[0]);
+    REQUIRE(stop != nullptr);
+    CHECK(stop->op == sim::ShipyardOrder::Op::Enable);
+    CHECK(!stop->on);
+    simulation.execute(out[0]);
+    p->refresh(yard, c);
+    CHECK(p->panel().selected(39018));
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "12") != shown.end());  // running cost at rest
+}
+
+TEST_CASE("selection panels: the castle window recruits, shows the training and sends the unit out") {
+    Game g("o1602-test-selection-militar");
+    Town t;
+    add_city(t.world, 3, kLocal, "Haven");
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const Selection castle = building(10, 6);
+    SelectionPanel* p = panels.panel_for(castle, c);
+    REQUIRE(p != nullptr);
+    p->refresh(castle, c);
+    auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "2t") != shown.end());  // swords in store
+    CHECK(std::find(shown.begin(), shown.end(), "1t") != shown.end());  // cannons
+
+    // Recruiting: the first place, the unit of the owner's colour; nothing else sends a command.
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40022}, castle, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40009}, castle, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Pressed, 40009}, castle, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* recruit = std::get_if<sim::CastleOrder>(&out[0]);
+    REQUIRE(recruit != nullptr);
+    CHECK(recruit->op == sim::CastleOrder::Op::Recruit);
+    CHECK(recruit->slot == 0);
+    CHECK(recruit->player == kLocal);
+    CHECK(recruit->x == 10);
+    CHECK(recruit->y == 6);
+
+    // A unit half trained in the second place: its progress in tenths; chosen, it can be given up
+    // or sent to a spot picked on the map.
+    sim::CastleSlot first;
+    first.figure = recruit->figure;
+    first.progress = 320;
+    sim::CastleSlot second;
+    second.figure = recruit->figure;
+    second.progress = 160;
+    t.world.cost_buildings()[1].slots = {first, second};
+    p->refresh(castle, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "10") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "5") != shown.end());
+    out.clear();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40092}, castle, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40003}, castle, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* cancel = std::get_if<sim::CastleOrder>(&out[0]);
+    REQUIRE(cancel != nullptr);
+    CHECK(cancel->op == sim::CastleOrder::Op::Cancel);
+    CHECK(cancel->slot == 1);
+    out.clear();
+    CHECK(!p->picking());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40004}, castle, c, out);
+    CHECK(p->picking());
+    CHECK(p->back());
+    CHECK(!p->picking());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 40004}, castle, c, out);
+    p->picked(3, 4, castle, c, out);
+    CHECK(!p->picking());
+    REQUIRE(out.size() == 1);
+    const auto* release = std::get_if<sim::CastleOrder>(&out[0]);
+    REQUIRE(release != nullptr);
+    CHECK(release->op == sim::CastleOrder::Op::Release);
+    CHECK(release->slot == 1);
+    CHECK(release->spot == sim::Target::spot(7, 9));
+}
+
+TEST_CASE("selection panels: the own Kontor shows the city, edits its trade list and opens the stock") {
+    Game g("o1602-test-selection-stadt");
+    Town t;
+    constexpr std::uint8_t kSold = sim::ware::kFirstTrade + 3;
+    constexpr std::uint8_t kAdded = sim::ware::kFirstTrade + 1;
+    sim::City haven;
+    haven.island = 0;
+    haven.index = 3;
+    haven.owner = kLocal;
+    haven.name = "Haven";
+    haven.warehouse_x = 4;
+    haven.warehouse_y = 0;
+    haven.capacity = 30 * 32;
+    haven.trade.resize(sim::ware::kLastTrade + 1);
+    haven.trade[kSold].sell = true;
+    haven.trade[kSold].sell_price = sim::base_price(kSold) / 2;
+    t.world.add_city(haven);
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    Selection kontor = building(4, 0);
+    kontor.serial = 1;
+    SelectionPanel* p = panels.panel_for(kontor, c);
+    REQUIRE(p != nullptr);
+    p->refresh(kontor, c);
+    auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Text 15") != shown.end());  // inhabitants
+
+    // The material lock is a command; the sell list a page of its own.
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 43025}, kontor, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* lock = std::get_if<sim::CityOrder>(&out[0]);
+    REQUIRE(lock != nullptr);
+    CHECK(lock->op == sim::CityOrder::Op::MaterialLock);
+    CHECK(lock->on);
+    CHECK(lock->city == 3);
+    out.clear();
+    const ui::Panel* city_page = &p->panel();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 43003}, kontor, c, out);
+    CHECK(&p->panel() != city_page);
+    p->refresh(kontor, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), std::to_string(sim::base_price(kSold) / 2)) != shown.end());
+
+    // The price buttons and the stop button change the chosen ware.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 34023}, kontor, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 34016}, kontor, c, out);
+    REQUIRE(out.size() == 2);
+    const auto* up = std::get_if<sim::TradeSetting>(&out[0]);
+    REQUIRE(up != nullptr);
+    CHECK(up->ware == kSold);
+    CHECK(up->mode == sim::TradeSetting::Mode::Sell);
+    CHECK(up->price == std::optional<std::uint16_t>(static_cast<std::uint16_t>(sim::base_price(kSold) / 2 + 1)));
+    const auto* stop = std::get_if<sim::TradeSetting>(&out[1]);
+    REQUIRE(stop != nullptr);
+    CHECK(stop->mode == sim::TradeSetting::Mode::None);
+    out.clear();
+
+    // An empty place opens the ware picker; a ware goes into the list, the picker closes.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 34072}, kontor, c, out);
+    const ui::Panel* kontor_page = &p->panel();
+    p->refresh(kontor, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 44079 + kAdded}, kontor, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* added = std::get_if<sim::TradeSetting>(&out[0]);
+    REQUIRE(added != nullptr);
+    CHECK(added->ware == kAdded);
+    CHECK(added->mode == sim::TradeSetting::Mode::Sell);
+    CHECK(&p->panel() != kontor_page);
+    out.clear();
+
+    // The Kontor clicked again shows the stock; a good there opens its page of the goods balance.
+    kontor.again = 1;
+    p->refresh(kontor, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 44079 + kSold}, kontor, c, out);
+    const auto request = p->take_request();
+    REQUIRE(request.has_value());
+    CHECK(request->kind == SelectionPanel::Request::Kind::Goods);
+    CHECK(request->ware == kSold);
+    CHECK(request->island == 0);
+    CHECK(out.empty());
+}
+
+TEST_CASE("selection panels: the military windows of one ship and of a fleet give their orders") {
+    Game g("o1602-test-selection-skship");
+    Town t;
+    sim::Ship avenger = sim::make_ship("Avenger", 20, 30, 0, kLocal);
+    avenger.cannons = 2;
+    avenger.cargo = {sim::CargoSlot{sim::ware::kCannons, 2 * 32}, sim::CargoSlot{}};
+    t.world.add_ship(avenger);
+    t.world.add_ship(sim::make_ship("Escort", 22, 30, 0, kLocal));
+    t.world.add_ship(sim::make_ship("Raider", 25, 30, 0, kOther));
+    const std::uint32_t own = t.world.ships()[0].id;
+    const std::uint32_t escort = t.world.ships()[1].id;
+    const std::uint32_t foreign = t.world.ships()[2].id;
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    ui::UnitSelection units;
+    PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    CHECK(panels.military_panel_for(c) == nullptr);  // nothing selected
+    c.units = &units;
+    CHECK(panels.military_panel_for(c) == nullptr);
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, own});
+    const Selection none;
+    SelectionPanel* p = panels.military_panel_for(c);
+    REQUIRE(p != nullptr);
+    p->refresh(none, c);
+    const auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Avenger") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "2") != shown.end());  // mounted cannons
+
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51023}, none, c, out);  // white flag
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51011}, none, c, out);  // a cannon off
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51091}, none, c, out);  // the cannons' hold
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51092}, none, c, out);  // an empty hold
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51024}, none, c, out);  // overboard
+    REQUIRE(out.size() == 4);
+    const auto op = [&](std::size_t i) {
+        const auto* o = std::get_if<sim::ShipCommand>(&out[i]);
+        REQUIRE(o != nullptr);
+        CHECK(o->ship == own);
+        CHECK(o->player == kLocal);
+        return o->op;
+    };
+    CHECK(op(0) == sim::ShipCommand::Op::WhiteFlag);
+    CHECK(std::get_if<sim::ShipCommand>(&out[0])->on);
+    CHECK(op(1) == sim::ShipCommand::Op::UnmountCannon);
+    CHECK(op(2) == sim::ShipCommand::Op::MountCannon);
+    CHECK(std::get_if<sim::ShipCommand>(&out[2])->hold == 0);
+    CHECK(op(3) == sim::ShipCommand::Op::Dump);
+    out.clear();
+
+    // Patrol: the far end is the next click on the map.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51022}, none, c, out);
+    CHECK(p->picking());
+    p->picked(12, 9, none, c, out);
+    CHECK(!p->picking());
+    REQUIRE(out.size() == 1);
+    const auto* patrol = std::get_if<sim::ShipCommand>(&out[0]);
+    REQUIRE(patrol != nullptr);
+    CHECK(patrol->op == sim::ShipCommand::Op::Patrol);
+    CHECK(patrol->x == 12);
+    CHECK(patrol->y == 9);
+    out.clear();
+
+    // Another player's ship: the window shows it, its buttons do nothing.
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, foreign});
+    p = panels.military_panel_for(c);
+    REQUIRE(p != nullptr);
+    p->refresh(none, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51023}, none, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51024}, none, c, out);
+    CHECK(out.empty());
+
+    // A fleet: the white flag for every ship.
+    units.select(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, own});
+    units.toggle(t.world, ui::UnitRef{ui::UnitRef::Kind::Ship, escort});
+    REQUIRE(units.size() == 2);
+    SelectionPanel* fleet = panels.military_panel_for(c);
+    REQUIRE(fleet != nullptr);
+    CHECK(fleet != p);
+    fleet->refresh(none, c);
+    fleet->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 50022}, none, c, out);
+    REQUIRE(out.size() == 2);
+    for (const sim::Command& o : out) {
+        const auto* flag = std::get_if<sim::ShipCommand>(&o);
+        REQUIRE(flag != nullptr);
+        CHECK(flag->op == sim::ShipCommand::Op::WhiteFlag);
+        CHECK(flag->on);
+    }
 }

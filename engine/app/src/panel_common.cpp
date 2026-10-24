@@ -30,26 +30,27 @@ constexpr std::int32_t kLTrendGround = 44361;
 /// red, on a half dark ground so that it reads over the picture.
 assets::GadgetLayout with_trend(assets::GadgetLayout layout) {
     for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
-        const assets::Gadget* icon = layout.find(kLIcon + w);
-        if (icon == nullptr) {
+        const assets::Gadget* found = layout.find(kLIcon + w);
+        if (found == nullptr) {
             continue;
         }
+        const assets::Gadget icon = *found;  // copied: the gadgets grow below
         assets::Gadget ground;
         ground.id = kLTrendGround + w;
         ground.kind = assets::GadgetKind::Fill;
         ground.no_select = true;
         ground.half = true;
         ground.color = {0, 0};  // black
-        ground.pos = {icon->pos[0] + 2, icon->pos[1] + icon->size[1] - 15};
+        ground.pos = {icon.pos[0] + 2, icon.pos[1] + icon.size[1] - 15};
         ground.size = {38, 13};
         layout.gadgets.push_back(ground);
         assets::Gadget g;
         g.kind = assets::GadgetKind::TextLeft;
         g.no_select = true;
         g.block = 1;  // ZEILITTLE
-        g.pos = icon->pos;
-        g.size = {40, icon->size[1]};
-        g.offset = {4, static_cast<std::int16_t>(icon->size[1] - 3)};
+        g.pos = icon.pos;
+        g.size = {40, icon.size[1]};
+        g.offset = {4, static_cast<std::int16_t>(icon.size[1] - 3)};
         g.id = kLTrendUp + w;
         g.color = {ui::kTextBrightGreen, ui::kTextBrightGreen};
         layout.gadgets.push_back(g);
