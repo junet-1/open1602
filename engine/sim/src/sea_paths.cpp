@@ -2,6 +2,7 @@
 #include "o1602/sim/sea_paths.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <optional>
 
 #include "o1602/sim/pathfinding.hpp"
@@ -46,13 +47,23 @@ void SeaMap::rebuild(const World& world, const assets::BuildingTable& buildings)
 }
 
 void SeaMap::update_island(const World& world, const assets::BuildingTable& buildings, std::uint16_t index) {
+    update_island(world, buildings, index, 0, 0, std::numeric_limits<std::int32_t>::max(),
+                  std::numeric_limits<std::int32_t>::max());
+}
+
+void SeaMap::update_island(const World& world, const assets::BuildingTable& buildings, std::uint16_t index,
+                           std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1) {
     if (index >= world.islands().size()) {
         return;
     }
     const WorldIsland& island = world.islands()[index];
     const IslandMap& map = island.map;
-    for (std::uint32_t ly = 0; ly < map.height(); ++ly) {
-        for (std::uint32_t lx = 0; lx < map.width(); ++lx) {
+    const auto from_x = static_cast<std::uint32_t>(std::max(x0, 0));
+    const auto from_y = static_cast<std::uint32_t>(std::max(y0, 0));
+    const std::uint32_t to_x = x1 < 0 ? 0 : std::min(map.width(), static_cast<std::uint32_t>(x1) + 1);
+    const std::uint32_t to_y = y1 < 0 ? 0 : std::min(map.height(), static_cast<std::uint32_t>(y1) + 1);
+    for (std::uint32_t ly = from_y; ly < to_y; ++ly) {
+        for (std::uint32_t lx = from_x; lx < to_x; ++lx) {
             const std::uint32_t wx = island.x + lx;
             const std::uint32_t wy = island.y + ly;
             if (wx >= m_width || wy >= m_height) {

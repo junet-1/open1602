@@ -30,6 +30,9 @@ public:
     void rebuild(const World& world, const assets::BuildingTable& buildings);
     /// Updates the tiles of one island (something was built or demolished on it).
     void update_island(const World& world, const assets::BuildingTable& buildings, std::uint16_t island);
+    /// The same for the island tiles x0..x1, y0..y1 only (inclusive, clipped to the island).
+    void update_island(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
+                       std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1);
 
     [[nodiscard]] bool sailable(std::int32_t x, std::int32_t y) const noexcept {
         return x >= 0 && y >= 0 && static_cast<std::uint32_t>(x) < m_width &&

@@ -358,8 +358,16 @@ private:
     std::uint64_t m_next_command = 1;
     EventBuffer<CommandResult> m_command_results;
     EventBuffer<ConstructionEvent> m_construction_events;
-    /// Islands a batch of construction events touched (handle); kept for their capacity.
-    std::vector<std::uint16_t> m_coast_islands;
+    /// What a batch of construction events touched (handle): the tiles of an island built on or
+    /// cleared, as one box per island; kept for their capacity.
+    struct CoastChange {
+        std::uint16_t island = 0;
+        std::int32_t x0 = 0;
+        std::int32_t y0 = 0;
+        std::int32_t x1 = 0;
+        std::int32_t y1 = 0;
+    };
+    std::vector<CoastChange> m_coast_islands;
     std::vector<std::uint16_t> m_tower_islands;
     std::vector<std::string> m_city_names;
     std::function<void(const World&)> m_tick_observer;

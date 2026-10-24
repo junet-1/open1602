@@ -258,6 +258,8 @@ public:
     void tick(std::uint32_t dt_ms);
     /// Something was built or demolished on an island: its water may have changed.
     void island_changed(std::uint16_t island);
+    /// The same for the island tiles x0..x1, y0..y1 only (inclusive).
+    void island_changed(std::uint16_t island, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1);
 
     bool order(const ShipOrder& order);
     /// Goods moved, or nothing (then a Refused event).
