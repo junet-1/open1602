@@ -173,6 +173,8 @@ void Ambient::tick(const sim::World& world, const assets::BuildingTable& buildin
     if (now == from) {
         return;
     }
+    m_ships_squared = false;
+    m_troops_counted = false;
     // What falls into (from, now], in the order of game time.
     enum class Kind : std::uint8_t { City, Sea, Markets };
     struct Event {
@@ -180,6 +182,8 @@ void Ambient::tick(const sim::World& world, const assets::BuildingTable& buildin
         Kind kind = Kind::City;
         std::uint64_t round = 0;
         const sim::City* city = nullptr;
+        std::uint32_t bx = 0;  ///< Sea: the block
+        std::uint32_t by = 0;
     };
     std::vector<Event> events;
     const auto every = [&](std::uint64_t period, std::uint64_t phase, auto&& add) {
@@ -195,7 +199,18 @@ void Ambient::tick(const sim::World& world, const assets::BuildingTable& buildin
         every(kCityPeriodMs, phase,
               [&](std::uint64_t at, std::uint64_t k) { events.push_back(Event{at, Kind::City, k, &c}); });
     }
-    every(kSeaPeriodMs, 0, [&](std::uint64_t at, std::uint64_t k) { events.push_back(Event{at, Kind::Sea, k}); });
+    // Each block of the sea has its own moment in the 5 s too, so a big sea is not decided in one
+    // tick (TB-27).
+    if (std::min(m_config.sea_interval_ms, kSeaIntervalMaxMs) != 0) {
+        for (std::uint32_t by = 0; by * kSeaBlock < world.height(); ++by) {
+            for (std::uint32_t bx = 0; bx * kSeaBlock < world.width(); ++bx) {
+                const std::uint64_t phase = mix(mix(m_seed, kTagSea), std::uint64_t{by} << 16U | bx) % kSeaPeriodMs;
+                every(kSeaPeriodMs, phase, [&](std::uint64_t at, std::uint64_t k) {
+                    events.push_back(Event{at, Kind::Sea, k, nullptr, bx, by});
+                });
+            }
+        }
+    }
     every(kJugglerPeriodMs, 0,
           [&](std::uint64_t at, std::uint64_t k) { events.push_back(Event{at, Kind::Markets, k}); });
     std::stable_sort(events.begin(), events.end(), [](const Event& a, const Event& b) { return a.at < b.at; });
@@ -206,7 +221,7 @@ void Ambient::tick(const sim::World& world, const assets::BuildingTable& buildin
                 city_round(world, buildings, figures, *e.city, e.at, e.round);
                 break;
             case Kind::Sea:
-                sea_creatures(world, figures, e.at, e.round);
+                sea_round(world, figures, e.at, e.round, e.bx, e.by);
                 break;
             case Kind::Markets:
                 jugglers(world, buildings, figures, e.at);
@@ -214,6 +229,39 @@ void Ambient::tick(const sim::World& world, const assets::BuildingTable& buildin
         }
     }
     retire(now);
+}
+
+bool Ambient::foreign_troops(const sim::World& world, std::uint16_t island, sim::PlayerId owner) {
+    if (!m_troops_counted) {
+        // The players with troops per island, once per tick instead of all soldiers per city.
+        m_island_troops.assign(world.islands().size(), {});
+        for (const sim::Soldier& s : world.soldiers()) {
+            if (s.owner == sim::kNoPlayer || s.x() < 0 || s.y() < 0) {
+                continue;
+            }
+            const auto sx = static_cast<std::uint32_t>(s.x());
+            const auto sy = static_cast<std::uint32_t>(s.y());
+            const sim::Player* p = world.player(s.owner);
+            if (!world.contains(sx, sy) || p == nullptr ||
+                (p->role != sim::PlayerRole::Human && p->role != sim::PlayerRole::Computer)) {
+                continue;
+            }
+            const std::uint16_t at = world.cell(sx, sy).island;
+            if (at >= m_island_troops.size()) {
+                continue;
+            }
+            std::vector<sim::PlayerId>& owners = m_island_troops[at];
+            if (std::find(owners.begin(), owners.end(), s.owner) == owners.end()) {
+                owners.push_back(s.owner);
+            }
+        }
+        m_troops_counted = true;
+    }
+    if (island >= m_island_troops.size()) {
+        return false;
+    }
+    const std::vector<sim::PlayerId>& owners = m_island_troops[island];
+    return std::any_of(owners.begin(), owners.end(), [&](sim::PlayerId o) { return o != owner; });
 }
 
 void Ambient::retire(std::uint64_t at_ms) {
@@ -234,17 +282,8 @@ void Ambient::city_round(const sim::World& world, const assets::BuildingTable& b
         return;
     }
     // No townsfolk while soldiers of another player stand on the island (0x00480370).
-    for (const sim::Soldier& s : world.soldiers()) {
-        if (s.owner == c.owner || s.owner == sim::kNoPlayer || s.x() < 0 || s.y() < 0) {
-            continue;
-        }
-        const auto sx = static_cast<std::uint32_t>(s.x());
-        const auto sy = static_cast<std::uint32_t>(s.y());
-        const sim::Player* p = world.player(s.owner);
-        if (world.contains(sx, sy) && world.cell(sx, sy).island == c.island && p != nullptr &&
-            (p->role == sim::PlayerRole::Human || p->role == sim::PlayerRole::Computer)) {
-            return;
-        }
+    if (foreign_troops(world, c.island, c.owner)) {
+        return;
     }
     std::vector<const sim::House*> houses;
     for (const sim::House& h : world.houses()) {
@@ -528,8 +567,8 @@ void Ambient::send_walker(const sim::World& world, const assets::BuildingTable& 
     ++m_stats.walkers;
 }
 
-void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& figures, std::uint64_t at_ms,
-                            std::uint64_t slot) {
+void Ambient::sea_round(const sim::World& world, const assets::FigureTable& figures, std::uint64_t at_ms,
+                        std::uint64_t round, std::uint32_t bx, std::uint32_t by) {
     // The original tries 3 random tiles of the screen (0x00487F10), so where the player looks
     // decides where creatures come up. Here each block of 28 x 28 tiles, about one screen of
     // 1024 x 768 at the nearest zoom, has the 3 tries: the same sea everywhere.
@@ -539,15 +578,25 @@ void Ambient::sea_creatures(const sim::World& world, const assets::FigureTable& 
     if (interval == 0) {
         return;
     }
-    for (std::uint32_t by = 0; by * kSeaBlock < world.height(); ++by) {
-        for (std::uint32_t bx = 0; bx * kSeaBlock < world.width(); ++bx) {
-            sim::Random random = stream(kTagSea, slot, bx, by);
-            if (interval > kSeaPeriodMs && random.below(interval) >= kSeaPeriodMs) {
-                continue;  // this block's chance is not taken this time
-            }
-            sea_block(world, figures, random, bx * kSeaBlock, by * kSeaBlock, at_ms);
-        }
+    sim::Random random = stream(kTagSea, round, bx, by);
+    if (interval > kSeaPeriodMs && random.below(interval) >= kSeaPeriodMs) {
+        return;  // this block's chance is not taken this time
     }
+    if (!m_ships_squared) {
+        // The ships by squares of a block, once per tick: a try looks only at the squares around.
+        const std::uint32_t cols = (world.width() + kSeaBlock - 1) / kSeaBlock + 1;
+        const std::uint32_t rows = (world.height() + kSeaBlock - 1) / kSeaBlock + 1;
+        m_ship_cols = cols;
+        m_ship_squares.assign(std::size_t{cols} * rows, {});
+        for (std::size_t i = 0; i < world.ships().size(); ++i) {
+            const sim::Ship& s = world.ships()[i];
+            const std::uint32_t c = std::min<std::uint32_t>(s.x / kSeaBlock, cols - 1);
+            const std::uint32_t r = std::min<std::uint32_t>(s.y / kSeaBlock, rows - 1);
+            m_ship_squares[std::size_t{r} * cols + c].push_back(static_cast<std::uint32_t>(i));
+        }
+        m_ships_squared = true;
+    }
+    sea_block(world, figures, random, bx * kSeaBlock, by * kSeaBlock, at_ms);
 }
 
 void Ambient::sea_block(const sim::World& world, const assets::FigureTable& figures, sim::Random& random,
@@ -564,20 +613,31 @@ void Ambient::sea_block(const sim::World& world, const assets::FigureTable& figu
         // Sides to keep away from: ships and islands near the spot (0x0044A200).
         std::uint32_t blocked = 0;
         bool near_ship = false;
-        for (const sim::Ship& s : world.ships()) {
-            const std::int32_t dx = static_cast<std::int32_t>(s.x) - tx;
-            const std::int32_t dy = static_cast<std::int32_t>(s.y) - ty;
-            if (std::abs(dx) >= kShipSeen || std::abs(dy) >= kShipSeen) {
-                continue;
-            }
-            if (std::abs(dx) <= kShipNear && std::abs(dy) <= kShipNear) {
-                near_ship = true;
-                break;
-            }
-            if (std::abs(dx) > std::abs(dy)) {
-                blocked |= dx > 0 ? 8U : 2U;
-            } else {
-                blocked |= dy > 0 ? 1U : 4U;
+        const auto rows = static_cast<std::int32_t>(m_ship_squares.size() / m_ship_cols);
+        const auto cols = static_cast<std::int32_t>(m_ship_cols);
+        const std::int32_t c0 = std::max(0, (tx - kShipSeen) / static_cast<std::int32_t>(kSeaBlock));
+        const std::int32_t c1 = std::min(cols - 1, (tx + kShipSeen) / static_cast<std::int32_t>(kSeaBlock));
+        const std::int32_t r0 = std::max(0, (ty - kShipSeen) / static_cast<std::int32_t>(kSeaBlock));
+        const std::int32_t r1 = std::min(rows - 1, (ty + kShipSeen) / static_cast<std::int32_t>(kSeaBlock));
+        for (std::int32_t r = r0; r <= r1 && !near_ship; ++r) {
+            for (std::int32_t c = c0; c <= c1 && !near_ship; ++c) {
+                for (const std::uint32_t i : m_ship_squares[static_cast<std::size_t>(r * cols + c)]) {
+                    const sim::Ship& s = world.ships()[i];
+                    const std::int32_t dx = static_cast<std::int32_t>(s.x) - tx;
+                    const std::int32_t dy = static_cast<std::int32_t>(s.y) - ty;
+                    if (std::abs(dx) >= kShipSeen || std::abs(dy) >= kShipSeen) {
+                        continue;
+                    }
+                    if (std::abs(dx) <= kShipNear && std::abs(dy) <= kShipNear) {
+                        near_ship = true;
+                        break;
+                    }
+                    if (std::abs(dx) > std::abs(dy)) {
+                        blocked |= dx > 0 ? 8U : 2U;
+                    } else {
+                        blocked |= dy > 0 ? 1U : 4U;
+                    }
+                }
             }
         }
         if (near_ship) {
