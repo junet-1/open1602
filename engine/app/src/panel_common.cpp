@@ -80,7 +80,7 @@ std::string StockList::trend_text(const sim::City& city, std::uint8_t ware) {
 }
 
 void StockList::refresh(const sim::City& city, bool picker, bool trend) {
-    m_panel.set_text(kLTitle, city.name);
+    m_panel.set_text(kLTitle, city_name(city));
     const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city.capacity, 1));
     for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
         const std::string rate = trend && !picker ? trend_text(city, w) : std::string();
@@ -136,7 +136,7 @@ TradeLists::TradeLists(assets::GadgetLayout layout) : m_panel(std::move(layout),
 }
 
 void TradeLists::refresh(const sim::City& city, const PanelContext& c) {
-    m_panel.set_text(53002, city.name);
+    m_panel.set_text(53002, city_name(city));
     m_panel.set_text(53003, c.text("GAME", 36));
     m_panel.set_text(53004, c.text("GAME", 35));
     const assets::BuildingType* k = sim::kontor_of(c.world(), c.buildings, city);

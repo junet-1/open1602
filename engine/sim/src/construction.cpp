@@ -1585,9 +1585,7 @@ public:
             const std::uint32_t n = m_world.city_name_index() % static_cast<std::uint32_t>(names.size());
             c.name = names[n];
             m_world.set_city_name_index((n + 1) % static_cast<std::uint32_t>(names.size()));
-        } else {
-            c.name = "City " + std::to_string(m_world.cities().size() + 1);
-        }
+        }  // else the name stays empty, and the game shows one in its language (MD-10)
         c.inhabitants.assign(classes, 0);
         c.satisfaction.assign(classes, 0);
         c.tax_rate.assign(classes, 128);

@@ -224,6 +224,17 @@ net.refused.password = Falsches Kennwort.
 net.refused.kicked = Der Gastgeber hat Euch entfernt.
 net.refused.taken = Euer Platz wird noch von einem anderen Rechner aus gespielt.
 
+# The four players of the original by their colours, when Text.cod has no [PLAYCOL]
+player.colour.red = Roter Spieler
+player.colour.blue = Blauer Spieler
+player.colour.yellow = Gelber Spieler
+player.colour.white = Weißer Spieler
+# Names of what Text.cod names none for: a player without colour, a city ({1} island, {2} its
+# number there), a ship ({1} its number)
+player.default = Spieler {1}
+city.default = Stadt {2} auf Insel {1}
+ship.default = Schiff {1}
+
 # Players five to twelve of a new world, named after their colours
 player.colour.orange = Oranger Spieler
 player.colour.purple = Violetter Spieler

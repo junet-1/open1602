@@ -52,8 +52,6 @@ std::vector<std::uint8_t> players(std::span<const std::uint8_t> data, const asse
                                   const NewGameOptions& options) {
     std::vector<std::uint8_t> out(data.begin(), data.end());
     const std::vector<std::string>& colour_names = text.section("PLAYCOL");
-    static constexpr std::array<const char*, kOriginalColours> kFallback = {"Red player", "Blue player",
-                                                                            "Yellow player", "White player"};
     const std::uint8_t human = static_cast<std::uint8_t>(options.colour % kOriginalColours);
     std::array<bool, kOriginalColours> taken{};
     taken[human] = true;
@@ -90,8 +88,8 @@ std::vector<std::uint8_t> players(std::span<const std::uint8_t> data, const asse
             if (slot == 0) {
                 put_name(r, options.name);
             } else {
-                put_name(r, colour < colour_names.size() ? std::string_view(colour_names[colour])
-                                                         : std::string_view(kFallback[colour % kOriginalColours]));
+                // Without [PLAYCOL] the name stays empty: the game shows it in its language (MD-10).
+                put_name(r, colour < colour_names.size() ? std::string_view(colour_names[colour]) : std::string_view());
             }
         } else if (slot - kOriginalColours < kOthers.size()) {
             const Fixed& f = kOthers[slot - kOriginalColours];
@@ -305,7 +303,7 @@ core::Status add_players(World& world, const WorldPlan& plan, std::uint8_t playe
         Player p = model;
         p.role = PlayerRole::Computer;
         p.banner = static_cast<BannerId>(kFirstExtraBanner + (n - kOriginalPlayers));
-        p.name = "Player " + std::to_string(n + 1);  // the game names it in the player's language
+        p.name.clear();  // the game names it in the player's language (app::name_more_players)
         slots.push_back(std::move(p));
     }
     // A different number of players starts the diplomacy as in a new game.

@@ -4,6 +4,8 @@
 #include <string_view>
 #include <variant>
 
+#include "names.hpp"
+
 #include "o1602/sim/construction.hpp"
 #include "o1602/ui/localization.hpp"
 
@@ -51,7 +53,7 @@ std::optional<std::string> order_question(const sim::World& world, const assets:
         c != nullptr && c->op == sim::ShipCommand::Op::Scuttle) {
         const sim::Ship* s = world.ship(c->ship);
         // Windows-1252, as the fonts of the game have it.
-        return ui::tr("dialog.scuttle_ship", {s != nullptr ? std::string_view(s->name) : std::string_view()});
+        return ui::tr("dialog.scuttle_ship", {s != nullptr ? ship_name(*s) : std::string()});
     }
     if (const auto* c = std::get_if<sim::SoldierCommand>(&command);
         c != nullptr && c->op == sim::SoldierCommand::Op::Disband) {
@@ -67,7 +69,7 @@ std::optional<std::string> order_question(const sim::World& world, const assets:
         const sim::Player* p = world.player(o->partner);
         if (p != nullptr && o->player < d.size() && o->partner < d.size() &&
             d.relation(o->player, o->partner).peace == sim::Treaty::Signed) {
-            return ui::tr("dialog.break_peace", {p->name});
+            return ui::tr("dialog.break_peace", {player_name(*p)});
         }
     }
     sim::Target target;
@@ -90,7 +92,7 @@ std::optional<std::string> order_question(const sim::World& world, const assets:
         other >= d.size() || d.relation(local, other).peace == sim::Treaty::None) {
         return std::nullopt;
     }
-    return ui::tr("dialog.declare_war", {p->name});
+    return ui::tr("dialog.declare_war", {player_name(*p)});
 }
 
 }  // namespace o1602::app
