@@ -421,6 +421,45 @@ TEST_CASE("smacker: audio tracks, 8-bit DPCM, 16-bit stereo and plain PCM") {
     REQUIRE(video->next().ok());
 }
 
+TEST_CASE("smacker: a few bytes cannot claim more sound than the video lasts (HI-4)") {
+    // Mono 8-bit, both trees absent: each chunk decodes 1 MiB of samples from no bits at all.
+    Bits a;
+    a.bit(1);
+    a.bit(0);
+    a.bit(0);
+    a.bit(0);
+    a.bits(0x80, 8);
+    std::vector<std::uint8_t> bomb = {0, 0, 0x10, 0};  // unpacked length: 1 MiB
+    bomb.insert(bomb.end(), a.bytes().begin(), a.bytes().end());
+    Frame f;
+    f.audio = {bomb};
+    const auto file = smacker_file(4, 4, -6666, constant_type_trees(0x0002), {f, f, f}, {0xC000'5622U});
+    auto video = video::Smacker::open(file);
+    REQUIRE(video.ok());
+    CHECK(!video->audio(0).ok());  // three frames of 1/15 s hold about 26 000 samples, not 3 M
+    // A chunk of the length a frame lasts goes through.
+    std::vector<std::uint8_t> fits = {0xBE, 0x05, 0, 0};  // 1470: 22050 Hz / 15 frames a second
+    fits.insert(fits.end(), a.bytes().begin(), a.bytes().end());
+    f.audio = {fits};
+    auto ok = video::Smacker::open(smacker_file(4, 4, -6666, constant_type_trees(0x0002), {f, f, f}, {0xC000'5622U}));
+    REQUIRE(ok.ok());
+    const auto pcm = ok->audio(0);
+    REQUIRE(pcm.ok());
+    CHECK(pcm->samples.size() == 3 * 1470);
+}
+
+TEST_CASE("smacker: a frame rate that wrapped to nothing in 32 bits is refused (HI-12)") {
+    auto file = smacker_file(8, 4, -6666, constant_type_trees(0x0007), {Frame{}});
+    put32(file, 16, 536870912U);  // * 1000 wrapped to 0
+    CHECK(!video::Smacker::open(file).ok());
+    put32(file, 16, 0x8000'0000U);  // INT32_MIN
+    CHECK(!video::Smacker::open(file).ok());
+    put32(file, 16, 1001);  // over a second per frame
+    CHECK(!video::Smacker::open(file).ok());
+    put32(file, 16, 1000);
+    CHECK(video::Smacker::open(file).ok());
+}
+
 TEST_CASE("videos: messages in the minimap, the rest and messages without a minimap on the whole screen") {
     using app::video_plays_in_minimap;
     for (const std::uint16_t message : {std::uint16_t{1}, std::uint16_t{63}, std::uint16_t{2499}}) {

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <limits>
 #include <optional>
+#include <unordered_set>
 
 #include "o1602/core/text.hpp"
 
@@ -242,6 +243,10 @@ Result<std::vector<DataTable>> parse_data_file(std::string_view utf8) {
         return make_error(ErrorCode::InvalidFormat, "the file is not UTF-8");
     }
     std::vector<DataTable> tables(1);
+    // Table names and the current table's keys seen so far, for the duplicate checks (HI-6: a
+    // linear search per table and key made a large file quadratic).
+    std::unordered_set<std::string> table_names;
+    std::unordered_set<std::string> keys;
     std::size_t line = 0;
     while (!utf8.empty()) {
         ++line;
@@ -267,10 +272,11 @@ Result<std::vector<DataTable>> parse_data_file(std::string_view utf8) {
             if (!r.take(']') || !r.at_end()) {
                 return r.error("a table header must end with ']'");
             }
-            if (std::any_of(tables.begin(), tables.end(), [&](const DataTable& t) { return t.name == *name; })) {
+            if (!table_names.insert(*name).second) {
                 return r.error("the table [" + *name + "] is given twice");
             }
             tables.push_back(DataTable{std::move(name).value(), line, {}});
+            keys.clear();
             continue;
         }
         auto key = r.key();
@@ -292,7 +298,7 @@ Result<std::vector<DataTable>> parse_data_file(std::string_view utf8) {
             return r.error("something follows the value of '" + *key + "'");
         }
         DataTable& table = tables.back();
-        if (table.find(*key) != nullptr) {
+        if (!keys.insert(*key).second) {
             return r.error("'" + *key + "' is given twice");
         }
         table.entries.push_back(DataEntry{std::move(key).value(), std::move(value).value()});

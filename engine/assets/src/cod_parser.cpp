@@ -302,7 +302,13 @@ public:
     }
 
     void diag(std::uint32_t line, std::string message) {
-        m_doc.diagnostics.push_back(Diagnostic{line, std::move(message)});
+        // A hostile file with a new undefined name on every line made one message each (HI-3).
+        constexpr std::size_t kMaxDiagnostics = 1000;
+        if (m_doc.diagnostics.size() < kMaxDiagnostics) {
+            m_doc.diagnostics.push_back(Diagnostic{line, std::move(message)});
+        } else if (m_doc.diagnostics.size() == kMaxDiagnostics) {
+            m_doc.diagnostics.push_back(Diagnostic{line, "more problems follow, they are not listed"});
+        }
     }
 
 private:

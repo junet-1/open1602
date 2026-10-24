@@ -221,6 +221,33 @@ TEST_CASE("sprite sheet: unterminated RLE is an error, not a crash") {
     CHECK(!sheet->decode(0).ok());
 }
 
+TEST_CASE("sprite sheet: a few bytes cannot claim gigabytes of pixels (HI-7, HI-18)") {
+    // One record of two rows, `n` offsets pointing at it.
+    const auto sheet_of = [](std::uint32_t width, std::uint32_t height, std::uint32_t n) {
+        std::vector<std::uint8_t> payload;
+        for (std::uint32_t i = 0; i < n; ++i) {
+            put_u32(payload, 4 * n);
+        }
+        put_u32(payload, width);
+        put_u32(payload, height);
+        put_u32(payload, 1);
+        put_u32(payload, 20);
+        payload.insert(payload.end(), {0, 1, 7, 0xFE, 0, 1, 7, 0xFF});
+        std::vector<std::uint8_t> file;
+        put_chunk(file, "BSH", payload);
+        auto chunks = assets::ChunkFile::from_bytes(file);
+        REQUIRE(chunks.ok());
+        return assets::SpriteSheet::from_chunk_file(std::move(chunks).value());
+    };
+    CHECK(sheet_of(4096, 2, 1).ok());
+    CHECK(!sheet_of(4096, 4096, 1).ok());  // 4096 rows from 8 bytes
+    CHECK(sheet_of(4096, 9, 1).ok());      // as many rows as bytes follow, and one
+    CHECK(!sheet_of(4096, 10, 1).ok());
+    // 40 000 offsets to the same 4096 x 2 record: 328 M pixels, over the sheet's budget.
+    CHECK(sheet_of(4096, 2, 30'000).ok());
+    CHECK(!sheet_of(4096, 2, 40'000).ok());
+}
+
 TEST_CASE("islands: header and INSELHAUS tiles") {
     std::vector<std::uint8_t> header = {19, 70, 60, 0};
     put_u16(header, 90);

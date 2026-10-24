@@ -17,6 +17,9 @@ constexpr std::uint8_t kEndOfImage = 0xFF;
 constexpr std::uint8_t kEndOfRow = 0xFE;
 // Sanity limit: the largest original sprites are full-screen images (1024x768).
 constexpr std::uint32_t kMaxDimension = 4096;
+/// Pixels all sprites of one sheet may claim together (HI-18): 256 M, far above the original's
+/// largest sheets. Decoding takes two bytes per pixel, and a font keeps all its glyphs.
+constexpr std::uint64_t kMaxSheetPixels = std::uint64_t{256} << 20;
 }  // namespace
 
 std::vector<std::uint8_t> IndexedImage::to_rgba(const Palette& palette) const {
@@ -62,6 +65,7 @@ core::Result<SpriteSheet> SpriteSheet::from_chunk_file(ChunkFile file) {
     }
 
     sheet.m_infos.reserve(count);
+    std::uint64_t pixels = 0;
     for (std::size_t i = 0; i < count; ++i) {
         SpriteInfo info;
         info.offset = core::ByteReader::load_u32(data, i * 4);
@@ -74,6 +78,18 @@ core::Result<SpriteSheet> SpriteSheet::from_chunk_file(ChunkFile file) {
         info.length = core::ByteReader::load_u32(data, info.offset + 12);
         if (info.width > kMaxDimension || info.height > kMaxDimension) {
             return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(i) + " has invalid size");
+        }
+        // Every row but the last ends with a byte of its own (0xFE): a sprite cannot have more rows
+        // than bytes follow it (HI-7, HI-18). Several offsets may point at one record, so the sheet
+        // as a whole has a budget too.
+        const std::size_t rle_bytes = data.size() - info.offset - kRecordHeaderSize;
+        if (info.height > rle_bytes + 1) {
+            return make_error(ErrorCode::InvalidFormat,
+                              "sprite " + std::to_string(i) + " claims more rows than its data holds");
+        }
+        pixels += std::uint64_t{info.width} * info.height;
+        if (pixels > kMaxSheetPixels) {
+            return make_error(ErrorCode::InvalidFormat, "the sprites claim more pixels than a sheet may have");
         }
         sheet.m_infos.push_back(info);
     }

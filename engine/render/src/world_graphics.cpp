@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "o1602/render/flag_tint.hpp"
@@ -90,6 +91,12 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
         }
         if (!colors.empty()) {
             const FlagTemplate& t = *banners->flag_template();
+            // A bad mod would throw out_of_range while the atlas is built (HI-13): say which.
+            if (std::uint64_t{t.gfx} + t.frames > ship->count()) {
+                return core::make_error(core::ErrorCode::InvalidFormat,
+                                        "the flag sprites " + std::to_string(t.gfx) + " + " + std::to_string(t.frames) +
+                                            " lie beyond the " + std::to_string(ship->count()) + " ship sprites");
+            }
             sources.push_back(std::make_unique<TintedFlagSource>(*ship, t.gfx, t.frames, colors, t.from_original));
             pointers.push_back(sources.back().get());
         }
@@ -118,6 +125,7 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
             g.variants = assets::FigureTable::kUnitVariants;
             g.base = assets::FigureTable::kUnitVariants - 1;  // white
             g.mounted = first->kind == kFigtypKavalerie;
+            g.family = family;
             unit_groups.push_back(g);
         }
         std::vector<UnitTintColor> colors;
@@ -130,6 +138,16 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
             }
         }
         if (!colors.empty()) {
+            // A bad mod would throw out_of_range while the atlas is built (HI-13): say which figure.
+            for (const UnitImageGroup& g : unit_groups) {
+                if (std::uint64_t{g.first} + std::uint64_t{g.stride} * g.variants > soldat->count()) {
+                    return core::make_error(core::ErrorCode::InvalidFormat,
+                                            "figure " + std::to_string(g.family) + ": its " +
+                                                std::to_string(g.variants) + " colours from sprite " +
+                                                std::to_string(g.first) + " lie beyond the " +
+                                                std::to_string(soldat->count()) + " soldier sprites");
+                }
+            }
             // Player colours of the drawn variants: the original red, blue, yellow and white.
             std::vector<assets::Rgba> variant_colors(
                 BannerTable::kDefaultColors.begin(),

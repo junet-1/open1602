@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "section_io.hpp"
 
@@ -329,14 +330,22 @@ core::Status apply_decoded(World& world, Decoded& d) {
         world.growth().entries = std::move(*d.growth);
     }
     if (d.costs) {
-        // The shipyard fields of files of an earlier version come from WERFT.
+        // The shipyard fields of files of an earlier version come from WERFT: the last old entry
+        // at the same place, found through a map (HI-14: a search per entry was quadratic).
+        const auto key = [](const CostBuilding& c) {
+            return std::uint64_t{static_cast<std::uint8_t>(c.kind)} << 48U | std::uint64_t{c.island} << 32U |
+                   std::uint64_t{c.x} << 16U | c.y;
+        };
+        std::unordered_map<std::uint64_t, const CostBuilding*> old_at;
+        old_at.reserve(world.cost_buildings().size());
+        for (const CostBuilding& old : world.cost_buildings()) {
+            old_at[key(old)] = &old;
+        }
         for (CostBuilding& b : *d.costs) {
-            for (const CostBuilding& old : world.cost_buildings()) {
-                if (old.kind == b.kind && old.island == b.island && old.x == b.x && old.y == b.y) {
-                    const bool enabled = b.enabled;
-                    b = old;
-                    b.enabled = enabled;
-                }
+            if (const auto it = old_at.find(key(b)); it != old_at.end()) {
+                const bool enabled = b.enabled;
+                b = *it->second;
+                b.enabled = enabled;
             }
         }
         world.cost_buildings() = std::move(*d.costs);
