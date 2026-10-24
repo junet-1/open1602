@@ -415,7 +415,7 @@ bool Military::board(Soldier& s, Ship& ship) {
         }
         const std::uint32_t max = std::max<std::uint32_t>(1, type->combat.max_health);
         const std::uint32_t health = s.health != 0 ? s.health : max;
-        c.ware = static_cast<std::uint8_t>(s.figure + ware::kSoldierOffset);
+        c.ware = unit_ware(s.figure);
         c.amount = std::max<std::uint32_t>(1, health * kFullHold / max);
         c.price = 0;
         m_events.push_back(MilitaryEvent{MilitaryEvent::Kind::Boarded, Target::soldier(s.id),
@@ -459,7 +459,7 @@ bool Military::unload(const UnloadOrder& o) {
         if (!is_soldier_ware(c.ware) || (o.hold != 0xFF && h != o.hold)) {
             continue;
         }
-        const auto figure = static_cast<std::uint16_t>(c.ware - ware::kSoldierOffset);
+        const std::uint16_t figure = unit_of_ware(c.ware);
         const assets::FigureType* type = m_figures->get(figure);
         if (type == nullptr) {
             continue;

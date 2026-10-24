@@ -620,7 +620,7 @@ void Engine::order_ship(AiPlayer& p) {
     const Tile t = tile(p.yard_island, p.yard_x, p.yard_y);
     const bool small = !t.valid() || t.type->size_x <= 3;
     const auto type = static_cast<std::uint8_t>((rng().next() & 1U) * 2U + (small ? 0U : 1U));
-    const assets::FigureType* f = m_sim.m_figures->get(figure::kShips[type]);
+    const assets::FigureType* f = m_sim.m_figures->get(figure::ship_figure(type));
     const std::int64_t price = f != nullptr ? f->ship.price : 0;
     if (std::int64_t{player(p).money} <= price / 2) {
         return;

@@ -73,7 +73,7 @@ const Engine::Census* Engine::census() const {
         }
         for (const CargoSlot& slot : s.cargo) {
             if (is_soldier_ware(slot.ware)) {
-                ++c.aboard[s.owner][family_index(static_cast<std::uint32_t>(slot.ware - ware::kSoldierOffset))];
+                ++c.aboard[s.owner][family_index(unit_of_ware(slot.ware))];
             }
         }
         if (!s.sinking) {
@@ -139,7 +139,7 @@ std::array<std::uint32_t, 4> Engine::army_counts(PlayerId owner) const {
         }
         for (const CargoSlot& c : s.cargo) {
             if (is_soldier_ware(c.ware)) {
-                ++n[family_index(static_cast<std::uint32_t>(c.ware - ware::kSoldierOffset))];
+                ++n[family_index(unit_of_ware(c.ware))];
             }
         }
     }

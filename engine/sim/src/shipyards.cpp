@@ -22,11 +22,6 @@ constexpr std::uint8_t kMaxIdle = 15;
 constexpr std::uint8_t kSmallYardSize = 3;
 constexpr auto kShipTypes = static_cast<std::uint8_t>(figure::kShips.size());
 
-/// The figure of a ship type, 0 (none) for a type a damaged savegame may carry.
-std::uint16_t figure_of_type(std::uint8_t type) noexcept {
-    return type < figure::kShips.size() ? figure::kShips[type] : 0;
-}
-
 std::uint32_t scaled(std::uint32_t amount, std::uint8_t rate) noexcept {
     return amount * rate >> 7U;
 }
@@ -234,7 +229,7 @@ void Fleet::yard_cycle(CostBuilding& yard) {
     yard.rate = 0;
     // 2. A finished ship is launched.
     if (yard.repair_ship == 0 && yard.order != CostBuilding::kNoOrder) {
-        const assets::FigureType* t = m_figures->get(figure_of_type(yard.order));
+        const assets::FigureType* t = m_figures->get(figure::ship_figure(yard.order));
         const std::uint32_t threshold = t != nullptr ? t->ship.build_amount : 0U;
         if (threshold != 0 && yard.progress >= threshold) {
             if (launch(yard)) {
@@ -311,7 +306,7 @@ bool Fleet::launch(CostBuilding& yard) {
     const WorldIsland& isl = m_world->islands()[yard.island];
     const MapCell& cell = isl.map.top(yard.x, yard.y);
     const assets::BuildingType* b = m_buildings->by_sprite(cell.sprite);
-    const assets::FigureType* type = m_figures->get(figure_of_type(yard.order));
+    const assets::FigureType* type = m_figures->get(figure::ship_figure(yard.order));
     if (b == nullptr || type == nullptr) {
         return false;
     }
@@ -359,7 +354,7 @@ bool Fleet::launch(CostBuilding& yard) {
     Ship s;
     s.name = next_ship_name();
     s.place(static_cast<std::uint32_t>(spot->first), static_cast<std::uint32_t>(spot->second));
-    s.figure = figure_of_type(yard.order);
+    s.figure = figure::ship_figure(yard.order);
     s.owner = cell.owner;
     s.direction = static_cast<std::uint8_t>((cell.rotation * 2U) & 7U);
     s.health = type->ship.max_health;

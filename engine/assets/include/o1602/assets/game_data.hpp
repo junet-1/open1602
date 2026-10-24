@@ -111,6 +111,14 @@ inline constexpr std::array<WareGroup, 256> kWareGroups = [] {
 [[nodiscard]] constexpr bool is_soldier_ware(std::uint32_t w) noexcept {
     return ware_group(w) == WareGroup::Soldier;
 }
+/// The ware of a unit in a hold or in a castle's list: SOLDAT1 is wSOLDAT1 (MD-6).
+[[nodiscard]] constexpr std::uint8_t unit_ware(std::uint32_t figure) noexcept {
+    return static_cast<std::uint8_t>(figure + ware::kSoldierOffset);
+}
+/// The figure of a unit ware (is_soldier_ware).
+[[nodiscard]] constexpr std::uint16_t unit_of_ware(std::uint32_t w) noexcept {
+    return static_cast<std::uint16_t>(w - ware::kSoldierOffset);
+}
 
 /// Base prices of the wares per ton (the original's table at 0x0049AE50): the default prices of a
 /// Kontor (sell 50 %, buy 75 %) and what the free trader pays. Indexed by ware number.
@@ -320,6 +328,21 @@ inline constexpr std::array<std::uint32_t, 4> kUnitFamilies{1, 5, 9, 13};
 /// Ships the shipyards build, by type: HANDEL1, HANDEL2, KRIEG1, KRIEG2 (each followed by its
 /// wreck).
 inline constexpr std::array<std::uint16_t, 4> kShips{21, 23, 25, 27};
+/// The colours a unit family has figures in (the original's four players; the others use the
+/// last, sim::four_colour_index).
+inline constexpr std::int32_t kUnitColours = 4;
+
+/// The figure of a unit of `family` (an index of kUnitFamilies) in `colour` (0..kUnitColours-1),
+/// 0 if there is none (MD-6).
+[[nodiscard]] constexpr std::uint16_t unit_figure(std::size_t family, std::int32_t colour) noexcept {
+    return family < kUnitFamilies.size() && colour >= 0 && colour < kUnitColours
+               ? static_cast<std::uint16_t>(kUnitFamilies[family] + static_cast<std::uint32_t>(colour))
+               : std::uint16_t{0};
+}
+/// The ship a shipyard builds of `type`, 0 for a type that does not exist (MD-6).
+[[nodiscard]] constexpr std::uint16_t ship_figure(std::size_t type) noexcept {
+    return type < kShips.size() ? kShips[type] : std::uint16_t{0};
+}
 inline constexpr std::uint16_t kTrader = 29;      ///< HANDLER: the free trader's ship
 inline constexpr std::uint16_t kPirate = 31;      ///< PIRAT
 inline constexpr std::uint16_t kSinking = 45;     ///< UNTERGANG: the splash of a sinking ship
