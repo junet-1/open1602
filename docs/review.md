@@ -2194,6 +2194,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-22 (part) | #177 | Constructions without a territory change recompute the services of the touched cities only. |
 | BT-1 (part) | #178 | A fifth arena scenario: a colony sends the soldiers beside its Kontor to guard its market. Guards walk back to the Kontor once they arrive, as in the original (`0x0042ABD0`). |
 | FB-2 | #179 | Soldiers outside the drawn box get no height lookup and their animations wait until they are in view: 100 000 soldiers 4.1 → 3.2 ms per frame with a 40 × 25-tile view (the bench has no islands, so the height lookup is cheap there). |
+| TB-19 | #180 | The sea map is updated only in the box of tiles a batch of construction events touched on each island (with #169: once per island per batch). |
 
 ### Still open
 
@@ -2203,7 +2204,6 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-11, TB-13 | Incremental island survey and road-segment rebuilds; the rest of the settlement search (each search is bounded since #128; counts cached since #176). | L |
 | TB-14 | A shared AI work budget per tick (part 2). | M |
 | TB-9 | A cached `building_count` per city; a scratch arena. | S |
-| TB-19, TB-22, TB-25 | Dirty rectangles for the sea and land maps; `update_services` by dirty rectangle (by city since #177); the other world-wide scans of TB-22; TB-25. | M |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
 | BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
 | BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
@@ -2211,7 +2211,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 
 Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
-Closed by reading without a change: FB-16 and FB-18 (each a scan of the cost buildings or a few texts per frame for what is on screen, microseconds even in large worlds).
+Closed by reading without a change: FB-16 and FB-18 (each a scan of the cost buildings or a few texts per frame for what is on screen, microseconds even in large worlds). The rest of TB-22: `deer_at`, `spawn_robber` and `find_victim` walk the walkers once per deer spawn, robber or robber look, and `call_hunter` the productions once per deer that walks into a city; all are rare events, not per tick. TB-25: the single-tile `forget_growth` is no longer called (withering and recovery use the batch form), and spreading `wither_scan` over the epoch would change which fields wither.
 
 Closed by measurement without a change: FB-12 (far zoom on 2000², about 400 fps at 1080p and 92 fps at 4K with OpenGL), and the second ENet channel of P5 (a snapshot delays only its own peer's frames, and a second channel would lose the order of snapshot and frames). The successor that stays cut off for longer than the reconnect window still hosts alone; it keeps only its own player, and the others stay with the real host.
 
