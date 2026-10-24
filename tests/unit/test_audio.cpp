@@ -401,6 +401,8 @@ TEST_CASE("audio: music by name, battle music near shots, back after 25 s with a
     s.random_music = false;
     music.set_settings(s);
     music.update(0, 16);
+    CHECK(music.playing().empty());  // decoded beside the game first (FB-13)
+    music.finish_loading();
     CHECK(music.playing() == "A Song");
     // A shot far away does nothing; one in the middle fades over to the battle music.
     music.shot(0.99F, 0.99F, 4000.0F, 4000.0F, 1000);
@@ -410,10 +412,12 @@ TEST_CASE("audio: music by name, battle music near shots, back after 25 s with a
     music.update(1000, 1000);
     CHECK(music.playing() == "A Song");  // still fading
     music.update(2000, 3000);            // faded out: the battle music starts
+    music.finish_loading();
     CHECK(music.playing().rfind("Fight", 0) == 0);
     music.update(27'000, 16);
     CHECK(!music.battle());
     music.update(27'000, 4000);
+    music.finish_loading();
     CHECK(music.playing() == "b Song");
 }
 

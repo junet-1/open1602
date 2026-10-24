@@ -251,7 +251,8 @@ private:
     /// The render device was lost: the window's renderer is made again, everything that draws
     /// takes the new one and makes its textures again. Without a renderer the game ends.
     void recreate_renderer();
-    /// The world's sprites of every zoom level go and are loaded again.
+    /// The world's sprites of every zoom level go and are loaded again in the background; the map
+    /// stays black meanwhile (m_graphics_reloading).
     void reload_graphics();
     /// What a click on the frame asked for.
     void apply_hud(const Hud::Action& action) override;
@@ -371,6 +372,9 @@ private:
     /// The map at a scale that is no whole number (after the window, before SDL quits).
     std::unique_ptr<render::SdlMapCanvas> m_map_canvas;
     bool m_software_renderer = false;  ///< SDL draws without a GPU
+    /// After a device reset: the game goes on with a black map and the interface until the
+    /// background has the zoom level shown, instead of standing still for seconds (FB-11).
+    bool m_graphics_reloading = false;
     platform::MouseCursors m_cursors;  ///< the original's arrow and target (after the window, before SDL quits)
     std::array<std::optional<ZoomGraphics>, 3> m_graphics;
     std::unique_ptr<render::GraphicsPreloader> m_preloader;  ///< the CPU side of the zoom levels

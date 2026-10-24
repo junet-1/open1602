@@ -3,8 +3,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
+#include <thread>
 
 #include "o1602/assets/data_fixes.hpp"
 #include "o1602/core/file.hpp"
@@ -404,6 +407,7 @@ void Music::shot(float x, float y, float view_width_px, float view_height_px, st
 }
 
 void Music::stop() {
+    m_loading.reset();
     m_mixer->stop(m_voice);
     m_voice = Mixer::kNoVoice;
     m_fading = false;
@@ -480,22 +484,52 @@ std::optional<std::string> Music::pick(std::uint64_t game_ms) {
 }
 
 void Music::start(const std::string& title) {
-    auto pcm = m_bank->load("MUSIC8/" + title + ".wav");
     m_history.push_back(title);
     if (m_history.size() > kHistory) {
         m_history.erase(m_history.begin());
     }
-    if (pcm == nullptr) {
+    const auto path = m_bank->find("MUSIC8/" + title + ".wav");
+    if (!path) {
+        return;
+    }
+    // The thread gets its own copy of the path: it may outlive the bank (the program ends).
+    std::packaged_task<core::Result<Pcm>()> task([file = *path] { return SoundBank::decode_file(file); });
+    m_loading = Loading{title, task.get_future()};
+    std::thread(std::move(task)).detach();
+}
+
+void Music::take_loaded(bool wait) {
+    if (!m_loading) {
+        return;
+    }
+    if (!wait && m_loading->pcm.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+        return;
+    }
+    Loading loading = std::move(*m_loading);
+    m_loading.reset();
+    auto pcm = loading.pcm.get();
+    if (!pcm) {
+        std::fprintf(stderr, "music: %s\n", pcm.error().message.c_str());
         return;
     }
     PlayOptions o;
     o.group = Group::Music;
     o.volume = gain_of(m_settings.music_volume);
-    m_voice = m_mixer->play(std::move(pcm), o);
-    m_title = title;
+    m_voice = m_mixer->play(std::make_shared<const Pcm>(std::move(pcm).value()), o);
+    m_title = loading.title;
+}
+
+void Music::finish_loading() {
+    take_loaded(true);
 }
 
 void Music::update(std::uint64_t game_ms, std::uint32_t real_ms) {
+    if (m_loading) {
+        take_loaded(false);
+        if (m_loading) {
+            return;  // the next track is still being decoded
+        }
+    }
     if (m_battle && game_ms - m_mode_ms >= kBattleMs) {
         m_battle = false;
         m_mode_ms = game_ms;

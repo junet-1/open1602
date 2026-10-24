@@ -529,8 +529,11 @@ void MapViewer::adopt_preloaded_graphics() {
     while (auto ready = m_preloader->take_ready()) {
         auto& [zoom, prepared] = *ready;
         if (!prepared) {
-            // Tried again (and reported) when the player switches to it.
+            // Tried again (and reported) when the player switches to it; the level shown at once.
             std::fprintf(stderr, "warning: %s: %s\n", zoom_name(zoom), prepared.error().message.c_str());
+            if (zoom == m_camera.view().zoom) {
+                m_graphics_reloading = false;
+            }
             continue;
         }
         if (m_graphics[static_cast<std::size_t>(zoom)]) {
@@ -658,10 +661,15 @@ int MapViewer::run() {
                 render();
             } else {
                 // Leaving the menu: the game waits for the sprites of the zoom level if the
-                // background has not made them yet.
-                if (auto status = ensure_graphics(m_camera.view().zoom); !status) {
-                    std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
-                    return 1;
+                // background has not made them yet; after a device reset it does not.
+                if (m_graphics_reloading && m_graphics[static_cast<std::size_t>(m_camera.view().zoom)]) {
+                    m_graphics_reloading = false;
+                }
+                if (!m_graphics_reloading) {
+                    if (auto status = ensure_graphics(m_camera.view().zoom); !status) {
+                        std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
+                        return 1;
+                    }
                 }
                 if (m_hud) {
                     // What the windows of the panel ordered (scuttling and disbanding ask first).
@@ -1654,15 +1662,13 @@ void MapViewer::recreate_renderer() {
 }
 
 void MapViewer::reload_graphics() {
-    // The world's sprites keep no pixels after the upload (drop_pixels): they are loaded again,
-    // the one shown now at once, the others in the background (those still there keep theirs).
+    // The world's sprites keep no pixels after the upload (drop_pixels): they are loaded again in
+    // the background, the one shown first; until it is there the map stays black (FB-11).
     for (auto& g : m_graphics) {
         g.reset();
     }
     m_preloader->request(render::preload_order(m_camera.view().zoom));
-    if (auto status = in_menu() ? core::Status(core::Ok{}) : ensure_graphics(m_camera.view().zoom); !status) {
-        std::fprintf(stderr, "error: %s\n", status.error().message.c_str());
-    }
+    m_graphics_reloading = true;
 }
 
 void MapViewer::recreate_textures() {
