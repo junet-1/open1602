@@ -61,7 +61,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
 
 /// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
 /// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), MILITAR (40002..40130),
-/// INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
+/// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), INFRA (62002..62021) and
+/// HANDEL (53002..53100) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -110,6 +111,21 @@ struct Game {
         }
         write(root / "GADDATA" / "MILITAR.GAD", gad(ids));
         ids.clear();
+        for (std::int32_t id = 43002; id <= 43030; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "STADT.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 34002; id <= 34081; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "KONTOR.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 44002; id <= 44400; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "LAGER.GAD", gad(ids));
+        ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
         }
@@ -145,7 +161,7 @@ struct Game {
 
 /// A bakery (HANDWERK) with running costs 25 at work and 10 at rest, a chapel with 8, a Kontor and
 /// a house of the first class (tax 1.5), a small shipyard (three tiles wide, costs 30 and 12) and a
-/// castle with three training places.
+/// castle with three training places; the Kontor sells four wares and buys two.
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}};
     const auto doc = assets::cod::parse(
@@ -163,7 +179,7 @@ assets::BuildingTable make_buildings() {
         "EndObj\n"
         "Objekt: HAUS\n"
         "  @Nummer: 2\n  Id: 22101\n  Gfx: 200\n  Size: 2, 2\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n  EndObj\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Maxware: 4, 2\n  EndObj\n"
         "EndObj\n"
         "Objekt: HAUS\n"
         "  @Nummer: 3\n  Id: 20001\n  Gfx: 300\n  Size: 1, 1\n"
@@ -185,9 +201,9 @@ assets::BuildingTable make_buildings() {
 }
 
 /// One island with a bakery of the local player at (2, 2) and one of another player at (6, 2), a
-/// chapel, a house, a shipyard and a castle of the local player at (9, 2), (9, 5), (1, 5) and (10, 6)
-/// in its city 3 and a Kontor of the other at (6, 5) in its city 4 (the tests add the cities they
-/// need).
+/// chapel, a house, a shipyard, a castle and a Kontor of the local player at (9, 2), (9, 5), (1, 5),
+/// (10, 6) and (4, 0) in its city 3 and a Kontor of the other at (6, 5) in its city 4 (the tests
+/// add the cities they need).
 struct Town {
     assets::BuildingTable buildings = make_buildings();
     assets::FigureTable figures;
@@ -202,6 +218,7 @@ struct Town {
         REQUIRE(map.place(*buildings.by_id(kHouse), 9, 5, 0, 0, kLocal, 3).ok());
         REQUIRE(map.place(*buildings.by_id(kYard), 1, 5, 0, 0, kLocal, 3).ok());
         REQUIRE(map.place(*buildings.by_id(kCastle), 10, 6, 0, 0, kLocal, 3).ok());
+        REQUIRE(map.place(*buildings.by_id(kKontor), 4, 0, 0, 0, kLocal, 3).ok());
         sim::WorldIsland island{assets::IslandHeader{}, std::move(map), 4, 4};
         island.header.width = 12;
         island.header.height = 8;
@@ -675,4 +692,89 @@ TEST_CASE("selection panels: the castle window recruits, shows the training and 
     CHECK(release->op == sim::CastleOrder::Op::Release);
     CHECK(release->slot == 1);
     CHECK(release->spot == sim::Target::spot(7, 9));
+}
+
+TEST_CASE("selection panels: the own Kontor shows the city, edits its trade list and opens the stock") {
+    Game g("o1602-test-selection-stadt");
+    Town t;
+    constexpr std::uint8_t kSold = sim::ware::kFirstTrade + 3;
+    constexpr std::uint8_t kAdded = sim::ware::kFirstTrade + 1;
+    sim::City haven;
+    haven.island = 0;
+    haven.index = 3;
+    haven.owner = kLocal;
+    haven.name = "Haven";
+    haven.warehouse_x = 4;
+    haven.warehouse_y = 0;
+    haven.capacity = 30 * 32;
+    haven.trade.resize(sim::ware::kLastTrade + 1);
+    haven.trade[kSold].sell = true;
+    haven.trade[kSold].sell_price = sim::base_price(kSold) / 2;
+    t.world.add_city(haven);
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    Selection kontor = building(4, 0);
+    kontor.serial = 1;
+    SelectionPanel* p = panels.panel_for(kontor, c);
+    REQUIRE(p != nullptr);
+    p->refresh(kontor, c);
+    auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "Text 15") != shown.end());  // inhabitants
+
+    // The material lock is a command; the sell list a page of its own.
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 43025}, kontor, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* lock = std::get_if<sim::CityOrder>(&out[0]);
+    REQUIRE(lock != nullptr);
+    CHECK(lock->op == sim::CityOrder::Op::MaterialLock);
+    CHECK(lock->on);
+    CHECK(lock->city == 3);
+    out.clear();
+    const ui::Panel* city_page = &p->panel();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 43003}, kontor, c, out);
+    CHECK(&p->panel() != city_page);
+    p->refresh(kontor, c);
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), std::to_string(sim::base_price(kSold) / 2)) != shown.end());
+
+    // The price buttons and the stop button change the chosen ware.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 34023}, kontor, c, out);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 34016}, kontor, c, out);
+    REQUIRE(out.size() == 2);
+    const auto* up = std::get_if<sim::TradeSetting>(&out[0]);
+    REQUIRE(up != nullptr);
+    CHECK(up->ware == kSold);
+    CHECK(up->mode == sim::TradeSetting::Mode::Sell);
+    CHECK(up->price == std::optional<std::uint16_t>(static_cast<std::uint16_t>(sim::base_price(kSold) / 2 + 1)));
+    const auto* stop = std::get_if<sim::TradeSetting>(&out[1]);
+    REQUIRE(stop != nullptr);
+    CHECK(stop->mode == sim::TradeSetting::Mode::None);
+    out.clear();
+
+    // An empty place opens the ware picker; a ware goes into the list, the picker closes.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 34072}, kontor, c, out);
+    const ui::Panel* kontor_page = &p->panel();
+    p->refresh(kontor, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 44079 + kAdded}, kontor, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* added = std::get_if<sim::TradeSetting>(&out[0]);
+    REQUIRE(added != nullptr);
+    CHECK(added->ware == kAdded);
+    CHECK(added->mode == sim::TradeSetting::Mode::Sell);
+    CHECK(&p->panel() != kontor_page);
+    out.clear();
+
+    // The Kontor clicked again shows the stock; a good there opens its page of the goods balance.
+    kontor.again = 1;
+    p->refresh(kontor, c);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 44079 + kSold}, kontor, c, out);
+    const auto request = p->take_request();
+    REQUIRE(request.has_value());
+    CHECK(request->kind == SelectionPanel::Request::Kind::Goods);
+    CHECK(request->ware == kSold);
+    CHECK(request->island == 0);
+    CHECK(out.empty());
 }
