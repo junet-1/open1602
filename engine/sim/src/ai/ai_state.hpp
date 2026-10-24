@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "o1602/sim/player.hpp"
@@ -397,6 +398,9 @@ struct AiPlayer {
     bool diplomacy_due = false;               ///< a treaty changed: the next tick looks again
     // Ships
     std::vector<ShipNote> ships;
+    /// Not saved: where Engine::note() last found a ship in `ships`, checked before it is used
+    /// (`ships` may have been reordered or shortened since). Only looked up, never walked.
+    std::unordered_map<std::uint32_t, std::uint32_t> ship_slots;
     std::int32_t fleet_target = 0;    ///< +0x4DC; pirates: the last new ship is armed
     std::int32_t ships_per_city = 1;  ///< +0x4E0
 };
