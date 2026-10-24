@@ -10,6 +10,7 @@
 //   ai_build.cpp     the building tasks, roads, fields, survey and the maintenance sweep
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -128,6 +129,43 @@ enum class RingFilter : std::uint8_t {
 
 /// A Need of the stage handlers (0x0041FE60..0x00422610): what to build and when.
 enum class NeedType : std::uint8_t { A, B, C, D };
+
+/// Summed-area table of a predicate over an island, for counts in rectangles.
+class AreaCount {
+public:
+    template <class F>
+    AreaCount(std::int32_t w, std::int32_t h, F&& f)
+        : m_w(w), m_h(h), m_sum(std::size_t(w + 1) * std::size_t(h + 1), 0) {
+        for (std::int32_t y = 0; y < h; ++y) {
+            std::int32_t row = 0;
+            for (std::int32_t x = 0; x < w; ++x) {
+                row += f(x, y) ? 1 : 0;
+                at(x + 1, y + 1) = at(x + 1, y) + row;
+            }
+        }
+    }
+    [[nodiscard]] std::int32_t count(std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1) const {
+        x0 = std::clamp(x0, 0, m_w);
+        y0 = std::clamp(y0, 0, m_h);
+        x1 = std::clamp(x1 + 1, 0, m_w);
+        y1 = std::clamp(y1 + 1, 0, m_h);
+        if (x1 <= x0 || y1 <= y0) {
+            return 0;
+        }
+        return get(x1, y1) - get(x0, y1) - get(x1, y0) + get(x0, y0);
+    }
+
+private:
+    std::int32_t& at(std::int32_t x, std::int32_t y) {
+        return m_sum[std::size_t(y) * std::size_t(m_w + 1) + std::size_t(x)];
+    }
+    [[nodiscard]] std::int32_t get(std::int32_t x, std::int32_t y) const {
+        return m_sum[std::size_t(y) * std::size_t(m_w + 1) + std::size_t(x)];
+    }
+    std::int32_t m_w;
+    std::int32_t m_h;
+    std::vector<std::int32_t> m_sum;
+};
 
 class Engine {
 public:
@@ -454,6 +492,16 @@ private:
     };
     [[nodiscard]] const Census* census() const;
     mutable Census m_census;
+    /// Free green land and trees of the island whose Kontor site is sought (task 3), kept while
+    /// its tiles stay the same: each region of the island asks again (TB-13).
+    struct SiteCounts {
+        std::uint16_t island = 0;
+        std::uint64_t revision = 0;  ///< the newest block revision of the island's map
+        AreaCount green;
+        AreaCount trees;
+    };
+    const SiteCounts& site_counts(std::uint16_t island);
+    std::optional<SiteCounts> m_site_counts;
     bool m_in_tick = false;
 };
 

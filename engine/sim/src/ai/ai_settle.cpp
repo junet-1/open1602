@@ -41,43 +41,6 @@ bool beach_kind(std::int32_t k) {
            k == kind::kPier;
 }
 
-/// Summed-area table of a predicate over an island, for counts in rectangles.
-class AreaCount {
-public:
-    template <class F>
-    AreaCount(std::int32_t w, std::int32_t h, F&& f)
-        : m_w(w), m_h(h), m_sum(std::size_t(w + 1) * std::size_t(h + 1), 0) {
-        for (std::int32_t y = 0; y < h; ++y) {
-            std::int32_t row = 0;
-            for (std::int32_t x = 0; x < w; ++x) {
-                row += f(x, y) ? 1 : 0;
-                at(x + 1, y + 1) = at(x + 1, y) + row;
-            }
-        }
-    }
-    [[nodiscard]] std::int32_t count(std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1) const {
-        x0 = std::clamp(x0, 0, m_w);
-        y0 = std::clamp(y0, 0, m_h);
-        x1 = std::clamp(x1 + 1, 0, m_w);
-        y1 = std::clamp(y1 + 1, 0, m_h);
-        if (x1 <= x0 || y1 <= y0) {
-            return 0;
-        }
-        return get(x1, y1) - get(x0, y1) - get(x1, y0) + get(x0, y0);
-    }
-
-private:
-    std::int32_t& at(std::int32_t x, std::int32_t y) {
-        return m_sum[std::size_t(y) * std::size_t(m_w + 1) + std::size_t(x)];
-    }
-    [[nodiscard]] std::int32_t get(std::int32_t x, std::int32_t y) const {
-        return m_sum[std::size_t(y) * std::size_t(m_w + 1) + std::size_t(x)];
-    }
-    std::int32_t m_w;
-    std::int32_t m_h;
-    std::vector<std::int32_t> m_sum;
-};
-
 }  // namespace
 
 Ship* Engine::settle_ship(AiPlayer& p) {
@@ -298,6 +261,35 @@ void Engine::task_settle_area(AiPlayer& p) {
 // ---------------------------------------------------------------------------------------------
 // Task 3: the Kontor site (0x004172E0)
 
+const Engine::SiteCounts& Engine::site_counts(std::uint16_t island) {
+    // The island's tiles have not changed while no block has a newer revision: the counts of the
+    // last region still hold for the next one (TB-13).
+    const IslandMap& map = island_of(island).map;
+    std::uint64_t revision = 0;
+    for (std::size_t b = 0; b < std::size_t{map.blocks_x()} * map.blocks_y(); ++b) {
+        revision = std::max(revision, map.block_revision(b));
+    }
+    if (m_site_counts && m_site_counts->island == island && m_site_counts->revision == revision) {
+        return *m_site_counts;
+    }
+    const auto w = static_cast<std::int32_t>(map.width());
+    const auto h = static_cast<std::int32_t>(map.height());
+    m_site_counts.reset();
+    m_site_counts.emplace(SiteCounts{island, revision,
+                                     AreaCount(w, h,
+                                               [&](std::int32_t x, std::int32_t y) {
+                                                   const Tile t = tile(island, x, y);
+                                                   return t.valid() && t.city == MapCell::kNoCity &&
+                                                          (t.ware == ware::kTree || t.ware == ware::kGrass ||
+                                                           t.kind == kind::kRuin);
+                                               }),
+                                     AreaCount(w, h, [&](std::int32_t x, std::int32_t y) {
+                                         const Tile t = tile(island, x, y);
+                                         return t.valid() && t.ware == ware::kTree;
+                                     })});
+    return *m_site_counts;
+}
+
 void Engine::task_settle_site(AiPlayer& p) {
     pop(p);
     Settlement& s = p.settle;
@@ -321,15 +313,9 @@ void Engine::task_settle_site(AiPlayer& p) {
     const WorldIsland& isl = island_of(island);
     const auto w = static_cast<std::int32_t>(isl.map.width());
     const auto h = static_cast<std::int32_t>(isl.map.height());
-    const AreaCount green(w, h, [&](std::int32_t x, std::int32_t y) {
-        const Tile t = tile(island, x, y);
-        return t.valid() && t.city == MapCell::kNoCity &&
-               (t.ware == ware::kTree || t.ware == ware::kGrass || t.kind == kind::kRuin);
-    });
-    const AreaCount trees(w, h, [&](std::int32_t x, std::int32_t y) {
-        const Tile t = tile(island, x, y);
-        return t.valid() && t.ware == ware::kTree;
-    });
+    const SiteCounts& counts = site_counts(island);
+    const AreaCount& green = counts.green;
+    const AreaCount& trees = counts.trees;
     const assets::BuildingType* kontor = by_id(p.pirates ? id::kPirateKontor : id::kKontor1);
     if (kontor == nullptr) {
         return;
