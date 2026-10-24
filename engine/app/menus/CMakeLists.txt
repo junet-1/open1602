@@ -28,6 +28,7 @@ add_library(o1602_menus
     ../src/multiplayer_texts.cpp
     ../src/parchment.cpp
     ../src/name_edit.cpp
+    ../src/names.cpp
     ../src/order_questions.cpp
     ../src/production_utilisation.cpp
     ../src/tile_status.cpp

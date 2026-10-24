@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "names.hpp"
 #include "selection_panels.hpp"
 
 #include "o1602/sim/game_data.hpp"

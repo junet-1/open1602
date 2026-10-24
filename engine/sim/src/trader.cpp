@@ -500,7 +500,7 @@ void Fleet::trader_tick(std::uint32_t dt_ms) {
 
 std::string Fleet::next_ship_name() {
     if (m_ship_names.empty()) {
-        return "Ship " + std::to_string(m_world->next_ship_id());
+        return {};  // the game shows a name in its language (MD-10)
     }
     const std::string& name = m_ship_names[m_name_index % m_ship_names.size()];
     ++m_name_index;

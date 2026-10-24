@@ -126,7 +126,7 @@ public:
             return;
         }
         const sim::City* city = city_at(s, c);
-        m_panel.set_text(m_ids.title, city != nullptr ? city->name : std::string());
+        m_panel.set_text(m_ids.title, city != nullptr ? city_name(*city) : std::string());
         m_panel.set_text(m_ids.name, building_name(*b, c));
         m_panel.set_text(m_ids.util_label, c.text("GAME", kGameUtilisation));
         m_panel.set_text(m_ids.util_value, ui::format_text(c.text("GAME", kGamePercent), {utilisation(*p, *b, c)}));
@@ -247,7 +247,7 @@ public:
             return;
         }
         const sim::City* city = city_at(s, c);
-        m_panel.set_text(62002, city != nullptr ? city->name : std::string());
+        m_panel.set_text(62002, city != nullptr ? city_name(*city) : std::string());
         m_panel.set_text(62006, building_name(*b, c));
         m_panel.set_text(62003, c.text("GAME", kGameRunningCost));
         m_panel.set_text(62004, std::to_string(b->running_cost));
@@ -617,7 +617,7 @@ private:
         const std::int64_t purchases = city.purchases / 480;
         const std::int64_t balance = tax - cost + sales - purchases;
         // The name: a click on it types a new one, also on the Kontor page.
-        m_stadt.set_text(city_ids::kTitle, c.shown_name(NameTarget::of(city), city.name));
+        m_stadt.set_text(city_ids::kTitle, c.shown_name(NameTarget::of(city), city_name(city)));
         m_stadt.set_no_select(city_ids::kTitle, !can_rename(c.world(), c.local, NameTarget::of(city)));
         const std::array<std::pair<std::size_t, std::int64_t>, 6> rows{
             {{15, people}, {19, tax}, {18, cost}, {64, sales}, {65, purchases}, {80, balance}}};
@@ -631,7 +631,7 @@ private:
     }
 
     void refresh_kontor(const sim::City& city, const PanelContext& c) {
-        m_kontor.set_text(city_ids::kKTitle, c.shown_name(NameTarget::of(city), city.name));
+        m_kontor.set_text(city_ids::kKTitle, c.shown_name(NameTarget::of(city), city_name(city)));
         m_kontor.set_no_select(city_ids::kKTitle, !can_rename(c.world(), c.local, NameTarget::of(city)));
         m_kontor.set_selected(city_ids::kKMode, m_sell);
         const std::vector<std::uint8_t> list = wares(city);
@@ -741,7 +741,7 @@ public:
         const std::uint8_t cls = house->resident_class;
         const assets::ResidentClass& rc = classes[cls];
         const int state = growth_state(*city, *house);
-        m_panel.set_text(kTitle, city->name);
+        m_panel.set_text(kTitle, city_name(*city));
         m_panel.set_graphic(kFace, m_face + 4 * cls + (1 - state), 0);
         m_panel.set_text(kClassName, c.text("GAME", 3 + std::size_t{cls}));
         m_panel.set_text(kClassCount, std::to_string(cls < city->inhabitants.size() ? city->inhabitants[cls] : 0));
@@ -1063,7 +1063,7 @@ public:
             p.set_text(amount, ui::format_text(tons, {std::int64_t{stock >> 5U}}));
         };
         if (m_choose) {
-            m_bauship.set_text(60002, city != nullptr ? city->name : std::string());
+            m_bauship.set_text(60002, city != nullptr ? city_name(*city) : std::string());
             // A small yard (three tiles wide) builds the small types only, moved to the middle.
             const bool small = b->size_x == 3;
             for (std::int32_t k = 0; k < 4; ++k) {
@@ -1091,7 +1091,7 @@ public:
             ware_row(m_bauship, 60032, 60042, b->raw2_ware, yard->cloth);
             return;
         }
-        m_werft.set_text(39002, city != nullptr ? city->name : std::string());
+        m_werft.set_text(39002, city != nullptr ? city_name(*city) : std::string());
         m_werft.set_text(39006, building_name(*b, c));
         m_werft.set_text(39003, c.text("GAME", kGameRunningCost));
         m_werft.set_text(39004, std::to_string(yard->enabled ? b->running_cost : b->idle_cost));
@@ -1255,7 +1255,7 @@ public:
         if (b == nullptr || castle == nullptr || owner == nullptr) {
             return;
         }
-        m_panel.set_text(40002, city->name);
+        m_panel.set_text(40002, city_name(*city));
         const std::int32_t places = std::min<std::int32_t>(b->max_wares, 9);
         const std::int32_t colour = sim::four_colour_index(owner->banner);
         for (std::int32_t k = 0; k < 9; ++k) {

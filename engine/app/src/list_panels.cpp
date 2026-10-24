@@ -209,7 +209,7 @@ private:
                 const bool moving = m.phase == sim::ShipMotion::Phase::Run || m.phase == sim::ShipMotion::Phase::Turn ||
                                     m.path_index < m.path.size();
                 Row r;
-                r.name = s.name;
+                r.name = ship_name(s);
                 r.icon = s.route.active && s.route.has_stops() ? 0 : (moving ? 2 : 1);
                 r.ship = s.id;
                 r.x = s.x;
@@ -235,7 +235,7 @@ private:
             }
             const sim::WorldIsland& island = w.islands()[city.island];
             Row r;
-            r.name = city.name;
+            r.name = city_name(city);
             r.owner = city.owner;
             r.x = island.x + (city.warehouse_x ? *city.warehouse_x : island.map.width() / 2.0);
             r.y = island.y + (city.warehouse_y ? *city.warehouse_y : island.map.height() / 2.0);
