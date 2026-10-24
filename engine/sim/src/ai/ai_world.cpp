@@ -120,6 +120,16 @@ std::uint32_t Engine::demand(const City& c, std::uint8_t w) const {
     return static_cast<std::uint32_t>((sum * 6) >> 8);
 }
 
+std::int32_t Engine::kontor_size(const City& c) const {
+    // The rings of paving and towers go round the Kontor's record (3 x 3 tiles in the original).
+    constexpr std::int32_t kOriginalSize = 3;
+    if (!c.warehouse_x || !c.warehouse_y) {
+        return kOriginalSize;
+    }
+    const Tile t = tile(c.island, *c.warehouse_x, *c.warehouse_y);
+    return t.valid() && t.type->size_x != 0 ? static_cast<std::int32_t>(t.type->size_x) : kOriginalSize;
+}
+
 std::uint32_t Engine::kontor_level(const City& c) const {
     if (!c.warehouse_x || !c.warehouse_y) {
         return 0;
@@ -128,10 +138,8 @@ std::uint32_t Engine::kontor_level(const City& c) const {
     if (!t.valid() || t.prod != prod::kKontor || t.type->destroyed) {
         return 0;
     }
-    if (t.type->id >= id::kKontor1 && t.type->id <= id::kKontor1 + 6) {
-        return (t.type->id - id::kKontor1) / 2 + 1;
-    }
-    return 1;
+    const std::uint32_t level = id::kontor_level(t.type->id);
+    return level != 0 ? level : 1;
 }
 
 std::uint32_t Engine::market_count(const City& c) const {

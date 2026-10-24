@@ -842,7 +842,7 @@ void Engine::task_kontor_upgrade(AiPlayer& p) {
     if (level == 0 || level >= 4) {
         return;
     }
-    if (build(p, {BuildItem{id::kKontor1 + 2 * level, *c->warehouse_x, *c->warehouse_y, 0, 0}}, true) != 0) {
+    if (build(p, {BuildItem{id::kontor(level + 1), *c->warehouse_x, *c->warehouse_y, 0, 0}}, true) != 0) {
         r->slots[kSlotKontor].count = static_cast<std::uint16_t>(level + 1);
         slot_ok(p, kSlotKontor);
     } else {
@@ -860,10 +860,11 @@ void Engine::task_paving(AiPlayer& p) {
     }
     const IslandMap& map = island_of(p.island).map;
     const std::int32_t ring = r->paving_ring;
+    const std::int32_t size = kontor_size(*c);
     const std::int32_t x0 = *c->warehouse_x - 1 - ring;
     const std::int32_t y0 = *c->warehouse_y - 1 - ring;
-    const std::int32_t x1 = *c->warehouse_x + 3 + ring;
-    const std::int32_t y1 = *c->warehouse_y + 3 + ring;
+    const std::int32_t x1 = *c->warehouse_x + size + ring;
+    const std::int32_t y1 = *c->warehouse_y + size + ring;
     std::vector<BuildItem> items;
     std::array<std::int32_t, 4> per_side{};
     for (std::int32_t y = y0; y <= y1; ++y) {
@@ -909,10 +910,11 @@ void Engine::task_towers(AiPlayer& p) {
     }
     const IslandMap& map = island_of(p.island).map;
     const std::int32_t ring = r->tower_ring;
+    const std::int32_t size = kontor_size(*c);
     const std::int32_t x0 = *c->warehouse_x - 1 - ring;
     const std::int32_t y0 = *c->warehouse_y - 1 - ring;
-    const std::int32_t x1 = *c->warehouse_x + 3 + ring;
-    const std::int32_t y1 = *c->warehouse_y + 3 + ring;
+    const std::int32_t x1 = *c->warehouse_x + size + ring;
+    const std::int32_t y1 = *c->warehouse_y + size + ring;
     const bool many = r->slots[kSlotWoodTower].count > 1 || r->slots[kSlotStoneTower].count > 1 ||
                       r->slots[kSlotPirateTower].count > 1;
     const std::int32_t start = many ? 8 : 3;
@@ -1194,11 +1196,11 @@ void Engine::survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t 
     }
     if (t.kind == kind::kTower || t.kind == kind::kTowerBeach || t.prod == prod::kTower) {
         const std::uint32_t idv = t.type->id;
-        if (idv == id::kWoodTower || idv == id::kWoodTower + 1) {
+        if (idv == id::kWoodTower || idv == id::kWoodTowerAlt) {
             count(kSlotWoodTower);
-        } else if (idv == id::kStoneTower || idv == id::kStoneTower + 1) {
+        } else if (idv == id::kStoneTower || idv == id::kStoneTowerAlt) {
             count(kSlotStoneTower);
-        } else if (idv == id::kPirateTower || idv == id::kPirateTower + 1) {
+        } else if (idv == id::kPirateTower || idv == id::kPirateTowerAlt) {
             count(kSlotPirateTower);
         }
         return;
@@ -1279,9 +1281,7 @@ void Engine::sweep(AiPlayer& p) {
         if (t.ware == ware::kAll && t.type->destroyed && rebuild.size() < 7) {
             // A burnt-out market or Kontor is built again.
             const std::uint32_t level = r->slots[kSlotKontor].count;
-            const std::uint32_t target = t.kind == kind::kBuilding
-                                             ? id::kMarket
-                                             : id::kKontor1 + 2 * (std::clamp<std::uint32_t>(level, 1, 4) - 1);
+            const std::uint32_t target = t.kind == kind::kBuilding ? id::kMarket : id::kontor(level);
             if (const assets::BuildingType* b = by_id(target); b != nullptr && affordable(p, *c, *b)) {
                 rebuild.push_back(BuildItem{
                     target, x, y, map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y)).rotation, 0});
@@ -1356,7 +1356,7 @@ void Engine::kontor_restore(AiPlayer& p) {
         return;
     }
     const std::uint32_t level = std::clamp<std::uint32_t>(r->slots[kSlotKontor].count, 1, 4);
-    const assets::BuildingType* b = by_id(id::kKontor1 + 2 * (level - 1));
+    const assets::BuildingType* b = by_id(id::kontor(level));
     if (b == nullptr || !affordable(p, *c, *b)) {
         return;
     }

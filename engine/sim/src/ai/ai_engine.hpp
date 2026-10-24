@@ -190,6 +190,8 @@ private:
     /// Demand of a city for a consumer good, 1/32 t per minute (0x0047F7B0).
     [[nodiscard]] std::uint32_t demand(const City& c, std::uint8_t ware) const;
     [[nodiscard]] std::uint32_t kontor_level(const City& c) const;
+    /// Tiles of the city's Kontor each way (its record's size).
+    [[nodiscard]] std::int32_t kontor_size(const City& c) const;
     /// Markets and Kontors of a city (city + 0x1FA) and all its buildings (city + 0x216).
     [[nodiscard]] std::uint32_t market_count(const City& c) const;
     [[nodiscard]] std::uint32_t building_count(const City& c) const;

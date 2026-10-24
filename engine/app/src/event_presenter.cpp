@@ -75,7 +75,7 @@ std::array<std::pair<std::uint8_t, std::uint32_t>, 3> island_crops(const sim::Wo
     static constexpr std::array<std::uint8_t, 3> kNorth = {48, 50, 46};
     static constexpr std::array<std::uint8_t, 3> kSouth = {47, 49, 51};
     std::array<std::pair<std::uint8_t, std::uint32_t>, 3> crops{};
-    const std::array<std::uint8_t, 3>& wares = island.header.climate == 1 ? kSouth : kNorth;
+    const std::array<std::uint8_t, 3>& wares = island.header.climate == sim::climate::kSouth ? kSouth : kNorth;
     for (std::size_t i = 0; i < crops.size(); ++i) {
         crops[i] = {wares[i], sim::island_fertility(island, wares[i]) * 100 / 128};
     }

@@ -12,6 +12,7 @@
 #include "o1602/assets/island.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/island_map.hpp"
+#include "o1602/sim/island_templates.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/volcanoes.hpp"
 
@@ -21,15 +22,11 @@ namespace {
 
 using assets::ScenarioPlan;
 
-// Nominal size of a size class (0x0049A840 / 0x0049A854): only the height matters, for the
-// climate of islands placed by position.
-constexpr std::array<std::uint32_t, 5> kNominalHeight = {30, 40, 52, 60, 90};
-// Templates per climate and size class (0x0049A868): NORD med36-38 exist as files but are never
-// drawn.
-constexpr std::array<std::array<std::uint16_t, 5>, 2> kTemplateCount = {{{51, 48, 36, 67, 5}, {49, 45, 48, 63, 6}}};
-constexpr std::array<const char*, 2> kClimateDir = {"Nord", "Sued"};
-constexpr std::array<const char*, 2> kNativeDir = {"NordNat", "SuedNat"};
-constexpr std::array<const char*, 5> kSizeName = {"lit", "mit", "med", "big", "lar"};
+// Nominal size of a size class: only the height matters, for the climate of islands placed by
+// position.
+constexpr const auto& kNominalHeight = templates::kClassHeight;
+using templates::kTemplateCount;
+using templates::template_path;
 
 // Fertility bit 0 is the first crop, the treasure the last ware with a bit.
 constexpr std::uint8_t kFirstCrop = ware::kCornField;
@@ -136,13 +133,6 @@ struct Slot {
     }
 };
 
-std::string template_path(std::uint8_t climate, std::uint8_t size, std::uint16_t number, bool natives) {
-    char buf[64];
-    std::snprintf(buf, sizeof(buf), "%s/%s%02u.scp", (natives ? kNativeDir : kClimateDir)[climate & 1U],
-                  kSizeName[std::min<std::size_t>(size, 4)], static_cast<unsigned>(number));
-    return buf;
-}
-
 std::shared_ptr<assets::ChunkFile> open(const assets::GameDirectory& game, const std::string& path) {
     const auto resolved = game.resolve(path);
     if (!resolved) {
@@ -236,11 +226,11 @@ void Generator::choose_templates() {
         if (e.climate == ScenarioPlan::kClimateByPosition) {
             const std::uint32_t centre = e.y + kNominalHeight[e.size] / 2;
             if (centre <= 350 / 3) {
-                e.climate = 0;  // the north is the top of the map
+                e.climate = climate::kNorth;  // the north is the top of the map
             } else if (centre >= 2 * 350 / 3) {
-                e.climate = 1;
+                e.climate = climate::kSouth;
             } else {
-                e.climate = static_cast<std::uint8_t>(m_random.below(2));
+                e.climate = static_cast<std::uint8_t>(m_random.below(climate::kCount));
             }
         }
         e.climate &= 1U;
@@ -290,7 +280,7 @@ bool Generator::village_fits(const ScenarioPlan::Island& e) const {
 
 void Generator::choose_natives() {
     // Loop B: villages on islands whose template has a native version, north then south.
-    for (std::uint8_t climate = 0; climate < 2; ++climate) {
+    for (std::uint8_t climate = 0; climate < climate::kCount; ++climate) {
         std::vector<std::size_t> candidates;
         for (std::size_t i = 0; i < m_plan.islands.size(); ++i) {
             const ScenarioPlan::Island& e = m_plan.islands[i];
@@ -398,7 +388,7 @@ std::vector<Slot*> Generator::crop_candidates(std::uint8_t ware, std::uint8_t mi
         if (s->plan.size < min_size || s->plan.size > max_size || s->crops >= max_crops || (s->fertility & bit) != 0) {
             continue;
         }
-        const bool north = s->plan.climate == 0;
+        const bool north = s->plan.climate == climate::kNorth;
         bool ok = false;
         switch (ware) {
             case ware::kTobaccoField:
@@ -836,7 +826,7 @@ void Generator::fair_starts() {
                 // Only one northern island near: in an own world it may grow both.
                 Slot* best = nullptr;
                 for (Slot* s : near) {
-                    if (s->plan.climate == 0 && (s->fertility & bit) == 0 &&
+                    if (s->plan.climate == climate::kNorth && (s->fertility & bit) == 0 &&
                         (best == nullptr || s->crops < best->crops)) {
                         best = s;
                     }
@@ -1157,7 +1147,7 @@ std::vector<std::uint8_t> Generator::village_records(const Slot& slot, const Sta
                     record[o + i] = static_cast<std::uint8_t>(v >> (8 * i));
                 }
             };
-            const std::uint8_t sold = slot.plan.climate == 0 ? kTobaccoGoods : kSpiceGoods;
+            const std::uint8_t sold = slot.plan.climate == climate::kNorth ? kTobaccoGoods : kSpiceGoods;
             set_flags(sold, 0x3FFU, 1U << 20);
             record[slot_at(sold) + 8] = 0;
             record[slot_at(sold) + 9] = 0;

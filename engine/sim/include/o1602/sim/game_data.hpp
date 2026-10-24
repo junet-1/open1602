@@ -11,6 +11,7 @@ namespace o1602::sim {
 namespace ware = assets::ware;
 namespace kind = assets::kind;
 namespace prod = assets::prod;
+namespace climate = assets::climate;
 namespace figure = assets::figure;
 namespace figtype = assets::figtype;
 namespace id = assets::id;

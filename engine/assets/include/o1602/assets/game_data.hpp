@@ -322,6 +322,13 @@ inline constexpr std::int32_t kPublicLast = kSchloss;
 }  // namespace prod
 
 /// Figure numbers (figuren.cod).
+/// The climates of islands (island header +0x64), each with its template folders and crops.
+namespace climate {
+inline constexpr std::uint8_t kNorth = 0;  ///< Nord: grain, tobacco, sugar cane, wine ...
+inline constexpr std::uint8_t kSouth = 1;  ///< Sued: cotton, spices, cocoa ...
+inline constexpr std::uint8_t kCount = 2;
+}  // namespace climate
+
 namespace figure {
 /// The families of land units, each with four levels: SOLDAT1, KAVALERIE1, MUSKETIER1, KANONIER1.
 inline constexpr std::array<std::uint32_t, 4> kUnitFamilies{1, 5, 9, 13};
@@ -405,6 +412,7 @@ inline constexpr std::uint32_t kGalgen = 20841;
 inline constexpr std::uint32_t kDenkmal = 20851;
 inline constexpr std::uint32_t kGate = 20304;
 inline constexpr std::uint32_t kStoneTower = 20305;
+inline constexpr std::uint32_t kStoneTowerAlt = 20306;  ///< the record after it, counted as the same tower
 inline constexpr std::uint32_t kCastle1 = 20311;
 inline constexpr std::uint32_t kCastle2 = 20313;
 inline constexpr std::uint32_t kCastle3 = 20315;
@@ -412,11 +420,30 @@ inline constexpr std::uint32_t kWebstube = 20507;
 inline constexpr std::uint32_t kWeberei = 20531;
 inline constexpr std::uint32_t kGoldsmith = 20533;  ///< also marks the treasure entries of a world plan
 inline constexpr std::uint32_t kWoodTower = 21405;
+inline constexpr std::uint32_t kWoodTowerAlt = 21406;  ///< the record after it, counted as the same tower
 inline constexpr std::uint32_t kBridgeWood = 21601;
 inline constexpr std::uint32_t kBridgeStone = 21603;
 inline constexpr std::uint32_t kPier = 21073;
 inline constexpr std::uint32_t kHunter = 22003;
 inline constexpr std::uint32_t kKontor1 = 22101;
+/// The Kontors of the four levels, KONTOR1 to KONTOR4 (MD-4).
+inline constexpr std::array<std::uint32_t, 4> kKontors{kKontor1, 22103, 22105, 22107};
+/// The Kontor of `level`, held between 1 and 4.
+[[nodiscard]] constexpr std::uint32_t kontor(std::uint32_t level) noexcept {
+    return kKontors[level < 1 ? 0 : (level > kKontors.size() ? kKontors.size() - 1 : level - 1)];
+}
+/// The level of a Kontor's record, 0 for another record: a record between two levels' counts as
+/// the lower one, as the original's range check from KONTOR1 to KONTOR4.
+[[nodiscard]] constexpr std::uint32_t kontor_level(std::uint32_t building) noexcept {
+    if (building < kKontors.front() || building > kKontors.back()) {
+        return 0;
+    }
+    std::uint32_t level = 0;
+    for (const std::uint32_t k : kKontors) {
+        level += building >= k ? 1U : 0U;
+    }
+    return level;
+}
 inline constexpr std::uint32_t kShipyardBig = 22111;
 inline constexpr std::uint32_t kShipyardSmall = 22115;
 inline constexpr std::uint32_t kPirateKontor = 22221;
@@ -424,6 +451,7 @@ inline constexpr std::uint32_t kPirateHouse1 = 22222;
 inline constexpr std::uint32_t kPirateHouse2 = 22223;
 inline constexpr std::uint32_t kPirateHouse3 = 22224;
 inline constexpr std::uint32_t kPirateTower = 22241;
+inline constexpr std::uint32_t kPirateTowerAlt = 22242;  ///< the record after it, counted as the same tower
 inline constexpr std::uint32_t kOreMine = 22401;
 inline constexpr std::uint32_t kOreMineDeep = 22403;
 inline constexpr std::uint32_t kGoldMine = 22405;
