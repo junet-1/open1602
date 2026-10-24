@@ -7,6 +7,7 @@
 // logistics each keep one, keyed by what names a unit of their kind.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -40,6 +41,10 @@ public:
     /// Where to draw the unit `key` that is at (x, y) now: on its way from where it was before the
     /// last tick (tick_lerp). One the trail has not seen is drawn where it is.
     void position(std::uint64_t key, double& x, double& y) const noexcept;
+    /// Same, for callers that ask for the keys in rising order: `hint` (0 before the first call)
+    /// keeps the place of the last key, so a pass over all units costs one walk over the trail
+    /// instead of a search per unit (FB-2). Any order still gives the right answer.
+    void position(std::uint64_t key, double& x, double& y, std::size_t& hint) const noexcept;
 
 private:
     struct Was {

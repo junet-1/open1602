@@ -259,6 +259,8 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
     m_sim_anims.clear();
     m_index.clear();
     m_trail.set_fraction(fraction);
+    std::size_t trail_hint = 0;
+    std::size_t last_hint = 0;
     for (const sim::Soldier& s : world.soldiers()) {
         if (s.motion.phase == sim::SoldierMotion::Phase::Healing) {
             continue;
@@ -266,7 +268,7 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
         FigureInstance f;
         f.x = s.x();
         f.y = s.y();
-        m_trail.position(s.id, f.x, f.y);
+        m_trail.position(s.id, f.x, f.y, trail_hint);
         f.figure = s.figure;
         f.direction = s.direction;
         f.owner = s.owner;
@@ -276,7 +278,7 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
         f.island = s.island;
         AnimState state;
         std::uint8_t sim_anim = 0;
-        const std::size_t last = lookup(m_last_index, s.id);
+        const std::size_t last = lookup(m_last_index, s.id, last_hint);
         const assets::FigureType* type = figures.get(s.figure);
         if (last != kNone && m_last_sim_anims[last] == s.anim) {
             state = m_last_states[last];
@@ -299,14 +301,31 @@ void SoldierFigures::sync(const sim::World& world, const assets::BuildingTable& 
         m_states.push_back(state);
         m_sim_anims.push_back(sim_anim);
     }
-    // The soldiers come in the order of their ids, so this hardly moves anything.
-    std::stable_sort(m_index.begin(), m_index.end(), [](const Entry& a, const Entry& b) { return a.id < b.id; });
+    // The soldiers come in the order of their ids, so this is mostly sorted already.
+    const auto by_id = [](const Entry& a, const Entry& b) { return a.id < b.id; };
+    if (!std::is_sorted(m_index.begin(), m_index.end(), by_id)) {
+        std::sort(m_index.begin(), m_index.end(), by_id);
+    }
 }
 
 std::size_t SoldierFigures::lookup(const std::vector<Entry>& index, std::uint32_t id) noexcept {
-    const auto it =
-        std::lower_bound(index.begin(), index.end(), id, [](const Entry& e, std::uint32_t v) { return e.id < v; });
-    return it != index.end() && it->id == id ? it->index : kNone;
+    std::size_t hint = 0;
+    return lookup(index, id, hint);
+}
+
+std::size_t SoldierFigures::lookup(const std::vector<Entry>& index, std::uint32_t id, std::size_t& hint) noexcept {
+    const auto less = [](const Entry& e, std::uint32_t v) { return e.id < v; };
+    std::size_t i = hint <= index.size() && (hint == 0 || index[hint - 1].id < id) ? hint : 0;
+    // A few steps on from the last id, else a search in what is left.
+    for (int steps = 0; i < index.size() && index[i].id < id; ++i) {
+        if (++steps == 8) {
+            const auto first = index.begin() + static_cast<std::ptrdiff_t>(i);
+            i = static_cast<std::size_t>(std::lower_bound(first, index.end(), id, less) - index.begin());
+            break;
+        }
+    }
+    hint = i;
+    return i != index.size() && index[i].id == id ? index[i].index : kNone;
 }
 
 const FigureInstance* SoldierFigures::find(std::uint32_t id) const noexcept {

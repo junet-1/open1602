@@ -1163,6 +1163,25 @@ TEST_CASE("render: a unit is drawn on its way between two ticks, keyed by any nu
     trail.position(4, x, y);
     CHECK(x == 9.0);
     CHECK(y == 9.0);
+    // With a hint: keys in rising order with gaps, then backwards and far ahead, all found.
+    {
+        render::TickTrail many;
+        many.capture([](const auto& add) {
+            for (std::uint64_t k = 0; k < 100; ++k) {
+                add(k * 2, static_cast<double>(k), 0.0);
+            }
+        });
+        many.set_fraction(0.0);
+        std::size_t hint = 0;
+        for (const std::uint64_t k : {0U, 2U, 4U, 5U, 40U, 42U, 198U, 199U, 200U, 10U, 12U, 150U, 1U, 196U}) {
+            const double now = static_cast<double>(k / 2) + 1.0;  // a step on from where it was
+            double px = now;
+            double py = 0.0;
+            many.position(k, px, py, hint);
+            const bool known = k % 2 == 0 && k < 200;
+            CHECK(px == (known ? now - 1.0 : now));
+        }
+    }
     // A new capture forgets the old positions.
     trail.capture([](const auto& add) { add(4, 8.0, 9.0); });
     trail.position(4, x, y);
