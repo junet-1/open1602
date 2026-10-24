@@ -734,12 +734,20 @@ bool city_defenceless(const World& world, const assets::BuildingTable& buildings
 
 BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings, const BuildOrder& order) {
     BuildPlan plan;
-    plan.items.resize(order.items.size());
+    plan_build(world, buildings, order, plan);
+    return plan;
+}
+
+void plan_build(const World& world, const assets::BuildingTable& buildings, const BuildOrder& order, BuildPlan& plan) {
+    std::vector<PlannedBuild> items = std::move(plan.items);
+    items.assign(order.items.size(), PlannedBuild{});
+    plan = BuildPlan{};
+    plan.items = std::move(items);
     if (order.island >= world.islands().size() || order.items.empty()) {
         for (PlannedBuild& p : plan.items) {
             p.refusal = BuildRefusal::OutsideIsland;
         }
-        return plan;
+        return;
     }
     const WorldIsland& island = world.islands()[order.island];
     const Player* player = world.player(order.player);
@@ -947,6 +955,9 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
         if (counted(type->infra)) {
             ++placed_limited[type->infra - kInfraCastle];
         }
+        if (i + 1 == order.items.size()) {
+            continue;  // no item after it to collide with
+        }
         const Footprint f = footprint_of(*out.type, out.x, out.y, out.rotation);
         for (std::uint32_t j = 0; j < f.h; ++j) {
             for (std::uint32_t k = 0; k < f.w; ++k) {
@@ -961,7 +972,6 @@ BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings,
     }
     plan.bill = bill;
     plan.placed = placed;
-    return plan;
 }
 
 namespace {

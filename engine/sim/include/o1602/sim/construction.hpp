@@ -129,6 +129,9 @@ struct BuildPlan {
 
 /// Checks an order without changing anything (the preview of the build tool).
 [[nodiscard]] BuildPlan plan_build(const World& world, const assets::BuildingTable& buildings, const BuildOrder& order);
+/// The same into `plan`, whose item list keeps its memory (the computers test thousands of
+/// single sites per minute, TB-9).
+void plan_build(const World& world, const assets::BuildingTable& buildings, const BuildOrder& order, BuildPlan& plan);
 
 /// What the construction changed, for the logistics, the renderer and the messages.
 struct ConstructionEvent {
