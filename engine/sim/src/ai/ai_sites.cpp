@@ -139,11 +139,32 @@ Site gen_sized(const Segment& s, std::int32_t cx, std::int32_t cy, std::int32_t 
 // ---------------------------------------------------------------------------------------------
 // Road runs (task 7, 0x00417C80)
 
+Engine::CityScans& Engine::city_scans(std::uint16_t island, std::uint8_t city) {
+    const auto it = std::find_if(m_city_scans.begin(), m_city_scans.end(),
+                                 [&](const CityScans& s) { return s.island == island && s.city == city; });
+    if (it != m_city_scans.end()) {
+        return *it;
+    }
+    CityScans& s = m_city_scans.emplace_back();
+    s.island = island;
+    s.city = city;
+    return s;
+}
+
 void Engine::build_segments(AiPlayer& p) {
     p.segments.clear();
     if (!p.has_city) {
         return;
     }
+    // The segments follow from the island's tiles alone: while none changed, the last layout's
+    // (before any task closed one) are the answer (TB-11).
+    CityScans& known = city_scans(p.island, p.city);
+    const std::uint64_t revision = island_revision(p.island);
+    if (known.layout_revision == revision) {
+        p.segments = known.segments;
+        return;
+    }
+    known.layout_revision = revision;
     const std::uint16_t island = p.island;
     const IslandMap& map = island_of(island).map;
     const auto w = static_cast<std::int32_t>(map.width());
@@ -239,6 +260,7 @@ void Engine::build_segments(AiPlayer& p) {
             }
         }
     }
+    known.segments = p.segments;
 }
 
 // ---------------------------------------------------------------------------------------------

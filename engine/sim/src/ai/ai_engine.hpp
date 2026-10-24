@@ -453,7 +453,8 @@ private:
     void task_roads(AiPlayer& p);
     void task_layout(AiPlayer& p);
     void task_survey(AiPlayer& p);
-    void survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t x, std::uint32_t y, SurveyFinds& finds);
+    /// False for a tile that is no building origin of the city (the survey has nothing there).
+    bool survey_tile(AiPlayer& p, const City& c, CityPlan& r, std::uint32_t x, std::uint32_t y, SurveyFinds& finds);
     void sweep(AiPlayer& p);
     void kontor_restore(AiPlayer& p);
     std::size_t build(AiPlayer& p, std::vector<BuildItem> items, bool orient);
@@ -512,6 +513,19 @@ private:
     };
     [[nodiscard]] bool defenceless(std::uint16_t island, std::uint8_t city);
     std::vector<Defences> m_defences;  ///< by island
+    /// What the whole-island scans of a city found, kept while the island's tiles stay the same
+    /// (TB-11): the building origins of the last survey (the next one visits only them, in the
+    /// same order) and the road segments of the last layout.
+    struct CityScans {
+        std::uint16_t island = 0;
+        std::uint8_t city = 0;
+        std::uint64_t survey_revision = 0;  ///< 0: none yet; revisions start at 1
+        std::vector<std::pair<std::uint16_t, std::uint16_t>> survey_tiles;
+        std::uint64_t layout_revision = 0;
+        std::vector<Segment> segments;
+    };
+    CityScans& city_scans(std::uint16_t island, std::uint8_t city);
+    std::vector<CityScans> m_city_scans;
     bool m_in_tick = false;
 };
 
