@@ -15,6 +15,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
@@ -32,6 +33,16 @@ namespace o1602::render {
 
 /// What the player at this computer sees. It only filters the picture and the sounds, never a
 /// decision, so every computer of a game still keeps the same scenery.
+/// A box of world tiles (continuous), by default the whole plane: what may be on screen, with a
+/// margin for tall pictures and high ground.
+struct TileBox {
+    double x0 = -std::numeric_limits<double>::infinity();
+    double y0 = -std::numeric_limits<double>::infinity();
+    double x1 = std::numeric_limits<double>::infinity();
+    double y1 = std::numeric_limits<double>::infinity();
+    [[nodiscard]] bool contains(double x, double y) const noexcept { return x >= x0 && x <= x1 && y >= y0 && y <= y1; }
+};
+
 struct AmbientView {
     std::vector<bool> islands;  ///< on screen, by index into World::islands(); only for the sounds
     /// Townsfolk and jugglers show only on islands this player has discovered, as in the original
@@ -42,6 +53,9 @@ struct AmbientView {
     /// creatures are drawn at the game time of the last tick but one plus this share of a tick,
     /// so that they move between ticks like the units of the game (TickTrail). Only the picture.
     double tick_fraction = 1.0;
+    /// World tiles that may be on screen (FB-10): townsfolk, creatures and jugglers outside are
+    /// not drawn and not animated (they catch up once seen).
+    TileBox drawn;
 };
 
 /// A sound of the scenery to play at a world point (no sound output yet).

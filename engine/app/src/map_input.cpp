@@ -22,6 +22,9 @@ namespace o1602::app {
 namespace {
 
 constexpr double kScrollSpeed = 900.0;  // pixels per second
+/// How far a unit's pictures may reach from its position, in tile widths (ships with sails and
+/// soldiers on high ground stay well inside). Units further from a picked rectangle are skipped.
+constexpr double kPickMarginTiles = 4.0;
 
 /// What an action does, for the key overview: keys.action.<its name in keys.cfg>.
 const std::string& action_label(ui::KeyAction a) {
@@ -1054,6 +1057,18 @@ std::vector<ui::UnitCandidate> MapInput::units_in(double x0, double y0, double x
     const double top = std::min(y0, y1);
     const double bottom = std::max(y0, y1);
     std::vector<ui::UnitCandidate> out;
+    // A cheap test of the unit's position first (FB-1): the screen point is affine in the tile
+    // position, and no picture reaches further than a few tiles from it. Only the units near the
+    // rectangle get their pictures built.
+    const auto [ax, ay] = screen_of(0.0, 0.0);
+    const auto [bx, by] = screen_of(1.0, 0.0);
+    const auto [cx, cy] = screen_of(0.0, 1.0);
+    const double margin = kPickMarginTiles * render::tile_width(m_camera.view().zoom) * m_camera.scale();
+    const auto near = [&](double tx, double ty) {
+        const double px = ax + tx * (bx - ax) + ty * (cx - ax);
+        const double py = ay + tx * (by - ay) + ty * (cy - ay);
+        return px >= left - margin && px <= right + margin && py >= top - margin && py <= bottom + margin;
+    };
     const auto test = [&](const ui::UnitRef& ref) {
         const auto b = unit_box(ref);
         if (!b) {
@@ -1066,12 +1081,13 @@ std::vector<ui::UnitCandidate> MapInput::units_in(double x0, double y0, double x
         }
     };
     for (const sim::Ship& s : world().ships()) {
-        if (!s.sinking) {
+        if (!s.sinking &&
+            near(s.pos_x / static_cast<double>(sim::kShipUnit), s.pos_y / static_cast<double>(sim::kShipUnit))) {
             test({ui::UnitRef::Kind::Ship, s.id});
         }
     }
     for (const sim::Soldier& s : world().soldiers()) {
-        if (!s.away()) {
+        if (!s.away() && near(s.x(), s.y())) {
             test({ui::UnitRef::Kind::Soldier, s.id});
         }
     }

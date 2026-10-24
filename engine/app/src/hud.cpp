@@ -794,7 +794,7 @@ void Hud::reset_game() {
     m_modal_press = ModalPress::None;
     m_commands.clear();
     m_names.cancel();
-    m_minimap_dirty = true;
+    m_minimap_rebuild = true;
     m_tutor_line = 0;
     m_tutorial.reset();
     m_bubbles.clear();
@@ -1428,19 +1428,22 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     draw_mission(world);
     // The minimap on the parchment.
     // Built in full once per game; then one island per frame is brought up to date and the texture
-    // is uploaded again only when a pixel changed, at most every kMinimapMs.
-    if (m_minimap_dirty || world.width() != m_world_w || world.height() != m_world_h ||
+    // is uploaded again only when a pixel changed, at most every kMinimapMs. A pending upload no
+    // longer makes it build the whole picture again (FB-5: without a minimap gadget nothing
+    // uploads, and every frame rebuilt it).
+    if (m_minimap_rebuild || world.width() != m_world_w || world.height() != m_world_h ||
         world.islands().size() != m_minimap_islands) {
         build_minimap(world, buildings, banners);
         m_minimap_ms = now_ms;
-        m_minimap_dirty = true;
+        m_minimap_rebuild = false;
+        m_minimap_upload = true;
         m_minimap_changed = false;
     } else if (m_minimap_islands > 0) {
         m_minimap_next %= m_minimap_islands;
         m_minimap_changed |= refresh_minimap_island(world, buildings, banners, m_minimap_next++);
         if (m_minimap_changed && now_ms >= m_minimap_ms + kMinimapMs) {
             m_minimap_ms = now_ms;
-            m_minimap_dirty = true;
+            m_minimap_upload = true;
             m_minimap_changed = false;
         }
     }
@@ -1458,8 +1461,8 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
                           map.y + static_cast<std::int32_t>((map.h - m_world_h * fit) / 2.0),
                           static_cast<std::int32_t>(m_world_w * fit), static_cast<std::int32_t>(m_world_h * fit)};
         m_renderer->image(1, m_minimap, static_cast<std::int32_t>(m_world_w), static_cast<std::int32_t>(m_world_h), at,
-                          m_minimap_dirty);
-        m_minimap_dirty = false;
+                          m_minimap_upload);
+        m_minimap_upload = false;
         // The visible part of the map as a white outline.
         std::array<SDL_FPoint, 5> points{};
         for (std::size_t i = 0; i < 4; ++i) {

@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <limits>
 #include <optional>
 #include <random>
 #include <span>
@@ -101,6 +102,8 @@ constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
 constexpr assets::Rgba kDemolishHatch{220, 40, 30, 255};
 /// Real time a frame may spend on ticks; the rest of the frame draws.
 constexpr int kTickBudgetMs = 25;
+/// The status line under a still mouse is worked out again this often (FB-1).
+constexpr std::uint64_t kTileStatusMs = 100;
 const char* zoom_name(render::Zoom zoom) {
     switch (zoom) {
         case render::Zoom::Large:
@@ -715,9 +718,9 @@ int MapViewer::run() {
     }
     if (m_options.max_frames != 0) {
         const std::uint64_t elapsed = std::max<std::uint64_t>(platform::ticks_ms() - run_start, 1);
-        std::fprintf(stderr, "%u frames in %llu ms (%.1f fps), %zu sprites in the last frame\n", frames,
+        std::fprintf(stderr, "%u frames in %llu ms (%.1f fps), %zu sprites in %zu batches in the last frame\n", frames,
                      static_cast<unsigned long long>(elapsed), frames * 1000.0 / static_cast<double>(elapsed),
-                     m_sprites_drawn);
+                     m_sprites_drawn, m_batches_drawn);
     }
     if (!m_options.save.empty()) {
         if (auto status = save_game(m_options.save); !status) {
@@ -897,7 +900,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
         update_ambient();
         m_combat.frame(m_state->world, m_figures, m_tick_fraction);
         m_sound->figures({&m_walkers.instances(), &m_soldiers.instances(), &m_ambient.walkers()}, m_effects, m_figures,
-                         m_state->world.time_ms(), m_state->simulation.speed());
+                         m_state->world.time_ms(), m_state->simulation.speed(), m_drawn_tiles);
     }
     apply_construction();
 }
@@ -1286,7 +1289,18 @@ void MapViewer::render() {
         if (const std::string* notice = m_events.notice(now); notice != nullptr && !m_tool.active()) {
             m_hud->set_status(*notice);
         } else {
-            m_hud->set_status(m_tool_status.empty() && !m_tool.active() ? tile_status() : m_tool_status);
+            if (m_tool_status.empty() && !m_tool.active()) {
+                const std::pair<double, double> mouse{m_input->mouse_x(), m_input->mouse_y()};
+                if (mouse != m_tile_status_mouse || now >= m_tile_status_ms + kTileStatusMs || now < m_tile_status_ms) {
+                    m_tile_status = tile_status();
+                    m_tile_status_ms = now;
+                    m_tile_status_mouse = mouse;
+                }
+                m_hud->set_status(m_tile_status);
+            } else {
+                m_tile_status_mouse = {-1.0, -1.0};  // worked out afresh once the tool is gone
+                m_hud->set_status(m_tool_status);
+            }
         }
         m_hud->set_rotation(m_camera.view().rotation);
         m_hud->set_building_rotation(m_tool.rotation());
@@ -1396,6 +1410,25 @@ void MapViewer::update_ambient() {
                 y1 = std::max(y1, t->y);
             }
         }
+    }
+    // What is drawn: the box of the screen's corners in world tiles (also beyond the map's edge),
+    // widened by a few tiles for tall pictures and high ground.
+    {
+        constexpr double kMargin = 6.0;
+        double bx0 = std::numeric_limits<double>::infinity();
+        double by0 = bx0;
+        double bx1 = -bx0;
+        double by1 = -bx0;
+        for (const auto& [u, v] :
+             {std::pair{0.0, 0.0}, std::pair{1.0, 0.0}, std::pair{0.0, 1.0}, std::pair{1.0, 1.0}}) {
+            const auto [px, py] = m_camera.point_at_screen(u * w, v * h);
+            bx0 = std::min(bx0, px);
+            by0 = std::min(by0, py);
+            bx1 = std::max(bx1, px);
+            by1 = std::max(by1, py);
+        }
+        view.drawn = render::TileBox{bx0 - kMargin, by0 - kMargin, bx1 + kMargin, by1 + kMargin};
+        m_drawn_tiles = view.drawn;
     }
     view.islands.assign(m_state->world.islands().size(), false);
     for (std::size_t i = 0; i < m_state->world.islands().size(); ++i) {
@@ -1507,9 +1540,11 @@ void MapViewer::draw_map(ZoomGraphics& graphics) {
             m_map_canvas->begin(render::RenderPlan{});  // nothing went through it this frame
         }
         m_sprites_drawn = graphics.renderer->draw(m_commands, ox, oy, m_camera.scale());
+        m_batches_drawn = graphics.renderer->batches();
         return;
     }
     m_sprites_drawn = graphics.renderer->draw(m_commands, plan.origin_x, plan.origin_y, plan.scale);
+    m_batches_drawn = graphics.renderer->batches();
     m_map_canvas->end();
 }
 
@@ -1943,8 +1978,8 @@ std::string MapViewer::debug_title(double fps) {
             title += ": " + m_tool_status;
         }
     }
-    char perf[64];
-    std::snprintf(perf, sizeof perf, " | %.0f fps, %zu sprites", fps, m_sprites_drawn);
+    char perf[96];
+    std::snprintf(perf, sizeof perf, " | %.0f fps, %zu sprites, %zu batches", fps, m_sprites_drawn, m_batches_drawn);
     title += perf;
     return title;
 }

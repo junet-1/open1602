@@ -204,13 +204,16 @@ void CombatEffects::frame(const sim::World& world, const assets::FigureTable& fi
         m_effects.push_back(f);
     }
 
-    m_ship_smoke.clear();
     std::erase_if(m_smoke, [&](const auto& entry) {
         return elapsed(entry.second.start_ms) >= entry.second.life_ms || world.ship(entry.first) == nullptr;
     });
+    // Updated in place rather than cleared and refilled every frame (FB-17).
+    std::erase_if(m_ship_smoke, [&](const auto& entry) { return !m_smoke.contains(entry.first); });
     for (const auto& [id, s] : m_smoke) {
         if (const assets::FigureType* type = figures.get(s.figure)) {
             m_ship_smoke[id] = ShipSmoke{s.figure, s.side, first_anim_frame(*type, elapsed(s.start_ms))};
+        } else {
+            m_ship_smoke.erase(id);
         }
     }
 }

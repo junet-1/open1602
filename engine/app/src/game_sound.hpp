@@ -101,10 +101,10 @@ public:
     void scenery(const std::vector<render::AmbientSound>& sounds);
     /// Work and animal sounds (AnimSmp) of the figures on screen: once per cycle of an animation
     /// and figure type, at the first figure of that type in view, only at normal speed
-    /// (Figure_PlayAnimSound 0x0044F970).
+    /// (Figure_PlayAnimSound 0x0044F970). Figures outside `drawn` are passed over unlooked at.
     void figures(const std::vector<const std::vector<render::FigureInstance>*>& lists,
                  const std::vector<render::EffectFigure>& effects, const assets::FigureTable& table,
-                 std::uint64_t game_ms, std::uint32_t speed);
+                 std::uint64_t game_ms, std::uint32_t speed, const render::TileBox& drawn = {});
     /// Move or attack order for a ship (true) or soldiers at a tile.
     void order(bool ship, bool attack, double tile_x, double tile_y);
 

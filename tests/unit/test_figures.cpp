@@ -466,3 +466,73 @@ TEST_CASE("figures: soldiers are drawn on their way between two ticks") {
     soldiers.sync(world, buildings, figures, 0.5);
     CHECK(soldiers.find(4)->x == 31.0);
 }
+
+TEST_CASE("figures: the draw list keeps every figure that reaches into the viewport and skips far ones (FB-3)") {
+    const auto figures = make_deer();
+    const auto terrain = test::make_sheet({{4, 2}});
+    const auto tiere = test::make_sheet(std::vector<std::pair<std::uint32_t, std::uint32_t>>(200, {10, 12}));
+    const auto schatten = test::make_sheet(std::vector<std::pair<std::uint32_t, std::uint32_t>>(80, {14, 6}));
+    const auto palette = test::make_palette();
+    const assets::SpriteSheet* sheets[] = {&terrain, &tiere, &schatten};
+    auto atlas = render::SpriteAtlas::build(sheets, palette, 512);
+    REQUIRE(atlas.ok());
+    render::WorldLayers layers;
+    layers.figures = &figures;
+    layers.atlas = &*atlas;
+    layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Tiere)] = atlas->sheet_base(1);
+    layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Schatten)] = atlas->sheet_base(2);
+    const assets::BuildingTable buildings;
+    const render::AnimationClock clock(buildings);
+    const sim::World world;
+    std::vector<render::FigureInstance> deer;
+    for (std::uint32_t y = 0; y < world.height(); y += 7) {
+        for (std::uint32_t x = (y / 7) % 5; x < world.width(); x += 5) {
+            deer.push_back(render::FigureInstance{x + 0.25, y + 0.75, 89, 1, 2, static_cast<std::uint8_t>(x % 8),
+                                                  render::kLandHeight, 0, sim::kNoPlayer, std::nullopt});
+        }
+    }
+    layers.land_figures = {&deer};
+    const auto overlaps = [](const render::DrawCommand& c, const render::SpriteAtlas& a, const render::Viewport& v) {
+        const render::AtlasRect& r = a.rect(c.sprite);
+        return c.x < v.left + v.width && c.x + r.width > v.left && c.y < v.top + v.height && c.y + r.height > v.top;
+    };
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        render::WorldView view{render::Zoom::Large, rotation};
+        std::int32_t w = 0;
+        std::int32_t h = 0;
+        render::world_pixel_size(view, w, h);
+        for (const auto& [fx, fy] :
+             {std::pair{0.5, 0.5}, std::pair{0.45, 0.2}, std::pair{0.25, 0.45}, std::pair{0.65, 0.6}}) {
+            const render::Viewport v{static_cast<std::int32_t>(w * fx), static_cast<std::int32_t>(h * fy), 1280, 720};
+            std::vector<render::DrawCommand> commands;
+            render::build_world_draw_list(world, buildings, clock, view, v, layers, commands);
+            std::size_t expected = 0;
+            for (const render::FigureInstance& d : deer) {
+                render::FigureSprites f;
+                REQUIRE(render::land_figure_sprites(d, world, view, layers, f));
+                bool seen = false;
+                for (std::uint8_t i = 0; i < f.count; ++i) {
+                    seen = seen || overlaps(f.parts[i], *atlas, v);
+                }
+                if (!seen) {
+                    continue;
+                }
+                ++expected;
+                const render::DrawCommand& body = f.parts[f.count - 1];
+                const bool drawn = std::any_of(commands.begin(), commands.end(), [&](const render::DrawCommand& c) {
+                    return c.sprite == body.sprite && c.x == body.x && c.y == body.y;
+                });
+                CHECK(drawn);
+            }
+            CHECK(expected > 0);
+            // Nothing from the far ends of the row band: every figure command lies near the viewport.
+            const std::int32_t tw = render::tile_width(view.zoom);
+            for (const render::DrawCommand& c : commands) {
+                if (c.sprite >= atlas->sheet_base(1)) {
+                    CHECK(c.x > v.left - layers.extent.width - 3 * tw);
+                    CHECK(c.x < v.left + v.width + layers.extent.width + 3 * tw);
+                }
+            }
+        }
+    }
+}

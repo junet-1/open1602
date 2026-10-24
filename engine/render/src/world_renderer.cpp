@@ -1139,8 +1139,30 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             figures.push_back(f);
         }
     };
+    // Before any sprite is worked out (FB-3): a figure's pictures lie around its projected point,
+    // at most a sprite extent and a tile wide to the sides, raised by the ground and the figure's
+    // height; one whose point is further from the viewport is skipped. At far zoom this keeps the
+    // row band across the whole world width out of the list.
+    const double left_limit = viewport.left - extent.width - tw;
+    const double right_limit = viewport.left + viewport.width + extent.width + tw;
+    const double top_limit = viewport.top - tw;
+    const double bottom_limit = viewport.top + viewport.height + extent.height + max_elevation + tw;
+    const auto near_view = [&](double x, double y, double z) {
+        double sx = 0.0;
+        double sy = 0.0;
+        project_point(view, x, y, sx, sy);
+        return sx >= left_limit && sx <= right_limit && sy >= top_limit &&
+               sy <= bottom_limit + std::max(z, 0.0) * tw / 2.0;
+    };
     if (layers.figures != nullptr && layers.atlas != nullptr) {
         for (const sim::Ship& ship : world.ships()) {
+            // The trail keeps a ship within a tile of its position.
+            const bool placed = ship.pos_x != 0 || ship.pos_y != 0;
+            const double px = placed ? static_cast<double>(ship.pos_x) / sim::kShipUnit : ship.x + 0.5;
+            const double py = placed ? static_cast<double>(ship.pos_y) / sim::kShipUnit : ship.y + 0.5;
+            if (!near_view(px, py, 2.0)) {
+                continue;
+            }
             ShipSprites s;
             if (ship_sprites(ship, world, view, layers, clock.elapsed_ms(), s)) {
                 FigureSprites f;
@@ -1167,6 +1189,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         }
         if (layers.building_figures != nullptr) {
             for (const BuildingFigure& bf : *layers.building_figures) {
+                if (!near_view(bf.x, bf.y, bf.z)) {
+                    continue;
+                }
                 FigureSprites f;
                 if (building_figure_sprites(bf, world, buildings, view, layers, clock.elapsed_ms(), f)) {
                     add_figure(f);
@@ -1175,6 +1200,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         }
         for (const std::vector<FigureInstance>* set : layers.land_figures) {
             for (const FigureInstance& instance : *set) {
+                if (!near_view(instance.x, instance.y, instance.z)) {
+                    continue;
+                }
                 FigureSprites f;
                 if (land_figure_sprites(instance, world, view, layers, f)) {
                     add_figure(f);
@@ -1183,6 +1211,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         }
         if (layers.effects != nullptr) {
             for (const EffectFigure& e : *layers.effects) {
+                if (!near_view(e.x, e.y, e.z)) {
+                    continue;
+                }
                 FigureSprites f;
                 if (effect_figure_sprites(e, world, view, layers, clock.elapsed_ms(), f)) {
                     add_figure(f);

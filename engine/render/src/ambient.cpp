@@ -329,7 +329,6 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
         if (w.island >= world.islands().size() || now >= w.end_ms || !known(w.island)) {
             continue;
         }
-        catch_up(w.anim, w.anim_ms, w.figure);
         // On the straight line between the centres of two tiles of its path (0x00459F40).
         const double elapsed = std::max(0.0, drawn - static_cast<double>(w.start_ms));
         const auto next = std::upper_bound(w.arrive.begin(), w.arrive.end(), elapsed,
@@ -342,12 +341,15 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
         const sim::TilePos b = w.path[to];
         const sim::WorldIsland& island = world.islands()[w.island];
         const sim::TilePos on = t < 0.5 ? a : b;
-        if (!walker_visible_on(type_at(island.map, buildings, on.x, on.y))) {
+        const double fx = static_cast<double>(island.x) + a.x + 0.5 + (b.x - a.x) * t;
+        const double fy = static_cast<double>(island.y) + a.y + 0.5 + (b.y - a.y) * t;
+        if (!view.drawn.contains(fx, fy) || !walker_visible_on(type_at(island.map, buildings, on.x, on.y))) {
             continue;
         }
+        catch_up(w.anim, w.anim_ms, w.figure);
         FigureInstance f;
-        f.x = static_cast<double>(island.x) + a.x + 0.5 + (b.x - a.x) * t;
-        f.y = static_cast<double>(island.y) + a.y + 0.5 + (b.y - a.y) * t;
+        f.x = fx;
+        f.y = fy;
         f.figure = w.figure;
         f.z = w.z;
         f.anim = w.anim.anim;
@@ -362,11 +364,16 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
         if (now >= c.end_ms) {
             continue;
         }
-        catch_up(c.anim, c.anim_ms, c.figure);
         const double age = std::max(0.0, drawn - static_cast<double>(c.start_ms));
+        const double ex = c.x + c.vx * age;
+        const double ey = c.y + c.vy * age;
+        if (!view.drawn.contains(ex, ey)) {
+            continue;
+        }
+        catch_up(c.anim, c.anim_ms, c.figure);
         EffectFigure e;
-        e.x = c.x + c.vx * age;
-        e.y = c.y + c.vy * age;
+        e.x = ex;
+        e.y = ey;
         e.figure = c.figure;
         e.anim = c.anim.anim;
         e.frame = c.anim.frame;
@@ -383,6 +390,9 @@ void Ambient::frame(const sim::World& world, const assets::BuildingTable& buildi
                 continue;
             }
             const sim::WorldIsland& island = world.islands()[island_index];
+            if (!view.drawn.contains(static_cast<double>(island.x) + x, static_cast<double>(island.y) + y)) {
+                continue;
+            }
             if (!island.map.contains(static_cast<std::int32_t>(x), static_cast<std::int32_t>(y))) {
                 continue;
             }

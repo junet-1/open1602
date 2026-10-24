@@ -32,6 +32,9 @@ public:
     /// Draws at screen = (x, y) * scale - origin; returns the number of sprites drawn. A scale that
     /// is no whole number gives uneven pixels (render::RenderPlan avoids it for the map).
     std::size_t draw(const std::vector<DrawCommand>& commands, double origin_x, double origin_y, double scale);
+    /// Draw calls (SDL_RenderGeometry) of the last draw (FB-7): a new one each time the atlas page
+    /// changes between commands.
+    [[nodiscard]] std::size_t batches() const noexcept { return m_batches; }
 
 private:
     static constexpr std::uint16_t kUntextured = 0xFFFF;  ///< batch of overlay diamonds
@@ -50,6 +53,7 @@ private:
     SDL_Texture* m_hatch = nullptr;
     std::vector<SDL_Vertex> m_vertices;
     std::vector<int> m_indices;
+    std::size_t m_batches = 0;
 };
 
 }  // namespace o1602::render
