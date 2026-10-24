@@ -12,6 +12,7 @@
 
 #include "o1602/assets/scenario.hpp"
 #include "o1602/sim/faction.hpp"
+#include "o1602/sim/game_data.hpp"
 #include "o1602/sim/limits.hpp"
 
 namespace o1602::sim {
@@ -83,6 +84,7 @@ struct Player {
     /// Unlocked build levels: bit n - 1 = INFRA number n (BuildingTable::infra_levels()). A level
     /// stays unlocked once one city of the player reached it (0x0047F8A0).
     std::uint32_t infra_mask = 0;
+    static_assert(infra::kMaxLevel <= 32, "infra_mask holds one bit per level");
     /// Buildings the player may build only once or by allowance (record Bauinfra SCHLOSS,
     /// KATHETRALE, TRIUMPH, DENKMAL).
     std::uint8_t castles_built = 0;
@@ -126,8 +128,19 @@ struct Player {
 
     [[nodiscard]] bool active() const noexcept { return status == PlayerStatus::Playing; }
 
-    [[nodiscard]] bool unlocked(std::uint32_t infra) const noexcept {
-        return infra == 0 || (infra <= 32 && (infra_mask >> (infra - 1) & 1U) != 0);
+    [[nodiscard]] bool unlocked(std::uint32_t level) const noexcept {
+        return level == infra::kNone || (level <= infra::kMaxLevel && (infra_mask >> (level - 1) & 1U) != 0);
+    }
+
+    /// The step of infra::kShipSteps the player reached (0 below all): how large the pirates' and
+    /// the computers' fleets grow.
+    [[nodiscard]] std::uint32_t ship_step() const noexcept {
+        for (const infra::ShipStep& s : infra::kShipSteps) {
+            if (unlocked(s.level)) {
+                return s.ships;
+            }
+        }
+        return 0;
     }
 };
 

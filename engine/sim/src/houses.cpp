@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 
 #include "o1602/sim/disasters.hpp"
 #include "o1602/sim/game_data.hpp"
@@ -84,6 +85,7 @@ constexpr std::array<ServiceNeeds, 5> kServiceNeeds = {{
     {kMarketNeed, hs::kWirtshaus, hs::kKirche, hs::kSchule | hs::kHochschule, hs::kBadehaus},  // merchants
     {kMarketNeed, hs::kWirtshaus, hs::kKirche, hs::kHochschule, hs::kBadehaus, hs::kTheater},  // aristocrats
 }};
+static_assert(kServiceNeeds.size() == kResidentClasses, "a row of needs for each class haeuser.cod may have");
 static_assert((kMarketNeed &
                (hs::kDisasterMask | hs::kKapelle | hs::kKirche | hs::kWirtshaus | hs::kSchule | hs::kBadehaus |
                 hs::kTheater | hs::kHochschule | hs::kKlinik | hs::kKontor | hs::kGalgen | hs::kBrunnen)) == 0,
@@ -520,6 +522,28 @@ std::uint32_t panel_services(const House& house) noexcept {
         if ((house.services & m.house) != 0) {
             panel |= m.panel;
         }
+    }
+    return panel;
+}
+
+std::uint32_t required_panel_services(std::uint8_t resident_class) noexcept {
+    if (resident_class >= kServiceNeeds.size()) {
+        return 0;
+    }
+    std::uint32_t panel = 0;
+    for (const std::uint16_t any : kServiceNeeds[resident_class]) {
+        if (any == 0) {
+            continue;
+        }
+        if ((any & kMarketNeed) != 0) {
+            panel |= panel_service::kMarkt;
+            continue;
+        }
+        // The lowest bit is the lesser building; of what it shows (a church also as a chapel), its
+        // own icon is the highest bit.
+        House one;
+        one.services = static_cast<std::uint16_t>(any & (0U - any));
+        panel |= std::bit_floor(panel_services(one));
     }
     return panel;
 }

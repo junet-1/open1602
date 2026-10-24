@@ -11,12 +11,14 @@
 
 #include "selection_panels.hpp"
 
+#include "o1602/sim/game_data.hpp"
+
 namespace o1602::app {
 
 namespace panel_detail {
 
-inline constexpr std::uint8_t kFirstTradeWare = 2;
-inline constexpr std::uint8_t kLastTradeWare = 24;
+inline constexpr std::uint8_t kFirstTradeWare = sim::ware::kFirstTrade;
+inline constexpr std::uint8_t kLastTradeWare = sim::ware::kLastTrade;
 /// An empty hold or stock slot shows the ware "Leer" (GFXWARE + 0 = GFXWARELEER + 4: sand). The
 /// four pictures from GFXWARELEER are frames (green, yellow, black, wide yellow): the yellow one
 /// marks the chosen ware and is no picture of its own.

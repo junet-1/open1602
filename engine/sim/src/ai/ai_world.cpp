@@ -9,15 +9,6 @@
 
 namespace o1602::sim::ai {
 
-namespace {
-
-constexpr std::uint8_t kInfra2D = 19;  // INFRA_STUFE_2D
-constexpr std::uint8_t kInfra3C = 25;
-constexpr std::uint8_t kInfra4B = 30;
-constexpr std::uint8_t kInfra5A = 31;
-
-}  // namespace
-
 bool Engine::inside(std::uint16_t island, std::int32_t x, std::int32_t y) const {
     return island < m_world.islands().size() && m_world.islands()[island].map.contains(x, y);
 }
@@ -231,17 +222,7 @@ std::uint32_t Engine::free_land(std::uint16_t island, std::uint8_t own, std::uin
 }
 
 std::uint32_t Engine::civ_level(const AiPlayer& p) const {
-    const Player& pl = player(p);
-    if (pl.unlocked(kInfra5A)) {
-        return 4;
-    }
-    if (pl.unlocked(kInfra4B)) {
-        return 3;
-    }
-    if (pl.unlocked(kInfra3C)) {
-        return 2;
-    }
-    return pl.unlocked(kInfra2D) ? 1 : 0;
+    return player(p).ship_step();
 }
 
 bool Engine::unlocked(const AiPlayer& p, const assets::BuildingType& b) const {

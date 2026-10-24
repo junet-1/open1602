@@ -14,12 +14,16 @@ namespace prod = assets::prod;
 namespace figure = assets::figure;
 namespace figtype = assets::figtype;
 namespace id = assets::id;
+namespace infra = assets::infra;
 namespace scoring = assets::scoring;
 using assets::base_price;
 using assets::is_soldier_ware;
 using assets::is_trade_ware;
 using assets::kBasePrices;
 using assets::kFullSupply;
+using assets::kResidentClasses;
 using assets::kStockUnitsPerTon;
+using assets::ware_group;
+using assets::WareGroup;
 
 }  // namespace o1602::sim

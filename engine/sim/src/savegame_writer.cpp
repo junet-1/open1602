@@ -818,7 +818,7 @@ private:
             put32(s, 0,
                   (get32(s, 0) & 0xF0000000U) | n | std::uint32_t{*c.warehouse_x & 0xFFU} << 8 |
                       std::uint32_t{*c.warehouse_y & 0xFFU} << 16 | std::uint32_t{c.index & 0xFU} << 24);
-            for (std::uint8_t w = 2; w <= 24; ++w) {
+            for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
                 const std::size_t o = 4 + 20 * std::size_t{w};
                 const std::uint32_t stock = std::min<std::uint32_t>(c.stock(w), 0xFFFF);
                 put16(s, o + 0x0C, stock);

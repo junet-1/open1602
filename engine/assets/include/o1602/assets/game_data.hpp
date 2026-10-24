@@ -65,21 +65,51 @@ inline constexpr std::uint8_t kStone = 54;        ///< STEINE: the quarry's rock
 inline constexpr std::uint8_t kOreMountain = 55;  ///< ERZE: the ware of ore mountains
 inline constexpr std::uint8_t kGame = 56;
 inline constexpr std::uint8_t kFish = 57;
-inline constexpr std::uint8_t kTreasure = 58;  ///< SCHATZ
+inline constexpr std::uint8_t kTreasure = 58;            ///< SCHATZ
+inline constexpr std::uint8_t kFirstField = kCornField;  ///< what grows or stands on the map ...
+inline constexpr std::uint8_t kLastField = kTreasure;    ///< ... up to the treasure
 
 /// Goods a Kontor stores and ships trade: EISENERZ to ZIEGEL.
 inline constexpr std::uint8_t kFirstTrade = kOre;
 inline constexpr std::uint8_t kLastTrade = kBricks;
 }  // namespace ware
 
+/// What a ware number stands for (MD-3). The original lays the groups end to end; the tests below
+/// ask this table, so a data set with another numbering changes it here and nowhere else.
+enum class WareGroup : std::uint8_t {
+    None,     ///< no ware (NOWARE, ALLWARE, unused numbers)
+    Trade,    ///< stored by Kontors, traded by ships and the free trader
+    Soldier,  ///< a unit in a ship's hold
+    Field,    ///< what grows or stands on the map (fields, trees, rock, fish, game, treasure)
+};
+
+/// The group of every ware number.
+inline constexpr std::array<WareGroup, 256> kWareGroups = [] {
+    std::array<WareGroup, 256> groups{};
+    for (std::size_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
+        groups[w] = WareGroup::Trade;
+    }
+    for (std::size_t w = ware::kFirstSoldier; w <= ware::kLastSoldier; ++w) {
+        groups[w] = WareGroup::Soldier;
+    }
+    for (std::size_t w = ware::kFirstField; w <= ware::kLastField; ++w) {
+        groups[w] = WareGroup::Field;
+    }
+    return groups;
+}();
+
+[[nodiscard]] constexpr WareGroup ware_group(std::uint32_t w) noexcept {
+    return w < kWareGroups.size() ? kWareGroups[w] : WareGroup::None;
+}
+
 /// A good a Kontor stores and ships trade.
 [[nodiscard]] constexpr bool is_trade_ware(std::uint32_t w) noexcept {
-    return w >= ware::kFirstTrade && w <= ware::kLastTrade;
+    return ware_group(w) == WareGroup::Trade;
 }
 
 /// Soldiers carried in a ship's hold (one slot per unit type and level).
 [[nodiscard]] constexpr bool is_soldier_ware(std::uint32_t w) noexcept {
-    return w >= ware::kFirstSoldier && w <= ware::kLastSoldier;
+    return ware_group(w) == WareGroup::Soldier;
 }
 
 /// Base prices of the wares per ton (the original's table at 0x0049AE50): the default prices of a
@@ -91,6 +121,59 @@ inline constexpr std::array<std::uint16_t, ware::kLastTrade + 1> kBasePrices = {
 [[nodiscard]] constexpr std::uint16_t base_price(std::uint8_t w) noexcept {
     return w < kBasePrices.size() ? kBasePrices[w] : 0;
 }
+
+/// Resident classes the rules know the needs of (pioneers to aristocrats, houses.cpp); a
+/// haeuser.cod with more is refused at loading (MD-2).
+inline constexpr std::size_t kResidentClasses = 5;
+
+/// Unlock levels: INFRA numbers of haeuser.cod (BAUINFRA, Bauinfra). Player::infra_mask holds
+/// level n in bit n - 1 (MD-8).
+namespace infra {
+inline constexpr std::uint8_t kNone = 0;        ///< INFRA_NIX: always allowed
+inline constexpr std::uint8_t kCastle = 11;     ///< INFRA_SCHLOSS: one per player
+inline constexpr std::uint8_t kCathedral = 12;  ///< INFRA_KATHETRALE: one per player
+inline constexpr std::uint8_t kArch = 13;       ///< INFRA_TRIUMPH: by allowance
+inline constexpr std::uint8_t kMonument = 14;   ///< INFRA_DENKMAL: by allowance
+inline constexpr std::uint8_t kLevel1A = 15;    ///< INFRA_STUFE_1A
+inline constexpr std::uint8_t kLevel2A = 16;
+inline constexpr std::uint8_t kLevel2C = 18;  ///< the computer players start selling
+inline constexpr std::uint8_t kLevel2D = 19;
+inline constexpr std::uint8_t kLevel3C = 25;
+inline constexpr std::uint8_t kLevel3D = 26;
+inline constexpr std::uint8_t kLevel3F = 28;  ///< computers mine deep veins below 120 t
+inline constexpr std::uint8_t kLevel4A = 29;
+inline constexpr std::uint8_t kLevel4B = 30;
+inline constexpr std::uint8_t kLevel5A = 31;
+inline constexpr std::uint8_t kLevel5B = 32;  ///< INFRA_STUFE_5B, the last
+/// The highest level Player::infra_mask holds; a haeuser.cod with higher ones is refused.
+inline constexpr std::uint8_t kMaxLevel = 32;
+
+/// The level a ware is wanted from by the next class (house panel; exe constants): tobacco goods,
+/// spices and alcohol from 2A, cocoa and clothes from 3D, jewellery from 4A; others always.
+[[nodiscard]] constexpr std::uint8_t ware_level(std::uint8_t w) noexcept {
+    switch (w) {
+        case ware::kTobaccoGoods:
+        case ware::kSpices:
+        case ware::kAlcohol:
+            return kLevel2A;
+        case ware::kCocoa:
+        case ware::kClothes:
+            return kLevel3D;
+        case ware::kJewellery:
+            return kLevel4A;
+        default:
+            return kNone;
+    }
+}
+
+/// A step of the levels that the pirates' fleet (Pirates_MaxShips 0x0040F310) and the computer
+/// players' war fleets grow by: from `level` on, `ships`.
+struct ShipStep {
+    std::uint8_t level;
+    std::uint8_t ships;
+};
+inline constexpr std::array<ShipStep, 4> kShipSteps{{{kLevel5A, 4}, {kLevel4B, 3}, {kLevel3C, 2}, {kLevel2D, 1}}};
+}  // namespace infra
 
 /// The score of the end screen and the monument allowance (docs/re/missions.md).
 namespace scoring {
