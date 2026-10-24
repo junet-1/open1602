@@ -18,8 +18,6 @@ namespace {
 constexpr std::uint64_t kRefreshMs = 5100;  // C+0x10: a refresh every 5.1 s
 constexpr std::int32_t kCheatBelow = 3791;  // task 5: money below this ...
 constexpr std::int32_t kCheatMoney = 379;   // ... gets this much
-constexpr std::uint8_t kInfra2C = 18;       // INFRA_STUFE_2C: selling starts
-constexpr std::uint8_t kInfra3F = 28;       // INFRA_STUFE_3F: deep veins below 120 t usable
 constexpr std::uint64_t kStage0AbandonMs = 480'000;
 constexpr std::uint64_t kStage14AbandonMs = 1'200'000;
 
@@ -223,7 +221,7 @@ void Engine::buy_settings(AiPlayer& p, City& c, CityPlan& r) {
         }
         want(ware::kJewellery, lux(ware::kJewellery, 4), false);
     }
-    for (std::uint8_t w = 2; w <= 24; ++w) {
+    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
         const City::Trade* t = c.trade_of(w);
         const auto it = std::find_if(wanted.begin(), wanted.end(), [&](const Want& x) { return x.ware == w; });
         TradeSetting s;
@@ -250,7 +248,7 @@ void Engine::buy_settings(AiPlayer& p, City& c, CityPlan& r) {
 
 void Engine::sell_settings(AiPlayer& p, City& c, CityPlan& r) {
     (void)r;
-    if (!player(p).unlocked(kInfra2C)) {
+    if (!player(p).unlocked(infra::kLevel2C)) {
         return;
     }
     if (kontor_level(c) == 0 || !c.warehouse_x || !c.warehouse_y) {
@@ -308,7 +306,7 @@ void Engine::sell_settings(AiPlayer& p, City& c, CityPlan& r) {
     offer(m.wood, (civ + 1) * 15 * kTon, (civ + 1) * 15 * kTon + 8 * kTon);
     const std::uint8_t food = m_buildings.food_ware();
     offer(food, by_demand(food), by_demand(food) + 8 * kTon, false);
-    for (std::uint8_t w = 2; w <= 24; ++w) {
+    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
         const City::Trade* t = c.trade_of(w);
         const auto it = std::find_if(offers.begin(), offers.end(), [&](const Offer& x) { return x.ware == w; });
         TradeSetting s;
@@ -1452,7 +1450,7 @@ bool Engine::need_iron_mine(AiPlayer& p, std::uint32_t n) {
     bool usable = false;
     for (const auto& d : island_of(c->island).header.deposits) {
         if (d.ware == ware::kOre && d.amount > 0 &&
-            (d.kind == 1 || d.amount >= 120 * kTon || player(p).unlocked(kInfra3F))) {
+            (d.kind == 1 || d.amount >= 120 * kTon || player(p).unlocked(infra::kLevel3F))) {
             usable = true;
         }
     }

@@ -26,9 +26,7 @@ using namespace panel_detail;
 
 // ---- Ships ---------------------------------------------------------------------------------------
 
-constexpr std::uint8_t kCannonWare = 13;  // KANONEN
-constexpr std::uint8_t kFirstSoldierWare = 25;
-constexpr std::uint8_t kLastSoldierWare = 44;
+constexpr std::uint8_t kCannonWare = sim::ware::kCannons;
 constexpr std::array<std::uint32_t, 4> kSteps{32, 5 * 32, 10 * 32, 50 * 32};  // 1, 5, 10, 50 t
 
 // Open1602's row below the four stops of ROUTE.GAD: "copy route" on the left, the list arrows of
@@ -413,7 +411,7 @@ public:
             if (slot.ware == 0 || slot.amount == 0) {
                 return c.text("WARE", 0);
             }
-            if (slot.ware >= kFirstSoldierWare && slot.ware <= kLastSoldierWare) {
+            if (sim::is_soldier_ware(slot.ware)) {
                 return c.text("WARE", slot.ware);
             }
             return ui::format_text(c.text("GAME", 50),
@@ -545,8 +543,7 @@ public:
                 return std::nullopt;
             }
             const sim::CargoSlot& slot = ship->cargo[h];
-            if (slot.ware == 0 || slot.amount == 0 ||
-                (slot.ware >= kFirstSoldierWare && slot.ware <= kLastSoldierWare)) {
+            if (slot.ware == 0 || slot.amount == 0 || sim::is_soldier_ware(slot.ware)) {
                 return hold_text(h);
             }
             const std::uint32_t wanted = buyable(*city, slot.ware);
@@ -955,7 +952,7 @@ private:
                         break;
                     }
                     const sim::CargoSlot& slot = ship.cargo[h];
-                    if (slot.ware >= kFirstSoldierWare && slot.ware <= kLastSoldierWare && slot.amount != 0) {
+                    if (sim::is_soldier_ware(slot.ware) && slot.amount != 0) {
                         // Soldiers in the hold go ashore (0x00448F90).
                         sim::UnloadOrder o;
                         o.player = c.local;
@@ -1079,8 +1076,7 @@ private:
         } else if (e.id >= 45071 && e.id <= 45078) {
             m_hold = e.id - 45071;
             const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && ship.cargo[h].ware >= 2 && ship.cargo[h].ware <= 24 &&
-                ship.cargo[h].amount != 0) {
+            if (h < ship.cargo.size() && sim::is_trade_ware(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 show_ware(ship.cargo[h].ware);  // the Kontor shows the same ware
             }
         } else if (e.id == 45001) {
@@ -1090,7 +1086,7 @@ private:
                     w = kontor_ware(k);
                 }
             }
-            if (w >= 2 && w <= 24) {
+            if (sim::is_trade_ware(w)) {
                 sim::CargoTransfer o;
                 o.player = c.local;
                 o.ship = ship.id;
@@ -1101,8 +1097,7 @@ private:
             }
         } else if (e.id == 45002) {
             const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && ship.cargo[h].ware >= 2 && ship.cargo[h].ware <= 24 &&
-                ship.cargo[h].amount != 0) {
+            if (h < ship.cargo.size() && sim::is_trade_ware(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 show_ware(ship.cargo[h].ware);
                 sim::CargoTransfer o;
                 o.player = c.local;
@@ -1146,7 +1141,7 @@ private:
         const assets::BuildingType* kontor = sim::kontor_of(c.world(), c.buildings, *city);
         const std::int32_t places = std::min<std::int32_t>(kontor != nullptr ? kontor->max_wares : 8, 8);
         m_offers.clear();
-        for (std::uint8_t w = 2; w <= 24; ++w) {
+        for (std::uint8_t w = sim::ware::kFirstTrade; w <= sim::ware::kLastTrade; ++w) {
             if (sellable(*city, w) >= 32) {
                 m_offers.push_back(w);
             }
@@ -1189,7 +1184,7 @@ private:
         }
         const auto h = static_cast<std::size_t>(m_hold);
         const std::uint8_t hw = h < ship.cargo.size() && ship.cargo[h].amount != 0 ? ship.cargo[h].ware : 0;
-        const bool wanted = hw >= 2 && hw <= 24 && buyable(*city, hw) >= 32;
+        const bool wanted = sim::is_trade_ware(hw) && buyable(*city, hw) >= 32;
         m_trade.set_visible(33114, wanted);
         m_trade.set_visible(33115, wanted && !natives);
         m_trade.set_visible(33116, wanted && !natives);
@@ -1221,8 +1216,7 @@ private:
             out.emplace_back(o);
         } else if (e.id == 33002) {
             const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && ship.cargo[h].ware >= 2 && ship.cargo[h].ware <= 24 &&
-                ship.cargo[h].amount != 0) {
+            if (h < ship.cargo.size() && sim::is_trade_ware(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 sim::CargoTransfer o;
                 o.player = c.local;
                 o.ship = ship.id;

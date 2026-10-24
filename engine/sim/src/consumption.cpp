@@ -310,7 +310,7 @@ void unlock_levels(World& world, const assets::BuildingTable& buildings, const C
         return;
     }
     const auto& levels = buildings.infra_levels();
-    for (std::size_t n = 1; n < levels.size() && n <= 32; ++n) {
+    for (std::size_t n = 1; n < levels.size() && n <= infra::kMaxLevel; ++n) {
         const std::uint32_t bit = 1U << (n - 1);
         if ((owner->infra_mask & bit) != 0) {
             continue;

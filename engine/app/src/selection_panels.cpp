@@ -762,16 +762,15 @@ public:
                                [&](const assets::ResidentClass::Need& n) { return n.ware == w && n.amount != 0; });
         };
         m_demand.clear();
-        for (std::uint8_t w = 15; w <= 21; ++w) {
+        for (std::uint8_t w = sim::ware::kTobaccoGoods; w <= sim::ware::kJewellery; ++w) {
             if (wants(rc, w) && ratio(w) < 128) {
                 m_demand.push_back({w, ratio(w)});
             }
         }
         const sim::Player* owner = c.world().player(city->owner);
-        const std::uint32_t unlocked = owner != nullptr ? owner->infra_mask : 0;
-        if (cls + 1U < classes.size() && cls < 4 && state > 0) {
-            for (std::uint8_t w = 15; w <= 21; ++w) {
-                if (!wants(classes[cls + 1U], w) || wants(rc, w) || !ware_unlocked(w, unlocked)) {
+        if (cls + 1U < classes.size() && cls + 1U < sim::kResidentClasses && state > 0) {
+            for (std::uint8_t w = sim::ware::kTobaccoGoods; w <= sim::ware::kJewellery; ++w) {
+                if (!wants(classes[cls + 1U], w) || wants(rc, w) || !ware_unlocked(w, owner)) {
                     continue;
                 }
                 if (ratio(w) < 128) {
@@ -813,7 +812,10 @@ public:
 
         // Public buildings the house lacks: for its class, or (growing) for the next.
         std::uint32_t mask = required(cls);
-        if (cls < 4 && state > 0) {
+        if (cls + 1U < sim::kResidentClasses && state > 0) {
+            // The levels INFRA_MARKT (1) to INFRA_HOCHSCHULE (8) lie in the mask's low bits as the
+            // panel's icons do (original): the next class's buildings not yet unlocked are left out.
+            const std::uint32_t unlocked = owner != nullptr ? owner->infra_mask : 0;
             mask = required(cls + 1U) & unlocked;
         }
         const std::uint32_t missing = mask & ~sim::panel_services(*house);
@@ -981,25 +983,11 @@ private:
 
     /// What a class needs of public buildings (Class_RequiredServices 0x0047F320).
     static std::uint32_t required(std::uint32_t cls) {
-        constexpr std::array<std::uint32_t, 5> kRequired{0x01, 0x03, 0x0F, 0x3D, 0xF9};
-        return cls < kRequired.size() ? kRequired[cls] : 0;
+        return cls < sim::kResidentClasses ? sim::required_panel_services(static_cast<std::uint8_t>(cls)) : 0;
     }
-    /// Goods a next class asks for only once their level is reached (exe constants: Tabakwaren,
-    /// Gewürze, Alkohol from INFRA 2A, Kakao and Kleidung from 3D, Schmuck from 4A; Stoffe always).
-    static bool ware_unlocked(std::uint8_t w, std::uint32_t mask) {
-        switch (w) {
-            case 15:
-            case 16:
-            case 18:
-                return (mask & 0x8000U) != 0;
-            case 17:
-            case 20:
-                return (mask & 0x2000000U) != 0;
-            case 21:
-                return (mask & 0x10000000U) != 0;
-            default:
-                return true;
-        }
+    /// Goods a next class asks for only once their level is reached (sim::infra::ware_level).
+    static bool ware_unlocked(std::uint8_t w, const sim::Player* owner) {
+        return owner != nullptr && owner->unlocked(sim::infra::ware_level(w));
     }
     /// Sign of the growth rate: 1 grows, 0 stays, -1 shrinks a little, -2 a lot (0x0047B3B0).
     static int growth_state(const sim::City& city, const sim::House& house) {
