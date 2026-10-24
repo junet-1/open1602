@@ -678,6 +678,12 @@ std::uint64_t HostSession::ahead_frames() const {
     return m_lead + std::uint64_t{m_config.max_ahead_ms} * speed / sim::Simulation::kTickMs;
 }
 
+std::uint64_t HostSession::resync_frames() const {
+    // Game time, like ahead_frames: at speed 8 the frames pass eight times as fast (MS-19).
+    const std::uint32_t speed = m_simulation->paused() ? 1 : std::max<std::uint32_t>(m_simulation->speed(), 1);
+    return std::uint64_t{m_config.resync_behind} * speed;
+}
+
 std::uint64_t HostSession::slowest() const {
     std::uint64_t frames = std::numeric_limits<std::uint64_t>::max();
     for (const auto& p : m_peers) {
@@ -730,10 +736,10 @@ void HostSession::run(std::uint32_t real_ms, const sim::Simulation::BeforeTick& 
     }
     ran(done);
     m_waiting = held;
-    watch_stalls(real_ms, held);
+    watch_stalls(real_ms, held && done == 0);
 }
 
-void HostSession::watch_stalls(std::uint32_t real_ms, bool held) {
+void HostSession::watch_stalls(std::uint32_t real_ms, bool stalled) {
     const auto holding = [&](const Peer& p) {
         return !p.gone && p.state == Peer::State::Playing && !p.lagging && p.frames + ahead_frames() <= m_frames;
     };
@@ -742,7 +748,9 @@ void HostSession::watch_stalls(std::uint32_t real_ms, bool held) {
     const bool again =
         std::any_of(m_peers.begin(), m_peers.end(), [&](const auto& p) { return holding(*p) && p->stalls > 0; });
     const std::uint32_t limit = again ? m_config.stall_ms / 4 : m_config.stall_ms;
-    if (!held) {
+    // Only updates in which no frame could run count: a computer that is slow but keeps up some
+    // frames sets the pace of the game, and is not lagging (MS-15).
+    if (!stalled) {
         m_held_ms = 0;
     } else if (m_held_ms += real_ms; m_held_ms >= limit) {
         m_held_ms = 0;
@@ -761,7 +769,7 @@ void HostSession::watch_stalls(std::uint32_t real_ms, bool held) {
         }
     }
     for (const auto& p : m_peers) {
-        if (!p->gone && p->lagging && !p->game_due && p->frames + m_config.resync_behind < m_frames) {
+        if (!p->gone && p->lagging && !p->game_due && p->frames + resync_frames() < m_frames) {
             p->game_due = true;  // quicker to load the game as it is now than to run all those frames
         }
     }

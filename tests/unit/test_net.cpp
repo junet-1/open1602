@@ -763,6 +763,71 @@ TEST_CASE("net: the host waits for a slow computer, then goes on without a froze
     CHECK(!host.session->waiting());
 }
 
+TEST_CASE("net: a slow computer that keeps up some frames sets the pace and is not dropped") {
+    net::LoopbackNetwork network(20, 5);
+    net::SessionConfig config;
+    config.stall_ms = 2000;
+    Host host(network, config);
+    Computer a(network, "Anna", 0, kContent, config);
+    Computer slow(network, "Langsam", 0, kContent, config);
+    run_for(network, host, {&a, &slow}, 2000);
+    REQUIRE(slow.session->playing());
+    const std::uint64_t start = host.session->frames();
+    // The slow computer's processor manages two thirds of the frames the game needs (MS-15).
+    std::uint32_t budget = 0;
+    const auto cpu = [&budget] {
+        if (budget < sim::Simulation::kTickMs) {
+            return false;
+        }
+        budget -= sim::Simulation::kTickMs;
+        return true;
+    };
+    std::uint32_t hold = 0;  // real time without a frame on the host
+    std::uint32_t longest_hold = 0;
+    std::uint64_t last = start;
+    for (std::uint32_t t = 0; t < 60'000; t += kStepMs) {
+        network.advance(kStepMs);
+        host.update(kStepMs);
+        a.update(kStepMs);
+        budget = std::min<std::uint32_t>(budget + kStepMs * 2 / 3, 10 * sim::Simulation::kTickMs);
+        slow.update(kStepMs, cpu);
+        hold = host.session->frames() == last ? hold + kStepMs : 0;
+        last = host.session->frames();
+        longest_hold = std::max(longest_hold, hold);
+    }
+    const std::uint64_t ran = host.session->frames() - start;
+    CHECK(host.count(net::SessionEvent::Kind::Lagging) == 0);
+    CHECK(slow.game.loads == 1);
+    CHECK(ran > 60 * 20 / 2);  // at the slow computer's pace, about two thirds
+    CHECK(ran < 60 * 20);
+    CHECK(longest_hold < 500u);  // never a stretch without frames, only a slower game
+}
+
+TEST_CASE("net: a lagging computer gets the game anew after the same game time at every speed") {
+    net::LoopbackNetwork network(20, 0);
+    net::SessionConfig config;
+    config.stall_ms = 1000;
+    config.resync_behind = 100;  // 5 s of game time
+    Host host(network, config);
+    Computer a(network, "Anna", 0, kContent, config);
+    Computer b(network, "Bernd", 0, kContent, config);
+    run_for(network, host, {&a, &b}, 1000);
+    host.session->submit(sim::GameSpeedOrder{0, sim::GameSpeedOrder::Op::SetSpeed, 8});
+    run_for(network, host, {&a, &b}, 500);
+    REQUIRE(b.session->playing());
+    // Bernd freezes for 2 s: at speed 8 more than 100 frames, but less than 100 x 8 (MS-19).
+    run_for(network, host, {&a}, 2000);
+    REQUIRE(host.count(net::SessionEvent::Kind::Lagging) == 1);
+    run_for(network, host, {&a, &b}, 3000);
+    CHECK(b.game.loads == 1);  // caught up by running the frames
+    CHECK(b.session->frames() + 20 > host.session->frames());
+    // Frozen for long: then the game comes anew.
+    run_for(network, host, {&a}, 8000);
+    run_for(network, host, {&a, &b}, 3000);
+    CHECK(b.game.loads == 2);
+    CHECK(host.count(net::SessionEvent::Kind::Desync) == 0);
+}
+
 TEST_CASE("net: a long session keeps its memory and its frames in step") {
     net::LoopbackNetwork network(60, 40);
     net::SessionConfig config;
