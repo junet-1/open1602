@@ -2199,13 +2199,14 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | BT-22 (part) | #182 | A clang-tidy CI job over `engine/` (bugprone, performance, concurrency, cert error handling, clang analyzer; warnings as errors; config in `.clang-tidy`). It found a real division by zero in the mixer (an empty looping sound) and about 30 smaller sites, all fixed. |
 | BT-22 | #183 | CI compiles the 11 Python scripts (syntax). With #182 and the coverage floor, only a macOS app bundle is left, which cannot be tested here. |
 | DS-2 | #184 | A fifth golden hash: an hour of the AI arena (two computers, about 150 houses each, production and roads), through a savegame every ten minutes; the same on GCC, Clang, MSVC and Apple Clang, Debug, ASan and TSan in CI. `O1602_HASH_OUT` writes the hash of every minute to find where two platforms part. Replaces the separate `determinism.yml`; `-ffp-contract=off` was already set for `sim`. |
+| TB-11 (part) | #185 | The AI's survey (task 8) and road layout (task 7) reuse the last scan of a city while no tile of its island changed: the survey visits only the building origins it found, the layout copies the segments. Same hashes; in the arena 80 % of surveys and 82 % of layouts skip the island passes. |
 
 ### Still open
 
 | Finding | What is left | Size |
 |---|---|---|
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
-| TB-11, TB-13 | Incremental island survey and road-segment rebuilds; the rest of the settlement search (each search is bounded since #128; counts cached since #176). | L |
+| TB-11, TB-13 | A survey kept up from construction events (#185 reuses it only while the island is unchanged); the rest of the settlement search (each search is bounded since #128; counts cached since #176). | M |
 | TB-9 | A scratch arena for the AI's temporary vectors. | S |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
 | BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
