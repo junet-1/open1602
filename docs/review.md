@@ -2210,6 +2210,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-9 | #193 | Measured instead of a general arena: the AI's site test (`can_place` → `plan_build`) made 88 % of the allocations in the arena hour. It now reuses its order and plan, and the last item of an order records no tiles: 637 402 → 73 716 allocations, same golden hash. |
 | BT-1 (part) | #194 | A sixth island controller scenario: a city with a castle and a sword smith trains swordsmen paid with the castle's swords, releases them to the Kontor and stops at half again the strongest human army. |
 | BT-1 | #195 | An attack from the sea: the computer takes the soldiers beside its Kontor aboard an armed ship, plans a landing on the beach nearest the enemy market, puts them ashore and takes the Kontor (missions 5-7, `plan_landing`, `water_near`). |
+| TB-11 (part) | #196 | Profiled with callgrind (the arena hour, in place of AI-2): the AI is 85 % of the run and `tile()` half of it, called from the ring searches of the site search; the survey is 8 %. `tile()` now takes the origin from the building record already found instead of a second lookup: 14.43 → 12.05 billion instructions, same golden hash. |
 
 ### Still open
 
