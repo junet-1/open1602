@@ -1,0 +1,118 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// The command line of open1602 (engine/app/src/command_line.hpp, BT-2).
+
+#include <array>
+#include <initializer_list>
+#include <string>
+#include <vector>
+
+#include "../test_framework.hpp"
+#include "command_line.hpp"
+
+using namespace o1602;
+
+namespace {
+
+core::Result<app::CommandLine> parse(std::initializer_list<const char*> args) {
+    std::vector<const char*> argv{"open1602"};
+    argv.insert(argv.end(), args.begin(), args.end());
+    return app::parse_command_line(static_cast<int>(argv.size()), argv.data());
+}
+
+std::string error_of(std::initializer_list<const char*> args) {
+    const auto result = parse(args);
+    return result ? std::string() : result.error().message;
+}
+
+}  // namespace
+
+TEST_CASE("command line: nothing given starts the main menu") {
+    const auto none = parse({});
+    REQUIRE(static_cast<bool>(none));
+    CHECK(none->options.menu);
+    CHECK(none->scenario == "Szenes/Das Atoll.szs");
+    CHECK(!none->new_game);
+    // A game named, a new game or a multiplayer game: no menu; --menu forces it.
+    CHECK(!parse({"--scenario", "Szenes/Atoll.szs"})->options.menu);
+    CHECK(!parse({"--new-game", "1"})->options.menu);
+    CHECK(!parse({"--join", "example.org"})->options.menu);
+    CHECK(parse({"--scenario", "a.szs", "--menu"})->options.menu);
+    CHECK(!parse({"--menu", "--no-panel"})->options.menu);  // without the frame there is no menu
+}
+
+TEST_CASE("command line: options and their values") {
+    const auto c = parse({"--game-dir", "/games/anno", "--load", "x.o1602", "--size",     "800x600",  "--zoom",
+                          "2",          "--frames",    "30",     "--video", "58",         "--refund", "partial:25",
+                          "--droughts", "rare",        "--ai",   "classic", "--no-sound", "--select", "3,10,20"});
+    REQUIRE(static_cast<bool>(c));
+    CHECK(c->game_dir == "/games/anno");
+    CHECK(c->load == "x.o1602");
+    CHECK(c->options.width == 800);
+    CHECK(c->options.height == 600);
+    CHECK(c->options.zoom == render::Zoom::Small);
+    CHECK(c->options.max_frames == 30);
+    CHECK(c->options.video == std::optional<std::uint16_t>(58));
+    CHECK(c->options.rules.demolish_refund == sim::Refund::Partial);
+    CHECK(c->options.rules.refund_percent == 25);
+    CHECK(c->options.rules.droughts == sim::Droughts::Rare);
+    CHECK(c->options.rules.classic_ai);
+    CHECK(!c->options.effects);
+    const std::array<std::uint16_t, 3> tile{3, 10, 20};
+    CHECK(c->options.select == tile);
+}
+
+TEST_CASE("command line: a new game with its own world, and the player's name") {
+    const auto c = parse({"--name", "J\xc3\xbcrgen", "--new-game", "2", "--layout", "1", "--seed", "123", "--world",
+                          "300x400", "--players", "6", "--host", "--port", "2700"});
+    REQUIRE(static_cast<bool>(c));
+    REQUIRE(c->new_game.has_value());
+    CHECK(c->new_game->difficulty == 2);
+    CHECK(c->new_game->name == "J\xfcrgen");  // Windows-1252, as the game keeps names
+    REQUIRE(c->new_game->custom.has_value());
+    CHECK(c->new_game->custom->width == 300);
+    CHECK(c->new_game->custom->height == 400);
+    CHECK(c->new_game->custom->players == 6);
+    CHECK(c->layout == std::optional<std::uint8_t>(1));
+    CHECK(c->seed == std::optional<std::uint64_t>(123));
+    REQUIRE(c->options.multiplayer.has_value());
+    CHECK(c->options.multiplayer->role == app::ViewerOptions::Multiplayer::Role::Host);
+    CHECK(c->options.multiplayer->port == 2700);
+    CHECK(c->options.multiplayer->name == "J\xfcrgen");
+    // An own world is a new game.
+    CHECK(error_of({"--world", "300x400"}).find("--new-game") != std::string::npos);
+}
+
+TEST_CASE("command line: wrong values are named, not taken in part") {
+    // --video used to read "abc" as 0 and wrap 70000 (BT-2).
+    CHECK(error_of({"--video", "abc"}) == "bad value for --video: abc");
+    CHECK(error_of({"--video", "70000"}) == "bad value for --video: 70000");
+    CHECK(error_of({"--frames", "12abc"}) == "bad value for --frames: 12abc");
+    CHECK(error_of({"--seed", "1x"}) == "bad value for --seed: 1x");
+    CHECK(error_of({"--zoom", "3"}) == "bad value for --zoom: 3");
+    CHECK(error_of({"--join", "host:0"}) == "bad value for --join: host:0");
+    CHECK(error_of({"--players", "13"}) == "bad value for --players: 13");
+    CHECK(error_of({"--bogus"}) == "unknown option or missing value: --bogus");
+    CHECK(error_of({"--zoom"}) == "unknown option or missing value: --zoom");
+}
+
+TEST_CASE("command line: scripted input") {
+    std::vector<app::ViewerOptions::ScriptedInput> in;
+    REQUIRE(app::parse_input("move 10,20@1;down 10,20@2;rup 5,6@3;key 27+ctrl@4;wheel 1,2,-3@5;text Ab@6", in));
+    REQUIRE(in.size() == 6);
+    using Kind = app::ViewerOptions::ScriptedInput::Kind;
+    CHECK(in[0].kind == Kind::Move);
+    CHECK(in[1].kind == Kind::Down);
+    CHECK(in[2].kind == Kind::Up);
+    CHECK(in[2].right);
+    CHECK(in[3].kind == Kind::Key);
+    CHECK(in[3].key == 27);
+    CHECK(in[3].mod == app::kModCtrl);
+    CHECK(in[4].kind == Kind::Wheel);
+    CHECK(in[4].key == -3);
+    CHECK(in[5].text == "Ab");
+    CHECK(in[5].frame == 6);
+    std::vector<app::ViewerOptions::ScriptedInput> bad;
+    CHECK(!app::parse_input("jump 1,2@3", bad));
+    CHECK(!app::parse_input("move 1,2@x", bad));
+    CHECK(!error_of({"--input", "move 1@2"}).empty());
+}

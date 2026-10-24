@@ -90,6 +90,17 @@ std::string folder_problem(const fs::path& folder) {
         return tr_utf8("game_folder.missing", {name});
     }
     if (const auto file = GameDirectory::missing_file(folder)) {
+        std::string inside;
+        std::size_t count = 0;
+        for (const fs::path& child : GameDirectory::folders_named_1602(folder)) {
+            if (!GameDirectory::missing_file(child)) {
+                inside += "\n" + core::path_to_utf8(child.filename());
+                ++count;
+            }
+        }
+        if (count > 1) {
+            return tr_utf8("game_folder.several", {name, inside});
+        }
         return tr_utf8("game_folder.not_installation", {name, *file});
     }
     return {};

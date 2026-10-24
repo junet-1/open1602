@@ -600,6 +600,7 @@ game_folder.none_found = Open1602 braucht die Dateien eines installierten Anno 1
 game_folder.saved_invalid = Der zuletzt gewählte Spielordner lässt sich nicht mehr verwenden.\n{1}
 game_folder.missing = Diesen Ordner gibt es nicht (mehr):\n{1}
 game_folder.not_installation = Dieser Ordner ist keine Installation von Anno 1602, die Datei {2} fehlt:\n{1}
+game_folder.several = In diesem Ordner liegen mehrere Installationen von Anno 1602. Bitte wählt eine davon:\n{1}{2}
 game_folder.choose_prompt = Bitte wählt den Ordner Eurer Anno-1602-Installation (den mit der 1602.exe). Open1602 merkt ihn sich.
 game_folder.choose = Ordner wählen
 game_folder.quit = Beenden

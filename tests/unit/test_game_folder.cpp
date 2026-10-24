@@ -107,6 +107,14 @@ TEST_CASE("game folder: why a folder is no installation") {
     make_installation(base / "Anno");
     CHECK(app::folder_problem(base / "Anno").empty());
     CHECK(!assets::GameDirectory::missing_file(base / "Anno"));
+
+    // Several installations inside: the text names them (FB-28).
+    make_installation(base / "GOG" / "Anno 1602 A");
+    make_installation(base / "GOG" / "Anno 1602 B");
+    const std::string several = app::folder_problem(base / "GOG");
+    CHECK(several.find("several") != std::string::npos);
+    CHECK(several.find("\nAnno 1602 A") != std::string::npos);
+    CHECK(several.find("\nAnno 1602 B") != std::string::npos);
     std::filesystem::remove_all(base);
 }
 

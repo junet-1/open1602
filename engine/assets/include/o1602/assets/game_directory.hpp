@@ -29,9 +29,13 @@ public:
     static core::Result<GameDirectory> from_environment();
 
     /// Folders where installers usually put the game, most likely first: GOG's registry entries on
-    /// Windows, then the default folders of GOG, GOG Galaxy, Heroic and Wine. Only folders that exist;
-    /// none of them is checked to be an installation.
+    /// Windows, then the default folders of GOG, GOG Galaxy and the CD's installer; elsewhere those of
+    /// home_candidates(). Only folders that exist; none of them is checked to be an installation.
     [[nodiscard]] static std::vector<std::filesystem::path> installation_candidates();
+
+    /// The candidates below a home folder (macOS, Linux): GOG, Heroic and Lutris (~/Games), the
+    /// Applications folders, and the Windows folders in the prefixes of Wine, CrossOver and Bottles.
+    [[nodiscard]] static std::vector<std::filesystem::path> home_candidates(const std::filesystem::path& home);
 
     /// The folders directly in `parent` whose name contains "1602", sorted by name.
     [[nodiscard]] static std::vector<std::filesystem::path> folders_named_1602(const std::filesystem::path& parent);
