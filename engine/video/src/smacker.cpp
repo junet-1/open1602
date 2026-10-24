@@ -228,12 +228,58 @@ std::uint32_t Smacker::BigTree::decode(BitReader& in) noexcept {
 }
 
 core::Result<Smacker> Smacker::open(std::vector<std::uint8_t> bytes) {
-    if (bytes.size() < kHeaderSize) {
-        return make_error(ErrorCode::InvalidFormat, "Smacker: file too short");
-    }
     Smacker s;
     s.m_bytes = std::move(bytes);
-    const std::span<const std::uint8_t> b = s.m_bytes;
+    if (auto st = s.parse(s.m_bytes, s.m_bytes.size()); !st) {
+        return st.error();
+    }
+    return s;
+}
+
+core::Result<Smacker> Smacker::open_file(const std::filesystem::path& path) {
+    Smacker s;
+    s.m_file.open(path, std::ios::binary);
+    if (!s.m_file) {
+        return make_error(ErrorCode::NotFound, "Smacker: cannot open " + path.filename().string());
+    }
+    s.m_file.seekg(0, std::ios::end);
+    const auto end = s.m_file.tellg();
+    s.m_file.seekg(0, std::ios::beg);
+    if (end < 0) {
+        return make_error(ErrorCode::IoError, "Smacker: cannot determine the file size");
+    }
+    const auto size = static_cast<std::uint64_t>(end);
+    // First the header, then as much as its frame table and trees need (no more than the file has).
+    std::vector<std::uint8_t> head(static_cast<std::size_t>(std::min<std::uint64_t>(size, kHeaderSize)));
+    auto read = [&](std::size_t from) {
+        return s.m_file
+            .read(reinterpret_cast<char*>(head.data() + from), static_cast<std::streamsize>(head.size() - from))
+            .good();
+    };
+    if (!read(0)) {
+        return make_error(ErrorCode::IoError, "Smacker: cannot read the header");
+    }
+    if (head.size() == kHeaderSize) {
+        const std::span<const std::uint8_t> h = head;
+        const std::uint32_t frames = std::min(load_u32(h, 12), kMaxFrames + 1U);
+        const std::uint64_t physical = std::uint64_t{frames} + ((load_u32(h, 20) & 1U) != 0 ? 1U : 0U);
+        const std::uint64_t wanted = std::min(size, kHeaderSize + physical * 5 + load_u32(h, 52));
+        head.resize(static_cast<std::size_t>(wanted));
+        if (!read(kHeaderSize)) {
+            return make_error(ErrorCode::IoError, "Smacker: cannot read the frame table");
+        }
+    }
+    if (auto st = s.parse(head, size); !st) {
+        return st.error();
+    }
+    return s;
+}
+
+core::Status Smacker::parse(std::span<const std::uint8_t> b, std::uint64_t size) {
+    if (b.size() < kHeaderSize) {
+        return make_error(ErrorCode::InvalidFormat, "Smacker: file too short");
+    }
+    Smacker& s = *this;
     if (std::memcmp(b.data(), "SMK2", 4) == 0) {
         s.m_info.version = 2;
     } else if (std::memcmp(b.data(), "SMK4", 4) == 0) {
@@ -306,10 +352,11 @@ core::Result<Smacker> Smacker::open(std::vector<std::uint8_t> bytes) {
     at += trees_size;
 
     s.m_offsets.resize(physical);
+    std::uint64_t offset = at;
     for (std::size_t f = 0; f < physical; ++f) {
-        s.m_offsets[f] = at;
-        at += s.m_sizes[f];
-        if (at > b.size()) {
+        s.m_offsets[f] = offset;
+        offset += s.m_sizes[f];
+        if (offset > size) {
             return make_error(ErrorCode::InvalidFormat, "Smacker: frame " + std::to_string(f) + " past the end");
         }
     }
@@ -317,11 +364,21 @@ core::Result<Smacker> Smacker::open(std::vector<std::uint8_t> bytes) {
     s.m_stride = (info.width + 3) & ~3U;
     s.m_lines = (info.height + 3) & ~3U;
     s.m_frame.assign(std::size_t{s.m_stride} * s.m_lines, 0);
-    return s;
+    return core::Ok{};
 }
 
-std::span<const std::uint8_t> Smacker::frame_bytes(std::uint32_t frame) const {
-    return std::span<const std::uint8_t>(m_bytes).subspan(m_offsets[frame], m_sizes[frame]);
+core::Result<std::span<const std::uint8_t>> Smacker::frame_bytes(std::uint32_t frame) const {
+    if (!m_file.is_open()) {
+        return std::span<const std::uint8_t>(m_bytes).subspan(static_cast<std::size_t>(m_offsets[frame]),
+                                                              m_sizes[frame]);
+    }
+    m_chunk.resize(m_sizes[frame]);
+    m_file.clear();
+    if (!m_file.seekg(static_cast<std::streamoff>(m_offsets[frame])) ||
+        !m_file.read(reinterpret_cast<char*>(m_chunk.data()), static_cast<std::streamsize>(m_chunk.size()))) {
+        return make_error(ErrorCode::IoError, "Smacker: cannot read frame " + std::to_string(frame));
+    }
+    return std::span<const std::uint8_t>(m_chunk);
 }
 
 void Smacker::rewind() {
@@ -335,7 +392,11 @@ core::Status Smacker::next() {
     if (finished()) {
         return make_error(ErrorCode::OutOfRange, "Smacker: no more frames");
     }
-    const auto data = frame_bytes(m_position);
+    const auto read = frame_bytes(m_position);
+    if (!read) {
+        return read.error();
+    }
+    const std::span<const std::uint8_t> data = *read;
     const std::uint8_t type = m_types[m_position];
     std::size_t at = 0;
     m_palette_changed = false;
@@ -631,7 +692,11 @@ core::Result<audio::Pcm> Smacker::audio(std::size_t track) const {
     const std::uint64_t limit = std::min(
         kMaxSamples, (std::uint64_t{m_info.frames} * m_info.frame_us / 1000U + 1000U) * t.rate * channels / 1000U);
     for (std::uint32_t f = 0; f < m_info.frames; ++f) {
-        const auto data = frame_bytes(f);
+        const auto read = frame_bytes(f);
+        if (!read) {
+            return read.error();
+        }
+        const std::span<const std::uint8_t> data = *read;
         const std::uint8_t type = m_types[f];
         std::size_t at = 0;
         if ((type & 1U) != 0 && !data.empty()) {

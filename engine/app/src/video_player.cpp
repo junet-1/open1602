@@ -11,8 +11,6 @@
 #include <thread>
 #include <utility>
 
-#include "o1602/core/file.hpp"
-
 namespace o1602::app {
 
 namespace {
@@ -59,14 +57,13 @@ bool VideoPlayer::start(std::uint16_t number, bool loop, std::uint8_t tracks) {
     }
     auto state = std::make_shared<Loading>();
     // Reading 48 MB and decoding the sound stood the frames still for over 100 ms (FB-14). The
-    // thread has its own copies; a stopped load ends unseen.
+    // thread has its own copies; a stopped load ends unseen. The frames are read from the file as
+    // they are shown, only the sound is decoded whole.
     std::thread([state, file = *path, tracks] {
         std::optional<video::Smacker> video;
         std::vector<std::shared_ptr<const audio::Pcm>> sound;
         std::string error;
-        if (auto bytes = core::read_file(file); !bytes) {
-            error = bytes.error().message;
-        } else if (auto opened = video::Smacker::open(std::move(*bytes)); !opened) {
+        if (auto opened = video::Smacker::open_file(file); !opened) {
             error = opened.error().message;
         } else {
             video.emplace(std::move(*opened));

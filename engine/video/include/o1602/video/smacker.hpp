@@ -12,6 +12,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <span>
 #include <vector>
 
@@ -54,6 +56,9 @@ class Smacker {
 public:
     /// Reads the header and the Huffman tables; the frames are decoded one by one later.
     [[nodiscard]] static core::Result<Smacker> open(std::vector<std::uint8_t> bytes);
+    /// The same from a file, of which only the header and the Huffman tables are read now: each
+    /// frame is read when it is decoded, so a 48 MB video does not sit in memory whole (FB-14).
+    [[nodiscard]] static core::Result<Smacker> open_file(const std::filesystem::path& path);
 
     [[nodiscard]] const SmackerInfo& info() const noexcept { return m_info; }
     /// Index of the frame next() decodes, 0..frames.
@@ -92,14 +97,18 @@ private:
     };
 
     Smacker() = default;
+    /// Header, frame table and trees from `head` (the start of a file of `size` bytes).
+    core::Status parse(std::span<const std::uint8_t> head, std::uint64_t size);
     core::Status decode_palette(std::span<const std::uint8_t> chunk);
     core::Status decode_video(std::span<const std::uint8_t> chunk);
-    /// The bytes of a physical frame.
-    [[nodiscard]] std::span<const std::uint8_t> frame_bytes(std::uint32_t frame) const;
+    /// The bytes of a physical frame (from a file: valid until the next call).
+    [[nodiscard]] core::Result<std::span<const std::uint8_t>> frame_bytes(std::uint32_t frame) const;
 
-    std::vector<std::uint8_t> m_bytes;
+    std::vector<std::uint8_t> m_bytes;          ///< the whole file (open), empty for open_file
+    mutable std::ifstream m_file;               ///< open_file: the frames are read from here
+    mutable std::vector<std::uint8_t> m_chunk;  ///< open_file: the frame read last
     SmackerInfo m_info;
-    std::vector<std::size_t> m_offsets;  ///< start of each physical frame
+    std::vector<std::uint64_t> m_offsets;  ///< start of each physical frame
     std::vector<std::uint32_t> m_sizes;
     std::vector<std::uint8_t> m_types;
     std::array<BigTree, 4> m_trees;  ///< pixel maps, mono colours, full blocks, block types

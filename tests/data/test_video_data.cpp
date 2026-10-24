@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Smacker videos of the original data (docs/formats/smk.md).
 
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 
@@ -12,7 +13,7 @@
 
 using namespace o1602;
 
-TEST_CASE("data: a video decodes completely, its sound lasts as long as its frames") {
+TEST_CASE("data: a video decodes completely, read whole or frame by frame, its sound lasts as long as its frames") {
     auto game = assets::GameDirectory::from_environment();
     if (!game) {
         SKIP("ANNO1602_DIR not set");
@@ -32,6 +33,8 @@ TEST_CASE("data: a video decodes completely, its sound lasts as long as its fram
     REQUIRE(bytes.ok());
     auto video = video::Smacker::open(std::move(*bytes));
     REQUIRE(video.ok());
+    auto streamed = video::Smacker::open_file(*path);  // FB-14: the same frames, read as needed
+    REQUIRE(streamed.ok());
     const auto& info = video->info();
     CHECK(info.version == 2);
     CHECK(info.frame_us == 66660);  // 15 frames a second
@@ -40,6 +43,10 @@ TEST_CASE("data: a video decodes completely, its sound lasts as long as its fram
     std::size_t lit = 0;
     while (!video->finished()) {
         REQUIRE(video->next().ok());
+        REQUIRE(streamed->next().ok());
+        CHECK(streamed->palette() == video->palette());
+        CHECK(std::equal(streamed->pixels().begin(), streamed->pixels().end(), video->pixels().begin(),
+                         video->pixels().end()));
         palettes += video->palette_changed() ? 1U : 0U;
         for (const std::uint8_t p : video->pixels()) {
             lit += p != 0 ? 1U : 0U;
@@ -53,6 +60,7 @@ TEST_CASE("data: a video decodes completely, its sound lasts as long as its fram
         }
         auto pcm = video->audio(t);
         REQUIRE(pcm.ok());
+        CHECK(streamed->audio(t)->samples == pcm->samples);
         const auto video_ms = std::uint64_t{info.frames} * info.frame_us / 1000;
         CHECK(pcm->duration_ms() + 200 >= video_ms);
         CHECK(pcm->duration_ms() <= video_ms + 200);
