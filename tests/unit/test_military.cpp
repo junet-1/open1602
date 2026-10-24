@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "../test_framework.hpp"
+#include "golden.hpp"
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/cod.hpp"
@@ -723,4 +724,21 @@ TEST_CASE("military: finding units by id follows adds and removals without a new
     world.erase_soldiers([](const sim::Soldier&) { return true; });
     CHECK(world.soldiers().empty());
     CHECK(world.soldier(7) == nullptr);
+}
+
+TEST_CASE("military: a battle of two armies develops the same on every platform (golden hash)") {
+    Field f;
+    f.start();
+    f.war(0, 1);
+    for (std::int32_t i = 0; i < 4; ++i) {
+        f.add(kSword, 0, 36, 24 + 2 * i);
+        f.add(kSword, 1, 50, 25 + 2 * i);
+    }
+    for (std::int32_t i = 0; i < 3; ++i) {
+        f.add(kMusket, 0, 33, 25 + 2 * i);
+        f.add(kMusket, 1, 53, 24 + 2 * i);
+    }
+    f.run(45'000);
+    CHECK(f.count(sim::MilitaryEvent::Kind::SoldierKilled) > 0);
+    test::check_golden("battle after 45 s", test::world_hash(f.world, f.buildings), 0x51d1df21f8ae369eULL);
 }

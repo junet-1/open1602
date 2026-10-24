@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "../test_framework.hpp"
+#include "golden.hpp"
 #include "test_support.hpp"
 
 #include "o1602/assets/building_table.hpp"
@@ -661,6 +662,8 @@ TEST_CASE("new game: an own world with six players: the plan's size and starts, 
         CHECK(hash == b.state_hash());
     }
     CHECK(!a.state_damaged());
+    // And the same on every platform (golden hash, DS-2): a planned world, five computers.
+    test::check_golden("six players after 60 s", a.state_hash(), 0x3f13e01e2b7609c3ULL);
 }
 
 TEST_CASE("new game: a colour the level's file does not have is swapped with the player who had it") {
