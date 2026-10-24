@@ -928,10 +928,11 @@ private:
                 put16(r, 0x12, player->arches_built);
                 put16(r, 0x38, player->monuments_allowed);
                 put16(r, 0x3A, player->monuments_built);
-                put16(r, 0x14, player->soldiers_killed);
-                put16(r, 0x16, player->soldiers_lost);
-                put16(r, 0x18, player->ships_lost);
-                put16(r, 0x1A, player->ships_sunk);
+                // The original's counters are 16 bit: saturated, not wrapped.
+                put16(r, 0x14, std::min<std::uint32_t>(player->soldiers_killed, 0xFFFF));
+                put16(r, 0x16, std::min<std::uint32_t>(player->soldiers_lost, 0xFFFF));
+                put16(r, 0x18, std::min<std::uint32_t>(player->ships_lost, 0xFFFF));
+                put16(r, 0x1A, std::min<std::uint32_t>(player->ships_sunk, 0xFFFF));
                 if (player->role == PlayerRole::Human || player->role == PlayerRole::Computer) {
                     // The others keep what the file had: their slot is never read.
                     r[0x0C] = player->mission < kOriginalMissionSlots ? player->mission : std::uint8_t{0xFF};

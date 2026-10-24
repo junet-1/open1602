@@ -124,10 +124,10 @@ struct Decoded {
     /// The score's counters (SCOR), in the order of PLAY, and the cities' monument clocks.
     struct ScorePart {
         struct Counters {
-            std::uint16_t soldiers_killed = 0;
-            std::uint16_t soldiers_lost = 0;
-            std::uint16_t ships_sunk = 0;
-            std::uint16_t ships_lost = 0;
+            std::uint32_t soldiers_killed = 0;
+            std::uint32_t soldiers_lost = 0;
+            std::uint32_t ships_sunk = 0;
+            std::uint32_t ships_lost = 0;
         };
         struct CityClock {
             std::uint16_t island = 0;
@@ -235,6 +235,9 @@ inline constexpr std::uint16_t kScenarioSwitches = 2;
 inline constexpr std::uint16_t kLongRoutes = 2;
 /// FLEE version 3: every stop with RouteStop::kEntries wares, not the original's three.
 inline constexpr std::uint16_t kRouteWares = 3;
+/// SCOR version 2: the fight counters of the players are 32 bit, not 16 (LC-9). The writer takes it
+/// only when a counter needs it, so other games write the bytes of version 1 as before.
+inline constexpr std::uint16_t kWideScores = 2;
 
 /// An island coordinate of ISLE and VOLC: 8 bit up to version 1, 16 bit from kWideCoordinates.
 template <class A, class T>
@@ -287,8 +290,10 @@ void write_player_state(Writer& out, const World& w, std::uint16_t version);
 [[nodiscard]] std::vector<Player> read_player_state(Reader& in, std::uint16_t version);
 void write_missions(Writer& out, const World& w);
 [[nodiscard]] Decoded::MissionPart read_missions(Reader& in, std::size_t islands);
-void write_scores(Writer& out, const World& w);
-[[nodiscard]] Decoded::ScorePart read_scores(Reader& in);
+/// The version of SCOR: kWideScores if a counter is above 65 535, else 1.
+[[nodiscard]] std::uint16_t scores_version(const World& w);
+void write_scores(Writer& out, const World& w, std::uint16_t version);
+[[nodiscard]] Decoded::ScorePart read_scores(Reader& in, std::uint16_t version);
 void write_diplomacy(Writer& out, const World& w);
 [[nodiscard]] Diplomacy read_diplomacy(Reader& in);
 

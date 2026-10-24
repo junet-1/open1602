@@ -599,11 +599,6 @@ void Engine::missions(AiPlayer& p) {
                 n.mission = 0;
                 n.param = 0;
                 n.counter = 0;
-                for (AttackPlan& a : p.attacks) {
-                    if (a.ship == s->id) {
-                        a = AttackPlan{};
-                    }
-                }
                 break;
             }
             case 5: {
@@ -644,11 +639,6 @@ void Engine::missions(AiPlayer& p) {
                     execute(order);
                     n.mission = 0;
                     n.param = 0;
-                    for (AttackPlan& a : p.attacks) {
-                        if (a.ship == s->id) {
-                            a = AttackPlan{};
-                        }
-                    }
                 } else {
                     mission_end(p, *s, n);
                 }

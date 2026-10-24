@@ -16,6 +16,11 @@
 
 namespace o1602::sim::ai {
 
+/// Version of the saved state of the computer players. 2 dropped what nothing read (GB-5): the
+/// attack plans and the islands' state byte. Every version from kFirstStateVersion on loads.
+inline constexpr std::uint32_t kStateVersion = 2;
+inline constexpr std::uint32_t kFirstStateVersion = 1;
+
 /// Task ids of the original's dispatcher (AI_RunTask 0x00429AA0). The numbers are kept so the
 /// documentation and the analysis of the original can be compared directly.
 enum Task : std::uint8_t {
@@ -298,7 +303,8 @@ struct CastleEntry {
     std::uint16_t rally_y = 0;
 };
 
-/// An attack being planned against one owner (C+0x107C0 + 0x288 * owner).
+/// An attack being planned against one owner (C+0x107C0 + 0x288 * owner). Open1602 never planned
+/// one; state version 1 kept an empty list of them per computer, which a loader reads and drops.
 struct AttackPlan {
     bool active = false;             ///< +0x268
     std::uint16_t island = 0;        ///< +0x00
@@ -333,9 +339,9 @@ struct ShipNote {
     bool supply = false;         ///< on a supply run home: its goods are for the home city
 };
 
-/// Island state of the soldier controller (0x006B1180 + 0x5A0 * island).
+/// Island clock of the soldier controller (0x006B1180 + 0x5A0 * island). State version 1 also had a
+/// state byte that nothing read.
 struct IslandWatch {
-    std::uint8_t state = 0;
     std::uint64_t next_ms = 0;
 };
 
@@ -384,7 +390,6 @@ struct AiPlayer {
     std::uint32_t recruit_cursor = 0;         ///< +0x4A0
     std::uint32_t target_cursor = 0;          ///< +0x1DD8
     std::vector<std::int32_t> previous_mood;  ///< +0x4A4: by player
-    std::vector<AttackPlan> attacks;          ///< by owner
     std::uint32_t diplomacy_ms = 0;           ///< game time since the last diplomacy pass
     std::vector<std::uint8_t> seen_treaties;  ///< peace and trade towards each player at the last look
     bool diplomacy_due = false;               ///< a treaty changed: the next tick looks again
