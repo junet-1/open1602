@@ -230,21 +230,22 @@ TEST_CASE("game data: the Kontors of the four levels are a table, not id arithme
     }
     CHECK(assets::id::kontor_level(assets::id::kKontor1 - 1) == 0);
     CHECK(assets::id::kontor_level(assets::id::kKontor1 + 7) == 0);
+}
 
-    TEST_CASE("game data: unit and ship figures come from the tables, not from id arithmetic (MD-6)") {
-        CHECK(assets::figure::unit_figure(0, 0) == 1);   // SOLDAT1, red
-        CHECK(assets::figure::unit_figure(1, 2) == 7);   // KAVALERIE, yellow
-        CHECK(assets::figure::unit_figure(3, 3) == 16);  // KANONIER, white
-        CHECK(assets::figure::unit_figure(4, 0) == 0);
-        CHECK(assets::figure::unit_figure(0, 4) == 0);
-        CHECK(assets::figure::ship_figure(0) == 21);
-        CHECK(assets::figure::ship_figure(3) == 27);
-        CHECK(assets::figure::ship_figure(4) == 0);
-        CHECK(assets::unit_ware(1) == assets::ware::kFirstSoldier);
-        CHECK(assets::unit_of_ware(assets::ware::kLastSoldier) == 20);
-        for (std::size_t family = 0; family < assets::figure::kUnitFamilies.size(); ++family) {
-            for (std::int32_t colour = 0; colour < assets::figure::kUnitColours; ++colour) {
-                CHECK(assets::is_soldier_ware(assets::unit_ware(assets::figure::unit_figure(family, colour))));
-            }
+TEST_CASE("game data: unit and ship figures come from the tables, not from id arithmetic (MD-6)") {
+    CHECK(assets::figure::unit_figure(0, 0) == 1);   // SOLDAT1, red
+    CHECK(assets::figure::unit_figure(1, 2) == 7);   // KAVALERIE, yellow
+    CHECK(assets::figure::unit_figure(3, 3) == 16);  // KANONIER, white
+    CHECK(assets::figure::unit_figure(4, 0) == 0);
+    CHECK(assets::figure::unit_figure(0, 4) == 0);
+    CHECK(assets::figure::ship_figure(0) == 21);
+    CHECK(assets::figure::ship_figure(3) == 27);
+    CHECK(assets::figure::ship_figure(4) == 0);
+    CHECK(assets::unit_ware(1) == assets::ware::kFirstSoldier);
+    CHECK(assets::unit_of_ware(assets::ware::kLastSoldier) == 20);
+    for (std::size_t family = 0; family < assets::figure::kUnitFamilies.size(); ++family) {
+        for (std::int32_t colour = 0; colour < assets::figure::kUnitColours; ++colour) {
+            CHECK(assets::is_soldier_ware(assets::unit_ware(assets::figure::unit_figure(family, colour))));
         }
     }
+}
