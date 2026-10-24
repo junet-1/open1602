@@ -291,6 +291,7 @@ TEST_CASE("net: every message goes to bytes and back") {
     lobby.setup = {9, 8, 7};
     lobby.banners = {0, 1, 2, 3, 7, 8, 0x1234};
     lobby.computer_takes_over = false;
+    lobby.host_pauses_only = true;
     all.emplace_back(lobby);
     all.emplace_back(net::TakeSeat{3});
     all.emplace_back(net::SetReady{true});
@@ -610,6 +611,34 @@ TEST_CASE("net: without the setting, the slot of someone who left gives no order
     run_for(network, host, {&a, b.get()}, 10000);
     CHECK(host.game.world->players()[2].role == sim::PlayerRole::Human);
     CHECK(a.game.world->players()[2].role == sim::PlayerRole::Human);
+}
+
+TEST_CASE("net: with the setting, only the host pauses and resumes the game (MS-20)") {
+    net::LoopbackNetwork network(5, 0);
+    net::SessionConfig config;
+    config.host_pauses_only = true;
+    Host host(network, config);
+    Computer a(network, "Anna");
+    run_for(network, host, {&a}, 2000);
+    REQUIRE(a.session->playing());
+    CHECK(a.session->lobby().host_pauses_only);
+    CHECK(!a.session->may_pause());
+    CHECK(host.session->may_pause());
+    const net::Seat anna = a.session->local_seat();
+    a.session->submit(sim::GameSpeedOrder{anna, sim::GameSpeedOrder::Op::Pause, 1});
+    run_for(network, host, {&a}, 1000);
+    CHECK(!host.game.simulation->paused());
+    CHECK(!a.game.simulation->paused());
+    CHECK(a.count(net::SessionEvent::Kind::PauseRefused) == 1);
+    // The host pauses; the other cannot resume.
+    host.session->submit(sim::GameSpeedOrder{host.session->local_seat(), sim::GameSpeedOrder::Op::Pause, 1});
+    run_for(network, host, {&a}, 1000);
+    CHECK(host.game.simulation->paused());
+    CHECK(a.game.simulation->paused());
+    a.session->submit(sim::GameSpeedOrder{anna, sim::GameSpeedOrder::Op::Resume, 1});
+    run_for(network, host, {&a}, 1000);
+    CHECK(host.game.simulation->paused());
+    CHECK(a.count(net::SessionEvent::Kind::PauseRefused) == 2);
 }
 
 TEST_CASE("net: a slot's token is good only for the one it was given to") {

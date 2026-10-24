@@ -1501,6 +1501,12 @@ bool MapViewer::announce(std::string_view id, const MessageArgs& args, std::opti
 }
 
 void MapViewer::toggle_pause_video() {
+    if (m_session && !m_session->may_pause()) {
+        // Only the host pauses (MS-20): the order goes in to tell the player, the video stays off.
+        m_command_sink.submit(
+            sim::GameSpeedOrder{m_local_player, sim::GameSpeedOrder::Op::Pause, m_state->simulation.speed()});
+        return;
+    }
     const bool on = m_video->toggle_pause(m_state->simulation.paused());
     m_command_sink.submit(sim::GameSpeedOrder{m_local_player,
                                               on ? sim::GameSpeedOrder::Op::Pause : sim::GameSpeedOrder::Op::Resume,

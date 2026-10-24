@@ -59,6 +59,7 @@ enum class MpText : std::uint16_t {
     AllowJoinRunning,
     AllowSpectators,
     ComputerTakesOver,
+    HostPausesOnly,
     HostOnly,
     Port,
     OpenLobby,
@@ -104,6 +105,7 @@ enum class MpText : std::uint16_t {
     ChooseBanner,
     Dropped,
     Reconnecting,
+    PauseRefused,
 };
 
 /// The catalogue key of a text ("net.player_joined").

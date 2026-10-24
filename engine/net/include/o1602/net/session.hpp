@@ -96,6 +96,9 @@ struct SessionConfig {
     /// it again. Without: the slot gives no orders until its player is back.
     bool computer_takes_over = true;
     std::uint32_t take_over_ms = 60'000;
+    /// (Host, also after a host migration) Only the host's player pauses and resumes the game; the
+    /// others' pauses are not carried out (MS-20: one player could keep the game paused).
+    bool host_pauses_only = false;
     /// (Host, also after a host migration) How long, in real time, a game for a computer that
     /// joins or resyncs may pack on a worker while the game goes on before the host waits for it
     /// (TB-26). 0 waits at once, as a test that steps time faster than it passes needs; the game
@@ -145,6 +148,7 @@ struct SessionEvent {
         Chat,          ///< `seat` (`name`) said `text`
         Dropped,       ///< `count` commands of this computer's player were not carried out (too many at once)
         Reconnecting,  ///< (computer) the connection to the host broke; it tries to get back in
+        PauseRefused,  ///< (computer) only the host pauses and resumes this game (Lobby::host_pauses_only)
     };
     Kind kind = Kind::Joined;
     Seat seat = sim::kNoPlayer;
@@ -172,6 +176,8 @@ public:
     virtual void update(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick = {}) = 0;
     /// A line of chat to everyone (cut to kMaxChatLength; empty lines are not sent).
     virtual void say(std::string text) = 0;
+    /// This computer's player may pause and resume the game (the host always may).
+    [[nodiscard]] virtual bool may_pause() const noexcept { return true; }
 
     /// The player this computer plays, kNoPlayer while it only watches or is not in yet.
     [[nodiscard]] Seat local_seat() const noexcept { return m_seat; }
@@ -463,6 +469,7 @@ public:
     void submit(sim::Command command) override;
     void update(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick = {}) override;
     void say(std::string text) override;
+    [[nodiscard]] bool may_pause() const noexcept override { return !m_lobby.host_pauses_only; }
     /// In the lobby: asks for an open slot, or kNoPlayer to watch.
     void take_seat(Seat seat);
     /// In the lobby: ready to start, or not.

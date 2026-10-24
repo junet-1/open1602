@@ -62,6 +62,7 @@ constexpr std::array kTexts = {
     Entry{MpText::AllowJoinRunning, "net.allow_join_running"},
     Entry{MpText::AllowSpectators, "net.allow_spectators"},
     Entry{MpText::ComputerTakesOver, "net.computer_takes_over"},
+    Entry{MpText::HostPausesOnly, "net.host_pauses_only"},
     Entry{MpText::HostOnly, "net.host_only"},
     Entry{MpText::Port, "net.port"},
     Entry{MpText::OpenLobby, "net.open_lobby"},
@@ -107,6 +108,7 @@ constexpr std::array kTexts = {
     Entry{MpText::ChooseBanner, "net.choose_banner"},
     Entry{MpText::Dropped, "net.dropped"},
     Entry{MpText::Reconnecting, "net.reconnecting"},
+    Entry{MpText::PauseRefused, "net.pause_refused"},
 };
 
 constexpr bool in_order() {
@@ -118,7 +120,7 @@ constexpr bool in_order() {
     return true;
 }
 static_assert(in_order(), "kTexts must list every MpText in order");
-static_assert(kTexts.size() == static_cast<std::size_t>(MpText::Reconnecting) + 1, "a text is missing");
+static_assert(kTexts.size() == static_cast<std::size_t>(MpText::PauseRefused) + 1, "a text is missing");
 
 }  // namespace
 
