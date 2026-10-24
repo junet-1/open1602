@@ -3,35 +3,50 @@
 // The build menu (docs/re/ui.md#baumenü): eight category buttons in BAU.GAD, and per category a
 // pop-up of building icons in rows that the code builds itself (BuildMenu_OnCategoryPress
 // 0x00432A70). Which buildings belong to which category is a table in the original's code, not
-// data; here it is data (BuildMenuDefinition), with the original's lists as the default, so that
-// content packs can add buildings and categories (ADR 0007).
+// data; here it is data (BuildMenuDefinition), with the original's lists as the default, and the
+// packages' build_menu.toml add, move and remove buildings (ADR 0007, docs/modding/build-menu.md).
+// The eight categories are the buttons of BAU.GAD.
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "o1602/assets/building_table.hpp"
 #include "o1602/assets/gad.hpp"
+#include "o1602/core/result.hpp"
 
 namespace o1602::ui {
 
-/// One category: its button in BAU.GAD, the Text.cod section that names its buildings (by their
-/// position in the list), the TOOLS sprite of its first icon (as an offset from GFXBAUHAUS; the
-/// icons follow one after the other) and its buildings (HAUS Ids) in the pop-up's rows.
+/// One building of a category's pop-up.
+struct BuildButton {
+    std::uint32_t id = 0;    ///< HAUS Id
+    std::int32_t icon = 0;   ///< TOOLS sprite of its icon, as an offset from GFXBAUHAUS
+    std::int32_t text = -1;  ///< its line of the category's Text.cod section; -1: `name`
+    std::string name;        ///< Windows-1252: the name a package gave it, when `text` is -1
+};
+
+/// One category: its button in BAU.GAD, the Text.cod section that names the original's buildings
+/// and its buildings in the pop-up's rows.
 struct BuildCategory {
     std::int32_t button = 0;
     bool demolish = false;  ///< no list: the demolish tool
     std::string names;
-    std::int32_t icon_offset = 0;
-    std::vector<std::vector<std::uint32_t>> rows;
+    std::vector<std::vector<BuildButton>> rows;
 
     /// Number of buildings, and the building at a position of the whole list.
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] std::optional<std::uint32_t> at(std::size_t index) const noexcept;
+    [[nodiscard]] const BuildButton* button_at(std::size_t index) const noexcept;
     /// Position of a building in the list.
     [[nodiscard]] std::optional<std::size_t> index_of(std::uint32_t id) const noexcept;
+    /// The name of the building at `index`: its line of `section` (the Text.cod section `names`),
+    /// or the name its package gave it; empty if neither.
+    [[nodiscard]] std::string name(std::size_t index, const std::vector<std::string>& section) const;
 };
 
 struct BuildMenuDefinition {
@@ -46,6 +61,29 @@ struct BuildMenuDefinition {
 
 /// The original's categories (lists 0x00498440.., row sizes 0x004985A0..).
 [[nodiscard]] const BuildMenuDefinition& original_build_menu();
+
+/// The build menu of the game: original_build_menu() with the packages' changes once
+/// set_build_menu() gave them. Both on the main thread only.
+[[nodiscard]] const BuildMenuDefinition& build_menu();
+void set_build_menu(BuildMenuDefinition menu);
+
+/// What a pop-up holds: six rows of icons over the category's button (the original's most are
+/// five, the farms) and four icons a row in its width; build_popup() leaves out what is beyond.
+inline constexpr std::size_t kMaxPopupRows = 6;
+inline constexpr std::size_t kMaxRowIcons = 4;
+
+/// Applies a package's build_menu.toml to `menu`: each table puts one building (`id`, a record of
+/// `buildings`) into a category's row, moving it if it is listed already, or takes it out of the
+/// menu (`remove = true`). What is wrong in a table is passed over with a warning that names the
+/// file and the line; a file that cannot be read is an error and changes nothing.
+core::Status apply_build_menu_package(BuildMenuDefinition& menu, std::string_view package, std::string_view utf8,
+                                      const assets::BuildingTable& buildings, std::vector<std::string>& warnings);
+/// Every package in `mods` that has a build_menu.toml (<mods>/<package>/build_menu.toml), in the
+/// order of their names, applied to a copy of `menu`.
+[[nodiscard]] BuildMenuDefinition load_build_menu_mods(const BuildMenuDefinition& menu,
+                                                       const std::filesystem::path& mods,
+                                                       const assets::BuildingTable& buildings,
+                                                       std::vector<std::string>& warnings);
 
 // Gadget Ids of the pop-up (the original's numbers).
 inline constexpr std::int32_t kPopupSlot = 32001;           ///< + position in the list: the frame to click
