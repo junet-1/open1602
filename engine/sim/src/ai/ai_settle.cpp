@@ -17,8 +17,10 @@ constexpr std::uint64_t kColonyCooldownMs = 60'000;  // C+0x30: 60 s between set
 constexpr std::int32_t kNeedStep = 50;
 constexpr std::uint32_t kPirateRegionPasses = 6;  // passes a further nest keeps to a part without one
 constexpr std::uint8_t kLandRetries = 4;
-constexpr std::uint32_t kReach = 5;       // a ship within 5 tiles of a Kontor lies at it
-constexpr std::uint32_t kLandRange = 12;  // founding: the ship within 12 tiles of the site
+constexpr std::int32_t kFoundingBelow = 500;  // a founding with less money than this ...
+constexpr std::int32_t kFoundingMoney = 799;  // ... gets this much (the original's cheat)
+constexpr std::uint32_t kReach = 5;           // a ship within 5 tiles of a Kontor lies at it
+constexpr std::uint32_t kLandRange = 12;      // founding: the ship within 12 tiles of the site
 
 bool in_circle(std::int32_t dx, std::int32_t dy, std::uint32_t r) {
     static const std::vector<std::uint8_t> kNear = circle_half_widths(kReach);
@@ -603,8 +605,8 @@ void Engine::task_settle_land(AiPlayer& p) {
         return;
     }
     Player& pl = player(p);
-    if (pl.money < 500) {
-        pl.money = money_plus(pl.money, std::int64_t{799});  // the original's founding money (cheat)
+    if (pl.money < kFoundingBelow) {
+        pl.money = money_plus(pl.money, std::int64_t{kFoundingMoney});  // the original's founding money (cheat)
     }
     BuildOrder order;
     order.player = p.player;

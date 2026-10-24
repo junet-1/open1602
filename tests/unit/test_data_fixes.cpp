@@ -216,3 +216,18 @@ TEST_CASE("building table: the records the game places by Id are required (MD-1)
     CHECK(with(false).missing() == assets::id::kRuin);
     CHECK(!with(true).missing().has_value());
 }
+
+TEST_CASE("game data: the Kontors of the four levels are a table, not id arithmetic (MD-4)") {
+    for (std::uint32_t level = 1; level <= 4; ++level) {
+        CHECK(assets::id::kontor(level) == assets::id::kKontor1 + 2 * (level - 1));
+        CHECK(assets::id::kontor_level(assets::id::kontor(level)) == level);
+    }
+    CHECK(assets::id::kontor(0) == assets::id::kKontor1);
+    CHECK(assets::id::kontor(9) == assets::id::kKontors[3]);
+    // As the original's range check: the records between two levels count as the lower one.
+    for (std::uint32_t building = assets::id::kKontor1; building <= assets::id::kKontor1 + 6; ++building) {
+        CHECK(assets::id::kontor_level(building) == (building - assets::id::kKontor1) / 2 + 1);
+    }
+    CHECK(assets::id::kontor_level(assets::id::kKontor1 - 1) == 0);
+    CHECK(assets::id::kontor_level(assets::id::kKontor1 + 7) == 0);
+}
