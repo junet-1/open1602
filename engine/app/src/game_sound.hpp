@@ -85,9 +85,9 @@ public:
     void set_video_check(std::function<bool(std::uint16_t)> check) { m_voices.set_video_check(std::move(check)); }
     /// The video a message asked for, once.
     [[nodiscard]] std::optional<std::uint16_t> take_video() noexcept { return m_voices.take_video(); }
-    /// A video starts (docs/re/videos.md): its tracks play at the effects' volume (bit i of
-    /// `tracks` = track i, 0 = all), the music stops, voices and music wait until stop_video().
-    void start_video(const video::Smacker& video, std::uint8_t tracks);
+    /// A video starts (docs/re/videos.md): its tracks, decoded beforehand (VideoPlayer), play at
+    /// the effects' volume, the music stops, voices and music wait until stop_video().
+    void start_video(const std::vector<std::shared_ptr<const audio::Pcm>>& tracks);
     void stop_video();
 
     // Events of the simulation that sound, for the local player `local`.

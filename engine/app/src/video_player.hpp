@@ -4,6 +4,8 @@
 // the videos of messages, victory and defeat, and the pause video. The picture fills the window
 // in black with the video in the middle, twice as large as the original at 1024 pixels width and
 // grown with the window, never larger than it; the sound goes to GameSound. One video at a time.
+// The file is read, opened and its sound decoded on a thread of its own (FB-14): until then the
+// window stays black, and the frames go on.
 #pragma once
 
 #include <cstdint>
@@ -13,6 +15,7 @@
 #include <vector>
 
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/audio/wav.hpp"
 #include "o1602/video/smacker.hpp"
 
 struct SDL_Renderer;
@@ -31,19 +34,33 @@ public:
     /// two that GOG does not have).
     [[nodiscard]] bool available(std::uint16_t number) const;
 
-    /// Opens a video and shows its first frame at `now_ms`; a running one stops. False if the
-    /// file is missing or damaged.
-    bool start(std::uint16_t number, bool loop, std::uint64_t now_ms);
+    /// Begins to load a video in the background, with the sound of its tracks (bit i of `tracks`
+    /// = track i, 0 = all); a running one stops. False if the file is missing. Until poll() says
+    /// Ready the window is black.
+    bool start(std::uint16_t number, bool loop, std::uint8_t tracks);
+    enum class Load : std::uint8_t {
+        None,     ///< nothing is loading
+        Waiting,  ///< still being read
+        Ready,    ///< the video plays from its first frame at `now_ms`; audio() holds its sound
+        Failed,   ///< the file could not be read or is damaged (said on stderr); nothing plays
+    };
+    /// Every frame while loading(): whether the video has come.
+    Load poll(std::uint64_t now_ms);
+    [[nodiscard]] bool loading() const noexcept { return m_loading != nullptr; }
+    /// The decoded sound of the video's tracks (for GameSound::start_video, also on a restart).
+    [[nodiscard]] const std::vector<std::shared_ptr<const audio::Pcm>>& audio() const noexcept { return m_audio; }
     /// The first frame stays until `ms`: the video's sound comes after what the device holds.
     void hold_until(std::uint64_t ms) noexcept;
     void stop();
-    [[nodiscard]] bool playing() const noexcept { return m_video.has_value(); }
+    /// A video plays or is being loaded.
+    [[nodiscard]] bool playing() const noexcept { return m_video.has_value() || m_loading != nullptr; }
     [[nodiscard]] std::uint16_t number() const noexcept { return m_number; }
     [[nodiscard]] const video::Smacker* video() const noexcept { return m_video ? &*m_video : nullptr; }
 
     enum class Step : std::uint8_t { Playing, Restarted, Ended };
     /// Decodes up to the frame of `now_ms`. The last frame stays for its whole time (the original
-    /// closes on it, U-023); a looping video starts again (its sound must be restarted).
+    /// closes on it, U-023); a looping video starts again (its sound must be restarted). While
+    /// loading: Playing.
     Step update(std::uint64_t now_ms);
     /// Draws the current frame into a window of `width` x `height` pixels.
     void draw(std::int32_t width, std::int32_t height);
@@ -58,12 +75,16 @@ public:
     void set_renderer(SDL_Renderer* renderer);
 
 private:
+    struct Loading;
     /// A texture of the video's size; the one before goes.
     void make_texture(std::int32_t w, std::int32_t h);
     SDL_Renderer* m_renderer;
     const assets::GameDirectory* m_game;
     mutable std::map<std::uint16_t, bool> m_available;
     std::optional<video::Smacker> m_video;
+    /// The load under way; shared with its thread, which may outlive a stop().
+    std::shared_ptr<Loading> m_loading;
+    std::vector<std::shared_ptr<const audio::Pcm>> m_audio;
     std::uint16_t m_number = 0;
     bool m_loop = false;
     std::uint64_t m_start_ms = 0;

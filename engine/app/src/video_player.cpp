@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "o1602/core/file.hpp"
@@ -19,6 +22,14 @@ std::string video_path(std::uint16_t number) {
 }
 
 }  // namespace
+
+struct VideoPlayer::Loading {
+    std::mutex mutex;
+    bool done = false;
+    std::optional<video::Smacker> video;
+    std::vector<std::shared_ptr<const audio::Pcm>> audio;
+    std::string error;
+};
 
 VideoPlayer::VideoPlayer(SDL_Renderer* renderer, const assets::GameDirectory& game)
     : m_renderer(renderer), m_game(&game) {}
@@ -39,26 +50,68 @@ bool VideoPlayer::available(std::uint16_t number) const {
     return found;
 }
 
-bool VideoPlayer::start(std::uint16_t number, bool loop, std::uint64_t now_ms) {
+bool VideoPlayer::start(std::uint16_t number, bool loop, std::uint8_t tracks) {
     stop();
     const auto path = m_game->resolve(video_path(number));
     if (!path) {
         m_available[number] = false;
         return false;
     }
-    auto bytes = core::read_file(*path);
-    if (!bytes) {
-        std::fprintf(stderr, "video %u: %s\n", static_cast<unsigned>(number), bytes.error().message.c_str());
-        return false;
-    }
-    auto video = video::Smacker::open(std::move(*bytes));
-    if (!video) {
-        std::fprintf(stderr, "video %u: %s\n", static_cast<unsigned>(number), video.error().message.c_str());
-        return false;
-    }
-    m_video.emplace(std::move(*video));
+    auto state = std::make_shared<Loading>();
+    // Reading 48 MB and decoding the sound stood the frames still for over 100 ms (FB-14). The
+    // thread has its own copies; a stopped load ends unseen.
+    std::thread([state, file = *path, tracks] {
+        std::optional<video::Smacker> video;
+        std::vector<std::shared_ptr<const audio::Pcm>> sound;
+        std::string error;
+        if (auto bytes = core::read_file(file); !bytes) {
+            error = bytes.error().message;
+        } else if (auto opened = video::Smacker::open(std::move(*bytes)); !opened) {
+            error = opened.error().message;
+        } else {
+            video.emplace(std::move(*opened));
+            for (std::size_t t = 0; t < video::kSmackerTracks; ++t) {
+                if (!video->info().tracks[t].present || (tracks != 0 && (tracks & (1U << t)) == 0)) {
+                    continue;
+                }
+                if (auto pcm = video->audio(t); pcm && !pcm->samples.empty()) {
+                    sound.push_back(std::make_shared<const audio::Pcm>(std::move(*pcm)));
+                }
+            }
+        }
+        const std::lock_guard lock(state->mutex);
+        state->video = std::move(video);
+        state->audio = std::move(sound);
+        state->error = std::move(error);
+        state->done = true;
+    }).detach();
+    m_loading = std::move(state);
     m_number = number;
     m_loop = loop;
+    return true;
+}
+
+VideoPlayer::Load VideoPlayer::poll(std::uint64_t now_ms) {
+    if (!m_loading) {
+        return Load::None;
+    }
+    {
+        const std::lock_guard lock(m_loading->mutex);
+        if (!m_loading->done) {
+            return Load::Waiting;
+        }
+        if (!m_loading->video) {
+            std::fprintf(stderr, "video %u: %s\n", static_cast<unsigned>(m_number), m_loading->error.c_str());
+        } else {
+            m_video = std::move(m_loading->video);
+            m_audio = std::move(m_loading->audio);
+        }
+    }
+    m_loading.reset();
+    if (!m_video) {
+        m_number = 0;
+        return Load::Failed;
+    }
     m_start_ms = now_ms;
     const auto w = static_cast<std::int32_t>(m_video->info().width);
     const auto h = static_cast<std::int32_t>(m_video->info().display_height());
@@ -68,7 +121,7 @@ bool VideoPlayer::start(std::uint16_t number, bool loop, std::uint64_t now_ms) {
     if (m_video->next()) {
         m_dirty = true;
     }
-    return true;
+    return Load::Ready;
 }
 
 void VideoPlayer::make_texture(std::int32_t w, std::int32_t h) {
@@ -113,12 +166,14 @@ void VideoPlayer::hold_until(std::uint64_t ms) noexcept {
 
 void VideoPlayer::stop() {
     m_video.reset();
+    m_loading.reset();
+    m_audio.clear();
     m_number = 0;
 }
 
 VideoPlayer::Step VideoPlayer::update(std::uint64_t now_ms) {
     if (!m_video) {
-        return Step::Ended;
+        return m_loading ? Step::Playing : Step::Ended;
     }
     if (now_ms < m_start_ms) {
         return Step::Playing;  // held on the first frame
