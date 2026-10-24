@@ -2171,6 +2171,21 @@ As of 2026-10-24 every bundle is merged into `main`. The table gives the pull re
 
 Also found by the new fuzz jobs and fixed: settings and slot names that did not read back as written (#116).
 
+### After the bundles (2026-10-24)
+
+| Finding | Pull request | Result |
+|---|---|---|
+| FB-14 | #160 | Videos are read and opened on a worker thread. On the desktop machine the gap when logo 9 or the intro starts went from 41 and 117 ms to none. |
+| MS-20 | #161 | The owner's decision: a lobby setting "Only the host pauses", chosen per game. Protocol version 12. |
+| BT-1 (part) | #162 | Coverage floor in CI: 80 % of lines, 90 % of functions, measured without the original data. |
+| TB-16 | #163 | The AI finds its ship notes through an index by ship id. |
+| — | #164 | Found on the desktop machine: since the key table, the Pause key no longer started the pause video, and an Escape in frame 0 did not skip the logos. Both fixed. |
+| FB-25 | #165 | Each unit tint template is made once, not once per banner. Atlas preparation went from 1065 to 552 ms and the first frame from 1254 to 741 ms; the pixels are bit-identical. |
+| HI-7, HI-8 | #166 | The record length is now enforced, after it was checked against all 47 294 records of the original's 61 sheets. The HI-7 row bound was wrong for real data: it refused FISCHE, SGFX/EFFEKTE and the fonts ZEI24V and ZEI28V. It is replaced by a bound of 16 384 pixels per RLE byte. |
+| TB-9 | #167 | `attack_ok` tests its cheap conditions first. |
+| TB-19 | #168 | Towers are rescanned only for events that can change them. |
+| TB-22 | #169 | Removed buildings end their figures in one pass per batch. |
+
 ### Still open
 
 | Finding | What is left | Size |
@@ -2178,16 +2193,14 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
 | TB-11, TB-13 | Incremental island survey and road-segment rebuilds; cached `AreaCount`s in `task_settle_site` (each search is bounded since #128). | L |
 | TB-14 | A shared AI work budget per tick (part 2). | M |
-| TB-9, TB-16 | Cached `city_defenceless` and `building_count`; an index for `note()` and a scratch arena. | S–M |
-| TB-19, TB-22, TB-25 | Dirty rectangles for the sea and land maps; the logistics walker index; `update_services` by dirty rectangle. | M |
+| TB-9 | A cached `building_count` per city; a scratch arena. | S |
+| TB-19, TB-22, TB-25 | Dirty rectangles for the sea and land maps; `update_services` by dirty rectangle; the other world-wide scans of TB-22; TB-25. | M |
 | FB-2, FB-16, FB-17, FB-18 | Lazy soldier figure sync; per-frame panel caches; a position index for the tower lookup and ambient work. | M |
-| FB-14 | Videos are read whole on the main thread: 37-40 ms for a logo, 121-129 ms for the intro on the desktop machine. | M |
-| FB-25 | Load time is the same for 4 and 12 players (about 1.24 s); about 1.1 s of it is the GFX atlas. | M |
-| HI-8 | The BSH record length bound, to be checked against the original files first. | S |
-| BT-1 | Military scenarios in the AI arena, a main-menu test, a coverage floor in CI. | M |
+| FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
+| FB-25 | The unit tints are still made for all 8 banners, whatever the number of players (about 350 ms); parallel decoding and the atlas cache file. | M |
+| BT-1 | Military scenarios in the AI arena, a main-menu test. | M |
 | BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
 | DS-2 | The `determinism.yml` workflow and `o1602-replay`: the review's tool branch is not on the remote. Four golden hashes in CI on three platforms cover it in part (#147). | M |
-| MS-20 | Who may pause: the owner's decision. | S |
 
 Closed by measurement without a change: FB-12 (far zoom on 2000², about 400 fps at 1080p and 92 fps at 4K with OpenGL), and the second ENet channel of P5 (a snapshot delays only its own peer's frames, and a second channel would lose the order of snapshot and frames). The successor that stays cut off for longer than the reconnect window still hosts alone; it keeps only its own player, and the others stay with the real host.
 
