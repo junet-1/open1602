@@ -261,12 +261,12 @@ jobs:
 
       - name: Coverage floor
         # A change may not lower the coverage much (BT-1): the floor is a little below what the
-        # tests reach (lines 76.3 %, functions 87.7 % since the selection windows, 5 500 lines
-        # untested before, are measured too: #186). Raise it as tests are added.
+        # tests reach (lines 79.6 %, functions 90.3 % with the tests of every selection window,
+        # #187-#190). Raise it as tests are added.
         run: |
           python3 -I - <<'EOF'
           import json
-          floor = {"line_percent": 76.0, "function_percent": 87.0}
+          floor = {"line_percent": 79.0, "function_percent": 89.5}
           summary = json.load(open("coverage/summary.json"))
           low = [f"{k}: {summary[k]:.1f} % < {v} %" for k, v in floor.items() if summary[k] < v]
           for line in low:
