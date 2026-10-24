@@ -2208,6 +2208,8 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | BT-2 (part) | #191 | Tests of the options window (OPTION, MUSIK, DISK, ANNO pages); the coverage floor in CI goes to 79 % lines and 89.5 % functions. |
 | FB-14 | #192 | Videos are read frame by frame from the file (`Smacker::open_file`); only the header, frame table and trees stay in memory. The data test compares every frame and the sound with the in-memory reader. |
 | TB-9 | #193 | Measured instead of a general arena: the AI's site test (`can_place` → `plan_build`) made 88 % of the allocations in the arena hour. It now reuses its order and plan, and the last item of an order records no tiles: 637 402 → 73 716 allocations, same golden hash. |
+| BT-1 (part) | #194 | A sixth island controller scenario: a city with a castle and a sword smith trains swordsmen paid with the castle's swords, releases them to the Kontor and stops at half again the strongest human army. |
+| BT-1 | #195 | An attack from the sea: the computer takes the soldiers beside its Kontor aboard an armed ship, plans a landing on the beach nearest the enemy market, puts them ashore and takes the Kontor (missions 5-7, `plan_landing`, `water_near`). |
 
 ### Still open
 
@@ -2215,7 +2217,6 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 |---|---|---|
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
 | TB-11, TB-13 | A survey kept up from construction events (#185 reuses it only while the island is unchanged); the rest of the settlement search (each search is bounded since #128; counts cached since #176). | M |
-| BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
 | BT-2 | The side panels (hud) still draw with the SDL renderer and have no tests. | S |
 
 Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
