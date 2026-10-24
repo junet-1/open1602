@@ -26,6 +26,12 @@
 
 namespace o1602::app {
 
+namespace {
+
+bool g_dialogs = true;
+
+}  // namespace
+
 void setup_diagnostics() {
 #if defined(_WIN32)
     // Redirected output (open1602.exe 2> log.txt, a test runner) stays where it goes.
@@ -55,9 +61,16 @@ void setup_diagnostics() {
 #endif
 }
 
+void set_dialogs(bool on) {
+    g_dialogs = on;
+}
+
 void report_fatal(std::string_view message) {
     const std::string text(message);
     std::fprintf(stderr, "error: %s\n", text.c_str());
+    if (!g_dialogs) {
+        return;
+    }
 #if defined(_WIN32)
     (void)SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Open1602", text.c_str(), nullptr);
 #else

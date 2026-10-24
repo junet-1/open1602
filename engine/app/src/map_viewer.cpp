@@ -573,6 +573,20 @@ int MapViewer::run() {
     std::uint64_t fps_start = last;
     std::uint32_t fps_frames = 0;
     std::uint32_t frames = 0;
+    if (!m_options.save.empty()) {
+        // A .gam the original cannot take (more than 7 players, a world too large) is told now, not
+        // only after the game, when nothing can be done about it any more.
+        std::string ending = core::path_to_utf8(m_options.save.extension());
+        std::transform(ending.begin(), ending.end(), ending.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (ending == ".gam") {
+            if (auto bytes = sim::write_savegame(m_state->world, m_buildings, &m_state->simulation); !bytes) {
+                std::fprintf(stderr, "error: --save %s: %s\n", core::path_to_utf8(m_options.save).c_str(),
+                             bytes.error().message.c_str());
+                return 1;
+            }
+        }
+    }
     update_title(0.0);
     while (m_running) {
         adopt_preloaded_graphics();

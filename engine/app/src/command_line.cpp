@@ -178,6 +178,8 @@ core::Result<CommandLine> parse_command_line(int argc, const char* const* argv) 
             options.original_mouse = true;
         } else if (arg == "--no-confirm") {
             options.confirm = false;
+        } else if (arg == "--no-dialogs") {
+            out.dialogs = false;
         } else if (arg == "--keys" && has_value) {
             options.keys_file = core::path_from_utf8(argv[++i]);
         } else if (arg == "--language" && has_value) {
@@ -468,6 +470,9 @@ core::Result<CommandLine> parse_command_line(int argc, const char* const* argv) 
     // No game named: the main menu, as the original starts (with --frame off there is none). A
     // computer joining a host gets the game from it.
     options.menu = options.frame && !multiplayer_given && (menu || (!game_named && !new_game));
+    if (options.max_frames != 0) {
+        out.dialogs = false;
+    }
     return out;
 }
 

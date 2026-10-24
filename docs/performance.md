@@ -21,7 +21,7 @@ numbers:
 | | Target of the engine | Default rules (`sim::Rules`) | The original |
 |---|---|---|---|
 | Players | 12 (`sim::kMaxPlayers`) | 4 to 12 in an endless game | 4 (7 slots) |
-| World | up to 4096 × 4096 tiles (`sim::kMaxWorldSide`), as many islands as fit (at most 250 placed) | 500 × 350 for four players, growing with the players | 500 × 350 |
+| World | up to 4096 × 4096 tiles loaded (`sim::kMaxWorldSide`), up to 2000 × 2000 generated (`sim::WorldSettings::kMaxSide`, also the most `--world` takes), as many islands as fit (at most 250 placed) | 500 × 350 for four players, growing with the players | 500 × 350 |
 | Soldiers | 100 000 in a world | 250 a player (`max_army`), 3 000 for twelve | 100 a player |
 | Ships | 20 000 in a world | 100 a player (`max_ships_per_player`), 1 200 for twelve | 33 a player |
 
