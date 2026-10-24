@@ -41,7 +41,7 @@ struct Decoded {
     std::optional<std::uint32_t> pirate_interval_s;  ///< WRL2
     bool tutorial = false;                           ///< TUTR
     struct IslandPart {
-        std::uint8_t number = 0;
+        std::uint16_t number = 0;
         std::uint8_t deer_phase = 0;
         std::array<DeerSpot, 8> deer_spots{};
         WorldIsland::Drought drought{};
@@ -58,7 +58,7 @@ struct Decoded {
     };
     std::optional<std::vector<ExplorePart>> explored;
     struct TileOverride {
-        std::uint8_t island = 0;  ///< island number
+        std::uint16_t island = 0;  ///< island number
         std::uint16_t x = 0;
         std::uint16_t y = 0;
         bool ground = false;
@@ -157,7 +157,7 @@ struct Decoded {
     /// Ships with their courses and routes, shipyards, Kontor trade settings, discovered islands.
     struct FleetPart {
         std::uint32_t next_ship_id = 1;
-        std::vector<std::pair<std::uint8_t, std::vector<bool>>> discovered;  ///< island number, players
+        std::vector<std::pair<std::uint16_t, std::vector<bool>>> discovered;  ///< island number, players
         struct CityTrade {
             std::uint16_t island = 0;
             std::uint8_t index = 0;
@@ -197,7 +197,7 @@ struct Decoded {
     /// Phase of the island epochs and the phase each island was last ticked in (island number).
     struct EpochPart {
         std::uint8_t phase = 0;
-        std::vector<std::pair<std::uint8_t, std::uint8_t>> islands;
+        std::vector<std::pair<std::uint16_t, std::uint8_t>> islands;
     };
     std::optional<EpochPart> epochs;
     /// Orders waiting behind the current one (QUEU) and stances (STNC), by ship or unit id.
@@ -242,6 +242,15 @@ inline constexpr std::uint16_t kWideScores = 2;
 /// SIMU version 2: the state of the running game in parts with their own versions (SIMC, LOGI,
 /// FLET, MILI, AIST; Simulation::save_state, DS-3). Version 1 held them in one block.
 inline constexpr std::uint16_t kSectionedSimulation = 2;
+/// MAPW version 2: the island header's number, width and height as u16, and every column of a layer
+/// as runs where that is shorter (DS-4, LC-11). Always written; version 1 is read.
+inline constexpr std::uint16_t kCompactMap = 2;
+/// Version 3 of ISLE, version 2 of EPOC, version 4 of FLEE: island numbers as u16 (worlds of more
+/// than 256 islands, LC-2), and in ISLE the deposits' coordinates too (LC-10). The writer takes them
+/// only when a number or a coordinate needs it.
+inline constexpr std::uint16_t kWideIslands = 3;
+inline constexpr std::uint16_t kWideEpochs = 2;
+inline constexpr std::uint16_t kWideDiscovered = 4;
 
 /// An island coordinate of ISLE and VOLC: 8 bit up to version 1, 16 bit from kWideCoordinates.
 template <class A, class T>
@@ -261,7 +270,7 @@ constexpr bool wide(std::uint16_t x, std::uint16_t y) noexcept {
 
 // map.cpp: MAPW (own savegame only), TILE (chunk in a .GAM only), the buildings' fingerprint (META).
 void write_map(Writer& out, const World& w, const assets::BuildingTable& buildings);
-[[nodiscard]] core::Result<World> read_map(Reader& in, const assets::BuildingTable& buildings);
+[[nodiscard]] core::Result<World> read_map(Reader& in, const assets::BuildingTable& buildings, std::uint16_t version);
 void write_tiles(Writer& out, const World& w, const assets::BuildingTable& buildings,
                  std::span<const std::uint8_t> before);
 [[nodiscard]] std::vector<Decoded::TileOverride> read_tiles(Reader& in, const assets::BuildingTable& buildings);
@@ -272,8 +281,10 @@ void write_rules(Writer& out, const Rules& r);
 [[nodiscard]] Rules read_rules(Reader& in);
 void write_world(Writer& out, const World& w);
 [[nodiscard]] Decoded::WorldPart read_world(Reader& in);
-void write_epochs(Writer& out, const World& w);
-[[nodiscard]] Decoded::EpochPart read_epochs(Reader& in);
+/// The version of EPOC: kWideEpochs if an island's number lies beyond 8 bits.
+[[nodiscard]] std::uint16_t epochs_version(const World& w);
+void write_epochs(Writer& out, const World& w, std::uint16_t version);
+[[nodiscard]] Decoded::EpochPart read_epochs(Reader& in, std::uint16_t version);
 
 // islands.cpp: ISLE, XPLR.
 [[nodiscard]] std::uint16_t islands_version(const World& w);

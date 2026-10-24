@@ -95,8 +95,8 @@ std::uint32_t side(std::uint8_t size) {
 }
 
 struct Spot {
-    std::uint8_t x = 0;
-    std::uint8_t y = 0;
+    std::uint16_t x = 0;
+    std::uint16_t y = 0;
     auto operator<=>(const Spot&) const = default;
 };
 

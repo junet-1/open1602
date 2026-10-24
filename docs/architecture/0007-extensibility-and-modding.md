@@ -106,11 +106,11 @@ a clear message.
 - **The world size is a property of the map** (`sim::World::width()/height()`). Original maps
   have 500 × 350 tiles.
 - **Island limits** (`sim/limits.hpp`, [data-limits.md](../modding/data-limits.md)): a world is at
-  most 4096 tiles on a side (`kMaxWorldSide`). Island indexes in the world and in commands are 16 bits,
-  but the island number in the islands' files and in the save sections that name an island is still
-  one byte as in the original (L-003), so a world saves at most 256 islands and the generator places
-  at most 250. An island is at most 255 tiles wide and high, as its record's size fields are one
-  byte (LC-2).
+  most 4096 tiles on a side (`kMaxWorldSide`). Island indexes in the world and in commands, island
+  numbers and sizes in the island header and in Open1602's own savegame are 16 bits (LC-2, LC-10):
+  a world there holds up to 65535 islands, each up to the world's size. The original's files keep
+  numbers and sizes in one byte (L-003), so a `.GAM` export refuses more, and the generator, which
+  builds the original's island records, places at most 250 islands (`kMaxPlannedIslands`).
 - **Island generator:** deterministic from a seed (multiplayer, repeatability). It
   works with height and moisture maps from noise functions and generates coasts, mountains,
   rivers, forests and raw materials from them. The rules (climate zone, size, shape, frequencies) are data.
@@ -151,7 +151,7 @@ a clear message.
 | `sim::Player` | colour as `assets::PlayerColor` (0–6), kind as `assets::PlayerKind` | ✅ `BannerId` and `PlayerRole` |
 | `render::player_rgb`, `FigureTable::flag_for_color` in the renderer | 7 fixed colours, 5 flags | ✅ `render::BannerTable` with tinted single flag, any colours |
 | Overlay colour `DrawCommand::tint` | index into the 7 colours | ✅ RGBA directly in the command |
-| `sim::World::kWidth/kHeight`, `Cell` with 8-bit island number and coordinates | 500 × 350, 255 islands, islands up to 255 × 255 | 🟡 size per world up to 4096², island indexes 16 bits; island numbers in files and saves 8 bits (256 islands), islands up to 255 × 255 (LC-2) |
+| `sim::World::kWidth/kHeight`, `Cell` with 8-bit island number and coordinates | 500 × 350, 255 islands, islands up to 255 × 255 | 🟡 size per world up to 4096², island indexes, numbers and sizes 16 bits in the own savegame (LC-2); 8 bits in the original's files and `.GAM`, the generator up to 250 islands |
 | Buildings, figures | `.cod` numbers as index | ⬜ content registry with ids (with the first custom content) |
 | Goods | fixed list of the original | ⬜ the economy simulation is done with the original's list; a free goods list comes with content packs (M8) |
 | Factions, scaling of neutral players | – | 🟡 control and faction apart, factions as data in the world with their numbers (pirate nests, trader ships and reach, `sim::Scaling`), changed by `factions.toml` ([factions.md](../modding/factions.md)); factions of a package's own need slots and a behaviour of their own (M8) |

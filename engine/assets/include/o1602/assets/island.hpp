@@ -14,11 +14,13 @@ namespace o1602::assets {
 /// Fields of the INSEL3 / INSEL4 / INSEL5 chunk that are verified so far. See docs/formats/scp.md.
 struct IslandHeader {
     std::string chunk_name;  ///< "INSEL3" (40 bytes), "INSEL4" or "INSEL5" (116 bytes)
-    std::uint8_t number = 0;
-    std::uint8_t width = 0;   ///< in tiles
-    std::uint8_t height = 0;  ///< in tiles
-    std::uint8_t flags = 0;   ///< unknown, 0 in all samples so far
-    std::uint16_t pos_x = 0;  ///< position on the 500x350 world map
+    // One byte each in the original's files; 16 bits in Open1602, so that its own savegames can hold
+    // more than 256 islands and islands wider than 255 tiles (LC-2, LC-10, LC-11).
+    std::uint16_t number = 0;
+    std::uint16_t width = 0;   ///< in tiles
+    std::uint16_t height = 0;  ///< in tiles
+    std::uint8_t flags = 0;    ///< unknown, 0 in all samples so far
+    std::uint16_t pos_x = 0;   ///< position on the 500x350 world map
     std::uint16_t pos_y = 0;
 
     // Template reference (offsets 0x60..0x65, read from any header of at least 0x66 bytes: INSEL4,
@@ -33,8 +35,8 @@ struct IslandHeader {
     /// Ore and gold deposits (INSEL5 +0x1C, 8 bytes each, count at +0x1A; island record +0x20).
     struct Deposit {
         std::uint8_t ware = 0;  ///< 2 iron ore, 3 gold
-        std::uint8_t x = 0;     ///< origin tile of the mountain it lies in
-        std::uint8_t y = 0;
+        std::uint16_t x = 0;    ///< origin tile of the mountain it lies in (one byte in the original's)
+        std::uint16_t y = 0;
         /// Byte 3: bit p = player slot p knows the deposit (explored it, or a computer bound it to
         /// a mountain of its own; docs/re/ships.md#erkunden). 32 bits in Open1602.
         std::uint32_t mask = 0;

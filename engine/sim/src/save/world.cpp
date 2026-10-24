@@ -91,10 +91,14 @@ void io_world(A& a, W& w) {
 }
 
 template <class A, class E>
-void io_epochs(A& a, E& e) {
+void io_epochs(A& a, E& e, std::uint16_t version) {
     a.u8_masked(e.phase, 7U);
-    a.list(e.islands, 2, [&](auto& item) {
-        a.u8(item.first);  // island number
+    a.list(e.islands, version >= kWideEpochs ? 3 : 2, [&](auto& item) {
+        if (version >= kWideEpochs) {
+            a.u16(item.first);  // island number
+        } else {
+            a.u8(item.first);
+        }
         a.u8_masked(item.second, 7U);
     });
 }
@@ -272,18 +276,24 @@ Decoded::WorldPart read_world(Reader& in) {
     return part;
 }
 
-void write_epochs(Writer& out, const World& w) {
+std::uint16_t epochs_version(const World& w) {
+    return std::ranges::any_of(w.islands(), [](const WorldIsland& i) { return i.header.number > 0xFF; })
+               ? kWideEpochs
+               : std::uint16_t{1};
+}
+
+void write_epochs(Writer& out, const World& w, std::uint16_t version) {
     Decoded::EpochPart part;
     part.phase = w.island_phase();
     for (const WorldIsland& i : w.islands()) {
         part.islands.emplace_back(i.header.number, i.last_phase);
     }
-    io_epochs(out, std::as_const(part));
+    io_epochs(out, std::as_const(part), version);
 }
 
-Decoded::EpochPart read_epochs(Reader& in) {
+Decoded::EpochPart read_epochs(Reader& in, std::uint16_t version) {
     Decoded::EpochPart part;
-    io_epochs(in, part);
+    io_epochs(in, part, version);
     return part;
 }
 

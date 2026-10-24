@@ -109,7 +109,7 @@ TEST_CASE("data: the world plan of an endless game gives the original's islands"
         std::uint16_t template_number;
         bool natives;
         std::set<std::uint8_t> crops;
-        std::vector<std::array<std::uint8_t, 4>> ores;  // ware, kind, x, y
+        std::vector<std::array<std::uint16_t, 4>> ores;  // ware, kind, x, y
     };
     const std::vector<Expect> expected = {
         {0, 0, 11, false, {48}, {}},
@@ -148,7 +148,7 @@ TEST_CASE("data: the world plan of an endless game gives the original's islands"
         }
         CHECK(crops == e.crops);
         CHECK((g.fertility & 0x1181U) == 0x1181U);  // grain, grass, trees, fish everywhere
-        std::vector<std::array<std::uint8_t, 4>> ores;
+        std::vector<std::array<std::uint16_t, 4>> ores;
         for (const auto& d : g.deposits) {
             if (d.ware == 2 || d.ware == 3) {
                 ores.push_back({d.ware, d.kind, d.x, d.y});

@@ -10,9 +10,11 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -387,7 +389,9 @@ TEST_CASE("save fuzz: the writer marks the sections the game cannot do without a
     const std::vector<Section> sections = sections_of(game.file);
     REQUIRE(find(sections, "MAPW") != nullptr);
     for (const Section& s : sections) {
-        CHECK(s.version == (s.tag == "SIMU" ? 2 : 1));  // SIMU 2: the running game's state in parts (DS-3)
+        CHECK(s.version == (s.tag == "SIMU" || s.tag == "MAPW"
+                                ? 2
+                                : 1));  // SIMU 2: the running game's state in parts (DS-3); MAPW 2: compact (DS-4)
         const bool optional = s.tag == "META" || s.tag == "ORIG";
         CHECK((s.flags == 0) == optional);
     }
@@ -613,4 +617,103 @@ TEST_CASE("save fuzz: islands of one tile round-trip, an island without tiles is
     CHECK(!world.add_island(sim::WorldIsland{empty, sim::IslandMap(0, 4), 30, 20}).ok());  // HI-15
     CHECK(!world.add_island(sim::WorldIsland{empty, sim::IslandMap(4, 0), 30, 20}).ok());
     CHECK(world.islands().size() == 3);
+}
+
+TEST_CASE("save fuzz: a world of more than 256 islands keeps the numbers beyond 255 (LC-2)") {
+    const assets::BuildingTable buildings = make_buildings();
+    sim::World world(400, 300);
+    for (std::uint16_t i = 0; i < 260; ++i) {
+        sim::IslandMap map(3, 3);
+        for (std::int32_t y = 0; y < 3; ++y) {
+            for (std::int32_t x = 0; x < 3; ++x) {
+                REQUIRE(map.place(*buildings.by_id(kGround), x, y, 0, 0).ok());
+            }
+        }
+        map.capture_ground();
+        assets::IslandHeader header;
+        header.number = static_cast<std::uint16_t>(i == 259 ? 1000 : i);  // numbers need not follow the order
+        header.width = 3;
+        header.height = 3;
+        header.deposits.push_back({2, 1, 2, 0x101, 0, 900});
+        sim::WorldIsland island{header, std::move(map), 5U * (i % 80U), 5U * (i / 80U)};
+        island.last_phase = static_cast<std::uint8_t>(i % 8);
+        island.discovered = {i % 2 == 0, i % 3 == 0, false};
+        REQUIRE(world.add_island(std::move(island)).ok());
+    }
+    world.set_players(std::vector<sim::Player>(2));
+    REQUIRE(sim::validate(world).ok());
+    auto bytes = sim::write_game(world, buildings, nullptr, sim::SaveOptions{false});
+    REQUIRE(bytes.ok());
+    const std::vector<Section> sections = sections_of(*bytes);
+    for (const auto& [tag, version] : {std::pair{"ISLE", 3}, {"EPOC", 2}, {"FLEE", 4}, {"MAPW", 2}}) {
+        const Section* s = find(sections, tag);
+        REQUIRE(s != nullptr);
+        CHECK(s->version == version);
+    }
+
+    std::vector<std::string> warnings;
+    auto loaded = sim::read_game(*bytes, buildings, &warnings);
+    REQUIRE(loaded.ok());
+    CHECK(warnings.empty());
+    REQUIRE(loaded->islands().size() == 260);
+    const sim::WorldIsland& last = loaded->islands()[259];
+    CHECK(last.header.number == 1000);
+    CHECK(last.last_phase == 259 % 8);
+    CHECK(last.discovered == world.islands()[259].discovered);
+    CHECK(loaded->island_index(1000) == std::optional<std::size_t>{259});
+    auto again = sim::write_game(*loaded, buildings, nullptr, sim::SaveOptions{false});
+    REQUIRE(again.ok());
+    CHECK(*again == *bytes);
+}
+
+TEST_CASE("save fuzz: the runs of a compact map column must cover it exactly (DS-4)") {
+    Game game;
+    const Section* map = find(sections_of(game.file), "MAPW");
+    REQUIRE(map != nullptr);
+    REQUIRE(map->version == 2);
+    // The first column written as runs: a byte 1, the number of runs, then each run's length and
+    // value; the islands of the game have 12 x 10 tiles.
+    constexpr std::uint32_t kTiles = 120;
+    const std::size_t body = map->at + kSectionHeader;
+    std::size_t found = 0;
+    for (std::size_t at = body; found == 0 && at + 5 < body + map->size; ++at) {
+        const std::uint32_t runs = get_u32(game.file, at + 1);
+        if (game.file[at] != 1 || runs < 2 || runs > kTiles) {
+            continue;
+        }
+        for (const std::size_t size : {4U, 2U, 1U}) {
+            std::uint64_t sum = 0;
+            bool fits = at + 5 + runs * (4 + size) <= body + map->size;
+            for (std::uint32_t r = 0; fits && r < runs; ++r) {
+                const std::uint32_t length = get_u32(game.file, at + 5 + r * (4 + size));
+                fits = length > 0;
+                sum += length;
+            }
+            if (fits && sum == kTiles) {
+                found = at;
+                break;
+            }
+        }
+    }
+    REQUIRE(found != 0);
+    const std::uint32_t first = get_u32(game.file, found + 5);
+    {
+        core::Bytes file = game.file;
+        reseal(file);
+        CHECK(sim::read_game(file, game.buildings).ok());  // the scan found the column, not the damage
+    }
+    for (const std::uint32_t length : {first - 1, first + 1, 0U, 0xFFFFFFFFU}) {
+        core::Bytes file = game.file;
+        put_u32(file, found + 5, length);
+        reseal(file);
+        CHECK(!sim::read_game(file, game.buildings).ok());
+    }
+    core::Bytes more = game.file;  // one run more than the bytes and the column hold
+    put_u32(more, found + 1, get_u32(more, found + 1) + 1);
+    reseal(more);
+    CHECK(!sim::read_game(more, game.buildings).ok());
+    core::Bytes mode = game.file;  // a column of neither kind
+    mode[found] = 2;
+    reseal(mode);
+    CHECK(!sim::read_game(mode, game.buildings).ok());
 }

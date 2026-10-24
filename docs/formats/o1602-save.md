@@ -48,12 +48,12 @@ section it reads has bytes left over after its data, or if `WRLD`, `ISLE` or `PL
 | Identifier | Contents |
 |---|---|
 | `META` | width, height, game time, fingerprint of the building data (FNV-1a over Id, image and size of every building from `haeuser.cod`), name of the first human player: for the lists of savegames (`save_info` unpacks only the head of the file) |
-| `MAPW` | the whole map: world size, per island the header (identifier, number, size, position, template, climate), the position on the world map and **both layers of all tiles**. The values are ordered by kind (first the building ids of all tiles row by row, then all sub-tiles, rotation and phase, owner, city, random value); zlib packs that well |
+| `MAPW` | the whole map: world size, per island the header (identifier, number, size, position, template, climate), the position on the world map and **both layers of all tiles**. The values are ordered by kind (first the building ids of all tiles row by row, then all sub-tiles, rotation and phase, owner, city, random value); zlib packs that well. Version 2 (written since 2026-10-24, version 1 is still read): number, width and height of the header as u16, and each column of a layer (all building ids, all sub-tiles, ...) as a byte 0 and its values, or as a byte 1, the number of runs (u32) and per run its length (u32) and value, whichever is shorter. The runs of a column must together be exactly as long as the column, and the islands of the section together no larger than the world |
 | `RULE` | settings (`sim::Rules`) as pairs (u16 key, u32 value); unknown keys are skipped |
 | `WRLD` | game time, city name counter, difficulty and settings word, drought date and seed, random generators, clocks of the houses and of growth, next disaster number |
 | `WRL2` | further settings of the world: interval between two pirate ships |
 | `TUTR` | one byte, 1: the game is the tutorial (`TIMERS` +0xA5, [ai.md](../re/ai.md#tutorial)); written only then, optional, so a reader that does not know it loads the game as an ordinary one |
-| `ISLE` | per island: deer spots, drought, craters, deposits, fertility (version 2: 16-bit coordinates, see [o1602-chunk.md](o1602-chunk.md#section-versions)) |
+| `ISLE` | per island: deer spots, drought, craters, deposits, fertility (version 2: 16-bit coordinates, version 3: in addition 16-bit island numbers and deposit coordinates, see [o1602-chunk.md](o1602-chunk.md#section-versions)) |
 | `PLAY` `CITY` `PROD` `HOUS` `GROW` `COST` `ANIM` `DISA` `VOLC` | players, cities, production list with free slots, houses, growth, shipyards and castles, animals, fires and plagues, volcanoes with lava in flight |
 | `FACT` | the world's factions (id, behaviour, the numbers they grow with: pirate nests, trader ships, trader reach; [factions.md](../modding/factions.md)) and the faction of each player (order as in `PLAY`). Written only when the factions are not the base game's, optional: a reader without it plays the base game's factions that the role byte of `PLAY` gives (0 human, 1 computer, 2 free trader, 3 pirates, 4 natives; a faction of a content package goes there as the one it acts as) |
 | `TILE` | not in the own savegame (`MAPW` holds every tile); only in the chunk of an exported `.GAM` |
@@ -66,7 +66,7 @@ section it reads has bytes left over after its data, or if `WRLD`, `ISLE` or `PL
 | `GLDG` | per city (island, number) that has goods statistics: the minutes closed, then per good ever booked its ledger (warning given, the running minute's and quarter's counts, the last 60 minutes and the last 48 quarters of an hour as samples of 16 flows and the stock), then whether the city keeps the figures of its window and if so their history (minutes closed, 60 minutes and 48 quarters of 13 figures, the sums of the running quarter; [ADR 0012](../architecture/0012-goods-statistics.md)); written only when a city has statistics, optional: without it the statistics start empty. Does not exist in the original |
 | `SCOR` | per player (order as in `PLAY`): soldiers killed and lost, ships sunk and lost (`PLAYER4` +0x14..+0x1A; u16 in version 1, u32 in version 2, which is written only when a counter is above 65 535); then per city (island, number): growth of the house looked at last and the game time since it grows (monument allowances, city + 0x1F8/+0x1E4); if the section is missing, the counters from `PLAYER4` apply and the cities start without growth |
 | `MISN` | the missions (goals, loss conditions, values, text, the islands of the island goals recorded at the start) and the end of the game (time, winner) ([missions.md](../re/missions.md)) |
-| `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | ships with course, route and cargo, shipyard orders, trade settings (`FLEE` version 2: routes with eight stops, version 3: stops with eight wares, see [o1602-chunk.md](o1602-chunk.md#section-versions)); soldiers, towers, building damage, shots in flight, castle slots; diplomacy; island epochs; exploring |
+| `FLEE` `ARMY` `DIPL` `EPOC` `XPLR` | ships with course, route and cargo, shipyard orders, trade settings (`FLEE` version 2: routes with eight stops, version 3: stops with eight wares, version 4: 16-bit island numbers, see [o1602-chunk.md](o1602-chunk.md#section-versions)); soldiers, towers, building damage, shots in flight, castle slots; diplomacy; island epochs (`EPOC` version 2: 16-bit island numbers); exploring |
 | `QUEU` `STNC` | command chains of the ships and units (Shift+right-click, up to 16 destinations each); attack move and "hold position" (ADR 0010, does not exist in the original) |
 | `SIMU` | the state of the running game: clocks of the simulation, all active figures, the state of the computer opponents, the names for new cities and ships, the game speed and the pause. Version 2 holds it in parts with their own versions ([o1602-chunk.md](o1602-chunk.md#simu)) |
 | `ORIG` | the file of the original the game comes from (savegame, scenario or the template of a new game), as chunks without the island tiles (`INSELHAUS`), about 12 KB packed. Only for the export as `.GAM`: it takes from it the bytes that Open1602 does not track, exactly as for a game loaded directly from the file. If the section is missing, the export writes defaults like a new game |
@@ -102,8 +102,8 @@ makes the savegame unreadable (instead of wrong buildings).
   sizes, sections cut, left out, doubled or moved) with a correct checksum: every such file loads
   nothing or a world that validates, saves again and runs.
 - **Fixed bytes:** `tests/unit/test_save_format.cpp` writes a world with every saved field set to a
-  value of its own, as the own savegame and as the chunk of a `.GAM` (`ISLE` and `VOLC` in version 1
-  and 2), and compares every section with its recorded size and CRC-32; reading those bytes and
+  value of its own, as the own savegame and as the chunk of a `.GAM` (`ISLE` in version 1 and 3,
+  `VOLC` in version 1 and 2), and compares every section with its recorded size and CRC-32; reading those bytes and
   writing them again gives the same bytes. A change of a section's bytes needs a new version of it.
 - **Small:** Merlin04 (130 minutes, two cities) needs 248 KB instead of 885 KB as a `.GAM` with the extra chunk.
 
@@ -137,10 +137,14 @@ reads them all; `apply.cpp` checks what was read against the world and applies i
   sections have at most 20 bytes per tile of the world (`MAPW` needs that much for land) plus
   128 MiB, and never more than 1 GiB; a file without `META` at most 256 MiB. A larger game is not
   written (refused before it is packed) and a file promising more is refused before it is unpacked.
-- Islands are addressed by their number (8 bit) in some sections: every island needs a number of its
-  own (`validate` refuses two with the same number). An island can be larger than 255 × 255 tiles (up to the
-  world size): its craters and deer spots then use version 2 of `ISLE` and `VOLC`. Such a game cannot
-  be exported as `.GAM`, whose records keep island coordinates in one byte; the writer refuses it.
+- Islands are addressed by their number: every island needs a number of its own (`validate` refuses
+  two with the same number). Numbers above 255 (more than 256 islands) use version 3 of `ISLE`,
+  version 2 of `EPOC` and version 4 of `FLEE`; `MAPW` version 2 holds them always. An island can be
+  larger than 255 × 255 tiles (up to the world size): its craters and deer spots then use version 2
+  of `ISLE` and `VOLC`, its deposits version 3 of `ISLE`. Such a game cannot be exported as `.GAM`,
+  whose records keep island numbers and coordinates in one byte; the writer refuses it. The world
+  generator still plans at most 250 islands (`kMaxPlannedIslands`): it builds the original's island
+  records, whose tiles carry the number in eight bits.
 - Commands not yet executed between two ticks are not saved (saving
   happens between the ticks).
 - The `.GAM` export of a game loaded from an `.o1602` equals that of a directly loaded one

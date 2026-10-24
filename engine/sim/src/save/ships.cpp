@@ -128,8 +128,12 @@ template <class A, class Id, class Discovered, class Cities, class Yards, class 
 void io_fleet(A& a, std::uint16_t version, Id& next_ship_id, Discovered& discovered, Cities& cities, Yards& yards,
               Ships& ships) {
     a.u32(next_ship_id);
-    a.list(discovered, 5, [&](auto& item) {
-        a.u8(item.first);
+    a.list(discovered, version >= kWideDiscovered ? 6 : 5, [&](auto& item) {
+        if (version >= kWideDiscovered) {
+            a.u16(item.first);
+        } else {
+            a.u8(item.first);
+        }
         a.bools(item.second);
     });
     a.list(cities, 12, [&](auto& c) { io_city_trade(a, c); });
@@ -178,6 +182,10 @@ std::vector<Ship> read_ships(Reader& in) {
 }
 
 std::uint16_t fleet_version(const World& w) {
+    // Version 4 has the routes of version 3 and wide island numbers.
+    if (std::ranges::any_of(w.islands(), [](const WorldIsland& i) { return i.header.number > 0xFF; })) {
+        return kWideDiscovered;
+    }
     if (std::ranges::any_of(w.ships(), [](const Ship& s) { return s.route.beyond_original_entries(); })) {
         return kRouteWares;
     }
@@ -188,7 +196,7 @@ std::uint16_t fleet_version(const World& w) {
 
 void write_fleet(Writer& out, const World& w, std::uint16_t version) {
     const std::uint32_t next_ship_id = w.next_ship_id();
-    std::vector<std::pair<std::uint8_t, std::vector<bool>>> discovered;
+    std::vector<std::pair<std::uint16_t, std::vector<bool>>> discovered;
     for (const WorldIsland& i : w.islands()) {
         discovered.emplace_back(i.header.number, i.discovered);
     }

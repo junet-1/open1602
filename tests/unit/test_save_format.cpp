@@ -95,7 +95,7 @@ sim::Target target(Values& v) {
 }
 
 /// Islands of 12 x 10 tiles with ground, a road and a house; `wide` adds one of 260 x 3 tiles with
-/// a crater beyond 255 (version 2 of ISLE and VOLC). The wide world's players also have a
+/// a crater and a deposit beyond 255 (version 3 of ISLE, 2 of VOLC). The wide world's players also have a
 /// scenario's switches (version 2 of PSTA).
 void add_islands(sim::World& world, const assets::BuildingTable& buildings, bool wide) {
     struct Shape {
@@ -137,8 +137,8 @@ void add_islands(sim::World& world, const assets::BuildingTable& buildings, bool
         assets::IslandHeader header;
         header.chunk_name = "INSEL5";
         header.number = static_cast<std::uint8_t>(i == 1 ? 7 : i);  // numbers need not follow the order
-        header.width = static_cast<std::uint8_t>(s.w);
-        header.height = static_cast<std::uint8_t>(s.h);
+        header.width = static_cast<std::uint16_t>(s.w);
+        header.height = static_cast<std::uint16_t>(s.h);
         v(header.flags);
         v(header.pos_x);
         v(header.pos_y);
@@ -190,12 +190,15 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
         for (int k = 0; k < 2; ++k) {
             assets::IslandHeader::Deposit d;
             v(d.ware);
-            v(d.x);
-            v(d.y);
+            d.x = v.next<std::uint8_t>();
+            d.y = v.next<std::uint8_t>();
             v(d.mask);
             v(d.kind);
             v(d.amount);
             island.header.deposits.push_back(d);
+        }
+        if (w > 256) {
+            island.header.deposits[1].x = 300;
         }
         v(island.header.fertility);
     }
@@ -756,7 +759,7 @@ bool matches(const char* name, std::span<const std::uint8_t> data, std::span<con
 // clang-format off
 constexpr Golden kSaveNarrow[] = {
     {"META", 1, 0, 37, 0x5A2EBCE3},
-    {"MAPW", 1, 1, 4892, 0xE5B4A6F5},
+    {"MAPW", 2, 1, 1620, 0x46422F5B},
     {"RULE", 1, 1, 64, 0x173E1F2B},
     {"WRLD", 1, 1, 419, 0xC3B8D9A4},
     {"WRL2", 1, 1, 4, 0x5ADE7D82},
@@ -790,11 +793,11 @@ constexpr Golden kSaveNarrow[] = {
 
 constexpr Golden kSaveWide[] = {
     {"META", 1, 0, 38, 0xB89CD646},
-    {"MAPW", 1, 1, 20532, 0x262A247C},
+    {"MAPW", 2, 1, 5724, 0x3F3E2223},
     {"RULE", 1, 1, 64, 0x4090C16A},
     {"WRLD", 1, 1, 419, 0x3DED0795},
     {"WRL2", 1, 1, 4, 0x637B2D3C},
-    {"ISLE", 2, 1, 469, 0x3F8E764F},
+    {"ISLE", 3, 1, 484, 0x77AE4E1B},
     {"PLAY", 1, 1, 143, 0x177E459C},
     {"PSTA", 2, 1, 136, 0x25534BE0},
     {"MISN", 1, 1, 302, 0x93D421B5},
@@ -857,7 +860,7 @@ constexpr Golden kChunkNarrow[] = {
 constexpr Golden kChunkWide[] = {
     {"RULE", 1, 1, 64, 0x4090C16A},
     {"WRLD", 1, 1, 419, 0x3DED0795},
-    {"ISLE", 2, 1, 469, 0x3F8E764F},
+    {"ISLE", 3, 1, 484, 0x77AE4E1B},
     {"TILE", 1, 1, 34684, 0x3991F216},
     {"PLAY", 1, 1, 143, 0x177E459C},
     {"PSTA", 2, 1, 136, 0x25534BE0},
