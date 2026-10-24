@@ -363,13 +363,29 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
-    constexpr std::uint64_t kExpected =
-        0x80421a0e0c2dbe60ULL;  // names left empty without Text.cod (MD-10); SIMU in parts (DS-3); compact MAPW (DS-4)
+    constexpr std::uint64_t kExpected = 0x49e6e0a304bc7531ULL;  // names left empty without Text.cod (MD-10); SIMU in
+                                                                // parts (DS-3); tiles by blocks (TB-26)
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }
     CHECK(hash == kExpected);
     CHECK(g.cities_of(kComputer) == 1);
+}
+
+TEST_CASE("ai: the fingerprint with the blocks' hashes kept is the one taken anew while the computer builds (TB-26)") {
+    Game g;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    for (int k = 0; k < 18; ++k) {
+        run(s, 5'000);
+        CHECK(s.state_hash() == s.state_hash_anew());
+    }
+    CHECK(g.cities_of(kComputer) == 1);
+    // A tile changed behind the game's back changes the fingerprint at once.
+    const std::uint64_t hash = s.state_hash();
+    sim::IslandMap& map = g.world.island(0).map;
+    map.set_anim_phase(0, map.height() - 1, static_cast<std::uint8_t>(map.top(0, map.height() - 1).anim_phase ^ 1U));
+    CHECK(s.state_hash() != hash);
+    CHECK(s.state_hash() == s.state_hash_anew());
 }
 
 TEST_CASE("ai: a game saved while the computer is under way goes on as if never saved") {

@@ -3,6 +3,7 @@
 // The map: MAPW (own savegame) with the world's size and both layers of every island tile, TILE
 // (chunk in a .GAM) with the tiles loading the original's chunks would not give back.
 #include <algorithm>
+#include <array>
 #include <map>
 #include <string>
 
@@ -10,6 +11,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/island.hpp"
+#include "o1602/core/hash.hpp"
 
 namespace o1602::sim::save {
 
@@ -304,6 +306,66 @@ void write_map(Writer& out, const World& w, const assets::BuildingTable& buildin
         for (const bool ground : {false, true}) {
             const Layer layer = layer_of(i.map, ground, buildings);
             io_compact_layer(out, layer);
+        }
+    });
+}
+
+namespace {
+
+/// The bytes of a block's tiles for its fingerprint, little endian: per tile of both layers the
+/// building id (u32), sub-tile (u16), rotation and phase, owner, city and random value.
+constexpr std::size_t kBlockBytes = std::size_t{IslandMap::kBlockSide} * IslandMap::kBlockSide * 2 * 10;
+
+std::uint64_t block_hash(const IslandMap& map, std::size_t block, const assets::BuildingTable& buildings) {
+    const auto left = static_cast<std::uint32_t>(block % map.blocks_x()) * IslandMap::kBlockSide;
+    const auto top = static_cast<std::uint32_t>(block / map.blocks_x()) * IslandMap::kBlockSide;
+    const std::uint32_t right = std::min(left + IslandMap::kBlockSide, map.width());
+    const std::uint32_t bottom = std::min(top + IslandMap::kBlockSide, map.height());
+    std::array<std::uint8_t, kBlockBytes> bytes;
+    std::size_t n = 0;
+    for (const bool ground : {false, true}) {
+        for (std::uint32_t y = top; y < bottom; ++y) {
+            for (std::uint32_t x = left; x < right; ++x) {
+                const MapCell& c = ground ? map.ground(x, y) : map.top(x, y);
+                const CellPicture p = picture_of(buildings, c);
+                for (std::size_t k = 0; k < 4; ++k) {
+                    bytes[n++] = static_cast<std::uint8_t>(p.id >> (8 * k));
+                }
+                bytes[n++] = static_cast<std::uint8_t>(p.sub);
+                bytes[n++] = static_cast<std::uint8_t>(p.sub >> 8U);
+                bytes[n++] = static_cast<std::uint8_t>(c.rotation | c.anim_phase << 2);
+                bytes[n++] = c.owner;
+                bytes[n++] = c.city;
+                bytes[n++] = c.random;
+            }
+        }
+    }
+    return core::xxh64(std::span<const std::uint8_t>(bytes.data(), n));
+}
+
+}  // namespace
+
+/// MAPW for the fingerprint of the game: as write_map, but each island's tiles as the XXH64 of each
+/// block (IslandMap::kBlockSide tiles on a side), taken again only for the blocks that changed (TB-26).
+void write_map_fingerprint(Writer& out, const World& w, const assets::BuildingTable& buildings,
+                           std::vector<std::vector<BlockHash>>& hashes) {
+    out.u32(w.width());
+    out.u32(w.height());
+    hashes.resize(w.islands().size());
+    std::size_t index = 0;
+    out.list(w.islands(), 64, [&](const WorldIsland& i) {
+        io_header(out, i.header, kCompactMap);
+        out.u32(i.x);
+        out.u32(i.y);
+        out.u32(i.map.width());
+        out.u32(i.map.height());
+        std::vector<BlockHash>& blocks = hashes[index++];
+        blocks.resize(std::size_t{i.map.blocks_x()} * i.map.blocks_y());
+        for (std::size_t b = 0; b < blocks.size(); ++b) {
+            if (blocks[b].revision != i.map.block_revision(b)) {
+                blocks[b] = {i.map.block_revision(b), block_hash(i.map, b, buildings)};
+            }
+            out.u64(blocks[b].hash);
         }
     });
 }

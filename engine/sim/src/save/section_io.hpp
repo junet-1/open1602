@@ -270,6 +270,10 @@ constexpr bool wide(std::uint16_t x, std::uint16_t y) noexcept {
 
 // map.cpp: MAPW (own savegame only), TILE (chunk in a .GAM only), the buildings' fingerprint (META).
 void write_map(Writer& out, const World& w, const assets::BuildingTable& buildings);
+/// MAPW in the fingerprint of the game: the tiles as hashes of their blocks, kept in `hashes` (per
+/// island of the world) and taken again only where a block changed.
+void write_map_fingerprint(Writer& out, const World& w, const assets::BuildingTable& buildings,
+                           std::vector<std::vector<BlockHash>>& hashes);
 [[nodiscard]] core::Result<World> read_map(Reader& in, const assets::BuildingTable& buildings, std::uint16_t version);
 void write_tiles(Writer& out, const World& w, const assets::BuildingTable& buildings,
                  std::span<const std::uint8_t> before);

@@ -2,6 +2,7 @@
 #include "o1602/sim/island_map.hpp"
 
 #include <algorithm>
+#include <atomic>
 
 #include "o1602/sim/game_data.hpp"
 
@@ -11,7 +12,26 @@ using core::ErrorCode;
 using core::make_error;
 
 IslandMap::IslandMap(std::uint32_t width, std::uint32_t height)
-    : m_width(width), m_height(height), m_top(std::size_t{width} * height), m_ground(std::size_t{width} * height) {}
+    : m_width(width),
+      m_height(height),
+      m_top(std::size_t{width} * height),
+      m_ground(std::size_t{width} * height),
+      m_revisions(std::size_t{blocks_x()} * blocks_y()) {
+    touch_all();
+}
+
+void IslandMap::touch_all() {
+    for (auto& r : m_revisions) {
+        r = next_revision();
+    }
+}
+
+std::uint64_t IslandMap::next_revision() noexcept {
+    // Shared by all maps, so that a revision never stands for two different contents; from any
+    // thread (maps of other worlds are built on loader threads).
+    static std::atomic<std::uint64_t> counter{0};
+    return counter.fetch_add(1, std::memory_order_relaxed) + 1;
+}
 
 namespace {
 
@@ -108,6 +128,14 @@ core::Status IslandMap::write(const assets::BuildingType& b, std::int32_t x, std
                 }
             }
             break;
+    }
+    // Every block the footprint covers (fw, fh >= 1: the building fit).
+    const auto left = static_cast<std::uint32_t>(x);
+    const auto top = static_cast<std::uint32_t>(y);
+    for (std::uint32_t by = top / kBlockSide; fh > 0 && by <= (top + fh - 1) / kBlockSide; ++by) {
+        for (std::uint32_t bx = left / kBlockSide; fw > 0 && bx <= (left + fw - 1) / kBlockSide; ++bx) {
+            m_revisions[std::size_t{by} * blocks_x() + bx] = next_revision();
+        }
     }
     return core::Ok{};
 }
