@@ -53,8 +53,8 @@ public:
         }
         // The page is kept within the list (it shrinks when ships sink or cities change hands).
         m_first = std::min(m_first, last_first());
-        // The original leaves the heading empty; Open1602 names the list, counts its rows and says
-        // how they are ordered.
+        // The original leaves the heading empty; Open1602 names the list and counts its rows. An
+        // order chosen takes the name's place: the banner holds about 25 letters before the arms.
         const std::string heading = panel_detail::help_line(c, m_ships ? 214 : 215);
         const std::string count = std::to_string(m_rows.size());
         m_panel.set_text(m_base + kHeading, m_order == Order::Table ? heading + " (" + count + ")"
@@ -144,10 +144,13 @@ public:
         m_stale = true;
     }
 
-    /// A row per notch, within the list (FB-6).
+    /// A row per notch, within the list (FB-6): down to where the last row is the page's last.
     bool wheel(std::int32_t notches) override {
         const auto first = static_cast<std::int64_t>(m_first) - notches;
-        m_first = static_cast<std::size_t>(std::clamp<std::int64_t>(first, 0, static_cast<std::int64_t>(last_first())));
+        // The page buttons may have left the last page further down; the wheel does not jump back.
+        const auto last = std::max(static_cast<std::int64_t>(m_rows.size() > kRows ? m_rows.size() - kRows : 0),
+                                   static_cast<std::int64_t>(m_first));
+        m_first = static_cast<std::size_t>(std::clamp<std::int64_t>(first, 0, last));
         return true;
     }
 
