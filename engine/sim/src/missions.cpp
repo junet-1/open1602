@@ -3,6 +3,7 @@
 // Mission goals and the values they look at (docs/re/missions.md).
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <unordered_map>
 
 #include "o1602/sim/consumption.hpp"
@@ -276,9 +277,10 @@ namespace {
 /// Calls add(island, cell, building) for every building with workers (a used production, a
 /// building with a running cost, a tower or castle) whose map cell holds a known building.
 template <typename Add>
-void for_each_workplace(const World& world, const assets::BuildingTable& buildings, Add&& add) {
+void for_each_workplace(const World& world, const assets::BuildingTable& buildings, Add&& add,
+                        std::optional<std::uint16_t> only = std::nullopt) {
     const auto visit = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) {
-        if (island >= world.islands().size()) {
+        if (island >= world.islands().size() || (only && island != *only)) {
             return;
         }
         const IslandMap& map = world.islands()[island].map;
@@ -320,11 +322,14 @@ std::vector<std::uint32_t> city_workers(const World& world, const assets::Buildi
 
 std::uint32_t city_workers(const World& world, const assets::BuildingTable& buildings, const City& city) {
     std::uint32_t workers = 0;
-    for_each_workplace(world, buildings, [&](std::uint16_t island, const MapCell& cell, const assets::BuildingType& b) {
-        if (island == city.island && cell.city == city.index) {
-            workers += b.workers;
-        }
-    });
+    for_each_workplace(
+        world, buildings,
+        [&](std::uint16_t, const MapCell& cell, const assets::BuildingType& b) {
+            if (cell.city == city.index) {
+                workers += b.workers;
+            }
+        },
+        city.island);
     return workers;
 }
 

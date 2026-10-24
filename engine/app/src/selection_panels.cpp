@@ -609,18 +609,10 @@ private:
     }
 
     void refresh_city(const sim::City& city, const PanelContext& c) {
-        const auto& cities = c.world().cities();
-        std::size_t index = 0;
-        for (std::size_t i = 0; i < cities.size(); ++i) {
-            if (&cities[i] == &city) {
-                index = i;
-            }
-        }
-        const std::vector<std::uint32_t> workers = sim::city_workers(c.world(), c.buildings);
-        const std::vector<std::int32_t> costs = sim::running_costs(c.world(), c.buildings);
-        const std::int64_t people = sim::city_einwohner(city, index < workers.size() ? workers[index] : 0);
+        // Only the buildings of the city's island (FB-4).
+        const std::int64_t people = sim::city_einwohner(city, sim::city_workers(c.world(), c.buildings, city));
         const std::int64_t tax = sim::tax_income(city, c.buildings);
-        const std::int64_t cost = index < costs.size() ? costs[index] : 0;
+        const std::int64_t cost = sim::running_cost(c.world(), c.buildings, city);
         const std::int64_t sales = city.sales / 480;
         const std::int64_t purchases = city.purchases / 480;
         const std::int64_t balance = tax - cost + sales - purchases;

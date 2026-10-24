@@ -448,9 +448,19 @@ void advance_disasters(World& world, const assets::BuildingTable& buildings, std
     for (const Disaster& d : world.disasters()) {
         ids.push_back(d.id);
     }
+    // New disasters get the next id and removals keep the order, so a list sorted by id stays so
+    // and a binary search finds each one (TB-24); a list in another order (a hand-made save) is
+    // searched through.
+    const bool sorted =
+        std::is_sorted(ids.begin(), ids.end()) && (ids.empty() || world.peek_disaster_id() > ids.back());
     for (const std::uint32_t id : ids) {
         auto& list = world.disasters();
-        const auto it = std::find_if(list.begin(), list.end(), [&](const Disaster& d) { return d.id == id; });
+        auto it = sorted ? std::lower_bound(list.begin(), list.end(), id,
+                                            [](const Disaster& d, std::uint32_t v) { return d.id < v; })
+                         : std::find_if(list.begin(), list.end(), [&](const Disaster& d) { return d.id == id; });
+        if (it != list.end() && it->id != id) {
+            it = list.end();
+        }
         if (it == list.end()) {
             continue;  // burned down or cured meanwhile
         }

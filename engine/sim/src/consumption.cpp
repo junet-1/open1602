@@ -228,21 +228,27 @@ std::int32_t tax_income(const City& city, const assets::BuildingTable& buildings
     return static_cast<std::int32_t>(total);
 }
 
-std::vector<std::int32_t> running_costs(const World& world, const assets::BuildingTable& buildings) {
+namespace {
+
+/// Adds the running costs of every building to `add(city slot, cost)`; with `only`, of the
+/// buildings on that island alone.
+template <typename Add>
+void for_each_cost(const World& world, const assets::BuildingTable& buildings, std::optional<std::uint16_t> only,
+                   Add&& add) {
     const auto& cities = world.cities();
-    std::vector<std::int32_t> costs(cities.size(), 0);
     const auto city_at = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) -> std::optional<std::size_t> {
+        if (only && island != *only) {
+            return std::nullopt;
+        }
         const IslandMap& map = world.islands()[island].map;
         if (!map.contains(x, y)) {
             return std::nullopt;
         }
-        const std::uint8_t index = map.top(x, y).city;
-        for (std::size_t i = 0; i < cities.size(); ++i) {
-            if (cities[i].island == island && cities[i].index == index) {
-                return i;
-            }
+        const City* city = world.city(island, map.top(x, y).city);
+        if (city == nullptr) {
+            return std::nullopt;
         }
-        return std::nullopt;
+        return static_cast<std::size_t>(city - cities.data());
     };
     const auto type_at = [&](std::uint16_t island, std::uint16_t x, std::uint16_t y) -> const assets::BuildingType* {
         const MapCell& cell = world.islands()[island].map.top(x, y);
@@ -255,7 +261,7 @@ std::vector<std::int32_t> running_costs(const World& world, const assets::Buildi
         const auto i = city_at(p.island, p.x, p.y);
         const assets::BuildingType* b = i ? type_at(p.island, p.x, p.y) : nullptr;
         if (b != nullptr) {
-            costs[*i] += static_cast<std::int32_t>(p.enabled ? b->running_cost : b->idle_cost);
+            add(*i, static_cast<std::int32_t>(p.enabled ? b->running_cost : b->idle_cost));
         }
     }
     for (const CostBuilding& c : world.cost_buildings()) {
@@ -267,13 +273,35 @@ std::vector<std::int32_t> running_costs(const World& world, const assets::Buildi
         if (c.kind == CostBuilding::Kind::Castle) {
             const Player* owner = world.player(cities[*i].owner);
             if (owner != nullptr && owner->role == PlayerRole::Human) {
-                costs[*i] += static_cast<std::int32_t>(b->running_cost);
+                add(*i, static_cast<std::int32_t>(b->running_cost));
             }
         } else {
-            costs[*i] += static_cast<std::int32_t>(c.enabled ? b->running_cost : b->idle_cost);
+            add(*i, static_cast<std::int32_t>(c.enabled ? b->running_cost : b->idle_cost));
         }
     }
+}
+
+}  // namespace
+
+std::vector<std::int32_t> running_costs(const World& world, const assets::BuildingTable& buildings) {
+    std::vector<std::int32_t> costs(world.cities().size(), 0);
+    for_each_cost(world, buildings, std::nullopt, [&](std::size_t i, std::int32_t cost) { costs[i] += cost; });
     return costs;
+}
+
+std::int32_t running_cost(const World& world, const assets::BuildingTable& buildings, const City& city) {
+    const auto& cities = world.cities();
+    if (cities.empty() || &city < cities.data() || &city >= cities.data() + cities.size()) {
+        return 0;
+    }
+    const auto slot = static_cast<std::size_t>(&city - cities.data());
+    std::int32_t total = 0;
+    for_each_cost(world, buildings, city.island, [&](std::size_t i, std::int32_t cost) {
+        if (i == slot) {
+            total += cost;
+        }
+    });
+    return total;
 }
 
 void unlock_levels(World& world, const assets::BuildingTable& buildings, const City& city,
