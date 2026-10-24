@@ -18,6 +18,7 @@
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/scenario.hpp"
 #include "o1602/core/result.hpp"
+#include "o1602/sim/limits.hpp"
 
 namespace o1602::sim {
 
@@ -35,12 +36,11 @@ struct WorldSettings {
     };
     static constexpr std::uint32_t kMinSide = 200;
     static constexpr std::uint32_t kMaxSide = 2000;
-    static constexpr std::uint8_t kMaxPlayers = 16;
     static constexpr std::uint8_t kMaxGoldIslands = 250;  ///< one per island at most
 
     std::uint32_t width = 500;  ///< tiles; the original map is 500 x 350
     std::uint32_t height = 350;
-    std::uint8_t players = 4;           ///< humans and computers with a start, 1..kMaxPlayers
+    std::uint8_t players = 4;           ///< humans and computers with a start, 1..sim::kMaxPlayers
     Amount islands = Amount::Normal;    ///< Normal: as dense as the original (one island per 9500 tiles)
     Sizes sizes = Sizes::Mixed;         ///< mix of size classes
     Amount natives = Amount::Normal;    ///< Normal: four villages per 18 islands, as the original

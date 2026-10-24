@@ -51,6 +51,7 @@ add_executable(o1602_tests
     unit/test_combat_effects.cpp
     unit/test_units.cpp
     unit/test_save_game.cpp
+    unit/test_limits.cpp
     unit/test_missions.cpp
     unit/test_scores.cpp
     unit/test_end_screen.cpp

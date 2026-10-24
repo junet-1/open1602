@@ -526,6 +526,12 @@ void HostSession::hello(Peer& peer, const Hello& m) {
             return;
         }
     }
+    const auto members = std::count_if(m_peers.begin(), m_peers.end(),
+                                       [&](const auto& p) { return p.get() != &peer && !p->gone && p->welcomed; });
+    if (static_cast<std::uint64_t>(members) >= kMaxMembers) {
+        drop(peer, RefuseReason::Full);  // the roster would not decode any more (LC-1)
+        return;
+    }
     peer.welcomed = true;
     peer.game_due = started();
     peer.seat = seat;

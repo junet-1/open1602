@@ -262,6 +262,8 @@ std::string error_text(const core::Error& error, std::string_view context) {
         case core::ErrorCode::InvalidFormat:
         case core::ErrorCode::OutOfRange:
             return tr("error.damaged");
+        case core::ErrorCode::LimitExceeded:
+            return tr("error.limit", {error.message});
         case core::ErrorCode::Unsupported:
             return tr("error.unsupported");
         case core::ErrorCode::PlatformError:

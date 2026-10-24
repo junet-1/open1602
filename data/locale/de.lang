@@ -297,6 +297,7 @@ build.refusal.ship_too_far = das Schiff ist zu weit entfernt
 error.io = die Datei ließ sich nicht lesen oder schreiben
 error.not_found = die Datei gibt es nicht
 error.damaged = die Datei ist beschädigt oder kein Spielstand
+error.limit = mehr, als das Spiel fasst: {1}
 error.unsupported = die Datei braucht ein neueres Open1602 oder andere Spieldaten
 error.platform = das System hat abgelehnt
 

@@ -188,15 +188,15 @@ private:
         const bool original = m_world.width() == World::kOriginalWidth && m_world.height() == World::kOriginalHeight;
         const std::size_t max_islands = original ? kMaxIslands : kMaxOwnIslands;
         if (m_world.islands().size() > max_islands) {
-            return make_error(ErrorCode::OutOfRange, "more than " + std::to_string(max_islands) + " islands");
+            return make_error(ErrorCode::LimitExceeded, "more than " + std::to_string(max_islands) + " islands");
         }
         const auto fits = [](std::uint32_t x, std::uint32_t y) { return x <= 0xFF && y <= 0xFF; };
         for (const WorldIsland& i : m_world.islands()) {
             if (i.header.number >= max_islands) {
-                return make_error(ErrorCode::OutOfRange, "island number " + std::to_string(i.header.number));
+                return make_error(ErrorCode::LimitExceeded, "island number " + std::to_string(i.header.number));
             }
             if (i.map.width() > kMaxIslandSide || i.map.height() > kMaxIslandSide) {
-                return make_error(ErrorCode::OutOfRange,
+                return make_error(ErrorCode::LimitExceeded,
                                   "island " + std::to_string(i.header.number) + " is wider or higher than 255 tiles");
             }
             // Within such an island a valid world's craters and deer spots fit one byte; a world
@@ -206,8 +206,8 @@ private:
             const bool spots = std::all_of(i.deer_spots.begin(), i.deer_spots.end(),
                                            [&](const DeerSpot& d) { return !d.used || fits(d.x, d.y); });
             if (!craters || !spots) {
-                return make_error(ErrorCode::OutOfRange, "a crater or deer spot of island " +
-                                                             std::to_string(i.header.number) + " beyond 255 tiles");
+                return make_error(ErrorCode::LimitExceeded, "a crater or deer spot of island " +
+                                                                std::to_string(i.header.number) + " beyond 255 tiles");
             }
         }
         const VolcanoState& volcanoes = m_world.volcanoes();
@@ -215,25 +215,25 @@ private:
         const bool running = std::all_of(volcanoes.eruptions.begin(), volcanoes.eruptions.end(),
                                          [&](const Eruption& e) { return fits(e.crater.x, e.crater.y); });
         if (!last || !running) {
-            return make_error(ErrorCode::OutOfRange, "an erupting crater beyond 255 tiles");
+            return make_error(ErrorCode::LimitExceeded, "an erupting crater beyond 255 tiles");
         }
         if (m_world.width() > 0xFFFF || m_world.height() > 0xFFFF) {
-            return make_error(ErrorCode::OutOfRange, "the world is too large for the file format");
+            return make_error(ErrorCode::LimitExceeded, "the world is too large for the file format");
         }
         if (original && m_world.cities().size() > kMaxCities) {
-            return make_error(ErrorCode::OutOfRange, "more than 75 cities");
+            return make_error(ErrorCode::LimitExceeded, "more than 75 cities");
         }
         if (m_world.players().size() > assets::kOriginalPlayerSlots) {
-            return make_error(ErrorCode::OutOfRange, "more than 7 players");
+            return make_error(ErrorCode::LimitExceeded, "more than 7 players");
         }
         if (m_world.ships().size() > kMaxShips) {
-            return make_error(ErrorCode::OutOfRange, "more than 150 ships");
+            return make_error(ErrorCode::LimitExceeded, "more than 150 ships");
         }
         if (m_world.soldiers().size() > kMaxSoldiers) {
-            return make_error(ErrorCode::OutOfRange, "more than 400 soldiers");
+            return make_error(ErrorCode::LimitExceeded, "more than 400 soldiers");
         }
         if (m_world.towers().size() > kMaxTowers) {
-            return make_error(ErrorCode::OutOfRange, "more than 350 towers");
+            return make_error(ErrorCode::LimitExceeded, "more than 350 towers");
         }
         return core::Ok{};
     }
@@ -450,7 +450,7 @@ private:
         r[8] = static_cast<std::uint8_t>((r[8] & ~3U) | (island.deer_phase & 3U));
         r[0x0A] = static_cast<std::uint8_t>((r[0x0A] & ~7U) | (island.last_phase & 7U));
         // Owners of the eight city slots.
-        for (std::uint8_t c = 0; c < 8; ++c) {
+        for (std::uint8_t c = 0; c < kCitySlotsPerIsland; ++c) {
             const City* city = m_world.city(i, c);
             r[0x0C + c] = city != nullptr ? owner_byte(city->owner) : kNoOwner;
         }

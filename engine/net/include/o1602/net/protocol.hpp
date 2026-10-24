@@ -33,6 +33,9 @@ inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
 inline constexpr std::uint32_t kMaxCommandsPerMessage = 1024;
 inline constexpr std::uint32_t kMaxFramesPerTurn = 1U << 16;
 inline constexpr std::uint32_t kMaxRosterMembers = 256;
+/// Computers a host takes besides itself: one fewer than a Roster holds, so that every roster it
+/// sends decodes (LC-1).
+inline constexpr std::uint32_t kMaxMembers = kMaxRosterMembers - 1;
 inline constexpr std::uint32_t kMaxSnapshotBytes = 32U << 20;
 static_assert(kMaxSnapshotBytes + (64U << 10) <= kMaxMessageBytes, "a game must fit into one message");
 /// The largest message a computer sends the host (its commands and reports; the host refuses more).
@@ -46,7 +49,11 @@ inline constexpr std::uint32_t kDefaultMaxSpectators = 8;
 inline constexpr std::size_t kMaxPasswordLength = 64;
 inline constexpr std::size_t kMaxTitleLength = 64;
 inline constexpr std::size_t kMaxChatLength = 200;
+/// Slots of a lobby: every PlayerId but kNoPlayer, so a lobby holds the players with a start and the
+/// factions' slots between them.
 inline constexpr std::uint32_t kMaxLobbySeats = 255;
+static_assert(kMaxLobbySeats == sim::kMaxPlayerCount && kMaxLobbySeats >= sim::kMaxPlayerSlots,
+              "a lobby has a slot for every player and the factions");
 inline constexpr std::uint32_t kMaxSetupBytes = 64U << 10;
 inline constexpr std::size_t kMaxAddressLength = 64;
 inline constexpr std::uint32_t kMaxLobbyBanners = 1024;

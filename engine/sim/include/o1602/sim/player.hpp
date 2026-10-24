@@ -12,6 +12,7 @@
 
 #include "o1602/assets/scenario.hpp"
 #include "o1602/sim/faction.hpp"
+#include "o1602/sim/limits.hpp"
 
 namespace o1602::sim {
 
@@ -214,9 +215,6 @@ inline void pay_for_trade(Player& p, std::int64_t value) noexcept {
 inline constexpr PlayerId kOriginalPlayers = 4;
 inline constexpr PlayerId kFirstExtraPlayer = 7;
 inline constexpr BannerId kFirstExtraBanner = 7;
-/// Players with a start in a new world: as many as there are banner colours that stay apart
-/// (render::BannerTable::kDefaultColors).
-inline constexpr std::size_t kMaxPlayers = 12;
 
 /// Of the four player colours the original has some things in (unit figure types, the spoken
 /// "the red player won" messages), the one for a banner: the colours of players five on and of
@@ -229,6 +227,10 @@ inline constexpr std::size_t kMaxPlayers = 12;
 [[nodiscard]] constexpr PlayerId player_slot(std::size_t n) noexcept {
     return static_cast<PlayerId>(n < kOriginalPlayers ? n : kFirstExtraPlayer + (n - kOriginalPlayers));
 }
+/// Slots a world of kMaxPlayers holds: the highest player's slot and those before it.
+inline constexpr std::size_t kMaxPlayerSlots = std::size_t{player_slot(kMaxPlayers - 1)} + 1;
+static_assert(kMaxPlayers >= kOriginalPlayers && kMaxPlayerSlots < kMaxPlayerCount,
+              "every player with a start has a slot of its own below kNoPlayer");
 
 /// Original colours map 1:1 to the banners of the base game.
 [[nodiscard]] constexpr BannerId banner_from_original(assets::PlayerColor color) noexcept {

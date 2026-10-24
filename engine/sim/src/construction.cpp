@@ -24,7 +24,6 @@ constexpr std::uint8_t kInfraMonument = 14;
 /// A castle or cathedral makes its city proud: city + 0x200 += 25 * 32 (command 0x4B of 0x004084D0).
 constexpr std::uint32_t kPrideBonus = 25 * 32;
 
-constexpr std::uint32_t kMaxCitiesPerIsland = 7;
 constexpr std::int32_t kShipRange = 16;       // founding from a ship: circle of radius 16
 constexpr std::int32_t kRoadSearch = 4;       // doors turn to roads within 4 tiles
 constexpr std::uint8_t kMinKontorRadius = 8;  // territory of a Kontor
@@ -1013,14 +1012,15 @@ std::vector<std::uint8_t> territory_coverage(const World& world, const assets::B
                 const City* c = world.city(island, cell.city);
                 std::uint8_t bits = 0;
                 for (const City& other : world.cities()) {
-                    if (c != nullptr && other.island == island && other.owner == c->owner && other.index < 8) {
+                    if (c != nullptr && other.island == island && other.owner == c->owner &&
+                        other.index < kCitySlotsPerIsland) {
                         bits = static_cast<std::uint8_t>(bits | (1U << other.index));
                     }
                 }
                 cover(area, kTowerRadius, bits);
             } else {
                 cover(area, std::max(b->radius, kMinKontorRadius),
-                      static_cast<std::uint8_t>(cell.city < 8 ? 1U << cell.city : 0U));
+                      static_cast<std::uint8_t>(cell.city < kCitySlotsPerIsland ? 1U << cell.city : 0U));
             }
         }
     }
@@ -1030,7 +1030,7 @@ std::vector<std::uint8_t> territory_coverage(const World& world, const assets::B
 /// The city of the same owner whose land still reaches a tile its own city lost, or none.
 std::uint8_t covering_city(const World& world, std::uint16_t island, std::uint8_t own_city, std::uint8_t bits) {
     const City* own = world.city(island, own_city);
-    for (std::uint8_t c = 0; c < 8; ++c) {
+    for (std::uint8_t c = 0; c < kCitySlotsPerIsland; ++c) {
         const City* other = world.city(island, c);
         if ((bits >> c & 1U) != 0 && other != nullptr && own != nullptr && other->owner == own->owner) {
             return c;

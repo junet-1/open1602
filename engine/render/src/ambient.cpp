@@ -631,7 +631,8 @@ void Ambient::sea_block(const sim::World& world, const assets::FigureTable& figu
         const std::int32_t r1 = std::min(rows - 1, (ty + kShipSeen) / static_cast<std::int32_t>(kSeaBlock));
         for (std::int32_t r = r0; r <= r1 && !near_ship; ++r) {
             for (std::int32_t c = c0; c <= c1 && !near_ship; ++c) {
-                for (const std::uint32_t i : m_ship_squares[static_cast<std::size_t>(r * cols + c)]) {
+                for (const std::uint32_t i :
+                     m_ship_squares[static_cast<std::size_t>(r) * m_ship_cols + static_cast<std::size_t>(c)]) {
                     const sim::Ship& s = world.ships()[i];
                     const std::int32_t dx = static_cast<std::int32_t>(s.x) - tx;
                     const std::int32_t dy = static_cast<std::int32_t>(s.y) - ty;

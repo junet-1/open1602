@@ -739,10 +739,13 @@ WorldPlan Planner::finish() {
 core::Result<WorldPlan> Planner::run() {
     if (m_s.width < WorldSettings::kMinSide || m_s.height < WorldSettings::kMinSide ||
         m_s.width > WorldSettings::kMaxSide || m_s.height > WorldSettings::kMaxSide) {
-        return core::make_error(core::ErrorCode::OutOfRange, "world size out of range");
+        return core::make_error(core::ErrorCode::LimitExceeded, "a world side of " +
+                                                                    std::to_string(WorldSettings::kMinSide) + " to " +
+                                                                    std::to_string(WorldSettings::kMaxSide) + " tiles");
     }
-    if (m_s.players == 0 || m_s.players > WorldSettings::kMaxPlayers) {
-        return core::make_error(core::ErrorCode::OutOfRange, "number of players out of range");
+    // The players add_players places, not more (LC-1).
+    if (m_s.players == 0 || m_s.players > kMaxPlayers) {
+        return core::make_error(core::ErrorCode::LimitExceeded, "1 to " + std::to_string(kMaxPlayers) + " players");
     }
     if (m_templates.empty()) {
         return core::make_error(core::ErrorCode::NotFound, "no island templates in the game directory");
@@ -762,7 +765,7 @@ core::Result<WorldPlan> Planner::run() {
     }
     const std::uint64_t area = std::uint64_t{m_s.width} * m_s.height;
     auto total = static_cast<std::uint32_t>((area * density / 100 + kTilesPerIsland / 2) / kTilesPerIsland);
-    total = std::clamp<std::uint32_t>(total, std::uint32_t{m_s.players} + 2U, 250U);  // island numbers are 8 bit
+    total = std::clamp<std::uint32_t>(total, std::uint32_t{m_s.players} + 2U, kMaxPlannedIslands);
 
     place_starts();
     place_homes();

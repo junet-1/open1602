@@ -229,7 +229,8 @@ int cmd_new_world(const Args& args) {
         w.width = static_cast<std::uint32_t>(std::max(0, size->first));
         w.height = static_cast<std::uint32_t>(std::max(0, size->second));
     }
-    w.players = static_cast<std::uint8_t>(std::clamp<std::size_t>(args.number("--players").value_or(4), 1, 16));
+    w.players =
+        static_cast<std::uint8_t>(std::clamp<std::size_t>(args.number("--players").value_or(4), 1, sim::kMaxPlayers));
     const auto islands = amount(args, "--island-count");
     const auto villages = amount(args, "--villages");
     const auto volcanoes = amount(args, "--volcano-islands");

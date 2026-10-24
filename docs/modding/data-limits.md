@@ -50,3 +50,9 @@ The score of the end screen and the monument allowance are named there too, in
 monument and defeat points, and the rule that lets a growing city build a monument (every 30
 minutes of game time with 200 inhabitants of class Bürger and higher). A mod changes them in that
 header.
+
+Limits of the game itself that more than one part checks (players with a start, island numbers
+and indexes, cities per island, the world's side) are defined once, in
+`engine/sim/include/o1602/sim/limits.hpp`; the network's and the menus' limits derive from them.
+When one is exceeded the player sees which ("more than the game holds: 1 to 12 players"), not
+"the file is damaged".

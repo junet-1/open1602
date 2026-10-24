@@ -273,7 +273,7 @@ Roster get_roster(In& in) {
 Desync get_desync(In& in) {
     Desync m;
     m.frame = in.u64();
-    const std::uint32_t n = in.count(kMaxRosterMembers);
+    const std::uint32_t n = in.count(kMaxLobbySeats);  // slots, not members
     m.seats.reserve(n);
     for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
         m.seats.push_back(in.u8());
