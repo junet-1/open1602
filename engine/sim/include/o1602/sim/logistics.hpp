@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <unordered_set>
 #include <vector>
 
@@ -185,9 +186,10 @@ public:
     /// One tick of game time: every figure walks; at the end of its path it picks up or delivers.
     void tick();
 
-    /// A building with production entry `production` is gone: its figures end their trip (their
-    /// load is lost, their reservations are released) - S-002.
-    void building_removed(std::uint32_t production);
+    /// Buildings with these production entries are gone: their figures end their trip (their load
+    /// is lost, their reservations are released) - S-002. One pass over the figures for all of
+    /// them (TB-22); the figures end in the order of the buildings, as one call each would.
+    void buildings_removed(std::span<const std::uint32_t> productions);
 
     /// Every used deer spot gets its deer (the original does this when it loads a game).
     void spawn_deer_at_spots();

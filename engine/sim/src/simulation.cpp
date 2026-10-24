@@ -716,17 +716,20 @@ bool towers_affected(const ConstructionEvent& e) {
 
 void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_t first) {
     bool storage = false;
+    // S-002: figures of a building that is gone end their trip; what they carry is lost and what
+    // they reserved is released. All removals up to the next founded city at once (TB-22).
+    std::vector<std::uint32_t> removed;
     for (std::size_t i = first; i < events.size(); ++i) {
         const ConstructionEvent& e = events[i];
         switch (e.kind) {
             case ConstructionEvent::Kind::Removed:
                 if (e.production) {
-                    // S-002: figures of a building that is gone end their trip; what they carry
-                    // is lost and what they reserved is released.
-                    m_logistics.building_removed(*e.production);
+                    removed.push_back(*e.production);
                 }
                 break;
             case ConstructionEvent::Kind::CityFounded:
+                m_logistics.buildings_removed(removed);
+                removed.clear();
                 m_ai.city_founded(e.island, e.city);
                 storage = true;
                 break;
@@ -752,6 +755,7 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
             touch(m_tower_islands, e.island);
         }
     }
+    m_logistics.buildings_removed(removed);
     for (const std::uint16_t island : m_coast_islands) {
         m_fleet.island_changed(island);
         m_combat.island_changed(island);
