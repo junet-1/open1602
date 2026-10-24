@@ -38,6 +38,7 @@ constexpr std::int32_t kCostValue = 37006;
 constexpr std::uint32_t kChapel = 20809;  // DIVERS, second in the build menu
 constexpr std::uint32_t kKontor = 22101;
 constexpr std::uint32_t kHouse = 20001;
+constexpr std::uint32_t kYard = 22111;
 constexpr std::int32_t kInfraIcon = 62021;
 
 /// A layout with these gadget Ids, each a text box of its own place (`graphic` a sprite).
@@ -58,7 +59,8 @@ void write(const std::filesystem::path& file, const std::string& text) {
 }
 
 /// An installation with the PROD (37002..37041), SHIPLIST (61002..61063), STADTLST (63002..63063),
-/// SIEDLER (36002..36100), INFRA (62002..62021) and HANDEL (53002..53100) layouts and the GAME and
+/// SIEDLER (36002..36100), WERFT (39002..39042), BAUSHIP (60002..60052), INFRA (62002..62021) and
+/// HANDEL (53002..53100) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -91,6 +93,16 @@ struct Game {
             ids.push_back(id);
         }
         write(root / "GADDATA" / "SIEDLER.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 39002; id <= 39042; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "WERFT.GAD", gad(ids));
+        ids.clear();
+        for (std::int32_t id = 60002; id <= 60052; ++id) {
+            ids.push_back(id);
+        }
+        write(root / "GADDATA" / "BAUSHIP.GAD", gad(ids));
         ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
@@ -126,7 +138,7 @@ struct Game {
 };
 
 /// A bakery (HANDWERK) with running costs 25 at work and 10 at rest, a chapel with 8, a Kontor and
-/// a house of the first class (tax 1.5).
+/// a house of the first class (tax 1.5) and a small shipyard (three tiles wide, costs 30 and 12).
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}};
     const auto doc = assets::cod::parse(
@@ -149,6 +161,11 @@ assets::BuildingTable make_buildings() {
         "Objekt: HAUS\n"
         "  @Nummer: 3\n  Id: 20001\n  Gfx: 300\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 13\n    BGruppe: 0\n  EndObj\n"
+        "EndObj\n"
+        "Objekt: HAUS\n"
+        "  @Nummer: 4\n  Id: 22111\n  Gfx: 400\n  Size: 3, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 14\n    Rohstoff: 4\n    Workstoff: 9\n    Rohmenge: 2\n"
+        "    Workmenge: 1\n    Kosten: 30, 12\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -157,8 +174,8 @@ assets::BuildingTable make_buildings() {
 }
 
 /// One island with a bakery of the local player at (2, 2) and one of another player at (6, 2), a
-/// chapel and a house of the local player at (9, 2) and (9, 5) in its city 3 and a Kontor of the
-/// other at (6, 5) in its city 4 (the tests add the cities they need).
+/// chapel, a house and a shipyard of the local player at (9, 2), (9, 5) and (1, 5) in its city 3 and
+/// a Kontor of the other at (6, 5) in its city 4 (the tests add the cities they need).
 struct Town {
     assets::BuildingTable buildings = make_buildings();
     assets::FigureTable figures;
@@ -171,6 +188,7 @@ struct Town {
         REQUIRE(map.place(*buildings.by_id(kChapel), 9, 2, 0, 0, kLocal, 3).ok());
         REQUIRE(map.place(*buildings.by_id(kKontor), 6, 5, 0, 0, kOther, 4).ok());
         REQUIRE(map.place(*buildings.by_id(kHouse), 9, 5, 0, 0, kLocal, 3).ok());
+        REQUIRE(map.place(*buildings.by_id(kYard), 1, 5, 0, 0, kLocal, 3).ok());
         sim::WorldIsland island{assets::IslandHeader{}, std::move(map), 4, 4};
         island.header.width = 12;
         island.header.height = 8;
@@ -190,6 +208,12 @@ struct Town {
         house.city = 3;
         house.inhabitants64 = 2 * 64;
         world.add_house(house);
+        sim::CostBuilding yard;
+        yard.x = 1;
+        yard.y = 5;
+        yard.wood = 3 * 32;
+        yard.cloth = 32;
+        world.add_cost_building(yard);
     }
 };
 
@@ -501,4 +525,67 @@ TEST_CASE("selection panels: a house shows its class and city taxes, its buttons
     p->refresh(house, c);
     const auto after = texts(*p);
     CHECK(std::find(after.begin(), after.end(), std::to_string(60 * 132 / 128)) != after.end());
+}
+
+TEST_CASE("selection panels: the shipyard window orders a ship of the types a small yard builds") {
+    Game g("o1602-test-selection-werft");
+    Town t;
+    add_city(t.world, 3, kLocal, "Haven");
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    const Selection yard = building(1, 5);
+    SelectionPanel* p = panels.panel_for(yard, c);
+    REQUIRE(p != nullptr);
+    p->refresh(yard, c);
+    auto shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(std::find(shown.begin(), shown.end(), "30") != shown.end());  // running cost at work
+    CHECK(std::find(shown.begin(), shown.end(), "3t") != shown.end());  // wood in the yard
+    CHECK(std::find(shown.begin(), shown.end(), "1t") != shown.end());  // cloth
+    CHECK(!p->panel().selected(39018));
+
+    // "Order" opens the type choice; a small yard has no big types: a pick of HANDEL2 falls back to
+    // HANDEL1, KRIEG1 stays.
+    std::vector<sim::Command> out;
+    const ui::Panel* yard_page = &p->panel();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 39016}, yard, c, out);
+    CHECK(&p->panel() != yard_page);
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 60004}, yard, c, out);
+    p->refresh(yard, c);
+    CHECK(p->panel().selected(60003));
+    CHECK(!p->panel().selected(60004));
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 60005}, yard, c, out);
+    p->refresh(yard, c);
+    CHECK(p->panel().selected(60005));
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "Haven") != shown.end());
+    CHECK(out.empty());
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 60022}, yard, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* build = std::get_if<sim::ShipyardOrder>(&out[0]);
+    REQUIRE(build != nullptr);
+    CHECK(build->op == sim::ShipyardOrder::Op::Build);
+    CHECK(build->ship_type == 2);
+    CHECK(build->player == kLocal);
+    CHECK(build->x == 1);
+    CHECK(build->y == 5);
+    CHECK(&p->panel() == yard_page);  // back on the yard's page
+
+    // Escape leaves the type choice too; the stop button switches the yard off.
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 39016}, yard, c, out);
+    CHECK(p->back());
+    CHECK(!p->back());
+    out.clear();
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 39018}, yard, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* stop = std::get_if<sim::ShipyardOrder>(&out[0]);
+    REQUIRE(stop != nullptr);
+    CHECK(stop->op == sim::ShipyardOrder::Op::Enable);
+    CHECK(!stop->on);
+    simulation.execute(out[0]);
+    p->refresh(yard, c);
+    CHECK(p->panel().selected(39018));
+    shown = texts(*p);
+    CHECK(std::find(shown.begin(), shown.end(), "12") != shown.end());  // running cost at rest
 }
