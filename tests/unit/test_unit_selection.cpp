@@ -5,6 +5,7 @@
 #include "../test_framework.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/sim/command_io.hpp"
 #include "o1602/ui/unit_selection.hpp"
 
 using namespace o1602;
@@ -80,7 +81,7 @@ TEST_CASE("unit selection: the rectangle takes own units of the kind with the la
     CHECK(sel.units() == std::vector<UnitRef>{ship});
 }
 
-TEST_CASE("unit selection: no more than 21, each once; units that are gone leave it") {
+TEST_CASE("unit selection: any number, each once; units that are gone leave it") {
     Field f;
     std::vector<ui::UnitCandidate> many;
     for (std::uint32_t k = 0; k < 30; ++k) {
@@ -89,10 +90,51 @@ TEST_CASE("unit selection: no more than 21, each once; units that are gone leave
     many.push_back(many.front());
     ui::UnitSelection sel;
     sel.box(f.world, many, 0, false);
-    CHECK(sel.size() == ui::UnitSelection::kMaxUnits);
+    CHECK(sel.size() == 30);  // more than the original's 21 (LC-3)
     f.world.soldier(sel.units()[0].id)->motion.phase = sim::SoldierMotion::Phase::Dying;
     CHECK(sel.prune(f.world));
-    CHECK(sel.size() == ui::UnitSelection::kMaxUnits - 1);
+    CHECK(sel.size() == 29);
+}
+
+TEST_CASE("unit selection: a box over thousands takes them all, formations add rows, orders come in parts (LC-3)") {
+    Field f;
+    sim::World big{400, 400};
+    std::vector<sim::Player> players(1);
+    big.set_players(players);
+    std::vector<ui::UnitCandidate> army;
+    for (std::uint32_t k = 0; k < 5000; ++k) {
+        big.add_soldier(sim::make_soldier(20 + k % 100, 20 + k / 100, 1, 0));
+        army.push_back({{UnitRef::Kind::Soldier, big.soldiers().back().id}, 10});
+    }
+    ui::UnitSelection sel;
+    sel.box(big, army, 0, false);
+    REQUIRE(sel.size() == 5000);
+    // Formation 0 has three places: copies of it fill rows behind, every unit gets a place of its own.
+    sel.formation(big, f.figures, 0);
+    std::vector<std::pair<std::int16_t, std::int16_t>> places(sel.offsets().begin(), sel.offsets().end());
+    std::sort(places.begin(), places.end());
+    CHECK(std::adjacent_find(places.begin(), places.end()) == places.end());
+    const auto [lo, hi] = std::minmax_element(places.begin(), places.end(),
+                                              [](const auto& a, const auto& b) { return a.second < b.second; });
+    CHECK(lo->second < 0);  // centred: rows before and behind the middle
+    CHECK(hi->second > 0);
+    // A move is two orders of at most kMaxCommandItems units, with their offsets.
+    const auto orders = sel.move_orders(big, 0, 200.0, 200.0, false);
+    REQUIRE(orders.size() == 2);
+    std::size_t ordered = 0;
+    for (const sim::Command& c : orders) {
+        const auto* o = std::get_if<sim::SoldierOrder>(&c);
+        REQUIRE(o != nullptr);
+        CHECK(o->soldiers.size() <= sim::kMaxCommandItems);
+        CHECK(o->offsets.size() == o->soldiers.size());
+        ordered += o->soldiers.size();
+    }
+    CHECK(ordered == 5000);
+    // A group keeps them all.
+    sel.store_group(1);
+    sel.clear();
+    CHECK(sel.recall_group(big, 1));
+    CHECK(sel.size() == 5000);
 }
 
 TEST_CASE("unit selection: a move keeps the shape of the group, only own units are ordered") {

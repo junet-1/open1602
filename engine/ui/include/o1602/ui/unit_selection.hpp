@@ -32,8 +32,10 @@ struct UnitCandidate {
 
 class UnitSelection {
 public:
-    /// As many as the formations of figuren.cod have places (the original's list, 0x004E878C).
-    static constexpr std::size_t kMaxUnits = 21;
+    /// The places of a formation of figuren.cod (the original's list, 0x004E878C). The original
+    /// selects no more; Open1602 takes any number (LC-3) and puts the others into further rows of
+    /// the same shape behind them.
+    static constexpr std::size_t kFormationPlaces = 21;
     static constexpr std::size_t kGroups = 10;             ///< keys 1 .. 9 and 0
     using Offset = std::pair<std::int16_t, std::int16_t>;  ///< from the centre of the group, 1/8 tile
 
@@ -81,6 +83,7 @@ public:
     void filter_wounded(const sim::World& world, const assets::FigureTable& figures, bool keep_wounded);
     /// Formation `n` of figuren.cod (0 line, 1 column, 2 block) around the centre: new offsets, each
     /// unit in order to the nearest free place (0x0044C6D0); scale 3.5 tiles for ships, 1 for units.
+    /// More units than places fill copies of the formation behind it, front to back.
     void formation(const sim::World& world, const assets::FigureTable& figures, std::size_t n);
     /// The group spreads out to 1.67 times its size (0x0044C8B0).
     void scatter(const sim::World& world);
@@ -99,7 +102,8 @@ public:
 
     /// Orders of the player's selected units: to world tile (`x`, `y`) keeping the shape of the group,
     /// onto an object (everyone to it), or to stop. `queue`: behind their current orders. `attack`:
-    /// an object of another player means war (military mode or attack order).
+    /// an object of another player means war (military mode or attack order). Land units go in
+    /// orders of at most sim::kMaxCommandItems each.
     [[nodiscard]] std::vector<sim::Command> move_orders(const sim::World& world, sim::PlayerId local, double x,
                                                         double y, bool queue, bool attack_move = false) const;
     [[nodiscard]] std::vector<sim::Command> target_orders(const sim::World& world, sim::PlayerId local,
@@ -114,6 +118,9 @@ private:
         Offset offset;
     };
     void recentre(const sim::World& world);
+    /// formation() for more units than `slots` has places.
+    void rows_behind(const sim::World& world, const std::vector<assets::FigureTable::FormationSlot>& slots,
+                     double scale);
     void set(const sim::World& world, std::vector<UnitRef> units);
 
     std::vector<UnitRef> m_units;

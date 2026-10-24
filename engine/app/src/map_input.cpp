@@ -819,6 +819,17 @@ void MapInput::handle_event(const SDL_Event& event) {
                 m_hud->goods_wheel(notches);
                 break;
             }
+            if (m_hud && m_hud->covers(static_cast<std::int32_t>(event.wheel.mouse_x),
+                                       static_cast<std::int32_t>(event.wheel.mouse_y))) {
+                // Over the side panel a list scrolls (FB-6), whole notches as the table above.
+                const float rest = m_wheel_rest + y;
+                const auto notches = static_cast<std::int32_t>(rest);
+                if (m_hud->panel_wheel(static_cast<std::int32_t>(event.wheel.mouse_x),
+                                       static_cast<std::int32_t>(event.wheel.mouse_y), notches)) {
+                    m_wheel_rest = rest - static_cast<float>(notches);
+                    break;
+                }
+            }
             if (y != 0.0F) {
                 // Touchpads send parts of a notch: the free zoom follows them finely.
                 m_host.zoom_by(-static_cast<double>(y), static_cast<double>(event.wheel.mouse_x),

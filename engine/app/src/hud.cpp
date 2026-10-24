@@ -420,6 +420,15 @@ bool Hud::picking() {
     return p != nullptr && p->picking();
 }
 
+bool Hud::panel_wheel(std::int32_t x, std::int32_t y, std::int32_t notches) {
+    if (m_menu_active || !m_regions.side_panel.contains(x, y) || (m_mode != kModeInfo && m_mode != kModeMilitary)) {
+        return false;
+    }
+    std::optional<PanelContext> context;
+    SelectionPanel* p = selection_panel(context);
+    return p != nullptr && p->wheel(notches);
+}
+
 void Hud::map_click(std::uint32_t x, std::uint32_t y) {
     std::optional<PanelContext> context;
     if (SelectionPanel* p = selection_panel(context); p != nullptr && p->picking()) {

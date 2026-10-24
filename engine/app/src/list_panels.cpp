@@ -2,7 +2,10 @@
 //
 // The ship list and the city list (SHIPLIST.GAD, STADTLST.GAD; ShipList_Refresh 0x00434020,
 // CityList_Refresh 0x00434200; docs/re/ui.md): opened from the player status or with L and
-// Shift+L, 13 rows a page; a click on a name goes there (a ship is also selected).
+// Shift+L, 13 rows a page; a click on a name goes there (a ship is also selected). Open1602 (FB-6):
+// the mouse wheel scrolls row by row, a click on the heading orders the list (ships by name, idle
+// first or damaged first; cities by name), and the list is gathered a few times a second rather
+// than every frame.
 #include <algorithm>
 #include <array>
 #include <optional>
@@ -13,11 +16,17 @@
 #include "banner_graphic.hpp"
 #include "panel_common.hpp"
 
+#include "o1602/ui/localization.hpp"
+
 namespace o1602::app {
 
 namespace {
 
 constexpr std::size_t kRows = 13;
+constexpr std::uint64_t kCollectMs = 500;  ///< game time between two gatherings of an open list
+
+/// The orders of a list: the original's (the ship or city table), then Open1602's.
+enum class Order : std::uint8_t { Table, Name, Idle, Damaged };
 
 class ListPanel final : public SelectionPanel {
 public:
@@ -36,13 +45,21 @@ public:
     ui::Panel& panel() override { return m_panel; }
 
     void refresh(const Selection& /*selection*/, const PanelContext& c) override {
-        collect(c);
+        const std::uint64_t now = c.world().time_ms();
+        if (m_stale || now < m_collected_ms || now - m_collected_ms >= kCollectMs) {
+            collect(c);
+            m_collected_ms = now;
+            m_stale = false;
+        }
         // The page is kept within the list (it shrinks when ships sink or cities change hands).
-        const std::size_t last = m_rows.empty() ? 0 : (m_rows.size() - 1) / kRows * kRows;
-        m_first = std::min(m_first, last);
-        // The original leaves the heading empty; Open1602 names the list and counts its rows.
-        m_panel.set_text(m_base + kHeading,
-                         panel_detail::help_line(c, m_ships ? 214 : 215) + " (" + std::to_string(m_rows.size()) + ")");
+        m_first = std::min(m_first, last_first());
+        // The original leaves the heading empty; Open1602 names the list, counts its rows and says
+        // how they are ordered.
+        const std::string heading = panel_detail::help_line(c, m_ships ? 214 : 215);
+        const std::string count = std::to_string(m_rows.size());
+        m_panel.set_text(m_base + kHeading, m_order == Order::Table ? heading + " (" + count + ")"
+                                                                    : ui::tr("list.heading.ordered",
+                                                                             {heading, count, order_name(m_order)}));
         const render::BannerArt arms = render::BannerArt::at(m_arms);
         set_banner_graphic(m_panel, m_base + kArms, arms, c.banner(c.local));
         set_banner_graphic(m_panel, m_base + kArmsShadow, arms, c.banner(c.local));
@@ -78,6 +95,12 @@ public:
             m_first += kRows;
         } else if (e.id == m_base + kPageUp) {
             m_first -= std::min(m_first, kRows);
+        } else if (e.id == m_base + kHeading) {
+            // The next order; cities have no idle or damaged ones.
+            const Order last = m_ships ? Order::Damaged : Order::Name;
+            m_order = m_order == last ? Order::Table : static_cast<Order>(static_cast<std::uint8_t>(m_order) + 1);
+            m_first = 0;
+            m_stale = true;
         } else if (e.id >= m_base + kName && e.id < m_base + kName + static_cast<std::int32_t>(kRows)) {
             const std::size_t i = m_first + static_cast<std::size_t>(e.id - m_base - kName);
             if (i < m_rows.size()) {
@@ -95,6 +118,9 @@ public:
     [[nodiscard]] std::optional<std::string> help(std::int32_t id, const Selection& /*selection*/,
                                                   const PanelContext& c) const override {
         const std::int32_t k = id - m_base;
+        if (k == kHeading) {
+            return ui::tr(m_ships ? "list.order.help.ships" : "list.order.help.cities");
+        }
         if (k >= kName && k < kName + static_cast<std::int32_t>(kRows)) {
             return panel_detail::help_line(c, m_ships ? 221 : 223);
         }
@@ -112,8 +138,18 @@ public:
         return std::nullopt;
     }
 
-    /// Every opening starts at the first page (0x0043CE00).
-    void opened() override { m_first = 0; }
+    /// Every opening starts at the first page (0x0043CE00), with the list as it is now.
+    void opened() override {
+        m_first = 0;
+        m_stale = true;
+    }
+
+    /// A row per notch, within the list (FB-6).
+    bool wheel(std::int32_t notches) override {
+        const auto first = static_cast<std::int64_t>(m_first) - notches;
+        m_first = static_cast<std::size_t>(std::clamp<std::int64_t>(first, 0, static_cast<std::int64_t>(last_first())));
+        return true;
+    }
 
     [[nodiscard]] std::optional<Request> take_request() override { return std::exchange(m_request, std::nullopt); }
 
@@ -128,9 +164,29 @@ private:
     static constexpr std::int32_t kIcon = 51;
     static constexpr std::int32_t kCityIcons = 4;  ///< the cities' small coats of arms after the ships' icons
 
+    /// The first row of the last page as the page buttons reach it.
+    [[nodiscard]] std::size_t last_first() const noexcept {
+        return m_rows.empty() ? 0 : (m_rows.size() - 1) / kRows * kRows;
+    }
+
+    [[nodiscard]] static std::string order_name(Order order) {
+        switch (order) {
+            case Order::Name:
+                return ui::tr("list.order.name");
+            case Order::Idle:
+                return ui::tr("list.order.idle");
+            case Order::Damaged:
+                return ui::tr("list.order.damaged");
+            case Order::Table:
+                break;
+        }
+        return {};
+    }
+
     struct Row {
         std::string name;
         std::int32_t icon = 0;               ///< ships: 0 trade route, 1 anchored, 2 under way
+        double health = 1.0;                 ///< ships: 0..1
         std::optional<sim::PlayerId> owner;  ///< cities: whose coat of arms
         std::uint32_t ship = 0;
         double x = 0.0;  ///< world tile to go to
@@ -155,8 +211,13 @@ private:
                 r.ship = s.id;
                 r.x = s.x;
                 r.y = s.y;
+                const assets::FigureType* t = c.figures.get(s.figure);
+                if (t != nullptr && t->ship.max_health != 0 && s.health != 0) {
+                    r.health = std::min(1.0, static_cast<double>(s.health) / t->ship.max_health);
+                }
                 m_rows.push_back(std::move(r));
             }
+            sort_rows();
             return;
         }
         // Cities of humans and computers: the player's own and those of trade partners.
@@ -177,6 +238,31 @@ private:
             r.y = island.y + (city.warehouse_y ? *city.warehouse_y : island.map.height() / 2.0);
             m_rows.push_back(std::move(r));
         }
+        sort_rows();
+    }
+
+    /// The chosen order; rows alike keep the table's.
+    void sort_rows() {
+        switch (m_order) {
+            case Order::Table:
+                break;
+            case Order::Name:
+                std::stable_sort(m_rows.begin(), m_rows.end(),
+                                 [](const Row& a, const Row& b) { return a.name < b.name; });
+                break;
+            case Order::Idle:
+                // Anchored first, then under way, then on a trade route.
+                std::stable_sort(m_rows.begin(), m_rows.end(), [](const Row& a, const Row& b) {
+                    constexpr std::array<std::int32_t, 3> kRank = {2, 0, 1};
+                    return kRank[static_cast<std::size_t>(std::clamp(a.icon, 0, 2))] <
+                           kRank[static_cast<std::size_t>(std::clamp(b.icon, 0, 2))];
+                });
+                break;
+            case Order::Damaged:
+                std::stable_sort(m_rows.begin(), m_rows.end(),
+                                 [](const Row& a, const Row& b) { return a.health < b.health; });
+                break;
+        }
     }
 
     ui::Panel m_panel;
@@ -186,6 +272,9 @@ private:
     std::int32_t m_icons = 622;
     std::size_t m_first = 0;
     std::vector<Row> m_rows;
+    Order m_order = Order::Table;
+    bool m_stale = true;               ///< gather the rows at the next refresh
+    std::uint64_t m_collected_ms = 0;  ///< game time of the last gathering
     std::optional<Request> m_request;
 };
 

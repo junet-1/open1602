@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
+
+#include "o1602/sim/command_io.hpp"
 
 namespace o1602::ui {
 
@@ -43,6 +46,35 @@ std::int32_t figure_kind(const sim::World& world, const assets::FigureTable& fig
     }
     const assets::FigureType* t = figures.get(figure_of(world, ref));
     return t != nullptr ? t->kind : 0;
+}
+
+std::uint64_t key_of(const UnitRef& ref) {
+    return std::uint64_t{ref.kind == UnitRef::Kind::Ship ? 1U : 0U} << 32 | ref.id;
+}
+
+/// `units` without repeats, in their order: in linear time, as a selection may hold thousands.
+std::vector<UnitRef> without_repeats(std::vector<UnitRef> units) {
+    std::unordered_set<std::uint64_t> seen;
+    seen.reserve(units.size());
+    std::erase_if(units, [&](const UnitRef& r) { return !seen.insert(key_of(r)).second; });
+    return units;
+}
+
+/// One order for the land units in parts the network takes (sim::kMaxCommandItems), each with the
+/// offsets that go with its units if there are any.
+void push_soldier_orders(std::vector<sim::Command>& out, sim::SoldierOrder all) {
+    const std::size_t n = all.soldiers.size();
+    for (std::size_t first = 0; first < n; first += sim::kMaxCommandItems) {
+        const std::size_t last = std::min(n, first + sim::kMaxCommandItems);
+        sim::SoldierOrder part = all;
+        part.soldiers.assign(all.soldiers.begin() + static_cast<std::ptrdiff_t>(first),
+                             all.soldiers.begin() + static_cast<std::ptrdiff_t>(last));
+        if (!all.offsets.empty()) {
+            part.offsets.assign(all.offsets.begin() + static_cast<std::ptrdiff_t>(first),
+                                all.offsets.begin() + static_cast<std::ptrdiff_t>(last));
+        }
+        out.emplace_back(std::move(part));
+    }
 }
 
 std::int32_t floor_tile(double v, std::uint32_t limit) {
@@ -133,14 +165,8 @@ void UnitSelection::reset() {
 }
 
 void UnitSelection::set(const sim::World& world, std::vector<UnitRef> units) {
-    std::vector<UnitRef> unique;
-    for (const UnitRef& r : units) {
-        if (unique.size() < kMaxUnits && valid(world, r) &&
-            std::find(unique.begin(), unique.end(), r) == unique.end()) {
-            unique.push_back(r);
-        }
-    }
-    m_units = std::move(unique);
+    std::erase_if(units, [&](const UnitRef& r) { return !valid(world, r); });
+    m_units = without_repeats(std::move(units));
     recentre(world);
     m_changed = true;
     if (!m_cycling) {
@@ -191,8 +217,7 @@ void UnitSelection::toggle(const sim::World& world, const UnitRef& ref) {
         remove(world, ref);
         return;
     }
-    if (!m_units.empty() && m_units.front().kind == ref.kind && owner(world) == unit_owner(world, ref) &&
-        m_units.size() < kMaxUnits) {
+    if (!m_units.empty() && m_units.front().kind == ref.kind && owner(world) == unit_owner(world, ref)) {
         std::vector<UnitRef> units = m_units;
         units.push_back(ref);
         set(world, std::move(units));
@@ -360,8 +385,12 @@ void UnitSelection::formation(const sim::World& world, const assets::FigureTable
     if (n >= formations.size() || formations[n].empty() || !c) {
         return;
     }
-    const auto& slots = formations[n];
     const double scale = m_units.front().kind == UnitRef::Kind::Ship ? kShipFormationScale : 1.0;
+    if (m_units.size() > formations[n].size()) {
+        rows_behind(world, formations[n], scale);
+        return;
+    }
+    const auto& slots = formations[n];
     std::vector<bool> taken(slots.size(), false);
     for (std::size_t i = 0; i < m_units.size(); ++i) {
         const auto p = unit_position(world, m_units[i]);
@@ -391,6 +420,37 @@ void UnitSelection::formation(const sim::World& world, const assets::FigureTable
     m_changed = true;
 }
 
+void UnitSelection::rows_behind(const sim::World& world, const std::vector<assets::FigureTable::FormationSlot>& slots,
+                                double scale) {
+    // Copies of the formation one behind the other, each as deep as the formation and a tile apart,
+    // the whole centred; the units front to back by where they stand (in order for the same place),
+    // so that none crosses the others to its place. Linear but for the sort, for thousands of units.
+    std::int32_t top = slots.front().y;
+    std::int32_t bottom = top;
+    for (const auto& s : slots) {
+        top = std::min(top, s.y);
+        bottom = std::max(bottom, s.y);
+    }
+    const std::int32_t depth = bottom - top + 1;
+    const std::size_t copies = (m_units.size() + slots.size() - 1) / slots.size();
+    const double shift = static_cast<double>(depth) * static_cast<double>(copies - 1) / 2.0;
+    std::vector<std::size_t> order(m_units.size());
+    std::vector<double> along(m_units.size(), 0.0);
+    for (std::size_t i = 0; i < m_units.size(); ++i) {
+        order[i] = i;
+        if (const auto p = unit_position(world, m_units[i])) {
+            along[i] = p->second;
+        }
+    }
+    std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return along[a] < along[b]; });
+    for (std::size_t k = 0; k < order.size(); ++k) {
+        const auto& s = slots[k % slots.size()];
+        const double row = static_cast<double>(depth) * static_cast<double>(k / slots.size()) - shift;
+        m_offsets[order[k]] = {to_offset(scale * s.x * 8.0), to_offset(scale * (s.y + row) * 8.0)};
+    }
+    m_changed = true;
+}
+
 void UnitSelection::scatter(const sim::World& world) {
     const auto c = centre(world);
     if (!c) {
@@ -409,8 +469,12 @@ void UnitSelection::store_group(std::size_t g) {
         return;
     }
     // A unit belongs to one group at a time (Group_Store 0x0044D1D0).
+    std::unordered_set<std::uint64_t> in;
+    for (const UnitRef& r : m_units) {
+        in.insert(key_of(r));
+    }
     for (auto& group : m_groups) {
-        std::erase_if(group, [&](const Member& m) { return contains(m.ref); });
+        std::erase_if(group, [&](const Member& m) { return in.contains(key_of(m.ref)); });
     }
     m_groups[g].clear();
     for (std::size_t i = 0; i < m_units.size(); ++i) {
@@ -429,14 +493,14 @@ void UnitSelection::add_to_group(const sim::World& world, std::size_t g) {
             units.push_back(m.ref);
         }
     }
-    for (const UnitRef& r : m_units) {
-        if (units.size() < kMaxUnits && std::find(units.begin(), units.end(), r) == units.end()) {
-            units.push_back(r);
-        }
+    units.insert(units.end(), m_units.begin(), m_units.end());
+    units = without_repeats(std::move(units));
+    std::unordered_set<std::uint64_t> in;
+    for (const UnitRef& r : units) {
+        in.insert(key_of(r));
     }
     for (auto& group : m_groups) {
-        std::erase_if(group,
-                      [&](const Member& m) { return std::find(units.begin(), units.end(), m.ref) != units.end(); });
+        std::erase_if(group, [&](const Member& m) { return in.contains(key_of(m.ref)); });
     }
     UnitSelection shape;
     shape.set(world, units);
@@ -457,10 +521,8 @@ bool UnitSelection::recall_group(const sim::World& world, std::size_t g) {
     m_units.clear();
     m_offsets.clear();
     for (const Member& m : group) {
-        if (m_units.size() < kMaxUnits) {
-            m_units.push_back(m.ref);
-            m_offsets.push_back(m.offset);  // the shape the group had (Group_Recall 0x0044D2B0)
-        }
+        m_units.push_back(m.ref);
+        m_offsets.push_back(m.offset);  // the shape the group had (Group_Recall 0x0044D2B0)
     }
     m_changed = true;
     return true;
@@ -506,7 +568,7 @@ std::vector<sim::Command> UnitSelection::move_orders(const sim::World& world, si
         }
     }
     if (!soldiers.soldiers.empty()) {
-        out.emplace_back(std::move(soldiers));
+        push_soldier_orders(out, std::move(soldiers));
     }
     return out;
 }
@@ -539,7 +601,7 @@ std::vector<sim::Command> UnitSelection::target_orders(const sim::World& world, 
         }
     }
     if (!soldiers.soldiers.empty()) {
-        out.emplace_back(std::move(soldiers));
+        push_soldier_orders(out, std::move(soldiers));
     }
     return out;
 }
