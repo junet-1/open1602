@@ -4,7 +4,9 @@
 // when its track starts and not kept).
 #pragma once
 
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -23,6 +25,10 @@ public:
     std::shared_ptr<const Pcm> get(std::string_view relative);
     /// Decodes a file without keeping it (music).
     [[nodiscard]] std::shared_ptr<const Pcm> load(std::string_view relative) const;
+    /// Where a sound is (case does not matter); nothing if it is missing (reported in `last_error`).
+    [[nodiscard]] std::optional<std::filesystem::path> find(std::string_view relative) const;
+    /// Reads and decodes a file; touches no bank, so another thread may call it.
+    [[nodiscard]] static core::Result<Pcm> decode_file(const std::filesystem::path& path);
     [[nodiscard]] const std::string& last_error() const noexcept { return m_error; }
 
 private:

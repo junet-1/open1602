@@ -11,5 +11,6 @@ add_library(o1602_audio
 add_library(o1602::audio ALIAS o1602_audio)
 
 target_include_directories(o1602_audio PUBLIC include)
-target_link_libraries(o1602_audio PUBLIC o1602::sim o1602::assets o1602::core)
+find_package(Threads REQUIRED)  # music tracks are decoded beside the game (game_audio.cpp)
+target_link_libraries(o1602_audio PUBLIC o1602::sim o1602::assets o1602::core PRIVATE Threads::Threads)
 o1602_set_warnings(o1602_audio)

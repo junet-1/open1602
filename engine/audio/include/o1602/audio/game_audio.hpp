@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <memory>
 #include <optional>
 #include <random>
@@ -235,12 +236,17 @@ public:
     void stop();
     /// Plays `title` now (a click on it in the list, 0x00488C20); the list goes on from there.
     void play(const std::string& title);
-    /// Title playing now, empty if none.
+    /// Title playing now, empty if none (also while its file is still being decoded).
     [[nodiscard]] std::string playing() const;
+    /// Waits for a track being decoded and starts it (tests; update() does so once it is there).
+    void finish_loading();
     [[nodiscard]] bool battle() const noexcept { return m_battle; }
 
 private:
+    /// Starts decoding a track beside the game (FB-13: a track of 20 MB took a frame or two).
     void start(const std::string& title);
+    /// The track decoded, if it is there (`wait`: waits for it); plays it.
+    void take_loaded(bool wait);
     void fade_out();
     [[nodiscard]] std::optional<std::string> pick(std::uint64_t game_ms);
 
@@ -259,6 +265,13 @@ private:
     std::uint64_t m_mode_ms = 0;  ///< game time of the last shot or mode change
     bool m_fading = false;
     std::uint32_t m_fade_ms = 0;
+    /// The track whose file a thread decodes. Dropped when the music stops; the thread ends on its
+    /// own (a future of a packaged_task does not wait for it).
+    struct Loading {
+        std::string title;
+        std::future<core::Result<Pcm>> pcm;
+    };
+    std::optional<Loading> m_loading;
 };
 
 }  // namespace o1602::audio

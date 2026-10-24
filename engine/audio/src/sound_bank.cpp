@@ -20,20 +20,34 @@ std::shared_ptr<const Pcm> SoundBank::get(std::string_view relative) {
     return sound;
 }
 
-std::shared_ptr<const Pcm> SoundBank::load(std::string_view relative) const {
-    const auto path = m_game->resolve(relative);
+std::optional<std::filesystem::path> SoundBank::find(std::string_view relative) const {
+    auto path = m_game->resolve(relative);
     if (!path) {
         m_error = std::string(relative) + ": not found";
-        return nullptr;
     }
-    auto bytes = core::read_file(*path);
+    return path;
+}
+
+core::Result<Pcm> SoundBank::decode_file(const std::filesystem::path& path) {
+    auto bytes = core::read_file(path);
     if (!bytes) {
-        m_error = bytes.error().message;
-        return nullptr;
+        return bytes.error();
     }
     auto pcm = decode_wav(*bytes);
     if (!pcm) {
-        m_error = std::string(relative) + ": " + pcm.error().message;
+        return core::make_error(pcm.error().code, core::path_to_utf8(path) + ": " + pcm.error().message);
+    }
+    return pcm;
+}
+
+std::shared_ptr<const Pcm> SoundBank::load(std::string_view relative) const {
+    const auto path = find(relative);
+    if (!path) {
+        return nullptr;
+    }
+    auto pcm = decode_file(*path);
+    if (!pcm) {
+        m_error = pcm.error().message;
         return nullptr;
     }
     return std::make_shared<const Pcm>(std::move(pcm).value());
