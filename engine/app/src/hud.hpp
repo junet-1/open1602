@@ -433,7 +433,8 @@ private:
     std::vector<diplomacy::Offer> m_offers;  ///< the offers the status bar shows, as last drawn
     std::vector<std::uint8_t> m_minimap;
     std::uint64_t m_minimap_ms = 0;
-    bool m_minimap_dirty = true;     ///< the texture must be uploaded again
+    bool m_minimap_rebuild = true;   ///< the whole picture must be made again (a new game)
+    bool m_minimap_upload = true;    ///< the texture must be uploaded again
     bool m_minimap_changed = false;  ///< pixels changed since the last upload
     std::size_t m_minimap_islands = 0;
     std::size_t m_minimap_next = 0;  ///< the island refreshed next

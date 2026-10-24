@@ -75,12 +75,14 @@ void SdlSpriteRenderer::flush(std::uint16_t page) {
     }
     SDL_RenderGeometry(m_renderer, texture, m_vertices.data(), static_cast<int>(m_vertices.size()), m_indices.data(),
                        static_cast<int>(m_indices.size()));
+    ++m_batches;
     m_vertices.clear();
     m_indices.clear();
 }
 
 std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, double origin_x, double origin_y,
                                     double scale) {
+    m_batches = 0;
     if (m_atlas == nullptr || m_pages.empty()) {
         return 0;
     }

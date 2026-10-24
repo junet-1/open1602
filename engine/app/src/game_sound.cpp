@@ -411,7 +411,7 @@ void GameSound::scenery(const std::vector<render::AmbientSound>& sounds) {
 
 void GameSound::figures(const std::vector<const std::vector<render::FigureInstance>*>& lists,
                         const std::vector<render::EffectFigure>& effects, const assets::FigureTable& table,
-                        std::uint64_t game_ms, std::uint32_t speed) {
+                        std::uint64_t game_ms, std::uint32_t speed, const render::TileBox& drawn) {
     if (m_output == nullptr || !m_locate || speed != 1) {
         return;
     }
@@ -449,11 +449,15 @@ void GameSound::figures(const std::vector<const std::vector<render::FigureInstan
             continue;
         }
         for (const render::FigureInstance& f : *list) {
-            consider(f.figure, f.anim, f.x + 0.5, f.y + 0.5);
+            if (drawn.contains(f.x + 0.5, f.y + 0.5)) {  // FB-9: what is off screen is not heard
+                consider(f.figure, f.anim, f.x + 0.5, f.y + 0.5);
+            }
         }
     }
     for (const render::EffectFigure& e : effects) {
-        consider(e.figure, e.anim, e.x, e.y);
+        if (drawn.contains(e.x, e.y)) {
+            consider(e.figure, e.anim, e.x, e.y);
+        }
     }
 }
 

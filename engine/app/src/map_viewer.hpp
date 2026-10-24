@@ -464,6 +464,7 @@ private:
     std::uint64_t m_slots_shown = 0;         ///< the revision the menu has
     const MainMenu* m_slots_menu = nullptr;  ///< the menu that has it
     std::size_t m_sprites_drawn = 0;
+    std::size_t m_batches_drawn = 0;  ///< draw calls of the map's sprites in the last frame (FB-7)
     BuildTool m_tool;
     std::string m_tool_status;          ///< what the build tool would do at the mouse
     bool m_tool_short_of_wood = false;  ///< ... and that it lacks wood for it (the tutorial's bubble)
@@ -487,6 +488,12 @@ private:
     sim::PlayerFigures m_player_figures;           ///< the info panel's figures, refreshed once a second
     std::int64_t m_player_points = 0;              ///< the info panel's "Punkte", refreshed with them
     std::uint64_t m_figures_ms = 0;
+    /// The status line under the mouse, worked out when the mouse moves or 10 times a second
+    /// (FB-1: it picks the unit under the mouse).
+    std::string m_tile_status;
+    render::TileBox m_drawn_tiles;  ///< what may be on screen, from update_ambient (FB-9, FB-10)
+    std::uint64_t m_tile_status_ms = 0;
+    std::pair<double, double> m_tile_status_mouse{-1.0, -1.0};
     /// The videos (after the window and the sound); plays none without videos.
     std::unique_ptr<VideoController> m_video;
 };
