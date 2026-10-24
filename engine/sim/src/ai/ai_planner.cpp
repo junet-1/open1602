@@ -8,6 +8,7 @@
 #include <span>
 
 #include "ai_engine.hpp"
+#include "ai_tables.hpp"
 
 #include "o1602/sim/consumption.hpp"
 
@@ -16,8 +17,6 @@ namespace o1602::sim::ai {
 namespace {
 
 constexpr std::uint64_t kRefreshMs = 5100;  // C+0x10: a refresh every 5.1 s
-constexpr std::int32_t kCheatBelow = 3791;  // task 5: money below this ...
-constexpr std::int32_t kCheatMoney = 379;   // ... gets this much
 constexpr std::uint64_t kStage0AbandonMs = 480'000;
 constexpr std::uint64_t kStage14AbandonMs = 1'200'000;
 
@@ -57,8 +56,8 @@ void Engine::tutorial_money(AiPlayer& p) {
     }
     p.refresh_ms = now_ms();
     Player& pl = player(p);
-    if (pl.money < kCheatBelow) {
-        pl.money = money_plus(pl.money, std::int64_t{kCheatMoney});
+    if (pl.money < kCheats.steady_below) {
+        pl.money = money_plus(pl.money, std::int64_t{kCheats.steady_money});
     }
 }
 
@@ -96,9 +95,9 @@ void Engine::refresh_city(AiPlayer& p) {
     }
     p.refresh_ms = now_ms();
     Player& pl = player(p);
-    if (pl.money < kCheatBelow) {
-        pl.money = money_plus(pl.money,
-                              std::int64_t{kCheatMoney});  // the original's steady money (cheat), on every difficulty
+    if (pl.money < kCheats.steady_below) {
+        pl.money = money_plus(
+            pl.money, std::int64_t{kCheats.steady_money});  // the original's steady money (cheat), on every difficulty
     }
     if (!threatened(p) && behind(p)) {
         subsidy(p, 1);
@@ -113,31 +112,22 @@ void Engine::subsidy(AiPlayer& p, std::int32_t m) {
         return;
     }
     Player& pl = player(p);
-    if (pl.money < 4733) {
-        pl.money = money_plus(pl.money, static_cast<std::int64_t>(797 * m));
-    } else if (pl.money < 9376 && civ_level(p) >= 1) {
-        pl.money = money_plus(pl.money, static_cast<std::int64_t>(1793 * m));
+    if (pl.money < kCheats.subsidy_poor_below) {
+        pl.money = money_plus(pl.money, static_cast<std::int64_t>(kCheats.subsidy_poor * m));
+    } else if (pl.money < kCheats.subsidy_below && civ_level(p) >= 1) {
+        pl.money = money_plus(pl.money, static_cast<std::int64_t>(kCheats.subsidy * m));
     }
     const auto& mat = m_buildings.materials();
     const auto u = static_cast<std::uint32_t>(m);
-    if (p.score >= 1 && p.present[kSlotWoodcutter] && c->stock(mat.wood) < 7 * kTon) {
-        add_goods(*c, mat.wood, 7 * kTon * u);
+    if (p.score >= 1 && p.present[kSlotWoodcutter] && c->stock(mat.wood) < kCheats.subsidy_wood * kTon) {
+        add_goods(*c, mat.wood, kCheats.subsidy_wood * kTon * u);
     }
-    if (p.score >= 2 && c->stock(mat.tools) < 3 * kTon) {
-        add_goods(*c, mat.tools, 3 * kTon * u);
+    if (p.score >= 2 && c->stock(mat.tools) < kCheats.subsidy_tools * kTon) {
+        add_goods(*c, mat.tools, kCheats.subsidy_tools * kTon * u);
     }
     // The bricks of the original need a score of 20, which never comes (docs/re/ai.md).
     if (population(*c, 2) >= 50) {
-        struct Raw {
-            std::uint8_t slot;
-            std::uint8_t ware;
-        };
-        constexpr std::array<Raw, 5> kRaw{{{kSlotSpices, ware::kSpices},
-                                           {kSlotTobacco, ware::kTobacco},
-                                           {kSlotWine, ware::kAlcohol},
-                                           {kSlotSugar, ware::kSugar},
-                                           {kSlotCotton, ware::kWool}}};
-        for (const Raw& raw : kRaw) {
+        for (const SubsidyRaw& raw : kSubsidyRaws) {
             if (r->slots[raw.slot].count > 3 && c->stock(raw.ware) < 3 * kTon) {
                 add_goods(*c, raw.ware, kTon * u);
             }
@@ -1236,74 +1226,6 @@ void Engine::refund(AiPlayer& p) {
     }
     r = Reservation{};
 }
-
-namespace {
-
-/// A Need of the production table (docs/re/ai.md, table of the Needs).
-struct NeedDef {
-    std::uint8_t slot;
-    std::uint8_t task;
-    std::uint8_t ware;    ///< producer of this ware ...
-    std::uint8_t raw;     ///< ... from this raw material
-    std::uint32_t fixed;  ///< or this building
-    std::uint8_t field;   ///< crop of the fields (farm money rule), 0 = none
-    NeedType type;
-    std::uint8_t attempts;  ///< tried while attempts < this
-    std::uint8_t fertile;   ///< the island must grow this crop (0 = no test)
-    bool from_start;        ///< mines: the search starts at the first point of segment 0
-};
-
-constexpr std::array<NeedDef, 32> kNeeds{{
-    {kSlotHunter, kHunter, 0, 0, id::kHunter, 0, NeedType::A, 2, 0, false},
-    {kSlotWoodcutter, kWoodcutter, ware::kWood, ware::kTree, 0, ware::kTree, NeedType::B, 2, 0, false},
-    {kSlotGrain, kGrainFarm, ware::kGrain, ware::kCornField, 0, ware::kCornField, NeedType::B, 2, ware::kCornField,
-     false},
-    {kSlotMill, kMill, ware::kFlour, ware::kGrain, 0, 0, NeedType::B, 2, ware::kCornField, false},
-    {kSlotBakery, kBakery, ware::kFood, ware::kFlour, 0, 0, NeedType::B, 2, 0, false},
-    {kSlotQuarry, kQuarry, ware::kStone, 0, 0, 0, NeedType::A, 1, 0, true},
-    {kSlotStonemason, kStonemason, ware::kBricks, ware::kStone, 0, 0, NeedType::B, 1, 0, false},
-    {kSlotFisher, kFisher, ware::kFood, ware::kFish, 0, 0, NeedType::B, 2, 0, false},
-    {kSlotCotton, kCotton, ware::kWool, ware::kCottonField, 0, ware::kCottonField, NeedType::B, 2, ware::kCottonField,
-     false},
-    {kSlotWebstube, kWeaving, 0, 0, id::kWebstube, 0, NeedType::B, 2, 0, false},
-    {kSlotWeberei, kWeaving, 0, 0, id::kWeberei, 0, NeedType::B, 2, 0, false},
-    {kSlotTailor, kTailor, ware::kClothes, ware::kCloth, 0, 0, NeedType::B, 2, 0, false},
-    {kSlotCattle, kCattle, ware::kMeat, ware::kGrass, 0, ware::kGrass, NeedType::B, 2, 0, false},
-    {kSlotButcher, kButcher, ware::kFood, ware::kMeat, 0, 0, NeedType::B, 2, 0, false},
-    {kSlotTobacco, kTobacco, ware::kTobacco, ware::kTobaccoField, 0, ware::kTobaccoField, NeedType::B, 2,
-     ware::kTobaccoField, false},
-    {kSlotTobaccoGoods, kTobaccoGoods, ware::kTobaccoGoods, ware::kTobacco, 0, 0, NeedType::B, 2, 0, false},
-    {kSlotSpices, kSpices, ware::kSpices, ware::kSpiceField, 0, ware::kSpiceField, NeedType::B, 2, ware::kSpiceField,
-     false},
-    {kSlotWine, kWine, ware::kAlcohol, ware::kWineField, 0, ware::kWineField, NeedType::B, 2, ware::kWineField, false},
-    {kSlotSugar, kSugar, ware::kSugar, ware::kSugarField, 0, ware::kSugarField, NeedType::B, 2, ware::kSugarField,
-     false},
-    {kSlotRum, kRum, ware::kAlcohol, ware::kSugar, 0, 0, NeedType::B, 2, 0, false},
-    {kSlotCocoa, kCocoa, ware::kCocoa, ware::kCocoaField, 0, ware::kCocoaField, NeedType::B, 2, ware::kCocoaField,
-     false},
-    {kSlotSheep, kSheep, ware::kWool, ware::kGrass, 0, ware::kGrass, NeedType::B, 2, 0, false},
-    {kSlotSmelter, kSmelter, ware::kIron, ware::kOre, 0, 0, NeedType::A, 2, 0, false},
-    {kSlotToolsmith, kToolsmith, ware::kTools, ware::kIron, 0, 0, NeedType::A, 2, 0, false},
-    {kSlotSwords, kSwords, ware::kSwords, ware::kIron, 0, 0, NeedType::A, 2, 0, false},
-    {kSlotMuskets, kMuskets, ware::kMuskets, ware::kIron, 0, 0, NeedType::A, 2, 0, false},
-    {kSlotCannons, kCannonFoundry, ware::kCannons, ware::kIron, 0, 0, NeedType::D, 2, 0, false},
-    {kSlotGoldsmith, kGoldsmith, ware::kJewellery, ware::kGold, 0, 0, NeedType::A, 2, 0, false},
-    {kSlotIronMine, kIronMine, 0, 0, id::kOreMine, 0, NeedType::A, 2, 0, true},
-    {kSlotGoldMine, kGoldMine, 0, 0, id::kGoldMine, 0, NeedType::A, 1, 0, true},
-    {kSlotStoneTower, kTowers, 0, 0, id::kStoneTower, 0, NeedType::D, 2, 0, false},
-    {kSlotWoodTower, kTowers, 0, 0, id::kWoodTower, 0, NeedType::D, 2, 0, false},
-}};
-
-const NeedDef* need_def(std::uint8_t slot) {
-    for (const NeedDef& d : kNeeds) {
-        if (d.slot == slot) {
-            return &d;
-        }
-    }
-    return nullptr;
-}
-
-}  // namespace
 
 bool Engine::need(AiPlayer& p, std::uint8_t which, std::uint32_t n, bool cov) {
     (void)cov;

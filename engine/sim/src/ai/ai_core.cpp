@@ -9,6 +9,7 @@
 
 #include "ai_archive.hpp"
 #include "ai_engine.hpp"
+#include "ai_tables.hpp"
 
 #include "o1602/core/file.hpp"
 #include "o1602/sim/ai.hpp"
@@ -21,20 +22,6 @@ namespace {
 
 constexpr std::uint64_t kReinitMs = 3'600'000;  // 0x00429070: re-init after 3600 s
 constexpr std::uint32_t kDiplomacyMs = 30'000;  // P+0x83 > 5: six phases of 5 s
-
-/// Crop the first colony of a computer must grow fully (0x00429070), by its slot.
-std::uint8_t first_crop(PlayerId player) {
-    switch (player % 4) {
-        case 1:
-            return ware::kSpiceField;
-        case 2:
-            return ware::kTobaccoField;
-        case 3:
-            return ware::kWineField;
-        default:
-            return ware::kOre;
-    }
-}
 
 }  // namespace
 
