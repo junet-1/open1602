@@ -953,7 +953,7 @@ std::vector<std::uint8_t> territory_coverage(const World& world, const assets::B
     const std::uint32_t h = m.height();
     std::vector<std::uint8_t> covered(std::size_t{w} * h, 0);
     const auto cover = [&](const Catchment& area, std::uint8_t radius, std::uint8_t bits) {
-        const std::vector<std::uint8_t> half = circle_half_widths(radius);
+        const std::vector<std::uint8_t>& half = circle_table(radius);
         for (std::int32_t dy = 0; dy <= radius; ++dy) {
             const std::int32_t hw = half[static_cast<std::size_t>(dy)];
             for (const std::int32_t row : {area.centre.y - dy, area.centre.y + area.parity_y + dy}) {
@@ -1521,7 +1521,7 @@ public:
         }
         IslandMap& m = map();
         const Catchment area = catchment_of(b, rotation, {x, y});
-        const std::vector<std::uint8_t> half = circle_half_widths(radius);
+        const std::vector<std::uint8_t>& half = circle_table(radius);
         for (std::int32_t dy = 0; dy <= radius; ++dy) {
             const std::int32_t hw = half[static_cast<std::size_t>(dy)];
             for (const std::int32_t row : {area.centre.y - dy, area.centre.y + area.parity_y + dy}) {

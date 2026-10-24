@@ -633,3 +633,54 @@ TEST_CASE("military: a unit sees the nearest of many enemies, nearest first (S-1
     REQUIRE(theirs.size() == 1);
     CHECK(theirs[0].unit == sim::Target::soldier(me));
 }
+
+TEST_CASE("military: at most a fixed number of way searches per tick, the others follow in order (TB-1)") {
+    Field f;
+    f.start();
+    std::vector<std::uint32_t> ids;
+    for (std::int32_t i = 0; i < 18; ++i) {
+        ids.push_back(f.add(kSword, 0, 2 * 12, 2 * 11 + 2 * i).id);
+    }
+    for (std::size_t i = 0; i < ids.size(); ++i) {
+        const std::uint32_t cy = 2 * 11 + 2 * static_cast<std::uint32_t>(i);
+        REQUIRE(f.military->order(sim::SoldierOrder{0, {ids[i]}, sim::Target::spot(2 * 30, cy)}));
+    }
+    const auto planned = [&] {
+        std::size_t n = 0;
+        for (const std::uint32_t id : ids) {
+            n += f.world.soldier(id)->motion.path.empty() ? 0U : 1U;
+        }
+        return n;
+    };
+    f.run(50);
+    CHECK(planned() == sim::Military::kPlansPerTick);
+    for (std::size_t i = 0; i < sim::Military::kPlansPerTick; ++i) {
+        CHECK(!f.world.soldier(ids[i])->motion.path.empty());
+    }
+    f.run(50);
+    CHECK(planned() == 2 * sim::Military::kPlansPerTick);
+    f.run(50);
+    CHECK(planned() == ids.size());
+    f.run(20'000);
+    for (std::size_t i = 0; i < ids.size(); ++i) {
+        CHECK(f.world.soldier(ids[i])->cell_x() == 2 * 30);
+        CHECK(f.world.soldier(ids[i])->target.empty());
+    }
+}
+
+TEST_CASE("military: idle units look again at times spread by their number (TB-1)") {
+    Field f;
+    f.start();
+    const std::uint32_t a = f.add(kSword, 0, 2 * 12, 2 * 12).id;
+    const std::uint32_t b = f.add(kSword, 0, 2 * 14, 2 * 12).id;
+    f.run(50);
+    const sim::Soldier* sa = f.world.soldier(a);
+    const sim::Soldier* sb = f.world.soldier(b);
+    REQUIRE(sa->motion.phase == sim::SoldierMotion::Phase::Wait);
+    REQUIRE(sb->motion.phase == sim::SoldierMotion::Phase::Wait);
+    CHECK(sa->motion.duration_us != sb->motion.duration_us);
+    CHECK(sa->motion.duration_us >= 1'000'000);
+    CHECK(sb->motion.duration_us >= 1'000'000);
+    CHECK(sa->motion.duration_us < 1'200'000);
+    CHECK(sb->motion.duration_us < 1'200'000);
+}

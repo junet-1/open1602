@@ -971,3 +971,36 @@ TEST_CASE("ships: queued orders are sailed one after another; any other order cl
     CHECK(fleet.order(sim::ShipOrder{0, id, sim::Target::position(12, 12)}));
     CHECK(sea.world.ship(id)->queue.empty());
 }
+
+TEST_CASE("ships: at most a fixed number of course searches per tick, the others follow in order (TB-1)") {
+    Sea sea;
+    std::vector<std::uint32_t> ids;
+    for (std::uint32_t i = 0; i < 20; ++i) {
+        ids.push_back(sea.add(10, 5 + 2 * i).id);
+    }
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    for (std::size_t i = 0; i < ids.size(); ++i) {
+        REQUIRE(
+            fleet.order(sim::ShipOrder{0, ids[i], sim::Target::position(100, 5 + 2 * static_cast<std::uint32_t>(i))}));
+    }
+    const auto planned = [&] {
+        std::size_t n = 0;
+        for (const std::uint32_t id : ids) {
+            n += sea.world.ship(id)->motion.path.empty() ? 0U : 1U;
+        }
+        return n;
+    };
+    run(fleet, sea.world, 50);
+    CHECK(planned() == sim::Fleet::kPlansPerTick);
+    // The first ships of the list got their courses.
+    for (std::size_t i = 0; i < sim::Fleet::kPlansPerTick; ++i) {
+        CHECK(!sea.world.ship(ids[i])->motion.path.empty());
+    }
+    run(fleet, sea.world, 50);
+    CHECK(planned() == 2 * sim::Fleet::kPlansPerTick);
+    run(fleet, sea.world, 50);
+    CHECK(planned() == ids.size());
+    // All arrive.
+    const auto events = run(fleet, sea.world, 60000);
+    CHECK(count(events, sim::ShipEvent::Kind::Arrived) == ids.size());
+}

@@ -121,6 +121,10 @@ struct MilitaryEvent {
 
 class Military {
 public:
+    /// Way searches of all soldiers in one tick (TB-1), about 1.6 ms each. Soldiers over the
+    /// budget decide again in the next tick, in the order of the unit list.
+    static constexpr std::uint32_t kPlansPerTick = 8;
+
     Military(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
              const Rules& rules, Combat& combat);
 
@@ -191,6 +195,7 @@ private:
     // Soldiers (soldiers.cpp)
     void advance(Soldier& s, std::uint32_t budget_us);
     void decide(Soldier& s);
+    [[nodiscard]] static std::uint32_t idle_ms(const Soldier& s) noexcept;
     void start_wait(Soldier& s, std::uint32_t ms);
     bool start_next_run(Soldier& s);
     bool plan(Soldier& s, std::int32_t radius, bool hostile_goal);
@@ -247,7 +252,9 @@ private:
     Combat* m_combat;
     Fleet* m_fleet = nullptr;
     LandPlanner m_planner;
-    PathFinder m_finder;  ///< scratch of warrior_target()
+    std::uint32_t m_plans_left = 0;  ///< way searches still allowed in this tick (TB-1)
+    std::uint32_t m_tick_ms = 0;     ///< game time of the running tick
+    PathFinder m_finder;             ///< scratch of warrior_target()
     std::vector<MilitaryEvent> m_events;
     std::vector<std::uint32_t> m_ids;  ///< scratch of tick(): the units in their order
     // The squares of grid_build(): the units of each by their place in World::soldiers().
