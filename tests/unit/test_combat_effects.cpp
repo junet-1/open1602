@@ -182,6 +182,7 @@ TEST_CASE("combat effects: a tower's smoke stands out from its centre towards it
     const auto figures = make_figures();
     const assets::BuildingTable buildings;
     sim::World world;
+    world.towers().push_back(sim::Tower{1, 3, 4, 0, kTower, 6});  // same tile, other island
     world.towers().push_back(sim::Tower{0, 3, 4, 0, kTower, 2});
     render::CombatEffects fx;
     sim::MilitaryEvent shot;
@@ -193,7 +194,10 @@ TEST_CASE("combat effects: a tower's smoke stands out from its centre towards it
     // A soldier's shot has no smoke figure.
     sim::MilitaryEvent musket = shot;
     musket.unit = sim::Target::soldier(5);
-    const sim::MilitaryEvent events[] = {shot, musket};
+    // A shot from a tile without a tower (it was torn down) has none either.
+    sim::MilitaryEvent gone = shot;
+    gone.unit = sim::Target::building(0, 4, 3);
+    const sim::MilitaryEvent events[] = {gone, shot, musket};
     fx.military(world, buildings, figures, events);
     fx.frame(world, figures);
     REQUIRE(fx.effects().size() == 1);
