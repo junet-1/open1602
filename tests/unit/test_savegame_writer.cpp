@@ -496,6 +496,49 @@ TEST_CASE("save game: a synthetic world written as .GAM loads back the same and 
     CHECK(*again == *bytes);
 }
 
+TEST_CASE("save game: many soldiers out of slot order load in one pass (HI-5)") {
+    // 30 000 SOLDAT3 records from the last slot down, every tenth a duplicate of the one before:
+    // the loader asked the world for each id and rebuilt its index after every one, minutes.
+    const auto buildings = make_buildings();
+    auto chunks = sim::savegame_chunks(make_world(buildings), buildings);
+    REQUIRE(chunks.ok());
+    constexpr std::uint16_t kCount = 30'000;
+    std::vector<std::uint8_t> records;
+    std::vector<std::uint16_t> slots;
+    for (std::uint16_t i = 0; i < kCount; ++i) {
+        const std::uint16_t slot = i % 10 == 9 ? slots.back() : static_cast<std::uint16_t>(kCount - i);
+        slots.push_back(slot);
+        std::vector<std::uint8_t> r(0x44, 0);
+        r[0] = 40;  // x 20, y 20 (half tiles)
+        r[2] = 40;
+        r[6] = 33;
+        r[8] = static_cast<std::uint8_t>(slot);
+        r[9] = static_cast<std::uint8_t>(slot >> 8);
+        records.insert(records.end(), r.begin(), r.end());
+    }
+    assets::ChunkWriter out;
+    for (const sim::SavedChunk& c : *chunks) {
+        if (c.name != "SOLDAT3") {
+            out.add(c.name, c.data);
+        }
+    }
+    out.add("SOLDAT3", records);
+    out.add_checksum();
+    const sim::World loaded = load(out.take(), buildings);
+    REQUIRE(loaded.soldiers().size() == kCount);
+    // The first record of a slot takes the slot's id, a duplicate the next free one.
+    CHECK(loaded.soldiers().front().source_slot == kCount);
+    CHECK(loaded.soldier(loaded.soldiers()[1].id)->source_slot == kCount - 1);
+    std::vector<std::uint32_t> ids;
+    for (const sim::Soldier& s : loaded.soldiers()) {
+        ids.push_back(s.id);
+    }
+    std::sort(ids.begin(), ids.end());
+    CHECK(std::adjacent_find(ids.begin(), ids.end()) == ids.end());
+    CHECK(loaded.soldiers()[9].id != loaded.soldiers()[8].id);
+    CHECK(loaded.soldiers()[9].source_slot == loaded.soldiers()[8].source_slot);
+}
+
 TEST_CASE("save game: the original's chunks of a .GAM alone hold the synthetic world") {
     const auto buildings = make_buildings();
     const sim::World world = make_world(buildings);

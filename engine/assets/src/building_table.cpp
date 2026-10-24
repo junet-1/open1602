@@ -28,6 +28,23 @@ std::uint32_t non_negative(std::int32_t v) {
     return v < 0 ? 0U : static_cast<std::uint32_t>(v);
 }
 
+/// An amount times a unit, at most the largest u32 instead of wrapping (HI-10).
+std::uint32_t times(std::uint32_t v, std::uint32_t unit) {
+    return static_cast<std::uint32_t>(std::min<std::uint64_t>(std::uint64_t{v} * unit, 0xFFFF'FFFFU));
+}
+
+/// A number that names something (a ware, a figure, a ruin record): beyond `max` it would name
+/// another one after a plain cast, so the file is refused instead (HI-10).
+template <typename T>
+core::Result<T> id_field(std::int32_t nummer, const char* name, std::int32_t value, std::uint32_t max) {
+    const std::uint32_t v = non_negative(value);
+    if (v > max) {
+        return make_error(ErrorCode::InvalidFormat, "HAUS #" + std::to_string(nummer) + ": " + name + " " +
+                                                        std::to_string(value) + " is beyond " + std::to_string(max));
+    }
+    return static_cast<T>(v);
+}
+
 }  // namespace
 
 core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser) {
@@ -48,9 +65,12 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             return make_error(ErrorCode::InvalidFormat,
                               "HAUS #" + std::to_string(nummer) + " has invalid Id " + std::to_string(id));
         }
+        if (nummer < 0) {
+            return make_error(ErrorCode::InvalidFormat, "HAUS #" + std::to_string(nummer) + " has a negative Nummer");
+        }
         BuildingType b;
         b.id = static_cast<std::uint32_t>(id);
-        b.record = static_cast<std::uint32_t>(std::max(0, nummer));
+        b.record = static_cast<std::uint32_t>(nummer);
         b.kind = r.integer("Kind");
         b.gfx = non_negative(r.integer("Gfx"));
         b.size_x = std::max(1U, non_negative(r.integer("Size", 0, 1)));
@@ -77,12 +97,19 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.max_health = core::saturating_cast<std::uint32_t>(energy->values[0].real * kStockUnitsPerTon);
         }
         if (const cod::Field* ruin = r.field("Ruinenr"); ruin != nullptr && !ruin->values.empty()) {
-            b.ruin = static_cast<std::uint8_t>(ruin->values[0].integer);
+            // A negative number is no ruin (0xFF, as the plain cast made of -1).
+            const std::int32_t n = ruin->values[0].integer;
+            auto v = id_field<std::uint8_t>(nummer, "Ruinenr", n, 0xFF);
+            if (!v) {
+                return v.error();
+            }
+            b.ruin = n < 0 ? std::uint8_t{0xFF} : *v;
         }
         for (std::size_t i = 0; i < b.walk_speed.size(); ++i) {
             // 0x00462834: trunc(value * 32 / 100), at most 126. Zero would mean infinite speed
             // (a division by zero in the original); Open1602 keeps at least 1.
-            const std::int32_t percent = r.integer("Wegspeed", i, 100);
+            // Clamped before the product (HI-17): a large value overflowed int, undefined in C++.
+            const std::int32_t percent = std::clamp(r.integer("Wegspeed", i, 100), 0, 400);
             b.walk_speed[i] = static_cast<std::uint8_t>(std::clamp(percent * 32 / 100, 1, 126));
         }
         b.place_outside = (r.integer("PlaceFlg") & 1) != 0;
@@ -93,11 +120,12 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
         b.beach_offset = static_cast<std::uint8_t>(std::clamp(r.integer("Strandoff"), 0, 255));
         b.mouth_offset = static_cast<std::uint8_t>(std::clamp(r.integer("Mundoff"), 0, 255));
         // Stored as value * 128 / 100 (record +0x40).
-        b.edge_growth = static_cast<std::uint8_t>(std::clamp(r.integer("Randwachs", 0, 100) * 128 / 100, 0, 255));
+        b.edge_growth = static_cast<std::uint8_t>(
+            std::clamp(std::clamp(r.integer("Randwachs", 0, 100), 0, 200) * 128 / 100, 0, 255));
         b.build_gfx = non_negative(r.integer("Baugfx"));
         b.kreuz_base = r.integer("KreuzBase");
-        b.rand_count = static_cast<std::uint16_t>(r.integer("RandAnz"));
-        b.rand_add = static_cast<std::uint16_t>(r.integer("RandAdd"));
+        b.rand_count = static_cast<std::uint16_t>(std::min(non_negative(r.integer("RandAnz")), 0xFFFFU));
+        b.rand_add = static_cast<std::uint16_t>(std::min(non_negative(r.integer("RandAdd")), 0xFFFFU));
         if (const auto* prod = r.records("HAUS_PRODTYP"); prod != nullptr && !prod->empty()) {
             const auto& prodtyp = prod->begin()->second;
             b.prod_kind = prodtyp.integer("Kind");
@@ -110,30 +138,44 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
                 // The original truncates (_ftol); the values in haeuser.cod are exact multiples of 1/32.
                 return core::saturating_cast<std::uint32_t>(v * kStockUnitsPerTon);
             };
-            b.ware = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Ware")));
-            b.raw_ware = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Rohstoff")));
-            b.raw2_ware = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Workstoff")));
+            auto ware = id_field<std::uint8_t>(nummer, "Ware", prodtyp.integer("Ware"), 0xFF);
+            auto raw = id_field<std::uint8_t>(nummer, "Rohstoff", prodtyp.integer("Rohstoff"), 0xFF);
+            auto raw2 = id_field<std::uint8_t>(nummer, "Workstoff", prodtyp.integer("Workstoff"), 0xFF);
+            auto figure = id_field<std::uint16_t>(nummer, "Figurnr", prodtyp.integer("Figurnr"), 0xFFFF);
+            auto group = id_field<std::uint8_t>(nummer, "BGruppe", prodtyp.integer("BGruppe"), 0xFF);
+            auto mountain = id_field<std::uint8_t>(nummer, "Erzbergnr", prodtyp.integer("Erzbergnr"), 0xFF);
+            for (const auto* v : {&ware, &raw, &raw2, &group, &mountain}) {
+                if (!*v) {
+                    return v->error();
+                }
+            }
+            if (!figure) {
+                return figure.error();
+            }
+            b.ware = *ware;
+            b.raw_ware = *raw;
+            b.raw2_ware = *raw2;
             b.produce_amount = tons("Prodmenge");
             b.raw_amount = tons("Rohmenge");
             b.raw2_amount = tons("Workmenge");
             b.interval = non_negative(prodtyp.integer("Interval"));
-            b.worker_figure = static_cast<std::uint16_t>(non_negative(prodtyp.integer("Figurnr")));
-            b.worker_count = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Figuranz")));
+            b.worker_figure = *figure;
+            b.worker_count = static_cast<std::uint8_t>(std::min(non_negative(prodtyp.integer("Figuranz")), 0xFFU));
             b.radius = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Radius"))));
-            b.max_stock = non_negative(prodtyp.integer("Maxlager")) * kStockUnitsPerTon;
+            b.max_stock = times(non_negative(prodtyp.integer("Maxlager")), kStockUnitsPerTon);
             b.max_idle_cycles = non_negative(prodtyp.integer("Maxnorohst"));
             b.stock_animation = (prodtyp.integer("LagAniFlg") & 1) != 0;
             b.continuous_animation = (prodtyp.integer("Anicontflg") & 1) != 0;
             b.withered = (prodtyp.integer("Doerrflg") & 1) != 0;
             b.native = (prodtyp.integer("Nativflg") & 1) != 0;
-            b.resident_class = static_cast<std::uint8_t>(non_negative(prodtyp.integer("BGruppe")));
+            b.resident_class = *group;
             b.infra = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Bauinfra"))));
             b.workers = static_cast<std::uint16_t>(std::min(65535U, non_negative(prodtyp.integer("Arbeiter"))));
             if (const cod::Field* kosten = prodtyp.field("Kosten"); kosten != nullptr) {
                 b.running_cost = non_negative(kosten->integer(0));
                 b.idle_cost = non_negative(kosten->integer(1));
             }
-            b.ore_mountain = static_cast<std::uint8_t>(non_negative(prodtyp.integer("Erzbergnr")));
+            b.ore_mountain = *mountain;
             b.max_wares = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Maxware"))));
             b.max_wares2 = static_cast<std::uint8_t>(std::min(255U, non_negative(prodtyp.integer("Maxware", 1))));
         }
@@ -150,6 +192,11 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
             b.build_cost.bricks = goods("Ziegel");
             b.build_cost.cannons = goods("Kanon");
             b.build_cost.money = c.integer("Money");
+            if (b.build_cost.money < 0) {
+                // A negative cost would pay the player for building (HI-10).
+                return make_error(ErrorCode::InvalidFormat,
+                                  "HAUS #" + std::to_string(nummer) + " has a negative Money");
+            }
         }
         if (b.prod_kind == prod::kGrowing && b.anim_count > 0) {
             // 0x00462F1D: the number of k in 1..32 with 40 s + 7 s * k <= Interval / AnimAnz,
@@ -234,7 +281,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
                 table.m_classes.resize(static_cast<std::size_t>(nummer) + 1);
             }
             ResidentClass& c = table.m_classes[static_cast<std::size_t>(nummer)];
-            c.share = non_negative(g.integer("Prozent")) * 128U / 100U;
+            c.share = times(non_negative(g.integer("Prozent")), 128U) / 100U;
             c.max_per_house = non_negative(g.integer("Maxwohn"));
             if (const cod::Field* tax = g.field("Steuer"); tax != nullptr && !tax->values.empty()) {
                 c.tax = core::saturating_cast<std::uint32_t>(tax->values[0].real * 16.0 / 3.0);

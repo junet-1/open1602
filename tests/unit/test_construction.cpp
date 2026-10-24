@@ -619,6 +619,50 @@ TEST_CASE("construction: buildings of mods may use sprites from 8192 on (review 
     CHECK(!assets::BuildingTable::from_cod(too_far).ok());
 }
 
+TEST_CASE(
+    "buildings: a modded haeuser.cod is refused where a number names something, saturated where it counts (HI-10, "
+    "HI-17)") {
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const auto load = [&](const std::string& lines) {
+        const auto doc = assets::cod::parse(
+            "Objekt: HAUS\n  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 8\n" + lines + "EndObj\n", types);
+        return assets::BuildingTable::from_cod(doc);
+    };
+    const auto prodtyp = [&](const std::string& line) {
+        return load("  Objekt: HAUS_PRODTYP\n    Kind: 9\n    " + line + "\n  EndObj\n");
+    };
+    REQUIRE(load("").ok());
+    // Names of wares, figures, groups, ore mountains and ruins: beyond their range they would name
+    // another one after a cast.
+    CHECK(prodtyp("Ware: 255").ok());
+    CHECK(!prodtyp("Ware: 258").ok());
+    CHECK(!prodtyp("Rohstoff: 300").ok());
+    CHECK(!prodtyp("Workstoff: 256").ok());
+    CHECK(!prodtyp("Figurnr: 70000").ok());
+    CHECK(!prodtyp("BGruppe: 256").ok());
+    CHECK(!prodtyp("Erzbergnr: 256").ok());
+    CHECK(!load("  Ruinenr: 300\n").ok());
+    // A negative cost would pay for building.
+    CHECK(!load("  Objekt: HAUS_BAUKOST\n    Money: -5\n  EndObj\n").ok());
+    // Amounts saturate instead of wrapping.
+    auto big = prodtyp("Maxlager: 200000000");
+    REQUIRE(big.ok());
+    CHECK(big->by_id(20101)->max_stock == 0xFFFF'FFFFU);
+    auto counts = load("  RandAnz: -1\n  RandAdd: 70000\n");
+    REQUIRE(counts.ok());
+    CHECK(counts->by_id(20101)->rand_count == 0);
+    CHECK(counts->by_id(20101)->rand_add == 0xFFFF);
+    // Clamped before the product: no signed overflow (UBSan reports one), the largest values.
+    auto fast = load("  Wegspeed: 100000000\n  Randwachs: 20000000\n");
+    REQUIRE(fast.ok());
+    CHECK(fast->by_id(20101)->walk_speed[0] == 126);
+    CHECK(fast->by_id(20101)->edge_growth == 255);
+    auto slow = load("  Wegspeed: -100000000\n  Randwachs: -20000000\n");
+    REQUIRE(slow.ok());
+    CHECK(slow->by_id(20101)->walk_speed[0] == 1);
+    CHECK(slow->by_id(20101)->edge_growth == 0);
+}
+
 TEST_CASE("construction: a soldier on the footprint stops a building, one beside it does not (TB-7)") {
     Island island;
     island.found();

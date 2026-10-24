@@ -56,6 +56,11 @@ constexpr std::uint32_t kNode = 0x8000'0000U;
 constexpr int kMaxDepth = 256;
 constexpr std::uint32_t kMaxDimension = 4096;
 constexpr std::uint32_t kMaxFrames = 1'000'000;
+/// Longest frame accepted: one second.
+constexpr std::uint64_t kMaxFrameUs = 1'000'000;
+/// Sound of a whole video, in samples (HI-4): 128 MiB; the original's longest video has well
+/// under 10 M. Within that, no more than the frames last plus a second.
+constexpr std::uint64_t kMaxSamples = std::uint64_t{64} << 20;
 
 enum TreeIndex : std::size_t { kMMap = 0, kMClr = 1, kFull = 2, kType = 3 };
 
@@ -247,13 +252,17 @@ core::Result<Smacker> Smacker::open(std::vector<std::uint8_t> bytes) {
         return make_error(ErrorCode::InvalidFormat, "Smacker: implausible size or frame count");
     }
     // Positive: milliseconds per frame; negative: 1/100 000 s per frame; 0: 10 frames a second.
+    // In 64 bits (HI-12): a crafted rate wrapped to 0 in 32 bits.
+    std::uint64_t frame_us = 100'000;
     if (rate > 0) {
-        info.frame_us = static_cast<std::uint32_t>(rate) * 1000U;
+        frame_us = static_cast<std::uint64_t>(rate) * 1000U;
     } else if (rate < 0) {
-        info.frame_us = static_cast<std::uint32_t>(-static_cast<std::int64_t>(rate)) * 10U;
-    } else {
-        info.frame_us = 100'000;
+        frame_us = static_cast<std::uint64_t>(-static_cast<std::int64_t>(rate)) * 10U;
     }
+    if (frame_us == 0 || frame_us > kMaxFrameUs) {
+        return make_error(ErrorCode::InvalidFormat, "Smacker: implausible frame rate");
+    }
+    info.frame_us = static_cast<std::uint32_t>(frame_us);
     info.ring_frame = (flags & 1U) != 0;
     info.interlaced = (flags & 2U) != 0;
     info.doubled = (flags & 4U) != 0;
@@ -616,6 +625,11 @@ core::Result<audio::Pcm> Smacker::audio(std::size_t track) const {
     if (!t.present) {
         return pcm;
     }
+    // What the frames can hold (HI-4): absent Huffman trees read no bits, so a chunk of a few bytes
+    // may claim 1 MiB of sound; a total cap keeps a small file from asking for gigabytes.
+    const std::uint64_t channels = t.stereo ? 2U : 1U;
+    const std::uint64_t limit = std::min(
+        kMaxSamples, (std::uint64_t{m_info.frames} * m_info.frame_us / 1000U + 1000U) * t.rate * channels / 1000U);
     for (std::uint32_t f = 0; f < m_info.frames; ++f) {
         const auto data = frame_bytes(f);
         const std::uint8_t type = m_types[f];
@@ -636,6 +650,11 @@ core::Result<audio::Pcm> Smacker::audio(std::size_t track) const {
             }
             if (k == track) {
                 const auto chunk = data.subspan(at + 4, size - 4);
+                const std::uint64_t claimed =
+                    t.compressed ? (chunk.size() >= 4 ? load_u32(chunk, 0) : 0U) : std::uint64_t{chunk.size()};
+                if (pcm.samples.size() + claimed / (t.bits16 ? 2U : 1U) > limit) {
+                    return make_error(ErrorCode::InvalidFormat, "Smacker: more sound than the video lasts");
+                }
                 if (t.compressed) {
                     if (auto st = decode_dpcm(chunk, t, pcm.samples); !st) {
                         return st.error();

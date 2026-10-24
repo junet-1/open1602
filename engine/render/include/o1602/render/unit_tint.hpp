@@ -27,6 +27,7 @@ struct UnitImageGroup {
     /// Riders: the horse is taken from one of the drawn variants (UnitTintColor::mount), the rest
     /// from the template.
     bool mounted = false;
+    std::uint32_t family = 0;  ///< figure number of variant 0, for messages
 };
 
 /// Where the tinted units of each banner are in an atlas.

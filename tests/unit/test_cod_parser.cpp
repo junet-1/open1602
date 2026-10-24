@@ -88,6 +88,17 @@ TEST_CASE("cod: identifiers on the right side use symbol values, undefined ones 
     CHECK(doc.diagnostics[0].line == 3);
 }
 
+TEST_CASE("cod: a thousand problems are listed, the rest only counted once (HI-3)") {
+    std::string text;
+    for (int i = 0; i < 5000; ++i) {
+        text += "Kind: UNDEFINED_" + std::to_string(i) + "\n";
+    }
+    const auto doc = cod::parse(text);
+    REQUIRE(doc.diagnostics.size() == 1001);
+    CHECK(doc.diagnostics[999].line == 1000);
+    CHECK(doc.diagnostics.back().message.find("not listed") != std::string::npos);
+}
+
 TEST_CASE("cod: predefined symbols") {
     const CodPredefinedSymbol predefined[] = {{"BODEN", 11}, {"MAXHAUS", 500}};
     const auto doc = cod::parse("Kind: BODEN\nM: MAXHAUS-1\n", predefined);

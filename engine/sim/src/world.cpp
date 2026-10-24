@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "o1602/assets/figure_table.hpp"
@@ -927,10 +929,17 @@ void load_towers(World& world, const assets::GameState& state, const WarningSink
 
 /// SOLDAT3: the soldiers, then their homes, targets and waypoints.
 void load_soldiers(World& world, const assets::GameState& state, const WarningSink& warn) {
+    // The ids taken so far in a set of their own (HI-5): asking the world rebuilt its id index after
+    // every soldier whose slot came out of order, O(n^2 log n) for a hostile file.
+    std::unordered_set<std::uint32_t> taken;
+    taken.reserve(world.soldiers().size() + state.soldiers.size());
+    for (const Soldier& s : world.soldiers()) {
+        taken.insert(s.id);
+    }
     for (const auto& r : state.soldiers) {
         Soldier soldier;
         soldier.id = soldier_id_of_slot(r.slot);
-        if (world.soldier(soldier.id) != nullptr) {
+        if (taken.contains(soldier.id)) {
             soldier.id = 0;  // a duplicate slot: the next free id
         }
         soldier.source_slot = r.slot;
@@ -954,17 +963,24 @@ void load_soldiers(World& world, const assets::GameState& state, const WarningSi
         soldier.patrol.one_way = (r.patrol & 2U) != 0;
         soldier.patrol.index = static_cast<std::uint8_t>(r.waypoint & 1U);
         world.add_soldier(soldier);
+        taken.insert(world.soldiers().back().id);
     }
-    // References after all units are known (they may name each other).
+    // References after all units are known (they may name each other), each to the first soldier
+    // loaded from that slot.
+    std::unordered_map<std::uint32_t, std::size_t> by_slot;
+    by_slot.reserve(world.soldiers().size());
+    for (std::size_t i = 0; i < world.soldiers().size(); ++i) {
+        by_slot.try_emplace(world.soldiers()[i].source_slot, i);
+    }
     for (const auto& r : state.soldiers) {
-        for (Soldier& s : world.soldiers()) {
-            if (s.source_slot == r.slot) {
-                s.home = target_from_ref(world, r.home);
-                s.target = target_from_ref(world, r.target);
-                s.patrol.points = {target_from_ref(world, r.waypoints[0]), target_from_ref(world, r.waypoints[1])};
-                break;
-            }
+        const auto it = by_slot.find(r.slot);
+        if (it == by_slot.end()) {
+            continue;
         }
+        Soldier& s = world.soldiers()[it->second];
+        s.home = target_from_ref(world, r.home);
+        s.target = target_from_ref(world, r.target);
+        s.patrol.points = {target_from_ref(world, r.waypoints[0]), target_from_ref(world, r.waypoints[1])};
     }
 }
 
