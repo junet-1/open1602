@@ -197,3 +197,22 @@ TEST_CASE("data fixes: the accents of capitals go back above the letter (D-012)"
     CHECK(drawn(*font, "A")[5] == "#..#..");
     CHECK(font->fix_accents() == 0);
 }
+
+TEST_CASE("building table: the records the game places by Id are required (MD-1)") {
+    // The bakery and the Kontors only: the meadow is the first one missing.
+    CHECK(make_buildings(false).missing() == assets::id::kMeadow);
+
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const auto with = [&](bool ruin) {
+        auto table = assets::BuildingTable::from_cod(assets::cod::parse(
+            std::string("Objekt: HAUS\n"
+                        "  @Nummer: 0\n  Id: 22722\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"
+                        "  @Nummer: 1\n  Id: 21108\n  Kind: 9\n  Gfx: 1\n  Size: 4, 4\n") +
+                (ruin ? "  @Nummer: 2\n  Id: 22601\n  Kind: 11\n  Gfx: 20\n  Size: 1, 1\n" : "") + "EndObj\n",
+            types));
+        REQUIRE(table.ok());
+        return std::move(table).value();
+    };
+    CHECK(with(false).missing() == assets::id::kRuin);
+    CHECK(!with(true).missing().has_value());
+}

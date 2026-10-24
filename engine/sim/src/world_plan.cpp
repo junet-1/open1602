@@ -44,7 +44,7 @@ constexpr std::uint64_t kPlanStream = 0x5701'D0A1ULL;        // the islands
 constexpr std::uint64_t kStartOrderStream = 0x5701'D0A2ULL;  // which player gets which start area
 
 // Ore, crop and treasure entries of the original's plans per level (Endlosspiel<D><V>.szs).
-constexpr std::array<std::uint32_t, 6> kCropBuildings = {21336, 21342, 21340, 21332, 21344, 21338};
+constexpr auto kCropBuildings = id::kPlanCrops;
 constexpr std::array<std::array<std::uint16_t, 6>, 4> kCropCounts = {
     {{5, 5, 3, 5, 4, 5}, {4, 4, 3, 4, 3, 4}, {3, 3, 2, 3, 2, 3}, {3, 2, 2, 3, 2, 2}}};
 constexpr std::array<std::uint16_t, 4> kBigIron = {6, 5, 4, 2};

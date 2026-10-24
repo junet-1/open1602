@@ -33,7 +33,6 @@ constexpr std::array<std::uint8_t, 8> kRobberPastGallows = {0, 0, 1, 0, 0, 0, 0,
 constexpr std::uint32_t kSpreadTiles = 20;  // the area search collects at most 20 tiles
 constexpr std::uint8_t kPlagueRadius = 4;
 constexpr std::uint32_t kFireSpreadChance = 19;  // of 128 per epoch
-constexpr std::uint8_t kUniformSpeed = 3;        // Wegspeed[3]: the same cost everywhere
 
 /// Chance of 128 that a plague house infects a neighbour, by how full it is (0x005A7758): linear
 /// through (0, 0), (25, 25), (38, 51), (128, 64) over inhabitants * 128 / the largest house.

@@ -17,6 +17,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/assets/game_data.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/ships.hpp"
@@ -24,7 +25,7 @@
 
 namespace o1602::render {
 
-inline constexpr std::uint16_t kFigureShipSunk = 67;  ///< SHIPSUNK: wreckage of a sunk ship
+inline constexpr std::uint16_t kFigureShipSunk = assets::figure::kShipSunk;
 
 class CombatEffects {
 public:

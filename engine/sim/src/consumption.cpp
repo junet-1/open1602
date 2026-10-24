@@ -13,12 +13,11 @@ namespace o1602::sim {
 
 namespace {
 
-constexpr std::uint8_t kFull = 128;         // supply level / satisfaction of a fully provided good
-constexpr std::uint64_t kSupplyUnit = 256;  // A and B count 1/256 of a stock unit (1/32 t)
-constexpr std::uint8_t kHungerLevel = 76;   // "Euer Volk hungert" at or below
-constexpr std::uint32_t kNativeKeep = 96;   // natives keep 96/128 of their store
+constexpr std::uint8_t kFull = kFullSupply;  // supply level / satisfaction of a fully provided good
+constexpr std::uint64_t kSupplyUnit = 256;   // A and B count 1/256 of a stock unit (1/32 t)
+constexpr std::uint8_t kHungerLevel = 76;    // "Euer Volk hungert" at or below
+constexpr std::uint32_t kNativeKeep = 96;    // natives keep 96/128 of their store
 constexpr std::uint32_t kNativeGoodwillFloor = 49;
-using assets::kStockUnitsPerTon;
 // Natives' few needs (0x0047EB30): one unit of cloth, alcohol and jewellery per tick.
 constexpr std::array<std::uint8_t, 3> kNativeGoods = {ware::kCloth, ware::kAlcohol, ware::kJewellery};
 // Pirates (0x0047EEF0): twice per tick, up to 3 t of a random ware with at least 10 t.

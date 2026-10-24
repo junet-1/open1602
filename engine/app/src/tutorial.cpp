@@ -24,9 +24,9 @@ constexpr std::array<std::uint16_t, Tutorial::kChapters> kSpeech{1023, 1046, 107
 
 // Chapter 1: the buildings by HAUS Id and the build menu's categories they are in (the original's
 // table in 0x00431500, docs/re/tutorial.md).
-constexpr std::uint32_t kForester = 22001;
-constexpr std::uint32_t kFisher = 21075;
-constexpr std::uint32_t kSheepFarm = 21515;
+constexpr std::uint32_t kForester = sim::id::kForester;
+constexpr std::uint32_t kFisher = sim::id::kFisher;
+constexpr std::uint32_t kSheepFarm = sim::id::kSheepFarm;
 constexpr std::int32_t kRoads = 31002;
 constexpr std::int32_t kCrafts = 31005;
 constexpr std::int32_t kFarms = 31006;
@@ -48,7 +48,7 @@ constexpr std::int32_t kStepDone = 18;
 constexpr std::uint32_t kHousesWanted = 4;
 
 constexpr std::uint8_t kRoadRadius = 70;  // the flood from the Kontor (0x004310C0)
-constexpr std::uint32_t kTon = 32;        // 1/32 t
+constexpr std::uint32_t kTon = sim::kStockUnitsPerTon;
 constexpr std::uint32_t kBricksLeft = 5 * kTon;
 constexpr std::uint32_t kHalfHealth = 64;   // of 128
 constexpr std::uint32_t kLowHealth = 0x3A;  // 45 %

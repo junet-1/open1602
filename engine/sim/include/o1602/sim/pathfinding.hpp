@@ -191,6 +191,8 @@ private:
 /// diagonal. The land search, the sea search and the deer planner all count in these units.
 inline constexpr std::uint32_t kStepStraight = 64;
 inline constexpr std::uint32_t kStepDiagonal = 91;
+/// Wegspeed[3]: the same cost everywhere (fire, plague and the houses' market search).
+inline constexpr std::uint8_t kUniformSpeed = 3;
 
 /// Cost of leaving a tile of Wegspeed class `cost` (0x0046F8A0): straight 2 * cost, diagonal
 /// 91 * cost / 32, never less than a road (64 / 91).

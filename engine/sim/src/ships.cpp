@@ -30,7 +30,7 @@ constexpr std::uint8_t kMaxFailures = 2;       // the order is given up after th
 constexpr std::uint8_t kGiveUpsToComplain = 4;  // ships giving up a Kontor before its computer complains
 constexpr std::int32_t kKontorComplaint = 16;   // reach of the count round the Kontor (0x00428640)
 
-constexpr std::uint32_t kTon = 32;
+constexpr std::uint32_t kTon = kStockUnitsPerTon;
 constexpr std::size_t kMaxSteps = 64;  // decisions of one ship in one tick (a guard)
 // A tile takes 6 250 000 * divisor / Speed microseconds straight, sqrt 2 times that diagonally
 // (0x0044A690: Speed * 32 / divisor in 1/10000 tile per 20 ms).

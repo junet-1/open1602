@@ -16,23 +16,22 @@ namespace o1602::render {
 namespace {
 
 // HAUS Kind values.
-constexpr std::int32_t kRoad = 1;
-constexpr std::int32_t kGate = 3;
-constexpr std::int32_t kSquare = 13;
-constexpr std::int32_t kBridge = 18;
-constexpr std::int32_t kPier = 30;
-constexpr std::int32_t kBeachInnerCorner = 26;  // STRANDECKI
-// HAUS_PRODTYP Kind values.
+constexpr std::int32_t kRoad = assets::kind::kRoad;
+constexpr std::int32_t kGate = assets::kind::kGate;
+constexpr std::int32_t kSquare = assets::kind::kSquare;
+constexpr std::int32_t kBridge = assets::kind::kBridge;
+constexpr std::int32_t kPier = assets::kind::kPier;
+constexpr std::int32_t kBeachInnerCorner = assets::kind::kBeachInner;  // STRANDECKI
 
 // Townsfolk (figuren.cod).
-constexpr std::uint16_t kAdelweibl = 93;
-constexpr std::uint16_t kAdel = 94;
-constexpr std::uint16_t kAlter = 95;
-constexpr std::uint16_t kFrau = 96;
-constexpr std::uint16_t kPassant = 97;
-constexpr std::uint16_t kVeteran = 98;
-constexpr std::uint16_t kKind = 99;
-constexpr std::uint16_t kPilger = 100;
+constexpr std::uint16_t kAdelweibl = assets::figure::kNoblewoman;
+constexpr std::uint16_t kAdel = assets::figure::kNobleman;
+constexpr std::uint16_t kAlter = assets::figure::kOldMan;
+constexpr std::uint16_t kFrau = assets::figure::kWoman;
+constexpr std::uint16_t kPassant = assets::figure::kPasserby;
+constexpr std::uint16_t kVeteran = assets::figure::kVeteran;
+constexpr std::uint16_t kKind = assets::figure::kChild;
+constexpr std::uint16_t kPilger = assets::figure::kPilgrim;
 
 constexpr std::uint32_t kWalkRadius = 10;  // the 21 x 21 search window around the house
 constexpr std::uint32_t kStraight = 64;    // one step of the original's wave search

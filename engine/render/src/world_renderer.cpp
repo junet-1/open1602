@@ -111,9 +111,9 @@ void project_point(const WorldView& view, double wx, double wy, double& sx, doub
     sy = (fx + fy) * (tile_height(view.zoom) / 2.0);
 }
 
-constexpr std::uint64_t kFlagFrameMs = 90;        // AnimSpeed of the flag figures
-constexpr std::uint16_t kFigureUntergang = 45;    // UNTERGANG: splash of a sinking ship
-constexpr std::uint16_t kFigureFahneWeiss = 111;  // FAHNEWEISS: white flag
+constexpr std::uint64_t kFlagFrameMs = 90;  // AnimSpeed of the flag figures
+constexpr std::uint16_t kFigureUntergang = assets::figure::kSinking;
+constexpr std::uint16_t kFigureFahneWeiss = assets::figure::kWhiteFlag;
 
 /// Image `frame` of a banner's flag: the tinted generic flag or the banner's own sprites.
 std::optional<std::uint32_t> flag_sprite(const WorldLayers& layers, sim::BannerId id, std::uint64_t frame) {
@@ -484,11 +484,11 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
 
 namespace {
 
-constexpr std::uint16_t kFigureNoAktiv = 46;     // NOAKTIV: status icon of production buildings
-constexpr std::uint16_t kFigureBrandMarkt = 47;  // BRANDMARKT: fire on a market
-constexpr std::uint16_t kFigureSensenmann = 56;  // SENSENMANN: plague and fire on houses
-constexpr std::uint16_t kFigureShowEisen = 57;   // SHOWEISEN: ore deposit symbol
-constexpr std::uint16_t kFigureShowGold = 58;    // SHOWGOLD: gold vein symbol
+constexpr std::uint16_t kFigureNoAktiv = assets::figure::kIdle;
+constexpr std::uint16_t kFigureBrandMarkt = assets::figure::kMarketFire;
+constexpr std::uint16_t kFigureSensenmann = assets::figure::kReaper;
+constexpr std::uint16_t kFigureShowEisen = assets::figure::kShowOre;
+constexpr std::uint16_t kFigureShowGold = assets::figure::kShowGold;
 
 const sim::CostBuilding* shipyard_at(const sim::World& world, std::uint16_t island, std::uint16_t x, std::uint16_t y) {
     const auto& yards = world.cost_buildings();

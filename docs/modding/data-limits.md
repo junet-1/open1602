@@ -40,10 +40,20 @@ Decimal numbers become integers by truncating toward zero and clamping, never by
 a cast of a value out of range is undefined in C++ and gives different results on x86 and ARM,
 and every computer of a multiplayer game must read the same data the same way.
 
-The game numbers the engine relies on (ware, building kind, production kind and figure numbers)
-are named in one place, `engine/assets/include/o1602/assets/game_data.hpp`. A data set that
-renumbers them needs that header changed too; a data loader for that is planned
-([ADR 0007](../architecture/0007-extensibility-and-modding.md)).
+The game numbers the engine relies on (ware, building kind, production kind and figure numbers,
+and the haeuser.cod records it places by Id: meadow, ore mountain, ruins, the crops of a new
+world, the landscape list) are named in one place,
+`engine/assets/include/o1602/assets/game_data.hpp`. A data set that renumbers them needs that
+header changed too; a data loader for that is planned
+([ADR 0007](../architecture/0007-extensibility-and-modding.md)). The test `game_numbers`
+(`cmake/CheckGameNumbers.cmake`) fails when a record Id (20001 to 23999) is written anywhere else
+in the engine; the build menu's table is the one exception left.
+
+Three records cannot be missing: the meadow that demolished forest becomes (Id 22722), the big
+ore mountain that volcanoes erupt from (21108) and the first ruin (22601). A haeuser.cod without
+one of them is refused at loading with the Id it lacks (`id::kRequired`), instead of a game that
+fails later. Without a meadow record (only possible in a hand-made table), demolished forest
+returns to its forest ground.
 
 The score of the end screen and the monument allowance are named there too, in
 `assets::scoring`: the city and fight curves as tables of straight segments, the money steps, the

@@ -647,8 +647,8 @@ bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
         case DiplomacyOrder::Kind::Bribe:
             return false;  // handled above
         case DiplomacyOrder::Kind::Tribute: {
-            constexpr std::uint32_t kMaxTribute = 10'000;
-            if (order.gold == 0 || order.gold > kMaxTribute || self->money < static_cast<std::int64_t>(order.gold)) {
+            if (order.gold == 0 || order.gold > DiplomacyOrder::kMaxTribute ||
+                self->money < static_cast<std::int64_t>(order.gold)) {
                 return false;
             }
             // op 0x49: the counter grows by gold * 32 / (half the base price of Tabak = 17).

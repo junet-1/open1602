@@ -11,7 +11,7 @@ namespace o1602::sim {
 
 namespace {
 
-constexpr std::uint32_t kTon = 32;
+constexpr std::uint32_t kTon = kStockUnitsPerTon;
 
 }  // namespace
 

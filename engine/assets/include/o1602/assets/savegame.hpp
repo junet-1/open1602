@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "o1602/assets/chunk_file.hpp"
+#include "o1602/assets/game_data.hpp"
 #include "o1602/core/result.hpp"
 
 namespace o1602::assets {
@@ -70,9 +71,6 @@ struct ConsumptionRecord {
     };
     std::vector<Good> goods;
 };
-
-/// Warehouse stock is stored in 1/32 t (confirmed in the running game: 800 = 25 t).
-inline constexpr std::uint32_t kStockUnitsPerTon = 32;
 
 /// One good in a warehouse. The original identifies goods by the first building that produces
 /// them (table 0x00609160), stored as Id - 20000.

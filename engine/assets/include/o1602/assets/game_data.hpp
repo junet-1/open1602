@@ -16,6 +16,11 @@
 
 namespace o1602::assets {
 
+/// Warehouse stock is stored in 1/32 t (confirmed in the running game: 800 = 25 t).
+inline constexpr std::uint32_t kStockUnitsPerTon = 32;
+/// A supply level or satisfaction of a fully provided good (houses and consumption).
+inline constexpr std::uint8_t kFullSupply = 128;
+
 /// Ware numbers (HAUS Ware, Kontor stock, ship holds).
 namespace ware {
 inline constexpr std::uint8_t kNone = 0;  ///< NOWARE
@@ -232,11 +237,38 @@ inline constexpr std::array<std::uint32_t, 4> kUnitFamilies{1, 5, 9, 13};
 /// Ships the shipyards build, by type: HANDEL1, HANDEL2, KRIEG1, KRIEG2 (each followed by its
 /// wreck).
 inline constexpr std::array<std::uint16_t, 4> kShips{21, 23, 25, 27};
-inline constexpr std::uint16_t kTrader = 29;    ///< HANDLER: the free trader's ship
-inline constexpr std::uint16_t kPirate = 31;    ///< PIRAT
-inline constexpr std::uint16_t kDeer = 89;      ///< HIRSCH: the northern islands' game
-inline constexpr std::uint16_t kAntelope = 91;  ///< ANTILOPE: the southern islands' game
-inline constexpr std::uint16_t kRobber = 92;    ///< RAEUBER
+inline constexpr std::uint16_t kTrader = 29;      ///< HANDLER: the free trader's ship
+inline constexpr std::uint16_t kPirate = 31;      ///< PIRAT
+inline constexpr std::uint16_t kSinking = 45;     ///< UNTERGANG: the splash of a sinking ship
+inline constexpr std::uint16_t kIdle = 46;        ///< NOAKTIV: status icon of production buildings
+inline constexpr std::uint16_t kMarketFire = 47;  ///< BRANDMARKT: fire on a market
+inline constexpr std::uint16_t kReaper = 56;      ///< SENSENMANN: plague and fire on houses
+inline constexpr std::uint16_t kShowOre = 57;     ///< SHOWEISEN: the ore deposit symbol
+inline constexpr std::uint16_t kShowGold = 58;    ///< SHOWGOLD: the gold vein symbol
+inline constexpr std::uint16_t kKontorFlag = 60;  ///< FAHNEKONTOR1: the flag on the first Kontor
+inline constexpr std::uint16_t kShipSunk = 67;    ///< SHIPSUNK: the wreckage of a sunk ship
+inline constexpr std::uint16_t kVolcano = 68;     ///< VULKAN: the fire over the mountain
+inline constexpr std::uint16_t kLava = 69;        ///< VULKANFIRE1: a lump of lava
+inline constexpr std::uint16_t kJuggler = 70;     ///< GAUKLER1
+inline constexpr std::uint16_t kCarrier = 80;     ///< TRAEGER: brings the second raw material
+inline constexpr std::uint16_t kDeer = 89;        ///< HIRSCH: the northern islands' game
+inline constexpr std::uint16_t kAntelope = 91;    ///< ANTILOPE: the southern islands' game
+inline constexpr std::uint16_t kRobber = 92;      ///< RAEUBER
+/// The townsfolk, ADELWEIBL to PILGER (93 to 100).
+inline constexpr std::uint16_t kNoblewoman = 93;  ///< ADELWEIBL
+inline constexpr std::uint16_t kNobleman = 94;    ///< ADEL
+inline constexpr std::uint16_t kOldMan = 95;      ///< ALTER
+inline constexpr std::uint16_t kWoman = 96;       ///< FRAU
+inline constexpr std::uint16_t kPasserby = 97;    ///< PASSANT
+inline constexpr std::uint16_t kVeteran = 98;     ///< VETERAN
+inline constexpr std::uint16_t kChild = 99;       ///< KIND
+inline constexpr std::uint16_t kPilgrim = 100;    ///< PILGER
+inline constexpr std::uint16_t kWhale = 101;      ///< WAL
+inline constexpr std::uint16_t kDolphin = 102;    ///< DELPHIN
+inline constexpr std::uint16_t kKraken = 103;     ///< KRAKE
+/// Ship flags by player colour (table at 0x00498F2C): FAHNE1..4, FAHNEPIRAT.
+inline constexpr std::array<std::uint32_t, 5> kFlags{106, 107, 108, 109, 110};
+inline constexpr std::uint16_t kWhiteFlag = 111;  ///< FAHNEWEISS
 }  // namespace figure
 
 /// FIGURE Kind values of the land units (figuren.cod FIGTYP_*).
@@ -291,6 +323,22 @@ inline constexpr std::uint32_t kOreMineDeep = 22403;
 inline constexpr std::uint32_t kGoldMine = 22405;
 inline constexpr std::uint32_t kQuarry = 22407;
 inline constexpr std::uint32_t kWall = 22501;
+inline constexpr std::uint32_t kBakery = 20503;  ///< IDHANDW+2
+inline constexpr std::uint32_t kForester = 22001;
+inline constexpr std::uint32_t kFisher = 21075;
+inline constexpr std::uint32_t kSheepFarm = 21515;
+inline constexpr std::uint32_t kBigOreMountain = 21108;  ///< IDFELS+7: the mountain a volcano is
+inline constexpr std::uint32_t kRuin = 22601;            ///< IDRUINE: the first ruin record
+inline constexpr std::uint32_t kMeadow = 22722;          ///< IDWEIDE+21: what demolished forest becomes
+/// The ripe fields the original's plans place (Endlosspiel<D><V>.szs), in their order.
+inline constexpr std::array<std::uint32_t, 6> kPlanCrops{21336, 21342, 21340, 21332, 21344, 21338};
+/// The list the original keeps after the build menu's (0x00498610), named from Text.cod
+/// [LANDSCHAFT]: the natives' and pirates' buildings and a few others.
+inline constexpr std::array<std::uint32_t, 17> kLandscape{22201, 22202, 22203, 22204, 22205, 22231, 22232, 22233, 22234,
+                                                          22235, 22211, 22221, 22222, 22223, 22241, 21304, 22802};
+/// The records a game cannot run without (BuildingTable::missing): demolition, volcanoes and ruins
+/// place them.
+inline constexpr std::array<std::uint32_t, 3> kRequired{kMeadow, kBigOreMountain, kRuin};
 }  // namespace id
 
 }  // namespace o1602::assets

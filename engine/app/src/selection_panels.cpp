@@ -1037,7 +1037,7 @@ const sim::CostBuilding* cost_building_at(const Selection& s, const PanelContext
     return nullptr;
 }
 
-constexpr std::uint16_t kFirstShipFigure = 21;  // HANDEL1; the four types are 21, 23, 25, 27
+constexpr std::uint16_t kFirstShipFigure = sim::figure::kShips[0];  // HANDEL1; the types are kShips
 
 /// WERFT (the yard and its order) and BAUSHIP (the choice of the ship type)
 /// (ShipyardPanel_Refresh 0x00435B40, ShipTypePanel_Refresh 0x00435EF0).

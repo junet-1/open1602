@@ -50,7 +50,6 @@ constexpr std::uint8_t kRobberChase = 49;         // tiles of chase (with the se
 constexpr std::uint8_t kRobberRadius = 19;        // his square around the house
 constexpr std::int64_t kRobberSight = 13;         // tiles to a victim
 constexpr std::int64_t kRobberReach = 32'768;     // half a tile: caught
-using assets::kStockUnitsPerTon;
 
 std::uint64_t tile_key(std::uint16_t island, TilePos t) noexcept {
     return (std::uint64_t{island} << 32) | (std::uint64_t{static_cast<std::uint16_t>(t.y)} << 16) |

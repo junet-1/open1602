@@ -23,6 +23,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/assets/game_data.hpp"
 #include "o1602/render/figure_animation.hpp"
 #include "o1602/render/world_renderer.hpp"
 #include "o1602/sim/pathfinding.hpp"
@@ -68,10 +69,10 @@ struct AmbientSound {
 };
 
 // Figures of figuren.cod.
-inline constexpr std::uint16_t kFigureJuggler = 70;   ///< GAUKLER1
-inline constexpr std::uint16_t kFigureWhale = 101;    ///< WAL
-inline constexpr std::uint16_t kFigureDolphin = 102;  ///< DELPHIN
-inline constexpr std::uint16_t kFigureKraken = 103;   ///< KRAKE
+inline constexpr std::uint16_t kFigureJuggler = assets::figure::kJuggler;
+inline constexpr std::uint16_t kFigureWhale = assets::figure::kWhale;
+inline constexpr std::uint16_t kFigureDolphin = assets::figure::kDolphin;
+inline constexpr std::uint16_t kFigureKraken = assets::figure::kKraken;
 
 /// The townsfolk a walker going to a building of HAUS_PRODTYP Kind `kind` can be (0x004E857C),
 /// four choices; FRAU for every other kind.
