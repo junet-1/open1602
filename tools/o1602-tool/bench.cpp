@@ -37,7 +37,9 @@
 // windows.h first
 #include <psapi.h>
 #else
+#include <cstdlib>
 #include <sys/resource.h>
+#include <time.h>
 #endif
 
 namespace o1602::tool {
@@ -48,6 +50,30 @@ using Clock = std::chrono::steady_clock;
 
 double ms_since(Clock::time_point start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+}
+
+/// CPU time of the calling thread in microseconds, which other threads and processes taking the
+/// core do not inflate (BT-4); nothing where it is not available or too coarse (Windows counts
+/// thread time in scheduler quanta).
+std::optional<double> thread_cpu_us() {
+#if defined(CLOCK_THREAD_CPUTIME_ID)
+    timespec t{};
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) == 0) {
+        return static_cast<double>(t.tv_sec) * 1e6 + static_cast<double>(t.tv_nsec) / 1e3;
+    }
+#endif
+    return std::nullopt;
+}
+
+/// The load average of the last minute where the system tells it.
+std::optional<double> load_average() {
+#if !defined(_WIN32)
+    double load[1] = {};
+    if (getloadavg(load, 1) == 1) {
+        return load[0];
+    }
+#endif
+    return std::nullopt;
 }
 
 /// The most memory the process has held so far, in MB; nothing where it cannot be asked.
@@ -70,6 +96,9 @@ std::optional<double> peak_memory_mb() {
 #endif
 #endif
 }
+
+/// A tick at speed 8 has 50 ms / 8 of real time.
+constexpr double kBudgetUs = 6250.0;
 
 /// Tick times of one report period in microseconds.
 struct Period {
@@ -166,83 +195,130 @@ int cmd_bench(const Args& args) {
         std::fprintf(stderr, "warning: %s\n", text.c_str());
     }
 
-    sim::Simulation simulation(*world, *buildings, *figures);
-    std::size_t handed_over = 0;
-    for (sim::PlayerId p = sim::first_human_player(*world); p != sim::kNoPlayer; p = sim::first_human_player(*world)) {
-        if (!simulation.execute(sim::PlayerControl{p, true}).accepted) {
-            return fail(core::make_error(core::ErrorCode::Unsupported,
-                                         "player " + std::to_string(p) + " cannot be handed to the computer"));
-        }
-        ++handed_over;
-    }
     const std::size_t minutes = std::max<std::size_t>(args.number("--minutes").value_or(600), 1);
     const std::size_t period_minutes = std::clamp<std::size_t>(args.number("--period").value_or(60), 1, minutes);
-    std::printf("world %ux%u, %zu islands, %zu players handed to the computer; %zu game minutes\n", world->width(),
-                world->height(), world->islands().size(), handed_over, minutes);
-    std::printf("(times in microseconds per tick of %u ms game time; 20 ticks per second at speed 1, %u at speed %u)\n",
-                sim::Simulation::kTickMs, 20 * simulation.rules().max_game_speed, simulation.rules().max_game_speed);
-    std::printf("minute    mean    p50     p99     max  houses  inhabit.  prods ships soldiers walkers\n");
-
+    const std::size_t repeats = std::clamp<std::size_t>(args.number("--repeat").value_or(1), 1, 100);
+    const bool wall = args.flag("--wall") || !thread_cpu_us();
+    const std::uint64_t ticks_per_minute = 60'000 / sim::Simulation::kTickMs;
+    const std::size_t tick_count = minutes * ticks_per_minute;
+    // The run is deterministic, so every repeat runs the same ticks: the fastest time of each tick
+    // is what the code needs, the rest is the machine (BT-4).
+    std::vector<double> best(tick_count, 0.0);
     const std::vector<std::string_view> steps = sim::Simulation::tick_step_names();
     std::vector<std::uint64_t> step_ns(steps.size(), 0);
     std::vector<std::uint64_t> step_total_ns(steps.size(), 0);
     std::vector<std::uint64_t> step_max_ns(steps.size(), 0);
-    double total_us = 0.0;
-    double max_us = 0.0;
-    const std::uint64_t ticks_per_minute = 60'000 / sim::Simulation::kTickMs;
-    Period period;
-    period.ticks.reserve(period_minutes * ticks_per_minute);
-    for (std::size_t minute = 1; minute <= minutes; ++minute) {
-        for (std::uint64_t t = 0; t < ticks_per_minute; ++t) {
-            std::fill(step_ns.begin(), step_ns.end(), 0);
-            const auto start = Clock::now();
-            simulation.tick_timed(step_ns);
-            const double us = ms_since(start) * 1000.0;
-            // What the interface would take; left lying, the buffers only grow to their bound.
-            (void)simulation.take_production_events();
-            (void)simulation.take_construction_events();
-            (void)simulation.take_military_events();
-            (void)simulation.take_city_events();
-            (void)simulation.take_ship_events();
-            (void)simulation.take_diplomacy_notices();
-            (void)simulation.take_command_results();
-            period.ticks.push_back(us);
-            total_us += us;
-            max_us = std::max(max_us, us);
-            for (std::size_t i = 0; i < steps.size(); ++i) {
-                step_total_ns[i] += step_ns[i];
-                step_max_ns[i] = std::max(step_max_ns[i], step_ns[i]);
+    const auto now_us = [&]() { return wall ? ms_since(Clock::time_point{}) * 1000.0 : *thread_cpu_us(); };
+
+    std::optional<sim::Simulation> simulation;
+    for (std::size_t run = 0; run < repeats; ++run) {
+        const bool last = run + 1 == repeats;
+        simulation.reset();
+        if (run > 0) {
+            auto again = make_world();
+            if (!again) {
+                return fail(again.error());
             }
+            world = std::move(again);
         }
-        if (minute % period_minutes == 0 || minute == minutes) {
-            const double mean = period.mean();
-            const double p50 = period.quantile(0.5);
-            const double p99 = period.quantile(0.99);
-            std::printf("%6zu %7.1f %6.0f %7.0f %7.0f", minute, mean, p50, p99, period.ticks.back());
-            print_world_line(*world, simulation);
-            std::fflush(stdout);
-            period.ticks.clear();
+        simulation.emplace(*world, *buildings, *figures);
+        std::size_t handed_over = 0;
+        for (sim::PlayerId p = sim::first_human_player(*world); p != sim::kNoPlayer;
+             p = sim::first_human_player(*world)) {
+            if (!simulation->execute(sim::PlayerControl{p, true}).accepted) {
+                return fail(core::make_error(core::ErrorCode::Unsupported,
+                                             "player " + std::to_string(p) + " cannot be handed to the computer"));
+            }
+            ++handed_over;
+        }
+        if (run == 0) {
+            std::printf("world %ux%u, %zu islands, %zu players handed to the computer; %zu game minutes",
+                        world->width(), world->height(), world->islands().size(), handed_over, minutes);
+            if (repeats > 1) {
+                std::printf(", fastest of %zu runs per tick", repeats);
+            }
+            std::printf(
+                "\n(%s in microseconds per tick of %u ms game time; 20 ticks per second at speed 1, %u at "
+                "speed %u)\n",
+                wall ? "wall-clock times" : "CPU times of the game thread", sim::Simulation::kTickMs,
+                20 * simulation->rules().max_game_speed, simulation->rules().max_game_speed);
+            std::printf("minute    mean    p50     p99     max  houses  inhabit.  prods ships soldiers walkers\n");
+        }
+        Period period;
+        period.ticks.reserve(period_minutes * ticks_per_minute);
+        std::size_t tick = 0;
+        for (std::size_t minute = 1; minute <= minutes; ++minute) {
+            for (std::uint64_t t = 0; t < ticks_per_minute; ++t, ++tick) {
+                std::fill(step_ns.begin(), step_ns.end(), 0);
+                const double start = now_us();
+                simulation->tick_timed(step_ns);
+                const double us = now_us() - start;
+                // What the interface would take; left lying, the buffers only grow to their bound.
+                (void)simulation->take_production_events();
+                (void)simulation->take_construction_events();
+                (void)simulation->take_military_events();
+                (void)simulation->take_city_events();
+                (void)simulation->take_ship_events();
+                (void)simulation->take_diplomacy_notices();
+                (void)simulation->take_command_results();
+                best[tick] = run == 0 ? us : std::min(best[tick], us);
+                if (last) {
+                    period.ticks.push_back(best[tick]);
+                    for (std::size_t i = 0; i < steps.size(); ++i) {
+                        step_total_ns[i] += step_ns[i];
+                        step_max_ns[i] = std::max(step_max_ns[i], step_ns[i]);
+                    }
+                }
+            }
+            if (last && (minute % period_minutes == 0 || minute == minutes)) {
+                const double mean = period.mean();
+                const double max = *std::max_element(period.ticks.begin(), period.ticks.end());
+                const double p50 = period.quantile(0.5);
+                const double p99 = period.quantile(0.99);
+                std::printf("%6zu %7.1f %6.0f %7.0f %7.0f", minute, mean, p50, p99, max);
+                print_world_line(*world, *simulation);
+                std::fflush(stdout);
+                period.ticks.clear();
+            }
         }
     }
 
-    const double ticks = static_cast<double>(minutes * ticks_per_minute);
+    double total_us = 0.0;
+    double max_us = 0.0;
+    std::size_t over_budget = 0;
+    for (const double us : best) {
+        total_us += us;
+        max_us = std::max(max_us, us);
+        over_budget += us > kBudgetUs ? 1U : 0U;
+    }
+    const double ticks = static_cast<double>(tick_count);
     std::printf("\nall ticks: mean %.1f us, max %.0f us; at speed %u one core is %.1f%% busy with the game\n",
-                total_us / ticks, max_us, simulation.rules().max_game_speed,
-                total_us / ticks * 20.0 * simulation.rules().max_game_speed / 10'000.0);
-    std::printf("step           share    mean      max\n");
+                total_us / ticks, max_us, simulation->rules().max_game_speed,
+                total_us / ticks * 20.0 * simulation->rules().max_game_speed / 10'000.0);
+    std::printf("ticks over %.2f ms (the budget at speed 8): %zu (%.3f%%)\n", kBudgetUs / 1000.0, over_budget,
+                100.0 * static_cast<double>(over_budget) / ticks);
+    if (const auto load = load_average()) {
+        std::printf("load average %.2f%s\n", *load,
+                    wall ? " (wall-clock times count the time other programs had the core)" : "");
+    }
+    std::printf("step (%s)    share    mean      max\n", repeats > 1 ? "last run, wall clock" : "wall clock");
+    std::uint64_t all_ns = 0;
+    for (const std::uint64_t n : step_total_ns) {
+        all_ns += n;
+    }
     for (std::size_t i = 0; i < steps.size(); ++i) {
         const double step_us = static_cast<double>(step_total_ns[i]) / 1000.0;
         std::printf("%-13.*s %5.1f%% %7.1f %8.0f\n", static_cast<int>(steps[i].size()), steps[i].data(),
-                    total_us > 0.0 ? 100.0 * step_us / total_us : 0.0, step_us / ticks,
-                    static_cast<double>(step_max_ns[i]) / 1000.0);
+                    all_ns > 0 ? 100.0 * static_cast<double>(step_total_ns[i]) / static_cast<double>(all_ns) : 0.0,
+                    step_us / ticks, static_cast<double>(step_max_ns[i]) / 1000.0);
     }
 
     // The multiplayer fingerprint (net::Session, every hash_interval frames) and a save.
     auto start = Clock::now();
-    const auto hash = simulation.state_hash();
+    const auto hash = simulation->state_hash();
     const double hash_ms = ms_since(start);
     start = Clock::now();
-    auto save = sim::write_game(*world, *buildings, &simulation);
+    auto save = sim::write_game(*world, *buildings, &*simulation);
     const double save_ms = ms_since(start);
     if (!save) {
         return fail(save.error());
