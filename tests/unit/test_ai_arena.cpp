@@ -7,15 +7,19 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
 #include <map>
+#include <string>
 #include <vector>
 
 #include "../test_framework.hpp"
+#include "golden.hpp"
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/core/byte_writer.hpp"
+#include "o1602/core/file.hpp"
 #include "o1602/sim/ai.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/save_game.hpp"
@@ -320,5 +324,46 @@ TEST_CASE("ai arena: a game saved while the computers build goes on as if never 
         run(sb, 3 * 60'000);
         CHECK(sa.state_hash() == sb.state_hash());
         CHECK(saved(sa.computers()) == saved(sb.computers()));
+    }
+}
+
+// The arena for an hour, the same on every platform (golden hash, DS-2): two computers with 150
+// houses each by then, through a savegame every ten minutes. O1602_DETERMINISM_MINUTES runs longer
+// or shorter (the golden value is for 60), O1602_HASH_OUT writes the hash of every minute to a file:
+// two platforms' files show the first minute they differ.
+TEST_CASE("ai arena: an hour of two computers develops the same on every platform (golden hash)") {
+    const auto minutes_text = core::environment_variable("O1602_DETERMINISM_MINUTES");
+    const unsigned long minutes = minutes_text ? std::stoul(*minutes_text) : 60UL;
+    Arena a;
+    sim::Simulation s(a.world, a.buildings, a.figures);
+    std::string out;
+    for (unsigned long minute = 1; minute <= minutes; ++minute) {
+        if (minute % 10 == 0) {
+            // Half a minute, then through a savegame, then the other half on both.
+            run(s, 30'000);
+            const auto bytes = sim::write_game(a.world, a.buildings, &s, sim::SaveOptions{false});
+            REQUIRE(bytes.ok());
+            auto loaded = sim::read_game(*bytes, a.buildings, nullptr, &a.figures);
+            REQUIRE(loaded.ok());
+            sim::World world = std::move(loaded).value();
+            sim::Simulation copy(world, a.buildings, a.figures);
+            run(s, 30'000);
+            run(copy, 30'000);
+            CHECK(copy.state_hash() == s.state_hash());
+        } else {
+            run(s, 60'000);
+        }
+        char line[64];
+        std::snprintf(line, sizeof line, "%3lu %016llx\n", minute, static_cast<unsigned long long>(s.state_hash()));
+        out += line;
+    }
+    CHECK(!s.state_damaged());
+    CHECK(a.houses(kFirst) >= 100);
+    CHECK(a.houses(kSecond) >= 100);
+    if (const auto path = core::environment_variable("O1602_HASH_OUT")) {
+        std::ofstream(*path, std::ios::binary) << out;
+    }
+    if (minutes == 60) {
+        test::check_golden("arena after an hour", s.state_hash(), 0x845db46ae06700aeULL);
     }
 }
