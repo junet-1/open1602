@@ -232,7 +232,7 @@ TEST_CASE("sprite sheet: a few bytes cannot claim gigabytes of pixels (HI-7, HI-
         put_u32(payload, width);
         put_u32(payload, height);
         put_u32(payload, 1);
-        put_u32(payload, 20);
+        put_u32(payload, 24);
         payload.insert(payload.end(), {0, 1, 7, 0xFE, 0, 1, 7, 0xFF});
         std::vector<std::uint8_t> file;
         put_chunk(file, "BSH", payload);
@@ -247,6 +247,34 @@ TEST_CASE("sprite sheet: a few bytes cannot claim gigabytes of pixels (HI-7, HI-
     // 40 000 offsets to the same 4096 x 2 record: 328 M pixels, over the sheet's budget.
     CHECK(sheet_of(4096, 2, 30'000).ok());
     CHECK(!sheet_of(4096, 2, 40'000).ok());
+}
+
+TEST_CASE("sprite sheet: a record stays within its length (HI-8)") {
+    // Two records; the first one's RLE data has no end of its own, the second follows directly.
+    const auto sheet_of = [](std::uint32_t first_length) {
+        std::vector<std::uint8_t> payload;
+        put_u32(payload, 8);
+        put_u32(payload, 8 + 24);
+        for (const std::uint8_t end : {std::uint8_t{0xFE}, std::uint8_t{0xFF}}) {
+            put_u32(payload, 1);
+            put_u32(payload, 1);
+            put_u32(payload, 1);
+            put_u32(payload, end == 0xFF ? 24 : first_length);
+            payload.insert(payload.end(), {0, 1, 7, end, end, end, end, end});
+        }
+        std::vector<std::uint8_t> file;
+        put_chunk(file, "BSH", payload);
+        auto chunks = assets::ChunkFile::from_bytes(file);
+        REQUIRE(chunks.ok());
+        return assets::SpriteSheet::from_chunk_file(std::move(chunks).value());
+    };
+    const auto sheet = sheet_of(24);
+    REQUIRE(sheet.ok());
+    CHECK(sheet->decode(1).ok());
+    CHECK(!sheet->decode(0).ok());  // ran into the second record before: now its end is the end
+    CHECK(!sheet_of(15).ok());      // no room for the header
+    CHECK(!sheet_of(49).ok());      // beyond the chunk
+    CHECK(sheet_of(48).ok());       // up to the chunk's end
 }
 
 TEST_CASE("islands: header and INSELHAUS tiles") {

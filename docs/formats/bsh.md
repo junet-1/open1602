@@ -19,6 +19,12 @@ struct SpriteRecord {
 Several table entries can point to the same record (e.g. the first four entries of
 `GFX/STADTFLD.BSH`), and the offsets are not monotonically increasing.
 
+`length` is exact in all 47 294 distinct records of the original's 61 `.bsh`/`.zei` files:
+16 + the RLE bytes up to and including `0xFF`, padded to 4 bytes with `0xFE`. Records need
+not touch: in `MAEHER`, `SOLDAT`, `TIERE`, `TRAEGER` and part of `SHIP` 16 unreferenced
+bytes lie between two of them. Open1602 refuses a record whose `length` is below 16 or
+leaves the chunk, and decodes nothing beyond it (HI-8).
+
 ## RLE encoding
 
 ```
