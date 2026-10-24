@@ -1073,13 +1073,14 @@ std::vector<ui::UnitCandidate> MapInput::units_in(double x0, double y0, double x
     // A cheap test of the unit's position first (FB-1): the screen point is affine in the tile
     // position, and no picture reaches further than a few tiles from it. Only the units near the
     // rectangle get their pictures built.
-    const auto [ax, ay] = screen_of(0.0, 0.0);
-    const auto [bx, by] = screen_of(1.0, 0.0);
-    const auto [cx, cy] = screen_of(0.0, 1.0);
+    // Plain pairs, not structured bindings: the static analyser loses those in the lambda.
+    const std::pair<double, double> p0 = screen_of(0.0, 0.0);
+    const std::pair<double, double> p1 = screen_of(1.0, 0.0);
+    const std::pair<double, double> p2 = screen_of(0.0, 1.0);
     const double margin = kPickMarginTiles * render::tile_width(m_camera.view().zoom) * m_camera.scale();
     const auto near = [&](double tx, double ty) {
-        const double px = ax + tx * (bx - ax) + ty * (cx - ax);
-        const double py = ay + tx * (by - ay) + ty * (cy - ay);
+        const double px = p0.first + tx * (p1.first - p0.first) + ty * (p2.first - p0.first);
+        const double py = p0.second + tx * (p1.second - p0.second) + ty * (p2.second - p0.second);
         return px >= left - margin && px <= right + margin && py >= top - margin && py <= bottom + margin;
     };
     const auto test = [&](const ui::UnitRef& ref) {
@@ -1507,7 +1508,7 @@ void MapInput::draw_overlay() {
             }
         }
     }
-    if (!digits.empty()) {
+    if (graphics != nullptr && !digits.empty()) {
         graphics->renderer->draw(digits, ox, oy, k);
     }
     // The selection rectangle: a thin white outline (0x0040CAC0).

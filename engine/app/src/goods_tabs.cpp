@@ -654,7 +654,7 @@ void GoodsWindow::layout_finances(const sim::World& world, const assets::Buildin
     line("stats.fin.taxes", now[0], average[0], 1, s.series[0]);
     line("stats.fin.costs", now[1], average[1], -1, s.series[1]);
     if (military) {
-        line("stats.fin.military", *military, std::nullopt, -1, s.shade);
+        line("stats.fin.military", military, std::nullopt, -1, s.shade);
     }
     line("stats.fin.sales", now[2], average[2], 1, s.series[2]);
     line("stats.fin.purchases", now[3], average[3], -1, s.series[3]);

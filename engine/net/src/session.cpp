@@ -90,7 +90,7 @@ const char* describe(RefuseReason reason) noexcept {
 }
 
 Session::Session(std::unique_ptr<Transport> transport, SessionConfig config)
-    : m_transport(std::move(transport)), m_config(config) {
+    : m_transport(std::move(transport)), m_config(std::move(config)) {
     m_config.hash_interval = std::max<std::uint32_t>(m_config.hash_interval, 1);
     m_config.min_lead = std::max<std::uint16_t>(m_config.min_lead, 1);
     m_config.max_lead = std::max(m_config.max_lead, m_config.min_lead);

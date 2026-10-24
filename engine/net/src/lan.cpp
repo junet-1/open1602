@@ -151,7 +151,7 @@ LocalNetworks local_networks([[maybe_unused]] ENetSocket socket) {
 }
 
 /// 127.0.0.1, where a host on this computer always hears.
-const enet_uint32 kLoopback = ENET_HOST_TO_NET_32(0x7F000001U);
+const enet_uint32 kLoopback = ENET_HOST_TO_NET_32(0x7F000001U);  // NOLINT(cert-err58-cpp): byte order, never throws
 
 /// Owns a socket and its share of the ENet library.
 class Socket {

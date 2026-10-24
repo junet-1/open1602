@@ -855,7 +855,7 @@ public:
             return;
         }
         const std::uint8_t tax = tax_of(*city, b->resident_class);
-        std::int32_t rate = tax;
+        std::int32_t rate = 0;
         if (e.kind == ui::PanelEvent::Kind::Slid && e.id == kTaxSlider) {
             rate = m_panel.slider(kTaxSlider, 0, 128) + sim::CityOrder::kMinTax;
         } else if (e.kind == ui::PanelEvent::Kind::Clicked && e.id == kTaxDown) {

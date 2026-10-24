@@ -1412,7 +1412,7 @@ private:
             }
             std::string name = city != nullptr ? city_name(*city) : c.text("GAME", 46);
             if (m_route_row) {
-                name = std::to_string(stop + 1) + ". " + name;  // with eight stops their order shows
+                name.insert(0, std::to_string(stop + 1) + ". ");  // with eight stops their order shows
             }
             m_route.set_text(kStopName + s, std::move(name));
             m_route.set_selected(kStopName + s, m_pick_stop == stop);
@@ -1615,7 +1615,7 @@ private:
             const auto s = static_cast<std::int32_t>(slot);
             const sim::City* city = stop_city(ship, c, stop);
             if (id == kStopName + s || id == kStopSymbol + s) {
-                const std::string line = help_line(c, id == kStopSymbol + s && city != nullptr ? 171 : 170);
+                std::string line = help_line(c, id == kStopSymbol + s && city != nullptr ? 171 : 170);
                 // Open1602: which stop the ship sails to (or lies at) now.
                 if (city != nullptr && ship.route.active && ship.route.current == stop) {
                     return ui::tr("route.current_stop", {line});

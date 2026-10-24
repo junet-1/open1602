@@ -117,6 +117,9 @@ std::vector<std::uint8_t> close_mask(const std::vector<std::uint8_t>& mask, std:
 
 /// Sets the enclosed holes of a mask (regions not connected to the border).
 void fill_holes(std::vector<std::uint8_t>& mask, std::uint32_t w, std::uint32_t h) {
+    if (w == 0 || h == 0) {
+        return;
+    }
     std::vector<std::uint8_t> outside(mask.size(), 0);
     std::vector<std::size_t> stack;
     const auto push = [&](std::int64_t x, std::int64_t y) {
@@ -162,6 +165,9 @@ void unit_template(std::span<const RgbaView> variants, std::span<const assets::R
     height = body.height;
     const std::size_t n = std::size_t{width} * height;
     out.assign(n * 4, 0);
+    if (n == 0) {
+        return;
+    }
     const Aligned aligned(variants, width, height);
     const Chroma horse_brown(137.0, 86.0, 13.0);
 

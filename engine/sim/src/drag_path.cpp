@@ -45,7 +45,7 @@ bool drag_passable(DragLine line, std::int32_t kind, bool gate_centre) noexcept 
 
 std::vector<DragStep> drag_path(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                                 DragLine line, TilePos from, TilePos to, std::uint8_t rotation) {
-    const std::vector<DragStep> cursor_only{DragStep{to.x, to.y, rotation}};
+    std::vector<DragStep> cursor_only{DragStep{to.x, to.y, rotation}};
     if (island >= world.islands().size() || from == to) {
         return cursor_only;
     }

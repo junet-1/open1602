@@ -1527,7 +1527,7 @@ void MapViewer::draw_map(ZoomGraphics& graphics) {
     // O1602_MAP_CANVAS=N: N times the window's pixels instead (to try it on a GPU, 0: no limit).
     static const std::optional<std::int64_t> wanted = [] {
         const auto value = core::environment_variable("O1602_MAP_CANVAS");
-        return value ? std::optional<std::int64_t>(std::atoll(value->c_str())) : std::nullopt;
+        return value ? std::optional<std::int64_t>(std::strtoll(value->c_str(), nullptr, 10)) : std::nullopt;
     }();
     const std::int64_t times = wanted ? std::max<std::int64_t>(*wanted, 0) : (m_software_renderer ? 1 : 2);
     const std::int32_t max_side = m_window->max_texture_size();

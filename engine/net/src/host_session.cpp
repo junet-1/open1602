@@ -90,7 +90,7 @@ struct HostSession::Peer {
 HostSession::HostSession(std::unique_ptr<Transport> transport, sim::Simulation& simulation,
                          const assets::BuildingTable& buildings, Seat seat, std::string name, std::uint64_t content,
                          SessionConfig config)
-    : Session(std::move(transport), config),
+    : Session(std::move(transport), std::move(config)),
       m_simulation(&simulation),
       m_buildings(&buildings),
       m_name(std::move(name)),
@@ -121,7 +121,7 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, sim::Simulation& 
 
 HostSession::HostSession(std::unique_ptr<Transport> transport, Lobby lobby, Seat seat, std::string name,
                          std::uint64_t content, SessionConfig config)
-    : Session(std::move(transport), config),
+    : Session(std::move(transport), std::move(config)),
       m_simulation(nullptr),
       m_buildings(nullptr),
       m_name(std::move(name)),
@@ -365,7 +365,11 @@ void HostSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeTic
     }
     // A connection that never says who it is would hold one of the few connections for good.
     for (const auto& p : m_peers) {
-        if (!p->gone && !p->welcomed && (p->greeting_ms += real_ms) > kGreetingMs) {
+        if (p->gone || p->welcomed) {
+            continue;
+        }
+        p->greeting_ms += real_ms;
+        if (p->greeting_ms > kGreetingMs) {
             drop(*p, std::nullopt);
         }
     }

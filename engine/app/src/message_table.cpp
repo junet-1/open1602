@@ -131,7 +131,7 @@ std::optional<MessageId> MessageTable::find(std::string_view id) const {
     // The original's numbers in hex, as the documentation writes them.
     if (id.size() > kOriginal.size() && id.starts_with(kOriginal) && id[kOriginal.size()] == ':') {
         if (const auto n = parse_number(id.substr(kOriginal.size() + 1)); n && *n < kOriginalMessages) {
-            return *n;
+            return n;
         }
     }
     return std::nullopt;

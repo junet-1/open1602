@@ -184,7 +184,7 @@ std::string startup_language(std::string_view command_line, std::string_view set
                 break;
             }
         }
-        SDL_free(locales);
+        SDL_free(reinterpret_cast<void*>(locales));
     }
     return code;
 }

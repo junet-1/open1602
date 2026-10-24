@@ -21,8 +21,9 @@ enum class ErrorCode {
     PlatformError,  ///< Operating system or SDL call failed (window, renderer, ...).
 };
 
+// NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign): the analyser loses the field in std::variant
 struct Error {
-    ErrorCode code;
+    ErrorCode code = ErrorCode::IoError;
     std::string message;
 };
 
