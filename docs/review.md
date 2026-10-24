@@ -2203,14 +2203,13 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 |---|---|---|
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
 | TB-11, TB-13 | Incremental island survey and road-segment rebuilds; the rest of the settlement search (each search is bounded since #128; counts cached since #176). | L |
-| TB-14 | A shared AI work budget per tick (part 2). | M |
 | TB-9 | A cached `building_count` per city (it reads the house and production lists, so the tile revision is no key for it); a scratch arena. | S |
 | FB-14 | Videos are still read whole (on the worker thread); streaming them would save memory. | S |
 | BT-1 | Recruiting from castles and landings in the AI arena (both need a castle the AI built). | M |
 | BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
 | DS-2 | The `determinism.yml` workflow and `o1602-replay`: the review's tool branch is not on the remote. Four golden hashes in CI on three platforms cover it in part (#147). | M |
 
-Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
+Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
 Closed by reading without a change: FB-16 and FB-18 (each a scan of the cost buildings or a few texts per frame for what is on screen, microseconds even in large worlds). The rest of TB-22: `deer_at`, `spawn_robber` and `find_victim` walk the walkers once per deer spawn, robber or robber look, and `call_hunter` the productions once per deer that walks into a city; all are rare events, not per tick. TB-25: the single-tile `forget_growth` is no longer called (withering and recovery use the batch form), and spreading `wither_scan` over the epoch would change which fields wither.
 
