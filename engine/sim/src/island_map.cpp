@@ -158,31 +158,9 @@ SubTile IslandMap::sub_tile_of(const MapCell& cell, const assets::BuildingTable&
     if (result.building == nullptr) {
         return result;
     }
-    const auto d = static_cast<std::int32_t>(cell.sprite - result.building->gfx);
-    const auto w = static_cast<std::int32_t>(result.building->size_x);
-    const auto h = static_cast<std::int32_t>(result.building->size_y);
-    const std::int32_t row = d / w;
-    const std::int32_t col = d % w;
-    const auto px = static_cast<std::int32_t>(x);
-    const auto py = static_cast<std::int32_t>(y);
-    switch (cell.rotation & 3U) {  // original 0x00463250
-        case 0:
-            result.origin_x = px - col;
-            result.origin_y = py - row;
-            break;
-        case 1:
-            result.origin_x = px + 1 + row - h;
-            result.origin_y = py - col;
-            break;
-        case 2:
-            result.origin_x = px + 1 + col - w;
-            result.origin_y = py + 1 + row - h;
-            break;
-        default:
-            result.origin_x = px - row;
-            result.origin_y = py + 1 + col - w;
-            break;
-    }
+    const auto [ox, oy] = origin_of(cell, *result.building, x, y);
+    result.origin_x = ox;
+    result.origin_y = oy;
     return result;
 }
 
