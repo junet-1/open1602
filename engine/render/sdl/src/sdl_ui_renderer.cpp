@@ -117,8 +117,9 @@ std::optional<std::pair<std::int32_t, std::int32_t>> SdlUiRenderer::sprite_size(
 
 SdlUiRenderer::Texture SdlUiRenderer::make(const std::vector<std::uint8_t>& rgba, std::int32_t w, std::int32_t h) {
     Texture t;
-    if (w <= 0 || h <= 0) {
-        return t;
+    if (w <= 0 || h <= 0 ||
+        rgba.size() < std::size_t{static_cast<std::uint32_t>(w)} * static_cast<std::uint32_t>(h) * 4) {
+        return t;  // nothing to show, or fewer pixels than the size says
     }
     t.texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
     if (t.texture == nullptr) {
@@ -343,7 +344,8 @@ void SdlUiRenderer::image(int key, const std::vector<std::uint8_t>& rgba, std::i
     }
     if (it == m_images.end()) {
         it = m_images.emplace(key, make(rgba, width, height)).first;
-    } else if (update && it->second.texture != nullptr) {
+    } else if (update && it->second.texture != nullptr &&
+               rgba.size() >= std::size_t{static_cast<std::uint32_t>(width)} * static_cast<std::uint32_t>(height) * 4) {
         SDL_UpdateTexture(it->second.texture, nullptr, rgba.data(), width * 4);
     }
     if (it->second.texture != nullptr) {

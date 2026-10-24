@@ -2,7 +2,9 @@
 #include "multiplayer_texts.hpp"
 
 #include <array>
+#include <string>
 
+#include "o1602/core/text.hpp"
 #include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
@@ -126,6 +128,14 @@ std::string_view mp_key(MpText id) noexcept {
 
 std::string mp_text(MpText id) {
     return ui::tr(mp_key(id));
+}
+
+std::string mp_log(MpText id, std::string_view value) {
+    std::string out(mp_key(id));
+    if (!value.empty()) {
+        out += " " + core::cp1252_to_utf8(value);
+    }
+    return out;
 }
 
 std::string mp_text(MpText id, std::string_view value) {

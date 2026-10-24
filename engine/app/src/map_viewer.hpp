@@ -301,8 +301,12 @@ private:
     /// The host of the running game left and the game cannot move on: the client saves the game it
     /// holds as a whole and says where; loaded, it plays on alone or is hosted anew.
     void save_after_host_left();
-    /// A line for the chat: a player's (`name` given) or a notice of the session (add_chat_line).
-    void chat_line(std::string name, std::string text, sim::PlayerId seat = sim::kNoPlayer, bool echo = true);
+    /// A player's line for the chat (add_chat_line).
+    void chat_line(std::string name, std::string text, sim::PlayerId seat);
+    /// A notice of the session in the chat, in the log by `log` ("multiplayer: <log>", English).
+    void session_line(std::string text, std::string_view log, sim::PlayerId seat = sim::kNoPlayer);
+    /// The same for a text of the multiplayer catalogue with its "{1}".
+    void session_line(MpText id, std::string_view value = {}, sim::PlayerId seat = sim::kNoPlayer);
     [[nodiscard]] net::HostSession* host_session() const noexcept;
     [[nodiscard]] net::ClientSession* client_session() const noexcept;
 

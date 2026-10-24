@@ -2042,17 +2042,47 @@ std::filesystem::path MapViewer::data_folder() {
     return folder;
 }
 
+namespace {
+
+/// Whether `path` lies in the folder `root`: by name, and by identity for the folders on the way
+/// that exist (FB-27: on a file system that ignores case, "anno 1602" is "Anno 1602").
+bool inside_folder(const std::filesystem::path& path, const std::filesystem::path& root) {
+    const std::filesystem::path rel = path.lexically_relative(root);
+    if (!rel.empty() && *rel.begin() != "..") {
+        return true;
+    }
+    for (std::filesystem::path p = path; !p.empty(); p = p.parent_path()) {
+        std::error_code ec;
+        if (std::filesystem::equivalent(p, root, ec) && !ec) {
+            return true;
+        }
+        if (p == p.parent_path()) {
+            break;
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
 std::filesystem::path MapViewer::save_folder() {
     return data_folder() / "saves";
 }
 
 core::Status MapViewer::save_game(const std::filesystem::path& path) {
-    // The installation stays as it is: no savegame goes into it (nor into Game.dat).
+    // The installation stays as it is: no savegame goes into it (nor into Game.dat). A path that
+    // cannot be resolved is not written either.
     std::error_code ec;
-    const auto target = std::filesystem::weakly_canonical(std::filesystem::absolute(path), ec);
-    const auto root = std::filesystem::weakly_canonical(m_game.root(), ec);
-    const auto rel = target.lexically_relative(root);
-    if (!rel.empty() && *rel.begin() != "..") {
+    const std::filesystem::path absolute = std::filesystem::absolute(path, ec);
+    const std::filesystem::path target = ec ? std::filesystem::path() : std::filesystem::weakly_canonical(absolute, ec);
+    std::error_code root_ec;
+    const std::filesystem::path root = std::filesystem::weakly_canonical(m_game.root(), root_ec);
+    if (ec || root_ec || target.empty() || root.empty()) {
+        return core::make_error(core::ErrorCode::NotFound,
+                                "cannot check the savegame's path " + core::path_to_utf8(path) +
+                                    " against the installation: " + (ec ? ec : root_ec).message());
+    }
+    if (inside_folder(target, root)) {
         return core::make_error(core::ErrorCode::Unsupported,
                                 "will not write into the game's installation: " + core::path_to_utf8(target));
     }
@@ -2168,7 +2198,7 @@ void MapViewer::apply_options() {
                 const auto status = save_game(slot_file(save_folder(), e.value));
                 if (!status) {
                     m_events.notify(ui::tr("notice.save_failed", {ui::error_text(status.error(), "save")}),
-                                    platform::ticks_ms());
+                                    "notice.save_failed", platform::ticks_ms());
                     break;
                 }
                 std::uint8_t humans = 0;
@@ -2205,7 +2235,7 @@ void MapViewer::apply_options() {
                 }
                 if (const auto status = load_game(path); !status) {
                     m_events.notify(ui::tr("notice.load_failed", {ui::error_text(status.error(), "load")}),
-                                    platform::ticks_ms());
+                                    "notice.load_failed", platform::ticks_ms());
                 } else {
                     std::fprintf(stderr, "game loaded: %s\n", core::path_to_utf8(path).c_str());
                 }
@@ -2285,7 +2315,8 @@ core::Status MapViewer::load_game(const std::filesystem::path& path, const sim::
 void MapViewer::report_load_problems(std::size_t warnings) {
     m_load_problems = warnings + (m_state->simulation.state_damaged() ? 1 : 0);
     if (m_load_problems != 0) {
-        m_events.notify(ui::tr("notice.load_problems", {std::to_string(m_load_problems)}), platform::ticks_ms());
+        const std::string count = std::to_string(m_load_problems);
+        m_events.notify(ui::tr("notice.load_problems", {count}), "notice.load_problems " + count, platform::ticks_ms());
     }
 }
 
@@ -2327,6 +2358,8 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
                                            rules != nullptr ? *rules : m_options.rules);
     } catch (const std::bad_alloc&) {
         return core::make_error(core::ErrorCode::PlatformError, "not enough memory for the game");
+    } catch (const std::exception& e) {
+        return core::make_error(core::ErrorCode::PlatformError, std::string("the game could not start: ") + e.what());
     }
     // What belongs to the old game goes: videos, selection, orders waiting for an answer, tools.
     m_video->reset();
@@ -2588,10 +2621,14 @@ void MapViewer::present() {
             m_screenshot_error = status.error().message;
         }
         if (request->notify) {
-            m_events.notify(status ? ui::tr("notice.screenshot_saved",
-                                            {utf8_to_cp1252(core::path_to_utf8(request->path.filename()))})
-                                   : ui::tr("notice.screenshot_failed", {ui::error_text(status.error(), "screenshot")}),
-                            platform::ticks_ms());
+            const std::string file = core::path_to_utf8(request->path.filename());
+            if (status) {
+                m_events.notify(ui::tr("notice.screenshot_saved", {utf8_to_cp1252(file)}),
+                                "notice.screenshot_saved " + file, platform::ticks_ms());
+            } else {
+                m_events.notify(ui::tr("notice.screenshot_failed", {ui::error_text(status.error(), "screenshot")}),
+                                "notice.screenshot_failed", platform::ticks_ms());
+            }
         }
     }
     SDL_RenderPresent(m_window->sdl_renderer());
@@ -2603,18 +2640,25 @@ void MapViewer::present() {
 void MapViewer::quick_save() {
     const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));
     const auto status = save_game(path);
-    m_events.notify(status ? ui::tr("notice.game_saved", {utf8_to_cp1252(core::path_to_utf8(path.filename()))})
-                           : ui::tr("notice.save_failed", {ui::error_text(status.error(), "save")}),
-                    platform::ticks_ms());
+    const std::string file = core::path_to_utf8(path.filename());
+    if (status) {
+        m_events.notify(ui::tr("notice.game_saved", {utf8_to_cp1252(file)}), "notice.game_saved " + file,
+                        platform::ticks_ms());
+    } else {
+        m_events.notify(ui::tr("notice.save_failed", {ui::error_text(status.error(), "save")}), "notice.save_failed",
+                        platform::ticks_ms());
+    }
 }
 
 void MapViewer::quick_load() {
     const std::filesystem::path path = save_folder() / ("quicksave" + std::string(sim::kSaveExtension));
     const auto status = load_game(path);
     if (!status) {
-        m_events.notify(ui::tr("notice.load_failed", {ui::error_text(status.error(), "load")}), platform::ticks_ms());
+        m_events.notify(ui::tr("notice.load_failed", {ui::error_text(status.error(), "load")}), "notice.load_failed",
+                        platform::ticks_ms());
     } else if (m_load_problems == 0) {  // else the note says what went wrong while loading
-        m_events.notify(ui::tr("notice.game_loaded", {utf8_to_cp1252(core::path_to_utf8(path.filename()))}),
+        const std::string file = core::path_to_utf8(path.filename());
+        m_events.notify(ui::tr("notice.game_loaded", {utf8_to_cp1252(file)}), "notice.game_loaded " + file,
                         platform::ticks_ms());
     }
 }

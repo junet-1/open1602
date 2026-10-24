@@ -392,7 +392,6 @@ void MapInput::run_action(const ui::KeyBinding& b) {
     m_window.output_size(w, h);
     const double cx = w / 2.0;
     const double cy = h / 2.0;
-    const auto not_yet = [&](const char* what) { std::fprintf(stderr, "%s: comes with the interface\n", what); };
     switch (b.action) {
         case KeyAction::ScrollUp:
         case KeyAction::ScrollDown:
@@ -445,8 +444,8 @@ void MapInput::run_action(const ui::KeyBinding& b) {
         case KeyAction::QuickLoad:
             m_host.quick_load();
             break;
-        case KeyAction::GameMenu:
-            not_yet("game menu");
+        case KeyAction::GameMenu:  // the original's game menu is the options with saving and loading
+            set_mode(Hud::kModeOptions);
             break;
         case KeyAction::Screenshot:  // U-002: the original's screenshot key does not work
             m_host.request_screenshot();

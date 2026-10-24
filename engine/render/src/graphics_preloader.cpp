@@ -23,7 +23,11 @@ std::vector<Zoom> preload_order(Zoom current) {
 }
 
 GraphicsPreloader::GraphicsPreloader(Prepare prepare, bool background)
-    : m_prepare(std::move(prepare)), m_background(background) {}
+    : m_prepare(std::move(prepare)), m_background(background) {
+    // One entry per zoom level at most (request() skips a level that is ready): the worker's
+    // emplace_back never allocates, so it cannot throw on the worker thread (FB-20).
+    m_ready.reserve(3);
+}
 
 GraphicsPreloader::~GraphicsPreloader() {
     {

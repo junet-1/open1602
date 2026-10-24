@@ -87,9 +87,21 @@ sim::Simulation* MapViewer::load_from_host(std::span<const std::uint8_t> save) {
     return &m_state->simulation;
 }
 
-void MapViewer::chat_line(std::string name, std::string text, sim::PlayerId seat, bool echo) {
+void MapViewer::chat_line(std::string name, std::string text, sim::PlayerId seat) {
     add_chat_line(m_hud ? &m_hud->multiplayer_model().chat : nullptr,
-                  ChatLine{std::move(name), std::move(text), seat, platform::ticks_ms()}, echo);
+                  ChatLine{std::move(name), std::move(text), seat, platform::ticks_ms()});
+}
+
+void MapViewer::session_line(std::string text, std::string_view log, sim::PlayerId seat) {
+    if (!log.empty()) {
+        std::fprintf(stderr, "multiplayer: %.*s\n", static_cast<int>(log.size()), log.data());
+    }
+    add_chat_line(m_hud ? &m_hud->multiplayer_model().chat : nullptr,
+                  ChatLine{{}, std::move(text), seat, platform::ticks_ms()}, false);
+}
+
+void MapViewer::session_line(MpText id, std::string_view value, sim::PlayerId seat) {
+    session_line(value.empty() ? mp_text(id) : mp_text(id, value), mp_log(id, value), seat);
 }
 
 void MapViewer::announce_take_overs() {
@@ -99,7 +111,7 @@ void MapViewer::announce_take_overs() {
     if (m_session_roles.size() == players.size()) {
         for (std::size_t i = 0; i < players.size(); ++i) {
             if (m_session_roles[i] == sim::PlayerRole::Human && players[i].role == sim::PlayerRole::Computer) {
-                chat_line({}, mp_text(MpText::ComputerTookOver, players[i].name), static_cast<sim::PlayerId>(i));
+                session_line(MpText::ComputerTookOver, players[i].name, static_cast<sim::PlayerId>(i));
             }
         }
     }
@@ -131,9 +143,8 @@ void MapViewer::apply_session_events() {
                 m_host_game_loaded = true;
                 if (m_migrating) {
                     m_migrating = false;
-                    const std::string text = mp_text(MpText::HostMoved, m_successor_name);
-                    chat_line({}, text, sim::kNoPlayer, false);
-                    m_events.notify(text, platform::ticks_ms());
+                    session_line(MpText::HostMoved, m_successor_name);
+                    m_events.notify(mp_text(MpText::HostMoved, m_successor_name), {}, platform::ticks_ms());
                 }
                 std::fprintf(stderr, "multiplayer: game from the host loaded at frame %llu\n",
                              static_cast<unsigned long long>(e.frame));
@@ -145,18 +156,18 @@ void MapViewer::apply_session_events() {
                 }
                 break;
             case net::SessionEvent::Kind::Joined:
-                chat_line({}, mp_text(MpText::PlayerJoined, who(e)), e.seat);
+                session_line(MpText::PlayerJoined, who(e), e.seat);
                 break;
             case net::SessionEvent::Kind::Left:
-                chat_line({}, mp_text(MpText::PlayerLeft, who(e)), e.seat);
+                session_line(MpText::PlayerLeft, who(e), e.seat);
                 break;
             case net::SessionEvent::Kind::Lagging:
-                chat_line({}, mp_text(MpText::Lagging, who(e)), e.seat);
+                session_line(MpText::Lagging, who(e), e.seat);
                 break;
             case net::SessionEvent::Kind::Desync:
                 std::fprintf(stderr, "multiplayer: player %u diverged after frame %llu\n",
                              static_cast<unsigned>(e.seat), static_cast<unsigned long long>(e.frame));
-                chat_line({}, mp_text(MpText::Desync, who(e)), e.seat);
+                session_line(MpText::Desync, who(e), e.seat);
                 break;
             case net::SessionEvent::Kind::Ended:
                 std::fprintf(stderr, "multiplayer: %s\n",
@@ -170,10 +181,10 @@ void MapViewer::apply_session_events() {
                 chat_line(e.name, e.text, e.seat);
                 break;
             case net::SessionEvent::Kind::Dropped:
-                chat_line({}, mp_text(MpText::Dropped, std::to_string(e.count)), e.seat);
+                session_line(MpText::Dropped, std::to_string(e.count), e.seat);
                 break;
             case net::SessionEvent::Kind::Reconnecting:
-                chat_line({}, mp_text(MpText::Reconnecting));
+                session_line(MpText::Reconnecting);
                 break;
         }
     }
@@ -196,7 +207,8 @@ bool MapViewer::migrate() {
     if (client == nullptr || !client->can_migrate()) {
         return false;
     }
-    std::string text;
+    std::string successor;  // the value of the text, if it has one
+    MpText text = MpText::HostMovedYou;
     if (client->hosts_next()) {
         auto transport = net::enet_listen(m_host_port);
         if (!transport) {
@@ -206,7 +218,6 @@ bool MapViewer::migrate() {
         std::fprintf(stderr, "multiplayer: the host left; hosting the game on UDP port %u\n",
                      static_cast<unsigned>(m_host_port));
         m_session = std::make_unique<net::HostSession>(std::move(transport).value(), *client, m_buildings);
-        text = mp_text(MpText::HostMovedYou);
     } else {
         // A successor the host saw on its own computer is on the computer this one joined.
         std::string address = client->successor_address();
@@ -223,11 +234,12 @@ bool MapViewer::migrate() {
             return transport ? std::move(transport).value() : nullptr;
         });
         m_migrating = true;
-        text = mp_text(MpText::HostMoving, m_successor_name);
+        text = MpText::HostMoving;
+        successor = m_successor_name;
     }
     m_command_sink.set_session(m_session.get());
-    chat_line({}, text, sim::kNoPlayer, false);
-    m_events.notify(text, platform::ticks_ms());
+    session_line(text, successor);
+    m_events.notify(successor.empty() ? mp_text(text) : mp_text(text, successor), {}, platform::ticks_ms());
     return true;
 }
 
@@ -248,11 +260,12 @@ void MapViewer::save_after_host_left() {
     for (sim::Player* p : others) {
         p->role = sim::PlayerRole::Human;
     }
-    const std::string text = status
-                                 ? mp_text(MpText::HostLeftSaved, utf8_to_cp1252(core::path_to_utf8(path.filename())))
-                                 : ui::tr("notice.save_failed", {ui::error_text(status.error(), "save")});
-    chat_line({}, text, sim::kNoPlayer, false);  // notify() puts it on stderr
-    m_events.notify(text, platform::ticks_ms());
+    const std::string file = utf8_to_cp1252(core::path_to_utf8(path.filename()));
+    // error_text() logs what went wrong in English.
+    const std::string text = status ? mp_text(MpText::HostLeftSaved, file)
+                                    : ui::tr("notice.save_failed", {ui::error_text(status.error(), "save")});
+    session_line(text, status ? mp_log(MpText::HostLeftSaved, file) : std::string("notice.save_failed"));
+    m_events.notify(text, {}, platform::ticks_ms());
 }
 
 // --- The menu ---
@@ -391,7 +404,7 @@ void MapViewer::handle_multiplayer(const MultiplayerEvent& e) {
             break;
         case MultiplayerEvent::Kind::Start:
             if (auto status = start_hosted_game(); !status) {
-                chat_line({}, mp_text(MpText::StartFailed, status.error().message));
+                session_line(MpText::StartFailed, status.error().message);
             }
             break;
         case MultiplayerEvent::Kind::TakeSeat:
