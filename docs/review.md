@@ -2,7 +2,7 @@
 
 This review covers the whole repository at commit `f5a46dd` (`origin/main` after PR #107). It replaces the earlier review of `468c58a`, whose 99 findings were all fixed or left on purpose; the earlier items that regressed are listed under "Earlier review items that regressed". The review did not change engine code. Measurement tools were added on separate branches (see "Scope and method").
 
-**Status.** All parts are verified and merged, including part DET (fuzzing, sanitizers, static analysis, mod data) and the device runs with the original game data on the user's machine. Its five fuzz inputs are root-caused. What remains open is listed per finding (unclear marks, runs not done).
+**Status.** All parts are verified and merged, including part DET (fuzzing, sanitizers, static analysis, mod data) and the device runs with the original game data on the user's machine. Its five fuzz inputs are root-caused. What remains open is listed per finding (unclear marks, runs not done). Which pull request fixed which bundle, and what is still open after the fixes, is under "Fix status" at the end.
 
 The finding list is also available as `findings.csv` (one row per merged finding). Paths starting with `review-2026-10/` refer to the review's working files (part reports, verifications, reproducers and benchmarks), which are kept outside the repository with the maintainer.
 
@@ -2131,3 +2131,64 @@ Each bundle fits one pull request. The order is: critical multiplayer security f
 | P30 | Documentation | BT-3, BT-10, MD-11, BT-11, LC-12, BT-17, BT-18, MD-14, BT-19, BT-20 | after P8 and P15 for the numbers | Performance page with the budget and new numbers, status counts, ADR corrections, format docs, symbol table. |
 
 Not bundled: LC-18, MS-20, GB-8, MD-12, MD-13, LC-20, LC-21, BT-21, LC-22, BT-22, BT-23, TB-29, FB-34.
+
+## Fix status
+
+As of 2026-10-24 every bundle is merged into `main`. The table gives the pull requests per bundle. The parts that a pull request names as not done are listed under "Still open".
+
+| Bundle | Pull requests |
+|---|---|
+| P1 | #111 |
+| P2 | #112 |
+| P3 | #113 |
+| P4 | #114 |
+| P5 | #115 |
+| P6 | #117 |
+| P7 | #118 |
+| P8 | #119 (MS-15, MS-19), #155 and #156 (TB-26) |
+| P9 | #120, #154 (DS-4: compact MAPW) |
+| P10 | #121, #153 (DS-3), #154 (LC-2, LC-10, LC-11) |
+| P11 | #122 |
+| P12 | #123 |
+| P13 | #124 |
+| P14 | #125 |
+| P15 | #126 |
+| P16 | #127 |
+| P17 | #128 |
+| P18 | #129 |
+| P19 | #130 |
+| P20 | #110 (HI-2, HI-15, HI-16), #131 |
+| P21 | #132 |
+| P22 | #133, #134, #136 |
+| P23 | #135 |
+| P24 | #137 |
+| P25 | #138, #139, #140, #141 |
+| P26 | #142, #143, #144 |
+| P27 | #145, #146, #147 |
+| P28 | #148, #149 |
+| P29 | #150, #151, #157, #158 (from the device run P29) |
+| P30 | #152 |
+
+Also found by the new fuzz jobs and fixed: settings and slot names that did not read back as written (#116).
+
+### Still open
+
+| Finding | What is left | Size |
+|---|---|---|
+| MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
+| TB-11, TB-13 | Incremental island survey and road-segment rebuilds; cached `AreaCount`s in `task_settle_site` (each search is bounded since #128). | L |
+| TB-14 | A shared AI work budget per tick (part 2). | M |
+| TB-9, TB-16 | Cached `city_defenceless` and `building_count`; an index for `note()` and a scratch arena. | S–M |
+| TB-19, TB-22, TB-25 | Dirty rectangles for the sea and land maps; the logistics walker index; `update_services` by dirty rectangle. | M |
+| FB-2, FB-16, FB-17, FB-18 | Lazy soldier figure sync; per-frame panel caches; a position index for the tower lookup and ambient work. | M |
+| FB-14 | Videos are read whole on the main thread: 37-40 ms for a logo, 121-129 ms for the intro on the desktop machine. | M |
+| FB-25 | Load time is the same for 4 and 12 players (about 1.24 s); about 1.1 s of it is the GFX atlas. | M |
+| HI-8 | The BSH record length bound, to be checked against the original files first. | S |
+| BT-1 | Military scenarios in the AI arena, a main-menu test, a coverage floor in CI. | M |
+| BT-2 | Moving the panels into `o1602_menus` and testing them with synthetic GAD layouts. | L |
+| DS-2 | The `determinism.yml` workflow and `o1602-replay`: the review's tool branch is not on the remote. Four golden hashes in CI on three platforms cover it in part (#147). | M |
+| MS-20 | Who may pause: the owner's decision. | S |
+
+Closed by measurement without a change: FB-12 (far zoom on 2000², about 400 fps at 1080p and 92 fps at 4K with OpenGL), and the second ENet channel of P5 (a snapshot delays only its own peer's frames, and a second channel would lose the order of snapshot and frames). The successor that stays cut off for longer than the reconnect window still hosts alone; it keeps only its own player, and the others stay with the real host.
+
+Runs not done: NET-2 and SYNC-2 (LAN with separate machines), BLD-1, RND-4 and APP-4 (Windows and macOS), APP-1 to APP-3, RND-2, RND-5, RND-7, the 5 000-soldier scene of LST-3, and AI-2.
