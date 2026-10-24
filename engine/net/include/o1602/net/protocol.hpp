@@ -130,7 +130,8 @@ struct Refused {
 struct Snapshot {
     std::uint32_t epoch = 0;  ///< counts the games sent to this computer
     std::uint64_t frame = 0;
-    std::uint32_t speed = 1;  ///< game speed and pause: not part of the savegame
+    // Speed and pause: the savegame holds them too (state version 6); these win, as older saves lack them.
+    std::uint32_t speed = 1;
     bool paused = false;
     std::vector<std::uint8_t> save;  ///< Open1602 savegame (sim/save_game.hpp)
 };

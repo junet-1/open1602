@@ -66,6 +66,8 @@ natives. The slot number is also the **owner number** in the island tiles
 | 0x00E | u8 | palaces built (runtime +0x87, at most one) |
 | 0x00F | u8 | cathedrals built (+0x88) |
 | 0x010, 0x012 | u16, u16 | triumphal arches: allotments, built (+0x8E, +0x90) |
+| 0x014, 0x016 | u16, u16 | score of the fights: soldiers killed, soldiers lost |
+| 0x018, 0x01A | u16, u16 | score of the fights: own ships lost, enemy ships sunk |
 | 0x01C | u32 | scenario switches (runtime +0x70), only for humans and computers, only set in scenarios: bit 1 no further cities, 2 no free trader, 3 quiet while at peace, 4 minds a human above 0x020 inhabitants, 5 fixed army, 6 no supply or patrol ships, 7 minds its own size below 0x022, 8 minds its own development below 0x024, 9 minds a human above 0x025 ([ai.md](../re/ai.md), [diplomacy.md](../re/diplomacy.md#mood)); Open1602 reads and writes them (`Player::scenario`) |
 | 0x020, 0x022 | u16 × 2 | inhabitants: of a rival (bit 4), the computer's own (bit 7) |
 | 0x024, 0x025 | u8 × 2 | development (0..159, see `city_development`): own (bit 8), of a rival (bit 9) |
@@ -150,7 +152,7 @@ at ship + 4) that carries position, direction and figure number.
 | 0x04F | u8 | **current stop** of the trade route |
 | 0x050 | u8 | **direction 0–7** (byte 3 of the display figure, 45° steps) |
 | 0x051 | u8 | ship + 0x003: only read and written, otherwise unused (0 in all savegames) |
-| 0x052 + 0x24·s | | **trade route**, 4 stops: u32 reference, then 3 × (u16 ware as Id of the producer − 20000, u16 quantity in 1/32 t, u8 bit 0 deliver), rest free |
+| 0x052 + 0x24·s | | **trade route**, 4 stops of 0x24 bytes: u32 reference, then 3 entries of 8 bytes each (+0 u16 ware as Id of the producer − 20000, +2 u16 quantity in 1/32 t, +4 u8 bit 0 deliver, +5 to +7 free), rest of the stop free |
 | 0x174 | 8 × 8 bytes | **cargo**: u16 ware as Id of the producer − 20000 (soldiers: ware + 9876), u16 bits 0–13 quantity in 1/32 t, u32 bits 0–9 **average price** per ton; empty slot = ware 0 |
 
 `HANDLER` (0x25C bytes per trader ship): byte 0 occupied, bytes 1–2 slot of the ship, byte 3 number of the
@@ -201,7 +203,7 @@ is the count in Merlin01 after a few minutes of play.
 | `TURM` | 0x24 | `0x004600C0` | `0x004EDE60`, 350 × 0x118 | cannons of the watchtowers: +0 world tile x/y, +4 hit points (never reduced), +6 figure (38/40), +8 slot, +0x0A reference to the tower building (0x33), +0x17 island, +0x18 owner, +0x1B direction (Merlin01: 61 pirate towers, owner 5) |
 | `STADT4` | 0xA8 | `0x00485020` | cities `0x005DBAE0`, 75 × 0x258 | cities (below, 20) |
 | `KONTOR2` | 0x3EC | `0x00485020` | the same city table | goods store of a city (below, 20) |
-| `MARKT2` | 0x104 | `0x00485020` | the same city table | consumption of a city: island, city; 11 entries of 16 bytes: demand A, supply B (u32, 1/8192 t), ware as Id − 20000, supply level C ([consumption.md](../re/consumption.md)) (20) |
+| `MARKT2` | 0x104 | `0x00485020` | the same city table | consumption of a city: u32 head (bits 0–7 island, bits 8–11 city), then 16 slots of 16 bytes, of which the 11 consumer goods use the first: +0x0 demand A, +0x4 supply B (u32 each, 1/8192 t), +0x8 meaning open, +0xC ware as Id of the producer − 20000 (u16, 0 = empty slot), +0xE supply level C (u8), +0xF free; 4 + 16 × 16 = 0x104 ([consumption.md](../re/consumption.md)) (20) |
 | `PRODLIST2` | 0x18 | `0x00485530` | `0x0054A3B8`, 4144 × 0x14 | production buildings and warehouses at the origin tile: state, stock, progress (below, 126) |
 | `WERFT` | 0x18 | `0x00485530` | `0x005A6C18`, 160 × 0x12 | shipyards: island, x, y, bit 27 switched on; +4 seconds until the end of the tick, +6 order (ship type 0–3, 0xFF none), +8 build points, +0x0A wood, +0x0C ship under repair (0xFFFF none) ([ships.md](../re/ships.md#shipyard)) (1) |
 | `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | castles and warrior huts (loader `0x00483C60`): island, x, y, epoch (+3 bits 0–2), +4 seconds until the next training step, +8/+0x0A/+0x0C weapons in stock (swords, muskets, cannons, 1/32 t), from +0x10 nine slots of 8 bytes: figure (bits 0–11), in training (bit 12), armed (bit 13); hit points (bits 0–11 of the second word), progress 0–320 (bits 16–31) (3: the huts of the natives with eight finished spearmen each) |

@@ -41,7 +41,9 @@ ln -s ../../open1602-re/docs/re docs/re
 ln -s ../../open1602-re/re/symbols re/symbols
 ```
 
-Both paths are in `.gitignore`; changes to them are committed in `open1602-re`.
+Both paths are in `.gitignore`; changes to them are committed in `open1602-re`. With them in place,
+`re/scripts/check_bug_refs.py` checks the bug ids the code cites and `re/scripts/check_symbol_refs.py`
+lists the addresses of `1602.exe` the code cites that neither the symbol tables nor `docs/re` name.
 
 ## Commits
 

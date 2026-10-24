@@ -214,7 +214,7 @@ item is MP-3.
 | MP-17 | Low | Score and monument rules are hard-coded | `sim/src/score.cpp`, `consumption.cpp` | Fixed #27 (score curves, money steps and the monument rule named in `assets/game_data.hpp`) |
 | MP-18 | Low | ENet licence notice and third-party register entry missing | `third_party/README.md`, `app/CMakeLists.txt` | Fixed #20 |
 | MP-19 | Low | Text fitting in `ui::Form` is quadratic, every frame | `ui/src/form.cpp` | Fixed #29 (binary search, the same cuts as before) |
-| MP-20 | Low (informational) | No host migration; the game freezes when the host leaves | `app/src/multiplayer.cpp` | Fixed #32 to #35, #41 (#41: the host names a successor in every roster; when the host leaves, the successor hosts the game on and the others follow it with their seats, ADR 0011 point 15; when that fails, each client saves `saves/hostleft.o1602`, which loads with its own seat, #33, also as .GAM, #34) |
+| MP-20 | Low (informational) | No host migration; the game freezes when the host leaves | `app/src/multiplayer.cpp` | Fixed #32 to #35, #41 (#41: the host names a successor in every roster; when the host leaves, the successor hosts the game on and the others follow it with their seats, ADR 0011 point 16; when that fails, each client saves `saves/hostleft.o1602`, which loads with its own seat, #33, also as .GAM, #34) |
 
 MP-3 is the earlier review's `SoldierOrder` item. In the new numbering it is not AU14, which is the
 bought-ship item.

@@ -13,7 +13,7 @@ Status: accepted · 2026-10-16
               ▲
    video (on audio)         Smacker films
    menus (on audio, ui,     The game's parts that need no platform: menus, settings files, build
-          net)              tool, command sink, event presenter, video queue, map gestures
+          net, render)      tool, command sink, event presenter, video queue, map gestures
                             (sources in engine/app/src, tested without SDL)
    platform (on core, SDL3) Window, renderer, audio output
    render_sdl (on render,   Draws sprites and panels with SDL3
@@ -30,7 +30,7 @@ Rules:
 - `sim` **never** depends on `platform`, `render`, `audio`, `ui` (headless capability, determinism).
 - A module includes only headers of modules it links (directly or through them), and only
   `platform`, `render_sdl` and `app` include SDL. The ctest `layering` (`cmake/CheckLayering.cmake`)
-  checks this on the sources, since the include directories of all modules are visible to the tests
+  checks this on the sources (for `menus` on the sources `engine/app/menus/CMakeLists.txt` lists), since the include directories of all modules are visible to the tests
   and tools through `PUBLIC` links and a stray include would otherwise compile.
 - Every module is its own CMake library `o1602::<module>` with `include/o1602/<module>/` as its
   public interface; internals live in `src/`.

@@ -19,7 +19,7 @@ Confirmed fields (common to both versions):
 | 4 | u16 | position x on the world map | values < 500 |
 | 6 | u16 | position y on the world map | values < 350 |
 
-Additionally in `INSEL4`/`INSEL5` (116 bytes) – deposits, fertility and the reference to the
+Additionally in `INSEL4`/`INSEL5` (116 bytes; Open1602 reads these fields from any header of at least 0x66 bytes) – deposits, fertility and the reference to the
 island template:
 
 | Offset | Type | Field | Evidence |
@@ -37,7 +37,7 @@ island template:
 | `0x6C` | u32 | end of the drought as game time in 1/10 s (island +0x60) | `0x0046A630` |
 | `0x60` | u16 | template number (`0xFFFF` = none) | loader at `0x00469BCA`, path building `0x00469690` |
 | `0x62` | u16 | size class: 0 `lit`, 1 `mit`, 2 `med`, 3 `big`, 4 `lar` | table `0x0049A890` |
-| `0x64` | u8 | climate: 0 `Nord`, 1 `Sued` | table `0x0049A8A4` |
+| `0x64` | u8 | climate: 0 `Nord`, 1 `Sued`; the name table also maps 2 to `Nord` and 3 to `Sued`, so Open1602 accepts 0–3 | table `0x0049A8A4` |
 | `0x65` | u8 | ≠ 0: island is stored completely, do not load a template | jump at `0x00469BB0` |
 
 The world map is **500 × 350** tiles: `Game_Init` passes `0x1F4, 0x15E` to an

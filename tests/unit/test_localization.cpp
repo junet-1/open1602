@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 
@@ -82,6 +83,25 @@ TEST_CASE("localization: English and German are built in, and German has no key 
         }
     }
     CHECK(ui::builtin_catalogue("xx").size() == 0);
+}
+
+TEST_CASE("localization: German translates every English key but the language-neutral ones") {
+    // Key names and digits read the same in both languages, so German leaves them to English.
+    constexpr std::string_view kNeutral[] = {
+        "keys.group_digits",     "keys.modifier.alt", "keys.name.escape", "keys.name.keypad_minus",
+        "keys.name.keypad_plus", "keys.name.pause",   "keys.name.tab",
+    };
+    const ui::Catalogue en = ui::builtin_catalogue("en");
+    const ui::Catalogue de = ui::builtin_catalogue("de");
+    for (const std::string& key : en.keys()) {
+        const bool neutral = std::find(std::begin(kNeutral), std::end(kNeutral), key) != std::end(kNeutral);
+        if (de.find(key) == nullptr && !neutral) {
+            CHECK(key == "a key de.lang translates");
+        }
+    }
+    for (const std::string_view key : kNeutral) {
+        CHECK(en.find(key) != nullptr);  // the list follows en.lang
+    }
 }
 
 TEST_CASE("localization: the language of an installation comes from Text.cod's player colours") {
