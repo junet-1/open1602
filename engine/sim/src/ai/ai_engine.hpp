@@ -493,6 +493,9 @@ private:
     };
     [[nodiscard]] const Census* census() const;
     mutable Census m_census;
+    /// The order and plan of can_place(), reused so that a site test allocates nothing.
+    mutable BuildOrder m_place_order;
+    mutable BuildPlan m_place_plan;
     /// Free green land and trees of the island whose Kontor site is sought (task 3), kept while
     /// its tiles stay the same: each region of the island asks again (TB-13).
     struct SiteCounts {

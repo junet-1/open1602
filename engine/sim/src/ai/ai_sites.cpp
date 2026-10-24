@@ -312,13 +312,15 @@ bool Engine::can_place(const AiPlayer& p, const assets::BuildingType& b, std::in
     if (!inside(p.island, x, y) || !inside(p.island, x + w - 1, y + h - 1)) {
         return false;
     }
-    BuildOrder order;
+    // Kept between calls: the site searches test thousands of sites a minute (TB-9).
+    BuildOrder& order = m_place_order;
+    BuildPlan& plan = m_place_plan;
     order.player = p.player;
     order.island = p.island;
     order.orient_to_road = false;
     const std::uint8_t rotation = (static_cast<std::uint32_t>(w) != b.size_x) ? 1 : 0;
-    order.items.push_back(BuildItem{b.id, x, y, rotation, 0});
-    const BuildPlan plan = plan_build(m_world, m_buildings, order);
+    order.items.assign(1, BuildItem{b.id, x, y, rotation, 0});
+    plan_build(m_world, m_buildings, order, plan);
     if (plan.city != p.city) {
         return false;
     }
