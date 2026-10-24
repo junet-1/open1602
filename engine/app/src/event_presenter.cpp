@@ -94,9 +94,9 @@ std::string crops_text(const sim::WorldIsland& island) {
 }
 
 void add_chat_line(std::deque<ChatLine>* chat, ChatLine line, bool echo) {
-    if (echo) {
-        std::fprintf(stderr, "multiplayer: %s%s%s\n", core::cp1252_to_utf8(line.name).c_str(),
-                     line.name.empty() ? "" : ": ", core::cp1252_to_utf8(line.text).c_str());
+    if (echo && !line.name.empty()) {
+        std::fprintf(stderr, "multiplayer: chat from %s (%zu bytes)\n", core::cp1252_to_utf8(line.name).c_str(),
+                     line.text.size());
     }
     if (chat == nullptr) {
         return;
@@ -445,8 +445,10 @@ std::optional<sim::GameOutcome> EventPresenter::end_screen_due(std::uint64_t now
     return outcome;
 }
 
-void EventPresenter::notify(std::string text, std::uint64_t now_ms) {
-    std::fprintf(stderr, "%s\n", core::cp1252_to_utf8(text).c_str());
+void EventPresenter::notify(std::string text, std::string_view log, std::uint64_t now_ms) {
+    if (!log.empty()) {
+        std::fprintf(stderr, "notice: %.*s\n", static_cast<int>(log.size()), log.data());
+    }
     m_notice = std::move(text);
     m_notice_until_ms = now_ms + kNoticeMs;
 }

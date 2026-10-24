@@ -109,6 +109,8 @@ enum class MpText : std::uint16_t {
 /// The catalogue key of a text ("net.player_joined").
 [[nodiscard]] std::string_view mp_key(MpText id) noexcept;
 [[nodiscard]] std::string mp_text(MpText id);
+/// The text for the log: its key and `value` (UTF-8), English whatever the game's language (LC-24).
+[[nodiscard]] std::string mp_log(MpText id, std::string_view value = {});
 /// The text with its "{1}" replaced by `value` (a name, a number).
 [[nodiscard]] std::string mp_text(MpText id, std::string_view value);
 /// Why a session ended or a computer was refused, for the player.

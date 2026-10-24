@@ -60,8 +60,10 @@ using Notice = std::variant<Announcement, DirectVideo, ScoreUpdate>;
 /// The same for the log and the window title.
 [[nodiscard]] std::string crops_text(const sim::WorldIsland& island);
 
-/// A line in the multiplayer chat (Windows-1252, as drawn), also in the log unless `echo` is off;
-/// the chat keeps the last kChatKept lines. `chat` may be null (no panel): then only the log.
+/// A line in the multiplayer chat (Windows-1252, as drawn); the chat keeps the last kChatKept
+/// lines. `chat` may be null (no panel). A player's line goes to the log, unless `echo` is off, as
+/// "chat from <name> (<n> bytes)" only: what players write stays out of the log, and so does a
+/// notice of the session in the game's language (its caller logs it by key, LC-24).
 void add_chat_line(std::deque<ChatLine>* chat, ChatLine line, bool echo = true);
 /// Lines the chat keeps.
 inline constexpr std::size_t kChatKept = 100;
@@ -136,8 +138,9 @@ public:
 
     // The status line.
 
-    /// A short note in the status line for a few seconds and in the log (Windows-1252, from ui::tr).
-    void notify(std::string text, std::uint64_t now_ms);
+    /// A short note in the status line for a few seconds (Windows-1252, from ui::tr). The log gets
+    /// "notice: <log>", the text's key and its arguments in English (LC-24); none if `log` is empty.
+    void notify(std::string text, std::string_view log, std::uint64_t now_ms);
     /// The note to show at `now_ms`, if one is still there.
     [[nodiscard]] const std::string* notice(std::uint64_t now_ms) const noexcept {
         return now_ms < m_notice_until_ms ? &m_notice : nullptr;

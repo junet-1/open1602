@@ -22,6 +22,7 @@
 #include <ctime>
 #include <optional>
 #include <random>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -199,8 +200,9 @@ bool parse_input(std::string_view text, std::vector<o1602::app::ViewerOptions::S
 
 }  // namespace
 
-int main(int argc, char** argv) {
-    app::setup_diagnostics();
+namespace {
+
+int run_program(int argc, char** argv) {
     std::string_view game_dir;
     std::string_view scenario = "Szenes/Das Atoll.szs";
     std::string_view savegame;
@@ -641,4 +643,20 @@ int main(int argc, char** argv) {
         return 1;
     }
     return (*viewer)->run();
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    app::setup_diagnostics();
+    // What nothing else caught (a length_error, a filesystem_error) ends the program with a
+    // message, on Windows in a message box, instead of std::terminate.
+    try {
+        return run_program(argc, argv);
+    } catch (const std::exception& e) {
+        app::report_fatal(std::string("unexpected error: ") + e.what());
+    } catch (...) {
+        app::report_fatal("unexpected error");
+    }
+    return 1;
 }

@@ -148,6 +148,11 @@ void save_game_folder(const fs::path& settings_file, const fs::path& folder) {
     std::string text;
     if (auto bytes = core::read_file(settings_file)) {
         text.assign(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+    } else if (std::error_code exists_ec; fs::exists(settings_file, exists_ec) || exists_ec) {
+        // There but not readable (a virus scanner holds it): written now it would lose every other
+        // setting. The folder is asked for again at the next start.
+        std::fprintf(stderr, "settings: %s; the game folder is not remembered\n", bytes.error().message.c_str());
+        return;
     }
     text = set_setting_line(text, "game_folder", core::path_to_utf8(folder));
     std::error_code ec;

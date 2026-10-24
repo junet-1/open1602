@@ -61,9 +61,9 @@ void flags(std::string_view v, std::array<bool, 8>& out) {
 // The files are UTF-8; the names in them are kept in Windows-1252 like all typed text (the game's
 // fonts). A value that is not UTF-8 comes from an older version, which wrote the bytes as they
 // were: it is taken as Windows-1252. Control characters and the five bytes Windows-1252 leaves
-// undefined are dropped, and the ends trimmed, so that a name reads back as it is written.
-std::string from_file(std::string_view value) {
-    const std::string text = core::is_utf8(value) ? core::utf8_to_cp1252(value) : std::string(value);
+// undefined are dropped, and the ends trimmed, so that a name reads back as it is written. The
+// writer applies the same to a name typed in the game, so that write -> read is the identity (FB-36).
+std::string clean_name(std::string_view text) {
     std::string out;
     for (const char ch : text) {
         const auto c = static_cast<unsigned char>(ch);
@@ -73,6 +73,14 @@ std::string from_file(std::string_view value) {
         }
     }
     return std::string(trim(out));
+}
+
+std::string from_file(std::string_view value) {
+    return clean_name(core::is_utf8(value) ? core::utf8_to_cp1252(value) : std::string(value));
+}
+
+std::string to_file(std::string_view name) {
+    return core::cp1252_to_utf8(clean_name(name));
 }
 
 std::string flags_text(const std::array<bool, 8>& a) {
@@ -178,11 +186,13 @@ std::string write_settings(const AppSettings& s) {
     out += "sea_creatures_every = " + std::to_string(s.sea_creatures_every) + "\n";
     out += "# Corrections of the original's data (D-001, D-002, D-012, D-014); off: the data as it is\n";
     out += std::string("data_fixes = ") + (s.data_fixes ? "on" : "off") + "\n";
-    if (!s.player_name.empty()) {
-        out += "player_name = " + core::cp1252_to_utf8(s.player_name) + "\n";
+    if (const std::string name = to_file(s.player_name); !name.empty()) {
+        out += "player_name = " + name + "\n";
     }
     for (const std::string& host : s.remembered_hosts) {
-        out += "remembered_host = " + core::cp1252_to_utf8(host) + "\n";
+        if (const std::string text = to_file(host); !text.empty()) {
+            out += "remembered_host = " + text + "\n";
+        }
     }
     out += write_display(s.display);
     out += "# The last settings of the start dialog of the endless game\n";
@@ -271,9 +281,8 @@ SaveSlots parse_slots(std::string_view text) {
 std::string write_slots(const SaveSlots& slots) {
     std::string out = "# Open1602: savegame names (slot, humans, name; UTF-8)\n";
     for (std::size_t i = 0; i < slots.size(); ++i) {
-        if (!slots.names[i].empty()) {
-            out += std::to_string(i) + " " + std::to_string(slots.humans[i]) + " " +
-                   core::cp1252_to_utf8(slots.names[i]) + "\n";
+        if (const std::string name = to_file(slots.names[i]); !name.empty()) {
+            out += std::to_string(i) + " " + std::to_string(slots.humans[i]) + " " + name + "\n";
         }
     }
     return out;

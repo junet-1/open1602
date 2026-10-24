@@ -293,7 +293,7 @@ TEST_CASE("event presenter: the end screen waits for the delay of running game t
 TEST_CASE("event presenter: notes stay in the status line for a few seconds, the chat keeps 100 lines") {
     Game g;
     CHECK(g.presenter.notice(0) == nullptr);
-    g.presenter.notify("Gespeichert", 1000);
+    g.presenter.notify("Gespeichert", "notice.game_saved spiel03.o1602", 1000);
     REQUIRE(g.presenter.notice(1000) != nullptr);
     CHECK(*g.presenter.notice(4999) == "Gespeichert");
     CHECK(g.presenter.notice(1000 + app::EventPresenter::kNoticeMs) == nullptr);

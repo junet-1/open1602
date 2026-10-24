@@ -61,6 +61,28 @@ TEST_CASE("app settings: a savegame name with control or undefined bytes reads b
     CHECK(app::parse_slots("3 1  A\tB\x81 \n").names[3] == "AB");
 }
 
+TEST_CASE("app settings: names typed in the game are written as they read back (FB-36)") {
+    // A trailing space, a carriage return or an undefined byte used to take up to three rounds
+    // of writing and reading before the name stayed the same.
+    app::AppSettings s;
+    s.player_name = std::string("Spi \x81\r\x8f", 7);
+    s.remembered_hosts = {" host:2601 ", "\x90"};
+    const std::string text = app::write_settings(s);
+    const app::AppSettings back = app::parse_settings(text, app::AppSettings{});
+    CHECK(back.player_name == "Spi");
+    REQUIRE(back.remembered_hosts.size() == 1);
+    CHECK(back.remembered_hosts[0] == "host:2601");
+    CHECK(app::write_settings(back) == text);
+
+    app::SaveSlots slots;
+    slots.set(1, " Fu\xdf\x9d ", 1);
+    slots.set(2, "\x01", 1);
+    const std::string list = app::write_slots(slots);
+    CHECK(list.find("1 1 Fu\xc3\x9f\n") != std::string::npos);
+    CHECK(list.find("\n2 ") == std::string::npos);
+    CHECK(app::write_slots(app::parse_slots(list)) == list);
+}
+
 TEST_CASE("app settings: what a savegame's META says, as a line of the lists") {
     app::SaveSlots slots;
     slots.set(20, "late", 1);
