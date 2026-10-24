@@ -150,8 +150,10 @@ private:
     void send_walker(const sim::World& world, const assets::BuildingTable& buildings,
                      const assets::FigureTable& figures, const sim::House& house, sim::Random& random,
                      std::uint64_t at_ms);
-    void sea_creatures(const sim::World& world, const assets::FigureTable& figures, std::uint64_t at_ms,
-                       std::uint64_t slot);
+    void sea_round(const sim::World& world, const assets::FigureTable& figures, std::uint64_t at_ms,
+                   std::uint64_t round, std::uint32_t bx, std::uint32_t by);
+    /// Whether soldiers of a player other than `owner` (a human or a computer) stand on the island.
+    [[nodiscard]] bool foreign_troops(const sim::World& world, std::uint16_t island, sim::PlayerId owner);
     void sea_block(const sim::World& world, const assets::FigureTable& figures, sim::Random& random, std::uint32_t x0,
                    std::uint32_t y0, std::uint64_t at_ms);
     void jugglers(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
@@ -170,6 +172,13 @@ private:
     std::vector<Walker> m_walking;
     std::unordered_set<std::uint64_t> m_busy_houses;
     std::vector<Creature> m_creatures;
+    // Built once per tick() when first asked (TB-27): the ships by squares of kSeaBlock tiles
+    // (index into World::ships()) and the players with troops on each island.
+    std::vector<std::vector<std::uint32_t>> m_ship_squares;
+    std::uint32_t m_ship_cols = 0;
+    bool m_ships_squared = false;
+    std::vector<std::vector<sim::PlayerId>> m_island_troops;
+    bool m_troops_counted = false;
     std::map<std::uint64_t, Juggler> m_jugglers;  ///< by market (ordered: the same picture everywhere)
     struct Emitter {
         std::uint16_t x = 0;

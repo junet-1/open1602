@@ -700,11 +700,14 @@ void Simulation::islands_step() {
         m_world->set_island_phase(static_cast<std::uint8_t>(m_world->island_phase() + 1U));
     }
     std::vector<bool>& due = m_islands_due;
-    due.assign(m_world->islands().size(), false);
+    const std::size_t count = m_world->islands().size();
+    due.assign(count, false);
     bool any = false;
-    for (std::uint16_t i = 0; i < m_world->islands().size(); ++i) {
+    for (std::uint16_t i = 0; i < count; ++i) {
         WorldIsland& island = m_world->island(i);
-        if (island.last_phase != m_world->island_phase()) {
+        // Island i takes its turn i / count of the way into the epoch, not all in one tick (TB-28).
+        const std::uint64_t offset = std::uint64_t{Logistics::kIslandEpochMs} * i / count;
+        if (island.last_phase != m_world->island_phase() && m_island_ms >= offset) {
             island.last_phase = m_world->island_phase();
             due[i] = true;
             any = true;

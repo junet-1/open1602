@@ -504,9 +504,14 @@ void Engine::init_player(AiPlayer& p) {
     take_original_jobs(p);
     p.settle.need = pirates ? 150 : 1800;
     p.settle.floor = 300;
-    p.t_6s = 3000;
+    // The 6-s, 10-s and 30-s work of the computers spread over their periods by slot, so that
+    // they do not all recruit, fetch and talk in one tick (TB-14).
+    const auto slots = static_cast<std::int64_t>(std::max<std::size_t>(1, m_world.players().size()));
+    const auto spread = [&](std::int64_t period) { return static_cast<std::int32_t>(period * (id % slots) / slots); };
+    p.t_6s = 3000 + spread(6000);
     p.t_main = static_cast<std::int32_t>(rng().below(4096));
-    p.t_10s = 20000;
+    p.t_10s = 20000 + spread(10'000);
+    p.diplomacy_ms = static_cast<std::uint32_t>(spread(kDiplomacyMs));
     p.init_ms = now_ms();
     p.refresh_ms = now_ms();
     p.previous_mood.assign(m_world.players().size(), 0);
