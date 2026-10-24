@@ -62,7 +62,8 @@ std::string raw_material(const assets::BuildingType& ripe, const sim::WorldIslan
     const std::uint8_t w = ripe.ware;
     if (w == sim::ware::kGrass || w == sim::ware::kTree) {
         // Only who has explored the island learns what it grows; nothing to say otherwise.
-        return island.explored_by(local) && island.header.climate <= 1 ? crops_line(island, texts) : std::string();
+        return island.explored_by(local) && island.header.climate < sim::climate::kCount ? crops_line(island, texts)
+                                                                                         : std::string();
     }
     if (w == 0) {
         // The record after a withered field is the next crop's growing one, without a ware.
