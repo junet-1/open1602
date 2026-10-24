@@ -116,7 +116,7 @@ void Mixer::mix(std::int16_t* out, std::size_t frames) {
         const bool stereo = s.channels == 2;
         for (std::size_t f = 0; f < frames; ++f) {
             if (v.pos >= length) {
-                if (!v.loop) {
+                if (!v.loop || length == 0) {  // an empty looping sound has nothing to repeat
                     v = Voice{};
                     break;
                 }

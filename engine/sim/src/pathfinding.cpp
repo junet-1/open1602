@@ -271,7 +271,7 @@ bool PathFinder::start_search(TilePos start) {
     std::fill(m_done.begin(), m_done.end(), false);
     m_heap.clear();
     m_order = 0;
-    m_start = *k;
+    m_start = k;
     m_dist[*k] = 0;
     // The start is crossed even if it is a goal tile (a figure leaving a building).
     m_done[*k] = true;

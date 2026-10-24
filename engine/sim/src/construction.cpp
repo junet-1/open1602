@@ -1096,7 +1096,7 @@ public:
             e.x = old.origin.x;
             e.y = old.origin.y;
             e.city = old.city;
-            e.production = *index;
+            e.production = index;
             e.type = old.type;
             emit(e);
         } else {
@@ -1281,8 +1281,8 @@ public:
         IslandMap& m = map();
         const auto lng = static_cast<std::int32_t>(std::max(b.size_x, b.size_y));
         for (std::int32_t i = 0; i < lng; ++i) {
-            std::int32_t tx = f.x;
-            std::int32_t ty = f.y;
+            std::int32_t tx = 0;
+            std::int32_t ty = 0;
             switch (rotation & 3U) {
                 case 0:
                     tx = f.x + static_cast<std::int32_t>(f.w);
@@ -1428,7 +1428,7 @@ public:
                                    (connects(x, y + 1) ? 2U : 0U) | (connects(x - 1, y) ? 1U : 0U);
         const auto base = static_cast<std::uint32_t>(b->kreuz_base);
         std::uint32_t variant = 0;  // 0 straight, 1 curve, 2 T, 3 cross
-        std::uint8_t rotation = cell.rotation;
+        std::uint8_t rotation = 0;
         switch (mask) {
             case 0:
                 return;  // alone: stays as placed
@@ -1518,7 +1518,7 @@ public:
         };
         const std::uint32_t mask = (river(x, y - 1) ? 8U : 0U) | (river(x + 1, y) ? 4U : 0U) |
                                    (river(x, y + 1) ? 2U : 0U) | (river(x - 1, y) ? 1U : 0U);
-        std::uint8_t rotation = cell.rotation;
+        std::uint8_t rotation = 0;
         if (mask == 1 || mask == 4 || mask == 5) {
             rotation = static_cast<std::uint8_t>(cell.rotation & 2U);
         } else if (mask == 2 || mask == 8 || mask == 10) {

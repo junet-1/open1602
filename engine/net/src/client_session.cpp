@@ -15,7 +15,7 @@ constexpr std::uint32_t kRetryMs = 500;
 }  // namespace
 
 ClientSession::ClientSession(std::unique_ptr<Transport> transport, Hello hello, Loader load, SessionConfig config)
-    : Session(std::move(transport), config), m_hello(std::move(hello)), m_load(std::move(load)) {
+    : Session(std::move(transport), std::move(config)), m_hello(std::move(hello)), m_load(std::move(load)) {
     m_hello.protocol = kProtocolVersion;
     m_hello.name.resize(std::min(m_hello.name.size(), kMaxNameLength));
     m_hello.password.resize(std::min(m_hello.password.size(), kMaxPasswordLength));
@@ -123,9 +123,12 @@ void ClientSession::update(std::uint32_t real_ms, const sim::Simulation::BeforeT
             }
             return;
         }
-        if (!m_transport && (m_retry_ms += real_ms) >= kRetryMs) {
-            m_retry_ms = 0;
-            m_transport = m_connect();
+        if (!m_transport) {
+            m_retry_ms += real_ms;
+            if (m_retry_ms >= kRetryMs) {
+                m_retry_ms = 0;
+                m_transport = m_connect();
+            }
         }
     }
     if (!m_transport) {

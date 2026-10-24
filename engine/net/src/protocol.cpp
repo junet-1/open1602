@@ -445,6 +445,7 @@ std::optional<Message> decode(std::span<const std::uint8_t> bytes) {
     return message;
 }
 
+// NOLINTNEXTLINE(bugprone-exception-escape): a Command is never valueless, so std::visit cannot throw
 sim::PlayerId command_player(const sim::Command& command) noexcept {
     return std::visit([](const auto& c) { return c.player; }, command);
 }

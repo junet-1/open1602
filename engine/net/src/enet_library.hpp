@@ -21,7 +21,11 @@ public:
     }
     static void release() {
         const std::lock_guard lock(mutex());
-        if (count() > 0 && --count() == 0) {
+        if (count() == 0) {
+            return;
+        }
+        --count();
+        if (count() == 0) {
             enet_deinitialize();
         }
     }

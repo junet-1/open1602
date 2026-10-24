@@ -135,7 +135,9 @@ private:
     }
     LinkId add(ENetPeer* peer) {
         const LinkId link = m_next++;
-        peer->data = reinterpret_cast<void*>(static_cast<std::uintptr_t>(link) + 1);
+        // ENet keeps a pointer per peer; it holds the link's number, never dereferenced.
+        peer->data =
+            reinterpret_cast<void*>(static_cast<std::uintptr_t>(link) + 1);  // NOLINT(performance-no-int-to-ptr)
         m_links.emplace(link, peer);
         return link;
     }

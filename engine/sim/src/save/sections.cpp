@@ -392,7 +392,7 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                             std::span<const std::uint8_t> sections, std::vector<std::string>* warnings) {
     Decoded d;
     bool damaged = false;
-    const auto status = for_each_section(sections, warnings, [&](std::uint32_t id, std::uint16_t version, Body body) {
+    auto status = for_each_section(sections, warnings, [&](std::uint32_t id, std::uint16_t version, Body body) {
         core::ByteReader sr(body);
         StateIn state(sr);
         Reader in(state);

@@ -223,7 +223,7 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
             : 0U,
         tinting ? tint->stride : 0,
         tinting ? (std::uint32_t{tint->variants} << 16U) | (std::uint32_t{tint->pattern} << 8U) | tint->base : 0U,
-        tinting && tint->shape ? std::optional<std::int32_t>(*tint->shape) : std::nullopt};
+        tinting ? tint->shape : std::nullopt};
     if (const auto it = m_sprites.find(key); it != m_sprites.end()) {
         it->second.frame = m_frame;
         return it->second.texture;

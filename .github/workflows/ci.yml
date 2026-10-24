@@ -273,6 +273,49 @@ jobs:
           raise SystemExit(1 if low else 0)
           EOF
 
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+    env:
+      SDL_VERSION: 3.2.24
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install dependencies
+        run: >
+          sudo apt-get update && sudo apt-get install -y clang-18 clang-tidy-18 ninja-build zlib1g-dev
+          libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libwayland-dev
+          libxkbcommon-dev wayland-protocols libegl1-mesa-dev libgl1-mesa-dev
+
+      # The same SDL3 as the game job's Linux build (same cache key).
+      - name: Cache SDL3
+        id: sdl-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sdl3
+          key: sdl3-${{ env.SDL_VERSION }}-ubuntu-24.04
+
+      - name: Build SDL3
+        if: steps.sdl-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "release-$SDL_VERSION" https://github.com/libsdl-org/SDL sdl-src
+          cmake -S sdl-src -B sdl-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
+                -DCMAKE_INSTALL_PREFIX="${{ runner.temp }}/sdl3"
+          cmake --build sdl-build
+          cmake --install sdl-build
+
+      # Only the compile commands: clang-tidy parses the sources itself (checks in .clang-tidy).
+      - name: Configure
+        run: >
+          cmake --preset ci -DO1602_BUILD_GAME=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+          -DCMAKE_PREFIX_PATH="${{ runner.temp }}/sdl3"
+
+      - name: clang-tidy (engine)
+        run: |
+          clang-tidy-18 --version
+          run-clang-tidy-18 -quiet -j "$(nproc)" -clang-tidy-binary clang-tidy-18 -p build/ci "$PWD/engine/"
+
   checks:
     name: Formatting
     runs-on: ubuntu-24.04
