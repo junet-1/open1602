@@ -200,6 +200,8 @@ private:
 
     // ---- ai_world.cpp ----
     [[nodiscard]] Tile tile(std::uint16_t island, std::int32_t x, std::int32_t y) const;
+    /// `tile` of cell `c` at (x, y), which the caller found on the map.
+    [[nodiscard]] Tile tile_of(const MapCell& c, std::int32_t x, std::int32_t y) const;
     [[nodiscard]] bool inside(std::uint16_t island, std::int32_t x, std::int32_t y) const;
     [[nodiscard]] const WorldIsland& island_of(std::uint16_t island) const { return m_world.islands()[island]; }
     [[nodiscard]] City* city(std::uint16_t island, std::uint8_t index) { return m_world.city(island, index); }
@@ -537,16 +539,22 @@ private:
 template <class F>
 void Engine::rings(AiPlayer& p, RingFilter filter, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
                    std::int32_t n, F&& f) {
+    if (p.island >= m_world.islands().size()) {
+        return;
+    }
+    const IslandMap& map = m_world.islands()[p.island].map;
     const auto visit = [&](std::int32_t x, std::int32_t y, std::int32_t d) {
-        if (!inside(p.island, x, y)) {
+        if (!map.contains(x, y)) {
             return;
         }
-        const Tile t = tile(p.island, x, y);
+        const MapCell& c = map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
+        // The city comes from the cell alone: tiles of other cities skip the building lookup.
+        if (filter == RingFilter::Own && c.city != p.city) {
+            return;
+        }
+        const Tile t = tile_of(c, x, y);
         switch (filter) {
             case RingFilter::Own:
-                if (t.city != p.city) {
-                    return;
-                }
                 break;
             case RingFilter::OwnOrSea:
                 if (t.city != p.city && t.kind != kind::kSea) {
