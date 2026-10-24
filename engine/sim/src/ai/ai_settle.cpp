@@ -261,14 +261,20 @@ void Engine::task_settle_area(AiPlayer& p) {
 // ---------------------------------------------------------------------------------------------
 // Task 3: the Kontor site (0x004172E0)
 
-const Engine::SiteCounts& Engine::site_counts(std::uint16_t island) {
-    // The island's tiles have not changed while no block has a newer revision: the counts of the
-    // last region still hold for the next one (TB-13).
+std::uint64_t Engine::island_revision(std::uint16_t island) const {
     const IslandMap& map = island_of(island).map;
     std::uint64_t revision = 0;
     for (std::size_t b = 0; b < std::size_t{map.blocks_x()} * map.blocks_y(); ++b) {
         revision = std::max(revision, map.block_revision(b));
     }
+    return revision;
+}
+
+const Engine::SiteCounts& Engine::site_counts(std::uint16_t island) {
+    // The island's tiles have not changed while no block has a newer revision: the counts of the
+    // last region still hold for the next one (TB-13).
+    const IslandMap& map = island_of(island).map;
+    const std::uint64_t revision = island_revision(island);
     if (m_site_counts && m_site_counts->island == island && m_site_counts->revision == revision) {
         return *m_site_counts;
     }

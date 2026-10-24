@@ -884,6 +884,40 @@ Ship* Engine::best_armed_ship(AiPlayer& p, const Target& ref, std::uint32_t max_
 // ---------------------------------------------------------------------------------------------
 // Looking for a target (0x004298F0, after every step)
 
+bool Engine::defenceless(std::uint16_t island, std::uint8_t city) {
+    // The same as city_defenceless (0x0047F1B0), whose scan of the island answers for all its cities
+    // as long as its tiles stay the same.
+    if (island >= m_world.islands().size()) {
+        return false;
+    }
+    if (m_defences.size() < m_world.islands().size()) {
+        m_defences.resize(m_world.islands().size());
+    }
+    Defences& d = m_defences[island];
+    const std::uint64_t revision = island_revision(island);
+    if (!d.valid || d.revision != revision) {
+        d.valid = true;
+        d.revision = revision;
+        d.defended.fill(false);
+        const IslandMap& map = island_of(island).map;
+        for (std::uint32_t y = 0; y < map.height(); ++y) {
+            for (std::uint32_t x = 0; x < map.width(); ++x) {
+                const MapCell& c = map.top(x, y);
+                if (c.empty() || d.defended[c.city]) {
+                    continue;
+                }
+                const assets::BuildingType* b = m_buildings.by_sprite(c.sprite);
+                if (b != nullptr &&
+                    (((b->prod_kind == prod::kMarket || b->prod_kind == prod::kKontor) && !b->destroyed) ||
+                     b->prod_kind == prod::kTower)) {
+                    d.defended[c.city] = true;
+                }
+            }
+        }
+    }
+    return !d.defended[city];
+}
+
 bool Engine::attack_ok(AiPlayer& p, const City& t) {
     // 0x00429810. The original's conditions, the cheap ones first: none has a side effect, so the
     // answer is the same, but most targets fail before the island or the world is walked (TB-9).
@@ -900,7 +934,7 @@ bool Engine::attack_ok(AiPlayer& p, const City& t) {
     if (home == nullptr || soldiers_on_island(p.player, t.island) >= 10) {
         return false;
     }
-    if (building_count(t) <= 4 || city_defenceless(m_world, m_buildings, t.island, t.index)) {
+    if (building_count(t) <= 4 || defenceless(t.island, t.index)) {
         return false;
     }
     return soldiers_near(p.player, *home, 8, 4).size() >= 4;

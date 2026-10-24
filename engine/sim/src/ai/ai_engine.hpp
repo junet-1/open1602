@@ -502,6 +502,16 @@ private:
     };
     const SiteCounts& site_counts(std::uint16_t island);
     std::optional<SiteCounts> m_site_counts;
+    /// The newest block revision of an island's map: equal while none of its tiles changed.
+    [[nodiscard]] std::uint64_t island_revision(std::uint16_t island) const;
+    /// city_defenceless, from one scan of the island per revision for all its cities (TB-9).
+    struct Defences {
+        bool valid = false;
+        std::uint64_t revision = 0;
+        std::array<bool, 256> defended{};  ///< by city number
+    };
+    [[nodiscard]] bool defenceless(std::uint16_t island, std::uint8_t city);
+    std::vector<Defences> m_defences;  ///< by island
     bool m_in_tick = false;
 };
 
