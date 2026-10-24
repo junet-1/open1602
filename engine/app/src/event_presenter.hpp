@@ -88,9 +88,10 @@ public:
 
     /// Hunger, monuments, wishes for buildings and shortages (MELDUNG 0x33, 0x31, 0x3C.., 0x34..). A
     /// good running short is told early (Open1602: in the voice of „Es fehlt an …“, with how long
-    /// the stock lasts); its shortage then only goes to the log.
+    /// the stock lasts); its shortage then only goes to the log. A rival's city growing past a size
+    /// is told once for each rival and size (FB-30): eleven rivals would fill the status line.
     [[nodiscard]] std::vector<Notice> city_events(const sim::World& world, sim::PlayerId local,
-                                                  const std::vector<sim::CityEvent>& events) const;
+                                                  const std::vector<sim::CityEvent>& events);
     /// Discoveries and exploring of the local player's ships, in the log (their voices come from
     /// GameSound::ships).
     void ship_events(const sim::World& world, sim::PlayerId local, const std::vector<sim::ShipEvent>& events) const;
@@ -130,6 +131,7 @@ public:
     void reset_game() noexcept {
         m_end_pending.reset();
         m_end_shown = false;
+        m_rival_sizes.clear();
     }
 
     // The status line.
@@ -157,6 +159,8 @@ private:
 
     PlayerLabel m_label;
     const render::BannerTable* m_banners = nullptr;
+    /// The rivals' city sizes told (owner << 8 | message).
+    std::vector<std::uint32_t> m_rival_sizes;
     std::vector<std::string> m_ware_names;
     std::optional<EndPending> m_end_pending;
     bool m_end_shown = false;            ///< once per game (a won game may go on)

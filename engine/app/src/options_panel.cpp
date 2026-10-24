@@ -222,8 +222,13 @@ void OptionsPanel::refresh_disk(const OptionsModel& model) {
         // The name being typed shows with the cursor; it is kept only when saved (U-037).
         const bool typing = m_editing && i == m_slot;
         const bool renamed = m_renamed && i == m_slot;
-        m_disk.set_text(kSlotName + k, typing ? m_name + "_" : renamed ? m_name : model.slot_names[i]);
         const std::uint8_t humans = i < model.slot_humans.size() ? model.slot_humans[i] : 0;
+        // The icons show two to four humans; more are counted after the name (LC-6).
+        std::string name = renamed ? m_name : model.slot_names[i];
+        if (humans > 4 && !typing) {
+            name = ui::tr("options.slot.humans", {name, std::to_string(humans)});
+        }
+        m_disk.set_text(kSlotName + k, typing ? m_name + "_" : name);
         m_disk.set_visible(kSlotHumans + k, humans >= 2);
         if (humans >= 2) {
             m_disk.set_graphic(kSlotHumans + k, m_humans_icon - 1 + std::min<std::int32_t>(humans, 4), 0);

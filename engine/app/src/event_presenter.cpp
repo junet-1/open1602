@@ -125,14 +125,19 @@ std::string EventPresenter::rival_won_text(const sim::Player& winner, std::strin
 }
 
 std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::PlayerId local,
-                                                const std::vector<sim::CityEvent>& events) const {
+                                                const std::vector<sim::CityEvent>& events) {
     std::vector<Notice> out;
     for (const sim::CityEvent& e : events) {
         if (e.kind == sim::CityEvent::Kind::Population && e.owner != local && local != sim::kNoPlayer &&
             e.message >= 0x13 && e.message <= 0x1D) {
             // Another player's city: „Eine Stadt des Konkurrenten hat nun mehr als …“ from 300 on
-            // (0x00480837).
-            out.emplace_back(announce(static_cast<std::uint16_t>(e.message + 0x0C)));
+            // (0x00480837). The original has three rivals and tells each city; with up to eleven,
+            // only the first city of each rival at each size.
+            const std::uint32_t key = std::uint32_t{e.owner} << 8 | e.message;
+            if (std::find(m_rival_sizes.begin(), m_rival_sizes.end(), key) == m_rival_sizes.end()) {
+                m_rival_sizes.push_back(key);
+                out.emplace_back(announce(static_cast<std::uint16_t>(e.message + 0x0C)));
+            }
             continue;
         }
         if (e.owner != local) {
@@ -219,7 +224,7 @@ std::vector<Notice> EventPresenter::disaster_events(const sim::World& world, sim
         const sim::City* city = world.city(e.island, e.city);
         const char* name = city != nullptr ? city->name.c_str() : "?";
         const bool fire = e.disaster == sim::Disaster::Kind::Fire;
-        if (e.kind == sim::DisasterEvent::Kind::Started && !e.spread) {
+        if (e.kind == sim::DisasterEvent::Kind::Started && !e.spread && e.island < world.islands().size()) {
             std::fprintf(stderr, "%s: %s (%u,%u)\n", name,
                          fire ? "a fire broke out!" : "the plague haunts your settlement!", e.x, e.y);
             const sim::WorldIsland& isl = world.islands()[e.island];
@@ -269,7 +274,8 @@ std::vector<Notice> EventPresenter::volcano_events(const sim::World& world, sim:
                                                    const std::vector<sim::VolcanoEvent>& events) const {
     std::vector<Notice> out;
     for (const sim::VolcanoEvent& e : events) {
-        if (e.kind == sim::VolcanoEvent::Kind::Erupted && e.message && world.islands()[e.island].discovered_by(local)) {
+        if (e.kind == sim::VolcanoEvent::Kind::Erupted && e.message && e.island < world.islands().size() &&
+            world.islands()[e.island].discovered_by(local)) {
             std::fprintf(stderr, "a volcano has erupted! (island %u)\n",
                          static_cast<unsigned>(world.islands()[e.island].header.number));
             const sim::WorldIsland& isl = world.islands()[e.island];
@@ -310,7 +316,7 @@ std::vector<Notice> EventPresenter::construction_events(const sim::World& world,
         }
         if (const sim::City* c = world.city(e.island, e.city)) {
             std::fprintf(stderr, "a new city was founded: %s\n", c->name.c_str());
-            if (c->owner != local) {
+            if (c->owner != local && e.island < world.islands().size()) {
                 const sim::WorldIsland& i = world.islands()[e.island];
                 out.emplace_back(
                     announce(0x0E, std::make_pair(i.x + i.map.width() / 2.0, i.y + i.map.height() / 2.0), c->owner));

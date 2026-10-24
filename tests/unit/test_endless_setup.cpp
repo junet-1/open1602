@@ -612,3 +612,51 @@ TEST_CASE("game setup: the victory page's groups end above its hint, in English 
     }
     ui::set_language(ui::kFallbackLanguage);
 }
+
+TEST_CASE("endless setup: a value none of the choices is shows as it is and steps to the nearest (LC-7)") {
+    ui::set_language("en");
+    EndlessSetup s;
+    app::read_setup(s,
+                    "endless.world = 2000x1800\nendless.players = 1\nendless.victory.minutes = 90\n"
+                    "endless.game_speed = 64\nendless.ships = 150\n");
+    CHECK(app::setup_value(s, SetupItem::WorldSize).find("2000") != std::string::npos);
+    CHECK(app::setup_value(s, SetupItem::WorldSize).find("1800") != std::string::npos);
+    CHECK(app::setup_value_custom(s, SetupItem::WorldSize));
+    CHECK(app::setup_value(s, SetupItem::Players).find('1') != std::string::npos);
+    CHECK(app::setup_value(s, SetupItem::GameSpeed).find("64") != std::string::npos);
+    CHECK(app::setup_value(s, SetupItem::Ships).find("150") != std::string::npos);
+    CHECK(app::setup_value(s, SetupItem::WinTimeLimit).find("90") != std::string::npos);
+    // The text written and read again keeps the values.
+    EndlessSetup again;
+    app::read_setup(again, app::write_setup(s));
+    CHECK(app::setup_value(again, SetupItem::WorldSize) == app::setup_value(s, SetupItem::WorldSize));
+    CHECK(again.rules.max_game_speed == 64);
+    // One step from a value of its own goes to the nearest offered one: one player becomes two.
+    app::choose_next(s, SetupItem::Players);
+    CHECK(s.world.players == 2);
+    CHECK(!app::setup_value_custom(s, SetupItem::Players));
+    app::choose_next(s, SetupItem::Players);
+    CHECK(s.world.players == 3);
+    // The generator's largest worlds are offered.
+    app::choose_next(s, SetupItem::WorldSize);
+    CHECK(!app::setup_value_custom(s, SetupItem::WorldSize));
+    CHECK(s.world.width == 2000);
+    CHECK(s.world.height == 2000);
+    EndlessSetup wide;
+    app::read_setup(wide, "endless.world = 2000x1400\n");
+    CHECK(!app::setup_value_custom(wide, SetupItem::WorldSize));
+    // An offered value is shown without the mark.
+    EndlessSetup plain;
+    CHECK(!app::setup_value_custom(plain, SetupItem::Ships));
+    CHECK(app::setup_value(plain, SetupItem::Ships) == value_of(plain, SetupItem::Ships));
+}
+
+TEST_CASE("endless setup: a multiplayer game runs at most the dialog's speed, pioneers do not win (LC-8, GB-6)") {
+    EndlessSetup s;
+    app::read_setup(s, "endless.game_speed = 64\nendless.victory.class = 0\n");
+    CHECK(s.rules.max_game_speed == 64);         // alone it may
+    CHECK(s.rules.victory.resident_class == 4);  // pioneers are refused, the default stays
+    CHECK(app::multiplayer_setup(s, 6).rules.max_game_speed == 8);
+    app::read_setup(s, "endless.victory.class = 1\n");
+    CHECK(s.rules.victory.resident_class == 1);
+}

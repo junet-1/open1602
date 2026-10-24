@@ -92,6 +92,20 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     CHECK(announcement(people[2])->message == 0x12);  // 200 inhabitants
     CHECK(announcement(people[3])->message == 0x21);  // a rival's city passed 1000
     CHECK(g.presenter.city_events(g.world, sim::kNoPlayer, {rival_big}).empty());
+    // Another city of the same rival at the same size says nothing more, a larger size does (FB-30).
+    sim::CityEvent rival_other = rival_big;
+    rival_other.city = 3;
+    CHECK(g.presenter.city_events(g.world, kMe, {rival_other}).empty());
+    rival_other.message = 0x16;
+    CHECK(g.presenter.city_events(g.world, kMe, {rival_other}).size() == 1);
+    g.presenter.reset_game();  // another game tells them again
+    CHECK(g.presenter.city_events(g.world, kMe, {rival_big}).size() == 1);
+    // An event of an island the world does not have is left out, not read beyond the islands.
+    sim::VolcanoEvent far;
+    far.kind = sim::VolcanoEvent::Kind::Erupted;
+    far.message = true;
+    far.island = 7;
+    CHECK(g.presenter.volcano_events(g.world, kMe, {far}).empty());
 
     sim::DisasterEvent fire;
     fire.island = 0;

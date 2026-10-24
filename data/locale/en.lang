@@ -349,6 +349,9 @@ setup.trader_reach.per4 = Nearby, as with 4 players
 setup.ships = Ships per player
 setup.units = Units per player
 setup.unlimited = Unlimited
+setup.value.own = {1} (own value)
+setup.victory.next = {1}; {2}
+setup.victory.part = {1}: {2}
 setup.speed = Highest game speed
 # {1}: the factor
 setup.speed.value = {1} ×
@@ -462,6 +465,7 @@ setup.thousands = ,
 options.window = Window
 options.fullscreen = Full screen
 options.display = Display ...
+options.slot.humans = {1} ({2} players)
 display.title = Display
 display.mode = Show the game in
 display.window = a window
