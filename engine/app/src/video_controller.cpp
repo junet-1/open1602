@@ -51,41 +51,50 @@ bool VideoController::frame(std::uint64_t now_ms, bool minimap_shown) {
     if (!m_player) {
         return false;
     }
-    bool video = m_player->playing() || start_next(now_ms, minimap_shown);
+    bool video = m_player->playing() || start_next(minimap_shown);
+    while (video && m_player->loading()) {
+        switch (m_player->poll(now_ms)) {
+            case VideoPlayer::Load::None:
+            case VideoPlayer::Load::Waiting:
+                return true;  // black until the file is read
+            case VideoPlayer::Load::Ready:
+                // The picture waits for the sound, which plays after what the device holds.
+                m_sound.prefill();
+                m_sound.start_video(m_player->audio());
+                m_player->hold_until(platform::ticks_ms() + m_sound.queued_ms());
+                break;
+            case VideoPlayer::Load::Failed:
+                // A damaged file goes on with the next one, as a missing one does.
+                video = start_next(minimap_shown);
+                break;
+        }
+    }
     if (video) {
         switch (m_player->update(now_ms)) {
             case VideoPlayer::Step::Playing:
                 break;
             case VideoPlayer::Step::Restarted:
-                if (const video::Smacker* v = m_player->video()) {
-                    m_sound.start_video(*v, m_queue.now().tracks);
-                }
+                m_sound.start_video(m_player->audio());
                 break;
             case VideoPlayer::Step::Ended:
                 m_sound.stop_video();
-                video = start_next(now_ms, minimap_shown);
+                video = start_next(minimap_shown);
                 break;
         }
     }
     return video;
 }
 
-bool VideoController::start_next(std::uint64_t now_ms, bool minimap_shown) {
+bool VideoController::start_next(bool minimap_shown) {
     while (m_player) {
         const auto r = m_queue.take_next();
         if (!r) {
             break;
         }
-        // Reading the file and decoding its sound stand the frames still.
-        m_sound.prefill();
         // A missing file goes on with the next one (the original drops the rest of the chain, U-022).
-        if (m_player->start(r->number, r->loop, now_ms)) {
+        // The file loads in the background; frame() starts the sound once it is there.
+        if (m_player->start(r->number, r->loop, r->tracks)) {
             m_queue.started(*r, minimap_shown);
-            if (const video::Smacker* v = m_player->video()) {
-                m_sound.start_video(*v, r->tracks);
-                // The picture waits for the sound, which plays after what the device holds.
-                m_player->hold_until(platform::ticks_ms() + m_sound.queued_ms());
-            }
             return true;
         }
         std::fprintf(stderr, "video %u is missing\n", static_cast<unsigned>(r->number));

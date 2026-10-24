@@ -470,7 +470,7 @@ void GameSound::order(bool ship, bool attack, double tile_x, double tile_y) {
     }
 }
 
-void GameSound::start_video(const video::Smacker& video, std::uint8_t tracks) {
+void GameSound::start_video(const std::vector<std::shared_ptr<const audio::Pcm>>& tracks) {
     stop_video();
     m_video = true;
     if (m_output == nullptr) {
@@ -480,19 +480,12 @@ void GameSound::start_video(const video::Smacker& video, std::uint8_t tracks) {
     if (m_music) {
         m_music->stop();
     }
-    for (std::size_t t = 0; t < video::kSmackerTracks; ++t) {
-        if (!video.info().tracks[t].present || (tracks != 0 && (tracks & (1U << t)) == 0)) {
-            continue;
-        }
-        auto pcm = video.audio(t);
-        if (!pcm || pcm->samples.empty()) {
-            continue;
-        }
+    for (const auto& pcm : tracks) {
         // The sample volume, for every track (the original leaves track 2 at full volume, U-019).
         audio::PlayOptions o;
         o.group = audio::Group::Speech;
         o.volume = audio::gain_of(m_settings.effect_volume);
-        m_video_voices.push_back(m_mixer.play(std::make_shared<const audio::Pcm>(std::move(*pcm)), o));
+        m_video_voices.push_back(m_mixer.play(pcm, o));
     }
 }
 

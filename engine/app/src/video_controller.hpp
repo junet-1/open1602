@@ -90,7 +90,7 @@ public:
 
 private:
     /// Starts the next waiting video, if any; false if none plays.
-    bool start_next(std::uint64_t now_ms, bool minimap_shown);
+    bool start_next(bool minimap_shown);
     /// The pause video is the one playing.
     [[nodiscard]] bool pause_video_playing() const noexcept;
 
