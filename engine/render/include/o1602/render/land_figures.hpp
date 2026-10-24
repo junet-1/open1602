@@ -12,6 +12,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/render/ambient.hpp"
 #include "o1602/render/figure_animation.hpp"
 #include "o1602/render/tick_trail.hpp"
 #include "o1602/render/world_renderer.hpp"
@@ -51,6 +52,7 @@ inline constexpr double kLandHeight = 0.56;
 /// A set of land figures with their animation states.
 class LandFigures {
 public:
+    /// Runs the animations by `dt_ms`, but not those of figures marked as out of view.
     void advance(std::uint32_t dt_ms, const assets::FigureTable& figures);
     [[nodiscard]] const std::vector<FigureInstance>& instances() const noexcept { return m_instances; }
 
@@ -60,6 +62,8 @@ protected:
 
     std::vector<FigureInstance> m_instances;
     std::vector<AnimState> m_states;
+    /// Per instance, 1 if it is out of view: its animation waits where it is. Empty: all in view.
+    std::vector<std::uint8_t> m_out_of_view;
 };
 
 class AnimalFigures : public LandFigures {
@@ -81,8 +85,10 @@ public:
     /// a soldier's changes (walk, stand, strike, die). Soldiers in a doctor's house are not drawn.
     /// `fraction` is the share of the next tick that has passed (Simulation::tick_fraction): a
     /// soldier is drawn that far on its way from before the last tick (capture) to where it is.
+    /// Soldiers outside `view` keep their place in the list, but get no height and their
+    /// animations wait until they come into view (FB-2).
     void sync(const sim::World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
-              double fraction = 1.0);
+              double fraction = 1.0, const TileBox& view = {});
     /// The figure of a soldier (Soldier::id), nothing if it is not drawn.
     [[nodiscard]] const FigureInstance* find(std::uint32_t id) const noexcept;
 

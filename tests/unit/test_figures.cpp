@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <optional>
 #include <span>
+#include <utility>
 
 #include "../test_framework.hpp"
 #include "test_support.hpp"
@@ -453,6 +454,36 @@ TEST_CASE("figures: soldiers keep their animations from frame to frame and are f
     REQUIRE(soldiers.find(12) != nullptr);
     CHECK(soldiers.find(12)->x == 8.0);
     CHECK(soldiers.find(12)->frame == std::optional<std::uint8_t>(render::start_animation(deer, 0, 12).frame));
+}
+
+TEST_CASE("figures: soldiers out of view keep their place but their animations wait (FB-2)") {
+    const auto figures = make_deer();
+    const assets::BuildingTable buildings;
+    sim::World world;
+    for (const auto& [id, x] : {std::pair{3U, 2}, std::pair{4U, 40}}) {
+        sim::Soldier s;
+        s.id = id;
+        s.pos_x = x * sim::kPosUnit;
+        s.pos_y = 3 * sim::kPosUnit;
+        s.figure = 89;
+        world.add_soldier(s);
+    }
+    render::SoldierFigures soldiers;
+    soldiers.reset(world, buildings, figures);
+    const render::TileBox view{0.0, 0.0, 10.0, 10.0};
+    soldiers.sync(world, buildings, figures, 1.0, view);
+    const auto near = soldiers.find(3)->frame;
+    const auto far = soldiers.find(4)->frame;
+    soldiers.advance(135 * 3, figures);
+    CHECK(soldiers.find(3)->frame != near);
+    CHECK(soldiers.find(4)->frame == far);  // waits off screen
+    REQUIRE(soldiers.find(4) != nullptr);   // still found, at its place
+    CHECK(soldiers.find(4)->x == 40.0);
+    // In view again, it runs on from where it waited.
+    soldiers.sync(world, buildings, figures, 1.0);
+    CHECK(soldiers.find(4)->frame == far);
+    soldiers.advance(135 * 3, figures);
+    CHECK(soldiers.find(4)->frame != far);
 }
 
 TEST_CASE("figures: soldiers are drawn on their way between two ticks") {

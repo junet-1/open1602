@@ -891,11 +891,11 @@ void MapViewer::update(std::uint32_t delta_ms) {
         apply_production_events();
         apply_game_events();
         m_clock.advance(delta_ms);
-        m_soldiers.sync(m_state->world, m_buildings, m_figures, m_tick_fraction);
+        update_ambient();  // also what is on screen (m_drawn_tiles)
+        m_soldiers.sync(m_state->world, m_buildings, m_figures, m_tick_fraction, m_drawn_tiles);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_walkers.update(m_state->simulation.logistics(), m_state->world, m_buildings, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_state->simulation.speed(), m_tick_fraction);
-        update_ambient();
         m_combat.frame(m_state->world, m_figures, m_tick_fraction);
         m_sound->figures({&m_walkers.instances(), &m_soldiers.instances(), &m_ambient.walkers()}, m_effects, m_figures,
                          m_state->world.time_ms(), m_state->simulation.speed(), m_drawn_tiles);
