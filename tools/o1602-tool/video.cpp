@@ -100,7 +100,7 @@ int cmd_smk(const Args& args) {
         if (args.positional.size() < 2) {
             return usage();
         }
-        auto pcm = video->audio(static_cast<std::size_t>(std::stoul(std::string(it->second))));
+        auto pcm = video->audio(*args.number("--wav"));  // main() checked that it is a number
         if (!pcm) {
             return fail(pcm.error());
         }

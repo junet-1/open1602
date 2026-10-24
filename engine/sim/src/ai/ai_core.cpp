@@ -5,12 +5,12 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
-#include <cstdlib>
 #include <memory>
 
 #include "ai_archive.hpp"
 #include "ai_engine.hpp"
 
+#include "o1602/core/file.hpp"
 #include "o1602/sim/ai.hpp"
 
 namespace o1602::sim {
@@ -65,7 +65,7 @@ CommandResult Engine::execute(const Command& command) {
 }
 
 void Engine::log(const AiPlayer& p, const char* format, ...) const {
-    static const bool enabled = std::getenv("O1602_AI_LOG") != nullptr;
+    static const bool enabled = core::environment_variable("O1602_AI_LOG").has_value();
     if (!enabled) {
         return;
     }

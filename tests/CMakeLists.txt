@@ -94,6 +94,7 @@ add_executable(o1602_tests
 )
 target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render o1602::audio o1602::ui o1602::video o1602::net o1602::menus)
 o1602_set_warnings(o1602_tests)
+o1602_utf8_manifest(o1602_tests)  # UTF-8 paths and arguments on Windows, as in the game
 # Tests dereference lookup results (world.player(0)->money) right after creating them; a null there
 # crashes the test, which reports it as failed. GCC's -Wnull-dereference flags every such line at -O2,
 # so it stays on for the engine but is off for the tests.
@@ -193,4 +194,8 @@ if(TARGET o1602-tool)
         ARGS bench --minutes 1)
     set_tests_properties(tool:bench-without-data PROPERTIES ENVIRONMENT "ANNO1602_DIR=${_files}/no-installation")
     o1602_tool_test(bench-two-files 2 STDERR "^usage:\\n" ARGS bench a.gam b.gam)
+    # Arguments: a number that is none, an option without its value, a flag before a file.
+    o1602_tool_test(bad-number 2 STDERR "^error: --minutes: '6O' is not a whole number\\n$" ARGS bench --minutes 6O)
+    o1602_tool_test(missing-value 2 STDERR "^error: --seed needs a value\\n$" ARGS new-world out.gam --seed)
+    o1602_tool_test(flag-before-file 0 STDOUT "\\n4 chunks\\n$" ARGS chunks --owners "${_files}/world.gam")
 endif()

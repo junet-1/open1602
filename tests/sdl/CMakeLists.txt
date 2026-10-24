@@ -13,6 +13,7 @@ add_executable(o1602_sdl_tests
 )
 target_link_libraries(o1602_sdl_tests PRIVATE o1602::render_sdl o1602::platform)
 o1602_set_warnings(o1602_sdl_tests)
+o1602_utf8_manifest(o1602_sdl_tests)
 
 if(WIN32)
     # Windows finds DLLs next to the program: SDL3.dll goes there after every build.
