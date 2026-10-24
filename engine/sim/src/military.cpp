@@ -257,6 +257,8 @@ void Military::update_towers(std::uint16_t island) {
         const auto b = building_at(*m_world, *m_buildings, island, {t.x, t.y});
         return !b || b->type->prod_kind != prod::kTower || b->origin.x != t.x || b->origin.y != t.y;
     });
+    // The towers of the island by position (y << 16 | x), sorted: whether a building is known.
+    std::vector<std::uint32_t> known_at;
     for (Tower& t : m_world->towers()) {
         if (t.island == island) {
             const MapCell& c = map.top(t.x, t.y);
@@ -264,8 +266,10 @@ void Military::update_towers(std::uint16_t island) {
             if (city != nullptr) {
                 t.owner = city->owner;
             }
+            known_at.push_back(std::uint32_t{t.y} << 16 | t.x);
         }
     }
+    std::sort(known_at.begin(), known_at.end());
     // New towers for Wachturm buildings in a city's territory (0x00482120).
     for (std::uint32_t y = 0; y < map.height(); ++y) {
         for (std::uint32_t x = 0; x < map.width(); ++x) {
@@ -282,8 +286,7 @@ void Military::update_towers(std::uint16_t island) {
             if (!b || b->origin.x != static_cast<std::int32_t>(x) || b->origin.y != static_cast<std::int32_t>(y)) {
                 continue;
             }
-            const bool known = std::any_of(m_world->towers().begin(), m_world->towers().end(),
-                                           [&](const Tower& t) { return t.island == island && t.x == x && t.y == y; });
+            const bool known = std::binary_search(known_at.begin(), known_at.end(), y << 16 | x);
             const City* city = m_world->city(island, c.city);
             if (known || city == nullptr) {
                 continue;

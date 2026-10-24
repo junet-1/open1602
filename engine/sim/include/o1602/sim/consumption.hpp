@@ -101,6 +101,9 @@ void consume_pirates(City& city, Random& random);
 /// in city + 0x1D8 / + 0x1DC: production buildings and shipyards with their switched-on or -off
 /// costs; castles only for human players (computer players never pay them).
 [[nodiscard]] std::vector<std::int32_t> running_costs(const World& world, const assets::BuildingTable& buildings);
+/// The running costs of one city of `world` (an element of World::cities()), looking only at the
+/// buildings of its island; 0 for a city that is not in the list.
+[[nodiscard]] std::int32_t running_cost(const World& world, const assets::BuildingTable& buildings, const City& city);
 
 /// Ticks every city of `world` by the role of its owner, including the money: every 10 s the
 /// owner gets (taxes - running costs) / 6, truncated like the original.

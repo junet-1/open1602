@@ -507,12 +507,27 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
             case ConstructionEvent::Kind::Placed:
                 break;
         }
+        // The sea map, the land map and the towers depend only on the island as it is now, so each
+        // touched island is updated once per batch, in the order of its first event (TB-19).
+        const auto touch = [](std::vector<std::uint16_t>& list, std::uint16_t island) {
+            if (std::find(list.begin(), list.end(), island) == list.end()) {
+                list.push_back(island);
+            }
+        };
         if (e.kind == ConstructionEvent::Kind::Placed || e.kind == ConstructionEvent::Kind::Removed) {
-            m_fleet.island_changed(e.island);
-            m_combat.island_changed(e.island);
+            touch(m_coast_islands, e.island);
         }
-        m_military.update_towers(e.island);
+        touch(m_tower_islands, e.island);
     }
+    for (const std::uint16_t island : m_coast_islands) {
+        m_fleet.island_changed(island);
+        m_combat.island_changed(island);
+    }
+    for (const std::uint16_t island : m_tower_islands) {
+        m_military.update_towers(island);
+    }
+    m_coast_islands.clear();
+    m_tower_islands.clear();
     if (storage) {
         m_logistics.update_storage();
         // A smaller warehouse loses what does not fit (0x00482120).

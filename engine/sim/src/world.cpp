@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <map>
+#include <utility>
 
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/savegame.hpp"
@@ -59,21 +60,37 @@ core::Status World::add_island(WorldIsland island) {
 }
 
 City* World::city(std::uint16_t island, std::uint8_t index) noexcept {
-    for (City& c : m_cities) {
-        if (c.island == island && c.index == index) {
-            return &c;
-        }
-    }
-    return nullptr;
+    return const_cast<City*>(std::as_const(*this).city(island, index));
 }
 
 const City* World::city(std::uint16_t island, std::uint8_t index) const noexcept {
-    for (const City& c : m_cities) {
-        if (c.island == island && c.index == index) {
-            return &c;
-        }
+    const std::uint64_t key = (std::uint64_t{island} << 8 | index) << 32;
+    const auto it = std::lower_bound(m_city_keys.begin(), m_city_keys.end(), key);
+    if (it == m_city_keys.end() || (*it >> 32) != (key >> 32)) {
+        return nullptr;
     }
-    return nullptr;
+    const City& c = m_cities[static_cast<std::size_t>(*it & 0xFFFF'FFFFU)];
+    return c.island == island && c.index == index ? &c : nullptr;
+}
+
+void World::add_city(City city) {
+    m_cities.push_back(std::move(city));
+    index_cities();
+}
+
+void World::set_cities(std::vector<City> cities) {
+    m_cities = std::move(cities);
+    index_cities();
+}
+
+void World::index_cities() {
+    m_city_keys.clear();
+    m_city_keys.reserve(m_cities.size());
+    for (std::size_t i = 0; i < m_cities.size(); ++i) {
+        const City& c = m_cities[i];
+        m_city_keys.push_back((std::uint64_t{c.island} << 8 | c.index) << 32 | i);
+    }
+    std::sort(m_city_keys.begin(), m_city_keys.end());
 }
 
 void World::set_factions(std::vector<Faction> factions) {
@@ -405,6 +422,7 @@ std::optional<std::uint32_t> World::remove_production(std::uint16_t island, std:
 
 void World::remove_city(std::uint16_t island, std::uint8_t index) {
     std::erase_if(m_cities, [&](const City& c) { return c.island == island && c.index == index; });
+    index_cities();
 }
 
 std::optional<std::uint16_t> World::island_index(std::uint32_t number) const noexcept {

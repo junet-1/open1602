@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Houses: coverage by public buildings, growth, upgrade, downgrade, ruins (docs/re/houses.md).
 
+#include <utility>
+#include <vector>
+
 #include "../test_framework.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
@@ -294,4 +297,40 @@ TEST_CASE("money: taxes and running costs") {
     CHECK(sim::running_costs(town.world, town.buildings)[0] == 15);
     town.world.productions()[0].enabled = false;
     CHECK(sim::running_costs(town.world, town.buildings)[0] == 10);
+    // One city alone, as the Kontor page asks (FB-4), gives the same figure.
+    CHECK(sim::running_cost(town.world, town.buildings, city) == 10);
+    const sim::City stranger = city;
+    CHECK(sim::running_cost(town.world, town.buildings, stranger) == 0);
+}
+
+TEST_CASE("world: cities are found by island and number after adding, removing and replacing (TB-21)") {
+    sim::World world;
+    for (const auto& [island, index] : {std::pair{3, 1}, std::pair{0, 2}, std::pair{3, 0}, std::pair{1, 0}}) {
+        sim::City c;
+        c.island = static_cast<std::uint16_t>(island);
+        c.index = static_cast<std::uint8_t>(index);
+        c.owner = static_cast<sim::PlayerId>(island);
+        world.add_city(c);
+    }
+    const auto found = [&](std::uint16_t island, std::uint8_t index) {
+        const sim::City* c = std::as_const(world).city(island, index);
+        return c != nullptr && c->island == island && c->index == index;
+    };
+    CHECK(found(3, 1));
+    CHECK(found(0, 2));
+    CHECK(found(3, 0));
+    CHECK(found(1, 0));
+    CHECK(!found(3, 2));
+    CHECK(!found(2, 0));
+    world.remove_city(3, 1);
+    CHECK(!found(3, 1));
+    CHECK(found(3, 0));
+    CHECK(found(1, 0));
+    CHECK(world.city(1, 0) == &world.cities()[2]);
+    std::vector<sim::City> loaded(1);
+    loaded[0].island = 7;
+    loaded[0].index = 4;
+    world.set_cities(loaded);
+    CHECK(found(7, 4));
+    CHECK(!found(0, 2));
 }

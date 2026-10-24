@@ -350,6 +350,9 @@ private:
     std::uint64_t m_next_command = 1;
     EventBuffer<CommandResult> m_command_results;
     EventBuffer<ConstructionEvent> m_construction_events;
+    /// Islands a batch of construction events touched (handle); kept for their capacity.
+    std::vector<std::uint16_t> m_coast_islands;
+    std::vector<std::uint16_t> m_tower_islands;
     std::vector<std::string> m_city_names;
     std::function<void(const World&)> m_tick_observer;
 };

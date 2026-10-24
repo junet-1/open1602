@@ -480,7 +480,7 @@ public:
     [[nodiscard]] const std::vector<City>& cities() const noexcept { return m_cities; }
     /// City `index` on island `island` (index into islands()), nullptr if there is none.
     [[nodiscard]] const City* city(std::uint16_t island, std::uint8_t index) const noexcept;
-    void add_city(City city) { m_cities.push_back(std::move(city)); }
+    void add_city(City city);
     /// Removes a city (it was dissolved); pointers to cities become invalid.
     void remove_city(std::uint16_t island, std::uint8_t index);
     /// Mutable lookup for the simulation.
@@ -513,7 +513,7 @@ public:
     [[nodiscard]] Diplomacy& diplomacy() noexcept { return m_diplomacy; }
 
     /// Replace whole lists in their order (restoring a saved game, savegame_extension.hpp).
-    void set_cities(std::vector<City> cities) { m_cities = std::move(cities); }
+    void set_cities(std::vector<City> cities);
     void set_animals(std::vector<Animal> animals) { m_animals = std::move(animals); }
     void set_soldiers(std::vector<Soldier> soldiers) { m_soldiers = std::move(soldiers); }
     void set_houses(std::vector<House> houses);
@@ -659,6 +659,9 @@ private:
     std::uint32_t m_next_ship_id = 1;
     IdIndex m_ship_index;
     std::vector<City> m_cities;
+    /// (island << 8 | index) << 32 | slot of every city, sorted: the lookup of city() (TB-21).
+    std::vector<std::uint64_t> m_city_keys;
+    void index_cities();
     std::vector<Animal> m_animals;
     std::vector<Soldier> m_soldiers;
     std::uint32_t m_next_soldier_id = 1;
