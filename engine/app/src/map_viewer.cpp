@@ -311,13 +311,14 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             for (const std::uint16_t n : std::array<std::uint16_t, 3>{8, 9, 58}) {
                 viewer->m_video->request(n, 0, false, true);
             }
+            // Started now, not in the first frame: an Escape scripted for frame 0 already skips
+            // them. Only the intro: a --video may belong in the minimap, which is not there yet.
+            viewer->m_video->frame(platform::ticks_ms(), false);
         }
         if (options.video) {
             const std::uint16_t n = *options.video;
             viewer->m_video->request(n, 0, false, n == 8 || n == 9 || n == 58);
         }
-        // Started now, not in the first frame: an Escape scripted for frame 0 already skips them.
-        viewer->m_video->frame(platform::ticks_ms(), false);
     }
     if (options.frame) {
         const auto texts = assets::TextTable::load(game);
