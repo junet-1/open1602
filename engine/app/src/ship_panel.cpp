@@ -74,6 +74,7 @@ constexpr std::int32_t kPirateFirstChoice = 55031;
 constexpr std::int32_t kPirateChoices = 3;
 constexpr std::int32_t kPirateLeft = 55041;
 constexpr std::int32_t kPirateRight = 55042;
+constexpr std::int32_t kPirateRightInset = 3;  // the right arrow as far from shield 3 as from the hand
 
 /// PIRATORD.GAD with the scroll arrows of TRANSFER.GAD at both ends of its row of players to hire
 /// the pirates against (LC-4); unchanged if either lacks its gadgets.
@@ -94,7 +95,8 @@ assets::GadgetLayout with_pirate_arrows(assets::GadgetLayout piratord, const ass
         assets::Gadget arrow = *g;
         arrow.id = to;
         arrow.base = static_cast<std::int32_t>(piratord.gadgets.size());
-        arrow.pos = {to == kPirateLeft ? std::max(0, left_end - g->size[0]) : right_end, middle - g->size[1] / 2};
+        arrow.pos = {to == kPirateLeft ? std::max(0, left_end - g->size[0]) : right_end - kPirateRightInset,
+                     middle - g->size[1] / 2};
         piratord.gadgets.push_back(arrow);
     }
     return piratord;
@@ -1794,7 +1796,11 @@ private:
             return;
         }
         if (e.id == kPirateLeft || e.id == kPirateRight) {
-            m_hire_first += e.id == kPirateLeft ? -1 : 1;  // refresh_pirates keeps it in range
+            const auto opponents = static_cast<std::int32_t>(m_opponents.size());
+            m_hire_first =
+                std::clamp(m_hire_first + (e.id == kPirateLeft ? -1 : 1), 0, std::max(0, opponents - kPirateChoices));
+            // The choice stays in view: paying is never for a target the player cannot see.
+            m_hire_choice = std::clamp(m_hire_choice, m_hire_first, m_hire_first + kPirateChoices - 1);
             return;
         }
         const sim::City* city = m_city ? c.world().city(m_city->first, m_city->second) : nullptr;
