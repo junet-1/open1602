@@ -26,13 +26,21 @@ bool carries_goods(const Ship& s) {
 }  // namespace
 
 ShipNote& Engine::note(AiPlayer& p, std::uint32_t ship) {
-    for (ShipNote& n : p.ships) {
-        if (n.id == ship) {
-            return n;
+    // Called inside loops over the computer's own ships: a walk of the list each time made a
+    // logistics pass quadratic in the fleet (TB-16).
+    if (const auto it = p.ship_slots.find(ship);
+        it != p.ship_slots.end() && it->second < p.ships.size() && p.ships[it->second].id == ship) {
+        return p.ships[it->second];
+    }
+    for (std::size_t i = 0; i < p.ships.size(); ++i) {
+        if (p.ships[i].id == ship) {
+            p.ship_slots[ship] = static_cast<std::uint32_t>(i);
+            return p.ships[i];
         }
     }
     ShipNote n;
     n.id = ship;
+    p.ship_slots[ship] = static_cast<std::uint32_t>(p.ships.size());
     p.ships.push_back(n);
     return p.ships.back();
 }
@@ -42,6 +50,10 @@ void Engine::forget_ships(AiPlayer& p) {
         const Ship* s = m_world.ship(n.id);
         return s == nullptr || s->owner != p.player || s->sinking;
     });
+    p.ship_slots.clear();
+    for (std::size_t i = 0; i < p.ships.size(); ++i) {
+        p.ship_slots[p.ships[i].id] = static_cast<std::uint32_t>(i);
+    }
 }
 
 const assets::FigureType* Engine::ship_type(const Ship& s) const {
