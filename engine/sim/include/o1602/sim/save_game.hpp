@@ -61,6 +61,10 @@ struct SaveInfo {
 /// The header of a savegame and its META section (checks magic and version, not the data; unpacks
 /// only the head of the sections).
 [[nodiscard]] core::Result<SaveInfo> save_info(std::span<const std::uint8_t> bytes);
+/// The same from the head of a file of `file_size` bytes (kSaveInfoHead bytes are enough).
+[[nodiscard]] core::Result<SaveInfo> save_info(std::span<const std::uint8_t> head, std::uint64_t file_size);
+/// How much of a savegame save_info needs: the header and the packed head of the sections.
+inline constexpr std::size_t kSaveInfoHead = 64 * 1024;
 
 /// Loads a savegame. Fails (with nothing loaded) if the file is damaged, of a newer Open1602,
 /// names buildings the game's data does not have or does not hold together (validate.hpp). With

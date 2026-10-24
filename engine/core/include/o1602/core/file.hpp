@@ -33,6 +33,15 @@ inline constexpr std::uint64_t kMaxReadSize = std::uint64_t{1} << 30;
 /// Reads a whole regular file of at most kMaxReadSize bytes into memory.
 Result<Bytes> read_file(const std::filesystem::path& path);
 
+/// The start of a regular file: its first `max_bytes` bytes (fewer if it is shorter).
+struct FileHead {
+    Bytes bytes;
+    std::uint64_t size = 0;  ///< of the whole file
+};
+/// Reads the first `max_bytes` bytes of a regular file, and its size (a list of savegames needs
+/// only their heads).
+Result<FileHead> read_file_head(const std::filesystem::path& path, std::size_t max_bytes);
+
 /// Writes a whole file (creates or truncates).
 Status write_file(const std::filesystem::path& path, std::span<const std::uint8_t> data);
 

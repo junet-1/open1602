@@ -61,6 +61,8 @@ union SDL_Event;
 
 namespace o1602::app {
 
+class MainMenu;
+
 struct ViewerOptions {
     std::filesystem::path scenario;    ///< scenario (.szs / .szm), savegame (.gam) or Open1602 savegame (.o1602)
     std::uint32_t max_frames = 0;      ///< stop after N frames (0 = run until closed); for smoke tests
@@ -454,10 +456,13 @@ private:
     render::DrawListScratch m_draw_scratch;        ///< reused every frame
 
     bool m_running = true;
-    bool m_show_owners = false;   ///< ownership overlay (key O)
-    bool m_quit_pending = false;  ///< "Ende" waits for the answer to its question
-    AppSettings m_app_settings;   ///< settings.cfg in the user's data folder
-    SaveSlots m_slots;            ///< names of the savegames of the panel DISK
+    bool m_show_owners = false;              ///< ownership overlay (key O)
+    bool m_quit_pending = false;             ///< "Ende" waits for the answer to its question
+    AppSettings m_app_settings;              ///< settings.cfg in the user's data folder
+    SaveSlots m_slots;                       ///< names of the savegames of the panel DISK
+    std::uint64_t m_slots_revision = 0;      ///< counts the changes of m_slots
+    std::uint64_t m_slots_shown = 0;         ///< the revision the menu has
+    const MainMenu* m_slots_menu = nullptr;  ///< the menu that has it
     std::size_t m_sprites_drawn = 0;
     BuildTool m_tool;
     std::string m_tool_status;          ///< what the build tool would do at the mouse

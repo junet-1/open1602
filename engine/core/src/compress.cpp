@@ -101,7 +101,8 @@ Result<std::vector<std::uint8_t>> zlib_inflate_prefix(std::span<const std::uint8
     }
     const std::size_t got = size - z.avail_out;
     inflateEnd(&z);
-    if (status != Z_OK && status != Z_STREAM_END && !(status == Z_BUF_ERROR && got == size)) {
+    // Z_BUF_ERROR: the output is full, or the input ran out (the head of a longer stream).
+    if (status != Z_OK && status != Z_STREAM_END && status != Z_BUF_ERROR) {
         return make_error(ErrorCode::InvalidFormat, "zlib: damaged stream");
     }
     out.resize(got);

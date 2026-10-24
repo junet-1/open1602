@@ -538,6 +538,28 @@ TEST_CASE("save fuzz: a missing core section, a section twice or bytes left over
     }
 }
 
+TEST_CASE("save fuzz: a file promising more than its world can hold is refused before unpacking") {
+    Game game;
+    auto packed = sim::write_game(game.world, game.buildings, nullptr, sim::SaveOptions{true});
+    REQUIRE(packed.ok());
+    core::Bytes file = std::move(packed).value();
+    REQUIRE(sim::read_game(file, game.buildings).ok());
+    // The head is enough for the list of savegames.
+    const auto info =
+        sim::save_info(std::span<const std::uint8_t>(file).first(std::min<std::size_t>(file.size(), 256)), file.size());
+    REQUIRE(info.ok());
+    REQUIRE(info->meta.has_value());
+    CHECK(info->meta->width == game.world.width());
+    // 200 MiB of sections for a small world: refused at once, not unpacked (HI-11).
+    const std::uint64_t promised = 200ULL << 20;
+    for (std::size_t i = 0; i < 8; ++i) {
+        file[16 + i] = static_cast<std::uint8_t>(promised >> (8 * i));
+    }
+    auto refused = sim::read_game(file, game.buildings);
+    REQUIRE(!refused.ok());
+    CHECK(refused.error().message.find("larger than its world") != std::string::npos);
+}
+
 TEST_CASE("save fuzz: the chunk in a .GAM refuses a required section of a later version, unchanged world") {
     Game game;
     const std::vector<std::uint8_t> before = {'s', 'o', 'm', 'e', ' ', 'c', 'h', 'u', 'n', 'k', 's'};

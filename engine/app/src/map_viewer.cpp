@@ -2086,6 +2086,7 @@ void MapViewer::load_options() {
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
         read_slot_meta(m_slots, save_folder());
+        ++m_slots_revision;
     }
     if (!m_hud) {
         return;
@@ -2168,6 +2169,7 @@ void MapViewer::apply_options() {
                 }
                 m_slots.set(e.value, name, humans);
                 read_slot_meta(m_slots, save_folder(), e.value);
+                ++m_slots_revision;
                 model.slot_names = m_slots.names;
                 model.slot_humans = m_slots.humans;
                 model.slot_details = slot_details(m_slots);
@@ -2447,7 +2449,12 @@ void MapViewer::apply_menu() {
         apply_multiplayer_menu();
         return;
     }
-    menu->set_slots(m_slots);
+    // Only when they changed: a copy of thousands of names each frame costs (FB-15).
+    if (menu != m_slots_menu || m_slots_shown != m_slots_revision) {
+        menu->set_slots(m_slots);
+        m_slots_menu = menu;
+        m_slots_shown = m_slots_revision;
+    }
     for (const MenuEvent& e : m_hud->take_menu_events()) {
         core::Status started = core::make_error(core::ErrorCode::NotFound, "nothing started");
         switch (e.kind) {
