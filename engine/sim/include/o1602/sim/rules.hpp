@@ -52,6 +52,15 @@ enum class PirateNests : std::uint8_t {
     Scaled,  ///< as the pirates' faction grows them (one for every four players begun), spread over the map
 };
 
+/// Which towns players see from the start of a game, without a ship having come near their island
+/// (docs/re/ships.md#sailing). An island counts as discovered for every player as soon as it
+/// holds a city the setting names, also one founded later; what else is on it shows with it.
+enum class Reveal : std::uint8_t {
+    None,     ///< nothing: every island is discovered by ship, as in the original
+    Players,  ///< the cities of human and computer players; native villages and pirate nests by ship
+    All,      ///< the cities of human and computer players, native villages and pirate nests
+};
+
 /// What the free trader pays for goods (docs/re/ships.md, "Free trader").
 enum class TraderPrices : std::uint8_t {
     /// As players know it: about half the base price. The original means to follow the market but
@@ -165,6 +174,9 @@ struct Rules {
     /// where Open1602's grow on (docs/original-comparison.md, section 3).
     bool classic_ai = false;
 
+    /// Which towns are discovered from the start (players, natives, pirates) or only by ship.
+    Reveal reveal = Reveal::None;
+
     /// Victory conditions of an endless game (victory.hpp); all off by default, as the original's
     /// endless game, which no one wins.
     VictoryConditions victory{};
@@ -188,6 +200,7 @@ struct Rules {
         r.trader_reach = TraderReach::Original;
         r.endless_veins = false;
         r.classic_ai = true;
+        r.reveal = Reveal::None;
         return r;
     }
 

@@ -15,7 +15,8 @@ this as well. Until now, `sim::Rules` only had switches for deviations from the 
    default value for Open1602. Where it is a free choice and not a bug of the original,
    the default is the behaviour of the original.
 3. Settings belong to the **savegame** and to the **multiplayer session**. They are chosen before the
-   game starts; if they change during a game, then only via a command
+   game starts;
+if they change during a game, then only via a command
    (ADR 0004), so that all machines compute the same thing.
 4. The simulation reads settings only from `Rules`. The interface, the game start dialog and the
    command line fill in `Rules` and do not know the rules themselves.
@@ -37,6 +38,7 @@ this as well. Until now, `sim::Rules` only had switches for deviations from the 
 | Free trader prices (`trader_prices`, S-077) | as usual (about half the base price), by the market (as the original intends) | as usual | as usual |
 | Free trader's destinations (`trader_reach`) | as the original (the 12 nearest Kontors by profit, a random one of them when none promises any); nearby, as with four players: with more than four human and computer players only the nearest Kontors' share a four-player game would have (Kontors × 4 / players, 3 to 12), and when none promises profit the one no trader has chosen for longest | as the original | nearby (up to four players the original) |
 | Large iron veins (`endless_veins`) | run out, as the original (the ore mine digs a 240 t vein down to 120 t, the deep mine on to its end); endless: the same, but the deep mine's part never runs out (the vein stays at 119 t); small veins run out either way, gold never does | run out | run out |
+| Towns known from the start (`reveal`) | nothing (every island is discovered by a ship coming near, as the original); other players (every island with a town of a human or computer player is discovered for everyone from the start, also when the town is founded later; native villages and pirate nests are found by ship); all settlements (native villages and pirate nests too). An island counts as a whole, so a native village on an island with a player's town shows with it | nothing | nothing |
 | Computer players (`classic_ai`, S-097 to S-099) | improved, as the original (with its bugs in settling, counting and site search, so they stall after about two hours) | as the original | improved |
 | Victory conditions of the endless game (`victory`, `VictoryConditions`) | inhabitants, residents of a level or higher, treasury, balance per minute, share of settled islands, defeat all opponents, score, prestige buildings (castle, cathedral, both), time limit (then the most points win); all or any one; computers can win or not | none (the endless game never ends) | none |
 | Custom world (`WorldSettings`, new game) | size 200–2000 per side or automatic by the players (as multiplayer: 500 × 350 up to four, both sides growing with the square root of the players beyond), 2–12 players, number of islands, island sizes, villages, volcano islands, gold islands (automatic by level, islands and players, or a fixed 1–40 for very large maps; settings.cfg up to 250), starting areas separate/shared | the three fixed maps | off; on: automatic size (500 × 350 for 4 players), 4 players, normal, mixed, automatic gold, separate |
@@ -66,7 +68,7 @@ its difficulty, but their bugs stay fixed by default, also in savegames of the o
 start dialog after name and banner (`engine/app/src/game_settings_menu.cpp`, since 2026-10-20): the
 settings in groups (economy, limits, disasters, world, opponents), as in later Anno titles, each a button that
 cycles its values, with presets for the original's rules and Open1602's defaults; the last choice is
-kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--pirates`, `--pirate-nests`, `--ore-veins`, `--ai`)
+kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--pirates`, `--pirate-nests`, `--reveal`, `--ore-veins`, `--ai`)
 still sets them for games started from it.
 
 ### Victory conditions

@@ -58,6 +58,8 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
                        Rules rules)
     : Simulation(world, buildings, figures, rules, Parts{}) {
     recount_disasters(world);
+    // The towns the settings show from the start; a saved game has them discovered already.
+    world.reveal_islands(m_rules.reveal);
     if (const std::vector<std::uint8_t> state = world.take_simulation_state(); !state.empty()) {
         // Each part loads whole or not at all, but a later part may fail after an earlier one
         // was taken over: then all go back to how they are now, fresh.
@@ -732,6 +734,7 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                 m_logistics.buildings_removed(removed);
                 removed.clear();
                 m_ai.city_founded(e.island, e.city);
+                m_world->reveal_islands(m_rules.reveal, e.island);
                 storage = true;
                 break;
             case ConstructionEvent::Kind::StorageChanged:
