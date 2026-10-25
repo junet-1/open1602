@@ -120,6 +120,19 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(read.rules.pirate_nests == sim::PirateNests::One);
     CHECK(app::read_setup_line(read, "pirate_nests", "per4"));
     CHECK(read.rules.pirate_nests == sim::PirateNests::Scaled);
+    // The towns known from the start: none by default, every island is discovered by ship.
+    CHECK(s.rules.reveal == sim::Reveal::None);
+    CHECK(value_of(s, SetupItem::Reveal) == ui::tr("setup.reveal.none"));
+    app::choose(s, SetupItem::Reveal, 2);
+    CHECK(s.rules.reveal == sim::Reveal::All);
+    CHECK(app::write_setup(s).find("endless.reveal = all\n") != std::string::npos);
+    app::read_setup(read, app::write_setup(s));
+    CHECK(read.rules.reveal == sim::Reveal::All);
+    CHECK(app::read_setup_line(read, "reveal", "players"));
+    CHECK(read.rules.reveal == sim::Reveal::Players);
+    CHECK(app::read_setup_line(read, "reveal", "some"));  // not a value: unchanged
+    CHECK(read.rules.reveal == sim::Reveal::Players);
+    CHECK(sim::Rules::original().reveal == sim::Reveal::None);
     // The free trader's reach: as in a four-player game by default (up to four players the original).
     CHECK(s.rules.trader_reach == sim::TraderReach::Scaled);
     CHECK(value_of(s, SetupItem::TraderReach) == ui::tr("setup.trader_reach.per4"));
@@ -290,7 +303,7 @@ TEST_CASE("game setup: what a scenario, a multiplayer game and a savegame offer"
     }
     for (const SetupItem item : {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::TraderReach, SetupItem::Ships,
                                  SetupItem::Units, SetupItem::GameSpeed, SetupItem::Droughts, SetupItem::Volcanoes,
-                                 SetupItem::ClassicAi, SetupItem::Pirates, SetupItem::PirateNests}) {
+                                 SetupItem::ClassicAi, SetupItem::Pirates, SetupItem::PirateNests, SetupItem::Reveal}) {
         CHECK(app::setup_item_offered(SetupScope::Scenario, item));
         CHECK(app::setup_item_open(EndlessSetup{}, SetupScope::Scenario, item));
         CHECK(!app::setup_item_open(EndlessSetup{}, SetupScope::Savegame, item));  // to look at only
@@ -448,13 +461,13 @@ TEST_CASE("game setup: every group of the dialog ends above its hint") {
             }
             if (d.text.size() > 20 && hint.compare(0, 20, d.text, 0, 20) == 0) {  // fitted to its room
                 hint_y = std::min(hint_y, d.y);
-            } else if (d.text == app::setup_label(SetupItem::PirateNests)) {  // the last row of the lower column
+            } else if (d.text == app::setup_label(SetupItem::Reveal)) {  // the last row of the lower column
                 rows_y = d.y;
             }
         }
         REQUIRE(hint_y != INT32_MAX);
         CHECK(rows_y > 0);
-        CHECK(rows_y + 27 <= hint_y);  // a row is 32 high, the hint's line 22: texts sit in their middles
+        CHECK(rows_y + 27 <= hint_y);  // a row is 30 high, the hint's line 22: texts sit in their middles
         if (scope != app::SetupScope::Scenario) {
             CHECK(find_text(menu, ui::tr("setup.gold_islands")).has_value());
         }

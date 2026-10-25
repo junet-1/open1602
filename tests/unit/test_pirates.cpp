@@ -18,6 +18,7 @@
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/ships.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -622,4 +623,71 @@ TEST_CASE("natives: trading with them is limited by goodwill for every player, t
     CHECK(village.goodwill[0] == sim::kMaxNativeGoodwill);
     CHECK(w.fleet->transfer(sim::CargoTransfer{0, first, kWare, false, limit, 0xFF}) == limit);
     CHECK(village.goodwill[0] == sim::kMaxNativeGoodwill);
+}
+
+TEST_CASE("discovery: the setting shows the towns of players, or also natives and pirates, from the start") {
+    World w;  // island 0: the pirates' nest
+    // Island 1: a native village, island 2: a computer player's town, island 3: nobody's.
+    for (std::uint32_t i = 1; i <= 3; ++i) {
+        sim::IslandMap map(12, 10);
+        for (std::int32_t y = 0; y < 10; ++y) {
+            for (std::int32_t x = 0; x < 12; ++x) {
+                REQUIRE(map.place(*w.buildings.by_id(20101), x, y, 0, 0).ok());
+            }
+        }
+        assets::IslandHeader header;
+        header.number = static_cast<std::uint16_t>(i);
+        REQUIRE(w.world.add_island(sim::WorldIsland{header, std::move(map), 4 + 14 * (i - 1), 40}).ok());
+    }
+    for (const auto& [island, owner] : {std::pair{1, 3}, std::pair{2, 1}}) {
+        sim::City city;
+        city.island = static_cast<std::uint16_t>(island);
+        city.owner = static_cast<sim::PlayerId>(owner);
+        w.world.add_city(city);
+    }
+    const auto seen = [&](std::uint16_t island) {
+        const sim::WorldIsland& isl = w.world.islands()[island];
+        return isl.discovered_by(0) && isl.discovered_by(1);
+    };
+    // As the original: every island by ship.
+    w.world.reveal_islands(sim::Reveal::None);
+    CHECK(!seen(0));
+    CHECK(!seen(1));
+    CHECK(!seen(2));
+    // The other players' towns: the computer's island, not the natives' or the pirates'.
+    w.world.reveal_islands(sim::Reveal::Players);
+    CHECK(!seen(0));
+    CHECK(!seen(1));
+    CHECK(seen(2));
+    CHECK(!seen(3));
+    // Everything: the natives and the pirates too, but no island without a town.
+    w.world.reveal_islands(sim::Reveal::All, 1);  // one island only
+    CHECK(!seen(0));
+    CHECK(seen(1));
+    w.world.reveal_islands(sim::Reveal::All);
+    CHECK(seen(0));
+    CHECK(!seen(3));
+    // Discovering makes no message of a ship.
+    CHECK(w.count(sim::ShipEvent::Kind::NativesFound) == 0);
+
+    // The choice stays with the savegame.
+    for (const sim::Reveal choice : {sim::Reveal::None, sim::Reveal::Players, sim::Reveal::All}) {
+        sim::Rules saved;
+        saved.reveal = choice;
+        w.world.set_saved_rules(saved);
+        auto bytes = sim::write_game(w.world, w.buildings);
+        REQUIRE(bytes.ok());
+        auto back = sim::read_game(*bytes, w.buildings);
+        REQUIRE(back.ok());
+        REQUIRE(back->saved_rules().has_value());
+        CHECK(back->saved_rules()->reveal == choice);
+        CHECK(back->islands()[1].discovered_by(0));  // and the islands it showed
+        CHECK(!back->islands()[3].discovered_by(0));
+    }
+    // A game starts with them shown; the simulation of every computer does the same.
+    World game;
+    sim::Rules rules;
+    rules.reveal = sim::Reveal::All;
+    const sim::Simulation s(game.world, game.buildings, game.figures, rules);
+    CHECK(game.world.islands()[0].discovered_by(0));
 }

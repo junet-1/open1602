@@ -33,7 +33,7 @@ constexpr std::int32_t kHintY = 592;  ///< the hint's top when the groups end ab
 
 constexpr std::int32_t kTop = 84;
 constexpr std::int32_t kGap = 8;
-constexpr std::int32_t kRowH = 32;  // room for three lines of hint or error below the endless game's items (FB-32)
+constexpr std::int32_t kRowH = 30;  // room for three lines of hint or error below the endless game's items (FB-32)
 constexpr std::int32_t kLabelW = 236;
 constexpr std::int32_t kValueW = 196;
 
@@ -53,7 +53,7 @@ constexpr Group kGroups[] = {
     {"setup.group.limits", SetupItem::Ships, SetupItem::GameSpeed, kLeft},
     {"setup.group.disasters", SetupItem::Droughts, SetupItem::Volcanoes, kLeft},
     {"setup.group.world", SetupItem::Map, SetupItem::Resources, kRight},
-    {"setup.group.opponents", SetupItem::ClassicAi, SetupItem::PirateNests, kRight},
+    {"setup.group.opponents", SetupItem::ClassicAi, SetupItem::Reveal, kRight},
 };
 
 // The victory conditions, after the endless games of Anno 1503, 1701 and 1404: population and
