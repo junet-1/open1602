@@ -82,6 +82,32 @@ void World::add_city(City city) {
     index_cities();
 }
 
+void World::reveal_islands(Reveal reveal, std::uint16_t island) {
+    if (reveal == Reveal::None) {
+        return;
+    }
+    for (const City& c : m_cities) {
+        if (island != kSea && c.island != island) {
+            continue;
+        }
+        const Player* owner = player(c.owner);
+        if (owner == nullptr || c.island >= m_islands.size()) {
+            continue;
+        }
+        const FactionBehaviour b = behaviour(*owner);
+        const bool shown =
+            b == FactionBehaviour::Settlers ||
+            (reveal == Reveal::All && (b == FactionBehaviour::Natives || b == FactionBehaviour::Pirates));
+        if (!shown) {
+            continue;
+        }
+        WorldIsland& isl = m_islands[c.island];
+        for (std::size_t p = 0; p < m_players.size(); ++p) {
+            isl.discover(static_cast<PlayerId>(p));
+        }
+    }
+}
+
 void World::set_cities(std::vector<City> cities) {
     m_cities = std::move(cities);
     index_cities();

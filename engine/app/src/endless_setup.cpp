@@ -138,6 +138,7 @@ constexpr std::array<std::string_view, 3> kVolcanoNames = {"game", "off", "on"};
 constexpr std::array<std::string_view, 3> kPirateNames = {"game", "off", "on"};
 constexpr std::array<std::string_view, 2> kPirateNestNames = {"one", "per4"};
 constexpr std::array<std::string_view, 2> kTraderReachNames = {"original", "per4"};
+constexpr std::array<std::string_view, 3> kRevealNames = {"none", "players", "all"};
 constexpr std::array<std::string_view, 4> kAmountNames = {"none", "few", "normal", "many"};
 constexpr std::array<std::string_view, 3> kSizeNames = {"small", "mixed", "large"};
 constexpr std::array<std::string_view, 2> kStartNames = {"spread", "together"};
@@ -259,6 +260,8 @@ std::size_t setup_choices(SetupItem item) noexcept {
             return kPirateNames.size();
         case SetupItem::PirateNests:
             return kPirateNestNames.size();
+        case SetupItem::Reveal:
+            return kRevealNames.size();
         case SetupItem::WorldSize:
             return kSizes.size() + 1;  // first: by the players
         case SetupItem::Players:
@@ -377,6 +380,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return std::min<std::size_t>(static_cast<std::size_t>(r.pirates), kPirateNames.size() - 1);
         case SetupItem::PirateNests:
             return std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), kPirateNestNames.size() - 1);
+        case SetupItem::Reveal:
+            return std::min<std::size_t>(static_cast<std::size_t>(r.reveal), kRevealNames.size() - 1);
         case SetupItem::WinInhabitants:
             return condition(kWinInhabitants, v.inhabitants);
         case SetupItem::WinClass:
@@ -489,6 +494,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             break;
         case SetupItem::PirateNests:
             r.pirate_nests = static_cast<sim::PirateNests>(choice);
+            break;
+        case SetupItem::Reveal:
+            r.reveal = static_cast<sim::Reveal>(choice);
             break;
         case SetupItem::WinInhabitants:
             v.inhabitants = kWinInhabitants[choice];
@@ -663,6 +671,7 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
         case SetupItem::ClassicAi:
         case SetupItem::Pirates:
         case SetupItem::PirateNests:
+        case SetupItem::Reveal:
             return true;
         default:
             return false;
@@ -729,6 +738,7 @@ std::string setup_label(SetupItem item) {
                                                                         "setup.ai",
                                                                         "setup.pirates",
                                                                         "setup.pirate_nests",
+                                                                        "setup.reveal",
                                                                         "setup.win.inhabitants",
                                                                         "setup.win.class",
                                                                         "setup.win.class_inhabitants",
@@ -813,6 +823,11 @@ std::string setup_value(SetupItem item, std::size_t choice) {
         case SetupItem::PirateNests: {
             static constexpr std::array<std::string_view, 2> kKeys = {"setup.pirate_nests.one",
                                                                       "setup.pirate_nests.per4"};
+            return ui::tr(kKeys[choice]);
+        }
+        case SetupItem::Reveal: {
+            static constexpr std::array<std::string_view, 3> kKeys = {"setup.reveal.none", "setup.reveal.players",
+                                                                      "setup.reveal.all"};
             return ui::tr(kKeys[choice]);
         }
         case SetupItem::WinInhabitants:
@@ -997,6 +1012,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (const auto i = name_index(kPirateNestNames, value)) {
             r.pirate_nests = static_cast<sim::PirateNests>(*i);
         }
+    } else if (key == "reveal") {
+        if (const auto i = name_index(kRevealNames, value)) {
+            r.reveal = static_cast<sim::Reveal>(*i);
+        }
     } else if (key == "resources") {
         if (value == "on" || value == "off") {
             r.guarantee_resources = value == "on";
@@ -1075,6 +1094,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("ai", r.classic_ai ? "classic" : "open1602");
     line("pirates", kPirateNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirates), 2)]);
     line("pirate_nests", kPirateNestNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), 1)]);
+    line("reveal", kRevealNames[std::min<std::size_t>(static_cast<std::size_t>(r.reveal), 2)]);
     line("own_world", on_off(setup.own_world));
     line("world", setup.auto_size ? "auto" : std::to_string(w.width) + "x" + std::to_string(w.height));
     line("players", std::to_string(w.players));

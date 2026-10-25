@@ -53,7 +53,7 @@ constexpr Group kGroups[] = {
     {"setup.group.limits", SetupItem::Ships, SetupItem::GameSpeed, kLeft},
     {"setup.group.disasters", SetupItem::Droughts, SetupItem::Volcanoes, kLeft},
     {"setup.group.world", SetupItem::Map, SetupItem::Resources, kRight},
-    {"setup.group.opponents", SetupItem::ClassicAi, SetupItem::PirateNests, kRight},
+    {"setup.group.opponents", SetupItem::ClassicAi, SetupItem::Reveal, kRight},
 };
 
 // The victory conditions, after the endless games of Anno 1503, 1701 and 1404: population and
