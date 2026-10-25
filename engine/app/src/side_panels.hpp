@@ -2,7 +2,8 @@
 //
 // The panels below the head of the side panel (docs/re/ui.md#modi): the build menu (BAU.GAD and
 // its pop-up of building icons) and the player status of the info mode (INFO.GAD). They only
-// show and ask; what a click means for the game goes back to the caller as an action.
+// show and ask; what a click means for the game goes back to the caller as an action. Like the
+// selection windows they fill their panels, which the side panel draws; no SDL here.
 #pragma once
 
 #include <cstdint>
@@ -18,7 +19,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/gad.hpp"
 #include "o1602/assets/text_table.hpp"
-#include "o1602/render/sdl_ui_renderer.hpp"
+#include "o1602/render/banner.hpp"
 #include "o1602/sim/mission.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/panel.hpp"
@@ -37,6 +38,9 @@ public:
     };
     /// Whether the local player may pick a building (sim::building_available).
     using Available = std::function<bool(std::uint32_t id)>;
+    /// Size of sprite `gfx` of sheet `block` at the art's own scale (render::SdlUiRenderer::sprite_size).
+    using SpriteSize =
+        std::function<std::optional<std::pair<std::int32_t, std::int32_t>>(std::int32_t block, std::int32_t gfx)>;
 
     BuildPanel(assets::GadgetLayout bau, const ui::BuildMenuDefinition& menu, const assets::TextTable* texts);
 
@@ -60,10 +64,13 @@ public:
     /// Help text of the gadget under the mouse, nothing if none.
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste) const;
 
-    /// Title, costs, preview and production chain of the current building, then the panel and
-    /// the pop-up. `rotation`: view plus building rotation (the preview turns with both).
-    void draw(render::SdlUiRenderer& renderer, const assets::BuildingTable& buildings, const Available& available,
-              std::uint8_t rotation, const ui::Rect& region, double scale);
+    /// Title, costs, preview and production chain of the current building. `rotation`: view plus
+    /// building rotation (the preview turns with both); `size` centres the preview in its box.
+    void refresh(const assets::BuildingTable& buildings, const Available& available, std::uint8_t rotation,
+                 const SpriteSize& size);
+    /// The panel, and the pop-up over it if one is open: drawn in this order.
+    [[nodiscard]] const ui::Panel& panel() const noexcept { return m_bau; }
+    [[nodiscard]] const ui::Panel* popup() const noexcept { return m_popup ? &*m_popup : nullptr; }
 
 private:
     void open_popup(const ui::BuildCategory& category, const Available& available, std::int32_t x, std::int32_t y);
@@ -95,8 +102,9 @@ public:
     /// "Punkte" (57027, Player_ComputeScore's total) and whether "Bewertung" can be pressed.
     void set_points(std::int64_t points, bool rating);
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste) const;
-    void draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& figures, const render::Banner* banner,
-              const ui::Rect& region, double scale);
+    /// The figures of the local player, its coat of arms in `banner`'s colour.
+    void refresh(const sim::PlayerFigures& figures, const render::Banner* banner);
+    [[nodiscard]] const ui::Panel& panel() const noexcept { return m_panel; }
 
 private:
     ui::Panel m_panel;

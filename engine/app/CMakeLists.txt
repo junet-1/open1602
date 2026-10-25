@@ -8,7 +8,6 @@ add_executable(open1602
     src/game_sound.cpp
     src/hud.cpp
     src/multiplayer.cpp
-    src/side_panels.cpp
     src/map_viewer.cpp
     src/map_input.cpp
     src/video_controller.cpp

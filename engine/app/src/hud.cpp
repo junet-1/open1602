@@ -1414,8 +1414,12 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     const BuildPanel::Available available =
         m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
     if (m_mode == kModeBuild && m_build) {
-        m_build->draw(*m_renderer, buildings, available,
-                      static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U), m_regions.side_panel, s);
+        m_build->refresh(buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
+                         [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); });
+        m_renderer->draw(m_build->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+        if (const ui::Panel* popup = m_build->popup()) {
+            m_renderer->draw(popup->draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+        }
         if (const auto text = m_build->help(m_leiste)) {
             status = *text;
         }
@@ -1430,7 +1434,9 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
                 }
             }
         } else if (m_info && m_mode == kModeInfo) {
-            m_info->draw(*m_renderer, figures, banners.get(colour), m_regions.side_panel, s);
+            m_info->refresh(figures, banners.get(colour));
+            m_renderer->draw(m_info->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y,
+                             s);
             if (const auto text = m_info->help(m_leiste)) {
                 status = *text;
             }

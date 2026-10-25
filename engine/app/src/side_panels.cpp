@@ -214,8 +214,8 @@ std::optional<std::string> BuildPanel::help(const std::vector<std::string>& leis
     return std::nullopt;
 }
 
-void BuildPanel::draw(render::SdlUiRenderer& renderer, const assets::BuildingTable& buildings,
-                      const Available& available, std::uint8_t rotation, const ui::Rect& region, double scale) {
+void BuildPanel::refresh(const assets::BuildingTable& buildings, const Available& available, std::uint8_t rotation,
+                         const SpriteSize& size_of) {
     const ui::BuildCategory* category = m_menu->category(m_category);
     const auto id = current(available);
     const assets::BuildingType* b = id ? buildings.by_id(*id) : nullptr;
@@ -250,7 +250,7 @@ void BuildPanel::draw(render::SdlUiRenderer& renderer, const assets::BuildingTab
         }
         // The preview turns with the view and the building; centred in its box.
         const auto gfx = static_cast<std::int32_t>(b->build_gfx + (b->rotate != 0 ? rotation & 3U : 0U));
-        const auto size = renderer.sprite_size(kPreviewBlock, gfx);
+        const auto size = size_of ? size_of(kPreviewBlock, gfx) : std::nullopt;
         const std::int32_t ox = size ? (kPreviewW - size->first) / 2 : 0;
         const std::int32_t oy = size ? (kPreviewH - size->second) / 2 : 0;
         for (const std::int32_t g : {kPreview, kPreviewShadow}) {
@@ -282,10 +282,6 @@ void BuildPanel::draw(render::SdlUiRenderer& renderer, const assets::BuildingTab
         } else if (b->prod_kind > sim::prod::kWorkshop && b->prod_kind <= sim::prod::kFisher && b->ware != 0) {
             ware_icon(kChainFirst + 6, b->ware, 73);
         }
-    }
-    renderer.draw(m_bau.draw(renderer.fonts()), region.x, region.y, scale);
-    if (m_popup) {
-        renderer.draw(m_popup->draw(renderer.fonts()), region.x, region.y, scale);
     }
 }
 
@@ -414,8 +410,7 @@ std::optional<std::string> InfoPanel::help(const std::vector<std::string>& leist
     return line < leiste.size() ? std::optional<std::string>(leiste[line]) : std::nullopt;
 }
 
-void InfoPanel::draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& f, const render::Banner* banner,
-                     const ui::Rect& region, double scale) {
+void InfoPanel::refresh(const sim::PlayerFigures& f, const render::Banner* banner) {
     const std::array<std::int64_t, 7> values{f.inhabitants, f.taxes,     f.running_costs, f.military,
                                              f.sales,       f.purchases, f.balance};
     for (std::size_t i = 0; i < values.size(); ++i) {
@@ -427,7 +422,6 @@ void InfoPanel::draw(render::SdlUiRenderer& renderer, const sim::PlayerFigures& 
     set_banner_graphic(m_panel, kInfoArmsShadow, arms, banner);
     m_panel.set_graphic(kInfoBalanceIcon, m_balance_icon + (f.balance < 0 ? 1 : 0), 0);
     m_panel.set_text(kInfoGoods, ui::tr("stats.open"));  // the language may have changed
-    renderer.draw(m_panel.draw(renderer.fonts()), region.x, region.y, scale);
 }
 
 }  // namespace o1602::app
