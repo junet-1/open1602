@@ -1319,7 +1319,8 @@ bool Engine::search_fisher(AiPlayer& p) {
 }
 
 bool Engine::search_shipyard(AiPlayer& p) {
-    // 0x00413590: the coast nearest to a road, with room for the yard.
+    // 0x00413590: the coast nearest to a road, with room for the yard; in Open1602 only at the open
+    // sea.
     const assets::BuildingType* b = by_id(p.search.building);
     Search& s = p.search;
     if (b == nullptr) {
@@ -1355,11 +1356,23 @@ bool Engine::search_shipyard(AiPlayer& p) {
                     order.island = p.island;
                     order.items.push_back(BuildItem{b->id, ox, oy, 0, 0});
                     const BuildPlan plan = plan_build(m_world, m_buildings, order);
-                    const BuildRefusal rf = plan.items.front().refusal;
+                    const PlannedBuild& item = plan.items.front();
+                    const BuildRefusal rf = item.refusal;
                     if (plan.city != p.city ||
                         !(rf == BuildRefusal::None || rf == BuildRefusal::Money || rf == BuildRefusal::Tools ||
                           rf == BuildRefusal::Wood || rf == BuildRefusal::Bricks)) {
                         continue;
+                    }
+                    // Open1602: the open sea in front of the yard, as for the Kontor (0x00417220). The
+                    // original takes any coast, also the shore of a lake inside the island, where the
+                    // yard builds ships that never reach the sea.
+                    if (!classic()) {
+                        std::uint32_t fw = 0;
+                        std::uint32_t fh = 0;
+                        rotated_size(*b, item.rotation, fw, fh);
+                        if (!open_sea_ahead(p.island, item.x, item.y, fw, fh, item.rotation)) {
+                            continue;
+                        }
                     }
                     any = true;
                     const std::int32_t score = 7 - dist;

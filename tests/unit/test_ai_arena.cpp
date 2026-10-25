@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <fstream>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,7 @@
 #include "o1602/core/byte_writer.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/sim/ai.hpp"
+#include "o1602/sim/construction.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/simulation.hpp"
@@ -40,6 +42,8 @@ constexpr std::uint32_t kWoodcutter = 20701;
 constexpr std::uint32_t kFisher = 20711;
 constexpr std::uint32_t kChapel = 20803;
 constexpr std::uint32_t kRoadDirt = 20411;
+constexpr std::uint32_t kWebstube = 20507;
+constexpr std::uint32_t kYard = 22115;
 constexpr std::uint16_t kShipFigure = 21;
 
 constexpr sim::PlayerId kFirst = 0;
@@ -47,8 +51,17 @@ constexpr sim::PlayerId kSecond = 1;
 constexpr sim::PlayerId kTrader = 2;
 constexpr sim::PlayerId kNatives = 3;
 
-assets::BuildingTable make_buildings() {
+/// With `yard`, a weaving hut and the small shipyard too, so that a computer wants a yard.
+assets::BuildingTable make_buildings(bool yard = false) {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}, {"BGRUPPE", 5}, {"BGRUPPE_WARE", 6}};
+    const std::string yard_records =
+        "  @Nummer: +1\n  Id: 20507\n  Kind: 14\n  Gfx: 90\n  Size: 2, 2\n  Wegspeed: 120, 120, 120, 100\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Ware: 19\n    Rohstoff: 4\n    Rohmenge: 1\n    Prodmenge: 1\n"
+        "    Maxlager: 4\n    Interval: 20\n    Kosten: 5, 2\n    Arbeiter: 2\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 50\n  EndObj\n"
+        "  @Nummer: +1\n  Id: 22115\n  Kind: 36\n  Gfx: 100\n  Size: 2, 3\n  Wegspeed: 120, 120, 120, 100\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 14\n    Rohstoff: 23\n    Rohmenge: 2\n    Kosten: 30, 12\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 200\n  EndObj\n";
     const auto doc = assets::cod::parse(
         "Nahrung: 1.3\n"
         "Objekt: BGRUPPE\n"
@@ -121,8 +134,8 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_PRODTYP\n    Kind: 6\n    Ware: 14\n    Rohstoff: 57\n    Rohmenge: 1\n    Prodmenge: 1\n    "
         "Maxlager: 4\n"
         "    Interval: 20\n    Figurnr: 86\n    Radius: 6\n    Kosten: 5, 2\n    Arbeiter: 2\n  EndObj\n"
-        "  Objekt: HAUS_BAUKOST\n    Holz: 2\n    Money: 100\n  EndObj\n"
-        "EndObj\n",
+        "  Objekt: HAUS_BAUKOST\n    Holz: 2\n    Money: 100\n  EndObj\n" +
+            (yard ? yard_records : std::string()) + "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
     REQUIRE(table.ok());
@@ -155,15 +168,18 @@ assets::FigureTable make_figures() {
 }
 
 /// A world of 150 x 80 tiles of sea with two islands of 50 x 50 tiles, at (10, 15) and (90, 15):
-/// open ground, a wood (columns 8..22), a beach facing east (column 46) and sea with fish (columns
+/// open ground, a wood (columns 28..37), a beach facing east (column 46) and sea with fish (columns
 /// 47..49). Players 0 and 1 are computers, each with a ship east of its island; 2 the trader, 3 the
-/// natives.
+/// natives. With `yard`, the buildings of make_buildings(true) and on each island a lake (columns
+/// 38..40, rows 18..32) behind the coast, closer to the city's roads than the sea, with a beach on
+/// its east shore (column 41).
 struct Arena {
-    assets::BuildingTable buildings = make_buildings();
+    bool yard = false;
+    assets::BuildingTable buildings;
     assets::FigureTable figures = make_figures();
     sim::World world{150, 80};
 
-    Arena() {
+    explicit Arena(bool with_yard = false) : yard(with_yard), buildings(make_buildings(with_yard)) {
         add_island(10, 15);
         add_island(90, 15);
         std::vector<sim::Player> players(4);
@@ -183,7 +199,12 @@ struct Arena {
         for (std::int32_t y = 0; y < 50; ++y) {
             for (std::int32_t x = 0; x < 50; ++x) {
                 std::uint32_t id = kGround;
-                if (x > 46) {
+                const bool lake_row = yard && y >= 18 && y <= 32;
+                if (lake_row && x >= 38 && x <= 40) {
+                    id = kSea;
+                } else if (lake_row && x == 41) {
+                    id = kBeach;
+                } else if (x > 46) {
                     id = x >= 48 && y % 2 == 0 ? kShoal : kSea;
                 } else if (x == 46) {
                     id = kBeach;
@@ -291,6 +312,57 @@ TEST_CASE("ai arena: two computers found their cities and build them up over hal
             std::printf("\n");
         }
     }
+}
+
+TEST_CASE("ai arena: a computer builds its shipyard at the open sea, not at a lake inside the island") {
+    Arena a(true);
+    sim::Simulation s(a.world, a.buildings, a.figures);
+    REQUIRE(a.cities_of(kFirst) == 0);
+    for (int minute = 0; minute < 10 && a.cities_of(kFirst) == 0; ++minute) {
+        run(s, 60'000);
+    }
+    REQUIRE(a.cities_of(kFirst) == 1);
+    run(s, 60'000);
+    // A weaving hut in the city makes the computer want a yard, the loss of its ship makes it ask.
+    std::uint16_t island = 0;
+    std::uint8_t index = 0;
+    for (const sim::City& c : a.world.cities()) {
+        if (c.owner == kFirst) {
+            island = c.island;
+            index = c.index;
+        }
+    }
+    bool weaving = false;
+    for (std::int32_t y = 0; y < 50 && !weaving; ++y) {
+        for (std::int32_t x = 0; x < 50 && !weaving; ++x) {
+            sim::BuildOrder order;
+            order.player = kFirst;
+            order.island = island;
+            order.items.push_back(sim::BuildItem{kWebstube, x, y, 0, 0});
+            const sim::BuildPlan plan = sim::plan_build(a.world, a.buildings, order);
+            if (plan.city == index && plan.items.front().ok()) {
+                weaving = sim::execute_build(a.world, a.buildings, order, {}, nullptr).items.front().ok();
+            }
+        }
+    }
+    REQUIRE(weaving);
+    a.world.erase_ships([](const sim::Ship& ship) { return ship.owner == kFirst; });
+    std::optional<sim::TilePos> yard;
+    for (int minute = 0; minute < 15 && !yard; ++minute) {
+        run(s, 60'000);
+        const sim::IslandMap& map = a.world.islands()[island].map;
+        for (std::uint32_t y = 0; y < map.height() && !yard; ++y) {
+            for (std::uint32_t x = 0; x < map.width() && !yard; ++x) {
+                const sim::TilePos at{static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)};
+                const auto b = sim::building_at(a.world, a.buildings, island, at);
+                if (b && b->type->id == kYard && b->origin.x == at.x && b->origin.y == at.y) {
+                    yard = at;
+                }
+            }
+        }
+    }
+    REQUIRE(yard.has_value());
+    CHECK(yard->x >= 43);  // its water side on the beach of column 46, not on the lake's (column 41)
 }
 
 TEST_CASE("ai arena: two runs of the same game stay the same, minute by minute") {
