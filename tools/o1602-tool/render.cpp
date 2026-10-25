@@ -205,8 +205,22 @@ int cmd_render_world(const Args& args) {
         }
     }
     std::optional<sim::Simulation> simulation;
+    // --reveal: the game setting of the towns known from the start, which the simulation applies.
+    sim::Rules rules = sim::Rules::open1602();
+    if (const auto it = args.options.find("--reveal"); it != args.options.end()) {
+        if (it->second == "players") {
+            rules.reveal = sim::Reveal::Players;
+        } else if (it->second == "all") {
+            rules.reveal = sim::Reveal::All;
+        } else if (it->second != "none") {
+            return usage();
+        }
+        if (!args.number("--simulate")) {
+            simulation.emplace(*world, *buildings, *figures, rules);
+        }
+    }
     if (const auto seconds = args.number("--simulate")) {
-        simulation.emplace(*world, *buildings, *figures);
+        simulation.emplace(*world, *buildings, *figures, rules);
         std::size_t produced = 0;
         std::size_t stopped = 0;
         for (std::uint64_t s = 0; s < static_cast<std::uint64_t>(*seconds); ++s) {
