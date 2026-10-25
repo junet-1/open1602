@@ -238,6 +238,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         m_multiplayer = std::make_unique<MultiplayerMenu>(style);
         m_menu->set_form_style(style);
         m_display = std::make_unique<DisplayMenu>(style);
+        m_chat = std::make_unique<ChatWindow>(style);
         // The window "Warenbilanz" as a parchment: ink on sandstone, the grounds at half strength.
         GoodsStyle goods;
         goods.form.translucent = true;
@@ -293,10 +294,14 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         render::BannerTable banners = render::BannerTable::original();
         banners.add_more_players();
         std::vector<MenuBanner> menu_banners;
+        std::vector<std::uint8_t> banner_colours;
         for (const render::Banner& b : banners.banners()) {
             menu_banners.push_back(MenuBanner{ui::nearest_colour(palette, b.colour.r, b.colour.g, b.colour.b), b.id});
+            banner_colours.push_back(menu_banners.back().colour);
         }
-        m_multiplayer->set_banners(std::move(menu_banners), ui::nearest_colour(palette, 128, 128, 128));
+        const std::uint8_t grey = ui::nearest_colour(palette, 128, 128, 128);
+        m_multiplayer->set_banners(std::move(menu_banners), grey);
+        m_chat->set_banners(std::move(banner_colours), grey);
     }
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);
@@ -479,6 +484,10 @@ std::optional<Hud::Action> Hud::open_diplomacy(sim::PlayerId partner) {
 }
 
 bool Hud::back() {
+    if (chat_open()) {
+        m_chat->close();
+        return true;
+    }
     if (m_display_open && !m_menu_active) {
         m_display_open = false;
         return true;
@@ -586,6 +595,9 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height, double ui_scale) {
     if (m_display) {
         m_display->set_scale(scale);
     }
+    if (m_chat) {
+        m_chat->set_scale(scale);
+    }
     if (m_goods) {
         m_goods->set_scale(scale);
     }
@@ -599,8 +611,8 @@ ui::Rect Hud::layout(std::int32_t width, std::int32_t height, double ui_scale) {
 bool Hud::covers(std::int32_t x, std::int32_t y) const noexcept {
     // The mission's window takes the clicks inside it (0x0042D1C0); the menu and the window
     // "Anzeige" all of them.
-    return m_menu_active || m_display_open || m_goods_open || m_regions.side_panel.contains(x, y) ||
-           m_regions.status_bar.contains(x, y) ||
+    return m_menu_active || m_display_open || m_goods_open || (chat_open() && chat_rect().contains(x, y)) ||
+           m_regions.side_panel.contains(x, y) || m_regions.status_bar.contains(x, y) ||
            (m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y));
 }
 
@@ -688,6 +700,23 @@ ui::Rect Hud::display_rect() const {
     const auto h = static_cast<std::int32_t>(DisplayMenu::kHeight * s);
     const ui::Rect& v = m_regions.game_view;
     return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
+}
+
+ui::Rect Hud::chat_rect() const {
+    const double s = m_chat ? m_chat->scale() : m_regions.scale;
+    const auto w = static_cast<std::int32_t>(ChatWindow::kWidth * s);
+    const auto h = static_cast<std::int32_t>((m_chat ? m_chat->height(m_chat_model) : 0) * s);
+    const auto gap = static_cast<std::int32_t>(8 * s);
+    const ui::Rect& v = m_regions.game_view;
+    return {v.x + gap, std::max(v.y, v.y + v.h - h - gap), w, h};
+}
+
+bool Hud::open_chat() {
+    if (!m_chat || !m_chat_model.available) {
+        return false;
+    }
+    m_chat->open();
+    return true;
 }
 
 ui::Rect Hud::goods_rect() const {
@@ -1027,6 +1056,14 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
             m_goods_open = false;
         }
         return std::nullopt;
+    }
+    if (chat_open() && !m_menu_active && !m_question && !m_help && button == ui::MouseButton::Left) {
+        // The chat takes the clicks on it; the map beside it stays usable.
+        const ui::Rect r = chat_rect();
+        (void)m_chat->mouse(x - r.x, y - r.y, down, m_chat_model);
+        if (r.contains(x, y)) {
+            return std::nullopt;
+        }
     }
     if (button != ui::MouseButton::Left && (m_help || m_question || m_end_active || !m_menu_active || !m_menu)) {
         return std::nullopt;  // the right button only goes through the values of the menus' dialogs
@@ -1514,6 +1551,19 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     m_leist.set_text(kStatusLine, status);
     m_renderer->draw(m_leist.draw(m_renderer->fonts()), m_regions.status_bar.x, m_regions.status_bar.y, s);
     draw_bubbles();
+    if (m_chat && m_chat_model.available) {
+        if (m_chat->is_open()) {
+            const ui::Rect r = chat_rect();
+            m_renderer->draw(m_chat->draw(m_chat_model, m_multiplayer_model.chat, m_renderer->fonts()), r.x, r.y,
+                             m_chat->scale());
+        } else {
+            // New lines for a while over the lower left of the map.
+            const ui::Rect& v = m_regions.game_view;
+            const auto gap = static_cast<std::int32_t>(8 * m_chat->scale());
+            m_renderer->draw(m_chat->draw_recent(m_multiplayer_model.chat, now_ms, m_renderer->fonts()), v.x + gap,
+                             v.y + v.h - gap, m_chat->scale());
+        }
+    }
     if (m_display_open && m_display) {
         const ui::Rect r = display_rect();
         m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());

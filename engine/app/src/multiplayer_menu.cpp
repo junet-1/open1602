@@ -51,6 +51,7 @@ constexpr Id kFewerPlayers = 53;
 constexpr Id kMorePlayers = 54;
 constexpr Id kTakeOver = 55;
 constexpr Id kHostPauses = 56;
+constexpr Id kSpectatorChat = 57;
 constexpr Id kListRow = 200;  ///< + row
 constexpr std::size_t kListRows = 11;
 // The lobby
@@ -347,6 +348,13 @@ void MultiplayerMenu::settings_button(std::int32_t y, const EndlessSetup& setup,
     m_form.button(kSettings, Rect{688, y + 34, 284, 38}, ui::tr(can_change ? "setup.change" : "setup.view"));
 }
 
+std::string chat_prefix(const ChatLine& line) {
+    if (line.name.empty()) {
+        return {};
+    }
+    return line.whisper ? line.name + " (" + line.to + "): " : line.name + ": ";
+}
+
 // --- Finding a game ---
 
 std::vector<MultiplayerMenu::BrowseRow> MultiplayerMenu::browse_rows(const MultiplayerModel& model) const {
@@ -503,15 +511,17 @@ void MultiplayerMenu::layout_create(const MultiplayerModel& model) {
     f.field(kTitle, Rect{668, 152, 304, 34}, m_setup.title);
     f.label(Rect{664, 194, 312, 24}, tr(MpText::PasswordOptional), Align::Left, Tone::Dim);
     f.field(kPassword, Rect{668, 220, 304, 34}, m_setup.password, true);
-    f.check(kLan, Rect{668, 274, 304, 32}, tr(MpText::ShowOnLan), m_setup.lan);
-    f.check(kJoinRunning, Rect{668, 310, 304, 32}, tr(MpText::AllowJoinRunning), m_setup.join_running);
-    f.check(kSpectators, Rect{668, 346, 304, 32}, tr(MpText::AllowSpectators), m_setup.spectators);
-    f.check(kTakeOver, Rect{668, 382, 304, 32}, tr(MpText::ComputerTakesOver), m_setup.computer_takes_over);
-    f.check(kDedicated, Rect{668, 418, 304, 32}, tr(MpText::HostOnly), m_setup.dedicated);
-    f.check(kHostPauses, Rect{668, 454, 304, 32}, tr(MpText::HostPausesOnly), m_setup.host_pauses_only);
+    f.check(kLan, Rect{668, 270, 304, 30}, tr(MpText::ShowOnLan), m_setup.lan);
+    f.check(kJoinRunning, Rect{668, 302, 304, 30}, tr(MpText::AllowJoinRunning), m_setup.join_running);
+    f.check(kSpectators, Rect{668, 334, 304, 30}, tr(MpText::AllowSpectators), m_setup.spectators);
+    f.check(kSpectatorChat, Rect{668, 366, 304, 30}, tr(MpText::AllowSpectatorChat), m_setup.spectators_chat,
+            m_setup.spectators);
+    f.check(kTakeOver, Rect{668, 398, 304, 30}, tr(MpText::ComputerTakesOver), m_setup.computer_takes_over);
+    f.check(kDedicated, Rect{668, 430, 304, 30}, tr(MpText::HostOnly), m_setup.dedicated);
+    f.check(kHostPauses, Rect{668, 462, 304, 30}, tr(MpText::HostPausesOnly), m_setup.host_pauses_only);
     if (m_setup.kind != HostSetup::Kind::Savegame) {
         // A savegame keeps the settings it was started with; the lobby shows them.
-        settings_button(508, m_setup.game_settings(), true);
+        settings_button(502, m_setup.game_settings(), true);
     }
     f.label(Rect{664, 620, 150, 34}, tr(MpText::Port), Align::Left, Tone::Dim);
     f.field(kPort, Rect{820, 620, 152, 34}, m_port_text);
@@ -632,7 +642,8 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
         if (line.name.empty()) {
             f.label(Rect{48, y, 604, 28}, line.text, Align::Left, Tone::Dim);
         } else {
-            f.label(Rect{48, y, 604, 28}, line.name + ": " + line.text);
+            f.label(Rect{48, y, 604, 28}, chat_prefix(line) + line.text, Align::Left,
+                    line.whisper ? Tone::Heading : Tone::Normal);
         }
     }
     f.field(kChat, Rect{52, 622, 596, 36}, m_chat);
@@ -650,14 +661,15 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
     setting(176, MpText::Password, lobby.password);
     setting(208, MpText::AllowJoinRunning, lobby.join_running);
     setting(240, MpText::AllowSpectators, lobby.spectators);
-    setting(272, MpText::ComputerTakesOver, lobby.computer_takes_over);
-    setting(304, MpText::HostPausesOnly, lobby.host_pauses_only);
+    setting(272, MpText::AllowSpectatorChat, lobby.spectators && lobby.spectators_chat);
+    setting(304, MpText::ComputerTakesOver, lobby.computer_takes_over);
+    setting(336, MpText::HostPausesOnly, lobby.host_pauses_only);
     // The host's settings: the host changes them until the game starts, the others look at them.
-    std::int32_t y_free = 354;
+    std::int32_t y_free = 386;
     if (const auto settings = read_lobby_setup(lobby.setup)) {
-        settings_button(340, settings->first,
+        settings_button(372, settings->first,
                         model.hosting && !lobby.started && settings->second != SetupScope::Savegame);
-        y_free = 420;
+        y_free = 452;
     }
     if (lobby.spectators && me != sim::kNoPlayer) {
         f.button(kWatch, Rect{688, y_free, 284, 38}, tr(MpText::Watch));
@@ -838,6 +850,8 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                 m_setup.join_running = !m_setup.join_running;
             } else if (id == kSpectators) {
                 m_setup.spectators = !m_setup.spectators;
+            } else if (id == kSpectatorChat) {
+                m_setup.spectators_chat = !m_setup.spectators_chat;
             } else if (id == kTakeOver) {
                 m_setup.computer_takes_over = !m_setup.computer_takes_over;
             } else if (id == kHostPauses) {

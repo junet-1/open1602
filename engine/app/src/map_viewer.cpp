@@ -885,6 +885,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_state->simulation.advance(delta_ms, before_tick);
         m_tick_fraction = m_state->simulation.tick_fraction();
     }
+    update_chat();
     m_ship_trail.set_fraction(m_tick_fraction);
     if (!m_state->simulation.paused()) {
         place_listener();

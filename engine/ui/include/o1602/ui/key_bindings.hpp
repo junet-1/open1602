@@ -46,6 +46,7 @@ enum class KeyAction : std::uint16_t {
     CityList,
     Diplomacy,
     GoodsStatistics,  ///< the window "Warenbilanz" (Open1602)
+    Chat,             ///< the chat of a multiplayer game (Open1602)
     // Building
     RotateBuilding,
     PickBuilding,

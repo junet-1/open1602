@@ -36,6 +36,9 @@ The game executable `open1602` (`Open1602.app` on macOS) and the wiring of all m
   size, the interface's size, free zoom; ADR 0010) and the window "Anzeige" that edits it. In
   `o1602::menus`; the viewer applies them to the window (`MapViewer::apply_display`).
 - `multiplayer.cpp`: connects the game to an `engine/net` session.
+- `chat_window.*`: `ChatWindow`, the chat of a running multiplayer game (lines to everyone or privately
+  to chosen players; while closed, new lines fade over the map). In `o1602::menus`; the HUD shows it,
+  `multiplayer.cpp` sends what it gives back.
 - `game_sound.*`, `video_player.*`, `diagnostics.*`: sound, decoding and drawing a video, log and
   error reporting.
 - `command_line.*`, `viewer_options.hpp`: the command line parsed into what the program is asked to
