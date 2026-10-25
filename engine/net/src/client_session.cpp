@@ -52,11 +52,16 @@ std::string ClientSession::successor_name() const {
     return it != m_roster.end() ? it->name : std::string{};
 }
 
-void ClientSession::say(std::string text) {
+void ClientSession::say(std::string text, std::vector<Seat> to) {
     text.resize(std::min(text.size(), kMaxChatLength));
-    if (m_welcomed && !m_ended && !text.empty()) {
-        send(kHost, Chat{m_seat, m_hello.name, std::move(text)});
+    if (!m_welcomed || m_ended || text.empty()) {
+        return;
     }
+    if (m_seat == sim::kNoPlayer && (!to.empty() || !m_lobby.spectators_chat)) {
+        return;  // the host would not pass it on
+    }
+    const bool everyone = to.empty();
+    send(kHost, Chat{m_seat, m_hello.name, std::move(text), everyone, std::move(to), {}});
 }
 
 void ClientSession::take_seat(Seat seat) {

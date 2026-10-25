@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -292,10 +293,12 @@ TEST_CASE("net: every message goes to bytes and back") {
     lobby.banners = {0, 1, 2, 3, 7, 8, 0x1234};
     lobby.computer_takes_over = false;
     lobby.host_pauses_only = true;
+    lobby.spectators_chat = false;
     all.emplace_back(lobby);
     all.emplace_back(net::TakeSeat{3});
     all.emplace_back(net::SetReady{true});
-    all.emplace_back(net::Chat{1, "Anna", "Hallo!"});
+    all.emplace_back(net::Chat{1, "Anna", "Hallo!", true, {}, {}});
+    all.emplace_back(net::Chat{1, "Anna", "Nur fuer dich", false, {0, 2}, {3}});
     all.emplace_back(net::Refused{net::RefuseReason::Kicked});
     all.emplace_back(net::Standby{{net::SeatToken{1, 0xABCDEF, 0x1234567890ULL}, net::SeatToken{3, 5, 7}}, {3}});
     all.emplace_back(net::SetBanner{0x0809});
@@ -336,6 +339,8 @@ TEST_CASE("net: damaged or hostile bytes give no message") {
     net::Hello hello;
     hello.name = std::string(net::kMaxNameLength + 1, 'x');
     CHECK(!net::decode(net::encode(hello)));  // name too long
+    const net::Chat named{1, "Anna", "Hallo", true, {2}, {}};
+    CHECK(!net::decode(net::encode(named)));  // to everyone, naming someone
 
     // Random bytes behind every type: decoding never crashes and keeps the limits.
     sim::Random r(1602, 7);
@@ -348,6 +353,97 @@ TEST_CASE("net: damaged or hostile bytes give no message") {
         if (const auto m = net::decode(noise)) {
             CHECK(net::encode(*m).size() <= noise.size() + 1024);
         }
+    }
+}
+
+namespace {
+
+/// The chat line `text` among `events`, if one came.
+const net::SessionEvent* chat_line(const std::vector<net::SessionEvent>& events, std::string_view text) {
+    const auto it = std::find_if(events.begin(), events.end(), [&](const net::SessionEvent& e) {
+        return e.kind == net::SessionEvent::Kind::Chat && e.text == text;
+    });
+    return it != events.end() ? &*it : nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("net: a private line reaches only the players it is for; a line to everyone the spectators too") {
+    net::LoopbackNetwork network(5, 0);
+    Host host(network);  // slot 0
+    Computer anna(network, "Anna");
+    Computer bernd(network, "Bernd");
+    Computer clara(network, "Clara");
+    Computer wim(network, "Wim");  // no slot left: watches
+    run_for(network, host, {&anna, &bernd, &clara, &wim}, 1500);
+    REQUIRE(anna.session->local_seat() == 1);
+    REQUIRE(bernd.session->local_seat() == 2);
+    REQUIRE(clara.session->local_seat() == 3);
+    REQUIRE(wim.session->local_seat() == sim::kNoPlayer);
+    network.cut(*clara.transport);  // Clara is gone
+    const std::vector<Computer*> all = {&anna, &bernd, &wim};
+    run_for(network, host, all, 500);
+
+    // Anna to the host and Clara: the host gets it, Bernd and Wim never do.
+    anna.session->say("Gegen Bernd?", {3, 0, 0});
+    run_for(network, host, all, 300);
+    const net::SessionEvent* at_host = chat_line(host.events, "Gegen Bernd?");
+    REQUIRE(at_host != nullptr);
+    CHECK(!at_host->everyone);
+    CHECK(at_host->seat == 1);
+    CHECK(at_host->name == "Anna");
+    CHECK(at_host->to == std::vector<net::Seat>{0});
+    CHECK(at_host->missed.empty());  // only the one who said it learns whom it missed
+    CHECK(chat_line(bernd.events, "Gegen Bernd?") == nullptr);
+    CHECK(chat_line(wim.events, "Gegen Bernd?") == nullptr);
+    // Back to Anna: whom it reached and whom not.
+    const net::SessionEvent* echo = chat_line(anna.events, "Gegen Bernd?");
+    REQUIRE(echo != nullptr);
+    CHECK(echo->to == std::vector<net::Seat>{0});
+    CHECK(echo->missed == std::vector<net::Seat>{3});  // Clara left
+
+    // The host to Bernd: Anna and Wim do not get it.
+    host.session->say("Abgemacht", {2});
+    run_for(network, host, all, 300);
+    REQUIRE(chat_line(bernd.events, "Abgemacht") != nullptr);
+    CHECK(chat_line(bernd.events, "Abgemacht")->seat == 0);
+    CHECK(chat_line(host.events, "Abgemacht") != nullptr);
+    CHECK(chat_line(anna.events, "Abgemacht") == nullptr);
+    CHECK(chat_line(wim.events, "Abgemacht") == nullptr);
+
+    // A spectator writes only to everyone.
+    wim.session->say("Psst", {1});
+    wim.session->say("Gutes Spiel!");
+    run_for(network, host, all, 300);
+    for (const auto* events : {&host.events, &anna.events, &bernd.events, &wim.events}) {
+        CHECK(chat_line(*events, "Psst") == nullptr);
+        const net::SessionEvent* line = chat_line(*events, "Gutes Spiel!");
+        REQUIRE(line != nullptr);
+        CHECK(line->everyone);
+        CHECK(line->seat == sim::kNoPlayer);
+    }
+}
+
+TEST_CASE("net: without the setting, spectators only read the chat") {
+    net::LoopbackNetwork network(5, 0);
+    net::SessionConfig config;
+    config.spectators_chat = false;
+    Host host(network, config);
+    Computer anna(network, "Anna");
+    Computer bernd(network, "Bernd");
+    Computer clara(network, "Clara");
+    Computer wim(network, "Wim");
+    const std::vector<Computer*> all = {&anna, &bernd, &clara, &wim};
+    run_for(network, host, all, 1500);
+    REQUIRE(wim.session->local_seat() == sim::kNoPlayer);
+    CHECK(!wim.session->lobby().spectators_chat);
+
+    wim.session->say("Hallo?");
+    anna.session->say("Hallo Wim");
+    run_for(network, host, all, 300);
+    for (const auto* events : {&host.events, &anna.events, &bernd.events, &wim.events}) {
+        CHECK(chat_line(*events, "Hallo?") == nullptr);
+        CHECK(chat_line(*events, "Hallo Wim") != nullptr);
     }
 }
 

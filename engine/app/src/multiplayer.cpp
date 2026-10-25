@@ -92,9 +92,63 @@ sim::Simulation* MapViewer::load_from_host(std::span<const std::uint8_t> save) {
     return &m_state->simulation;
 }
 
-void MapViewer::chat_line(std::string name, std::string text, sim::PlayerId seat) {
-    add_chat_line(m_hud ? &m_hud->multiplayer_model().chat : nullptr,
-                  ChatLine{std::move(name), std::move(text), seat, platform::ticks_ms()});
+std::string MapViewer::seat_names(const std::vector<sim::PlayerId>& seats) const {
+    std::string names;
+    for (const sim::PlayerId s : seats) {
+        std::string name;
+        if (m_session && s < m_session->lobby().seats.size()) {
+            name = m_session->lobby().seats[s].name;
+        }
+        if (const sim::Player* p = m_state ? m_state->world.player(s) : nullptr; name.empty() && p != nullptr) {
+            name = p->name;
+        }
+        names += (names.empty() ? "" : ", ") + (name.empty() ? std::to_string(s) : name);
+    }
+    return names;
+}
+
+void MapViewer::chat_line(const net::SessionEvent& e) {
+    ChatLine line{e.name, e.text, e.seat, platform::ticks_ms(), false, {}};
+    const sim::PlayerId me = m_session ? m_session->local_seat() : sim::kNoPlayer;
+    if (!e.everyone) {
+        line.whisper = true;
+        if (e.seat == me) {
+            line.to = mp_text(MpText::ChatTo, seat_names(e.to));
+        } else {
+            std::vector<sim::PlayerId> others = e.to;
+            std::erase(others, me);
+            line.to = others.empty() ? mp_text(MpText::ChatToYou) : mp_text(MpText::ChatToYouAnd, seat_names(others));
+        }
+    }
+    add_chat_line(m_hud ? &m_hud->multiplayer_model().chat : nullptr, std::move(line));
+    if (!e.missed.empty()) {
+        session_line(MpText::ChatMissed, seat_names(e.missed));
+    }
+}
+
+void MapViewer::update_chat() {
+    if (!m_hud) {
+        return;
+    }
+    ChatModel model;
+    if (m_session && m_session->lobby().started && (host_session() != nullptr || m_host_game_loaded)) {
+        const net::Lobby& lobby = m_session->lobby();
+        const sim::PlayerId me = m_session->local_seat();
+        model.available = true;
+        model.may_write = me != sim::kNoPlayer || lobby.spectators_chat;
+        for (std::size_t s = 0; s < lobby.seats.size() && me != sim::kNoPlayer; ++s) {
+            const net::LobbySeat& seat = lobby.seats[s];
+            if (seat.kind == net::LobbySeat::Kind::Human && s != me) {
+                model.partners.push_back(ChatPartner{static_cast<sim::PlayerId>(s), seat.name, seat.banner});
+            }
+        }
+    }
+    m_hud->set_chat(std::move(model));
+    for (ChatSay& say : m_hud->take_chat()) {
+        if (m_session) {
+            m_session->say(std::move(say.text), std::move(say.to));
+        }
+    }
 }
 
 void MapViewer::session_line(std::string text, std::string_view log, sim::PlayerId seat) {
@@ -102,7 +156,7 @@ void MapViewer::session_line(std::string text, std::string_view log, sim::Player
         std::fprintf(stderr, "multiplayer: %.*s\n", static_cast<int>(log.size()), log.data());
     }
     add_chat_line(m_hud ? &m_hud->multiplayer_model().chat : nullptr,
-                  ChatLine{{}, std::move(text), seat, platform::ticks_ms()}, false);
+                  ChatLine{{}, std::move(text), seat, platform::ticks_ms(), false, {}}, false);
 }
 
 void MapViewer::session_line(MpText id, std::string_view value, sim::PlayerId seat) {
@@ -183,7 +237,7 @@ void MapViewer::apply_session_events() {
             case net::SessionEvent::Kind::LobbyChanged:
                 break;  // the menu shows the lobby as it is
             case net::SessionEvent::Kind::Chat:
-                chat_line(e.name, e.text, e.seat);
+                chat_line(e);
                 break;
             case net::SessionEvent::Kind::Dropped:
                 session_line(MpText::Dropped, std::to_string(e.count), e.seat);
@@ -559,6 +613,7 @@ core::Status MapViewer::host_lobby(const HostSetup& setup) {
     config.password = setup.password;
     config.join_running = setup.join_running;
     config.spectators = setup.spectators;
+    config.spectators_chat = setup.spectators_chat;
     config.computer_takes_over = setup.computer_takes_over;
     config.host_pauses_only = setup.host_pauses_only;
     auto transport = net::enet_listen(setup.port);

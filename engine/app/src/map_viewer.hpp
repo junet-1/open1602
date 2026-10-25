@@ -230,8 +230,13 @@ private:
     /// The host of the running game left and the game cannot move on: the client saves the game it
     /// holds as a whole and says where; loaded, it plays on alone or is hosted anew.
     void save_after_host_left();
-    /// A player's line for the chat (add_chat_line).
-    void chat_line(std::string name, std::string text, sim::PlayerId seat);
+    /// A player's line for the chat (add_chat_line), to everyone or private; a notice of whom a
+    /// private line of this computer's player missed.
+    void chat_line(const net::SessionEvent& e);
+    /// The names of slots, joined with commas (the lobby's, else the world's players').
+    [[nodiscard]] std::string seat_names(const std::vector<sim::PlayerId>& seats) const;
+    /// What the chat over the map shows besides its lines, and the lines it sent (every frame).
+    void update_chat();
     /// A notice of the session in the chat, in the log by `log` ("multiplayer: <log>", English).
     void session_line(std::string text, std::string_view log, sim::PlayerId seat = sim::kNoPlayer);
     /// The same for a text of the multiplayer catalogue with its "{1}".

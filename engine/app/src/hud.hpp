@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "chat_window.hpp"
 #include "diplomacy_strip.hpp"
 #include "display_menu.hpp"
 #include "end_screen.hpp"
@@ -279,11 +280,29 @@ public:
     /// The settings (mode 30014): what they show, and what they asked for since the last call.
     [[nodiscard]] OptionsModel& options_model() noexcept { return m_options_model; }
     [[nodiscard]] std::vector<OptionsEvent> take_option_events() { return std::exchange(m_option_events, {}); }
-    /// A name is being typed (a savegame's, the player's in the menu, an own ship's or city's in
-    /// its window): the keys go there (Windows-1252 text, Backspace 8, Enter 13, Escape 27).
+    /// The chat of a multiplayer game (chat_window.hpp): what it shows besides its lines, which are
+    /// those of multiplayer_model(). The viewer sets it every frame; without a game it closes.
+    void set_chat(ChatModel model) {
+        m_chat_model = std::move(model);
+        if (!m_chat_model.available && m_chat) {
+            m_chat->close();
+        }
+    }
+    /// The chat key: opens the chat; false outside a multiplayer game.
+    bool open_chat();
+    [[nodiscard]] bool chat_open() const noexcept { return !m_menu_active && m_chat && m_chat->is_open(); }
+    /// The lines the chat sent since the last call.
+    [[nodiscard]] std::vector<ChatSay> take_chat() { return std::exchange(m_chat_says, {}); }
+
+    /// A name or a line of the chat is being typed (a savegame's, the player's in the menu, an own
+    /// ship's or city's in its window): the keys go there (Windows-1252 text, Backspace 8, Tab 9,
+    /// Enter 13, Escape 27).
     [[nodiscard]] bool typing() const noexcept {
         if (m_menu_active) {
             return multiplayer_open() ? m_multiplayer->typing() : m_menu && m_menu->typing();
+        }
+        if (chat_open()) {
+            return true;
         }
         if (naming()) {
             return true;
@@ -295,6 +314,8 @@ public:
             m_multiplayer->type(text);
         } else if (m_menu_active && m_menu) {
             m_menu->type(text);
+        } else if (chat_open()) {
+            m_chat->type(text);
         } else if (naming()) {
             m_names.type(text);
         } else if (m_options) {
@@ -302,7 +323,11 @@ public:
         }
     }
     void type_key(int key) {
-        if (naming()) {
+        if (chat_open()) {
+            if (auto say = m_chat->key(m_chat_model, key)) {
+                m_chat_says.push_back(std::move(*say));
+            }
+        } else if (naming()) {
             if (auto c = m_names.key(key)) {
                 m_commands.push_back(std::move(*c));
             }
@@ -461,6 +486,11 @@ private:
     bool m_display_changed = false;
     /// Top left of the window "Anzeige" on the screen (centred on the map).
     [[nodiscard]] ui::Rect display_rect() const;
+    std::unique_ptr<ChatWindow> m_chat;
+    ChatModel m_chat_model;
+    std::vector<ChatSay> m_chat_says;
+    /// The chat window on the screen (at the lower left of the map).
+    [[nodiscard]] ui::Rect chat_rect() const;
     std::unique_ptr<GoodsWindow> m_goods;
     bool m_goods_open = false;
     std::vector<std::uint8_t> m_goods_parchment;  ///< its ground, RGBA (parchment.hpp)

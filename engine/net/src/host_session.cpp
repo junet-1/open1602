@@ -163,6 +163,7 @@ HostSession::HostSession(std::unique_ptr<Transport> transport, ClientSession& cl
     m_config.spectators = client.m_lobby.spectators;
     m_config.computer_takes_over = client.m_lobby.computer_takes_over;
     m_config.host_pauses_only = client.m_lobby.host_pauses_only;
+    m_config.spectators_chat = client.m_lobby.spectators_chat;
     m_seat = client.m_seat;
     // The game goes on from this computer's frame. The frames the old host closed beyond it are
     // as good as any: every computer gets them with this game. What the others had beyond them
@@ -223,6 +224,7 @@ void HostSession::init_lobby() {
     m_lobby.computer_takes_over = m_config.computer_takes_over;
     m_lobby.host_pauses_only = m_config.host_pauses_only;
     m_lobby.spectators = m_config.spectators;
+    m_lobby.spectators_chat = m_config.spectators_chat;
     m_lobby.password = !m_config.password.empty();
     m_lobby.title.resize(std::min(m_lobby.title.size(), kMaxTitleLength));
     m_lobby.game.resize(std::min(m_lobby.game.size(), kMaxTitleLength));
@@ -1215,19 +1217,75 @@ void HostSession::chat(Peer& peer, const Chat& m) {
         return;
     }
     ++peer.chat_lines;
-    const Chat line{peer.seat, peer.name, printable(m.text)};
-    broadcast(line);
-    chat_event(line);
+    deliver(Chat{peer.seat, peer.name, printable(m.text), m.everyone, m.to, {}}, &peer);
 }
 
-void HostSession::say(std::string text) {
+void HostSession::say(std::string text, std::vector<Seat> to) {
     text.resize(std::min(text.size(), kMaxChatLength));
     if (text.empty()) {
         return;
     }
-    const Chat line{m_seat, m_name, std::move(text)};
-    broadcast(line);
-    chat_event(line);
+    const bool everyone = to.empty();
+    deliver(Chat{m_seat, m_name, std::move(text), everyone, std::move(to), {}}, nullptr);
+}
+
+void HostSession::deliver(Chat line, Peer* from) {
+    const bool watching = line.seat == sim::kNoPlayer;
+    if (line.everyone) {
+        if (watching && from != nullptr && !m_config.spectators_chat) {
+            return;
+        }
+        line.to.clear();
+        line.missed.clear();
+        broadcast(line);
+        chat_event(line);
+        return;
+    }
+    if (watching) {
+        return;  // spectators write only to everyone
+    }
+    std::vector<Seat> wanted = std::move(line.to);
+    std::sort(wanted.begin(), wanted.end());
+    wanted.erase(std::unique(wanted.begin(), wanted.end()), wanted.end());
+    line.to.clear();
+    line.missed.clear();
+    for (const Seat s : wanted) {
+        if (s != line.seat && s != sim::kNoPlayer) {
+            (played_by_person(s) ? line.to : line.missed).push_back(s);
+        }
+    }
+    if (line.to.empty() && line.missed.empty()) {
+        return;
+    }
+    // Only the computers of the players it is for get it; they do not learn whom it missed.
+    Chat shown = line;
+    shown.missed.clear();
+    const auto is_for = [&](Seat s) { return std::binary_search(line.to.begin(), line.to.end(), s); };
+    if (!line.to.empty()) {
+        const std::vector<std::uint8_t> bytes = encode(shown);
+        for (const auto& p : m_peers) {
+            if (!p->gone && p->welcomed && p.get() != from && p->seat != sim::kNoPlayer && is_for(p->seat)) {
+                send_bytes(p->link, bytes);
+            }
+        }
+        if (m_seat != sim::kNoPlayer && is_for(m_seat)) {
+            chat_event(shown);
+        }
+    }
+    // Back to who said it, with the players it missed.
+    if (from != nullptr) {
+        send(from->link, line);
+    } else {
+        chat_event(line);
+    }
+}
+
+bool HostSession::played_by_person(Seat seat) const {
+    if (seat == sim::kNoPlayer) {
+        return false;
+    }
+    return seat == m_seat || std::any_of(m_peers.begin(), m_peers.end(),
+                                         [&](const auto& p) { return !p->gone && p->welcomed && p->seat == seat; });
 }
 
 void HostSession::set_lobby_info(std::string title, std::string game, std::vector<std::uint8_t> setup) {

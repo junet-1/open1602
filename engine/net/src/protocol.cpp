@@ -121,6 +121,7 @@ void put(core::ByteWriter& out, const Lobby& m) {
     }
     out.boolean(m.computer_takes_over);
     out.boolean(m.host_pauses_only);
+    out.boolean(m.spectators_chat);
 }
 
 void put(core::ByteWriter& out, const TakeSeat& m) {
@@ -131,10 +132,20 @@ void put(core::ByteWriter& out, const SetReady& m) {
     out.boolean(m.ready);
 }
 
+void put_seats(core::ByteWriter& out, const std::vector<Seat>& seats) {
+    out.u32(static_cast<std::uint32_t>(seats.size()));
+    for (const Seat s : seats) {
+        out.u8(s);
+    }
+}
+
 void put(core::ByteWriter& out, const Chat& m) {
     out.u8(m.seat);
     out.string(m.name);
     out.string(m.text);
+    out.boolean(m.everyone);
+    put_seats(out, m.to);
+    put_seats(out, m.missed);
 }
 
 void put(core::ByteWriter& out, const SetBanner& m) {
@@ -317,6 +328,7 @@ Lobby get_lobby(In& in) {
     }
     m.computer_takes_over = in.boolean();
     m.host_pauses_only = in.boolean();
+    m.spectators_chat = in.boolean();
     return m;
 }
 
@@ -354,11 +366,27 @@ Part get_part(In& in) {
     return m;
 }
 
+std::vector<Seat> get_seats(In& in) {
+    std::vector<Seat> seats;
+    const std::uint32_t n = in.count(kMaxLobbySeats);
+    seats.reserve(n);
+    for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
+        seats.push_back(in.u8());
+    }
+    return seats;
+}
+
 Chat get_chat(In& in) {
     Chat m;
     m.seat = in.u8();
     m.name = in.text(kMaxNameLength);
     m.text = in.text(kMaxChatLength);
+    m.everyone = in.boolean();
+    m.to = get_seats(in);
+    m.missed = get_seats(in);
+    if (m.everyone && !(m.to.empty() && m.missed.empty())) {
+        in.fail();  // a line to everyone names nobody
+    }
     return m;
 }
 

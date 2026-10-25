@@ -51,6 +51,7 @@ struct HostSetup {
     bool lan = true;  ///< answer searches on the local network
     bool join_running = true;
     bool spectators = true;
+    bool spectators_chat = true;      ///< spectators may write in the chat (they always read it)
     bool computer_takes_over = true;  ///< the computer plays on for a person who left
     bool host_pauses_only = false;    ///< only the host pauses and resumes (MS-20)
     bool dedicated = false;           ///< the host plays no slot
@@ -78,7 +79,13 @@ struct ChatLine {
     std::string text;
     sim::PlayerId seat = sim::kNoPlayer;
     std::uint64_t time_ms = 0;  ///< when it came (real time)
+    /// Said privately (net::Chat::everyone off); `to` names to whom ("an Euch", "an Anna, Bernd").
+    bool whisper = false;
+    std::string to;
 };
+
+/// What goes before a line's text: "Anna: ", "Anna (an Euch): "; nothing for a notice.
+[[nodiscard]] std::string chat_prefix(const ChatLine& line);
 
 /// What the menu shows; the viewer keeps it up to date.
 struct MultiplayerModel {

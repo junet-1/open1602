@@ -300,7 +300,7 @@ TEST_CASE("event presenter: notes stay in the status line for a few seconds, the
 
     std::deque<app::ChatLine> chat;
     for (int i = 0; i < 105; ++i) {
-        app::add_chat_line(&chat, app::ChatLine{"", std::to_string(i), sim::kNoPlayer, 0}, false);
+        app::add_chat_line(&chat, app::ChatLine{"", std::to_string(i), sim::kNoPlayer, 0, false, {}}, false);
     }
     CHECK(chat.size() == app::kChatKept);
     CHECK(chat.front().text == "5");

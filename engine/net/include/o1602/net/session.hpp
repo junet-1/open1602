@@ -111,6 +111,9 @@ struct SessionConfig {
     std::string password;
     /// Chat lines one computer may send per second; more are dropped.
     std::uint32_t max_chat_per_second = 5;
+    /// (Host, also after a host migration) Spectators may write in the chat, to everyone; without,
+    /// they only read it.
+    bool spectators_chat = true;
     /// (Host migration) How long a computer whose host left tries to get into the successor's game;
     /// the successor may notice the host's leaving a few seconds later than the others.
     std::uint32_t migration_ms = 30'000;
@@ -145,7 +148,7 @@ struct SessionEvent {
         Desync,        ///< `seat` diverged from the host after `frame`; it gets the game anew
         Ended,         ///< the session is over (`reason`)
         LobbyChanged,  ///< the lobby (slots, settings) changed, or it started
-        Chat,          ///< `seat` (`name`) said `text`
+        Chat,          ///< `seat` (`name`) said `text`, to everyone or privately (`everyone`, `to`, `missed`)
         Dropped,       ///< `count` commands of this computer's player were not carried out (too many at once)
         Reconnecting,  ///< (computer) the connection to the host broke; it tries to get back in
         PauseRefused,  ///< (computer) only the host pauses and resumes this game (Lobby::host_pauses_only)
@@ -158,6 +161,11 @@ struct SessionEvent {
     RefuseReason refused = RefuseReason::Version;
     std::string text;
     std::uint32_t count = 0;
+    /// (Chat) To everyone, or privately to the players in `to`; on the computer that said it, the
+    /// players it did not reach are in `missed` (Chat).
+    bool everyone = true;
+    std::vector<Seat> to;
+    std::vector<Seat> missed;
 };
 
 /// What the host and the other computers have in common: pacing the frames, fingerprints, events.
@@ -174,8 +182,10 @@ public:
     /// speed (as Simulation::advance(), calling `before_tick` before each) as far as they are
     /// complete, and sends.
     virtual void update(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick = {}) = 0;
-    /// A line of chat to everyone (cut to kMaxChatLength; empty lines are not sent).
-    virtual void say(std::string text) = 0;
+    /// A line of chat (cut to kMaxChatLength; empty lines are not sent): to everyone, or privately
+    /// to the players in `to` (only players say something privately, to other players). A
+    /// spectator's line goes out only if the game lets spectators write (Lobby::spectators_chat).
+    virtual void say(std::string text, std::vector<Seat> to = {}) = 0;
     /// This computer's player may pause and resume the game (the host always may).
     [[nodiscard]] virtual bool may_pause() const noexcept { return true; }
 
@@ -261,7 +271,7 @@ public:
 
     void submit(sim::Command command) override;
     void update(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick = {}) override;
-    void say(std::string text) override;
+    void say(std::string text, std::vector<Seat> to = {}) override;
 
     // --- The lobby (before start()) ---
 
@@ -311,6 +321,11 @@ private:
     void take_seat(Peer& peer, Seat seat);
     void ready(Peer& peer, bool ready);
     void chat(Peer& peer, const Chat& m);
+    /// A line of `from` (nullptr: the host's own player), to everyone or only to the players in
+    /// `line.to` that a person plays, and back to `from` with those it missed.
+    void deliver(Chat line, Peer* from);
+    /// A person plays `seat`: the host's player or a computer's that is still there.
+    [[nodiscard]] bool played_by_person(Seat seat) const;
     /// Gives slot `seat` banner `banner` (set_banner()), whoever asks.
     bool change_banner(Seat seat, sim::BannerId banner);
     void set_banner(Peer& peer, sim::BannerId banner);
@@ -468,7 +483,7 @@ public:
 
     void submit(sim::Command command) override;
     void update(std::uint32_t real_ms, const sim::Simulation::BeforeTick& before_tick = {}) override;
-    void say(std::string text) override;
+    void say(std::string text, std::vector<Seat> to = {}) override;
     [[nodiscard]] bool may_pause() const noexcept override { return !m_lobby.host_pauses_only; }
     /// In the lobby: asks for an open slot, or kNoPlayer to watch.
     void take_seat(Seat seat);

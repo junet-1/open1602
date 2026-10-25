@@ -109,6 +109,17 @@ constexpr std::array kTexts = {
     Entry{MpText::Dropped, "net.dropped"},
     Entry{MpText::Reconnecting, "net.reconnecting"},
     Entry{MpText::PauseRefused, "net.pause_refused"},
+    Entry{MpText::AllowSpectatorChat, "net.allow_spectator_chat"},
+    Entry{MpText::ChatAll, "net.chat_all"},
+    Entry{MpText::ChatClose, "net.chat_close"},
+    Entry{MpText::ChatToLabel, "net.chat_to_label"},
+    Entry{MpText::ChatToYou, "net.chat_to_you"},
+    Entry{MpText::ChatToYouAnd, "net.chat_to_you_and"},
+    Entry{MpText::ChatTo, "net.chat_to"},
+    Entry{MpText::ChatHintAll, "net.chat_hint_all"},
+    Entry{MpText::ChatHintPrivate, "net.chat_hint_private"},
+    Entry{MpText::ChatReadOnly, "net.chat_read_only"},
+    Entry{MpText::ChatMissed, "net.chat_missed"},
 };
 
 constexpr bool in_order() {
@@ -120,7 +131,7 @@ constexpr bool in_order() {
     return true;
 }
 static_assert(in_order(), "kTexts must list every MpText in order");
-static_assert(kTexts.size() == static_cast<std::size_t>(MpText::PauseRefused) + 1, "a text is missing");
+static_assert(kTexts.size() == static_cast<std::size_t>(MpText::ChatMissed) + 1, "a text is missing");
 
 }  // namespace
 

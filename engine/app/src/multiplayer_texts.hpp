@@ -106,6 +106,17 @@ enum class MpText : std::uint16_t {
     Dropped,
     Reconnecting,
     PauseRefused,
+    AllowSpectatorChat,
+    ChatAll,
+    ChatClose,
+    ChatToLabel,
+    ChatToYou,
+    ChatToYouAnd,
+    ChatTo,
+    ChatHintAll,
+    ChatHintPrivate,
+    ChatReadOnly,
+    ChatMissed,
 };
 
 /// The catalogue key of a text ("net.player_joined").

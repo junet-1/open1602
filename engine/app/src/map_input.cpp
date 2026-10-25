@@ -49,6 +49,7 @@ std::string key_label(const ui::KeyChord& c) {
         {SDLK_PRINTSCREEN, "print_screen"},
         {SDLK_KP_PLUS, "keypad_plus"},
         {SDLK_KP_MINUS, "keypad_minus"},
+        {SDLK_KP_ENTER, "keypad_enter"},
         {SDLK_TAB, "tab"},
         {SDLK_PAUSE, "pause"},
     };
@@ -177,6 +178,8 @@ void MapInput::setup_keys() {
     general(chord(SDLK_L, false, true), KeyAction::CityList);
     general(chord(SDLK_V), KeyAction::Diplomacy);
     general(chord(SDLK_F2), KeyAction::GoodsStatistics);
+    general(chord(SDLK_RETURN), KeyAction::Chat);
+    general(chord(SDLK_KP_ENTER), KeyAction::Chat);
     general(chord(SDLK_DELETE), KeyAction::DemolishTool);
     // Groups: keys 1 .. 9, 0 are groups 0 .. 9.
     const std::array<SDL_Scancode, 10> digits{SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
@@ -487,6 +490,11 @@ void MapInput::run_action(const ui::KeyBinding& b) {
         case KeyAction::GoodsStatistics:
             if (m_hud) {
                 m_hud->toggle_goods();
+            }
+            break;
+        case KeyAction::Chat:
+            if (m_hud) {
+                (void)m_hud->open_chat();  // only in a multiplayer game
             }
             break;
         case KeyAction::Diplomacy:
