@@ -1,7 +1,7 @@
 # engine/platform
 
-Platform layer on SDL3: window, renderer, input events and timers (`window.hpp`) and the sound
-device (`audio_output.hpp`). The only place with operating system dependencies
+Platform layer on SDL3: window, renderer, input events and timers (`window.hpp`), the mouse cursor
+(`mouse_cursor.hpp`) and the sound device (`audio_output.hpp`). The only place with operating system dependencies
 ([ADR 0005](../../docs/architecture/0005-module-structure.md)). Everything is RAII; SDL types never
 reach `sim` or `assets`. Built only with `-DO1602_BUILD_GAME=ON`.
 

@@ -167,10 +167,19 @@ jobs:
       - name: Test the SDL layer
         run: ctest --preset ${{ matrix.preset }} -R "^sdl$"
 
+      - name: Check the app bundle (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          app=build/${{ matrix.preset }}/bin/Open1602.app/Contents
+          plutil -lint "$app/Info.plist"
+          test "$(plutil -extract CFBundleIconFile raw "$app/Info.plist")" = open1602.icns
+          test -f "$app/Resources/open1602.icns"
+
       - name: Start the game without data
         shell: bash
         timeout-minutes: 5
-        run: .github/workflows/start-game.sh build/${{ matrix.preset }}/engine/app/open1602
+        run: >
+          .github/workflows/start-game.sh build/${{ matrix.preset }}/bin/${{ runner.os == 'macOS' && 'Open1602.app/Contents/MacOS/Open1602' || 'open1602' }}
 
   vcpkg:
     name: Game (vcpkg preset, Windows)
@@ -212,7 +221,7 @@ jobs:
       - name: Start the game without data
         shell: bash
         timeout-minutes: 5
-        run: .github/workflows/start-game.sh build/vcpkg/engine/app/open1602
+        run: .github/workflows/start-game.sh bin/open1602  # the vcpkg preset builds into bin/
 
   coverage:
     name: Coverage (Linux GCC)

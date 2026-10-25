@@ -1,5 +1,6 @@
-# Build
+# Build (bin/ holds the programs of the release and vcpkg presets)
 /build/
+/bin/
 /out/
 /coverage/
 /cmake-build-*/
