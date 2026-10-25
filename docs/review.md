@@ -2215,13 +2215,14 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | MD-4 (part) | #198 | The AI's building knowledge in one header (`ai_tables.hpp`): the survey's producer table (slot by ware, raw material and record) instead of a ware switch, the 32 Need rows, the ten public tasks, the first colony's crop and the original's cheat amounts. A test compares the producer table with the former switch over every ware and raw material. Same golden hashes. |
 | BT-2 | #199 | The build menu and the player status of the side panel only fill their panels (as the selection windows); `side_panels.cpp` is in `o1602_menus`, tested with synthetic BAU and INFO layouts (costs, turned preview, production chain, pop-up, locked buildings, demolish, rotate, help; figures, balance icon, list buttons, rating, goods line). No part of the side panel is left without tests. |
 | TB-13 (part) | #200 | The free land regions of an island (task 2) and the Kontor site's green and tree counts (task 3) are kept per island and block revision; the island search no longer scans every island again on each pass, and several computers no longer replace each other's counts. No-site scenario (10 islands, 8 computers, 20 game minutes): 11.64 → 3.17 billion instructions, same AI log. |
+| TB-13 | #201 | The Kontor site search walks the free beach tiles the island's scan keeps (in the order of the former loops) instead of every tile of the region's rectangle: no-site scenario 3.17 → 1.06 billion instructions (11.64 before #200), the AI log of all AI tests the same. With #128, #176 and #200 the points of TB-13 are done: islands are tested from kept counts, the search stops without a ship, and `plan_build` runs only for beach tiles. |
 
 ### Still open
 
 | Finding | What is left | Size |
 |---|---|---|
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
-| TB-11, TB-13 | A survey kept up from construction events (#185 reuses it only while the island is unchanged); the rest of the settlement search (each search is bounded since #128; counts cached since #176). | M |
+| TB-11 | A survey and road layout kept up from construction events (#185 reuses them only while the island is unchanged). After #196 and #197 they are 11 % and 6 % of the arena hour (callgrind). | M |
 
 Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
