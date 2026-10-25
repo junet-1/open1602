@@ -197,18 +197,12 @@ o1602-tool bench      --players 8 --minutes 600      # run a game headless and m
 
 Without arguments `o1602-tool` lists every command with its options.
 
-`tools/python/` holds Python prototypes from the reverse engineering: `anno_formats.py` and
-`anno_tool.py` read chunks, `.cod` and BSH files again in Python for quick experiments, and
-`compare_screenshot.py` lines up a screenshot of the original with a `render-world` image. They are not
-tested and not kept in step with the engine; where they disagree with `engine/assets` (and
-`o1602-tool`), the C++ is right.
-
 ## Project layout
 
 | Folder | Contents |
 |---|---|
 | `engine/` | Engine modules: `core`, `assets`, `sim`, `net`, `render`, `platform`, `audio`, `video`, `ui`, `app`; each has a README |
-| `tools/` | `o1602-tool` (C++, one file per command group), `make_icons.py` (renders the [application icon](data/icons/README.md)) and unmaintained Python prototypes from reverse engineering (`tools/python/`; the C++ readers in `engine/assets` are authoritative) |
+| `tools/` | `o1602-tool` (C++, one file per command group) and `make_icons.py` (renders the [application icon](data/icons/README.md)) |
 | `tests/` | Unit tests and tests against the original data ([how to run them](tests/README.md)) |
 | `docs/` | [Plan](docs/00-plan.md), [status](docs/status.md), [file formats](docs/formats/README.md), [architecture decisions](docs/architecture/README.md), [languages](docs/modding/languages.md), [messages](docs/modding/messages.md), [build menu](docs/modding/build-menu.md), [data limits](docs/modding/data-limits.md) and [open work](docs/modding/open-work.md) for modding |
 | `data/` | Files the engine brings itself: [interface texts](docs/modding/languages.md), the [application icon](data/icons/README.md), the Linux desktop entry |

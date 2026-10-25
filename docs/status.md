@@ -9,10 +9,9 @@ Links into `re/` (for example [bugs.md](re/bugs.md)) point to the private compan
 `open1602-re` and only work for maintainers who have it set up (see
 [CONTRIBUTING.md](../CONTRIBUTING.md#reverse-engineering)).
 
-**Review October 2026:** The code review of October 2026 with all findings and their status is in
-[review.md](review.md). Of its 99 findings, 93 are fixed (PRs #19 to #29, #32 to #42 and #44), 5 are left on
-purpose and 1 is partly fixed; what remains of them is listed under
-[Remaining work](review.md#remaining-work).
+**Reviews:** the code reviews of October 2026 have no open findings. Kept on purpose: the German test
+player names and two anchors into the private repository (BD-15), and five small points measured or
+settled as not worth a change (IO-6 rest: a stronger savegame fingerprint; AU8, AU12, AU15, SC-14).
 
 Symbols: ✅ done · 🟡 partly · ⬜ open · ❓ behaviour of the original not confirmed (needs clarification).
 
