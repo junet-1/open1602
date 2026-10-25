@@ -173,6 +173,21 @@ folder, never in the installation:
 | macOS | `~/Library/Application Support/Open1602/` |
 | Windows | `%APPDATA%\Open1602\` |
 
+A multiplayer host takes players on UDP port 16020 (or the one given with `--port`) and answers the
+local network's game search on UDP port 16021. A firewall on the host must let both in, otherwise
+its game does not appear in the lobby of the other computers and joining by address fails too. With
+ufw on Linux:
+
+```sh
+sudo ufw allow 16020:16021/udp comment 'Open1602'
+# or only from the home network:
+sudo ufw allow from 192.168.178.0/24 to any port 16020:16021 proto udp comment 'Open1602'
+```
+
+A computer that only joins needs no rule to join, but its own firewall may drop the hosts' answers to
+the game search. It also needs the rule to take over the game when the host leaves (host migration).
+For players on the internet the host's router must forward port 16020.
+
 Tests that need the original data run when `ANNO1602_DIR` is set and skip themselves otherwise.
 How to run the tests, filter them and use their environment variables: [tests/README.md](tests/README.md).
 
