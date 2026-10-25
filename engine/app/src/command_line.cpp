@@ -301,6 +301,14 @@ core::Result<CommandLine> parse_command_line(int argc, const char* const* argv) 
             } else {
                 return bad(i);
             }
+        } else if (arg == "--ore-veins" && has_value) {
+            // Game setting: large iron veins run out (original) or are endless for the deep mine.
+            const std::string_view mode = argv[++i];
+            if (mode == "original" || mode == "endless") {
+                options.rules.endless_veins = mode == "endless";
+            } else {
+                return bad(i);
+            }
         } else if (arg == "--ai" && has_value) {
             // Game setting: the computer players of Open1602 or the original's (S-097 to S-099).
             const std::string_view mode = argv[++i];

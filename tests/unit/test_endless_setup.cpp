@@ -143,6 +143,16 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(read.rules.trader_reach == sim::TraderReach::Original);
     CHECK(app::read_setup_line(read, "trader_reach", "per4"));
     CHECK(read.rules.trader_reach == sim::TraderReach::Scaled);
+    // Large ore veins: they run out by default, as in the original.
+    CHECK(!s.rules.endless_veins);
+    CHECK(value_of(s, SetupItem::OreVeins) == ui::tr("setup.ore_veins.original"));
+    app::choose(s, SetupItem::OreVeins, 1);
+    CHECK(s.rules.endless_veins);
+    CHECK(app::write_setup(s).find("endless.ore_veins = endless\n") != std::string::npos);
+    app::read_setup(read, app::write_setup(s));
+    CHECK(read.rules.endless_veins);
+    CHECK(app::read_setup_line(read, "ore_veins", "original"));
+    CHECK(!read.rules.endless_veins);
 
     // The world's items count only for a world of its own.
     CHECK(!app::setup_item_used(s, SetupItem::Players));
@@ -301,9 +311,10 @@ TEST_CASE("game setup: what a scenario, a multiplayer game and a savegame offer"
                                  SetupItem::Starts, SetupItem::Resources}) {
         CHECK(!app::setup_item_offered(SetupScope::Scenario, item));
     }
-    for (const SetupItem item : {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::TraderReach, SetupItem::Ships,
-                                 SetupItem::Units, SetupItem::GameSpeed, SetupItem::Droughts, SetupItem::Volcanoes,
-                                 SetupItem::ClassicAi, SetupItem::Pirates, SetupItem::PirateNests, SetupItem::Reveal}) {
+    for (const SetupItem item :
+         {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::TraderReach, SetupItem::OreVeins, SetupItem::Ships,
+          SetupItem::Units, SetupItem::GameSpeed, SetupItem::Droughts, SetupItem::Volcanoes, SetupItem::ClassicAi,
+          SetupItem::Pirates, SetupItem::PirateNests, SetupItem::Reveal}) {
         CHECK(app::setup_item_offered(SetupScope::Scenario, item));
         CHECK(app::setup_item_open(EndlessSetup{}, SetupScope::Scenario, item));
         CHECK(!app::setup_item_open(EndlessSetup{}, SetupScope::Savegame, item));  // to look at only

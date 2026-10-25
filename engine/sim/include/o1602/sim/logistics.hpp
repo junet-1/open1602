@@ -29,6 +29,7 @@
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/pool.hpp"
 #include "o1602/sim/production_cycle.hpp"
+#include "o1602/sim/rules.hpp"
 #include "o1602/sim/state_io.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -175,7 +176,9 @@ public:
     /// Walker::home of figures without a home building (deer).
     static constexpr std::uint32_t kNoHome = 0xFFFFFFFFU;
 
-    Logistics(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures);
+    /// `rules` (may be null: the original's) must outlive the logistics.
+    Logistics(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+              const Rules* rules = nullptr);
 
     /// Recomputes the warehouse room of every city (after loading or building).
     void update_storage();
@@ -312,6 +315,7 @@ private:
     World* m_world;
     const assets::BuildingTable* m_buildings;
     const assets::FigureTable* m_figures;
+    const Rules* m_rules;
     Pool<Walker> m_walkers;
     std::vector<std::uint8_t> m_jobs;  ///< walkers out per production building
     PathFinder m_finder;

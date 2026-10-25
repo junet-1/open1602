@@ -160,6 +160,11 @@ struct Rules {
     TraderPrices trader_prices = TraderPrices::Original;
     /// How far the free trader looks. Up to four players both are the original.
     TraderReach trader_reach = TraderReach::Scaled;
+    /// Large iron veins never run out (docs/re/logistics.md, "Mines and deposits"). The ore mine
+    /// still digs only down to 120 t; below that the deep mine digs on, as in the original, but the
+    /// vein stays at the last ton above it instead of being used up. Small veins run out as in the
+    /// original, gold never does anyway. Off by default: the original's 240 t.
+    bool endless_veins = false;
 
     /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
     /// settlement ship sails no city develops, a city whose colony search failed waits for it for
@@ -193,6 +198,7 @@ struct Rules {
         r.pirate_nests = PirateNests::One;
         r.trader_prices = TraderPrices::Original;
         r.trader_reach = TraderReach::Original;
+        r.endless_veins = false;
         r.classic_ai = true;
         r.reveal = Reveal::None;
         return r;
