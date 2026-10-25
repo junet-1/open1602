@@ -910,14 +910,16 @@ void plan_build(const World& world, const assets::BuildingTable& buildings, cons
             if (final_type->prod_kind == prod::kGrowing) {
                 // S-003: crops are checked when planted (the original planted them withered).
                 // During a drought a field that will bear afterwards is planted withered and grows
-                // once the drought is over, as in the original.
+                // once the drought is over, as in the original. Only crops that can wither are
+                // checked: forest and pasture have no withered record and grow on every tile, as
+                // in the original (harvest and drought skip them as well).
                 const std::uint8_t crop = crop_ware(buildings, *final_type);
-                if (crop != 0 && !tile_fertile_at(world, buildings, order.island, crop, out.x, out.y, 0)) {
-                    refusal = BuildRefusal::Infertile;
-                } else if (crop != 0 && !tile_fertile(world, buildings, order.island, crop, out.x, out.y)) {
-                    const assets::BuildingType* ripe = ripe_record(buildings, *final_type);
-                    if (const assets::BuildingType* withered =
-                            ripe != nullptr ? withered_record(buildings, *ripe) : nullptr) {
+                const assets::BuildingType* ripe = ripe_record(buildings, *final_type);
+                const assets::BuildingType* withered = ripe != nullptr ? withered_record(buildings, *ripe) : nullptr;
+                if (crop != 0 && withered != nullptr) {
+                    if (!tile_fertile_at(world, buildings, order.island, crop, out.x, out.y, 0)) {
+                        refusal = BuildRefusal::Infertile;
+                    } else if (!tile_fertile(world, buildings, order.island, crop, out.x, out.y)) {
                         out.type = withered;
                     }
                 }
