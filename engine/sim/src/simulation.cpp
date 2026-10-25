@@ -35,7 +35,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
       m_buildings(&buildings),
       m_rules(rules),
       m_figures(&figures),
-      m_logistics(world, buildings, figures),
+      m_logistics(world, buildings, figures, &m_rules),
       m_fleet(world, buildings, figures, m_rules),
       m_combat(world, buildings, figures),
       m_military(world, buildings, figures, m_rules, m_combat),

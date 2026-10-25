@@ -138,8 +138,9 @@ WalkerPosition walker_position(const Walker& w) noexcept {
     return p;
 }
 
-Logistics::Logistics(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures)
-    : m_world(&world), m_buildings(&buildings), m_figures(&figures) {
+Logistics::Logistics(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
+                     const Rules* rules)
+    : m_world(&world), m_buildings(&buildings), m_figures(&figures), m_rules(rules) {
     m_jobs.assign(world.productions().size(), 0);
     update_storage();
 }
@@ -940,6 +941,9 @@ void Logistics::mine_ore(std::uint32_t home) {
     }
     p.raw = clamp_u16(std::uint32_t{p.raw} + amount);
     m_stats.ore_mined += amount;
+    if (!any_mine && m_rules != nullptr && m_rules->endless_veins) {
+        return;  // Rules::endless_veins: the deep mine's part of a big vein never runs out
+    }
     if (any_mine) {
         if (mine.ware == ware::kGold) {
             return;  // gold never runs out

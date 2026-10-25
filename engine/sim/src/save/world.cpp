@@ -30,6 +30,7 @@ enum RuleKey : std::uint16_t {
     kPirateRule = 23,
     kPirateNests = 24,
     kTraderReach = 25,
+    kEndlessVeins = 26,
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -139,6 +140,10 @@ void write_rules(Writer& out, const Rules& r) {
     if (r.trader_reach != TraderReach::Scaled) {
         values.emplace_back(kTraderReach, static_cast<std::uint32_t>(r.trader_reach));
     }
+    // Endless veins only when they are on: off is the original, so older games keep their bytes.
+    if (r.endless_veins) {
+        values.emplace_back(kEndlessVeins, 1U);
+    }
     // The victory conditions only when there are any: a game without them keeps the bytes of the
     // versions before them.
     if (const VictoryConditions& v = r.victory; v != VictoryConditions{}) {
@@ -206,6 +211,9 @@ Rules read_rules(Reader& in) {
                 break;
             case kTraderReach:
                 r.trader_reach = static_cast<TraderReach>(std::min<std::uint32_t>(v, 1));
+                break;
+            case kEndlessVeins:
+                r.endless_veins = v != 0;
                 break;
             case kClassicAi:
                 r.classic_ai = v != 0;

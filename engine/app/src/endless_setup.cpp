@@ -274,6 +274,7 @@ std::size_t setup_choices(SetupItem item) noexcept {
             return kGoldIslands.size();
         case SetupItem::TraderPrices:
         case SetupItem::TraderReach:
+        case SetupItem::OreVeins:
         case SetupItem::Map:
         case SetupItem::Starts:
         case SetupItem::Resources:
@@ -332,6 +333,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return r.trader_prices == sim::TraderPrices::Market ? 1 : 0;
         case SetupItem::TraderReach:
             return r.trader_reach == sim::TraderReach::Scaled ? 1 : 0;
+        case SetupItem::OreVeins:
+            return r.endless_veins ? 1 : 0;
         case SetupItem::Ships:
             return nearest(kShips, r.max_ships_per_player);
         case SetupItem::Units:
@@ -431,6 +434,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             break;
         case SetupItem::TraderReach:
             r.trader_reach = choice == 1 ? sim::TraderReach::Scaled : sim::TraderReach::Original;
+            break;
+        case SetupItem::OreVeins:
+            r.endless_veins = choice == 1;
             break;
         case SetupItem::Ships:
             r.max_ships_per_player = kShips[choice];
@@ -655,6 +661,7 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
         case SetupItem::Refund:
         case SetupItem::TraderPrices:
         case SetupItem::TraderReach:
+        case SetupItem::OreVeins:
         case SetupItem::Ships:
         case SetupItem::Units:
         case SetupItem::GameSpeed:
@@ -711,6 +718,7 @@ std::string setup_label(SetupItem item) {
     static constexpr std::array<std::string_view, kSetupItems> kKeys = {"setup.refund",
                                                                         "setup.trader",
                                                                         "setup.trader_reach",
+                                                                        "setup.ore_veins",
                                                                         "setup.ships",
                                                                         "setup.units",
                                                                         "setup.speed",
@@ -762,6 +770,8 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 1 ? "setup.trader.market" : "setup.trader.original");
         case SetupItem::TraderReach:
             return ui::tr(choice == 1 ? "setup.trader_reach.per4" : "setup.trader_reach.original");
+        case SetupItem::OreVeins:
+            return ui::tr(choice == 1 ? "setup.ore_veins.endless" : "setup.ore_veins.original");
         case SetupItem::Ships:
             return number_text(kShips[choice]);
         case SetupItem::Units:
@@ -973,6 +983,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (const auto i = name_index(kTraderReachNames, value)) {
             r.trader_reach = static_cast<sim::TraderReach>(*i);
         }
+    } else if (key == "ore_veins") {
+        if (value == "endless" || value == "original") {
+            r.endless_veins = value == "endless";
+        }
     } else if (key == "ships") {
         r.max_ships_per_player = n.value_or(r.max_ships_per_player);
     } else if (key == "units") {
@@ -1066,6 +1080,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("refund", std::to_string(r.refund_share()));
     line("trader_prices", r.trader_prices == sim::TraderPrices::Market ? "market" : "original");
     line("trader_reach", kTraderReachNames[std::min<std::size_t>(static_cast<std::size_t>(r.trader_reach), 1)]);
+    line("ore_veins", r.endless_veins ? "endless" : "original");
     line("ships", std::to_string(r.max_ships_per_player));
     line("units", std::to_string(r.max_army));
     line("game_speed", std::to_string(r.max_game_speed));

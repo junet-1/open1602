@@ -8,6 +8,7 @@
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/logistics.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -361,4 +362,55 @@ TEST_CASE("raw producers: mines take ore from their deposit") {
     CHECK(deposits.size() == 1);
     CHECK(deposits[0].ware == kGold);
     CHECK(logistics.stats().ore_mined == 5 * 32);
+}
+
+TEST_CASE("raw producers: with endless veins the deep mine digs a big vein for ever") {
+    Farmland land;
+    land.place(kMountain, 4, 4);
+    land.place(kSmallMine, 7, 4);
+    land.place(kDeepMine, 7, 6);
+    land.place(kMountain, 10, 10);
+    land.place(kSmallMine, 13, 10);
+    // A big iron vein with 121 t and a small one with 2 t.
+    land.finish({{7, 4}, {7, 6}, {13, 10}},
+                {{kOre, 4, 4, 0, 0, static_cast<std::uint16_t>(121 * 32)}, {kOre, 10, 10, 0, 1, 2 * 32}});
+    sim::Rules rules;
+    rules.endless_veins = true;
+    sim::Logistics logistics(land.world, land.buildings, land.figures, &rules);
+    auto& deposits = land.world.island(0).header.deposits;
+    // Down to 120 t and to the first ton below it as in the original.
+    logistics.handle(needs(land.index(7, 4), 0));
+    logistics.handle(needs(land.index(7, 4), 0));
+    CHECK(land.production(7, 4).raw == 64);
+    CHECK(deposits[0].amount == 119 * 32);
+    // The ore mine still stops below 120 t.
+    logistics.handle(needs(land.index(7, 4), 0));
+    CHECK(land.production(7, 4).raw == 64);
+    // The deep mine digs on, and the vein keeps its 119 t.
+    for (int i = 0; i < 200; ++i) {
+        land.production(7, 6).raw = 0;
+        logistics.handle(needs(land.index(7, 6), 0));
+        CHECK(land.production(7, 6).raw == 32);
+    }
+    CHECK(deposits[0].amount == 119 * 32);
+    // Small veins still run out.
+    logistics.handle(needs(land.index(13, 10), 0));
+    logistics.handle(needs(land.index(13, 10), 0));
+    CHECK(deposits.size() == 1);
+    CHECK(logistics.stats().ore_mined == 204 * 32);
+
+    // The rule stays with the savegame; off, as the original, is the default.
+    CHECK(!sim::Rules{}.endless_veins);
+    CHECK(!sim::Rules::original().endless_veins);
+    for (const bool endless : {false, true}) {
+        sim::Rules saved;
+        saved.endless_veins = endless;
+        land.world.set_saved_rules(saved);
+        auto bytes = sim::write_game(land.world, land.buildings);
+        REQUIRE(bytes.ok());
+        auto back = sim::read_game(*bytes, land.buildings);
+        REQUIRE(back.ok());
+        REQUIRE(back->saved_rules().has_value());
+        CHECK(back->saved_rules()->endless_veins == endless);
+    }
 }

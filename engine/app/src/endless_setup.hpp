@@ -51,6 +51,7 @@ enum class SetupItem : std::uint8_t {
     Refund,
     TraderPrices,
     TraderReach,
+    OreVeins,
     // Limits
     Ships,
     Units,
