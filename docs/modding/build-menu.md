@@ -63,4 +63,7 @@ or no room in its row is passed over with a warning, and the rest of the file is
 field is passed over alone. A file that is no valid data file is passed over as a whole.
 
 The menu only offers a building: whether a player may build it (its `Bauinfra`, the costs) is the
-record's in `haeuser.cod`, and computers do not know a package's buildings yet (MD-4).
+record's in `haeuser.cod`. Computers do not build a package's new production chains yet: they
+find their producers by ware and raw material, so a building that makes a known ware from a known
+raw material is used, but nothing tells them when they need a new chain. A format for that is to
+be added later (MD-4, [status.md](../status.md) section 2.2).
