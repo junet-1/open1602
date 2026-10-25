@@ -37,5 +37,4 @@ The appended digits (`INSEL5`, `PLAYER4`, …) are presumably version numbers of
 
 ```sh
 o1602-tool chunks "Szenes/Das Atoll.szs"
-python3 tools/python/anno_tool.py chunks NORD/big.scp
 ```

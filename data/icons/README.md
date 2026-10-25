@@ -9,7 +9,7 @@ game's menus (sandstone, brass, painted parchment) but none of its pictures or l
 | `open1602-small.svg` | Source for 16 to 32 px, with fewer details so it stays legible |
 | `png/open1602-<N>.png` | 16 to 512 px; installed into the hicolor icon theme on Linux |
 | `open1602.ico` | Windows; linked into `open1602.exe` (`engine/app/open1602.rc.in`) |
-| `open1602.icns` | macOS, 16 to 1024 px; for an app bundle |
+| `open1602.icns` | macOS, 16 to 1024 px; copied into `Open1602.app/Contents/Resources` (`engine/app/CMakeLists.txt`) |
 | `window/open1602-<N>.bmp` | 64 and 128 px; compiled into the game, which sets them as the window icon (title bar, task bar, macOS dock) |
 
 The desktop entry for Linux is `data/linux/org.open1602.Open1602.desktop`; its name matches the

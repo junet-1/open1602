@@ -1,6 +1,7 @@
 # engine/app
 
-The game executable `open1602` and the wiring of all modules. Built only with `-DO1602_BUILD_GAME=ON`.
+The game executable `open1602` (`Open1602.app` on macOS) and the wiring of all modules. Built only with
+`-DO1602_BUILD_GAME=ON`, into `bin/` (see the [README](../../README.md#running)).
 
 - `main.cpp`: command line (an unknown option such as `--help` prints every option and the default
   keys), start in the main menu or directly in a game.
@@ -37,6 +38,19 @@ The game executable `open1602` and the wiring of all modules. Built only with `-
 - `multiplayer.cpp`: connects the game to an `engine/net` session.
 - `game_sound.*`, `video_player.*`, `diagnostics.*`: sound, decoding and drawing a video, log and
   error reporting.
+- `command_line.*`, `viewer_options.hpp`: the command line parsed into what the program is asked to
+  do at the start, without a window, so the tests cover it.
+- `game_folder.*`, `game_folder_dialog.*`: which installation the game plays with (`--game-dir`,
+  `ANNO1602_DIR`, the folder chosen before, the usual folders) and the folder dialog when none is
+  found.
+- `endless_setup.*`, `game_settings_menu.*`: the settings of a new game and its start dialog (ADR 0008).
+- `goods_window.*`, `goods_tabs.cpp`, `goods_window_parts.hpp`, `parchment.*`,
+  `production_utilisation.*`: the window "Warenbilanz" (ADR 0012) on its parchment, and how busy a
+  production building is.
+- `diplomacy_strip.*`, `banner_graphic.*`: the diplomacy window with more than three partners and the
+  interface's art in any banner's colour.
+- `names.*`, `name_edit.*`, `tile_status.*`, `tutorial.*`: the names of players, cities and ships and
+  typing them, what the status line says about the map under the mouse, and the tutorial.
 
 Controls: press F1 in the game; the decisions behind them are in
 [ADR 0010](../../docs/architecture/0010-controls-and-interface.md).

@@ -64,6 +64,17 @@ option(O1602_BUILD_TOOLS  "Build command line tools (o1602-tool)"    ON)
 option(O1602_BUILD_GAME   "Build the game executable (needs SDL3)"   OFF)
 option(O1602_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"  OFF)
 
+# The programs a player starts (the game, o1602-tool and, on Windows, the DLLs they need) land in
+# one folder on every platform. The presets for playing (release, vcpkg) set it to bin/ at the top
+# of the source tree; every other build keeps them in bin/ of its build folder.
+set(O1602_OUTPUT_DIR "${PROJECT_BINARY_DIR}/bin" CACHE PATH "Folder the game and o1602-tool are built into")
+
+# Puts a program into O1602_OUTPUT_DIR. The generator expression keeps multi-config generators
+# (Visual Studio, Xcode) from adding a Debug/Release subfolder.
+function(o1602_set_output_dir target)
+    set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${O1602_OUTPUT_DIR}$<0:>")
+endfunction()
+
 # zlib packs savegames (.o1602) and PNG screenshots. The game needs it: without it, it could not
 # load the compressed savegames other builds write. Libraries, tests and tools build without it.
 if(O1602_BUILD_GAME)

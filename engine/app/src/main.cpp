@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// open1602 - map viewer (milestone M2). Usage:
-//
-//   open1602 [--game-dir DIR] [--scenario FILE | --savegame NAME | --load FILE] [--size WxH] [--zoom 0|1|2]
-//            [--owners] [--original-sheets] [--frames N] [--screenshot out.png]
+// open1602 - the game: finds the installation, then starts in the main menu or directly in a game.
+// The options are parsed in command_line.cpp; an unknown one prints them all (usage() below).
 //
 // The game directory defaults to $ANNO1602_DIR, else to the folder chosen before, else to an
 // installation in the usual folders; without any the player chooses it (game_folder.hpp). Without a

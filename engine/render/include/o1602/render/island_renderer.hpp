@@ -51,7 +51,8 @@ struct RenderOptions {
     /// Global animation step added to every animated tile (the original advances a frame counter
     /// per building type every AnimTime; for still images a single global step is sufficient).
     std::uint32_t anim_step = 0;
-    /// View rotation 0..3. All four are visually consistent; not yet compared with the running game.
+    /// View rotation 0..3, in the original's order (compared with the running game,
+    /// docs/original-comparison.md section 4).
     std::uint8_t view_rotation = 0;
 };
 

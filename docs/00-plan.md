@@ -70,9 +70,10 @@ a Python grammar/parser generator for the `.cod` scripts.
 | Format analysis | Python 3 (+ `construct`/Kaitai Struct), ImHex with pattern files |
 | Quick static checks | objdump, rizin (optional) |
 
-**Risk**: The rea documentation does not explicitly mention 32-bit PE (Ghidra itself supports it fully).
-The first technical step is therefore a feasibility test "rea opens `1602.exe`". Fallback: Ghidra headless with
-our own scripts, rea for the remaining targets.
+The rea documentation does not explicitly mention 32-bit PE (Ghidra itself supports it fully), so the
+first technical step was a feasibility test "rea opens `1602.exe`". It passed on 2026-10-16
+([result](../re/notes/rea-smoke-test-result.md)); rea is the main tool, Ghidra headless with the scripts
+in `re/scripts/ghidra/` the fallback.
 
 ### 3.3 Procedure
 1. **Assets first** (quick wins, independent of the binary): `.cod` decoder, BSH+COL → PNG, ZEI fonts,

@@ -14,6 +14,7 @@ privately when the build has it.
 | `data_file.hpp` | The data files of content packages: the part of TOML they need (tables, strings, integers, booleans) |
 | `png_writer.hpp` | PNG output for screenshots and the tools |
 | `embedded_file.hpp` | Files compiled into the program (`cmake/EmbedFiles.cmake`) |
+| `hash.hpp` | A fast 64-bit hash that is the same on every platform, for the fingerprints computers of a multiplayer game compare |
 
 The deterministic random numbers and the entity pools of the simulation live in `engine/sim`
 (`random.hpp`, `pool.hpp`).

@@ -21,10 +21,12 @@ ctest --preset debug
 # Tests additionally against your own installation:
 export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
 ctest --preset debug
-./build/debug/tools/o1602-tool/o1602-tool islands "$ANNO1602_DIR/NORD/big.scp"
+./build/debug/bin/o1602-tool islands "$ANNO1602_DIR/NORD/big.scp"
 ```
 
-More presets: `release`, `asan` (AddressSanitizer + UBSan), `ci` (warnings as errors).
+More presets: `release` (puts the programs into `bin/` of the clone), `asan` (AddressSanitizer + UBSan),
+`tsan` (ThreadSanitizer), `ci` (warnings as errors), `coverage` (GCC line and branch coverage). Every
+preset but `release` and `vcpkg` puts the programs into `build/<preset>/bin/`.
 
 ### The game `open1602` (SDL3)
 
@@ -34,11 +36,11 @@ The program is only built with `-DO1602_BUILD_GAME=ON` and needs the `sdl3` pack
 cmake --preset release -DO1602_BUILD_GAME=ON
 cmake --build --preset release
 export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
-./build/release/engine/app/open1602                                  # the main menu
-./build/release/engine/app/open1602 --scenario "Szenes/Endlosspiel00.szs" --zoom 1
-./build/release/engine/app/open1602 --savegame Merlin01           # name from the game (Game.dat)
-./build/release/engine/app/open1602 --load ~/.local/share/Open1602/saves/quicksave.o1602  # own savegame
-./build/release/tools/o1602-tool/o1602-tool savegames               # all savegames with names
+./bin/open1602                                  # the main menu
+./bin/open1602 --scenario "Szenes/Endlosspiel00.szs" --zoom 1
+./bin/open1602 --savegame Merlin01           # name from the game (Game.dat)
+./bin/open1602 --load ~/.local/share/Open1602/saves/quicksave.o1602  # own savegame
+./bin/o1602-tool savegames               # all savegames with names
 ```
 
 Every option and the default keys: `open1602 --help` (any unknown option prints them). In the game, F1 shows the keys over the map;

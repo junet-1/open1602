@@ -21,5 +21,8 @@ Depends only on `core`; every loader returns `core::Result`.
 | `savegame.hpp` | Further game state chunks: cities, warehouse stock, production, deer |
 | `high_scores.hpp` | High score lists and campaign progress |
 | `game_directory.hpp` | Access to an original installation (`ANNO1602_DIR`) |
+| `game_content.hpp` | The fingerprint of the data the simulation computes with and the mod packages in order, shared by game, tools and server |
+| `data_fixes.hpp` | Corrections of the original's data, applied after loading and switchable off (ADR 0006) |
+| `cursor_resource.hpp` | The original's mouse cursors from the resources of `Language.dll` |
 
 The goal is that no input file crashes a loader; known gaps are tracked in the review findings.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Game executable. For now the map viewer (milestone M2).
+# The game executable: open1602 (open1602.exe on Windows, Open1602.app on macOS).
 
 add_executable(open1602
     src/main.cpp
@@ -15,6 +15,7 @@ add_executable(open1602
 )
 target_link_libraries(open1602 PRIVATE o1602::sim o1602::render_sdl o1602::platform o1602::audio o1602::ui o1602::video o1602::net o1602::menus)
 o1602_set_warnings(open1602)
+o1602_set_output_dir(open1602)
 
 if(WIN32)
     set_target_properties(open1602 PROPERTIES WIN32_EXECUTABLE ON)
@@ -32,7 +33,25 @@ if(WIN32)
 endif()
 o1602_utf8_manifest(open1602)
 
-install(TARGETS open1602 RUNTIME DESTINATION bin)
+# On macOS the game is an app bundle, so that Finder and the dock show its icon and it starts by a
+# double click. From a terminal it is started as Open1602.app/Contents/MacOS/Open1602.
+if(APPLE)
+    set(icon_file "${PROJECT_SOURCE_DIR}/data/icons/open1602.icns")
+    target_sources(open1602 PRIVATE "${icon_file}")
+    set_source_files_properties("${icon_file}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_target_properties(open1602 PROPERTIES
+        MACOSX_BUNDLE ON
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
+        OUTPUT_NAME Open1602
+        MACOSX_BUNDLE_BUNDLE_NAME Open1602
+        MACOSX_BUNDLE_GUI_IDENTIFIER org.open1602.Open1602
+        MACOSX_BUNDLE_ICON_FILE open1602.icns
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_COPYRIGHT "GPL-3.0-or-later")
+endif()
+
+install(TARGETS open1602 RUNTIME DESTINATION bin BUNDLE DESTINATION .)
 # Linux desktops find the game in their menus through the desktop entry and the hicolor icon theme.
 if(UNIX AND NOT APPLE)
     set(app_id org.open1602.Open1602)

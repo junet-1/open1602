@@ -129,10 +129,21 @@ them there.
 
 ## Running
 
-| Platform | Game |
-|---|---|
-| Linux, macOS | `./build/release/engine/app/open1602` |
-| Windows | `build\vcpkg\engine\app\open1602.exe` |
+The `release` and `vcpkg` presets put the game and `o1602-tool` into the folder `bin/` at the top of
+the clone, on every platform:
+
+| Platform | Game | Start by double click |
+|---|---|---|
+| Linux | `./bin/open1602` | from the menu after `cmake --install` (below) |
+| macOS | `./bin/Open1602.app/Contents/MacOS/Open1602` or `open bin/Open1602.app` | `Open1602.app` in Finder |
+| Windows | `bin\open1602.exe` (with `SDL3.dll` beside it) | `open1602.exe` in Explorer |
+
+The program carries the application icon on Windows (`open1602.exe`) and macOS (`Open1602.app`). On
+Linux, `cmake --install build/release --prefix ~/.local` installs the game into `~/.local/bin` with its
+desktop entry and icon, so it appears in the desktop's application menu (the entry starts `open1602`,
+so `~/.local/bin` must be on the `PATH`, as it is on most distributions). The other presets (`debug`,
+`asan`, `tsan`, `ci`, `coverage`) keep their programs in `build/<preset>/bin/`, so a development build
+never replaces the one for playing.
 
 Without arguments the game starts in the main menu. Some more ways to start:
 
@@ -164,7 +175,8 @@ How to run the tests, filter them and use their environment variables: [tests/RE
 
 ## Tools
 
-`o1602-tool` (in `build/<preset>/tools/o1602-tool/`) inspects and converts the original's files:
+`o1602-tool` (in `bin/` beside the game, or `build/<preset>/bin/` for the development presets) inspects
+and converts the original's files:
 
 ```sh
 o1602-tool chunks     <file>                         # chunk structure of any binary file
@@ -185,22 +197,17 @@ o1602-tool bench      --players 8 --minutes 600      # run a game headless and m
 
 Without arguments `o1602-tool` lists every command with its options.
 
-`tools/python/` holds Python prototypes from the reverse engineering: `anno_formats.py` and
-`anno_tool.py` read chunks, `.cod` and BSH files again in Python for quick experiments, and
-`compare_screenshot.py` lines up a screenshot of the original with a `render-world` image. They are not
-tested and not kept in step with the engine; where they disagree with `engine/assets` (and
-`o1602-tool`), the C++ is right.
-
 ## Project layout
 
 | Folder | Contents |
 |---|---|
 | `engine/` | Engine modules: `core`, `assets`, `sim`, `net`, `render`, `platform`, `audio`, `video`, `ui`, `app`; each has a README |
-| `tools/` | `o1602-tool` (C++, one file per command group), `make_icons.py` (renders the [application icon](data/icons/README.md)) and unmaintained Python prototypes from reverse engineering (`tools/python/`; the C++ readers in `engine/assets` are authoritative) |
+| `tools/` | `o1602-tool` (C++, one file per command group) and `make_icons.py` (renders the [application icon](data/icons/README.md)) |
 | `tests/` | Unit tests and tests against the original data ([how to run them](tests/README.md)) |
 | `docs/` | [Plan](docs/00-plan.md), [status](docs/status.md), [file formats](docs/formats/README.md), [architecture decisions](docs/architecture/README.md), [languages](docs/modding/languages.md), [messages](docs/modding/messages.md), [build menu](docs/modding/build-menu.md), [data limits](docs/modding/data-limits.md) and [open work](docs/modding/open-work.md) for modding |
 | `data/` | Files the engine brings itself: [interface texts](docs/modding/languages.md), the [application icon](data/icons/README.md), the Linux desktop entry |
 | `re/` | Analysis scripts and notes |
+| `bin/` | Not in git: the game and `o1602-tool` built by the `release` and `vcpkg` presets ([Running](#running)) |
 
 The analysis of the original game (`docs/re/`) and the symbol tables (`re/symbols/`) are kept in the
 private companion repository **open1602-re**, which holds the reverse-engineering notes. They are not

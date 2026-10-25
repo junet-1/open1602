@@ -18,8 +18,14 @@ Main entry points:
 Game systems: `construction`, `drag_path`, `production`, `production_cycle`, `logistics`,
 `pathfinding`, `growth`, `houses`, `consumption`, `disasters`, `volcanoes`, `island_events`,
 `ship`/`ships`, `sea_paths`, `soldier`/`military`, `land_paths`, `combat`, `target`, `diplomacy`,
-`mission`, `score`, `ai` (with `src/ai/`), `event_buffer` (events for the interface), `game_data`
-(the numbers of the original's data from `assets/game_data.hpp` in this namespace).
+`mission`, `score`, `victory` (the endless game's own victory conditions), `ai` (with `src/ai/`),
+`event_buffer` (events for the interface), `goods_ledger`/`goods_statistics` (the goods balance,
+ADR 0012), `game_data` (the numbers of the original's data from `assets/game_data.hpp` in this
+namespace).
+
+Data a mod may change: `faction` (factions and who steers a slot, [factions.md](../../docs/modding/factions.md)),
+`balance` ([balance.md](../../docs/modding/balance.md)), `island_templates` (the original's island
+templates in one place); `limits` holds the limits more than one module checks, each defined once.
 
 New games and saving: `new_game`, `world_plan`, `world_generator`; `save_game` (the file of the own
 format `.o1602`: header, zlib, CRC-32), `savegame_extension` (the `O1602` chunk of an exported `.GAM`),
