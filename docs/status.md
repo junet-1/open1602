@@ -155,6 +155,7 @@ are listed in 2.1.
 | Content packs with manifest and identifiers, free goods list, PNG and OGG import (also icons, sounds and videos of the mods' messages) | M8 | ADR 0007 |
 | Scripts post the mods' messages (`MapViewer::announce`) | Lua (M8) | [messages.md](modding/messages.md) |
 | Lua scripts, custom scenarios and campaigns | M8, scenarios | ADR 0007 |
+| Computer players use a package's new production chains: a format with which mods describe new chains, stages and cheats to the AI (MD-4; the AI's tables are in one header since #198, `engine/sim/src/ai/ai_tables.hpp`). Until then the computers build no buildings of a new chain; a building that makes a known ware from a known raw material they already find by ware and raw material | to be added later (owner's decision 2026-10-25) | [build-menu.md](modding/build-menu.md) |
 | World generator stage 2 (custom island shapes, including ones larger than the templates) | deferred until everything runs | [00-plan.md](00-plan.md) |
 | Replays from the session's frames | M6 | [ADR 0011](architecture/0011-multiplayer-lockstep.md) |
 | Ideas: full refund shortly after building; own road pathfinding alongside that of the original; pirate distance of the difficulty level as a setting (S-068) | open, decision needed | – |
