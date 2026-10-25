@@ -2220,11 +2220,9 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 
 ### Still open
 
-| Finding | What is left | Size |
-|---|---|---|
-| MD-4 | #198 put the AI's tables in one header (producer table, Needs, public tasks, cheats); #141 did the id arithmetic. Open: a format with which mods describe new chains, stages and cheats to the AI (the owner decides whether it is wanted). | L |
+No finding is open. The runs not done are listed at the end of this section.
 
-Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
+Closed by the owner's decision: MD-4 with the AI's tables in one header (#198); the format with which mods describe new chains, stages and cheats to the AI is to be added later (docs/status.md, section 2.2), until then computers build no buildings of a package's new chain. The FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
 Closed by reading without a change: FB-16 and FB-18 (each a scan of the cost buildings or a few texts per frame for what is on screen, microseconds even in large worlds). The rest of TB-22: `deer_at`, `spawn_robber` and `find_victim` walk the walkers once per deer spawn, robber or robber look, and `call_hunter` the productions once per deer that walks into a city; all are rare events, not per tick. The rest of TB-9: `building_count` is called once per landing plan, attack check, outpost raid or settlement stage decision, all on the computers' 6-s to 30-s timers, and walks the house and production lists once (microseconds); a cache keyed on those lists would cost more code than it saves. TB-25: the single-tile `forget_growth` is no longer called (withering and recovery use the batch form), and spreading `wither_scan` over the epoch would change which fields wither.
 
