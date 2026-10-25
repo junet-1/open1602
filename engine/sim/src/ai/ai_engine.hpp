@@ -279,9 +279,6 @@ private:
     void pick_island(AiPlayer& p);
     [[nodiscard]] bool island_allowed(const AiPlayer& p, std::uint16_t island) const;
     void task_settle_area(AiPlayer& p);
-    /// The regions of free settling ground of an island (runs of 5 both ways, connected), and their
-    /// total area.
-    [[nodiscard]] std::vector<Region> free_regions(std::uint16_t island, std::int32_t& total) const;
     void task_settle_site(AiPlayer& p);
     void task_settle_land(AiPlayer& p);
     void end_settlement(AiPlayer& p);
@@ -510,13 +507,19 @@ private:
     };
     const SiteCounts& site_counts(std::uint16_t island);
     std::vector<std::optional<SiteCounts>> m_site_counts;
-    /// The free land regions of an island (task 2), kept per island while its tiles stay the
-    /// same: every pass of the island search tests the islands again (TB-13).
+    /// The free land regions of an island (task 2) and its free beach tiles (task 3), kept per
+    /// island while its tiles stay the same: every pass of the island search tests the islands
+    /// again (TB-13).
     struct AreaScan {
         std::uint64_t revision = 0;  ///< 0: none yet
         std::vector<Region> regions;
         std::int32_t total = 0;
+        std::vector<std::pair<std::int32_t, std::int32_t>> beach;  ///< row by row, left to right
     };
+    const AreaScan& area_scan(std::uint16_t island);
+    /// The regions of free settling ground of an island (runs of 5 both ways, connected), their
+    /// total area and the beach tiles of no city.
+    void scan_area(std::uint16_t island, AreaScan& out) const;
     std::vector<AreaScan> m_area_scans;
     /// The newest block revision of an island's map: equal while none of its tiles changed.
     [[nodiscard]] std::uint64_t island_revision(std::uint16_t island) const;

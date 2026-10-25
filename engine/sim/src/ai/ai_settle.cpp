@@ -169,24 +169,29 @@ void Engine::task_settle_area(AiPlayer& p) {
     if (s.island < 0 || static_cast<std::size_t>(s.island) >= m_world.islands().size()) {
         return;
     }
-    const auto island = static_cast<std::uint16_t>(s.island);
-    // The regions depend on the island's tiles only: kept while none of them changed (TB-13).
-    if (m_area_scans.size() < m_world.islands().size()) {
-        m_area_scans.resize(m_world.islands().size());
-    }
-    AreaScan& scan = m_area_scans[island];
-    if (const std::uint64_t revision = island_revision(island); scan.revision != revision) {
-        scan.revision = revision;
-        scan.regions = free_regions(island, scan.total);
-    }
+    const AreaScan& scan = area_scan(static_cast<std::uint16_t>(s.island));
     s.regions = scan.regions;
     if (scan.total >= s.need) {
         push(p, kSettleSite, true);
     }
 }
 
-std::vector<Region> Engine::free_regions(std::uint16_t island, std::int32_t& total) const {
-    std::vector<Region> regions;
+const Engine::AreaScan& Engine::area_scan(std::uint16_t island) {
+    // The scan depends on the island's tiles only: kept while none of them changed (TB-13).
+    if (m_area_scans.size() < m_world.islands().size()) {
+        m_area_scans.resize(m_world.islands().size());
+    }
+    AreaScan& scan = m_area_scans[island];
+    if (const std::uint64_t revision = island_revision(island); scan.revision != revision) {
+        scan_area(island, scan);
+        scan.revision = revision;
+    }
+    return scan;
+}
+
+void Engine::scan_area(std::uint16_t island, AreaScan& out) const {
+    out.regions.clear();
+    out.beach.clear();
     const IslandMap& map = island_of(island).map;
     const auto w = static_cast<std::int32_t>(map.width());
     const auto h = static_cast<std::int32_t>(map.height());
@@ -196,6 +201,9 @@ std::vector<Region> Engine::free_regions(std::uint16_t island, std::int32_t& tot
             const Tile t = tile(island, x, y);
             ok[std::size_t(y) * std::size_t(w) + std::size_t(x)] =
                 t.valid() && t.city == MapCell::kNoCity && settle_ground(t.kind) ? 1 : 0;
+            if (t.valid() && beach_kind(t.kind) && t.city == MapCell::kNoCity) {
+                out.beach.emplace_back(x, y);
+            }
         }
     }
     // Vertical runs of at least 5 free tiles, then horizontal runs of 5 among them.
@@ -231,6 +239,7 @@ std::vector<Region> Engine::free_regions(std::uint16_t island, std::int32_t& tot
         }
     }
     // Connected regions.
+    std::int32_t& total = out.total;
     total = 0;
     std::vector<std::int32_t> todo;
     for (std::int32_t y = 0; y < h; ++y) {
@@ -266,10 +275,9 @@ std::vector<Region> Engine::free_regions(std::uint16_t island, std::int32_t& tot
                 }
             }
             total += r.area;
-            regions.push_back(r);
+            out.regions.push_back(r);
         }
     }
-    return regions;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -354,71 +362,73 @@ void Engine::task_settle_site(AiPlayer& p) {
     } best;
     std::vector<std::uint8_t> tried(std::size_t(w) * std::size_t(h), 0);
     const std::int32_t min_depth = experienced ? 12 : 21;
-    for (std::int32_t y = std::max(region.y0 - 1, 0); y <= std::min(region.y1 + 1, h - 1); ++y) {
-        for (std::int32_t x = std::max(region.x0 - 1, 0); x <= std::min(region.x1 + 1, w - 1); ++x) {
-            const Tile t = tile(island, x, y);
-            if (!t.valid() || !beach_kind(t.kind) || t.city != MapCell::kNoCity) {
-                continue;
-            }
-            for (std::int32_t oy = y - 2; oy <= y; ++oy) {
-                for (std::int32_t ox = x - 2; ox <= x; ++ox) {
-                    if (!isl.map.contains(ox, oy) || tried[std::size_t(oy) * std::size_t(w) + std::size_t(ox)] != 0) {
+    // The free beach tiles around the region, row by row as the island's scan keeps them.
+    const std::int32_t bx0 = std::max(region.x0 - 1, 0);
+    const std::int32_t by0 = std::max(region.y0 - 1, 0);
+    const std::int32_t bx1 = std::min(region.x1 + 1, w - 1);
+    const std::int32_t by1 = std::min(region.y1 + 1, h - 1);
+    for (const auto& [x, y] : area_scan(island).beach) {
+        if (x < bx0 || x > bx1 || y < by0 || y > by1) {
+            continue;
+        }
+        for (std::int32_t oy = y - 2; oy <= y; ++oy) {
+            for (std::int32_t ox = x - 2; ox <= x; ++ox) {
+                if (!isl.map.contains(ox, oy) || tried[std::size_t(oy) * std::size_t(w) + std::size_t(ox)] != 0) {
+                    continue;
+                }
+                tried[std::size_t(oy) * std::size_t(w) + std::size_t(ox)] = 1;
+                BuildOrder order;
+                order.player = p.player;
+                order.island = island;
+                order.items.push_back(BuildItem{kontor->id, ox, oy, 0, 0});
+                const BuildPlan plan = plan_build(m_world, m_buildings, order);
+                const PlannedBuild& item = plan.items.front();
+                switch (item.refusal) {
+                    case BuildRefusal::None:
+                    case BuildRefusal::Money:
+                    case BuildRefusal::Tools:
+                    case BuildRefusal::Wood:
+                    case BuildRefusal::Bricks:
+                        break;
+                    default:
                         continue;
-                    }
-                    tried[std::size_t(oy) * std::size_t(w) + std::size_t(ox)] = 1;
-                    BuildOrder order;
-                    order.player = p.player;
-                    order.island = island;
-                    order.items.push_back(BuildItem{kontor->id, ox, oy, 0, 0});
-                    const BuildPlan plan = plan_build(m_world, m_buildings, order);
-                    const PlannedBuild& item = plan.items.front();
-                    switch (item.refusal) {
-                        case BuildRefusal::None:
-                        case BuildRefusal::Money:
-                        case BuildRefusal::Tools:
-                        case BuildRefusal::Wood:
-                        case BuildRefusal::Bricks:
-                            break;
-                        default:
-                            continue;
-                    }
-                    std::uint32_t fw = 0;
-                    std::uint32_t fh = 0;
-                    rotated_size(*kontor, item.rotation, fw, fh);
-                    if (!open_sea_ahead(island, item.x, item.y, fw, fh, item.rotation)) {
-                        continue;  // e.g. the shore of a lake inside the island
-                    }
-                    // Land behind the Kontor, away from the water side.
-                    const std::uint8_t inland = static_cast<std::uint8_t>((item.rotation + 2U) & 3U);
-                    const std::int32_t cx = item.x + static_cast<std::int32_t>(fw) / 2;
-                    const std::int32_t cy = item.y + static_cast<std::int32_t>(fh) / 2;
-                    std::int32_t sx = cx;
-                    std::int32_t sy = cy;
-                    switch (inland) {
-                        case 0:
-                            sx = item.x + static_cast<std::int32_t>(fw);
-                            break;
-                        case 1:
-                            sy = item.y + static_cast<std::int32_t>(fh);
-                            break;
-                        case 2:
-                            sx = item.x - 1;
-                            break;
-                        default:
-                            sy = item.y - 1;
-                            break;
-                    }
-                    const std::int32_t depth = free_run(island, MapCell::kNoCity, sx, sy, inland);
-                    if (depth <= min_depth) {
-                        continue;
-                    }
-                    if (!experienced && trees.count(cx - 12, cy - 12, cx + 12, cy + 12) <= 60) {
-                        continue;
-                    }
-                    const std::int32_t g = green.count(cx - 32, cy - 32, cx + 32, cy + 32);
-                    if (g > best.green) {
-                        best = {item.x, item.y, item.rotation, g};
-                    }
+                }
+                std::uint32_t fw = 0;
+                std::uint32_t fh = 0;
+                rotated_size(*kontor, item.rotation, fw, fh);
+                if (!open_sea_ahead(island, item.x, item.y, fw, fh, item.rotation)) {
+                    continue;  // e.g. the shore of a lake inside the island
+                }
+                // Land behind the Kontor, away from the water side.
+                const std::uint8_t inland = static_cast<std::uint8_t>((item.rotation + 2U) & 3U);
+                const std::int32_t cx = item.x + static_cast<std::int32_t>(fw) / 2;
+                const std::int32_t cy = item.y + static_cast<std::int32_t>(fh) / 2;
+                std::int32_t sx = cx;
+                std::int32_t sy = cy;
+                switch (inland) {
+                    case 0:
+                        sx = item.x + static_cast<std::int32_t>(fw);
+                        break;
+                    case 1:
+                        sy = item.y + static_cast<std::int32_t>(fh);
+                        break;
+                    case 2:
+                        sx = item.x - 1;
+                        break;
+                    default:
+                        sy = item.y - 1;
+                        break;
+                }
+                const std::int32_t depth = free_run(island, MapCell::kNoCity, sx, sy, inland);
+                if (depth <= min_depth) {
+                    continue;
+                }
+                if (!experienced && trees.count(cx - 12, cy - 12, cx + 12, cy + 12) <= 60) {
+                    continue;
+                }
+                const std::int32_t g = green.count(cx - 32, cy - 32, cx + 32, cy + 32);
+                if (g > best.green) {
+                    best = {item.x, item.y, item.rotation, g};
                 }
             }
         }
