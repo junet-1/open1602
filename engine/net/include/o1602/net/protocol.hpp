@@ -26,7 +26,7 @@ namespace o1602::net {
 /// Raised whenever the messages or the simulation change in a way older builds would not follow.
 /// The first three bytes of a Hello (its type and this version) never change, so that a computer of
 /// another version is told so (RefuseReason::Version) rather than refused as nonsense (MS-22).
-inline constexpr std::uint16_t kProtocolVersion = 12;
+inline constexpr std::uint16_t kProtocolVersion = 13;
 
 /// Upper limits a decoded message must keep; more comes from damaged or hostile data.
 inline constexpr std::size_t kMaxNameLength = sim::PlayerRename::kMaxNameLength;
@@ -222,6 +222,8 @@ struct Lobby {
     bool computer_takes_over = true;
     /// Only the host pauses and resumes the game; the others' pauses are refused (MS-20).
     bool host_pauses_only = false;
+    /// Spectators may write in the chat, to everyone (they read the lines to everyone in any case).
+    bool spectators_chat = true;
     friend bool operator==(const Lobby&, const Lobby&) = default;
 };
 
@@ -241,12 +243,20 @@ struct SetBanner {
     sim::BannerId banner = 0;
 };
 
-/// A line of chat. From a computer only `text` counts: the host fills in who said it and sends it
-/// to everyone.
+/// A line of chat, to everyone or privately to some players. From a computer only `text`,
+/// `everyone` and `to` count: the host fills in who said it. A line to everyone goes to every
+/// computer, the spectators' too. A private line goes only to the computers of the players in `to`
+/// and back to the one who said it: the others never get it.
 struct Chat {
     Seat seat = sim::kNoPlayer;
     std::string name;
     std::string text;  ///< 1 to kMaxChatLength bytes (Windows-1252)
+    bool everyone = true;
+    /// (Private) The players it is for, ascending; from the host: those it reached.
+    std::vector<Seat> to;
+    /// (Private, from the host to the one who said it only) The players in `to` it did not reach:
+    /// no person plays them (any more).
+    std::vector<Seat> missed;
 };
 
 // --- Host migration ---

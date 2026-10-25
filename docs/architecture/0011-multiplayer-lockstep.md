@@ -181,6 +181,24 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
       computer plays the other people's slots, and it can be hosted anew as a savegame.
     - *Protocol.* Version 3: `Hello::returning`, `Roster::successor` and `successor_address`, the
       message `Standby`.
+17. **Chat.** A line (`Chat`, at most 200 bytes, 5 lines a second per computer) goes to everyone
+    or privately to some players. It travels beside the frames: it never reaches the game, its
+    savegames or its fingerprints. The host fills in who said it, so nobody speaks for another.
+    - *To everyone:* the host sends the line to every computer, spectators too.
+    - *Privately* (`everyone` false, the players in `to`): only players say something privately,
+      and only to players a person plays. The host sends the line to the computers of those
+      players and nowhere else, so the others never receive it, not even encrypted. It goes back
+      to the computer that said it with `to` cut to the players it reached and the others in
+      `missed` (a computer playing the slot, nobody, or a person who left). The host keeps nothing
+      of it, so after a host migration the successor routes the same way.
+    - *Spectators* read every line to everyone. Whether they may write, to everyone only, is the
+      host's choice (`SessionConfig::spectators_chat`, `Lobby::spectators_chat`); the successor
+      keeps it.
+    - *Limits.* The host passes on every line and could read the private ones with a changed
+      program, and ENet does not encrypt, so someone on the same network could read them too.
+      Private means that no other player's computer gets the line, not that it is secret from
+      the host.
+    - *Protocol.* Version 13: `Chat::everyone`, `to` and `missed`, `Lobby::spectators_chat`.
 
 ## Rationale
 
@@ -221,3 +239,5 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
   relay for hosts behind strict NAT, IPv6 (ENet 1.3 knows IPv4 only), searches beyond the local
   network.
 - Replays: the savegame plus the session's frames are already all one needs.
+- End-to-end encryption of private chat lines (point 17), so that the host passes them on unread:
+  a key pair per computer, its public key in the roster, each line sealed for its recipients.

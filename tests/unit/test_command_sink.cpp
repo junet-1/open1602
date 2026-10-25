@@ -41,7 +41,7 @@ public:
 
     void submit(sim::Command command) override { commands.push_back(std::move(command)); }
     void update(std::uint32_t, const sim::Simulation::BeforeTick&) override {}
-    void say(std::string) override {}
+    void say(std::string, std::vector<net::Seat>) override {}
 
     std::vector<sim::Command> commands;
 };

@@ -165,6 +165,9 @@ void Session::chat_event(const Chat& chat) {
     e.seat = chat.seat;
     e.name = chat.name;
     e.text = chat.text;
+    e.everyone = chat.everyone;
+    e.to = chat.to;
+    e.missed = chat.missed;
     event(std::move(e));
 }
 
