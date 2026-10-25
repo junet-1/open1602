@@ -30,7 +30,7 @@ enum RuleKey : std::uint16_t {
     kPirateRule = 23,
     kPirateNests = 24,
     kTraderReach = 25,
-    kReveal = 26,
+    kReveal = 27,
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
