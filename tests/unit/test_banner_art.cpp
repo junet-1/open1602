@@ -21,9 +21,12 @@ namespace {
 
 /// A solid RGBA image.
 std::vector<std::uint8_t> solid(std::uint32_t w, std::uint32_t h, assets::Rgba c) {
-    std::vector<std::uint8_t> rgba;
-    for (std::uint32_t i = 0; i < w * h; ++i) {
-        rgba.insert(rgba.end(), {c.r, c.g, c.b, c.a});
+    std::vector<std::uint8_t> rgba(std::size_t{w} * h * 4);
+    for (std::size_t i = 0; i < rgba.size(); i += 4) {
+        rgba[i] = c.r;
+        rgba[i + 1] = c.g;
+        rgba[i + 2] = c.b;
+        rgba[i + 3] = c.a;
     }
     return rgba;
 }

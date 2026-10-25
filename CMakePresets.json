@@ -18,9 +18,13 @@
     {
       "name": "release",
       "displayName": "Release",
-      "description": "For playing: the game and o1602-tool land in bin/ at the top of the source tree.",
+      "description": "For playing: builds the game (needs SDL 3); the game and o1602-tool land in bin/ at the top of the source tree.",
       "inherits": "base",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "O1602_OUTPUT_DIR": "${sourceDir}/bin" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "O1602_BUILD_GAME": "ON",
+        "O1602_OUTPUT_DIR": "${sourceDir}/bin"
+      }
     },
     {
       "name": "asan",

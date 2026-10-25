@@ -57,14 +57,16 @@ tests and tools also build without zlib, but then cannot read or write compresse
 builds with GCC 13, Clang 18, AppleClang 15 and MSVC from Visual Studio 2026; older compilers may
 work but are not tested. 32-bit platforms are not supported.
 
-Without `-DO1602_BUILD_GAME=ON` only the libraries, the tests and `o1602-tool` are built, not the game.
+The `release` and `vcpkg` presets build the game; every other preset builds only the libraries, the
+tests and `o1602-tool` unless you add `-DO1602_BUILD_GAME=ON`. Configure says at the end whether the
+game is built, and stops with the packages to install when SDL 3 or zlib is missing.
 The presets are in [CMakePresets.json](CMakePresets.json): `release` for playing, `debug`, `asan`
 (AddressSanitizer + UBSan) and `tsan` (ThreadSanitizer) for development, `ci` (warnings as errors) as in CI,
 `coverage` (GCC, line and branch coverage with gcovr as in CI), `vcpkg` for Windows.
 
 ### Linux
 
-Install the tools and SDL 3, for example:
+Install the compiler, CMake, Ninja, SDL 3 and zlib, for example:
 
 ```sh
 sudo pacman -S --needed base-devel cmake ninja sdl3                 # Arch, CachyOS, Manjaro (zlib is already there)
@@ -74,9 +76,10 @@ sudo apt install build-essential cmake ninja-build libsdl3-dev zlib1g-dev  # Deb
 
 Ubuntu 24.04 has no SDL 3 package; build it from source as CI does
 (see [.github/workflows/ci.yml](.github/workflows/ci.yml)) and pass `-DCMAKE_PREFIX_PATH=<sdl3 install dir>`.
+To build only the libraries, tests and `o1602-tool` without SDL 3, add `-DO1602_BUILD_GAME=OFF`.
 
 ```sh
-cmake --preset release -DO1602_BUILD_GAME=ON
+cmake --preset release
 cmake --build --preset release
 ctest --preset release
 ```
@@ -88,7 +91,7 @@ With [Homebrew](https://brew.sh) (Apple Silicon and Intel):
 ```sh
 xcode-select --install
 brew install cmake ninja sdl3      # zlib comes with macOS
-cmake --preset release -DO1602_BUILD_GAME=ON
+cmake --preset release
 cmake --build --preset release
 ctest --preset release
 ```

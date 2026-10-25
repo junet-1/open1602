@@ -65,8 +65,8 @@ option(O1602_BUILD_GAME   "Build the game executable (needs SDL3)"   OFF)
 option(O1602_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"  OFF)
 
 # The programs a player starts (the game, o1602-tool and, on Windows, the DLLs they need) land in
-# one folder on every platform. The presets for playing (release, vcpkg) set it to bin/ at the top
-# of the source tree; every other build keeps them in bin/ of its build folder.
+# one folder on every platform. The presets for playing (release, vcpkg) build the game and set it
+# to bin/ at the top of the source tree; every other build keeps them in bin/ of its build folder.
 set(O1602_OUTPUT_DIR "${PROJECT_BINARY_DIR}/bin" CACHE PATH "Folder the game and o1602-tool are built into")
 
 # Puts a program into O1602_OUTPUT_DIR. The generator expression keeps multi-config generators
@@ -78,7 +78,12 @@ endfunction()
 # zlib packs savegames (.o1602) and PNG screenshots. The game needs it: without it, it could not
 # load the compressed savegames other builds write. Libraries, tests and tools build without it.
 if(O1602_BUILD_GAME)
-    find_package(ZLIB REQUIRED)
+    find_package(ZLIB)
+    if(NOT ZLIB_FOUND)
+        message(FATAL_ERROR "zlib not found, but the game needs it (O1602_BUILD_GAME=ON). Install it: "
+            "\"sudo apt install zlib1g-dev\" (Debian, Ubuntu), \"sudo dnf install zlib-devel\" (Fedora); "
+            "Arch and macOS bring it along, Windows uses the vcpkg preset.")
+    endif()
 else()
     find_package(ZLIB QUIET)
     if(NOT ZLIB_FOUND)
@@ -96,4 +101,12 @@ endif()
 if(O1602_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# Says which programs this build makes, so a build without the game does not go unnoticed.
+if(O1602_BUILD_GAME)
+    message(STATUS "Open1602: the game is built into ${O1602_OUTPUT_DIR}")
+else()
+    message(STATUS "Open1602: the game is NOT built (O1602_BUILD_GAME=OFF), only the libraries, tests "
+        "and o1602-tool. For the game: -DO1602_BUILD_GAME=ON or the release preset.")
 endif()

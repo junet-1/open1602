@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -77,18 +78,20 @@ struct WorldIsland {
     std::vector<bool> explored{};
 
     [[nodiscard]] bool discovered_by(PlayerId p) const noexcept { return p < discovered.size() && discovered[p]; }
-    void discover(PlayerId p) {
-        if (p >= discovered.size()) {
-            discovered.resize(std::size_t{p} + 1, false);
-        }
-        discovered[p] = true;
-    }
+    void discover(PlayerId p) { set_player_flag(discovered, p); }
     [[nodiscard]] bool explored_by(PlayerId p) const noexcept { return p < explored.size() && explored[p]; }
-    void explore(PlayerId p) {
-        if (p >= explored.size()) {
-            explored.resize(std::size_t{p} + 1, false);
+    void explore(PlayerId p) { set_player_flag(explored, p); }
+
+private:
+    /// Sets flags[p], growing the list as needed. Grows into a new list instead of resize(): GCC 13
+    /// and 14 at -O3 warn about the resize of a vector<bool> (-Warray-bounds, a false positive).
+    static void set_player_flag(std::vector<bool>& flags, PlayerId p) {
+        if (p >= flags.size()) {
+            std::vector<bool> grown(std::size_t{p} + 1, false);
+            std::copy(flags.begin(), flags.end(), grown.begin());
+            flags.swap(grown);
         }
-        explored[p] = true;
+        flags[p] = true;
     }
 };
 

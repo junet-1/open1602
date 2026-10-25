@@ -30,10 +30,11 @@ preset but `release` and `vcpkg` puts the programs into `build/<preset>/bin/`.
 
 ### The game `open1602` (SDL3)
 
-The program is only built with `-DO1602_BUILD_GAME=ON` and needs the `sdl3` package (see above):
+The `release` preset builds it (other presets with `-DO1602_BUILD_GAME=ON`); it needs the `sdl3` package
+(see above):
 
 ```sh
-cmake --preset release -DO1602_BUILD_GAME=ON
+cmake --preset release
 cmake --build --preset release
 export ANNO1602_DIR="$HOME/Games/Heroic/Anno 1602"
 ./bin/open1602                                  # the main menu

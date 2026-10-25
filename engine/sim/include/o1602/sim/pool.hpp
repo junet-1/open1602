@@ -5,6 +5,7 @@
 // a reused slot (ADR 0004, S-002: a carrier belongs to its building by handle, not by position).
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <optional>
@@ -50,11 +51,15 @@ public:
         s.value.reset();
         ++s.generation;
         --m_size;
+        // Appended and rotated into place rather than insert(): GCC 13 and 14 at -O3 warn about the
+        // insert into a vector (-Wstringop-overflow, a false positive).
         auto it = m_free.begin();
         while (it != m_free.end() && *it > h.index) {
             ++it;
         }
-        m_free.insert(it, h.index);
+        const auto pos = it - m_free.begin();
+        m_free.push_back(h.index);
+        std::rotate(m_free.begin() + pos, m_free.end() - 1, m_free.end());
     }
 
     [[nodiscard]] bool contains(Handle h) const noexcept {
