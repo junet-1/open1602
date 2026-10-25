@@ -16,7 +16,7 @@ double luminance(const std::uint8_t* p) noexcept {
 
 }  // namespace
 
-void tint_variant(std::span<const RgbaView> variants, std::size_t base, std::size_t pattern, assets::Rgba color,
+void tint_variant(std::span<const RgbaView> variants, std::size_t base, std::size_t pattern, assets::Rgba colour,
                   std::vector<std::uint8_t>& out) {
     out.clear();
     if (base >= variants.size() || variants[base].pixels == nullptr) {
@@ -85,7 +85,7 @@ void tint_variant(std::span<const RgbaView> variants, std::size_t base, std::siz
     for (const std::size_t i : cloth) {
         const auto shade =
             static_cast<std::uint8_t>(std::clamp(std::lround(0.48 * shading(i) * scale + 5.0), 0L, 255L));
-        const assets::Rgba c = tint_shade(shade, color);
+        const assets::Rgba c = tint_shade(shade, colour);
         out[i * 4] = c.r;
         out[i * 4 + 1] = c.g;
         out[i * 4 + 2] = c.b;

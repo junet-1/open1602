@@ -18,7 +18,7 @@ struct Rgba {
     friend bool operator==(const Rgba&, const Rgba&) = default;
 };
 
-/// 256 color palette from a .COL file (e.g. TOOLGFX/STADTFLD.COL). See docs/formats/col.md.
+/// 256 colour palette from a .COL file (e.g. TOOLGFX/STADTFLD.COL). See docs/formats/col.md.
 class Palette {
 public:
     static constexpr std::size_t kSize = 256;
@@ -26,11 +26,11 @@ public:
     static core::Result<Palette> from_chunk_file(const ChunkFile& file);
     static core::Result<Palette> load(const std::filesystem::path& path);
 
-    [[nodiscard]] const Rgba& operator[](std::uint8_t index) const noexcept { return m_colors[index]; }
-    [[nodiscard]] const std::array<Rgba, kSize>& colors() const noexcept { return m_colors; }
+    [[nodiscard]] const Rgba& operator[](std::uint8_t index) const noexcept { return m_colours[index]; }
+    [[nodiscard]] const std::array<Rgba, kSize>& colours() const noexcept { return m_colours; }
 
 private:
-    std::array<Rgba, kSize> m_colors{};
+    std::array<Rgba, kSize> m_colours{};
 };
 
 }  // namespace o1602::assets

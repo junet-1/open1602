@@ -155,7 +155,7 @@ assets::GadgetLayout with_route_row(assets::GadgetLayout route, const std::optio
             plate.kind = assets::GadgetKind::Fill;
             plate.base = static_cast<std::int32_t>(route.gadgets.size());
             plate.no_select = true;
-            plate.color = {rim ? kMoreRimColour : kMorePlateColour, rim ? kMoreRimColour : kMorePlateColour};
+            plate.colour = {rim ? kMoreRimColour : kMorePlateColour, rim ? kMoreRimColour : kMorePlateColour};
             plate.pos = rim ? pos : std::array<std::int32_t, 2>{pos[0] + 1, pos[1] + 1};
             plate.size = rim ? std::array<std::int32_t, 2>{kMoreWidth, kMoreHeight}
                              : std::array<std::int32_t, 2>{kMoreWidth - 2, kMoreHeight - 2};

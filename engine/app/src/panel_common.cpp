@@ -40,7 +40,7 @@ assets::GadgetLayout with_trend(assets::GadgetLayout layout) {
         ground.kind = assets::GadgetKind::Fill;
         ground.no_select = true;
         ground.half = true;
-        ground.color = {0, 0};  // black
+        ground.colour = {0, 0};  // black
         ground.pos = {icon.pos[0] + 2, icon.pos[1] + icon.size[1] - 15};
         ground.size = {38, 13};
         layout.gadgets.push_back(ground);
@@ -52,10 +52,10 @@ assets::GadgetLayout with_trend(assets::GadgetLayout layout) {
         g.size = {40, icon.size[1]};
         g.offset = {4, static_cast<std::int16_t>(icon.size[1] - 3)};
         g.id = kLTrendUp + w;
-        g.color = {ui::kTextBrightGreen, ui::kTextBrightGreen};
+        g.colour = {ui::kTextBrightGreen, ui::kTextBrightGreen};
         layout.gadgets.push_back(g);
         g.id = kLTrendDown + w;
-        g.color = {ui::kTextBrightRed, ui::kTextBrightRed};
+        g.colour = {ui::kTextBrightRed, ui::kTextBrightRed};
         layout.gadgets.push_back(g);
     }
     return layout;

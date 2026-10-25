@@ -281,7 +281,7 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
     if (g.slider_y) {
         y += trunc_scaled((g.slider_size[1] - s.slider[1] + g.slider_offset[1]) * k);
     }
-    const std::int32_t colour = g.color[state];
+    const std::int32_t colour = g.colour[state];
     // The graphic set by the code (set_graphic) replaces the layout's for every graphic kind: the
     // build menu's preview and its shadow (GraphicFill) show the same building.
     const std::int32_t gfx = s.graphic ? s.graphic->first + s.graphic->second * state : g.gfx + g.press_offset * state;

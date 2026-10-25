@@ -233,11 +233,11 @@ RgbaImage rasterize(const std::vector<DrawCommand>& commands, const assets::Spri
                 if (img->opaque[src] == 0) {
                     continue;
                 }
-                const assets::Rgba& color = palette[img->indices[src]];
+                const assets::Rgba& colour = palette[img->indices[src]];
                 const std::size_t dst = (dst_row + std::size_t(left + static_cast<std::int32_t>(x))) * 4;
-                out.pixels[dst] = color.r;
-                out.pixels[dst + 1] = color.g;
-                out.pixels[dst + 2] = color.b;
+                out.pixels[dst] = colour.r;
+                out.pixels[dst + 1] = colour.g;
+                out.pixels[dst + 2] = colour.b;
                 out.pixels[dst + 3] = 255;
             }
         }

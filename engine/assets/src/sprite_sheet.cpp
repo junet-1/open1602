@@ -158,10 +158,10 @@ core::Result<IndexedImage> SpriteSheet::decode(std::size_t index, std::uint32_t 
         if (!pixels) {
             return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(index) + ": truncated pixels");
         }
-        for (const std::uint8_t color : *pixels) {
+        for (const std::uint8_t colour : *pixels) {
             if (x < image.width && y < info.height) {
                 const std::size_t i = std::size_t{y} * image.width + x;
-                image.indices[i] = color;
+                image.indices[i] = colour;
                 image.opaque[i] = 1;
             } else {
                 ++image.clipped_pixels;

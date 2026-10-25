@@ -32,7 +32,8 @@ core::Status World::add_island(WorldIsland island) {
     const std::uint32_t w = island.map.width();
     const std::uint32_t h = island.map.height();
     // In 64 bits: a position near 2^32 from a file must not wrap around into the map.
-    if (std::uint64_t{island.x} + w > m_width || std::uint64_t{island.y} + h > m_height || w > kSea || h > kSea) {
+    if (std::uint64_t{island.x} + w > m_width || std::uint64_t{island.y} + h > m_height || w > kMaxIslandSide ||
+        h > kMaxIslandSide) {
         return make_error(ErrorCode::OutOfRange,
                           "island " + std::to_string(island.header.number) + " leaves the world map");
     }
@@ -589,7 +590,7 @@ void add_islands(World& world, const std::vector<assets::Island>& islands, const
 void add_players(World& world, const std::vector<assets::PlayerRecord>& players) {
     std::vector<Player> slots;
     for (const auto& p : players) {
-        Player player{role_from_original(p.kind), banner_from_original(p.color), p.money, p.name,
+        Player player{role_from_original(p.kind), banner_from_original(p.colour), p.money, p.name,
                       faction_from_original(p.kind)};
         player.infra_mask = p.infra_mask;
         player.castles_built = p.castles_built;

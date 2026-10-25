@@ -2,7 +2,7 @@
 
 All player flags are **one** flag that the engine tints in the player's colour. A new
 colour therefore needs no graphics: in the flag menu you choose one of the twelve preset colours
-(`render::BannerTable::kDefaultColors`) or any RGB colour. This way the number of possible
+(`render::BannerTable::kDefaultColours`) or any RGB colour. This way the number of possible
 players grows without new images ([ADR 0007](../architecture/0007-extensibility-and-modding.md), section 4).
 
 **Status:** Done are the tinting (`render/flag_tint.hpp`), the twelve presets and the template from
@@ -59,7 +59,7 @@ in the status bar. Banners with one of these colours show the drawn picture
 (`render::Banner::unit_variant`); every other banner (players five to twelve, mods' banners) gets
 the white picture recoloured at runtime, with the pattern of one of the four original coats of
 arms (`render::Banner::art_pattern`: red's cross, blue's quarters, yellow's stripes or white's
-plain field). `add_color` picks the pattern from the banner's id (FNV-1a, like the riders' horse),
+plain field). `add_colour` picks the pattern from the banner's id (FNV-1a, like the riders' horse),
 so the further players do not all look alike and every computer of a multiplayer game shows the
 same.
 

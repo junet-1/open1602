@@ -18,10 +18,10 @@ namespace o1602::render {
 inline constexpr std::uint8_t kTintNeutral = 128;
 
 /// Colour of a cloth pixel with grey value `shade`.
-[[nodiscard]] assets::Rgba tint_shade(std::uint8_t shade, assets::Rgba color) noexcept;
+[[nodiscard]] assets::Rgba tint_shade(std::uint8_t shade, assets::Rgba colour) noexcept;
 
 /// Applies the tint to an RGBA8 image in place (grey pixels only).
-void tint_rgba(std::vector<std::uint8_t>& rgba, assets::Rgba color);
+void tint_rgba(std::vector<std::uint8_t>& rgba, assets::Rgba colour);
 
 /// Turns an original flag image (one solid cloth) into a template: every opaque pixel becomes
 /// grey with shade 0.48 * luminance + 5. The factors are fitted to the original red, blue and
@@ -29,13 +29,17 @@ void tint_rgba(std::vector<std::uint8_t>& rgba, assets::Rgba color);
 /// originals are hand-dithered 256-colour images).
 void original_flag_to_template(std::vector<std::uint8_t>& rgba);
 
-/// The generic flag in several colours: `colors.size()` banners x `frames` images, banner-major.
+/// The generic flag in several colours: `colours.size()` banners x `frames` images, banner-major.
 /// Template images are frames [first, first + frames) of `base`.
 class TintedFlagSource final : public SpriteSource {
 public:
     TintedFlagSource(const SpriteSource& base, std::uint32_t first, std::uint32_t frames,
-                     std::vector<assets::Rgba> colors, bool from_original) noexcept
-        : m_base(base), m_first(first), m_frames(frames), m_colors(std::move(colors)), m_from_original(from_original) {}
+                     std::vector<assets::Rgba> colours, bool from_original) noexcept
+        : m_base(base),
+          m_first(first),
+          m_frames(frames),
+          m_colours(std::move(colours)),
+          m_from_original(from_original) {}
     [[nodiscard]] std::uint32_t count() const override;
     void size(std::uint32_t i, std::uint32_t& width, std::uint32_t& height) const override;
     bool pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) const override;
@@ -44,7 +48,7 @@ private:
     const SpriteSource& m_base;
     std::uint32_t m_first;
     std::uint32_t m_frames;
-    std::vector<assets::Rgba> m_colors;
+    std::vector<assets::Rgba> m_colours;
     bool m_from_original;
 };
 

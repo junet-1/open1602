@@ -1254,7 +1254,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         const sim::Player* p = hidden ? nullptr : world.player(cell.owner);
         const Banner* banner = p != nullptr && layers.banners != nullptr ? layers.banners->get(p->banner) : nullptr;
         if (layers.owner_tint && banner != nullptr) {
-            const assets::Rgba tint{banner->color.r, banner->color.g, banner->color.b, kOverlayAlpha};
+            const assets::Rgba tint{banner->colour.r, banner->colour.g, banner->colour.b, kOverlayAlpha};
             overlays.push_back(DrawCommand{DrawCommand::kOverlayDiamond, sx, row_bottom - elevation, tint,
                                            static_cast<std::uint8_t>(tw)});
         }
@@ -1266,7 +1266,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 const TileMark& m = std::prev(it)->second;
                 (m.hatched && !m.on_top ? overlays : marked)
                     .push_back(DrawCommand{m.hatched ? DrawCommand::kOverlayHatch : DrawCommand::kOverlayDiamond, sx,
-                                           row_bottom - elevation, m.color, static_cast<std::uint8_t>(tw)});
+                                           row_bottom - elevation, m.colour, static_cast<std::uint8_t>(tw)});
             }
         }
     };

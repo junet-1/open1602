@@ -103,16 +103,16 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, do
                 current = kUntextured;
             }
             const assets::Rgba rgb = c.tint;
-            const SDL_FColor color{rgb.r / 255.0F, rgb.g / 255.0F, rgb.b / 255.0F, rgb.a / 255.0F};
+            const SDL_FColor colour{rgb.r / 255.0F, rgb.g / 255.0F, rgb.b / 255.0F, rgb.a / 255.0F};
             const float w = static_cast<float>(c.tint_size) * s;
             const float left = sx(c.x);
             const float bottom = sy(c.y);
             const float cy = bottom - w / 4.0F;
             const int base = static_cast<int>(m_vertices.size());
-            m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom - w / 2.0F}, color, {0, 0}});
-            m_vertices.push_back(SDL_Vertex{{left + w, cy}, color, {0, 0}});
-            m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom}, color, {0, 0}});
-            m_vertices.push_back(SDL_Vertex{{left, cy}, color, {0, 0}});
+            m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom - w / 2.0F}, colour, {0, 0}});
+            m_vertices.push_back(SDL_Vertex{{left + w, cy}, colour, {0, 0}});
+            m_vertices.push_back(SDL_Vertex{{left + w / 2.0F, bottom}, colour, {0, 0}});
+            m_vertices.push_back(SDL_Vertex{{left, cy}, colour, {0, 0}});
             m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
             continue;
         }
@@ -124,7 +124,7 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, do
                 flush(current);
                 current = kHatched;
             }
-            const SDL_FColor color{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, c.tint.a / 255.0F};
+            const SDL_FColor colour{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, c.tint.a / 255.0F};
             const std::int32_t w = c.tint_size;
             const std::int32_t top = c.y - w / 2;
             // The texture's checkerboard starts a column later where the world's is the other way
@@ -136,7 +136,7 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, do
             for (const auto& [lx, ly] : corners) {
                 m_vertices.push_back(
                     SDL_Vertex{{sx(c.x + lx), sy(top + ly)},
-                               color,
+                               colour,
                                {static_cast<float>(lx + shift) / kHatchWidth, static_cast<float>(ly) / kHatchHeight}});
             }
             m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
@@ -147,15 +147,15 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, do
                 flush(current);
                 current = kUntextured;
             }
-            const SDL_FColor color{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, 1.0F};
+            const SDL_FColor colour{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, 1.0F};
             for_each_outline_step(c, [&](std::int32_t x, std::int32_t y) {
                 const float x0 = sx(c.x + x);
                 const float y0 = sy(c.y + y);
                 const int base = static_cast<int>(m_vertices.size());
-                m_vertices.push_back(SDL_Vertex{{x0, y0}, color, {0, 0}});
-                m_vertices.push_back(SDL_Vertex{{x0 + 2.0F * s, y0}, color, {0, 0}});
-                m_vertices.push_back(SDL_Vertex{{x0 + 2.0F * s, y0 + s}, color, {0, 0}});
-                m_vertices.push_back(SDL_Vertex{{x0, y0 + s}, color, {0, 0}});
+                m_vertices.push_back(SDL_Vertex{{x0, y0}, colour, {0, 0}});
+                m_vertices.push_back(SDL_Vertex{{x0 + 2.0F * s, y0}, colour, {0, 0}});
+                m_vertices.push_back(SDL_Vertex{{x0 + 2.0F * s, y0 + s}, colour, {0, 0}});
+                m_vertices.push_back(SDL_Vertex{{x0, y0 + s}, colour, {0, 0}});
                 m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
             });
             continue;
@@ -183,19 +183,19 @@ std::size_t SdlSpriteRenderer::draw(const std::vector<DrawCommand>& commands, do
         const float v1 = static_cast<float>(r.y + height) * inv_page;
         // Shadows: the texture colour multiplied by the (black, translucent) vertex colour;
         // translucent sprites: white with the opacity as alpha; dimmed ones: a grey vertex colour.
-        SDL_FColor color = white;
+        SDL_FColor colour = white;
         if (c.mode == DrawCommand::Mode::Shadow) {
-            color = SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, c.tint.a / 255.0F};
+            colour = SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, c.tint.a / 255.0F};
         } else if (c.mode == DrawCommand::Mode::Translucent) {
-            color.a = c.tint.a / 255.0F;
+            colour.a = c.tint.a / 255.0F;
         } else if (c.mode == DrawCommand::Mode::Dimmed) {
-            color = SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, 1.0F};
+            colour = SDL_FColor{c.tint.r / 255.0F, c.tint.g / 255.0F, c.tint.b / 255.0F, 1.0F};
         }
         const int base = static_cast<int>(m_vertices.size());
-        m_vertices.push_back(SDL_Vertex{{x0, y0}, color, {u0, v0}});
-        m_vertices.push_back(SDL_Vertex{{x1, y0}, color, {u1, v0}});
-        m_vertices.push_back(SDL_Vertex{{x1, y1}, color, {u1, v1}});
-        m_vertices.push_back(SDL_Vertex{{x0, y1}, color, {u0, v1}});
+        m_vertices.push_back(SDL_Vertex{{x0, y0}, colour, {u0, v0}});
+        m_vertices.push_back(SDL_Vertex{{x1, y0}, colour, {u1, v0}});
+        m_vertices.push_back(SDL_Vertex{{x1, y1}, colour, {u1, v1}});
+        m_vertices.push_back(SDL_Vertex{{x0, y1}, colour, {u0, v1}});
         m_indices.insert(m_indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
         ++drawn;
     }

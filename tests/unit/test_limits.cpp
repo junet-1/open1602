@@ -23,7 +23,7 @@ using namespace o1602;
 
 TEST_CASE("limits: the modules derive theirs from one place") {
     // A colour of its own for every player with a start, and a slot below "nobody".
-    static_assert(std::tuple_size_v<decltype(render::BannerTable::kDefaultColors)> == sim::kMaxPlayers);
+    static_assert(std::tuple_size_v<decltype(render::BannerTable::kDefaultColours)> == sim::kMaxPlayers);
     static_assert(sim::player_slot(sim::kMaxPlayers - 1) < sim::kNoPlayer);
     static_assert(sim::kMaxPlayerSlots == sim::kFirstExtraPlayer + sim::kMaxPlayers - sim::kOriginalPlayers);
     // The lobby shows every slot, a roster holds the host and every computer it takes.

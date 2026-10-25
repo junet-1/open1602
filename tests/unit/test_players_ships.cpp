@@ -147,7 +147,7 @@ TEST_CASE("scenario: PLAYER4 and SHIP4 records") {
     REQUIRE(p->size() == 2);
     CHECK((*p)[0].money == 10000);
     CHECK((*p)[0].kind == assets::PlayerKind::Human);
-    CHECK((*p)[0].color == assets::PlayerColor::Blue);
+    CHECK((*p)[0].colour == assets::PlayerColour::Blue);
     CHECK((*p)[0].name == "Anna");
     CHECK((*p)[0].scenario_flags == 0x288);
     CHECK((*p)[0].rival_inhabitants == 500);
@@ -158,7 +158,7 @@ TEST_CASE("scenario: PLAYER4 and SHIP4 records") {
     CHECK((*p)[1].money == 50000);
     CHECK((*p)[1].kind == assets::PlayerKind::Pirate);
     CHECK((*p)[1].slot == 1);
-    CHECK((*p)[1].color == assets::PlayerColor::Pirate);
+    CHECK((*p)[1].colour == assets::PlayerColour::Pirate);
 
     auto s = assets::load_ships(*chunks);
     REQUIRE(s.ok());
@@ -189,9 +189,9 @@ TEST_CASE("figure table: fields and flag lookup by player colour") {
     CHECK(ship->posoffs[0] == -19);
     CHECK(ship->fahnoffs[2] == 2.0);
     CHECK(figures.get(22) == nullptr);
-    CHECK(figures.flag_for_color(0) == figures.get(106));
-    CHECK(figures.flag_for_color(1) == nullptr);  // FAHNE2 not defined in this test table
-    CHECK(figures.flag_for_color(5) == nullptr);  // natives: no flag
+    CHECK(figures.flag_for_colour(0) == figures.get(106));
+    CHECK(figures.flag_for_colour(1) == nullptr);  // FAHNE2 not defined in this test table
+    CHECK(figures.flag_for_colour(5) == nullptr);  // natives: no flag
 }
 
 TEST_CASE("sprite atlas: several sheets get consecutive index ranges") {
@@ -413,7 +413,7 @@ TEST_CASE("players: more than the original seven slots and extra banners (ADR 00
 
     // Twelve players; player 10 uses a banner that the original does not have.
     auto banners = render::BannerTable::original();
-    const sim::BannerId teal = banners.add_color("meinmod:tuerkis", {0, 160, 160, 255});
+    const sim::BannerId teal = banners.add_colour("meinmod:tuerkis", {0, 160, 160, 255});
     CHECK(teal == 7);
     std::vector<sim::Player> players(12);
     players[10] = sim::Player{sim::PlayerRole::Human, teal, 0, "Fünfter"};
@@ -583,7 +583,7 @@ TEST_CASE("banners: players five to twelve get colours of their own, apart from 
     REQUIRE(banners.size() == sim::kFirstExtraBanner + sim::kMaxPlayers - sim::kOriginalPlayers);
     std::set<std::tuple<std::uint8_t, std::uint8_t, std::uint8_t>> colours;
     for (const render::Banner& b : banners.banners()) {
-        colours.emplace(b.color.r, b.color.g, b.color.b);
+        colours.emplace(b.colour.r, b.colour.g, b.colour.b);
     }
     CHECK(colours.size() == banners.size());  // no two alike
     CHECK(banners.get(sim::kFirstExtraBanner)->id == "open1602:orange");

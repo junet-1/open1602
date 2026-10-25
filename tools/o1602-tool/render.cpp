@@ -267,9 +267,9 @@ int cmd_render_world(const Args& args) {
             return fail(core::make_error(core::ErrorCode::OutOfRange, "no player " + std::to_string(slot)));
         }
         players[slot].banner =
-            banners.add_color("custom:" + spec.substr(colon + 1),
-                              assets::Rgba{static_cast<std::uint8_t>(rgb >> 16), static_cast<std::uint8_t>(rgb >> 8),
-                                           static_cast<std::uint8_t>(rgb), 255});
+            banners.add_colour("custom:" + spec.substr(colon + 1),
+                               assets::Rgba{static_cast<std::uint8_t>(rgb >> 16), static_cast<std::uint8_t>(rgb >> 8),
+                                            static_cast<std::uint8_t>(rgb), 255});
         world->set_players(std::move(players));
     }
     auto graphics = render::load_world_graphics(*game, *palette, view.zoom, render::kWorldFigureSheets,

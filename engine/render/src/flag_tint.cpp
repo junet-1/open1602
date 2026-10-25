@@ -6,22 +6,22 @@
 
 namespace o1602::render {
 
-assets::Rgba tint_shade(std::uint8_t shade, assets::Rgba color) noexcept {
+assets::Rgba tint_shade(std::uint8_t shade, assets::Rgba colour) noexcept {
     const auto channel = [&](std::uint8_t c) -> std::uint8_t {
         if (shade <= kTintNeutral) {
             return static_cast<std::uint8_t>(c * shade / kTintNeutral);
         }
         return static_cast<std::uint8_t>(c + (255 - c) * (shade - kTintNeutral) / (255 - kTintNeutral));
     };
-    return assets::Rgba{channel(color.r), channel(color.g), channel(color.b), 255};
+    return assets::Rgba{channel(colour.r), channel(colour.g), channel(colour.b), 255};
 }
 
-void tint_rgba(std::vector<std::uint8_t>& rgba, assets::Rgba color) {
+void tint_rgba(std::vector<std::uint8_t>& rgba, assets::Rgba colour) {
     for (std::size_t p = 0; p + 3 < rgba.size(); p += 4) {
         if (rgba[p + 3] == 0 || rgba[p] != rgba[p + 1] || rgba[p] != rgba[p + 2]) {
             continue;
         }
-        const assets::Rgba c = tint_shade(rgba[p], color);
+        const assets::Rgba c = tint_shade(rgba[p], colour);
         rgba[p] = c.r;
         rgba[p + 1] = c.g;
         rgba[p + 2] = c.b;
@@ -40,7 +40,7 @@ void original_flag_to_template(std::vector<std::uint8_t>& rgba) {
 }
 
 std::uint32_t TintedFlagSource::count() const {
-    return static_cast<std::uint32_t>(m_colors.size()) * m_frames;
+    return static_cast<std::uint32_t>(m_colours.size()) * m_frames;
 }
 
 void TintedFlagSource::size(std::uint32_t i, std::uint32_t& width, std::uint32_t& height) const {
@@ -54,7 +54,7 @@ bool TintedFlagSource::pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) 
     if (m_from_original) {
         original_flag_to_template(rgba);
     }
-    tint_rgba(rgba, m_colors[i / m_frames]);
+    tint_rgba(rgba, m_colours[i / m_frames]);
     return true;
 }
 

@@ -902,7 +902,7 @@ private:
                 r[6] = 1;
                 r[0x0C] = 0xFF;
                 std::fill_n(r.begin() + 0x3C, 4, std::uint8_t{0xFF});
-                r[7] = static_cast<std::uint8_t>(std::min<BannerId>(player->banner, assets::kPlayerColorCount - 1));
+                r[7] = static_cast<std::uint8_t>(std::min<BannerId>(player->banner, assets::kPlayerColourCount - 1));
                 const std::size_t n = std::min<std::size_t>(player->name.size(), 0x3F);
                 std::copy_n(player->name.begin(), n, r.begin() + 0x3C0);
             }

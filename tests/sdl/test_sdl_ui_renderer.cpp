@@ -328,7 +328,7 @@ TEST_CASE("sdl ui renderer: a tinted sprite is its white variant recoloured, cac
     green.tint = ui::ColourTint{assets::Rgba{0, 230, 90, 255}, 1, 4, 3};
     auto pink = green;
     pink.x = 22;
-    pink.tint->color = {255, 110, 180, 255};
+    pink.tint->colour = {255, 110, 180, 255};
     ui.draw({plain, green, pink}, 0, 0, 1.0);
     canvas.read();
     CHECK(box(canvas, 2, 2, 8, 8, colours[13]));

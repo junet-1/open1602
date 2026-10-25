@@ -27,7 +27,7 @@ struct UnitImageGroup {
     std::uint8_t variants = 0;  ///< 4 in the original
     std::uint8_t base = 0;      ///< variant the cloth shading comes from (3 = white in the original)
     std::uint32_t offset = 0;   ///< position of the family in a tinted block
-    /// Riders: the horse is taken from one of the drawn variants (UnitTintColor::mount), the rest
+    /// Riders: the horse is taken from one of the drawn variants (UnitTintColour::mount), the rest
     /// from the template.
     bool mounted = false;
     std::uint32_t family = 0;  ///< figure number of variant 0, for messages
@@ -64,7 +64,7 @@ struct UnitTemplateOptions {
 };
 
 /// Builds the tint template of one unit image from its colour variants (`out`, `width` x `height`
-/// = size of variants[options.body]). `colors[v]` is the player colour of variant v.
+/// = size of variants[options.body]). `colours[v]` is the player colour of variant v.
 ///
 /// A variant *shows its colour* at a pixel if the pixel differs from the base variant and its hue
 /// is within 60 degrees of the variant's player colour and closer to it than to the other
@@ -76,27 +76,29 @@ struct UnitTemplateOptions {
 /// neutral in the white variant, grey in the blue one, brown or dark in red and yellow) is taken
 /// from the body variant. All other pure grey pixels are moved by one step in blue so that the tint
 /// leaves them alone (template convention, docs/modding/flags.md).
-void unit_template(std::span<const RgbaView> variants, std::span<const assets::Rgba> colors,
+void unit_template(std::span<const RgbaView> variants, std::span<const assets::Rgba> colours,
                    const UnitTemplateOptions& options, std::vector<std::uint8_t>& out, std::uint32_t& width,
                    std::uint32_t& height);
 
 /// Colour of one tinted block.
-struct UnitTintColor {
-    assets::Rgba color;
+struct UnitTintColour {
+    assets::Rgba colour;
     /// Horse of the riders: 0 brown, 1 grey (the blue riders'), 2 dark brown (the yellow riders'),
     /// 3 white (the white riders'). The red riders' brown horse cannot be used: 112 of the 304
     /// red images are drawn differently (other size and pose), so brown is the dark brown horse
     /// made lighter.
     std::uint8_t mount = 3;
 };
+/// The former name (LC-20).
+using UnitTintColor [[deprecated("use UnitTintColour")]] = UnitTintColour;
 
 /// The unit images of all groups, tinted once per colour: colours.size() blocks of block_size
 /// images, in group order.
 class TintedUnitSource final : public SpriteSource {
 public:
-    /// `variant_colors`: player colour of each variant (the original: red, blue, yellow, white).
+    /// `variant_colours`: player colour of each variant (the original: red, blue, yellow, white).
     TintedUnitSource(const SpriteSource& sheet, std::vector<UnitImageGroup> groups,
-                     std::vector<assets::Rgba> variant_colors, std::vector<UnitTintColor> colors);
+                     std::vector<assets::Rgba> variant_colours, std::vector<UnitTintColour> colours);
     [[nodiscard]] std::uint32_t count() const override;
     void size(std::uint32_t i, std::uint32_t& width, std::uint32_t& height) const override;
     bool pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) const override;
@@ -112,8 +114,8 @@ private:
 
     const SpriteSource& m_sheet;
     std::vector<UnitImageGroup> m_groups;
-    std::vector<assets::Rgba> m_variant_colors;
-    std::vector<UnitTintColor> m_colors;
+    std::vector<assets::Rgba> m_variant_colours;
+    std::vector<UnitTintColour> m_colours;
     std::uint32_t m_block = 0;
     /// One template: made by the first thread that asks for it, the others wait for it.
     struct Template {

@@ -55,7 +55,7 @@ TEST_CASE("banner art: the original colours show their drawn variant, the others
          {sim::BannerId{5}, sim::BannerId{6}, sim::kFirstExtraBanner, static_cast<sim::BannerId>(banners.size() - 1)}) {
         const render::Banner* banner = banners.get(b);
         REQUIRE(banner != nullptr);
-        CHECK(render::banner_art(art, banner) == (render::BannerArtSprite{551, banner->color, banner->art_pattern}));
+        CHECK(render::banner_art(art, banner) == (render::BannerArtSprite{551, banner->colour, banner->art_pattern}));
     }
     // Natives and the trader keep the white plain field; the further players get the patterns of
     // the four original coats of arms, picked from their ids: not all the same, and the same on

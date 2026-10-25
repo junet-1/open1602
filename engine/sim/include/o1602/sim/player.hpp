@@ -246,8 +246,8 @@ static_assert(kMaxPlayers >= kOriginalPlayers && kMaxPlayerSlots < kMaxPlayerCou
               "every player with a start has a slot of its own below kNoPlayer");
 
 /// Original colours map 1:1 to the banners of the base game.
-[[nodiscard]] constexpr BannerId banner_from_original(assets::PlayerColor color) noexcept {
-    return static_cast<BannerId>(color);
+[[nodiscard]] constexpr BannerId banner_from_original(assets::PlayerColour colour) noexcept {
+    return static_cast<BannerId>(colour);
 }
 
 [[nodiscard]] const char* role_name(PlayerRole role) noexcept;

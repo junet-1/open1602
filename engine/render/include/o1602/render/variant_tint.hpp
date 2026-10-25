@@ -25,13 +25,13 @@ namespace o1602::render {
 ///   cloth is grey, its motifs are not) and not darker than kVariantTintMinLuminance (outlines),
 /// - and at least kVariantTintNeighbours of its eight neighbours are cloth by the two rules above
 ///   (the variants' hand-dithered shadows differ in single pixels).
-/// Cloth gets the grey 0.48 * luminance + 5 (original_flag_to_template) tinted in `color`. The
+/// Cloth gets the grey 0.48 * luminance + 5 (original_flag_to_template) tinted in `colour`. The
 /// luminance is variant `pattern`'s, scaled so that its cloth is as bright on average as the
 /// base's (the yellow arms' black stripes stay dark, the field gets the brightness of the white
 /// one); a `pattern` that is the base, out of range or of another size takes the base's own.
 /// Every other pixel is the base's. Variants of another size are ignored; with none left the base
 /// comes out as drawn, with `base` out of range nothing.
-void tint_variant(std::span<const RgbaView> variants, std::size_t base, std::size_t pattern, assets::Rgba color,
+void tint_variant(std::span<const RgbaView> variants, std::size_t base, std::size_t pattern, assets::Rgba colour,
                   std::vector<std::uint8_t>& out);
 
 inline constexpr int kVariantTintGreyRange = 47;

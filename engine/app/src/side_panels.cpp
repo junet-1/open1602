@@ -325,7 +325,7 @@ assets::GadgetLayout with_goods_line(assets::GadgetLayout info) {
     assets::Gadget g = *label;
     g.id = kInfoGoods;
     g.kind = assets::GadgetKind::TextLeft;
-    g.color = {6, 3};  // gold, yellow while pressed
+    g.colour = {6, 3};  // gold, yellow while pressed
     g.no_select = false;
     g.pos = {label->pos[0], label->pos[1] + 20};
     g.size = {190, 25};

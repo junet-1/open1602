@@ -606,12 +606,12 @@ void MainMenu::refresh_colour() {
         if (preview != nullptr && preview->art_pattern == k) {
             // The cloth is what the outline's selected picture encloses.
             ui::ColourTint cloth;
-            cloth.color = preview->color;
+            cloth.colour = preview->colour;
             cloth.shape = h.outline + h.outline_press - h.flag;
             p.set_graphic(flag, h.flag, 0, cloth);
             if (!p.selected(outline)) {
                 ui::ColourTint edge;
-                edge.color = preview->color;
+                edge.colour = preview->colour;
                 edge.shape = h.outline_press;
                 p.set_graphic(outline, h.outline, h.outline_press, edge);
                 continue;
