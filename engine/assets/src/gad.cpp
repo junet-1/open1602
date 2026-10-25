@@ -140,7 +140,7 @@ GadgetLayout parse_gad(std::string_view text,
             layout.warnings.push_back("gadget " + std::to_string(nummer) + ": unknown kind " + std::to_string(kind));
         }
         g.base = r.integer("Basenr");
-        g.color = {r.integer("Color", 0), r.integer("Color", 1)};
+        g.colour = {r.integer("Color", 0), r.integer("Color", 1)};
         g.radio = flag(r, "Reiheflg");
         g.toggle = flag(r, "Flipflg");
         g.no_select = flag(r, "Noselflg");

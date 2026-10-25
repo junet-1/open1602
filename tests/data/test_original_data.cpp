@@ -412,13 +412,13 @@ TEST_CASE("data: players, colours and ships of scenarios") {
     REQUIRE(players.ok());
     REQUIRE(players->size() == 7);
     using K = assets::PlayerKind;
-    using C = assets::PlayerColor;
+    using C = assets::PlayerColour;
     const K kinds[] = {K::Human, K::Computer, K::Computer, K::Computer, K::Trader, K::Pirate, K::Natives};
-    const C colors[] = {C::Red, C::Blue, C::Yellow, C::White, C::Trader, C::Pirate, C::Natives};
+    const C colours[] = {C::Red, C::Blue, C::Yellow, C::White, C::Trader, C::Pirate, C::Natives};
     for (std::size_t i = 0; i < 7; ++i) {
         CHECK((*players)[i].slot == i);
         CHECK((*players)[i].kind == kinds[i]);
-        CHECK((*players)[i].color == colors[i]);
+        CHECK((*players)[i].colour == colours[i]);
     }
     CHECK((*players)[0].money == 10000);
 
@@ -437,8 +437,8 @@ TEST_CASE("data: players, colours and ships of scenarios") {
     REQUIRE(endless.ok());
     auto endless_players = assets::load_players(*endless);
     REQUIRE(endless_players.ok());
-    CHECK((*endless_players)[0].color == C::Blue);
-    CHECK((*endless_players)[1].color == C::Red);
+    CHECK((*endless_players)[0].colour == C::Blue);
+    CHECK((*endless_players)[1].colour == C::Red);
 
     // Every ship refers to a ship figure; every flag colour has its sprites in SHIP.BSH.
     auto figures = assets::FigureTable::load(game);
@@ -449,12 +449,12 @@ TEST_CASE("data: players, colours and ships of scenarios") {
         CHECK(f->sheet == assets::FigureSheet::Ship);
     }
     for (std::uint8_t c = 0; c < 5; ++c) {
-        const auto* flag = figures->flag_for_color(c);
+        const auto* flag = figures->flag_for_colour(c);
         REQUIRE(flag != nullptr);
         CHECK(flag->gfx == 192U + 8U * c);
     }
-    CHECK(figures->flag_for_color(5) == nullptr);
-    CHECK(figures->flag_for_color(6) == nullptr);
+    CHECK(figures->flag_for_colour(5) == nullptr);
+    CHECK(figures->flag_for_colour(6) == nullptr);
 
     // The base game's banners: players tinted from the white flag, pirates with their skull,
     // natives and trader without flag; optionally the original images for the players.
@@ -544,7 +544,7 @@ TEST_CASE("data: units tinted for banners without drawn variants") {
     auto palette = assets::Palette::load(*game.resolve(render::kTerrainPalettePath));
     REQUIRE(palette.ok());
     auto banners = render::BannerTable::original(&*figures);
-    const sim::BannerId green = banners.add_color("test:green", render::BannerTable::kDefaultColors[4]);
+    const sim::BannerId green = banners.add_colour("test:green", render::BannerTable::kDefaultColours[4]);
     auto g = render::load_world_graphics(game, *palette, render::Zoom::Medium, render::kWorldFigureSheets, {}, &banners,
                                          &*figures);
     REQUIRE(g.ok());

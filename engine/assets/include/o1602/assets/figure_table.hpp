@@ -187,8 +187,12 @@ public:
         return number < m_types.size() && m_types[number].defined ? &m_types[number] : nullptr;
     }
     /// Flag figure of a player colour, or nullptr for colours without flag (natives, trader).
-    [[nodiscard]] const FigureType* flag_for_color(std::uint8_t color) const noexcept {
-        return color < kFlagFigures.size() ? get(kFlagFigures[color]) : nullptr;
+    [[nodiscard]] const FigureType* flag_for_colour(std::uint8_t colour) const noexcept {
+        return colour < kFlagFigures.size() ? get(kFlagFigures[colour]) : nullptr;
+    }
+    [[deprecated("use flag_for_colour")]] [[nodiscard]] const FigureType* flag_for_color(
+        std::uint8_t colour) const noexcept {
+        return flag_for_colour(colour);
     }
     /// Colour variant of a unit figure, nothing for figures drawn the same for everyone (e.g. the
     /// natives' spearmen SPEER1).

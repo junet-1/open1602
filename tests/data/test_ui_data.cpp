@@ -77,7 +77,7 @@ TEST_CASE("data: the layouts of GADDATA load; the panel's minimap area and butto
     const assets::Gadget* status = leist->find(100001);
     REQUIRE(status != nullptr);
     CHECK(status->kind == assets::GadgetKind::TextRight);
-    CHECK(status->color[0] == 5);
+    CHECK(status->colour[0] == 5);
     // The constants of TOOLS.INC the code uses for what it draws itself.
     CHECK(leist->constant("GFXLEISTE") == std::optional<std::int32_t>(253));
     auto bau = assets::load_gad(game, "BAU.GAD");

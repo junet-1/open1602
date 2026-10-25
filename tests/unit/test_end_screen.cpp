@@ -142,7 +142,7 @@ std::vector<std::int32_t> sprites_at(const std::vector<ui::DrawItem>& items, std
 std::optional<assets::Rgba> tint_at(const std::vector<ui::DrawItem>& items, std::int32_t x, std::int32_t y) {
     for (const ui::DrawItem& d : items) {
         if (d.kind == ui::DrawItem::Kind::Sprite && d.x == x && d.y == y && d.tint) {
-            return d.tint->color;
+            return d.tint->colour;
         }
     }
     return std::nullopt;
@@ -203,7 +203,7 @@ TEST_CASE("end screen: eight players get a strip in the order of their points wi
     // The seventh player has no coat of arms of its own in the original: white's, in its colour.
     CHECK(sprites_at(items, kSlotX + 2 * kSlotStep, kSlotY) == std::vector<std::int32_t>{kArmsGfx + 3});
     REQUIRE(banners().get(sim::player_slot(6)) != nullptr);
-    CHECK(tint_at(items, kSlotX + 2 * kSlotStep, kSlotY) == banners().get(sim::player_slot(6))->color);
+    CHECK(tint_at(items, kSlotX + 2 * kSlotStep, kSlotY) == banners().get(sim::player_slot(6))->colour);
     CHECK(!tint_at(items, kSlotX + kSlotStep, kSlotY));  // yellow is drawn as it is
     // The local player's coat of arms (4th gadget) is the chosen one.
     CHECK(sprites_at(items, kSlotX + 3 * kSlotStep, kSlotY) == std::vector<std::int32_t>{kArmsGfx + 4});
@@ -242,7 +242,7 @@ TEST_CASE("end screen: a player in a further colour takes the strip, without arr
     REQUIRE(screen.strip());
     const auto items = screen.draw(kNoFonts);
     CHECK(sprites_at(items, kSlotX, kSlotY) == std::vector<std::int32_t>{kArmsGfx + 3});
-    CHECK(tint_at(items, kSlotX, kSlotY) == banners().get(sim::kFirstExtraBanner)->color);
+    CHECK(tint_at(items, kSlotX, kSlotY) == banners().get(sim::kFirstExtraBanner)->colour);
     CHECK(sprites_at(items, kSlotX + kSlotStep, kSlotY) == std::vector<std::int32_t>{kArmsGfx + 4});
     CHECK(sprites_at(items, kSlotX + 2 * kSlotStep, kSlotY).empty());
     CHECK(!arrows_drawn(items));

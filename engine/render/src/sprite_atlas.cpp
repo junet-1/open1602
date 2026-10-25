@@ -179,7 +179,7 @@ namespace {
 
 /// Translucent tile diamond: width w, height w/2, bounding box left = x, bottom = y. Hatched, only
 /// every second pixel (hatch_pixel at the draw list's x + dx, y + dy) is filled.
-void fill_diamond(RgbaImage& target, std::int32_t x, std::int32_t y, std::int32_t w, assets::Rgba color,
+void fill_diamond(RgbaImage& target, std::int32_t x, std::int32_t y, std::int32_t w, assets::Rgba colour,
                   std::uint8_t alpha, bool hatched = false, std::int32_t dx = 0, std::int32_t dy = 0) {
     const std::int32_t h = w / 2;
     const std::int32_t top = y - h;
@@ -200,9 +200,9 @@ void fill_diamond(RgbaImage& target, std::int32_t x, std::int32_t y, std::int32_
             }
             std::uint8_t* p =
                 &target.pixels[(static_cast<std::size_t>(ty) * target.width + static_cast<std::size_t>(tx)) * 4];
-            p[0] = static_cast<std::uint8_t>((p[0] * (255 - alpha) + color.r * alpha) / 255);
-            p[1] = static_cast<std::uint8_t>((p[1] * (255 - alpha) + color.g * alpha) / 255);
-            p[2] = static_cast<std::uint8_t>((p[2] * (255 - alpha) + color.b * alpha) / 255);
+            p[0] = static_cast<std::uint8_t>((p[0] * (255 - alpha) + colour.r * alpha) / 255);
+            p[1] = static_cast<std::uint8_t>((p[1] * (255 - alpha) + colour.g * alpha) / 255);
+            p[2] = static_cast<std::uint8_t>((p[2] * (255 - alpha) + colour.b * alpha) / 255);
         }
     }
 }

@@ -19,12 +19,12 @@ namespace o1602::render {
 /// the sprite that lies, on its row, between the leftmost and the rightmost opaque pixel of
 /// `shape` (both with their top left at the same place); a row of the shape narrower than both
 /// its neighbours have in common takes their common part (the outlines have gaps of a pixel).
-/// Cloth gets the grey kShapeTintReference * luminance / reference tinted in `color`
+/// Cloth gets the grey kShapeTintReference * luminance / reference tinted in `colour`
 /// (flag_tint.hpp), where reference is the luminance that a quarter of the cloth exceeds: the lit
 /// side of the folds comes out a little brighter than the colour, the motif and the shadows darker
 /// (the yellow banner's black stripes stay black). With no cloth the sprite comes out as drawn,
 /// with no sprite nothing.
-void tint_shape(const RgbaView& sprite, const RgbaView& shape, assets::Rgba color, std::vector<std::uint8_t>& out);
+void tint_shape(const RgbaView& sprite, const RgbaView& shape, assets::Rgba colour, std::vector<std::uint8_t>& out);
 
 inline constexpr double kShapeTintReference = 136.0;
 

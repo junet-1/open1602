@@ -5,7 +5,7 @@ namespace o1602::render {
 
 // Fitted to the original flag images (red, blue, yellow) for the tint of flag_tint.hpp; white is
 // the template itself.
-const std::array<assets::Rgba, 12> BannerTable::kDefaultColors = {{
+const std::array<assets::Rgba, 12> BannerTable::kDefaultColours = {{
     {216, 51, 8, 255},     // red (original)
     {0, 0, 241, 255},      // blue (original)
     {255, 219, 57, 255},   // yellow (original)
@@ -24,8 +24,8 @@ BannerTable BannerTable::original(const assets::FigureTable* figures, const Bann
     BannerTable table;
     const char* kPlayers[] = {"anno1602:red", "anno1602:blue", "anno1602:yellow", "anno1602:white"};
     for (std::uint8_t c = 0; c < 4; ++c) {
-        Banner b{kPlayers[c], kDefaultColors[c], FlagStyle::Tinted, 0, 8, c};
-        const assets::FigureType* flag = figures != nullptr ? figures->flag_for_color(c) : nullptr;
+        Banner b{kPlayers[c], kDefaultColours[c], FlagStyle::Tinted, 0, 8, c};
+        const assets::FigureType* flag = figures != nullptr ? figures->flag_for_colour(c) : nullptr;
         if (options.original_player_flags && flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
             b.flag = FlagStyle::Sprites;
             b.flag_gfx = flag->gfx;
@@ -33,7 +33,7 @@ BannerTable BannerTable::original(const assets::FigureTable* figures, const Bann
         table.add(std::move(b));
     }
     Banner pirates{"anno1602:pirates", {40, 40, 40, 255}, FlagStyle::None, 0, 8, std::nullopt};
-    if (const assets::FigureType* flag = figures != nullptr ? figures->flag_for_color(4) : nullptr;
+    if (const assets::FigureType* flag = figures != nullptr ? figures->flag_for_colour(4) : nullptr;
         flag != nullptr && flag->sheet == assets::FigureSheet::Ship) {
         pirates.flag = FlagStyle::Sprites;
         pirates.flag_gfx = flag->gfx;
@@ -42,14 +42,14 @@ BannerTable BannerTable::original(const assets::FigureTable* figures, const Bann
     table.add(Banner{"anno1602:natives", {160, 104, 48, 255}, FlagStyle::None, 0, 8, std::nullopt});
     table.add(Banner{"anno1602:trader", {48, 160, 96, 255}, FlagStyle::None, 0, 8, std::nullopt});
     // Generic flag: the white flag FAHNE4.
-    if (const assets::FigureType* white = figures != nullptr ? figures->flag_for_color(3) : nullptr;
+    if (const assets::FigureType* white = figures != nullptr ? figures->flag_for_colour(3) : nullptr;
         white != nullptr && white->sheet == assets::FigureSheet::Ship) {
         table.set_flag_template(FlagTemplate{white->gfx, 8, true});
     }
     return table;
 }
 
-static_assert(BannerTable::kDefaultColors.size() == sim::kMaxPlayers, "a colour of its own for every player");
+static_assert(BannerTable::kDefaultColours.size() == sim::kMaxPlayers, "a colour of its own for every player");
 
 void BannerTable::add_more_players() {
     if (m_banners.size() != sim::kFirstExtraBanner) {
@@ -57,7 +57,7 @@ void BannerTable::add_more_players() {
     }
     struct More {
         const char* id;
-        std::size_t colour;  ///< in kDefaultColors
+        std::size_t colour;  ///< in kDefaultColours
     };
     static constexpr std::array<More, sim::kMaxPlayers - sim::kOriginalPlayers> kMore = {{
         {"open1602:orange", 5},
@@ -70,7 +70,7 @@ void BannerTable::add_more_players() {
         {"open1602:brown", 10},
     }};
     for (const More& m : kMore) {
-        add_color(m.id, kDefaultColors[m.colour]);
+        add_colour(m.id, kDefaultColours[m.colour]);
     }
 }
 
@@ -79,14 +79,14 @@ sim::BannerId BannerTable::add(Banner banner) {
     return static_cast<sim::BannerId>(m_banners.size() - 1);
 }
 
-sim::BannerId BannerTable::add_color(std::string id, assets::Rgba color) {
+sim::BannerId BannerTable::add_colour(std::string id, assets::Rgba colour) {
     // FNV-1a of the id: a stable "random" horse and coat of arms per banner (not std::hash, which differs between
     // standard libraries and would break multiplayer games across platforms).
     std::uint32_t hash = 2166136261U;
     for (const char c : id) {
         hash = (hash ^ static_cast<std::uint8_t>(c)) * 16777619U;
     }
-    Banner b{std::move(id), color, FlagStyle::Tinted, 0, 8, std::nullopt};
+    Banner b{std::move(id), colour, FlagStyle::Tinted, 0, 8, std::nullopt};
     b.unit_mount = static_cast<std::uint8_t>(hash % 4U);
     b.art_pattern = static_cast<std::uint8_t>((hash >> 8U) % 4U);
     return add(std::move(b));
@@ -105,7 +105,7 @@ BannerArtSprite banner_art(const BannerArt& art, const Banner* banner) {
     }
     BannerArtSprite s{art.first + art.base * art.stride, std::nullopt, art.base};
     if (banner != nullptr && art.base < art.variants) {
-        s.tint = banner->color;
+        s.tint = banner->colour;
         s.pattern = banner->art_pattern < art.variants ? banner->art_pattern : art.base;
     }
     return s;

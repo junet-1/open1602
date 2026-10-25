@@ -222,7 +222,7 @@ TEST_CASE("data: a world without its original file exports its players to a .GAM
         if (want.status == sim::PlayerStatus::Playing) {
             CHECK(sim::role_from_original(got.kind) == want.role);
         }
-        CHECK(sim::banner_from_original(got.color) == want.banner);
+        CHECK(sim::banner_from_original(got.colour) == want.banner);
         CHECK(got.name == want.name);
     }
     // The islands keep their templates.

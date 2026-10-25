@@ -406,7 +406,10 @@ class World {
 public:
     static constexpr std::uint32_t kOriginalWidth = 500;
     static constexpr std::uint32_t kOriginalHeight = 350;
+    /// Island number of open sea (Cell::island).
     static constexpr std::uint16_t kSea = 0xFFFF;
+    /// Largest island side: Cell keeps the local position in 16 bits.
+    static constexpr std::uint32_t kMaxIslandSide = 0xFFFF;
     /// Open1602's limit per side: 4096 x 4096 tiles take 100 MB. A file that names more is refused
     /// before anything is allocated (the world generator stays below, WorldSettings::kMaxSide).
     static constexpr std::uint32_t kMaxSide = kMaxWorldSide;

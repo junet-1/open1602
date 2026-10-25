@@ -108,7 +108,7 @@ int cmd_state(const Args& args) {
     }
     for (const auto& p : *players) {
         std::printf("player %u: kind 0x%02X, colour %u, money %d %s\n", p.slot, static_cast<unsigned>(p.kind),
-                    static_cast<unsigned>(p.color), p.money, core::cp1252_to_utf8(p.name).c_str());
+                    static_cast<unsigned>(p.colour), p.money, core::cp1252_to_utf8(p.name).c_str());
     }
     for (const auto& c : state->cities) {
         std::printf("city: island %u #%u, owner %u, \"%s\"\n", c.island, c.index, c.owner,

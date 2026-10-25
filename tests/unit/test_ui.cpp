@@ -100,8 +100,8 @@ TEST_CASE("ui: a GAD layout with include, relative numbers and pairs that keep t
     CHECK(arrow.offset[0] == 2);
     CHECK(arrow.offset[1] == 5);
     const assets::Gadget& text = l.gadgets[1];
-    CHECK(text.color[0] == 5);
-    CHECK(text.color[1] == 3);  // kept from the line before
+    CHECK(text.colour[0] == 5);
+    CHECK(text.colour[1] == 3);  // kept from the line before
     CHECK(text.base == 1);
     // "@Pos: +50" moves only x.
     CHECK(l.gadgets[2].pos[0] == 50);

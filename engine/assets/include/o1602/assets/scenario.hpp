@@ -31,7 +31,7 @@ enum class PlayerKind : std::uint8_t {
 
 /// Colour of a player (PLAYER4 byte +7). Selects the flag figure (table at 0x00498F2C):
 /// 0..3 FAHNE1..FAHNE4 (red, blue, yellow, white), 4 FAHNEPIRAT; 5 and 6 have no flag.
-enum class PlayerColor : std::uint8_t {
+enum class PlayerColour : std::uint8_t {
     Red = 0,
     Blue = 1,
     Yellow = 2,
@@ -40,7 +40,10 @@ enum class PlayerColor : std::uint8_t {
     Natives = 5,
     Trader = 6,
 };
-inline constexpr std::uint8_t kPlayerColorCount = 7;
+inline constexpr std::uint8_t kPlayerColourCount = 7;
+/// The former names (LC-20).
+using PlayerColor [[deprecated("use PlayerColour")]] = PlayerColour;
+[[deprecated("use kPlayerColourCount")]] inline constexpr std::uint8_t kPlayerColorCount = kPlayerColourCount;
 
 /// One player slot. The original stores 7 slots of 0x430 bytes: four players (human or
 /// computer), the free trader, the pirates and the natives.
@@ -51,7 +54,7 @@ struct PlayerRecord {
     std::int32_t money = 0;
     PlayerKind kind = PlayerKind::Human;
     std::uint8_t slot = 0;  ///< index of the record, also used as owner number on tiles and ships
-    PlayerColor color = PlayerColor::Red;
+    PlayerColour colour = PlayerColour::Red;
     std::string name;  ///< +0x3C0, Windows-1252; empty in scenarios, the human's name in savegames
     /// Unlocked build levels: bit n - 1 = INFRA number n (+0x34; runtime player +0x6C, set by the
     /// city tick 0x0047F8A0 and never cleared).

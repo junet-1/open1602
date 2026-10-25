@@ -41,7 +41,7 @@ struct Gadget {
     std::int32_t id = 0;
     GadgetKind kind = GadgetKind::Unused;
     std::int32_t base = 0;                        ///< Basenr: index of the group's first or background gadget
-    std::array<std::int32_t, 2> color{};          ///< Color: text colour (or palette index) for state 0 / 1
+    std::array<std::int32_t, 2> colour{};         ///< Color: text colour (or palette index) for state 0 / 1
     bool radio = false;                           ///< Reiheflg: one of a group (the gadgets with the same base)
     bool toggle = false;                          ///< Flipflg: a press inverts the selected state
     bool no_select = false;                       ///< Noselflg: not clickable

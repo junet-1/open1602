@@ -23,28 +23,28 @@ namespace o1602::render {
 
 enum class FlagStyle : std::uint8_t {
     None,     ///< no flag (natives, free trader)
-    Tinted,   ///< the generic flag in `color`
+    Tinted,   ///< the generic flag in `colour`
     Sprites,  ///< own images (`flag_gfx` in the ship sheet), e.g. the pirates' skull
 };
 
 struct Banner {
-    std::string id;      ///< stable name, e.g. "anno1602:red"
-    assets::Rgba color;  ///< display colour and flag tint
+    std::string id;       ///< stable name, e.g. "anno1602:red"
+    assets::Rgba colour;  ///< display colour and flag tint
     FlagStyle flag = FlagStyle::Tinted;
     std::uint32_t flag_gfx = 0;  ///< FlagStyle::Sprites: first image in the ship sheet
     /// FlagStyle::Sprites: how many; the tinted flag has its template's (FlagTemplate::frames).
     std::uint32_t flag_frames = 8;
     /// Units and interface art drawn per colour (soldiers, riders, coats of arms, message icons) use
     /// the original images of this colour (0 red, 1 blue, 2 yellow, 3 white); without it they are
-    /// tinted in `color` (unit_tint.hpp, variant_tint.hpp).
+    /// tinted in `colour` (unit_tint.hpp, variant_tint.hpp).
     std::optional<std::uint8_t> unit_variant;
     /// Without unit_variant: which of four horses (0 brown, 1 grey, 2 dark brown, 3 white,
-    /// UnitTintColor::mount) the riders get. add_color picks it from the banner's id, so it stays the same in
+    /// UnitTintColour::mount) the riders get. add_colour picks it from the banner's id, so it stays the same in
     /// every session and on every computer of a multiplayer game.
     std::uint8_t unit_mount = 3;
     /// Without unit_variant: which of the four original coats of arms (0 red's cross, 1 blue's
     /// quarters, 2 yellow's stripes, 3 white's plain field) its interface art takes the pattern
-    /// from (BannerArt). add_color picks it from the banner's id like unit_mount.
+    /// from (BannerArt). add_colour picks it from the banner's id like unit_mount.
     std::uint8_t art_pattern = 3;
 };
 
@@ -108,7 +108,10 @@ public:
 
     /// Colours offered for new banners: the four of the original and eight more that stay
     /// distinguishable on land, water and the minimap (the menu also allows any RGB colour).
-    static const std::array<assets::Rgba, 12> kDefaultColors;
+    static const std::array<assets::Rgba, 12> kDefaultColours;
+    /// The former name (LC-20).
+    [[deprecated("use kDefaultColours")]] static inline const std::array<assets::Rgba, 12>& kDefaultColors =
+        kDefaultColours;
 
     [[nodiscard]] const Banner* get(sim::BannerId id) const noexcept {
         return id < m_banners.size() ? &m_banners[id] : nullptr;
@@ -120,9 +123,12 @@ public:
     /// the eight colours after the original's four, those that stand out best on the minimap's
     /// land and are furthest from the natives' brown first.
     void add_more_players();
-    /// A banner with the generic flag in `color`; its riders get a horse and its interface art a coat
+    /// A banner with the generic flag in `colour`; its riders get a horse and its interface art a coat
     /// of arms pattern picked from `id`.
-    sim::BannerId add_color(std::string id, assets::Rgba color);
+    sim::BannerId add_colour(std::string id, assets::Rgba colour);
+    [[deprecated("use add_colour")]] sim::BannerId add_color(std::string id, assets::Rgba colour) {
+        return add_colour(std::move(id), colour);
+    }
 
     [[nodiscard]] const std::optional<FlagTemplate>& flag_template() const noexcept { return m_template; }
     void set_flag_template(FlagTemplate t) { m_template = t; }

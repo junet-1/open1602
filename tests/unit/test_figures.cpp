@@ -330,8 +330,8 @@ TEST_CASE("flags: one tinted block per banner in the atlas and in the draw list"
     REQUIRE(atlas.ok());
 
     render::BannerTable banners;
-    banners.add_color("test:red", {255, 0, 0, 255});
-    banners.add_color("test:blue", {0, 0, 255, 255});
+    banners.add_colour("test:red", {255, 0, 0, 255});
+    banners.add_colour("test:blue", {0, 0, 255, 255});
     banners.set_flag_template(render::FlagTemplate{0, 4, true});  // the four images of the sheet
     const std::vector<std::optional<std::uint32_t>> banner_flags = {atlas->sheet_base(1), atlas->sheet_base(1) + 4};
     render::WorldLayers layers;

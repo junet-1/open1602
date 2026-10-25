@@ -189,7 +189,7 @@ std::vector<std::uint8_t> SdlUiRenderer::tinted(const assets::SpriteSheet& sheet
                 shape = RgbaView{shape_pixels.data(), outline->width, outline->height};
             }
         }
-        tint_shape(RgbaView{pixels.data(), image->width, image->height}, shape, tint.color, out);
+        tint_shape(RgbaView{pixels.data(), image->width, image->height}, shape, tint.colour, out);
         return out;
     }
     // The family's variants around the drawn one (the base); missing ones are left out.
@@ -206,7 +206,7 @@ std::vector<std::uint8_t> SdlUiRenderer::tinted(const assets::SpriteSheet& sheet
                 RgbaView{pixels[static_cast<std::size_t>(v)].data(), image->width, image->height};
         }
     }
-    tint_variant(views, tint.base, tint.pattern, tint.color, out);
+    tint_variant(views, tint.base, tint.pattern, tint.colour, out);
     return out;
 }
 
@@ -218,9 +218,9 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
         gfx,
         mode,
         mode == kModeSprite ? 0 : colour,
-        tinting
-            ? 0x01000000U | (std::uint32_t{tint->color.r} << 16U) | (std::uint32_t{tint->color.g} << 8U) | tint->color.b
-            : 0U,
+        tinting ? 0x01000000U | (std::uint32_t{tint->colour.r} << 16U) | (std::uint32_t{tint->colour.g} << 8U) |
+                      tint->colour.b
+                : 0U,
         tinting ? tint->stride : 0,
         tinting ? (std::uint32_t{tint->variants} << 16U) | (std::uint32_t{tint->pattern} << 8U) | tint->base : 0U,
         tinting ? tint->shape : std::nullopt};

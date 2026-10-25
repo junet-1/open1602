@@ -18,7 +18,7 @@ core::Result<Palette> Palette::from_chunk_file(const ChunkFile& file) {
     Palette palette;
     for (std::size_t i = 0; i < kSize; ++i) {
         // Stored as R, G, B, unused (always 0).
-        palette.m_colors[i] = Rgba{data[i * 4], data[i * 4 + 1], data[i * 4 + 2], 255};
+        palette.m_colours[i] = Rgba{data[i * 4], data[i * 4 + 1], data[i * 4 + 2], 255};
     }
     return palette;
 }

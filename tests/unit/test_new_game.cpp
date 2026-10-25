@@ -372,23 +372,23 @@ TEST_CASE("new game: the reset of an endless level sets players, clocks and ship
     REQUIRE(players->size() == 7);
     struct Expected {
         assets::PlayerKind kind;
-        assets::PlayerColor colour;
+        assets::PlayerColour colour;
         const char* name;
     };
     const std::array<Expected, 7> expected = {{
-        {assets::PlayerKind::Human, assets::PlayerColor::Yellow, "Anna"},
-        {assets::PlayerKind::Computer, assets::PlayerColor::Red, "Roter Spieler"},
-        {assets::PlayerKind::Computer, assets::PlayerColor::Blue, "Blauer Spieler"},
-        {assets::PlayerKind::Computer, assets::PlayerColor::White, "Weisser Spieler"},
-        {assets::PlayerKind::Trader, assets::PlayerColor::Trader, "Trader4"},
-        {assets::PlayerKind::Pirate, assets::PlayerColor::Pirate, "Pirat5"},
-        {assets::PlayerKind::Natives, assets::PlayerColor::Natives, "Native6"},
+        {assets::PlayerKind::Human, assets::PlayerColour::Yellow, "Anna"},
+        {assets::PlayerKind::Computer, assets::PlayerColour::Red, "Roter Spieler"},
+        {assets::PlayerKind::Computer, assets::PlayerColour::Blue, "Blauer Spieler"},
+        {assets::PlayerKind::Computer, assets::PlayerColour::White, "Weisser Spieler"},
+        {assets::PlayerKind::Trader, assets::PlayerColour::Trader, "Trader4"},
+        {assets::PlayerKind::Pirate, assets::PlayerColour::Pirate, "Pirat5"},
+        {assets::PlayerKind::Natives, assets::PlayerColour::Natives, "Native6"},
     }};
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         const assets::PlayerRecord& p = (*players)[slot];
         CHECK(p.slot == slot);
         CHECK(p.kind == expected[slot].kind);
-        CHECK(p.color == expected[slot].colour);
+        CHECK(p.colour == expected[slot].colour);
         CHECK(p.name == expected[slot].name);
         CHECK(p.money == static_cast<std::int32_t>(30'000 + 1'000 * slot));
         CHECK(p.infra_mask == (slot < 5 ? 0U : 0xFFFFFFFFU));
@@ -444,9 +444,9 @@ TEST_CASE("new game: colours wrap, names without [PLAYCOL] stay empty (MD-10), a
     auto players = assets::load_players(*scenario);
     REQUIRE(players.ok());
     REQUIRE(players->size() == 7);
-    CHECK((*players)[0].color == assets::PlayerColor::Red);
+    CHECK((*players)[0].colour == assets::PlayerColour::Red);
     CHECK((*players)[0].name == std::string(63, 'x'));
-    CHECK((*players)[1].color == assets::PlayerColor::Blue);
+    CHECK((*players)[1].colour == assets::PlayerColour::Blue);
     CHECK((*players)[1].name.empty());  // the game shows it in its language (app::player_name)
     CHECK((*players)[2].name.empty());
     CHECK((*players)[3].name.empty());

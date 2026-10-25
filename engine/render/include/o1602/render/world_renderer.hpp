@@ -200,7 +200,7 @@ struct TileMark {
     std::uint16_t island = 0;  ///< index into World::islands()
     std::uint16_t x = 0;       ///< island tile
     std::uint16_t y = 0;
-    assets::Rgba color;  ///< alpha = opacity
+    assets::Rgba colour;  ///< alpha = opacity
     bool hatched = false;
     bool on_top = false;
 };

@@ -60,7 +60,7 @@ struct ScreenRegions {
 /// the cloth is what sprite `gfx + shape` of the same sheet outlines, shaded by its own brightness
 /// (render/shape_tint.hpp; the banners of the colour screen).
 struct ColourTint {
-    assets::Rgba color{};
+    assets::Rgba colour{};
     std::int32_t stride = 1;
     std::uint8_t variants = 4;  ///< red, blue, yellow, white in the original
     std::uint8_t base = 3;

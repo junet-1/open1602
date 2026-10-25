@@ -12,7 +12,7 @@
 namespace o1602::sim {
 
 /// Players with a start in a new world: as many as there are banner colours that stay apart
-/// (render::BannerTable::kDefaultColors). The world generator, the start dialogs, the lobby and
+/// (render::BannerTable::kDefaultColours). The world generator, the start dialogs, the lobby and
 /// add_players all take this one.
 inline constexpr std::size_t kMaxPlayers = 12;
 

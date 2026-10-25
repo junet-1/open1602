@@ -80,16 +80,16 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
                 ship = sources[i].get();
             }
         }
-        std::vector<assets::Rgba> colors;
+        std::vector<assets::Rgba> colours;
         for (const Banner& b : banners->banners()) {
             if (b.flag == FlagStyle::Tinted && ship != nullptr) {
-                flag_slot.emplace_back(static_cast<std::uint32_t>(colors.size()));
-                colors.push_back(b.color);
+                flag_slot.emplace_back(static_cast<std::uint32_t>(colours.size()));
+                colours.push_back(b.colour);
             } else {
                 flag_slot.emplace_back(std::nullopt);
             }
         }
-        if (!colors.empty()) {
+        if (!colours.empty()) {
             const FlagTemplate& t = *banners->flag_template();
             // A bad mod would throw out_of_range while the atlas is built (HI-13): say which.
             if (std::uint64_t{t.gfx} + t.frames > ship->count()) {
@@ -97,7 +97,7 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
                                         "the flag sprites " + std::to_string(t.gfx) + " + " + std::to_string(t.frames) +
                                             " lie beyond the " + std::to_string(ship->count()) + " ship sprites");
             }
-            sources.push_back(std::make_unique<TintedFlagSource>(*ship, t.gfx, t.frames, colors, t.from_original));
+            sources.push_back(std::make_unique<TintedFlagSource>(*ship, t.gfx, t.frames, colours, t.from_original));
             pointers.push_back(sources.back().get());
         }
     }
@@ -128,16 +128,16 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
             g.family = family;
             unit_groups.push_back(g);
         }
-        std::vector<UnitTintColor> colors;
+        std::vector<UnitTintColour> colours;
         for (const Banner& b : banners->banners()) {
             if (soldat != nullptr && !unit_groups.empty() && !b.unit_variant && b.flag == FlagStyle::Tinted) {
-                unit_slot.emplace_back(static_cast<std::uint32_t>(colors.size()));
-                colors.push_back(UnitTintColor{b.color, b.unit_mount});
+                unit_slot.emplace_back(static_cast<std::uint32_t>(colours.size()));
+                colours.push_back(UnitTintColour{b.colour, b.unit_mount});
             } else {
                 unit_slot.emplace_back(std::nullopt);
             }
         }
-        if (!colors.empty()) {
+        if (!colours.empty()) {
             // A bad mod would throw out_of_range while the atlas is built (HI-13): say which figure.
             for (const UnitImageGroup& g : unit_groups) {
                 if (std::uint64_t{g.first} + std::uint64_t{g.stride} * g.variants > soldat->count()) {
@@ -149,10 +149,10 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
                 }
             }
             // Player colours of the drawn variants: the original red, blue, yellow and white.
-            std::vector<assets::Rgba> variant_colors(
-                BannerTable::kDefaultColors.begin(),
-                BannerTable::kDefaultColors.begin() + assets::FigureTable::kUnitVariants);
-            auto source = std::make_unique<TintedUnitSource>(*soldat, unit_groups, variant_colors, colors);
+            std::vector<assets::Rgba> variant_colours(
+                BannerTable::kDefaultColours.begin(),
+                BannerTable::kDefaultColours.begin() + assets::FigureTable::kUnitVariants);
+            auto source = std::make_unique<TintedUnitSource>(*soldat, unit_groups, variant_colours, colours);
             std::uint32_t offset = 0;
             for (UnitImageGroup& g : unit_groups) {  // same layout as in the source
                 g.offset = offset;

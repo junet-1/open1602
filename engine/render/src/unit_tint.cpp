@@ -47,10 +47,10 @@ double luminance(const std::uint8_t* p) noexcept {
     return 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2];
 }
 
-constexpr double kMinColorChroma = 24.0;  // player colours below this have no hue (white)
-constexpr double kMinPixelChroma = 12.0;  // pixels below this are grey
-constexpr double kMinHueCosine = 0.5;     // within 60 degrees of the player colour
-constexpr double kMaxLightChroma = 30.0;  // white / light grey cloth of the base variant
+constexpr double kMinColourChroma = 24.0;  // player colours below this have no hue (white)
+constexpr double kMinPixelChroma = 12.0;   // pixels below this are grey
+constexpr double kMinHueCosine = 0.5;      // within 60 degrees of the player colour
+constexpr double kMaxLightChroma = 30.0;   // white / light grey cloth of the base variant
 constexpr double kMinLightLuminance = 170.0;
 
 // Horses of the original riders: neutral in the white variant, grey or black in the blue one,
@@ -157,7 +157,7 @@ void fill_holes(std::vector<std::uint8_t>& mask, std::uint32_t w, std::uint32_t 
 
 }  // namespace
 
-void unit_template(std::span<const RgbaView> variants, std::span<const assets::Rgba> colors,
+void unit_template(std::span<const RgbaView> variants, std::span<const assets::Rgba> colours,
                    const UnitTemplateOptions& options, std::vector<std::uint8_t>& out, std::uint32_t& width,
                    std::uint32_t& height) {
     const RgbaView& body = variants[options.body];
@@ -173,9 +173,9 @@ void unit_template(std::span<const RgbaView> variants, std::span<const assets::R
 
     // Hues of the player colours (none for white).
     std::vector<std::optional<Chroma>> hues(variants.size());
-    for (std::size_t v = 0; v < variants.size() && v < colors.size(); ++v) {
-        const Chroma c(colors[v].r, colors[v].g, colors[v].b);
-        if (c.length() >= kMinColorChroma) {
+    for (std::size_t v = 0; v < variants.size() && v < colours.size(); ++v) {
+        const Chroma c(colours[v].r, colours[v].g, colours[v].b);
+        if (c.length() >= kMinColourChroma) {
             hues[v] = c;
         }
     }
@@ -312,11 +312,11 @@ void unit_template(std::span<const RgbaView> variants, std::span<const assets::R
 }
 
 TintedUnitSource::TintedUnitSource(const SpriteSource& sheet, std::vector<UnitImageGroup> groups,
-                                   std::vector<assets::Rgba> variant_colors, std::vector<UnitTintColor> colors)
+                                   std::vector<assets::Rgba> variant_colours, std::vector<UnitTintColour> colours)
     : m_sheet(sheet),
       m_groups(std::move(groups)),
-      m_variant_colors(std::move(variant_colors)),
-      m_colors(std::move(colors)) {
+      m_variant_colours(std::move(variant_colours)),
+      m_colours(std::move(colours)) {
     for (UnitImageGroup& g : m_groups) {
         g.offset = m_block;
         m_block += g.stride;
@@ -324,7 +324,7 @@ TintedUnitSource::TintedUnitSource(const SpriteSource& sheet, std::vector<UnitIm
 }
 
 std::uint32_t TintedUnitSource::count() const {
-    return static_cast<std::uint32_t>(m_colors.size()) * m_block;
+    return static_cast<std::uint32_t>(m_colours.size()) * m_block;
 }
 
 const UnitImageGroup* TintedUnitSource::locate(std::uint32_t i, std::uint32_t& k) const noexcept {
@@ -350,7 +350,7 @@ std::size_t TintedUnitSource::body(const UnitImageGroup& g, std::uint32_t i) con
     if (!g.mounted || m_block == 0 || g.variants == 0) {
         return g.base;
     }
-    const std::uint8_t mount = m_colors[i / m_block].mount;
+    const std::uint8_t mount = m_colours[i / m_block].mount;
     if (mount == kMountBrown) {
         return std::min<std::size_t>(kMountBrownSource, g.variants - 1U);
     }
@@ -377,7 +377,7 @@ bool TintedUnitSource::pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) 
     options.base = g->base;
     options.body = body(*g, i);
     options.mounted = g->mounted;
-    const bool brown = g->mounted && m_colors[i / m_block].mount == kMountBrown;
+    const bool brown = g->mounted && m_colours[i / m_block].mount == kMountBrown;
     if (brown) {
         options.mount_brightness = kMountBrownBrightness;
     }
@@ -397,7 +397,7 @@ bool TintedUnitSource::pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) 
         return false;
     }
     rgba = t->rgba;
-    tint_rgba(rgba, m_colors[i / m_block].color);
+    tint_rgba(rgba, m_colours[i / m_block].colour);
     return true;
 }
 
@@ -419,7 +419,7 @@ bool TintedUnitSource::make_template(const UnitImageGroup& g, std::uint32_t k, c
     }
     std::uint32_t w = 0;
     std::uint32_t h = 0;
-    unit_template(views, m_variant_colors, options, rgba, w, h);
+    unit_template(views, m_variant_colours, options, rgba, w, h);
     return true;
 }
 

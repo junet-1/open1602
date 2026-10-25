@@ -78,12 +78,12 @@ TEST_CASE("units: tint template from four drawn variants") {
     for (const std::uint8_t* image : images) {
         views.push_back(render::RgbaView{image, 6, 1});
     }
-    const std::vector<assets::Rgba> colors(render::BannerTable::kDefaultColors.begin(),
-                                           render::BannerTable::kDefaultColors.begin() + 4);
+    const std::vector<assets::Rgba> colours(render::BannerTable::kDefaultColours.begin(),
+                                            render::BannerTable::kDefaultColours.begin() + 4);
     std::vector<std::uint8_t> out;
     std::uint32_t w = 0;
     std::uint32_t h = 0;
-    render::unit_template(views, colors, render::UnitTemplateOptions{}, out, w, h);
+    render::unit_template(views, colours, render::UnitTemplateOptions{}, out, w, h);
     REQUIRE(w == 6);
     REQUIRE(h == 1);
     // Sash: three variants show their colour -> cloth, grey 0.48 * 230 + 5 = 115.
@@ -132,8 +132,8 @@ TEST_CASE("units: riders keep one of the drawn horses") {
     for (const auto& i : images) {
         views.push_back(render::RgbaView{i.data(), 3, 3});
     }
-    const std::vector<assets::Rgba> colors(render::BannerTable::kDefaultColors.begin(),
-                                           render::BannerTable::kDefaultColors.begin() + 4);
+    const std::vector<assets::Rgba> colours(render::BannerTable::kDefaultColours.begin(),
+                                            render::BannerTable::kDefaultColours.begin() + 4);
     render::UnitTemplateOptions options;
     options.mounted = true;
     for (std::size_t body = 0; body < 4; ++body) {
@@ -141,7 +141,7 @@ TEST_CASE("units: riders keep one of the drawn horses") {
         std::vector<std::uint8_t> out;
         std::uint32_t w = 0;
         std::uint32_t h = 0;
-        render::unit_template(views, colors, options, out, w, h);
+        render::unit_template(views, colours, options, out, w, h);
         REQUIRE(out.size() == 36);
         CHECK(out[0] == 115);  // the rider's sash is cloth for every horse
         CHECK(out[1] == 115);
@@ -151,8 +151,8 @@ TEST_CASE("units: riders keep one of the drawn horses") {
 
     // Banners get a horse from their id, the same every time.
     render::BannerTable banners;
-    const auto a = banners.add_color("mod:green", {30, 170, 40, 255});
-    const auto b = banners.add_color("mod:green", {30, 170, 40, 255});
+    const auto a = banners.add_colour("mod:green", {30, 170, 40, 255});
+    const auto b = banners.add_colour("mod:green", {30, 170, 40, 255});
     CHECK(banners.get(a)->unit_mount == banners.get(b)->unit_mount);
     CHECK(banners.get(a)->unit_mount < 4);
 }
@@ -192,11 +192,11 @@ TEST_CASE("units: each template is made once and gives the same images (FB-25)")
     group.variants = 4;
     group.base = 3;
     group.mounted = true;
-    const std::vector<assets::Rgba> variants(render::BannerTable::kDefaultColors.begin(),
-                                             render::BannerTable::kDefaultColors.begin() + 4);
-    const render::UnitTintColor green{{30, 170, 40, 255}, 0};
-    const render::UnitTintColor purple{{120, 40, 160, 255}, 1};
-    const render::UnitTintColor teal{{20, 150, 150, 255}, 0};
+    const std::vector<assets::Rgba> variants(render::BannerTable::kDefaultColours.begin(),
+                                             render::BannerTable::kDefaultColours.begin() + 4);
+    const render::UnitTintColour green{{30, 170, 40, 255}, 0};
+    const render::UnitTintColour purple{{120, 40, 160, 255}, 1};
+    const render::UnitTintColour teal{{20, 150, 150, 255}, 0};
     const render::TintedUnitSource source(sheet, {group}, variants, {green, purple, teal, green});
     std::vector<std::vector<std::uint8_t>> out(4);
     for (std::uint32_t i = 0; i < 4; ++i) {
@@ -238,7 +238,7 @@ TEST_CASE("units: soldiers in the colour of their owner's banner") {
     REQUIRE(atlas.ok());
 
     auto banners = render::BannerTable::original();
-    const sim::BannerId green = banners.add_color("test:green", render::BannerTable::kDefaultColors[4]);
+    const sim::BannerId green = banners.add_colour("test:green", render::BannerTable::kDefaultColours[4]);
     render::UnitTint tint;
     tint.groups.push_back(render::UnitImageGroup{0, 10, 4, 3, 0});
     tint.block_size = 10;

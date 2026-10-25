@@ -50,7 +50,7 @@ std::vector<Span> row_spans(const RgbaView& shape, std::uint32_t rows) {
 
 }  // namespace
 
-void tint_shape(const RgbaView& sprite, const RgbaView& shape, assets::Rgba color, std::vector<std::uint8_t>& out) {
+void tint_shape(const RgbaView& sprite, const RgbaView& shape, assets::Rgba colour, std::vector<std::uint8_t>& out) {
     out.clear();
     if (sprite.pixels == nullptr) {
         return;
@@ -88,7 +88,7 @@ void tint_shape(const RgbaView& sprite, const RgbaView& shape, assets::Rgba colo
     for (std::size_t k = 0; k < cloth.size(); ++k) {
         const auto shade =
             static_cast<std::uint8_t>(std::clamp(std::lround(kShapeTintReference * lum[k] / reference), 0L, 255L));
-        const assets::Rgba c = tint_shade(shade, color);
+        const assets::Rgba c = tint_shade(shade, colour);
         out[cloth[k] * 4] = c.r;
         out[cloth[k] * 4 + 1] = c.g;
         out[cloth[k] * 4 + 2] = c.b;

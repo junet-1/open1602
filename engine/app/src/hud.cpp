@@ -294,7 +294,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         banners.add_more_players();
         std::vector<MenuBanner> menu_banners;
         for (const render::Banner& b : banners.banners()) {
-            menu_banners.push_back(MenuBanner{ui::nearest_colour(palette, b.color.r, b.color.g, b.color.b), b.id});
+            menu_banners.push_back(MenuBanner{ui::nearest_colour(palette, b.colour.r, b.colour.g, b.colour.b), b.id});
         }
         m_multiplayer->set_banners(std::move(menu_banners), ui::nearest_colour(palette, 128, 128, 128));
     }
@@ -1299,7 +1299,7 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
         // and the pirates in their colour once the island is discovered.
         const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
         if (banner != nullptr) {
-            rgb = {banner->color.r, banner->color.g, banner->color.b};
+            rgb = {banner->colour.r, banner->colour.g, banner->colour.b};
         }
     }
     return rgb;
