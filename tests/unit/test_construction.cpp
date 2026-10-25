@@ -28,6 +28,7 @@ constexpr std::uint32_t kKontor2 = 22002;
 constexpr std::uint32_t kMarket = 20701;
 constexpr std::uint32_t kHouse = 20801;
 constexpr std::uint32_t kField = 21301;
+constexpr std::uint32_t kSapling = 20211;
 constexpr std::uint32_t kCastle = 21501;
 constexpr std::uint32_t kWall = 22501;
 constexpr std::uint32_t kTower = 20305;
@@ -95,6 +96,12 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 25\n  Id: 20304\n  Kind: 3\n  Gfx: 92\n  Size: 1, 1\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 15\n  EndObj\n"
         "  @Nummer: 26\n  Id: 21073\n  Kind: 30\n  Gfx: 96\n  Size: 1, 1\n  Rotate: 1\n"
+        // A tree the player plants: growing, ripe; no withered record.
+        "  @Nummer: 27\n  Id: 20211\n  Kind: 10\n  Gfx: 100\n  Size: 1, 1\n  AnimAnz: 5\n  AnimAdd: 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 10\n    Interval: 900\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 5\n  EndObj\n"
+        "  @Nummer: 28\n  Id: 20212\n  Kind: 10\n  Gfx: 105\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -415,6 +422,26 @@ TEST_CASE("construction: fields grow where the island is fertile, forest becomes
         refused += p.items[0].refusal == sim::BuildRefusal::Infertile ? 1U : 0U;
     }
     CHECK(refused == 4);  // pattern 0: 2 of 32 tiles carry (here x = 8 and 12)
+}
+
+TEST_CASE("construction: forest is planted on every tile, fertile or not") {
+    // The fertility check of S-003 is for crops that wither. Trees have no withered record; the
+    // original plants them everywhere and the forester harvests them everywhere.
+    for (const std::uint32_t fertility : {0x0U, 0x2U, 1U << (53 - 45)}) {
+        Island island(fertility);
+        island.found();
+        for (std::int32_t x = 7; x <= 12; ++x) {
+            const sim::BuildPlan p = island.build({{kSapling, x, 13, 0, 0}});
+            CHECK(p.items[0].refusal == sim::BuildRefusal::None);
+            CHECK(island.at(x, 13)->id == kSapling);
+        }
+    }
+    // During a drought too, the tree is planted as a growing tree, not as anything withered.
+    Island dry(0x0U);
+    dry.found();
+    dry.world.island(0).drought.strength = 0x40;
+    REQUIRE(dry.build({{kSapling, 9, 14, 0, 0}}).placed == 1);
+    CHECK(dry.at(9, 14)->id == kSapling);
 }
 
 TEST_CASE("construction: building and demolishing are commands of the simulation") {
