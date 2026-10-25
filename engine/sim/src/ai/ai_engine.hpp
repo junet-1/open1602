@@ -279,6 +279,9 @@ private:
     void pick_island(AiPlayer& p);
     [[nodiscard]] bool island_allowed(const AiPlayer& p, std::uint16_t island) const;
     void task_settle_area(AiPlayer& p);
+    /// The regions of free settling ground of an island (runs of 5 both ways, connected), and their
+    /// total area.
+    [[nodiscard]] std::vector<Region> free_regions(std::uint16_t island, std::int32_t& total) const;
     void task_settle_site(AiPlayer& p);
     void task_settle_land(AiPlayer& p);
     void end_settlement(AiPlayer& p);
@@ -498,16 +501,23 @@ private:
     /// The order and plan of can_place(), reused so that a site test allocates nothing.
     mutable BuildOrder m_place_order;
     mutable BuildPlan m_place_plan;
-    /// Free green land and trees of the island whose Kontor site is sought (task 3), kept while
-    /// its tiles stay the same: each region of the island asks again (TB-13).
+    /// Free green land and trees of an island whose Kontor site is sought (task 3), kept per
+    /// island while its tiles stay the same: each region and each computer asks again (TB-13).
     struct SiteCounts {
-        std::uint16_t island = 0;
         std::uint64_t revision = 0;  ///< the newest block revision of the island's map
         AreaCount green;
         AreaCount trees;
     };
     const SiteCounts& site_counts(std::uint16_t island);
-    std::optional<SiteCounts> m_site_counts;
+    std::vector<std::optional<SiteCounts>> m_site_counts;
+    /// The free land regions of an island (task 2), kept per island while its tiles stay the
+    /// same: every pass of the island search tests the islands again (TB-13).
+    struct AreaScan {
+        std::uint64_t revision = 0;  ///< 0: none yet
+        std::vector<Region> regions;
+        std::int32_t total = 0;
+    };
+    std::vector<AreaScan> m_area_scans;
     /// The newest block revision of an island's map: equal while none of its tiles changed.
     [[nodiscard]] std::uint64_t island_revision(std::uint16_t island) const;
     /// city_defenceless, from one scan of the island per revision for all its cities (TB-9).

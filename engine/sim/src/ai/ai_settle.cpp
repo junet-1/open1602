@@ -170,6 +170,23 @@ void Engine::task_settle_area(AiPlayer& p) {
         return;
     }
     const auto island = static_cast<std::uint16_t>(s.island);
+    // The regions depend on the island's tiles only: kept while none of them changed (TB-13).
+    if (m_area_scans.size() < m_world.islands().size()) {
+        m_area_scans.resize(m_world.islands().size());
+    }
+    AreaScan& scan = m_area_scans[island];
+    if (const std::uint64_t revision = island_revision(island); scan.revision != revision) {
+        scan.revision = revision;
+        scan.regions = free_regions(island, scan.total);
+    }
+    s.regions = scan.regions;
+    if (scan.total >= s.need) {
+        push(p, kSettleSite, true);
+    }
+}
+
+std::vector<Region> Engine::free_regions(std::uint16_t island, std::int32_t& total) const {
+    std::vector<Region> regions;
     const IslandMap& map = island_of(island).map;
     const auto w = static_cast<std::int32_t>(map.width());
     const auto h = static_cast<std::int32_t>(map.height());
@@ -214,7 +231,7 @@ void Engine::task_settle_area(AiPlayer& p) {
         }
     }
     // Connected regions.
-    std::int32_t total = 0;
+    total = 0;
     std::vector<std::int32_t> todo;
     for (std::int32_t y = 0; y < h; ++y) {
         for (std::int32_t x = 0; x < w; ++x) {
@@ -249,12 +266,10 @@ void Engine::task_settle_area(AiPlayer& p) {
                 }
             }
             total += r.area;
-            s.regions.push_back(r);
+            regions.push_back(r);
         }
     }
-    if (total >= s.need) {
-        push(p, kSettleSite, true);
-    }
+    return regions;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -271,28 +286,32 @@ std::uint64_t Engine::island_revision(std::uint16_t island) const {
 
 const Engine::SiteCounts& Engine::site_counts(std::uint16_t island) {
     // The island's tiles have not changed while no block has a newer revision: the counts of the
-    // last region still hold for the next one (TB-13).
+    // last test still hold for the next region and the next computer (TB-13).
     const IslandMap& map = island_of(island).map;
     const std::uint64_t revision = island_revision(island);
-    if (m_site_counts && m_site_counts->island == island && m_site_counts->revision == revision) {
-        return *m_site_counts;
+    if (m_site_counts.size() < m_world.islands().size()) {
+        m_site_counts.resize(m_world.islands().size());
+    }
+    std::optional<SiteCounts>& cached = m_site_counts[island];
+    if (cached && cached->revision == revision) {
+        return *cached;
     }
     const auto w = static_cast<std::int32_t>(map.width());
     const auto h = static_cast<std::int32_t>(map.height());
-    m_site_counts.reset();
-    m_site_counts.emplace(SiteCounts{island, revision,
-                                     AreaCount(w, h,
-                                               [&](std::int32_t x, std::int32_t y) {
-                                                   const Tile t = tile(island, x, y);
-                                                   return t.valid() && t.city == MapCell::kNoCity &&
-                                                          (t.ware == ware::kTree || t.ware == ware::kGrass ||
-                                                           t.kind == kind::kRuin);
-                                               }),
-                                     AreaCount(w, h, [&](std::int32_t x, std::int32_t y) {
-                                         const Tile t = tile(island, x, y);
-                                         return t.valid() && t.ware == ware::kTree;
-                                     })});
-    return *m_site_counts;
+    cached.reset();
+    cached.emplace(SiteCounts{revision,
+                              AreaCount(w, h,
+                                        [&](std::int32_t x, std::int32_t y) {
+                                            const Tile t = tile(island, x, y);
+                                            return t.valid() && t.city == MapCell::kNoCity &&
+                                                   (t.ware == ware::kTree || t.ware == ware::kGrass ||
+                                                    t.kind == kind::kRuin);
+                                        }),
+                              AreaCount(w, h, [&](std::int32_t x, std::int32_t y) {
+                                  const Tile t = tile(island, x, y);
+                                  return t.valid() && t.ware == ware::kTree;
+                              })});
+    return *cached;
 }
 
 void Engine::task_settle_site(AiPlayer& p) {
