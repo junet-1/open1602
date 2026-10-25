@@ -47,6 +47,7 @@ add_executable(o1602_tests
     unit/test_map_gestures.cpp
     unit/test_selection.cpp
     unit/test_selection_panels.cpp
+    unit/test_side_panels.cpp
     unit/test_options_panel.cpp
     unit/test_drag_path.cpp
     unit/test_deer.cpp
