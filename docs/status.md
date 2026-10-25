@@ -152,7 +152,7 @@ are listed in 2.1.
 |---|---|---|
 | Flag menu with free RGB colour as in Anno 1503 | Interface | [ADR 0007](architecture/0007-extensibility-and-modding.md) |
 | Factions of a package's own (with slots in the game and a behaviour of their own) | Lua (M8) | [factions.md](modding/factions.md) |
-| Content packs with manifest and identifiers, free goods list, PNG and OGG import (also icons, sounds and videos of the mods' messages) | M8 | ADR 0007 |
+| Content packs with manifest and identifiers, free goods list, PNG and OGG import (also icons, sounds and videos of the mods' messages) | M8 | ADR 0007, [open-work.md](modding/open-work.md) |
 | Scripts post the mods' messages (`MapViewer::announce`) | Lua (M8) | [messages.md](modding/messages.md) |
 | Lua scripts, custom scenarios and campaigns | M8, scenarios | ADR 0007 |
 | Computer players use a package's new production chains: a format with which mods describe new chains, stages and cheats to the AI (MD-4; the AI's tables are in one header since #198, `engine/sim/src/ai/ai_tables.hpp`). Until then the computers build no buildings of a new chain; a building that makes a known ware from a known raw material they already find by ware and raw material | to be added later (owner's decision 2026-10-25) | [build-menu.md](modding/build-menu.md) |
