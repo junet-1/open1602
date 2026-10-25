@@ -3,7 +3,7 @@
 Platform layer on SDL3: window, renderer, input events and timers (`window.hpp`), the mouse cursor
 (`mouse_cursor.hpp`) and the sound device (`audio_output.hpp`). The only place with operating system dependencies
 ([ADR 0005](../../docs/architecture/0005-module-structure.md)). Everything is RAII; SDL types never
-reach `sim` or `assets`. Built only with `-DO1602_BUILD_GAME=ON`.
+reach `sim` or `assets`. Built only with the game (`O1602_BUILD_GAME`, on in the `release` and `vcpkg` presets).
 
 When the render device is lost (`SDL_EVENT_RENDER_DEVICE_LOST`, `Window::render_reset`), the window
 makes its renderer again (`Window::recreate_renderer`). Everything that holds textures of the old
