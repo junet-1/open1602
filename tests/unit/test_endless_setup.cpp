@@ -467,7 +467,7 @@ TEST_CASE("game setup: every group of the dialog ends above its hint") {
         }
         REQUIRE(hint_y != INT32_MAX);
         CHECK(rows_y > 0);
-        CHECK(rows_y + 27 <= hint_y);  // a row is 32 high, the hint's line 22: texts sit in their middles
+        CHECK(rows_y + 27 <= hint_y);  // a row is 30 high, the hint's line 22: texts sit in their middles
         if (scope != app::SetupScope::Scenario) {
             CHECK(find_text(menu, ui::tr("setup.gold_islands")).has_value());
         }
