@@ -2221,7 +2221,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 
 | Finding | What is left | Size |
 |---|---|---|
-| MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
+| MD-4 | #198 put the AI's tables in one header (producer table, Needs, public tasks, cheats); #141 did the id arithmetic. Open: a format with which mods describe new chains, stages and cheats to the AI (the owner decides whether it is wanted). | L |
 
 Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
