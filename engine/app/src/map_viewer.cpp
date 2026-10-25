@@ -2141,9 +2141,8 @@ void MapViewer::load_options() {
     if (auto bytes = core::read_file(settings)) {
         m_app_settings = parse_settings(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()),
                                         m_app_settings);
-        // What the command line switched off stays off for this run.
-        m_app_settings.audio.effects = m_app_settings.audio.effects && m_options.effects;
-        m_app_settings.audio.music = m_app_settings.audio.music && m_options.music;
+        // What the command line switched off stays off for this run only: GameSound applies it,
+        // the settings keep the player's choice (a --no-sound run once saved sound as off).
         if (m_sound) {
             m_sound->set_settings(m_app_settings.audio);
         }

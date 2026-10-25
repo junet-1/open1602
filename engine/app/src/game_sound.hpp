@@ -51,7 +51,8 @@ public:
     void click();
 
     /// The settings of the sounds (the panel MUSIK and ANNO); switching sound or music on opens
-    /// the device if the game started without it.
+    /// the device if the game started without it. These are the player's choices, as saved:
+    /// --no-sound and --no-music silence only this run and never show up here.
     [[nodiscard]] const audio::AudioSettings& settings() const noexcept { return m_settings; }
     void set_settings(const audio::AudioSettings& settings);
     /// Titles of the music (empty without device) and the one playing now.
@@ -119,6 +120,10 @@ public:
 private:
     /// Opens the device and the music; false without a device.
     bool open_device();
+    /// The settings as they sound: the player's, less what the command line switched off.
+    [[nodiscard]] audio::AudioSettings audible() const noexcept;
+    /// Hands the audible settings to effects, voices and music.
+    void apply();
     /// Mixes until the device holds `ms` of sound.
     void top_up(std::uint32_t ms);
 
@@ -130,6 +135,8 @@ private:
     audio::Voices m_voices;
     std::unique_ptr<audio::Music> m_music;
     audio::AudioSettings m_settings;
+    bool m_allow_effects = true;  ///< false with --no-sound
+    bool m_allow_music = true;    ///< false with --no-music
     Locator m_locate;
     Listener m_listener;
     const MessageTable* m_messages = &MessageTable::original();

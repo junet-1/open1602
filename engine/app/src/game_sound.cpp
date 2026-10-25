@@ -79,19 +79,37 @@ GameSound::GameSound(const assets::GameDirectory& game, bool effects, bool music
       m_mixer(kRate, 48),
       m_bank(game),
       m_effects(m_mixer, m_bank),
-      m_voices(m_mixer, m_bank, m_effects) {
+      m_voices(m_mixer, m_bank, m_effects),
+      m_allow_effects(effects),
+      m_allow_music(music) {
     // The settings of the original's Game.dat, read only (Open1602 never writes it).
     if (const auto path = game.resolve("Game.dat")) {
         if (auto text = core::read_file(*path)) {
             m_settings = audio::parse_audio_settings(std::string(text->begin(), text->end()));
         }
     }
-    m_settings.effects = m_settings.effects && effects;
-    m_settings.music = m_settings.music && music;
-    if (!m_settings.effects && !m_settings.music) {
+    const audio::AudioSettings on = audible();
+    if (!on.effects && !on.music) {
         return;
     }
     (void)open_device();
+}
+
+audio::AudioSettings GameSound::audible() const noexcept {
+    audio::AudioSettings on = m_settings;
+    on.effects = on.effects && m_allow_effects;
+    on.music = on.music && m_allow_music;
+    return on;
+}
+
+void GameSound::apply() {
+    const audio::AudioSettings on = audible();
+    m_effects.set_enabled(on.effects);
+    m_effects.set_volume(on.effect_volume);
+    m_voices.set_settings(on);
+    if (m_music) {
+        m_music->set_settings(on);
+    }
 }
 
 bool GameSound::open_device() {
@@ -104,15 +122,12 @@ bool GameSound::open_device() {
         return false;
     }
     m_output = std::move(output).value();
-    m_effects.set_enabled(m_settings.effects);
-    m_effects.set_volume(m_settings.effect_volume);
-    m_voices.set_settings(m_settings);
     std::vector<std::string> tracks;
     std::vector<std::string> fights;
     audio::Music::scan(*m_game, tracks, fights);
     m_music = std::make_unique<audio::Music>(m_mixer, m_bank, tracks, fights);
-    m_music->set_settings(m_settings);
-    if (tracks.empty() && m_settings.music) {
+    apply();
+    if (tracks.empty() && audible().music) {
         std::fprintf(stderr, "no music: MUSIC8 is empty or missing\n");
     }
     return true;
@@ -120,15 +135,11 @@ bool GameSound::open_device() {
 
 void GameSound::set_settings(const audio::AudioSettings& settings) {
     m_settings = settings;
-    if (m_output == nullptr && (m_settings.effects || m_settings.music) && !open_device()) {
+    const audio::AudioSettings on = audible();
+    if (m_output == nullptr && (on.effects || on.music) && !open_device()) {
         return;
     }
-    m_effects.set_enabled(m_settings.effects);
-    m_effects.set_volume(m_settings.effect_volume);
-    m_voices.set_settings(m_settings);
-    if (m_music) {
-        m_music->set_settings(m_settings);
-    }
+    apply();
 }
 
 std::vector<std::string> GameSound::tracks() const {
@@ -152,7 +163,7 @@ void GameSound::play_track(const std::string& title) {
 }
 
 void GameSound::test_effects() {
-    if (m_output != nullptr && m_settings.effects) {
+    if (m_output != nullptr && audible().effects) {
         m_effects.request(audio::kWavTest, 0.0F, 0.0F);
     }
 }
