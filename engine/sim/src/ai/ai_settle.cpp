@@ -8,6 +8,7 @@
 #include <limits>
 
 #include "ai_engine.hpp"
+#include "ai_tables.hpp"
 
 namespace o1602::sim::ai {
 
@@ -17,10 +18,8 @@ constexpr std::uint64_t kColonyCooldownMs = 60'000;  // C+0x30: 60 s between set
 constexpr std::int32_t kNeedStep = 50;
 constexpr std::uint32_t kPirateRegionPasses = 6;  // passes a further nest keeps to a part without one
 constexpr std::uint8_t kLandRetries = 4;
-constexpr std::int32_t kFoundingBelow = 500;  // a founding with less money than this ...
-constexpr std::int32_t kFoundingMoney = 799;  // ... gets this much (the original's cheat)
-constexpr std::uint32_t kReach = 5;           // a ship within 5 tiles of a Kontor lies at it
-constexpr std::uint32_t kLandRange = 12;      // founding: the ship within 12 tiles of the site
+constexpr std::uint32_t kReach = 5;       // a ship within 5 tiles of a Kontor lies at it
+constexpr std::uint32_t kLandRange = 12;  // founding: the ship within 12 tiles of the site
 
 bool in_circle(std::int32_t dx, std::int32_t dy, std::uint32_t r) {
     static const std::vector<std::uint8_t> kNear = circle_half_widths(kReach);
@@ -597,8 +596,8 @@ void Engine::task_settle_land(AiPlayer& p) {
         return;
     }
     Player& pl = player(p);
-    if (pl.money < kFoundingBelow) {
-        pl.money = money_plus(pl.money, std::int64_t{kFoundingMoney});  // the original's founding money (cheat)
+    if (pl.money < kCheats.founding_below) {
+        pl.money = money_plus(pl.money, std::int64_t{kCheats.founding_money});  // the original's founding money (cheat)
     }
     BuildOrder order;
     order.player = p.player;
@@ -639,7 +638,8 @@ void Engine::task_settle_land(AiPlayer& p) {
     r.stage_ms = now_ms();
     r.land = free_land(island, c->index, &r.land_percent);
     unload_at(*c, *ship, false, false);
-    add_goods(*c, m_buildings.materials().bricks, 8 * kTon);  // free bricks after founding
+    add_goods(*c, m_buildings.materials().bricks,
+              kCheats.founding_bricks * kStockUnitsPerTon);  // free bricks after founding
     s.failed = false;
     p.budget = 14;
     if (!p.home_valid) {
@@ -850,19 +850,19 @@ bool Engine::prepare_colony_ship(AiPlayer& p, std::uint8_t crop, bool food) {
     if (behind(p) && !threatened(p)) {
         // The colony subsidy (cheat): one ware per call into the current city.
         bool given = true;
-        if (c->stock(m.wood) < 19 * kTon) {
-            add_goods(*c, m.wood, 13 * kTon);
-        } else if (c->stock(m.tools) < 15 * kTon) {
-            add_goods(*c, m.tools, 9 * kTon);
+        if (c->stock(m.wood) < kCheats.wood_below * kStockUnitsPerTon) {
+            add_goods(*c, m.wood, kCheats.wood * kStockUnitsPerTon);
+        } else if (c->stock(m.tools) < kCheats.tools_below * kStockUnitsPerTon) {
+            add_goods(*c, m.tools, kCheats.tools * kStockUnitsPerTon);
         } else {
             std::uint32_t inhabited = 0;
             for (const City& o : m_world.cities()) {
                 inhabited += o.owner == p.player && population(o) > 0 ? 1U : 0U;
             }
-            if (inhabited < 2 && c->stock(food_ware) < 19 * kTon) {
-                add_goods(*c, food_ware, 9 * kTon);
-            } else if (inhabited >= 2 && c->stock(m.bricks) < 19 * kTon) {
-                add_goods(*c, m.bricks, 9 * kTon);
+            if (inhabited < 2 && c->stock(food_ware) < kCheats.food_below * kStockUnitsPerTon) {
+                add_goods(*c, food_ware, kCheats.food * kStockUnitsPerTon);
+            } else if (inhabited >= 2 && c->stock(m.bricks) < kCheats.bricks_below * kStockUnitsPerTon) {
+                add_goods(*c, m.bricks, kCheats.bricks * kStockUnitsPerTon);
             } else {
                 given = false;
             }

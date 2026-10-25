@@ -8,6 +8,7 @@
 #include <optional>
 
 #include "ai_engine.hpp"
+#include "ai_tables.hpp"
 
 #include "o1602/sim/growth.hpp"
 #include "o1602/sim/houses.hpp"
@@ -16,43 +17,9 @@ namespace o1602::sim::ai {
 
 namespace {
 
-constexpr std::array<std::array<std::int32_t, 2>, 4> kStep{{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}};
-
-/// A public building task: its building, slot, flag, the service its houses lack and how many
-/// such houses a site must reach.
-struct PublicTask {
-    std::uint8_t task;
-    std::uint32_t id;
-    std::uint8_t slot;
-    std::uint32_t flag;
-    std::uint16_t service;
-    std::int32_t min_houses;
-    bool roads_on_fail;
-};
-
 namespace hs = house_service;
 
-constexpr std::array<PublicTask, 10> kPublicTasks{{
-    {kKapelle, id::kKapelle, kSlotKapelle, city_flag::kKapelle, hs::kKapelle | hs::kKirche, 3, true},
-    {kWirt, id::kWirt, kSlotWirt, city_flag::kWirt, hs::kWirtshaus, 8, true},
-    {kSchule, id::kSchule, kSlotSchule, city_flag::kSchule, hs::kSchule | hs::kHochschule, 8, true},
-    {kKlinik, id::kKlinik, kSlotKlinik, city_flag::kKlinik, hs::kKlinik, 8, true},
-    {kKirche, id::kKirche, kSlotKirche, city_flag::kKirche, hs::kKirche, 16, true},
-    {kBadehaus, id::kBadehaus, kSlotBadehaus, city_flag::kBadehaus, hs::kBadehaus, 8, true},
-    {kHochschule, id::kHochschule, kSlotHochschule, city_flag::kHochschule, hs::kHochschule, 10, true},
-    {kTheater, id::kTheater, kSlotTheater, city_flag::kTheater, hs::kTheater, 10, true},
-    {kGalgen, id::kGalgen, kSlotGalgen, city_flag::kGalgen, hs::kGalgen, 10, false},
-    {kBrunnen, id::kBrunnen, kSlotBrunnen, city_flag::kBrunnen, hs::kBrunnen, 6, false},
-}};
-
-const PublicTask* public_task(std::uint8_t task) {
-    for (const PublicTask& t : kPublicTasks) {
-        if (t.task == task) {
-            return &t;
-        }
-    }
-    return nullptr;
-}
+constexpr std::array<std::array<std::int32_t, 2>, 4> kStep{{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}};
 
 bool is_workshop_task(std::uint8_t task) {
     switch (task) {
@@ -87,75 +54,6 @@ bool is_farm_task(std::uint8_t task) {
             return true;
         default:
             return false;
-    }
-}
-
-/// The slot a producer counts for in the survey, by its ware and raw material (task 8).
-std::optional<std::uint8_t> producer_slot(std::uint8_t w, std::uint8_t raw, std::uint32_t building_id) noexcept {
-    switch (w) {
-        case ware::kWood:
-            return kSlotWoodcutter;
-        case ware::kFood:
-            if (raw == ware::kGame) {
-                return kSlotHunter;
-            }
-            if (raw == ware::kFlour) {
-                return kSlotBakery;
-            }
-            if (raw == ware::kFish) {
-                return kSlotFisher;  // the original counts them as hunters too (S-098)
-            }
-            if (raw == ware::kMeat) {
-                return kSlotButcher;
-            }
-            return std::nullopt;
-        case ware::kGrain:
-            return kSlotGrain;
-        case ware::kFlour:
-            return kSlotMill;
-        case ware::kStone:
-            return kSlotQuarry;
-        case ware::kBricks:
-            return kSlotStonemason;
-        case ware::kWool:
-            return raw == ware::kCottonField ? kSlotCotton : kSlotSheep;
-        case ware::kCloth:
-            return building_id == id::kWebstube ? kSlotWebstube : kSlotWeberei;
-        case ware::kAlcohol:
-            // The original counts every alcohol producer as a cocoa plantation too (S-098).
-            return raw == ware::kWineField ? kSlotWine : kSlotRum;
-        case ware::kSpices:
-            return kSlotSpices;
-        case ware::kCocoa:
-            return kSlotCocoa;
-        case ware::kTobacco:
-            return kSlotTobacco;
-        case ware::kTobaccoGoods:
-            return kSlotTobaccoGoods;
-        case ware::kSugar:
-            return kSlotSugar;
-        case ware::kMeat:
-            return kSlotCattle;
-        case ware::kOre:
-            return kSlotIronMine;
-        case ware::kGold:
-            return kSlotGoldMine;
-        case ware::kIron:
-            return kSlotSmelter;
-        case ware::kTools:
-            return kSlotToolsmith;
-        case ware::kClothes:
-            return kSlotTailor;
-        case ware::kSwords:
-            return kSlotSwords;
-        case ware::kMuskets:
-            return kSlotMuskets;
-        case ware::kCannons:
-            return kSlotCannons;
-        case ware::kJewellery:
-            return kSlotGoldsmith;
-        default:
-            return std::nullopt;
     }
 }
 
