@@ -2213,6 +2213,7 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 | TB-11 (part) | #196 | Profiled with callgrind (the arena hour, in place of AI-2): the AI is 85 % of the run and `tile()` half of it, called from the ring searches of the site search; the survey is 8 %. `tile()` now takes the origin from the building record already found instead of a second lookup: 14.43 → 12.05 billion instructions, same golden hash. |
 | TB-11 (part) | #197 | Eight of the ten ring searches stop at the farthest ring their scoring reads (houses 14, others 6 to 13 instead of 16), and the Own filter checks the city of the map cell before looking up the building: 12.05 → 8.58 billion instructions, same golden hash. |
 | MD-4 (part) | #198 | The AI's building knowledge in one header (`ai_tables.hpp`): the survey's producer table (slot by ware, raw material and record) instead of a ware switch, the 32 Need rows, the ten public tasks, the first colony's crop and the original's cheat amounts. A test compares the producer table with the former switch over every ware and raw material. Same golden hashes. |
+| BT-2 | #199 | The build menu and the player status of the side panel only fill their panels (as the selection windows); `side_panels.cpp` is in `o1602_menus`, tested with synthetic BAU and INFO layouts (costs, turned preview, production chain, pop-up, locked buildings, demolish, rotate, help; figures, balance icon, list buttons, rating, goods line). No part of the side panel is left without tests. |
 
 ### Still open
 
@@ -2220,7 +2221,6 @@ Also found by the new fuzz jobs and fixed: settings and slot names that did not 
 |---|---|---|
 | MD-4 | The AI's 55 fixed slots as a table by building family; Need rows and `producer_slot` from the building table; stage orders, cheat amounts and INFRA thresholds as data. #141 did the id arithmetic only. | L |
 | TB-11, TB-13 | A survey kept up from construction events (#185 reuses it only while the island is unchanged); the rest of the settlement search (each search is bounded since #128; counts cached since #176). | M |
-| BT-2 | The side panels (hud) still draw with the SDL renderer and have no tests. | S |
 
 Closed by the owner's decision: the FB-25 atlas cache file (preparation takes 225 ms since #171). TB-14 part 2, a shared AI work budget per tick: the computers stay within budget in normal games (max 3.6 ms with 12 players) and the timers are staggered since part 1, so it is left out. The tints for unused banners stay: on the desktop machine 12 players load no slower than 4.
 
