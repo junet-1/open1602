@@ -208,3 +208,34 @@ TEST_CASE("history edition: scenarios are found by name and Text.cod's placehold
     CHECK(!plain->resolve("Szenes/Das Atoll.szs"));
     std::filesystem::remove_all(root);
 }
+
+TEST_CASE("history edition: Game.dat and the savegames come from the user's folder, also in a Wine prefix") {
+    const auto prefix = test::temp_path("o1602-test-history-user");
+    std::filesystem::remove_all(prefix);
+    const auto root = prefix / "drive_c" / "Program Files (x86)" / "Ubisoft" / "Anno 1602 - History Edition";
+    for (const char* file : {"haeuser.cod", "figuren.cod", "ToolGfx/STADTFLD.COL", "GFX/STADTFLD.BSH"}) {
+        write(root / file, std::string_view{});
+    }
+    write(root / "ahe" / "a1he0.rda", make_rda({{"data/texts.xml", std::string(kTexts)}}));
+    const auto user = prefix / "drive_c" / "users" / "steamuser" / "Documents" / "Anno 1602 History Edition";
+    write(user / "Game.dat", std::string_view{"[SOUND]"});
+    write(user / "Savegame" / "neue.gam", std::string_view{});
+    std::filesystem::create_directories(prefix / "drive_c" / "users" / "Public");
+
+    auto game = assets::GameDirectory::open(root);
+    REQUIRE(game);
+    CHECK(test::same_file(std::optional<std::filesystem::path>(game->user_folder()), user));
+    CHECK(test::same_file(game->resolve("Game.dat"), user / "Game.dat"));
+    CHECK(test::same_file(game->resolve("savegame/NEUE.gam"), user / "Savegame" / "neue.gam"));
+    CHECK(!game->resolve("Savegame/game00.gam"));
+
+    // The installation's own files come first; other editions have no such folder.
+    write(root / "Game.dat", std::string_view{"[SOUND]"});
+    CHECK(test::same_file(game->resolve("Game.dat"), root / "Game.dat"));
+    std::filesystem::remove_all(root / "ahe");
+    auto plain = assets::GameDirectory::open(root);
+    REQUIRE(plain);
+    CHECK(plain->user_folder().empty());
+    CHECK(!plain->resolve("Savegame/neue.gam"));
+    std::filesystem::remove_all(prefix);
+}

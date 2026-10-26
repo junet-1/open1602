@@ -15,7 +15,9 @@ new renderer. Most files are the same byte for byte; what Open1602 has to know:
 | Buttons for its own settings screen (OPTION.GAD 47016) and for a new savegame (DISK.GAD 48014) | `GADDATA/` | left out (`kUnusedHistoryButtons`) |
 | Ten savegame rows instead of twelve, with arrows of their own (DISK.GAD 48016, 48017) | `GADDATA/DISK.GAD` | the list counts its rows and scrolls with these arrows |
 | Videos in Bink 2 (`VideoSmk/*.bk2`) | `VideoSmk/`, `Loca/<language>/VideoSmk/` | not played (no free decoder) |
-| No `Game.dat`, no `Language.dll` | – | default settings, the system's mouse cursors |
+| `Game.dat` (sound and video settings, no savegame names), `Savegame/*.gam`, `Highscore/` in the user's `Documents/Anno 1602 History Edition/` (below Wine in the prefix: `drive_c/users/<user>/Documents/...`) | – | `GameDirectory::resolve()` looks there after the installation: `--savegame neue` loads `Savegame/neue.gam` |
+| Names as placeholders in savegames: `NAME` "[[48]]" (Endlosspiel), the mission text "[[353]]" | `*.gam` | filled in with the History Edition's texts; with the Königsedition they stay as they are |
+| No `Language.dll` | – | the system's mouse cursors |
 
 The scenario files themselves carry no name. Compared with the Königsedition's they leave out
 the empty chunks.

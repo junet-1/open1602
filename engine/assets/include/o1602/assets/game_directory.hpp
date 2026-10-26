@@ -71,9 +71,14 @@ public:
     /// The History Edition's language folder in use (Loca/de-DE, ...); empty for other editions.
     [[nodiscard]] const std::filesystem::path& localized_root() const noexcept { return m_localized; }
 
+    /// The History Edition's folder of the user (Documents/Anno 1602 History Edition: Game.dat,
+    /// Savegame/), also inside the Wine prefix it is installed in; empty if none or another edition.
+    [[nodiscard]] const std::filesystem::path& user_folder() const noexcept { return m_user; }
+
     /// Resolves a path as used by the original game (case-insensitive, '\\' or '/'): in the language
-    /// folder if it has it, else in the installation. A scenario of the History Edition is also
-    /// found by its name ("Szenes/Das Atoll.szs", "Szenes/Endlosspiel00.szs").
+    /// folder if it has it, else in the installation, else in the History Edition's user_folder().
+    /// A scenario of the History Edition is also found by its name ("Szenes/Das Atoll.szs",
+    /// "Szenes/Endlosspiel00.szs").
     [[nodiscard]] std::optional<std::filesystem::path> resolve(std::string_view relative) const;
 
     /// The History Edition's texts (nullptr for other editions or if they cannot be read).
@@ -90,6 +95,7 @@ private:
 
     std::filesystem::path m_root;
     std::filesystem::path m_localized;
+    std::filesystem::path m_user;
     std::shared_ptr<const HistoryTexts> m_history_texts;
 };
 

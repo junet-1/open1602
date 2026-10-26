@@ -86,6 +86,42 @@ std::string lower_ascii(std::string_view text) {
     return out;
 }
 
+/// The History Edition's own folder of the user: "Documents/Anno 1602 History Edition" with its
+/// Game.dat and Savegame/. Below Wine (Heroic, Lutris) it is in the prefix the game is installed
+/// in: drive_c/users/<user>/Documents/...
+std::optional<fs::path> history_user_folder(const fs::path& root) {
+    constexpr std::string_view kFolder = "Documents/Anno 1602 History Edition";
+    std::vector<fs::path> homes;
+#if defined(_WIN32)
+    if (const auto profile = environment_path("USERPROFILE")) {
+        homes.push_back(*profile);
+    }
+#endif
+    std::error_code ec;
+    for (fs::path p = fs::absolute(root, ec); !ec && p.has_relative_path(); p = p.parent_path()) {
+        if (lower_ascii(core::path_to_utf8(p.filename())) != "drive_c") {
+            continue;
+        }
+        if (const auto users = core::find_case_insensitive(p, "users")) {
+            std::vector<fs::path> found;
+            for (fs::directory_iterator it(*users, ec), last; !ec && it != last; it.increment(ec)) {
+                if (it->is_directory(ec)) {
+                    found.push_back(it->path());
+                }
+            }
+            std::sort(found.begin(), found.end());
+            homes.insert(homes.end(), found.begin(), found.end());
+        }
+        break;
+    }
+    for (const fs::path& home : homes) {
+        if (auto folder = core::find_case_insensitive(home, kFolder)) {
+            return folder;
+        }
+    }
+    return std::nullopt;
+}
+
 /// The language part of a code: "de" of "de-DE", "de_DE.UTF-8" or "de".
 std::string primary_language(std::string_view code) {
     return lower_ascii(code.substr(0, code.find_first_of("-_.@")));
@@ -208,6 +244,7 @@ core::Result<GameDirectory> GameDirectory::open(const fs::path& root) {
         if (auto texts = HistoryTexts::load(*rda)) {
             dir.m_history_texts = std::make_shared<const HistoryTexts>(std::move(texts).value());
         }
+        dir.m_user = history_user_folder(root).value_or(fs::path());
     }
     return dir;
 }
@@ -361,6 +398,11 @@ std::optional<fs::path> GameDirectory::resolve(std::string_view relative) const 
     }
     if (auto path = core::find_case_insensitive(m_root, relative)) {
         return path;
+    }
+    if (!m_user.empty()) {
+        if (auto path = core::find_case_insensitive(m_user, relative)) {
+            return path;
+        }
     }
     return resolve_named_scenario(relative);
 }
