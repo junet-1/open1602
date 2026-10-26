@@ -215,7 +215,9 @@ core::Status apply_decoded(World& world, Decoded& d) {
         world.set_players(std::move(players));
         world.set_factions(std::move(d.factions->factions));
     }
-    world.set_balance(d.balance.value_or(Balance{}));  // written whenever it is not the original's
+    Balance balance = d.balance.value_or(Balance{});  // written whenever it is not the original's
+    balance.buildings = d.building_values.value_or(std::vector<BuildingValue>{});
+    world.set_balance(balance);
     if (d.missions) {
         world.set_missions(std::move(d.missions->missions));
         world.set_game_end(d.missions->end);

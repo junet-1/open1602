@@ -38,6 +38,7 @@ if they change during a game, then only via a command
 | Free trader prices (`trader_prices`, S-077) | as usual (about half the base price), by the market (as the original intends) | as usual | as usual |
 | Free trader's destinations (`trader_reach`) | as the original (the 12 nearest Kontors by profit, a random one of them when none promises any); nearby, as with four players: with more than four human and computer players only the nearest Kontors' share a four-player game would have (Kontors × 4 / players, 3 to 12), and when none promises profit the one no trader has chosen for longest | as the original | nearby (up to four players the original) |
 | Large iron veins (`endless_veins`) | run out, as the original (the ore mine digs a 240 t vein down to 120 t, the deep mine on to its end); endless: the same, but the deep mine's part never runs out (the vein stays at 119 t); small veins run out either way, gold never does | run out | run out |
+| Bread production (`revised_bread`) | as the original; revised: the grain farm makes 2 t of grain per field and the bakery 2 t of bread from 2 t of flour for 15 gold a minute instead of 5, so a bread chain makes about as much food as meat at the same running cost ([balance.md](../modding/balance.md#revised-bread-production)) | as the original | as the original |
 | Towns known from the start (`reveal`) | nothing (every island is discovered by a ship coming near, as the original); other players (every island with a town of a human or computer player is discovered for everyone from the start, also when the town is founded later; native villages and pirate nests are found by ship); all settlements (native villages and pirate nests too). An island counts as a whole, so a native village on an island with a player's town shows with it | nothing | nothing |
 | Computer players (`classic_ai`, S-097 to S-099) | improved, as the original (with its bugs in settling, counting and site search, so they stall after about two hours) | as the original | improved |
 | Victory conditions of the endless game (`victory`, `VictoryConditions`) | inhabitants, residents of a level or higher, treasury, balance per minute, share of settled islands, defeat all opponents, score, prestige buildings (castle, cathedral, both), time limit (then the most points win); all or any one; computers can win or not | none (the endless game never ends) | none |
@@ -68,7 +69,7 @@ its difficulty, but their bugs stay fixed by default, also in savegames of the o
 start dialog after name and banner (`engine/app/src/game_settings_menu.cpp`, since 2026-10-20): the
 settings in groups (economy, limits, disasters, world, opponents), as in later Anno titles, each a button that
 cycles its values, with presets for the original's rules and Open1602's defaults; the last choice is
-kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--pirates`, `--pirate-nests`, `--reveal`, `--ore-veins`, `--ai`)
+kept in `settings.cfg` (`endless.*`, `endless.world = auto` for the automatic size). The command line (`--refund`, `--droughts`, `--volcanoes`, `--pirates`, `--pirate-nests`, `--reveal`, `--ore-veins`, `--bread`, `--ai`)
 still sets them for games started from it.
 
 ### Victory conditions

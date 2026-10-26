@@ -99,6 +99,7 @@ add_executable(o1602_tests
     data/test_ui_data.cpp
     data/test_video_data.cpp
     data/test_save_continuity.cpp
+    data/test_food_chains.cpp
     data/test_goods_data.cpp
     data/test_net_data.cpp
 )

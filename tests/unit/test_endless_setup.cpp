@@ -153,6 +153,17 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(read.rules.endless_veins);
     CHECK(app::read_setup_line(read, "ore_veins", "original"));
     CHECK(!read.rules.endless_veins);
+    // Bread production: as in the original by default, the revised chain on choice.
+    CHECK(!s.rules.revised_bread);
+    CHECK(value_of(s, SetupItem::BreadChain) == ui::tr("setup.bread.original"));
+    app::choose(s, SetupItem::BreadChain, 1);
+    CHECK(s.rules.revised_bread);
+    CHECK(value_of(s, SetupItem::BreadChain) == ui::tr("setup.bread.revised"));
+    CHECK(app::write_setup(s).find("endless.bread = revised\n") != std::string::npos);
+    app::read_setup(read, app::write_setup(s));
+    CHECK(read.rules.revised_bread);
+    CHECK(app::read_setup_line(read, "bread", "original"));
+    CHECK(!read.rules.revised_bread);
 
     // The world's items count only for a world of its own.
     CHECK(!app::setup_item_used(s, SetupItem::Players));
@@ -312,9 +323,9 @@ TEST_CASE("game setup: what a scenario, a multiplayer game and a savegame offer"
         CHECK(!app::setup_item_offered(SetupScope::Scenario, item));
     }
     for (const SetupItem item :
-         {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::TraderReach, SetupItem::OreVeins, SetupItem::Ships,
-          SetupItem::Units, SetupItem::GameSpeed, SetupItem::Droughts, SetupItem::Volcanoes, SetupItem::ClassicAi,
-          SetupItem::Pirates, SetupItem::PirateNests, SetupItem::Reveal}) {
+         {SetupItem::Refund, SetupItem::TraderPrices, SetupItem::TraderReach, SetupItem::OreVeins,
+          SetupItem::BreadChain, SetupItem::Ships, SetupItem::Units, SetupItem::GameSpeed, SetupItem::Droughts,
+          SetupItem::Volcanoes, SetupItem::ClassicAi, SetupItem::Pirates, SetupItem::PirateNests, SetupItem::Reveal}) {
         CHECK(app::setup_item_offered(SetupScope::Scenario, item));
         CHECK(app::setup_item_open(EndlessSetup{}, SetupScope::Scenario, item));
         CHECK(!app::setup_item_open(EndlessSetup{}, SetupScope::Savegame, item));  // to look at only

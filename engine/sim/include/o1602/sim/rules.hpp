@@ -166,6 +166,14 @@ struct Rules {
     /// original, gold never does anyway. Off by default: the original's 240 t.
     bool endless_veins = false;
 
+    /// The revised bread chain (docs/modding/balance.md, data/balance/revised_bread.toml): a grain
+    /// farm makes two tons of grain from a field, a bakery two tons of bread from two tons of flour
+    /// at 15 gold a minute instead of 5. The original's chain gives 1.5 t of bread a minute from 20
+    /// fields where two cattle farms and a butcher give 2.4 t of meat; revised it gives 6.3 t at
+    /// the same running cost per ton as meat. Its values go under those of the mods' balance.toml.
+    /// Off by default, as the original.
+    bool revised_bread = false;
+
     /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
     /// settlement ship sails no city develops, a city whose colony search failed waits for it for
     /// ever, an unreachable site is searched afresh (and found again), the fisher looks in two
@@ -199,6 +207,7 @@ struct Rules {
         r.trader_prices = TraderPrices::Original;
         r.trader_reach = TraderReach::Original;
         r.endless_veins = false;
+        r.revised_bread = false;
         r.classic_ai = true;
         r.reveal = Reveal::None;
         return r;
