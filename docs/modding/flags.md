@@ -86,11 +86,14 @@ game only, eight coats of arms for the further presets: four left and four right
 end screen's coat of arms (`GFXFARB + 25`, gold frame `+ 4` while the mouse is over it) and tinted like every other
 interface art. Over a coat of arms the screen writes the colour's name below it (`net.colour.*`) and repaints the hall
 banner with the same pattern ([`art_pattern`](#interface-art-in-player-colour)) in that colour, so the hall shows the
-banner one would sail under. A click chooses it as a click on a hall banner does.
+banner one would sail under. A click chooses it as a click on a hall banner does. Each time the screen is entered from
+the mission screen, the eight coats of arms draw their patterns anew (`BannerTable::shuffle_art_patterns`), each side
+of four showing all four patterns; the game's banners keep the patterns `add_colour` gave them.
 
 The hall banners are painted, not flat flags, so they are recoloured by `render::tint_shape`
 (`render/shape_tint.hpp`): the cloth is every opaque pixel of the banner between the left and right edge of its
-clickable outline on the same row (`ColourTint::shape` names the outline's sprite), and its shading is kept as the
+clickable outline on the same row (`ColourTint::shape` names the outline's sprite; gaps of up to two rows in the
+outline take what the rows around them have in common), and its shading is kept as the
 brightness relative to the cloth's upper quartile. Pole, rope and the hall around it stay as they are.
 
 A further colour the level's file does not have is taken by swapping banners with the player who had it

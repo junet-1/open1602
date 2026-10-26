@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <map>
+#include <random>
 #include <utility>
 
 #include "banner_graphic.hpp"
@@ -743,6 +744,8 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     const MenuScenario& s = m_scenarios[m_chosen];
                     if (s.header.mission_number == kEndless && m_colour) {
                         m_screen = Screen::Colour;  // name and banner first (0x0048A680)
+                        // Each visit shows the further colours in other patterns (two runs of four).
+                        m_banners.shuffle_art_patterns(sim::kFirstExtraBanner, kMoreBanners, std::random_device{}());
                         // The name can be typed at once (as the original, mode 5 of 0x00409910);
                         // the last one, or "Namenlos", stands there until the first key.
                         if (m_name.empty()) {

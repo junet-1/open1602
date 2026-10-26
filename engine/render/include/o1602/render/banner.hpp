@@ -130,6 +130,12 @@ public:
         return add_colour(std::move(id), colour);
     }
 
+    /// New coats of arms patterns (Banner::art_pattern) for banners [first, first + count): each
+    /// run of four takes the four patterns in an order drawn from `seed`, the same on every
+    /// platform. For menus that show off the colours (the colour screen); a game's banners keep
+    /// the patterns add_colour gave them.
+    void shuffle_art_patterns(sim::BannerId first, std::size_t count, std::uint32_t seed);
+
     [[nodiscard]] const std::optional<FlagTemplate>& flag_template() const noexcept { return m_template; }
     void set_flag_template(FlagTemplate t) { m_template = t; }
 

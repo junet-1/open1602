@@ -18,6 +18,9 @@ double luminance(const std::uint8_t* p) noexcept {
 
 using Span = std::optional<std::pair<std::uint32_t, std::uint32_t>>;
 
+/// The highest gap in an outline that the rows around it close.
+constexpr std::uint32_t kMaxGapRows = 2;
+
 /// Leftmost and rightmost opaque pixel of each row of `shape`, `rows` rows (none below it).
 std::vector<Span> row_spans(const RgbaView& shape, std::uint32_t rows) {
     std::vector<Span> spans(rows);
@@ -29,21 +32,26 @@ std::vector<Span> row_spans(const RgbaView& shape, std::uint32_t rows) {
             }
         }
     }
-    // A gap in the outline: at least what the rows above and below have in common.
+    // A gap in the outline: at least what the nearest rows above and below have in common. The
+    // outlines' gaps are one or two rows high (the red banner's left edge, rows 185 and 186).
     std::vector<Span> closed = spans;
     for (std::uint32_t y = 1; y + 1 < rows; ++y) {
-        const Span& above = spans[y - 1];
-        const Span& below = spans[y + 1];
-        if (!above || !below) {
-            continue;
+        for (std::uint32_t up = 1; up <= kMaxGapRows && up <= y; ++up) {
+            for (std::uint32_t down = 1; up + down <= kMaxGapRows + 1 && y + down < rows; ++down) {
+                const Span& above = spans[y - up];
+                const Span& below = spans[y + down];
+                if (!above || !below) {
+                    continue;
+                }
+                const std::uint32_t left = std::max(above->first, below->first);
+                const std::uint32_t right = std::min(above->second, below->second);
+                if (left > right) {
+                    continue;
+                }
+                closed[y] = closed[y] ? std::pair{std::min(closed[y]->first, left), std::max(closed[y]->second, right)}
+                                      : std::pair{left, right};
+            }
         }
-        const std::uint32_t left = std::max(above->first, below->first);
-        const std::uint32_t right = std::min(above->second, below->second);
-        if (left > right) {
-            continue;
-        }
-        closed[y] = spans[y] ? std::pair{std::min(spans[y]->first, left), std::max(spans[y]->second, right)}
-                             : std::pair{left, right};
     }
     return closed;
 }
