@@ -131,8 +131,10 @@ a clear message.
 
 ### 7. Multiplayer and savegames
 
-- The list of content packages with versions and checksums is part of the savegame and the lobby.
-  All participants need the same content, otherwise the match is not started.
+- A game names the content packages it uses, with versions and checksums; the list is part of the
+  savegame and the lobby. Every participant needs these packages, otherwise they cannot join.
+  Packages a participant has installed in addition are not loaded for that game, so more mods on
+  one computer never keep it out of a game (amended 2026-10-26).
 - Savegames store ids (strings), not runtime indices. That way they stay valid
   when a package adds entries.
 
@@ -162,4 +164,4 @@ The open items of this ADR, in the order to work on them, are in
 | Island generator | – | 🟡 stage 1: custom worlds from the original templates (200–2000 tiles, [worldgen.md](../re/worldgen.md)); stage 2 with custom island shapes postponed |
 | Messages of the status bar | MELDUNG numbers 0–0x6F, texts only from `Text.cod` | ✅ `app::MessageTable`: the original's at their numbers, packages' after them, from `mods/<package>/messages.toml` ([messages.md](../modding/messages.md)); a package's id is its folder's name until manifests come |
 | Numbers of the balance in the code | trader, castles, disasters as constants | ✅ `sim::Balance` in the world, changed by `balance.toml` ([balance.md](../modding/balance.md)) |
-| Lua, campaigns, content packages | – | ⬜ own milestones (M8) |
+| Lua, campaigns, content packages | – | 🟡 packages with a manifest, load order and the packages of each game ([packages.md](../modding/packages.md)); Lua, campaigns and archives open (M8) |

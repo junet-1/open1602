@@ -32,6 +32,7 @@ notice.save_failed = Saving failed: {1}
 notice.load_failed = Loading failed: {1}
 # {1}: how many problems
 notice.load_problems = Loaded with {1} problem(s): parts of the game could not be used. The log has the details.
+notice.packages = This game uses mods that are missing here or differ: {1}. The log has the details.
 notice.screenshot_failed = Screenshot failed: {1}
 
 # Menus and savegames
@@ -224,6 +225,10 @@ net.chat_hint_all = Message to all (Enter sends, Esc closes)
 net.chat_hint_private = Private to {1} (Enter sends, Esc closes)
 net.chat_read_only = Spectators only read the chat in this game.
 net.chat_missed = Not delivered to {1}: nobody plays there right now.
+net.package_kept = Mod received: {1}.
+net.size_kb = {1} KB
+net.size_mb = {1}.{2} MB
+net.fetch_question = This game needs mods this computer does not have: {1} ({2}). Download them from the host?
 net.waiting = Waiting for the other players ...
 net.host_port = Hosting on UDP port {1}
 net.cannot_host = Cannot host: {1}
@@ -261,6 +266,7 @@ net.refused.invalid = This computer sent what makes no sense.
 net.refused.password = Wrong password.
 net.refused.kicked = The host sent you away.
 net.refused.taken = Your slot is still being played from another computer.
+net.refused.packages = The game needs mods this computer does not have, or has in another version: {1}.
 
 # Players five to twelve of a new world, named after their colours
 player.colour.red = Red player
@@ -704,3 +710,20 @@ list.order.idle = Idle first
 list.order.damaged = Damaged first
 list.order.help.ships = Click: order the ships by name, idle or damaged first, or as the original
 list.order.help.cities = Click: order the cities by name or as the original
+
+# The screen "Mods" of the main menu (mods_menu.cpp)
+menu.mods = Mods
+mods.title = Mods
+mods.hint = New games use the mods turned on here; a savegame keeps its own. Mods received from a host serve only the games that need them.
+mods.col_name = Mod
+mods.col_version = Version
+mods.col_state = State
+mods.state_on = On
+mods.state_off = Off
+mods.state_broken = Not loaded (see the log)
+mods.state_received = Received from a host
+mods.none = There are no mods yet. A mod is a folder in the folder "mods" of Open1602's user data folder.
+mods.adopt = Add to my mods
+mods.back = Back
+mods.adopted = {1} is in your mods folder now and turned on.
+mods.adopt_failed = {1} could not be copied: {2}

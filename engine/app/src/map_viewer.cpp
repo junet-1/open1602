@@ -138,12 +138,12 @@ struct ModRules {
     sim::Balance balance;
 };
 
-/// The base game's factions and numbers as the mods change them (<data folder>/mods/<package>/
-/// factions.toml and balance.toml), the packages in the order of their names.
-ModRules load_mod_rules(const std::filesystem::path& mods, const assets::BuildingTable& buildings) {
+/// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
+/// balance.toml), the packages in their load order.
+ModRules load_mod_rules(std::span<const assets::ModPackage> packages, const assets::BuildingTable& buildings) {
     ModRules rules;
     std::vector<std::string> problems;
-    for (const assets::ModPackage& package : assets::mod_packages(mods)) {
+    for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / sim::kFactionFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             sim::apply_faction_file(rules.factions, package.id, text, problems);
@@ -189,11 +189,23 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
     }
     std::vector<std::string> warnings;
-    ModRules rules = load_mod_rules(data_folder() / "mods", *buildings);
+    std::vector<assets::ModPackage> packages;
+    {
+        std::vector<std::string> problems;
+        packages = assets::load_mod_packages(data_folder() / "mods", problems, remembered.disabled_mods);
+        for (const std::string& p : problems) {
+            std::fprintf(stderr, "mods: %s\n", p.c_str());
+        }
+        for (const assets::ModPackage& p : packages) {
+            std::fprintf(stderr, "mods: package %s\n", assets::package_label(p.content()).c_str());
+        }
+    }
+    ModRules rules = load_mod_rules(packages, *buildings);
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
     if (options.menu || joining) {
         world = sim::World(500, 350);  // the sea behind the menu until a game is chosen or comes from the host
+        world->set_packages(assets::content_of(packages));
     } else if (options.new_game) {
         auto texts = assets::TextTable::load(game);
         if (!texts) {
@@ -203,6 +215,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         if (world) {
             world->set_factions(rules.factions);
             world->set_balance(rules.balance);
+            world->set_packages(assets::content_of(packages));
         }
     } else {
         auto bytes = core::read_file(options.scenario);
@@ -220,6 +233,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             if (world) {
                 world->set_factions(rules.factions);  // the original's files have none of their own
                 world->set_balance(rules.balance);
+                world->set_packages(assets::content_of(packages));
             }
         }
     }
@@ -250,6 +264,14 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                                                     std::move(palette).value(), std::move(figures).value(), options));
     viewer->m_factions = std::move(rules.factions);
     viewer->m_balance = rules.balance;
+    viewer->m_packages = std::move(packages);
+    {
+        std::vector<std::string> problems;
+        viewer->m_cached_packages = assets::cached_packages(data_folder() / "mods-cache", problems);
+        for (const std::string& p : problems) {
+            std::fprintf(stderr, "mods: %s\n", p.c_str());
+        }
+    }
     viewer->m_banners =
         render::BannerTable::original(&viewer->m_figures, render::BannerOptions{options.original_flags});
     viewer->m_banners.add_more_players();
@@ -289,18 +311,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->load_cursors();
     // The viewer's own copy: GameSound keeps a pointer, and `game` may be a temporary (UI-15).
     viewer->m_sound = std::make_unique<GameSound>(viewer->m_game, options.effects, options.music);
-    {
-        // The mods' messages (<data folder>/mods/<package>/messages.toml).
-        std::vector<std::string> problems;
-        viewer->m_messages.load_mods(data_folder() / "mods", problems);
-        // and their buildings in the build menu (build_menu.toml), before the panels take it
-        ui::set_build_menu(
-            ui::load_build_menu_mods(ui::original_build_menu(), data_folder() / "mods", viewer->m_buildings, problems));
-        for (const std::string& p : problems) {
-            std::fprintf(stderr, "mods: %s\n", p.c_str());
-        }
-        viewer->m_sound->set_messages(&viewer->m_messages);
-    }
+    // The messages and build menu of the game's packages, before the panels take the menu.
+    viewer->use_game_packages();
+    viewer->m_sound->set_messages(&viewer->m_messages);
     viewer->m_video = std::make_unique<VideoController>(
         options.videos ? std::make_unique<VideoPlayer>(viewer->m_window->sdl_renderer(), viewer->m_game) : nullptr,
         *viewer->m_sound);
@@ -1847,6 +1860,10 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             m_tool.set_orient_to_road(action.step != 0);
             break;
         case Hud::Action::Kind::Answer:
+            if (m_fetch_offer) {
+                answer_package_offer(action.step != 0);
+                break;
+            }
             if (std::exchange(m_quit_pending, false)) {
                 if (action.step == 0) {
                     break;
@@ -2398,6 +2415,113 @@ core::Status MapViewer::load_game(const std::filesystem::path& path, const sim::
     return core::Ok{};
 }
 
+void MapViewer::give_mod_content(sim::World& world) const {
+    world.set_factions(m_factions);
+    world.set_balance(m_balance);
+    world.set_packages(assets::content_of(m_packages));
+}
+
+void MapViewer::use_game_packages() {
+    std::vector<std::string> problems;
+    const auto& wanted = m_state->world.packages();
+    const std::vector<assets::ModPackage> known = known_packages();
+    const std::vector<assets::ModPackage> used = wanted ? assets::packages_for(known, *wanted, problems) : m_packages;
+    m_messages = MessageTable();
+    m_messages.load_mods(used, problems);
+    ui::set_build_menu(ui::load_build_menu_mods(ui::original_build_menu(), used, m_buildings, problems));
+    for (const std::string& p : problems) {
+        std::fprintf(stderr, "mods: %s\n", p.c_str());
+    }
+    if (wanted) {
+        std::string names;
+        for (const assets::ContentPackage& p : assets::missing_packages(*wanted, assets::content_of(known))) {
+            names += (names.empty() ? "" : ", ") + assets::package_label(p);
+        }
+        if (!names.empty()) {
+            m_events.notify(ui::tr("notice.packages", {names}), "notice.packages " + names, platform::ticks_ms());
+        }
+    }
+}
+
+ModsModel MapViewer::mods_model() const {
+    using State = ModsModel::Entry::State;
+    const std::filesystem::path mods = data_folder() / "mods";
+    const std::vector<std::string>& off = m_app_settings.disabled_mods;
+    ModsModel model;
+    for (assets::ModPackage& p : assets::mod_packages(mods)) {
+        std::vector<std::string> ignored;  // load_mod_packages wrote them into the log
+        if (const auto bytes = core::read_file(p.folder / assets::kManifestFile)) {
+            (void)assets::read_manifest(
+                p, std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()), ignored);
+        }
+        ModsModel::Entry e;
+        e.id = p.id;
+        e.folder = p.folder;
+        e.name = core::utf8_to_cp1252(p.name.empty() ? p.id : p.name);
+        e.version = core::utf8_to_cp1252(p.version);
+        e.description = core::utf8_to_cp1252(p.description);
+        const bool loaded = std::any_of(m_packages.begin(), m_packages.end(),
+                                        [&](const assets::ModPackage& m) { return m.id == p.id; });
+        e.state = std::find(off.begin(), off.end(), p.id) != off.end() ? State::Off
+                  : loaded                                             ? State::On
+                                                                       : State::Broken;
+        model.entries.push_back(std::move(e));
+    }
+    for (const assets::ModPackage& p : m_cached_packages) {
+        if (std::any_of(m_packages.begin(), m_packages.end(),
+                        [&](const assets::ModPackage& m) { return m.content() == p.content(); })) {
+            continue;  // the same files are among this computer's own
+        }
+        ModsModel::Entry e;
+        e.id = p.id;
+        e.folder = p.folder;
+        e.name = core::utf8_to_cp1252(p.name.empty() ? p.id : p.name);
+        e.version = core::utf8_to_cp1252(p.version);
+        e.description = core::utf8_to_cp1252(p.description);
+        e.state = State::Received;
+        std::error_code ec;
+        e.adoptable = !std::filesystem::exists(mods / core::path_from_utf8(p.id), ec);
+        model.entries.push_back(std::move(e));
+    }
+    return model;
+}
+
+void MapViewer::reload_mods() {
+    std::vector<std::string> problems;
+    m_packages = assets::load_mod_packages(data_folder() / "mods", problems, m_app_settings.disabled_mods);
+    for (const std::string& p : problems) {
+        std::fprintf(stderr, "mods: %s\n", p.c_str());
+    }
+    ModRules rules = load_mod_rules(m_packages, m_buildings);
+    m_factions = std::move(rules.factions);
+    m_balance = rules.balance;
+}
+
+std::string MapViewer::adopt_mod(const std::filesystem::path& folder) {
+    const auto cached = std::find_if(m_cached_packages.begin(), m_cached_packages.end(),
+                                     [&](const assets::ModPackage& p) { return p.folder == folder; });
+    if (cached == m_cached_packages.end()) {
+        return {};
+    }
+    const std::string name = core::utf8_to_cp1252(cached->name.empty() ? cached->id : cached->name);
+    const auto adopted = assets::adopt_package(data_folder() / "mods", *cached);
+    if (!adopted) {
+        std::fprintf(stderr, "mods: %s\n", adopted.error().message.c_str());
+        return ui::tr("mods.adopt_failed", {name, ui::error_text(adopted.error(), "mods")});
+    }
+    std::fprintf(stderr, "mods: %s added to the mods folder\n", cached->id.c_str());
+    std::erase(m_app_settings.disabled_mods, cached->id);
+    save_settings();
+    reload_mods();
+    return ui::tr("mods.adopted", {name});
+}
+
+std::vector<assets::ModPackage> MapViewer::known_packages() const {
+    std::vector<assets::ModPackage> known = m_packages;
+    known.insert(known.end(), m_cached_packages.begin(), m_cached_packages.end());
+    return known;
+}
+
 void MapViewer::report_load_problems(std::size_t warnings) {
     m_load_problems = warnings + (m_state->simulation.state_damaged() ? 1 : 0);
     if (m_load_problems != 0) {
@@ -2422,8 +2546,7 @@ core::Result<sim::World> MapViewer::read_world(const std::filesystem::path& path
         }
         world = sim::load_world(*file, m_buildings, m_game, &warnings, m_options.world);
         if (world) {
-            world->set_factions(m_factions);  // the original's files have none of their own
-            world->set_balance(m_balance);
+            give_mod_content(*world);  // the original's files have none of their own
         }
     }
     for (const auto& w : warnings) {
@@ -2477,6 +2600,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     // the one shown behind the lobby, whose people the computer plays in the new game.
     m_session_roles.clear();
     m_state = std::move(next);
+    use_game_packages();
     m_command_sink.set_simulation(&m_state->simulation);
     m_options.scenario = source;
     m_title_real_ms = 0;  // loading took real time the game did not run: no "too slow" for it
@@ -2559,8 +2683,7 @@ core::Status MapViewer::start_endless(std::uint8_t level, sim::BannerId banner, 
     if (!world) {
         return world.error();
     }
-    world->set_factions(m_factions);
-    world->set_balance(m_balance);
+    give_mod_content(*world);
     for (const auto& w : warnings) {
         std::fprintf(stderr, "warning: %s\n", w.c_str());
     }
@@ -2661,6 +2784,26 @@ void MapViewer::apply_menu() {
             case MenuEvent::Kind::ContinueLast:
                 started = load_game(slot_file(save_folder(), kLastGameSlot));
                 break;
+            case MenuEvent::Kind::Mods:
+                menu->set_mods(mods_model());
+                continue;
+            case MenuEvent::Kind::ToggleMod: {
+                std::vector<std::string>& off = m_app_settings.disabled_mods;
+                if (std::erase(off, e.name) == 0) {
+                    off.push_back(e.name);
+                }
+                save_settings();
+                reload_mods();
+                menu->set_mods(mods_model());
+                continue;
+            }
+            case MenuEvent::Kind::AdoptMod: {
+                std::string notice = adopt_mod(e.path);
+                ModsModel model = mods_model();
+                model.notice = std::move(notice);
+                menu->set_mods(std::move(model));
+                continue;
+            }
             case MenuEvent::Kind::NameEntered:
                 // "Unter welcher Flagge wollt Ihr segeln?" and four more, one at random (Speech8
                 // 107..115). The original speaks on entering the screen; Open1602 once the name is in.

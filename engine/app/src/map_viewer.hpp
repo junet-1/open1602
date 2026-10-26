@@ -21,6 +21,7 @@
 #include "game_state.hpp"
 #include "hud.hpp"
 #include "map_input.hpp"
+#include "mods_menu.hpp"
 #include "multiplayer_menu.hpp"
 #include "names.hpp"
 #include "stock_notes.hpp"
@@ -30,6 +31,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/assets/game_content.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/file.hpp"
@@ -175,6 +177,13 @@ private:
     /// A game that loaded with `warnings` (parts skipped, other game data) or without its running
     /// state: a note in the status line, the details are in the log.
     void report_load_problems(std::size_t warnings);
+    /// What the mods give a game that does not bring its own (a new game, one from a file of the
+    /// original): their factions and balance, and the installed packages as the game's.
+    void give_mod_content(sim::World& world) const;
+    /// Loads what the game's packages give beside the game, its messages and build menu, from the
+    /// packages it names (all installed for a game that names none); packages installed in addition
+    /// are not used (ADR 0007 section 7). A missing or different package is noted in the status line.
+    void use_game_packages();
     /// What the main menu asked for this frame.
     void apply_menu();
     /// The end screen of a decided game, when it is due (EventPresenter::end_screen_due). Called
@@ -225,7 +234,27 @@ private:
     core::Status host_lobby(const HostSetup& setup);
     /// The host starts the game of its lobby: makes the world, gives the slots their players.
     core::Status start_hosted_game();
-    core::Status join_game(const std::string& address, std::uint16_t port, const std::string& password);
+    /// Joins the host at `address`; with `fetch_packages` it asks the host for the packages of the
+    /// game this computer lacks, which the person agreed to download (docs/modding/packages.md).
+    core::Status join_game(const std::string& address, std::uint16_t port, const std::string& password,
+                           bool fetch_packages = false);
+    /// The host has packages of its game this computer lacks and would send them: asks the person,
+    /// the answer joins again with them or goes back to the search (m_fetch_offer).
+    void offer_packages(std::span<const assets::ContentPackage> packages, std::uint64_t bytes, std::string refusal);
+    /// The person's answer to offer_packages().
+    void answer_package_offer(bool yes);
+    /// The packages this computer has, its own and those received, as a host sends them to
+    /// computers that lack them.
+    [[nodiscard]] std::vector<net::SharedPackage> shared_packages() const;
+    /// The screen "Mods": the packages of the mods folder with their state, then those received.
+    [[nodiscard]] ModsModel mods_model() const;
+    /// Loads the mods folder's packages anew after one was turned on or off or added: what new
+    /// games get from them (a running game keeps what it has).
+    void reload_mods();
+    /// Copies the received package in `folder` into the mods folder; what the screen "Mods" says.
+    std::string adopt_mod(const std::filesystem::path& folder);
+    /// The packages a game may use here: those in `mods`, then those received from hosts.
+    [[nodiscard]] std::vector<assets::ModPackage> known_packages() const;
     /// Drops the session, its beacon and the hosted game; the menus stay as they are.
     void end_session();
     /// Out of the session, back to the search (with `notice`, why).
@@ -341,6 +370,10 @@ private:
     /// The factions a new game starts with: the base game's as the mods change them
     /// (docs/modding/factions.md). A savegame of Open1602 keeps its own.
     std::vector<sim::Faction> m_factions = sim::base_factions();
+    /// The content packages installed in <data folder>/mods, in their load order (docs/modding/packages.md).
+    std::vector<assets::ModPackage> m_packages;
+    /// Packages received from hosts, in <data folder>/mods-cache: used only by games that name them.
+    std::vector<assets::ModPackage> m_cached_packages;
     sim::Balance m_balance;  ///< the numbers a new game starts with, as the mods change them (docs/modding/balance.md)
     /// Flags, smoke and icons: buildings do not move, so they are collected once at load.
     std::vector<render::BuildingFigure> m_building_figures;
@@ -374,8 +407,18 @@ private:
         std::uint64_t token = 0;
     };
     std::optional<Rejoin> m_rejoin;
-    bool m_migrating = false;      ///< following a successor, its game not here yet
-    std::string m_successor_name;  ///< the one followed
+    /// Packages a host would send, waiting for the person's answer, and where to join with them.
+    struct FetchOffer {
+        std::string address;
+        std::uint16_t port = net::kDefaultPort;
+        std::string password;
+        std::string refusal;  ///< the host's refusal, shown if the person says no
+    };
+    std::optional<FetchOffer> m_fetch_offer;
+    std::string m_join_password;       ///< of the game joined last, for joining it again with its packages
+    bool m_fetching_packages = false;  ///< the game joined last was asked for its packages
+    bool m_migrating = false;          ///< following a successor, its game not here yet
+    std::string m_successor_name;      ///< the one followed
     /// The local player's commands: to m_state's simulation, or to m_session while there is one.
     CommandSink m_command_sink;
     std::unique_ptr<net::LanBrowser> m_lan_browser;  ///< while the multiplayer menu looks for games

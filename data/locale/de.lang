@@ -23,6 +23,7 @@ notice.save_failed = Speichern fehlgeschlagen: {1}
 notice.load_failed = Laden fehlgeschlagen: {1}
 # {1}: how many problems
 notice.load_problems = Mit {1} Problem(en) geladen: Teile des Spiels ließen sich nicht verwenden. Einzelheiten stehen im Protokoll.
+notice.packages = Dieses Spiel nutzt Mods, die hier fehlen oder anders sind: {1}. Einzelheiten stehen im Protokoll.
 notice.screenshot_failed = Bildschirmfoto fehlgeschlagen: {1}
 
 # Menus and savegames
@@ -202,6 +203,10 @@ net.chat_hint_all = Nachricht an alle (Eingabe sendet, Esc schließt)
 net.chat_hint_private = Privat an {1} (Eingabe sendet, Esc schließt)
 net.chat_read_only = Zuschauer lesen in diesem Spiel nur mit.
 net.chat_missed = Nicht zugestellt an {1}: Dort spielt gerade niemand.
+net.package_kept = Mod empfangen: {1}.
+net.size_kb = {1} KB
+net.size_mb = {1},{2} MB
+net.fetch_question = Dieses Spiel braucht Mods, die hier fehlen: {1} ({2}). Vom Gastgeber herunterladen?
 net.waiting = Warte auf die Mitspieler ...
 net.host_port = Gastgeber auf UDP-Port {1}
 net.cannot_host = Kein Spiel möglich: {1}
@@ -239,6 +244,7 @@ net.refused.invalid = Dieser Rechner hat Unverständliches geschickt.
 net.refused.password = Falsches Kennwort.
 net.refused.kicked = Der Gastgeber hat Euch entfernt.
 net.refused.taken = Euer Platz wird noch von einem anderen Rechner aus gespielt.
+net.refused.packages = Das Spiel braucht Mods, die dieser Rechner nicht oder in einer anderen Fassung hat: {1}.
 
 # The four players of the original by their colours, when Text.cod has no [PLAYCOL]
 player.colour.red = Roter Spieler
@@ -643,3 +649,20 @@ list.order.idle = Untätige zuerst
 list.order.damaged = Schäden zuerst
 list.order.help.ships = Klick: Schiffe nach Name, untätige oder beschädigte zuerst, oder wie im Original ordnen
 list.order.help.cities = Klick: Städte nach Name oder wie im Original ordnen
+
+# Der Bildschirm „Mods“ des Hauptmenüs (mods_menu.cpp)
+menu.mods = Mods
+mods.title = Mods
+mods.hint = Neue Spiele nutzen die hier eingeschalteten Mods, ein Spielstand behält seine eigenen. Von einem Gastgeber empfangene Mods gelten nur für Spiele, die sie brauchen.
+mods.col_name = Mod
+mods.col_version = Version
+mods.col_state = Zustand
+mods.state_on = An
+mods.state_off = Aus
+mods.state_broken = Nicht geladen (siehe Protokoll)
+mods.state_received = Vom Gastgeber empfangen
+mods.none = Es gibt noch keine Mods. Ein Mod ist ein Ordner im Ordner „mods“ im Benutzerordner von Open1602.
+mods.adopt = In Mods übernehmen
+mods.back = Zurück
+mods.adopted = {1} liegt jetzt in Eurem Mods-Ordner und ist eingeschaltet.
+mods.adopt_failed = {1} konnte nicht kopiert werden: {2}

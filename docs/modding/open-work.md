@@ -1,16 +1,24 @@
 # Modding: what is done and what is still open
 
 This page compares the requirements of [ADR 0007](../architecture/0007-extensibility-and-modding.md)
-with what the engine does today (state of 2026-10-24, after PR #159). It is the list to work from
+with what the engine does today (state of 2026-10-26, after PR #224). It is the list to work from
 for milestone M8 ([plan](../00-plan.md#6-milestones)). The table of fixed limits at the end of
 ADR 0007 tracks the same items from the code's side.
 
 ## What a mod can do today
 
-A mod is a folder `mods/<package>/`. The folder's name is the package's id, and the packages are
-read in the order of their names (UTF-8 bytes, the same on every system, `assets::mod_packages`).
-Every computer of a multiplayer game compares a fingerprint of the original data and the packages
-(`assets::content_fingerprint`) before anyone joins.
+A mod is a folder `mods/<package>/`. The folder's name is the package's id. Its manifest
+`mod.toml` gives a name, a version, the packages it depends on and the ones it loads after; the
+packages are read in that order, otherwise in the order of their ids' bytes, the same on every
+system ([packages.md](packages.md)).
+
+**Multiplayer.** Before anyone joins, the computers of a multiplayer game compare a fingerprint of
+the original data the simulation computes with, `haeuser.cod` and `figuren.cod`
+(`assets::content_fingerprint`), and the packages the game uses, one by one with version and hash
+([packages.md](packages.md#which-packages-a-game-uses)). A computer that lacks one of them is told
+which, and the host offers to send them ([packages.md](packages.md#packages-a-host-sends));
+packages it has in addition are not loaded for the game. Factions and balance travel with
+the game besides (sections `FACT` and `BALA`), so every computer plays the host's.
 
 | File | Changes | Guide |
 |---|---|---|
@@ -18,6 +26,7 @@ Every computer of a multiplayer game compares a fingerprint of the original data
 | `build_menu.toml` | the build menu: a package's buildings with icon and name, the original's moved or taken out | [build-menu.md](build-menu.md) |
 | `factions.toml` | how pirate nests, trader ships and the trader's reach grow with the players | [factions.md](factions.md) |
 | `balance.toml` | trader amounts and restocking, castle training and landing range, fire and plague spread | [balance.md](balance.md) |
+| `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
 Without a mod file the engine already has banners with tinted flags for any number of players
 ([flags.md](flags.md)), up to 12 players, worlds and islands beyond the original's sizes
@@ -32,12 +41,14 @@ later does not change a running game.
 Each item names the ADR 0007 section it comes from and, where there is one, the finding of the
 code review of October 2026 ([PR #109](https://github.com/x4rd4s/open1602/pull/109)).
 
-### 1. Package manifest (ADR 0007 section 2)
+### 1. Package manifest (ADR 0007 section 2) – done
 
-A manifest per package with id, version, dependencies and load order. Today the folder's name is
-the id and the order is alphabetical; a package cannot say that it needs another one or must load
-after it. The versions belong into the fingerprint, the savegame and the lobby (section 7), so that
-a game names the packages it needs. Packages as archives (not only folders) come with it.
+Done on 2026-10-26 ([packages.md](packages.md)): the manifest `mod.toml` with name, version,
+description, dependencies and load order; the hash of a package's files; the packages a game uses
+in its savegame (section `PACK`); multiplayer games let in only computers with the game's packages
+and load no others for it. Also done: a host sends missing packages to a computer whose player
+agrees (kept in `mods-cache`), and the main menu's screen "Mods" turns packages on and off and adds
+received ones to the `mods` folder. Still open: packages as archives, not only folders.
 
 ### 2. Content registry with string ids (section 2)
 
@@ -102,10 +113,16 @@ Stage 2, islands of their own shapes from height and moisture maps with the rule
 shape, frequencies) as data, is postponed. Climates and templates are already in one registry
 (MD-7, PR #142), which stage 2 builds on.
 
-## Suggested order
+## Order of work
+
+Agreed on 2026-10-26:
 
 1. Manifest (item 1), because ids, versions and load order are what every later item refers to.
-2. Content registry and content object (items 2 and 3).
-3. Graphics and sound import (item 4) and the AI from data (item 5), which can run side by side.
-4. Lua (item 6), then scenarios, campaigns and factions of a package's own (items 7 and 8).
-5. Island generator stage 2 (item 9) does not depend on the others and can come at any point.
+2. Content registry and content object (items 2 and 3), in three steps: single fields of the
+   original's buildings and figures changed by a package, then buildings of a package's own with
+   savegames storing ids, then goods, resident classes and unlock levels as data.
+3. Graphics and sound import (item 4), right after a package can add buildings, which need it to
+   be seen.
+4. Lua (item 6), then scenarios and campaigns (item 7) and factions of a package's own (item 8).
+5. Computer players from data (item 5), later by the owner's decision of 2026-10-25.
+6. Island generator stage 2 (item 9), last, as the [plan](../00-plan.md#7-order-of-work) says.

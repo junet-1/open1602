@@ -25,6 +25,15 @@ void put_commands(core::ByteWriter& out, const std::vector<sim::Command>& comman
     }
 }
 
+void put_packages(core::ByteWriter& out, const std::vector<assets::ContentPackage>& packages) {
+    out.u32(static_cast<std::uint32_t>(packages.size()));
+    for (const assets::ContentPackage& p : packages) {
+        out.string(p.id);
+        out.string(p.version);
+        out.u64(p.hash);
+    }
+}
+
 void put(core::ByteWriter& out, const Hello& m) {
     out.u16(m.protocol);
     out.u64(m.content);
@@ -33,6 +42,8 @@ void put(core::ByteWriter& out, const Hello& m) {
     out.u64(m.token);
     out.string(m.password);
     out.boolean(m.returning);
+    put_packages(out, m.packages);
+    out.boolean(m.fetch_packages);
 }
 
 void put(core::ByteWriter& out, const CommandBatch& m) {
@@ -57,6 +68,8 @@ void put(core::ByteWriter& out, const Welcome& m) {
 
 void put(core::ByteWriter& out, const Refused& m) {
     out.u8(static_cast<std::uint8_t>(m.reason));
+    put_packages(out, m.packages);
+    out.u64(m.share_bytes);
 }
 
 void put(core::ByteWriter& out, const Snapshot& m) {
@@ -166,6 +179,18 @@ void put(core::ByteWriter& out, const Part& m) {
     out.bytes(m.bytes);
 }
 
+void put(core::ByteWriter& out, const PackageFiles& m) {
+    put_packages(out, {m.package});
+    out.u32(m.index);
+    out.u32(m.count);
+    out.u32(static_cast<std::uint32_t>(m.files.size()));
+    for (const assets::PackageFile& f : m.files) {
+        out.string(f.path);
+        out.u32(static_cast<std::uint32_t>(f.bytes.size()));
+        out.bytes(f.bytes);
+    }
+}
+
 void put(core::ByteWriter& out, const Standby& m) {
     out.u32(static_cast<std::uint32_t>(m.tokens.size()));
     for (const SeatToken& t : m.tokens) {
@@ -179,6 +204,20 @@ void put(core::ByteWriter& out, const Standby& m) {
     }
 }
 
+std::vector<assets::ContentPackage> get_packages(In& in) {
+    const std::uint32_t n = in.count(kMaxPackages);
+    std::vector<assets::ContentPackage> out;
+    out.reserve(n);
+    for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
+        assets::ContentPackage p;
+        p.id = in.text(assets::kMaxPackageIdLength);
+        p.version = in.text(assets::kMaxPackageVersionLength);
+        p.hash = in.u64();
+        out.push_back(std::move(p));
+    }
+    return out;
+}
+
 Hello get_hello(In& in) {
     Hello m;
     m.protocol = in.u16();
@@ -188,6 +227,8 @@ Hello get_hello(In& in) {
     m.token = in.u64();
     m.password = in.text(kMaxPasswordLength);
     m.returning = in.boolean();
+    m.packages = get_packages(in);
+    m.fetch_packages = in.boolean();
     return m;
 }
 
@@ -215,10 +256,12 @@ Welcome get_welcome(In& in) {
 Refused get_refused(In& in) {
     Refused m;
     const std::uint8_t reason = in.u8();
-    if (reason > static_cast<std::uint8_t>(RefuseReason::Taken)) {
+    if (reason > static_cast<std::uint8_t>(RefuseReason::Packages)) {
         in.fail();
     }
     m.reason = static_cast<RefuseReason>(reason);
+    m.packages = get_packages(in);
+    m.share_bytes = in.u64();
     return m;
 }
 
@@ -366,6 +409,40 @@ Part get_part(In& in) {
     return m;
 }
 
+PackageFiles get_package_files(In& in) {
+    PackageFiles m;
+    const auto package = get_packages(in);
+    if (package.size() != 1) {
+        in.fail();
+        return m;
+    }
+    m.package = package[0];
+    m.index = in.u32();
+    m.count = in.u32();
+    if (m.count == 0 || m.index >= m.count) {
+        in.fail();
+    }
+    const std::uint32_t n = in.count(kMaxPackageFiles);
+    std::uint64_t total = 0;
+    for (std::uint32_t i = 0; i < n && in.ok(); ++i) {
+        assets::PackageFile f;
+        f.path = in.text(assets::kMaxPackagePathLength);
+        const std::uint32_t size = in.count(kMaxPackageFilesBytes);
+        total += size;
+        if (total > kMaxPackageFilesBytes || !assets::safe_package_path(f.path)) {
+            in.fail();
+            break;
+        }
+        if (const auto bytes = in.ok() ? in.reader().bytes(size) : std::nullopt) {
+            f.bytes.assign(bytes->begin(), bytes->end());
+        } else {
+            in.fail();
+        }
+        m.files.push_back(std::move(f));
+    }
+    return m;
+}
+
 std::vector<Seat> get_seats(In& in) {
     std::vector<Seat> seats;
     const std::uint32_t n = in.count(kMaxLobbySeats);
@@ -428,12 +505,14 @@ std::optional<Message> get(In& in, std::uint8_t type) {
             return HostLeaving{in.text(kMaxAddressLength)};
         case 17:
             return get_part(in);
+        case 18:
+            return get_package_files(in);
         default:
             return std::nullopt;
     }
 }
 
-static_assert(std::variant_size_v<Message> == 18, "a new message needs its case in get()");
+static_assert(std::variant_size_v<Message> == 19, "a new message needs its case in get()");
 
 }  // namespace
 
