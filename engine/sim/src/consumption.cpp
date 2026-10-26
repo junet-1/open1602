@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "o1602/assets/savegame.hpp"
+#include "o1602/assets/unlock_levels.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/mission.hpp"
 
@@ -310,9 +311,9 @@ void unlock_levels(World& world, const assets::BuildingTable& buildings, const C
         return;
     }
     const auto& levels = buildings.infra_levels();
-    for (std::size_t n = 1; n < levels.size() && n <= infra::kMaxLevel; ++n) {
-        const std::uint32_t bit = 1U << (n - 1);
-        if ((owner->infra_mask & bit) != 0) {
+    for (std::size_t n = 1; n < levels.size() && n <= assets::kMaxUnlockLevel; ++n) {
+        const auto level = static_cast<std::uint32_t>(n);
+        if (owner->unlocked(level)) {
             continue;
         }
         // Inhabitants of the class and all higher ones, of this one city.
@@ -325,7 +326,7 @@ void unlock_levels(World& world, const assets::BuildingTable& buildings, const C
         }
         // The original posts the whole mask as a value, so two cities unlocking in the same tick
         // could undo each other for a while (M-009); Open1602 only adds the bit.
-        owner->infra_mask |= bit;
+        owner->set_unlocked(level, true);
         if (events != nullptr) {
             CityEvent e;
             e.kind = CityEvent::Kind::Unlocked;

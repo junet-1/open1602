@@ -5,6 +5,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -85,6 +86,9 @@ struct Player {
     /// stays unlocked once one city of the player reached it (0x0047F8A0).
     std::uint32_t infra_mask = 0;
     static_assert(infra::kMaxLevel <= 32, "infra_mask holds one bit per level");
+    /// Unlocked levels a package added after the original's (33 to 255, levels.toml): bit
+    /// (n - 33) % 32 of word (n - 33) / 32. The original has none.
+    std::array<std::uint32_t, 7> infra_more{};
     /// Buildings the player may build only once or by allowance (record Bauinfra SCHLOSS,
     /// KATHETRALE, TRIUMPH, DENKMAL).
     std::uint8_t castles_built = 0;
@@ -129,18 +133,34 @@ struct Player {
     [[nodiscard]] bool active() const noexcept { return status == PlayerStatus::Playing; }
 
     [[nodiscard]] bool unlocked(std::uint32_t level) const noexcept {
-        return level == infra::kNone || (level <= infra::kMaxLevel && (infra_mask >> (level - 1) & 1U) != 0);
+        if (level == infra::kNone) {
+            return true;
+        }
+        if (level <= infra::kMaxLevel) {
+            return (infra_mask >> (level - 1) & 1U) != 0;
+        }
+        if (level > std::numeric_limits<std::uint8_t>::max()) {
+            return false;  // a building keeps its level in a byte
+        }
+        const std::uint32_t more = level - infra::kMaxLevel - 1;
+        return (infra_more[more / 32] >> (more % 32) & 1U) != 0;
     }
 
     /// Sets or clears an unlocked level. The levels of the triumphal arch and the monument ask for
     /// 25 000 aristocrats in one city (BAUINFRA), so in practice only an allowance sets them
     /// (op 3 sub 9, 0x55, 0x57) and building the last allowed one clears them (op 0x4D).
     constexpr void set_unlocked(std::uint32_t level, bool on) noexcept {
-        if (level == infra::kNone || level > infra::kMaxLevel) {
+        if (level == infra::kNone || level > std::numeric_limits<std::uint8_t>::max()) {
             return;
         }
-        const std::uint32_t bit = 1U << (level - 1);
-        infra_mask = on ? infra_mask | bit : infra_mask & ~bit;
+        std::uint32_t* word = &infra_mask;
+        std::uint32_t index = level - 1;
+        if (level > infra::kMaxLevel) {
+            index = level - infra::kMaxLevel - 1;
+            word = &infra_more[index / 32];
+        }
+        const std::uint32_t bit = 1U << (index % 32);
+        *word = on ? *word | bit : *word & ~bit;
     }
 
     /// The step of infra::kShipSteps the player reached (0 below all): how large the pirates' and

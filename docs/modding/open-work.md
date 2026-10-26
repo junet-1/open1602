@@ -31,6 +31,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `own_buildings.toml` | buildings of the package's own, each copying one of the original | [own-buildings.md](own-buildings.md) |
 | `goods.toml` | trade goods of the package's own: price, icon, names | [goods.md](goods.md) |
 | `classes.toml` | classes of inhabitants: the original's changed, new ones after them, needs of any good | [classes.md](classes.md) |
+| `levels.toml` | unlock levels: the original's changed, new ones after the 32nd, also of a new class | [levels.md](levels.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
 Without a mod file the engine already has banners with tinted flags for any number of players
@@ -85,9 +86,13 @@ the free trader handle them, and a game keeps them (section `GOOD`).
 
 Part 2 done on 2026-10-26 ([classes.md](classes.md)): `classes.toml` changes the original's classes
 (values, needs of any good) and adds up to eight classes in all; a house of a package belongs to a
-class (`class`), and a game keeps its classes (section `CLAS`). Still open: more than 32 unlock
-levels and levels of a new class (part 3), public buildings of a class's own, the city window's tax
-rows for more than five classes, and pictures of the goods' own.
+class (`class`), and a game keeps its classes (section `CLAS`).
+
+Part 3 done on 2026-10-26 ([levels.md](levels.md)): `levels.toml` changes the original's unlock
+levels and adds levels after the 32nd, up to 255, also of a class a package added; a building of a
+package needs one (`level`), and a game keeps its levels and what its players reached (sections
+`LEVL`, `UNLK`). Still open: public buildings of a class's own, the city window's tax rows for more
+than five classes, messages of a package's own for its levels, and pictures of the goods' own.
 
 ### 4. Graphics and sound of a package's own (section 2)
 

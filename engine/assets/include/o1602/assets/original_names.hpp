@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Readable names of the original's buildings, goods, classes and figures, Open1602's own: a content package may
-// write ["anno1602:bakery"] instead of ["anno1602:20503"] (docs/modding/values.md). The buildings
-// are those of the build menu, named after Text.cod; the figures are named after figuren.cod's
-// symbols.
+// Readable names of the original's buildings, goods, classes, unlock levels and figures, Open1602's own: a content
+// package may write ["anno1602:bakery"] instead of ["anno1602:20503"] (docs/modding/values.md). The buildings are those
+// of the build menu, named after Text.cod; the figures are named after figuren.cod's symbols.
 #pragma once
 
 #include <cstdint>
@@ -25,6 +24,8 @@ struct OriginalName {
 [[nodiscard]] std::span<const OriginalName> original_building_names() noexcept;
 /// The names of the original's trade goods, by ware number (EISENERZ to ZIEGEL).
 [[nodiscard]] std::span<const OriginalName> original_ware_names() noexcept;
+/// The names of haeuser.cod's unlock levels, by INFRA number.
+[[nodiscard]] std::span<const OriginalName> original_level_names() noexcept;
 /// The names of haeuser.cod's classes of inhabitants, by BGRUPPE number.
 [[nodiscard]] std::span<const OriginalName> original_class_names() noexcept;
 /// The names of figuren.cod's figures, by FIGUR number.

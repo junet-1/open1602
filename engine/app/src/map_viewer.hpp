@@ -381,6 +381,9 @@ private:
     /// The classes of inhabitants of a new game as the packages change and add them, empty when
     /// none does (docs/modding/classes.md).
     std::vector<assets::ResidentClass> m_classes;
+    /// The unlock levels of a new game as the packages change and add them, empty when none does
+    /// (docs/modding/levels.md).
+    std::vector<assets::InfraLevel> m_levels;
     /// The content packages installed in <data folder>/mods, in their load order (docs/modding/packages.md).
     std::vector<assets::ModPackage> m_packages;
     /// Packages received from hosts, in <data folder>/mods-cache: used only by games that name them.

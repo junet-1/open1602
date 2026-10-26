@@ -228,6 +228,16 @@ core::Status apply_decoded(World& world, Decoded& d) {
     if (d.classes) {
         world.set_resident_classes(std::move(*d.classes));
     }
+    if (d.levels) {
+        world.set_infra_levels(std::move(*d.levels));
+    }
+    if (d.unlocked_more) {
+        for (const Decoded::UnlockedMore& u : *d.unlocked_more) {
+            if (Player* p = world.player(u.player)) {
+                p->infra_more = u.levels;
+            }
+        }
+    }
     if (d.own_buildings) {
         world.set_own_buildings(std::move(*d.own_buildings));
     }

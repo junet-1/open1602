@@ -27,6 +27,7 @@ size memory and refuse or cut what lies outside. These are the limits.
 | `.gam`, `.szs` | width and height of an island | at least 1 tile | the island is left out, with a warning |
 | `build_menu.toml` | `row`, `position` of a building | 6 rows a pop-up, 4 buildings a row; `id` a record of `haeuser.cod` | the table is passed over, with a warning |
 | `classes.toml` | classes of inhabitants | 8 in a game, the original's five among them ([classes.md](classes.md)) | the table is passed over, with a warning |
+| `levels.toml` | unlock levels | 255 in a game, the original's 32 among them; `min_inhabitants` 0 to 10,000,000 ([levels.md](levels.md)) | the table is passed over, with a warning |
 | `goods.toml` | goods the packages declare | 197 in a game: ware numbers 59 to 255 ([goods.md](goods.md)) | the table is passed over, with a warning |
 | `own_buildings.toml` | buildings a package declares | 256 per package; `Id` 20000 to 23500 in all, the highest free ones ([own-buildings.md](own-buildings.md)) | the table is passed over, with a warning |
 | `.gad` | `Include` | 4 levels deep, 1 MiB of text in all | the rest is left out, with a warning |

@@ -171,6 +171,22 @@ constexpr std::array kWares{
     OriginalName{"wood", 23},    OriginalName{"bricks", 24},
 };
 
+/// haeuser.cod's BAUINFRA by INFRA number: the public buildings a class asks for, the buildings
+/// one has to be allowed, then the steps INFRA_STUFE_1A to 5B.
+constexpr std::array kLevels{
+    OriginalName{"market", 1},          OriginalName{"chapel", 2},    OriginalName{"school", 3},
+    OriginalName{"tavern", 4},          OriginalName{"church", 5},    OriginalName{"bathhouse", 6},
+    OriginalName{"theatre", 7},         OriginalName{"college", 8},   OriginalName{"doctor", 9},
+    OriginalName{"gallows", 10},        OriginalName{"castle", 11},   OriginalName{"cathedral", 12},
+    OriginalName{"triumphal_arch", 13}, OriginalName{"monument", 14}, OriginalName{"level_1a", 15},
+    OriginalName{"level_2a", 16},       OriginalName{"level_2b", 17}, OriginalName{"level_2c", 18},
+    OriginalName{"level_2d", 19},       OriginalName{"level_2e", 20}, OriginalName{"level_2f", 21},
+    OriginalName{"level_3a", 22},       OriginalName{"level_2g", 23}, OriginalName{"level_3b", 24},
+    OriginalName{"level_3c", 25},       OriginalName{"level_3d", 26}, OriginalName{"level_3e", 27},
+    OriginalName{"level_3f", 28},       OriginalName{"level_4a", 29}, OriginalName{"level_4b", 30},
+    OriginalName{"level_5a", 31},       OriginalName{"level_5b", 32},
+};
+
 /// haeuser.cod's BGRUPPE, as Text.cod's [GAME] names them.
 constexpr std::array kClasses{
     OriginalName{"pioneers", 0},  OriginalName{"settlers", 1},    OriginalName{"citizens", 2},
@@ -197,6 +213,10 @@ std::span<const OriginalName> original_building_names() noexcept {
 
 std::span<const OriginalName> original_ware_names() noexcept {
     return kWares;
+}
+
+std::span<const OriginalName> original_level_names() noexcept {
+    return kLevels;
 }
 
 std::span<const OriginalName> original_class_names() noexcept {

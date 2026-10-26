@@ -191,6 +191,10 @@ struct ResidentClass {
 struct InfraLevel {
     std::uint8_t resident_class = 0;
     std::uint32_t min_inhabitants = 0;
+    /// Open1602's own (unlock_levels.hpp): the string id of a level a package added, empty for those
+    /// of haeuser.cod.
+    std::string id;
+    friend bool operator==(const InfraLevel&, const InfraLevel&) = default;
 };
 
 /// All building types of haeuser.cod with lookups by id and by sprite index
@@ -263,6 +267,9 @@ public:
     /// Unlock levels by INFRA number (index 0 unused, levels without a BAUINFRA entry are {0, 0}:
     /// reached at once).
     [[nodiscard]] const std::vector<InfraLevel>& infra_levels() const noexcept { return m_infra; }
+    /// Puts the unlock levels of a game in place of these (unlock_levels.hpp): the original's as
+    /// packages changed them and those they added.
+    void set_infra_levels(std::vector<InfraLevel> levels) { m_infra = std::move(levels); }
     /// First house record of a class of inhabitants (table order; 0x00462D50), nullptr if none.
     [[nodiscard]] const BuildingType* first_house(std::size_t resident_class) const noexcept;
     /// Ruin record for Ruinenr `ruin` (table 0x00619B20), the beach variant on beach ground;

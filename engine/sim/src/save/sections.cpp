@@ -14,6 +14,7 @@
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/resident_classes.hpp"
+#include "o1602/assets/unlock_levels.hpp"
 #include "o1602/sim/simulation.hpp"
 
 namespace o1602::sim::save {
@@ -101,6 +102,12 @@ constexpr std::uint32_t kGoods = tag("GOOD");
 /// resident_classes.hpp), only written when they differ from haeuser.cod's. Required: houses name
 /// the classes, and their needs drive the economy.
 constexpr std::uint32_t kClasses = tag("CLAS");
+/// The unlock levels as packages changed and added them (World::infra_levels(), unlock_levels.hpp),
+/// only written when they differ from haeuser.cod's. Required: buildings name the levels.
+constexpr std::uint32_t kLevels = tag("LEVL");
+/// The levels after the original's 32 the players unlocked (Player::infra_more), only written when
+/// one did. Required: without them the players lose what they may build.
+constexpr std::uint32_t kUnlocked = tag("UNLK");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -109,7 +116,7 @@ constexpr std::array kKnownSections = {
     kFleet,           kEpochs,       kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
     kMissions,        kPlayerState,  kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
     kPopulationMarks, kTutorial,     kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
-    kFigureValues,    kOwnBuildings, kGoods,     kClasses};
+    kFigureValues,    kOwnBuildings, kGoods,     kClasses,   kLevels,   kUnlocked};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -334,6 +341,32 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                     o.string(n.first);
                     o.string(n.second);
                 });
+            });
+        });
+    }
+    if (!world.infra_levels().empty()) {
+        section(out, kLevels, [&](Writer& o) {
+            o.list(world.infra_levels(), 9, [&](const assets::InfraLevel& l) {
+                o.string(l.id);
+                o.u8(l.resident_class);
+                o.u32(l.min_inhabitants);
+            });
+        });
+    }
+    std::vector<std::size_t> unlocked_more;
+    for (std::size_t p = 0; p < world.players().size(); ++p) {
+        const auto& more = world.players()[p].infra_more;
+        if (std::any_of(more.begin(), more.end(), [](std::uint32_t w) { return w != 0; })) {
+            unlocked_more.push_back(p);
+        }
+    }
+    if (!unlocked_more.empty()) {
+        section(out, kUnlocked, [&](Writer& o) {
+            o.list(unlocked_more, 29, [&](std::size_t p) {
+                o.u8(static_cast<std::uint8_t>(p));
+                for (const std::uint32_t w : world.players()[p].infra_more) {
+                    o.u32(w);
+                }
             });
         });
     }
@@ -626,6 +659,34 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     in.fail();
                 }
                 d.classes = std::move(classes);
+                break;
+            }
+            case kLevels: {
+                std::vector<assets::InfraLevel> levels;
+                in.list(levels, 9, [&](assets::InfraLevel& l) {
+                    in.string(l.id);
+                    in.u8(l.resident_class);
+                    in.u32(l.min_inhabitants);
+                    // The limits of levels.toml (unlock_levels.cpp).
+                    if (l.resident_class >= assets::kMaxResidentClasses || l.min_inhabitants > 10'000'000) {
+                        in.fail();
+                    }
+                });
+                if (levels.empty() || levels.size() > assets::kMaxUnlockLevel + 1) {
+                    in.fail();
+                }
+                d.levels = std::move(levels);
+                break;
+            }
+            case kUnlocked: {
+                std::vector<Decoded::UnlockedMore> unlocked;
+                in.list(unlocked, 29, [&](Decoded::UnlockedMore& u) {
+                    in.u8(u.player);
+                    for (std::uint32_t& w : u.levels) {
+                        in.u32(w);
+                    }
+                });
+                d.unlocked_more = std::move(unlocked);
                 break;
             }
             case kOwnBuildings: {
