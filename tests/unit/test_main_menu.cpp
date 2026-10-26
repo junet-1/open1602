@@ -33,6 +33,7 @@ constexpr std::int32_t kHeight = 10;
 /// The gadgets of a synthetic layout: each a centred text box of its own place.
 struct Layout {
     std::vector<std::int32_t> ids;
+    bool column = false;  ///< one below the other, as the buttons of BASE.GAD
 
     [[nodiscard]] std::string gad() const {
         std::string out = "Objekt: GADGET\n";
@@ -45,7 +46,10 @@ struct Layout {
         return out + "EndObj\n";
     }
 
-    [[nodiscard]] static std::pair<std::int32_t, std::int32_t> place(std::size_t i) {
+    [[nodiscard]] std::pair<std::int32_t, std::int32_t> place(std::size_t i) const {
+        if (column) {
+            return {100, 100 + static_cast<std::int32_t>(i) * (kHeight + 5)};
+        }
         return {static_cast<std::int32_t>(i % 20) * (kWidth + 10), 100 + static_cast<std::int32_t>(i / 20) * 20};
     }
 
@@ -75,7 +79,7 @@ Layout base_layout() {
 
 /// The History Edition's BASE.GAD: Options (30004) after Multiplayer, Quit at 30007.
 Layout history_base_layout() {
-    return {{30002, 30003, 30004, 30005, 30006, 30007}};
+    return {{30002, 30003, 30004, 30005, 30006, 30007}, true};
 }
 
 Layout host_layout() {
@@ -215,7 +219,7 @@ TEST_CASE("main menu: the History Edition's Options button is left out and the b
         return events;
     };
     CHECK(at(30003).size() == 1);
-    // Credits, Intro and Quit now sit where Options, Credits and Intro were; Quit's place is empty.
+    // Credits, Intro and Quit moved up one step (all steps are alike here); Quit's place is empty.
     const auto credits = at(30004);
     REQUIRE(credits.size() == 1);
     CHECK(credits[0].kind == MenuEvent::Kind::Credits);

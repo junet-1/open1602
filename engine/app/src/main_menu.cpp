@@ -168,15 +168,18 @@ std::optional<ui::Panel> load_colour_panel(const assets::GameDirectory& game) {
 
 void hide_history_options(ui::Panel& base) {
     base.set_visible(kHistoryOptions, false);
-    // Each button below Options takes the place of the one above it, so no gap is left.
-    std::optional<std::array<std::int32_t, 2>> above = base.position(kHistoryOptions);
-    for (std::int32_t id = kHistoryOptions + 1; id <= kHistoryQuit && above; ++id) {
-        const std::optional<std::array<std::int32_t, 2>> own = base.position(id);
-        if (!own) {
-            break;
+    // The buttons below Options move up together by the step from Options to Credits, so no gap
+    // is left and their planks keep the overlapping shadows they were drawn with.
+    const std::optional<std::array<std::int32_t, 2>> options = base.position(kHistoryOptions);
+    const std::optional<std::array<std::int32_t, 2>> next = base.position(kHistoryOptions + 1);
+    if (!options || !next) {
+        return;
+    }
+    const std::int32_t step = (*next)[1] - (*options)[1];
+    for (std::int32_t id = kHistoryOptions + 1; id <= kHistoryQuit; ++id) {
+        if (const std::optional<std::array<std::int32_t, 2>> own = base.position(id)) {
+            base.set_position(id, (*own)[0], (*own)[1] - step);
         }
-        base.set_position(id, (*above)[0], (*above)[1]);
-        above = own;
     }
 }
 
