@@ -62,10 +62,11 @@ bool Fleet::naval_combat(Ship& ship) {
         !ship.hold &&
         (ship.route.active || pirate || ship.attack_move ||
          (computer_controlled(owner) && !ship.repairing && (is_combat_ref(ship.target) || ship.near_island == 0xFFFF)));
-    // The ordered target (pirates: their order; others: the current target) if hostile and near.
+    // The ordered target (pirates: their order; others: the current target) if hostile, or a tree
+    // or field that is not the ship's, and near.
     Target candidate;
     const Target& ordered = pirate ? ship.order : ship.target;
-    if (is_combat_ref(ordered) && hostile(ordered)) {
+    if (is_combat_ref(ordered) && (hostile(ordered) || m_combat->fellable(ordered, ship.owner))) {
         if (const auto f = m_combat->fighter(ordered);
             f && f->cells.distance(2 * ship.x + 1, 2 * ship.y + 1) <= 2 * kOrderRange) {
             candidate = ordered;

@@ -70,6 +70,11 @@ public:
 
     /// What a ship, soldier or tower is now; nothing if it is gone (or dying, or sinking).
     [[nodiscard]] std::optional<Fighter> fighter(const Target& unit) const;
+    /// Whether a unit of `self` sent against this building target shoots it although nobody is at
+    /// war: a tree or a field (forest kind) that is not its own, also one of nobody. In the original
+    /// an order with Ctrl takes these as targets, and units shoot every target that is not their
+    /// owner's (Haus_IsDestroyable 0x00464A80, 0x00456D00, 0x00452370).
+    [[nodiscard]] bool fellable(const Target& unit, PlayerId self) const;
     /// Scores the entries within `max_distance8` and sorts them best first (stable). Valid until
     /// the next rank().
     [[nodiscard]] std::span<const Candidate> rank(const Fighter& me, std::span<const Neighbour> list,

@@ -797,7 +797,7 @@ void MapInput::handle_event(const SDL_Event& event) {
                         }
                     } else if (!m_units.empty() || !back_to_status()) {
                         map_order(static_cast<double>(event.button.x), static_cast<double>(event.button.y),
-                                  (SDL_GetModState() & SDL_KMOD_SHIFT) != 0);
+                                  (SDL_GetModState() & SDL_KMOD_SHIFT) != 0, (SDL_GetModState() & SDL_KMOD_CTRL) != 0);
                     }
                 }
             } else if (event.button.button == SDL_BUTTON_LEFT && m_tool.dragging()) {
@@ -1227,7 +1227,7 @@ void MapInput::map_left_up(double x, double y, std::uint16_t mod, int clicks) {
     const bool shift = (mod & SDL_KMOD_SHIFT) != 0;
     const bool ctrl = (mod & SDL_KMOD_CTRL) != 0;
     if (m_pick != Pick::None) {
-        map_order(x, y, shift);
+        map_order(x, y, shift, ctrl);
         return;
     }
     if (m_press.rubber_band() && m_press.at()) {
@@ -1249,7 +1249,7 @@ void MapInput::map_left_up(double x, double y, std::uint16_t mod, int clicks) {
         return;
     }
     if (m_original_mouse && !m_units.empty() && m_units.owner(world()) == local()) {
-        map_order(x, y, shift);
+        map_order(x, y, shift, ctrl);
         return;
     }
     // What was selected before the click: the same building clicked again shows more (a Kontor
@@ -1262,7 +1262,7 @@ void MapInput::map_left_up(double x, double y, std::uint16_t mod, int clicks) {
     select_building_at_mouse(before);
 }
 
-void MapInput::map_order(double x, double y, bool queue) {
+void MapInput::map_order(double x, double y, bool queue, bool on_object) {
     const Pick pick = std::exchange(m_pick, Pick::None);
     if (m_units.empty() || m_units.owner(world()) != local()) {
         return;
@@ -1304,6 +1304,12 @@ void MapInput::map_order(double x, double y, bool queue) {
         return;
     }
     const bool attack_pick = pick == Pick::Attack;
+    // Ctrl (or F first) also takes a tree or field as a target, to shoot it down; a plain click there
+    // is a move (Haus_IsDestroyable 0x00464A80 with the Ctrl flag).
+    const bool fell = attack_pick || on_object;
+    const auto is_tree = [](const sim::SubTile& t) {
+        return t.building != nullptr && t.building->kind == sim::building_kind::kForest;
+    };
     // Onto a unit: attack somebody else's, follow or board one's own.
     if (const auto unit = unit_at(x, y); unit && !m_units.contains(*unit)) {
         const sim::Target t =
@@ -1341,16 +1347,26 @@ void MapInput::map_order(double x, double y, bool queue) {
             submit_orders(m_units.target_orders(world(), local(), t, queue, attack_pick && city->owner != local()));
             return;
         }
-    } else if (const auto hit = building_tile_at(x, y, [](std::uint16_t, const sim::SubTile& t) {
+        if (const auto hit =
+                fell ? building_tile_at(x, y, [&](std::uint16_t, const sim::SubTile& t) { return is_tree(t); })
+                     : std::optional<render::TileHit>{}) {
+            const sim::SubTile b = world().islands()[hit->island].map.sub_tile(m_buildings, hit->local_x, hit->local_y);
+            const sim::Target t = sim::Target::building(hit->island, static_cast<std::uint32_t>(b.origin_x),
+                                                        static_cast<std::uint32_t>(b.origin_y));
+            submit_orders(m_units.target_orders(world(), local(), t, queue, true));
+            return;
+        }
+    } else if (const auto hit = building_tile_at(x, y, [&](std::uint16_t, const sim::SubTile& t) {
                    return t.building != nullptr && t.building->kind != sim::building_kind::kGround &&
-                          t.building->kind != sim::building_kind::kRoad && !sim::soldiers_walk_on(*t.building);
+                          t.building->kind != sim::building_kind::kRoad && !sim::soldiers_walk_on(*t.building) &&
+                          (fell || !is_tree(t));
                })) {
         // Land units onto a building: attack another's, walk to (or heal at) one's own.
         const sim::SubTile b = world().islands()[hit->island].map.sub_tile(m_buildings, hit->local_x, hit->local_y);
         const sim::Target t = sim::Target::building(hit->island, static_cast<std::uint32_t>(b.origin_x),
                                                     static_cast<std::uint32_t>(b.origin_y));
         const bool foreign = target_owner(world(), t) != local() && target_owner(world(), t) != sim::kNoPlayer;
-        submit_orders(m_units.target_orders(world(), local(), t, queue, foreign || attack_pick));
+        submit_orders(m_units.target_orders(world(), local(), t, queue, foreign || fell));
         return;
     }
     // With F first: an attack move (fights on the way, ADR 0010).

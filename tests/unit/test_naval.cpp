@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 
 #include "../test_framework.hpp"
 #include "golden.hpp"
@@ -23,15 +24,21 @@ namespace {
 constexpr std::uint16_t kWarship = 25;  // KRIEG1
 constexpr std::uint16_t kTrade = 21;    // HANDEL1
 
-assets::BuildingTable make_buildings() {
+/// A tree of 3 HP to shoot down, only in the tables that ask for it (the golden hashes stay).
+constexpr const char* kTreeRecord =
+    "  @Nummer: 2\n  Id: 20106\n  Kind: 10\n  Gfx: 11\n  Size: 1, 1\n  Maxenergy: 3\n  NoShotFlg: 1\n"
+    "  Ruinenr: 255\n";
+
+assets::BuildingTable make_buildings(bool tree = false) {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
-    const auto doc = assets::cod::parse(
-        "Objekt: HAUS\n"
-        "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"
-        "  @Nummer: 1\n  Id: 20105\n  Kind: 6\n  Gfx: 10\n  Size: 1, 1\n  Maxenergy: 55\n  NoShotFlg: 1\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 16\n    Figurnr: 38\n  EndObj\n"
-        "EndObj\n",
-        types);
+    const std::string text =
+        std::string(
+            "Objekt: HAUS\n"
+            "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"
+            "  @Nummer: 1\n  Id: 20105\n  Kind: 6\n  Gfx: 10\n  Size: 1, 1\n  Maxenergy: 55\n  NoShotFlg: 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 16\n    Figurnr: 38\n  EndObj\n") +
+        (tree ? kTreeRecord : "") + "EndObj\n";
+    const auto doc = assets::cod::parse(text, types);
     auto table = assets::BuildingTable::from_cod(doc);
     REQUIRE(table.ok());
     return std::move(table).value();
@@ -70,7 +77,7 @@ struct Sea {
     std::vector<sim::MilitaryEvent> events;
     std::vector<sim::ConstructionEvent> construction;
 
-    Sea() {
+    explicit Sea(bool tree = false) : buildings(make_buildings(tree)) {
         std::vector<sim::Player> players(3);
         players[0].role = sim::PlayerRole::Human;
         players[1].role = sim::PlayerRole::Computer;
@@ -230,6 +237,26 @@ TEST_CASE("naval: a computer's ship hit by pirates surrenders; the pirates plund
     // the pirates are at peace with its owner all the same (original).
     CHECK(!m->held);
     CHECK(!s.world.diplomacy().hostile(2, 1));
+}
+
+TEST_CASE("naval: a warship sent against a tree of nobody shoots it down, without war") {
+    Sea s(true);
+    REQUIRE(s.world.island(0).map.place(*s.buildings.by_id(20106), 0, 4, 0, 0).ok());
+    s.start();
+    const std::uint32_t warship = s.add(34, 24, kWarship, 0, 8);
+    // Ctrl + click on the tree (Haus_IsDestroyable 0x00464A80): 3 HP, one broadside of 4.0 HP.
+    sim::ShipOrder o;
+    o.player = 0;
+    o.ship = warship;
+    o.target = sim::Target::building(0, 0, 4);
+    o.attack = true;
+    REQUIRE(s.fleet->order(o));
+    s.run(15'000);
+    CHECK(s.count(sim::ShipEvent::Kind::Fired) >= 1);
+    CHECK(s.world.islands()[0].map.top(0, 4).sprite != s.buildings.by_id(20106)->gfx);
+    CHECK(std::count_if(s.events.begin(), s.events.end(),
+                        [](const auto& e) { return e.kind == sim::MilitaryEvent::Kind::BuildingDestroyed; }) == 1);
+    CHECK(!s.world.diplomacy().hostile(0, 1));
 }
 
 TEST_CASE("naval: a cannon tower fires at hostile ships near its island") {

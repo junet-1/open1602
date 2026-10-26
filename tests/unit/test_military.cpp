@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 
 #include "../test_framework.hpp"
 #include "golden.hpp"
@@ -30,34 +31,42 @@ constexpr std::uint32_t kCastle = 20107;
 constexpr std::uint32_t kKontor = 20108;
 constexpr std::uint32_t kKontorDestroyed = 20109;
 constexpr std::uint32_t kNativeHut = 20110;
+constexpr std::uint32_t kTree = 20111;
 constexpr std::uint16_t kSword = 1;
 constexpr std::uint16_t kMusket = 9;
 
-assets::BuildingTable make_buildings() {
+/// A tree of 3 HP to shoot down, only in the tables that ask for it (the golden hashes stay).
+constexpr const char* kTreeRecord =
+    "  @Nummer: 9\n  Id: 20111\n  Kind: 10\n  Gfx: 60\n  Size: 1, 1\n  Maxenergy: 3\n  NoShotFlg: 1\n"
+    "  Ruinenr: 255\n";
+
+assets::BuildingTable make_buildings(bool tree = false) {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
-    const auto doc = assets::cod::parse(
-        "Objekt: HAUS\n"
-        "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"  // open ground
-        "  @Nummer: 1\n  Id: 20103\n  Kind: 14\n  Gfx: 2\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
-        "  Ruinenr: 255\n"  // a house
-        "  @Nummer: 2\n  Id: 20104\n  Kind: 14\n  Gfx: 6\n  Size: 2, 2\n  Maxenergy: 50\n  NoShotFlg: 1\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 22\n  EndObj\n"  // doctor (KLINIK)
-        "  @Nummer: 3\n  Id: 20105\n  Kind: 6\n  Gfx: 10\n  Size: 1, 1\n  Maxenergy: 55\n  NoShotFlg: 1\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 16\n    Figurnr: 38\n  EndObj\n"                 // Wachturm
-        "  @Nummer: 4\n  Id: 20106\n  Kind: 10\n  Gfx: 11\n  Size: 1, 1\n  NoShotFlg: 1\n"  // forest
-        "  @Nummer: 5\n  Id: 20107\n  Kind: 14\n  Gfx: 20\n  Size: 2, 2\n  Maxenergy: 100\n  NoShotFlg: 1\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 15\n    Maxware: 3\n    Prodmenge: 0.5\n    Interval: 10\n  EndObj\n"
-        "  @Nummer: 6\n  Id: 20108\n  Kind: 35\n  Gfx: 30\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
-        "  KreuzBase: 6\n  Ausbauflg: 1\n  Ruinenr: 255\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // Kontor
-        "  @Nummer: 7\n  Id: 20109\n  Kind: 35\n  Gfx: 40\n  Size: 2, 2\n  NoShotFlg: 1\n"
-        "  KreuzBase: 6\n  Ausbauflg: 1\n  Destroyflg: 1\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // destroyed Kontor
-        "  @Nummer: 8\n  Id: 20110\n  Kind: 35\n  Gfx: 50\n  Size: 2, 2\n  Maxenergy: 5\n  NoShotFlg: 1\n"
-        "  Ruinenr: 255\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n    Nativflg: 1\n  EndObj\n"  // natives' main hut
-        "EndObj\n",
-        types);
+    const std::string text =
+        std::string(
+            "Objekt: HAUS\n"
+            "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"  // open ground
+            "  @Nummer: 1\n  Id: 20103\n  Kind: 14\n  Gfx: 2\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+            "  Ruinenr: 255\n"  // a house
+            "  @Nummer: 2\n  Id: 20104\n  Kind: 14\n  Gfx: 6\n  Size: 2, 2\n  Maxenergy: 50\n  NoShotFlg: 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 22\n  EndObj\n"  // doctor (KLINIK)
+            "  @Nummer: 3\n  Id: 20105\n  Kind: 6\n  Gfx: 10\n  Size: 1, 1\n  Maxenergy: 55\n  NoShotFlg: 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 16\n    Figurnr: 38\n  EndObj\n"                 // Wachturm
+            "  @Nummer: 4\n  Id: 20106\n  Kind: 10\n  Gfx: 11\n  Size: 1, 1\n  NoShotFlg: 1\n"  // forest
+            "  @Nummer: 5\n  Id: 20107\n  Kind: 14\n  Gfx: 20\n  Size: 2, 2\n  Maxenergy: 100\n  NoShotFlg: 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 15\n    Maxware: 3\n    Prodmenge: 0.5\n    Interval: 10\n  EndObj\n"
+            "  @Nummer: 6\n  Id: 20108\n  Kind: 35\n  Gfx: 30\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+            "  KreuzBase: 6\n  Ausbauflg: 1\n  Ruinenr: 255\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // Kontor
+            "  @Nummer: 7\n  Id: 20109\n  Kind: 35\n  Gfx: 40\n  Size: 2, 2\n  NoShotFlg: 1\n"
+            "  KreuzBase: 6\n  Ausbauflg: 1\n  Destroyflg: 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // destroyed Kontor
+            "  @Nummer: 8\n  Id: 20110\n  Kind: 35\n  Gfx: 50\n  Size: 2, 2\n  Maxenergy: 5\n  NoShotFlg: 1\n"
+            "  Ruinenr: 255\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n    Nativflg: 1\n  EndObj\n"  // natives' main hut
+            ) +
+        (tree ? kTreeRecord : "") + "EndObj\n";
+    const auto doc = assets::cod::parse(text, types);
     auto table = assets::BuildingTable::from_cod(doc);
     REQUIRE(table.ok());
     return std::move(table).value();
@@ -94,7 +103,7 @@ struct Field {
     std::vector<sim::MilitaryEvent> events;
     std::vector<sim::ConstructionEvent> construction;
 
-    Field() {
+    explicit Field(bool tree = false) : buildings(make_buildings(tree)) {
         std::vector<sim::Player> players(3);
         players[0].role = sim::PlayerRole::Human;
         players[0].money = 10000;
@@ -288,6 +297,40 @@ TEST_CASE("military: an attack order on a building means war; the building falls
     CHECK(f.military->building_damage(0, 24, 10) == 100);
     f.run(10'000);
     CHECK(f.military->building_damage(0, 24, 10) == 68);
+}
+
+TEST_CASE("military: a tree of nobody is shot down on order without war; one's own is left alone") {
+    Field f(true);
+    REQUIRE(f.world.island(0).map.place(*f.buildings.by_id(kTree), 20, 5, 0, 0).ok());
+    f.build(kTree, 20, 12, 0);
+    f.start();
+    const std::uint32_t id = f.add(kMusket, 0, 2 * 26, 2 * 15).id;  // island tile (16, 5)
+    // Without an order nobody shoots at trees.
+    f.run(5'000);
+    CHECK(f.count(sim::MilitaryEvent::Kind::Shot) == 0);
+    // Ctrl + click (Haus_IsDestroyable 0x00464A80): 3 HP, a musket does 2.4 at full damage.
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::building(0, 20, 5), true}));
+    f.run(20'000);
+    CHECK(f.count(sim::MilitaryEvent::Kind::WarDeclared) == 0);
+    CHECK(f.count(sim::MilitaryEvent::Kind::BuildingDestroyed) == 1);
+    CHECK(f.world.islands()[0].map.top(20, 5).sprite != f.buildings.by_id(kTree)->gfx);
+    // A tree of one's own city: the unit walks there and shoots nothing.
+    const std::size_t shots = f.count(sim::MilitaryEvent::Kind::Shot);
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::building(0, 20, 12), true}));
+    f.run(20'000);
+    CHECK(f.count(sim::MilitaryEvent::Kind::Shot) == shots);
+    CHECK(f.world.islands()[0].map.top(20, 12).sprite == f.buildings.by_id(kTree)->gfx);
+}
+
+TEST_CASE("military: shooting at another player's tree means war with him") {
+    Field f(true);
+    f.build(kTree, 20, 5, 1);
+    f.start();
+    const std::uint32_t id = f.add(kMusket, 0, 2 * 26, 2 * 15).id;
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::building(0, 20, 5), true}));
+    CHECK(f.world.diplomacy().hostile(0, 1));
+    f.run(20'000);
+    CHECK(f.count(sim::MilitaryEvent::Kind::BuildingDestroyed) == 1);
 }
 
 TEST_CASE("military: a cannon tower fires at hostile soldiers in range") {
