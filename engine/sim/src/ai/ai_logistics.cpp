@@ -23,6 +23,18 @@ bool carries_goods(const Ship& s) {
     return false;
 }
 
+/// Goods on board the home city has room for. What does not fit stays on board (S-097), and a ship
+/// carrying only that is free for the next supply run; otherwise it would lie at home until room
+/// came up.
+bool carries_goods_for(const Ship& s, const City& home) {
+    for (const CargoSlot& c : s.cargo) {
+        if (c.ware != 0 && c.ware <= ware::kLastTrade && c.amount != 0 && home.stock(c.ware) < home.capacity) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace
 
 ShipNote& Engine::note(AiPlayer& p, std::uint32_t ship) {
@@ -130,7 +142,7 @@ void Engine::logistics(AiPlayer& p) {
             healthy = yard_service(p);
         }
         if (Ship* s = pick_logistics_ship(p, healthy)) {
-            if (!carries_goods(*s) || s->route.active) {
+            if (!carries_goods_for(*s, *home) || s->route.active) {
                 home_supply_route(p, *s, *home);
             } else if (ship_at_city(*s, *home)) {
                 unload_at(*home, *s, false, false);  // the original throws away what does not fit (S-097)
@@ -195,7 +207,11 @@ bool Engine::yard_service(AiPlayer& p) {
             return false;
         }
         if (City* home = home_city(p)) {
-            send_to_city(p, *s, *home);
+            // A ship already in reach of the home Kontor stays idle: sent there again on every pass
+            // it never became free for the other jobs (a new ship from a yard next to the Kontor).
+            if (!ship_at_city(*s, *home)) {
+                send_to_city(p, *s, *home);
+            }
             arm_one(*home, *s);
         }
     }
@@ -266,12 +282,13 @@ Ship* Engine::pick_logistics_ship(AiPlayer& p, bool healthy) {
 Ship* Engine::pick_patrol_ship(AiPlayer& p, bool healthy) {
     // 0x00423E80: an idle ship with the most cannons; worn-out patrols go home.
     const std::vector<Ship*> ships = own_ships(p);
+    const City* home = home_city(p);
     Ship* best = nullptr;
     std::int32_t best_cannons = -1;
     for (Ship* s : ships) {
         ShipNote& n = note(p, s->id);
         if (n.patrol && (n.counter == 0 || (healthy && health128(*s) < 64))) {
-            if (City* home = home_city(p)) {
+            if (home != nullptr) {
                 send_to_city(p, *s, *home);
             }
             continue;
@@ -283,7 +300,7 @@ Ship* Engine::pick_patrol_ship(AiPlayer& p, bool healthy) {
             --n.cooldown;
             continue;
         }
-        if (ships.size() == 1 && carries_goods(*s)) {
+        if (ships.size() == 1 && (home == nullptr ? carries_goods(*s) : carries_goods_for(*s, *home))) {
             continue;
         }
         if (static_cast<std::int32_t>(s->cannons) > best_cannons) {

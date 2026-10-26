@@ -189,8 +189,12 @@ void Fleet::yard_cycle(CostBuilding& yard) {
     if (b == nullptr) {
         return;
     }
-    // 1. The running cycle ends.
-    if (yard.rate != 0) {
+    const bool burning = std::any_of(m_world->disasters().begin(), m_world->disasters().end(), [&](const Disaster& d) {
+        return d.kind == Disaster::Kind::Fire && d.island == yard.island && d.x == yard.x && d.y == yard.y;
+    });
+    // 1. The running cycle ends. In a burning yard it yields nothing and uses no material, as
+    // observed in the original.
+    if (yard.rate != 0 && !burning) {
         const std::uint32_t wood = std::min(yard.wood, scaled(b->raw_amount, yard.rate));
         const std::uint32_t cloth = std::min(yard.cloth, scaled(b->raw2_amount, yard.rate));
         yard.wood -= wood;
@@ -261,9 +265,6 @@ void Fleet::yard_cycle(CostBuilding& yard) {
         }
     }
     // 4. The next cycle, as far as the material goes; a burning yard waits.
-    const bool burning = std::any_of(m_world->disasters().begin(), m_world->disasters().end(), [&](const Disaster& d) {
-        return d.kind == Disaster::Kind::Fire && d.island == yard.island && d.x == yard.x && d.y == yard.y;
-    });
     std::uint16_t wait = kIdleSeconds;
     if (yard.wood == 0 || burning) {
         yard.idle_cycles = static_cast<std::uint8_t>(std::min<std::uint32_t>(kMaxIdle, yard.idle_cycles + 1U));

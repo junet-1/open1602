@@ -15,6 +15,11 @@ namespace {
 constexpr std::uint32_t kRecordHeaderSize = 16;
 constexpr std::uint8_t kEndOfImage = 0xFF;
 constexpr std::uint8_t kEndOfRow = 0xFE;
+// Record types (the low byte of +8 is what the original's blitters test, 0x00401B10): 1 and 6 are
+// RLE, 2 is width x height raw palette indices with index 0 transparent. Every original record is 1.
+constexpr std::uint8_t kTypeRle = 1;
+constexpr std::uint8_t kTypeRaw = 2;
+constexpr std::uint8_t kTypeRleToo = 6;
 // Sanity limit: the largest original sprites are full-screen images (1024x768).
 constexpr std::uint32_t kMaxDimension = 4096;
 /// Pixels all sprites of one sheet may claim together (HI-18): 256 M, far above the original's
@@ -89,6 +94,10 @@ core::Result<SpriteSheet> SpriteSheet::from_chunk_file(ChunkFile file) {
         if (info.length < kRecordHeaderSize || info.length > data.size() - info.offset) {
             return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(i) + " has an invalid length");
         }
+        if (static_cast<std::uint8_t>(info.type) == kTypeRaw &&
+            std::uint64_t{info.width} * info.height > info.length - kRecordHeaderSize) {
+            return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(i) + " is shorter than its pixels");
+        }
         // A few bytes cannot claim a huge sprite (HI-7, HI-18). Several offsets may point at one
         // record, so the sheet as a whole has a budget too.
         const std::uint64_t rle_bytes = info.length - kRecordHeaderSize;
@@ -130,6 +139,24 @@ core::Result<IndexedImage> SpriteSheet::decode(std::size_t index, std::uint32_t 
     const std::size_t pixel_count = std::size_t{image.width} * info.height;
     image.indices.assign(pixel_count, 0);
     image.opaque.assign(pixel_count, 0);
+
+    const auto type = static_cast<std::uint8_t>(info.type);
+    if (type == kTypeRaw) {
+        // Rows of palette indices one after the other; 0 is not drawn (0x00403670).
+        const auto pixels = data.subspan(std::size_t{info.offset} + kRecordHeaderSize);
+        for (std::uint32_t y = 0; y < info.height; ++y) {
+            for (std::uint32_t x = 0; x < info.width; ++x) {
+                const std::uint8_t colour = pixels[std::size_t{y} * info.width + x];
+                const std::size_t i = std::size_t{y} * image.width + x;
+                image.indices[i] = colour;
+                image.opaque[i] = colour != 0 ? 1 : 0;
+            }
+        }
+        return image;
+    }
+    if (type != kTypeRle && type != kTypeRleToo) {
+        return image;  // the original draws nothing for any other type
+    }
 
     // RLE stream: repeated [skip][count][count palette indices], 0xFE = next row, 0xFF = end.
     core::ByteReader reader(data.first(std::size_t{info.offset} + info.length));

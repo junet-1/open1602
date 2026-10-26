@@ -143,16 +143,29 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(read.rules.trader_reach == sim::TraderReach::Original);
     CHECK(app::read_setup_line(read, "trader_reach", "per4"));
     CHECK(read.rules.trader_reach == sim::TraderReach::Scaled);
-    // Large ore veins: they run out by default, as in the original.
-    CHECK(!s.rules.endless_veins);
-    CHECK(value_of(s, SetupItem::OreVeins) == ui::tr("setup.ore_veins.original"));
-    app::choose(s, SetupItem::OreVeins, 1);
-    CHECK(s.rules.endless_veins);
+    // Large ore veins: as the game file says by default, as in the original.
+    CHECK(s.rules.ore_veins == sim::OreVeins::Game);
+    CHECK(value_of(s, SetupItem::OreVeins) == ui::tr("setup.ore_veins.game"));
+    app::choose(s, SetupItem::OreVeins, 2);
+    CHECK(s.rules.ore_veins == sim::OreVeins::Endless);
     CHECK(app::write_setup(s).find("endless.ore_veins = endless\n") != std::string::npos);
     app::read_setup(read, app::write_setup(s));
-    CHECK(read.rules.endless_veins);
-    CHECK(app::read_setup_line(read, "ore_veins", "original"));
-    CHECK(!read.rules.endless_veins);
+    CHECK(read.rules.ore_veins == sim::OreVeins::Endless);
+    CHECK(app::read_setup_line(read, "ore_veins", "finite"));
+    CHECK(read.rules.ore_veins == sim::OreVeins::Finite);
+    CHECK(app::read_setup_line(read, "ore_veins", "game"));
+    CHECK(read.rules.ore_veins == sim::OreVeins::Game);
+    CHECK(app::read_setup_line(read, "ore_veins", "original"));  // finite, as it was called before
+    CHECK(read.rules.ore_veins == sim::OreVeins::Finite);
+    // The computer opponents: as the game file says by default.
+    CHECK(s.rules.computer_players == sim::Computers::Game);
+    CHECK(value_of(s, SetupItem::ComputerPlayers) == ui::tr("setup.computers.game"));
+    app::choose(s, SetupItem::ComputerPlayers, 1);
+    CHECK(s.rules.computer_players == sim::Computers::Off);
+    CHECK(app::write_setup(s).find("endless.computers = off\n") != std::string::npos);
+    app::read_setup(read, app::write_setup(s));
+    CHECK(read.rules.computer_players == sim::Computers::Off);
+    CHECK(app::setup_item_offered(app::SetupScope::Scenario, SetupItem::ComputerPlayers));
     // Bread production: as in the original by default, the revised chain on choice.
     CHECK(!s.rules.revised_bread);
     CHECK(value_of(s, SetupItem::BreadChain) == ui::tr("setup.bread.original"));

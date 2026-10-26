@@ -567,13 +567,15 @@ public:
     /// come) and the settings word (bit 2: no droughts).
     /// TIMERS +0xA8 and its neighbours (docs/formats/gam.md).
     struct GameSettings {
-        static constexpr std::uint32_t kNoPirates = 1U << 0;    ///< flags: no pirates
-        static constexpr std::uint32_t kNoDroughts = 1U << 2;   ///< flags: no droughts
-        static constexpr std::uint32_t kIronMined = 1U << 4;    ///< flags: an iron mine was built (for good)
-        static constexpr std::uint32_t kPirateGoal = 1U << 5;   ///< flags: defeat the pirates
-        static constexpr std::uint32_t kNoTrader = 1U << 6;     ///< flags: no free trader
-        static constexpr std::uint32_t kNoVolcanoes = 1U << 8;  ///< flags: no volcanoes
-        static constexpr std::uint32_t kNoMilitary = 1U << 9;   ///< flags: no military buildings
+        static constexpr std::uint32_t kNoPirates = 1U << 0;     ///< flags: no pirates
+        static constexpr std::uint32_t kNoComputers = 1U << 1;   ///< flags: computer opponents idle
+        static constexpr std::uint32_t kNoDroughts = 1U << 2;    ///< flags: no droughts
+        static constexpr std::uint32_t kEndlessVeins = 1U << 3;  ///< flags: large iron veins never run out
+        static constexpr std::uint32_t kIronMined = 1U << 4;     ///< flags: an iron mine was built (for good)
+        static constexpr std::uint32_t kPirateGoal = 1U << 5;    ///< flags: defeat the pirates
+        static constexpr std::uint32_t kNoTrader = 1U << 6;      ///< flags: no free trader
+        static constexpr std::uint32_t kNoVolcanoes = 1U << 8;   ///< flags: no volcanoes
+        static constexpr std::uint32_t kNoMilitary = 1U << 9;    ///< flags: no military buildings
 
         std::uint8_t difficulty = 2;
         std::uint32_t flags = 0;                 ///< the k... bits above

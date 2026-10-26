@@ -302,10 +302,27 @@ core::Result<CommandLine> parse_command_line(int argc, const char* const* argv) 
                 return bad(i);
             }
         } else if (arg == "--ore-veins" && has_value) {
-            // Game setting: large iron veins run out (original) or are endless for the deep mine.
+            // Game setting: large iron veins as the game says, run out, or endless for the deep mine.
+            // "original" is the name finite veins had before "game" came.
             const std::string_view mode = argv[++i];
-            if (mode == "original" || mode == "endless") {
-                options.rules.endless_veins = mode == "endless";
+            if (mode == "game") {
+                options.rules.ore_veins = sim::OreVeins::Game;
+            } else if (mode == "finite" || mode == "original") {
+                options.rules.ore_veins = sim::OreVeins::Finite;
+            } else if (mode == "endless") {
+                options.rules.ore_veins = sim::OreVeins::Endless;
+            } else {
+                return bad(i);
+            }
+        } else if (arg == "--computers" && has_value) {
+            // Game setting: whether the computer opponents play.
+            const std::string_view mode = argv[++i];
+            if (mode == "game") {
+                options.rules.computer_players = sim::Computers::Game;
+            } else if (mode == "off") {
+                options.rules.computer_players = sim::Computers::Off;
+            } else if (mode == "on") {
+                options.rules.computer_players = sim::Computers::On;
             } else {
                 return bad(i);
             }

@@ -209,7 +209,7 @@ is the count in Merlin01 after a few minutes of play.
 | `MILITAR` | 0x70 | `0x00485530` | `0x0055EB80`, 288 × 0x30 | castles and warrior huts (loader `0x00483C60`): island, x, y, epoch (+3 bits 0–2), +4 seconds until the next training step, +8/+0x0A/+0x0C weapons in stock (swords, muskets, cannons, 1/32 t), from +0x10 nine slots of 8 bytes: figure (bits 0–11), in training (bit 12), armed (bit 13); hit points (bits 0–11 of the second word), progress 0–320 (bits 16–31) (3: the huts of the natives with eight finished spearmen each) |
 | `SIEDLER` | 0x10 | `0x00485530` | `0x005A77E8`, 4160 × 10 | houses: island, x, y, epochs, class, market distance, inhabitants · 64, time group, market and service bits ([houses.md](../re/houses.md)) (132) |
 | `ROHWACHS2` | 8 | `0x00485C20` | `0x00562DC8`, 32860 × 8 | growth of fields, trees, plantations, fishing grounds: island, x, y, class, counter value seen, stage, 2 bytes 0 ([growth.md](../re/growth.md)) |
-| `TIMERS` | 0x298 | `0x00485D10` | scattered counters (`0x005A77E0`, `0x005DBAB0`, …) | global counters and timers; +0x00: phase of the city tick (10 s), +0x01: phase of the island tick (30 s), +0x02–0x04: second phases (shipyard, military, production), +0x84/+0x88/+0x8C/+0x90/+0x94: their time accumulators in ms; +0x64: 32 counters of the growth classes (0–7), +0x218: 32 class clocks in ms, +0x44: 16 epochs of the house time groups, +0x198: 16 house timers in ms, +0xA0: game time in 1/10 s, +0xA6: difficulty 0–3 (`0x005B6304`, drought table), +0xA8: game settings (`0x005B706C`; bit 2 no droughts, bit 8 no volcanoes), +0xB0: next city name from `[STAEDTE]` (`0x005B3168`), +0xB4: earliest next drought roll in 1/10 s (new game 54000; a saved 0 becomes 36000), +0xC4: running volcanic eruption, +0xC8: last one (references `{0x33, island, x, y}`), +0xCC: earliest next volcanic eruption in 1/10 s, +0xD0: craters of the world, at most 20 ([volcanoes.md](../re/volcanoes.md)); +0xA5: tutorial (`0x005B62FC`; 1 only in `Einführungsspiel0–4.szs`, the computers stay idle, [ai.md](../re/ai.md#tutorial)), +0xA7: mission number (endless game 1), +0xAC: game id (`sim::new_game_id`), +0xB8: interval of new pirate ships in 1/10 s, +0xBC: difficulty (as the new game sets it), +0xC0: fleet limit per player (0 = 33, L-001); +0x98/+0x9C and the rest: meaning open |
+| `TIMERS` | 0x298 | `0x00485D10` | scattered counters (`0x005A77E0`, `0x005DBAB0`, …) | global counters and timers; +0x00: phase of the city tick (10 s), +0x01: phase of the island tick (30 s), +0x02–0x04: second phases (shipyard, military, production), +0x84/+0x88/+0x8C/+0x90/+0x94: their time accumulators in ms; +0x64: 32 counters of the growth classes (0–7), +0x218: 32 class clocks in ms, +0x44: 16 epochs of the house time groups, +0x198: 16 house timers in ms, +0xA0: game time in 1/10 s, +0xA6: difficulty 0–3 (`0x005B6304`, drought table), +0xA8: game settings (`0x005B706C`, [settings word](#timers-settings-word)), +0xB0: next city name from `[STAEDTE]` (`0x005B3168`), +0xB4: earliest next drought roll in 1/10 s (new game 54000; a saved 0 becomes 36000), +0xC4: running volcanic eruption, +0xC8: last one (references `{0x33, island, x, y}`), +0xCC: earliest next volcanic eruption in 1/10 s, +0xD0: craters of the world, at most 20 ([volcanoes.md](../re/volcanoes.md)); +0xA5: tutorial (`0x005B62FC`; 1 only in `Einführungsspiel0–4.szs`, the computers stay idle, [ai.md](../re/ai.md#tutorial)), +0xA7: mission number (endless game 1), +0xAC: game id (`sim::new_game_id`), +0xB8: interval of new pirate ships in 1/10 s, +0xBC: difficulty (as the new game sets it), +0xC0: fleet limit per player (0 = 33, L-001); +0x98: tools the free trader has restocked from nowhere in 1/32 t (`0x0062BE34`, +4 t per restock), +0x9C: its quota (`0x00498B94`; a saved 0 becomes 400 t, `Trader_ToolRestock 0x00454C90`); +0xA4: if not 0 the loader sets settings bit 3 (never written, 0 in every file); +0x05–+0x43, +0x54–+0x63, +0xD4–+0x197 and +0x1D8–+0x217 are never written or read (0 in every original file but one with four stale bytes) |
 | `AUFTRAG4` | – | `0x00478558` | – | missions of the scenario, 0x8C4 bytes per slot; structure, goals and flow in [missions.md](../re/missions.md) |
 | `WIFF` | 4 | `0x00485EE0` | u32 `0x005B3160` | checksum: sum of the 32-bit words of all data before it (`0x00490730`), never read |
 
@@ -217,6 +217,27 @@ All coordinates in `STADT4` … `ROHWACHS2` are island tiles; the island is give
 byte. The bit fields of the records are described exactly in the write routines; their meaning is
 only partly known. Open1602 reads the known fields (`assets::load_game_state`) and keeps the
 rest as raw values so that nothing is lost when saving later.
+
+### TIMERS settings word
+
+`TIMERS` +0xA8 (`0x005B706C`). The new game starts from the value in the map plan (9 on the two easy
+levels, 8 on the hard ones), scenarios store their own. Bits:
+
+| Bit | Meaning | Set by |
+|---|---|---|
+| 0 | no pirates | file |
+| 1 | no computer players: their tick is skipped (`AI_Tick 0x0042B4B0`) | file; no original file sets it |
+| 2 | no droughts ([growth.md](../re/growth.md#drought)) | file |
+| 3 | large ore veins are not exhausted: the deep mine's stage below 120 t skips the subtraction (`0x0047E0A5`, [logistics.md](../re/logistics.md)) | file (every endless game and about 60 scenarios), or `TIMERS` +0xA4 ≠ 0 |
+| 4 | an iron mine has been built: the free trader also sells iron ore | the game |
+| 5 | a mission goal is to destroy the pirates | the loader, from the missions |
+| 6 | no free trader | file |
+| 8 | no volcanoes ([volcanoes.md](../re/volcanoes.md)) | file |
+| 9 | no military | file |
+
+The other bits are never tested. The options screen shows bits 3, 2, 0, 8 and 6 (texts 0x109BF–0x109C3).
+Open1602 reads every bit (`sim::World::GameSettings`) except 1 and 3; the large-vein rule is the
+start option `Rules::endless_veins`.
 
 ### STADT4 – cities (0xA8 bytes)
 

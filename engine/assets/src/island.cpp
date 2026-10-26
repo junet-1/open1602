@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <iterator>
 #include <span>
 
 #include "o1602/core/byte_reader.hpp"
@@ -16,6 +17,18 @@ namespace {
 
 constexpr std::size_t kMinHeaderSize = 8;
 constexpr std::size_t kTileSize = 8;
+
+/// Size class of an INSEL5 island by its width, as the original's loader sets it (0x00469900) before it
+/// builds the template path: the stored value is ignored. Wider islands keep it.
+std::uint16_t size_class_of_width(std::uint32_t width, std::uint16_t stored) {
+    static constexpr std::uint8_t kLimits[] = {33, 43, 56, 76, 111};  // lit, mit, med, big, lar
+    for (std::uint16_t c = 0; c < std::size(kLimits); ++c) {
+        if (width < kLimits[c]) {
+            return c;
+        }
+    }
+    return stored;
+}
 
 core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std::uint8_t> data) {
     if (data.size() < kMinHeaderSize) {
@@ -33,6 +46,10 @@ core::Result<IslandHeader> parse_header(const Chunk& chunk, std::span<const std:
     if (data.size() >= 0x66) {
         h.template_number = static_cast<std::uint16_t>(data[0x60] | (data[0x61] << 8));
         h.template_size = static_cast<std::uint16_t>(data[0x62] | (data[0x63] << 8));
+        if (chunk.name == "INSEL5") {
+            // NORDNAT/med15 stores "lit" for its 50 tiles; the original loads its base NORD/med15.
+            h.template_size = size_class_of_width(h.width, h.template_size);
+        }
         h.climate = data[0x64];
         h.stored_complete = data[0x65] != 0;
         h.explored = data[0x1B];

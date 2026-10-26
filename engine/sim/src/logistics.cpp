@@ -941,8 +941,9 @@ void Logistics::mine_ore(std::uint32_t home) {
     }
     p.raw = clamp_u16(std::uint32_t{p.raw} + amount);
     m_stats.ore_mined += amount;
-    if (!any_mine && m_rules != nullptr && m_rules->endless_veins) {
-        return;  // Rules::endless_veins: the deep mine's part of a big vein never runs out
+    const bool game_endless = (m_world->game_settings().flags & World::GameSettings::kEndlessVeins) != 0;
+    if (!any_mine && m_rules != nullptr && m_rules->endless_veins(game_endless)) {
+        return;  // the deep mine's part of a big vein never runs out (0x0047E0A5)
     }
     if (any_mine) {
         if (mine.ware == ware::kGold) {

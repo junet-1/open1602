@@ -10,8 +10,8 @@ Status legend: ✅ verified (code + test against original data) · 🟡 partly �
 | Palette | `TOOLGFX/STADTFLD.COL` | ✅ | [col.md](col.md) | `engine/assets/palette.*` |
 | Sprites | `GFX/ MGFX/ SGFX/ TOOLGFX/ *.BSH` | ✅ | [bsh.md](bsh.md) | `engine/assets/sprite_sheet.*` |
 | Fonts | `TOOLGFX/*.ZEI` | ✅ glyphs, metrics, colours, line wrapping | [bsh.md](bsh.md#zei-fonts), [ui.md](../re/ui.md#fonts) | `engine/assets/sprite_sheet.*`, `engine/ui/font.*` |
-| Islands | `NORD/ SUED/ NORDNAT/ SUEDNAT/ NOKLIMA/ *.SCP` | ✅ tiles, attributes · 🟡 island header | [scp.md](scp.md) | `engine/assets/island.*`, `engine/sim/island_map.*` |
-| Scenarios / savegames | `Szenes/*.SZS *.SZM`, `SAVEGAME/*.GAM` | 🟡 all chunks of the savegame read and written (byte for byte round trip); open: scenario attitude in `PLAYER4`, AI mission fields in `SHIP4`, parts of `TIMERS`, the `SZENE` chunks of the scenarios (read: island list, `RANDTAB`, mission number) | [gam.md](gam.md), [savegame-writer.md](../re/savegame-writer.md) | `engine/assets/scenario.*`, `savegame.*`, `engine/sim/world.*`, `savegame_writer.*` |
+| Islands | `NORD/ SUED/ NORDNAT/ SUEDNAT/ NOKLIMA/ *.SCP` | ✅ tiles, attributes, island header | [scp.md](scp.md) | `engine/assets/island.*`, `engine/sim/island_map.*` |
+| Scenarios / savegames | `Szenes/*.SZS *.SZM`, `SAVEGAME/*.GAM` | ✅ all chunks of the savegame read and written (byte for byte round trip); every field of `TIMERS`, `SZENE` and `AUFTRAG4` known or shown to be unused | [gam.md](gam.md), [savegame-writer.md](../re/savegame-writer.md) | `engine/assets/scenario.*`, `savegame.*`, `engine/sim/world.*`, `savegame_writer.*` |
 | Open1602 savegame | `*.o1602` | ✅ (Open1602, own format) | [o1602-save.md](o1602-save.md) | `engine/sim/save_game.*` |
 | Own chunk | `O1602`, `O1602MAP` in exported `.GAM` | ✅ (Open1602) | [o1602-chunk.md](o1602-chunk.md) | `engine/sim/savegame_extension.*` |
 | Figures | `figuren.cod` (FIGUR) | 🟡 drawing, walking and combat data, `FORMATION` (chosen with the formation key, ADR 0010) | [gam.md](gam.md#how-ships-are-drawn), [figures.md](../re/figures.md) | `engine/assets/figure_table.*` |

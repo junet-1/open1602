@@ -136,6 +136,8 @@ std::optional<std::uint32_t> parse_number(std::string_view v) {
 constexpr std::array<std::string_view, 5> kDroughtNames = {"game", "off", "rare", "normal", "frequent"};
 constexpr std::array<std::string_view, 3> kVolcanoNames = {"game", "off", "on"};
 constexpr std::array<std::string_view, 3> kPirateNames = {"game", "off", "on"};
+constexpr std::array<std::string_view, 3> kComputerNames = {"game", "off", "on"};
+constexpr std::array<std::string_view, 3> kOreVeinNames = {"game", "finite", "endless"};
 constexpr std::array<std::string_view, 2> kPirateNestNames = {"one", "per4"};
 constexpr std::array<std::string_view, 2> kTraderReachNames = {"original", "per4"};
 constexpr std::array<std::string_view, 3> kRevealNames = {"none", "players", "all"};
@@ -258,6 +260,10 @@ std::size_t setup_choices(SetupItem item) noexcept {
             return kVolcanoNames.size();
         case SetupItem::Pirates:
             return kPirateNames.size();
+        case SetupItem::ComputerPlayers:
+            return kComputerNames.size();
+        case SetupItem::OreVeins:
+            return kOreVeinNames.size();
         case SetupItem::PirateNests:
             return kPirateNestNames.size();
         case SetupItem::Reveal:
@@ -277,7 +283,6 @@ std::size_t setup_choices(SetupItem item) noexcept {
             return kGoldIslands.size();
         case SetupItem::TraderPrices:
         case SetupItem::TraderReach:
-        case SetupItem::OreVeins:
         case SetupItem::BreadChain:
         case SetupItem::Map:
         case SetupItem::Starts:
@@ -338,7 +343,7 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
         case SetupItem::TraderReach:
             return r.trader_reach == sim::TraderReach::Scaled ? 1 : 0;
         case SetupItem::OreVeins:
-            return r.endless_veins ? 1 : 0;
+            return std::min<std::size_t>(static_cast<std::size_t>(r.ore_veins), kOreVeinNames.size() - 1);
         case SetupItem::BreadChain:
             return r.revised_bread ? 1 : 0;
         case SetupItem::Ships:
@@ -382,6 +387,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return r.guarantee_resources ? 0 : 1;
         case SetupItem::ClassicAi:
             return r.classic_ai ? 1 : 0;
+        case SetupItem::ComputerPlayers:
+            return std::min<std::size_t>(static_cast<std::size_t>(r.computer_players), kComputerNames.size() - 1);
         case SetupItem::Pirates:
             return std::min<std::size_t>(static_cast<std::size_t>(r.pirates), kPirateNames.size() - 1);
         case SetupItem::PirateNests:
@@ -444,7 +451,7 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             r.trader_reach = choice == 1 ? sim::TraderReach::Scaled : sim::TraderReach::Original;
             break;
         case SetupItem::OreVeins:
-            r.endless_veins = choice == 1;
+            r.ore_veins = static_cast<sim::OreVeins>(choice);
             break;
         case SetupItem::BreadChain:
             r.revised_bread = choice == 1;
@@ -500,6 +507,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             break;
         case SetupItem::ClassicAi:
             r.classic_ai = choice == 1;
+            break;
+        case SetupItem::ComputerPlayers:
+            r.computer_players = static_cast<sim::Computers>(choice);
             break;
         case SetupItem::Pirates:
             r.pirates = static_cast<sim::Pirates>(choice);
@@ -682,6 +692,7 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
         case SetupItem::GameSpeed:
         case SetupItem::Droughts:
         case SetupItem::Volcanoes:
+        case SetupItem::ComputerPlayers:
         case SetupItem::ClassicAi:
         case SetupItem::Pirates:
         case SetupItem::PirateNests:
@@ -752,6 +763,7 @@ std::string setup_label(SetupItem item) {
         "setup.gold_islands",
         "setup.starts",
         "setup.resources",
+        "setup.computers",
         "setup.ai",
         "setup.pirates",
         "setup.pirate_nests",
@@ -790,8 +802,11 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 1 ? "setup.trader.market" : "setup.trader.original");
         case SetupItem::TraderReach:
             return ui::tr(choice == 1 ? "setup.trader_reach.per4" : "setup.trader_reach.original");
-        case SetupItem::OreVeins:
-            return ui::tr(choice == 1 ? "setup.ore_veins.endless" : "setup.ore_veins.original");
+        case SetupItem::OreVeins: {
+            static constexpr std::array<std::string_view, 3> kKeys = {"setup.ore_veins.game", "setup.ore_veins.finite",
+                                                                      "setup.ore_veins.endless"};
+            return ui::tr(kKeys[choice]);
+        }
         case SetupItem::BreadChain:
             return ui::tr(choice == 1 ? "setup.bread.revised" : "setup.bread.original");
         case SetupItem::Ships:
@@ -838,6 +853,10 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 0 ? "setup.on" : "setup.off");
         case SetupItem::ClassicAi:
             return ui::tr(choice == 1 ? "setup.ai.classic" : "setup.ai.open1602");
+        case SetupItem::ComputerPlayers: {
+            static constexpr std::array<std::string_view, 3> kKeys = {"setup.computers.game", "setup.off", "setup.on"};
+            return ui::tr(kKeys[choice]);
+        }
         case SetupItem::Pirates: {
             static constexpr std::array<std::string_view, 3> kKeys = {"setup.pirates.game", "setup.off", "setup.on"};
             return ui::tr(kKeys[choice]);
@@ -1011,8 +1030,14 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
             r.trader_reach = static_cast<sim::TraderReach>(*i);
         }
     } else if (key == "ore_veins") {
-        if (value == "endless" || value == "original") {
-            r.endless_veins = value == "endless";
+        if (value == "original") {
+            r.ore_veins = sim::OreVeins::Finite;  // its name before "game" came
+        } else if (const auto i = name_index(kOreVeinNames, value)) {
+            r.ore_veins = static_cast<sim::OreVeins>(*i);
+        }
+    } else if (key == "computers") {
+        if (const auto i = name_index(kComputerNames, value)) {
+            r.computer_players = static_cast<sim::Computers>(*i);
         }
     } else if (key == "bread") {
         if (value == "revised" || value == "original") {
@@ -1115,7 +1140,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("refund", std::to_string(r.refund_share()));
     line("trader_prices", r.trader_prices == sim::TraderPrices::Market ? "market" : "original");
     line("trader_reach", kTraderReachNames[std::min<std::size_t>(static_cast<std::size_t>(r.trader_reach), 1)]);
-    line("ore_veins", r.endless_veins ? "endless" : "original");
+    line("ore_veins", kOreVeinNames[std::min<std::size_t>(static_cast<std::size_t>(r.ore_veins), 2)]);
     line("bread", r.revised_bread ? "revised" : "original");
     line("ships", std::to_string(r.max_ships_per_player));
     line("units", std::to_string(r.max_army));
@@ -1124,6 +1149,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("volcanoes", kVolcanoNames[std::min<std::size_t>(static_cast<std::size_t>(r.volcanoes), 2)]);
     line("resources", on_off(r.guarantee_resources));
     line("ai", r.classic_ai ? "classic" : "open1602");
+    line("computers", kComputerNames[std::min<std::size_t>(static_cast<std::size_t>(r.computer_players), 2)]);
     line("pirates", kPirateNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirates), 2)]);
     line("pirate_nests", kPirateNestNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), 1)]);
     line("reveal", kRevealNames[std::min<std::size_t>(static_cast<std::size_t>(r.reveal), 2)]);
