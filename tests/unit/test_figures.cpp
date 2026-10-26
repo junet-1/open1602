@@ -335,12 +335,13 @@ TEST_CASE("figures: classic graphics dither shadows and smoke like the original"
     render::Dither dither;
     dither.sheets.push_back(render::DitheredSheet{atlas->sheet_base(0), 1, atlas->sheet_base(1)});
 
-    // A shadow whose top left corner is a hatched pixel takes block 0, in full black.
+    // A shadow whose top left corner is a hatched pixel takes block 1, in full black: the
+    // original's even pixels are odd ones here, Open1602's rows lying one pixel lower.
     render::DrawCommand shadow{atlas->sheet_base(0), 10, 13};  // top left (10, 10)
     shadow.mode = render::DrawCommand::Mode::Shadow;
     shadow.tint = assets::Rgba{0, 0, 0, render::kShadowAlpha};
     dither.apply(shadow, *atlas);
-    CHECK(shadow.sprite == atlas->sheet_base(1));
+    CHECK(shadow.sprite == atlas->sheet_base(1) + 1);
     CHECK(shadow.mode == render::DrawCommand::Mode::Shadow);
     CHECK(shadow.tint.a == 255);
     // One pixel further: the other block, so the checkerboard stays on the same world pixels.
@@ -348,14 +349,14 @@ TEST_CASE("figures: classic graphics dither shadows and smoke like the original"
     smoke.mode = render::DrawCommand::Mode::Translucent;
     smoke.tint = assets::Rgba{255, 255, 255, 128};
     dither.apply(smoke, *atlas);
-    CHECK(smoke.sprite == atlas->sheet_base(1) + 1);
+    CHECK(smoke.sprite == atlas->sheet_base(1));
     CHECK(smoke.mode == render::DrawCommand::Mode::Normal);
     // Bodies and sprites of other sheets stay as they are.
     render::DrawCommand body{atlas->sheet_base(0), 10, 13};
     dither.apply(body, *atlas);
     CHECK(body.sprite == atlas->sheet_base(0));
 
-    // Drawn: the shadow blackens exactly the hatched pixels of its shape.
+    // Drawn: the shadow blackens exactly the pixels of its shape that are not hatched.
     render::RgbaImage target;
     target.width = 4;
     target.height = 3;
@@ -363,7 +364,7 @@ TEST_CASE("figures: classic graphics dither shadows and smoke like the original"
     render::blit_draw_list({shadow}, *atlas, target, 10, 10);
     for (std::int32_t y = 0; y < 3; ++y) {
         for (std::int32_t x = 0; x < 4; ++x) {
-            const std::uint8_t expected = render::hatch_pixel(10 + x, 10 + y) ? 0 : 100;
+            const std::uint8_t expected = render::hatch_pixel(10 + x, 10 + y) ? 100 : 0;
             CHECK(target.pixels[static_cast<std::size_t>(y * 4 + x) * 4] == expected);
         }
     }

@@ -36,6 +36,9 @@ struct GraphicsOptions {
     /// Checked while the sprites are decoded: once set, loading stops with an error (the game is
     /// quitting and waits for the thread that loads).
     const std::atomic<bool>* cancel = nullptr;
+    /// Also the dithered copies of SCHATTEN.BSH and EFFEKTE.BSH (WorldGraphics::dither), for the
+    /// classic graphics: a few hundred sprites more, an atlas page more at the larger zoom levels.
+    bool dither = false;
 };
 
 struct WorldGraphics {
@@ -50,7 +53,7 @@ struct WorldGraphics {
     /// Units in banner colours without drawn variants (needs the soldier sheet and the figures).
     UnitTint unit_tint;
     /// Shadows (SCHATTEN.BSH) and smoke (EFFEKTE.BSH) as the original draws them, for the classic
-    /// graphics (WorldLayers::dither).
+    /// graphics (WorldLayers::dither); empty unless GraphicsOptions::dither.
     Dither dither;
 
     [[nodiscard]] std::optional<std::uint32_t> sheet_base(assets::FigureSheet sheet) const noexcept {

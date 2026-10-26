@@ -45,7 +45,7 @@ struct Dither {
     /// A shadow or a translucent sprite of a dithered sheet in the original's look: a shadow
     /// fills every second pixel of its shape in its full tint colour, a translucent sprite shows
     /// every second pixel of its picture, both on the pixels of the draw list where hatch_pixel
-    /// holds. Anything else stays as it is.
+    /// does not hold (the original's even pixels, one row up). Anything else stays as it is.
     void apply(DrawCommand& c, const SpriteAtlas& atlas) const noexcept;
 };
 

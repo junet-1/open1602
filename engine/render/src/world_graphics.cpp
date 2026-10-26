@@ -166,7 +166,7 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
     }
     // Dithered shadows and smoke last (classic graphics): two blocks per sheet.
     std::vector<std::pair<std::size_t, std::size_t>> dithered;  // loaded sheet, source
-    for (std::size_t i = 0; i < loaded.size(); ++i) {
+    for (std::size_t i = 0; i < loaded.size() && options.dither; ++i) {
         if (loaded[i].id == assets::FigureSheet::Schatten || loaded[i].id == assets::FigureSheet::Effekte) {
             dithered.emplace_back(i, pointers.size());
             sources.push_back(std::make_unique<DitheredSource>(*sources[i]));
