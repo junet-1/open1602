@@ -164,7 +164,7 @@ TEST_CASE("history edition: scenarios are found by name and Text.cod's placehold
     }
     write(root / "ahe" / "a1he0.rda", make_rda({{"data/texts.xml", std::string(kTexts)}}));
     // Text.cod as the original's: every byte negated.
-    std::string cod = "[LEISTE]\r\nMusik\r\n[[676]]\r\nEnde\r\n[END]\r\n";
+    std::string cod = "[GAME]\r\n[[676]]\r\n[LEISTE]\r\nMusik\r\n[[676]]\r\nEnde [[676]]\r\n[END]\r\n";
     for (char& c : cod) {
         c = static_cast<char>(-static_cast<signed char>(c));
     }
@@ -187,7 +187,10 @@ TEST_CASE("history edition: scenarios are found by name and Text.cod's placehold
 
     const auto table = assets::TextTable::load(*game);
     REQUIRE(table.ok());
-    const std::vector<std::string> leiste{"Musik", "Spieloptionen anzeigen", "Ende"};
+    const std::vector<std::string> game_lines{"Spieloptionen anzeigen"};
+    CHECK(table->section("GAME") == game_lines);
+    // LEISTE without the help line the History Edition inserted, so the original's numbers hold.
+    const std::vector<std::string> leiste{"Musik", "Ende Spieloptionen anzeigen"};
     CHECK(table->section("LEISTE") == leiste);
 
     game->choose_language("en");
