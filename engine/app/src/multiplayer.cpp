@@ -87,7 +87,6 @@ sim::Simulation* MapViewer::load_from_host(std::span<const std::uint8_t> save) {
     if (m_migrating) {
         m_camera = view;
     }
-    m_session_roles.clear();  // another game: nothing changed hands
     report_load_problems(warnings.size());
     return &m_state->simulation;
 }

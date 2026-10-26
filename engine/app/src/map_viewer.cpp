@@ -2473,6 +2473,9 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     m_ship_trail = render::ShipTrail{};
     m_tick_fraction = 1.0;
     m_tool.set_mode(BuildTool::Mode::Off);
+    // Another game: nothing changed hands. The host's new game would otherwise be compared with
+    // the one shown behind the lobby, whose people the computer plays in the new game.
+    m_session_roles.clear();
     m_state = std::move(next);
     m_command_sink.set_simulation(&m_state->simulation);
     m_options.scenario = source;
