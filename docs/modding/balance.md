@@ -28,15 +28,15 @@ game plays with the host's.
 
 ## The buildings' values
 
-A table named after a building of the original, `["anno1602:<Id>"]` with the building's `HAUS` Id
-from `haeuser.cod`, changes single values of that building: production, running and build costs,
+A table named after a building of the original, `["anno1602:<name>"]` or `["anno1602:<Id>"]` with
+the building's `HAUS` Id from `haeuser.cod` ([names](values.md#names)), changes single values of that building: production, running and build costs,
 reach, hit points. These tables belong in `buildings.toml` now; `balance.toml` still takes them, as
 it did before. The fields and their limits are in [values.md](values.md), with those of the
 figures.
 
 ```toml
 # A cheaper bakery that makes twice the bread.
-["anno1602:20503"]
+["anno1602:bakery"]
 produce = 2
 running_cost = 10
 ```

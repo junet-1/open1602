@@ -9,6 +9,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_data.hpp"
+#include "o1602/assets/original_names.hpp"
 #include "o1602/core/data_file.hpp"
 #include "o1602/core/embedded_file.hpp"
 #include "o1602/sim/rules.hpp"
@@ -53,23 +54,39 @@ bool before_figure(const FigureValue& a, const FigureValue& b) noexcept {
     return a.number != b.number ? a.number < b.number : a.field < b.field;
 }
 
-/// One table ["anno1602:<Id>"] of a file of values: each entry's field looked up in `fields` and
-/// handed to `set` with the number after the colon, if it lies within the field's limits.
+/// The numbers a table name "anno1602:<Id or name>" stands for: one Id, or what `names` gives the
+/// name (a figure in all four colours).
+std::optional<assets::OriginalName> table_numbers(std::string_view after, std::span<const assets::OriginalName> names) {
+    if (const auto id = building_id(after)) {
+        return assets::OriginalName{after, *id, 1};
+    }
+    if (const assets::OriginalName* named = assets::find_original_name(names, after)) {
+        return *named;
+    }
+    return std::nullopt;
+}
+
+/// One table ["anno1602:<Id or name>"] of a file of values: each entry's field looked up in
+/// `fields` and handed to `set` with each number the table stands for, if it lies within the
+/// field's limits.
 template <typename Info, std::size_t N, typename Set>
 void apply_value_table(const core::DataTable& table, const std::string& where, std::string_view what,
-                       const std::array<Info, N>& fields, std::vector<std::string>& warnings, const Set& set) {
+                       std::span<const assets::OriginalName> names, const std::array<Info, N>& fields,
+                       std::vector<std::string>& warnings, const Set& set) {
     const std::size_t colon = table.name.find(':');
     const std::string_view package = std::string_view(table.name).substr(0, colon);
-    const auto id =
-        colon == std::string::npos ? std::nullopt : building_id(std::string_view(table.name).substr(colon + 1));
+    const std::string_view after =
+        colon == std::string::npos ? std::string_view() : std::string_view(table.name).substr(colon + 1);
     if (colon == std::string::npos || package != kBasePackage) {
         // A package's own come with the content registry (docs/modding/open-work.md).
         warnings.push_back(line_of(where, table.line) + "[" + table.name + "]: only the original's " +
-                           std::string(what) + " (anno1602:<number>) can be changed");
+                           std::string(what) + " (anno1602:<number or name>) can be changed");
         return;
     }
-    if (!id) {
-        warnings.push_back(line_of(where, table.line) + "[" + table.name + "]: no number after 'anno1602:'");
+    const auto numbers = table_numbers(after, names);
+    if (!numbers) {
+        warnings.push_back(line_of(where, table.line) + "[" + table.name + "]: '" + std::string(after) +
+                           "' is no number and no name of the original's " + std::string(what));
         return;
     }
     for (const core::DataEntry& e : table.entries) {
@@ -82,14 +99,16 @@ void apply_value_table(const core::DataTable& table, const std::string& where, s
             warnings.push_back(at + "'" + e.key + "' must be a number from " + std::to_string(field->min) + " to " +
                                std::to_string(field->max));
         } else {
-            set(*id, field->field, static_cast<std::uint32_t>(*n));
+            for (std::uint32_t i = 0; i < numbers->count; ++i) {
+                set(numbers->first + i, field->field, static_cast<std::uint32_t>(*n));
+            }
         }
     }
 }
 
 void apply_building_table(Balance& balance, const core::DataTable& table, const std::string& where,
                           std::vector<std::string>& warnings) {
-    apply_value_table(table, where, "buildings", kBuildingFields, warnings,
+    apply_value_table(table, where, "buildings", assets::original_building_names(), kBuildingFields, warnings,
                       [&](std::uint32_t id, BuildingField field, std::uint32_t value) {
                           set_building_value(balance, BuildingValue{id, field, value});
                       });
@@ -198,8 +217,8 @@ void apply_figures_file(Balance& balance, std::string_view package, std::string_
                         std::vector<std::string>& warnings) {
     apply_table_file(package, kFiguresFile, utf8, warnings,
                      [&](const core::DataTable& table, const std::string& where) {
-                         apply_value_table(table, where, "figures", kFigureFields, warnings,
-                                           [&](std::uint32_t number, FigureField field, std::uint32_t value) {
+                         apply_value_table(table, where, "figures", assets::original_figure_names(), kFigureFields,
+                                           warnings, [&](std::uint32_t number, FigureField field, std::uint32_t value) {
                                                set_figure_value(balance, FigureValue{number, field, value});
                                            });
                      });

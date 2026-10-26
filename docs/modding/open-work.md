@@ -57,9 +57,9 @@ received ones to the `mods` folder. Still open: packages as archives, not only f
 Part a done on 2026-10-26 ([values.md](values.md)): a package changes single values of the
 original's buildings (`buildings.toml`, 16 fields: production, costs, reach, workers, hit points)
 and figures (`figures.toml`, 10 fields: speed, carrying, work time, hit points, damage, range, shot
-time, cannons, price, material), addressed as `["anno1602:<number>"]` with the `.cod` number; a game
-keeps them (sections `BLDV`, `FIGV`). Still open: names instead of numbers for the original's
-entries, and buildings and figures of a package's own (part b). A package cannot add a building of
+time, cannons, price, material), addressed as `["anno1602:bakery"]` by name or `["anno1602:<number>"]` with the `.cod` number;
+a game keeps them (sections `BLDV`, `FIGV`). Still open: buildings and figures of a package's own
+(part b). A package cannot add a building of
 its own except by shipping a changed `haeuser.cod`. Needed: entries with ids such as `mymod:lighthouse`, read from the
 packages' data files, added, overlaid or replaced, and turned into flat index tables after loading.
 Savegames store the ids, not the indexes.

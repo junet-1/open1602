@@ -11,6 +11,7 @@
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_data.hpp"
+#include "o1602/assets/original_names.hpp"
 #include "o1602/sim/balance.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/save_game.hpp"
@@ -183,10 +184,12 @@ TEST_CASE("balance: a package changes values of the original's buildings") {
     REQUIRE(warnings.size() == 4);
     CHECK(warnings[0] == "bread/balance.toml line 4: unknown field 'smell'");
     CHECK(warnings[1] == "bread/balance.toml line 5: 'interval' must be a number from 1 to 3600");
-    CHECK(warnings[2] == "bread/balance.toml line 8: [anno1602:farm]: no number after 'anno1602:'");
+    CHECK(warnings[2] ==
+          "bread/balance.toml line 8: [anno1602:farm]: 'farm' is no number and no name of the original's "
+          "buildings");
     CHECK(warnings[3] ==
-          "bread/balance.toml line 10: [brewery:mash_tun]: only the original's buildings (anno1602:<number>) can be "
-          "changed");
+          "bread/balance.toml line 10: [brewery:mash_tun]: only the original's buildings (anno1602:<number or name>) "
+          "can be changed");
 
     // A later package changes a value again; the order stays by building and field.
     warnings.clear();
@@ -341,8 +344,8 @@ TEST_CASE("balance: buildings.toml changes the buildings' further values") {
     REQUIRE(warnings.size() == 2);
     CHECK(warnings[0] == "fort/buildings.toml line 7: 'cost_wood' must be a number from 0 to 255");
     CHECK(warnings[1] ==
-          "fort/buildings.toml line 8: [trader]: only the original's buildings (anno1602:<number>) "
-          "can be changed");
+          "fort/buildings.toml line 8: [trader]: only the original's buildings (anno1602:<number or "
+          "name>) can be changed");
     CHECK(balance.trader_max_buy == sim::Balance{}.trader_max_buy);
     REQUIRE(balance.buildings.size() == 5);
     CHECK(sim::valid(balance));
@@ -417,6 +420,47 @@ TEST_CASE("balance: figures.toml changes the figures' values, the next game play
     CHECK(soldier->combat.range8 == original.get(1)->combat.range8);
     CHECK(ship->ship.max_cannons == 6);
     CHECK(ship->ship.price == 1000);
+}
+
+TEST_CASE("balance: tables name the original's buildings and figures by name as well") {
+    sim::Balance balance;
+    std::vector<std::string> warnings;
+    sim::apply_buildings_file(balance, "named",
+                              "[\"anno1602:bakery\"]\n"
+                              "produce = 2\n"
+                              "[\"anno1602:Bakery\"]\n"  // line 3: names are lower case
+                              "produce = 3\n",
+                              warnings);
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0] ==
+          "named/buildings.toml line 3: [anno1602:Bakery]: 'Bakery' is no number and no name of the original's "
+          "buildings");
+    REQUIRE(balance.buildings.size() == 1);
+    CHECK((balance.buildings[0] == sim::BuildingValue{assets::id::kBakery, sim::BuildingField::Produce, 2}));
+
+    // A unit's name stands for its figures in all four colours.
+    warnings.clear();
+    sim::apply_figures_file(balance, "named", "[\"anno1602:swordsman\"]\nhealth = 30\n", warnings);
+    CHECK(warnings.empty());
+    REQUIRE(balance.figures.size() == 4);
+    for (std::uint32_t i = 0; i < 4; ++i) {
+        CHECK((balance.figures[i] == sim::FigureValue{1 + i, sim::FigureField::Health, 30}));
+    }
+    CHECK(sim::valid(balance));
+}
+
+TEST_CASE("balance: the names of the original's buildings and figures are unique") {
+    for (const auto names : {assets::original_building_names(), assets::original_figure_names()}) {
+        for (const assets::OriginalName& n : names) {
+            CHECK(assets::find_original_name(names, n.name) == &n);
+            CHECK(n.count >= 1);
+        }
+    }
+    // The build menu's buildings, each named once.
+    CHECK(assets::find_original_name(assets::original_building_names(), "bakery")->first == assets::id::kBakery);
+    CHECK(assets::find_original_name(assets::original_building_names(), "quarry")->first == assets::id::kQuarry);
+    CHECK(assets::find_original_name(assets::original_figure_names(), "small_merchant_ship")->first ==
+          assets::figure::ship_figure(0));
 }
 
 TEST_CASE("balance: a game keeps its figure values in the savegame") {
