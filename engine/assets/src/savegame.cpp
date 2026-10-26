@@ -304,6 +304,12 @@ core::Result<GameState> load_game_state(const ChunkFile& file) {
             state.tutorial = data[kTimersTutorial];
             state.difficulty = data[kTimersDifficulty];
             state.settings = u32(data, kTimersSettings);
+            // A byte the loader turns into "large veins never run out" (0x00484D30); no file sets it.
+            constexpr std::size_t kTimersEndlessVeins = 0xA4;
+            constexpr std::uint32_t kEndlessVeinsBit = 1U << 3;
+            if (data[kTimersEndlessVeins] != 0) {
+                state.settings = *state.settings | kEndlessVeinsBit;
+            }
             constexpr std::size_t kTimersPirates = 0xB8;
             if (data.size() >= kTimersPirates + 4) {
                 state.pirate_interval = u32(data, kTimersPirates);

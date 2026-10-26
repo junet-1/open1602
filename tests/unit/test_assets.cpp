@@ -297,6 +297,42 @@ TEST_CASE("sprite sheet: a record stays within its length (HI-8)") {
     CHECK(std::count(image->opaque.begin(), image->opaque.end(), 1) == 0);
 }
 
+TEST_CASE("sprite sheet: type 2 is raw pixels, unknown types draw nothing") {
+    // A 3x2 record of the given type with six raw bytes (0 is transparent).
+    const auto sheet_of = [](std::uint32_t type, std::uint32_t length) {
+        std::vector<std::uint8_t> payload;
+        put_u32(payload, 4);
+        put_u32(payload, 3);
+        put_u32(payload, 2);
+        put_u32(payload, type);
+        put_u32(payload, length);
+        payload.insert(payload.end(), {5, 0, 6, 0, 7, 8, 0xFF, 0xFE});
+        payload.resize(4 + length, 0);
+        std::vector<std::uint8_t> file;
+        put_chunk(file, "BSH", payload);
+        auto chunks = assets::ChunkFile::from_bytes(file);
+        REQUIRE(chunks.ok());
+        return assets::SpriteSheet::from_chunk_file(std::move(chunks).value());
+    };
+    const auto raw = sheet_of(2, 24);
+    REQUIRE(raw.ok());
+    const auto image = raw->decode(0, 1);
+    REQUIRE(image.ok());
+    CHECK(image->width == 4);
+    const std::vector<std::uint8_t> expected_indices = {5, 0, 6, 0, 0, 7, 8, 0};
+    const std::vector<std::uint8_t> expected_mask = {1, 0, 1, 0, 0, 1, 1, 0};
+    CHECK(image->indices == expected_indices);
+    CHECK(image->opaque == expected_mask);
+    CHECK(!sheet_of(2, 20).ok());  // four bytes for six pixels
+
+    const auto unknown = sheet_of(3, 24);
+    REQUIRE(unknown.ok());
+    const auto blank = unknown->decode(0);
+    REQUIRE(blank.ok());
+    CHECK(blank->width == 3);
+    CHECK(std::count(blank->opaque.begin(), blank->opaque.end(), 1) == 0);
+}
+
 TEST_CASE("islands: header and INSELHAUS tiles") {
     std::vector<std::uint8_t> header = {19, 70, 60, 0};
     put_u16(header, 90);
@@ -331,6 +367,33 @@ TEST_CASE("islands: header and INSELHAUS tiles") {
     CHECK(island.layers[0][0].x == 3);
     CHECK(island.layers[0][0].y == 4);
     CHECK(island.layers[0][0].bits == 0xDEADBEEF);
+}
+
+TEST_CASE("islands: INSEL5 takes its size class from the width, INSEL4 as stored") {
+    const auto size_class = [](const char* chunk, std::uint8_t width, std::uint16_t stored) {
+        std::vector<std::uint8_t> header = {1, width, 40, 0};
+        header.resize(116, 0);
+        header[0x60] = 15;
+        header[0x62] = static_cast<std::uint8_t>(stored);
+        std::vector<std::uint8_t> file;
+        put_chunk(file, chunk, header);
+        auto chunks = assets::ChunkFile::from_bytes(file);
+        REQUIRE(chunks.ok());
+        auto islands = assets::load_islands(*chunks);
+        REQUIRE(islands.ok());
+        REQUIRE(islands->size() == 1);
+        return (*islands)[0].header;
+    };
+    // NORDNAT/med15: 50 tiles wide, stored "lit"; its base island is NORD/med15.
+    CHECK(size_class("INSEL5", 50, 0).template_size == 2);
+    CHECK(size_class("INSEL5", 50, 0).template_path() == "Nord/med15.scp");
+    CHECK(size_class("INSEL5", 32, 4).template_size == 0);
+    CHECK(size_class("INSEL5", 33, 0).template_size == 1);
+    CHECK(size_class("INSEL5", 55, 0).template_size == 2);
+    CHECK(size_class("INSEL5", 75, 0).template_size == 3);
+    CHECK(size_class("INSEL5", 110, 0).template_size == 4);
+    CHECK(size_class("INSEL5", 111, 1).template_size == 1);  // wider: as stored
+    CHECK(size_class("INSEL4", 50, 0).template_size == 0);
 }
 
 TEST_CASE("file: a full disk is an error, and an atomic write keeps the old file then") {

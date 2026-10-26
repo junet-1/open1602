@@ -27,7 +27,7 @@ struct IndexedImage {
 struct SpriteInfo {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
-    std::uint32_t type = 0;    ///< Always 1 in all files analysed so far; meaning unknown.
+    std::uint32_t type = 0;    ///< 1 or 6 RLE, 2 raw; the original's files all use 1. Others decode empty.
     std::uint32_t length = 0;  ///< Record size incl. 16 byte header, padded to 4 bytes.
     std::uint32_t offset = 0;  ///< Offset of the record within the BSH/ZEI chunk payload.
 };
@@ -42,8 +42,9 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return m_infos.size(); }
     [[nodiscard]] const SpriteInfo& info(std::size_t index) const { return m_infos.at(index); }
 
-    /// Decodes the RLE data of one sprite. `extra_width` widens the image to keep pixels right of the
-    /// record's width (font glyphs overhang into the next one).
+    /// Decodes one sprite, RLE or raw by its type; any other type gives a transparent image.
+    /// `extra_width` widens the image to keep pixels right of the record's width (font glyphs
+    /// overhang into the next one).
     [[nodiscard]] core::Result<IndexedImage> decode(std::size_t index, std::uint32_t extra_width = 0) const;
 
 private:

@@ -91,7 +91,9 @@ const assets::BuildingTable& buildings() {
 }
 
 std::uint32_t side(std::uint8_t size) {
-    return 16U + 4U * size;  // lit 16 x 16 .. lar 32 x 32
+    // The narrowest width of each size class: the loader takes the class of an INSEL5 from its width.
+    static constexpr std::uint32_t kSides[] = {16, 33, 43, 56, 76};  // lit .. lar
+    return kSides[size];
 }
 
 struct Spot {

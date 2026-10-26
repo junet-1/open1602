@@ -202,9 +202,11 @@ std::string template_path(std::uint8_t climate, std::uint8_t size, std::uint16_t
     return buf;
 }
 
-/// An island template of open ground, 16 x 16 tiles for the smallest class to 32 x 32 for the largest.
+/// An island template of open ground, as narrow as its size class allows (the loader takes the class of
+/// an INSEL5 from its width): 16 x 16 tiles for the smallest class to 76 x 76 for the largest.
 std::vector<std::uint8_t> template_file(std::uint8_t climate, std::uint8_t size, std::uint16_t number) {
-    const std::uint32_t side = 16U + 4U * size;
+    static constexpr std::uint32_t kSides[] = {16, 33, 43, 56, 76};
+    const std::uint32_t side = kSides[size];
     std::vector<std::uint8_t> header(116, 0);
     header[1] = static_cast<std::uint8_t>(side);
     header[2] = static_cast<std::uint8_t>(side);
@@ -664,7 +666,7 @@ TEST_CASE("new game: an own world with six players: the plan's size and starts, 
     CHECK(!a.state_damaged());
     // And the same on every platform (golden hash, DS-2): a planned world, five computers.
     test::check_golden("six players after 60 s", a.state_hash(),
-                       0x10f4c0702225ba30ULL);  // SIMU in parts (DS-3); tiles by blocks (TB-26)
+                       0x139f1226f8f08493ULL);  // templates as wide as their size class (INSEL5 class from width)
 }
 
 TEST_CASE("new game: a colour the level's file does not have is swapped with the player who had it") {
