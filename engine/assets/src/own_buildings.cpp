@@ -112,8 +112,10 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
                 // Whose house it is: a class of the original's or one a package added.
                 const std::string* s = e.value.string();
                 const std::span<const ResidentClass> known = classes.empty() ? table.resident_classes() : classes;
-                resident_class = s != nullptr ? class_of(known, *s) : std::nullopt;
-                if (!resident_class) {
+                if (s != nullptr) {
+                    resident_class = class_of(known, *s);
+                }
+                if (s == nullptr || !resident_class) {
                     warnings.push_back(field + "names no class (anno1602:<name or number> or <package>:<name>)");
                     ok = false;
                 }
