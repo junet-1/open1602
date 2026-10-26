@@ -59,10 +59,12 @@ void apply(ResidentClass& c, const Change& change) {
     if (change.hiscore) {
         c.hiscore = static_cast<std::uint32_t>(*change.hiscore);
     }
-    for (const auto& [ware, kg] : change.needs) {
+    // No structured bindings in the lambdas: Apple's clang 15 cannot capture them.
+    for (const auto& need : change.needs) {
+        const std::uint8_t ware = need.first;
         const auto it =
             std::find_if(c.needs.begin(), c.needs.end(), [&](const ResidentClass::Need& n) { return n.ware == ware; });
-        const std::uint32_t amount = need_amount(kg);
+        const std::uint32_t amount = need_amount(need.second);
         if (amount == 0) {
             if (it != c.needs.end()) {
                 c.needs.erase(it);
@@ -73,13 +75,13 @@ void apply(ResidentClass& c, const Change& change) {
             c.needs.push_back(ResidentClass::Need{ware, amount});
         }
     }
-    for (const auto& [language, name] : change.names) {
+    for (const auto& named : change.names) {
         const auto it =
-            std::find_if(c.names.begin(), c.names.end(), [&](const auto& n) { return n.first == language; });
+            std::find_if(c.names.begin(), c.names.end(), [&](const auto& n) { return n.first == named.first; });
         if (it != c.names.end()) {
-            it->second = name;
+            it->second = named.second;
         } else {
-            c.names.emplace_back(language, name);
+            c.names.push_back(named);
         }
     }
 }
