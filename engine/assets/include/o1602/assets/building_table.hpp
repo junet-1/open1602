@@ -184,12 +184,20 @@ struct InfraLevel {
 class BuildingTable {
 public:
     static constexpr std::uint32_t kIdOffset = 20000;
+    /// The highest Id a record may have (Haus_GetById, 0x004630F0, accepts 20000 to 23500).
+    static constexpr std::uint32_t kMaxId = 23500;
 
     /// Builds the table from an interpreted haeuser.cod (records with Id 0 are unused slots).
     static core::Result<BuildingTable> from_cod(const cod::Document& haeuser);
     /// Reads and interprets haeuser.cod of an installation; refused when a record of id::kRequired
     /// is missing (MD-1), since demolition, volcanoes and ruins place them.
     static core::Result<BuildingTable> load(const GameDirectory& game);
+
+    /// Adds a building of a package's own (own_buildings.hpp): `like` with an Id and a record
+    /// number of its own, the highest free ones, so that it is told apart from the original's
+    /// everywhere. Fails when no Id or record number is free or its sprites lie beyond the sheet;
+    /// the table stays as it was then.
+    core::Result<std::uint32_t> add(const BuildingType& like);
 
     /// The first record of id::kRequired the table lacks.
     [[nodiscard]] std::optional<std::uint32_t> missing() const noexcept;

@@ -222,6 +222,9 @@ core::Status apply_decoded(World& world, Decoded& d) {
     if (d.packages) {
         world.set_packages(std::move(*d.packages));
     }
+    if (d.own_buildings) {
+        world.set_own_buildings(std::move(*d.own_buildings));
+    }
     if (d.missions) {
         world.set_missions(std::move(d.missions->missions));
         world.set_game_end(d.missions->end);

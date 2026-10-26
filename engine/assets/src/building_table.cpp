@@ -19,7 +19,6 @@ using core::make_error;
 
 namespace {
 
-constexpr std::uint32_t kMaxId = 23500;  // Haus_GetById (0x004630F0) accepts 20000..23500
 // Sprites of the island map are 16 bit, 0xFFFF marks an empty tile (sim::MapCell). The original's
 // grid word has only 13 bits, but savegames store buildings, not sprites, so mods may go beyond.
 constexpr std::uint32_t kMaxSprite = 0xFFFF;
@@ -54,14 +53,14 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
     }
 
     BuildingTable table;
-    table.m_by_id.assign(kMaxId - kIdOffset + 1, -1);
+    table.m_by_id.assign(BuildingTable::kMaxId - kIdOffset + 1, -1);
 
     for (const auto& [nummer, r] : *records) {
         const std::int32_t id = r.integer("Id");
         if (id == 0) {
             continue;  // unused slot (filled with defaults by ObjFill)
         }
-        if (id < static_cast<std::int32_t>(kIdOffset) || id > static_cast<std::int32_t>(kMaxId)) {
+        if (id < static_cast<std::int32_t>(kIdOffset) || id > static_cast<std::int32_t>(BuildingTable::kMaxId)) {
             return make_error(ErrorCode::InvalidFormat,
                               "HAUS #" + std::to_string(nummer) + " has invalid Id " + std::to_string(id));
         }
@@ -341,7 +340,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
 }
 
 const BuildingType* BuildingTable::by_id(std::uint32_t id) const noexcept {
-    if (id < kIdOffset || id > kMaxId) {
+    if (id < kIdOffset || id > BuildingTable::kMaxId) {
         return nullptr;
     }
     const std::int32_t index = m_by_id[id - kIdOffset];
@@ -406,6 +405,50 @@ core::Result<BuildingTable> BuildingTable::load(const GameDirectory& game) {
         }
     }
     return table;
+}
+
+core::Result<std::uint32_t> BuildingTable::add(const BuildingType& like) {
+    // From the top down, so that a modded haeuser.cod of its own keeps the Ids after the
+    // original's and a package's buildings do not take them.
+    std::uint32_t id = 0;
+    for (std::uint32_t candidate = BuildingTable::kMaxId; candidate >= kIdOffset; --candidate) {
+        if (m_by_id[candidate - kIdOffset] < 0) {
+            id = candidate;
+            break;
+        }
+    }
+    if (id == 0) {
+        return make_error(ErrorCode::Unsupported, "haeuser.cod has no Id free below " +
+                                                      std::to_string(BuildingTable::kMaxId) + " for another building");
+    }
+    BuildingType b = like;
+    b.id = id;
+    b.record = static_cast<std::uint32_t>(m_by_record.size());
+    b.land_record = BuildingType::kNoRecord;
+    b.beach_offset = 0;
+    b.mouth_offset = 0;
+    if (b.record > 0xFFFF) {
+        return make_error(ErrorCode::Unsupported, "haeuser.cod has no record number free below 65536");
+    }
+    if (std::uint64_t{b.gfx} + b.tile_count() > kMaxSprite) {
+        return make_error(ErrorCode::InvalidFormat, "building " + std::to_string(b.id) + ": sprites " +
+                                                        std::to_string(b.gfx) + " + " + std::to_string(b.tile_count()) +
+                                                        " reach beyond sprite 65534");
+    }
+    const auto index = static_cast<std::int32_t>(m_types.size());
+    m_by_id[id - kIdOffset] = index;
+    if (b.gfx + b.tile_count() > m_by_sprite.size()) {
+        m_by_sprite.resize(b.gfx + b.tile_count(), -1);
+    }
+    for (std::uint32_t k = 0; k < b.tile_count(); ++k) {
+        // The original's sprites keep their record; only sprites nothing else draws become this one's.
+        if (m_by_sprite[b.gfx + k] < 0) {
+            m_by_sprite[b.gfx + k] = index;
+        }
+    }
+    m_by_record.push_back(index);
+    m_types.push_back(b);
+    return id;
 }
 
 std::optional<std::uint32_t> BuildingTable::missing() const noexcept {

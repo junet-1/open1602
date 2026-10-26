@@ -26,6 +26,7 @@ set(skipped
 # <file below engine/>=<numbers of that file that are not records>.
 set(allowed
     "assets/src/building_table.cpp=23500"         # the highest Id the original accepts
+    "assets/include/o1602/assets/building_table.hpp=23500"  # the same, BuildingTable::kMaxId
     "audio/src/wav.cpp=20350 22385"               # IMA ADPCM step table
     "audio/include/o1602/audio/wav.hpp=22050"     # sample rate
     "sim/src/volcanoes.cpp=21000"                 # eruption times

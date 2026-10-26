@@ -3,10 +3,14 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 
 namespace o1602::assets {
 
 namespace {
+
+/// The package the original's content belongs to.
+constexpr std::string_view kBasePackage = "anno1602";
 
 // In the order of the build menu's categories (ui::original_build_menu) and their Text.cod
 // sections, then a few of [LANDSCHAFT].
@@ -140,7 +144,34 @@ constexpr std::array kFigures{
     OriginalName{"fisherman", 90},            // FISCHER
 };
 
+/// A whole number, decimal or 0x hex.
+std::optional<std::uint32_t> number_of(std::string_view text) noexcept {
+    int base = 10;
+    if (text.size() > 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
+        text.remove_prefix(2);
+        base = 16;
+    }
+    std::uint32_t value = 0;
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value, base);
+    if (text.empty() || error != std::errc{} || end != text.data() + text.size()) {
+        return std::nullopt;
+    }
+    return value;
+}
+
 }  // namespace
+
+std::optional<std::uint32_t> original_building_id(std::string_view id) noexcept {
+    const std::size_t colon = id.find(':');
+    if (colon == std::string_view::npos || id.substr(0, colon) != kBasePackage) {
+        return std::nullopt;
+    }
+    const std::string_view after = id.substr(colon + 1);
+    if (const OriginalName* named = find_original_name(original_building_names(), after)) {
+        return named->first;
+    }
+    return number_of(after);
+}
 
 std::span<const OriginalName> original_building_names() noexcept {
     return kBuildings;

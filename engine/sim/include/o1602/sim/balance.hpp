@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -19,6 +20,7 @@
 namespace o1602::assets {
 class BuildingTable;
 class FigureTable;
+struct OwnBuilding;
 }  // namespace o1602::assets
 
 namespace o1602::sim {
@@ -190,9 +192,10 @@ void apply_balance_file(Balance& balance, std::string_view package, std::string_
 /// (docs/modding/values.md). balance.toml takes the buildings' tables too.
 inline constexpr std::string_view kBuildingsFile = "buildings.toml";
 inline constexpr std::string_view kFiguresFile = "figures.toml";
-/// Changes values of buildings as the buildings.toml of `package` says, as apply_balance_file.
+/// Changes values of buildings as the buildings.toml of `package` says, as apply_balance_file. A
+/// table may also name a building a package added (`own`, docs/modding/own-buildings.md).
 void apply_buildings_file(Balance& balance, std::string_view package, std::string_view utf8,
-                          std::vector<std::string>& warnings);
+                          std::vector<std::string>& warnings, std::span<const assets::OwnBuilding> own = {});
 /// Changes values of figures as the figures.toml of `package` says, as apply_balance_file.
 void apply_figures_file(Balance& balance, std::string_view package, std::string_view utf8,
                         std::vector<std::string>& warnings);

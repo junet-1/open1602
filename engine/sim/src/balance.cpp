@@ -10,6 +10,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_data.hpp"
 #include "o1602/assets/original_names.hpp"
+#include "o1602/assets/own_buildings.hpp"
 #include "o1602/core/data_file.hpp"
 #include "o1602/core/embedded_file.hpp"
 #include "o1602/sim/rules.hpp"
@@ -66,27 +67,30 @@ std::optional<assets::OriginalName> table_numbers(std::string_view after, std::s
     return std::nullopt;
 }
 
-/// One table ["anno1602:<Id or name>"] of a file of values: each entry's field looked up in
-/// `fields` and handed to `set` with each number the table stands for, if it lies within the
-/// field's limits.
+/// One table of a file of values, naming an entry of the original ["anno1602:<Id or name>"] or a
+/// building a package added (`own`): each entry's field looked up in `fields` and handed to `set`
+/// with each number the table stands for, if it lies within the field's limits.
 template <typename Info, std::size_t N, typename Set>
 void apply_value_table(const core::DataTable& table, const std::string& where, std::string_view what,
-                       std::span<const assets::OriginalName> names, const std::array<Info, N>& fields,
-                       std::vector<std::string>& warnings, const Set& set) {
+                       std::span<const assets::OriginalName> names, std::span<const assets::OwnBuilding> own,
+                       const std::array<Info, N>& fields, std::vector<std::string>& warnings, const Set& set) {
     const std::size_t colon = table.name.find(':');
     const std::string_view package = std::string_view(table.name).substr(0, colon);
     const std::string_view after =
         colon == std::string::npos ? std::string_view() : std::string_view(table.name).substr(colon + 1);
-    if (colon == std::string::npos || package != kBasePackage) {
-        // A package's own come with the content registry (docs/modding/open-work.md).
-        warnings.push_back(line_of(where, table.line) + "[" + table.name + "]: only the original's " +
-                           std::string(what) + " (anno1602:<number or name>) can be changed");
-        return;
-    }
-    const auto numbers = table_numbers(after, names);
-    if (!numbers) {
-        warnings.push_back(line_of(where, table.line) + "[" + table.name + "]: '" + std::string(after) +
-                           "' is no number and no name of the original's " + std::string(what));
+    std::optional<assets::OriginalName> numbers;
+    if (colon != std::string::npos && package == kBasePackage) {
+        numbers = table_numbers(after, names);
+        if (!numbers) {
+            warnings.push_back(line_of(where, table.line) + "[" + table.name + "]: '" + std::string(after) +
+                               "' is no number and no name of the original's " + std::string(what));
+            return;
+        }
+    } else if (const assets::OwnBuilding* added = assets::find_own_building(own, table.name); added != nullptr) {
+        numbers = assets::OriginalName{table.name, added->number, 1};
+    } else {
+        warnings.push_back(line_of(where, table.line) + "[" + table.name + "]: names none of the original's " +
+                           std::string(what) + " (anno1602:<number or name>) and none a package added");
         return;
     }
     for (const core::DataEntry& e : table.entries) {
@@ -107,8 +111,8 @@ void apply_value_table(const core::DataTable& table, const std::string& where, s
 }
 
 void apply_building_table(Balance& balance, const core::DataTable& table, const std::string& where,
-                          std::vector<std::string>& warnings) {
-    apply_value_table(table, where, "buildings", assets::original_building_names(), kBuildingFields, warnings,
+                          std::span<const assets::OwnBuilding> own, std::vector<std::string>& warnings) {
+    apply_value_table(table, where, "buildings", assets::original_building_names(), own, kBuildingFields, warnings,
                       [&](std::uint32_t id, BuildingField field, std::uint32_t value) {
                           set_building_value(balance, BuildingValue{id, field, value});
                       });
@@ -206,10 +210,10 @@ void set_figure_value(Balance& balance, FigureValue value) {
 }
 
 void apply_buildings_file(Balance& balance, std::string_view package, std::string_view utf8,
-                          std::vector<std::string>& warnings) {
+                          std::vector<std::string>& warnings, std::span<const assets::OwnBuilding> own) {
     apply_table_file(package, kBuildingsFile, utf8, warnings,
                      [&](const core::DataTable& table, const std::string& where) {
-                         apply_building_table(balance, table, where, warnings);
+                         apply_building_table(balance, table, where, own, warnings);
                      });
 }
 
@@ -217,7 +221,7 @@ void apply_figures_file(Balance& balance, std::string_view package, std::string_
                         std::vector<std::string>& warnings) {
     apply_table_file(package, kFiguresFile, utf8, warnings,
                      [&](const core::DataTable& table, const std::string& where) {
-                         apply_value_table(table, where, "figures", assets::original_figure_names(), kFigureFields,
+                         apply_value_table(table, where, "figures", assets::original_figure_names(), {}, kFigureFields,
                                            warnings, [&](std::uint32_t number, FigureField field, std::uint32_t value) {
                                                set_figure_value(balance, FigureValue{number, field, value});
                                            });
@@ -239,7 +243,7 @@ void apply_balance_file(Balance& balance, std::string_view package, std::string_
             continue;
         }
         if (table.name.find(':') != std::string::npos) {
-            apply_building_table(balance, table, where, warnings);
+            apply_building_table(balance, table, where, {}, warnings);
             continue;
         }
         if (std::none_of(kBalanceFields.begin(), kBalanceFields.end(),

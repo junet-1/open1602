@@ -28,6 +28,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `balance.toml` | trader amounts and restocking, castle training and landing range, fire and plague spread | [balance.md](balance.md) |
 | `buildings.toml` | values of the original's buildings: production, costs, reach, workers, hit points | [values.md](values.md) |
 | `figures.toml` | values of the original's figures: speed, carrying, hit points, damage, range, cannons, price | [values.md](values.md) |
+| `own_buildings.toml` | buildings of the package's own, each copying one of the original | [own-buildings.md](own-buildings.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
 Without a mod file the engine already has banners with tinted flags for any number of players
@@ -58,11 +59,14 @@ Part a done on 2026-10-26 ([values.md](values.md)): a package changes single val
 original's buildings (`buildings.toml`, 16 fields: production, costs, reach, workers, hit points)
 and figures (`figures.toml`, 10 fields: speed, carrying, work time, hit points, damage, range, shot
 time, cannons, price, material), addressed as `["anno1602:bakery"]` by name or `["anno1602:<number>"]` with the `.cod` number;
-a game keeps them (sections `BLDV`, `FIGV`). Still open: buildings and figures of a package's own
-(part b). A package cannot add a building of
-its own except by shipping a changed `haeuser.cod`. Needed: entries with ids such as `mymod:lighthouse`, read from the
-packages' data files, added, overlaid or replaced, and turned into flat index tables after loading.
-Savegames store the ids, not the indexes.
+a game keeps them (sections `BLDV`, `FIGV`).
+
+Part b done on 2026-10-26 ([own-buildings.md](own-buildings.md)): a package adds buildings of its
+own in `own_buildings.toml`, each copying a building of the original (`like`) with its own sprites
+and footprint; they are named `<package>:<name>` in `buildings.toml`, in `build_menu.toml` and in
+the savegame (section `OWNB`), and the engine gives them the highest free `haeuser.cod` Ids in the
+packages' load order. Still open: pictures of a package's own (with the import of content), figures
+of a package's own, and a package that replaces another's building.
 
 ### 3. Free goods list, resident classes and unlock levels (section 2; MD-2, MD-3, MD-8)
 

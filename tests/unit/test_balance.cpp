@@ -188,8 +188,8 @@ TEST_CASE("balance: a package changes values of the original's buildings") {
           "bread/balance.toml line 8: [anno1602:farm]: 'farm' is no number and no name of the original's "
           "buildings");
     CHECK(warnings[3] ==
-          "bread/balance.toml line 10: [brewery:mash_tun]: only the original's buildings (anno1602:<number or name>) "
-          "can be changed");
+          "bread/balance.toml line 10: [brewery:mash_tun]: names none of the original's buildings "
+          "(anno1602:<number or name>) and none a package added");
 
     // A later package changes a value again; the order stays by building and field.
     warnings.clear();
@@ -344,8 +344,8 @@ TEST_CASE("balance: buildings.toml changes the buildings' further values") {
     REQUIRE(warnings.size() == 2);
     CHECK(warnings[0] == "fort/buildings.toml line 7: 'cost_wood' must be a number from 0 to 255");
     CHECK(warnings[1] ==
-          "fort/buildings.toml line 8: [trader]: only the original's buildings (anno1602:<number or "
-          "name>) can be changed");
+          "fort/buildings.toml line 8: [trader]: names none of the original's buildings "
+          "(anno1602:<number or name>) and none a package added");
     CHECK(balance.trader_max_buy == sim::Balance{}.trader_max_buy);
     REQUIRE(balance.buildings.size() == 5);
     CHECK(sim::valid(balance));

@@ -1,0 +1,81 @@
+# Buildings of a package's own
+
+A content package may add buildings the original's `haeuser.cod` does not have
+([ADR 0007](../architecture/0007-extensibility-and-modding.md) section 2, item 2 of
+[open-work.md](open-work.md)). Each one copies a building of the original and changes what it
+needs: its own id, its own values, its own place in the build menu.
+
+**Status:** Done are the file `own_buildings.toml`, the values of such a building
+([values.md](values.md)), its place in the build menu and its id in savegames. Still open, with the
+next steps: pictures of a package's own (`gfx` picks sprites of the original's `STADTFLD` until the
+import of PNG), figures of a package's own, and own goods, resident classes and unlock levels.
+
+## The file
+
+```
+<user data folder>/mods/<package>/own_buildings.toml
+```
+
+Each table declares one building. The table's name is the building's name in the package; together
+with the package's id it is the building's **string id**, `<package>:<name>`, and that is what
+everything else names it by. A name holds lower case letters, digits and `_`.
+
+```toml
+# mods/lights/own_buildings.toml
+[lighthouse]
+like = "anno1602:watchtower"   # the building of the original it copies (required)
+gfx = 2100                     # its first sprite in STADTFLD.BSH, one per tile
+size_x = 2                     # its footprint in tiles
+size_y = 2
+```
+
+| Field | Limits | Meaning |
+|---|---|---|
+| `like` | a building of the original, `anno1602:<name or number>` ([names](values.md#names)) | every value of that building, as the copy's starting point |
+| `gfx` | 0 to 65534 | the first sprite; the building uses `size_x * size_y` sprites from it |
+| `size_x`, `size_y` | 1 to 255 | the footprint in tiles |
+
+A field that is not given keeps what `like` has. A table without `like`, with a field that is no
+field of a building or with a value outside its limits is passed over with a warning that names the
+file and the line; so is a name a package used already. A package declares at most 256 buildings.
+
+Packages are read in their [load order](packages.md#load-order). The building's **values**
+(production, costs, reach, hit points) are changed as the original's are, in
+[`buildings.toml`](values.md), by the package itself or by a later one:
+
+```toml
+# mods/harder/buildings.toml
+["lights:lighthouse"]
+health = 50
+cost_bricks = 12
+```
+
+Its place in the build menu comes from [`build_menu.toml`](build-menu.md), where `building` names
+it by its string id:
+
+```toml
+[tower]
+building = "lights:lighthouse"
+category = 31007              # the harbour buildings
+icon = 90
+name = "Leuchtturm"
+```
+
+## Ids and savegames
+
+The engine gives every building of a package an `Id` of the building table, the highest free one
+downwards from 23500, in the packages' load order and in the order of each file. The same packages
+therefore give the same buildings the same Ids on every computer, which is what a multiplayer game
+needs, and what a savegame needs to name the buildings on the islands.
+
+A game keeps the string ids with the numbers it gave them (section `OWNB` of
+[o1602-save.md](../formats/o1602-save.md)). A savegame loads only when the computer's packages give
+those buildings the same numbers again, so a game with such buildings needs its packages
+([packages.md](packages.md#which-packages-a-game-uses)); without them it is refused instead of
+showing other buildings. Savegames of the original (`.gam`) have none of them.
+
+## In the code
+
+`engine/assets/include/o1602/assets/own_buildings.hpp`: `OwnBuilding` (string id and number),
+`apply_own_buildings_file`; `BuildingTable::add` appends a record and gives it its Id and record
+number. `sim::World::own_buildings()` carries them through a game and its savegame.

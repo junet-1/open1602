@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -24,6 +25,10 @@ struct OriginalName {
 [[nodiscard]] std::span<const OriginalName> original_building_names() noexcept;
 /// The names of figuren.cod's figures, by FIGUR number.
 [[nodiscard]] std::span<const OriginalName> original_figure_names() noexcept;
+/// The Id a string id "anno1602:<name or number>" of a building stands for; nothing for another
+/// package's id or a name the original has not.
+[[nodiscard]] std::optional<std::uint32_t> original_building_id(std::string_view id) noexcept;
+
 /// The entry of `names` called `name`, nullptr if none is.
 [[nodiscard]] const OriginalName* find_original_name(std::span<const OriginalName> names,
                                                      std::string_view name) noexcept;
