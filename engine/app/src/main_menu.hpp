@@ -165,6 +165,8 @@ private:
     void select_scenario(std::size_t index);
     /// Briefing and high scores of the chosen scenario and part.
     void load_details();
+    /// The endless game: the lines on the chosen level below the briefing.
+    void append_level_notes();
     [[nodiscard]] std::filesystem::path chosen_file() const;
 
     const assets::GameDirectory* m_game;
