@@ -140,7 +140,7 @@ struct ModRules {
 
 /// The base game's factions and numbers as the mods change them (<data folder>/mods/<package>/
 /// factions.toml and balance.toml), the packages in the order of their names.
-ModRules load_mod_rules(const std::filesystem::path& mods) {
+ModRules load_mod_rules(const std::filesystem::path& mods, const assets::BuildingTable& buildings) {
     ModRules rules;
     std::vector<std::string> problems;
     for (const assets::ModPackage& package : assets::mod_packages(mods)) {
@@ -153,6 +153,7 @@ ModRules load_mod_rules(const std::filesystem::path& mods) {
             sim::apply_balance_file(rules.balance, package.id, text, problems);
         }
     }
+    sim::drop_unknown_buildings(rules.balance, buildings, problems);
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
@@ -188,7 +189,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
     }
     std::vector<std::string> warnings;
-    ModRules rules = load_mod_rules(data_folder() / "mods");
+    ModRules rules = load_mod_rules(data_folder() / "mods", *buildings);
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
     if (options.menu || joining) {
@@ -454,10 +455,11 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
                      assets::Palette palette, assets::FigureTable figures, ViewerOptions options)
     : m_game(std::move(game)),
       m_buildings(std::move(buildings)),
+      m_original_buildings(m_buildings),
       m_palette(std::move(palette)),
       m_figures(std::move(figures)),
       m_options(std::move(options)),
-      m_state(std::make_unique<GameState>(std::move(world), m_buildings, m_figures, m_options.rules)),
+      m_state(make_state(std::move(world), m_options.rules)),
       m_events(
           [this](const sim::Player& p, sim::PlayerId id) { return player_label(p, id, m_banners, m_state->world); }),
       m_clock(m_buildings),
@@ -2433,16 +2435,34 @@ core::Result<sim::World> MapViewer::read_world(const std::filesystem::path& path
     return world;
 }
 
+std::unique_ptr<GameState> MapViewer::make_state(sim::World world, const sim::Rules& rules) {
+    if (!world.saved_rules()) {
+        // A new game, or one from a file of the original: the rule's values under the mods'.
+        sim::Balance balance = world.balance();
+        sim::add_building_values(balance, sim::rule_building_values(rules));
+        world.set_balance(balance);
+    }
+    sim::apply_building_values(m_buildings, m_original_buildings, world.balance());
+    return std::make_unique<GameState>(std::move(world), m_buildings, m_figures, rules);
+}
+
 core::Status MapViewer::replace_world(sim::World world, const std::filesystem::path& source, const sim::Rules* rules) {
     // The new game is built whole before anything of the old one goes: if memory runs out on the
     // way, the old game goes on.
     std::unique_ptr<GameState> next;
+    // The old game's building values come back if the new one does not start.
+    const auto keep_old = [&] {
+        if (m_state) {
+            sim::apply_building_values(m_buildings, m_original_buildings, m_state->world.balance());
+        }
+    };
     try {
-        next = std::make_unique<GameState>(std::move(world), m_buildings, m_figures,
-                                           rules != nullptr ? *rules : m_options.rules);
+        next = make_state(std::move(world), rules != nullptr ? *rules : m_options.rules);
     } catch (const std::bad_alloc&) {
+        keep_old();
         return core::make_error(core::ErrorCode::PlatformError, "not enough memory for the game");
     } catch (const std::exception& e) {
+        keep_old();
         return core::make_error(core::ErrorCode::PlatformError, std::string("the game could not start: ") + e.what());
     }
     // What belongs to the old game goes: videos, selection, orders waiting for an answer, tools.

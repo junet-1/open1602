@@ -32,6 +32,7 @@ enum RuleKey : std::uint16_t {
     kTraderReach = 25,
     kEndlessVeins = 26,
     kReveal = 27,
+    kRevisedBread = 28,
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -145,6 +146,10 @@ void write_rules(Writer& out, const Rules& r) {
     if (r.endless_veins) {
         values.emplace_back(kEndlessVeins, 1U);
     }
+    // The revised bread chain only when it is on: off is the original, so older games keep their bytes.
+    if (r.revised_bread) {
+        values.emplace_back(kRevisedBread, 1U);
+    }
     // The towns shown from the start only when there are any: the original's way keeps the bytes.
     if (r.reveal != Reveal::None) {
         values.emplace_back(kReveal, static_cast<std::uint32_t>(r.reveal));
@@ -219,6 +224,9 @@ Rules read_rules(Reader& in) {
                 break;
             case kEndlessVeins:
                 r.endless_veins = v != 0;
+                break;
+            case kRevisedBread:
+                r.revised_bread = v != 0;
                 break;
             case kClassicAi:
                 r.classic_ai = v != 0;

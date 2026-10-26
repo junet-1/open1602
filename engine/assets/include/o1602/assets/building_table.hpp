@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -199,6 +200,8 @@ public:
     [[nodiscard]] BuildingType* by_id(std::uint32_t id) noexcept {
         return const_cast<BuildingType*>(std::as_const(*this).by_id(id));
     }
+    /// The types for the values a game changes (sim::apply_building_values): they keep their places.
+    [[nodiscard]] std::span<BuildingType> changeable_types() noexcept { return m_types; }
     /// Building whose base sprite range [gfx, gfx + tile_count) contains `sprite`.
     /// Inline: the AI asks this for every tile it looks at (TB-18).
     [[nodiscard]] const BuildingType* by_sprite(std::uint32_t sprite) const noexcept {
