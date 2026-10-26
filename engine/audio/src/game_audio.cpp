@@ -35,7 +35,7 @@ constexpr std::array<const char*, kSampleCount> kSampleFiles = {
 static_assert(kWavBakery == assets::fixes::kBakerySound, "the bakery's sound has one number");
 
 // The messages' voices and videos (0x0049B210, 0x70 entries): kind, first voice, voices, videos,
-// flags.
+// flags. Open1602 gives 0x5D (trade routes) its own kind, kSpeechRoutes; the original has 0.
 constexpr std::array<MessageAudio, 0x70> kMessages = {{
     {0, 0, 0, 0, 0},    {1, 282, 3, 1, 6},  {1, 295, 4, 1, 6},  {1, 187, 4, 1, 4},  {1, 198, 5, 1, 8},
     {5, 784, 5, 2, 34}, {0, 626, 5, 1, 8},  {0, 637, 2, 0, 0},  {5, 703, 1, 1, 34}, {5, 660, 2, 1, 32},
@@ -55,12 +55,13 @@ constexpr std::array<MessageAudio, 0x70> kMessages = {{
     {0, 572, 1, 0, 0},  {0, 0, 0, 0, 0},    {7, 926, 3, 0, 0},  {7, 933, 3, 1, 8},  {7, 0, 0, 0, 0},
     {7, 915, 2, 0, 0},  {7, 911, 2, 1, 8},  {7, 0, 0, 0, 0},    {0, 1012, 3, 0, 0}, {0, 990, 3, 0, 0},
     {0, 988, 1, 1, 1},  {0, 986, 1, 1, 1},  {0, 992, 1, 1, 1},  {0, 984, 1, 1, 1},  {0, 957, 1, 0, 0},
-    {0, 959, 1, 0, 0},  {0, 1145, 1, 0, 0}, {0, 1143, 1, 0, 0}, {0, 610, 1, 0, 0},  {0, 0, 1, 0, 2},
+    {0, 959, 1, 0, 0},  {0, 1145, 1, 0, 0}, {0, 1143, 1, 0, 0}, {8, 610, 1, 0, 0},  {0, 0, 1, 0, 2},
     {0, 2000, 1, 1, 1}, {0, 2010, 1, 1, 1}, {0, 2020, 1, 1, 1}, {0, 2030, 1, 1, 1}, {0, 2040, 1, 1, 1},
     {0, 2050, 1, 1, 1}, {0, 2060, 1, 1, 1}, {0, 2070, 1, 1, 1}, {0, 2080, 1, 1, 1}, {0, 2100, 1, 1, 1},
     {0, 2110, 1, 1, 1}, {0, 2120, 1, 1, 1}, {0, 2500, 1, 1, 1}, {0, 2510, 1, 1, 1}, {0, 2520, 1, 1, 1},
     {0, 2530, 1, 1, 1}, {0, 2990, 1, 1, 1},
 }};
+static_assert(kMessages[0x5D].kind == kSpeechRoutes, "the trade routes have a switch of their own");
 
 constexpr std::uint32_t kBattleMs = 25'000;       // back to normal music after the last shot
 constexpr std::uint32_t kBattleStartMs = 10'000;  // a new battle track only shortly after a shot

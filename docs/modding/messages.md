@@ -68,7 +68,7 @@ with their number in `Text.cod`'s `[MELDUNG]` section, in decimal or hex (`anno1
 | `text.<code>` | string | The text in one language (`text.de`, `text.en`, ...; the codes of [languages.md](languages.md)) |
 | `like` | number or id | Start from this message: its icon, text, voice, video, kind and flags (applied first, wherever it stands) |
 | `icon` | `"notice"`, `"scroll"`, `"combat"`, `"player"`, `"plague"`, `"fire"`, `"drought"`, `"volcano"` | The icon in the status bar; the first four in the colour of the player the message is about |
-| `kind` | `"general"`, `"events"`, `"island"`, `"players"`, `"trade"`, `"combat"`, `"orders"`, `"diplomacy"` | Which switch of the voice and video options mutes it (`general`: only the master switch) |
+| `kind` | `"general"`, `"events"`, `"island"`, `"players"`, `"trade"`, `"combat"`, `"orders"`, `"diplomacy"`, `"routes"` | Which switch of the voice and video options mutes it (`general`: only the master switch; `routes`: Open1602's switch of „Überprüft Eure Handelsrouten!“) |
 | `sound` | file name, number or `false` | A WAV file of the package (relative to its folder, never outside it), a file of the original's `Speech8` (`sound = 530`), or none (`false`: only the short message sound) |
 | `video` | number or `false` | A video of the original's `VideoSmk` (`video = 23` plays `VideoSmk/23.smk`), or none |
 | `video_always` | `true`/`false` | Play the video also when the place of the message is on screen (else only when it is not) |

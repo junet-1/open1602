@@ -19,10 +19,13 @@ using app::OptionsPanel;
 
 namespace {
 
-/// A layout of the Ids first..last, each a 20x10 box of its own place.
-assets::GadgetLayout layout(std::int32_t first, std::int32_t last) {
+/// A layout of the Ids first..last but `missing`, each a 20x10 box of its own place.
+assets::GadgetLayout layout(std::int32_t first, std::int32_t last, const std::vector<std::int32_t>& missing = {}) {
     std::string text = "Objekt: GADGET\n";
     for (std::int32_t id = first; id <= last; ++id) {
+        if (std::find(missing.begin(), missing.end(), id) != missing.end()) {
+            continue;
+        }
         const std::int32_t i = id - first;
         text += "  @Nummer: " + std::to_string(i) + "\n  Id: " + std::to_string(id) +
                 "\n  Kind: 6\n  Pos: " + std::to_string(i % 8 * 30) + ", " + std::to_string(i / 8 * 20) +
@@ -33,7 +36,8 @@ assets::GadgetLayout layout(std::int32_t first, std::int32_t last) {
 
 struct Options {
     assets::TextTable texts = assets::TextTable::parse("[GAME]\n" + std::string(40, '\n'));
-    OptionsPanel panel{layout(47002, 47040), layout(48002, 48080), layout(49002, 49060), layout(66002, 66060), &texts};
+    OptionsPanel panel{layout(47002, 47040), layout(48002, 48080), layout(49002, 49060),
+                       layout(66001, 66060, {66028, 66038}), &texts};  // ANNO.GAD has seven voice rows
 
     /// A click on gadget `id` of the page shown.
     std::vector<OptionsEvent> click(std::int32_t id, OptionsModel& model) {
@@ -204,4 +208,30 @@ TEST_CASE("options panel: voice messages and videos per kind") {
     o.click(66041, model);  // kinds 1 and 2 share a box
     CHECK(!model.audio.video[1]);
     CHECK(!model.audio.video[2]);
+}
+
+TEST_CASE("options panel: the trade routes get an eighth voice row like the seven above it") {
+    Options o;
+    OptionsModel model;
+    o.panel.opened();
+    o.panel.refresh(model);
+    o.click(47013, model);
+    o.panel.refresh(model);
+    const ui::Panel& page = o.panel.panel();
+    const auto seventh = page.position(66027);
+    const auto eighth = page.position(66028);
+    REQUIRE(seventh.has_value());
+    REQUIRE(eighth.has_value());
+    CHECK((*eighth)[0] == (*seventh)[0]);
+    CHECK((*eighth)[1] == (*seventh)[1] + 25);
+    REQUIRE(page.position(66038).has_value());
+    CHECK((*page.position(66038))[1] == (*page.position(66037))[1] + 25);
+    // The video part's picture in three pieces: the voice box's edge under the eighth row.
+    REQUIRE(page.position(66091).has_value());
+    CHECK((*page.position(66091))[1] == (*page.position(66005))[1] + 13);
+    o.click(66028, model);
+    CHECK(!model.audio.speech[audio::kSpeechRoutes]);
+    CHECK(model.audio.speech[7]);
+    o.click(66028, model);
+    CHECK(model.audio.speech[audio::kSpeechRoutes]);
 }

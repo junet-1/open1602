@@ -29,9 +29,10 @@ constexpr std::array<std::pair<std::string_view, MessageIcon>, 8> kIcons{{
     {"volcano", MessageIcon::Volcano},
 }};
 
-/// The kinds of voice messages of the options ([SPEECHKIND] in Text.cod, docs/re/audio.md).
-constexpr std::array<std::string_view, 8> kKinds{"general", "events", "island", "players",
-                                                 "trade",   "combat", "orders", "diplomacy"};
+/// The kinds of voice messages of the options ([SPEECHKIND] in Text.cod, docs/re/audio.md), then
+/// Open1602's own (audio::kSpeechRoutes).
+constexpr std::array<std::string_view, audio::kMessageKinds> kKinds{
+    "general", "events", "island", "players", "trade", "combat", "orders", "diplomacy", "routes"};
 
 /// Which icon an original message shows: that is not in the data (docs/re/ui.md "Message icons").
 MessageIcon original_icon(std::uint16_t message) {

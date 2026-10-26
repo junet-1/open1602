@@ -281,6 +281,14 @@ TEST_CASE("audio: voice messages wait in four slots and speak one at a time") {
     voices.stop_all();
     voices.message(2, false);
     CHECK(voices.waiting() == 0);
+    // „Überprüft Eure Handelsrouten!“ has a switch of its own (the original: only the master switch).
+    voices.message(0x5D, false);
+    CHECK(voices.waiting() == 1);
+    voices.stop_all();
+    s.speech[audio::kSpeechRoutes] = false;
+    voices.set_settings(s);
+    voices.message(0x5D, false);
+    CHECK(voices.waiting() == 0);
 }
 
 TEST_CASE("audio: messages with a video play it instead of their voice (Msg_Audio 0x00488E80)") {

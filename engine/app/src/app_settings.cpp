@@ -50,7 +50,7 @@ std::int32_t number(std::string_view v, std::int32_t fallback) {
     return ec == std::errc{} && end == v.data() + v.size() ? n : fallback;
 }
 
-void flags(std::string_view v, std::array<bool, 8>& out) {
+void flags(std::string_view v, std::array<bool, audio::kMessageKinds>& out) {
     std::size_t i = 0;
     for (const char c : v) {
         if ((c == '0' || c == '1') && i < out.size()) {
@@ -84,7 +84,7 @@ std::string to_file(std::string_view name) {
     return core::cp1252_to_utf8(clean_name(name));
 }
 
-std::string flags_text(const std::array<bool, 8>& a) {
+std::string flags_text(const std::array<bool, audio::kMessageKinds>& a) {
     std::string s;
     for (const bool b : a) {
         s += s.empty() ? "" : " ";
