@@ -72,6 +72,11 @@ Layout base_layout() {
     return {{30002, 30003, 30004, 30005, 30006}};
 }
 
+/// The History Edition's BASE.GAD: Options (30004) after Multiplayer, Quit at 30007.
+Layout history_base_layout() {
+    return {{30002, 30003, 30004, 30005, 30006, 30007}};
+}
+
 Layout host_layout() {
     Layout l{{31002, 31003, 31004, 31005, 31011, 31012}};
     for (const std::int32_t first : {31021, 31041, 31061}) {
@@ -111,13 +116,13 @@ struct Game {
     std::optional<assets::GameDirectory> dir;
     assets::TextTable texts;
 
-    Game(const std::string& name, const std::vector<std::string>& scenarios) {
+    Game(const std::string& name, const std::vector<std::string>& scenarios, const Layout& base = base_layout()) {
         root = test::temp_path(name);
         std::filesystem::remove_all(root);
         for (const char* file : {"haeuser.cod", "figuren.cod", "toolgfx/stadtfld.col", "gfx/stadtfld.bsh"}) {
             write(root / file, "");
         }
-        write(root / "GADDATA" / "BASE.GAD", base_layout().gad());
+        write(root / "GADDATA" / "BASE.GAD", base.gad());
         write(root / "GADDATA" / "HOST.GAD", host_layout().gad());
         write(root / "GADDATA" / "MISSION.GAD", mission_layout().gad());
         write(root / "GADDATA" / "FARBWAHL.GAD", colour_layout().gad());
@@ -184,6 +189,34 @@ TEST_CASE("main menu: the buttons of the main menu answer with their events") {
     CHECK(one(30006) == MenuEvent::Kind::Quit);
     CHECK(menu.screen() == MainMenu::Screen::Base);
     CHECK(!menu.back());  // Escape in the main menu: nothing to go back to
+}
+
+TEST_CASE("main menu: the History Edition's Options button is left out and the buttons below move up") {
+    Game g("o1602-test-menu-history-base", {}, history_base_layout());
+    MainMenu menu(*g.dir, &g.texts);
+    REQUIRE(menu.usable());
+    const Layout layout = history_base_layout();
+    const auto at = [&](std::int32_t place) {
+        const auto [x, y] = layout.centre(place);
+        auto events = menu.mouse(x, y, true);
+        for (MenuEvent& e : menu.mouse(x, y, false)) {
+            events.push_back(std::move(e));
+        }
+        return events;
+    };
+    CHECK(at(30003).size() == 1);
+    // Credits, Intro and Quit now sit where Options, Credits and Intro were; Quit's place is empty.
+    const auto credits = at(30004);
+    REQUIRE(credits.size() == 1);
+    CHECK(credits[0].kind == MenuEvent::Kind::Credits);
+    const auto intro = at(30005);
+    REQUIRE(intro.size() == 1);
+    CHECK(intro[0].kind == MenuEvent::Kind::Intro);
+    const auto quit = at(30006);
+    REQUIRE(quit.size() == 1);
+    CHECK(quit[0].kind == MenuEvent::Kind::Quit);
+    CHECK(at(30007).empty());
+    CHECK(menu.screen() == MainMenu::Screen::Base);
 }
 
 TEST_CASE("main menu: the list of scenarios, a mission screen with its parts, the rules before the start") {
