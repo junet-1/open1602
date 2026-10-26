@@ -208,6 +208,8 @@ private:
     [[nodiscard]] bool target_valid(const Target& t) const;
     [[nodiscard]] std::optional<CellRect> target_cells(const Target& t) const;
     [[nodiscard]] PlayerId owner_of(const Target& t) const;
+    /// The target is a doctor of the soldier's owner: it walks right up to it and goes in to be healed.
+    [[nodiscard]] bool heals_at(const Soldier& s, const Target& t) const;
     [[nodiscard]] bool attackable(const Soldier& s, const Target& t) const;
     [[nodiscard]] std::optional<std::uint8_t> fire_direction(const Soldier& s, const assets::FigureType& type,
                                                              const Target& t) const;

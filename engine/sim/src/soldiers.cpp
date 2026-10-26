@@ -27,6 +27,7 @@ constexpr std::int32_t kExplicitRange = 18;  // cells: an ordered target this ne
 constexpr std::int32_t kChaseRange = 8;      // cells: melee units chase enemies this near
 constexpr std::int32_t kMeleeRange8 = 8;
 constexpr std::int32_t kFriendlyGoal = 7;  // cells around an object a soldier may stop at
+constexpr std::int32_t kDoctorGoal = 1;    // cells from an own doctor: the soldier goes in (0x00456D00)
 constexpr std::int32_t kOthersRange = 8;   // cells: other figures block planning within 4 tiles
 constexpr std::int32_t kCrowded = 3;       // cells: walking slower next to another figure
 constexpr std::uint8_t kMaxFailures = 3;
@@ -444,8 +445,10 @@ bool Military::plan_to(Soldier& s, const Target& target, std::int32_t radius, bo
             return line_of_sight(land, x, y, nx, ny, rect);
         };
     } else {
-        // The object itself or a cell next to it, as near to it as can be.
-        r.goal = [rect](std::int32_t x, std::int32_t y) { return rect.distance(x, y) <= kFriendlyGoal; };
+        // The object itself or a cell next to it, as near to it as can be. An own doctor only takes the
+        // soldier in from the next cell, so the way must end there: the original plans anew until then.
+        const std::int32_t goal = heals_at(s, target) ? kDoctorGoal : kFriendlyGoal;
+        r.goal = [rect, goal](std::int32_t x, std::int32_t y) { return rect.distance(x, y) <= goal; };
     }
     const LandCourse course = m_planner.plan(land, r);
     if (course.path.empty()) {
@@ -458,6 +461,15 @@ bool Military::plan_to(Soldier& s, const Target& target, std::int32_t radius, bo
     return true;
 }
 
+bool Military::heals_at(const Soldier& s, const Target& t) const {
+    if (t.kind != Target::Kind::Building || owner_of(t) != s.owner) {
+        return false;
+    }
+    const auto b =
+        building_at(*m_world, *m_buildings, t.island, {static_cast<std::int32_t>(t.x), static_cast<std::int32_t>(t.y)});
+    return b && b->type->prod_kind == prod::kKlinik;
+}
+
 bool Military::arrived(Soldier& s) {
     // Arrival (0x00456D00 step 7): at an own doctor's house the soldier goes in to be healed; at a
     // place or another object it has arrived when its way ends near it.
@@ -466,21 +478,17 @@ bool Military::arrived(Soldier& s) {
         return false;
     }
     const std::int32_t d = cells->distance(s.cell_x(), s.cell_y());
-    if (s.target.kind == Target::Kind::Building && owner_of(s.target) == s.owner) {
-        const auto b = building_at(*m_world, *m_buildings, s.target.island,
-                                   {static_cast<std::int32_t>(s.target.x), static_cast<std::int32_t>(s.target.y)});
-        if (b && b->type->prod_kind == prod::kKlinik) {
-            if (d > 1) {
-                return false;
-            }
-            s.target = {};
-            s.motion.phase = SoldierMotion::Phase::Healing;
-            s.motion.elapsed_us = 0;
-            s.motion.duration_us = kHealMs * 1000U;
-            s.motion.path.clear();
-            s.motion.path_index = 0;
-            return true;
+    if (heals_at(s, s.target)) {
+        if (d > kDoctorGoal) {
+            return false;
         }
+        s.target = {};
+        s.motion.phase = SoldierMotion::Phase::Healing;
+        s.motion.elapsed_us = 0;
+        s.motion.duration_us = kHealMs * 1000U;
+        s.motion.path.clear();
+        s.motion.path_index = 0;
+        return true;
     }
     if (s.target.kind == Target::Kind::Ship) {
         Ship* ship = m_world->ship(s.target.ship);
