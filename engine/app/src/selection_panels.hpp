@@ -72,6 +72,9 @@ struct PanelContext {
     }
     /// A line of a Text.cod section, empty if there is none.
     [[nodiscard]] std::string text(std::string_view section, std::size_t line) const;
+    /// The name of class `resident_class` of inhabitants: the one a package gave it, else Text.cod's
+    /// ([GAME] 3 and on, for the original's five).
+    [[nodiscard]] std::string class_name(std::size_t resident_class) const;
 };
 
 /// One window: one or more layouts (sub-pages) and what fills them.

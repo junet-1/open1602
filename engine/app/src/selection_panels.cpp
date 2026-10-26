@@ -9,6 +9,7 @@
 #include "panel_common.hpp"
 #include "production_utilisation.hpp"
 
+#include "o1602/assets/resident_classes.hpp"
 #include "o1602/sim/consumption.hpp"
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/houses.hpp"
@@ -32,6 +33,17 @@ std::string PanelContext::text(std::string_view section, std::size_t line) const
     }
     const auto& lines = texts->section(section);
     return line < lines.size() ? lines[line] : std::string();
+}
+
+std::string PanelContext::class_name(std::size_t resident_class) const {
+    const auto& classes = buildings.resident_classes();
+    if (resident_class < classes.size()) {
+        if (std::string name = assets::class_name(classes[resident_class], ui::current_language()); !name.empty()) {
+            return name;
+        }
+    }
+    return resident_class < assets::kResidentClasses ? text("GAME", 3 + resident_class)
+                                                     : std::to_string(resident_class + 1);
 }
 
 namespace {
@@ -756,8 +768,8 @@ public:
         const assets::ResidentClass& rc = classes[cls];
         const int state = growth_state(*city, *house);
         m_panel.set_text(kTitle, city_name(*city));
-        m_panel.set_graphic(kFace, m_face + 4 * cls + (1 - state), 0);
-        m_panel.set_text(kClassName, c.text("GAME", 3 + std::size_t{cls}));
+        m_panel.set_graphic(kFace, m_face + 4 * rc.look + (1 - state), 0);
+        m_panel.set_text(kClassName, c.class_name(cls));
         m_panel.set_text(kClassCount, std::to_string(cls < city->inhabitants.size() ? city->inhabitants[cls] : 0));
         const std::uint8_t tax = tax_of(*city, b->resident_class);
         m_panel.set_text(kTaxLabel, ui::format_text(c.text("GAME", 2), {std::int64_t{tax / 4}}));
@@ -775,15 +787,25 @@ public:
             return std::any_of(r.needs.begin(), r.needs.end(),
                                [&](const assets::ResidentClass::Need& n) { return n.ware == w && n.amount != 0; });
         };
+        // The goods any class asks for besides food, by ware number: for the original's classes
+        // tobacco goods to jewellery, as the original's panel goes through them.
+        std::vector<std::uint8_t> consumer;
+        for (const assets::ResidentClass& r : classes) {
+            for (const assets::ResidentClass::Need& n : r.needs) {
+                consumer.push_back(n.ware);
+            }
+        }
+        std::sort(consumer.begin(), consumer.end());
+        consumer.erase(std::unique(consumer.begin(), consumer.end()), consumer.end());
         m_demand.clear();
-        for (std::uint8_t w = sim::ware::kTobaccoGoods; w <= sim::ware::kJewellery; ++w) {
+        for (const std::uint8_t w : consumer) {
             if (wants(rc, w) && ratio(w) < 128) {
                 m_demand.push_back({w, ratio(w)});
             }
         }
         const sim::Player* owner = c.world().player(city->owner);
-        if (cls + 1U < classes.size() && cls + 1U < sim::kResidentClasses && state > 0) {
-            for (std::uint8_t w = sim::ware::kTobaccoGoods; w <= sim::ware::kJewellery; ++w) {
+        if (cls + 1U < classes.size() && state > 0) {
+            for (const std::uint8_t w : consumer) {
                 if (!wants(classes[cls + 1U], w) || wants(rc, w) || !ware_unlocked(w, owner)) {
                     continue;
                 }
@@ -801,7 +823,7 @@ public:
             m_panel.set_visible(kDemandBar + id, on);
             m_panel.set_visible(kDemandFrame + id, on);
             if (on) {
-                m_panel.set_graphic(kDemandIcon + id, m_gfx_ware + m_demand[k].first, 0);
+                m_panel.set_graphic(kDemandIcon + id, m_gfx_ware + c.world().goods().icon(m_demand[k].first), 0);
                 m_panel.set_slider(kDemandBar + id, 1, m_demand[k].second, 128);
             }
         }
@@ -809,7 +831,7 @@ public:
         std::int32_t sum = 0;
         std::int32_t count = 0;
         for (const auto& n : rc.needs) {
-            if (n.ware >= 15 && n.ware <= 21 && n.amount != 0) {
+            if (n.amount != 0) {
                 sum += ratio(n.ware);
                 ++count;
             }
@@ -825,12 +847,12 @@ public:
         m_panel.set_slider(kFoodMarker, 0, 88, 128);
 
         // Public buildings the house lacks: for its class, or (growing) for the next.
-        std::uint32_t mask = required(cls);
-        if (cls + 1U < sim::kResidentClasses && state > 0) {
+        std::uint32_t mask = required(c, cls);
+        if (cls + 1U < classes.size() && state > 0) {
             // The levels INFRA_MARKT (1) to INFRA_HOCHSCHULE (8) lie in the mask's low bits as the
             // panel's icons do (original): the next class's buildings not yet unlocked are left out.
             const std::uint32_t unlocked = owner != nullptr ? owner->infra_mask : 0;
-            mask = required(cls + 1U) & unlocked;
+            mask = required(c, cls + 1U) & unlocked;
         }
         const std::uint32_t missing = mask & ~sim::panel_services(*house);
         m_missing.clear();
@@ -996,8 +1018,11 @@ private:
     }};
 
     /// What a class needs of public buildings (Class_RequiredServices 0x0047F320).
-    static std::uint32_t required(std::uint32_t cls) {
-        return cls < sim::kResidentClasses ? sim::required_panel_services(static_cast<std::uint8_t>(cls)) : 0;
+    /// A class a package added needs what the original's class it looks like needs.
+    static std::uint32_t required(const PanelContext& c, std::uint32_t cls) {
+        return cls <= 255
+                   ? sim::required_panel_services(sim::service_class(c.buildings, static_cast<std::uint8_t>(cls)))
+                   : 0;
     }
     /// Goods a next class asks for only once their level is reached (sim::infra::ware_level).
     static bool ware_unlocked(std::uint8_t w, const sim::Player* owner) {

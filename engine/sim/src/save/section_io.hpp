@@ -78,6 +78,8 @@ struct Decoded {
     std::optional<std::vector<assets::ContentPackage>> packages;
     /// The goods the packages added (GOOD).
     std::optional<assets::Goods> goods;
+    /// The classes of inhabitants of the game (CLAS).
+    std::optional<std::vector<assets::ResidentClass>> classes;
     /// The buildings the packages added and their Ids (OWNB).
     std::optional<std::vector<assets::OwnBuilding>> own_buildings;
     /// The changed values of buildings (BLDV).

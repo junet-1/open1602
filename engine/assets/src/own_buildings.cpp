@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "o1602/assets/original_names.hpp"
+#include "o1602/assets/resident_classes.hpp"
 #include "o1602/core/data_file.hpp"
 
 namespace o1602::assets {
@@ -38,7 +39,8 @@ const OwnBuilding* find_own_building(std::span<const OwnBuilding> own, std::stri
 }
 
 void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& own, std::string_view package,
-                              std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods) {
+                              std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods,
+                              std::span<const ResidentClass> classes) {
     const std::string where = std::string(package) + "/" + std::string(kOwnBuildingsFile);
     auto tables = core::parse_data_file(utf8);
     if (!tables) {
@@ -71,6 +73,7 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
         std::optional<std::uint8_t> ware;
         std::optional<std::uint8_t> raw;
         std::optional<std::uint8_t> raw2;
+        std::optional<std::uint8_t> resident_class;
         bool ok = true;
         for (const core::DataEntry& e : t.entries) {
             const std::string field = line_of(where, e.value.line) + "'" + e.key + "' ";
@@ -105,6 +108,15 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
                 } else {
                     (e.key == "ware" ? ware : e.key == "raw" ? raw : raw2) = w;
                 }
+            } else if (e.key == "class") {
+                // Whose house it is: a class of the original's or one a package added.
+                const std::string* s = e.value.string();
+                const std::span<const ResidentClass> known = classes.empty() ? table.resident_classes() : classes;
+                resident_class = s != nullptr ? class_of(known, *s) : std::nullopt;
+                if (!resident_class) {
+                    warnings.push_back(field + "names no class (anno1602:<name or number> or <package>:<name>)");
+                    ok = false;
+                }
             } else {
                 warnings.push_back(field + "is no field of a building of a package and is passed over");
             }
@@ -116,7 +128,14 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
             warnings.push_back(at + id + " names no building to copy ('like')");
             continue;
         }
+        if (resident_class && like->prod_kind != prod::kHouse) {
+            warnings.push_back(at + id + ": 'class' is for a house only");
+            continue;
+        }
         BuildingType b = *like;
+        if (resident_class) {
+            b.resident_class = *resident_class;
+        }
         if (gfx) {
             b.gfx = static_cast<std::uint32_t>(*gfx);
         }

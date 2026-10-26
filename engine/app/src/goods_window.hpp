@@ -139,6 +139,8 @@ private:
     void layout_scroll_bar(Painter& below);
     /// The name of `ware`: Text.cod's for the original's goods, the package's for its own.
     [[nodiscard]] std::string ware_name(const sim::World& world, std::uint8_t ware) const;
+    /// The name of class `k` of inhabitants: the package's, else Text.cod's for the original's.
+    [[nodiscard]] std::string class_name(const assets::BuildingTable& buildings, std::size_t k) const;
     /// The sprite of the icon of `ware`: a package's good shows that of a good of the original.
     [[nodiscard]] std::int32_t ware_icon(const sim::World& world, std::uint8_t ware) const;
 

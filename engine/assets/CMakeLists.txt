@@ -14,11 +14,13 @@ add_library(o1602_assets
     src/goods.cpp
     src/original_names.cpp
     src/own_buildings.cpp
+    src/resident_classes.cpp
     src/figure_table.cpp
     src/gad.cpp
     src/high_scores.cpp
     src/game_directory.cpp
     src/island.cpp
+    src/localized_names.cpp
     src/palette.cpp
     src/savegame.cpp
     src/scenario.cpp

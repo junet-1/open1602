@@ -5,10 +5,12 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/assets/localized_names.hpp"
 #include "o1602/core/result.hpp"
 
 namespace o1602::assets {
@@ -164,12 +166,24 @@ struct ResidentClass {
     struct Need {
         std::uint8_t ware = 0;
         std::uint32_t amount = 0;
+        friend bool operator==(const Need&, const Need&) = default;
     };
     std::uint32_t share = 0;          ///< Prozent * 128 / 100: supply the class asks for
     std::uint32_t max_per_house = 0;  ///< Maxwohn
     std::uint32_t tax = 0;            ///< trunc(Steuer * 16 / 3)
     std::uint32_t hiscore = 0;        ///< Hiscore
     std::vector<Need> needs;          ///< besides food, in file order
+    /// Open1602's own (resident_classes.hpp): the string id of a class a package added, empty for
+    /// those of haeuser.cod.
+    std::string id;
+    /// The class of the original whose faces and public buildings this one has: its own number for
+    /// the original's.
+    std::uint8_t look = 0;
+    /// The names a package gave the class by language code, Windows-1252; empty for the original's,
+    /// which Text.cod names.
+    LocalizedNames names;
+
+    friend bool operator==(const ResidentClass&, const ResidentClass&) = default;
 };
 
 /// An unlock level (BAUINFRA in haeuser.cod): a city reaches it when it has `min_inhabitants`
@@ -231,6 +245,9 @@ public:
 
     /// Classes of inhabitants by BGRUPPE Nummer.
     [[nodiscard]] const std::vector<ResidentClass>& resident_classes() const noexcept { return m_classes; }
+    /// Puts the classes of a game in place of these (resident_classes.hpp): the original's as
+    /// packages changed them and those they added.
+    void set_resident_classes(std::vector<ResidentClass> classes) { m_classes = std::move(classes); }
     /// Food every inhabitant eats per 10 s in 1/8192 t (global `Nahrung`: trunc(1.3 * 8192) / 600 =
     /// 17) and its ware (NAHRUNG, 14).
     [[nodiscard]] std::uint32_t food_need() const noexcept { return m_food_need; }

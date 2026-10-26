@@ -26,6 +26,7 @@
 #include "o1602/assets/data_fixes.hpp"
 #include "o1602/assets/game_content.hpp"
 #include "o1602/assets/high_scores.hpp"
+#include "o1602/assets/resident_classes.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/core/file.hpp"
@@ -140,6 +141,9 @@ struct ModRules {
     std::vector<assets::OwnBuilding> own;
     /// The original's goods and those the packages added (goods.toml).
     assets::Goods goods;
+    /// The classes of inhabitants as the packages change and add them (classes.toml); empty when
+    /// none does.
+    std::vector<assets::ResidentClass> classes;
 };
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
@@ -149,17 +153,29 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
                         const assets::FigureTable& figures) {
     ModRules rules;
     std::vector<std::string> problems;
-    // Goods first, then the buildings that make them, then the values that may name both.
+    // Goods first, then the classes and buildings that use them, then the values that may name both.
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / assets::kGoodsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             assets::apply_goods_file(rules.goods, package.id, text, problems);
         }
     }
+    // Then the classes that need them, then the buildings, among them houses of those classes.
+    std::vector<assets::ResidentClass> classes = buildings.resident_classes();
+    bool classes_changed = false;
+    for (const assets::ModPackage& package : packages) {
+        if (const auto bytes = core::read_file(package.folder / assets::kClassesFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            classes_changed |= assets::apply_classes_file(classes, package.id, text, problems, rules.goods);
+        }
+    }
+    if (classes_changed) {
+        rules.classes = classes;
+    }
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / assets::kOwnBuildingsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-            assets::apply_own_buildings_file(buildings, rules.own, package.id, text, problems, rules.goods);
+            assets::apply_own_buildings_file(buildings, rules.own, package.id, text, problems, rules.goods, classes);
         }
     }
     for (const assets::ModPackage& package : packages) {
@@ -236,6 +252,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         world->set_packages(assets::content_of(packages));
         world->set_own_buildings(rules.own);
         world->set_goods(rules.goods);
+        world->set_resident_classes(rules.classes);
     } else if (options.new_game) {
         auto texts = assets::TextTable::load(game);
         if (!texts) {
@@ -248,6 +265,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             world->set_packages(assets::content_of(packages));
             world->set_own_buildings(rules.own);
             world->set_goods(rules.goods);
+            world->set_resident_classes(rules.classes);
         }
     } else {
         auto bytes = core::read_file(options.scenario);
@@ -268,6 +286,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                 world->set_packages(assets::content_of(packages));
                 world->set_own_buildings(rules.own);
                 world->set_goods(rules.goods);
+                world->set_resident_classes(rules.classes);
             }
         }
     }
@@ -300,6 +319,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_balance = rules.balance;
     viewer->m_own_buildings = std::move(rules.own);
     viewer->m_goods = std::move(rules.goods);
+    viewer->m_classes = std::move(rules.classes);
     viewer->m_packages = std::move(packages);
     {
         std::vector<std::string> problems;
@@ -2463,6 +2483,7 @@ void MapViewer::give_mod_content(sim::World& world) const {
     world.set_packages(assets::content_of(m_packages));
     world.set_own_buildings(m_own_buildings);
     world.set_goods(m_goods);
+    world.set_resident_classes(m_classes);
 }
 
 void MapViewer::use_game_packages() {
@@ -2550,10 +2571,12 @@ void MapViewer::reload_mods() {
     m_balance = rules.balance;
     m_own_buildings = std::move(rules.own);
     m_goods = std::move(rules.goods);
+    m_classes = std::move(rules.classes);
     // Packages are turned on and off in the main menu, where no game is running: the game's table
     // takes the buildings the packages give now, with the values of the world behind the menu.
     m_buildings = m_original_buildings;
     sim::apply_building_values(m_buildings, m_original_buildings, m_state->world.balance());
+    sim::apply_resident_classes(m_buildings, m_original_buildings, m_state->world.resident_classes());
 }
 
 std::string MapViewer::adopt_mod(const std::filesystem::path& folder) {
@@ -2625,6 +2648,7 @@ std::unique_ptr<GameState> MapViewer::make_state(sim::World world, const sim::Ru
         world.set_balance(balance);
     }
     sim::apply_building_values(m_buildings, m_original_buildings, world.balance());
+    sim::apply_resident_classes(m_buildings, m_original_buildings, world.resident_classes());
     sim::apply_figure_values(m_figures, m_original_figures, world.balance());
     return std::make_unique<GameState>(std::move(world), m_buildings, m_figures, rules);
 }
@@ -2637,6 +2661,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     const auto keep_old = [&] {
         if (m_state) {
             sim::apply_building_values(m_buildings, m_original_buildings, m_state->world.balance());
+            sim::apply_resident_classes(m_buildings, m_original_buildings, m_state->world.resident_classes());
             sim::apply_figure_values(m_figures, m_original_figures, m_state->world.balance());
         }
     };

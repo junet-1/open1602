@@ -487,6 +487,11 @@ public:
     /// in the savegame (section GOOD).
     [[nodiscard]] const assets::Goods& goods() const noexcept { return m_goods; }
     void set_goods(assets::Goods goods) { m_goods = std::move(goods); }
+    /// The classes of inhabitants as the packages changed and added them (resident_classes.hpp),
+    /// kept with the game; empty: haeuser.cod's. The game puts them into its building table
+    /// (BuildingTable::set_resident_classes), which the simulation reads them from.
+    [[nodiscard]] const std::vector<assets::ResidentClass>& resident_classes() const noexcept { return m_classes; }
+    void set_resident_classes(std::vector<assets::ResidentClass> classes) { m_classes = std::move(classes); }
     /// The faction a player belongs to; the settlers' for a faction the world does not have.
     [[nodiscard]] const Faction& faction(const Player& player) const noexcept {
         return player.faction < m_factions.size() ? m_factions[player.faction] : m_factions[faction::kSettlers];
@@ -700,6 +705,7 @@ private:
     std::optional<std::vector<assets::ContentPackage>> m_packages;
     std::vector<assets::OwnBuilding> m_own_buildings;
     assets::Goods m_goods;
+    std::vector<assets::ResidentClass> m_classes;
     std::vector<Ship> m_ships;
     std::uint32_t m_next_ship_id = 1;
     IdIndex m_ship_index;

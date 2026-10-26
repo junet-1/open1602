@@ -73,8 +73,14 @@ struct HouseEvent {
 
 /// Whether a house has the public buildings class `resident_class` needs (0x0047BFA0): pioneers a
 /// market or Kontor; settlers a market and a chapel or church; citizens also a tavern and a
-/// school; merchants a church and a bath house; aristocrats a college and a theatre.
+/// school; merchants a church and a bath house; aristocrats a college and a theatre. A class a
+/// package added needs what the original's class it looks like needs (ResidentClass::look).
 [[nodiscard]] bool has_services(const House& house, std::uint8_t resident_class) noexcept;
+/// has_services for class `resident_class` of `buildings`, also one a package added.
+[[nodiscard]] bool has_services(const House& house, const assets::BuildingTable& buildings,
+                                std::uint8_t resident_class) noexcept;
+/// The class of the original whose public buildings class `resident_class` needs.
+[[nodiscard]] std::uint8_t service_class(const assets::BuildingTable& buildings, std::uint8_t resident_class) noexcept;
 
 /// The public buildings in reach of a house in the panel's layout (House_PanelServices
 /// 0x0047B200). A church also counts as a chapel and a college as a school; a Kontor is no market.

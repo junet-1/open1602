@@ -171,6 +171,12 @@ constexpr std::array kWares{
     OriginalName{"wood", 23},    OriginalName{"bricks", 24},
 };
 
+/// haeuser.cod's BGRUPPE, as Text.cod's [GAME] names them.
+constexpr std::array kClasses{
+    OriginalName{"pioneers", 0},  OriginalName{"settlers", 1},    OriginalName{"citizens", 2},
+    OriginalName{"merchants", 3}, OriginalName{"aristocrats", 4},
+};
+
 }  // namespace
 
 std::optional<std::uint32_t> original_building_id(std::string_view id) noexcept {
@@ -191,6 +197,10 @@ std::span<const OriginalName> original_building_names() noexcept {
 
 std::span<const OriginalName> original_ware_names() noexcept {
     return kWares;
+}
+
+std::span<const OriginalName> original_class_names() noexcept {
+    return kClasses;
 }
 
 std::span<const OriginalName> original_figure_names() noexcept {
