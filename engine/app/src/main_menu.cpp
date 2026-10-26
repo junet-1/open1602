@@ -475,6 +475,7 @@ void MainMenu::load_details() {
             }
         }
     }
+    append_level_notes();
     m_scores.clear();
     if (!s.files.empty()) {
         // A campaign part has a list of its own, named by its label (HighScore_Insert 0x0048E540).
@@ -500,6 +501,24 @@ void MainMenu::load_details() {
                 std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
         }
     }
+}
+
+void MainMenu::append_level_notes() {
+    // What sets the levels of the endless game apart, as the History Edition lists it under the
+    // briefing. Its own briefings carry these lines already; the other installations get them here.
+    const MenuScenario& s = m_scenarios[m_chosen];
+    if (s.header.mission_number != kEndless || m_variant >= sim::NewGameOptions::kDifficulties ||
+        m_briefing.find("\n* ") != std::string::npos) {
+        return;
+    }
+    const std::string notes = ui::tr("menu.endless_level_notes." + std::to_string(m_variant));
+    if (notes.empty()) {
+        return;
+    }
+    if (!m_briefing.empty()) {
+        m_briefing += '\n';
+    }
+    m_briefing += notes;
 }
 
 std::filesystem::path MainMenu::chosen_file() const {

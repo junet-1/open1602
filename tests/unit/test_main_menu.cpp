@@ -16,6 +16,7 @@
 #include "../test_framework.hpp"
 #include "main_menu.hpp"
 
+#include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/assets/text_table.hpp"
 
@@ -122,7 +123,16 @@ struct Game {
         write(root / "GADDATA" / "MISSION.GAD", mission_layout().gad());
         write(root / "GADDATA" / "FARBWAHL.GAD", colour_layout().gad());
         for (const std::string& s : scenarios) {
-            write(root / "Szenes" / s, "not a scenario");  // no header: an adventure without stars
+            if (s.starts_with("Endlos")) {
+                // The endless game: mission number 1 in its header.
+                assets::ChunkWriter w;
+                const std::array<std::uint8_t, 4> endless = {1, 0, 0, 0};
+                w.add("SZENE_MISSNR", endless);
+                const core::Bytes& b = w.bytes();
+                write(root / "Szenes" / s, std::string(b.begin(), b.end()));
+            } else {
+                write(root / "Szenes" / s, "not a scenario");  // no header: an adventure without stars
+            }
         }
         auto opened = assets::GameDirectory::open(root);
         REQUIRE(opened.ok());
@@ -223,6 +233,28 @@ TEST_CASE("main menu: the list of scenarios, a mission screen with its parts, th
     CHECK(menu.screen() == MainMenu::Screen::Mission);
     CHECK(!menu.open_mission("Nowhere"));
     CHECK(menu.screen() == MainMenu::Screen::Base);
+}
+
+TEST_CASE("main menu: the endless game lists what sets its chosen level apart") {
+    Game g("o1602-test-menu-endless", {"Endlos0.szs", "Endlos1.szs", "Endlos2.szs", "Endlos3.szs"});
+    MainMenu menu(*g.dir, &g.texts);
+    click(menu, base_layout(), 30002);
+    REQUIRE(menu.screen() == MainMenu::Screen::Host);
+    const auto list = texts(menu);
+    const auto row = std::find(list.begin(), list.end(), "Endlos");
+    REQUIRE(row != list.end());
+    click(menu, host_layout(), 31021 + static_cast<std::int32_t>(row - list.begin()));
+    REQUIRE(menu.screen() == MainMenu::Screen::Mission);
+    const auto briefing_with = [&](const std::string& line) {
+        const auto all = texts(menu);
+        return std::any_of(all.begin(), all.end(),
+                           [&](const std::string& t) { return t.find(line) != std::string::npos; });
+    };
+    CHECK(briefing_with("* no pirates"));
+    CHECK(!briefing_with("* frequent droughts"));
+    click(menu, mission_layout(), 32014);  // the fourth level
+    CHECK(briefing_with("* frequent droughts"));
+    CHECK(!briefing_with("* no pirates"));
 }
 
 TEST_CASE("main menu: a long list scrolls by fourteen rows") {

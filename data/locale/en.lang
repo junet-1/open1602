@@ -40,6 +40,11 @@ notice.screenshot_failed = Screenshot failed: {1}
 menu.part = Part {1}
 menu.default_name = Nameless
 menu.start_failed = The game could not be started: {1}
+# The endless game's levels below its briefing, one "* " line each (as the History Edition)
+menu.endless_level_notes.0 = * numerous ore deposits\n* many fertile islands\n* no pirates
+menu.endless_level_notes.1 = * enough fertile islands\n* occasional pirate sightings
+menu.endless_level_notes.2 = * limited number of ore deposits\n* pirates threaten sea travel
+menu.endless_level_notes.3 = * very few ore deposits\n* frequent droughts\n* pirates threaten sea travel
 # {1}: the number of the slot
 save.default_name = Savegame {1}
 # A savegame in the lists: {1} the player's name, {2} the time played, {3} x {4} the map's size
