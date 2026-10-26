@@ -1709,31 +1709,45 @@ public:
             restore_ground(f, city);
             return;
         }
+        const auto variant = [&](const assets::BuildingType& r) {
+            const std::uint32_t pick =
+                m_world.random(RandomStream::Construction).below(std::max<std::uint32_t>(r.rand_count, 1));
+            const assets::BuildingType* v = m_buildings.by_record(r.record + pick * r.rand_add);
+            return v != nullptr ? v : &r;
+        };
+        const auto on_beach = [&](std::int32_t tx, std::int32_t ty) {
+            const MapCell& ground = m.ground(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
+            const assets::BuildingType* g = ground.empty() ? nullptr : m_buildings.by_sprite(ground.sprite);
+            return g != nullptr && is_beach(g->kind);
+        };
         if (ruin->size_x == b.type->size_x && ruin->size_y == b.type->size_y) {
-            (void)m.build(*ruin, b.origin.x, b.origin.y, b.rotation, 0,
+            // One ruin over the whole footprint, the beach variant by the origin's ground; it is
+            // registered as a building of the city (0x00463FD0): a destroyed Kontor stays the
+            // city's Kontor and holds its land (S-018), until another player builds over it.
+            const assets::BuildingType* r = m_buildings.ruin_record(b.type->ruin, on_beach(b.origin.x, b.origin.y));
+            if (r == nullptr || r->size_x != ruin->size_x || r->size_y != ruin->size_y) {
+                r = ruin;
+            }
+            const assets::BuildingType* v = variant(*r);
+            (void)m.build(*v, b.origin.x, b.origin.y, b.rotation, 0,
                           m.top(static_cast<std::uint32_t>(b.origin.x), static_cast<std::uint32_t>(b.origin.y)).owner,
                           city);
+            register_building(*v, b.origin.x, b.origin.y, city, 0, std::nullopt);
             return;
         }
         for (std::uint32_t j = 0; j < f.h; ++j) {
             for (std::uint32_t i = 0; i < f.w; ++i) {
                 const std::int32_t tx = f.x + static_cast<std::int32_t>(i);
                 const std::int32_t ty = f.y + static_cast<std::int32_t>(j);
-                const MapCell& ground = m.ground(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
-                const assets::BuildingType* g = ground.empty() ? nullptr : m_buildings.by_sprite(ground.sprite);
-                const bool beach = g != nullptr && is_beach(g->kind);
-                const assets::BuildingType* r = m_buildings.ruin_record(b.type->ruin, beach);
+                const assets::BuildingType* r = m_buildings.ruin_record(b.type->ruin, on_beach(tx, ty));
                 if (r == nullptr || r->size_x != 1 || r->size_y != 1) {
                     r = m_buildings.ruin_record(b.type->ruin, false);
                 }
                 if (r == nullptr || r->size_x != 1 || r->size_y != 1) {
                     continue;
                 }
-                const std::uint32_t pick =
-                    m_world.random(RandomStream::Construction).below(std::max<std::uint32_t>(r->rand_count, 1));
-                const assets::BuildingType* v = m_buildings.by_record(r->record + pick * r->rand_add);
                 const MapCell top = m.top(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
-                (void)m.build(v != nullptr ? *v : *r, tx, ty, top.rotation, 0, top.owner, city);
+                (void)m.build(*variant(*r), tx, ty, top.rotation, 0, top.owner, city);
             }
         }
     }

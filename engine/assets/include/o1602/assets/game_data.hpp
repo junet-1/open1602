@@ -464,6 +464,13 @@ inline constexpr std::uint32_t kSheepFarm = 21515;
 inline constexpr std::uint32_t kBigOreMountain = 21108;  ///< IDFELS+7: the mountain a volcano is
 inline constexpr std::uint32_t kRuin = 22601;            ///< IDRUINE: the first ruin record
 inline constexpr std::uint32_t kMeadow = 22722;          ///< IDWEIDE+21: what demolished forest becomes
+/// The ruin slots (Ruinenr) of the original (table 0x00619B20, filled at 0x00462F6A): land and
+/// beach ruins of wooden houses, brick houses, plantations, field paths, roads and mines (IDRUINE
+/// + offset), the destroyed Kontors I-IV ("Kontor zerstört"), the destroyed native buildings and
+/// the destroyed market.
+inline constexpr std::array<std::uint32_t, 15> kRuins{kRuin,      kRuin + 9,  kRuin + 10, kRuin + 19, kRuin + 20,
+                                                      kRuin + 30, kRuin + 35, kRuin + 40, 22121,      22122,
+                                                      22123,      22124,      22210,      22240,      20823};
 /// The ripe fields the original's plans place (Endlosspiel<D><V>.szs), in their order.
 inline constexpr std::array<std::uint32_t, 6> kPlanCrops{21336, 21342, 21340, 21332, 21344, 21338};
 /// The list the original keeps after the build menu's (0x00498610), named from Text.cod

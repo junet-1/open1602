@@ -785,3 +785,85 @@ TEST_CASE("military: a battle of two armies develops the same on every platform 
     CHECK(f.count(sim::MilitaryEvent::Kind::SoldierKilled) > 0);
     test::check_golden("battle after 45 s", test::world_hash(f.world, f.buildings), 0xa7553b4617753756ULL);
 }
+
+namespace {
+
+/// The original's ruin records (assets::id::kRuins): a Kontor I (Ruinenr 8) falls to the
+/// destroyed Kontor I (22121), a pier (Ruinenr 2) to the land ruin 22611 or on beach 22620.
+assets::BuildingTable make_ruin_buildings() {
+    const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: HAUS\n"
+        "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"                   // open ground
+        "  @Nummer: 1\n  Id: 20102\n  Kind: 23\n  Gfx: 1\n  Size: 1, 1\n"                   // beach
+        "  @Nummer: 2\n  Id: 20103\n  Kind: 14\n  Gfx: 2\n  Size: 2, 2\n  Maxenergy: 20\n"  // a house
+        "  Ruinenr: 255\n"
+        "  @Nummer: 3\n  Id: 20108\n  Kind: 35\n  Gfx: 30\n  Size: 2, 2\n  Maxenergy: 20\n"
+        "  KreuzBase: 6\n  Ausbauflg: 1\n  Ruinenr: 8\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"  // Kontor I
+        "  @Nummer: 4\n  Id: 22121\n  Kind: 35\n  Gfx: 40\n  Size: 2, 2\n"
+        "  KreuzBase: 6\n  Ausbauflg: 1\n  Destroyflg: 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n  EndObj\n"                     // destroyed Kontor I
+        "  @Nummer: 5\n  Id: 21900\n  Kind: 30\n  Gfx: 50\n  Size: 1, 1\n  Maxenergy: 10\n"  // a pier
+        "  Ruinenr: 2\n"
+        "  @Nummer: 6\n  Id: 22611\n  Kind: 12\n  Gfx: 60\n  Size: 1, 1\n"  // land ruin
+        "  @Nummer: 7\n  Id: 22620\n  Kind: 29\n  Gfx: 61\n  Size: 1, 1\n"  // beach ruin
+        "EndObj\n",
+        types);
+    auto table = assets::BuildingTable::from_cod(doc);
+    REQUIRE(table.ok());
+    return std::move(table).value();
+}
+
+}  // namespace
+
+TEST_CASE("military: a destroyed Kontor becomes the destroyed Kontor; the city keeps its land (S-018)") {
+    const assets::BuildingTable buildings = make_ruin_buildings();
+    const assets::FigureTable figures = make_figures();
+    sim::World world{80, 60};
+    std::vector<sim::Player> players(2);
+    players[0].role = sim::PlayerRole::Human;
+    players[1].role = sim::PlayerRole::Computer;
+    world.set_players(players);
+    sim::IslandMap map(30, 20);
+    for (std::int32_t y = 0; y < 20; ++y) {
+        for (std::int32_t x = 0; x < 30; ++x) {
+            REQUIRE(map.place(*buildings.by_id(x == 5 ? 20102 : 20101), x, y, 0, 0, 1, 0).ok());
+        }
+    }
+    map.capture_ground();
+    REQUIRE(map.build(*buildings.by_id(20108), 10, 5, 0, 0, 1, 0).ok());
+    REQUIRE(map.build(*buildings.by_id(20103), 13, 5, 0, 0, 1, 0).ok());
+    REQUIRE(map.build(*buildings.by_id(21900), 5, 6, 0, 0, 1, 0).ok());  // on beach
+    REQUIRE(map.build(*buildings.by_id(21900), 6, 6, 0, 0, 1, 0).ok());  // on ground
+    REQUIRE(world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 10, 10}).ok());
+    sim::City c;
+    c.island = 0;
+    c.index = 0;
+    c.owner = 1;
+    c.warehouse_x = 10;
+    c.warehouse_y = 5;
+    world.add_city(c);
+    const sim::Rules rules = sim::Rules::open1602();
+    sim::Combat combat(world, buildings, figures);
+    sim::Military military(world, buildings, figures, rules, combat);
+    std::vector<sim::ConstructionEvent> construction;
+
+    military.damage_building(0, 10, 5, 20 * 32, true, 0, &construction);
+    const sim::IslandMap& m = world.islands()[0].map;
+    CHECK(m.top(10, 5).sprite == buildings.by_id(22121)->gfx);
+    CHECK(m.top(11, 6).owner == 1);
+    REQUIRE(world.city(0, 0) != nullptr);  // not dissolved
+    CHECK(world.city(0, 0)->warehouse_x == std::optional<std::uint16_t>{10});
+    CHECK(m.top(13, 5).sprite == buildings.by_id(20103)->gfx);  // the house stands
+    CHECK(m.top(14, 9).city == 0);                              // the land stays the city's
+    CHECK(sim::city_defenceless(world, buildings, 0, 0));
+    // The destroyed Kontor is no target any more.
+    CHECK(!combat.fighter(sim::Target::building(0, 10, 5)).has_value());
+
+    // A pier on beach falls to the beach ruin, drawn at the height of the sand; on land to the land ruin.
+    military.damage_building(0, 5, 6, 10 * 32, true, 0, &construction);
+    military.damage_building(0, 6, 6, 10 * 32, true, 0, &construction);
+    CHECK(m.top(5, 6).sprite == buildings.by_id(22620)->gfx);
+    CHECK(m.top(6, 6).sprite == buildings.by_id(22611)->gfx);
+}
