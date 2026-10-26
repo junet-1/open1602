@@ -18,8 +18,9 @@ information fit in and the controls follow today's real-time strategy games (202
    (example: exploring at the pirate warehouse and at the shipyard as a button, U-013). New windows and buttons
    are added as data (ADR 0007).
 2. **Right-click gives commands** (default): move, attack, dock, trade depending on the target. A ship
-   attacks another player's Kontor unless it may trade there (a trade treaty; the pirates keep theirs at
-   war): then it sails there to trade, and F first attacks it. The
+   attacks another player's buildings, as in the original's military mode; their Kontor only when it may
+   not trade there (a trade treaty; the pirates keep theirs at war), else it sails there to trade, and F
+   first attacks it. The
    left-click controls of the original are a setting. The left button selects (click, box,
    Shift adds); Escape cancels and goes back one page. Dragging with the right or
    middle button still scrolls the map.

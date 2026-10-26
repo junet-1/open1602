@@ -1356,9 +1356,26 @@ void MapInput::map_order(double x, double y, bool queue, bool on_object) {
             submit_orders(m_units.target_orders(world(), local(), t, queue, false));
             return;
         }
-        if (const auto hit =
-                fell ? building_tile_at(x, y, [&](std::uint16_t, const sim::SubTile& t) { return is_tree(t); })
-                     : std::optional<render::TileHit>{}) {
+        // Another player's building is attacked, as in the original's military mode
+        // (Haus_IsDestroyable 0x00464A80); a tree or field only with Ctrl or F.
+        const auto foreign = [&](std::uint16_t island, const sim::SubTile& t) {
+            const sim::PlayerId owner =
+                world()
+                    .islands()[island]
+                    .map.top(static_cast<std::uint32_t>(t.origin_x), static_cast<std::uint32_t>(t.origin_y))
+                    .owner;
+            return owner != local() && owner != sim::kNoPlayer;
+        };
+        if (const auto hit = building_tile_at(x, y, [&](std::uint16_t island, const sim::SubTile& t) {
+                if (t.building == nullptr) {
+                    return false;
+                }
+                if (is_tree(t)) {
+                    return fell;
+                }
+                return (!sim::soldiers_walk_on(*t.building) || t.building->kind == sim::building_kind::kGate) &&
+                       foreign(island, t);
+            })) {
             const sim::SubTile b = world().islands()[hit->island].map.sub_tile(m_buildings, hit->local_x, hit->local_y);
             const sim::Target t = sim::Target::building(hit->island, static_cast<std::uint32_t>(b.origin_x),
                                                         static_cast<std::uint32_t>(b.origin_y));
