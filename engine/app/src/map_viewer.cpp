@@ -140,7 +140,8 @@ struct ModRules {
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
 /// balance.toml), the packages in their load order.
-ModRules load_mod_rules(std::span<const assets::ModPackage> packages, const assets::BuildingTable& buildings) {
+ModRules load_mod_rules(std::span<const assets::ModPackage> packages, const assets::BuildingTable& buildings,
+                        const assets::FigureTable& figures) {
     ModRules rules;
     std::vector<std::string> problems;
     for (const assets::ModPackage& package : packages) {
@@ -152,8 +153,17 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, const asse
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             sim::apply_balance_file(rules.balance, package.id, text, problems);
         }
+        if (const auto bytes = core::read_file(package.folder / sim::kBuildingsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            sim::apply_buildings_file(rules.balance, package.id, text, problems);
+        }
+        if (const auto bytes = core::read_file(package.folder / sim::kFiguresFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            sim::apply_figures_file(rules.balance, package.id, text, problems);
+        }
     }
     sim::drop_unknown_buildings(rules.balance, buildings, problems);
+    sim::drop_unknown_figures(rules.balance, figures, problems);
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
@@ -200,7 +210,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             std::fprintf(stderr, "mods: package %s\n", assets::package_label(p.content()).c_str());
         }
     }
-    ModRules rules = load_mod_rules(packages, *buildings);
+    ModRules rules = load_mod_rules(packages, *buildings, *figures);
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
     if (options.menu || joining) {
@@ -471,6 +481,7 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_original_buildings(m_buildings),
       m_palette(std::move(palette)),
       m_figures(std::move(figures)),
+      m_original_figures(m_figures),
       m_options(std::move(options)),
       m_state(make_state(std::move(world), m_options.rules)),
       m_events(
@@ -2492,7 +2503,7 @@ void MapViewer::reload_mods() {
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
-    ModRules rules = load_mod_rules(m_packages, m_buildings);
+    ModRules rules = load_mod_rules(m_packages, m_original_buildings, m_original_figures);
     m_factions = std::move(rules.factions);
     m_balance = rules.balance;
 }
@@ -2566,6 +2577,7 @@ std::unique_ptr<GameState> MapViewer::make_state(sim::World world, const sim::Ru
         world.set_balance(balance);
     }
     sim::apply_building_values(m_buildings, m_original_buildings, world.balance());
+    sim::apply_figure_values(m_figures, m_original_figures, world.balance());
     return std::make_unique<GameState>(std::move(world), m_buildings, m_figures, rules);
 }
 
@@ -2577,6 +2589,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     const auto keep_old = [&] {
         if (m_state) {
             sim::apply_building_values(m_buildings, m_original_buildings, m_state->world.balance());
+            sim::apply_figure_values(m_figures, m_original_figures, m_state->world.balance());
         }
     };
     try {

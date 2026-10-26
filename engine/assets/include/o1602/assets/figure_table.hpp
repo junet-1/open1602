@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include "o1602/assets/cod_parser.hpp"
@@ -73,6 +74,9 @@ struct FigureSound {
     std::uint16_t sample = 0;  ///< WAV_* number, 0 = none
     std::uint8_t variants = 1;
 };
+
+/// Figure numbers a table holds at most (FIGUR Nummer below it).
+inline constexpr std::uint32_t kMaxFigures = 1024;
 
 struct FigureType {
     std::uint32_t number = 0;  ///< Nummer (index into the original table at 0x0061FCC0)
@@ -186,6 +190,13 @@ public:
     [[nodiscard]] const FigureType* get(std::uint32_t number) const noexcept {
         return number < m_types.size() && m_types[number].defined ? &m_types[number] : nullptr;
     }
+    /// The same for the values a game changes (sim::apply_figure_values): the types keep their places.
+    [[nodiscard]] FigureType* get(std::uint32_t number) noexcept {
+        return number < m_types.size() && m_types[number].defined ? &m_types[number] : nullptr;
+    }
+    /// Every slot of the table, defined or not, in the order of their numbers.
+    [[nodiscard]] std::span<FigureType> changeable_types() noexcept { return m_types; }
+    [[nodiscard]] std::span<const FigureType> types() const noexcept { return m_types; }
     /// Flag figure of a player colour, or nullptr for colours without flag (natives, trader).
     [[nodiscard]] const FigureType* flag_for_colour(std::uint8_t colour) const noexcept {
         return colour < kFlagFigures.size() ? get(kFlagFigures[colour]) : nullptr;

@@ -20,6 +20,8 @@ with milestone M8: packages as archives and adding content of a package's own
     build_menu.toml    the build menu (build-menu.md)
     factions.toml      how the neutral factions grow with the players (factions.md)
     balance.toml       numbers of the game (balance.md)
+    buildings.toml     values of the original's buildings (values.md)
+    figures.toml       values of the original's figures (values.md)
 ```
 
 The folder's name is the package's id, for example `lighthouse`. The ids of a package's entries

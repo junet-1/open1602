@@ -26,6 +26,8 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `build_menu.toml` | the build menu: a package's buildings with icon and name, the original's moved or taken out | [build-menu.md](build-menu.md) |
 | `factions.toml` | how pirate nests, trader ships and the trader's reach grow with the players | [factions.md](factions.md) |
 | `balance.toml` | trader amounts and restocking, castle training and landing range, fire and plague spread | [balance.md](balance.md) |
+| `buildings.toml` | values of the original's buildings: production, costs, reach, workers, hit points | [values.md](values.md) |
+| `figures.toml` | values of the original's figures: speed, carrying, hit points, damage, range, cannons, price | [values.md](values.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
 Without a mod file the engine already has banners with tinted flags for any number of players
@@ -52,10 +54,13 @@ received ones to the `mods` folder. Still open: packages as archives, not only f
 
 ### 2. Content registry with string ids (section 2)
 
-Buildings and figures are still addressed by their `.cod` numbers. A package cannot add a building
-of its own except by shipping a changed `haeuser.cod`. Single production and cost values of an
-original record can be changed in `balance.toml` (`["anno1602:<Id>"]`, [balance.md](balance.md#the-buildings-values)),
-other fields not yet. Needed: entries with ids such as `mymod:lighthouse`, read from the
+Part a done on 2026-10-26 ([values.md](values.md)): a package changes single values of the
+original's buildings (`buildings.toml`, 16 fields: production, costs, reach, workers, hit points)
+and figures (`figures.toml`, 10 fields: speed, carrying, work time, hit points, damage, range, shot
+time, cannons, price, material), addressed as `["anno1602:<number>"]` with the `.cod` number; a game
+keeps them (sections `BLDV`, `FIGV`). Still open: names instead of numbers for the original's
+entries, and buildings and figures of a package's own (part b). A package cannot add a building of
+its own except by shipping a changed `haeuser.cod`. Needed: entries with ids such as `mymod:lighthouse`, read from the
 packages' data files, added, overlaid or replaced, and turned into flat index tables after loading.
 Savegames store the ids, not the indexes.
 

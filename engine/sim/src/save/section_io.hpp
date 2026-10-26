@@ -78,6 +78,8 @@ struct Decoded {
     std::optional<std::vector<assets::ContentPackage>> packages;
     /// The changed values of buildings (BLDV).
     std::optional<std::vector<BuildingValue>> building_values;
+    /// The changed values of figures (FIGV).
+    std::optional<std::vector<FigureValue>> figure_values;
     /// Missions and the end of the game (MISN).
     struct MissionPart {
         std::vector<Mission> missions;

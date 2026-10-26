@@ -5,9 +5,9 @@
 // the values it started with: they are saved with it (section BALA, only when they differ), so a
 // running game and every computer of a multiplayer game play with the host's.
 //
-// The same file changes values of the original's buildings (production, running and build costs):
-// a game keeps them in the section BLDV and plays with a building table changed by them
-// (apply_building_values).
+// Values of the original's buildings and figures change too (buildings.toml, figures.toml, and the
+// buildings' tables of balance.toml): a game keeps them in the sections BLDV and FIGV and plays with
+// building and figure tables changed by them (apply_building_values, apply_figure_values).
 #pragma once
 
 #include <array>
@@ -18,7 +18,8 @@
 
 namespace o1602::assets {
 class BuildingTable;
-}
+class FigureTable;
+}  // namespace o1602::assets
 
 namespace o1602::sim {
 
@@ -26,17 +27,44 @@ struct Rules;
 
 /// A value of a building that a package may change (balance.toml, a table ["anno1602:<Id>"]).
 enum class BuildingField : std::uint8_t {
-    Produce,      ///< Prodmenge: t made per cycle
-    Raw,          ///< Rohmenge: t of raw material per cycle
-    Raw2,         ///< Workmenge: t of the second raw material per cycle
-    Interval,     ///< Interval: game seconds per cycle
-    MaxStock,     ///< Maxlager: t the building holds until it is collected
-    RunningCost,  ///< Kosten: gold per minute while switched on
-    IdleCost,     ///< Kosten, second value: gold per minute while switched off
-    BuildMoney,   ///< HAUS_BAUKOST Money
-    BuildTools,   ///< HAUS_BAUKOST Werkzeug, t
-    BuildWood,    ///< HAUS_BAUKOST Holz, t
-    BuildBricks,  ///< HAUS_BAUKOST Ziegel, t
+    Produce,       ///< Prodmenge: t made per cycle
+    Raw,           ///< Rohmenge: t of raw material per cycle
+    Raw2,          ///< Workmenge: t of the second raw material per cycle
+    Interval,      ///< Interval: game seconds per cycle
+    MaxStock,      ///< Maxlager: t the building holds until it is collected
+    RunningCost,   ///< Kosten: gold per minute while switched on
+    IdleCost,      ///< Kosten, second value: gold per minute while switched off
+    BuildMoney,    ///< HAUS_BAUKOST Money
+    BuildTools,    ///< HAUS_BAUKOST Werkzeug, t
+    BuildWood,     ///< HAUS_BAUKOST Holz, t
+    BuildBricks,   ///< HAUS_BAUKOST Ziegel, t
+    BuildCannons,  ///< HAUS_BAUKOST Kanon, t
+    Radius,        ///< HAUS_PRODTYP Radius: tiles its carriers and workers reach
+    Workers,       ///< HAUS_PRODTYP Arbeiter: workers of the city statistics
+    MaxIdle,       ///< HAUS_PRODTYP Maxnorohst: cycles without raw material until it reports a shortage
+    Health,        ///< Maxenergy: hit points against attacks (0: the first hit destroys it)
+};
+
+/// A value of a figure that a package may change (figures.toml, a table ["anno1602:<Number>"]).
+enum class FigureField : std::uint8_t {
+    Speed,     ///< Speed: walking or sailing speed, the number of figuren.cod
+    MaxCarry,  ///< Maxtrag: t a carrier or cart takes at once
+    WorkTime,  ///< Worktime: milliseconds of one work step
+    Health,    ///< Maxenergy: hit points of a soldier or ship
+    Hit,       ///< Hitpoint: damage of one blow or shot
+    Range,     ///< Shotradius: tiles a shot reaches
+    ShotTime,  ///< Shottime: milliseconds between two shots of a ship, from shot to hit for a soldier
+    Cannons,   ///< Maxkanon: cannons a ship carries at most
+    Price,     ///< Preis: what a ship is worth
+    Material,  ///< Rohmenge: t of material a shipyard builds the ship from, of weapons a castle needs for the unit
+};
+
+/// A changed value of a figure, in the units of figures.toml.
+struct FigureValue {
+    std::uint32_t number = 0;  ///< FIGUR Nummer of figuren.cod
+    FigureField field = FigureField::Speed;
+    std::uint32_t value = 0;
+    friend bool operator==(const FigureValue&, const FigureValue&) = default;
 };
 
 /// A changed value of a building, in the units of balance.toml (tons, seconds, gold).
@@ -58,6 +86,8 @@ struct Balance {
     std::uint32_t plague_radius = 4;        ///< tiles a plague reaches to infect a neighbour
     /// Changed values of buildings, sorted by id and field, each at most once.
     std::vector<BuildingValue> buildings;
+    /// Changed values of figures, sorted by number and field, each at most once.
+    std::vector<FigureValue> figures;
 
     friend bool operator==(const Balance&, const Balance&) = default;
 };
@@ -91,7 +121,7 @@ struct BuildingFieldInfo {
 };
 
 /// Every field of a building, in the order of BuildingField.
-inline constexpr std::array<BuildingFieldInfo, 11> kBuildingFields = {{
+inline constexpr std::array<BuildingFieldInfo, 16> kBuildingFields = {{
     {"produce", BuildingField::Produce, 1, 64},
     {"raw", BuildingField::Raw, 1, 64},
     {"raw2", BuildingField::Raw2, 1, 64},
@@ -103,10 +133,37 @@ inline constexpr std::array<BuildingFieldInfo, 11> kBuildingFields = {{
     {"cost_tools", BuildingField::BuildTools, 0, 255},
     {"cost_wood", BuildingField::BuildWood, 0, 255},
     {"cost_bricks", BuildingField::BuildBricks, 0, 255},
+    {"cost_cannons", BuildingField::BuildCannons, 0, 255},
+    {"radius", BuildingField::Radius, 1, 32},
+    {"workers", BuildingField::Workers, 0, 1000},
+    {"max_idle", BuildingField::MaxIdle, 1, 1000},
+    {"health", BuildingField::Health, 0, 10000},
 }};
 
-/// Whether every value lies within its limits and the building values are sorted and each given
-/// once (a savegame's are checked with it).
+/// A field of a figure as figures.toml names it and its limits there.
+struct FigureFieldInfo {
+    std::string_view key;
+    FigureField field;
+    std::uint32_t min;
+    std::uint32_t max;
+};
+
+/// Every field of a figure, in the order of FigureField.
+inline constexpr std::array<FigureFieldInfo, 10> kFigureFields = {{
+    {"speed", FigureField::Speed, 1, 10000},
+    {"max_carry", FigureField::MaxCarry, 1, 64},
+    {"work_time", FigureField::WorkTime, 1, 600000},
+    {"health", FigureField::Health, 1, 10000},
+    {"hit", FigureField::Hit, 0, 1000},
+    {"range", FigureField::Range, 1, 32},
+    {"shot_time", FigureField::ShotTime, 1, 60000},
+    {"cannons", FigureField::Cannons, 0, 100},
+    {"price", FigureField::Price, 0, 100000},
+    {"material", FigureField::Material, 0, 255},
+}};
+
+/// Whether every value lies within its limits and the building and figure values are sorted and
+/// each given once (a savegame's are checked with it).
 [[nodiscard]] bool valid(const Balance& balance) noexcept;
 
 /// Whether the values of kBalanceFields are the original's (the building values not counted).
@@ -117,6 +174,8 @@ void set_building_value(Balance& balance, BuildingValue value);
 
 /// Adds the values of `under` that `balance` does not set itself (a rule's values under the mods').
 void add_building_values(Balance& balance, const std::vector<BuildingValue>& under);
+/// Sets one value of a figure, replacing the one given before.
+void set_figure_value(Balance& balance, FigureValue value);
 
 /// The file of a content package with its changes to the balance.
 inline constexpr std::string_view kBalanceFile = "balance.toml";
@@ -127,6 +186,16 @@ inline constexpr std::string_view kBalanceFile = "balance.toml";
 void apply_balance_file(Balance& balance, std::string_view package, std::string_view utf8,
                         std::vector<std::string>& warnings);
 
+/// The files of a content package with changed values of the original's buildings and figures
+/// (docs/modding/values.md). balance.toml takes the buildings' tables too.
+inline constexpr std::string_view kBuildingsFile = "buildings.toml";
+inline constexpr std::string_view kFiguresFile = "figures.toml";
+/// Changes values of buildings as the buildings.toml of `package` says, as apply_balance_file.
+void apply_buildings_file(Balance& balance, std::string_view package, std::string_view utf8,
+                          std::vector<std::string>& warnings);
+/// Changes values of figures as the figures.toml of `package` says, as apply_balance_file.
+void apply_figures_file(Balance& balance, std::string_view package, std::string_view utf8,
+                        std::vector<std::string>& warnings);
 /// Drops the values of buildings `buildings` does not have, with a warning each.
 void drop_unknown_buildings(Balance& balance, const assets::BuildingTable& buildings,
                             std::vector<std::string>& warnings);
@@ -135,6 +204,10 @@ void drop_unknown_buildings(Balance& balance, const assets::BuildingTable& build
 /// first taken back from `original` (the same table as loaded), then the game's values are set.
 /// The types keep their places, so pointers into the table stay valid.
 void apply_building_values(assets::BuildingTable& table, const assets::BuildingTable& original, const Balance& balance);
+/// Drops the values of figures `figures` does not have, with a warning each.
+void drop_unknown_figures(Balance& balance, const assets::FigureTable& figures, std::vector<std::string>& warnings);
+/// Makes `table` the figure table of a game with `balance`, as apply_building_values.
+void apply_figure_values(assets::FigureTable& table, const assets::FigureTable& original, const Balance& balance);
 
 /// The building values a rule brings (Rules::revised_bread: data/balance/revised_bread.toml,
 /// compiled in), to go under those of the packages.

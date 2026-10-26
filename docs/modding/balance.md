@@ -4,7 +4,7 @@ Some numbers of the game's balance are values a content package can change inste
 the code ([ADR 0007](../architecture/0007-extensibility-and-modding.md): a mod changes data, not
 code). Their defaults are the original's.
 
-**Status:** Done are the values below, the production and cost values of the original's buildings,
+**Status:** Done are the values below, the values of the original's buildings ([values.md](values.md)),
 saving them with the game and the file `balance.toml` that changes them. More values follow as they
 are needed; the needs of the inhabitants and the prices of the wares are still only in the original's
 `.cod` files.
@@ -29,23 +29,10 @@ game plays with the host's.
 ## The buildings' values
 
 A table named after a building of the original, `["anno1602:<Id>"]` with the building's `HAUS` Id
-from `haeuser.cod` (decimal or `0x` hex), changes single values of that building. Buildings are
-addressed by these numbers until the content registry gives them names
-([open-work.md](open-work.md), item 2); a package's own buildings come with it too.
-
-| Field | `haeuser.cod` | Limits | Meaning |
-|---|---|---|---|
-| `produce` | `Prodmenge` | 1–64 | tons made in one cycle |
-| `raw` | `Rohmenge` | 1–64 | tons of the first raw material one cycle uses |
-| `raw2` | `Workmenge` | 1–64 | tons of the second raw material one cycle uses |
-| `interval` | `Interval` | 1–3600 | length of a cycle, in the original's units |
-| `max_stock` | `Maxlager` | 1–255 | tons the building stores at most |
-| `running_cost` | `Kosten` (first) | 0–1000 | gold per minute while it works |
-| `idle_cost` | `Kosten` (second) | 0–1000 | gold per minute while it is idle |
-| `cost_money` | `Money` | 0–100000 | gold to build it |
-| `cost_tools` | `Werkzeug` | 0–255 | tons of tools to build it |
-| `cost_wood` | `Holz` | 0–255 | tons of wood to build it |
-| `cost_bricks` | `Ziegel` | 0–255 | tons of bricks to build it |
+from `haeuser.cod`, changes single values of that building: production, running and build costs,
+reach, hit points. These tables belong in `buildings.toml` now; `balance.toml` still takes them, as
+it did before. The fields and their limits are in [values.md](values.md), with those of the
+figures.
 
 ```toml
 # A cheaper bakery that makes twice the bread.
@@ -53,10 +40,6 @@ addressed by these numbers until the content registry gives them names
 produce = 2
 running_cost = 10
 ```
-
-A table of another package's building, or a number `haeuser.cod` does not have, is passed over with
-a warning. A game keeps these values too (section `BLDV` of [o1602-save.md](../formats/o1602-save.md)),
-and every game starts again from the original's values and its own.
 
 ### Revised bread production
 

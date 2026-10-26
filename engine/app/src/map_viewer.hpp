@@ -364,9 +364,12 @@ private:
     assets::BuildingTable m_buildings;
     assets::BuildingTable m_original_buildings;  ///< as loaded (with the data fixes), for the next game
     assets::Palette m_palette;
+    /// The figures as the running game has them: m_original_figures with the values of its balance
+    /// (sim::apply_figure_values, docs/modding/values.md).
     assets::FigureTable m_figures;
-    render::BannerTable m_banners;  ///< colours and flags of the players (ADR 0007)
-    MessageTable m_messages;        ///< the original's messages and the mods' (docs/modding/messages.md)
+    assets::FigureTable m_original_figures;  ///< as loaded (with the data fixes), for the next game
+    render::BannerTable m_banners;           ///< colours and flags of the players (ADR 0007)
+    MessageTable m_messages;                 ///< the original's messages and the mods' (docs/modding/messages.md)
     /// The factions a new game starts with: the base game's as the mods change them
     /// (docs/modding/factions.md). A savegame of Open1602 keeps its own.
     std::vector<sim::Faction> m_factions = sim::base_factions();
