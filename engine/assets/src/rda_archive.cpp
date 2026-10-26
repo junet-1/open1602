@@ -20,7 +20,7 @@ namespace {
 constexpr std::string_view kMagic = "Resource File V2.2";
 constexpr std::uint64_t kFirstBlockAt = 0x310;  ///< u64: where the first block header is
 constexpr std::uint64_t kBlockHeaderSize = 32;
-constexpr std::uint64_t kEntrySize = 560;       ///< 260 UTF-16 characters, five u64
+constexpr std::uint64_t kEntrySize = 560;  ///< 260 UTF-16 characters, five u64
 constexpr std::size_t kNameChars = 260;
 /// Block flags: compressed (zlib), encrypted, memory resident, deleted. Only blocks without any of
 /// them hold files Open1602 reads; the History Edition's have none.
@@ -124,8 +124,8 @@ core::Result<std::vector<RdaArchive::Entry>> read_directory(std::uint64_t size, 
                 entry.offset = u64_at(e + kNameChars * 2);
                 entry.stored = u64_at(e + kNameChars * 2 + 8);
                 entry.size = u64_at(e + kNameChars * 2 + 16);
-                entry.readable = entry.stored == entry.size && entry.offset <= size &&
-                                 entry.stored <= size - entry.offset;
+                entry.readable =
+                    entry.stored == entry.size && entry.offset <= size && entry.stored <= size - entry.offset;
                 entries.push_back(std::move(entry));
             }
         }
@@ -193,8 +193,8 @@ core::Result<RdaArchive> RdaArchive::from_bytes(std::vector<std::uint8_t> bytes)
 }
 
 const RdaArchive::Entry* RdaArchive::find(std::string_view name) const {
-    const auto it = std::find_if(m_entries.begin(), m_entries.end(),
-                                 [&](const Entry& e) { return same_name(e.name, name); });
+    const auto it =
+        std::find_if(m_entries.begin(), m_entries.end(), [&](const Entry& e) { return same_name(e.name, name); });
     return it == m_entries.end() ? nullptr : &*it;
 }
 

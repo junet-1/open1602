@@ -133,7 +133,7 @@ core::Result<SpriteSheet> SpriteSheet::load(const std::filesystem::path& path) {
 }
 
 core::Result<IndexedImage> SpriteSheet::decode_true_colour(std::size_t index, const SpriteInfo& info,
-                                                          IndexedImage image) const {
+                                                           IndexedImage image) const {
     // As the RLE of type 1 in little-endian words: [skip][count][count pixels B, G, R, 0],
     // 0xFE = next row, 0xFF = end.
     const auto data = m_file.payload(m_chunk);

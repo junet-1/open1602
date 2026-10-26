@@ -165,8 +165,7 @@ std::optional<ui::Panel> load_colour_panel(const assets::GameDirectory& game) {
 
 }  // namespace
 
-std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder,
-                                        const std::array<std::string, 4>& headings,
+std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, const std::array<std::string, 4>& headings,
                                         const assets::GameDirectory* game) {
     // One entry per name without the extension and the digits at its end (0x0048E710).
     std::map<std::string, MenuScenario> by_name;
@@ -745,8 +744,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
             continue;
         }
         switch (m_screen) {
-            case Screen::Base:
-            {
+            case Screen::Base: {
                 const std::int32_t below = m_history_buttons ? 1 : 0;  // the buttons after Options
                 if (e.id == kSingle && m_host) {
                     load_scenarios();

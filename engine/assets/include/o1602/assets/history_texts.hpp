@@ -39,7 +39,7 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return m_lines.size(); }
 
 private:
-    std::map<std::string, std::int32_t> m_languages;                    ///< "de" -> languageID
+    std::map<std::string, std::int32_t> m_languages;                      ///< "de" -> languageID
     std::map<std::int32_t, std::map<std::int32_t, std::string>> m_lines;  ///< lineID -> languageID -> text
 };
 

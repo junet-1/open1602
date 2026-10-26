@@ -18,11 +18,11 @@ namespace o1602::assets {
 class RdaArchive {
 public:
     struct Entry {
-        std::string name;             ///< UTF-8, '/' between folders, e.g. "data/texts.xml"
-        std::uint64_t offset = 0;     ///< of the data in the archive
-        std::uint64_t stored = 0;     ///< bytes in the archive
-        std::uint64_t size = 0;       ///< bytes of the file
-        bool readable = false;        ///< stored as it is (its block neither compressed nor encrypted)
+        std::string name;          ///< UTF-8, '/' between folders, e.g. "data/texts.xml"
+        std::uint64_t offset = 0;  ///< of the data in the archive
+        std::uint64_t stored = 0;  ///< bytes in the archive
+        std::uint64_t size = 0;    ///< bytes of the file
+        bool readable = false;     ///< stored as it is (its block neither compressed nor encrypted)
     };
 
     /// Reads the directory of the archive at `path` (the files stay on disk until read()).
@@ -37,7 +37,7 @@ public:
     [[nodiscard]] core::Result<std::vector<std::uint8_t>> read(std::string_view name) const;
 
 private:
-    std::filesystem::path m_path;      ///< empty: the archive is m_bytes
+    std::filesystem::path m_path;  ///< empty: the archive is m_bytes
     std::vector<std::uint8_t> m_bytes;
     std::vector<Entry> m_entries;
 };

@@ -112,7 +112,7 @@ void write(const std::filesystem::path& path, const std::vector<std::uint8_t>& b
 TEST_CASE("history edition: the stored files of an RDA 2.2 archive are read, packed ones are not") {
     auto archive = assets::RdaArchive::from_bytes(make_rda({{"data/texts.xml", "<root/>"}, {"data\\a.txt", "abc"}}));
     REQUIRE(archive.ok());
-    REQUIRE(archive->entries().size() == 2);  // the compressed block's directory is not read
+    REQUIRE(archive->entries().size() == 2);            // the compressed block's directory is not read
     CHECK(archive->entries()[1].name == "data/a.txt");  // '\' as '/'
     REQUIRE(archive->read("DATA/Texts.xml").ok());
     const auto texts = archive->read("data/texts.xml");
@@ -136,9 +136,9 @@ TEST_CASE("history edition: texts.xml gives the lines in a language, English whe
     CHECK(texts->text(7, "de") == "Das Atoll");
     CHECK(texts->text(7, "de-DE") == "Das Atoll");
     CHECK(texts->text(7, "en") == "Atoll");
-    CHECK(texts->text(7, "fr") == "Atoll");          // no French: English
+    CHECK(texts->text(7, "fr") == "Atoll");  // no French: English
     CHECK(texts->text(8, "de") == "Erste Zeile\nZweite & letzte");
-    CHECK(!texts->text(8, "en").has_value());      // German only
+    CHECK(!texts->text(8, "en").has_value());        // German only
     CHECK(texts->text(700, "en") == "Caf\xC3\xA9");  // UTF-8
     CHECK(!texts->text(9, "de").has_value());
 
@@ -179,7 +179,7 @@ TEST_CASE("history edition: scenarios are found by name and Text.cod's placehold
     CHECK(game->resolve("szenes/das atoll.szs") == root / "Szenes" / "[[7]].szs");
     CHECK(game->resolve("Szenes/Endlosspiel12.szs") == root / "Szenes" / "[[48]]12.szs");
     CHECK(game->resolve("Szenes/Endlosspiel00.szm") == root / "Szenes" / "[[363]]00.szm");  // the other line
-    CHECK(game->resolve("Szenes/Atoll.szs") == root / "Szenes" / "[[7]].szs");               // English
+    CHECK(game->resolve("Szenes/Atoll.szs") == root / "Szenes" / "[[7]].szs");              // English
     CHECK(!game->resolve("Szenes/Kalt erwischt.szs"));
     CHECK(!game->resolve("Das Atoll.szs"));  // only scenarios
     CHECK(game->expand("[[7]]1") == "Das Atoll1");

@@ -55,7 +55,7 @@ public:
     /// best: the one of that language ("de" fits "de-DE"), else the one of the system's language,
     /// else English, else the first by name. Nothing when `root` has no Loca folder.
     [[nodiscard]] static std::optional<std::filesystem::path> language_folder(const std::filesystem::path& root,
-                                                                               std::string_view language = {});
+                                                                              std::string_view language = {});
 
     /// A path as typed by the user, without surrounding blanks and quotes: `set VAR="C:\a b"` in cmd
     /// keeps the quotes in the value, and `"C:\a b\"` reaches a program as `C:\a b"`.

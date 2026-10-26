@@ -81,9 +81,8 @@ std::optional<fs::path> environment_path(const char* name) {
 
 std::string lower_ascii(std::string_view text) {
     std::string out(text);
-    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
-        return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
-    });
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c) { return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c); });
     return out;
 }
 

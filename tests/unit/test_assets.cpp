@@ -357,9 +357,8 @@ TEST_CASE("sprite sheet: type 13 is the History Edition's true colour RLE in 32-
     REQUIRE(image.ok());
     const std::vector<std::uint8_t> expected_mask = {0, 1, 1, 1, 0, 0};
     CHECK(image->opaque == expected_mask);
-    const std::vector<std::uint8_t> expected_rgba = {0,    0,    0,    0,    0x33, 0x22, 0x11, 255,
-                                                     0x66, 0x55, 0x44, 255,  0x99, 0x88, 0x77, 255,
-                                                     0,    0,    0,    0,    0,    0,    0,    0};
+    const std::vector<std::uint8_t> expected_rgba = {
+        0, 0, 0, 0, 0x33, 0x22, 0x11, 255, 0x66, 0x55, 0x44, 255, 0x99, 0x88, 0x77, 255, 0, 0, 0, 0, 0, 0, 0, 0};
     CHECK(image->rgba == expected_rgba);
     CHECK(image->to_rgba(assets::Palette{}) == expected_rgba);  // its own colours, not the palette's
 
@@ -640,9 +639,9 @@ TEST_CASE("assets: the History Edition's files of a language come from its folde
     for (const char* folder : {"ToolGfx", "GFX", "Loca/de-DE/ToolGfx", "Loca/en-US", "Loca/fr-FR"}) {
         std::filesystem::create_directories(root / folder);
     }
-    for (const char* file : {"haeuser.cod", "figuren.cod", "ToolGfx/STADTFLD.COL", "ToolGfx/START.BSH",
-                             "GFX/STADTFLD.BSH", "text.cod", "Loca/de-DE/Text.cod", "Loca/de-DE/ToolGfx/START.BSH",
-                             "Loca/fr-FR/Text.cod"}) {
+    for (const char* file :
+         {"haeuser.cod", "figuren.cod", "ToolGfx/STADTFLD.COL", "ToolGfx/START.BSH", "GFX/STADTFLD.BSH", "text.cod",
+          "Loca/de-DE/Text.cod", "Loca/de-DE/ToolGfx/START.BSH", "Loca/fr-FR/Text.cod"}) {
         std::ofstream(root / file) << "";
     }
 

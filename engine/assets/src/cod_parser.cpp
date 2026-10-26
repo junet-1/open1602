@@ -324,9 +324,7 @@ private:
     }
 
     /// The next character without taking it; kEnd at the end.
-    [[nodiscard]] int peek() const {
-        return m_pos < m_text.size() ? static_cast<unsigned char>(m_text[m_pos]) : kEnd;
-    }
+    [[nodiscard]] int peek() const { return m_pos < m_text.size() ? static_cast<unsigned char>(m_text[m_pos]) : kEnd; }
 
     /// After an operator the original skips everything up to the next "meaningful" character,
     /// including line breaks (an operator at the end of a line continues the statement).
