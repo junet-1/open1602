@@ -954,19 +954,20 @@ std::optional<render::TileLighting> MapViewer::building_lighting(std::uint16_t i
 }
 
 render::TileLighting MapViewer::tile_lighting() const {
+    const Selection* clicked =
+        m_hud && m_hud->selection().kind == Selection::Kind::Building ? &m_hud->selection() : nullptr;
     const bool building = m_tool.mode() == BuildTool::Mode::Build || (m_hud && m_hud->mode() == Hud::kModeBuild);
     if (building) {
-        // The field of a building looked at before opening the build menu: that building's
-        // circle stays lit, to see where its fields go.
-        const assets::BuildingType* b = m_tool.mode() == BuildTool::Mode::Build ? m_tool.selected() : nullptr;
-        const auto& source = m_input->field_source();
-        if (source && b != nullptr && b->id == source->field) {
-            if (auto l = building_lighting(source->island, source->x, source->y)) {
-                return *l;
-            }
+        // A building clicked before opening the build menu stays selected, and its circle stays
+        // lit whatever is placed: the fields of a farm, another sheep farm beside its pasture,
+        // houses around a chapel. Otherwise all the player's land.
+        std::optional<render::TileLighting> lit;
+        if (clicked != nullptr) {
+            lit = building_lighting(clicked->island, clicked->x, clicked->y);
         }
-        render::TileLighting l = render::TileLighting::territory(m_local_player);
+        render::TileLighting l = lit ? std::move(*lit) : render::TileLighting::territory(m_local_player);
         // A building with a catchment being placed: the border of its circle at the mouse.
+        const assets::BuildingType* b = m_tool.mode() == BuildTool::Mode::Build ? m_tool.selected() : nullptr;
         const auto spot = m_input->spot_at_mouse();
         if (b != nullptr && spot && b->radius > 0 && b->prod_kind != sim::prod::kHouse) {
             l.outline(world_catchment(spot->island,
@@ -974,9 +975,8 @@ render::TileLighting MapViewer::tile_lighting() const {
         }
         return l;
     }
-    if (m_hud && m_hud->mode() == Hud::kModeInfo && m_hud->selection().kind == Selection::Kind::Building) {
-        const Selection& sel = m_hud->selection();
-        if (auto l = building_lighting(sel.island, sel.x, sel.y)) {
+    if (clicked != nullptr && m_hud->mode() == Hud::kModeInfo) {
+        if (auto l = building_lighting(clicked->island, clicked->x, clicked->y)) {
             return *l;
         }
     }

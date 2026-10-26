@@ -424,11 +424,11 @@ TEST_CASE("world renderer: a catchment circle lights the land, its border is das
         std::size_t expected = 0;
         for (std::int32_t y = 10; y < 30; ++y) {
             for (std::int32_t x = 0; x < 20; ++x) {
-                if (lighting.in_circle(x, y)) {
-                    expected += static_cast<std::size_t>(!lighting.in_circle(x - 1, y)) +
-                                static_cast<std::size_t>(!lighting.in_circle(x + 1, y)) +
-                                static_cast<std::size_t>(!lighting.in_circle(x, y - 1)) +
-                                static_cast<std::size_t>(!lighting.in_circle(x, y + 1));
+                if (placing.in_outline(x, y)) {
+                    expected += static_cast<std::size_t>(!placing.in_outline(x - 1, y)) +
+                                static_cast<std::size_t>(!placing.in_outline(x + 1, y)) +
+                                static_cast<std::size_t>(!placing.in_outline(x, y - 1)) +
+                                static_cast<std::size_t>(!placing.in_outline(x, y + 1));
                 }
             }
         }
@@ -444,6 +444,68 @@ TEST_CASE("world renderer: a catchment circle lights the land, its border is das
         }
         CHECK(edges == expected);
         CHECK(dimmed == std::size_t{500} * 350 - 4);  // all but the player's building
+    }
+}
+
+TEST_CASE("world renderer: a clicked building's circle stays lit while another one is placed") {
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 2, 2);
+    REQUIRE(island.map.place(*table.by_id(20100), 0, 0, 0, 0, 0).ok());
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+    sim::Catchment clicked;  // a sheep farm or a chapel looked at before opening the build menu
+    clicked.centre = sim::TilePos{10, 20};
+    clicked.radius = 3;
+    sim::Catchment placed;  // the building in hand, at the mouse, partly over the clicked circle
+    placed.centre = sim::TilePos{14, 20};
+    placed.radius = 2;
+    render::TileLighting lighting = render::TileLighting::circle(0, clicked);
+    lighting.outline(placed);
+    CHECK(lighting.outlined());
+    // The lit land is still that of the clicked building ...
+    CHECK(lighting.in_circle(10, 17));
+    CHECK(lighting.in_circle(13, 20));
+    CHECK(!lighting.in_circle(15, 20));
+    sim::MapCell own;
+    own.sprite = 100;
+    own.owner = 0;
+    CHECK(!lighting.dimmed(10, 17, &own));
+    CHECK(lighting.dimmed(15, 20, &own));  // in the placed circle only: dimmed, only its border shows
+    // ... and the border goes around the building being placed.
+    CHECK(lighting.in_outline(16, 20));
+    CHECK(lighting.in_outline(12, 20));
+    CHECK(!lighting.in_outline(10, 17));
+
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        render::WorldView view;
+        view.zoom = render::Zoom::Small;
+        view.rotation = rotation;
+        render::Viewport all;
+        render::world_pixel_size(view, all.width, all.height);
+        render::WorldLayers layers;
+        layers.extent = render::SpriteExtent{16, 8};
+        layers.lighting = &lighting;
+        std::vector<render::DrawCommand> commands;
+        render::build_world_draw_list(world, table, clock, view, all, layers, commands);
+        std::size_t expected = 0;  // the edges of the placed circle only
+        for (std::int32_t y = 10; y < 30; ++y) {
+            for (std::int32_t x = 0; x < 25; ++x) {
+                if (lighting.in_outline(x, y)) {
+                    expected += static_cast<std::size_t>(!lighting.in_outline(x - 1, y)) +
+                                static_cast<std::size_t>(!lighting.in_outline(x + 1, y)) +
+                                static_cast<std::size_t>(!lighting.in_outline(x, y - 1)) +
+                                static_cast<std::size_t>(!lighting.in_outline(x, y + 1));
+                }
+            }
+        }
+        std::size_t edges = 0;
+        for (const auto& c : commands) {
+            if (c.sprite == render::DrawCommand::kOverlayOutline) {
+                edges += static_cast<std::size_t>(std::popcount(static_cast<unsigned>(c.edges)));
+            }
+        }
+        CHECK(edges == expected);
     }
 }
 

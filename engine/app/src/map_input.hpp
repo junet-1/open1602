@@ -161,16 +161,6 @@ public:
     enum class Pick : std::uint8_t { None, Attack, Patrol };
     [[nodiscard]] Pick pick() const noexcept { return m_pick; }
 
-    /// The building looked at when the build menu picked its field: its circle stays lit while
-    /// that field is placed.
-    struct FieldSource {
-        std::uint16_t island = 0;
-        std::uint16_t x = 0;
-        std::uint16_t y = 0;
-        std::uint32_t field = 0;  ///< id of the field
-    };
-    [[nodiscard]] const std::optional<FieldSource>& field_source() const noexcept { return m_field_source; }
-
 private:
     /// The keys of ADR 0010.
     void setup_keys();
@@ -251,9 +241,8 @@ private:
     LeftPress m_press;  ///< the left button pressed on the map
     MapDrag m_drag;     ///< the map dragged with the right or middle button
     GroupKey m_group_key;
-    std::size_t m_formation = 0;                 ///< the next formation of the F key
-    std::vector<sim::Command> m_pending_orders;  ///< waiting for the answer to a question
-    std::optional<FieldSource> m_field_source;
+    std::size_t m_formation = 0;                       ///< the next formation of the F key
+    std::vector<sim::Command> m_pending_orders;        ///< waiting for the answer to a question
     mutable std::vector<render::TileHit> m_tile_hits;  ///< working memory of picks
     double m_mouse_x = 0.0;                            ///< in output pixels
     double m_mouse_y = 0.0;
