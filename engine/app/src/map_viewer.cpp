@@ -727,6 +727,10 @@ int MapViewer::run() {
         }
     }
     if (m_options.max_frames == 0) {
+        // A name still being typed in the multiplayer menu counts, as when leaving its field.
+        if (m_hud && m_hud->multiplayer_open() && !m_hud->multiplayer()->name().empty()) {
+            m_app_settings.player_name = m_hud->multiplayer()->name();
+        }
         save_settings();  // the window's size for the next start
     }
     if (m_options.max_frames != 0) {

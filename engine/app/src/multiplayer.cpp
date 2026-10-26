@@ -26,6 +26,12 @@ constexpr std::uint64_t kSearchEveryMs = 3000;
 /// before the host waits for it (SessionConfig::pack_wait_ms, TB-26).
 constexpr std::uint32_t kPackWaitMs = 5'000;
 
+/// What this computer remembers for the menu: the last name typed and the last settings a host chose.
+void remembered_to_model(MultiplayerModel& model, const AppSettings& settings) {
+    model.name = settings.player_name.empty() ? ui::tr("menu.default_name") : settings.player_name;
+    model.settings = settings.multiplayer;
+}
+
 }  // namespace
 
 std::uint64_t MapViewer::content_fingerprint() const {
@@ -367,6 +373,10 @@ void MapViewer::open_multiplayer_menu() {
             model.scenarios = scenario_list(*folder, headings);
         }
     }
+    // Before the menu first draws and takes them: the click that opened it ends the frame's menu
+    // work, so apply_multiplayer_menu() would only fill them after that first drawing, and the
+    // name would be empty after each start.
+    remembered_to_model(model, m_app_settings);
     m_hud->open_multiplayer();
     m_lan_search_ms = 0;  // search at once
 }
@@ -404,8 +414,7 @@ void MapViewer::apply_multiplayer_menu() {
     }
 
     MultiplayerModel& model = m_hud->multiplayer_model();
-    model.name = m_app_settings.player_name.empty() ? ui::tr("menu.default_name") : m_app_settings.player_name;
-    model.settings = m_app_settings.multiplayer;
+    remembered_to_model(model, m_app_settings);
     model.found = m_lan_browser ? m_lan_browser->games() : std::vector<net::FoundGame>{};
     model.savegames.clear();
     for (std::size_t slot = 0; slot < m_slots.size(); ++slot) {
