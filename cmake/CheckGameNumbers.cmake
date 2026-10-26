@@ -15,10 +15,12 @@ if(NOT DEFINED ENGINE_DIR)
 endif()
 
 # Files below engine/ that may name records: the table itself, the predefined constants of the
-# .cod files and the build menu, whose layout is the original's table (to become data with MD-4).
+# .cod files, the readable names of the records for mods (docs/modding/values.md) and the build
+# menu, whose layout is the original's table (to become data with MD-4).
 set(skipped
     "assets/include/o1602/assets/game_data.hpp"
     "assets/src/cod_predefined.cpp"
+    "assets/src/original_names.cpp"
     "ui/src/build_menu.cpp"
 )
 # <file below engine/>=<numbers of that file that are not records>.
