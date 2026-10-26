@@ -425,6 +425,7 @@ private:
     };
 
     SDL_Renderer* m_sdl;
+    assets::GameDirectory m_game;  ///< a copy: its History Edition texts fill the missions' placeholders
     assets::Palette m_palette;
     std::unique_ptr<render::SdlUiRenderer> m_renderer;
     ui::Panel m_ctrl;

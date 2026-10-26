@@ -662,6 +662,11 @@ TEST_CASE("assets: the History Edition's files of a language come from its folde
     CHECK(game->resolve("ToolGfx/START.BSH") == root / "ToolGfx" / "START.BSH");
     game->choose_language("xx");  // none of that language: the folder stays
     CHECK(game->localized_root() == root / "Loca" / "fr-FR");
+    std::filesystem::remove_all(root / "Loca" / "en-US");
+    game->choose_language("en");  // no English folder: the installation's own files are English
+    CHECK(game->localized_root().empty());
+    CHECK(game->resolve("Text.cod") == root / "text.cod");
+    std::filesystem::create_directories(root / "Loca" / "en-US");
 
     // A folder of a single language is taken whatever is asked; other editions have none.
     std::filesystem::remove_all(root / "Loca" / "en-US");

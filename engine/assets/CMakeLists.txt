@@ -18,10 +18,12 @@ add_library(o1602_assets
     src/figure_table.cpp
     src/gad.cpp
     src/high_scores.cpp
+    src/history_texts.cpp
     src/game_directory.cpp
     src/island.cpp
     src/localized_names.cpp
     src/palette.cpp
+    src/rda_archive.cpp
     src/savegame.cpp
     src/scenario.cpp
     src/sprite_sheet.cpp

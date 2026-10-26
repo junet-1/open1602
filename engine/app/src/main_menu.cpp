@@ -86,8 +86,6 @@ constexpr std::int32_t kArmsLabelHeight = 22;
 
 constexpr std::uint32_t kTutorial = 0;
 constexpr std::uint32_t kEndless = 1;
-/// START.BSH: one star; the levels of the endless game add one each.
-constexpr std::int32_t kGfxStars = 21;
 
 /// The first digits of a scenario's files, in order: the choices of the mission screen.
 std::vector<std::uint8_t> choice_digits(const MenuScenario& s) {
@@ -168,7 +166,8 @@ std::optional<ui::Panel> load_colour_panel(const assets::GameDirectory& game) {
 }  // namespace
 
 std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder,
-                                        const std::array<std::string, 4>& headings) {
+                                        const std::array<std::string, 4>& headings,
+                                        const assets::GameDirectory* game) {
     // One entry per name without the extension and the digits at its end (0x0048E710).
     std::map<std::string, MenuScenario> by_name;
     std::error_code ec;
@@ -190,7 +189,7 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder,
         }
         MenuScenario& s = by_name[lower(name)];
         if (s.files.empty()) {
-            s.name = name;
+            s.name = game != nullptr ? game->expand(name) : name;
             const std::u8string u8name = entry.path().stem().u8string();
             std::size_t cut = u8name.size();
             while (cut > 0 && u8name[cut - 1] >= u8'0' && u8name[cut - 1] <= u8'9') {
@@ -251,6 +250,9 @@ MainMenu::MainMenu(const assets::GameDirectory& game, const assets::TextTable* t
       m_banners(render::BannerTable::original()) {
     if (m_host) {
         m_host->set_selected(kNewGame, true);
+        if (const assets::Gadget* stars = m_host->layout().find(kRowStars); stars != nullptr && stars->gfx > 0) {
+            m_gfx_stars = stars->gfx;
+        }
     }
     if (m_base && m_base->layout().find(kHistoryQuit) != nullptr) {
         // Open1602 has no screen for the History Edition's options: that button stays greyed out.
@@ -362,7 +364,7 @@ void MainMenu::refresh_host() {
         if (stars) {
             p.set_graphic(
                 kRowStars + k,
-                kGfxStars + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scenarios[i].header.ranking, 4)), 0);
+                m_gfx_stars + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scenarios[i].header.ranking, 4)), 0);
         }
     }
     p.set_visible(kListUp, m_first > 0);
@@ -387,7 +389,7 @@ void MainMenu::load_scenarios() {
     }
     m_scenarios.clear();
     if (const auto folder = m_game->resolve("Szenes")) {
-        m_scenarios = scenario_list(*folder, headings);
+        m_scenarios = scenario_list(*folder, headings, m_game);
     }
     // The numbered missions above the progress are not offered (0x0048DC90).
     std::erase_if(m_scenarios, [&](const MenuScenario& s) {
@@ -479,7 +481,7 @@ void MainMenu::load_details() {
                         }
                     }
                 }
-                m_briefing = (*missions)[m].text;
+                m_briefing = m_game->expand((*missions)[m].text);
             }
         }
     }
@@ -576,7 +578,7 @@ void MainMenu::refresh_mission() {
         p.set_text(kScoreRank + k, std::to_string(i + 1) + ".");
         if (stars) {
             p.set_graphic(kScoreStars + k,
-                          kGfxStars + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scores[i].stars, 4)), 0);
+                          m_gfx_stars + static_cast<std::int32_t>(std::min<std::uint32_t>(m_scores[i].stars, 4)), 0);
         }
     }
 }

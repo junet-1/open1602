@@ -6,7 +6,9 @@
 #include <string>
 #include <system_error>
 
+#include "o1602/assets/history_texts.hpp"
 #include "o1602/core/file.hpp"
+#include "o1602/core/text.hpp"
 
 #if defined(_WIN32)
 #ifndef NOMINMAX
@@ -26,6 +28,9 @@ using core::ErrorCode;
 using core::make_error;
 
 namespace {
+
+/// The History Edition's archive of its own data, among them its texts.
+constexpr std::string_view kHistoryArchive = "ahe/a1he0.rda";
 
 void add_if_folder(std::vector<fs::path>& out, const fs::path& folder) {
     std::error_code ec;
@@ -200,6 +205,11 @@ core::Result<GameDirectory> GameDirectory::open(const fs::path& root) {
     GameDirectory dir;
     dir.m_root = root;
     dir.m_localized = language_folder(root).value_or(fs::path());
+    if (const auto rda = core::find_case_insensitive(root, kHistoryArchive)) {
+        if (auto texts = HistoryTexts::load(*rda)) {
+            dir.m_history_texts = std::make_shared<const HistoryTexts>(std::move(texts).value());
+        }
+    }
     return dir;
 }
 
@@ -208,6 +218,8 @@ void GameDirectory::choose_language(std::string_view language) {
     if (auto folder = language_folder(m_root, language);
         folder && primary_language(core::path_to_utf8(folder->filename())) == primary_language(language)) {
         m_localized = std::move(*folder);
+    } else if (!m_localized.empty() && primary_language(language) == "en") {
+        m_localized.clear();  // the History Edition's own folders are English
     }
 }
 
@@ -348,7 +360,58 @@ std::optional<fs::path> GameDirectory::resolve(std::string_view relative) const 
             return path;
         }
     }
-    return core::find_case_insensitive(m_root, relative);
+    if (auto path = core::find_case_insensitive(m_root, relative)) {
+        return path;
+    }
+    return resolve_named_scenario(relative);
+}
+
+std::optional<fs::path> GameDirectory::resolve_named_scenario(std::string_view relative) const {
+    // "Szenes/Das Atoll.szs" is "Szenes/[[7]].szs", "Szenes/Endlosspiel12.szm" "Szenes/[[363]]12.szm"
+    // when [[363]] is "Endlosspiel" too: the digits at the end stay, the name before them is looked up.
+    if (m_history_texts == nullptr) {
+        return std::nullopt;
+    }
+    const std::size_t slash = relative.find_last_of("/\\");
+    if (slash == std::string_view::npos || !core::equals_ignore_case(relative.substr(0, slash), "Szenes")) {
+        return std::nullopt;
+    }
+    const std::string_view file = relative.substr(slash + 1);
+    const std::size_t dot = file.rfind('.');
+    if (dot == std::string_view::npos) {
+        return std::nullopt;
+    }
+    const std::string_view stem = file.substr(0, dot);
+    std::size_t digits = stem.size();
+    while (digits > 0 && stem[digits - 1] >= '0' && stem[digits - 1] <= '9') {
+        --digits;
+    }
+    const std::string_view suffix = stem.substr(digits);
+    const std::string_view extension = file.substr(dot);
+    // Several lines may have the same name (the endless game of one and of several players): the
+    // one whose file exists counts.
+    const std::string language = text_language();
+    for (const std::int32_t id : m_history_texts->find_all(stem.substr(0, digits), language)) {
+        const std::string name = "Szenes/[[" + std::to_string(id) + "]]" + std::string(suffix) + std::string(extension);
+        if (auto path = core::find_case_insensitive(m_root, name)) {
+            return path;
+        }
+    }
+    return std::nullopt;
+}
+
+std::string GameDirectory::text_language() const {
+    if (!m_localized.empty()) {
+        return primary_language(core::path_to_utf8(m_localized.filename()));
+    }
+    return m_history_texts != nullptr ? "en" : std::string();
+}
+
+std::string GameDirectory::expand(std::string_view text) const {
+    if (m_history_texts == nullptr || text.find("[[") == std::string_view::npos) {
+        return std::string(text);
+    }
+    return core::utf8_to_cp1252(m_history_texts->expand(core::cp1252_to_utf8(text), text_language()));
 }
 
 }  // namespace o1602::assets

@@ -46,9 +46,11 @@ struct MenuScenario {
 
 /// The scenarios of the game folder in the menu's order: originals (tutorial, endless game,
 /// numbered missions by number), campaigns, the other adventures by stars, each group under its
-/// heading (`headings`: [GAME] 85..88).
+/// heading (`headings`: [GAME] 85..88). With `game` the History Edition's names ([[7]]) become its
+/// texts ("Das Atoll").
 [[nodiscard]] std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder,
-                                                      const std::array<std::string, 4>& headings);
+                                                      const std::array<std::string, 4>& headings,
+                                                      const assets::GameDirectory* game = nullptr);
 
 struct MenuEvent {
     enum class Kind : std::uint8_t {
@@ -172,6 +174,9 @@ private:
     std::optional<ui::Panel> m_mission;
     std::optional<ui::Panel> m_colour;
     bool m_history_buttons = false;  ///< BASE.GAD of the History Edition (six buttons)
+    /// START.BSH: one star; the levels of the endless game add one each. HOST.GAD's star gadgets
+    /// say where (21; the History Edition's START.BSH has two sprites more before them).
+    std::int32_t m_gfx_stars = 21;
     Screen m_screen = Screen::Base;
     ListMode m_mode = ListMode::New;
     std::vector<MenuScenario> m_scenarios;
