@@ -250,6 +250,46 @@ TEST_CASE("construction: roads fit to their neighbours, a drag stops when the go
     CHECK(island.world.players()[0].money == 2);
 }
 
+TEST_CASE("construction: a building on a buried treasure gives its gold to the builder and tells (0x004084D0)") {
+    Island island;
+    island.found();
+    assets::IslandHeader::Deposit treasure;
+    treasure.ware = sim::ware::kTreasure;
+    treasure.x = 9;
+    treasure.y = 14;
+    treasure.amount = 1000;
+    island.world.island(0).header.deposits.push_back(treasure);
+    const std::int64_t before = island.world.players()[0].money;
+    island.events.clear();
+    // A road beside it finds nothing; the next one lies on it.
+    CHECK(island.build({{kRoad, 8, 14, 0, 0}}).placed == 1);
+    CHECK(island.world.players()[0].money == before - 5);
+    CHECK(island.world.islands()[0].header.deposits.size() == 1);
+    CHECK(island.build({{kRoad, 9, 14, 0, 0}}).placed == 1);
+    CHECK(island.world.players()[0].money == before - 10 + 1000);
+    CHECK(island.world.islands()[0].header.deposits.empty());
+    const auto found = std::find_if(island.events.begin(), island.events.end(), [](const sim::ConstructionEvent& e) {
+        return e.kind == sim::ConstructionEvent::Kind::TreasureFound;
+    });
+    REQUIRE(found != island.events.end());
+    CHECK(std::count_if(island.events.begin(), island.events.end(), [](const sim::ConstructionEvent& e) {
+              return e.kind == sim::ConstructionEvent::Kind::TreasureFound;
+          }) == 1);
+    CHECK(found->player == 0);
+    CHECK(found->x == 9);
+    CHECK(found->y == 14);
+    CHECK((found->treasure == sim::TilePos{9, 14}));
+    CHECK(found->money == 1000);
+    CHECK(found->type == island.buildings.by_id(kRoad));
+    // Found once: building there again finds nothing.
+    island.events.clear();
+    CHECK(island.demolish({9, 14}, {9, 14}) == 1);
+    CHECK(island.build({{kRoad, 9, 14, 0, 0}}).placed == 1);
+    CHECK(std::none_of(island.events.begin(), island.events.end(), [](const sim::ConstructionEvent& e) {
+        return e.kind == sim::ConstructionEvent::Kind::TreasureFound;
+    }));
+}
+
 TEST_CASE("construction: the preview shows what an order costs, affordable or not (0x0040D160)") {
     Island island;
     island.found();

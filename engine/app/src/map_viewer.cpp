@@ -999,6 +999,7 @@ void MapViewer::apply_construction() {
             }
         }
     }
+    m_stock_notes.add_treasures(m_state->world, m_buildings, events, m_local_player, stock_note_time());
     show_notices(m_events.construction_events(m_state->world, m_local_player, events));
     if (changed) {
         // Flags, smoke and status icons of the new buildings: only the islands built on are

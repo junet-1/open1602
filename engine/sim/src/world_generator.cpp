@@ -640,35 +640,47 @@ std::vector<Mountain> Generator::treasure_spots(const Slot& slot) const {
 }
 
 void Generator::place_treasures() {
-    // 0x0048D116: treasures on middle islands without one, up to 4 tries for a spot.
+    // 0x0048D116: treasures on middle islands without one, up to 4 tries for a spot. Own worlds
+    // have fewer middle islands than the original's plans (every home island is big), so a
+    // treasure that finds no place there may go to a big island that is nobody's home.
     constexpr std::uint32_t kTries = 4;
+    const auto is_home = [&](const Slot& s) {
+        return std::any_of(m_starts.begin(), m_starts.end(),
+                           [&](const StartArea& a) { return a.home_island == s.plan.number; });
+    };
+    const auto candidates_of = [&](std::uint8_t min_size, std::uint8_t max_size) {
+        std::vector<Slot*> out;
+        for (Slot* s : m_by_number) {
+            if (s->plan.size >= min_size && s->plan.size <= max_size && s->deposits.count < 2 && !s->treasure &&
+                !(min_size >= 3 && is_home(*s))) {
+                out.push_back(s);
+            }
+        }
+        return out;
+    };
+    const auto try_place = [&](const std::vector<Slot*>& candidates) {
+        for (std::uint32_t t = 0; t < kTries && !candidates.empty(); ++t) {
+            Slot& s = *candidates[m_random.below(static_cast<std::uint32_t>(candidates.size()))];
+            const std::vector<Mountain> spots = treasure_spots(s);
+            if (spots.empty()) {
+                continue;
+            }
+            const Mountain& spot = spots[m_random.below(static_cast<std::uint32_t>(spots.size()))];
+            const std::size_t i = s.deposits.count++;
+            s.deposits.write(i, ware::kTreasure, spot.x, spot.y, kTreasureMoney);
+            s.treasure = true;
+            return true;
+        }
+        return false;
+    };
     for (const ScenarioPlan::Resource& r : m_plan.treasures) {
         if (r.building == 0 || ware_of(r.building) != ware::kJewellery) {
             continue;
         }
         for (std::uint32_t unit = 0; unit < r.count; ++unit) {
-            std::vector<Slot*> candidates;
-            for (Slot* s : m_by_number) {
-                if (s->plan.size >= 1 && s->plan.size <= 2 && s->deposits.count < 2 && !s->treasure) {
-                    candidates.push_back(s);
-                }
-            }
-            if (candidates.empty()) {
-                ++m_lost;
-                continue;
-            }
-            bool placed = false;
-            for (std::uint32_t t = 0; t < kTries && !placed; ++t) {
-                Slot& s = *candidates[m_random.below(static_cast<std::uint32_t>(candidates.size()))];
-                const std::vector<Mountain> spots = treasure_spots(s);
-                if (spots.empty()) {
-                    continue;
-                }
-                const Mountain& spot = spots[m_random.below(static_cast<std::uint32_t>(spots.size()))];
-                const std::size_t i = s.deposits.count++;
-                s.deposits.write(i, ware::kTreasure, spot.x, spot.y, kTreasureMoney);
-                s.treasure = true;
-                placed = true;
+            bool placed = try_place(candidates_of(1, 2));
+            if (!placed && !m_starts.empty()) {
+                placed = try_place(candidates_of(3, 4));
             }
             m_lost += placed ? 0U : 1U;
         }
