@@ -88,12 +88,8 @@ in [requests.md](requests.md).
 
 | Point | Where | Way to clarify |
 |---|---|---|
-| Sailing behaviour of the computer ships | [ships.md](re/ships.md) | Observation (video) |
-| Drought: how many fields wither (strength, end and recovery match the original, confirmed again on 2026-10-20) | [growth.md](re/growth.md) | Observation: savegames "Duerre", "NachDuerre" |
-| Robbers in large towns (fires and plague: section 1.4) | [disasters.md](re/disasters.md) | Observation: larger town, video |
-| Effect of a fire on the ship construction of a shipyard | [disasters.md](re/disasters.md) | Observation |
 | Random class of loaded fields | [growth.md](re/growth.md) | Analysis |
-| U-007, S-088 (part), S-094 (part) | [bugs.md](re/bugs.md) | inferred from the code; Open1602 avoids them anyway |
+| U-007 (no savegame has two own towns on one island) | [bugs.md](re/bugs.md) | inferred from the code; Open1602 avoids it anyway |
 
 Answered on 2026-10-26 by analysis of `1602.exe` and the editor: the island header in full (treasure
 flag, crop count, city slots, flag bits, the size class from the width; [scp.md](formats/scp.md)), the
@@ -103,6 +99,12 @@ the unused bytes of `SZENE` ([worldgen.md](re/worldgen.md)), `AUFTRAG4` +0x48/+0
 island +0x30 (the craters, [growth.md](re/growth.md)), the loader switches ([scp.md](formats/scp.md#loader-switches)),
 the special figures of the display branches ([rendering.md](re/rendering.md)), how message icons age
 ([ui.md](re/ui.md#message-ageing)) and the font mapping ([ui.md](re/ui.md#fonts)).
+
+Observed in the running original on 2026-10-26 (`game10.gam`): how many fields a drought withers (the same 59
+of 204 in both programs, [growth.md](re/growth.md)), robbers in large towns and a fire in a shipyard
+([disasters.md](re/disasters.md)), the routes of the computer ships ([ships.md](re/ships.md)), and that the
+interface reaches neither S-088 nor the first two cases of S-094 ([bugs.md](re/bugs.md)). The differences
+found are in section 1.4.
 
 ### 1.4 Differences from the running original
 
@@ -114,6 +116,9 @@ are listed in 2.1.
 | Computers grow on in long games where the original's stall (up to 30 % more inhabitants at two hours, clearly more after three; second towns earlier on "hard"), mostly because of the fixes S-097 to S-099 | the original's computer players are a setting (`Rules::classic_ai`, "Computer players: as the original" in the start dialog, `--ai classic`); Open1602's stay the default | [ai.md](re/ai.md); comparison section 3 |
 | No warships built by the computers in six hours (the original's after about 100 minutes) | fixed in #58 (a shipyard when they want ships); checked on 2026-10-23 in a six-hour run from `game00.gam` (difficulty 3, every player a computer): each of the three computers had a warship (KRIEG1) within 30 minutes, and after six hours they had six warships between them, two of them KRIEG2; and in three new endless games (average, seeds 7, 11 and 23, every player a computer) the first warships came between 60 and 120 minutes, as in the original, with three to five per game after six hours | [ai.md](re/ai.md); comparison section 3 |
 | Fires in a computer's large town end within three epochs in Open1602; the original's burned their full 25 epochs, again and again | not a bug: the original's fires last because a burning house catches fire again and its count starts over (S-050), and its fire brigade also sets out for the plague and comes back empty (S-053; the town had eight plagues at the time). Open1602 fixes both on purpose | [disasters.md](re/disasters.md); comparison section 7 |
+| A fire in a shipyard: the original's cycle that was running when the fire broke out yields nothing; Open1602's finishes | open | [disasters.md](re/disasters.md) |
+| Computer ships: the original's repeat one fixed circuit of a few islands; Open1602's wander over the whole map and sail 25–30 % further, one lies idle for 15 minutes at the start, and new computer ships have empty names | open | [ships.md](re/ships.md) |
+| Robbers: fewer robberies in a town with gallows (about 5 instead of 10 per hour in `game10.gam`) | intended (fix of S-055) | [disasters.md](re/disasters.md) |
 | Rotated views: Open1602 darkened parts of the map with sharp diagonal edges | not a difference: Open1602 was in build mode in that screenshot, which dims everything outside the own territory (as asked for on 2026-10-18); outside build mode nothing is dimmed, as in the original | [rendering.md](re/rendering.md); comparison section 4 |
 | The top bar showed the goods of the town under the camera where the original showed only the gold | not a difference: both show the goods of the town under the mouse cursor, not under the camera (`Hud_DrawResourceBar 0x0040D160` reads the city the hover handler `0x0040A190` stores; Open1602's `MapViewer::resources` takes the tile under the mouse); in the original's screenshot the mouse was elsewhere | [ui.md](re/ui.md); comparison section 4 |
 
