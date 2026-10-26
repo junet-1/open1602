@@ -1146,6 +1146,7 @@ render::WorldLayers MapViewer::world_layers(const ZoomGraphics& graphics) const 
     layers.local_player = m_local_player;
     layers.production_phases = &m_production_phases;
     layers.ship_smoke = &m_combat.ship_smoke();
+    layers.dither = m_app_settings.display.classic_graphics ? &graphics.graphics.dither : nullptr;
     return layers;
 }
 

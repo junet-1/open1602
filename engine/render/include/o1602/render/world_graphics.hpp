@@ -16,6 +16,7 @@
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/render/banner.hpp"
+#include "o1602/render/dither.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/sprite_hit_mask.hpp"
 #include "o1602/render/unit_tint.hpp"
@@ -48,6 +49,9 @@ struct WorldGraphics {
     std::vector<std::optional<std::uint32_t>> banner_flags;
     /// Units in banner colours without drawn variants (needs the soldier sheet and the figures).
     UnitTint unit_tint;
+    /// Shadows (SCHATTEN.BSH) and smoke (EFFEKTE.BSH) as the original draws them, for the classic
+    /// graphics (WorldLayers::dither).
+    Dither dither;
 
     [[nodiscard]] std::optional<std::uint32_t> sheet_base(assets::FigureSheet sheet) const noexcept {
         return base[static_cast<std::size_t>(sheet)];

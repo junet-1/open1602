@@ -11,6 +11,7 @@
 
 #include "o1602/assets/cod_parser.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/render/dither.hpp"
 #include "o1602/render/figure_animation.hpp"
 #include "o1602/render/flag_tint.hpp"
 #include "o1602/render/land_figures.hpp"
@@ -310,6 +311,62 @@ TEST_CASE("figures: shadows are drawn as translucent black shapes") {
     CHECK(target.pixels[0] == 100 * 127 / 255);  // darkened, not the sprite colour
     CHECK(target.pixels[1] == 100 * 127 / 255);
     CHECK(target.pixels[8] == 200);  // normal sprite
+}
+
+TEST_CASE("figures: classic graphics dither shadows and smoke like the original") {
+    // Sheet 0 "schatten" with one 4 x 3 sprite, followed by its dithered copies.
+    const auto sheet = test::make_sheet({{4, 3}}, 200);
+    const auto palette = test::make_palette();
+    const render::SheetSource source(sheet, palette);
+    const render::DitheredSource dithered(source);
+    REQUIRE(dithered.count() == 2);
+    std::vector<std::uint8_t> rgba;
+    REQUIRE(dithered.pixels(1, rgba));
+    // Block 1 keeps the pixels with x + y odd: a checkerboard, the colours untouched.
+    CHECK(rgba[3] == 0);
+    CHECK(rgba[4 + 3] == 255);
+    CHECK(rgba[4] == 200);
+    CHECK(rgba[(4 + 0) * 4 + 3] == 255);  // (0, 1)
+    CHECK(rgba[(4 + 1) * 4 + 3] == 0);    // (1, 1)
+
+    const render::SpriteSource* sources[] = {&source, &dithered};
+    auto atlas = render::SpriteAtlas::build(std::span<const render::SpriteSource* const>(sources), 64);
+    REQUIRE(atlas.ok());
+    render::Dither dither;
+    dither.sheets.push_back(render::DitheredSheet{atlas->sheet_base(0), 1, atlas->sheet_base(1)});
+
+    // A shadow whose top left corner is a hatched pixel takes block 0, in full black.
+    render::DrawCommand shadow{atlas->sheet_base(0), 10, 13};  // top left (10, 10)
+    shadow.mode = render::DrawCommand::Mode::Shadow;
+    shadow.tint = assets::Rgba{0, 0, 0, render::kShadowAlpha};
+    dither.apply(shadow, *atlas);
+    CHECK(shadow.sprite == atlas->sheet_base(1));
+    CHECK(shadow.mode == render::DrawCommand::Mode::Shadow);
+    CHECK(shadow.tint.a == 255);
+    // One pixel further: the other block, so the checkerboard stays on the same world pixels.
+    render::DrawCommand smoke{atlas->sheet_base(0), 11, 13};
+    smoke.mode = render::DrawCommand::Mode::Translucent;
+    smoke.tint = assets::Rgba{255, 255, 255, 128};
+    dither.apply(smoke, *atlas);
+    CHECK(smoke.sprite == atlas->sheet_base(1) + 1);
+    CHECK(smoke.mode == render::DrawCommand::Mode::Normal);
+    // Bodies and sprites of other sheets stay as they are.
+    render::DrawCommand body{atlas->sheet_base(0), 10, 13};
+    dither.apply(body, *atlas);
+    CHECK(body.sprite == atlas->sheet_base(0));
+
+    // Drawn: the shadow blackens exactly the hatched pixels of its shape.
+    render::RgbaImage target;
+    target.width = 4;
+    target.height = 3;
+    target.pixels.assign(4 * 3 * 4, 100);
+    render::blit_draw_list({shadow}, *atlas, target, 10, 10);
+    for (std::int32_t y = 0; y < 3; ++y) {
+        for (std::int32_t x = 0; x < 4; ++x) {
+            const std::uint8_t expected = render::hatch_pixel(10 + x, 10 + y) ? 0 : 100;
+            CHECK(target.pixels[static_cast<std::size_t>(y * 4 + x) * 4] == expected);
+        }
+    }
 }
 
 TEST_CASE("flags: generic flag tinted in any colour") {

@@ -1150,6 +1150,12 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     const auto add_figure = [&](const FigureSprites& f) {
         if (f.row >= d_begin && f.row <= d_end) {
             figures.push_back(f);
+            if (layers.dither != nullptr && layers.atlas != nullptr) {
+                FigureSprites& added = figures.back();
+                for (std::uint8_t i = 0; i < added.count; ++i) {
+                    layers.dither->apply(added.parts[i], *layers.atlas);
+                }
+            }
         }
     };
     // Before any sprite is worked out (FB-3): a figure's pictures lie around its projected point,

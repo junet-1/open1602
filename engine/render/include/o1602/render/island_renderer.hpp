@@ -81,11 +81,11 @@ struct DrawCommand {
     enum class Mode : std::uint8_t {
         Normal,
         /// Only the sprite's shape, filled with `tint` (alpha = opacity): figure shadows. The
-        /// original dithers them (every second pixel black, 0x00401D10); a translucent fill
-        /// looks the same on today's displays.
+        /// original dithers them (every second pixel black, 0x00401D10); the classic graphics
+        /// draw them so (dither.hpp), otherwise a translucent fill of about the same darkness.
         Shadow,
         /// The sprite with opacity `tint.a`: chimney smoke. The original dithers it like the
-        /// shadows (0x004048E0).
+        /// shadows (0x004048E0), as the classic graphics do.
         Translucent,
         /// The sprite darkened: its colours times `tint` (r, g, b / 255). The original dims the
         /// tiles the player cannot build on through a shading table of its palette (tables 1 and 2

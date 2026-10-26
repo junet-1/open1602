@@ -5,8 +5,10 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "o1602/render/dither.hpp"
 #include "o1602/render/flag_tint.hpp"
 #include "o1602/render/unit_tint.hpp"
 
@@ -162,11 +164,20 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
             pointers.push_back(sources.back().get());
         }
     }
+    // Dithered shadows and smoke last (classic graphics): two blocks per sheet.
+    std::vector<std::pair<std::size_t, std::size_t>> dithered;  // loaded sheet, source
+    for (std::size_t i = 0; i < loaded.size(); ++i) {
+        if (loaded[i].id == assets::FigureSheet::Schatten || loaded[i].id == assets::FigureSheet::Effekte) {
+            dithered.emplace_back(i, pointers.size());
+            sources.push_back(std::make_unique<DitheredSource>(*sources[i]));
+            pointers.push_back(sources.back().get());
+        }
+    }
     auto atlas = SpriteAtlas::build(std::span<const SpriteSource* const>(pointers), options.page_size, options.cancel);
     if (!atlas) {
         return atlas.error();
     }
-    WorldGraphics g{std::move(atlas).value(), {}, {}, {}, {}};
+    WorldGraphics g{std::move(atlas).value(), {}, {}, {}, {}, {}};
     for (std::size_t i = 0; i < loaded.size(); ++i) {
         const auto k = static_cast<std::size_t>(loaded[i].id);
         g.base[k] = g.atlas.sheet_base(i);
@@ -189,6 +200,10 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
             g.unit_tint.banner_base.push_back(slot ? std::optional<std::uint32_t>(base + *slot * g.unit_tint.block_size)
                                                    : std::nullopt);
         }
+    }
+    for (const auto& [sheet, source] : dithered) {
+        g.dither.sheets.push_back(
+            DitheredSheet{g.atlas.sheet_base(sheet), pointers[sheet]->count(), g.atlas.sheet_base(source)});
     }
     return g;
 }

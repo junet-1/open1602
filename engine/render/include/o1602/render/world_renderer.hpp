@@ -18,6 +18,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/banner.hpp"
+#include "o1602/render/dither.hpp"
 #include "o1602/render/island_renderer.hpp"
 #include "o1602/render/ship_trail.hpp"
 #include "o1602/render/sprite_atlas.hpp"
@@ -368,6 +369,9 @@ struct WorldLayers {
     const ShipSmokeMap* ship_smoke = nullptr;
     /// Animation phases of the production buildings; without them the saved phases are shown.
     const ProductionPhases* production_phases = nullptr;
+    /// Classic graphics: shadows and smoke dithered as in the original (WorldGraphics::dither);
+    /// without it they are blended.
+    const Dither* dither = nullptr;
 };
 
 /// The draw commands of one figure (shadow + body, a ship's wave, smoke, hull and flag) and the

@@ -30,6 +30,10 @@ struct DisplaySettings {
     /// The goods trend at the Kontor: under each good of its stock what comes in more than goes
     /// out per minute, green, or the other way round, red (docs/architecture/0012-goods-statistics.md).
     bool goods_trend = true;
+    /// The original's graphics instead of Open1602's: shadows and chimney smoke dithered (every
+    /// second pixel) instead of blended (render::Dither). One switch for everything where the two
+    /// differ in look, not in what is shown.
+    bool classic_graphics = false;
 
     friend bool operator==(const DisplaySettings&, const DisplaySettings&) = default;
 };
