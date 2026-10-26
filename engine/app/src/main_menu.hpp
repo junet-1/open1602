@@ -171,6 +171,7 @@ private:
     std::optional<ui::Panel> m_host;
     std::optional<ui::Panel> m_mission;
     std::optional<ui::Panel> m_colour;
+    bool m_history_buttons = false;  ///< BASE.GAD of the History Edition (six buttons)
     Screen m_screen = Screen::Base;
     ListMode m_mode = ListMode::New;
     std::vector<MenuScenario> m_scenarios;

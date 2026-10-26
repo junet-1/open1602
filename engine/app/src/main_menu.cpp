@@ -19,12 +19,15 @@ namespace o1602::app {
 
 namespace {
 
-// BASE.GAD
+// BASE.GAD: the buttons from the top (IDHAUPT + 2 ...). The History Edition has a sixth one,
+// "Options" (its own graphics settings) after Multiplayer, so the ones below it count one further.
 constexpr std::int32_t kSingle = 30002;
 constexpr std::int32_t kMulti = 30003;
 constexpr std::int32_t kCredits = 30004;
 constexpr std::int32_t kIntro = 30005;
 constexpr std::int32_t kQuit = 30006;
+constexpr std::int32_t kHistoryOptions = 30004;
+constexpr std::int32_t kHistoryQuit = 30007;
 // Open1602's own button on BASE.GAD's screen, below the original's.
 constexpr std::int32_t kModsButton = 1;
 constexpr ui::Rect kModsButtonRect{24, 714, 160, 38};
@@ -248,6 +251,11 @@ MainMenu::MainMenu(const assets::GameDirectory& game, const assets::TextTable* t
       m_banners(render::BannerTable::original()) {
     if (m_host) {
         m_host->set_selected(kNewGame, true);
+    }
+    if (m_base && m_base->layout().find(kHistoryQuit) != nullptr) {
+        // Open1602 has no screen for the History Edition's options: that button stays greyed out.
+        m_history_buttons = true;
+        m_base->set_disabled(kHistoryOptions, true);
     }
     m_banners.add_more_players();
     if (m_colour) {
@@ -736,19 +744,22 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
         }
         switch (m_screen) {
             case Screen::Base:
+            {
+                const std::int32_t below = m_history_buttons ? 1 : 0;  // the buttons after Options
                 if (e.id == kSingle && m_host) {
                     load_scenarios();
                     m_screen = Screen::Host;
                 } else if (e.id == kMulti) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Multiplayer});
-                } else if (e.id == kCredits) {
+                } else if (e.id == kCredits + below) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Credits});
-                } else if (e.id == kIntro) {
+                } else if (e.id == kIntro + below) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Intro});
-                } else if (e.id == kQuit) {
+                } else if (e.id == kQuit + below) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Quit});
                 }
                 break;
+            }
             case Screen::Host:
                 if (e.id == kNewGame) {
                     m_mode = ListMode::New;

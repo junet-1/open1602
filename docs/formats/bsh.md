@@ -10,7 +10,7 @@ uint32_t offsets[n];      // offset of each sprite relative to the start of the 
 struct SpriteRecord {
     uint32_t width;
     uint32_t height;
-    uint32_t type;        // 1 or 6: RLE, 2: raw; 1 in every original file (below)
+    uint32_t type;        // 1 or 6: RLE, 2: raw, 13: true colour RLE (History Edition, below)
     uint32_t length;      // size of the record incl. these 16 bytes, rounded up to 4 bytes
     uint8_t  rle[];       // see below
 };
@@ -36,11 +36,33 @@ The blitters test the low byte of `type` (`0x00401B10`, `0x00401BF0`):
 |---|---|---|
 | 1, 6 | RLE (below) | every blitter |
 | 2 | `width × height` palette indices row by row, index 0 transparent (`0x00403670`) | only the plain blitter; the recolouring one (owner colours, shading) skips it |
+| 13 | true colour RLE (below), History Edition only | – (the History Edition's own renderer) |
 | other | – | nothing |
 
-Every record of the original's files has type 1. Open1602 decodes types 1, 6 and 2 (type 2 also
-when recoloured) and gives a transparent image for any other type. A type 2 record shorter than its
-pixels is refused.
+Every record of the original's files has type 1. Open1602 decodes types 1, 6, 2 (type 2 also
+when recoloured) and 13, and gives a transparent image for any other type. A type 2 record shorter
+than its pixels is refused.
+
+### Type 13: the History Edition's true colour sprites
+
+Ubisoft's *Anno 1602 History Edition* redrew the main menu: in its `ToolGfx/START.BSH` (and the
+one of each language in `Loca/<language>/ToolGfx/`) the background and the buttons (sprites 0 and
+2–13) have type 13, and so have five new buttons of `TOOLS.BSH` (513–517). The data is the RLE
+below in little-endian 32-bit words instead of bytes, each pixel one word with the bytes blue,
+green, red, 0:
+
+```
+loop:
+    w = next uint32
+    0xFF        -> end of image
+    0xFE        -> new row
+    otherwise   -> skip w transparent pixels,
+                   n = next uint32, then n pixels of 4 bytes (B, G, R, 0)
+```
+
+`length` is exact here too. The fourth byte is 0 in every pixel of both files. The History
+Edition's START.BSH has two sprites more than the Königsedition's (a sixth main menu button and
+its pressed image), TOOLS.BSH five more from 513 on; its GAD files are changed to match.
 
 ## RLE encoding
 

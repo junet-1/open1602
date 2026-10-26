@@ -41,6 +41,19 @@ TEST_CASE("cod: numbers in decimal, real, hex and binary notation") {
     CHECK(sym_int(doc, "N") == -5);  // 0 - 5
 }
 
+TEST_CASE("cod: the History Edition's colour mark after a number is dropped") {
+    // TOOLS.INC of the History Edition: "COL_RED = 249c"; its game reads 249.
+    const auto doc = cod::parse("COL_RED = 249c\nCOL_BLK = 0C ; black\nA: 7c, 8c\nB: 2cm\n");
+    CHECK(sym_int(doc, "COL_RED") == 249);
+    CHECK(sym_int(doc, "COL_BLK") == 0);
+    const cod::Symbol* a = doc.symbols.find("A");
+    REQUIRE(a != nullptr);
+    CHECK(a->values[0].integer == 7);
+    CHECK(a->values[1].integer == 8);
+    CHECK(sym_int(doc, "B") == 0);  // a name "cm" as before, not a mark
+    CHECK(doc.diagnostics.size() == 1);
+}
+
 TEST_CASE("cod: numbers beyond 32 bits stay at the largest, on every platform") {
     // The original's strtol() has a 32-bit long; Linux and macOS have 64 bits.
     const auto doc = cod::parse(

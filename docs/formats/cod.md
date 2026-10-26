@@ -57,7 +57,7 @@ A statement ends at the end of the line (`\n`) or the end of the file. Character
 | Character | Effect |
 |---|---|
 | letter `A–Z a–z` | identifier `[A-Za-z][A-Za-z0-9_]*`, optionally `[n]` (value index). The **first** identifier of the line is the target; every further one is replaced by the value of the symbol. |
-| digit | number `[0-9]+` or `[0-9]+.[0-9]*` (then floating point) |
+| digit | number `[0-9]+` or `[0-9]+.[0-9]*` (then floating point); a `c` right after the digits is dropped (`249c`: the History Edition's mark for a palette colour, in its TOOLS.INC and MARKT.GAD) |
 | `$` | hexadecimal number, e.g. `$1F` |
 | `%` | binary number, e.g. `%0101` |
 | `"…"` | string (without escapes, may contain line breaks) |
