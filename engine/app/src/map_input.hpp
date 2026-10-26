@@ -216,8 +216,8 @@ private:
     /// Left button released on the map (no tool): a click or the end of a rectangle.
     void map_left_up(double x, double y, std::uint16_t mod, int clicks);
     /// An order of the selection to the screen point (right button; the left one with the
-    /// original's mouse); `queue` with Shift.
-    void map_order(double x, double y, bool queue);
+    /// original's mouse); `queue` with Shift, `on_object` with Ctrl (a tree or field is shot down).
+    void map_order(double x, double y, bool queue, bool on_object = false);
     /// An order of the selection to a world position (the minimap).
     void order_to_tile(double tx, double ty, bool queue);
     /// Escape or the right button (original mouse): out of a pick, back a page, deselect.

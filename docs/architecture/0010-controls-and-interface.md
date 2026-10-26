@@ -104,7 +104,8 @@ information fit in and the controls follow today's real-time strategy games (202
 |---|---|
 | Right-click (also on the minimap) | command depending on the target |
 | Shift + right-click | append command |
-| F + click | attack-move (attacks on the way; German „Feuer“, "fire") |
+| F + click | attack-move (attacks on the way; German „Feuer“, "fire"); on a tree or field: shoot it down |
+| Ctrl + right-click | on a tree or field: shoot it down (original: Ctrl + click in military mode) |
 | H | stop (German „Halt“) |
 | G | hold position (does not pursue) |
 | P + click | patrol |

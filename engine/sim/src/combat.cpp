@@ -173,6 +173,19 @@ std::optional<Fighter> Combat::fighter(const Target& unit) const {
     return std::nullopt;
 }
 
+bool Combat::fellable(const Target& unit, PlayerId self) const {
+    if (unit.kind != Target::Kind::Building || unit.island >= m_world->islands().size()) {
+        return false;
+    }
+    const auto b = building_at(*m_world, *m_buildings, unit.island,
+                               {static_cast<std::int32_t>(unit.x), static_cast<std::int32_t>(unit.y)});
+    if (!b || b->type->kind != kind::kForest) {
+        return false;
+    }
+    const IslandMap& map = m_world->islands()[unit.island].map;
+    return map.top(static_cast<std::uint32_t>(b->origin.x), static_cast<std::uint32_t>(b->origin.y)).owner != self;
+}
+
 std::optional<Fighter> Combat::tower_fighter(const Tower& t) const {
     const assets::FigureType* type = m_figures->get(t.figure);
     if (type == nullptr || t.island >= m_world->islands().size()) {

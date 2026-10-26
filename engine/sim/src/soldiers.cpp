@@ -330,7 +330,8 @@ PlayerId Military::owner_of(const Target& t) const {
 
 bool Military::attackable(const Soldier& s, const Target& t) const {
     // A unit, tower or building of a player at war with the soldier's owner (or with a pending
-    // offer). The original also attacks a building of a friendly player it was sent to (S-088).
+    // offer), or a tree or field that is not its own. The original also attacks a building of a
+    // friendly player it was sent to (S-088).
     if (t.kind != Target::Kind::Soldier && t.kind != Target::Kind::Ship && t.kind != Target::Kind::Building) {
         return false;
     }
@@ -341,6 +342,9 @@ bool Military::attackable(const Soldier& s, const Target& t) const {
         if (!b || b->type->destroyed || b->type->kind == building_kind::kGround ||
             b->type->kind == building_kind::kRuin || b->type->kind == building_kind::kBeachRuin) {
             return false;
+        }
+        if (m_combat->fellable(t, s.owner)) {
+            return true;
         }
     }
     const PlayerId other = owner_of(t);
