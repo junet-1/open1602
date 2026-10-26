@@ -25,6 +25,8 @@ constexpr std::int32_t kLDeadSlider = 44171;
 constexpr std::int32_t kLTrendUp = 44301;
 constexpr std::int32_t kLTrendDown = 44331;
 constexpr std::int32_t kLTrendGround = 44361;
+/// Open1602's own: the button that turns to the next page of goods, at the title's right end.
+constexpr std::int32_t kLPage = 44391;
 
 /// LAGER.GAD with small text at the foot of every good's icon, left of its bar, in green or in
 /// red, on a half dark ground so that it reads over the picture.
@@ -58,6 +60,15 @@ assets::GadgetLayout with_trend(assets::GadgetLayout layout) {
         g.colour = {ui::kTextBrightRed, ui::kTextBrightRed};
         layout.gadgets.push_back(g);
     }
+    if (const assets::Gadget* title = layout.find(kLTitle)) {
+        assets::Gadget page = *title;
+        page.id = kLPage;
+        page.kind = assets::GadgetKind::TextRight;
+        page.no_select = false;
+        page.menu = true;
+        page.offset = {static_cast<std::int16_t>(title->size[0] - 4), title->offset[1]};
+        layout.gadgets.push_back(page);
+    }
     return layout;
 }
 }  // namespace
@@ -70,6 +81,7 @@ StockList::StockList(assets::GadgetLayout layout) : m_panel(with_trend(std::move
         m_corner = g->gfx;
     }
     m_panel.set_visible(kLDeadSlider, false);
+    m_panel.set_visible(kLPage, false);
     m_panel.set_visible(kLMarker + kLastTradeWare + 1, false);  // marker and corner of the 24th place:
     m_panel.set_visible(kLCorner + kLastTradeWare + 1, false);  // never shown
 }
@@ -80,31 +92,54 @@ std::string StockList::trend_text(const sim::City& city, std::uint8_t ware) {
     return text == "0" || text == "-" ? std::string() : text;
 }
 
-void StockList::refresh(const sim::City& city, bool picker, bool trend) {
+void StockList::refresh(const sim::City& city, const assets::Goods& goods, bool picker, bool trend) {
     m_panel.set_text(kLTitle, city_name(city));
+    // The original's goods on the first page, the packages' in the original's order of places after.
+    const std::vector<std::uint8_t>& all = goods.trade_wares();
+    const std::size_t own = all.size() > kPlaces ? all.size() - kPlaces : 0;
+    m_pages = 1 + (own + kPlaces - 1) / kPlaces;
+    m_page = std::min(m_page, m_pages - 1);
+    m_place_ware.fill(0);
+    for (std::size_t k = 0; k < kPlaces; ++k) {
+        const std::size_t i = m_page == 0 ? k : kPlaces + (m_page - 1) * kPlaces + k;
+        m_place_ware[kFirstTradeWare + k] = i < all.size() ? all[i] : std::uint8_t{0};
+    }
+    m_panel.set_visible(kLPage, m_pages > 1);
+    if (m_pages > 1) {
+        m_panel.set_text(kLPage, std::to_string(m_page + 1) + "/" + std::to_string(m_pages) + " >");
+    }
     const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city.capacity, 1));
-    for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
-        const std::string rate = trend && !picker ? trend_text(city, w) : std::string();
+    for (std::uint8_t place = kFirstTradeWare; place <= kLastTradeWare; ++place) {
+        const std::uint8_t w = m_place_ware[place];
+        const std::string rate = w != 0 && trend && !picker ? trend_text(city, w) : std::string();
         const bool up = !rate.empty() && rate.front() == '+';
-        m_panel.set_visible(kLTrendGround + w, !rate.empty());
-        m_panel.set_visible(kLTrendUp + w, up);
-        m_panel.set_visible(kLTrendDown + w, !rate.empty() && !up);
-        m_panel.set_text(up ? kLTrendUp + w : kLTrendDown + w, rate);
+        m_panel.set_visible(kLTrendGround + place, !rate.empty());
+        m_panel.set_visible(kLTrendUp + place, up);
+        m_panel.set_visible(kLTrendDown + place, !rate.empty() && !up);
+        m_panel.set_text(up ? kLTrendUp + place : kLTrendDown + place, rate);
+        for (const std::int32_t id : {kLIcon, kLFrame, kLBar}) {
+            m_panel.set_visible(id + place, w != 0);
+        }
+        if (w == 0) {
+            m_panel.set_visible(kLMarker + place, false);
+            m_panel.set_visible(kLCorner + place, false);
+            continue;
+        }
         const sim::City::Trade* t = city.trade_of(w);
-        m_panel.set_graphic(kLIcon + w, m_gfx_ware + w, 0);
-        m_panel.set_slider(kLBar + w, 1, static_cast<std::int32_t>(city.stock(w)), cap);
+        m_panel.set_graphic(kLIcon + place, m_gfx_ware + goods.icon(w), 0);
+        m_panel.set_slider(kLBar + place, 1, static_cast<std::int32_t>(city.stock(w)), cap);
         const bool buy = t != nullptr && t->buy;
         const bool sell = t != nullptr && t->sell;
-        m_panel.set_visible(kLMarker + w, buy || sell);
-        m_panel.set_visible(kLCorner + w, buy || sell);
+        m_panel.set_visible(kLMarker + place, buy || sell);
+        m_panel.set_visible(kLCorner + place, buy || sell);
         if (buy || sell) {
-            m_panel.set_slider(kLMarker + w, 1, static_cast<std::int32_t>(buy ? t->limit : t->keep), cap);
+            m_panel.set_slider(kLMarker + place, 1, static_cast<std::int32_t>(buy ? t->limit : t->keep), cap);
             // Price level 0 (cheapest) .. 4 (base price).
-            const std::int32_t base = sim::base_price(w);
+            const std::int32_t base = goods.price(w);
             const auto min = static_cast<std::int32_t>(static_cast<std::uint32_t>(base) * 300U >> 10U);
             const std::int32_t price = buy ? t->buy_price : t->sell_price;
             const std::int32_t level = std::clamp(((price - min) * 5 - 1) / std::max(1, base - min), 0, 4);
-            m_panel.set_graphic(kLCorner + w, m_corner + (buy ? 0 : 5) + level, 0);
+            m_panel.set_graphic(kLCorner + place, m_corner + (buy ? 0 : 5) + level, 0);
         }
     }
     // The 24th place: the empty frame that closes the picker.
@@ -121,14 +156,23 @@ void StockList::refresh(const sim::City& city, bool picker, bool trend) {
 }
 
 std::optional<std::uint8_t> StockList::ware_of(std::int32_t id) const {
-    const std::int32_t w = id - kLFrame;
-    if (w >= kFirstTradeWare && w <= kLastTradeWare) {
-        return static_cast<std::uint8_t>(w);
+    const std::int32_t place = id - kLFrame;
+    if (place >= kFirstTradeWare && place <= kLastTradeWare) {
+        const std::uint8_t w = m_place_ware[static_cast<std::size_t>(place)];
+        return w != 0 ? std::optional(w) : std::nullopt;
     }
-    if (w == kLastTradeWare + 1) {
+    if (place == kLastTradeWare + 1) {
         return std::uint8_t{0};
     }
     return std::nullopt;
+}
+
+bool StockList::turn_page(std::int32_t id) {
+    if (id != kLPage || m_pages <= 1) {
+        return false;
+    }
+    m_page = (m_page + 1) % m_pages;
+    return true;
 }
 
 TradeLists::TradeLists(assets::GadgetLayout layout) : m_panel(std::move(layout), 1.0) {
@@ -141,8 +185,8 @@ void TradeLists::refresh(const sim::City& city, const PanelContext& c) {
     m_panel.set_text(53003, c.text("GAME", 36));
     m_panel.set_text(53004, c.text("GAME", 35));
     const assets::BuildingType* k = sim::kontor_of(c.world(), c.buildings, city);
-    fill(city, true, 53011, 53031, kDemandFrame, 11, k != nullptr ? k->max_wares2 : 0);
-    fill(city, false, 53071, 53081, kOfferFrame, 8, k != nullptr ? k->max_wares : 0);
+    fill(city, c.world().goods(), true, 53011, 53031, kDemandFrame, 11, k != nullptr ? k->max_wares2 : 0);
+    fill(city, c.world().goods(), false, 53071, 53081, kOfferFrame, 8, k != nullptr ? k->max_wares : 0);
 }
 
 std::optional<std::pair<std::uint8_t, bool>> TradeLists::ware_of(std::int32_t id) const {
@@ -180,11 +224,11 @@ std::uint32_t TradeLists::amount(const sim::City& city, std::uint8_t w, bool buy
     return n < 32 ? 0 : static_cast<std::uint32_t>(n);
 }
 
-void TradeLists::fill(const sim::City& city, bool buy, std::int32_t icon, std::int32_t bar, std::int32_t frame,
-                      std::int32_t gadgets, std::int32_t places) {
+void TradeLists::fill(const sim::City& city, const assets::Goods& goods, bool buy, std::int32_t icon, std::int32_t bar,
+                      std::int32_t frame, std::int32_t gadgets, std::int32_t places) {
     auto& list = buy ? m_buy : m_sell;
     list.clear();
-    for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
+    for (const std::uint8_t w : goods.trade_wares()) {
         const sim::City::Trade* t = city.trade_of(w);
         if (t != nullptr && (buy ? t->buy : t->sell)) {
             list.push_back(w);
@@ -199,7 +243,7 @@ void TradeLists::fill(const sim::City& city, bool buy, std::int32_t icon, std::i
         m_panel.set_visible(bar + k, ware);
         if (ware) {
             const std::uint8_t w = list[static_cast<std::size_t>(k)];
-            m_panel.set_graphic(icon + k, m_gfx_ware + w, 0);
+            m_panel.set_graphic(icon + k, m_gfx_ware + goods.icon(w), 0);
             m_panel.set_slider(bar + k, 1,
                                static_cast<std::int32_t>(std::min<std::uint32_t>(amount(city, w, buy), city.capacity)),
                                cap);

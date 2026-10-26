@@ -138,6 +138,8 @@ struct ModRules {
     sim::Balance balance;
     /// The buildings the packages added, with the Ids `buildings` gave them.
     std::vector<assets::OwnBuilding> own;
+    /// The original's goods and those the packages added (goods.toml).
+    assets::Goods goods;
 };
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
@@ -147,10 +149,17 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
                         const assets::FigureTable& figures) {
     ModRules rules;
     std::vector<std::string> problems;
+    // Goods first, then the buildings that make them, then the values that may name both.
+    for (const assets::ModPackage& package : packages) {
+        if (const auto bytes = core::read_file(package.folder / assets::kGoodsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_goods_file(rules.goods, package.id, text, problems);
+        }
+    }
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / assets::kOwnBuildingsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-            assets::apply_own_buildings_file(buildings, rules.own, package.id, text, problems);
+            assets::apply_own_buildings_file(buildings, rules.own, package.id, text, problems, rules.goods);
         }
     }
     for (const assets::ModPackage& package : packages) {
@@ -226,6 +235,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         world = sim::World(500, 350);  // the sea behind the menu until a game is chosen or comes from the host
         world->set_packages(assets::content_of(packages));
         world->set_own_buildings(rules.own);
+        world->set_goods(rules.goods);
     } else if (options.new_game) {
         auto texts = assets::TextTable::load(game);
         if (!texts) {
@@ -237,6 +247,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             world->set_balance(rules.balance);
             world->set_packages(assets::content_of(packages));
             world->set_own_buildings(rules.own);
+            world->set_goods(rules.goods);
         }
     } else {
         auto bytes = core::read_file(options.scenario);
@@ -256,6 +267,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                 world->set_balance(rules.balance);
                 world->set_packages(assets::content_of(packages));
                 world->set_own_buildings(rules.own);
+                world->set_goods(rules.goods);
             }
         }
     }
@@ -287,6 +299,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_factions = std::move(rules.factions);
     viewer->m_balance = rules.balance;
     viewer->m_own_buildings = std::move(rules.own);
+    viewer->m_goods = std::move(rules.goods);
     viewer->m_packages = std::move(packages);
     {
         std::vector<std::string> problems;
@@ -2449,6 +2462,7 @@ void MapViewer::give_mod_content(sim::World& world) const {
     world.set_balance(m_balance);
     world.set_packages(assets::content_of(m_packages));
     world.set_own_buildings(m_own_buildings);
+    world.set_goods(m_goods);
 }
 
 void MapViewer::use_game_packages() {
@@ -2535,6 +2549,7 @@ void MapViewer::reload_mods() {
     m_factions = std::move(rules.factions);
     m_balance = rules.balance;
     m_own_buildings = std::move(rules.own);
+    m_goods = std::move(rules.goods);
     // Packages are turned on and off in the main menu, where no game is running: the game's table
     // takes the buildings the packages give now, with the values of the world behind the menu.
     m_buildings = m_original_buildings;

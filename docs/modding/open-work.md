@@ -29,6 +29,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `buildings.toml` | values of the original's buildings: production, costs, reach, workers, hit points | [values.md](values.md) |
 | `figures.toml` | values of the original's figures: speed, carrying, hit points, damage, range, cannons, price | [values.md](values.md) |
 | `own_buildings.toml` | buildings of the package's own, each copying one of the original | [own-buildings.md](own-buildings.md) |
+| `goods.toml` | trade goods of the package's own: price, icon, names | [goods.md](goods.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
 Without a mod file the engine already has banners with tinted flags for any number of players
@@ -75,6 +76,13 @@ PR #137 moved the ware groups, unlock levels and the panels' required buildings 
 unlock levels than the rules know. These tables are still compiled in: a package cannot add a ware,
 a sixth resident class, a new public service or more than 32 unlock levels. Needed: a content
 object (`GameContent`) built from the packages, part of the fingerprint and the save.
+
+Part 1 done on 2026-10-26 ([goods.md](goods.md)): a package adds trade goods in `goods.toml` (price,
+the icon of a good of the original, names by language) with ware numbers from 59 in the packages'
+load order; its own buildings make and use them (`ware`, `raw`, `raw2`), Kontors, ships, carts and
+the free trader handle them, and a game keeps them (section `GOOD`). Still open: residents who need
+such goods with resident classes as data (part 2), more than 32 unlock levels (part 3), and pictures
+of the goods' own.
 
 ### 4. Graphics and sound of a package's own (section 2)
 

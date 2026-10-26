@@ -200,10 +200,10 @@ void Fleet::yard_cycle(CostBuilding& yard) {
         yard.wood -= wood;
         yard.cloth -= cloth;
         if (City* city = m_world->city(yard.island, cell.city)) {
-            if (is_trade_ware(b->raw_ware)) {
+            if (m_world->goods().is_trade(b->raw_ware)) {
                 city->book(b->raw_ware, GoodsFlow::Workshops, wood);
             }
-            if (is_trade_ware(b->raw2_ware)) {
+            if (m_world->goods().is_trade(b->raw2_ware)) {
                 city->book(b->raw2_ware, GoodsFlow::Workshops, cloth);
             }
         }

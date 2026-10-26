@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/assets/goods.hpp"
 
 namespace o1602::assets {
 
@@ -34,8 +35,8 @@ struct OwnBuilding {
 /// Reads `own_buildings.toml` of `package` and adds its buildings to `table` and `own`. Packages
 /// are read in their load order, so the Ids are the same on every computer with the same packages.
 /// A table that cannot be read is passed over with a warning; a file that is no data file at all
-/// adds nothing.
+/// adds nothing. `goods`: what `ware`, `raw` and `raw2` may name besides the original's goods.
 void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& own, std::string_view package,
-                              std::string_view utf8, std::vector<std::string>& warnings);
+                              std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods = {});
 
 }  // namespace o1602::assets

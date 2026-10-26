@@ -16,6 +16,7 @@
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/game_content.hpp"
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/goods.hpp"
 #include "o1602/assets/island.hpp"
 #include "o1602/assets/own_buildings.hpp"
 #include "o1602/assets/scenario.hpp"
@@ -482,6 +483,10 @@ public:
     /// where its packages give the same buildings the same Ids again.
     [[nodiscard]] const std::vector<assets::OwnBuilding>& own_buildings() const noexcept { return m_own_buildings; }
     void set_own_buildings(std::vector<assets::OwnBuilding> own) { m_own_buildings = std::move(own); }
+    /// The goods this game trades: the original's and those its packages added (goods.hpp), kept
+    /// in the savegame (section GOOD).
+    [[nodiscard]] const assets::Goods& goods() const noexcept { return m_goods; }
+    void set_goods(assets::Goods goods) { m_goods = std::move(goods); }
     /// The faction a player belongs to; the settlers' for a faction the world does not have.
     [[nodiscard]] const Faction& faction(const Player& player) const noexcept {
         return player.faction < m_factions.size() ? m_factions[player.faction] : m_factions[faction::kSettlers];
@@ -694,6 +699,7 @@ private:
     Balance m_balance;
     std::optional<std::vector<assets::ContentPackage>> m_packages;
     std::vector<assets::OwnBuilding> m_own_buildings;
+    assets::Goods m_goods;
     std::vector<Ship> m_ships;
     std::uint32_t m_next_ship_id = 1;
     IdIndex m_ship_index;

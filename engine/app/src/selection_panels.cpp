@@ -21,6 +21,12 @@
 namespace o1602::app {
 
 std::string PanelContext::text(std::string_view section, std::size_t line) const {
+    if (section == "WARE" || section == "WAREM") {
+        // The goods of packages have their names with them (docs/modding/goods.md).
+        if (const assets::OwnGood* g = line <= 255 ? world().goods().own(static_cast<std::uint32_t>(line)) : nullptr) {
+            return g->name(ui::current_language());
+        }
+    }
     if (texts == nullptr) {
         return {};
     }
@@ -142,7 +148,7 @@ public:
             }
         };
         const auto ware = [&](std::int32_t icon, std::int32_t amount, std::uint8_t w, std::int64_t stock) {
-            m_panel.set_graphic(icon, m_gfx_ware + w, 0);
+            m_panel.set_graphic(icon, m_gfx_ware + c.world().goods().icon(w), 0);
             m_panel.set_text(amount, ui::format_text(tons, {stock >> 5}));
         };
         const bool two = b->raw2_ware != 0 && b->raw2_amount != 0 && m_ids.raw2_b[0] != 0;
@@ -367,13 +373,13 @@ public:
                 break;
             case Page::Kontor:
                 if (m_picker) {
-                    m_lager.refresh(*city, true);
+                    m_lager.refresh(*city, c.world().goods(), true);
                 } else {
                     refresh_kontor(*city, c);
                 }
                 break;
             case Page::Stock:
-                m_lager.refresh(*city, false, c.goods_trend);
+                m_lager.refresh(*city, c.world().goods(), false, c.goods_trend);
                 break;
         }
     }
@@ -414,24 +420,32 @@ public:
             if (e.kind != ui::PanelEvent::Kind::Clicked) {
                 return;
             }
+            if (m_lager.turn_page(e.id)) {
+                return;
+            }
             const std::optional<std::uint8_t> picked = m_lager.ware_of(e.id);
-            const std::int32_t w = picked ? (*picked == 0 ? kLastTradeWare + 1 : *picked) : -1;
-            if (w >= kFirstTradeWare && w <= kLastTradeWare) {
-                out.emplace_back(setting(*city, c, static_cast<std::uint8_t>(w), mode()));
-                // The new ware's place in the sorted list.
+            if (picked && *picked != 0) {
+                out.emplace_back(setting(*city, c, *picked, mode()));
+                // The new ware's place in the list, which follows the order of the goods.
                 std::int32_t before = 0;
-                for (std::uint8_t v = kFirstTradeWare; v < w; ++v) {
+                for (const std::uint8_t v : c.world().goods().trade_wares()) {
+                    if (v == *picked) {
+                        break;
+                    }
                     before += listed(*city, v) ? 1 : 0;
                 }
                 m_slot = before;
             }
-            if (w >= kFirstTradeWare && w <= kLastTradeWare + 1) {
+            if (picked) {
                 m_picker = false;
             }
             return;
         }
         if (m_page == Page::Stock) {
             // Open1602's own: a good of the stock opens its page in the window "Warenbilanz".
+            if (e.kind == ui::PanelEvent::Kind::Clicked && m_lager.turn_page(e.id)) {
+                return;
+            }
             const std::optional<std::uint8_t> w = m_lager.ware_of(e.id);
             if (e.kind == ui::PanelEvent::Kind::Clicked && w && *w != 0 && city->owner == c.local) {
                 Request r;
@@ -449,7 +463,7 @@ public:
             c.start_rename(NameTarget::of(*city), out);  // 0x0043CE00, gadget 34002
             return;
         }
-        const std::vector<std::uint8_t> list = wares(*city);
+        const std::vector<std::uint8_t> list = wares(*city, c.world().goods());
         const std::int32_t slots = slot_count(*city, c);
         if (e.kind == ui::PanelEvent::Kind::Clicked && e.id >= city_ids::kKFrame &&
             e.id < city_ids::kKFrame + city_ids::kKSlots) {
@@ -467,7 +481,7 @@ public:
         if (t == nullptr) {
             return;
         }
-        const std::uint16_t base = sim::base_price(w);
+        const std::uint16_t base = c.world().goods().price(w);
         const std::uint16_t min = static_cast<std::uint16_t>(base * 300U >> 10U);
         const std::uint16_t price = m_sell ? t->sell_price : t->buy_price;
         sim::TradeSetting o = setting(*city, c, w, mode());
@@ -539,7 +553,7 @@ public:
             }
             return std::nullopt;
         }
-        const std::vector<std::uint8_t> list = wares(*city);
+        const std::vector<std::uint8_t> list = wares(*city, c.world().goods());
         if (id >= city_ids::kKFrame && id < city_ids::kKFrame + city_ids::kKSlots) {
             const auto k = static_cast<std::size_t>(id - city_ids::kKFrame);
             return k < list.size() ? std::optional<std::string>(stock_text(list[k])) : line(41 + m);
@@ -581,10 +595,10 @@ private:
         const sim::City::Trade* t = city.trade_of(w);
         return t != nullptr && (m_sell ? t->sell : t->buy);
     }
-    /// The wares of the list, by ware number.
-    [[nodiscard]] std::vector<std::uint8_t> wares(const sim::City& city) const {
+    /// The wares of the list, in the order of the goods (the original's by ware number).
+    [[nodiscard]] std::vector<std::uint8_t> wares(const sim::City& city, const assets::Goods& goods) const {
         std::vector<std::uint8_t> list;
-        for (std::uint8_t w = kFirstTradeWare; w <= kLastTradeWare; ++w) {
+        for (const std::uint8_t w : goods.trade_wares()) {
             if (listed(city, w)) {
                 list.push_back(w);
             }
@@ -634,7 +648,7 @@ private:
         m_kontor.set_text(city_ids::kKTitle, c.shown_name(NameTarget::of(city), city_name(city)));
         m_kontor.set_no_select(city_ids::kKTitle, !can_rename(c.world(), c.local, NameTarget::of(city)));
         m_kontor.set_selected(city_ids::kKMode, m_sell);
-        const std::vector<std::uint8_t> list = wares(city);
+        const std::vector<std::uint8_t> list = wares(city, c.world().goods());
         const std::int32_t slots = slot_count(city, c);
         const auto cap = static_cast<std::int32_t>(std::max<std::uint32_t>(city.capacity, 1));
         if (m_slot >= std::max<std::int32_t>(slots, static_cast<std::int32_t>(list.size()))) {
@@ -649,7 +663,7 @@ private:
             m_kontor.set_selected(city_ids::kKFrame + k, k == m_slot);
             if (ware) {
                 const std::uint8_t w = list[static_cast<std::size_t>(k)];
-                m_kontor.set_graphic(city_ids::kKIcon + k, m_gfx_ware + w, 0);
+                m_kontor.set_graphic(city_ids::kKIcon + k, m_gfx_ware + c.world().goods().icon(w), 0);
                 m_kontor.set_slider(city_ids::kKBar + k, 1, static_cast<std::int32_t>(city.stock(w)), cap);
             } else if (slot) {
                 m_kontor.set_graphic(city_ids::kKIcon + k, m_gfx_empty, 0);
@@ -674,7 +688,7 @@ private:
         }
         const std::uint8_t w = list[static_cast<std::size_t>(m_slot)];
         const sim::City::Trade* t = city.trade_of(w);
-        const std::uint16_t base = sim::base_price(w);
+        const std::uint16_t base = c.world().goods().price(w);
         const auto min = static_cast<std::int32_t>(base * 300U >> 10U);
         const std::int32_t price = t == nullptr ? 0 : (m_sell ? t->sell_price : t->buy_price);
         const std::uint32_t limit = t == nullptr ? 0 : (m_sell ? t->keep : t->limit);
@@ -1057,7 +1071,7 @@ public:
         const std::string tons = c.text("GAME", kGameTons);
         const auto ware_row = [&](ui::Panel& p, std::int32_t icon, std::int32_t amount, std::uint8_t w,
                                   std::uint32_t stock) {
-            p.set_graphic(icon, m_gfx_ware + w, 0);
+            p.set_graphic(icon, m_gfx_ware + c.world().goods().icon(w), 0);
             p.set_text(amount, ui::format_text(tons, {std::int64_t{stock >> 5U}}));
         };
         if (m_choose) {

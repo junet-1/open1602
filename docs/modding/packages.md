@@ -23,6 +23,7 @@ with milestone M8: packages as archives and adding content of a package's own
     buildings.toml     values of the original's buildings (values.md)
     figures.toml       values of the original's figures (values.md)
     own_buildings.toml buildings of the package's own (own-buildings.md)
+    goods.toml         trade goods of the package's own (goods.md)
 ```
 
 The folder's name is the package's id, for example `lighthouse`. The ids of a package's entries

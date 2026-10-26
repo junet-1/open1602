@@ -211,7 +211,7 @@ void Engine::buy_settings(AiPlayer& p, City& c, CityPlan& r) {
         }
         want(ware::kJewellery, lux(ware::kJewellery, 4), false);
     }
-    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
+    for (const std::uint8_t w : m_world.goods().trade_wares()) {
         const City::Trade* t = c.trade_of(w);
         const auto it = std::find_if(wanted.begin(), wanted.end(), [&](const Want& x) { return x.ware == w; });
         TradeSetting s;
@@ -296,7 +296,7 @@ void Engine::sell_settings(AiPlayer& p, City& c, CityPlan& r) {
     offer(m.wood, (civ + 1) * 15 * kTon, (civ + 1) * 15 * kTon + 8 * kTon);
     const std::uint8_t food = m_buildings.food_ware();
     offer(food, by_demand(food), by_demand(food) + 8 * kTon, false);
-    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
+    for (const std::uint8_t w : m_world.goods().trade_wares()) {
         const City::Trade* t = c.trade_of(w);
         const auto it = std::find_if(offers.begin(), offers.end(), [&](const Offer& x) { return x.ware == w; });
         TradeSetting s;

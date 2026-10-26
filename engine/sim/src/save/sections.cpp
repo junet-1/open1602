@@ -93,15 +93,18 @@ constexpr std::uint32_t kPackages = tag("PACK");
 /// The buildings the packages added and their Ids (World::own_buildings()), only written when there
 /// are any. Required: the islands' tiles name those Ids.
 constexpr std::uint32_t kOwnBuildings = tag("OWNB");
+/// The goods the packages added (World::goods(), goods.hpp), only written when there are any.
+/// Required: stocks, holds and buildings name their ware numbers.
+constexpr std::uint32_t kGoods = tag("GOOD");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
-    kRules,           kWorld,       kIslands,   kTiles,     kPlayers,  kCities,    kProductions,    kHouses,
-    kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,      kSimulation,
-    kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
-    kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
-    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
-    kFigureValues,    kOwnBuildings};
+    kRules,           kWorld,        kIslands,   kTiles,     kPlayers,  kCities,    kProductions,    kHouses,
+    kGrowth,          kCosts,        kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,      kSimulation,
+    kFleet,           kEpochs,       kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
+    kMissions,        kPlayerState,  kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
+    kPopulationMarks, kTutorial,     kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
+    kFigureValues,    kOwnBuildings, kGoods};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -292,6 +295,20 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                 o.u32(v.number);
                 o.u8(static_cast<std::uint8_t>(v.field));
                 o.u32(v.value);
+            });
+        });
+    }
+    if (!world.goods().own_goods().empty()) {
+        section(out, kGoods, [&](Writer& o) {
+            o.list(world.goods().own_goods(), 8, [&](const assets::OwnGood& g) {
+                o.u8(g.number);
+                o.string(g.id);
+                o.u16(g.price);
+                o.u8(g.icon);
+                o.list(g.names, 2, [&](const std::pair<std::string, std::string>& n) {
+                    o.string(n.first);
+                    o.string(n.second);
+                });
             });
         });
     }
@@ -532,6 +549,27 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     in.fail();
                 }
                 d.figure_values = std::move(values);
+                break;
+            }
+            case kGoods: {
+                std::vector<assets::OwnGood> own;
+                in.list(own, 8, [&](assets::OwnGood& g) {
+                    in.u8(g.number);
+                    in.string(g.id);
+                    in.u16(g.price);
+                    in.u8(g.icon);
+                    in.list(g.names, 2, [&](std::pair<std::string, std::string>& n) {
+                        in.string(n.first);
+                        in.string(n.second);
+                    });
+                });
+                assets::Goods goods;
+                for (assets::OwnGood& g : own) {
+                    if (!goods.restore(std::move(g))) {
+                        in.fail();
+                    }
+                }
+                d.goods = std::move(goods);
                 break;
             }
             case kOwnBuildings: {

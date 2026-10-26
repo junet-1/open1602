@@ -16,7 +16,7 @@ constexpr std::uint32_t kHealthy = 0x5F;  // health * 128 / max above this: at l
 
 bool carries_goods(const Ship& s) {
     for (const CargoSlot& c : s.cargo) {
-        if (c.ware != 0 && c.ware <= ware::kLastTrade && c.amount != 0) {
+        if (assets::is_good_number(c.ware) && c.amount != 0) {
             return true;
         }
     }
@@ -28,7 +28,7 @@ bool carries_goods(const Ship& s) {
 /// came up.
 bool carries_goods_for(const Ship& s, const City& home) {
     for (const CargoSlot& c : s.cargo) {
-        if (c.ware != 0 && c.ware <= ware::kLastTrade && c.amount != 0 && home.stock(c.ware) < home.capacity) {
+        if (assets::is_good_number(c.ware) && c.amount != 0 && home.stock(c.ware) < home.capacity) {
             return true;
         }
     }

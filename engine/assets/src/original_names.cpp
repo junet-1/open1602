@@ -159,6 +159,18 @@ std::optional<std::uint32_t> number_of(std::string_view text) noexcept {
     return value;
 }
 
+// The trade goods, Text.cod [WARE] from Eisenerz to Ziegel.
+constexpr std::array kWares{
+    OriginalName{"ore", 2},      OriginalName{"gold", 3},           OriginalName{"wool", 4},
+    OriginalName{"sugar", 5},    OriginalName{"tobacco", 6},        OriginalName{"cattle", 7},
+    OriginalName{"grain", 8},    OriginalName{"flour", 9},          OriginalName{"iron", 10},
+    OriginalName{"swords", 11},  OriginalName{"muskets", 12},       OriginalName{"cannons", 13},
+    OriginalName{"food", 14},    OriginalName{"tobacco_goods", 15}, OriginalName{"spices", 16},
+    OriginalName{"cocoa", 17},   OriginalName{"alcohol", 18},       OriginalName{"cloth", 19},
+    OriginalName{"clothes", 20}, OriginalName{"jewellery", 21},     OriginalName{"tools", 22},
+    OriginalName{"wood", 23},    OriginalName{"bricks", 24},
+};
+
 }  // namespace
 
 std::optional<std::uint32_t> original_building_id(std::string_view id) noexcept {
@@ -175,6 +187,10 @@ std::optional<std::uint32_t> original_building_id(std::string_view id) noexcept 
 
 std::span<const OriginalName> original_building_names() noexcept {
     return kBuildings;
+}
+
+std::span<const OriginalName> original_ware_names() noexcept {
+    return kWares;
 }
 
 std::span<const OriginalName> original_figure_names() noexcept {

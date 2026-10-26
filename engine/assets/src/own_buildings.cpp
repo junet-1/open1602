@@ -38,7 +38,7 @@ const OwnBuilding* find_own_building(std::span<const OwnBuilding> own, std::stri
 }
 
 void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& own, std::string_view package,
-                              std::string_view utf8, std::vector<std::string>& warnings) {
+                              std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods) {
     const std::string where = std::string(package) + "/" + std::string(kOwnBuildingsFile);
     auto tables = core::parse_data_file(utf8);
     if (!tables) {
@@ -68,6 +68,9 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
         std::optional<std::int64_t> gfx;
         std::optional<std::int64_t> size_x;
         std::optional<std::int64_t> size_y;
+        std::optional<std::uint8_t> ware;
+        std::optional<std::uint8_t> raw;
+        std::optional<std::uint8_t> raw2;
         bool ok = true;
         for (const core::DataEntry& e : t.entries) {
             const std::string field = line_of(where, e.value.line) + "'" + e.key + "' ";
@@ -89,6 +92,19 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
                 } else {
                     (e.key == "gfx" ? gfx : e.key == "size_x" ? size_x : size_y) = *n;
                 }
+            } else if (e.key == "ware" || e.key == "raw" || e.key == "raw2") {
+                // What it makes and uses: a good by its id, or "" for none.
+                const std::string* s = e.value.string();
+                const auto w = s == nullptr ? std::nullopt
+                               : s->empty() ? std::optional<std::uint8_t>(std::uint8_t{0})
+                                            : ware_of(goods, *s);
+                if (!w) {
+                    warnings.push_back(field +
+                                       "names no good (anno1602:<name or number> or <package>:<name>, \"\" for none)");
+                    ok = false;
+                } else {
+                    (e.key == "ware" ? ware : e.key == "raw" ? raw : raw2) = w;
+                }
             } else {
                 warnings.push_back(field + "is no field of a building of a package and is passed over");
             }
@@ -109,6 +125,15 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
         }
         if (size_y) {
             b.size_y = static_cast<std::uint32_t>(*size_y);
+        }
+        if (ware) {
+            b.ware = *ware;
+        }
+        if (raw) {
+            b.raw_ware = *raw;
+        }
+        if (raw2) {
+            b.raw2_ware = *raw2;
         }
         const auto number = table.add(b);
         if (!number) {

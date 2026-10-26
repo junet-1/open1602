@@ -245,12 +245,12 @@ void Fleet::pirate_nest_sales(City& nest) {
         }
     }
     std::vector<std::pair<std::uint64_t, std::uint8_t>> values;
-    for (std::uint8_t w = ware::kFirstTrade; w <= ware::kLastTrade; ++w) {
-        values.emplace_back(std::uint64_t{base_price(w)} * nest.stock(w), w);
+    for (const std::uint8_t w : m_world->goods().trade_wares()) {
+        values.emplace_back(std::uint64_t{m_world->goods().price(w)} * nest.stock(w), w);
     }
     std::stable_sort(values.begin(), values.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
-    if (nest.trade.size() < ware::kLastTrade + 1U) {
-        nest.trade.resize(ware::kLastTrade + 1U);
+    if (nest.trade.size() < m_world->goods().end()) {
+        nest.trade.resize(m_world->goods().end());
     }
     for (City::Trade& t : nest.trade) {
         t.sell = false;
@@ -260,7 +260,7 @@ void Fleet::pirate_nest_sales(City& nest) {
         City::Trade& t = nest.trade[values[i].second];
         t.sell = true;
         t.keep = 0;
-        t.sell_price = static_cast<std::uint16_t>(base_price(values[i].second) * 51 / 128);
+        t.sell_price = static_cast<std::uint16_t>(m_world->goods().price(values[i].second) * 51 / 128);
     }
 }
 
@@ -359,7 +359,7 @@ bool Fleet::plunder(Ship& pirate, Ship& victim) {
         route.stops[3].target = Target::city_of(base.island, base.index);
         std::size_t n = 0;
         for (const CargoSlot& c : victim.cargo) {
-            if (n >= 6 || c.ware == 0 || c.ware > ware::kLastTrade || base_price(c.ware) < kValuable) {
+            if (n >= 6 || !m_world->goods().is_trade(c.ware) || m_world->goods().price(c.ware) < kValuable) {
                 continue;  // soldiers on board are not loot (the original reads past its table)
             }
             const std::size_t stop = n / 3;
