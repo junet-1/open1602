@@ -291,6 +291,52 @@ TEST_CASE("naval: a warship sent against another player's Kontor shoots at it") 
     CHECK(damage > 0 || destroyed);
 }
 
+TEST_CASE("naval: a ship stops shooting once its target building is gone; terrain is no target") {
+    Sea s(false, true);
+    REQUIRE(s.world.island(0).map.place(*s.buildings.by_id(20107), 0, 4, 0, 0, 1, 0).ok());
+    s.start();
+    // The ground of another player is terrain: nothing to shoot at (Haus_IsDestroyable 0x00464A80).
+    CHECK(!s.combat->fighter(sim::Target::building(0, 5, 0)).has_value());
+    CHECK(s.combat->fighter(sim::Target::building(0, 0, 4)).has_value());
+    s.world.diplomacy().set_peace(s.world, 0, 1, sim::Treaty::None, 0);
+    const std::uint32_t warship = s.add(34, 24, kWarship, 0, 8);
+    sim::ShipOrder o{0, warship, sim::Target::building(0, 0, 4)};
+    o.attack = true;
+    REQUIRE(s.fleet->order(o));
+    for (int t = 0;
+         t < 60 && std::none_of(s.events.begin(), s.events.end(),
+                                [](const auto& e) { return e.kind == sim::MilitaryEvent::Kind::BuildingDestroyed; });
+         ++t) {
+        s.run(1'000);
+    }
+    REQUIRE(std::any_of(s.events.begin(), s.events.end(),
+                        [](const auto& e) { return e.kind == sim::MilitaryEvent::Kind::BuildingDestroyed; }));
+    s.run(2'000);  // shots already in the air land
+    const std::size_t fired = s.count(sim::ShipEvent::Kind::Fired);
+    s.run(30'000);
+    CHECK(s.count(sim::ShipEvent::Kind::Fired) == fired);
+}
+
+TEST_CASE("naval: what units can shoot at (Haus_IsDestroyable)") {
+    assets::BuildingType b;
+    b.kind = assets::kind::kBuilding;
+    CHECK(sim::destroyable(b, false));
+    b.kind = assets::kind::kHq;
+    CHECK(sim::destroyable(b, false));
+    b.destroyed = true;  // "Kontor zerstört"
+    CHECK(!sim::destroyable(b, true));
+    b.destroyed = false;
+    b.kind = assets::kind::kForest;
+    CHECK(!sim::destroyable(b, false));
+    CHECK(sim::destroyable(b, true));
+    for (const std::int32_t terrain : {assets::kind::kBeach, assets::kind::kGround, assets::kind::kRock,
+                                       assets::kind::kRuin, assets::kind::kRiver, assets::kind::kSlope}) {
+        b.kind = terrain;
+        CHECK(!sim::destroyable(b, false));
+        CHECK(!sim::destroyable(b, true));
+    }
+}
+
 TEST_CASE("naval: a cannon tower fires at hostile ships near its island") {
     Sea s;
     REQUIRE(s.world.island(0).map.place(*s.buildings.by_id(20105), 0, 0, 0, 0, 1, 0).ok());
