@@ -75,6 +75,10 @@ public:
     /// The mouse in pixels relative to the side panel.
     std::vector<OptionsEvent> mouse(std::int32_t x, std::int32_t y, bool down, OptionsModel& model);
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste, const OptionsModel& model);
+    /// The mouse wheel over the panel (`notches` up positive): the savegames and the music titles
+    /// scroll a row per notch (Open1602; the History Edition marks the savegame rows for it).
+    /// False on a page without a list.
+    bool wheel(std::int32_t notches, const OptionsModel& model);
 
     /// A savegame's name is being typed (clicking a slot starts it, 0x00409910 mode 3).
     [[nodiscard]] bool editing() const noexcept { return m_editing; }

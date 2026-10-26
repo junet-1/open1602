@@ -433,7 +433,13 @@ bool Hud::picking() {
 }
 
 bool Hud::panel_wheel(std::int32_t x, std::int32_t y, std::int32_t notches) {
-    if (m_menu_active || !m_regions.side_panel.contains(x, y) || (m_mode != kModeInfo && m_mode != kModeMilitary)) {
+    if (m_menu_active || !m_regions.side_panel.contains(x, y)) {
+        return false;
+    }
+    if (m_mode == kModeOptions) {
+        return m_options && m_options->wheel(notches, m_options_model);
+    }
+    if (m_mode != kModeInfo && m_mode != kModeMilitary) {
         return false;
     }
     std::optional<PanelContext> context;
