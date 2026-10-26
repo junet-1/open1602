@@ -377,6 +377,30 @@ TEST_CASE("construction: a market claims land; demolished, the land and what sta
     CHECK(island.city_at(12, 11) == 0);       // the Kontor still covers this
 }
 
+TEST_CASE("construction: a market needs one full edge in the city, like the original (0x00464450)") {
+    Island island;
+    island.found();
+    // The Kontor's circle ends between x 14 and 15 on rows 11 and 12: the left edge is inside.
+    REQUIRE(island.city_at(14, 11) == 0);
+    REQUIRE(island.city_at(14, 12) == 0);
+    REQUIRE(island.city_at(15, 11) == sim::MapCell::kNoCity);
+    REQUIRE(island.city_at(15, 12) == sim::MapCell::kNoCity);
+    // A house there is refused (S-008), the market stands and claims its circle.
+    CHECK(island.build({{kHouse, 14, 11, 0, 0}}).items[0].refusal == sim::BuildRefusal::Territory);
+    REQUIRE(island.build({{kMarket, 14, 11, 0, 0}}).placed == 1);
+    CHECK(island.city_at(15, 11) == 0);
+    CHECK(island.city_at(15, 12) == 0);
+    // Demolished, it leaves only what the Kontor covers.
+    CHECK(island.demolish({14, 11}, {14, 11}) == 1);
+    CHECK(island.city_at(15, 11) == sim::MapCell::kNoCity);
+    CHECK(island.city_at(14, 11) == 0);
+    // Only a corner inside is not enough.
+    REQUIRE(island.city_at(12, 16) == 0);
+    REQUIRE(island.city_at(13, 16) == sim::MapCell::kNoCity);
+    REQUIRE(island.city_at(12, 17) == sim::MapCell::kNoCity);
+    CHECK(island.build({{kMarket, 12, 16, 0, 0}}).items[0].refusal == sim::BuildRefusal::Territory);
+}
+
 TEST_CASE("construction: before a market goes, what would lose its land is counted (S-035)") {
     Island island;
     island.found();

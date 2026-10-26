@@ -321,14 +321,20 @@ struct Planner {
             !mine_has_deposit(world, buildings, order.island, b, x, y, rotation)) {
             return BuildRefusal::NoDeposit;
         }
+        // A market claims its own circle, which covers its footprint: like the original it needs only
+        // one full edge in the city, the rest may be free land (never another city's).
+        const bool edge_rule = b.prod_kind == prod::kMarket;
+        if (edge_rule && !full_edge_in_city(f, city_of_tiles)) {
+            return BuildRefusal::Territory;
+        }
         for (std::uint32_t j = 0; j < f.h; ++j) {
             for (std::uint32_t i = 0; i < f.w; ++i) {
                 const std::int32_t tx = x + static_cast<std::int32_t>(i);
                 const std::int32_t ty = y + static_cast<std::int32_t>(j);
                 const MapCell& cell = map.top(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty));
-                // S-008: the whole building lies in the city (the original wanted one full edge
-                // and annexed the rest).
-                if (cell.city != city_of_tiles) {
+                // S-008: every other building lies completely in the city (the original wanted one
+                // full edge and annexed the rest).
+                if (cell.city != city_of_tiles && !(edge_rule && cell.city == MapCell::kNoCity)) {
                     return BuildRefusal::Territory;
                 }
                 const assets::BuildingType* old = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
@@ -347,6 +353,28 @@ struct Planner {
             return BuildRefusal::UnitInTheWay;
         }
         return BuildRefusal::None;
+    }
+
+    /// Whether one side of the footprint lies completely in the city (0x00464450).
+    bool full_edge_in_city(const Footprint& f, std::uint8_t city_of_tiles) const {
+        const auto in_city = [&](std::int32_t tx, std::int32_t ty) {
+            return map.top(static_cast<std::uint32_t>(tx), static_cast<std::uint32_t>(ty)).city == city_of_tiles;
+        };
+        const auto w = static_cast<std::int32_t>(f.w);
+        const auto h = static_cast<std::int32_t>(f.h);
+        bool top = true;
+        bool bottom = true;
+        for (std::int32_t i = 0; i < w; ++i) {
+            top = top && in_city(f.x + i, f.y);
+            bottom = bottom && in_city(f.x + i, f.y + h - 1);
+        }
+        bool left = true;
+        bool right = true;
+        for (std::int32_t j = 0; j < h; ++j) {
+            left = left && in_city(f.x, f.y + j);
+            right = right && in_city(f.x + w - 1, f.y + j);
+        }
+        return top || bottom || left || right;
     }
 
     /// Rotation by Kind (0x00468300); 0xF = impossible.
