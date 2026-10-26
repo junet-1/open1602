@@ -23,7 +23,7 @@ constexpr std::uint32_t kUpkeepPeriodMs = 5000;      // 0x00476350: each player 
 constexpr std::uint32_t kDiplomacyTickMs = 5000;     // 0x00476350: the diplomacy counters fade
 constexpr std::uint8_t kDefeatChecks = 40;           // 0x00476350: 40 checks of 5 s
 constexpr std::size_t kArchClass = 2;                // 0x004805D0(K, 2): inhabitants of class 2 and up
-constexpr std::uint64_t kArchInhabitants = 200;      // more than 199
+constexpr std::uint64_t kArchInhabitants = 200;      // more than 199, in the largest city
 constexpr std::uint16_t kMissionMessage = 0x54;      // "Ihr konntet den Euch gestellten Auftrag erfüllen!"
 constexpr std::uint16_t kColourWinMessage = 0x6B;    // "Der rote Spieler konnte seinen Auftrag erfüllen!" + colour
 
@@ -1193,33 +1193,57 @@ void Simulation::accomplish(PlayerId winner, std::uint16_t message, bool co_winn
 
 void Simulation::defeat(PlayerId id, GameEvent::Reason reason, bool blame) {
     // Op 3 sub 9 (0x004766A0): the player is out. Unless he went bankrupt, the player blamed for
-    // it (who last destroyed his Kontor or market) counts him as defeated and, with 200
-    // inhabitants of the third class or higher, may build a triumphal arch. The original does
-    // not credit him on the defeated player's computer (S-105).
+    // it (who last destroyed his Kontor or market) counts him as defeated. With 200 inhabitants
+    // of the third class or higher in his largest city he may build a triumphal arch; otherwise
+    // the allowance counts as used up straight away. The original does not credit him on the
+    // defeated player's computer (S-105).
     Player* p = m_world->player(id);
     if (p == nullptr) {
         return;
     }
     p->status = PlayerStatus::Defeated;
-    const PlayerId by = blame ? m_world->diplomacy().blamed(id) : kNoPlayer;
-    m_game_events.push(GameEvent{GameEvent::Kind::PlayerDefeated, id, by, reason});
+    PlayerId by = blame ? m_world->diplomacy().blamed(id) : kNoPlayer;
     Player* k = by != id ? m_world->player(by) : nullptr;
     if (k == nullptr || m_world->behaviour(*p) == FactionBehaviour::Natives) {
+        by = kNoPlayer;  // nobody is credited, and nobody hears of it
+        k = nullptr;
+    }
+    m_game_events.push(GameEvent{GameEvent::Kind::PlayerDefeated, id, by, reason});
+    if (k == nullptr) {
         return;
     }
-    k->opponents_defeated = static_cast<std::uint16_t>(std::min(k->opponents_defeated + 1, 0xFFFF));
-    std::uint64_t upper = 0;
+    add_count(k->opponents_defeated, 1);
+    add_count(k->arches_allowed, 1);
+    if (upper_inhabitants_of_largest_city(by) >= kArchInhabitants) {
+        k->set_unlocked(infra::kArch, true);
+        m_game_events.push(GameEvent{GameEvent::Kind::ArchAllowed, by, id});
+    } else {
+        add_count(k->arches_built, 1);
+    }
+}
+
+std::uint64_t Simulation::upper_inhabitants_of_largest_city(PlayerId player) const {
+    // 0x004805D0 with 0x00480580: the first city of the player with the most Einwohner
+    // (0x0047F790, workers included); a player whose cities are all empty has none.
+    const City* largest = nullptr;
+    std::uint32_t most = 0;
     for (const City& c : m_world->cities()) {
-        if (c.owner == by) {
-            for (std::size_t r = kArchClass; r < c.inhabitants.size(); ++r) {
-                upper += c.inhabitants[r];
-            }
+        if (c.owner != player) {
+            continue;
+        }
+        const std::uint32_t n = city_einwohner(c, city_workers(*m_world, *m_buildings, c));
+        if (n > most) {
+            largest = &c;
+            most = n;
         }
     }
-    if (upper >= kArchInhabitants) {
-        k->arches_allowed = static_cast<std::uint16_t>(std::min(k->arches_allowed + 1, 0xFFFF));
-        m_game_events.push(GameEvent{GameEvent::Kind::ArchAllowed, by, id});
+    std::uint64_t upper = 0;
+    if (largest != nullptr) {
+        for (std::size_t r = kArchClass; r < largest->inhabitants.size(); ++r) {
+            upper += largest->inhabitants[r];
+        }
     }
+    return upper;
 }
 
 std::vector<ShipEvent> Simulation::take_ship_events() {

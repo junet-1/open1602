@@ -363,6 +363,12 @@ void EventPresenter::expect_end_screen(sim::GameOutcome outcome, std::uint64_t d
 std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::PlayerId local,
                                                 const std::vector<sim::GameEvent>& events, std::uint64_t now_ms) {
     std::vector<Notice> out;
+    // Whether `player` got a triumphal arch for defeating `defeated` in this batch.
+    const auto arch_for = [&events](sim::PlayerId player, sim::PlayerId defeated) {
+        return std::any_of(events.begin(), events.end(), [&](const sim::GameEvent& a) {
+            return a.kind == sim::GameEvent::Kind::ArchAllowed && a.player == player && a.by == defeated;
+        });
+    };
     for (const sim::GameEvent& e : events) {
         const sim::Player* p = world.player(e.player);
         const std::string who =
@@ -419,9 +425,12 @@ std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::Pl
                     out.emplace_back(DirectVideo{e.reason == sim::GameEvent::Reason::Bankrupt ? std::uint16_t{998}
                                                  : (m_defeat_variant++ & 1U) == 0             ? std::uint16_t{1010}
                                                                                               : std::uint16_t{2020}});
-                } else {
-                    out.emplace_back(announce(e.reason == sim::GameEvent::Reason::Bankrupt ? std::uint16_t{0x59}
-                                                                                           : std::uint16_t{0x5A}));
+                } else if (e.reason == sim::GameEvent::Reason::Bankrupt) {
+                    out.emplace_back(announce(0x59));
+                } else if (e.by != sim::kNoPlayer && !arch_for(local, e.player)) {
+                    // Op 3 sub 9: "Ein Konkurrent wurde besiegt!", unless nobody is credited, or
+                    // to the credited player who hears of his triumphal arch instead.
+                    out.emplace_back(announce(0x5A));
                 }
                 break;
             case sim::GameEvent::Kind::ArchAllowed:

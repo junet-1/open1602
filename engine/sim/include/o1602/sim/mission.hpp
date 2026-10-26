@@ -178,7 +178,7 @@ struct GameEvent {
         MissionAccomplished,  ///< `player` won (also players who met their own mission at that moment), by a
                               ///< mission or by the victory conditions of an endless game (victory.hpp)
         GameOver,             ///< a mission was accomplished: `player` triggered the end
-        PlayerDefeated,       ///< `player` is out; `by` is the player blamed for it
+        PlayerDefeated,       ///< `player` is out; `by` is the player credited for it (kNoPlayer: nobody)
         ArchAllowed,          ///< `player` may build a triumphal arch for defeating `by` (message 0x32)
     };
     enum class Reason : std::uint8_t {

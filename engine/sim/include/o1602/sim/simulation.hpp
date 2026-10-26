@@ -276,6 +276,8 @@ private:
     /// or the victory conditions now.
     void accomplish(PlayerId winner, std::uint16_t message, bool co_winners);
     void defeat(PlayerId player, GameEvent::Reason reason, bool blame);
+    /// Inhabitants of the third class and up in the player's largest city (triumphal arch).
+    [[nodiscard]] std::uint64_t upper_inhabitants_of_largest_city(PlayerId player) const;
     bool switch_production(const ProductionSwitch& s);
     bool city_order(const CityOrder& order);
     bool game_speed(const GameSpeedOrder& order);
