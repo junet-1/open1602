@@ -2137,8 +2137,9 @@ std::string MapViewer::debug_title(double fps) {
 
 std::string MapViewer::game_title() const {
     // The game's own name, the same on every computer of a multiplayer game; else its file.
+    // The History Edition writes a placeholder ("[[48]]" for "Endlosspiel").
     if (const std::string name = sim::game_identity(m_state->world).name; !name.empty()) {
-        return core::cp1252_to_utf8(name);
+        return core::cp1252_to_utf8(m_game.expand(name));
     }
     return core::path_to_utf8(m_options.scenario.stem());
 }
