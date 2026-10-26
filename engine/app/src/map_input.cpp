@@ -1245,7 +1245,9 @@ void MapInput::map_left_up(double x, double y, std::uint16_t mod, int clicks) {
         selection_changed(false);
         return;
     }
-    if (m_original_mouse && !m_units.empty() && m_units.owner(world()) == local()) {
+    // Ctrl + left click is a command on the object in both mappings, as in the original
+    // ("command on this object", 0x0040A1C7): wounded soldiers onto their own doctor to be healed.
+    if ((m_original_mouse || ctrl) && !m_units.empty() && m_units.owner(world()) == local()) {
         map_order(x, y, shift, ctrl);
         return;
     }

@@ -90,7 +90,7 @@ information fit in and the controls follow today's real-time strategy games (202
 |---|---|
 | Left-click / drag | select / box |
 | Shift + left-click | add to or remove from the selection |
-| Double-click, Ctrl + left-click | all visible units of this type |
+| Double-click, Ctrl + left-click on a unit | all visible units of this type |
 | Ctrl+1…0 | set group |
 | Shift+1…0 | add to group |
 | 1…0 | select group (twice: jump there) |
@@ -106,6 +106,7 @@ information fit in and the controls follow today's real-time strategy games (202
 | Shift + right-click | append command |
 | F + click | attack-move (attacks on the way; German „Feuer“, "fire"); on a tree or field: shoot it down |
 | Ctrl + right-click | on a tree or field: shoot it down (original: Ctrl + click in military mode) |
+| Ctrl + left-click | with own units selected: like right-click, a tree or field included (original: Ctrl + click); e.g. wounded soldiers onto an own doctor, who heals them |
 | H | stop (German „Halt“) |
 | G | hold position (does not pursue) |
 | P + click | patrol |
