@@ -1005,7 +1005,8 @@ struct LoadedSave {
     sim::World world;
 };
 
-/// A world plan, or a savegame of an endless game the original made from one (NAME "Endlosspiel").
+/// A world plan, or a savegame of an endless game the original made from one (NAME "Endlosspiel",
+/// in the History Edition its placeholder "[[48]]").
 bool endless_start(const assets::ChunkFile& file) {
     if (sim::plans_islands(file)) {
         return true;
@@ -1015,7 +1016,8 @@ bool endless_start(const assets::ChunkFile& file) {
         return false;
     }
     const auto data = file.payload(*name);
-    return std::string(data.begin(), std::find(data.begin(), data.end(), std::uint8_t{0})) == "Endlosspiel";
+    const std::string text(data.begin(), std::find(data.begin(), data.end(), std::uint8_t{0}));
+    return text == "Endlosspiel" || text == "[[48]]";
 }
 
 /// All savegames in SAVEGAME/ that load, oldest game time first.
