@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -42,6 +43,13 @@ inline int& failures() {
 inline std::filesystem::path temp_path(const std::string& name) {
     static const std::string run = std::to_string(std::random_device{}());
     return std::filesystem::temp_directory_path() / (name + "-" + run);
+}
+
+/// Whether `found` is the file `expected`: on Windows and macOS the file system ignores case, so a
+/// path found under the name asked for need not be spelt as the file is.
+inline bool same_file(const std::optional<std::filesystem::path>& found, const std::filesystem::path& expected) {
+    std::error_code ec;
+    return found.has_value() && std::filesystem::equivalent(*found, expected, ec);
 }
 
 inline void report(const char* file, int line, const char* expr) {

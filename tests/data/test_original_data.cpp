@@ -97,7 +97,7 @@ TEST_CASE("data: all sprites of the main BSH files decode") {
     check_sheet_decodes(game, "gfx/ship.bsh", 368);
     check_sheet_decodes(game, "gfx/traeger.bsh", 1784);
     // The History Edition's START.BSH has a sixth main menu button (and its pressed image).
-    check_sheet_decodes(game, "toolgfx/start.bsh", game.localized_root().empty() ? 90 : 92);
+    check_sheet_decodes(game, "toolgfx/start.bsh", game.history_texts() == nullptr ? 90 : 92);
 }
 
 TEST_CASE("data: haeuser.cod decodes to readable text") {

@@ -175,11 +175,12 @@ TEST_CASE("history edition: scenarios are found by name and Text.cod's placehold
     REQUIRE(game->history_texts() != nullptr);
     game->choose_language("de");
     CHECK(game->text_language() == "de");
-    CHECK(game->resolve("Szenes/Das Atoll.szs") == root / "Szenes" / "[[7]].szs");
-    CHECK(game->resolve("szenes/das atoll.szs") == root / "Szenes" / "[[7]].szs");
-    CHECK(game->resolve("Szenes/Endlosspiel12.szs") == root / "Szenes" / "[[48]]12.szs");
-    CHECK(game->resolve("Szenes/Endlosspiel00.szm") == root / "Szenes" / "[[363]]00.szm");  // the other line
-    CHECK(game->resolve("Szenes/Atoll.szs") == root / "Szenes" / "[[7]].szs");              // English
+    CHECK(test::same_file(game->resolve("Szenes/Das Atoll.szs"), root / "Szenes" / "[[7]].szs"));
+    CHECK(test::same_file(game->resolve("szenes/das atoll.szs"), root / "Szenes" / "[[7]].szs"));
+    CHECK(test::same_file(game->resolve("Szenes/Endlosspiel12.szs"), root / "Szenes" / "[[48]]12.szs"));
+    CHECK(test::same_file(game->resolve("Szenes/Endlosspiel00.szm"),
+                          root / "Szenes" / "[[363]]00.szm"));                                 // the other line
+    CHECK(test::same_file(game->resolve("Szenes/Atoll.szs"), root / "Szenes" / "[[7]].szs"));  // English
     CHECK(!game->resolve("Szenes/Kalt erwischt.szs"));
     CHECK(!game->resolve("Das Atoll.szs"));  // only scenarios
     CHECK(game->expand("[[7]]1") == "Das Atoll1");

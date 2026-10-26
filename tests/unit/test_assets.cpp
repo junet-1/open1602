@@ -653,18 +653,18 @@ TEST_CASE("assets: the History Edition's files of a language come from its folde
     REQUIRE(game);
     game->choose_language("de");
     CHECK(game->localized_root() == root / "Loca" / "de-DE");
-    CHECK(game->resolve("Text.cod") == root / "Loca" / "de-DE" / "Text.cod");
-    CHECK(game->resolve("TOOLGFX/START.BSH") == root / "Loca" / "de-DE" / "ToolGfx" / "START.BSH");
-    CHECK(game->resolve("toolgfx/stadtfld.col") == root / "ToolGfx" / "STADTFLD.COL");  // not localized
+    CHECK(test::same_file(game->resolve("Text.cod"), root / "Loca" / "de-DE" / "Text.cod"));
+    CHECK(test::same_file(game->resolve("TOOLGFX/START.BSH"), root / "Loca" / "de-DE" / "ToolGfx" / "START.BSH"));
+    CHECK(test::same_file(game->resolve("toolgfx/stadtfld.col"), root / "ToolGfx" / "STADTFLD.COL"));  // not localized
     game->choose_language("fr");
-    CHECK(game->resolve("Text.cod") == root / "Loca" / "fr-FR" / "Text.cod");
-    CHECK(game->resolve("ToolGfx/START.BSH") == root / "ToolGfx" / "START.BSH");
+    CHECK(test::same_file(game->resolve("Text.cod"), root / "Loca" / "fr-FR" / "Text.cod"));
+    CHECK(test::same_file(game->resolve("ToolGfx/START.BSH"), root / "ToolGfx" / "START.BSH"));
     game->choose_language("xx");  // none of that language: the folder stays
     CHECK(game->localized_root() == root / "Loca" / "fr-FR");
     std::filesystem::remove_all(root / "Loca" / "en-US");
     game->choose_language("en");  // no English folder: the installation's own files are English
     CHECK(game->localized_root().empty());
-    CHECK(game->resolve("Text.cod") == root / "text.cod");
+    CHECK(test::same_file(game->resolve("Text.cod"), root / "text.cod"));
     std::filesystem::create_directories(root / "Loca" / "en-US");
 
     // A folder of a single language is taken whatever is asked; other editions have none.
@@ -675,7 +675,7 @@ TEST_CASE("assets: the History Edition's files of a language come from its folde
     auto plain = GameDirectory::open(root);
     REQUIRE(plain);
     CHECK(plain->localized_root().empty());
-    CHECK(plain->resolve("Text.cod") == root / "text.cod");
+    CHECK(test::same_file(plain->resolve("Text.cod"), root / "text.cod"));
     std::filesystem::remove_all(root);
 }
 

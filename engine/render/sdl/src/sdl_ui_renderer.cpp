@@ -49,7 +49,12 @@ SdlUiRenderer::SdlUiRenderer(SDL_Renderer* renderer, const assets::GameDirectory
         }
     }
     for (std::int32_t f = 0; f < static_cast<std::int32_t>(m_fonts.size()); ++f) {
-        if (auto font = ui::Font::load(game, ui::font_file(f, size))) {
+        auto font = ui::Font::load(game, ui::font_file(f, size));
+        if (!font && f == ui::kOwnFontSlot) {
+            // The History Edition lacks ZEI14V: the small font, as at the other sizes.
+            font = ui::Font::load(game, ui::font_file(1, size));
+        }
+        if (font) {
             font->set_design_scale(ui::art_scale(size));
             if (data_fixes) {
                 (void)font->fix_accents();
