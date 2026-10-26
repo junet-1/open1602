@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <string>
 #include <vector>
 
 #include "../../engine/sim/src/ai/ai_archive.hpp"
@@ -37,32 +38,33 @@ constexpr sim::PlayerId kComputer = 1;
 constexpr sim::PlayerId kTrader = 2;
 constexpr sim::PlayerId kNatives = 3;
 
-assets::BuildingTable make_buildings() {
+/// `extra` are further HAUS records, numbered on from the Kontor.
+assets::BuildingTable make_buildings(const std::string& extra = {}) {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
     const auto doc = assets::cod::parse(
-        "Objekt: HAUS\n"
-        "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"                   // ground
-        "  @Nummer: 1\n  Id: 21201\n  Kind: 19\n  Gfx: 1\n  Size: 1, 1\n"                   // sea
-        "  @Nummer: 2\n  Id: 20501\n  Kind: 23\n  Gfx: 2\n  Size: 1, 1\n  Destroyflg: 1\n"  // beach
-        "  @Nummer: 3\n  Id: 20202\n  Kind: 10\n  Gfx: 3\n  Size: 1, 1\n"                   // a tree
-        "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"
-        // Roads: stone and dirt, each a family of straight, curve, T and cross.
-        "  @Nummer: 4\n  Id: 20401\n  Kind: 1\n  Gfx: 4\n  Size: 1, 1\n  KreuzBase: 4\n"
-        "  Objekt: HAUS_BAUKOST\n    Money: 5\n  EndObj\n"
-        "  @Nummer: 5\n  Id: 20402\n  Kind: 1\n  Gfx: 5\n  Size: 1, 1\n  KreuzBase: 4\n"
-        "  @Nummer: 6\n  Id: 20403\n  Kind: 1\n  Gfx: 6\n  Size: 1, 1\n  KreuzBase: 4\n"
-        "  @Nummer: 7\n  Id: 20404\n  Kind: 1\n  Gfx: 7\n  Size: 1, 1\n  KreuzBase: 4\n"
-        "  @Nummer: 8\n  Id: 20411\n  Kind: 1\n  Gfx: 8\n  Size: 1, 1\n  KreuzBase: 8\n"
-        "  Objekt: HAUS_BAUKOST\n    Money: 2\n  EndObj\n"
-        "  @Nummer: 9\n  Id: 20412\n  Kind: 1\n  Gfx: 9\n  Size: 1, 1\n  KreuzBase: 8\n"
-        "  @Nummer: 10\n  Id: 20413\n  Kind: 1\n  Gfx: 10\n  Size: 1, 1\n  KreuzBase: 8\n"
-        "  @Nummer: 11\n  Id: 20414\n  Kind: 1\n  Gfx: 11\n  Size: 1, 1\n  KreuzBase: 8\n"
-        // Kontor I at the beach.
-        "  @Nummer: 12\n  Id: 22101\n  Kind: 35\n  Gfx: 20\n  Size: 2, 3\n  Strandflg: 1\n  PlaceFlg: 1\n"
-        "  KreuzBase: 12\n  Ausbauflg: 1\n"
-        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n    Maxlager: 30\n  EndObj\n"
-        "  Objekt: HAUS_BAUKOST\n    Werkzeug: 3\n    Holz: 4\n    Money: 100\n  EndObj\n"
-        "EndObj\n",
+        std::string("Objekt: HAUS\n") +
+            "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"                   // ground
+            "  @Nummer: 1\n  Id: 21201\n  Kind: 19\n  Gfx: 1\n  Size: 1, 1\n"                   // sea
+            "  @Nummer: 2\n  Id: 20501\n  Kind: 23\n  Gfx: 2\n  Size: 1, 1\n  Destroyflg: 1\n"  // beach
+            "  @Nummer: 3\n  Id: 20202\n  Kind: 10\n  Gfx: 3\n  Size: 1, 1\n"                   // a tree
+            "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"
+            // Roads: stone and dirt, each a family of straight, curve, T and cross.
+            "  @Nummer: 4\n  Id: 20401\n  Kind: 1\n  Gfx: 4\n  Size: 1, 1\n  KreuzBase: 4\n"
+            "  Objekt: HAUS_BAUKOST\n    Money: 5\n  EndObj\n"
+            "  @Nummer: 5\n  Id: 20402\n  Kind: 1\n  Gfx: 5\n  Size: 1, 1\n  KreuzBase: 4\n"
+            "  @Nummer: 6\n  Id: 20403\n  Kind: 1\n  Gfx: 6\n  Size: 1, 1\n  KreuzBase: 4\n"
+            "  @Nummer: 7\n  Id: 20404\n  Kind: 1\n  Gfx: 7\n  Size: 1, 1\n  KreuzBase: 4\n"
+            "  @Nummer: 8\n  Id: 20411\n  Kind: 1\n  Gfx: 8\n  Size: 1, 1\n  KreuzBase: 8\n"
+            "  Objekt: HAUS_BAUKOST\n    Money: 2\n  EndObj\n"
+            "  @Nummer: 9\n  Id: 20412\n  Kind: 1\n  Gfx: 9\n  Size: 1, 1\n  KreuzBase: 8\n"
+            "  @Nummer: 10\n  Id: 20413\n  Kind: 1\n  Gfx: 10\n  Size: 1, 1\n  KreuzBase: 8\n"
+            "  @Nummer: 11\n  Id: 20414\n  Kind: 1\n  Gfx: 11\n  Size: 1, 1\n  KreuzBase: 8\n"
+            // Kontor I at the beach.
+            "  @Nummer: 12\n  Id: 22101\n  Kind: 35\n  Gfx: 20\n  Size: 2, 3\n  Strandflg: 1\n  PlaceFlg: 1\n"
+            "  KreuzBase: 12\n  Ausbauflg: 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Radius: 8\n    Maxlager: 30\n  EndObj\n"
+            "  Objekt: HAUS_BAUKOST\n    Werkzeug: 3\n    Holz: 4\n    Money: 100\n  EndObj\n" +
+            extra + "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
     REQUIRE(table.ok());
@@ -960,4 +962,86 @@ TEST_CASE("ai: a rich computer buys peace from the pirates, a poor one does not"
         CHECK(bought == (money > 10'000));
         CHECK((g.world.players()[kComputer].money < money) == bought);
     }
+}
+
+TEST_CASE("ai: the computer switches its workshops by their switch first, as the original (0x0041EAC0)") {
+    // A toolsmith and a weaving mill, both out of raw material for five cycles (Maxnorohst 5).
+    Game g;
+    g.buildings = make_buildings(
+        "  @Nummer: 13\n  Id: 20990\n  Gfx: 100\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Maxlager: 4\n    Maxnorohst: 5\n    Ware: 22\n    Rohstoff: 10\n"
+        "    Rohmenge: 1\n    Prodmenge: 1\n    Interval: 20\n  EndObj\n"
+        "  @Nummer: 14\n  Id: 20991\n  Gfx: 101\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Maxlager: 4\n    Maxnorohst: 5\n    Ware: 19\n    Rohstoff: 4\n"
+        "    Rohmenge: 1\n    Prodmenge: 1\n    Interval: 20\n  EndObj\n");
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    found_city(g, s);
+    sim::City* city = nullptr;
+    for (const sim::City& c : g.world.cities()) {
+        if (c.owner == kComputer) {
+            city = g.world.city(c.island, c.index);
+        }
+    }
+    REQUIRE(city != nullptr);
+    sim::IslandMap& map = g.world.island(city->island).map;
+    // Two free tiles of the city's ground.
+    std::vector<std::pair<std::int32_t, std::int32_t>> free;
+    for (std::uint32_t y = 0; y < 50 && free.size() < 2; ++y) {
+        for (std::uint32_t x = 0; x < 46 && free.size() < 2; ++x) {
+            const sim::MapCell& cell = map.top(x, y);
+            if (cell.city == city->index && cell.owner == kComputer &&
+                g.buildings.by_sprite(cell.sprite) == g.buildings.by_id(kGround)) {
+                free.emplace_back(static_cast<std::int32_t>(x), static_cast<std::int32_t>(y));
+            }
+        }
+    }
+    REQUIRE(free.size() == 2);
+    const auto put = [&](std::uint32_t id, std::pair<std::int32_t, std::int32_t> at, bool enabled) {
+        REQUIRE(map.build(*g.buildings.by_id(id), at.first, at.second, 0, 0, kComputer, city->index).ok());
+        sim::Production p;
+        p.island = city->island;
+        p.x = static_cast<std::uint16_t>(at.first);
+        p.y = static_cast<std::uint16_t>(at.second);
+        p.enabled = enabled;
+        p.idle_cycles = 5;
+        g.world.set_production(p);
+        return *g.world.production_index(p.island, p.x, p.y);
+    };
+    const std::uint32_t smith = put(20990, free[0], false);  // switched off while it was starved
+    const std::uint32_t mill = put(20991, free[1], true);    // still on
+    constexpr std::uint32_t kTon = sim::kStockUnitsPerTon;
+    city->goods.resize(std::max<std::size_t>(city->goods.size(), 25));
+    city->goods[10] = 5 * kTon;  // iron
+    city->goods[22] = 0;         // tools
+    city->goods[4] = 10 * kTon;  // wool
+
+    // The off toolsmith comes on: its idle count belongs to the time it was on. The starved mill
+    // goes off although it has wool, and on again at a later refresh, which clears its count.
+    bool smith_on = false;
+    bool mill_off = false;
+    bool mill_back = false;
+    run_until(s, 60'000, [&] {
+        city->goods[10] = 5 * kTon;
+        city->goods[22] = 0;
+        city->goods[4] = 10 * kTon;
+        const auto& prods = g.world.productions();
+        smith_on = smith_on || prods[smith].enabled;
+        mill_off = mill_off || !prods[mill].enabled;
+        mill_back = mill_back || (mill_off && prods[mill].enabled);
+        return smith_on && mill_back;
+    });
+    CHECK(smith_on);
+    CHECK(mill_off);
+    CHECK(mill_back);
+
+    // At 40 t of tools the toolsmith goes off, starved or not, and stays off.
+    bool smith_off = false;
+    run_until(s, 60'000, [&] {
+        city->goods[22] = 40 * kTon;
+        smith_off = !g.world.productions()[smith].enabled;
+        return smith_off;
+    });
+    CHECK(smith_off);
+    run(s, 20'000);
+    CHECK(!g.world.productions()[smith].enabled);
 }
