@@ -1270,6 +1270,7 @@ void MapViewer::render() {
                                       layers, m_commands, m_draw_scratch);
         preview.restore();
         draw_map(*graphics);
+        draw_stock_notes();
         m_input->draw_overlay();
     }
     if (m_hud) {
@@ -1327,7 +1328,11 @@ void MapViewer::render() {
 }
 
 void MapViewer::apply_production_events() {
-    for (const sim::ProductionEvent& e : m_state->simulation.take_production_events()) {
+    const std::vector<sim::ProductionEvent> production = m_state->simulation.take_production_events();
+    if (m_hud != nullptr && m_hud->texts() != nullptr) {
+        m_stock_notes.add(m_state->world, m_buildings, *m_hud->texts(), production, m_local_player, stock_note_time());
+    }
+    for (const sim::ProductionEvent& e : production) {
         if (e.kind != sim::ProductionEvent::Kind::Started && e.kind != sim::ProductionEvent::Kind::Stopped) {
             continue;
         }
@@ -1515,6 +1520,40 @@ void MapViewer::toggle_pause_video() {
     m_command_sink.submit(sim::GameSpeedOrder{m_local_player,
                                               on ? sim::GameSpeedOrder::Op::Pause : sim::GameSpeedOrder::Op::Resume,
                                               m_state->simulation.speed()});
+}
+
+double MapViewer::stock_note_time() const {
+    // Between the ticks, so that the texts rise smoothly.
+    return static_cast<double>(m_state->world.time_ms()) + m_tick_fraction * sim::Simulation::kTickMs;
+}
+
+void MapViewer::draw_stock_notes() {
+    const double now = stock_note_time();
+    m_stock_notes.expire(now);
+    if (m_hud == nullptr || m_stock_notes.notes().empty()) {
+        return;
+    }
+    const render::WorldView view = render::fit_view(m_camera.view(), m_state->world);
+    std::vector<ui::DrawItem> items;
+    items.reserve(m_stock_notes.notes().size());
+    for (const StockNote& n : m_stock_notes.notes()) {
+        // Figures_DrawRow 0x0044FA90, kind 7: centred, white with a black shadow (colour 0), in the
+        // small font (ZEILITTLE) whatever the zoom.
+        const auto [px, py] = render::text_figure_point(view, n.x, n.y, n.height(now));
+        double sx = 0.0;
+        double sy = 0.0;
+        m_camera.world_to_screen(px, py, sx, sy);
+        ui::DrawItem d;
+        d.kind = ui::DrawItem::Kind::Text;
+        d.block = 1;
+        d.colour = 0;
+        d.align = ui::Align::Centre;
+        d.x = static_cast<std::int32_t>(std::floor(sx));
+        d.y = static_cast<std::int32_t>(std::floor(sy));
+        d.text = n.text;
+        items.push_back(std::move(d));
+    }
+    m_hud->draw_over_map(items);
 }
 
 void MapViewer::draw_map(ZoomGraphics& graphics) {
@@ -2410,6 +2449,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     m_local_player = m_session ? m_session->local_seat() : sim::first_human_player(m_state->world);
     m_building_figures = render::collect_building_figures(m_state->world, m_buildings, m_figures);
     m_production_phases.clear();
+    m_stock_notes.clear();
     m_soldiers.reset(m_state->world, m_buildings, m_figures);
     m_walkers = render::WalkerFigures{};
     m_ambient = render::Ambient{1602, ambient_config()};
