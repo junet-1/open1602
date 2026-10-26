@@ -359,15 +359,14 @@ const BuildingType* BuildingTable::first_house(std::size_t resident_class) const
 }
 
 const BuildingType* BuildingTable::ruin_record(std::uint8_t ruin, bool beach) const noexcept {
-    // 0x00462F6A: land and beach ruins of wooden houses, brick houses, plantations, field paths,
-    // roads and mines (IDRUINE = 22601 + offset). The Kontor and market ruins follow (not used yet).
-    constexpr std::uint32_t kIdRuine = id::kRuin;
-    constexpr std::array<std::uint32_t, 8> kRuins = {0, 9, 10, 19, 20, 30, 35, 40};
     std::size_t slot = ruin;
+    // The original takes the next slot on beach for every slot (0x00463FE8); only the fisher's
+    // hut (0) and the pier (2) can stand on beach, and their next slot is their beach ruin. For
+    // any other slot the next one would be another building's ruin (or past the table).
     if (beach && (slot == 0 || slot == 2)) {
         ++slot;
     }
-    return slot < kRuins.size() ? by_id(kIdRuine + kRuins[slot]) : nullptr;
+    return slot < id::kRuins.size() ? by_id(id::kRuins[slot]) : nullptr;
 }
 
 const BuildingType* BuildingTable::by_record(std::uint32_t record) const noexcept {
