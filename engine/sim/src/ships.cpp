@@ -21,6 +21,7 @@ constexpr std::int32_t kTowerReach = 8;        // half side of the expensive squ
 constexpr std::int32_t kLookAhead = 6;         // ships ahead (0x004538A0)
 constexpr std::uint32_t kIdleMs = 1000;        // an idle ship decides again after a second
 constexpr std::uint32_t kNoWayMs = 2000;       // after a plan without a way
+constexpr std::uint32_t kBlockedMs = 10000;    // after a plan that only other ships blocked (S-121)
 constexpr std::uint32_t kAheadWaitMs = 500;    // waits instead of a detour, 1 in 16
 constexpr std::uint32_t kFollowMs = 2000;      // re-plan towards a moving target at most every 2 s
 constexpr std::uint32_t kKontorStopMs = 3000;  // route stop at a Kontor with something requested
@@ -637,13 +638,13 @@ bool Fleet::start_next_run(Ship& ship) {
     return true;
 }
 
-bool Fleet::plan(Ship& ship, std::int32_t radius) {
+Fleet::Planned Fleet::plan(Ship& ship, std::int32_t radius) {
     ShipMotion& m = ship.motion;
     m.path.clear();
     m.path_index = 0;
     const auto aim = target_point(ship.target);
     if (!aim) {
-        return false;
+        return Planned::NoWay;
     }
     SeaPlan r;
     r.start_x = ship.x;
@@ -688,11 +689,17 @@ bool Fleet::plan(Ship& ship, std::int32_t radius) {
     const Target target = ship.target;
     r.goal = [&](std::int32_t x, std::int32_t y) { return reached(*m_world, *m_buildings, m_sea, target, x, y); };
     SeaCourse course = m_planner.plan(m_sea, r);
+    if (course.path.empty() && !course.reached_goal && !r.ships.empty()) {
+        // No way: whether only the ships nearby close it, e.g. one lying in a narrow inlet (S-121).
+        r.ships.clear();
+        const SeaCourse free = m_planner.plan(m_sea, r);
+        return !free.path.empty() || free.reached_goal ? Planned::ShipsInWay : Planned::NoWay;
+    }
     if (course.path.empty()) {
-        return course.reached_goal;
+        return course.reached_goal ? Planned::Way : Planned::NoWay;
     }
     m.path = std::move(course.path);
-    return true;
+    return Planned::Way;
 }
 
 bool Fleet::local_detour(Ship& ship) {
@@ -997,7 +1004,8 @@ void Fleet::decide(Ship& ship) {
     }
     if (want_plan) {
         --m_plans_left;
-        if (!plan(ship, radius)) {
+        const Planned planned = plan(ship, radius);
+        if (planned != Planned::Way) {
             ++m.failures;
             if (m.failures > kMaxFailures) {
                 m_events.push_back(ShipEvent{ShipEvent::Kind::GaveUp, ship.id, ship.owner});
@@ -1010,7 +1018,9 @@ void Fleet::decide(Ship& ship) {
                     finish_order(ship);
                 }
             }
-            start_wait(ship, kNoWayMs);
+            // Ships in the way move on: waiting longer for them keeps a ship from giving up behind
+            // one that trades in a narrow inlet; a lasting blockade is still given up (S-121).
+            start_wait(ship, planned == Planned::ShipsInWay ? kBlockedMs : kNoWayMs);
             return;
         }
         m.radius = static_cast<std::uint8_t>(radius);
