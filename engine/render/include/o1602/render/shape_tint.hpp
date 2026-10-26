@@ -17,8 +17,9 @@ namespace o1602::render {
 
 /// Recolours `sprite` into `out` (RGBA8, the sprite's size). The cloth is every opaque pixel of
 /// the sprite that lies, on its row, between the leftmost and the rightmost opaque pixel of
-/// `shape` (both with their top left at the same place); a row of the shape narrower than both
-/// its neighbours have in common takes their common part (the outlines have gaps of a pixel).
+/// `shape` (both with their top left at the same place); a row of the shape narrower than what
+/// the nearest rows above and below a gap of up to two rows have in common takes their common
+/// part (the outlines have gaps of a row or two).
 /// Cloth gets the grey kShapeTintReference * luminance / reference tinted in `colour`
 /// (flag_tint.hpp), where reference is the luminance that a quarter of the cloth exceeds: the lit
 /// side of the folds comes out a little brighter than the colour, the motif and the shadows darker

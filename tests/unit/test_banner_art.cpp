@@ -194,3 +194,68 @@ TEST_CASE("banner art: a banner of the colour screen takes another colour within
     render::tint_shape(render::RgbaView{}, render::RgbaView{outline.data(), w, h}, green, out);
     CHECK(out.empty());
 }
+
+TEST_CASE("banner art: an outline's gap of two rows is closed too") {
+    // The red banner of the colour screen: its outline's left edge misses two rows, which came out
+    // as a red line across a banner shown in another colour.
+    constexpr std::uint32_t w = 6;
+    constexpr std::uint32_t h = 7;
+    const std::vector<std::uint8_t> banner = solid(w, h, {200, 40, 10, 255});
+    std::vector<std::uint8_t> outline = solid(w, h, {0, 0, 0, 0});
+    for (std::uint32_t y = 0; y < h; ++y) {
+        if (y != 2 && y != 3) {
+            put(outline, w, 0, y, {255, 200, 0, 255});
+        }
+        put(outline, w, 5, y, {255, 200, 0, 255});
+    }
+    const assets::Rgba green{0, 230, 90, 255};
+    std::vector<std::uint8_t> out;
+    render::tint_shape(render::RgbaView{banner.data(), w, h}, render::RgbaView{outline.data(), w, h}, green, out);
+    REQUIRE(out.size() == banner.size());
+    for (std::uint32_t y = 0; y < h; ++y) {
+        for (std::uint32_t x = 0; x < w; ++x) {
+            const assets::Rgba c = at(out, w, x, y);
+            CHECK(c.g > c.r);
+        }
+    }
+
+    // Three rows are no gap: the rows between keep their narrow span.
+    for (const std::uint32_t y : {2U, 3U, 4U}) {
+        put(outline, w, 0, y, {0, 0, 0, 0});
+    }
+    render::tint_shape(render::RgbaView{banner.data(), w, h}, render::RgbaView{outline.data(), w, h}, green, out);
+    CHECK(at(out, w, 0, 3) == at(banner, w, 0, 3));
+}
+
+TEST_CASE("banner art: the colour screen draws the further colours' patterns anew") {
+    auto banners = render::BannerTable::original();
+    banners.add_more_players();
+    const std::size_t more = banners.size() - sim::kFirstExtraBanner;
+    REQUIRE(more == 8);
+    std::array<std::uint8_t, 8> first{};
+    bool changed = false;
+    for (std::uint32_t seed = 0; seed < 20; ++seed) {
+        banners.shuffle_art_patterns(sim::kFirstExtraBanner, more, seed);
+        std::array<std::uint8_t, 8> now{};
+        for (std::size_t n = 0; n < more; ++n) {
+            now[n] = banners.get(static_cast<sim::BannerId>(sim::kFirstExtraBanner + n))->art_pattern;
+        }
+        // Each side of four shows each of the four patterns once.
+        for (std::size_t side = 0; side < 2; ++side) {
+            std::array<std::uint8_t, 4> run{};
+            std::copy_n(now.begin() + static_cast<std::ptrdiff_t>(side * 4), 4, run.begin());
+            std::sort(run.begin(), run.end());
+            CHECK(run == (std::array<std::uint8_t, 4>{0, 1, 2, 3}));
+        }
+        if (seed == 0) {
+            first = now;
+        } else {
+            changed = changed || now != first;
+        }
+    }
+    CHECK(changed);
+    // The original's banners keep theirs.
+    CHECK(banners.get(5)->art_pattern == 3);
+    // Past the table's end nothing happens.
+    banners.shuffle_art_patterns(static_cast<sim::BannerId>(banners.size() - 2), 4, 1);
+}

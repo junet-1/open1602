@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/render/banner.hpp"
 
+#include <random>
+
 namespace o1602::render {
 
 // Fitted to the original flag images (red, blue, yellow) for the tint of flag_tint.hpp; white is
@@ -90,6 +92,23 @@ sim::BannerId BannerTable::add_colour(std::string id, assets::Rgba colour) {
     b.unit_mount = static_cast<std::uint8_t>(hash % 4U);
     b.art_pattern = static_cast<std::uint8_t>((hash >> 8U) % 4U);
     return add(std::move(b));
+}
+
+void BannerTable::shuffle_art_patterns(sim::BannerId first, std::size_t count, std::uint32_t seed) {
+    // std::mt19937 gives the same numbers everywhere; std::shuffle and the distributions do not.
+    std::mt19937 random(seed);
+    for (std::size_t run = 0; run < count; run += 4) {
+        std::array<std::uint8_t, 4> patterns = {0, 1, 2, 3};
+        for (std::size_t i = patterns.size() - 1; i > 0; --i) {
+            std::swap(patterns[i], patterns[random() % (i + 1)]);
+        }
+        for (std::size_t k = 0; k < 4 && run + k < count; ++k) {
+            const std::size_t b = std::size_t{first} + run + k;
+            if (b < m_banners.size()) {
+                m_banners[b].art_pattern = patterns[k];
+            }
+        }
+    }
 }
 
 BannerArtSprite banner_art(const BannerArt& art, const Banner* banner) {
