@@ -50,7 +50,7 @@ inline sim::ShipCommand mount_cannons(const sim::Ship& ship, std::size_t hold, c
 }
 
 /// The help line of a hold of a ship: its goods ("10t Kanonen"), or empty. With `mounting` (a click
-/// mounts them), cannons in an own ship tell how (Open1602).
+/// mounts them), cannons in an own ship with a free cannon place tell how (Open1602).
 inline std::string hold_help(const sim::Ship& ship, std::size_t hold, const PanelContext& c, bool mounting) {
     const sim::CargoSlot& slot = ship.cargo[hold];
     if (slot.ware == 0 || slot.amount == 0) {
@@ -61,7 +61,9 @@ inline std::string hold_help(const sim::Ship& ship, std::size_t hold, const Pane
     }
     std::string goods = ui::format_text(c.text("GAME", 50),
                                         {std::int64_t{slot.amount >> 5U}, std::string_view(c.text("WARE", slot.ware))});
-    if (slot.ware == sim::ware::kCannons && slot.amount >= sim::kStockUnitsPerTon && mounting &&
+    const assets::FigureType* type = c.figures.get(ship.figure);
+    const bool room = type != nullptr && ship.cannons < type->ship.max_cannons;
+    if (slot.ware == sim::ware::kCannons && slot.amount >= sim::kStockUnitsPerTon && mounting && room &&
         ship.owner == c.local) {
         return ui::tr("ship.cannon_hold", {goods});
     }
