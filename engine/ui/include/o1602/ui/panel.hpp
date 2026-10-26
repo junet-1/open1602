@@ -91,6 +91,10 @@ struct DrawItem {
     bool half = false;  ///< drawn as a 50 % checkerboard (Alphaflg)
     std::string text;
     std::optional<ColourTint> tint;  ///< Sprite: recoloured
+    /// Sprite: only the art's rows first_row .. first_row + rows - 1 (in the layout's pixels), each
+    /// where it would be; rows 0: all of it.
+    std::int32_t first_row = 0;
+    std::int32_t rows = 0;
 };
 
 /// What the mouse did to a panel.
@@ -135,6 +139,9 @@ public:
     /// `tint` the sprite is recoloured (a player colour the art was not drawn in).
     void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset,
                      std::optional<ColourTint> tint = std::nullopt);
+    /// Only a band of a graphic's rows (in the layout's pixels), each drawn where it would be; a
+    /// picture is cut so into pieces placed apart (the settings' voice page). `count` 0: all rows.
+    void set_rows(std::int32_t id, std::int32_t first, std::int32_t count);
     /// Another draw offset (Posoffs) for a gadget: art centred in its box, groups moved together.
     void set_offset(std::int32_t id, std::int32_t x, std::int32_t y);
     /// Moves a gadget, click area and picture (Open1602 rearranges a few windows, e.g. U-013).
@@ -165,6 +172,8 @@ private:
         std::string text;
         std::optional<std::pair<std::int32_t, std::int32_t>> graphic;  ///< gfx, press offset
         std::optional<ColourTint> tint;
+        std::int32_t first_row = 0;
+        std::int32_t rows = 0;
     };
     /// A flowing text's wrapped lines and how many fit its box; nothing if it draws no text.
     [[nodiscard]] std::optional<std::pair<std::vector<std::string>, std::int32_t>> flow_lines(

@@ -38,6 +38,18 @@ TEST_CASE("app settings: a byte order mark and files of older versions") {
     CHECK(wide.player_name == "AZ");
 }
 
+TEST_CASE("app settings: the trade routes' voice switch is kept; older files leave it on") {
+    app::AppSettings s;
+    s.audio.speech[audio::kSpeechRoutes] = false;
+    const app::AppSettings back = app::parse_settings(app::write_settings(s), app::AppSettings{});
+    CHECK(!back.audio.speech[audio::kSpeechRoutes]);
+    CHECK(back.audio.speech[7]);
+    // Written before the switch: eight kinds.
+    const app::AppSettings old = app::parse_settings("speech = 1 1 1 1 1 1 1 0\n", app::AppSettings{});
+    CHECK(!old.audio.speech[7]);
+    CHECK(old.audio.speech[audio::kSpeechRoutes]);
+}
+
 TEST_CASE("app settings: savegame names are written as UTF-8 and read back") {
     app::SaveSlots slots;
     slots.set(0, "Fu\xdf", 1);  // sharp s

@@ -502,6 +502,8 @@ options.window = Window
 options.fullscreen = Full screen
 options.display = Display ...
 options.slot.humans = {1} ({2} players)
+# The voice message switch Open1602 adds below the original's kinds ("Check your trade routes!")
+options.speech.routes = Trade routes
 display.title = Display
 display.mode = Show the game in
 display.window = a window

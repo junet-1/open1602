@@ -422,6 +422,17 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
                                         static_cast<float>(oy + d.y + std::trunc((d.h - h) / 2)), static_cast<float>(w),
                                         static_cast<float>(h)};
                     SDL_RenderTexture(m_renderer, t.texture, nullptr, &dst);
+                } else if (d.rows > 0 && t.texture != nullptr) {
+                    // A band of the art's rows, at its place.
+                    const double first = std::min<double>(d.first_row * art_scale(), t.h);
+                    const double count = std::min<double>(d.rows * art_scale(), t.h - first);
+                    SDL_SetTextureAlphaMod(t.texture, d.half ? 128 : 255);
+                    const SDL_FRect src{0.0F, static_cast<float>(first), static_cast<float>(t.w),
+                                        static_cast<float>(count)};
+                    const SDL_FRect dst{
+                        static_cast<float>(ox + d.x), static_cast<float>(oy + d.y + std::round(first * stretch)),
+                        static_cast<float>(std::round(t.w * stretch)), static_cast<float>(std::round(count * stretch))};
+                    SDL_RenderTexture(m_renderer, t.texture, &src, &dst);
                 } else {
                     blit(t, d.x, d.y, d.half);
                 }

@@ -48,16 +48,24 @@ inline constexpr SampleId kWavTest = 58;  ///< "Test" of the effects' volume (pl
 /// Volume in the original's unit, 1/100 dB of attenuation (-4000 .. 0), as a gain.
 [[nodiscard]] float gain_of(std::int32_t centibel) noexcept;
 
+/// The kinds of messages the voice and video options switch: 0 (all) and the original's seven of
+/// [SPEECHKIND], then Open1602's own.
+inline constexpr std::size_t kMessageKinds = 9;
+/// Open1602: „Überprüft Eure Handelsrouten!“ (MELDUNG 0x5D) gets a switch of its own; the
+/// original gives it kind 0, which only the master switch mutes.
+inline constexpr std::uint8_t kSpeechRoutes = 8;
+
 struct AudioSettings {
     bool music = true;
     bool effects = true;
     bool random_music = true;
     std::int32_t music_volume = -1000;  ///< 1/100 dB
     std::int32_t effect_volume = 0;
-    /// Voice messages per kind (Text.cod [SPEECHKIND]): [0] all, [1..7] Ereignisse .. Diplomatie.
-    std::array<bool, 8> speech{true, true, true, true, true, true, true, true};
+    /// Voice messages per kind (Text.cod [SPEECHKIND]): [0] all, [1..7] Ereignisse .. Diplomatie,
+    /// [8] Open1602's trade routes (kSpeechRoutes).
+    std::array<bool, kMessageKinds> speech{true, true, true, true, true, true, true, true, true};
     /// Videos of the messages per kind, the same kinds ("Video: k, TRUE" in Game.dat switches off).
-    std::array<bool, 8> video{true, true, true, true, true, true, true, true};
+    std::array<bool, kMessageKinds> video{true, true, true, true, true, true, true, true, true};
     std::vector<std::string> disabled_songs;  ///< by track title (the original keeps indices)
 };
 

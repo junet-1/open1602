@@ -64,6 +64,13 @@ void Panel::set_hidden(std::int32_t id, bool on) {
     }
 }
 
+void Panel::set_rows(std::int32_t id, std::int32_t first, std::int32_t count) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_state[*i].first_row = std::max(first, 0);
+        m_state[*i].rows = std::max(count, 0);
+    }
+}
+
 void Panel::set_no_select(std::int32_t id, bool on) {
     if (const auto i = m_layout.index_of(id)) {
         m_state[*i].no_select = on;
@@ -299,6 +306,8 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
             item.kind = DrawItem::Kind::Sprite;
             item.gfx = gfx;
             item.tint = s.graphic ? s.tint : std::nullopt;
+            item.first_row = s.first_row;
+            item.rows = s.rows;
             out.push_back(item);
             break;
         case GadgetKind::GraphicRaster:

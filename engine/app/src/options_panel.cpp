@@ -58,13 +58,41 @@ constexpr std::int32_t kTrackTitle = 49041;  ///< + row
 constexpr std::int32_t kTrackFrame = 49051;  ///< + row
 constexpr std::size_t kTrackRows = 6;
 // ANNO.GAD
+constexpr std::int32_t kSpeechBack = 66001;  ///< the box behind the voice rows (12 rows tall)
+constexpr std::int32_t kSpeechHeading = 66002;
 constexpr std::int32_t kSpeechTitle = 66003;
 constexpr std::int32_t kSpeechSwitch = 66004;
+constexpr std::int32_t kVideoBack = 66005;  ///< the video part's picture, from the voice box's edge
+constexpr std::int32_t kVideoHeading = 66006;
 constexpr std::int32_t kVideoTitle = 66007;
 constexpr std::int32_t kVideoSwitch = 66008;
-constexpr std::int32_t kSpeechBox = 66021;    ///< + kind - 1
-constexpr std::int32_t kSpeechLabel = 66031;  ///< + kind - 1
-constexpr std::int32_t kVideoBox = 66041;     ///< kinds {1, 2}, 5, 7
+constexpr std::int32_t kSpeechBox = 66021;      ///< + kind - 1
+constexpr std::int32_t kSpeechLabel = 66031;    ///< + kind - 1
+constexpr std::size_t kOriginalSpeechRows = 7;  ///< [SPEECHKIND]
+/// Open1602 adds a row for the trade routes (audio::kSpeechRoutes) below the original's seven.
+constexpr std::size_t kSpeechRows = audio::kMessageKinds - 1;
+static_assert(audio::kSpeechRoutes == kSpeechRows, "the trade routes are the last row");
+constexpr std::int32_t kSpeechPitch = 25;  ///< ANNO.GAD's rows
+/// The page has room for an eighth row only in the stone around the two headings: the voice
+/// heading moves up 4, the voice box 12 (it is a picture of twelve rows,
+/// of which seven show in the original; moved up a row more it shows eight), the video heading 7
+/// down. The video part's picture starts with the voice box's bottom edge, then stone, the video
+/// heading and the video box; it is drawn in three pieces with the stone between them left out.
+constexpr std::int32_t kSpeechHeadingUp = 4;
+constexpr std::int32_t kSpeechBoxUp = 12;
+constexpr std::int32_t kVideoHeadingDown = 7;
+struct PictureBand {
+    std::int32_t id;     ///< kVideoBack, or a piece added after it
+    std::int32_t first;  ///< rows of the picture
+    std::int32_t count;
+    std::int32_t dy;  ///< moved down
+};
+constexpr std::array<PictureBand, 3> kVideoBackBands{{
+    {kVideoBack, 52, 77, 0},                     // the video box as in the original
+    {66091, 0, 4, kSpeechPitch - kSpeechBoxUp},  // the voice box's bottom edge
+    {66092, 10, 35, kVideoHeadingDown},          // under the video heading
+}};
+constexpr std::int32_t kVideoBox = 66041;  ///< kinds {1, 2}, 5, 7
 constexpr std::int32_t kVideoLabel = 66051;
 
 constexpr std::int32_t kMinVolume = -4000;  ///< 1/100 dB
@@ -93,6 +121,64 @@ assets::GadgetLayout with_slot_arrows(assets::GadgetLayout disk, const assets::G
     return disk;
 }
 
+/// ANNO.GAD with an eighth voice row, the trade routes: the same box and label as the seven above
+/// it, the page's pictures unchanged but moved closer together (kSpeechHeadingUp ...).
+assets::GadgetLayout with_routes_row(assets::GadgetLayout anno) {
+    const auto last = static_cast<std::int32_t>(kOriginalSpeechRows - 1);
+    const auto back = anno.index_of(kVideoBack);
+    const assets::Gadget* box = anno.find(kSpeechBox + last);
+    const assets::Gadget* label = anno.find(kSpeechLabel + last);
+    if (!back || anno.find(kSpeechBack) == nullptr || box == nullptr || label == nullptr) {
+        return anno;
+    }
+    std::vector<assets::Gadget> rows;
+    for (const assets::Gadget* g : {box, label}) {
+        assets::Gadget row = *g;
+        row.id += 1;
+        row.pos[1] += kSpeechPitch - kSpeechBoxUp;
+        rows.push_back(row);
+    }
+    const auto move = [&anno](std::int32_t id, std::int32_t dy) {
+        for (assets::Gadget& g : anno.gadgets) {
+            if (g.id == id) {
+                g.pos[1] += dy;
+            }
+        }
+    };
+    move(kSpeechHeading, -kSpeechHeadingUp);
+    move(kSpeechTitle, -kSpeechHeadingUp);
+    move(kSpeechBack, -kSpeechBoxUp);
+    for (std::int32_t k = 0; k <= last; ++k) {
+        move(kSpeechBox + k, -kSpeechBoxUp);
+        move(kSpeechLabel + k, -kSpeechBoxUp);
+    }
+    move(kVideoHeading, kVideoHeadingDown);
+    move(kVideoTitle, kVideoHeadingDown);
+    // The pieces of the video part's picture follow it; the indices behind them grow.
+    const auto after = static_cast<std::int32_t>(*back + 1);
+    const auto added = static_cast<std::int32_t>(kVideoBackBands.size() - 1);
+    for (assets::Gadget& g : anno.gadgets) {
+        if (g.base >= after) {
+            g.base += added;
+        }
+    }
+    std::vector<assets::Gadget> pieces;
+    for (std::size_t i = 1; i < kVideoBackBands.size(); ++i) {
+        assets::Gadget piece = anno.gadgets[*back];
+        piece.id = kVideoBackBands[i].id;
+        piece.pos[1] += kVideoBackBands[i].dy;
+        pieces.push_back(piece);
+    }
+    anno.gadgets.insert(anno.gadgets.begin() + after, pieces.begin(), pieces.end());
+    for (assets::Gadget& row : rows) {
+        if (row.base >= after) {
+            row.base += added;
+        }
+    }
+    anno.gadgets.insert(anno.gadgets.end(), rows.begin(), rows.end());
+    return anno;
+}
+
 bool track_enabled(const audio::AudioSettings& a, const std::string& title) {
     return std::find(a.disabled_songs.begin(), a.disabled_songs.end(), title) == a.disabled_songs.end();
 }
@@ -111,7 +197,7 @@ OptionsPanel::OptionsPanel(assets::GadgetLayout option, assets::GadgetLayout dis
     : m_option(std::move(option), 1.0),
       m_disk(with_slot_arrows(std::move(disk), musik), 1.0),
       m_musik(std::move(musik), 1.0),
-      m_anno(std::move(anno), 1.0),
+      m_anno(with_routes_row(std::move(anno)), 1.0),
       m_texts(texts) {
     m_option.set_text(kOptionTitle, text("GAME", 25));
     m_disk.set_text(kDiskTitle, text("GAME", 26));
@@ -120,11 +206,16 @@ OptionsPanel::OptionsPanel(assets::GadgetLayout option, assets::GadgetLayout dis
     m_musik.set_text(kEffectsLabel, text("GAME", 31));
     m_anno.set_text(kSpeechTitle, text("GAME", 28));
     m_anno.set_text(kVideoTitle, text("GAME", 29));
-    for (std::size_t k = 0; k < 7; ++k) {
+    for (std::size_t k = 0; k < kOriginalSpeechRows; ++k) {
         m_anno.set_text(kSpeechLabel + static_cast<std::int32_t>(k), text("SPEECHKIND", k));
     }
     for (std::size_t k = 0; k < 3; ++k) {
         m_anno.set_text(kVideoLabel + static_cast<std::int32_t>(k), text("VIDEOKIND", k));
+    }
+    if (m_anno.layout().find(kVideoBackBands[1].id) != nullptr) {
+        for (const PictureBand& b : kVideoBackBands) {
+            m_anno.set_rows(b.id, b.first, b.count);
+        }
     }
     const assets::GadgetLayout& l = m_disk.layout();
     if (const auto g = l.index_of(kSlotHumans)) {
@@ -282,6 +373,8 @@ void OptionsPanel::refresh_musik(const OptionsModel& model) {
 
 void OptionsPanel::refresh_anno(const OptionsModel& model) {
     const audio::AudioSettings& a = model.audio;
+    // Set here: the language may change after the panel was made.
+    m_anno.set_text(kSpeechLabel + static_cast<std::int32_t>(kSpeechRows - 1), ui::tr("options.speech.routes"));
     m_anno.set_selected(kSpeechSwitch, !a.speech[0]);  // crossed out: all off
     for (std::size_t k = 1; k < a.speech.size(); ++k) {
         const auto id = kSpeechBox + static_cast<std::int32_t>(k - 1);
@@ -411,7 +504,8 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
                 if (e.id == kSpeechSwitch) {
                     a.speech[0] = !a.speech[0];
                     audio_changed();
-                } else if (e.id >= kSpeechBox && e.id < kSpeechBox + 7 && a.speech[0]) {
+                } else if (e.id >= kSpeechBox && e.id < kSpeechBox + static_cast<std::int32_t>(kSpeechRows) &&
+                           a.speech[0]) {
                     const auto k = static_cast<std::size_t>(e.id - kSpeechBox + 1);
                     a.speech[k] = !a.speech[k];
                     audio_changed();
@@ -501,7 +595,7 @@ std::optional<std::string> OptionsPanel::help(const std::vector<std::string>& le
         case Page::Anno:
             if (*id == kSpeechSwitch) {
                 line = a.speech[0] ? 236 : 237;
-            } else if (*id >= kSpeechBox && *id < kSpeechBox + 7) {
+            } else if (*id >= kSpeechBox && *id < kSpeechBox + static_cast<std::int32_t>(kSpeechRows)) {
                 line = a.speech[static_cast<std::size_t>(*id - kSpeechBox + 1)] ? 234 : 235;
             } else if (*id == kVideoSwitch) {
                 line = a.video[0] ? 230 : 231;
