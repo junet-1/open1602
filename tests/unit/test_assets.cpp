@@ -590,6 +590,48 @@ TEST_CASE("assets: installers' folders named after the game are candidates, othe
     std::filesystem::remove_all(parent);
 }
 
+TEST_CASE("assets: the History Edition's files of a language come from its folder in Loca") {
+    using assets::GameDirectory;
+    const auto root = test::temp_path("o1602-test-history-edition");
+    std::filesystem::remove_all(root);
+    for (const char* folder : {"ToolGfx", "GFX", "Loca/de-DE/ToolGfx", "Loca/en-US", "Loca/fr-FR"}) {
+        std::filesystem::create_directories(root / folder);
+    }
+    for (const char* file : {"haeuser.cod", "figuren.cod", "ToolGfx/STADTFLD.COL", "ToolGfx/START.BSH",
+                             "GFX/STADTFLD.BSH", "text.cod", "Loca/de-DE/Text.cod", "Loca/de-DE/ToolGfx/START.BSH",
+                             "Loca/fr-FR/Text.cod"}) {
+        std::ofstream(root / file) << "";
+    }
+
+    CHECK(GameDirectory::language_folder(root, "de") == root / "Loca" / "de-DE");
+    CHECK(GameDirectory::language_folder(root, "fr-FR") == root / "Loca" / "fr-FR");
+    CHECK(GameDirectory::language_folder(root / "Loca" / "en-US").has_value() == false);  // no Loca there
+
+    auto game = GameDirectory::open(root);
+    REQUIRE(game);
+    game->choose_language("de");
+    CHECK(game->localized_root() == root / "Loca" / "de-DE");
+    CHECK(game->resolve("Text.cod") == root / "Loca" / "de-DE" / "Text.cod");
+    CHECK(game->resolve("TOOLGFX/START.BSH") == root / "Loca" / "de-DE" / "ToolGfx" / "START.BSH");
+    CHECK(game->resolve("toolgfx/stadtfld.col") == root / "ToolGfx" / "STADTFLD.COL");  // not localized
+    game->choose_language("fr");
+    CHECK(game->resolve("Text.cod") == root / "Loca" / "fr-FR" / "Text.cod");
+    CHECK(game->resolve("ToolGfx/START.BSH") == root / "ToolGfx" / "START.BSH");
+    game->choose_language("xx");  // none of that language: the folder stays
+    CHECK(game->localized_root() == root / "Loca" / "fr-FR");
+
+    // A folder of a single language is taken whatever is asked; other editions have none.
+    std::filesystem::remove_all(root / "Loca" / "en-US");
+    std::filesystem::remove_all(root / "Loca" / "fr-FR");
+    CHECK(GameDirectory::language_folder(root, "xx") == root / "Loca" / "de-DE");
+    std::filesystem::remove_all(root / "Loca");
+    auto plain = GameDirectory::open(root);
+    REQUIRE(plain);
+    CHECK(plain->localized_root().empty());
+    CHECK(plain->resolve("Text.cod") == root / "text.cod");
+    std::filesystem::remove_all(root);
+}
+
 TEST_CASE("assets: the candidates below a home folder include Wine, CrossOver and Bottles prefixes") {
     const auto home = test::temp_path("o1602-test-home-candidates");
     std::filesystem::remove_all(home);
@@ -602,6 +644,9 @@ TEST_CASE("assets: the candidates below a home folder include Wine, CrossOver an
             "Anno 1602",
         home / "Games" / "anno-1602" / "drive_c" / "GOG Games" / "Anno 1602",
         home / "Applications" / "Anno 1602",
+        // The History Edition installed with Ubisoft Connect in Heroic's prefix of its own.
+        home / "Games" / "Heroic" / "Prefixes" / "default" / "Ubisoft Connect" / "drive_c" / "Program Files (x86)" /
+            "Ubisoft" / "Ubisoft Game Launcher" / "games" / "Anno 1602 - History Edition",
     };
     for (const auto& folder : installs) {
         std::filesystem::create_directories(folder);

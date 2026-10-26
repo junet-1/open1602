@@ -198,6 +198,14 @@ std::string installation_language(const assets::GameDirectory& game, const asset
     if (std::string code = gog_language(game); !code.empty()) {
         return code;
     }
+    // The History Edition's language folder (Loca/de-DE gives de).
+    if (const auto& folder = game.localized_root(); !folder.empty()) {
+        const std::u8string file = folder.filename().u8string();
+        const std::string name(file.begin(), file.end());
+        if (std::string code = lower_ascii(name.substr(0, name.find_first_of("-_"))); !code.empty()) {
+            return code;
+        }
+    }
     return std::string(kFallbackLanguage);
 }
 
