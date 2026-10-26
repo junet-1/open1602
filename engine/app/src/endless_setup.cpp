@@ -283,6 +283,7 @@ std::size_t setup_choices(SetupItem item) noexcept {
             return kGoldIslands.size();
         case SetupItem::TraderPrices:
         case SetupItem::TraderReach:
+        case SetupItem::BreadChain:
         case SetupItem::Map:
         case SetupItem::Starts:
         case SetupItem::Resources:
@@ -343,6 +344,8 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return r.trader_reach == sim::TraderReach::Scaled ? 1 : 0;
         case SetupItem::OreVeins:
             return std::min<std::size_t>(static_cast<std::size_t>(r.ore_veins), kOreVeinNames.size() - 1);
+        case SetupItem::BreadChain:
+            return r.revised_bread ? 1 : 0;
         case SetupItem::Ships:
             return nearest(kShips, r.max_ships_per_player);
         case SetupItem::Units:
@@ -449,6 +452,9 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
             break;
         case SetupItem::OreVeins:
             r.ore_veins = static_cast<sim::OreVeins>(choice);
+            break;
+        case SetupItem::BreadChain:
+            r.revised_bread = choice == 1;
             break;
         case SetupItem::Ships:
             r.max_ships_per_player = kShips[choice];
@@ -680,6 +686,7 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
         case SetupItem::TraderPrices:
         case SetupItem::TraderReach:
         case SetupItem::OreVeins:
+        case SetupItem::BreadChain:
         case SetupItem::Ships:
         case SetupItem::Units:
         case SetupItem::GameSpeed:
@@ -735,42 +742,45 @@ EndlessSetup multiplayer_setup(EndlessSetup setup, std::uint8_t players) {
 }
 
 std::string setup_label(SetupItem item) {
-    static constexpr std::array<std::string_view, kSetupItems> kKeys = {"setup.refund",
-                                                                        "setup.trader",
-                                                                        "setup.trader_reach",
-                                                                        "setup.ore_veins",
-                                                                        "setup.ships",
-                                                                        "setup.units",
-                                                                        "setup.speed",
-                                                                        "setup.droughts",
-                                                                        "setup.volcanoes",
-                                                                        "setup.map",
-                                                                        "setup.size",
-                                                                        "setup.players",
-                                                                        "setup.islands",
-                                                                        "setup.island_sizes",
-                                                                        "setup.villages",
-                                                                        "setup.volcano_islands",
-                                                                        "setup.gold_islands",
-                                                                        "setup.starts",
-                                                                        "setup.resources",
-                                                                        "setup.computers",
-                                                                        "setup.ai",
-                                                                        "setup.pirates",
-                                                                        "setup.pirate_nests",
-                                                                        "setup.reveal",
-                                                                        "setup.win.inhabitants",
-                                                                        "setup.win.class",
-                                                                        "setup.win.class_inhabitants",
-                                                                        "setup.win.money",
-                                                                        "setup.win.balance",
-                                                                        "setup.win.islands",
-                                                                        "setup.win.eliminate",
-                                                                        "setup.win.score",
-                                                                        "setup.win.monument",
-                                                                        "setup.win.time",
-                                                                        "setup.win.all",
-                                                                        "setup.win.computers"};
+    static constexpr std::array<std::string_view, kSetupItems> kKeys = {
+        "setup.refund",
+        "setup.trader",
+        "setup.trader_reach",
+        "setup.ore_veins",
+        "setup.bread",
+        "setup.ships",
+        "setup.units",
+        "setup.speed",
+        "setup.droughts",
+        "setup.volcanoes",
+        "setup.map",
+        "setup.size",
+        "setup.players",
+        "setup.islands",
+        "setup.island_sizes",
+        "setup.villages",
+        "setup.volcano_islands",
+        "setup.gold_islands",
+        "setup.starts",
+        "setup.resources",
+        "setup.computers",
+        "setup.ai",
+        "setup.pirates",
+        "setup.pirate_nests",
+        "setup.reveal",
+        "setup.win.inhabitants",
+        "setup.win.class",
+        "setup.win.class_inhabitants",
+        "setup.win.money",
+        "setup.win.balance",
+        "setup.win.islands",
+        "setup.win.eliminate",
+        "setup.win.score",
+        "setup.win.monument",
+        "setup.win.time",
+        "setup.win.all",
+        "setup.win.computers",
+    };
     const auto i = static_cast<std::size_t>(item);
     return i < kKeys.size() ? ui::tr(kKeys[i]) : std::string{};
 }
@@ -797,6 +807,8 @@ std::string setup_value(SetupItem item, std::size_t choice) {
                                                                       "setup.ore_veins.endless"};
             return ui::tr(kKeys[choice]);
         }
+        case SetupItem::BreadChain:
+            return ui::tr(choice == 1 ? "setup.bread.revised" : "setup.bread.original");
         case SetupItem::Ships:
             return number_text(kShips[choice]);
         case SetupItem::Units:
@@ -1027,6 +1039,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (const auto i = name_index(kComputerNames, value)) {
             r.computer_players = static_cast<sim::Computers>(*i);
         }
+    } else if (key == "bread") {
+        if (value == "revised" || value == "original") {
+            r.revised_bread = value == "revised";
+        }
     } else if (key == "ships") {
         r.max_ships_per_player = n.value_or(r.max_ships_per_player);
     } else if (key == "units") {
@@ -1125,6 +1141,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("trader_prices", r.trader_prices == sim::TraderPrices::Market ? "market" : "original");
     line("trader_reach", kTraderReachNames[std::min<std::size_t>(static_cast<std::size_t>(r.trader_reach), 1)]);
     line("ore_veins", kOreVeinNames[std::min<std::size_t>(static_cast<std::size_t>(r.ore_veins), 2)]);
+    line("bread", r.revised_bread ? "revised" : "original");
     line("ships", std::to_string(r.max_ships_per_player));
     line("units", std::to_string(r.max_army));
     line("game_speed", std::to_string(r.max_game_speed));

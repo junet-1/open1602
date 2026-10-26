@@ -140,7 +140,7 @@ struct ModRules {
 
 /// The base game's factions and numbers as the mods change them (<data folder>/mods/<package>/
 /// factions.toml and balance.toml), the packages in the order of their names.
-ModRules load_mod_rules(const std::filesystem::path& mods) {
+ModRules load_mod_rules(const std::filesystem::path& mods, const assets::BuildingTable& buildings) {
     ModRules rules;
     std::vector<std::string> problems;
     for (const assets::ModPackage& package : assets::mod_packages(mods)) {
@@ -153,6 +153,7 @@ ModRules load_mod_rules(const std::filesystem::path& mods) {
             sim::apply_balance_file(rules.balance, package.id, text, problems);
         }
     }
+    sim::drop_unknown_buildings(rules.balance, buildings, problems);
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
@@ -188,7 +189,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         }
     }
     std::vector<std::string> warnings;
-    ModRules rules = load_mod_rules(data_folder() / "mods");
+    ModRules rules = load_mod_rules(data_folder() / "mods", *buildings);
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
     if (options.menu || joining) {
@@ -454,10 +455,11 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
                      assets::Palette palette, assets::FigureTable figures, ViewerOptions options)
     : m_game(std::move(game)),
       m_buildings(std::move(buildings)),
+      m_original_buildings(m_buildings),
       m_palette(std::move(palette)),
       m_figures(std::move(figures)),
       m_options(std::move(options)),
-      m_state(std::make_unique<GameState>(std::move(world), m_buildings, m_figures, m_options.rules)),
+      m_state(make_state(std::move(world), m_options.rules)),
       m_events(
           [this](const sim::Player& p, sim::PlayerId id) { return player_label(p, id, m_banners, m_state->world); }),
       m_clock(m_buildings),
@@ -999,6 +1001,7 @@ void MapViewer::apply_construction() {
             }
         }
     }
+    m_stock_notes.add_treasures(m_state->world, m_buildings, events, m_local_player, stock_note_time());
     show_notices(m_events.construction_events(m_state->world, m_local_player, events));
     if (changed) {
         // Flags, smoke and status icons of the new buildings: only the islands built on are
@@ -1854,7 +1857,7 @@ void MapViewer::apply_hud(const Hud::Action& action) {
                 }
                 // "Ende": the game is kept as lastgame (0x0043BCF0), then back to the main menu
                 // (no score sheet, no high score), or the end without one.
-                const auto status = save_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
+                const auto status = save_slot(kLastGameSlot, std::string(kLastGameName));
                 if (!status) {
                     std::fprintf(stderr, "lastgame: %s\n", status.error().message.c_str());
                 }
@@ -2172,6 +2175,33 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     return core::write_file_atomic(target, *bytes);
 }
 
+core::Status MapViewer::save_slot(std::size_t slot, std::string name) {
+    if (auto status = save_game(slot_file(save_folder(), slot)); !status) {
+        return status;
+    }
+    std::uint8_t humans = 0;
+    for (const sim::Player& p : m_state->world.players()) {
+        humans = static_cast<std::uint8_t>(humans + (p.role == sim::PlayerRole::Human ? 1 : 0));
+    }
+    m_slots.set(slot, std::move(name), humans);
+    read_slot_meta(m_slots, save_folder(), slot);
+    ++m_slots_revision;
+    if (m_hud) {
+        OptionsModel& model = m_hud->options_model();
+        model.slot_names = m_slots.names;
+        model.slot_humans = m_slots.humans;
+        model.slot_details = slot_details(m_slots);
+    }
+    const std::string text = write_slots(m_slots);
+    const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
+    if (auto written =
+            core::write_file_atomic(save_folder() / "slots.cfg", std::span<const std::uint8_t>(data, text.size()));
+        !written) {
+        std::fprintf(stderr, "slots: %s\n", written.error().message.c_str());
+    }
+    return core::Ok{};
+}
+
 void MapViewer::load_options() {
     // Defaults: the sounds as GameSound took them (the original's Game.dat, read only).
     if (m_sound) {
@@ -2191,9 +2221,10 @@ void MapViewer::load_options() {
     m_ambient.set_config(ambient_config());
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
-        read_slot_meta(m_slots, save_folder());
-        ++m_slots_revision;
     }
+    find_last_game(m_slots, save_folder());
+    read_slot_meta(m_slots, save_folder());
+    ++m_slots_revision;
     if (!m_hud) {
         return;
     }
@@ -2205,6 +2236,7 @@ void MapViewer::load_options() {
     model.slot_names = m_slots.names;
     model.slot_humans = m_slots.humans;
     model.slot_details = slot_details(m_slots);
+    model.reserved_slots = kLastGameSlot + 1;
     if (MainMenu* menu = m_hud->menu()) {
         menu->set_slots(m_slots);
         menu->set_score_folder(data_folder() / "scores");
@@ -2263,28 +2295,14 @@ void MapViewer::apply_options() {
             case OptionsEvent::Kind::Save: {
                 const std::string name =
                     e.text.empty() ? ui::tr("save.default_name", {std::to_string(e.value + 1)}) : e.text;
-                const auto status = save_game(slot_file(save_folder(), e.value));
+                if (e.value == kLastGameSlot) {
+                    break;  // kept by "Ende" alone
+                }
+                const auto status = save_slot(e.value, name);
                 if (!status) {
                     m_events.notify(ui::tr("notice.save_failed", {ui::error_text(status.error(), "save")}),
                                     "notice.save_failed", platform::ticks_ms());
                     break;
-                }
-                std::uint8_t humans = 0;
-                for (const sim::Player& p : m_state->world.players()) {
-                    humans = static_cast<std::uint8_t>(humans + (p.role == sim::PlayerRole::Human ? 1 : 0));
-                }
-                m_slots.set(e.value, name, humans);
-                read_slot_meta(m_slots, save_folder(), e.value);
-                ++m_slots_revision;
-                model.slot_names = m_slots.names;
-                model.slot_humans = m_slots.humans;
-                model.slot_details = slot_details(m_slots);
-                const std::string text = write_slots(m_slots);
-                const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
-                if (auto written = core::write_file_atomic(save_folder() / "slots.cfg",
-                                                           std::span<const std::uint8_t>(data, text.size()));
-                    !written) {
-                    std::fprintf(stderr, "slots: %s\n", written.error().message.c_str());
                 }
                 // The voice confirms it (0x0043F71E: Speech_Queue(0x79, 2): files 121 or 123).
                 m_sound->speak(121, 2);
@@ -2417,16 +2435,34 @@ core::Result<sim::World> MapViewer::read_world(const std::filesystem::path& path
     return world;
 }
 
+std::unique_ptr<GameState> MapViewer::make_state(sim::World world, const sim::Rules& rules) {
+    if (!world.saved_rules()) {
+        // A new game, or one from a file of the original: the rule's values under the mods'.
+        sim::Balance balance = world.balance();
+        sim::add_building_values(balance, sim::rule_building_values(rules));
+        world.set_balance(balance);
+    }
+    sim::apply_building_values(m_buildings, m_original_buildings, world.balance());
+    return std::make_unique<GameState>(std::move(world), m_buildings, m_figures, rules);
+}
+
 core::Status MapViewer::replace_world(sim::World world, const std::filesystem::path& source, const sim::Rules* rules) {
     // The new game is built whole before anything of the old one goes: if memory runs out on the
     // way, the old game goes on.
     std::unique_ptr<GameState> next;
+    // The old game's building values come back if the new one does not start.
+    const auto keep_old = [&] {
+        if (m_state) {
+            sim::apply_building_values(m_buildings, m_original_buildings, m_state->world.balance());
+        }
+    };
     try {
-        next = std::make_unique<GameState>(std::move(world), m_buildings, m_figures,
-                                           rules != nullptr ? *rules : m_options.rules);
+        next = make_state(std::move(world), rules != nullptr ? *rules : m_options.rules);
     } catch (const std::bad_alloc&) {
+        keep_old();
         return core::make_error(core::ErrorCode::PlatformError, "not enough memory for the game");
     } catch (const std::exception& e) {
+        keep_old();
         return core::make_error(core::ErrorCode::PlatformError, std::string("the game could not start: ") + e.what());
     }
     // What belongs to the old game goes: videos, selection, orders waiting for an answer, tools.
@@ -2620,7 +2656,7 @@ void MapViewer::apply_menu() {
                 started = load_game(slot_file(save_folder(), e.slot));
                 break;
             case MenuEvent::Kind::ContinueLast:
-                started = load_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
+                started = load_game(slot_file(save_folder(), kLastGameSlot));
                 break;
             case MenuEvent::Kind::NameEntered:
                 // "Unter welcher Flagge wollt Ihr segeln?" and four more, one at random (Speech8

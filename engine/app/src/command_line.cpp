@@ -326,6 +326,14 @@ core::Result<CommandLine> parse_command_line(int argc, const char* const* argv) 
             } else {
                 return bad(i);
             }
+        } else if (arg == "--bread" && has_value) {
+            // Game setting: the original's bread chain or the revised one (data/balance/revised_bread.toml).
+            const std::string_view mode = argv[++i];
+            if (mode == "original" || mode == "revised") {
+                options.rules.revised_bread = mode == "revised";
+            } else {
+                return bad(i);
+            }
         } else if (arg == "--ai" && has_value) {
             // Game setting: the computer players of Open1602 or the original's (S-097 to S-099).
             const std::string_view mode = argv[++i];

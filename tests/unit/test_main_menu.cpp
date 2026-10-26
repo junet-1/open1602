@@ -257,6 +257,15 @@ TEST_CASE("main menu: the savegames to load, and the last game to continue") {
     REQUIRE(load.size() == 1);
     CHECK(load[0].kind == MenuEvent::Kind::LoadSlot);
     CHECK(load[0].slot == 1);
+    // The first row is the last game, loaded like the others.
+    slots.set(app::kLastGameSlot, std::string(app::kLastGameName), 1);
+    menu.set_slots(slots);
+    click(menu, host_layout(), 31003);
+    CHECK(shows(menu, "lastgame"));
+    const auto first = click(menu, host_layout(), 31021);
+    REQUIRE(first.size() == 1);
+    CHECK(first[0].kind == MenuEvent::Kind::LoadSlot);
+    CHECK(first[0].slot == app::kLastGameSlot);
     const auto last = click(menu, host_layout(), 31004);
     REQUIRE(last.size() == 1);
     CHECK(last[0].kind == MenuEvent::Kind::ContinueLast);

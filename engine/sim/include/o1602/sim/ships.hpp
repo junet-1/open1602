@@ -342,7 +342,10 @@ private:
     [[nodiscard]] bool ship_ahead(const Ship& ship) const;
     void start_wait(Ship& ship, std::uint32_t ms);
     bool start_next_run(Ship& ship);
-    bool plan(Ship& ship, std::int32_t radius);
+    /// What planning a course found: a way (or the ship is there), none, or none only because of
+    /// the ships nearby.
+    enum class Planned : std::uint8_t { Way, NoWay, ShipsInWay };
+    Planned plan(Ship& ship, std::int32_t radius);
     bool local_detour(Ship& ship);
     [[nodiscard]] bool at_target(const Ship& ship, const Target& target) const;
     [[nodiscard]] bool target_valid(const Target& target) const;

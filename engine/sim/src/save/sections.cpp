@@ -82,14 +82,16 @@ constexpr std::uint32_t kLedgers = tag("GLDG");
 constexpr std::uint32_t kFactions = tag("FACT");
 /// The values of the balance (balance.hpp, MD-9), only written when they are not the original's.
 constexpr std::uint32_t kBalance = tag("BALA");
+/// The changed values of buildings (Balance::buildings), only written when there are any.
+constexpr std::uint32_t kBuildingValues = tag("BLDV");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
-    kRules,           kWorld,       kIslands,   kTiles,     kPlayers,  kCities,    kProductions, kHouses,
-    kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,   kSimulation,
-    kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,      kMeta,
-    kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,      kMaterialClocks,
-    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers,  kBalance};
+    kRules,           kWorld,       kIslands,   kTiles,     kPlayers,  kCities,    kProductions,   kHouses,
+    kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,     kSimulation,
+    kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,        kMeta,
+    kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,        kMaterialClocks,
+    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -255,12 +257,22 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
         // Optional: a reader without it plays the base game's factions the role bytes give.
         section(out, kFactions, [&](Writer& o) { write_factions(o, world); }, Need::Optional);
     }
-    if (world.balance() != Balance{}) {
+    if (!original_numbers(world.balance())) {
         // Required: a reader without it would compute another game.
         section(out, kBalance, [&](Writer& o) {
             for (const BalanceField& f : kBalanceFields) {
                 o.u32(world.balance().*f.value);
             }
+        });
+    }
+    if (!world.balance().buildings.empty()) {
+        // Required as well: the buildings would produce and cost otherwise.
+        section(out, kBuildingValues, [&](Writer& o) {
+            o.list(world.balance().buildings, 9, [&](const BuildingValue& v) {
+                o.u32(v.id);
+                o.u8(static_cast<std::uint8_t>(v.field));
+                o.u32(v.value);
+            });
         });
     }
     const std::uint16_t player_state_at = player_state_version(world);
@@ -436,6 +448,27 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     in.fail();
                 }
                 d.balance = b;
+                break;
+            }
+            case kBuildingValues: {
+                std::vector<BuildingValue> values;
+                in.list(values, 9, [&](BuildingValue& v) {
+                    std::uint8_t field = 0;
+                    in.u32(v.id);
+                    in.u8(field);
+                    in.u32(v.value);
+                    v.field =
+                        field < kBuildingFields.size() ? static_cast<BuildingField>(field) : BuildingField::Produce;
+                    if (field >= kBuildingFields.size() || buildings.by_id(v.id) == nullptr) {
+                        in.fail();  // a field of a later version, or a building the data does not have
+                    }
+                });
+                Balance b;
+                b.buildings = values;
+                if (!valid(b)) {
+                    in.fail();
+                }
+                d.building_values = std::move(values);
                 break;
             }
             case kPlayerState:

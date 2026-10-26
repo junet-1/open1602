@@ -143,6 +143,7 @@ struct ConstructionEvent {
         CityDissolved,   ///< a city lost its Kontor and was dissolved
         StorageChanged,  ///< markets or Kontors of the city changed: warehouse room
         CityTaken,       ///< the city (city) went over to a new owner
+        TreasureFound,   ///< the building at x, y (type) lies on a buried treasure at `treasure`
     };
     Kind kind = Kind::Placed;
     std::uint16_t island = 0;
@@ -151,6 +152,9 @@ struct ConstructionEvent {
     std::uint8_t city = MapCell::kNoCity;
     std::optional<std::uint32_t> production;
     const assets::BuildingType* type = nullptr;
+    PlayerId player = kNoPlayer;  ///< TreasureFound: who built, and got the gold
+    TilePos treasure;             ///< TreasureFound: the treasure's tile on the island
+    std::uint32_t money = 0;      ///< TreasureFound: the gold
 };
 
 /// Whether a city can be taken over (0x0047F1B0): no market or Kontor standing (a destroyed Kontor

@@ -42,8 +42,9 @@ a game names the packages it needs. Packages as archives (not only folders) come
 ### 2. Content registry with string ids (section 2)
 
 Buildings and figures are still addressed by their `.cod` numbers. A package cannot add a building
-of its own except by shipping a changed `haeuser.cod`, and it cannot change single fields of an
-original record (overlay). Needed: entries with ids such as `mymod:lighthouse`, read from the
+of its own except by shipping a changed `haeuser.cod`. Single production and cost values of an
+original record can be changed in `balance.toml` (`["anno1602:<Id>"]`, [balance.md](balance.md#the-buildings-values)),
+other fields not yet. Needed: entries with ids such as `mymod:lighthouse`, read from the
 packages' data files, added, overlaid or replaced, and turned into flat index tables after loading.
 Savegames store the ids, not the indexes.
 

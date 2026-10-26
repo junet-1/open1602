@@ -32,8 +32,9 @@ enum RuleKey : std::uint16_t {
     kTraderReach = 25,
     kEndlessVeins = 26,  // 1: OreVeins::Endless
     kReveal = 27,
-    kOreVeins = 28,  // OreVeins::Finite (Endless keeps the old key, Game has none)
-    kComputerPlayers = 29,
+    kRevisedBread = 28,
+    kOreVeins = 29,  // OreVeins::Finite (Endless keeps the old key, Game has none)
+    kComputerPlayers = 30,
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -154,6 +155,10 @@ void write_rules(Writer& out, const Rules& r) {
     if (r.computer_players != Computers::Game) {
         values.emplace_back(kComputerPlayers, static_cast<std::uint32_t>(r.computer_players));
     }
+    // The revised bread chain only when it is on: off is the original, so older games keep their bytes.
+    if (r.revised_bread) {
+        values.emplace_back(kRevisedBread, 1U);
+    }
     // The towns shown from the start only when there are any: the original's way keeps the bytes.
     if (r.reveal != Reveal::None) {
         values.emplace_back(kReveal, static_cast<std::uint32_t>(r.reveal));
@@ -234,6 +239,9 @@ Rules read_rules(Reader& in) {
                 break;
             case kComputerPlayers:
                 r.computer_players = static_cast<Computers>(std::min<std::uint32_t>(v, 2));
+                break;
+            case kRevisedBread:
+                r.revised_bread = v != 0;
                 break;
             case kClassicAi:
                 r.classic_ai = v != 0;

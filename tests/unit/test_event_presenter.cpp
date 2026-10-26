@@ -181,6 +181,29 @@ TEST_CASE("event presenter: an own defeat plays its video directly, the defeat v
     CHECK(announcement(rival[1])->message == 0x59);
 }
 
+TEST_CASE("event presenter: a rival's defeat announces the culprit's triumphal arch instead (op 3 sub 9)") {
+    Game g;
+    sim::GameEvent defeated;
+    defeated.kind = sim::GameEvent::Kind::PlayerDefeated;
+    defeated.player = kRival;
+    defeated.reason = sim::GameEvent::Reason::NoPossessions;
+    // Nobody credited: no message.
+    CHECK(g.presenter.game_events(g.world, kMe, {defeated}, 1000).size() == 1);
+    // Credited to me without an arch: "Ein Konkurrent wurde besiegt!".
+    defeated.by = kMe;
+    const auto plain = g.presenter.game_events(g.world, kMe, {defeated}, 1000);
+    REQUIRE(plain.size() == 2);
+    CHECK(announcement(plain[1])->message == 0x5A);
+    // With the arch: only its message.
+    sim::GameEvent arch;
+    arch.kind = sim::GameEvent::Kind::ArchAllowed;
+    arch.player = kMe;
+    arch.by = kRival;
+    const auto with_arch = g.presenter.game_events(g.world, kMe, {defeated, arch}, 1000);
+    REQUIRE(with_arch.size() == 2);
+    CHECK(announcement(with_arch[1])->message == 0x32);
+}
+
 TEST_CASE("event presenter: the multiplayer victory speaks to the winner on track 1, to the others on track 2") {
     Game g;
     sim::GameEvent won;
@@ -334,4 +357,25 @@ TEST_CASE("event presenter: a good running short is told early, its shortage the
     CHECK(early->text.find('4') != std::string::npos);
     CHECK(announcement(notices[1])->message == 0x35);  // no warning came before: the original's
     CHECK(announcement(notices[1])->text.empty());
+}
+
+TEST_CASE("event presenter: a treasure is announced at its tile, to the builder only") {
+    Game g;
+    sim::ConstructionEvent found;
+    found.kind = sim::ConstructionEvent::Kind::TreasureFound;
+    found.island = 0;
+    found.x = 3;
+    found.y = 2;
+    found.player = kMe;
+    found.treasure = sim::TilePos{4, 3};
+    found.money = 1000;
+    sim::ConstructionEvent theirs = found;
+    theirs.player = kRival;
+    const auto notices = g.presenter.construction_events(g.world, kMe, {theirs, found});
+    REQUIRE(notices.size() == 1);
+    const app::Announcement* a = announcement(notices[0]);
+    REQUIRE(a != nullptr);
+    CHECK(a->message == 0x2E);  // „Ein vergrabener Schatz wurde entdeckt!“
+    CHECK((a->tile == std::make_pair(104.0, 53.0)));
+    CHECK(g.presenter.construction_events(g.world, kRival, {found}).empty());
 }

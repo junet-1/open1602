@@ -167,3 +167,30 @@ TEST_CASE("stock notes: the line's bottom is the projected point minus the heigh
     CHECK(y0 - y2 == 96);
     CHECK(x2 == x0);
 }
+
+TEST_CASE("stock notes: the gold of a treasure rises over the builder's building") {
+    Town town(0);
+    sim::ConstructionEvent found;
+    found.kind = sim::ConstructionEvent::Kind::TreasureFound;
+    found.island = 0;
+    found.x = 6;  // the turned weaver, 1 x 2
+    found.y = 4;
+    found.player = 0;
+    found.treasure = sim::TilePos{6, 5};
+    found.money = 1000;
+    sim::ConstructionEvent placed = found;
+    placed.kind = sim::ConstructionEvent::Kind::Placed;
+    sim::ConstructionEvent rival = found;
+    rival.player = 1;
+
+    app::StockNotes notes;
+    const sim::ConstructionEvent events[] = {placed, rival, found};
+    notes.add_treasures(town.world, town.buildings, events, 0, 100.0);
+    REQUIRE(notes.notes().size() == 1);
+    CHECK(notes.notes()[0].text == "+1000");
+    CHECK(notes.notes()[0].x == 16.5);
+    CHECK(notes.notes()[0].y == 25.0);
+    CHECK(notes.notes()[0].start_ms == 100.0);
+    notes.add_treasures(town.world, town.buildings, events, sim::kNoPlayer, 100.0);
+    CHECK(notes.notes().size() == 1);
+}

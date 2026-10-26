@@ -406,7 +406,7 @@ void check_islands(const sim::GeneratedWorld& w, const assets::ScenarioPlan& pla
         }
         CHECK((own_world || !(has_crop(g.fertility, kSugar) && has_crop(g.fertility, kWine))));
         // At most two deposits, each on a mountain of its own; treasures on open ground of middle
-        // islands.
+        // islands, in own worlds also of big ones.
         CHECK(g.deposits.size() <= 2);
         std::set<Spot> used;
         const auto mountains = mountain_spots(g.size, g.template_number);
@@ -417,7 +417,7 @@ void check_islands(const sim::GeneratedWorld& w, const assets::ScenarioPlan& pla
                 CHECK(d.amount > 0);
             } else {
                 CHECK(d.ware == kTreasure);
-                CHECK((g.size == 1 || g.size == 2));
+                CHECK((g.size == 1 || g.size == 2 || (own_world && g.size >= 3)));
                 const bool on_mountain = std::any_of(mountains.begin(), mountains.end(), [&](const Spot& m) {
                     return d.x >= m.x && d.x < m.x + 2 && d.y >= m.y && d.y < m.y + 2;
                 });
@@ -819,6 +819,47 @@ TEST_CASE("world generator: the islands load with load_world and pass validate")
             CHECK(direct->islands()[i].y == world->islands()[i].y);
         }
     }
+}
+
+TEST_CASE("world generator: an own world without middle islands puts treasures on big islands, no home") {
+    const auto& fake = full_game();
+    const auto templates = sim::island_templates(fake.game, buildings());
+    REQUIRE(!templates.empty());
+    sim::WorldSettings settings;
+    settings.sizes = sim::WorldSettings::Sizes::Large;
+    settings.seed = 3;
+    auto plan = sim::plan_world(settings, templates);
+    REQUIRE(plan.ok());
+    std::set<std::uint8_t> homes;
+    for (const sim::StartArea& st : plan->starts) {
+        homes.insert(st.home_island);
+    }
+    // Only the little and the big islands stay.
+    std::erase_if(plan->plan.islands, [](const auto& e) { return e.size == 1 || e.size == 2; });
+    REQUIRE(std::count_if(plan->plan.islands.begin(), plan->plan.islands.end(),
+                          [&](const auto& e) { return e.size >= 3 && !homes.contains(e.number); }) > 0);
+    plan->plan.treasures = {};
+    plan->plan.treasures[0] = {kGoldsmith, 2, 0};
+    sim::WorldStart start;
+    start.seed = 3;
+    auto w = sim::generate_islands(scenario(standard_plan()), *plan, fake.game, buildings(), start);
+    REQUIRE(w.ok());
+    CHECK(deposits_of(*w, kTreasure) > 0);
+    for (const auto& g : w->islands) {
+        if (std::any_of(g.deposits.begin(), g.deposits.end(), [](const auto& d) { return d.ware == kTreasure; })) {
+            CHECK(g.size >= 3);
+            CHECK(!homes.contains(g.number));
+        }
+    }
+
+    // The original's plans keep to the middle islands: the same islands give no treasure.
+    assets::ScenarioPlan original = plan->plan;
+    for (auto& e : original.islands) {
+        e.template_number = 0xFFFF;
+    }
+    auto o = sim::generate_islands(scenario(original), fake.game, buildings(), sim::WorldStart{});
+    REQUIRE(o.ok());
+    CHECK(deposits_of(*o, kTreasure) == 0);
 }
 
 TEST_CASE("world generator: an own world gives every start home iron, all crops and gold within reach") {

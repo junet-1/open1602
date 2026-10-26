@@ -79,6 +79,34 @@ void StockNotes::add(const sim::World& world, const assets::BuildingTable& build
     }
 }
 
+void StockNotes::add_treasures(const sim::World& world, const assets::BuildingTable& buildings,
+                               std::span<const sim::ConstructionEvent> events, sim::PlayerId local, double now_ms) {
+    for (const sim::ConstructionEvent& e : events) {
+        if (e.kind != sim::ConstructionEvent::Kind::TreasureFound || local == sim::kNoPlayer || e.player != local ||
+            e.island >= world.islands().size() || m_notes.size() >= kMaxStockNotes) {
+            continue;
+        }
+        const sim::WorldIsland& island = world.islands()[e.island];
+        if (e.x < 0 || e.y < 0 || static_cast<std::uint32_t>(e.x) >= island.map.width() ||
+            static_cast<std::uint32_t>(e.y) >= island.map.height()) {
+            continue;
+        }
+        const sim::MapCell& cell = island.map.top(static_cast<std::uint32_t>(e.x), static_cast<std::uint32_t>(e.y));
+        const assets::BuildingType* b = e.type != nullptr ? e.type : buildings.by_sprite(cell.sprite);
+        std::uint32_t w = 1;
+        std::uint32_t h = 1;
+        if (b != nullptr) {
+            sim::rotated_size(*b, cell.rotation, w, h);
+        }
+        StockNote note;
+        note.x = static_cast<double>(island.x) + e.x + w * 0.5;
+        note.y = static_cast<double>(island.y) + e.y + h * 0.5;
+        note.text = "+" + std::to_string(e.money);
+        note.start_ms = now_ms;
+        m_notes.push_back(std::move(note));
+    }
+}
+
 void StockNotes::expire(double now_ms) {
     std::erase_if(m_notes,
                   [&](const StockNote& n) { return now_ms >= n.start_ms + kStockNoteMs || now_ms < n.start_ms; });

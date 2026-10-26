@@ -596,6 +596,67 @@ TEST_CASE("ships: four ships that give up a computer's Kontor make it blame the 
     CHECK(own.world.city(0, 0)->ships_gave_up == 0);
 }
 
+/// An island of 15 x 13 tiles at (40, 18) with a Kontor of the human in its middle; the only water
+/// in its reach lies in an inlet one tile wide (row 24, columns 50..54) open to the east.
+void add_inlet_island(Sea& sea) {
+    sim::IslandMap map(15, 13);
+    for (std::int32_t y = 0; y < 13; ++y) {
+        for (std::int32_t x = 0; x < 15; ++x) {
+            const bool inlet = y == 6 && x >= 10;
+            REQUIRE(map.place(*sea.buildings.by_id(inlet ? 20102 : 20101), x, y, 0, 0).ok());
+        }
+    }
+    REQUIRE(map.place(*sea.buildings.by_id(20103), 6, 5, 0, 0, 0, 0).ok());
+    for (std::uint32_t y = 0; y < 13; ++y) {
+        for (std::uint32_t x = 0; x < 15; ++x) {
+            map.set_city(x, y, 0, 0);
+        }
+    }
+    REQUIRE(sea.world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 40, 18}).ok());
+    sim::City city;
+    city.island = 0;
+    city.index = 0;
+    city.owner = 0;
+    city.name = "Port";
+    city.warehouse_x = 6;
+    city.warehouse_y = 5;
+    city.capacity = 30 * kTon;
+    city.ensure_ware(24);
+    city.trade.resize(25);
+    sea.world.add_city(city);
+}
+
+TEST_CASE("ships: a ship waits for another one to leave a narrow inlet instead of giving up (S-121)") {
+    // Found in game03.gam: a free trader gave up a Kontor because another one lay in its inlet.
+    Sea sea;
+    add_inlet_island(sea);
+    const std::uint32_t lying = sea.add(54, 24).id;  // in the inlet's mouth
+    const std::uint32_t coming = sea.add(57, 22).id;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    REQUIRE(fleet.order(sim::ShipOrder{0, coming, sim::Target::city_of(0, 0)}));
+    auto events = run(fleet, sea.world, 5000);
+    REQUIRE(fleet.order(sim::ShipOrder{0, lying, sim::Target::position(75, 40)}));
+    for (const auto& e : run(fleet, sea.world, 30000)) {
+        events.push_back(e);
+    }
+    CHECK(count(events, sim::ShipEvent::Kind::GaveUp) == 0);
+    CHECK(sea.world.ship(coming)->target.empty());
+    CHECK(sea.world.ship(coming)->x >= 50);
+    CHECK(sea.world.ship(coming)->x <= 52);
+    CHECK(sea.world.ship(coming)->y == 24);
+
+    // A ship that stays in the way is still given up, later: the Kontor counts it (0x00454F50).
+    Sea blocked;
+    add_inlet_island(blocked);
+    blocked.add(54, 24);
+    const std::uint32_t waiting = blocked.add(57, 22).id;
+    sim::Fleet blocked_fleet(blocked.world, blocked.buildings, blocked.figures, blocked.rules);
+    REQUIRE(blocked_fleet.order(sim::ShipOrder{0, waiting, sim::Target::city_of(0, 0)}));
+    CHECK(count(run(blocked_fleet, blocked.world, 15000), sim::ShipEvent::Kind::GaveUp) == 0);
+    CHECK(count(run(blocked_fleet, blocked.world, 20000), sim::ShipEvent::Kind::GaveUp) == 1);
+    CHECK(blocked.world.city(0, 0)->ships_gave_up == 1);
+}
+
 TEST_CASE("ships: a computer's shipyard that cannot launch its ship 100 times blames the human ships near it") {
     Sea sea;
     // An island of ground only, 40 x 40: the yard in its middle finds no water within its Radius.
