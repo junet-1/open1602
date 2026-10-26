@@ -2,7 +2,8 @@
 //
 // The white texts that rise over the local player's production buildings when their store gains a
 // ton ("Lager: 3") or is full ("Lager voll"), as the original shows them (0x0047DAF0 -> 0x00446BD0,
-// docs/re/production.md#floating-texts). Only a picture: the game never reads them.
+// docs/re/production.md#floating-texts), and the gold of a buried treasure ("+1000", 0x004084D0).
+// Only a picture: the game never reads them.
 #pragma once
 
 #include <cstddef>
@@ -13,6 +14,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/text_table.hpp"
+#include "o1602/sim/construction.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/world.hpp"
 
@@ -54,6 +56,11 @@ public:
     /// the new ton, as the original's second text replaces the first.
     void add(const sim::World& world, const assets::BuildingTable& buildings, const assets::TextTable& texts,
              std::span<const sim::ProductionEvent> events, sim::PlayerId local, double now_ms);
+
+    /// "+<gold>" over the buildings of `local` that were built on a treasure (sprintf "+%d" over
+    /// Island_BuildingCenter, 0x004084D0), appearing at `now_ms`.
+    void add_treasures(const sim::World& world, const assets::BuildingTable& buildings,
+                       std::span<const sim::ConstructionEvent> events, sim::PlayerId local, double now_ms);
 
     /// Removes the texts that have risen out of sight by `now_ms`.
     void expire(double now_ms);

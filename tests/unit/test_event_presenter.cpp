@@ -335,3 +335,24 @@ TEST_CASE("event presenter: a good running short is told early, its shortage the
     CHECK(announcement(notices[1])->message == 0x35);  // no warning came before: the original's
     CHECK(announcement(notices[1])->text.empty());
 }
+
+TEST_CASE("event presenter: a treasure is announced at its tile, to the builder only") {
+    Game g;
+    sim::ConstructionEvent found;
+    found.kind = sim::ConstructionEvent::Kind::TreasureFound;
+    found.island = 0;
+    found.x = 3;
+    found.y = 2;
+    found.player = kMe;
+    found.treasure = sim::TilePos{4, 3};
+    found.money = 1000;
+    sim::ConstructionEvent theirs = found;
+    theirs.player = kRival;
+    const auto notices = g.presenter.construction_events(g.world, kMe, {theirs, found});
+    REQUIRE(notices.size() == 1);
+    const app::Announcement* a = announcement(notices[0]);
+    REQUIRE(a != nullptr);
+    CHECK(a->message == 0x2E);  // „Ein vergrabener Schatz wurde entdeckt!“
+    CHECK((a->tile == std::make_pair(104.0, 53.0)));
+    CHECK(g.presenter.construction_events(g.world, kRival, {found}).empty());
+}

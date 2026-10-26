@@ -14,6 +14,8 @@ namespace {
 
 /// „Ihr konntet den Euch gestellten Auftrag erfüllen!“, in no player's colour.
 constexpr std::uint16_t kMessageMissionAccomplished = 0x54;
+/// „Ein vergrabener Schatz wurde entdeckt!“ (MELDUNG 0x2E).
+constexpr std::uint16_t kMessageTreasure = 0x2E;
 
 /// A message, with where it happened and the player it is about.
 Announcement announce(std::uint16_t message, std::optional<std::pair<double, double>> tile = std::nullopt,
@@ -311,6 +313,17 @@ std::vector<Notice> EventPresenter::construction_events(const sim::World& world,
                                                         const std::vector<sim::ConstructionEvent>& events) const {
     std::vector<Notice> out;
     for (const sim::ConstructionEvent& e : events) {
+        if (e.kind == sim::ConstructionEvent::Kind::TreasureFound) {
+            // The message at the treasure, for the builder only (0x004084D0).
+            if (e.player == local && e.island < world.islands().size()) {
+                const sim::WorldIsland& i = world.islands()[e.island];
+                std::fprintf(stderr, "you found a treasure: %u gold (island %u)\n", e.money,
+                             static_cast<unsigned>(i.header.number));
+                out.emplace_back(announce(kMessageTreasure, std::make_pair(static_cast<double>(i.x) + e.treasure.x,
+                                                                           static_cast<double>(i.y) + e.treasure.y)));
+            }
+            continue;
+        }
         if (e.kind != sim::ConstructionEvent::Kind::CityFounded) {
             continue;
         }

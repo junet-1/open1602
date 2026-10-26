@@ -743,6 +743,7 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                 storage = true;
                 break;
             case ConstructionEvent::Kind::Placed:
+            case ConstructionEvent::Kind::TreasureFound:
                 break;
         }
         // The sea map, the land map and the towers depend only on the island as it is now, so each

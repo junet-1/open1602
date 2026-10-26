@@ -1936,12 +1936,14 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
         const std::optional<Production> kept = builder.unregister(f);
         builder.register_building(b, item.x, item.y, city, rnd, item.upgrade ? kept : std::nullopt);
         // A treasure in the ground (deposit SCHATZ) goes to the builder, on every computer (M-008).
+        std::optional<assets::IslandHeader::Deposit> treasure;
         auto& deposits = world.island(order.island).header.deposits;
         for (auto it = deposits.begin(); it != deposits.end(); ++it) {
             if (it->ware == ware::kTreasure && f.contains(it->x, it->y)) {
                 if (Player* p = world.player(order.player)) {
                     p->money = money_plus(p->money, std::int64_t{it->amount});
                 }
+                treasure = *it;
                 deposits.erase(it);
                 break;
             }
@@ -1956,6 +1958,16 @@ BuildPlan execute_build(World& world, const assets::BuildingTable& buildings, co
         e.production = world.production_index(order.island, static_cast<std::uint16_t>(item.x),
                                               static_cast<std::uint16_t>(item.y));
         builder.emit(e);
+        if (treasure) {
+            // 0x004084D0 shows "+1000" over the building and posts message 0x2E at the treasure.
+            ConstructionEvent t = e;
+            t.kind = ConstructionEvent::Kind::TreasureFound;
+            t.production.reset();
+            t.player = order.player;
+            t.treasure = TilePos{treasure->x, treasure->y};
+            t.money = treasure->amount;
+            builder.emit(t);
+        }
     }
     if (plan.takeover && city != MapCell::kNoCity) {
         // City_ChangeOwner: every tile of the city, and the city with its goods, go to the builder.
