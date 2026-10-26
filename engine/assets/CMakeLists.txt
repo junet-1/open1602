@@ -28,6 +28,7 @@ add_library(o1602_assets
     src/scenario.cpp
     src/sprite_sheet.cpp
     src/text_table.cpp
+    src/unlock_levels.cpp
 )
 add_library(o1602::assets ALIAS o1602_assets)
 

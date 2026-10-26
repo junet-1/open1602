@@ -287,6 +287,12 @@ void apply_resident_classes(assets::BuildingTable& table, const assets::Building
                                                : std::vector<assets::ResidentClass>(classes.begin(), classes.end()));
 }
 
+void apply_infra_levels(assets::BuildingTable& table, const assets::BuildingTable& original,
+                        std::span<const assets::InfraLevel> levels) {
+    table.set_infra_levels(levels.empty() ? original.infra_levels()
+                                          : std::vector<assets::InfraLevel>(levels.begin(), levels.end()));
+}
+
 void apply_building_values(assets::BuildingTable& table, const assets::BuildingTable& original,
                            const Balance& balance) {
     const std::vector<assets::BuildingType>& from = original.types();

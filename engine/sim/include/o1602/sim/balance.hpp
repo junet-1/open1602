@@ -22,6 +22,7 @@ class BuildingTable;
 class FigureTable;
 struct OwnBuilding;
 struct ResidentClass;
+struct InfraLevel;
 }  // namespace o1602::assets
 
 namespace o1602::sim {
@@ -212,6 +213,10 @@ void apply_building_values(assets::BuildingTable& table, const assets::BuildingT
 /// those of `original` when the game has none of its own (docs/modding/classes.md).
 void apply_resident_classes(assets::BuildingTable& table, const assets::BuildingTable& original,
                             std::span<const assets::ResidentClass> classes);
+/// Gives `table` the unlock levels of a game (World::infra_levels()): `levels`, or those of
+/// `original` when the game has none of its own (docs/modding/levels.md).
+void apply_infra_levels(assets::BuildingTable& table, const assets::BuildingTable& original,
+                        std::span<const assets::InfraLevel> levels);
 /// Drops the values of figures `figures` does not have, with a warning each.
 void drop_unknown_figures(Balance& balance, const assets::FigureTable& figures, std::vector<std::string>& warnings);
 /// Makes `table` the figure table of a game with `balance`, as apply_building_values.

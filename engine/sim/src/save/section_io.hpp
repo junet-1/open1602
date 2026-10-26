@@ -80,6 +80,14 @@ struct Decoded {
     std::optional<assets::Goods> goods;
     /// The classes of inhabitants of the game (CLAS).
     std::optional<std::vector<assets::ResidentClass>> classes;
+    /// The unlock levels of the game (LEVL).
+    std::optional<std::vector<assets::InfraLevel>> levels;
+    /// The levels after the original's a player unlocked (UNLK).
+    struct UnlockedMore {
+        std::uint8_t player = 0;
+        std::array<std::uint32_t, 7> levels{};
+    };
+    std::optional<std::vector<UnlockedMore>> unlocked_more;
     /// The buildings the packages added and their Ids (OWNB).
     std::optional<std::vector<assets::OwnBuilding>> own_buildings;
     /// The changed values of buildings (BLDV).

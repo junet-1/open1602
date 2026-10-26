@@ -36,9 +36,10 @@ struct OwnBuilding {
 /// are read in their load order, so the Ids are the same on every computer with the same packages.
 /// A table that cannot be read is passed over with a warning; a file that is no data file at all
 /// adds nothing. `goods`: what `ware`, `raw` and `raw2` may name besides the original's goods;
-/// `classes`: what `class` may name (resident_classes.hpp), by default the classes of `table`.
+/// `classes`: what `class` may name (resident_classes.hpp), by default the classes of `table`;
+/// `levels`: what `level` may name (unlock_levels.hpp), by default the levels of `table`.
 void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& own, std::string_view package,
                               std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods = {},
-                              std::span<const ResidentClass> classes = {});
+                              std::span<const ResidentClass> classes = {}, std::span<const InfraLevel> levels = {});
 
 }  // namespace o1602::assets

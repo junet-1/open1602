@@ -320,10 +320,14 @@ void Engine::sell_settings(AiPlayer& p, City& c, CityPlan& r) {
 }
 
 void Engine::production_switches(AiPlayer& p, City& c) {
+    // 0x0041EAC0: every producer of the current city, by the ware it makes. Each check looks at the
+    // building's switch first: one that is on can only go off, one that is off only on (0x0041E8F0,
+    // 0x0041E980, 0x0041EA10). An off building is not ticked, so its count of cycles without raw
+    // material stays until it is switched on again (0x0047CFA0) and must not keep it off.
     const IslandMap& map = island_of(c.island).map;
     const std::uint32_t cap = c.capacity;
     const auto& m = m_buildings.materials();
-    std::vector<std::pair<std::uint32_t, bool>> changes;  // production index, on
+    std::vector<std::pair<std::uint32_t, bool>> changes;  // production index, on; in the original's order
     for (std::size_t i = 0; i < m_world.productions().size(); ++i) {
         const Production& pr = m_world.productions()[i];
         if (!pr.used || pr.island != c.island || !map.contains(pr.x, pr.y)) {
@@ -334,45 +338,65 @@ void Engine::production_switches(AiPlayer& p, City& c) {
             continue;
         }
         const assets::BuildingType* b = m_buildings.by_sprite(cell.sprite);
-        if (b == nullptr || b->prod_kind == prod::kHunter || b->prod_kind == prod::kMarket ||
-            b->prod_kind == prod::kKontor || b->prod_kind < prod::kWorkshop || b->prod_kind > prod::kFisher) {
+        if (b == nullptr || b->prod_kind == prod::kMarket || b->prod_kind == prod::kKontor ||
+            b->prod_kind < prod::kWorkshop || b->prod_kind > prod::kFisher) {
             continue;
         }
+        const auto index = static_cast<std::uint32_t>(i);
+        bool enabled = pr.enabled;
+        const auto set = [&](bool on) {
+            changes.emplace_back(index, on);
+            enabled = on;
+        };
+        // NoRawGoods (0x0047CEC0): a Maxnorohst of 0 counts as starved at once.
+        const bool starved = pr.idle_cycles >= b->max_idle_cycles;
         const std::uint8_t w = b->ware;
-        const bool starved = pr.idle_cycles >= b->max_idle_cycles && b->max_idle_cycles != 0;
-        std::optional<bool> on;
+        const auto raw = [&] {
+            // Raw materials: off when the warehouse is full, on below its room less 4 t.
+            if (enabled) {
+                if (c.stock(w) >= cap) {
+                    set(false);
+                }
+            } else if (c.stock(w) + 4 * kTon < cap) {
+                set(true);
+            }
+        };
+        const auto workshop = [&] {
+            // Workshops: off when starved, on with more than 4 t of raw material. A starved one with
+            // raw material goes off now and on at the next refresh, which clears its idle count.
+            if (enabled) {
+                if (starved) {
+                    set(false);
+                }
+            } else if (c.stock(b->raw_ware) > 4 * kTon) {
+                set(true);
+            }
+        };
         const auto capped = [&](std::uint32_t limit) {
-            if (starved || c.stock(w) >= limit) {
-                on = false;
-            } else if (c.stock(b->raw_ware) > kTon) {
-                on = true;
+            if (enabled) {
+                if (starved || c.stock(w) >= limit) {
+                    set(false);
+                }
+            } else if (c.stock(b->raw_ware) > kTon && c.stock(w) < limit) {
+                set(true);
             }
         };
         if (w == ware::kIron) {
             capped(60 * kTon);
         } else if (w == ware::kSwords || w == ware::kMuskets) {
             capped(10 * kTon);
-        } else if (w == ware::kCannons) {
+        } else if (w == m.cannons) {
             capped(25 * kTon);
         } else if (w == m.tools) {
             capped(40 * kTon);
-        } else if (b->prod_kind == prod::kWorkshop && b->raw_ware != 0 && b->raw_ware < 45 && w != m.bricks) {
-            // Workshops: on with more than 4 t of raw material, off when starved.
-            if (c.stock(b->raw_ware) > 4 * kTon) {
-                on = true;
-            } else if (starved) {
-                on = false;
+        } else if (b->prod_kind == prod::kWorkshop && b->raw_ware != 0 && b->raw_ware < ware::kCornField &&
+                   w != m.bricks) {
+            workshop();
+            if (w == ware::kAlcohol) {
+                raw();  // the rum distillery is asked twice, as workshop and as producer of alcohol
             }
         } else {
-            // Raw materials: on below the warehouse's room less 4 t, off when it is full.
-            if (c.stock(w) + 4 * kTon < cap) {
-                on = true;
-            } else if (c.stock(w) >= cap) {
-                on = false;
-            }
-        }
-        if (on && *on != pr.enabled) {
-            changes.emplace_back(static_cast<std::uint32_t>(i), *on);
+            raw();  // farms, pastures, mines, hunters, fishers and the workshops without a raw ware
         }
     }
     for (const auto& [index, on] : changes) {

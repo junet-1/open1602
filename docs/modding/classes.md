@@ -8,8 +8,8 @@ A content package may change the original's five classes of inhabitants (pioneer
 ([own-buildings.md](own-buildings.md)).
 
 **Status:** Done are the file `classes.toml`, houses of a new class, the house window, the goods
-window and the savegame. Still open, with the next steps of item 3: unlock levels of a package's own
-(a new class unlocks nothing yet, part 3), public buildings of a class's own (a new class needs what
+window and the savegame; levels a new class unlocks are in [levels.md](levels.md). Still open, with
+the next steps of item 3: public buildings of a class's own (a new class needs what
 the class it copies needs), the tax rows of the city window (it has rows for the original's five),
 and the computer players, who build for the original's classes (item 5).
 

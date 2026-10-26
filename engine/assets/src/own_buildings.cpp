@@ -7,6 +7,7 @@
 
 #include "o1602/assets/original_names.hpp"
 #include "o1602/assets/resident_classes.hpp"
+#include "o1602/assets/unlock_levels.hpp"
 #include "o1602/core/data_file.hpp"
 
 namespace o1602::assets {
@@ -40,7 +41,7 @@ const OwnBuilding* find_own_building(std::span<const OwnBuilding> own, std::stri
 
 void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& own, std::string_view package,
                               std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods,
-                              std::span<const ResidentClass> classes) {
+                              std::span<const ResidentClass> classes, std::span<const InfraLevel> levels) {
     const std::string where = std::string(package) + "/" + std::string(kOwnBuildingsFile);
     auto tables = core::parse_data_file(utf8);
     if (!tables) {
@@ -74,6 +75,7 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
         std::optional<std::uint8_t> raw;
         std::optional<std::uint8_t> raw2;
         std::optional<std::uint8_t> resident_class;
+        std::optional<std::uint8_t> level;
         bool ok = true;
         for (const core::DataEntry& e : t.entries) {
             const std::string field = line_of(where, e.value.line) + "'" + e.key + "' ";
@@ -119,6 +121,19 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
                     warnings.push_back(field + "names no class (anno1602:<name or number> or <package>:<name>)");
                     ok = false;
                 }
+            } else if (e.key == "level") {
+                // When it may be built: an unlock level by its id, or "" for always.
+                const std::string* s = e.value.string();
+                const std::span<const InfraLevel> known = levels.empty() ? table.infra_levels() : levels;
+                if (s != nullptr) {
+                    level = s->empty() ? std::optional<std::uint8_t>(std::uint8_t{0}) : level_of(known, *s);
+                }
+                if (s == nullptr || !level) {
+                    warnings.push_back(field +
+                                       "names no unlock level (anno1602:<name or number> or <package>:<name>, \"\" "
+                                       "for always)");
+                    ok = false;
+                }
             } else {
                 warnings.push_back(field + "is no field of a building of a package and is passed over");
             }
@@ -137,6 +152,9 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
         BuildingType b = *like;
         if (resident_class) {
             b.resident_class = *resident_class;
+        }
+        if (level) {
+            b.infra = *level;
         }
         if (gfx) {
             b.gfx = static_cast<std::uint32_t>(*gfx);

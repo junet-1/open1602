@@ -25,6 +25,7 @@ with milestone M8: packages as archives and adding content of a package's own
     own_buildings.toml buildings of the package's own (own-buildings.md)
     goods.toml         trade goods of the package's own (goods.md)
     classes.toml       classes of inhabitants, changed and new (classes.md)
+    levels.toml        unlock levels, changed and new (levels.md)
 ```
 
 The folder's name is the package's id, for example `lighthouse`. The ids of a package's entries

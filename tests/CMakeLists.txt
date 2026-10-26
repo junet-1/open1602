@@ -68,6 +68,7 @@ add_executable(o1602_tests
     unit/test_build_menu.cpp
     unit/test_goods.cpp
     unit/test_resident_classes.cpp
+    unit/test_unlock_levels.cpp
     unit/test_own_buildings.cpp
     unit/test_game_content.cpp
     unit/test_tutorial.cpp
