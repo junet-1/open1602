@@ -30,6 +30,7 @@ constexpr std::uint32_t kHouse = 20801;
 constexpr std::uint32_t kField = 21301;
 constexpr std::uint32_t kSapling = 20211;
 constexpr std::uint32_t kCastle = 21501;
+constexpr std::uint32_t kArch = 21502;
 constexpr std::uint32_t kWall = 22501;
 constexpr std::uint32_t kTower = 20305;
 constexpr std::uint32_t kGate = 20304;
@@ -102,6 +103,10 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_BAUKOST\n    Money: 5\n  EndObj\n"
         "  @Nummer: 28\n  Id: 20212\n  Kind: 10\n  Gfx: 105\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"
+        // A triumphal arch (Bauinfra 13: by allowance).
+        "  @Nummer: 29\n  Id: 21502\n  Kind: 14\n  Gfx: 110\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Bauinfra: 13\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 30\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -600,6 +605,22 @@ TEST_CASE("construction: a castle makes its city proud, once per player") {
     CHECK(again.placed == 0);
     CHECK(again.items[0].refusal == sim::BuildRefusal::Limit);
     CHECK(island.world.city(0, 0)->satisfaction_bonus == 800);
+}
+
+TEST_CASE("construction: the last allowed triumphal arch locks its level again (op 0x4D)") {
+    Island island;
+    island.found();
+    sim::Player& p = *island.world.player(0);
+    p.infra_mask = 0xFFFFFFFFU;
+    p.set_unlocked(13, false);
+    p.arches_allowed = 2;
+    p.arches_built = 1;                                        // one allowance used up without an arch
+    CHECK(island.build({{kArch, 10, 12, 0, 0}}).placed == 0);  // the level is missing
+    p.set_unlocked(13, true);
+    REQUIRE(island.build({{kArch, 10, 12, 0, 0}}).placed == 1);
+    CHECK(p.arches_built == 2);
+    CHECK(!p.unlocked(13));
+    CHECK(island.build({{kArch, 10, 15, 0, 0}}).placed == 0);
 }
 
 TEST_CASE("construction: the castle limit holds anywhere in an order, not only for its first item") {

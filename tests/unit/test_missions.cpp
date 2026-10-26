@@ -372,6 +372,46 @@ TEST_CASE("missions: a computer with nothing left is retired; the blamed player 
     CHECK(g.world.players()[2].status == sim::PlayerStatus::Defeated);
     CHECK(g.world.players()[0].opponents_defeated == 1);
     CHECK(g.world.players()[0].arches_allowed == 1);
+    CHECK(g.world.players()[0].arches_built == 0);
+    // The allowance unlocks the arch's level, which no city reaches (25 000 aristocrats).
+    CHECK(g.world.players()[0].unlocked(13));
+    const auto e = std::find_if(events.begin(), events.end(),
+                                [](const GameEvent& x) { return x.kind == GameEvent::Kind::PlayerDefeated; });
+    CHECK(e->by == 0);
+}
+
+TEST_CASE("missions: without 200 citizens in the largest city the arch counts as used up (op 3 sub 9)") {
+    Game g;
+    g.ship(0);
+    g.ship(1);
+    // 250 of the third class and up, but only 150 in the largest city.
+    g.city(0, 0, 0, {300, 0, 150});
+    g.city(1, 0, 0, {0, 0, 100});
+    g.world.diplomacy().set_blamed(2, 0);
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    const auto events = run(s, 5000);
+    CHECK(has(events, GameEvent::Kind::PlayerDefeated, 2));
+    CHECK(!has(events, GameEvent::Kind::ArchAllowed, 0));
+    const sim::Player& p = g.world.players()[0];
+    CHECK(p.opponents_defeated == 1);
+    CHECK(p.arches_allowed == 1);  // counted for the score and missions all the same
+    CHECK(p.arches_built == 1);
+    CHECK(!p.unlocked(13));
+}
+
+TEST_CASE("missions: a defeat nobody caused credits nobody") {
+    Game g;
+    g.ship(0);
+    g.ship(1);
+    g.city(0, 0, 0, {0, 0, 250});
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    const auto events = run(s, 5000);
+    const auto e = std::find_if(events.begin(), events.end(),
+                                [](const GameEvent& x) { return x.kind == GameEvent::Kind::PlayerDefeated; });
+    REQUIRE(e != events.end());
+    CHECK(e->player == 2);
+    CHECK(e->by == sim::kNoPlayer);
+    CHECK(g.world.players()[0].arches_allowed == 0);
 }
 
 TEST_CASE("missions: the winner ends the game; others win only by their own mission (S-106)") {

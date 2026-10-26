@@ -132,6 +132,17 @@ struct Player {
         return level == infra::kNone || (level <= infra::kMaxLevel && (infra_mask >> (level - 1) & 1U) != 0);
     }
 
+    /// Sets or clears an unlocked level. The levels of the triumphal arch and the monument ask for
+    /// 25 000 aristocrats in one city (BAUINFRA), so in practice only an allowance sets them
+    /// (op 3 sub 9, 0x55, 0x57) and building the last allowed one clears them (op 0x4D).
+    constexpr void set_unlocked(std::uint32_t level, bool on) noexcept {
+        if (level == infra::kNone || level > infra::kMaxLevel) {
+            return;
+        }
+        const std::uint32_t bit = 1U << (level - 1);
+        infra_mask = on ? infra_mask | bit : infra_mask & ~bit;
+    }
+
     /// The step of infra::kShipSteps the player reached (0 below all): how large the pirates' and
     /// the computers' fleets grow.
     [[nodiscard]] std::uint32_t ship_step() const noexcept {
