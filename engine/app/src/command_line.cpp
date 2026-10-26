@@ -22,6 +22,10 @@ bool parse_number(std::string_view text, std::int32_t& value) {
 
 bool parse_input(std::string_view text, std::vector<ViewerOptions::ScriptedInput>& out) {
     using Input = ViewerOptions::ScriptedInput;
+    struct Suffix {
+        std::string_view text;
+        std::uint16_t mod;
+    };
     while (!text.empty()) {
         const std::size_t end = text.find(';');
         std::string_view item = text.substr(0, end);
@@ -31,7 +35,7 @@ bool parse_input(std::string_view text, std::vector<ViewerOptions::ScriptedInput
         if (space == std::string_view::npos || at == std::string_view::npos || at < space) {
             return false;
         }
-        const std::string_view verb = item.substr(0, space);
+        std::string_view verb = item.substr(0, space);
         const std::string_view args = item.substr(space + 1, at - space - 1);
         Input in;
         std::int32_t frame = 0;
@@ -45,10 +49,6 @@ bool parse_input(std::string_view text, std::vector<ViewerOptions::ScriptedInput
         } else if (verb == "key") {
             in.kind = Input::Kind::Key;
             std::string_view key = args;
-            struct Suffix {
-                std::string_view text;
-                std::uint16_t mod;
-            };
             for (const auto& [suffix, mod] : {Suffix{"+ctrl", kModCtrl}, Suffix{"+shift", kModShift}}) {
                 if (const std::size_t p = key.find(suffix); p != std::string_view::npos) {
                     in.mod = static_cast<std::uint16_t>(in.mod | mod);
@@ -73,6 +73,13 @@ bool parse_input(std::string_view text, std::vector<ViewerOptions::ScriptedInput
             in.y = static_cast<float>(y);
             in.key = n;
         } else {
+            // "down+shift": the modifiers held while the button goes down or up.
+            for (const auto& [suffix, mod] : {Suffix{"+ctrl", kModCtrl}, Suffix{"+shift", kModShift}}) {
+                if (const std::size_t p = verb.find(suffix); p != std::string_view::npos) {
+                    in.mod = static_cast<std::uint16_t>(in.mod | mod);
+                    verb = verb.substr(0, p);
+                }
+            }
             in.right = verb == "rdown" || verb == "rup";
             in.kind = verb == "down" || verb == "rdown" ? Input::Kind::Down
                       : verb == "up" || verb == "rup"   ? Input::Kind::Up

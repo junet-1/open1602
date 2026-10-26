@@ -409,15 +409,7 @@ public:
             if (h >= ship->cargo.size()) {
                 return std::nullopt;
             }
-            const sim::CargoSlot& slot = ship->cargo[h];
-            if (slot.ware == 0 || slot.amount == 0) {
-                return c.text("WARE", 0);
-            }
-            if (sim::is_soldier_ware(slot.ware)) {
-                return c.text("WARE", slot.ware);
-            }
-            return ui::format_text(c.text("GAME", 50),
-                                   {std::int64_t{slot.amount >> 5U}, std::string_view(c.text("WARE", slot.ware))});
+            return hold_help(*ship, h, c, m_page == Page::Root);
         };
         if (m_page == Page::Root) {
             switch (id) {
@@ -962,9 +954,7 @@ private:
                         o.hold = static_cast<std::uint8_t>(h);
                         out.emplace_back(o);
                     } else if (slot.ware == kCannonWare && slot.amount >= 32) {
-                        sim::ShipCommand o = ship_command(ship, c, sim::ShipCommand::Op::MountCannon);
-                        o.hold = static_cast<std::uint8_t>(h);
-                        out.emplace_back(o);
+                        out.emplace_back(mount_cannons(ship, h, c));
                     }
                 }
                 break;

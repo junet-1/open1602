@@ -276,6 +276,8 @@ player.colour.white = White player
 player.default = Player {1}
 city.default = City {2} on island {1}
 ship.default = Ship {1}
+# A hold of cannons in an own ship's window ({1}: the goods, as "10t Cannons")
+ship.cannon_hold = {1} (click: mount one, Shift+click: as many as fit)
 player.colour.orange = Orange player
 player.colour.purple = Purple player
 player.colour.teal = Teal player

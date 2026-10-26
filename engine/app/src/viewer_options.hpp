@@ -71,7 +71,7 @@ struct ViewerOptions {
         float x = 0.0F;
         float y = 0.0F;
         std::int32_t key = 0;   ///< Key: SDL key code; Wheel: notches (up: zoom in)
-        std::uint16_t mod = 0;  ///< Key: SDL_KMOD_CTRL, SDL_KMOD_SHIFT
+        std::uint16_t mod = 0;  ///< Key, Down/Up: SDL_KMOD_CTRL, SDL_KMOD_SHIFT
         bool right = false;     ///< Down/Up: the right button
         std::string text;       ///< Text: typed as the platform's text input (UTF-8)
     };

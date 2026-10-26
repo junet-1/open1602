@@ -126,6 +126,12 @@ TEST_CASE("commands: every kind of command goes to bytes and back") {
     const sim::Command& named = all[all.size() - 2];
     const auto rename = std::get<sim::PlayerRename>(*sim::decode_command(sim::encode_command(named)));
     CHECK(rename.name == "Merlin");
+    sim::ShipCommand mount;
+    mount.op = sim::ShipCommand::Op::MountCannon;
+    mount.count = sim::ShipCommand::kAllCannons;
+    const auto mounted = std::get<sim::ShipCommand>(*sim::decode_command(sim::encode_command(mount)));
+    CHECK(mounted.op == sim::ShipCommand::Op::MountCannon);
+    CHECK(mounted.count == sim::ShipCommand::kAllCannons);
     const auto control = std::get<sim::PlayerControl>(*sim::decode_command(sim::encode_command(all.back())));
     CHECK(control.player == 1);
     CHECK(control.computer);

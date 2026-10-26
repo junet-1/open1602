@@ -960,6 +960,43 @@ TEST_CASE("ships: cannons go on and off board, goods overboard, a new name") {
     CHECK(!fleet.command(rename));
 }
 
+TEST_CASE("ships: Shift fills every free cannon place at once, as far as the cannons on board go") {
+    Sea sea;
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    sim::Ship& ship = sea.add(10, 10);
+    const std::uint32_t id = ship.id;
+    using Op = sim::ShipCommand::Op;
+    sim::ShipCommand all = cmd(0, id, Op::MountCannon);
+    all.count = sim::ShipCommand::kAllCannons;
+    // 2 t and a bit in one hold, 1 t in another: three cannons, the bit stays.
+    ship.cargo[0] = sim::CargoSlot{13, 2 * kTon + 5, 100};
+    ship.cargo[1] = sim::CargoSlot{kWood, 20 * kTon, 0};
+    ship.cargo[2] = sim::CargoSlot{13, kTon, 100};
+    CHECK(fleet.command(all));
+    CHECK(sea.world.ship(id)->cannons == 3);
+    CHECK(sea.world.ship(id)->cargo[0].amount == 5);
+    CHECK(sea.world.ship(id)->cargo[1].amount == 20 * kTon);
+    CHECK(sea.world.ship(id)->cargo[2].ware == 0);
+    CHECK(!fleet.command(all));  // no whole ton left
+    // More cannons than places: the ship is full at Maxkanon 6, the rest stays in the hold.
+    sea.world.ship(id)->cargo[0] = sim::CargoSlot{13, 10 * kTon, 100};
+    CHECK(fleet.command(all));
+    CHECK(sea.world.ship(id)->cannons == 6);
+    CHECK(sea.world.ship(id)->cargo[0].amount == 7 * kTon);
+    CHECK(!fleet.command(all));
+    // A count of two mounts two; not on someone else's ship.
+    CHECK(fleet.command(cmd(0, id, Op::UnmountCannon)));
+    CHECK(fleet.command(cmd(0, id, Op::UnmountCannon)));
+    CHECK(fleet.command(cmd(0, id, Op::UnmountCannon)));
+    sim::ShipCommand two = cmd(0, id, Op::MountCannon);
+    two.count = 2;
+    CHECK(fleet.command(two));
+    CHECK(sea.world.ship(id)->cannons == 5);
+    all.player = 1;
+    CHECK(!fleet.command(all));
+    CHECK(sea.world.ship(id)->cannons == 5);
+}
+
 TEST_CASE("ships: a ship offered for sale changes hands for its price") {
     Sea sea;
     sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);

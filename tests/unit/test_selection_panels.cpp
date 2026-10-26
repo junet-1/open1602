@@ -876,6 +876,16 @@ TEST_CASE("selection panels: the military windows of one ship and of a fleet giv
     CHECK(op(3) == sim::ShipCommand::Op::Dump);
     out.clear();
 
+    // Shift + click on the cannons: one command that fills every free place from any hold.
+    c.shift = true;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51091}, none, c, out);
+    c.shift = false;
+    REQUIRE(out.size() == 1);
+    CHECK(op(0) == sim::ShipCommand::Op::MountCannon);
+    CHECK(std::get_if<sim::ShipCommand>(&out[0])->count == sim::ShipCommand::kAllCannons);
+    CHECK(std::get_if<sim::ShipCommand>(&out[0])->hold == 0xFF);
+    out.clear();
+
     // Patrol: the far end is the next click on the map.
     p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 51022}, none, c, out);
     CHECK(p->picking());

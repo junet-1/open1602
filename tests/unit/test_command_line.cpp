@@ -115,8 +115,18 @@ TEST_CASE("command line: scripted input") {
     CHECK(in[4].key == -3);
     CHECK(in[5].text == "Ab");
     CHECK(in[5].frame == 6);
+    // A click with Shift held.
+    std::vector<app::ViewerOptions::ScriptedInput> held;
+    REQUIRE(app::parse_input("down+shift 7,8@1;up+shift 7,8@2;down 7,8@3", held));
+    REQUIRE(held.size() == 3);
+    CHECK(held[0].kind == Kind::Down);
+    CHECK(held[0].mod == app::kModShift);
+    CHECK(held[1].kind == Kind::Up);
+    CHECK(held[1].mod == app::kModShift);
+    CHECK(held[2].mod == 0);
     std::vector<app::ViewerOptions::ScriptedInput> bad;
     CHECK(!app::parse_input("jump 1,2@3", bad));
+    CHECK(!app::parse_input("jump+shift 1,2@3", bad));
     CHECK(!app::parse_input("move 1,2@x", bad));
     CHECK(!error_of({"--input", "move 1@2"}).empty());
 }

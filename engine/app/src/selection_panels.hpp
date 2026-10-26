@@ -60,6 +60,8 @@ struct PanelContext {
     bool goods_trend = false;
     /// Ctrl is held (the unit windows' filters then remove a kind instead of keeping it).
     bool ctrl = false;
+    /// Shift is held (a click on the cannons in a ship's hold mounts as many as fit).
+    bool shift = false;
     /// Real time in milliseconds, for what blinks (the diplomacy window's open offers).
     std::uint64_t now_ms = 0;
     [[nodiscard]] const sim::World& world() const noexcept { return simulation.world(); }
