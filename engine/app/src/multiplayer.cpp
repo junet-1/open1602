@@ -496,7 +496,7 @@ void MapViewer::handle_multiplayer(const MultiplayerEvent& e) {
             }
             break;
         case MultiplayerEvent::Kind::SetSeat:
-            if (host != nullptr) {
+            if (host != nullptr && (e.seat_kind != net::LobbySeat::Kind::Closed || may_block_seats(host->lobby()))) {
                 host->set_seat(e.seat, e.seat_kind);
             }
             break;

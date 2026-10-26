@@ -72,6 +72,10 @@ struct HostSetup {
 [[nodiscard]] std::vector<std::uint8_t> lobby_setup(const EndlessSetup& settings, SetupScope scope);
 /// The settings of a lobby's setup; nothing if it has none or not in this form.
 [[nodiscard]] std::optional<std::pair<EndlessSetup, SetupScope>> read_lobby_setup(std::span<const std::uint8_t> bytes);
+/// Whether the host may block a slot of `lobby` (nobody plays it, the world is still made for all
+/// the slots): only in a new endless game before it starts. A scenario's or savegame's players
+/// are in its world already.
+[[nodiscard]] bool may_block_seats(const net::Lobby& lobby);
 
 /// A line of the chat, or a notice of the session (someone came or went).
 struct ChatLine {

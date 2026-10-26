@@ -726,6 +726,12 @@ TEST_CASE("ships: with more than four players the free trader looks only as far 
     CHECK(sim::trader_candidates(sea.world, sea.rules, 25) == 9);
     CHECK(sim::trader_candidates(sea.world, sea.rules, 2) == 3);
     CHECK(sim::trader_candidates(sea.world, sea.rules, 60) == 12);
+    // Slots blocked in a multiplayer lobby: nobody plays them, the world is still the twelve's.
+    for (std::size_t i = 5; i < players.size(); ++i) {
+        players[i].status = sim::PlayerStatus::Absent;
+    }
+    sea.world.set_players(players);
+    CHECK(sim::trader_reach_players(sea.world, sea.rules) == 12);
     CHECK(sim::trader_reach_players(sea.world, original) == 0);
     CHECK(sim::trader_candidates(sea.world, original, 12) == 12);
 }

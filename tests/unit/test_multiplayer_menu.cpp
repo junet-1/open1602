@@ -239,6 +239,8 @@ TEST_CASE("multiplayer menu: the host's lobby: slots, chat and the start") {
     lobby.title = "Abend";
     lobby.game = "Endless game";
     lobby.seats.resize(4);
+    lobby.setup = app::lobby_setup(app::EndlessSetup::defaults(app::SetupScope::MultiplayerEndless),
+                                   app::SetupScope::MultiplayerEndless);
     net::HostSession host(network.listen(), lobby, 0, "Anna", 1);
     host.update(0);
 
@@ -253,12 +255,19 @@ TEST_CASE("multiplayer menu: the host's lobby: slots, chat and the start") {
     CHECK(find_text(menu, model, "Anna (you)").has_value());
     CHECK(menu.typing());  // the chat line takes the keys
 
-    // The host clicks an open slot through the kinds.
+    // The host clicks an open slot through the kinds: the computer plays an open one anyway, so
+    // the other kind is a blocked slot nobody plays, and back.
     auto events = click(menu, model, "Open");
     REQUIRE(events.size() == 1);
     CHECK(events[0].kind == MultiplayerEvent::Kind::SetSeat);
     CHECK(events[0].seat == 1);
-    CHECK(events[0].seat_kind == net::LobbySeat::Kind::Computer);
+    CHECK(events[0].seat_kind == net::LobbySeat::Kind::Closed);
+    host.set_seat(1, events[0].seat_kind);
+    events = click(menu, model, "Blocked");
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].seat == 1);
+    CHECK(events[0].seat_kind == net::LobbySeat::Kind::Open);
+    host.set_seat(1, events[0].seat_kind);
 
     menu.type("Hallo");
     events = menu.key(model, 13);
@@ -332,6 +341,8 @@ TEST_CASE("multiplayer menu: four to twelve players, the factions' slots left ou
     net::LoopbackNetwork network;
     net::Lobby lobby;
     lobby.seats = app::endless_seats(6);
+    lobby.setup = app::lobby_setup(app::EndlessSetup::defaults(app::SetupScope::MultiplayerEndless),
+                                   app::SetupScope::MultiplayerEndless);
     net::HostSession host(network.listen(), lobby, 0, "Bernd", 1);
     host.set_seat(5, net::LobbySeat::Kind::Open);  // the pirates' slot stays out of the game
     CHECK(host.lobby().seats[5].kind == net::LobbySeat::Kind::Reserved);
@@ -343,10 +354,42 @@ TEST_CASE("multiplayer menu: four to twelve players, the factions' slots left ou
         open += d.kind == ui::DrawItem::Kind::Text && d.text == "Open" ? 1U : 0U;
     }
     CHECK(open == 5);
-    // The host clicks a slot between computer and open: every game has all its players.
+    // The host clicks a slot between open and blocked.
     events = click(menu, model, "Open");
     REQUIRE(events.size() == 1);
-    CHECK(events[0].seat_kind == net::LobbySeat::Kind::Computer);
+    CHECK(events[0].seat_kind == net::LobbySeat::Kind::Closed);
+}
+
+TEST_CASE("multiplayer menu: only a new endless game blocks slots") {
+    net::LoopbackNetwork network;
+    net::Lobby lobby;
+    lobby.title = "Abend";
+    lobby.seats.resize(4);
+    MultiplayerMenu menu(ui::FormStyle{});
+    app::MultiplayerModel model;
+    model.name = "Anna";
+    model.hosting = true;
+    CHECK(!app::may_block_seats(lobby));  // no settings: nothing known of the game
+
+    // A scenario's and a savegame's players are in their world: the host clicks a slot between
+    // open and computer.
+    for (const app::SetupScope scope : {app::SetupScope::Scenario, app::SetupScope::Savegame}) {
+        lobby.setup = app::lobby_setup(app::EndlessSetup::defaults(scope), scope);
+        CHECK(!app::may_block_seats(lobby));
+        net::HostSession host(network.listen(), lobby, 0, "Anna", 1);
+        host.update(0);
+        model.session = &host;
+        menu.show_lobby();
+        const auto events = click(menu, model, "Open");
+        REQUIRE(events.size() == 1);
+        CHECK(events[0].seat_kind == net::LobbySeat::Kind::Computer);
+    }
+
+    lobby.setup = app::lobby_setup(app::EndlessSetup::defaults(app::SetupScope::MultiplayerEndless),
+                                   app::SetupScope::MultiplayerEndless);
+    CHECK(app::may_block_seats(lobby));
+    lobby.started = true;
+    CHECK(!app::may_block_seats(lobby));  // the running game's slots stay as they are
 }
 
 TEST_CASE("multiplayer menu: the factions' slots are reserved for every number of players") {
