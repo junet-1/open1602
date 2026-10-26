@@ -8,7 +8,8 @@
 // up in that order, and once the money or a material runs out that item and all later ones stay
 // unbuilt. Unlike the original, every peer checks the order itself (the original sent the result
 // and trusted it, M-007), the unlocks are checked here and not only in the menu (S-014), and a building
-// must lie completely in its city (S-008).
+// must lie completely in its city (S-008). Markets keep the rule of the original: one full edge in
+// the city is enough, the rest may be free land, which the market's own circle then claims.
 //
 // Placing a building registers it with the lists of the simulation (production, houses, growth,
 // shipyards and castles), claims territory for markets and Kontors, founds a city with the first
@@ -34,7 +35,7 @@ enum class BuildRefusal : std::uint8_t {
     UnknownBuilding,  ///< no such building type
     OutsideIsland,    ///< the footprint leaves the island
     Terrain,          ///< a tile does not take this building (0x00464660)
-    Territory,        ///< not completely inside the player's city
+    Territory,        ///< not completely inside the player's city (a market: no full edge inside)
     ForeignCity,      ///< the first item lies in another player's city
     CityLimit,        ///< the player has a city on the island already, or the island has 7
     SecondKontor,     ///< a city has one Kontor (larger ones replace it)

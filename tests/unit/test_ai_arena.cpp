@@ -436,6 +436,6 @@ TEST_CASE("ai arena: an hour of two computers develops the same on every platfor
         std::ofstream(*path, std::ios::binary) << out;
     }
     if (minutes == 60) {
-        test::check_golden("arena after an hour", s.state_hash(), 0x845db46ae06700aeULL);
+        test::check_golden("arena after an hour", s.state_hash(), 0xdf80866da44ce09dULL);
     }
 }
