@@ -601,7 +601,8 @@ void Planner::choose_templates() {
             chosen = pick([&](const TemplateInfo* t) { return volcano_allowed || !t->volcano; });
         }
         if (chosen == nullptr) {
-            chosen = pick([](const TemplateInfo*) { return true; });
+            // Any of them (the same draw as a pick that takes every template; `all` is not empty).
+            chosen = all[m_random.below(static_cast<std::uint32_t>(all.size()))];
         }
         p.template_number = chosen->number;
         used.push_back(chosen);

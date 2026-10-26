@@ -84,7 +84,8 @@ void tint_shape(const RgbaView& sprite, const RgbaView& shape, assets::Rgba colo
     std::vector<double> sorted = lum;
     const auto quarter = sorted.begin() + static_cast<std::ptrdiff_t>(sorted.size() * 3 / 4);
     std::nth_element(sorted.begin(), quarter, sorted.end());
-    const double reference = std::max(*quarter, 1.0);
+    const double brightest_quarter = *quarter;
+    const double reference = brightest_quarter > 1.0 ? brightest_quarter : 1.0;
     for (std::size_t k = 0; k < cloth.size(); ++k) {
         const auto shade =
             static_cast<std::uint8_t>(std::clamp(std::lround(kShapeTintReference * lum[k] / reference), 0L, 255L));

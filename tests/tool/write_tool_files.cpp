@@ -36,10 +36,12 @@ void put_u32(core::Bytes& out, std::uint32_t v) {
 
 /// Island 3 (20x15 at 40,30) with two buildings, one human player "Tester" with 12345 gold, WIFF.
 core::Bytes savegame() {
-    core::Bytes island = {3, 20, 15, 0};
-    put_u16(island, 40);
-    put_u16(island, 30);
-    island.resize(116, 0);  // the INSEL5 record
+    core::Bytes island(116, 0);  // the INSEL5 record
+    island[0] = 3;
+    island[1] = 20;
+    island[2] = 15;
+    island[4] = 40;
+    island[6] = 30;
 
     core::Bytes tiles;
     for (const std::uint8_t x : {std::uint8_t{2}, std::uint8_t{5}}) {
