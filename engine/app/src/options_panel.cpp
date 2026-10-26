@@ -241,6 +241,7 @@ void OptionsPanel::refresh_disk(const OptionsModel& model) {
     m_disk.set_visible(kSlotsDown, scrolls);
     m_disk.set_disabled(kSlotsUp, m_slot_first == 0);
     m_disk.set_disabled(kSlotsDown, m_slot_first + kSlotRowsShown >= count);
+    m_disk.set_disabled(kSave, m_slot < model.reserved_slots);
     // A client of a game of several players cannot load (0x00439630).
     m_disk.set_visible(kLoad, !model.multiplayer);
 }
@@ -339,7 +340,12 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
                     if (slot >= model.slot_names.size()) {
                         break;
                     }
+                    stop_editing();
+                    m_renamed = false;
                     m_slot = slot;
+                    if (slot < model.reserved_slots) {
+                        break;  // lastgame: chosen to load, not named
+                    }
                     m_name = model.slot_names[m_slot];
                     m_new_slot = m_name.empty();
                     m_editing = true;
@@ -348,7 +354,7 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
                     --m_slot_first;
                 } else if (e.id == kSlotsDown && m_slot_first + kSlotRowsShown < model.slot_names.size()) {
                     ++m_slot_first;
-                } else if (e.id == kSave) {
+                } else if (e.id == kSave && m_slot >= model.reserved_slots) {
                     const std::string name = m_renamed ? m_name : model.slot_names[m_slot];
                     stop_editing();
                     m_renamed = false;

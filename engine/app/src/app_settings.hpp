@@ -62,7 +62,7 @@ struct AppSettings {
 
 /// The savegames of the panel DISK: a name and the number of human players per slot. The original
 /// has twelve slots; Open1602 keeps as many as are used plus one free slot at the end, at least
-/// twelve, so a new savegame always has a place.
+/// twelve, so a new savegame always has a place. Slot kLastGameSlot is the game kept on leaving it.
 struct SaveSlots {
     static constexpr std::size_t kMinCount = 12;
     static constexpr std::size_t kMaxCount = 10'000;                       ///< a damaged file cannot ask for more
@@ -75,11 +75,21 @@ struct SaveSlots {
     /// Names a slot (beyond the list: the list grows) and keeps one free slot after the last used.
     void set(std::size_t slot, std::string name, std::uint8_t human_players);
 };
+/// The game kept when a game ends ("Ende"): lastgame.o1602, like the original's and the History
+/// Edition's lastgame.gam. The original lists it nowhere (only "Spiel fortsetzen" loads it);
+/// Open1602 keeps it in the first slot of every savegame list. It loads like any other savegame
+/// but is never named or saved into by hand.
+inline constexpr std::size_t kLastGameSlot = 0;
+inline constexpr std::string_view kLastGameName = "lastgame";
 /// Lines "slot humans name" (slot from 0).
 [[nodiscard]] SaveSlots parse_slots(std::string_view text);
 [[nodiscard]] std::string write_slots(const SaveSlots& slots);
-/// File of a slot in the savegame folder: spiel00.o1602, spiel01.o1602, ..., spiel100.o1602, ...
+/// File of a slot in the savegame folder: lastgame.o1602 (kLastGameSlot), spiel01.o1602, ...,
+/// spiel100.o1602, ...
 [[nodiscard]] std::filesystem::path slot_file(const std::filesystem::path& folder, std::size_t slot);
+/// Names kLastGameSlot after its file, or frees it when there is none. An older slots.cfg may hold
+/// a savegame of its own there (spiel00.o1602): it gives way and its file stays where it is.
+void find_last_game(SaveSlots& slots, const std::filesystem::path& folder);
 /// The META sections of the savegames of the named slots (only the head of each file is unpacked);
 /// with `only`, of that slot alone.
 void read_slot_meta(SaveSlots& slots, const std::filesystem::path& folder,

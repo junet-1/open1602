@@ -31,6 +31,9 @@ struct OptionsModel {
     /// Per slot the player, time played and map size (save_details); empty if unknown. The status
     /// bar shows it over the slot.
     std::vector<std::string> slot_details;
+    /// The first slots hold games Open1602 keeps by itself (lastgame): they load, but are never
+    /// named or saved into from the list.
+    std::size_t reserved_slots = 0;
     bool fullscreen = false;      ///< the window fills the screen
     bool mission_window = false;  ///< "Auftrag ansehen"
     bool multiplayer = false;

@@ -1854,7 +1854,7 @@ void MapViewer::apply_hud(const Hud::Action& action) {
                 }
                 // "Ende": the game is kept as lastgame (0x0043BCF0), then back to the main menu
                 // (no score sheet, no high score), or the end without one.
-                const auto status = save_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
+                const auto status = save_slot(kLastGameSlot, std::string(kLastGameName));
                 if (!status) {
                     std::fprintf(stderr, "lastgame: %s\n", status.error().message.c_str());
                 }
@@ -2172,6 +2172,33 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     return core::write_file_atomic(target, *bytes);
 }
 
+core::Status MapViewer::save_slot(std::size_t slot, std::string name) {
+    if (auto status = save_game(slot_file(save_folder(), slot)); !status) {
+        return status;
+    }
+    std::uint8_t humans = 0;
+    for (const sim::Player& p : m_state->world.players()) {
+        humans = static_cast<std::uint8_t>(humans + (p.role == sim::PlayerRole::Human ? 1 : 0));
+    }
+    m_slots.set(slot, std::move(name), humans);
+    read_slot_meta(m_slots, save_folder(), slot);
+    ++m_slots_revision;
+    if (m_hud) {
+        OptionsModel& model = m_hud->options_model();
+        model.slot_names = m_slots.names;
+        model.slot_humans = m_slots.humans;
+        model.slot_details = slot_details(m_slots);
+    }
+    const std::string text = write_slots(m_slots);
+    const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
+    if (auto written =
+            core::write_file_atomic(save_folder() / "slots.cfg", std::span<const std::uint8_t>(data, text.size()));
+        !written) {
+        std::fprintf(stderr, "slots: %s\n", written.error().message.c_str());
+    }
+    return core::Ok{};
+}
+
 void MapViewer::load_options() {
     // Defaults: the sounds as GameSound took them (the original's Game.dat, read only).
     if (m_sound) {
@@ -2191,9 +2218,10 @@ void MapViewer::load_options() {
     m_ambient.set_config(ambient_config());
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
-        read_slot_meta(m_slots, save_folder());
-        ++m_slots_revision;
     }
+    find_last_game(m_slots, save_folder());
+    read_slot_meta(m_slots, save_folder());
+    ++m_slots_revision;
     if (!m_hud) {
         return;
     }
@@ -2205,6 +2233,7 @@ void MapViewer::load_options() {
     model.slot_names = m_slots.names;
     model.slot_humans = m_slots.humans;
     model.slot_details = slot_details(m_slots);
+    model.reserved_slots = kLastGameSlot + 1;
     if (MainMenu* menu = m_hud->menu()) {
         menu->set_slots(m_slots);
         menu->set_score_folder(data_folder() / "scores");
@@ -2263,28 +2292,14 @@ void MapViewer::apply_options() {
             case OptionsEvent::Kind::Save: {
                 const std::string name =
                     e.text.empty() ? ui::tr("save.default_name", {std::to_string(e.value + 1)}) : e.text;
-                const auto status = save_game(slot_file(save_folder(), e.value));
+                if (e.value == kLastGameSlot) {
+                    break;  // kept by "Ende" alone
+                }
+                const auto status = save_slot(e.value, name);
                 if (!status) {
                     m_events.notify(ui::tr("notice.save_failed", {ui::error_text(status.error(), "save")}),
                                     "notice.save_failed", platform::ticks_ms());
                     break;
-                }
-                std::uint8_t humans = 0;
-                for (const sim::Player& p : m_state->world.players()) {
-                    humans = static_cast<std::uint8_t>(humans + (p.role == sim::PlayerRole::Human ? 1 : 0));
-                }
-                m_slots.set(e.value, name, humans);
-                read_slot_meta(m_slots, save_folder(), e.value);
-                ++m_slots_revision;
-                model.slot_names = m_slots.names;
-                model.slot_humans = m_slots.humans;
-                model.slot_details = slot_details(m_slots);
-                const std::string text = write_slots(m_slots);
-                const auto* data = reinterpret_cast<const std::uint8_t*>(text.data());
-                if (auto written = core::write_file_atomic(save_folder() / "slots.cfg",
-                                                           std::span<const std::uint8_t>(data, text.size()));
-                    !written) {
-                    std::fprintf(stderr, "slots: %s\n", written.error().message.c_str());
                 }
                 // The voice confirms it (0x0043F71E: Speech_Queue(0x79, 2): files 121 or 123).
                 m_sound->speak(121, 2);
@@ -2620,7 +2635,7 @@ void MapViewer::apply_menu() {
                 started = load_game(slot_file(save_folder(), e.slot));
                 break;
             case MenuEvent::Kind::ContinueLast:
-                started = load_game(save_folder() / ("lastgame" + std::string(sim::kSaveExtension)));
+                started = load_game(slot_file(save_folder(), kLastGameSlot));
                 break;
             case MenuEvent::Kind::NameEntered:
                 // "Unter welcher Flagge wollt Ihr segeln?" and four more, one at random (Speech8
