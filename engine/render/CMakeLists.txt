@@ -12,6 +12,7 @@ add_library(o1602_render
     src/combat_effects.cpp
     src/figure_animation.cpp
     src/flag_tint.cpp
+    src/dither.cpp
     src/graphics_preloader.cpp
     src/island_renderer.cpp
     src/sprite_atlas.cpp

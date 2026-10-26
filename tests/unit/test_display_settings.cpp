@@ -23,8 +23,10 @@ TEST_CASE("display settings: written to settings.cfg and read back") {
     s.display.smooth_zoom = false;
     s.display.vsync = false;
     s.display.goods_trend = false;
+    s.display.classic_graphics = true;
     const std::string text = app::write_settings(s);
     CHECK(text.find("display.window = 1600x900\n") != std::string::npos);
+    CHECK(text.find("display.graphics = classic\n") != std::string::npos);
     const app::AppSettings back = app::parse_settings(text, app::AppSettings{});
     CHECK(back.display == s.display);
     // The defaults: a window, the interface as large as fits, the free zoom drawn smooth.
@@ -36,6 +38,7 @@ TEST_CASE("display settings: written to settings.cfg and read back") {
     CHECK(none.display.smooth_zoom);
     CHECK(none.display.vsync);
     CHECK(none.display.goods_trend);
+    CHECK(!none.display.classic_graphics);  // Open1602's look
 }
 
 TEST_CASE("display settings: damaged lines keep what was there") {
@@ -44,6 +47,7 @@ TEST_CASE("display settings: damaged lines keep what was there") {
     CHECK(!app::read_display_line(d, "window", "1600x"));
     CHECK(!app::read_display_line(d, "fullscreen", "maybe"));
     CHECK(!app::read_display_line(d, "unknown", "on"));
+    CHECK(!app::read_display_line(d, "graphics", "on"));
     CHECK(d == app::DisplaySettings{});
     CHECK(app::read_display_line(d, "window", "100x50"));  // kept within limits
     CHECK(d.window_width == 320);
@@ -122,6 +126,10 @@ TEST_CASE("display menu: each row chooses its next value") {
     CHECK(app::DisplayMenu::value_text(model, Item::GoodsTrend) == "on");
     CHECK(app::DisplayMenu::choose_next(model, Item::GoodsTrend));
     CHECK(!model.settings.goods_trend);
+    CHECK(app::DisplayMenu::value_text(model, Item::Graphics) == "modern");
+    CHECK(app::DisplayMenu::choose_next(model, Item::Graphics));
+    CHECK(model.settings.classic_graphics);
+    CHECK(app::DisplayMenu::value_text(model, Item::Graphics) == "as in the original");
 }
 
 TEST_CASE("display menu: a click on a row changes it, the button closes the window") {

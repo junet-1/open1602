@@ -585,6 +585,7 @@ void MapViewer::start_preloading() {
     render::GraphicsOptions options;
     options.page_size = m_window->max_texture_size() >= 4096 ? 4096U : 2048U;
     options.derive_missing_sheets = m_options.derive_small_figures;
+    options.dither = m_app_settings.display.classic_graphics;
     // The thread works on its own copies: nothing it reads changes under it.
     m_preloader = std::make_unique<render::GraphicsPreloader>(
         [game = m_game, palette = m_palette, banners = m_banners, figures = m_figures, options](
@@ -1146,6 +1147,7 @@ render::WorldLayers MapViewer::world_layers(const ZoomGraphics& graphics) const 
     layers.local_player = m_local_player;
     layers.production_phases = &m_production_phases;
     layers.ship_smoke = &m_combat.ship_smoke();
+    layers.dither = graphics.graphics.dither.sheets.empty() ? nullptr : &graphics.graphics.dither;
     return layers;
 }
 
@@ -1738,6 +1740,11 @@ void MapViewer::apply_display(const DisplaySettings& display) {
     }
     if (m_hud) {
         m_hud->set_goods_trend(display.goods_trend);
+    }
+    if (display.classic_graphics != before.classic_graphics) {
+        // The dithered sheets are only in the atlas while they are used.
+        start_preloading();
+        reload_graphics();
     }
     if (display.free_zoom != before.free_zoom) {
         m_zoom_target = 0.0;
