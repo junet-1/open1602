@@ -221,13 +221,12 @@ TileLighting TileLighting::circle(sim::PlayerId player, const sim::Catchment& ar
     TileLighting l;
     l.m_kind = Kind::Circle;
     l.m_player = player;
-    l.set_circle(area);
+    l.m_lit.set(area);
     return l;
 }
 
 TileLighting& TileLighting::outline(const sim::Catchment& area) {
-    set_circle(area);
-    m_outlined = true;
+    m_outline.set(area);
     return *this;
 }
 
@@ -241,7 +240,7 @@ TileLighting& TileLighting::harbour(const sim::World& world, const assets::Build
     return *this;
 }
 
-void TileLighting::set_circle(const sim::Catchment& area) {
+void TileLighting::Circle::set(const sim::Catchment& area) {
     m_area = area;
     m_half = sim::circle_half_widths(area.radius);
     if (area.radius <= 1) {
@@ -249,7 +248,7 @@ void TileLighting::set_circle(const sim::Catchment& area) {
     }
 }
 
-bool TileLighting::in_circle(std::int64_t x, std::int64_t y) const noexcept {
+bool TileLighting::Circle::contains(std::int64_t x, std::int64_t y) const noexcept {
     if (m_half.empty()) {
         return false;
     }
@@ -1277,7 +1276,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
     outline.clear();
     const auto add_outline = [&](std::int32_t vx, std::int32_t vy, std::uint32_t wx, std::uint32_t wy, std::int32_t sx,
                                  std::int32_t row_bottom, const sim::MapCell* cell) {
-        if (!layers.lighting->in_circle(wx, wy)) {
+        if (!layers.lighting->in_outline(wx, wy)) {
             return;
         }
         const auto outside = [&](std::int32_t nx, std::int32_t ny) {
@@ -1287,7 +1286,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             std::uint32_t ox = 0;
             std::uint32_t oy = 0;
             rw.to_world(static_cast<std::uint32_t>(nx), static_cast<std::uint32_t>(ny), ox, oy);
-            return !layers.lighting->in_circle(ox, oy);
+            return !layers.lighting->in_outline(ox, oy);
         };
         std::uint32_t edges = 0;
         edges |= outside(vx - 1, vy) ? std::uint32_t{DrawCommand::kTopLeft} : 0U;

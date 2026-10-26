@@ -884,7 +884,6 @@ void MapInput::reset_game() {
     m_press.reset();
     m_group_key.reset();
     m_formation = 0;
-    m_field_source.reset();
 }
 
 void MapInput::set_mode(std::int32_t mode) {
@@ -939,7 +938,6 @@ void MapInput::select_building_at_mouse(const Selection& before) {
         mode != m_hud->mode()) {
         set_mode(mode);
     }
-    m_field_source.reset();
     if (sel.kind == Selection::Kind::Building) {
         // Looking at a farm, a plantation or a forester picks its field in the build menu
         // (BuildMenu_SelectFarmByWare 0x004331B0): the field whose grown stage gives the raw material.
@@ -949,7 +947,6 @@ void MapInput::select_building_at_mouse(const Selection& before) {
                 const assets::BuildingType* ripe =
                     field.prod_kind == sim::prod::kGrowing ? sim::ripe_record(buildings, field) : nullptr;
                 if (ripe != nullptr && ripe->ware == t.building->raw_ware && m_hud->show_in_build_menu(field.id)) {
-                    m_field_source = FieldSource{sel.island, sel.x, sel.y, field.id};
                     break;
                 }
             }

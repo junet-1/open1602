@@ -218,8 +218,8 @@ inline constexpr assets::Rgba kCircleOutline{255, 230, 0, 255};
 /// Tiles drawn darker, as the original does while the player builds (the fourth byte of its world
 /// map cells picks a shading table, 0x00486B60): only the land the player can build on stays lit. A clicked
 /// building with a catchment narrows that to the land inside its circle, a clicked Kontor adds
-/// the water its ships trade from. A building being placed shows its circle as a dashed border
-/// instead, drawn whole, over land and water alike.
+/// the water its ships trade from. A building being placed shows its own circle as a dashed border,
+/// drawn whole, over land and water alike; the circle of a building still clicked stays lit beside it.
 class TileLighting {
 public:
     /// The tiles a building covers, in world tiles.
@@ -237,20 +237,23 @@ public:
     /// Only the land of `player` inside the circle `area` (world tiles) stays lit.
     [[nodiscard]] static TileLighting circle(sim::PlayerId player, const sim::Catchment& area);
 
-    /// Adds the border of the circle `area` (world tiles) without narrowing the lit land.
+    /// Adds the border of the circle `area` (world tiles) without narrowing the lit land: a circle
+    /// of its own, apart from the lit one.
     TileLighting& outline(const sim::Catchment& area);
     /// Keeps the water lit that ships reach the building at tile (x, y) of `island` from.
     TileLighting& harbour(const sim::World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                           std::uint32_t x, std::uint32_t y);
 
     [[nodiscard]] bool active() const noexcept { return m_kind != Kind::None; }
-    /// Whether the circle gets a dashed border.
-    [[nodiscard]] bool outlined() const noexcept { return m_outlined; }
-    /// Whether world tile (x, y) lies in the circle.
-    [[nodiscard]] bool in_circle(std::int64_t x, std::int64_t y) const noexcept;
-    /// Whether any tile of the `width` x `height` world tiles from (x, y) lies in the circle.
+    /// Whether a circle gets a dashed border.
+    [[nodiscard]] bool outlined() const noexcept { return !m_outline.empty(); }
+    /// Whether world tile (x, y) lies in the lit circle.
+    [[nodiscard]] bool in_circle(std::int64_t x, std::int64_t y) const noexcept { return m_lit.contains(x, y); }
+    /// Whether any tile of the `width` x `height` world tiles from (x, y) lies in the lit circle.
     [[nodiscard]] bool in_circle(std::int64_t x, std::int64_t y, std::uint32_t width,
                                  std::uint32_t height) const noexcept;
+    /// Whether world tile (x, y) lies in the circle with the dashed border.
+    [[nodiscard]] bool in_outline(std::int64_t x, std::int64_t y) const noexcept { return m_outline.contains(x, y); }
     /// Whether world tile (x, y) is dimmed; `cell` is its top island cell, nullptr for water.
     [[nodiscard]] bool dimmed(std::int64_t x, std::int64_t y, const sim::MapCell* cell) const noexcept;
     /// The same for a tile of a building whose footprint covers `footprint` (world tiles): the
@@ -262,13 +265,22 @@ public:
 
 private:
     enum class Kind : std::uint8_t { None, Territory, Circle };
-    void set_circle(const sim::Catchment& area);
+    /// A catchment circle in world tiles, row by row.
+    class Circle {
+    public:
+        void set(const sim::Catchment& area);
+        [[nodiscard]] bool empty() const noexcept { return m_half.empty(); }
+        [[nodiscard]] bool contains(std::int64_t x, std::int64_t y) const noexcept;
+
+    private:
+        sim::Catchment m_area;
+        std::vector<std::uint8_t> m_half;  ///< half widths of the circle's rows, empty without a circle
+    };
 
     Kind m_kind = Kind::None;
     sim::PlayerId m_player = sim::kNoPlayer;
-    sim::Catchment m_area;
-    std::vector<std::uint8_t> m_half;  ///< half widths of the circle's rows, empty without a circle
-    bool m_outlined = false;
+    Circle m_lit;      ///< the land of a clicked building (Kind::Circle)
+    Circle m_outline;  ///< the building being placed
     // The building whose harbour water stays lit (world == nullptr: none).
     const sim::World* m_world = nullptr;
     const assets::BuildingTable* m_buildings = nullptr;
