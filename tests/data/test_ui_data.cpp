@@ -157,6 +157,9 @@ TEST_CASE("data: the accents of the capitals stand above them in every font that
         CHECK(font->above() >= 1);
         CHECK(font->above() <= 4);
     }
+    if (!game.resolve("TOOLGFX/ZEI16V.ZEI")) {
+        return;  // the History Edition has only the large screen's fonts
+    }
     auto plain = ui::Font::load(game, "TOOLGFX/ZEI16V.ZEI");  // its accents fit
     REQUIRE(plain.ok());
     CHECK(plain->fix_accents() == 0);
