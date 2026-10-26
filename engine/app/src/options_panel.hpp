@@ -97,8 +97,12 @@ private:
     ui::Panel m_anno;
     const assets::TextTable* m_texts;
     Page m_page = Page::Root;
-    std::size_t m_slot = 0;        ///< the selected savegame
-    std::size_t m_slot_first = 0;  ///< first savegame shown
+    std::size_t m_slot = 0;             ///< the selected savegame
+    std::size_t m_slot_first = 0;       ///< first savegame shown
+    std::size_t m_slot_rows = 0;        ///< savegame rows of the layout (12, the History Edition 10)
+    std::size_t m_slot_rows_shown = 0;  ///< of them with savegames (the arrows may take the last)
+    std::int32_t m_slots_down = 0;      ///< the arrows that scroll the savegames
+    std::int32_t m_slots_up = 0;
     bool m_editing = false;
     bool m_new_slot = false;       ///< the name is typed into a free slot (Enter saves)
     std::string m_name;            ///< the name being typed

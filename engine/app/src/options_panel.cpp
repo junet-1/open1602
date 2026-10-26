@@ -2,6 +2,7 @@
 #include "options_panel.hpp"
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 #include "o1602/ui/localization.hpp"
@@ -17,6 +18,7 @@ constexpr std::int32_t kPageMusik = 47012;
 constexpr std::int32_t kPageAnno = 47013;
 constexpr std::int32_t kMonitor = 47014;
 constexpr std::int32_t kMission = 47015;
+constexpr std::int32_t kHistoryGameOptions = 47016;  ///< the History Edition's own settings screen
 /// The original's three resolutions; Open1602: window, full screen and the window "Anzeige".
 constexpr std::int32_t kResolution = 47021;  ///< + 0..2
 constexpr std::int32_t kResolutionLabel = 47031;
@@ -31,11 +33,18 @@ constexpr std::int32_t kQuit = 48013;
 constexpr std::int32_t kSlotName = 48021;    ///< + slot
 constexpr std::int32_t kSlotHumans = 48041;  ///< + slot
 constexpr std::int32_t kSlotFrame = 48061;   ///< + slot
-constexpr std::size_t kSlotRows = 12;        ///< rows of the layout
-/// Open1602: the savegames scroll; the last row gives its place to the arrows of MUSIK.GAD.
-constexpr std::size_t kSlotRowsShown = kSlotRows - 1;
+constexpr std::size_t kSlotRows = 12;        ///< rows of the layout at most (the History Edition's: 10)
+/// Open1602: the savegames scroll; the last row gives its place to the arrows of MUSIK.GAD (the
+/// History Edition has arrows of its own below the list).
 constexpr std::int32_t kSlotsDown = 48081;  ///< added to DISK.GAD
 constexpr std::int32_t kSlotsUp = 48082;
+// The History Edition's DISK.GAD: a button for a new savegame and arrows of its own below the list.
+constexpr std::int32_t kHistoryNewSave = 48014;
+constexpr std::int32_t kHistorySlotsDown = 48016;
+constexpr std::int32_t kHistorySlotsUp = 48017;
+// Buttons the History Edition added that Open1602 has no use for yet: they are left out. Taken
+// out of this list, a button shows again (and then needs something to do in mouse()).
+constexpr std::array<std::int32_t, 2> kUnusedHistoryButtons{kHistoryGameOptions, kHistoryNewSave};
 // MUSIK.GAD
 constexpr std::int32_t kMusikTitle = 49002;
 constexpr std::int32_t kListDown = 49011;
@@ -101,6 +110,9 @@ constexpr std::int32_t kVolumeStep = 50;
 /// DISK.GAD with the list arrows of MUSIK.GAD (their pictures and sizes) in the place of the last
 /// savegame row.
 assets::GadgetLayout with_slot_arrows(assets::GadgetLayout disk, const assets::GadgetLayout& musik) {
+    if (disk.find(kHistorySlotsDown) != nullptr && disk.find(kHistorySlotsUp) != nullptr) {
+        return disk;  // the History Edition's own
+    }
     const assets::Gadget* last_row = disk.find(kSlotName + static_cast<std::int32_t>(kSlotRows - 1));
     const assets::Gadget* down = musik.find(kListDown);
     if (last_row == nullptr || down == nullptr) {
@@ -221,6 +233,22 @@ OptionsPanel::OptionsPanel(assets::GadgetLayout option, assets::GadgetLayout dis
     if (const auto g = l.index_of(kSlotHumans)) {
         m_humans_icon = l.gadgets[*g].gfx;
     }
+    while (m_slot_rows < kSlotRows && l.find(kSlotName + static_cast<std::int32_t>(m_slot_rows)) != nullptr) {
+        ++m_slot_rows;
+    }
+    if (l.find(kHistorySlotsDown) != nullptr && l.find(kHistorySlotsUp) != nullptr) {
+        m_slots_down = kHistorySlotsDown;
+        m_slots_up = kHistorySlotsUp;
+        m_slot_rows_shown = m_slot_rows;
+    } else {
+        m_slots_down = kSlotsDown;
+        m_slots_up = kSlotsUp;
+        m_slot_rows_shown = m_slot_rows > 0 ? m_slot_rows - 1 : 0;
+    }
+    for (const std::int32_t id : kUnusedHistoryButtons) {
+        m_option.set_visible(id, false);
+        m_disk.set_visible(id, false);
+    }
 }
 
 std::string OptionsPanel::text(std::string_view section, std::size_t line) const {
@@ -299,11 +327,11 @@ void OptionsPanel::refresh(const OptionsModel& model) {
 
 void OptionsPanel::refresh_disk(const OptionsModel& model) {
     const std::size_t count = model.slot_names.size();
-    m_slot_first = std::min(m_slot_first, count > kSlotRowsShown ? count - kSlotRowsShown : 0);
-    for (std::size_t r = 0; r < kSlotRows; ++r) {
+    m_slot_first = std::min(m_slot_first, count > m_slot_rows_shown ? count - m_slot_rows_shown : 0);
+    for (std::size_t r = 0; r < m_slot_rows; ++r) {
         const auto k = static_cast<std::int32_t>(r);
         const std::size_t i = m_slot_first + r;
-        const bool shown = r < kSlotRowsShown && i < count;
+        const bool shown = r < m_slot_rows_shown && i < count;
         m_disk.set_visible(kSlotName + k, shown);
         m_disk.set_visible(kSlotFrame + k, shown);
         if (!shown) {
@@ -327,11 +355,11 @@ void OptionsPanel::refresh_disk(const OptionsModel& model) {
         m_disk.set_selected(kSlotFrame + k, i == m_slot);
         m_disk.set_hidden(kSlotFrame + k, i != m_slot);
     }
-    const bool scrolls = count > kSlotRowsShown;
-    m_disk.set_visible(kSlotsUp, scrolls);
-    m_disk.set_visible(kSlotsDown, scrolls);
-    m_disk.set_disabled(kSlotsUp, m_slot_first == 0);
-    m_disk.set_disabled(kSlotsDown, m_slot_first + kSlotRowsShown >= count);
+    const bool scrolls = count > m_slot_rows_shown;
+    m_disk.set_visible(m_slots_up, scrolls);
+    m_disk.set_visible(m_slots_down, scrolls);
+    m_disk.set_disabled(m_slots_up, m_slot_first == 0);
+    m_disk.set_disabled(m_slots_down, m_slot_first + m_slot_rows_shown >= count);
     m_disk.set_disabled(kSave, m_slot < model.reserved_slots);
     // A client of a game of several players cannot load (0x00439630).
     m_disk.set_visible(kLoad, !model.multiplayer);
@@ -427,7 +455,7 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
                 }
                 break;
             case Page::Disk:
-                if (e.id >= kSlotFrame && e.id < kSlotFrame + static_cast<std::int32_t>(kSlotRowsShown)) {
+                if (e.id >= kSlotFrame && e.id < kSlotFrame + static_cast<std::int32_t>(m_slot_rows_shown)) {
                     // Choosing a slot starts typing its name (0x0043F7F4).
                     const std::size_t slot = m_slot_first + static_cast<std::size_t>(e.id - kSlotFrame);
                     if (slot >= model.slot_names.size()) {
@@ -443,9 +471,9 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
                     m_new_slot = m_name.empty();
                     m_editing = true;
                     m_renamed = true;
-                } else if (e.id == kSlotsUp && m_slot_first > 0) {
+                } else if (e.id == m_slots_up && m_slot_first > 0) {
                     --m_slot_first;
-                } else if (e.id == kSlotsDown && m_slot_first + kSlotRowsShown < model.slot_names.size()) {
+                } else if (e.id == m_slots_down && m_slot_first + m_slot_rows_shown < model.slot_names.size()) {
                     ++m_slot_first;
                 } else if (e.id == kSave && m_slot >= model.reserved_slots) {
                     const std::string name = m_renamed ? m_name : model.slot_names[m_slot];
@@ -566,7 +594,7 @@ std::optional<std::string> OptionsPanel::help(const std::vector<std::string>& le
                     return model.slot_details[i];  // Open1602: what the savegame holds
                 }
                 line = 175;
-            } else if (*id == kSlotsUp || *id == kSlotsDown) {
+            } else if (*id == m_slots_up || *id == m_slots_down) {
                 line = 182;  // the music list's "scroll the list"
             }
             break;

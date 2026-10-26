@@ -34,10 +34,31 @@ assets::GadgetLayout layout(std::int32_t first, std::int32_t last, const std::ve
     return assets::parse_gad(text + "EndObj\n");
 }
 
+/// DISK.GAD: the original's twelve savegame rows, or the History Edition's ten with a button for a
+/// new savegame (48014) and arrows of its own (48016, 48017).
+assets::GadgetLayout disk_layout(bool history) {
+    if (history) {
+        return layout(48002, 48080, {48031, 48032, 48051, 48052, 48071, 48072});
+    }
+    return layout(48002, 48080, {48014, 48016, 48017});
+}
+
 struct Options {
     assets::TextTable texts = assets::TextTable::parse("[GAME]\n" + std::string(40, '\n'));
-    OptionsPanel panel{layout(47002, 47040), layout(48002, 48080), layout(49002, 49060),
-                       layout(66001, 66060, {66028, 66038}), &texts};  // ANNO.GAD has seven voice rows
+    OptionsPanel panel;
+
+    /// The History Edition's OPTION.GAD has a button for its own settings screen (47016).
+    explicit Options(bool history = false)
+        : panel(history ? layout(47002, 47040) : layout(47002, 47040, {47016}), disk_layout(history),
+                layout(49002, 49060), layout(66001, 66060, {66028, 66038}), &texts) {}  // seven voice rows
+
+    /// Whether gadget `id` of the page shown answers the mouse.
+    bool answers(std::int32_t id, OptionsModel& model) {
+        const auto at = panel.panel().position(id);
+        REQUIRE(at.has_value());
+        panel.mouse((*at)[0] + 5, (*at)[1] + 5, false, model);
+        return panel.panel().hovered() == id;
+    }
 
     /// A click on gadget `id` of the page shown.
     std::vector<OptionsEvent> click(std::int32_t id, OptionsModel& model) {
@@ -158,6 +179,62 @@ TEST_CASE("options panel: the savegames are named, saved, loaded and the game le
     CHECK(events[0].kind == OptionsEvent::Kind::Load);
     CHECK(events[0].value == 0);
     CHECK(count(o.click(48013, model), OptionsEvent::Kind::Quit) == 1);
+}
+
+TEST_CASE("options panel: the History Edition's extra buttons are left out, its own arrows scroll") {
+    Options o(true);
+    OptionsModel model;
+    for (int i = 0; i < 13; ++i) {
+        model.slot_names.push_back("Game " + std::to_string(i));
+    }
+    o.panel.opened();
+    o.panel.refresh(model);
+    CHECK(!o.answers(47016, model));  // its settings screen: Open1602 has none
+    CHECK(o.answers(47015, model));
+    o.click(47011, model);
+    o.panel.refresh(model);
+    CHECK(!o.answers(48014, model));                         // a new savegame: the free slots do that
+    CHECK(o.panel.panel().position(48081) == std::nullopt);  // no arrows of MUSIK.GAD
+    CHECK(o.answers(48070, model));                          // ten rows, all with savegames
+    CHECK(o.answers(48017, model));
+
+    // Down by one: the last row shows the eleventh savegame.
+    o.click(48016, model);
+    o.panel.refresh(model);
+    o.click(48070, model);
+    CHECK(!o.panel.key(27).has_value());  // Escape: no new name
+    auto events = o.click(48011, model);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == OptionsEvent::Kind::Save);
+    CHECK(events[0].value == 10);
+    CHECK(events[0].text == "Game 10");
+    o.click(48017, model);
+    o.panel.refresh(model);
+    o.click(48061, model);
+    CHECK(!o.panel.key(27).has_value());  // Escape: no new name
+    events = o.click(48011, model);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].value == 0);
+}
+
+TEST_CASE("options panel: the original's last savegame row gives its place to the arrows") {
+    Options o;
+    OptionsModel model;
+    for (int i = 0; i < 13; ++i) {
+        model.slot_names.push_back("Game " + std::to_string(i));
+    }
+    o.panel.opened();
+    o.click(47011, model);
+    o.panel.refresh(model);
+    CHECK(o.answers(48071, model));
+    CHECK(!o.answers(48072, model));  // under the arrows
+    o.click(48081, model);            // down
+    o.panel.refresh(model);
+    o.click(48071, model);
+    CHECK(!o.panel.key(27).has_value());  // Escape: no new name
+    const auto events = o.click(48011, model);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].value == 11);
 }
 
 TEST_CASE("options panel: the last game in the first slot loads but is never named or saved into") {
