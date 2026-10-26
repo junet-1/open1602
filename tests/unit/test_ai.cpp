@@ -283,6 +283,36 @@ TEST_CASE("ai: the original's computer players (Rules::classic_ai) found their c
     CHECK(run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));
 }
 
+TEST_CASE("ai: computer opponents switched off found nothing, by the rule or by the game's settings") {
+    {
+        Game g;
+        sim::Rules rules;
+        rules.computer_players = sim::Computers::Off;
+        sim::Simulation s(g.world, g.buildings, g.figures, rules);
+        CHECK(!run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));
+    }
+    {
+        // Bit 1 of the settings word (TIMERS +0xA8): the original skips its AI tick (0x0048975B).
+        Game g;
+        sim::World::GameSettings settings = g.world.game_settings();
+        settings.flags |= sim::World::GameSettings::kNoComputers;
+        g.world.set_game_settings(settings);
+        sim::Simulation s(g.world, g.buildings, g.figures);
+        CHECK(!run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));
+    }
+    {
+        // Switched on, they play whatever the game says.
+        Game g;
+        sim::World::GameSettings settings = g.world.game_settings();
+        settings.flags |= sim::World::GameSettings::kNoComputers;
+        g.world.set_game_settings(settings);
+        sim::Rules rules;
+        rules.computer_players = sim::Computers::On;
+        sim::Simulation s(g.world, g.buildings, g.figures, rules);
+        CHECK(run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));
+    }
+}
+
 TEST_CASE("ai: a computer founds its city at the open sea, not at a lake its ship cannot reach (0x00417220)") {
     Game g(true, 10000, true);
     sim::Simulation s(g.world, g.buildings, g.figures);

@@ -157,6 +157,8 @@ void Engine::tick(std::uint32_t dt_ms) {
         }
     } leave{*this};
     island_controller();
+    const bool computers_play =
+        m_sim.rules().computers_play((m_world.game_settings().flags & World::GameSettings::kNoComputers) != 0);
     for (AiPlayer& p : m_state.players) {
         const Player* pl = m_world.player(p.player);
         if (pl == nullptr || !pl->active()) {
@@ -176,6 +178,9 @@ void Engine::tick(std::uint32_t dt_ms) {
         }
         if (pl->role != PlayerRole::Computer) {
             continue;  // the slot was taken over by a human
+        }
+        if (!computers_play) {
+            continue;  // switched off: the original skips its whole AI tick (0x0048975B)
         }
         // Each computer steps every 50 ms of game time. The original lets only one slot act per
         // simulation slice, so its pace followed the frame rate and the number of computers (S-095).

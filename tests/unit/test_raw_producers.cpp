@@ -374,8 +374,19 @@ TEST_CASE("raw producers: with endless veins the deep mine digs a big vein for e
     // A big iron vein with 121 t and a small one with 2 t.
     land.finish({{7, 4}, {7, 6}, {13, 10}},
                 {{kOre, 4, 4, 0, 0, static_cast<std::uint16_t>(121 * 32)}, {kOre, 10, 10, 0, 1, 2 * 32}});
+    // As the game says: the settings word's bit 3, which every endless game of the original sets.
     sim::Rules rules;
-    rules.endless_veins = true;
+    CHECK(rules.ore_veins == sim::OreVeins::Game);
+    CHECK(!rules.endless_veins(false));
+    CHECK(rules.endless_veins(true));
+    rules.ore_veins = sim::OreVeins::Finite;
+    CHECK(!rules.endless_veins(true));
+    rules.ore_veins = sim::OreVeins::Endless;
+    CHECK(rules.endless_veins(false));
+    rules.ore_veins = sim::OreVeins::Game;
+    sim::World::GameSettings settings = land.world.game_settings();
+    settings.flags |= sim::World::GameSettings::kEndlessVeins;
+    land.world.set_game_settings(settings);
     sim::Logistics logistics(land.world, land.buildings, land.figures, &rules);
     auto& deposits = land.world.island(0).header.deposits;
     // Down to 120 t and to the first ton below it as in the original.
@@ -399,18 +410,17 @@ TEST_CASE("raw producers: with endless veins the deep mine digs a big vein for e
     CHECK(deposits.size() == 1);
     CHECK(logistics.stats().ore_mined == 204 * 32);
 
-    // The rule stays with the savegame; off, as the original, is the default.
-    CHECK(!sim::Rules{}.endless_veins);
-    CHECK(!sim::Rules::original().endless_veins);
-    for (const bool endless : {false, true}) {
+    // The rule stays with the savegame; as the game says, like the original, is the default.
+    CHECK(sim::Rules::original().ore_veins == sim::OreVeins::Game);
+    for (const auto veins : {sim::OreVeins::Game, sim::OreVeins::Finite, sim::OreVeins::Endless}) {
         sim::Rules saved;
-        saved.endless_veins = endless;
+        saved.ore_veins = veins;
         land.world.set_saved_rules(saved);
         auto bytes = sim::write_game(land.world, land.buildings);
         REQUIRE(bytes.ok());
         auto back = sim::read_game(*bytes, land.buildings);
         REQUIRE(back.ok());
         REQUIRE(back->saved_rules().has_value());
-        CHECK(back->saved_rules()->endless_veins == endless);
+        CHECK(back->saved_rules()->ore_veins == veins);
     }
 }

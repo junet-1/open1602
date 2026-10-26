@@ -71,6 +71,7 @@ enum class SetupItem : std::uint8_t {
     Starts,
     Resources,
     // Opponents
+    ComputerPlayers,
     ClassicAi,
     Pirates,
     PirateNests,

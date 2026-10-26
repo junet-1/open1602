@@ -45,6 +45,23 @@ enum class Pirates : std::uint8_t {
     On,    ///< always, whatever the game says
 };
 
+/// Whether large iron veins run out (docs/re/logistics.md, "Mines and deposits"). The original's
+/// game settings say it per game (TIMERS +0xA8 bit 3): every endless game and about 60 scenarios
+/// keep them, the other scenarios use them up.
+enum class OreVeins : std::uint8_t {
+    Game,     ///< as the game's settings say (original)
+    Finite,   ///< 240 t, used up
+    Endless,  ///< the deep mine digs on for ever, whatever the game says
+};
+
+/// Whether the computer opponents play. The original's game settings can switch them off (TIMERS
+/// +0xA8 bit 1); no shipped game does.
+enum class Computers : std::uint8_t {
+    Game,  ///< as the game's settings say (original)
+    Off,   ///< they keep what they have and do nothing
+    On,    ///< always, whatever the game says
+};
+
 /// How many nests the pirates found (docs/re/pirates.md). The original has one for the whole world,
 /// which suits its four players; with more players most of them would never meet a pirate.
 enum class PirateNests : std::uint8_t {
@@ -160,11 +177,13 @@ struct Rules {
     TraderPrices trader_prices = TraderPrices::Original;
     /// How far the free trader looks. Up to four players both are the original.
     TraderReach trader_reach = TraderReach::Scaled;
-    /// Large iron veins never run out (docs/re/logistics.md, "Mines and deposits"). The ore mine
-    /// still digs only down to 120 t; below that the deep mine digs on, as in the original, but the
-    /// vein stays at the last ton above it instead of being used up. Small veins run out as in the
-    /// original, gold never does anyway. Off by default: the original's 240 t.
-    bool endless_veins = false;
+    /// Whether large iron veins run out (docs/re/logistics.md, "Mines and deposits"). Endless: the
+    /// ore mine still digs only down to 120 t; below that the deep mine digs on, as in the original,
+    /// but the vein stays at the last ton above it instead of being used up. Small veins run out
+    /// either way, gold never does.
+    OreVeins ore_veins = OreVeins::Game;
+    /// Whether the computer opponents play; the pirates have their own setting.
+    Computers computer_players = Computers::Game;
 
     /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
     /// settlement ship sails no city develops, a city whose colony search failed waits for it for
@@ -198,10 +217,20 @@ struct Rules {
         r.pirate_nests = PirateNests::One;
         r.trader_prices = TraderPrices::Original;
         r.trader_reach = TraderReach::Original;
-        r.endless_veins = false;
+        r.ore_veins = OreVeins::Game;
+        r.computer_players = Computers::Game;
         r.classic_ai = true;
         r.reveal = Reveal::None;
         return r;
+    }
+
+    /// Whether large iron veins never run out, given what the game's settings say (bit 3).
+    [[nodiscard]] constexpr bool endless_veins(bool game_says_endless) const noexcept {
+        return ore_veins == OreVeins::Endless || (ore_veins == OreVeins::Game && game_says_endless);
+    }
+    /// Whether the computer opponents play, given whether the game's settings switch them off (bit 1).
+    [[nodiscard]] constexpr bool computers_play(bool game_says_off) const noexcept {
+        return computer_players == Computers::On || (computer_players == Computers::Game && !game_says_off);
     }
 
     /// Share of the build costs a demolition gives back, in percent.

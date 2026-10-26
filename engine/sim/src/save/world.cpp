@@ -30,8 +30,10 @@ enum RuleKey : std::uint16_t {
     kPirateRule = 23,
     kPirateNests = 24,
     kTraderReach = 25,
-    kEndlessVeins = 26,
+    kEndlessVeins = 26,  // 1: OreVeins::Endless
     kReveal = 27,
+    kOreVeins = 28,  // OreVeins::Finite (Endless keeps the old key, Game has none)
+    kComputerPlayers = 29,
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -141,9 +143,16 @@ void write_rules(Writer& out, const Rules& r) {
     if (r.trader_reach != TraderReach::Scaled) {
         values.emplace_back(kTraderReach, static_cast<std::uint32_t>(r.trader_reach));
     }
-    // Endless veins only when they are on: off is the original, so older games keep their bytes.
-    if (r.endless_veins) {
+    // The large veins only when they do not follow the game; endless as the versions before wrote it.
+    // Their games without the key had finite veins, which now follow the game's settings instead.
+    if (r.ore_veins == OreVeins::Endless) {
         values.emplace_back(kEndlessVeins, 1U);
+    } else if (r.ore_veins == OreVeins::Finite) {
+        values.emplace_back(kOreVeins, static_cast<std::uint32_t>(r.ore_veins));
+    }
+    // The computer opponents only when they do not follow the game.
+    if (r.computer_players != Computers::Game) {
+        values.emplace_back(kComputerPlayers, static_cast<std::uint32_t>(r.computer_players));
     }
     // The towns shown from the start only when there are any: the original's way keeps the bytes.
     if (r.reveal != Reveal::None) {
@@ -218,7 +227,13 @@ Rules read_rules(Reader& in) {
                 r.trader_reach = static_cast<TraderReach>(std::min<std::uint32_t>(v, 1));
                 break;
             case kEndlessVeins:
-                r.endless_veins = v != 0;
+                r.ore_veins = v != 0 ? OreVeins::Endless : OreVeins::Game;
+                break;
+            case kOreVeins:
+                r.ore_veins = static_cast<OreVeins>(std::min<std::uint32_t>(v, 2));
+                break;
+            case kComputerPlayers:
+                r.computer_players = static_cast<Computers>(std::min<std::uint32_t>(v, 2));
                 break;
             case kClassicAi:
                 r.classic_ai = v != 0;
