@@ -109,6 +109,9 @@ TEST_CASE("data: the fonts of the three screen sizes, umlauts and the text colou
     CHECK(large->has('9'));
     CHECK(!large->has('A'));  // digits and punctuation only
     for (auto size : {ui::ArtSize::Small, ui::ArtSize::Medium, ui::ArtSize::Large}) {
+        if (size != ui::ArtSize::Large && game.history_texts() != nullptr) {
+            continue;  // the History Edition has only the large screen's fonts
+        }
         for (std::int32_t slot = 0; slot < 3; ++slot) {
             CHECK(ui::Font::load(game, ui::font_file(slot, size)).ok());
         }
@@ -143,6 +146,9 @@ TEST_CASE("data: the accents of the capitals stand above them in every font that
                                                                         {"TOOLGFX/ZEI20H.ZEI", 21},
                                                                         {"TOOLGFX/ZEI20V.ZEI", 15}}};
     for (const auto& [file, capitals] : kFonts) {
+        if (game.history_texts() != nullptr && !game.resolve(file)) {
+            continue;  // the History Edition lacks ZEI14V
+        }
         auto font = ui::Font::load(game, file);
         REQUIRE(font.ok());
         const std::uint32_t cell = font->height();
@@ -150,6 +156,9 @@ TEST_CASE("data: the accents of the capitals stand above them in every font that
         CHECK(font->height() == cell);
         CHECK(font->above() >= 1);
         CHECK(font->above() <= 4);
+    }
+    if (!game.resolve("TOOLGFX/ZEI16V.ZEI")) {
+        return;  // the History Edition has only the large screen's fonts
     }
     auto plain = ui::Font::load(game, "TOOLGFX/ZEI16V.ZEI");  // its accents fit
     REQUIRE(plain.ok());

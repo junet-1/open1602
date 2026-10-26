@@ -4,6 +4,7 @@ add_executable(o1602_tests
     test_main.cpp
     unit/test_assets.cpp
     unit/test_cod_parser.cpp
+    unit/test_history_edition.cpp
     unit/test_data_fixes.cpp
     unit/test_commands.cpp
     unit/test_island_render.cpp

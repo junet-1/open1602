@@ -333,6 +333,48 @@ TEST_CASE("sprite sheet: type 2 is raw pixels, unknown types draw nothing") {
     CHECK(std::count(blank->opaque.begin(), blank->opaque.end(), 1) == 0);
 }
 
+TEST_CASE("sprite sheet: type 13 is the History Edition's true colour RLE in 32-bit words") {
+    // A 3x2 record: row 0 ".AB" (skip 1, run 2), row 1 "C.." (skip 0, run 1); pixels B, G, R, 0.
+    const auto sheet_of = [](const std::vector<std::uint32_t>& words) {
+        std::vector<std::uint8_t> payload;
+        put_u32(payload, 4);
+        put_u32(payload, 3);
+        put_u32(payload, 2);
+        put_u32(payload, 13);
+        put_u32(payload, static_cast<std::uint32_t>(16 + words.size() * 4));
+        for (const std::uint32_t w : words) {
+            put_u32(payload, w);
+        }
+        std::vector<std::uint8_t> file;
+        put_chunk(file, "BSH", payload);
+        auto chunks = assets::ChunkFile::from_bytes(file);
+        REQUIRE(chunks.ok());
+        return assets::SpriteSheet::from_chunk_file(std::move(chunks).value());
+    };
+    const auto sheet = sheet_of({1, 2, 0x00332211, 0x00665544, 0xFE, 0, 1, 0x00998877, 0xFF});
+    REQUIRE(sheet.ok());
+    const auto image = sheet->decode(0);
+    REQUIRE(image.ok());
+    const std::vector<std::uint8_t> expected_mask = {0, 1, 1, 1, 0, 0};
+    CHECK(image->opaque == expected_mask);
+    const std::vector<std::uint8_t> expected_rgba = {
+        0, 0, 0, 0, 0x33, 0x22, 0x11, 255, 0x66, 0x55, 0x44, 255, 0x99, 0x88, 0x77, 255, 0, 0, 0, 0, 0, 0, 0, 0};
+    CHECK(image->rgba == expected_rgba);
+    CHECK(image->to_rgba(assets::Palette{}) == expected_rgba);  // its own colours, not the palette's
+
+    // A run longer than the row is clipped; one longer than the record or no end is an error.
+    const auto wide = sheet_of({2, 2, 1, 2, 0xFF});
+    REQUIRE(wide.ok());
+    REQUIRE(wide->decode(0).ok());
+    CHECK(wide->decode(0)->clipped_pixels == 1);
+    const auto long_run = sheet_of({0, 1000, 1, 0xFF});
+    REQUIRE(long_run.ok());
+    CHECK(!long_run->decode(0).ok());
+    const auto endless = sheet_of({0, 1, 1, 0xFE});
+    REQUIRE(endless.ok());
+    CHECK(!endless->decode(0).ok());
+}
+
 TEST_CASE("islands: header and INSELHAUS tiles") {
     std::vector<std::uint8_t> header = {19, 70, 60, 0};
     put_u16(header, 90);
@@ -590,6 +632,53 @@ TEST_CASE("assets: installers' folders named after the game are candidates, othe
     std::filesystem::remove_all(parent);
 }
 
+TEST_CASE("assets: the History Edition's files of a language come from its folder in Loca") {
+    using assets::GameDirectory;
+    const auto root = test::temp_path("o1602-test-history-edition");
+    std::filesystem::remove_all(root);
+    for (const char* folder : {"ToolGfx", "GFX", "Loca/de-DE/ToolGfx", "Loca/en-US", "Loca/fr-FR"}) {
+        std::filesystem::create_directories(root / folder);
+    }
+    for (const char* file :
+         {"haeuser.cod", "figuren.cod", "ToolGfx/STADTFLD.COL", "ToolGfx/START.BSH", "GFX/STADTFLD.BSH", "text.cod",
+          "Loca/de-DE/Text.cod", "Loca/de-DE/ToolGfx/START.BSH", "Loca/fr-FR/Text.cod"}) {
+        std::ofstream(root / file) << "";
+    }
+
+    CHECK(GameDirectory::language_folder(root, "de") == root / "Loca" / "de-DE");
+    CHECK(GameDirectory::language_folder(root, "fr-FR") == root / "Loca" / "fr-FR");
+    CHECK(GameDirectory::language_folder(root / "Loca" / "en-US").has_value() == false);  // no Loca there
+
+    auto game = GameDirectory::open(root);
+    REQUIRE(game);
+    game->choose_language("de");
+    CHECK(game->localized_root() == root / "Loca" / "de-DE");
+    CHECK(test::same_file(game->resolve("Text.cod"), root / "Loca" / "de-DE" / "Text.cod"));
+    CHECK(test::same_file(game->resolve("TOOLGFX/START.BSH"), root / "Loca" / "de-DE" / "ToolGfx" / "START.BSH"));
+    CHECK(test::same_file(game->resolve("toolgfx/stadtfld.col"), root / "ToolGfx" / "STADTFLD.COL"));  // not localized
+    game->choose_language("fr");
+    CHECK(test::same_file(game->resolve("Text.cod"), root / "Loca" / "fr-FR" / "Text.cod"));
+    CHECK(test::same_file(game->resolve("ToolGfx/START.BSH"), root / "ToolGfx" / "START.BSH"));
+    game->choose_language("xx");  // none of that language: the folder stays
+    CHECK(game->localized_root() == root / "Loca" / "fr-FR");
+    std::filesystem::remove_all(root / "Loca" / "en-US");
+    game->choose_language("en");  // no English folder: the installation's own files are English
+    CHECK(game->localized_root().empty());
+    CHECK(test::same_file(game->resolve("Text.cod"), root / "text.cod"));
+    std::filesystem::create_directories(root / "Loca" / "en-US");
+
+    // A folder of a single language is taken whatever is asked; other editions have none.
+    std::filesystem::remove_all(root / "Loca" / "en-US");
+    std::filesystem::remove_all(root / "Loca" / "fr-FR");
+    CHECK(GameDirectory::language_folder(root, "xx") == root / "Loca" / "de-DE");
+    std::filesystem::remove_all(root / "Loca");
+    auto plain = GameDirectory::open(root);
+    REQUIRE(plain);
+    CHECK(plain->localized_root().empty());
+    CHECK(test::same_file(plain->resolve("Text.cod"), root / "text.cod"));
+    std::filesystem::remove_all(root);
+}
+
 TEST_CASE("assets: the candidates below a home folder include Wine, CrossOver and Bottles prefixes") {
     const auto home = test::temp_path("o1602-test-home-candidates");
     std::filesystem::remove_all(home);
@@ -602,6 +691,9 @@ TEST_CASE("assets: the candidates below a home folder include Wine, CrossOver an
             "Anno 1602",
         home / "Games" / "anno-1602" / "drive_c" / "GOG Games" / "Anno 1602",
         home / "Applications" / "Anno 1602",
+        // The History Edition installed with Ubisoft Connect in Heroic's prefix of its own.
+        home / "Games" / "Heroic" / "Prefixes" / "default" / "Ubisoft Connect" / "drive_c" / "Program Files (x86)" /
+            "Ubisoft" / "Ubisoft Game Launcher" / "games" / "Anno 1602 - History Edition",
     };
     for (const auto& folder : installs) {
         std::filesystem::create_directories(folder);

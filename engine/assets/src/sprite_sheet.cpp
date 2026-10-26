@@ -17,9 +17,12 @@ constexpr std::uint8_t kEndOfImage = 0xFF;
 constexpr std::uint8_t kEndOfRow = 0xFE;
 // Record types (the low byte of +8 is what the original's blitters test, 0x00401B10): 1 and 6 are
 // RLE, 2 is width x height raw palette indices with index 0 transparent. Every original record is 1.
+// The History Edition adds 13: the same RLE in 32-bit words, each pixel a word B, G, R, 0 (its menu
+// background and buttons in START.BSH and a few new buttons in TOOLS.BSH; docs/formats/bsh.md).
 constexpr std::uint8_t kTypeRle = 1;
 constexpr std::uint8_t kTypeRaw = 2;
 constexpr std::uint8_t kTypeRleToo = 6;
+constexpr std::uint8_t kTypeTrueColour = 13;
 // Sanity limit: the largest original sprites are full-screen images (1024x768).
 constexpr std::uint32_t kMaxDimension = 4096;
 /// Pixels all sprites of one sheet may claim together (HI-18): 256 M, far above the original's
@@ -31,17 +34,20 @@ constexpr std::uint64_t kMaxPixelsPerByte = 16384;
 }  // namespace
 
 std::vector<std::uint8_t> IndexedImage::to_rgba(const Palette& palette) const {
-    std::vector<std::uint8_t> rgba(indices.size() * 4, 0);
+    if (!rgba.empty()) {
+        return rgba;
+    }
+    std::vector<std::uint8_t> out(indices.size() * 4, 0);
     for (std::size_t i = 0; i < indices.size(); ++i) {
         if (opaque[i] != 0) {
             const Rgba& c = palette[indices[i]];
-            rgba[i * 4 + 0] = c.r;
-            rgba[i * 4 + 1] = c.g;
-            rgba[i * 4 + 2] = c.b;
-            rgba[i * 4 + 3] = 255;
+            out[i * 4 + 0] = c.r;
+            out[i * 4 + 1] = c.g;
+            out[i * 4 + 2] = c.b;
+            out[i * 4 + 3] = 255;
         }
     }
-    return rgba;
+    return out;
 }
 
 core::Result<SpriteSheet> SpriteSheet::from_chunk_file(ChunkFile file) {
@@ -126,6 +132,56 @@ core::Result<SpriteSheet> SpriteSheet::load(const std::filesystem::path& path) {
     return sheet;
 }
 
+core::Result<IndexedImage> SpriteSheet::decode_true_colour(std::size_t index, const SpriteInfo& info,
+                                                           IndexedImage image) const {
+    // As the RLE of type 1 in little-endian words: [skip][count][count pixels B, G, R, 0],
+    // 0xFE = next row, 0xFF = end.
+    const auto data = m_file.payload(m_chunk);
+    image.rgba.assign(image.indices.size() * 4, 0);
+    core::ByteReader reader(data.first(std::size_t{info.offset} + info.length));
+    (void)reader.seek(info.offset + kRecordHeaderSize);
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    for (;;) {
+        const auto code = reader.u32();
+        if (!code) {
+            return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(index) + ": unterminated RLE data");
+        }
+        if (*code == kEndOfImage) {
+            break;
+        }
+        if (*code == kEndOfRow) {
+            x = 0;
+            ++y;
+            continue;
+        }
+        const auto run = reader.u32();
+        if (!run || *run > reader.remaining() / 4) {
+            return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(index) + ": truncated run");
+        }
+        const auto pixels = reader.bytes(std::size_t{*run} * 4);
+        if (!pixels) {
+            return make_error(ErrorCode::InvalidFormat, "sprite " + std::to_string(index) + ": truncated pixels");
+        }
+        // A skip beyond the row only clips; adding it in 64 bits keeps x from wrapping around.
+        std::uint64_t at = std::uint64_t{x} + *code;
+        for (std::size_t p = 0; p < *run; ++p, ++at) {
+            if (at < image.width && y < info.height) {
+                const std::size_t i = std::size_t{y} * image.width + static_cast<std::size_t>(at);
+                image.opaque[i] = 1;
+                image.rgba[i * 4 + 0] = (*pixels)[p * 4 + 2];
+                image.rgba[i * 4 + 1] = (*pixels)[p * 4 + 1];
+                image.rgba[i * 4 + 2] = (*pixels)[p * 4 + 0];
+                image.rgba[i * 4 + 3] = 255;
+            } else {
+                ++image.clipped_pixels;
+            }
+        }
+        x = static_cast<std::uint32_t>(std::min<std::uint64_t>(at, kMaxDimension * 2));
+    }
+    return image;
+}
+
 core::Result<IndexedImage> SpriteSheet::decode(std::size_t index, std::uint32_t extra_width) const {
     if (index >= m_infos.size()) {
         return make_error(ErrorCode::OutOfRange, "sprite index out of range");
@@ -153,6 +209,9 @@ core::Result<IndexedImage> SpriteSheet::decode(std::size_t index, std::uint32_t 
             }
         }
         return image;
+    }
+    if (type == kTypeTrueColour) {
+        return decode_true_colour(index, info, std::move(image));
     }
     if (type != kTypeRle && type != kTypeRleToo) {
         return image;  // the original draws nothing for any other type

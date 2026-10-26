@@ -166,6 +166,12 @@ int run_program(int argc, char** argv) {
         app::report_fatal(search.error.message + "\n(set ANNO1602_DIR or pass --game-dir)");
         return 1;
     }
+    // The History Edition has a folder per language: the one asked for, else the system's.
+    if (!options.language.empty()) {
+        search.game->choose_language(options.language);
+    } else if (!settings.language.empty() && settings.language != "auto") {
+        search.game->choose_language(settings.language);
+    }
     const assets::GameDirectory* game = &*search.game;
     std::string savegame_path;
     if (const std::string& savegame = command.savegame; !savegame.empty()) {

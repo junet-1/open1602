@@ -13,7 +13,18 @@ one per language.
 3. The installation's language: the catalogue whose `language.detect` text equals a line of the
    section `[PLAYCOL]` in Text.cod ("Roter Spieler" for German).
 4. GOG's installer file `goggame-*.info` ("languages": ["de-DE"] gives `de`).
-5. English.
+5. The History Edition's language folder in use (`Loca/de-DE` gives `de`, see below).
+6. English.
+
+## The History Edition
+
+Ubisoft's *Anno 1602 History Edition* keeps the files of each installed language in
+`Loca/<language>/` (`Loca/de-DE/`: Text.cod, Editor.cod, the speech, the samples of the soldiers and
+ships, the menu art TOOLS.BSH and START.BSH, the videos) and the English ones in the installation's
+own folders. Open1602 reads a file from that language folder when it has it and from the
+installation otherwise, just as the History Edition does. With several language folders it takes
+the one of `--language` (or `language` in `settings.cfg`), else the one of the system's language,
+else English.
 
 A key the chosen language lacks is taken from English; a key no catalogue has is shown as the key
 itself, so a missing line is easy to spot.

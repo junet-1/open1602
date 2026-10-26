@@ -62,7 +62,7 @@ TEST_CASE("data: Das Atoll: 1000 aristocrats in one city, only the human has the
     CHECK(m.cities[0].resident_class == 4);
     CHECK(m.cities[0].count == 1000);
     CHECK(m.success_message == 0x63);
-    CHECK(m.text.rfind("Nach einer langen", 0) == 0);
+    CHECK(d.game.expand(m.text).rfind("Nach einer langen", 0) == 0);  // History Edition: "[[8]]"
     CHECK(world.players()[0].mission == 0);
     for (std::size_t p = 1; p < world.players().size(); ++p) {
         CHECK(world.players()[p].mission == sim::kNoMission);

@@ -18,5 +18,6 @@ Status legend: ✅ verified (code + test against original data) · 🟡 partly �
 | UI gadgets | `GADDATA/*.GAD`, `*.INC` | ✅ all 45 layouts of the game (not the editor's `Gadedit/`) | [gad.md](gad.md) | `engine/assets/gad.*`, `engine/ui/panel.*` |
 | Videos | `VideoSmk/*.SMK`, `TOOLGFX/6s.smk` | ✅ Smacker 2 (image, palette, all audio types; `SMK4` only from the description) | [smk.md](smk.md) | `engine/video/smacker.*` |
 | Audio | `SAMPLES/ Speech8/ MUSIC8/ *.wav` | ✅ PCM and the custom 4-bit music (an IMA variant) | [wav.md](wav.md) | `engine/audio/wav.*` |
+| History Edition archive and texts | `ahe/a1he0.rda` (`data/texts.xml`), `Loca/<language>/` | 🟡 directory of stored blocks, texts.xml; the rest of the archive (its UI) is not used | [rda.md](rda.md) | `engine/assets/rda_archive.*`, `history_texts.*`, `game_directory.*` |
 
 All binary formats are little-endian. Texts are Windows-1252.

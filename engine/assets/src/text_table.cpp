@@ -46,7 +46,9 @@ core::Result<TextTable> TextTable::load(const GameDirectory& game) {
     if (!bytes) {
         return bytes.error();
     }
-    return parse(decode_cod(*bytes));
+    // The History Edition's Text.cod has placeholders [[N]] for its own texts (a line "[[676]]"
+    // would else start a section).
+    return parse(game.expand(decode_cod(*bytes)));
 }
 
 const std::vector<std::string>& TextTable::section(std::string_view name) const {

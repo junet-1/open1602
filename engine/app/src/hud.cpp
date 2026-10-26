@@ -189,6 +189,7 @@ std::unique_ptr<Hud> Hud::create(SDL_Renderer* renderer, const assets::GameDirec
 Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets::Palette& palette,
          assets::GadgetLayout ctrl, assets::GadgetLayout leist, const assets::TextTable* texts, bool data_fixes)
     : m_sdl(renderer),
+      m_game(game),
       m_palette(palette),
       m_renderer(std::make_unique<render::SdlUiRenderer>(renderer, game, palette, ui::ArtSize::Large, data_fixes)),
       m_ctrl(std::move(ctrl), 1.0),
@@ -823,7 +824,7 @@ void Hud::draw_mission(const sim::World& world) {
         m_tutor->set_visible(kTutorNext + i, i != 0);
     }
     // The victory conditions of an endless game after its text.
-    std::string text = mission != nullptr && !mission->text.empty() ? mission->text : std::string();
+    std::string text = mission != nullptr && !mission->text.empty() ? m_game.expand(mission->text) : std::string();
     if (const std::string victory = victory_text(m_simulation->rules().victory); !victory.empty()) {
         text += text.empty() ? victory : "\n" + victory;
     }

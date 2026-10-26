@@ -23,14 +23,17 @@ for every pushed tag `vX.Y.Z` that matches the version in `CMakeLists.txt`.
 ## Original game data
 
 Open1602 contains **no** game files. You need your own copy of *Anno 1602*, for example the GOG
-"Königsedition" (*Anno 1602 – Creation of a New World*). The game speaks the language of your
+"Königsedition" (*Anno 1602 – Creation of a New World*) or Ubisoft's *Anno 1602 History Edition*.
+The History Edition's videos are Bink 2 files, which Open1602 cannot play; everything else works
+with it. The game speaks the language of your
 installation: a German Anno 1602 gives a German game, an English one an English game
 ([details](docs/modding/languages.md)).
 
-Open1602 finds a GOG installation on its own: on Windows through the folder GOG's installer records
-and in `C:\GOG Games` and `GOG Galaxy\Games` under Program Files, on Linux and macOS in
-`~/GOG Games`, `~/Games/Heroic`, `~/Games` and the default Wine prefix (a folder whose name contains
-"1602"). The game files are only read, so the installation can stay under Program Files. If it
+Open1602 finds a GOG or Ubisoft installation on its own: on Windows through the folders GOG's
+installer and Ubisoft Connect record and in `C:\GOG Games`, `GOG Galaxy\Games` and
+`Ubisoft\Ubisoft Game Launcher\games` under Program Files, on Linux and macOS in `~/GOG Games`,
+`~/Games/Heroic`, `~/Games`, the default Wine prefix and the prefixes of Heroic, Bottles and
+CrossOver (a folder whose name contains "1602"). The game files are only read, so the installation can stay under Program Files. If it
 finds none, Open1602 asks for the folder of the installation with the system's folder dialog and
 remembers it (`game_folder` in `settings.cfg` in the user's data folder); it asks again only when
 that folder is moved or deleted. On Linux the dialog needs the desktop portal or `zenity`.

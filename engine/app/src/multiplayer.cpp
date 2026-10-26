@@ -370,7 +370,7 @@ void MapViewer::open_multiplayer_menu() {
             headings[g] = 85 + g < lines.size() ? lines[85 + g] : std::string{};
         }
         if (const auto folder = m_game.resolve("Szenes")) {
-            model.scenarios = scenario_list(*folder, headings);
+            model.scenarios = scenario_list(*folder, headings, &m_game);
         }
     }
     // Before the menu first draws and takes them: the click that opened it ends the frame's menu

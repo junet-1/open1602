@@ -323,6 +323,9 @@ private:
         return c;
     }
 
+    /// The next character without taking it; kEnd at the end.
+    [[nodiscard]] int peek() const { return m_pos < m_text.size() ? static_cast<unsigned char>(m_text[m_pos]) : kEnd; }
+
     /// After an operator the original skips everything up to the next "meaningful" character,
     /// including line breaks (an operator at the end of a line continues the statement).
     int skip() {
@@ -400,6 +403,11 @@ private:
         } else {
             const std::int32_t v = parse_digits(digits, 10);
             st.tokens.push_back(number_token(op, v, static_cast<double>(v)));
+            // The History Edition marks palette colours with a c ("COL_RED = 249c" in TOOLS.INC);
+            // its game reads the number. A c that begins a name ("2cm") is left to the identifier.
+            if ((c == 'c' || c == 'C') && !is_alpha(peek()) && !is_digit(peek()) && peek() != '_') {
+                c = get();
+            }
         }
         return c;
     }
