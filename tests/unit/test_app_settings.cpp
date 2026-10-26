@@ -2,6 +2,8 @@
 // Open1602's own settings files (engine/app/src/app_settings.hpp): settings.cfg and slots.cfg are
 // UTF-8, the names in the game Windows-1252.
 
+#include <filesystem>
+#include <fstream>
 #include <string>
 
 #include "../test_framework.hpp"
@@ -93,4 +95,29 @@ TEST_CASE("app settings: what a savegame's META says, as a line of the lists") {
     CHECK(app::slot_details(slots)[20] == "Merlin, played 2:05 h, map 500 x 350");
     slots.meta[20]->player.clear();
     CHECK(app::save_details(*slots.meta[20]).starts_with("-, "));
+}
+
+TEST_CASE("app settings: the first slot is the last game, kept on leaving a game") {
+    const std::filesystem::path folder = test::temp_path("o1602-test-lastgame");
+    std::filesystem::remove_all(folder);
+    std::filesystem::create_directories(folder);
+    CHECK(app::slot_file(folder, app::kLastGameSlot) == folder / "lastgame.o1602");
+    CHECK(app::slot_file(folder, 1) == folder / "spiel01.o1602");
+
+    // An older slots.cfg had a savegame of its own in the first slot: without lastgame it is free.
+    app::SaveSlots slots = app::parse_slots("0 1 Old\n1 1 Kept\n");
+    app::find_last_game(slots, folder);
+    CHECK(slots.names[app::kLastGameSlot].empty());
+    CHECK(slots.names[1] == "Kept");
+
+    std::ofstream(folder / "lastgame.o1602") << "x";
+    slots = app::parse_slots("0 1 Old\n1 1 Kept\n");
+    app::find_last_game(slots, folder);
+    CHECK(slots.names[app::kLastGameSlot] == "lastgame");
+    CHECK(slots.humans[app::kLastGameSlot] == 0);
+    // As written after "Ende": the humans stay.
+    slots = app::parse_slots("0 2 lastgame\n");
+    app::find_last_game(slots, folder);
+    CHECK(slots.humans[app::kLastGameSlot] == 2);
+    std::filesystem::remove_all(folder);
 }

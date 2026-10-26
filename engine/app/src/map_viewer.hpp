@@ -136,6 +136,9 @@ private:
     /// Saves the game: Open1602's own savegame, or a .GAM the original loads if the path ends in
     /// .gam. Never into the game's installation.
     core::Status save_game(const std::filesystem::path& path);
+    /// Saves the game into a slot of the savegame list and names it there (slots.cfg, the panel,
+    /// the menu).
+    core::Status save_slot(std::size_t slot, std::string name);
     /// The settings and savegame names of the user's data folder into the panel (at the start).
     void load_options();
     /// Chooses the language of Open1602's own texts: --language, else settings.cfg, else the

@@ -156,6 +156,37 @@ TEST_CASE("options panel: the savegames are named, saved, loaded and the game le
     CHECK(count(o.click(48013, model), OptionsEvent::Kind::Quit) == 1);
 }
 
+TEST_CASE("options panel: the last game in the first slot loads but is never named or saved into") {
+    Options o;
+    OptionsModel model;
+    model.slot_names = {"lastgame", "Mine", ""};
+    model.slot_humans = {1, 1, 0};
+    model.reserved_slots = 1;
+    o.panel.opened();
+    o.panel.refresh(model);
+    o.click(47011, model);
+    o.panel.refresh(model);
+
+    CHECK(o.click(48061, model).empty());
+    CHECK(!o.panel.editing());
+    o.panel.refresh(model);
+    CHECK(o.click(48011, model).empty());  // "Sichern"
+    auto events = o.click(48012, model);   // "Laden"
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == OptionsEvent::Kind::Load);
+    CHECK(events[0].value == 0);
+
+    // The slots after it as before.
+    o.click(48062, model);
+    CHECK(o.panel.editing());
+    CHECK(!o.panel.key(27).has_value());
+    o.panel.refresh(model);
+    events = o.click(48011, model);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].kind == OptionsEvent::Kind::Save);
+    CHECK(events[0].value == 1);
+}
+
 TEST_CASE("options panel: voice messages and videos per kind") {
     Options o;
     OptionsModel model;

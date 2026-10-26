@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -289,9 +290,21 @@ std::string write_slots(const SaveSlots& slots) {
 }
 
 std::filesystem::path slot_file(const std::filesystem::path& folder, std::size_t slot) {
+    if (slot == kLastGameSlot) {
+        return folder / (std::string(kLastGameName) + std::string(sim::kSaveExtension));
+    }
     char name[32];
     std::snprintf(name, sizeof name, "spiel%02zu.o1602", slot);
     return folder / name;
+}
+
+void find_last_game(SaveSlots& slots, const std::filesystem::path& folder) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(slot_file(folder, kLastGameSlot), ec)) {
+        slots.set(kLastGameSlot, {}, 0);
+    } else if (slots.names[kLastGameSlot] != kLastGameName) {
+        slots.set(kLastGameSlot, std::string(kLastGameName), 0);  // humans unknown until it is saved again
+    }
 }
 
 void read_slot_meta(SaveSlots& slots, const std::filesystem::path& folder, std::optional<std::size_t> only) {
