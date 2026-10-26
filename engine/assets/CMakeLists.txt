@@ -11,6 +11,8 @@ add_library(o1602_assets
     src/cursor_resource.cpp
     src/data_fixes.cpp
     src/game_content.cpp
+    src/original_names.cpp
+    src/own_buildings.cpp
     src/figure_table.cpp
     src/gad.cpp
     src/high_scores.cpp

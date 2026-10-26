@@ -9,7 +9,9 @@
 #include "../test_framework.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_data.hpp"
+#include "o1602/assets/original_names.hpp"
 #include "o1602/sim/balance.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/save_game.hpp"
@@ -36,6 +38,23 @@ assets::BuildingTable make_buildings() {
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
+    REQUIRE(table.ok());
+    return std::move(table).value();
+}
+
+assets::FigureTable make_figures() {
+    const assets::CodPredefinedSymbol types[] = {{"FIGUR", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: FIGUR\n"
+        // A swordsman and a ship with the original's kind of values.
+        "  Nummer: 1\n  Kind: 1\n  Gfx: 0\n  Blocknr: 1\n  Speed: 260\n  Shotradius: 0.75\n  Maxstepcnt: 1\n"
+        "  Rohstoff: 11\n  Rohmenge: 3\n  Worktime: 0.8\n  Shottime: 0.6\n  Maxenergy: 20\n  Hitpoint: 1.0\n"
+        "  Nummer: 21\n  Gfx: 0\n  Blocknr: 2\n  Rotate: 1\n  Maxware: 4\n  Maxkanon: 6\n  Speed: 500\n"
+        "  Drehtime: 0.13\n  Maxenergy: 50\n  Hitpoint: 2.0\n  Preis: 1000\n  Rohstoff: 23\n  Rohmenge: 25\n"
+        "  Maxtrag: 10\n"
+        "EndObj\n",
+        types);
+    auto table = assets::FigureTable::from_cod(doc);
     REQUIRE(table.ok());
     return std::move(table).value();
 }
@@ -165,10 +184,12 @@ TEST_CASE("balance: a package changes values of the original's buildings") {
     REQUIRE(warnings.size() == 4);
     CHECK(warnings[0] == "bread/balance.toml line 4: unknown field 'smell'");
     CHECK(warnings[1] == "bread/balance.toml line 5: 'interval' must be a number from 1 to 3600");
-    CHECK(warnings[2] == "bread/balance.toml line 8: [anno1602:farm]: no building Id after 'anno1602:'");
-    CHECK(
-        warnings[3] ==
-        "bread/balance.toml line 10: [brewery:mash_tun]: only the original's buildings (anno1602:<Id>) can be changed");
+    CHECK(warnings[2] ==
+          "bread/balance.toml line 8: [anno1602:farm]: 'farm' is no number and no name of the original's "
+          "buildings");
+    CHECK(warnings[3] ==
+          "bread/balance.toml line 10: [brewery:mash_tun]: names none of the original's buildings "
+          "(anno1602:<number or name>) and none a package added");
 
     // A later package changes a value again; the order stays by building and field.
     warnings.clear();
@@ -298,6 +319,165 @@ TEST_CASE("balance: a game keeps its building values and the rule in the savegam
     CHECK(!sim::read_game(*with_unknown, buildings).ok());
     sim::Balance too_much = balance;
     too_much.buildings[0].value = 5000;  // running cost above 1000
+    world.set_balance(too_much);
+    auto damaged = sim::write_game(world, buildings);
+    REQUIRE(damaged.ok());
+    CHECK(!sim::read_game(*damaged, buildings).ok());
+}
+
+TEST_CASE("balance: buildings.toml changes the buildings' further values") {
+    const auto original = make_buildings();
+    auto table = original;
+    sim::Balance balance;
+    std::vector<std::string> warnings;
+    sim::apply_buildings_file(balance, "fort",
+                              "[\"anno1602:20503\"]\n"
+                              "radius = 12\n"
+                              "workers = 9\n"
+                              "max_idle = 4\n"
+                              "health = 40\n"
+                              "cost_cannons = 2\n"
+                              "cost_wood = 999\n"  // line 7: above its limit
+                              "[trader]\n"         // line 8: no building
+                              "max_buy = 5\n",
+                              warnings);
+    REQUIRE(warnings.size() == 2);
+    CHECK(warnings[0] == "fort/buildings.toml line 7: 'cost_wood' must be a number from 0 to 255");
+    CHECK(warnings[1] ==
+          "fort/buildings.toml line 8: [trader]: names none of the original's buildings "
+          "(anno1602:<number or name>) and none a package added");
+    CHECK(balance.trader_max_buy == sim::Balance{}.trader_max_buy);
+    REQUIRE(balance.buildings.size() == 5);
+    CHECK(sim::valid(balance));
+
+    sim::apply_building_values(table, original, balance);
+    const assets::BuildingType* bakery = table.by_id(20503);
+    REQUIRE(bakery != nullptr);
+    CHECK(bakery->radius == 12);
+    CHECK(bakery->workers == 9);
+    CHECK(bakery->max_idle_cycles == 4);
+    CHECK(bakery->max_health == 40 * 32);
+    CHECK(bakery->build_cost.cannons == 2 * assets::kStockUnitsPerTon);
+    sim::apply_building_values(table, original, sim::Balance{});
+    CHECK(bakery->radius == original.by_id(20503)->radius);
+    CHECK(bakery->max_health == original.by_id(20503)->max_health);
+}
+
+TEST_CASE("balance: figures.toml changes the figures' values, the next game plays the original's") {
+    const auto original = make_figures();
+    auto table = original;
+    sim::Balance balance;
+    std::vector<std::string> warnings;
+    sim::apply_figures_file(balance, "army",
+                            "[\"anno1602:1\"]\n"
+                            "speed = 300\n"
+                            "health = 30\n"
+                            "hit = 2\n"
+                            "range = 2\n"
+                            "shot_time = 900\n"
+                            "material = 4\n"
+                            "[\"anno1602:21\"]\n"
+                            "cannons = 10\n"
+                            "price = 1500\n"
+                            "max_carry = 12\n"
+                            "work_time = 500\n"
+                            "sails = 3\n"  // line 13
+                            "[\"anno1602:999\"]\n"
+                            "speed = 10\n",
+                            warnings);
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0] == "army/figures.toml line 13: unknown field 'sails'");
+    REQUIRE(balance.figures.size() == 11);
+    CHECK(sim::valid(balance));
+    CHECK((balance.figures[0] == sim::FigureValue{1, sim::FigureField::Speed, 300}));
+
+    warnings.clear();
+    sim::drop_unknown_figures(balance, original, warnings);
+    CHECK(balance.figures.size() == 10);
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0] == "figures.toml: figuren.cod has no figure anno1602:999, its values are passed over");
+
+    sim::apply_figure_values(table, original, balance);
+    const assets::FigureType* soldier = table.get(1);
+    const assets::FigureType* ship = table.get(21);
+    REQUIRE(soldier != nullptr);
+    REQUIRE(ship != nullptr);
+    CHECK(soldier->speed == 300);
+    CHECK(soldier->combat.max_health == 30 * 32);
+    CHECK(soldier->combat.hit == 2 * 32);
+    CHECK(soldier->combat.range8 == 16);
+    CHECK(soldier->combat.hit_delay_ms == 900);
+    CHECK(soldier->combat.weapon_amount == 4 * assets::kStockUnitsPerTon);
+    CHECK(ship->ship.max_cannons == 10);
+    CHECK(ship->ship.price == 1500);
+    CHECK(ship->max_carry == 12 * assets::kStockUnitsPerTon);
+    CHECK(ship->work_time_ms == 500);
+    CHECK(ship->ship.max_health == original.get(21)->ship.max_health);  // untouched
+
+    sim::apply_figure_values(table, original, sim::Balance{});
+    CHECK(soldier->speed == 260);
+    CHECK(soldier->combat.max_health == original.get(1)->combat.max_health);
+    CHECK(soldier->combat.range8 == original.get(1)->combat.range8);
+    CHECK(ship->ship.max_cannons == 6);
+    CHECK(ship->ship.price == 1000);
+}
+
+TEST_CASE("balance: tables name the original's buildings and figures by name as well") {
+    sim::Balance balance;
+    std::vector<std::string> warnings;
+    sim::apply_buildings_file(balance, "named",
+                              "[\"anno1602:bakery\"]\n"
+                              "produce = 2\n"
+                              "[\"anno1602:Bakery\"]\n"  // line 3: names are lower case
+                              "produce = 3\n",
+                              warnings);
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0] ==
+          "named/buildings.toml line 3: [anno1602:Bakery]: 'Bakery' is no number and no name of the original's "
+          "buildings");
+    REQUIRE(balance.buildings.size() == 1);
+    CHECK((balance.buildings[0] == sim::BuildingValue{assets::id::kBakery, sim::BuildingField::Produce, 2}));
+
+    // A unit's name stands for its figures in all four colours.
+    warnings.clear();
+    sim::apply_figures_file(balance, "named", "[\"anno1602:swordsman\"]\nhealth = 30\n", warnings);
+    CHECK(warnings.empty());
+    REQUIRE(balance.figures.size() == 4);
+    for (std::uint32_t i = 0; i < 4; ++i) {
+        CHECK((balance.figures[i] == sim::FigureValue{1 + i, sim::FigureField::Health, 30}));
+    }
+    CHECK(sim::valid(balance));
+}
+
+TEST_CASE("balance: the names of the original's buildings and figures are unique") {
+    for (const auto names : {assets::original_building_names(), assets::original_figure_names()}) {
+        for (const assets::OriginalName& n : names) {
+            CHECK(assets::find_original_name(names, n.name) == &n);
+            CHECK(n.count >= 1);
+        }
+    }
+    // The build menu's buildings, each named once.
+    CHECK(assets::find_original_name(assets::original_building_names(), "bakery")->first == assets::id::kBakery);
+    CHECK(assets::find_original_name(assets::original_building_names(), "quarry")->first == assets::id::kQuarry);
+    CHECK(assets::find_original_name(assets::original_figure_names(), "small_merchant_ship")->first ==
+          assets::figure::ship_figure(0));
+}
+
+TEST_CASE("balance: a game keeps its figure values in the savegame") {
+    const auto buildings = make_buildings();
+    sim::World world(60, 40);
+    sim::Balance balance;
+    sim::set_figure_value(balance, sim::FigureValue{21, sim::FigureField::Cannons, 10});
+    sim::set_figure_value(balance, sim::FigureValue{1, sim::FigureField::Health, 30});
+    world.set_balance(balance);
+    auto bytes = sim::write_game(world, buildings);
+    REQUIRE(bytes.ok());
+    auto loaded = sim::read_game(*bytes, buildings);
+    REQUIRE(loaded.ok());
+    CHECK(loaded->balance() == balance);
+
+    sim::Balance too_much = balance;
+    too_much.figures[0].value = 0;  // health below 1
     world.set_balance(too_much);
     auto damaged = sim::write_game(world, buildings);
     REQUIRE(damaged.ok());

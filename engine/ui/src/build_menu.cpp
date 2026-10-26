@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "o1602/assets/game_content.hpp"
+#include "o1602/assets/original_names.hpp"
 #include "o1602/core/data_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
@@ -178,7 +179,8 @@ void remove_building(BuildMenuDefinition& menu, std::uint32_t id) {
 
 /// One table of build_menu.toml applied to `menu`; a message why not, else empty.
 std::string apply_table(BuildMenuDefinition& menu, const core::DataTable& table, const assets::BuildingTable& buildings,
-                        const std::string& at, std::vector<std::string>& warnings) {
+                        std::span<const assets::OwnBuilding> own, const std::string& at,
+                        std::vector<std::string>& warnings) {
     std::optional<std::int64_t> id;
     std::optional<std::int64_t> category;
     std::optional<std::int64_t> row;
@@ -198,6 +200,19 @@ std::string apply_table(BuildMenuDefinition& menu, const core::DataTable& table,
              : e.key == "row"      ? row
              : e.key == "position" ? position
                                    : icon) = *n;
+        } else if (e.key == "building") {
+            // A building by its string id: one a package added, or one of the original's by name.
+            if (e.value.string() == nullptr) {
+                return field + "is a string, the id of a building";
+            }
+            const std::string& named = *e.value.string();
+            if (const assets::OwnBuilding* added = assets::find_own_building(own, named); added != nullptr) {
+                id = added->number;
+            } else if (const auto number = assets::original_building_id(named)) {
+                id = *number;
+            } else {
+                return field + "names no building (anno1602:<number or name> or <package>:<name>)";
+            }
         } else if (e.key == "name") {
             if (e.value.string() == nullptr) {
                 return field + "is a string";
@@ -296,7 +311,8 @@ void set_build_menu(BuildMenuDefinition menu) {
 }
 
 core::Status apply_build_menu_package(BuildMenuDefinition& menu, std::string_view package, std::string_view utf8,
-                                      const assets::BuildingTable& buildings, std::vector<std::string>& warnings) {
+                                      const assets::BuildingTable& buildings, std::vector<std::string>& warnings,
+                                      std::span<const assets::OwnBuilding> own) {
     const std::string where = std::string(package) + "/" + std::string(kBuildMenuFile);
     auto tables = core::parse_data_file(utf8);
     if (!tables) {
@@ -308,7 +324,7 @@ core::Status apply_build_menu_package(BuildMenuDefinition& menu, std::string_vie
                                "fields before the first [building] belong to none and are passed over");
             continue;
         }
-        if (std::string problem = apply_table(menu, table, buildings, where, warnings); !problem.empty()) {
+        if (std::string problem = apply_table(menu, table, buildings, own, where, warnings); !problem.empty()) {
             warnings.push_back(std::move(problem) + "; [" + table.name + "] is passed over");
         }
     }
@@ -316,7 +332,8 @@ core::Status apply_build_menu_package(BuildMenuDefinition& menu, std::string_vie
 }
 
 BuildMenuDefinition load_build_menu_mods(const BuildMenuDefinition& menu, std::span<const assets::ModPackage> packages,
-                                         const assets::BuildingTable& buildings, std::vector<std::string>& warnings) {
+                                         const assets::BuildingTable& buildings, std::vector<std::string>& warnings,
+                                         std::span<const assets::OwnBuilding> own) {
     BuildMenuDefinition out = menu;
     for (const assets::ModPackage& package : packages) {
         const auto bytes = core::read_file(package.folder / kBuildMenuFile);
@@ -324,7 +341,7 @@ BuildMenuDefinition load_build_menu_mods(const BuildMenuDefinition& menu, std::s
             continue;  // a package that leaves the menu as it is
         }
         const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-        if (const auto status = apply_build_menu_package(out, package.id, text, buildings, warnings); !status) {
+        if (const auto status = apply_build_menu_package(out, package.id, text, buildings, warnings, own); !status) {
             warnings.push_back(status.error().message);
         }
     }

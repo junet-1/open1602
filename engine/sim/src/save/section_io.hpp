@@ -76,8 +76,12 @@ struct Decoded {
     std::optional<Balance> balance;
     /// The content packages the game uses (PACK).
     std::optional<std::vector<assets::ContentPackage>> packages;
+    /// The buildings the packages added and their Ids (OWNB).
+    std::optional<std::vector<assets::OwnBuilding>> own_buildings;
     /// The changed values of buildings (BLDV).
     std::optional<std::vector<BuildingValue>> building_values;
+    /// The changed values of figures (FIGV).
+    std::optional<std::vector<FigureValue>> figure_values;
     /// Missions and the end of the game (MISN).
     struct MissionPart {
         std::vector<Mission> missions;

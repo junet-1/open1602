@@ -20,10 +20,9 @@ core::Result<FigureTable> FigureTable::from_cod(const cod::Document& figuren) {
     if (records == nullptr) {
         return make_error(ErrorCode::InvalidFormat, "figuren.cod contains no FIGUR records");
     }
-    constexpr std::int32_t kMaxFigures = 1024;
     FigureTable table;
     for (const auto& [nummer, r] : *records) {
-        if (nummer < 0 || nummer >= kMaxFigures) {
+        if (nummer < 0 || static_cast<std::uint32_t>(nummer) >= kMaxFigures) {
             return make_error(ErrorCode::InvalidFormat, "FIGUR number out of range: " + std::to_string(nummer));
         }
         if (static_cast<std::size_t>(nummer) >= table.m_types.size()) {

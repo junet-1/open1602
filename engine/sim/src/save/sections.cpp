@@ -12,6 +12,7 @@
 
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/chunk_writer.hpp"
+#include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/simulation.hpp"
 
 namespace o1602::sim::save {
@@ -84,9 +85,14 @@ constexpr std::uint32_t kFactions = tag("FACT");
 constexpr std::uint32_t kBalance = tag("BALA");
 /// The changed values of buildings (Balance::buildings), only written when there are any.
 constexpr std::uint32_t kBuildingValues = tag("BLDV");
+/// The changed values of figures (Balance::figures), only written when there are any.
+constexpr std::uint32_t kFigureValues = tag("FIGV");
 /// The content packages the game uses (World::packages(), ADR 0007 section 7), only written when the
 /// world names them.
 constexpr std::uint32_t kPackages = tag("PACK");
+/// The buildings the packages added and their Ids (World::own_buildings()), only written when there
+/// are any. Required: the islands' tiles name those Ids.
+constexpr std::uint32_t kOwnBuildings = tag("OWNB");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -94,7 +100,8 @@ constexpr std::array kKnownSections = {
     kGrowth,          kCosts,       kShips,     kSoldiers,  kAnimals,  kDisasters, kVolcanoes,      kSimulation,
     kFleet,           kEpochs,      kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
     kMissions,        kPlayerState, kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
-    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages};
+    kPopulationMarks, kTutorial,    kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
+    kFigureValues,    kOwnBuildings};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -275,6 +282,25 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                 o.u32(v.id);
                 o.u8(static_cast<std::uint8_t>(v.field));
                 o.u32(v.value);
+            });
+        });
+    }
+    if (!world.balance().figures.empty()) {
+        // Required too: soldiers, ships and carriers would act otherwise.
+        section(out, kFigureValues, [&](Writer& o) {
+            o.list(world.balance().figures, 9, [&](const FigureValue& v) {
+                o.u32(v.number);
+                o.u8(static_cast<std::uint8_t>(v.field));
+                o.u32(v.value);
+            });
+        });
+    }
+    if (!world.own_buildings().empty()) {
+        // Required: without the buildings the packages added, the saved tiles name nothing.
+        section(out, kOwnBuildings, [&](Writer& o) {
+            o.list(world.own_buildings(), 8, [&](const assets::OwnBuilding& b) {
+                o.string(b.id);
+                o.u32(b.number);
             });
         });
     }
@@ -486,6 +512,41 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     in.fail();
                 }
                 d.building_values = std::move(values);
+                break;
+            }
+            case kFigureValues: {
+                std::vector<FigureValue> values;
+                in.list(values, 9, [&](FigureValue& v) {
+                    std::uint8_t field = 0;
+                    in.u32(v.number);
+                    in.u8(field);
+                    in.u32(v.value);
+                    v.field = field < kFigureFields.size() ? static_cast<FigureField>(field) : FigureField::Speed;
+                    if (field >= kFigureFields.size() || v.number >= assets::kMaxFigures) {
+                        in.fail();  // a field of a later version, or no figure number of figuren.cod
+                    }
+                });
+                Balance b;
+                b.figures = values;
+                if (!valid(b)) {
+                    in.fail();
+                }
+                d.figure_values = std::move(values);
+                break;
+            }
+            case kOwnBuildings: {
+                std::vector<assets::OwnBuilding> own;
+                in.list(own, 8, [&](assets::OwnBuilding& b) {
+                    in.string(b.id);
+                    in.u32(b.number);
+                    const assets::BuildingType* type = buildings.by_id(b.number);
+                    // The packages of this computer must give the same buildings the same Ids
+                    // again (docs/modding/own-buildings.md).
+                    if (b.id.size() < 3 || b.id.size() > 2 * assets::kMaxPackageIdLength + 1 || type == nullptr) {
+                        in.fail();
+                    }
+                });
+                d.own_buildings = std::move(own);
                 break;
             }
             case kPackages: {

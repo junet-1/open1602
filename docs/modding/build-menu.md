@@ -6,7 +6,8 @@ the original's lists are the default, and a package's `build_menu.toml` adds bui
 to another category or row, and takes them out of the menu.
 
 **Status:** Done are the file `build_menu.toml`, buildings of a package with their own icon and
-name, moving and removing the original's buildings. Still open, with milestone M8: categories of a
+name (`building` names one by its string id, [own-buildings.md](own-buildings.md)), moving and
+removing the original's buildings. Still open, with milestone M8: categories of a
 package's own (they need buttons in `BAU.GAD`) and icons of a package's own (PNG comes with the
 import of content; until then `icon` picks a sprite of the original's `TOOLS` sheet).
 
@@ -28,7 +29,7 @@ one building into the menu, or takes it out; the table's name is free and only s
 ```toml
 # A lighthouse of this package in a third row of the harbour buildings.
 [lighthouse]
-id = 22201            # the HAUS record of haeuser.cod
+id = 22201            # the HAUS record of haeuser.cod; `building` names one by its string id
 category = 31007      # the category's button in BAU.GAD
 row = 3               # 1-based; one past the last row starts a new one
 icon = 90             # the icon: a sprite of TOOLS, counted from GFXBAUHAUS
@@ -49,7 +50,8 @@ remove = true
 
 | Field | Value | Default |
 |---|---|---|
-| `id` | the Id of a HAUS record of `haeuser.cod` | needed |
+| `id` | the Id of a HAUS record of `haeuser.cod` | needed, unless `building` |
+| `building` | a building by its string id: `anno1602:<name or number>` of the original's ([names](values.md#names)) or `<package>:<name>` of one a package added ([own-buildings.md](own-buildings.md)) | needed, unless `id` |
 | `category` | `31001` military, `31002` roads, `31003` mines, `31005` craftsmen, `31006` farms, `31007` harbour, `31008` public buildings (`31004` is the demolish tool) | needed, unless `remove` |
 | `row` | 1 to 6, at most one past the category's last row | the last row while it has room, else a new one |
 | `position` | 1 to one past the buildings of the row | after the last |
@@ -58,7 +60,7 @@ remove = true
 | `remove` | `true` takes the building out of the menu | `false` |
 
 A row holds four buildings and a pop-up six rows. A building listed already is moved, not listed
-twice; a row left empty goes. A table with a wrong value, an `id` that `haeuser.cod` does not have
+twice; a row left empty goes. A table with a wrong value, an `id` or `building` that no building has
 or no room in its row is passed over with a warning, and the rest of the file is used; an unknown
 field is passed over alone. A file that is no valid data file is passed over as a whole.
 

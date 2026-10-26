@@ -136,13 +136,23 @@ namespace {
 struct ModRules {
     std::vector<sim::Faction> factions = sim::base_factions();
     sim::Balance balance;
+    /// The buildings the packages added, with the Ids `buildings` gave them.
+    std::vector<assets::OwnBuilding> own;
 };
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
-/// balance.toml), the packages in their load order.
-ModRules load_mod_rules(std::span<const assets::ModPackage> packages, const assets::BuildingTable& buildings) {
+/// balance.toml), the packages in their load order; the buildings they add go into `buildings`
+/// first (own_buildings.toml), so that a package can change another package's building too.
+ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::BuildingTable& buildings,
+                        const assets::FigureTable& figures) {
     ModRules rules;
     std::vector<std::string> problems;
+    for (const assets::ModPackage& package : packages) {
+        if (const auto bytes = core::read_file(package.folder / assets::kOwnBuildingsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_own_buildings_file(buildings, rules.own, package.id, text, problems);
+        }
+    }
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / sim::kFactionFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
@@ -152,8 +162,17 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, const asse
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             sim::apply_balance_file(rules.balance, package.id, text, problems);
         }
+        if (const auto bytes = core::read_file(package.folder / sim::kBuildingsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            sim::apply_buildings_file(rules.balance, package.id, text, problems, rules.own);
+        }
+        if (const auto bytes = core::read_file(package.folder / sim::kFiguresFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            sim::apply_figures_file(rules.balance, package.id, text, problems);
+        }
     }
     sim::drop_unknown_buildings(rules.balance, buildings, problems);
+    sim::drop_unknown_figures(rules.balance, figures, problems);
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
@@ -200,12 +219,13 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             std::fprintf(stderr, "mods: package %s\n", assets::package_label(p.content()).c_str());
         }
     }
-    ModRules rules = load_mod_rules(packages, *buildings);
+    ModRules rules = load_mod_rules(packages, *buildings, *figures);
     core::Result<sim::World> world = core::make_error(core::ErrorCode::NotFound, "no game");
     const bool joining = options.multiplayer && options.multiplayer->role == ViewerOptions::Multiplayer::Role::Join;
     if (options.menu || joining) {
         world = sim::World(500, 350);  // the sea behind the menu until a game is chosen or comes from the host
         world->set_packages(assets::content_of(packages));
+        world->set_own_buildings(rules.own);
     } else if (options.new_game) {
         auto texts = assets::TextTable::load(game);
         if (!texts) {
@@ -216,6 +236,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
             world->set_factions(rules.factions);
             world->set_balance(rules.balance);
             world->set_packages(assets::content_of(packages));
+            world->set_own_buildings(rules.own);
         }
     } else {
         auto bytes = core::read_file(options.scenario);
@@ -234,6 +255,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                 world->set_factions(rules.factions);  // the original's files have none of their own
                 world->set_balance(rules.balance);
                 world->set_packages(assets::content_of(packages));
+                world->set_own_buildings(rules.own);
             }
         }
     }
@@ -264,6 +286,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
                                                     std::move(palette).value(), std::move(figures).value(), options));
     viewer->m_factions = std::move(rules.factions);
     viewer->m_balance = rules.balance;
+    viewer->m_own_buildings = std::move(rules.own);
     viewer->m_packages = std::move(packages);
     {
         std::vector<std::string> problems;
@@ -471,6 +494,7 @@ MapViewer::MapViewer(assets::GameDirectory game, assets::BuildingTable buildings
       m_original_buildings(m_buildings),
       m_palette(std::move(palette)),
       m_figures(std::move(figures)),
+      m_original_figures(m_figures),
       m_options(std::move(options)),
       m_state(make_state(std::move(world), m_options.rules)),
       m_events(
@@ -2424,6 +2448,7 @@ void MapViewer::give_mod_content(sim::World& world) const {
     world.set_factions(m_factions);
     world.set_balance(m_balance);
     world.set_packages(assets::content_of(m_packages));
+    world.set_own_buildings(m_own_buildings);
 }
 
 void MapViewer::use_game_packages() {
@@ -2433,7 +2458,8 @@ void MapViewer::use_game_packages() {
     const std::vector<assets::ModPackage> used = wanted ? assets::packages_for(known, *wanted, problems) : m_packages;
     m_messages = MessageTable();
     m_messages.load_mods(used, problems);
-    ui::set_build_menu(ui::load_build_menu_mods(ui::original_build_menu(), used, m_buildings, problems));
+    ui::set_build_menu(
+        ui::load_build_menu_mods(ui::original_build_menu(), used, m_buildings, problems, m_own_buildings));
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
@@ -2497,9 +2523,22 @@ void MapViewer::reload_mods() {
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
-    ModRules rules = load_mod_rules(m_packages, m_buildings);
+    // The packages' own buildings go into tables without any (the game's and the next game's), so
+    // that turning a package on or off gives the same Ids again (docs/modding/own-buildings.md).
+    if (auto base = assets::BuildingTable::load(m_game)) {
+        if (m_app_settings.data_fixes && !m_options.original_data) {
+            assets::fixes::fix_buildings(*base);
+        }
+        m_original_buildings = std::move(base).value();
+    }
+    ModRules rules = load_mod_rules(m_packages, m_original_buildings, m_original_figures);
     m_factions = std::move(rules.factions);
     m_balance = rules.balance;
+    m_own_buildings = std::move(rules.own);
+    // Packages are turned on and off in the main menu, where no game is running: the game's table
+    // takes the buildings the packages give now, with the values of the world behind the menu.
+    m_buildings = m_original_buildings;
+    sim::apply_building_values(m_buildings, m_original_buildings, m_state->world.balance());
 }
 
 std::string MapViewer::adopt_mod(const std::filesystem::path& folder) {
@@ -2571,6 +2610,7 @@ std::unique_ptr<GameState> MapViewer::make_state(sim::World world, const sim::Ru
         world.set_balance(balance);
     }
     sim::apply_building_values(m_buildings, m_original_buildings, world.balance());
+    sim::apply_figure_values(m_figures, m_original_figures, world.balance());
     return std::make_unique<GameState>(std::move(world), m_buildings, m_figures, rules);
 }
 
@@ -2582,6 +2622,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     const auto keep_old = [&] {
         if (m_state) {
             sim::apply_building_values(m_buildings, m_original_buildings, m_state->world.balance());
+            sim::apply_figure_values(m_figures, m_original_figures, m_state->world.balance());
         }
     };
     try {

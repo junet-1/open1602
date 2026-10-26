@@ -20,6 +20,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/gad.hpp"
 #include "o1602/assets/game_content.hpp"
+#include "o1602/assets/own_buildings.hpp"
 #include "o1602/core/result.hpp"
 
 namespace o1602::ui {
@@ -75,17 +76,20 @@ inline constexpr std::size_t kMaxPopupRows = 6;
 inline constexpr std::size_t kMaxRowIcons = 4;
 
 /// Applies a package's build_menu.toml to `menu`: each table puts one building (`id`, a record of
-/// `buildings`) into a category's row, moving it if it is listed already, or takes it out of the
+/// `buildings`, or `building`, a string id of the original's or of one a package added, `own`)
+/// into a category's row, moving it if it is listed already, or takes it out of the
 /// menu (`remove = true`). What is wrong in a table is passed over with a warning that names the
 /// file and the line; a file that cannot be read is an error and changes nothing.
 core::Status apply_build_menu_package(BuildMenuDefinition& menu, std::string_view package, std::string_view utf8,
-                                      const assets::BuildingTable& buildings, std::vector<std::string>& warnings);
+                                      const assets::BuildingTable& buildings, std::vector<std::string>& warnings,
+                                      std::span<const assets::OwnBuilding> own = {});
 /// The build_menu.toml of every package that has one (<package folder>/build_menu.toml), in the
 /// order given (their load order), applied to a copy of `menu`.
 [[nodiscard]] BuildMenuDefinition load_build_menu_mods(const BuildMenuDefinition& menu,
                                                        std::span<const assets::ModPackage> packages,
                                                        const assets::BuildingTable& buildings,
-                                                       std::vector<std::string>& warnings);
+                                                       std::vector<std::string>& warnings,
+                                                       std::span<const assets::OwnBuilding> own = {});
 
 // Gadget Ids of the pop-up (the original's numbers).
 inline constexpr std::int32_t kPopupSlot = 32001;           ///< + position in the list: the frame to click
