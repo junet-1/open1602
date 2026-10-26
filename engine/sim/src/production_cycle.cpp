@@ -144,13 +144,13 @@ void book_cycle(World& world, const Production& before, const Production& after,
     if (city == nullptr) {
         return;
     }
-    if (after.stock > before.stock && is_trade_ware(b.ware)) {
+    if (after.stock > before.stock && world.goods().is_trade(b.ware)) {
         city->book(b.ware, GoodsFlow::Produced, after.stock - before.stock);
     }
-    if (before.raw > after.raw && is_trade_ware(b.raw_ware)) {
+    if (before.raw > after.raw && world.goods().is_trade(b.raw_ware)) {
         city->book(b.raw_ware, GoodsFlow::Workshops, before.raw - after.raw);
     }
-    if (before.raw2 > after.raw2 && is_trade_ware(b.raw2_ware)) {
+    if (before.raw2 > after.raw2 && world.goods().is_trade(b.raw2_ware)) {
         city->book(b.raw2_ware, GoodsFlow::Workshops, before.raw2 - after.raw2);
     }
 }

@@ -205,7 +205,7 @@ std::vector<GoodsProducers> goods_producers(const World& world, const assets::Bu
             ++kind->off;
         } else if (p.rate != 0) {
             ++kind->working;
-        } else if (is_trade_ware(b->raw_ware) && p.raw < b->raw_amount) {
+        } else if (world.goods().is_trade(b->raw_ware) && p.raw < b->raw_amount) {
             ++kind->short_of_raw;
         }
         if (p.elapsed != 0) {

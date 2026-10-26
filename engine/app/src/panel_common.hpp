@@ -3,6 +3,7 @@
 // What the windows of the selections share (selection_panels.cpp, ship_panel.cpp).
 #pragma once
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -91,14 +92,27 @@ public:
     /// As a picker, the 24th place shows the empty frame that chooses no ware. With `trend`, under
     /// each good what came in more than went out per minute over the last kTrendMinutes (green), or
     /// the other way round (red); nothing while it is less than 0.05 t (DisplaySettings::goods_trend).
-    void refresh(const sim::City& city, bool picker, bool trend = false);
+    /// The original's 23 goods fill the first page; the goods of packages follow on further pages
+    /// (Open1602, docs/modding/goods.md), which a button at the title turns.
+    void refresh(const sim::City& city, const assets::Goods& goods, bool picker, bool trend = false);
     /// The trend of a good as shown: "+1.4", "-0.3"; empty if it is not shown.
     [[nodiscard]] static std::string trend_text(const sim::City& city, std::uint8_t ware);
-    /// The ware of a frame: 2..24, 0 for the empty frame, nothing for other gadgets.
+    /// The ware of a frame as last refreshed, 0 for the empty frame, nothing for other gadgets.
     [[nodiscard]] std::optional<std::uint8_t> ware_of(std::int32_t id) const;
+    /// A click on the page button turns to the next page (and from the last to the first).
+    bool turn_page(std::int32_t id);
+    /// The page shown, from 0.
+    [[nodiscard]] std::size_t page() const noexcept { return m_page; }
 
 private:
+    /// Places of a page: one per good of the original, 2 to 24 in LAGER.GAD.
+    static constexpr std::size_t kPlaces = kLastTradeWare - kFirstTradeWare + 1;
+
     ui::Panel m_panel;
+    std::size_t m_page = 0;
+    std::size_t m_pages = 1;
+    /// The good of each place (by gadget offset 0..kLastTradeWare), 0 for none.
+    std::array<std::uint8_t, kLastTradeWare + 1> m_place_ware{};
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 189;
     std::int32_t m_corner = 634;
@@ -120,8 +134,8 @@ public:
     [[nodiscard]] static std::uint32_t amount(const sim::City& city, std::uint8_t w, bool buy);
 
 private:
-    void fill(const sim::City& city, bool buy, std::int32_t icon, std::int32_t bar, std::int32_t frame,
-              std::int32_t gadgets, std::int32_t places);
+    void fill(const sim::City& city, const assets::Goods& goods, bool buy, std::int32_t icon, std::int32_t bar,
+              std::int32_t frame, std::int32_t gadgets, std::int32_t places);
     ui::Panel m_panel;
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 189;

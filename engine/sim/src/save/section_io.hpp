@@ -76,6 +76,8 @@ struct Decoded {
     std::optional<Balance> balance;
     /// The content packages the game uses (PACK).
     std::optional<std::vector<assets::ContentPackage>> packages;
+    /// The goods the packages added (GOOD).
+    std::optional<assets::Goods> goods;
     /// The buildings the packages added and their Ids (OWNB).
     std::optional<std::vector<assets::OwnBuilding>> own_buildings;
     /// The changed values of buildings (BLDV).

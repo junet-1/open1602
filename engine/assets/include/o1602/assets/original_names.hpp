@@ -23,6 +23,8 @@ struct OriginalName {
 
 /// The names of haeuser.cod's buildings, by HAUS Id.
 [[nodiscard]] std::span<const OriginalName> original_building_names() noexcept;
+/// The names of the original's trade goods, by ware number (EISENERZ to ZIEGEL).
+[[nodiscard]] std::span<const OriginalName> original_ware_names() noexcept;
 /// The names of figuren.cod's figures, by FIGUR number.
 [[nodiscard]] std::span<const OriginalName> original_figure_names() noexcept;
 /// The Id a string id "anno1602:<name or number>" of a building stands for; nothing for another

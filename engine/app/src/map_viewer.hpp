@@ -376,6 +376,8 @@ private:
     /// The buildings the packages added and the Ids the tables gave them (docs/modding/own-buildings.md);
     /// a game keeps them (section OWNB), so its tiles name the same buildings again.
     std::vector<assets::OwnBuilding> m_own_buildings;
+    /// The goods a new game trades: the original's and the packages' (docs/modding/goods.md).
+    assets::Goods m_goods;
     /// The content packages installed in <data folder>/mods, in their load order (docs/modding/packages.md).
     std::vector<assets::ModPackage> m_packages;
     /// Packages received from hosts, in <data folder>/mods-cache: used only by games that name them.

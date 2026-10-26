@@ -740,7 +740,7 @@ private:
                 continue;
             }
             const sim::CargoSlot& slot = ship.cargo[h];
-            p.set_graphic(icon + k, filled ? m_gfx_ware + slot.ware : m_gfx_empty, 0);
+            p.set_graphic(icon + k, filled ? m_gfx_ware + c.world().goods().icon(slot.ware) : m_gfx_empty, 0);
             if (filled) {
                 p.set_slider(bar + k, 1, static_cast<std::int32_t>(std::min(slot.amount, sim::kHoldCapacity)),
                              static_cast<std::int32_t>(sim::kHoldCapacity));
@@ -1041,7 +1041,7 @@ private:
             if (w == 0) {
                 continue;
             }
-            m_transfer.set_graphic(45011 + k, m_gfx_ware + w, 0);
+            m_transfer.set_graphic(45011 + k, m_gfx_ware + c.world().goods().icon(w), 0);
             m_transfer.set_disabled(45011 + k, city->stock(w) == 0);
             m_transfer.set_slider(
                 45131 + k, 1, static_cast<std::int32_t>(std::min<std::uint32_t>(city->stock(w), city->capacity)), cap);
@@ -1068,7 +1068,7 @@ private:
         } else if (e.id >= 45071 && e.id <= 45078) {
             m_hold = e.id - 45071;
             const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && sim::is_trade_ware(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
+            if (h < ship.cargo.size() && c.world().goods().is_trade(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 show_ware(ship.cargo[h].ware);  // the Kontor shows the same ware
             }
         } else if (e.id == 45001) {
@@ -1078,7 +1078,7 @@ private:
                     w = kontor_ware(k);
                 }
             }
-            if (sim::is_trade_ware(w)) {
+            if (c.world().goods().is_trade(w)) {
                 sim::CargoTransfer o;
                 o.player = c.local;
                 o.ship = ship.id;
@@ -1089,7 +1089,7 @@ private:
             }
         } else if (e.id == 45002) {
             const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && sim::is_trade_ware(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
+            if (h < ship.cargo.size() && c.world().goods().is_trade(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 show_ware(ship.cargo[h].ware);
                 sim::CargoTransfer o;
                 o.player = c.local;
@@ -1133,7 +1133,7 @@ private:
         const assets::BuildingType* kontor = sim::kontor_of(c.world(), c.buildings, *city);
         const std::int32_t places = std::min<std::int32_t>(kontor != nullptr ? kontor->max_wares : 8, 8);
         m_offers.clear();
-        for (std::uint8_t w = sim::ware::kFirstTrade; w <= sim::ware::kLastTrade; ++w) {
+        for (const std::uint8_t w : c.world().goods().trade_wares()) {
             if (sellable(*city, w) >= 32) {
                 m_offers.push_back(w);
             }
@@ -1148,7 +1148,7 @@ private:
             m_trade.set_selected(33031 + k, k == m_offer);
             if (ware) {
                 const std::uint8_t w = m_offers[static_cast<std::size_t>(k)];
-                m_trade.set_graphic(33011 + k, m_gfx_ware + w, 0);
+                m_trade.set_graphic(33011 + k, m_gfx_ware + c.world().goods().icon(w), 0);
                 m_trade.set_slider(
                     33131 + k, 1,
                     static_cast<std::int32_t>(std::min<std::uint32_t>(sellable(*city, w), city->capacity)), cap);
@@ -1176,7 +1176,7 @@ private:
         }
         const auto h = static_cast<std::size_t>(m_hold);
         const std::uint8_t hw = h < ship.cargo.size() && ship.cargo[h].amount != 0 ? ship.cargo[h].ware : 0;
-        const bool wanted = sim::is_trade_ware(hw) && buyable(*city, hw) >= 32;
+        const bool wanted = c.world().goods().is_trade(hw) && buyable(*city, hw) >= 32;
         m_trade.set_visible(33114, wanted);
         m_trade.set_visible(33115, wanted && !natives);
         m_trade.set_visible(33116, wanted && !natives);
@@ -1208,7 +1208,7 @@ private:
             out.emplace_back(o);
         } else if (e.id == 33002) {
             const auto h = static_cast<std::size_t>(m_hold);
-            if (h < ship.cargo.size() && sim::is_trade_ware(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
+            if (h < ship.cargo.size() && c.world().goods().is_trade(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 sim::CargoTransfer o;
                 o.player = c.local;
                 o.ship = ship.id;
@@ -1436,7 +1436,9 @@ private:
             for (const std::int32_t id : {w.icon, w.back, w.frame, w.slider, w.arrow}) {
                 m_route.set_visible(id, true);
             }
-            m_route.set_graphic(w.icon, city != nullptr && entry.ware != 0 ? m_gfx_ware + entry.ware : m_gfx_empty, 0);
+            m_route.set_graphic(
+                w.icon,
+                city != nullptr && entry.ware != 0 ? m_gfx_ware + c.world().goods().icon(entry.ware) : m_gfx_empty, 0);
             m_route.set_disabled(w.icon, no_hold);
             m_route.set_visible(w.bar, !off);
             m_route.set_disabled(w.slider, off);
@@ -1644,7 +1646,7 @@ private:
             return;
         }
         if (m_page == Page::PickOwn) {
-            m_stock.refresh(*city, true);
+            m_stock.refresh(*city, c.world().goods(), true);
         } else {
             m_lists.refresh(*city, c);
         }

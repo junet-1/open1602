@@ -715,7 +715,7 @@ void Engine::unload_at(City& c, Ship& ship, bool keep_basics, bool destroy) {
     // is thrown away (S-097: the original does this when it brings goods home).
     const auto& m = m_buildings.materials();
     for (CargoSlot& slot : ship.cargo) {
-        if (!is_trade_ware(slot.ware)) {
+        if (!assets::is_good_number(slot.ware)) {
             continue;
         }
         if (keep_basics && (slot.ware == m.wood || slot.ware == m.tools || slot.ware == m.bricks ||

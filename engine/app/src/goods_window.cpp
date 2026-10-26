@@ -114,8 +114,15 @@ std::string GoodsWindow::lasts_text(std::optional<std::uint32_t> minutes) {
     return ui::tr("stats.hours", {std::to_string(*minutes / 60)});
 }
 
-std::string GoodsWindow::ware_name(std::uint8_t ware) const {
+std::string GoodsWindow::ware_name(const sim::World& world, std::uint8_t ware) const {
+    if (const assets::OwnGood* own = world.goods().own(ware)) {
+        return own->name(ui::current_language());
+    }
     return ware < m_ware_names.size() ? m_ware_names[ware] : std::to_string(ware);
+}
+
+std::int32_t GoodsWindow::ware_icon(const sim::World& world, std::uint8_t ware) const {
+    return m_ware_icon + world.goods().icon(ware);
 }
 
 void GoodsWindow::wheel(std::int32_t notches) noexcept {
@@ -274,11 +281,11 @@ void GoodsWindow::layout_table(const sim::World& world, sim::PlayerId player, Pa
         banded = !banded;
         m_form.row(kRow + w, row, false);
         below.fill(Rect{kMargin + 2, y + 2, 30, kRowH - 4}, s.dark);
-        above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, m_ware_icon + w);
+        above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, ware_icon(world, w));
         const bool quiet = l.stock == 0 && l.totals.in() == 0 && l.totals.out() == 0;
         const std::int32_t tone = quiet ? st.dim : st.text;
-        above.text(Rect{kNameX, y, kColumns[0].right - kColumnW - kNameX, kRowH}, ware_name(w), Align::Left, tone,
-                   kFontMedium);
+        above.text(Rect{kNameX, y, kColumns[0].right - kColumnW - kNameX, kRowH}, ware_name(world, w), Align::Left,
+                   tone, kFontMedium);
         const sim::FlowTotals& t = l.totals;
         const std::uint32_t m = std::max<std::uint32_t>(t.minutes, 1);
         const auto rate = [&](std::uint64_t v) {
@@ -353,8 +360,8 @@ void GoodsWindow::layout_detail(const sim::World& world, const assets::BuildingT
 
     // The good, its stock and balance.
     below.fill(Rect{kMargin, 84, 50, 48}, s.dark);
-    above.sprite(Rect{kMargin + 1, 85, 48, 46}, m_ware_icon + ware);
-    above.text(Rect{kMargin + 60, 86, 300, 26}, ware_name(ware), Align::Left, st.text);
+    above.sprite(Rect{kMargin + 1, 85, 48, 46}, ware_icon(world, ware));
+    above.text(Rect{kMargin + 60, 86, 300, 26}, ware_name(world, ware), Align::Left, st.text);
     above.text(Rect{kMargin + 60, 112, 300, 18},
                ui::tr("stats.stock", {std::to_string(tons(stock)), std::to_string(tons(room))}), Align::Left, st.dim,
                kFontSmall);

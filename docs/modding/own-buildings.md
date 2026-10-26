@@ -8,7 +8,8 @@ needs: its own id, its own values, its own place in the build menu.
 **Status:** Done are the file `own_buildings.toml`, the values of such a building
 ([values.md](values.md)), its place in the build menu and its id in savegames. Still open, with the
 next steps: pictures of a package's own (`gfx` picks sprites of the original's `STADTFLD` until the
-import of PNG), figures of a package's own, and own goods, resident classes and unlock levels.
+import of PNG), figures of a package's own, resident classes and unlock levels. What such a building
+makes and uses may be a good of a package ([goods.md](goods.md)).
 
 ## The file
 
@@ -34,6 +35,7 @@ size_y = 2
 | `like` | a building of the original, `anno1602:<name or number>` ([names](values.md#names)) | every value of that building, as the copy's starting point |
 | `gfx` | 0 to 65534 | the first sprite; the building uses `size_x * size_y` sprites from it |
 | `size_x`, `size_y` | 1 to 255 | the footprint in tiles |
+| `ware`, `raw`, `raw2` | a good by string id: `anno1602:<name or number>` or `<package>:<name>` ([goods.md](goods.md)), `""` for none | what it makes, and the first and second good it uses |
 
 A field that is not given keeps what `like` has. A table without `like`, with a field that is no
 field of a building or with a value outside its limits is passed over with a warning that names the

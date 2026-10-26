@@ -61,10 +61,10 @@ bool is_storehouse(std::int32_t prod_kind) noexcept {
            prod_kind == static_cast<std::int32_t>(ProductionKind::Kontor) || prod_kind == prod::kHaupt;
 }
 
-/// Finished goods (Schwerter 11 .. Ziegel 24) are always collected; raw material and intermediate
-/// goods (Erz 2 .. Eisen 10) only from a full store (0x004717B0).
+/// Finished goods (Schwerter 11 .. Ziegel 24, and the goods of packages) are always collected; raw
+/// material and intermediate goods (Erz 2 .. Eisen 10) only from a full store (0x004717B0).
 bool cart_collects_always(std::uint8_t ware) noexcept {
-    return ware >= ware::kSwords && ware <= ware::kLastTrade;
+    return (ware >= ware::kSwords && ware <= ware::kLastTrade) || ware >= assets::ware::kFirstOwn;
 }
 
 std::uint16_t clamp_u16(std::uint32_t v) noexcept {

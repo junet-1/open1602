@@ -203,7 +203,7 @@ void GoodsWindow::layout_producers(const sim::World& world, const assets::Buildi
         const sim::MapCell& cell = world.islands()[p.island].map.top(p.x, p.y);
         const assets::BuildingType* b = buildings.by_sprite(cell.sprite);
         const sim::City* city = world.city(p.island, cell.city);
-        if (b == nullptr || !sim::is_producer(*b) || !sim::is_trade_ware(b->ware) || city == nullptr ||
+        if (b == nullptr || !sim::is_producer(*b) || !world.goods().is_trade(b->ware) || city == nullptr ||
             !scope.covers(*city)) {
             continue;
         }
@@ -221,7 +221,7 @@ void GoodsWindow::layout_producers(const sim::World& world, const assets::Buildi
         kind->costs += b->running_cost;
         if (p.rate != 0) {
             ++kind->working;
-        } else if (sim::is_trade_ware(b->raw_ware) && p.raw < b->raw_amount) {
+        } else if (world.goods().is_trade(b->raw_ware) && p.raw < b->raw_amount) {
             ++kind->short_of_raw;
         }
         kind->utilisation += production_utilisation(p, *b, figures);
@@ -279,10 +279,10 @@ void GoodsWindow::layout_producers(const sim::World& world, const assets::Buildi
         }
         m_form.row(kProducerRow + static_cast<Id>(m_scroll + i), row, false);
         below.fill(Rect{kMargin + 2, y + 2, 30, kRowH - 4}, s.dark);
-        above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, m_ware_icon + k.ware);
+        above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, ware_icon(world, k.ware));
         const std::string name = m_building_names ? m_building_names(k.building) : std::string();
-        above.text(Rect{kNameX, y, kCountR - 70 - kNameX, kRowH}, name.empty() ? ware_name(k.ware) : name, Align::Left,
-                   st.text, kFontMedium);
+        above.text(Rect{kNameX, y, kCountR - 70 - kNameX, kRowH}, name.empty() ? ware_name(world, k.ware) : name,
+                   Align::Left, st.text, kFontMedium);
         above.text(Rect{kCountR - 60, y, 60, kRowH}, std::to_string(k.count), Align::Right, st.text, kFontMedium);
         const std::int64_t percent = k.on != 0 ? k.utilisation / k.on : 0;
         below.fill(Rect{kBarX, y + 9, kBarW, kRowH - 18}, s.band, true);
@@ -417,7 +417,7 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
         any = true;
         const auto percent =
             static_cast<std::int64_t>(std::min<std::uint64_t>(100, t.of(GoodsFlow::Residents) * 100 / demand));
-        above.text(Rect{kRightX, sy, name_w - 6, kSupplyH}, ware_name(w), Align::Left, st.text, kFontMedium);
+        above.text(Rect{kRightX, sy, name_w - 6, kSupplyH}, ware_name(world, w), Align::Left, st.text, kFontMedium);
         below.fill(Rect{bar_x, sy + 5, bar_w, kSupplyH - 10}, s.band, true);
         above.outline(Rect{bar_x, sy + 5, bar_w, kSupplyH - 10}, s.shade);
         above.fill(Rect{bar_x + 1, sy + 6, static_cast<std::int32_t>(percent * (bar_w - 2) / 100), kSupplyH - 12},
@@ -524,9 +524,9 @@ void GoodsWindow::layout_trade(const sim::World& world, sim::PlayerId player, Pa
         }
         m_form.row(kRow + l.ware, row, false);
         below.fill(Rect{kMargin + 2, y + 2, 30, kRowH - 4}, s.dark);
-        above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, m_ware_icon + l.ware);
-        above.text(Rect{kNameX, y, kCols[0].first - kColW - kNameX, kRowH}, ware_name(l.ware), Align::Left, st.text,
-                   kFontMedium);
+        above.sprite(Rect{kMargin + 3, y + 3, 28, kRowH - 6}, ware_icon(world, l.ware));
+        above.text(Rect{kNameX, y, kCols[0].first - kColW - kNameX, kRowH}, ware_name(world, l.ware), Align::Left,
+                   st.text, kFontMedium);
         const std::uint64_t bought = t.of(GoodsFlow::Bought);
         const std::uint64_t sold = t.of(GoodsFlow::Sold);
         const std::array<std::string, 6> values = {

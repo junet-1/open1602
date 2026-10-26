@@ -137,7 +137,10 @@ private:
     void layout_chart(std::int32_t top, const std::vector<Series>& series, Painter& below, Painter& above);
     /// The scroll bar of the table as last laid out (m_row_count rows, m_visible_rows of them shown).
     void layout_scroll_bar(Painter& below);
-    [[nodiscard]] std::string ware_name(std::uint8_t ware) const;
+    /// The name of `ware`: Text.cod's for the original's goods, the package's for its own.
+    [[nodiscard]] std::string ware_name(const sim::World& world, std::uint8_t ware) const;
+    /// The sprite of the icon of `ware`: a package's good shows that of a good of the original.
+    [[nodiscard]] std::int32_t ware_icon(const sim::World& world, std::uint8_t ware) const;
 
     GoodsStyle m_style;
     std::vector<std::string> m_ware_names;

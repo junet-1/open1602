@@ -869,7 +869,7 @@ std::optional<std::uint32_t> Fleet::arrive_at_target(Ship& ship) {
         // A pirate at its base unloads everything at price 0 and stays 8 s (0x0044E120).
         if (City* c = m_world->city(arrived.island, arrived.city); c != nullptr && c->owner == ship.owner) {
             for (CargoSlot& slot : ship.cargo) {
-                if (slot.ware != 0 && slot.ware <= ware::kLastTrade) {
+                if (m_world->goods().is_trade(slot.ware)) {
                     c->ensure_ware(slot.ware);
                     const std::uint32_t n = std::min(slot.amount, c->free_space(slot.ware));
                     c->goods[slot.ware] += n;
@@ -1110,7 +1110,7 @@ bool Fleet::edit_route(const RouteEdit& e) {
             return true;
         case RouteEdit::Op::SetEntry:
             if (e.stop >= TradeRoute::kStops || e.entry >= RouteStop::kEntries ||
-                (e.value.ware != 0 && !is_trade_ware(e.value.ware))) {
+                (e.value.ware != 0 && !m_world->goods().is_trade(e.value.ware))) {
                 return false;  // routes carry goods; soldiers board and land by their own orders
             }
             route.stops[e.stop].entries[e.entry] = e.value;
@@ -1223,7 +1223,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
             // Natives give goods for goodwill: a ton costs about a third of the base price. A
             // player without goodwill there gets nothing.
             const std::uint64_t goodwill = ship.owner < city.goodwill.size() ? city.goodwill[ship.owner] : 0U;
-            const std::uint64_t per_ton = std::max<std::uint32_t>(1, base_price(ware) * 42U / 128U);
+            const std::uint64_t per_ton = std::max<std::uint32_t>(1, m_world->goods().price(ware) * 42U / 128U);
             n = static_cast<std::uint32_t>(std::min<std::uint64_t>(n, goodwill * kTon / per_ton));
         }
         n -= n % kTon;  // whole tons
@@ -1250,7 +1250,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
             }
         }
         if (natives && limits && ship.owner < city.goodwill.size()) {
-            const std::uint64_t per_ton = std::max<std::uint32_t>(1, base_price(ware) * 42U / 128U);
+            const std::uint64_t per_ton = std::max<std::uint32_t>(1, m_world->goods().price(ware) * 42U / 128U);
             const auto used = static_cast<std::uint32_t>(per_ton * n / kTon);
             city.goodwill[ship.owner] = city.goodwill[ship.owner] > used ? city.goodwill[ship.owner] - used : 0;
         }
@@ -1307,7 +1307,8 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
             }
         }
         if (natives && limits && ship.owner < city.goodwill.size()) {
-            const std::uint64_t raised = city.goodwill[ship.owner] + std::uint64_t{base_price(ware)} * n / kTon;
+            const std::uint64_t raised =
+                city.goodwill[ship.owner] + std::uint64_t{m_world->goods().price(ware)} * n / kTon;
             city.goodwill[ship.owner] = static_cast<std::uint32_t>(std::min<std::uint64_t>(raised, kMaxNativeGoodwill));
         }
         remove_cargo(ship, ware, n, hold);
@@ -1328,7 +1329,7 @@ std::uint32_t Fleet::move_goods(Ship& ship, City& city, std::uint8_t ware, bool 
 
 std::uint32_t Fleet::transfer(const CargoTransfer& t) {
     Ship* ship = m_world->ship(t.ship);
-    if (ship == nullptr || (t.player != kNoPlayer && ship->owner != t.player) || !is_trade_ware(t.ware)) {
+    if (ship == nullptr || (t.player != kNoPlayer && ship->owner != t.player) || !m_world->goods().is_trade(t.ware)) {
         return 0;
     }
     // The Kontor the ship lies at: the player's own first, else one it may trade with.
@@ -1367,7 +1368,7 @@ std::uint32_t Fleet::transfer(const CargoTransfer& t) {
 
 bool Fleet::set_trade(const TradeSetting& s) {
     City* city = m_world->city(s.island, s.city);
-    if (city == nullptr || (s.player != kNoPlayer && city->owner != s.player) || !is_trade_ware(s.ware)) {
+    if (city == nullptr || (s.player != kNoPlayer && city->owner != s.player) || !m_world->goods().is_trade(s.ware)) {
         return false;
     }
     if (city->trade.size() <= s.ware) {
@@ -1393,7 +1394,7 @@ bool Fleet::set_trade(const TradeSetting& s) {
             }
         }
     }
-    const std::uint16_t base = base_price(s.ware);
+    const std::uint16_t base = m_world->goods().price(s.ware);
     // Prices range from 300/1024 of the base price to the base price (UI 0x84E6-0x84E8).
     const auto clamp_price = [&](std::uint16_t p) {
         return static_cast<std::uint16_t>(std::clamp<std::uint32_t>(p, base * 300U / 1024U, base));
