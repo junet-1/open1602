@@ -802,6 +802,48 @@ TEST_CASE("ships: a shipyard builds a ship from wood and cloth and repairs one l
     CHECK(repaired == 1);
 }
 
+TEST_CASE("ships: a fire in a shipyard discards the running cycle, and the yard goes on when it is out") {
+    Sea sea(true);
+    sim::WorldIsland& isl = sea.world.island(0);
+    REQUIRE(isl.map.place(*sea.buildings.by_id(20104), 3, 0, 0, 0, 0, 0).ok());
+    sea.world.add_cost_building(sim::CostBuilding{sim::CostBuilding::Kind::Shipyard, 0, 3, 0, false});
+    sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+    REQUIRE(fleet.shipyard(sim::ShipyardOrder{0, 0, 3, 0, sim::ShipyardOrder::Op::Build, 0}));
+    const sim::CostBuilding& yard = sea.world.cost_buildings()[0];
+    auto deliver = [&] {
+        for (const auto& r : fleet.take_fetch_requests()) {
+            fleet.yard_delivery(r.island, r.x, r.y, r.ware, 6 * kTon);
+        }
+    };
+    // Until a cycle has built something and the next one is running.
+    for (int second = 0; second < 60 && (yard.progress == 0 || yard.rate == 0); ++second) {
+        run(fleet, sea.world, 1000);
+        deliver();
+    }
+    REQUIRE(yard.progress != 0);
+    REQUIRE(yard.rate != 0);
+    const std::uint32_t progress = yard.progress;
+    const std::uint32_t wood = yard.wood;
+    const std::uint32_t cloth = yard.cloth;
+    sea.world.disasters().push_back(sim::Disaster{sim::Disaster::Kind::Fire, 0, 3, 0, 0, 20, 0});
+    for (int second = 0; second < 30; ++second) {
+        run(fleet, sea.world, 1000);
+        deliver();
+    }
+    // Neither the running cycle nor any later one built anything or used material.
+    CHECK(yard.progress == progress);
+    CHECK(yard.wood == wood);
+    CHECK(yard.cloth == cloth);
+    CHECK(yard.rate == 0);
+    // Put out: the yard goes on with its old progress and the ship comes out.
+    sea.world.disasters().clear();
+    for (int second = 0; second < 200 && sea.world.ships().empty(); ++second) {
+        run(fleet, sea.world, 1000);
+        deliver();
+    }
+    CHECK(sea.world.ships().size() == 1);
+}
+
 sim::ShipCommand cmd(sim::PlayerId player, std::uint32_t ship, sim::ShipCommand::Op op, std::uint8_t hold = 0xFF) {
     sim::ShipCommand c;
     c.player = player;

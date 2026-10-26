@@ -275,6 +275,44 @@ TEST_CASE("ai: a computer with a ship founds a city through a build order") {
     CHECK(!view[0].settling);
 }
 
+TEST_CASE("ai: a ship whose goods do not fit into the full home warehouse does not lie there for good") {
+    Game g;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    found_city(g, s, 30'000);
+    sim::City* home = nullptr;
+    for (const sim::City& c : g.world.cities()) {
+        if (c.owner == kComputer) {
+            home = g.world.city(c.island, c.index);
+        }
+    }
+    REQUIRE(home != nullptr);
+    sim::Ship& ship = g.world.ships().front();
+    REQUIRE(ship.owner == kComputer);
+    // At the Kontor: on the first sea tile east of it (the island lies at 30, 20; sea from x 47).
+    const sim::WorldIsland& isl = g.world.islands()[home->island];
+    ship.place(isl.x + 48, isl.y + *home->warehouse_y);
+    REQUIRE(sim::building_in_reach(g.world, g.buildings, home->island, *home->warehouse_x, *home->warehouse_y, ship.x,
+                                   ship.y));
+    // Nothing else to do but this: a hold of a ware the warehouse is full of (S-097: it stays on board).
+    const std::uint8_t ware = g.buildings.materials().tools;
+    home->ensure_ware(ware);
+    home->goods[ware] = home->capacity;
+    ship.route = sim::TradeRoute{};
+    ship.target = sim::Target{};
+    for (sim::CargoSlot& slot : ship.cargo) {
+        slot = sim::CargoSlot{};
+    }
+    ship.cargo[0] = sim::CargoSlot{ware, 10 * 32, 0};
+    const std::uint32_t id = ship.id;
+    // Every 10 s the computer looks at its ships; before, it tried to unload on every look.
+    const bool sails = run_until(s, 60'000, [&] {
+        const sim::Ship* now = g.world.ship(id);
+        return now != nullptr && (now->route.active || !now->target.empty());
+    });
+    CHECK(sails);
+    CHECK(g.world.ship(id)->load(ware) == 10 * 32);  // nothing thrown away
+}
+
 TEST_CASE("ai: the original's computer players (Rules::classic_ai) found their city too") {
     Game g;
     sim::Rules rules;
@@ -393,8 +431,9 @@ TEST_CASE("ai: a computer's first minutes give the same state on every platform"
     sim::Simulation s(g.world, g.buildings, g.figures);
     run(s, 90'000);
     const std::uint64_t hash = s.state_hash();
-    constexpr std::uint64_t kExpected = 0x49e6e0a304bc7531ULL;  // names left empty without Text.cod (MD-10); SIMU in
-                                                                // parts (DS-3); tiles by blocks (TB-26)
+    // Names left empty without Text.cod (MD-10); SIMU in parts (DS-3); tiles by blocks (TB-26); a ship
+    // whose goods do not fit at home is free again.
+    constexpr std::uint64_t kExpected = 0x8b4db8f3cc3ac662ULL;
     if (hash != kExpected) {
         std::printf("  state hash after 90 s: 0x%016llx\n", static_cast<unsigned long long>(hash));
     }

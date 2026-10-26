@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <map>
 #include <set>
 #include <span>
 #include <string>
@@ -407,4 +408,56 @@ TEST_CASE("data: the computer of the tutorial stays as it is; the flag survives 
     auto eworld = sim::load_world(*efile, s.buildings, s.game);
     REQUIRE(eworld.ok());
     CHECK(!eworld->game_settings().tutorial);
+}
+
+TEST_CASE("data: no ship of the computers in game10 lies idle for long (America, new ships at the yard)") {
+    const Setup s = setup_or_skip();
+    const auto path = test::fixture(s.game, "SAVEGAME/game10.gam");
+    if (!path) {
+        SKIP("no game10.gam");
+    }
+    auto file = assets::ChunkFile::load(*path);
+    REQUIRE(file.ok());
+    auto world = sim::load_world(*file, s.buildings, s.game);
+    REQUIRE(world.ok());
+    sim::Simulation sim(*world, s.buildings, s.figures);
+    sim.offer_names(s.text.section("STAEDTE"), s.text.section("SHIPS"));
+    // The longest time each computer ship stayed on one tile, sampled every second. Before, America
+    // lay 17 minutes at its full home warehouse with goods that did not fit, and a new ship at a
+    // yard next to the Kontor was sent there again on every look and never got a job.
+    struct Watch {
+        std::uint16_t x = 0;
+        std::uint16_t y = 0;
+        std::uint32_t still = 0;
+        std::uint32_t longest = 0;
+        bool named = false;
+    };
+    std::map<std::uint32_t, Watch> ships;
+    constexpr std::uint32_t kMinutes = 50;
+    for (std::uint32_t second = 0; second < kMinutes * 60; ++second) {
+        for (std::uint32_t t = 0; t < 1000 / sim::Simulation::kTickMs; ++t) {
+            sim.tick();
+        }
+        for (const sim::Ship& ship : world->ships()) {
+            const sim::Player* owner = world->player(ship.owner);
+            if (ship.trader || owner == nullptr || owner->role != sim::PlayerRole::Computer) {
+                continue;
+            }
+            auto [it, fresh] = ships.try_emplace(ship.id);
+            Watch& w = it->second;
+            w.named = !ship.name.empty();
+            w.still = !fresh && w.x == ship.x && w.y == ship.y ? w.still + 1 : 0;
+            w.longest = std::max(w.longest, w.still);
+            w.x = ship.x;
+            w.y = ship.y;
+        }
+    }
+    CHECK(ships.size() >= 4);
+    for (const auto& [id, w] : ships) {
+        if (w.longest >= 300 || !w.named) {
+            std::printf("  ship %u: still for %u s, named %d\n", id, w.longest, w.named ? 1 : 0);
+        }
+        CHECK(w.longest < 300);
+        CHECK(w.named);
+    }
 }
