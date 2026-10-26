@@ -5,6 +5,7 @@
 #include <charconv>
 #include <optional>
 
+#include "o1602/assets/localized_names.hpp"
 #include "o1602/assets/original_names.hpp"
 #include "o1602/core/data_file.hpp"
 #include "o1602/core/text.hpp"
@@ -24,24 +25,12 @@ bool is_name(std::string_view name) noexcept {
     });
 }
 
-/// A language code of a name ("en", "de", "pt-br"): letters and '-', at most 16.
-bool is_language(std::string_view code) noexcept {
-    return !code.empty() && code.size() <= 16 &&
-           std::all_of(code.begin(), code.end(), [](const char c) { return (c >= 'a' && c <= 'z') || c == '-'; });
-}
-
 constexpr std::uint16_t kMaxPrice = 10000;
 
 }  // namespace
 
 std::string OwnGood::name(std::string_view language) const {
-    for (const std::string_view wanted : {language, std::string_view("en")}) {
-        const auto it = std::find_if(names.begin(), names.end(), [&](const auto& n) { return n.first == wanted; });
-        if (it != names.end()) {
-            return it->second;
-        }
-    }
-    return names.empty() ? id : names.front().second;
+    return name_in(names, language, id);
 }
 
 bool Goods::is_trade(std::uint32_t w) const noexcept {
@@ -169,12 +158,12 @@ void apply_goods_file(Goods& goods, std::string_view package, std::string_view u
                 } else {
                     good.icon = *w;
                 }
-            } else if (e.key.starts_with("name.") && is_language(std::string_view(e.key).substr(5))) {
+            } else if (const std::string_view language = name_key_language(e.key); !language.empty()) {
                 if (e.value.string() == nullptr || e.value.string()->empty()) {
                     warnings.push_back(field + "is a text");
                     ok = false;
                 } else {
-                    good.names.emplace_back(e.key.substr(5), core::utf8_to_cp1252(*e.value.string()));
+                    good.names.emplace_back(language, core::utf8_to_cp1252(*e.value.string()));
                 }
             } else {
                 warnings.push_back(field + "is no field of a good and is passed over");

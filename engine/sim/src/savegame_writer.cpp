@@ -1276,10 +1276,12 @@ private:
 }  // namespace
 
 core::Result<std::vector<SavedChunk>> savegame_chunks(const World& world, const assets::BuildingTable& buildings) {
-    if (!world.goods().own_goods().empty() || !world.own_buildings().empty()) {
-        // The original's records have no room for them (docs/modding/goods.md, own-buildings.md).
+    if (!world.goods().own_goods().empty() || !world.own_buildings().empty() ||
+        world.resident_classes().size() > assets::kResidentClasses) {
+        // The original's records have no room for them (docs/modding/goods.md, own-buildings.md,
+        // classes.md).
         return core::make_error(core::ErrorCode::Unsupported,
-                                "a game with goods or buildings of packages cannot be saved for the original");
+                                "a game with goods, buildings or classes of packages cannot be saved for the original");
     }
     return Writer(world, buildings).run();
 }

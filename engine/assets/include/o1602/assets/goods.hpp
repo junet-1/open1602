@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "o1602/assets/game_data.hpp"
+#include "o1602/assets/localized_names.hpp"
 #include "o1602/core/result.hpp"
 
 namespace o1602::assets {
@@ -43,7 +44,7 @@ struct OwnGood {
     std::uint16_t price = 0;  ///< base price per ton, as kBasePrices
     std::uint8_t icon = 0;    ///< the good of the original whose icon it shows
     /// Its name by language code ("en", "de"), Windows-1252 as the game's fonts take it.
-    std::vector<std::pair<std::string, std::string>> names;
+    LocalizedNames names;
 
     /// The name in `language`, else in English, else the first given, else the id.
     [[nodiscard]] std::string name(std::string_view language) const;

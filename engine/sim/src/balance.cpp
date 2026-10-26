@@ -281,6 +281,12 @@ void drop_unknown_buildings(Balance& balance, const assets::BuildingTable& build
     });
 }
 
+void apply_resident_classes(assets::BuildingTable& table, const assets::BuildingTable& original,
+                            std::span<const assets::ResidentClass> classes) {
+    table.set_resident_classes(classes.empty() ? original.resident_classes()
+                                               : std::vector<assets::ResidentClass>(classes.begin(), classes.end()));
+}
+
 void apply_building_values(assets::BuildingTable& table, const assets::BuildingTable& original,
                            const Balance& balance) {
     const std::vector<assets::BuildingType>& from = original.types();

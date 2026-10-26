@@ -394,7 +394,7 @@ private:
                         v = v - half + hand_over(city, nb, next, half, next_cap);
                     }
                     const assets::BuildingType* target = m_buildings.first_house(next);
-                    if (!city.material_lock && v > cap && target != nullptr && has_services(h, next) &&
+                    if (!city.material_lock && v > cap && target != nullptr && has_services(h, m_buildings, next) &&
                         pay_materials(city, *target)) {
                         const std::uint32_t before = h.inhabitants();
                         std::uint32_t& old_count = city_count(city, c);
@@ -436,7 +436,7 @@ private:
                 old_count -= std::min(old_count, before);
                 leave_queue(city, h);
                 if (rebuild(h, static_cast<std::uint8_t>(c - 1))) {
-                    h.services_complete = has_services(h, h.resident_class);
+                    h.services_complete = has_services(h, m_buildings, h.resident_class);
                     emit(HouseEvent::Kind::Downgraded, h);
                 }
                 city_count(city, h.resident_class) += before;
@@ -498,6 +498,15 @@ bool has_services(const House& house, std::uint8_t resident_class) noexcept {
     const auto s = static_cast<std::uint16_t>(house.services | (house.market ? kMarketNeed : 0U));
     const ServiceNeeds& needs = kServiceNeeds[std::min<std::size_t>(resident_class, kServiceNeeds.size() - 1)];
     return std::all_of(needs.begin(), needs.end(), [s](std::uint16_t any) { return any == 0 || (s & any) != 0; });
+}
+
+std::uint8_t service_class(const assets::BuildingTable& buildings, std::uint8_t resident_class) noexcept {
+    const auto& classes = buildings.resident_classes();
+    return resident_class < classes.size() ? classes[resident_class].look : resident_class;
+}
+
+bool has_services(const House& house, const assets::BuildingTable& buildings, std::uint8_t resident_class) noexcept {
+    return has_services(house, service_class(buildings, resident_class));
 }
 
 std::uint32_t panel_services(const House& house) noexcept {
@@ -628,7 +637,7 @@ void services_on(World& world, const assets::BuildingTable& buildings, std::uint
                 house.market_distance = std::min(house.market_distance, d);
             }
         }
-        house.services_complete = has_services(house, house.resident_class);
+        house.services_complete = has_services(house, buildings, house.resident_class);
     }
 }
 

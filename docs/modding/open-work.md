@@ -30,6 +30,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `figures.toml` | values of the original's figures: speed, carrying, hit points, damage, range, cannons, price | [values.md](values.md) |
 | `own_buildings.toml` | buildings of the package's own, each copying one of the original | [own-buildings.md](own-buildings.md) |
 | `goods.toml` | trade goods of the package's own: price, icon, names | [goods.md](goods.md) |
+| `classes.toml` | classes of inhabitants: the original's changed, new ones after them, needs of any good | [classes.md](classes.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
 Without a mod file the engine already has banners with tinted flags for any number of players
@@ -80,9 +81,13 @@ object (`GameContent`) built from the packages, part of the fingerprint and the 
 Part 1 done on 2026-10-26 ([goods.md](goods.md)): a package adds trade goods in `goods.toml` (price,
 the icon of a good of the original, names by language) with ware numbers from 59 in the packages'
 load order; its own buildings make and use them (`ware`, `raw`, `raw2`), Kontors, ships, carts and
-the free trader handle them, and a game keeps them (section `GOOD`). Still open: residents who need
-such goods with resident classes as data (part 2), more than 32 unlock levels (part 3), and pictures
-of the goods' own.
+the free trader handle them, and a game keeps them (section `GOOD`).
+
+Part 2 done on 2026-10-26 ([classes.md](classes.md)): `classes.toml` changes the original's classes
+(values, needs of any good) and adds up to eight classes in all; a house of a package belongs to a
+class (`class`), and a game keeps its classes (section `CLAS`). Still open: more than 32 unlock
+levels and levels of a new class (part 3), public buildings of a class's own, the city window's tax
+rows for more than five classes, and pictures of the goods' own.
 
 ### 4. Graphics and sound of a package's own (section 2)
 

@@ -378,6 +378,9 @@ private:
     std::vector<assets::OwnBuilding> m_own_buildings;
     /// The goods a new game trades: the original's and the packages' (docs/modding/goods.md).
     assets::Goods m_goods;
+    /// The classes of inhabitants of a new game as the packages change and add them, empty when
+    /// none does (docs/modding/classes.md).
+    std::vector<assets::ResidentClass> m_classes;
     /// The content packages installed in <data folder>/mods, in their load order (docs/modding/packages.md).
     std::vector<assets::ModPackage> m_packages;
     /// Packages received from hosts, in <data folder>/mods-cache: used only by games that name them.

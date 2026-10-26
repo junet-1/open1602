@@ -280,6 +280,7 @@ core::Result<BuildingTable> BuildingTable::from_cod(const cod::Document& haeuser
                 table.m_classes.resize(static_cast<std::size_t>(nummer) + 1);
             }
             ResidentClass& c = table.m_classes[static_cast<std::size_t>(nummer)];
+            c.look = static_cast<std::uint8_t>(nummer);
             c.share = times(non_negative(g.integer("Prozent")), 128U) / 100U;
             c.max_per_house = non_negative(g.integer("Maxwohn"));
             if (const cod::Field* tax = g.field("Steuer"); tax != nullptr && !tax->values.empty()) {
@@ -423,6 +424,8 @@ core::Result<std::uint32_t> BuildingTable::add(const BuildingType& like) {
     }
     BuildingType b = like;
     b.id = id;
+    // The variants of the original's houses are the records after the first; a copy has none.
+    b.rand_count = 0;
     b.record = static_cast<std::uint32_t>(m_by_record.size());
     b.land_record = BuildingType::kNoRecord;
     b.beach_offset = 0;

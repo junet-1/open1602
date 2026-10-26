@@ -10,6 +10,7 @@
 #include "names.hpp"
 
 #include "o1602/assets/game_data.hpp"
+#include "o1602/assets/resident_classes.hpp"
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/goods_statistics.hpp"
 #include "o1602/ui/localization.hpp"
@@ -119,6 +120,16 @@ std::string GoodsWindow::ware_name(const sim::World& world, std::uint8_t ware) c
         return own->name(ui::current_language());
     }
     return ware < m_ware_names.size() ? m_ware_names[ware] : std::to_string(ware);
+}
+
+std::string GoodsWindow::class_name(const assets::BuildingTable& buildings, std::size_t k) const {
+    const auto& classes = buildings.resident_classes();
+    if (k < classes.size()) {
+        if (std::string name = assets::class_name(classes[k], ui::current_language()); !name.empty()) {
+            return name;
+        }
+    }
+    return k < m_class_names.size() ? m_class_names[k] : std::to_string(k + 1);
 }
 
 std::int32_t GoodsWindow::ware_icon(const sim::World& world, std::uint8_t ware) const {

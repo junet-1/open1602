@@ -21,6 +21,7 @@ namespace o1602::assets {
 class BuildingTable;
 class FigureTable;
 struct OwnBuilding;
+struct ResidentClass;
 }  // namespace o1602::assets
 
 namespace o1602::sim {
@@ -207,6 +208,10 @@ void drop_unknown_buildings(Balance& balance, const assets::BuildingTable& build
 /// first taken back from `original` (the same table as loaded), then the game's values are set.
 /// The types keep their places, so pointers into the table stay valid.
 void apply_building_values(assets::BuildingTable& table, const assets::BuildingTable& original, const Balance& balance);
+/// Gives `table` the classes of inhabitants of a game (World::resident_classes()): `classes`, or
+/// those of `original` when the game has none of its own (docs/modding/classes.md).
+void apply_resident_classes(assets::BuildingTable& table, const assets::BuildingTable& original,
+                            std::span<const assets::ResidentClass> classes);
 /// Drops the values of figures `figures` does not have, with a warning each.
 void drop_unknown_figures(Balance& balance, const assets::FigureTable& figures, std::vector<std::string>& warnings);
 /// Makes `table` the figure table of a game with `balance`, as apply_building_values.

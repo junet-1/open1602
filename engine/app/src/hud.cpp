@@ -283,7 +283,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
             // The classes of inhabitants as the house window names them ([GAME] 3 and on).
             const std::vector<std::string> lines = own->section("GAME");
             std::vector<std::string> classes;
-            for (std::size_t k = 3; k < 3 + sim::kCityClasses && k < lines.size(); ++k) {
+            for (std::size_t k = 3; k < 3 + assets::kResidentClasses && k < lines.size(); ++k) {
                 classes.push_back(lines[k]);
             }
             m_goods->set_class_names(std::move(classes));

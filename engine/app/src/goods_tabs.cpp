@@ -360,8 +360,8 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
             below.fill(Rect{kMargin, y + 1, kLeftW - kMargin + 4, kLineH - 2}, s.band, true);
         }
         below.fill(Rect{kMargin + 4, y + 8, 10, 10}, s.series[k % s.series.size()]);
-        above.text(Rect{kMargin + 20, y, kCountR - 50 - kMargin - 20, kLineH},
-                   k < m_class_names.size() ? m_class_names[k] : std::to_string(k + 1), Align::Left, tone, kFontMedium);
+        above.text(Rect{kMargin + 20, y, kCountR - 50 - kMargin - 20, kLineH}, class_name(buildings, k), Align::Left,
+                   tone, kFontMedium);
         above.text(Rect{kCountR - 50, y, 50, kLineH}, std::to_string(c.inhabitants), Align::Right, tone, kFontMedium);
         if (c.inhabitants != 0) {
             const std::int64_t percent = c.satisfaction * 100 / (c.inhabitants * 128);
@@ -440,8 +440,7 @@ void GoodsWindow::layout_population(const sim::World& world, const assets::Build
     below.fill(Rect{kMargin, chart_top - 4, kWidth - 2 * kMargin, 1}, s.shade);
     std::vector<Series> series;
     for (std::size_t k = 0; k < classes; ++k) {
-        Series line{
-            s.series[k % s.series.size()], k < m_class_names.size() ? m_class_names[k] : std::to_string(k + 1), {}};
+        Series line{s.series[k % s.series.size()], class_name(buildings, k), {}};
         bool used = false;
         for (const sim::CitySample& sample : history) {
             line.values.push_back(sample.of_class(k));

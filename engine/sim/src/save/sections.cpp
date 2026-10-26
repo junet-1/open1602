@@ -13,6 +13,7 @@
 #include "o1602/assets/chunk_file.hpp"
 #include "o1602/assets/chunk_writer.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/assets/resident_classes.hpp"
 #include "o1602/sim/simulation.hpp"
 
 namespace o1602::sim::save {
@@ -96,6 +97,10 @@ constexpr std::uint32_t kOwnBuildings = tag("OWNB");
 /// The goods the packages added (World::goods(), goods.hpp), only written when there are any.
 /// Required: stocks, holds and buildings name their ware numbers.
 constexpr std::uint32_t kGoods = tag("GOOD");
+/// The classes of inhabitants as packages changed and added them (World::resident_classes(),
+/// resident_classes.hpp), only written when they differ from haeuser.cod's. Required: houses name
+/// the classes, and their needs drive the economy.
+constexpr std::uint32_t kClasses = tag("CLAS");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -104,7 +109,7 @@ constexpr std::array kKnownSections = {
     kFleet,           kEpochs,       kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
     kMissions,        kPlayerState,  kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
     kPopulationMarks, kTutorial,     kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
-    kFigureValues,    kOwnBuildings, kGoods};
+    kFigureValues,    kOwnBuildings, kGoods,     kClasses};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -306,6 +311,26 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                 o.u16(g.price);
                 o.u8(g.icon);
                 o.list(g.names, 2, [&](const std::pair<std::string, std::string>& n) {
+                    o.string(n.first);
+                    o.string(n.second);
+                });
+            });
+        });
+    }
+    if (!world.resident_classes().empty()) {
+        section(out, kClasses, [&](Writer& o) {
+            o.list(world.resident_classes(), 29, [&](const assets::ResidentClass& c) {
+                o.string(c.id);
+                o.u8(c.look);
+                o.u32(c.share);
+                o.u32(c.max_per_house);
+                o.u32(c.tax);
+                o.u32(c.hiscore);
+                o.list(c.needs, 5, [&](const assets::ResidentClass::Need& n) {
+                    o.u8(n.ware);
+                    o.u32(n.amount);
+                });
+                o.list(c.names, 8, [&](const std::pair<std::string, std::string>& n) {
                     o.string(n.first);
                     o.string(n.second);
                 });
@@ -570,6 +595,37 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     }
                 }
                 d.goods = std::move(goods);
+                break;
+            }
+            case kClasses: {
+                std::vector<assets::ResidentClass> classes;
+                in.list(classes, 29, [&](assets::ResidentClass& c) {
+                    in.string(c.id);
+                    in.u8(c.look);
+                    in.u32(c.share);
+                    in.u32(c.max_per_house);
+                    in.u32(c.tax);
+                    in.u32(c.hiscore);
+                    in.list(c.needs, 5, [&](assets::ResidentClass::Need& n) {
+                        in.u8(n.ware);
+                        in.u32(n.amount);
+                        if (!assets::is_good_number(n.ware) || n.ware == assets::ware::kFood) {
+                            in.fail();
+                        }
+                    });
+                    in.list(c.names, 8, [&](std::pair<std::string, std::string>& n) {
+                        in.string(n.first);
+                        in.string(n.second);
+                    });
+                    // The limits of classes.toml (resident_classes.cpp).
+                    if (c.look >= assets::kResidentClasses || c.max_per_house == 0 || c.max_per_house > 255) {
+                        in.fail();
+                    }
+                });
+                if (classes.empty() || classes.size() > assets::kMaxResidentClasses) {
+                    in.fail();
+                }
+                d.classes = std::move(classes);
                 break;
             }
             case kOwnBuildings: {
