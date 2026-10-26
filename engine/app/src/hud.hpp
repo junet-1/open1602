@@ -397,6 +397,9 @@ public:
     void draw(const sim::World& world, const assets::BuildingTable& buildings, const render::BannerTable& banners,
               const std::array<std::pair<double, double>, 4>& view, std::uint64_t now_ms,
               const sim::PlayerFigures& figures, std::uint8_t colour);
+    /// Texts over the map (the stock of production buildings), before the frame: `items` in screen
+    /// pixels of the map, drawn at the interface's scale like the original's fonts.
+    void draw_over_map(const std::vector<ui::DrawItem>& items) { m_renderer->draw(items, 0, 0, m_regions.scale); }
     /// After the frame is shown (the text cache keeps what the frame drew).
     void next_frame() { m_renderer->next_frame(); }
 

@@ -5,8 +5,8 @@
 # the map, which video plays when, what the player is told of the game's events, the diplomacy
 # window's strip and open offers, the window "Warenbilanz", the gestures on the map, and the
 # windows of what the player selects (buildings, ships, units, lists, diplomacy, options), the build
-# menu and the player status of the side panel. Built without the game too, so that the tests have
-# them. Also the command line of the program.
+# menu, the player status of the side panel and the texts over the production buildings. Built
+# without the game too, so that the tests have them. Also the command line of the program.
 
 add_library(o1602_menus
     ../src/app_settings.cpp
@@ -42,6 +42,7 @@ add_library(o1602_menus
     ../src/selection_panels.cpp
     ../src/ship_panel.cpp
     ../src/side_panels.cpp
+    ../src/stock_notes.cpp
     ../src/tile_status.cpp
     ../src/tutorial.cpp
     ../src/unit_panels.cpp

@@ -23,6 +23,7 @@
 #include "map_input.hpp"
 #include "multiplayer_menu.hpp"
 #include "names.hpp"
+#include "stock_notes.hpp"
 #include "video_controller.hpp"
 #include "viewer_options.hpp"
 #include "zoom_graphics.hpp"
@@ -303,8 +304,13 @@ private:
     [[nodiscard]] std::string tile_status() const;
     /// Results of building and demolishing (messages, flags of new buildings).
     void apply_construction();
-    /// Animation phases of buildings that started or stopped work (presentation only).
+    /// Animation phases of buildings that started or stopped work and the texts over buildings
+    /// whose store gained a ton or is full (presentation only).
     void apply_production_events();
+    /// Game time of the frame for the texts over the buildings, with the share of the next tick.
+    [[nodiscard]] double stock_note_time() const;
+    /// The texts over the buildings (m_stock_notes), over the map and under the interface.
+    void draw_stock_notes();
     /// Volcano fire and lava of the current game time (m_effects).
     void collect_effects();
     /// Townsfolk, sea creatures and jugglers of the game time since the last frame.
@@ -385,8 +391,9 @@ private:
     render::Camera m_camera;
     render::AnimationClock m_clock;
     render::ProductionPhases m_production_phases;  ///< animation phases, presentation only
-    std::vector<render::DrawCommand> m_commands;   ///< reused every frame
-    render::DrawListScratch m_draw_scratch;        ///< reused every frame
+    StockNotes m_stock_notes;                     ///< "Lager: 3", "Lager voll" rising over the local player's buildings
+    std::vector<render::DrawCommand> m_commands;  ///< reused every frame
+    render::DrawListScratch m_draw_scratch;       ///< reused every frame
 
     bool m_running = true;
     bool m_show_owners = false;              ///< ownership overlay (key O)

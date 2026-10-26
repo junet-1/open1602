@@ -504,6 +504,16 @@ const sim::CostBuilding* shipyard_at(const sim::World& world, std::uint16_t isla
 
 /// Building centre (0x00463A70) plus the figure's Fahnoffs turned with the building (0x004466A0,
 /// the same for flags, smoke, icons and jugglers).
+std::pair<std::int32_t, std::int32_t> text_figure_point(const WorldView& view, double x, double y, double z) {
+    double sx = 0.0;
+    double sy = 0.0;
+    project_point(view, x, y, sx, sy);
+    const std::int32_t tw = tile_width(view.zoom);
+    // FIGUR 0 has no Posoffs: the line's bottom is the projected point minus the height.
+    return {static_cast<std::int32_t>(std::floor(sx)),
+            static_cast<std::int32_t>(std::floor(sy)) - static_cast<std::int32_t>(z * tw / 2.0) - 1};
+}
+
 void building_attach_point(const sim::WorldIsland& island, const assets::BuildingType& b, std::uint32_t x,
                            std::uint32_t y, std::uint8_t rotation, const assets::FigureType& fig, double& cx,
                            double& cy) {

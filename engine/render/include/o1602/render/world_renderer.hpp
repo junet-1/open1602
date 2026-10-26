@@ -187,6 +187,12 @@ void building_attach_point(const sim::WorldIsland& island, const assets::Buildin
                            std::uint32_t y, std::uint8_t rotation, const assets::FigureType& fig, double& cx,
                            double& cy);
 
+/// World pixel of a text hanging at height `z` (half tile widths) over world point (x, y): the
+/// centre and bottom of its line (Figures_DrawRow 0x0044FA90, kind 7). Truncated like the other
+/// figures and one row higher, as Open1602's tile rows start one row lower (docs/re/figures.md).
+[[nodiscard]] std::pair<std::int32_t, std::int32_t> text_figure_point(const WorldView& view, double x, double y,
+                                                                      double z);
+
 /// Opacity of figure shadows (the original dithers every second pixel).
 inline constexpr std::uint8_t kShadowAlpha = 128;
 /// Opacity of chimney smoke (the original draws every second pixel, 0x004048E0).
