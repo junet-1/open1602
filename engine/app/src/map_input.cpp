@@ -1342,8 +1342,18 @@ void MapInput::map_order(double x, double y, bool queue, bool on_object) {
             return false;
         });
         if (kontor && city != nullptr) {
+            // Somebody else's Kontor: an attack on the building unless it is there to trade at
+            // (asks first when it means war, as for soldiers).
+            if (ship_attacks_kontor(world(), local(), city->owner, attack_pick)) {
+                const sim::SubTile b =
+                    world().islands()[kontor->island].map.sub_tile(m_buildings, kontor->local_x, kontor->local_y);
+                const sim::Target t = sim::Target::building(kontor->island, static_cast<std::uint32_t>(b.origin_x),
+                                                            static_cast<std::uint32_t>(b.origin_y));
+                submit_orders(m_units.target_orders(world(), local(), t, queue, true));
+                return;
+            }
             const sim::Target t = sim::Target::city_of(city->island, city->index);
-            submit_orders(m_units.target_orders(world(), local(), t, queue, attack_pick && city->owner != local()));
+            submit_orders(m_units.target_orders(world(), local(), t, queue, false));
             return;
         }
         if (const auto hit =
