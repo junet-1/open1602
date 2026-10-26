@@ -217,6 +217,52 @@ TEST_CASE("options panel: the History Edition's extra buttons are left out, its 
     CHECK(events[0].value == 0);
 }
 
+TEST_CASE("options panel: the mouse wheel scrolls the savegames and the music titles a row per notch") {
+    Options o(true);
+    OptionsModel model;
+    for (int i = 0; i < 13; ++i) {
+        model.slot_names.push_back("Game " + std::to_string(i));
+    }
+    model.tracks = {"1", "2", "3", "4", "5", "6", "7", "8"};
+    o.panel.opened();
+    o.panel.refresh(model);
+    CHECK(!o.panel.wheel(-1, model));  // the first page has no list
+    o.click(47011, model);
+    o.panel.refresh(model);
+    CHECK(o.panel.wheel(-2, model));  // down two rows
+    o.panel.refresh(model);
+    o.click(48061, model);
+    CHECK(!o.panel.key(27).has_value());
+    auto events = o.click(48011, model);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].value == 2);
+    CHECK(o.panel.wheel(-10, model));  // not past the end: ten rows show savegames 3..12
+    o.panel.refresh(model);
+    o.click(48070, model);
+    CHECK(!o.panel.key(27).has_value());
+    events = o.click(48011, model);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].value == 12);
+    CHECK(o.panel.wheel(5, model));  // up, not before the first
+    o.panel.refresh(model);
+    o.click(48061, model);
+    CHECK(!o.panel.key(27).has_value());
+    events = o.click(48011, model);
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].value == 0);
+
+    CHECK(o.panel.back());
+    o.click(47012, model);
+    o.panel.refresh(model);
+    CHECK(o.panel.wheel(-1, model));
+    o.panel.refresh(model);
+    const auto played = o.click(49051, model);  // the first title shown is now the second
+    REQUIRE(count(played, OptionsEvent::Kind::PlayTrack) == 1);
+    CHECK(std::find_if(played.begin(), played.end(), [](const OptionsEvent& e) {
+              return e.kind == OptionsEvent::Kind::PlayTrack && e.text == "2";
+          }) != played.end());
+}
+
 TEST_CASE("options panel: the original's last savegame row gives its place to the arrows") {
     Options o;
     OptionsModel model;

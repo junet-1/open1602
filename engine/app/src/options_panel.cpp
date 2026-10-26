@@ -556,6 +556,25 @@ std::vector<OptionsEvent> OptionsPanel::mouse(std::int32_t x, std::int32_t y, bo
     return out;
 }
 
+bool OptionsPanel::wheel(std::int32_t notches, const OptionsModel& model) {
+    const auto scroll = [notches](std::size_t& first, std::size_t count, std::size_t rows) {
+        const auto last = static_cast<std::int64_t>(count > rows ? count - rows : 0);
+        first = static_cast<std::size_t>(std::clamp<std::int64_t>(static_cast<std::int64_t>(first) - notches, 0, last));
+    };
+    switch (m_page) {
+        case Page::Disk:
+            scroll(m_slot_first, model.slot_names.size(), m_slot_rows_shown);
+            return true;
+        case Page::Musik:
+            scroll(m_list_first, model.tracks.size(), kTrackRows);
+            return true;
+        case Page::Root:
+        case Page::Anno:
+            break;
+    }
+    return false;
+}
+
 std::optional<std::string> OptionsPanel::help(const std::vector<std::string>& leiste, const OptionsModel& model) {
     const auto id = panel().hovered();
     if (!id) {
