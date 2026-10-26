@@ -73,7 +73,7 @@ constexpr std::array kTexts = {
     Entry{MpText::Nobody, "net.nobody"},
     Entry{MpText::SeatOpen, "net.seat_open"},
     Entry{MpText::SeatComputer, "net.seat_computer"},
-    Entry{MpText::SeatClosed, "net.seat_closed"},
+    Entry{MpText::SeatBlocked, "net.seat_blocked"},
     Entry{MpText::Ready, "net.ready"},
     Entry{MpText::Choosing, "net.choosing"},
     Entry{MpText::Free, "net.free"},

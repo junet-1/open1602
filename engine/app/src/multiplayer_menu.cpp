@@ -166,6 +166,14 @@ std::optional<std::pair<EndlessSetup, SetupScope>> read_lobby_setup(std::span<co
     return std::pair{settings, scope};
 }
 
+bool may_block_seats(const net::Lobby& lobby) {
+    if (lobby.started) {
+        return false;
+    }
+    const auto settings = read_lobby_setup(lobby.setup);
+    return settings && settings->second == SetupScope::MultiplayerEndless;
+}
+
 std::vector<net::LobbySeat> endless_seats(std::size_t players) {
     players = std::clamp<std::size_t>(players, HostSetup::kMinPlayers, sim::kMaxPlayers);
     std::vector<net::LobbySeat> seats(std::max<std::size_t>(sim::player_slot(players - 1) + 1U, sim::kOriginalPlayers));
@@ -599,7 +607,7 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
                 break;
             case net::LobbySeat::Kind::Closed:
             case net::LobbySeat::Kind::Reserved:
-                who = tr(MpText::SeatClosed);
+                who = tr(MpText::SeatBlocked);
                 tone = Tone::Dim;
                 break;
         }
@@ -947,8 +955,15 @@ void MultiplayerMenu::click(const MultiplayerModel& model, Id id, std::vector<Mu
                     const SeatKind now = session->lobby().seats[s].kind;
                     MultiplayerEvent* e = event(MultiplayerEvent::Kind::SetSeat);
                     e->seat = static_cast<sim::PlayerId>(s);
-                    // Every game has all its players: a slot is a person's or the computer's.
-                    e->seat_kind = now == SeatKind::Open ? SeatKind::Computer : SeatKind::Open;
+                    if (may_block_seats(session->lobby())) {
+                        // The computer plays an open slot anyway: the other choice is nobody, and
+                        // the world and what scales with it stay those of all the slots.
+                        e->seat_kind = now == SeatKind::Open ? SeatKind::Closed : SeatKind::Open;
+                    } else {
+                        // A scenario's or savegame's players are in its world: a person's or the
+                        // computer's, never nobody's.
+                        e->seat_kind = now == SeatKind::Open ? SeatKind::Computer : SeatKind::Open;
+                    }
                 }
             }
             break;

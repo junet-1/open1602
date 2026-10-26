@@ -691,3 +691,24 @@ TEST_CASE("discovery: the setting shows the towns of players, or also natives an
     const sim::Simulation s(game.world, game.buildings, game.figures, rules);
     CHECK(game.world.islands()[0].discovered_by(0));
 }
+
+TEST_CASE("factions: blocked slots of a multiplayer game still count for the pirates' nests") {
+    // A slot blocked in the lobby: nobody plays it, but the world was made for it, and what grows
+    // with the players grows with it, also once the game is saved and loaded.
+    World w;
+    std::vector<sim::Player> players = w.world.players();
+    players.resize(9);
+    for (std::size_t i = 4; i < players.size(); ++i) {
+        players[i].role = sim::PlayerRole::Computer;
+        players[i].status = sim::PlayerStatus::Absent;
+    }
+    w.world.set_players(players);
+    CHECK(sim::pirate_nests(w.world, w.rules) == 2);
+
+    auto bytes = sim::write_game(w.world, w.buildings);
+    REQUIRE(bytes.ok());
+    auto back = sim::read_game(*bytes, w.buildings);
+    REQUIRE(back.ok());
+    CHECK(back->players()[5].status == sim::PlayerStatus::Absent);
+    CHECK(sim::pirate_nests(*back, w.rules) == 2);
+}

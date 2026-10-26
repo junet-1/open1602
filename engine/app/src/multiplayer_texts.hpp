@@ -70,7 +70,7 @@ enum class MpText : std::uint16_t {
     Nobody,
     SeatOpen,
     SeatComputer,
-    SeatClosed,
+    SeatBlocked,
     Ready,
     Choosing,
     Free,
