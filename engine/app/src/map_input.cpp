@@ -13,6 +13,7 @@
 
 #include "o1602/core/file.hpp"
 #include "o1602/render/island_renderer.hpp"
+#include "o1602/sim/combat.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/growth.hpp"
 #include "o1602/ui/localization.hpp"
@@ -1342,13 +1343,39 @@ void MapInput::map_order(double x, double y, bool queue, bool on_object) {
             return false;
         });
         if (kontor && city != nullptr) {
+            // Somebody else's Kontor: an attack on the building unless it is there to trade at
+            // (asks first when it means war, as for soldiers).
+            if (ship_attacks_kontor(world(), local(), city->owner, attack_pick)) {
+                const sim::SubTile b =
+                    world().islands()[kontor->island].map.sub_tile(m_buildings, kontor->local_x, kontor->local_y);
+                const sim::Target t = sim::Target::building(kontor->island, static_cast<std::uint32_t>(b.origin_x),
+                                                            static_cast<std::uint32_t>(b.origin_y));
+                submit_orders(m_units.target_orders(world(), local(), t, queue, true));
+                return;
+            }
             const sim::Target t = sim::Target::city_of(city->island, city->index);
-            submit_orders(m_units.target_orders(world(), local(), t, queue, attack_pick && city->owner != local()));
+            submit_orders(m_units.target_orders(world(), local(), t, queue, false));
             return;
         }
-        if (const auto hit =
-                fell ? building_tile_at(x, y, [&](std::uint16_t, const sim::SubTile& t) { return is_tree(t); })
-                     : std::optional<render::TileHit>{}) {
+        // Another player's building is attacked, as in the original's military mode
+        // (Haus_IsDestroyable 0x00464A80); a tree or field only with Ctrl or F, terrain never.
+        const auto foreign = [&](std::uint16_t island, const sim::SubTile& t) {
+            const sim::PlayerId owner =
+                world()
+                    .islands()[island]
+                    .map.top(static_cast<std::uint32_t>(t.origin_x), static_cast<std::uint32_t>(t.origin_y))
+                    .owner;
+            return owner != local() && owner != sim::kNoPlayer;
+        };
+        if (const auto hit = building_tile_at(x, y, [&](std::uint16_t island, const sim::SubTile& t) {
+                if (t.building == nullptr) {
+                    return false;
+                }
+                if (is_tree(t)) {
+                    return fell;
+                }
+                return sim::destroyable(*t.building, false) && foreign(island, t);
+            })) {
             const sim::SubTile b = world().islands()[hit->island].map.sub_tile(m_buildings, hit->local_x, hit->local_y);
             const sim::Target t = sim::Target::building(hit->island, static_cast<std::uint32_t>(b.origin_x),
                                                         static_cast<std::uint32_t>(b.origin_y));
@@ -1356,9 +1383,8 @@ void MapInput::map_order(double x, double y, bool queue, bool on_object) {
             return;
         }
     } else if (const auto hit = building_tile_at(x, y, [&](std::uint16_t, const sim::SubTile& t) {
-                   return t.building != nullptr && t.building->kind != sim::building_kind::kGround &&
-                          t.building->kind != sim::building_kind::kRoad && !sim::soldiers_walk_on(*t.building) &&
-                          (fell || !is_tree(t));
+                   // Not terrain such as a beach or rock: a click there is a move.
+                   return t.building != nullptr && (is_tree(t) ? fell : sim::destroyable(*t.building, false));
                })) {
         // Land units onto a building: attack another's, walk to (or heal at) one's own.
         const sim::SubTile b = world().islands()[hit->island].map.sub_tile(m_buildings, hit->local_x, hit->local_y);

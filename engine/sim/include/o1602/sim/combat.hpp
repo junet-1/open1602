@@ -54,6 +54,12 @@ struct Candidate {
     bool near = false;  ///< within range (and half a tile)
 };
 
+/// Whether units can shoot at a building of this kind (Haus_IsDestroyable 0x00464A80): gates,
+/// walls, towers, buildings, beach houses, mines, Kontors, harbours and mills always; roads, trees
+/// and fields, bridges and piers only with `ctrl`; terrain (ground, beach, river, rock, ...) and
+/// ruins never, nor a destroyed Kontor or market.
+[[nodiscard]] bool destroyable(const assets::BuildingType& building, bool ctrl) noexcept;
+
 class Combat {
 public:
     static constexpr std::size_t kMaxNeighbours = 32;

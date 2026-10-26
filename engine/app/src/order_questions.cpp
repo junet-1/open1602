@@ -37,6 +37,13 @@ sim::PlayerId target_owner(const sim::World& world, const sim::Target& t) {
     }
 }
 
+bool ship_attacks_kontor(const sim::World& world, sim::PlayerId local, sim::PlayerId owner, bool attack_pick) {
+    if (owner == local || owner == sim::kNoPlayer) {
+        return false;
+    }
+    return attack_pick || !world.diplomacy().may_trade(local, owner);
+}
+
 std::optional<std::string> order_question(const sim::World& world, const assets::BuildingTable& buildings,
                                           const assets::FigureTable& figures, sim::PlayerId local,
                                           const sim::Command& command) {

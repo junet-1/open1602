@@ -133,3 +133,24 @@ TEST_CASE("order questions: an attack asks only when it means war") {
     g.set_peace(sim::Treaty::None);
     CHECK(!attack(sim::Target::other_ship(g.other_ship)).has_value());  // at war already
 }
+
+TEST_CASE("order questions: a ship attacks a Kontor it may not trade at, and sails to a trade partner's") {
+    Game g;
+    const auto set_trade = [&](sim::Treaty t) {
+        g.world.diplomacy().relation(kMe, kOther).trade = t;
+        g.world.diplomacy().relation(kOther, kMe).trade = t;
+    };
+    // Without a trade treaty: an attack, at peace too (the attack order then asks before war).
+    set_trade(sim::Treaty::None);
+    CHECK(app::ship_attacks_kontor(g.world, kMe, kOther, false));
+    g.set_peace(sim::Treaty::None);
+    CHECK(app::ship_attacks_kontor(g.world, kMe, kOther, false));
+    // A trade partner's Kontor is sailed to; F first attacks it all the same.
+    set_trade(sim::Treaty::Signed);
+    CHECK(!app::ship_attacks_kontor(g.world, kMe, kOther, false));
+    CHECK(app::ship_attacks_kontor(g.world, kMe, kOther, true));
+    // One's own Kontor never.
+    CHECK(!app::ship_attacks_kontor(g.world, kMe, kMe, false));
+    CHECK(!app::ship_attacks_kontor(g.world, kMe, kMe, true));
+    CHECK(!app::ship_attacks_kontor(g.world, kMe, sim::kNoPlayer, true));
+}

@@ -58,6 +58,33 @@ std::uint64_t key_of(const Target& t) noexcept {
 
 }  // namespace
 
+bool destroyable(const assets::BuildingType& building, bool ctrl) noexcept {
+    if (building.destroyed) {
+        return false;  // a destroyed Kontor or market is no target any more
+    }
+    switch (building.kind) {
+        case kind::kGate:
+        case kind::kWall:
+        case kind::kWallBeach:
+        case kind::kTower:
+        case kind::kTowerBeach:
+        case kind::kBuilding:
+        case kind::kBeachHouse:
+        case kind::kMine:
+        case kind::kHq:
+        case kind::kHarbour:
+        case kind::kMill:
+            return true;
+        case kind::kRoad:
+        case kind::kForest:
+        case kind::kBridge:
+        case kind::kPier:
+            return ctrl;
+        default:
+            return false;
+    }
+}
+
 std::uint32_t Combat::scaled_damage(std::uint32_t hit, std::uint32_t health, std::uint32_t max_health) noexcept {
     const std::uint32_t h = std::min(health, max_health);
     return ((h * 85 / std::max<std::uint32_t>(1, max_health) + 43) * hit) >> 7U;
@@ -141,7 +168,8 @@ std::optional<Fighter> Combat::fighter(const Target& unit) const {
             }
             const auto b = building_at(*m_world, *m_buildings, unit.island,
                                        {static_cast<std::int32_t>(unit.x), static_cast<std::int32_t>(unit.y)});
-            if (!b) {
+            // Gone, or only a ruin or terrain left: nothing to shoot at any more.
+            if (!b || !destroyable(*b->type, true)) {
                 return std::nullopt;
             }
             const WorldIsland& island = m_world->islands()[unit.island];
