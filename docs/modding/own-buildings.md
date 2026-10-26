@@ -35,6 +35,7 @@ size_y = 2
 | `like` | a building of the original, `anno1602:<name or number>` ([names](values.md#names)) | every value of that building, as the copy's starting point |
 | `gfx` | 0 to 65534 | the first sprite; the building uses `size_x * size_y` sprites from it |
 | `size_x`, `size_y` | 1 to 255 | the footprint in tiles |
+| `level` | an unlock level, `anno1602:<name or number>` or `<package>:<name>` ([levels.md](levels.md)), `""` for always | what the player must have reached to build it |
 | `class` | a class of inhabitants, `anno1602:<name or number>` or `<package>:<name>` ([classes.md](classes.md)), for a house only | whose house it is |
 | `ware`, `raw`, `raw2` | a good by string id: `anno1602:<name or number>` or `<package>:<name>` ([goods.md](goods.md)), `""` for none | what it makes, and the first and second good it uses |
 
