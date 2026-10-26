@@ -23,7 +23,7 @@ namespace o1602::app {
 std::string PanelContext::text(std::string_view section, std::size_t line) const {
     if (section == "WARE" || section == "WAREM") {
         // The goods of packages have their names with them (docs/modding/goods.md).
-        if (const assets::OwnGood* g = world().goods().own(line)) {
+        if (const assets::OwnGood* g = line <= 255 ? world().goods().own(static_cast<std::uint32_t>(line)) : nullptr) {
             return g->name(ui::current_language());
         }
     }

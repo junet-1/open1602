@@ -96,7 +96,7 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
                 // What it makes and uses: a good by its id, or "" for none.
                 const std::string* s = e.value.string();
                 const auto w = s == nullptr ? std::nullopt
-                               : s->empty() ? std::optional<std::uint8_t>(0)
+                               : s->empty() ? std::optional<std::uint8_t>(std::uint8_t{0})
                                             : ware_of(goods, *s);
                 if (!w) {
                     warnings.push_back(field +
