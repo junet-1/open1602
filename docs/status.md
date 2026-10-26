@@ -32,8 +32,8 @@ Symbols: ✅ done · 🟡 partly · ⬜ open · ❓ behaviour of the original no
   foundations (content packs, factions of a package's own, Lua).
 - **Compared with the running original** on 2026-10-20 ([original-comparison.md](original-comparison.md)):
   the differences found and what is still open about them are in section 1.4.
-- **Milestones** (defined in [00-plan.md](00-plan.md#6-milestones)): M0 ✅ · M1 🟡 (open: parts of the
-  island header and scenario chunks; fonts, layouts, sound and videos done) · M2 ✅ · M3 ✅ · M4 ✅
+- **Milestones** (defined in [00-plan.md](00-plan.md#6-milestones)): M0 ✅ · M1 ✅ (every field of the
+  island header and the scenario chunks known; fonts, layouts, sound and videos done) · M2 ✅ · M3 ✅ · M4 ✅
   (simulation, ships, trade, savegames, sound, the side panel with the selection windows, menus and
   settings) · M5 🟡 (military, pirates, world generator stage 1, AI, missions with victory and defeat,
   points, end screen, high score lists, campaign progress, the scenarios' switches of the computers and
@@ -92,13 +92,17 @@ in [requests.md](requests.md).
 | Drought: how many fields wither (strength, end and recovery match the original, confirmed again on 2026-10-20) | [growth.md](re/growth.md) | Observation: savegames "Duerre", "NachDuerre" |
 | Robbers in large towns (fires and plague: section 1.4) | [disasters.md](re/disasters.md) | Observation: larger town, video |
 | Effect of a fire on the ship construction of a shipyard | [disasters.md](re/disasters.md) | Observation |
-| Second list at island +0x30, random class of loaded fields | [growth.md](re/growth.md) | Analysis |
-| Control switches of the loader (`0x0060912C`, `0x005E6AA8`) | [deer.md](re/deer.md) | Analysis |
-| Special figures of branches 9/10/11/13 | [rendering.md](re/rendering.md) | Analysis |
-| Island header (rest), attribute bits 26–31, BSH field `type`, palette animation | [scp.md](formats/scp.md), [bsh.md](formats/bsh.md), [col.md](formats/col.md) | Analysis |
-| Parts of `TIMERS`, remaining `SZENE` chunks; `AUFTRAG4` +0x48/+0x58 (never read) | [gam.md](formats/gam.md), [missions.md](re/missions.md) | Analysis |
+| Random class of loaded fields | [growth.md](re/growth.md) | Analysis |
 | U-007, S-088 (part), S-094 (part) | [bugs.md](re/bugs.md) | inferred from the code; Open1602 avoids them anyway |
-| Playback of the messages, character mapping of the fonts | [cod.md](formats/cod.md) | with the interface |
+
+Answered on 2026-10-26 by analysis of `1602.exe` and the editor: the island header in full (treasure
+flag, crop count, city slots, flag bits, the size class from the width; [scp.md](formats/scp.md)), the
+attribute bits 26–31 (unused), every field of `TIMERS` and its settings word ([gam.md](formats/gam.md)),
+the unused bytes of `SZENE` ([worldgen.md](re/worldgen.md)), `AUFTRAG4` +0x48/+0x58 (unused), the BSH
+`type` ([bsh.md](formats/bsh.md)), no palette animation ([col.md](formats/col.md)), the second list at
+island +0x30 (the craters, [growth.md](re/growth.md)), the loader switches ([scp.md](formats/scp.md#loader-switches)),
+the special figures of the display branches ([rendering.md](re/rendering.md)), how message icons age
+([ui.md](re/ui.md#message-ageing)) and the font mapping ([ui.md](re/ui.md#fonts)).
 
 ### 1.4 Differences from the running original
 
@@ -121,7 +125,7 @@ are listed in 2.1.
 |---|---|
 | **Bugs of the original**: 217 entries in the catalogue (counted 2026-10-23), most of them fixed or avoided, some switchable as a rule (S-097 to S-099 since 2026-10-22) or kept; open is only T-009 (Wine) | [bugs.md](re/bugs.md) |
 | **Corrections of the original's data** (2026-10-23): the bakery's building sound (`Backer.wav`, D-001), the pirate Kontor's flag (D-002), the accents of capitals above the letter instead of a line below it (D-012), a place of its own for every unit of the block formation (D-014); applied to the tables after loading, only where the data still has the original's value; off with `data_fixes = off` in `settings.cfg` or `--original-data` | [ADR 0006](architecture/0006-handling-original-bugs.md), [bugs.md](re/bugs.md) |
-| **Settings** (`sim::Rules`, in the savegame): refund on demolition, ships per player (100, original 33), units per player (250, original 100), raw material guarantee, highest game speed (8, original 4), droughts, volcanoes, pirates, pirate nests per four players, trader prices, free trader's reach | [ADR 0008](architecture/0008-game-settings.md) |
+| **Settings** (`sim::Rules`, in the savegame): refund on demolition, ships per player (100, original 33), units per player (250, original 100), raw material guarantee, highest game speed (8, original 4), droughts, volcanoes, pirates, pirate nests per four players, trader prices, free trader's reach, large iron veins (as the game file says, finite or endless), computer opponents (as the game file says, off or on) | [ADR 0008](architecture/0008-game-settings.md) |
 | **Custom worlds** (world generator stage 1): 200–2000 fields per side, number of islands, mix of sizes, villages, volcanic islands, gold islands (automatic or a fixed number), starting areas; chunk `O1602MAP` | [worldgen.md](re/worldgen.md) |
 | **Own save format `.o1602`**: full state (map, clocks, randomness, figures, fires, lava, diplomacy, exploration, ships, soldiers, AI) without limits, canonical, CRC-32, zlib; a saved game continues exactly. Exported `.GAM` files carry the same state in the chunk `O1602` | [o1602-save.md](formats/o1602-save.md), [o1602-chunk.md](formats/o1602-chunk.md) |
 | **Missions checked the same on every machine** (S-105), only with one's own mission (S-106), bankruptcy only after 200 s in a row (S-107), best assignment of the town goals (S-108), island goals with islands fixed at the start (S-110), checked mission data (S-111); play can continue after victory | [missions.md](re/missions.md) |

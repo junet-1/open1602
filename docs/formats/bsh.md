@@ -10,7 +10,7 @@ uint32_t offsets[n];      // offset of each sprite relative to the start of the 
 struct SpriteRecord {
     uint32_t width;
     uint32_t height;
-    uint32_t type;        // 1 in all examined files; meaning unknown
+    uint32_t type;        // 1 or 6: RLE, 2: raw; 1 in every original file (below)
     uint32_t length;      // size of the record incl. these 16 bytes, rounded up to 4 bytes
     uint8_t  rle[];       // see below
 };
@@ -27,6 +27,20 @@ leaves the chunk, and decodes nothing beyond it (HI-8).
 A sprite's height is no bound on its data: transparent rows at the bottom get no `0xFE`, and
 the 100 empty sprites are just `0xFF`. The original claims at most 3 418 pixels per RLE byte;
 Open1602 refuses more than 16 384 (HI-7).
+
+## Record type
+
+The blitters test the low byte of `type` (`0x00401B10`, `0x00401BF0`):
+
+| Type | Data | Drawn by |
+|---|---|---|
+| 1, 6 | RLE (below) | every blitter |
+| 2 | `width × height` palette indices row by row, index 0 transparent (`0x00403670`) | only the plain blitter; the recolouring one (owner colours, shading) skips it |
+| other | – | nothing |
+
+Every record of the original's files has type 1. Open1602 decodes types 1, 6 and 2 (type 2 also
+when recoloured) and gives a transparent image for any other type. A type 2 record shorter than its
+pixels is refused.
 
 ## RLE encoding
 
