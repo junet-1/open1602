@@ -139,7 +139,9 @@ struct ExploreOrder {
 /// name, offering the ship for sale and buying a ship another player offers.
 struct ShipCommand {
     enum class Op : std::uint8_t {
-        MountCannon,    ///< 1 t of cannons from a hold becomes a mounted cannon (op 0x19 +1)
+        /// 1 t of cannons from a hold becomes a mounted cannon (op 0x19 +1), `count` times while
+        /// a hold has 1 t and the ship room for another (Open1602: more than one at once).
+        MountCannon,
         UnmountCannon,  ///< "Kanonenbestückung reduzieren": a mounted cannon back into a hold as 1 t
         Dump,           ///< "Waren über Bord werfen": the goods of `hold` (0xFF = all holds) are lost
         Rename,         ///< `name`, 1 to kMaxNameLength bytes (Windows-1252)
@@ -158,6 +160,8 @@ struct ShipCommand {
     };
     static constexpr std::size_t kMaxNameLength = 40;
     static constexpr std::uint16_t kMaxSaleFactor = 384;
+    /// MountCannon: every free place the cannons on board fill.
+    static constexpr std::uint8_t kAllCannons = 0xFF;
     PlayerId player = kNoPlayer;
     std::uint32_t ship = 0;
     Op op = Op::MountCannon;
@@ -167,6 +171,7 @@ struct ShipCommand {
     bool on = true;       ///< WhiteFlag
     std::uint16_t x = 0;  ///< Patrol: world tile
     std::uint16_t y = 0;
+    std::uint8_t count = 1;  ///< MountCannon: cannons at most, kAllCannons = as many as fit
 };
 
 /// Whether and why a ship can explore an island now (the button of the ship panel).

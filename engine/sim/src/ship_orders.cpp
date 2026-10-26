@@ -33,23 +33,27 @@ bool Fleet::command(const ShipCommand& c) {
     const std::uint8_t cannons = m_buildings->materials().cannons;
     switch (c.op) {
         case ShipCommand::Op::MountCannon: {
-            // A hold with at least 1 t of cannons, while the ship has room for another (Maxkanon).
-            if (!own || type == nullptr || ship->cannons >= type->ship.max_cannons) {
+            // A hold with at least 1 t of cannons, while the ship has room for another (Maxkanon);
+            // `count` times, or until the cannons on board or the places run out.
+            if (!own || type == nullptr) {
                 return false;
             }
-            for (std::size_t h = 0; h < holds(*ship); ++h) {
+            std::uint8_t mounted = 0;
+            for (std::size_t h = 0; h < holds(*ship) && mounted < c.count; ++h) {
                 CargoSlot& slot = ship->cargo[h];
-                if ((c.hold != 0xFF && h != c.hold) || slot.ware != cannons || slot.amount < kTon) {
+                if ((c.hold != 0xFF && h != c.hold) || slot.ware != cannons) {
                     continue;
                 }
-                slot.amount -= kTon;
+                while (mounted < c.count && slot.amount >= kTon && ship->cannons < type->ship.max_cannons) {
+                    slot.amount -= kTon;
+                    ++ship->cannons;
+                    ++mounted;
+                }
                 if (slot.amount == 0) {
                     slot = CargoSlot{};
                 }
-                ++ship->cannons;
-                return true;
             }
-            return false;
+            return mounted > 0;
         }
         case ShipCommand::Op::UnmountCannon: {
             // Needs room for 1 t of cannons: a hold with cannons and space, or an empty hold.

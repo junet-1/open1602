@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -13,6 +14,9 @@
 #include "selection_panels.hpp"
 
 #include "o1602/sim/game_data.hpp"
+#include "o1602/sim/ships.hpp"
+#include "o1602/ui/localization.hpp"
+#include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
 
@@ -28,6 +32,40 @@ inline constexpr std::int32_t kEmptyHold = 4;
 /// A help line (LEISTE section of Text.cod).
 inline std::string help_line(const PanelContext& c, std::size_t line) {
     return c.text("LEISTE", line);
+}
+
+/// A click on the cannons in hold `hold` of an own ship: one of them mounted, with Shift as many as
+/// the free places and the cannons on board allow (Open1602), all in one command.
+inline sim::ShipCommand mount_cannons(const sim::Ship& ship, std::size_t hold, const PanelContext& c) {
+    sim::ShipCommand o;
+    o.player = c.local;
+    o.ship = ship.id;
+    o.op = sim::ShipCommand::Op::MountCannon;
+    if (c.shift) {
+        o.count = sim::ShipCommand::kAllCannons;  // from every hold, the clicked one is no limit
+    } else {
+        o.hold = static_cast<std::uint8_t>(hold);
+    }
+    return o;
+}
+
+/// The help line of a hold of a ship: its goods ("10t Kanonen"), or empty. With `mounting` (a click
+/// mounts them), cannons in an own ship tell how (Open1602).
+inline std::string hold_help(const sim::Ship& ship, std::size_t hold, const PanelContext& c, bool mounting) {
+    const sim::CargoSlot& slot = ship.cargo[hold];
+    if (slot.ware == 0 || slot.amount == 0) {
+        return c.text("WARE", 0);
+    }
+    if (sim::is_soldier_ware(slot.ware)) {
+        return c.text("WARE", slot.ware);
+    }
+    std::string goods = ui::format_text(c.text("GAME", 50),
+                                        {std::int64_t{slot.amount >> 5U}, std::string_view(c.text("WARE", slot.ware))});
+    if (slot.ware == sim::ware::kCannons && slot.amount >= sim::kStockUnitsPerTon && mounting &&
+        ship.owner == c.local) {
+        return ui::tr("ship.cannon_hold", {goods});
+    }
+    return goods;
 }
 
 /// The city of the tile of a selection, nothing if there is none.

@@ -256,6 +256,8 @@ player.colour.white = Weißer Spieler
 player.default = Spieler {1}
 city.default = Stadt {2} auf Insel {1}
 ship.default = Schiff {1}
+# A hold of cannons in an own ship's window ({1}: the goods, as "10t Cannons")
+ship.cannon_hold = {1} (Klick: eine Kanone montieren, Umschalt+Klick: so viele wie Platz haben)
 
 # Players five to twelve of a new world, named after their colours
 player.colour.orange = Oranger Spieler

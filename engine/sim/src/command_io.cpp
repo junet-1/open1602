@@ -255,6 +255,7 @@ void io(A& a, T& t)
     a(t.on);
     a(t.x);
     a(t.y);
+    a(t.count);
 }
 
 template <class A, class T>

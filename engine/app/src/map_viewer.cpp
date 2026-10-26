@@ -628,6 +628,7 @@ int MapViewer::run() {
                     e.button.down = in.kind == ViewerOptions::ScriptedInput::Kind::Down;
                     e.button.x = in.x;
                     e.button.y = in.y;
+                    SDL_SetModState(static_cast<SDL_Keymod>(in.mod));  // what the click reads as held
                     break;
                 case ViewerOptions::ScriptedInput::Kind::Key:
                     e.type = SDL_EVENT_KEY_DOWN;
