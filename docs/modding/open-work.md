@@ -140,6 +140,13 @@ defaults. Depends on items 2 and 3.
 the game only through commands, with its state in the savegame. Scripts also post the mods'
 messages.
 
+Part 1 done on 2026-10-27 ([scripts.md](scripts.md)): Lua 5.4.8 in `third_party/lua` with a fixed
+string hash seed, and `script::Sandbox` in `engine/script`: no io, os, package and debug libraries,
+no loading of files or binary chunks, no addresses in texts, no finalizers and weak tables,
+`math.random` from the game's generator, and limits on memory and on the instructions of each call.
+Still open: loading a package's scripts, events, commands, the script state in the savegame and
+messages posted by scripts.
+
 ### 7. Scenarios and campaigns (section 6)
 
 Scenarios as map plus start conditions plus goals plus an optional script, campaigns as a sequence
