@@ -27,6 +27,16 @@ constexpr std::uint64_t kArchInhabitants = 200;      // more than 199, in the la
 constexpr std::uint16_t kMissionMessage = 0x54;      // "Ihr konntet den Euch gestellten Auftrag erfüllen!"
 constexpr std::uint16_t kColourWinMessage = 0x6B;    // "Der rote Spieler konnte seinen Auftrag erfüllen!" + colour
 
+/// What does not fit into the city's warehouse is lost.
+void fit_into_storage(City& c) {
+    for (std::size_t w = 0; w < c.goods.size(); ++w) {
+        if (c.goods[w] > c.capacity) {
+            c.book(static_cast<std::uint8_t>(w), GoodsFlow::Lost, c.goods[w] - c.capacity);
+            c.goods[w] = c.capacity;
+        }
+    }
+}
+
 }  // namespace
 
 Simulation::Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
@@ -58,6 +68,13 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
                        Rules rules)
     : Simulation(world, buildings, figures, rules, Parts{}) {
     recount_disasters(world);
+    // As the original after loading: a city holds no more of a good than its warehouse takes. A city
+    // without a warehouse (capacity 0) keeps what it has.
+    for (const City& c : world.cities()) {
+        if (City* city = world.city(c.island, c.index); city != nullptr && city->capacity != 0) {
+            fit_into_storage(*city);
+        }
+    }
     // The towns the settings show from the start; a saved game has them discovered already.
     world.reveal_islands(m_rules.reveal);
     if (const std::vector<std::uint8_t> state = world.take_simulation_state(); !state.empty()) {
@@ -795,12 +812,7 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                 continue;
             }
             if (City* c = m_world->city(events[i].island, events[i].city)) {
-                for (std::size_t w = 0; w < c->goods.size(); ++w) {
-                    if (c->goods[w] > c->capacity) {
-                        c->book(static_cast<std::uint8_t>(w), GoodsFlow::Lost, c->goods[w] - c->capacity);
-                        c->goods[w] = c->capacity;
-                    }
-                }
+                fit_into_storage(*c);
             }
         }
     }
