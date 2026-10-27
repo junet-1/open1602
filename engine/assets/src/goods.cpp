@@ -61,6 +61,20 @@ std::uint8_t Goods::icon(std::uint32_t w) const noexcept {
     return static_cast<std::uint8_t>(w);
 }
 
+std::string_view Goods::picture(std::uint32_t w) const noexcept {
+    const OwnGood* g = own(w);
+    return g != nullptr ? std::string_view(g->picture) : std::string_view{};
+}
+
+bool Goods::set_picture(std::uint32_t w, std::string picture) {
+    const auto it = std::find_if(m_own.begin(), m_own.end(), [&](const OwnGood& g) { return g.number == w; });
+    if (it == m_own.end()) {
+        return false;
+    }
+    it->picture = std::move(picture);
+    return true;
+}
+
 void Goods::list(std::uint8_t number) {
     m_trade.insert(std::upper_bound(m_trade.begin(), m_trade.end(), number), number);
 }
@@ -118,8 +132,8 @@ std::optional<std::uint8_t> ware_of(const Goods& goods, std::string_view id) {
     return std::nullopt;
 }
 
-void apply_goods_file(Goods& goods, std::string_view package, std::string_view utf8,
-                      std::vector<std::string>& warnings) {
+void apply_goods_file(Goods& goods, std::string_view package, std::string_view utf8, std::vector<std::string>& warnings,
+                      std::span<const PackageIcon> icons) {
     const std::string where = std::string(package) + "/" + std::string(kGoodsFile);
     auto tables = core::parse_data_file(utf8);
     if (!tables) {
@@ -157,6 +171,14 @@ void apply_goods_file(Goods& goods, std::string_view package, std::string_view u
                     ok = false;
                 } else {
                     good.icon = *w;
+                }
+            } else if (e.key == "picture") {
+                const std::string* s = e.value.string();
+                if (s == nullptr || find_package_icon(icons, *s) == nullptr) {
+                    warnings.push_back(field + "names no icon of a package (icons.toml, <package>:<name>)");
+                    ok = false;
+                } else {
+                    good.picture = *s;
                 }
             } else if (const std::string_view language = name_key_language(e.key); !language.empty()) {
                 if (e.value.string() == nullptr || e.value.string()->empty()) {

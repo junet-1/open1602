@@ -3,7 +3,7 @@
 // The goods a game trades, Open1602's own: the original's (EISENERZ to ZIEGEL, game_data.hpp) and
 // those content packages add in `goods.toml` (docs/modding/goods.md, MD-3). A good of a package
 // gets a ware number after the original's (from ware::kFirstOwn), a price, the icon of a good of
-// the original until packages bring pictures, and names by language. A game keeps its goods
+// the original, optionally an icon of a package that it shows instead, and names by language. A game keeps its goods
 // (section GOOD of the savegame), so it plays with them whatever the packages installed later say.
 #pragma once
 
@@ -17,6 +17,7 @@
 
 #include "o1602/assets/game_data.hpp"
 #include "o1602/assets/localized_names.hpp"
+#include "o1602/assets/package_graphics.hpp"
 #include "o1602/core/result.hpp"
 
 namespace o1602::assets {
@@ -42,7 +43,10 @@ struct OwnGood {
     std::uint8_t number = 0;  ///< its ware number in this game
     std::string id;           ///< "<package>:<name>", UTF-8
     std::uint16_t price = 0;  ///< base price per ton, as kBasePrices
-    std::uint8_t icon = 0;    ///< the good of the original whose icon it shows
+    std::uint8_t icon = 0;    ///< the good of the original whose icon it shows without `picture`
+    /// The icon of a package it shows ("<package>:<name>", icons.toml); empty for none. Where no
+    /// package has that icon (a game played without it), `icon` stands in.
+    std::string picture;
     /// Its name by language code ("en", "de"), Windows-1252 as the game's fonts take it.
     LocalizedNames names;
 
@@ -69,6 +73,11 @@ public:
     [[nodiscard]] const std::vector<OwnGood>& own_goods() const noexcept { return m_own; }
     /// The original's good whose icon `w` shows: `w` itself for the original's.
     [[nodiscard]] std::uint8_t icon(std::uint32_t w) const noexcept;
+    /// The icon of a package `w` shows ("<package>:<name>"), empty if none.
+    [[nodiscard]] std::string_view picture(std::uint32_t w) const noexcept;
+    /// Gives the good a package added with ware number `w` the icon `picture`; false if there is no
+    /// such good.
+    bool set_picture(std::uint32_t w, std::string picture);
 
     /// Adds `good` with the next free ware number (the one it has is replaced); fails when none is
     /// left or a good of that id is there already.
@@ -94,8 +103,9 @@ private:
 
 /// Reads `goods.toml` of `package` and adds its goods to `goods`, in the order of the file. A
 /// table that cannot be read is passed over with a warning; a file that is no data file adds nothing.
-void apply_goods_file(Goods& goods, std::string_view package, std::string_view utf8,
-                      std::vector<std::string>& warnings);
+/// `icons`: the packages' icons a good may show (`picture`).
+void apply_goods_file(Goods& goods, std::string_view package, std::string_view utf8, std::vector<std::string>& warnings,
+                      std::span<const PackageIcon> icons = {});
 
 /// The ware number a string id stands for: "anno1602:<name or number>" of the original's trade goods
 /// (original_names.hpp) or "<package>:<name>" of one in `goods`; nothing for any other.

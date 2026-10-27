@@ -7,9 +7,9 @@ to another category or row, and takes them out of the menu.
 
 **Status:** Done are the file `build_menu.toml`, buildings of a package with their own icon and
 name (`building` names one by its string id, [own-buildings.md](own-buildings.md)), moving and
-removing the original's buildings. Still open, with milestone M8: categories of a
-package's own (they need buttons in `BAU.GAD`) and icons of a package's own (PNG comes with the
-import of content; until then `icon` picks a sprite of the original's `TOOLS` sheet).
+removing the original's buildings, and icons of a package's own (`icon = "<package>:<name>"`,
+[graphics.md](graphics.md#icons)). Still open, with milestone M8: categories of a package's own
+(they need buttons in `BAU.GAD`).
 
 ## Where a mod's changes are
 
@@ -55,7 +55,7 @@ remove = true
 | `category` | `31001` military, `31002` roads, `31003` mines, `31005` craftsmen, `31006` farms, `31007` harbour, `31008` public buildings (`31004` is the demolish tool) | needed, unless `remove` |
 | `row` | 1 to 6, at most one past the category's last row | the last row while it has room, else a new one |
 | `position` | 1 to one past the buildings of the row | after the last |
-| `icon` | sprite of `TOOLS` from `GFXBAUHAUS` | needed for a building new to the menu, else its own |
+| `icon` | sprite of `TOOLS` from `GFXBAUHAUS`, or an icon of a package `"<package>:<name>"` ([icons.toml](graphics.md#icons)) | needed for a building new to the menu, else its own |
 | `name` | text (UTF-8; what the game's fonts cannot show is left out) | needed for a building new to the menu, else its own |
 | `remove` | `true` takes the building out of the menu | `false` |
 

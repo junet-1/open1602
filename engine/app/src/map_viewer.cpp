@@ -41,6 +41,7 @@
 #include "o1602/sim/growth.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 
 namespace o1602::app {
 
@@ -155,6 +156,19 @@ struct ModRules {
     std::vector<audio::MusicTrack> music;
 };
 
+/// The icons of `packages` (icons.toml), numbered in their load order.
+std::vector<assets::PackageIcon> load_package_icons(std::span<const assets::ModPackage> packages,
+                                                    std::vector<std::string>& problems) {
+    std::vector<assets::PackageIcon> icons;
+    for (const assets::ModPackage& package : packages) {
+        if (const auto bytes = core::read_file(package.folder / assets::kIconsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_icons_file(icons, package.id, package.folder, text, problems);
+        }
+    }
+    return icons;
+}
+
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
 /// balance.toml), the packages in their load order; the buildings they add go into `buildings`
 /// first (own_buildings.toml), so that a package can change another package's building too.
@@ -162,11 +176,15 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
                         const assets::FigureTable& figures) {
     ModRules rules;
     std::vector<std::string> problems;
-    // Goods first, then the classes and buildings that use them, then the values that may name both.
+    // Goods first (with the icons they may show), then the classes and buildings that use them,
+    // then the values that may name both. The icons' warnings come when the game takes them
+    // (MapViewer::use_game_packages).
+    std::vector<std::string> ignored;
+    const std::vector<assets::PackageIcon> icons = load_package_icons(packages, ignored);
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / assets::kGoodsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-            assets::apply_goods_file(rules.goods, package.id, text, problems);
+            assets::apply_goods_file(rules.goods, package.id, text, problems, icons);
         }
     }
     // Then the classes that need them, then the buildings, among them houses of those classes.
@@ -2543,6 +2561,11 @@ void MapViewer::use_game_packages() {
     const auto& wanted = m_state->world.packages();
     const std::vector<assets::ModPackage> known = known_packages();
     const std::vector<assets::ModPackage> used = wanted ? assets::packages_for(known, *wanted, problems) : m_packages;
+    // The icons first: the messages and the build menu may name them.
+    ui::set_package_icons(load_package_icons(used, problems));
+    if (m_hud) {
+        m_hud->forget_package_icons();
+    }
     m_messages = MessageTable();
     m_messages.load_mods(used, problems);
     ui::set_build_menu(

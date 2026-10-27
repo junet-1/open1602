@@ -2,6 +2,7 @@
 #include "o1602/render/package_sprites.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 
 #include "o1602/core/file.hpp"
@@ -132,6 +133,61 @@ bool PlacedSources::pixels(std::uint32_t i, std::vector<std::uint8_t>& rgba) con
     }
     rgba.clear();
     return true;
+}
+
+IconPixels package_icon_pixels(const assets::PackageIcon& icon, double scale) {
+    IconPixels out;
+    const auto bytes = core::read_file(icon.file);
+    if (!bytes) {
+        out.error = core::path_to_utf8(icon.file) + ": " + bytes.error().message;
+        return out;
+    }
+    auto png = core::decode_png(*bytes);
+    if (!png) {
+        out.error = core::path_to_utf8(icon.file) + ": " + png.error().message;
+        return out;
+    }
+    if (scale >= 1.0) {
+        out.width = png->width;
+        out.height = png->height;
+        out.rgba = std::move(png->rgba);
+        return out;
+    }
+    out.width = std::max(1U, static_cast<std::uint32_t>(std::lround(png->width * scale)));
+    out.height = std::max(1U, static_cast<std::uint32_t>(std::lround(png->height * scale)));
+    out.rgba.assign(std::size_t{out.width} * out.height * 4, 0);
+    // Each pixel averages the block of pixels it covers, weighted by their alpha so that the
+    // colours of transparent ones do not show at the edges.
+    for (std::uint32_t y = 0; y < out.height; ++y) {
+        const std::uint32_t y0 = y * png->height / out.height;
+        const std::uint32_t y1 = std::max(y0 + 1, (y + 1) * png->height / out.height);
+        for (std::uint32_t x = 0; x < out.width; ++x) {
+            const std::uint32_t x0 = x * png->width / out.width;
+            const std::uint32_t x1 = std::max(x0 + 1, (x + 1) * png->width / out.width);
+            std::uint64_t r = 0;
+            std::uint64_t g = 0;
+            std::uint64_t b = 0;
+            std::uint64_t a = 0;
+            for (std::uint32_t sy = y0; sy < y1; ++sy) {
+                for (std::uint32_t sx = x0; sx < x1; ++sx) {
+                    const std::uint8_t* p = &png->rgba[(std::size_t{sy} * png->width + sx) * 4];
+                    r += std::uint64_t{p[0]} * p[3];
+                    g += std::uint64_t{p[1]} * p[3];
+                    b += std::uint64_t{p[2]} * p[3];
+                    a += p[3];
+                }
+            }
+            std::uint8_t* d = &out.rgba[(std::size_t{y} * out.width + x) * 4];
+            const std::uint64_t n = std::uint64_t{y1 - y0} * (x1 - x0);
+            if (a > 0) {
+                d[0] = static_cast<std::uint8_t>(r / a);
+                d[1] = static_cast<std::uint8_t>(g / a);
+                d[2] = static_cast<std::uint8_t>(b / a);
+                d[3] = static_cast<std::uint8_t>(a / n);
+            }
+        }
+    }
+    return out;
 }
 
 }  // namespace o1602::render

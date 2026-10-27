@@ -19,6 +19,7 @@
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -49,7 +50,6 @@ constexpr std::int32_t kGfxLeiste = 253;
 constexpr std::int32_t kLeistArt = 101001;   // the status bar's art (drawn widened instead)
 constexpr std::int32_t kLeistTextX = 750;    // its line ends here, 18 before the art's right edge
 constexpr std::int32_t kTutorArt = 111001;   // the mission window's art (drawn widened instead)
-constexpr std::int32_t kGfxTutor = 645;      // GFXTUTOR of TOOLS.INC
 constexpr std::int32_t kTutorText = 110002;  // its flowing text
 constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
 constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
@@ -307,6 +307,8 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);
         m_tutor->set_hidden(kTutorArt, true);
+        // The History Edition's TOOLS.INC puts five sprites more before it (GFXKAMPF).
+        m_gfx_tutor = m_tutor->layout().constant("GFXTUTOR").value_or(m_gfx_tutor);
         // The gadgets at the window's right end (the scroll arrows) move with it on wide screens.
         for (const assets::Gadget& g : m_tutor->layout().gadgets) {
             if (g.kind != assets::GadgetKind::Unused && g.id != kTutorArt && g.pos[0] >= kDesignViewW / 2) {
@@ -806,7 +808,7 @@ void Hud::draw_mission(const sim::World& world) {
         m_tutor->set_position(id, pos[0] + extra, pos[1]);
     }
     m_tutor->set_size(kTutorText, m_tutor_text_size[0] + extra, m_tutor_text_size[1]);
-    m_renderer->draw_widened(0, kGfxTutor, window, m_regions.scale);
+    m_renderer->draw_widened(0, m_gfx_tutor, window, m_regions.scale);
     if (m_tutorial) {
         // The tutorial (0x00430FF0): six lines of its page instead of the mission's text, „weiter“
         // only where the chapter pages forward by hand, never "back".
@@ -1427,7 +1429,11 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         const Event& e = m_events[i];
         const MessageDefinition* def = m_messages->get(e.id);
         const auto type = static_cast<std::uint8_t>(def != nullptr ? def->icon : MessageIcon::Notice);
-        if (type < 4) {
+        const auto picture =
+            def != nullptr && !def->picture.empty() ? ui::package_icon_sprite(def->picture) : std::nullopt;
+        if (picture) {
+            m_leist.set_graphic(id, *picture, 0);  // a package's icon, as it is drawn
+        } else if (type < 4) {
             set_banner_graphic(m_leist, id, message_icon_art(type), banners.get(e.banner), 6);
         } else {
             m_leist.set_graphic(id, kGfxLeiste + 1 + 0x28 + type * 2, 1);
@@ -1462,8 +1468,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     const BuildPanel::Available available =
         m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
     if (m_mode == kModeBuild && m_build) {
-        m_build->refresh(buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
-                         [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); });
+        m_build->refresh(
+            buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
+            [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); },
+            m_simulation != nullptr ? m_simulation->world().goods() : assets::Goods{});
         m_renderer->draw(m_build->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
         if (const ui::Panel* popup = m_build->popup()) {
             m_renderer->draw(popup->draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);

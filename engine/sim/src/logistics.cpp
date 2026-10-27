@@ -188,7 +188,11 @@ void Logistics::update_storage() {
             continue;
         }
         Storage& s = storage[city];
-        ++s.count;
+        // Only standing markets and Kontors add room (0x0047AB00, 0x00481170); a destroyed Kontor
+        // still gives its own (small) base, as the original's city +0x20.
+        if (!b->type->destroyed) {
+            ++s.count;
+        }
         if (b->type->prod_kind != static_cast<std::int32_t>(ProductionKind::Markt)) {
             s.base = std::max(s.base, b->type->max_stock);
         }
@@ -196,9 +200,9 @@ void Logistics::update_storage() {
     for (const City& c : m_world->cities()) {
         City* city = m_world->city(c.island, c.index);
         const auto it = storage.find(city);
-        city->capacity = it == storage.end() || it->second.count == 0
+        city->capacity = it == storage.end()
                              ? 0
-                             : it->second.base + (it->second.count - 1) * kStorehouseRoom;
+                             : it->second.base + (it->second.count > 0 ? it->second.count - 1 : 0) * kStorehouseRoom;
     }
 }
 

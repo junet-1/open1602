@@ -271,6 +271,8 @@ public:
     void reset_game();
     /// The render device was reset: the frame's textures are made again when next drawn.
     void release_textures() { m_renderer->release_textures(); }
+    /// The packages' icons changed (ui::set_package_icons()): their pictures are read again.
+    void forget_package_icons() { m_renderer->forget_package_icons(); }
     /// The render device was lost and the renderer made again: the frame draws with the new one
     /// (release_textures() went before the old one did).
     void set_renderer(SDL_Renderer* renderer) noexcept {
@@ -461,6 +463,7 @@ private:
     /// The window of the current selection, nothing without one or without the game.
     [[nodiscard]] SelectionPanel* selection_panel(std::optional<PanelContext>& context);
     std::int32_t m_gfx_baumat = 46;          ///< TOOLS.INC GFXBAUMAT
+    std::int32_t m_gfx_tutor = 645;          ///< TOOLS.INC GFXTUTOR: the mission window's art
     std::deque<Event> m_events;              ///< newest first, at most three
     std::vector<diplomacy::Offer> m_offers;  ///< the offers the status bar shows, as last drawn
     std::vector<std::uint8_t> m_minimap;

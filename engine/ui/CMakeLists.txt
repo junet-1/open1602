@@ -8,6 +8,7 @@ add_library(o1602_ui
     src/form.cpp
     src/key_bindings.cpp
     src/localization.cpp
+    src/package_icons.cpp
     src/panel.cpp
     src/text_format.cpp
     src/unit_selection.cpp

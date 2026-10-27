@@ -14,6 +14,7 @@
 #include "o1602/assets/savegame.hpp"
 #include "o1602/sim/goods_statistics.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 
 namespace o1602::app {
 
@@ -133,7 +134,7 @@ std::string GoodsWindow::class_name(const assets::BuildingTable& buildings, std:
 }
 
 std::int32_t GoodsWindow::ware_icon(const sim::World& world, std::uint8_t ware) const {
-    return m_ware_icon + world.goods().icon(ware);
+    return ui::ware_sprite(m_ware_icon, world.goods(), ware);
 }
 
 void GoodsWindow::wheel(std::int32_t notches) noexcept {
