@@ -69,6 +69,10 @@ add_executable(o1602_tests
     unit/test_goods.cpp
     unit/test_resident_classes.cpp
     unit/test_package_graphics.cpp
+    unit/test_package_icons.cpp
+    unit/test_figure_looks.cpp
+    unit/test_script_sandbox.cpp
+    unit/test_game_scripts.cpp
     unit/test_unlock_levels.cpp
     unit/test_own_buildings.cpp
     unit/test_game_content.cpp
@@ -76,6 +80,7 @@ add_executable(o1602_tests
     unit/test_localization.cpp
     unit/test_unit_selection.cpp
     unit/test_video.cpp
+    unit/test_bink.cpp
     unit/test_net.cpp
     unit/test_cursor_resource.cpp
     unit/test_endless_setup.cpp
@@ -109,8 +114,10 @@ add_executable(o1602_tests
     data/test_goods_data.cpp
     data/test_net_data.cpp
 )
-target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render o1602::audio o1602::ui o1602::video o1602::net o1602::menus)
+target_link_libraries(o1602_tests PRIVATE o1602::assets o1602::sim o1602::render o1602::audio o1602::ui o1602::video o1602::net o1602::menus o1602::script)
 o1602_set_warnings(o1602_tests)
+# test_bink.cpp checks the Bink Audio transforms directly, which are internal to o1602_video.
+target_include_directories(o1602_tests PRIVATE ${PROJECT_SOURCE_DIR}/engine/video/src)
 # Stored savegames of earlier versions (DS-3), read by test_save_game.cpp.
 target_compile_definitions(o1602_tests PRIVATE O1602_TEST_SAVES="${CMAKE_CURRENT_SOURCE_DIR}/unit/saves"
                                                O1602_TEST_SOUNDS="${CMAKE_CURRENT_SOURCE_DIR}/unit/sounds")

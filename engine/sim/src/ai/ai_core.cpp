@@ -383,7 +383,7 @@ void Engine::check_city_loss(AiPlayer& p) {
 }
 
 bool Engine::classic() const {
-    return m_sim.rules().classic_ai;
+    return m_sim.rules().bugs.classic_ai;
 }
 
 // ---------------------------------------------------------------------------------------------

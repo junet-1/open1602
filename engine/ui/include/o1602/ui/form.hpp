@@ -66,6 +66,10 @@ public:
     void swatch(Rect r, std::uint8_t colour);
     /// Text in the box, cut to its width; vertically centred.
     void label(Rect r, std::string text, Align align = Align::Left, Tone tone = Tone::Normal);
+    /// A label on the left and its value on the right of one box, as a list of settings shown
+    /// only: the value gets the room it needs, the label what is left.
+    void entry(Rect r, std::string label, std::string value, Tone label_tone = Tone::Normal,
+               Tone value_tone = Tone::Normal);
     /// Text wrapped into the lines of the box (`line` design units apart); what does not fit is
     /// left out.
     void paragraph(Rect r, std::string text, Tone tone = Tone::Normal, std::int32_t line = 22);
@@ -101,13 +105,15 @@ public:
 
     /// The widgets' boxes and texts as laid out, for tests and the owner.
     struct Widget {
-        enum class Kind : std::uint8_t { Panel, Swatch, Label, Paragraph, Button, Field, Check, Row };
+        enum class Kind : std::uint8_t { Panel, Swatch, Label, Entry, Paragraph, Button, Field, Check, Row };
         Kind kind = Kind::Label;
         Id id = 0;
         Rect rect;
         std::string text;
+        std::string value;  ///< entry: the text on the right
         Align align = Align::Left;
         Tone tone = Tone::Normal;
+        Tone value_tone = Tone::Normal;  ///< entry
         std::uint8_t colour = 0;
         std::int32_t line = 0;  ///< paragraph: line height
         bool enabled = true;

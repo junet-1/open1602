@@ -274,6 +274,8 @@ std::string error_text(const core::Error& error, std::string_view context) {
             return tr("error.limit", {error.message});
         case core::ErrorCode::Unsupported:
             return tr("error.unsupported");
+        case core::ErrorCode::ScriptError:
+            return tr("error.script", {error.message});
         case core::ErrorCode::PlatformError:
             break;
     }

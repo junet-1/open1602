@@ -16,6 +16,7 @@
 #include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -329,9 +330,11 @@ public:
         }
         const Context k = context(*ship, c);
         // Transfer, trade and the pirates end when the ship sails off (0x0043AA00); the route
-        // editor stays.
-        const bool at_kontor = m_page == Page::Transfer                                 ? k.own_kontor
-                               : m_page == Page::Trade                                  ? k.foreign_kontor
+        // editor stays. With S-012 brought back (OriginalBugs::remote_trade) transfer and trade
+        // stay open and go on with the Kontor they were opened at.
+        const bool remote = c.world().original_bugs().remote_trade && m_city.has_value();
+        const bool at_kontor = m_page == Page::Transfer                                 ? k.own_kontor || remote
+                               : m_page == Page::Trade                                  ? k.foreign_kontor || remote
                                : m_page == Page::Pirates || m_page == Page::PirateOrder ? k.pirates
                                                                                         : true;
         if (ship->owner != c.local || !at_kontor) {
@@ -668,10 +671,18 @@ private:
         k.moving = m.phase == sim::ShipMotion::Phase::Run || m.phase == sim::ShipMotion::Phase::Turn ||
                    (m.path_index < m.path.size());
         k.explore = c.simulation.fleet().explore_state(ship, c.local);
-        if (k.foreign || k.moving) {
+        if (k.foreign) {
             return k;
         }
-        if (const auto index = sim::kontor_in_reach(w, c.buildings, ship.x, ship.y)) {
+        // With S-013 brought back (OriginalBugs::remote_repair) a ship can be put to repair as it
+        // sails off from the yard, and is repaired on the way.
+        const bool remote_repair = c.world().original_bugs().remote_repair;
+        if (k.moving && !remote_repair) {
+            return k;
+        }
+        if (k.moving) {
+            // Sailing: only the yard it leaves counts.
+        } else if (const auto index = sim::kontor_in_reach(w, c.buildings, ship.x, ship.y)) {
             const sim::City& city = w.cities()[*index];
             k.city = std::make_pair(city.island, city.index);
             const sim::Player* owner = w.player(city.owner);
@@ -739,7 +750,8 @@ private:
                 continue;
             }
             const sim::CargoSlot& slot = ship.cargo[h];
-            p.set_graphic(icon + k, filled ? m_gfx_ware + c.world().goods().icon(slot.ware) : m_gfx_empty, 0);
+            p.set_graphic(icon + k, filled ? ui::ware_sprite(m_gfx_ware, c.world().goods(), slot.ware) : m_gfx_empty,
+                          0);
             if (filled) {
                 p.set_slider(bar + k, 1, static_cast<std::int32_t>(std::min(slot.amount, sim::kHoldCapacity)),
                              static_cast<std::int32_t>(sim::kHoldCapacity));
@@ -758,7 +770,8 @@ private:
         const assets::FigureType* f = c.figures.get(ship.figure);
         const std::uint32_t max_health = f != nullptr ? std::max<std::uint32_t>(f->ship.max_health, 1) : 1;
         const std::uint32_t health = ship.health == 0 ? max_health : ship.health;
-        m_ship.set_visible(kRepair, idle && k.yard.has_value() && health < max_health);
+        const bool repair_moving = own && c.world().original_bugs().remote_repair;
+        m_ship.set_visible(kRepair, (idle || repair_moving) && k.yard.has_value() && health < max_health);
         m_ship.set_selected(kRepair, ship.repairing);
         m_ship.set_visible(kFound, idle && k.found);
         m_ship.set_visible(kStop, own && k.moving);
@@ -1040,7 +1053,7 @@ private:
             if (w == 0) {
                 continue;
             }
-            m_transfer.set_graphic(45011 + k, m_gfx_ware + c.world().goods().icon(w), 0);
+            m_transfer.set_graphic(45011 + k, ui::ware_sprite(m_gfx_ware, c.world().goods(), w), 0);
             m_transfer.set_disabled(45011 + k, city->stock(w) == 0);
             m_transfer.set_slider(
                 45131 + k, 1, static_cast<std::int32_t>(std::min<std::uint32_t>(city->stock(w), city->capacity)), cap);
@@ -1079,6 +1092,10 @@ private:
             }
             if (c.world().goods().is_trade(w)) {
                 sim::CargoTransfer o;
+                if (m_city) {  // the Kontor of the window (OriginalBugs::remote_trade)
+                    o.kontor_island = m_city->first;
+                    o.kontor_city = m_city->second;
+                }
                 o.player = c.local;
                 o.ship = ship.id;
                 o.ware = w;
@@ -1091,6 +1108,10 @@ private:
             if (h < ship.cargo.size() && c.world().goods().is_trade(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 show_ware(ship.cargo[h].ware);
                 sim::CargoTransfer o;
+                if (m_city) {  // the Kontor of the window (OriginalBugs::remote_trade)
+                    o.kontor_island = m_city->first;
+                    o.kontor_city = m_city->second;
+                }
                 o.player = c.local;
                 o.ship = ship.id;
                 o.ware = ship.cargo[h].ware;
@@ -1147,7 +1168,7 @@ private:
             m_trade.set_selected(33031 + k, k == m_offer);
             if (ware) {
                 const std::uint8_t w = m_offers[static_cast<std::size_t>(k)];
-                m_trade.set_graphic(33011 + k, m_gfx_ware + c.world().goods().icon(w), 0);
+                m_trade.set_graphic(33011 + k, ui::ware_sprite(m_gfx_ware, c.world().goods(), w), 0);
                 m_trade.set_slider(
                     33131 + k, 1,
                     static_cast<std::int32_t>(std::min<std::uint32_t>(sellable(*city, w), city->capacity)), cap);
@@ -1199,6 +1220,10 @@ private:
             m_hold = e.id - 33071;
         } else if (e.id == 33001 && m_offer < static_cast<std::int32_t>(m_offers.size())) {
             sim::CargoTransfer o;
+            if (m_city) {  // the Kontor of the window (OriginalBugs::remote_trade)
+                o.kontor_island = m_city->first;
+                o.kontor_city = m_city->second;
+            }
             o.player = c.local;
             o.ship = ship.id;
             o.ware = m_offers[static_cast<std::size_t>(m_offer)];
@@ -1209,6 +1234,10 @@ private:
             const auto h = static_cast<std::size_t>(m_hold);
             if (h < ship.cargo.size() && c.world().goods().is_trade(ship.cargo[h].ware) && ship.cargo[h].amount != 0) {
                 sim::CargoTransfer o;
+                if (m_city) {  // the Kontor of the window (OriginalBugs::remote_trade)
+                    o.kontor_island = m_city->first;
+                    o.kontor_city = m_city->second;
+                }
                 o.player = c.local;
                 o.ship = ship.id;
                 o.ware = ship.cargo[h].ware;
@@ -1435,9 +1464,11 @@ private:
             for (const std::int32_t id : {w.icon, w.back, w.frame, w.slider, w.arrow}) {
                 m_route.set_visible(id, true);
             }
-            m_route.set_graphic(
-                w.icon,
-                city != nullptr && entry.ware != 0 ? m_gfx_ware + c.world().goods().icon(entry.ware) : m_gfx_empty, 0);
+            m_route.set_graphic(w.icon,
+                                city != nullptr && entry.ware != 0
+                                    ? ui::ware_sprite(m_gfx_ware, c.world().goods(), entry.ware)
+                                    : m_gfx_empty,
+                                0);
             m_route.set_disabled(w.icon, no_hold);
             m_route.set_visible(w.bar, !off);
             m_route.set_disabled(w.slider, off);

@@ -446,6 +446,20 @@ TEST_CASE("construction: a market needs one full edge in the city, like the orig
     CHECK(island.build({{kMarket, 12, 16, 0, 0}}).items[0].refusal == sim::BuildRefusal::Territory);
 }
 
+TEST_CASE("construction: with S-008 brought back every building needs only one edge in the city") {
+    Island island;
+    sim::OriginalBugs bugs;
+    bugs.building_radius = true;
+    island.world.set_original_bugs(bugs);
+    island.found();
+    REQUIRE(island.city_at(15, 11) == sim::MapCell::kNoCity);
+    REQUIRE(island.build({{kHouse, 14, 11, 0, 0}}).placed == 1);
+    CHECK(island.city_at(15, 11) == 0);  // the free land under it joins the city
+    CHECK(island.city_at(15, 12) == 0);
+    // A corner alone is still not enough.
+    CHECK(island.build({{kHouse, 12, 16, 0, 0}}).items[0].refusal == sim::BuildRefusal::Territory);
+}
+
 TEST_CASE("construction: before a market goes, what would lose its land is counted (S-035)") {
     Island island;
     island.found();
@@ -491,6 +505,18 @@ TEST_CASE("construction: fields grow where the island is fertile, forest becomes
         refused += p.items[0].refusal == sim::BuildRefusal::Infertile ? 1U : 0U;
     }
     CHECK(refused == 4);  // pattern 0: 2 of 32 tiles carry (here x = 8 and 12)
+
+    // With S-003 brought back they are planted withered and paid for, as the original does.
+    Island original(0, 1);
+    sim::OriginalBugs bugs;
+    bugs.infertile_fields = true;
+    original.world.set_original_bugs(bugs);
+    original.found();
+    const std::int32_t before = original.world.players()[0].money;
+    const sim::BuildPlan withered = original.build({{kField, 7, 13, 0, 0}});
+    REQUIRE(withered.placed == 1);
+    CHECK(original.at(7, 13)->id != kField);
+    CHECK(original.world.players()[0].money < before);
 }
 
 TEST_CASE("construction: forest is planted on every tile, fertile or not") {

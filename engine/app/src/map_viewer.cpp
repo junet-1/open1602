@@ -41,6 +41,7 @@
 #include "o1602/sim/growth.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 
 namespace o1602::app {
 
@@ -151,9 +152,24 @@ struct ModRules {
     std::vector<assets::InfraLevel> levels;
     /// The images of the packages with their sprite numbers (graphics.toml).
     std::vector<assets::PackageImage> images;
+    /// The figures the packages draw with their images (figure_images.toml).
+    std::vector<assets::FigureLook> looks;
     /// The music of the packages (music.toml).
     std::vector<audio::MusicTrack> music;
 };
+
+/// The icons of `packages` (icons.toml), numbered in their load order.
+std::vector<assets::PackageIcon> load_package_icons(std::span<const assets::ModPackage> packages,
+                                                    std::vector<std::string>& problems) {
+    std::vector<assets::PackageIcon> icons;
+    for (const assets::ModPackage& package : packages) {
+        if (const auto bytes = core::read_file(package.folder / assets::kIconsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_icons_file(icons, package.id, package.folder, text, problems);
+        }
+    }
+    return icons;
+}
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
 /// balance.toml), the packages in their load order; the buildings they add go into `buildings`
@@ -162,11 +178,15 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
                         const assets::FigureTable& figures) {
     ModRules rules;
     std::vector<std::string> problems;
-    // Goods first, then the classes and buildings that use them, then the values that may name both.
+    // Goods first (with the icons they may show), then the classes and buildings that use them,
+    // then the values that may name both. The icons' warnings come when the game takes them
+    // (MapViewer::use_game_packages).
+    std::vector<std::string> ignored;
+    const std::vector<assets::PackageIcon> icons = load_package_icons(packages, ignored);
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / assets::kGoodsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-            assets::apply_goods_file(rules.goods, package.id, text, problems);
+            assets::apply_goods_file(rules.goods, package.id, text, problems, icons);
         }
     }
     // Then the classes that need them, then the buildings, among them houses of those classes.
@@ -198,6 +218,10 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
         if (const auto bytes = core::read_file(package.folder / assets::kGraphicsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             assets::apply_graphics_file(rules.images, package.id, package.folder, text, problems);
+        }
+        if (const auto bytes = core::read_file(package.folder / assets::kFigureImagesFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_figure_images_file(rules.looks, package.id, text, rules.images, figures, problems);
         }
         if (const auto bytes = core::read_file(package.folder / audio::kMusicFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
@@ -358,6 +382,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_classes = std::move(rules.classes);
     viewer->m_levels = std::move(rules.levels);
     viewer->m_package_images = std::move(rules.images);
+    viewer->m_figure_looks = std::move(rules.looks);
+    assets::apply_figure_looks(viewer->m_figures, viewer->m_original_figures, viewer->m_figure_looks);
     viewer->m_packages = std::move(packages);
     {
         std::vector<std::string> problems;
@@ -2053,6 +2079,36 @@ void MapViewer::apply_game_events() {
     show_notices(m_events.diplomacy_notices(m_local_player, m_state->simulation.take_diplomacy_notices()));
     show_notices(m_events.game_events(m_state->world, m_local_player, m_state->simulation.take_game_events(),
                                       platform::ticks_ms()));
+    apply_script_output();
+}
+
+void MapViewer::apply_script_output() {
+    if (!m_state->scripts) {
+        return;
+    }
+    for (const script::ScriptNote& note : m_state->scripts->take_notes()) {
+        std::fprintf(stderr, "script %s: %s\n", note.package.c_str(), note.text.c_str());
+        if (note.error) {
+            const std::string text = core::utf8_to_cp1252(note.package + ": " + note.text);
+            m_events.notify(ui::tr("error.script", {text}), "error.script " + note.package, platform::ticks_ms());
+        }
+    }
+    for (const script::ScriptMessage& message : m_state->scripts->take_messages()) {
+        if (message.player != sim::kNoPlayer && message.player != m_local_player) {
+            continue;
+        }
+        std::vector<std::pair<std::string, std::string>> values;
+        for (const auto& [name, value] : message.args) {
+            values.emplace_back(name, core::utf8_to_cp1252(value));
+        }
+        MessageArgs args;
+        for (const auto& [name, value] : values) {
+            args.emplace_back(name, value);
+        }
+        if (!announce(message.id, args)) {
+            std::fprintf(stderr, "script: no message \"%s\" (messages.toml)\n", message.id.c_str());
+        }
+    }
 }
 
 render::TilePos MapViewer::home_tile() const {
@@ -2546,10 +2602,20 @@ void MapViewer::use_game_packages() {
     const auto& wanted = m_state->world.packages();
     const std::vector<assets::ModPackage> known = known_packages();
     const std::vector<assets::ModPackage> used = wanted ? assets::packages_for(known, *wanted, problems) : m_packages;
+    // The icons first: the messages and the build menu may name them.
+    ui::set_package_icons(load_package_icons(used, problems));
+    if (m_hud) {
+        m_hud->forget_package_icons();
+    }
     m_messages = MessageTable();
     m_messages.load_mods(used, problems);
     ui::set_build_menu(
         ui::load_build_menu_mods(ui::original_build_menu(), used, m_buildings, problems, m_own_buildings));
+    try {
+        m_state->use_scripts(script::read_package_scripts(used, problems));
+    } catch (const std::bad_alloc&) {
+        problems.emplace_back("not enough memory for the scripts");
+    }
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
@@ -2629,6 +2695,10 @@ void MapViewer::reload_mods() {
     m_classes = std::move(rules.classes);
     m_levels = std::move(rules.levels);
     m_sound->set_package_music(std::move(rules.music));
+    if (rules.looks != m_figure_looks) {
+        m_figure_looks = std::move(rules.looks);
+        assets::apply_figure_looks(m_figures, m_original_figures, m_figure_looks);
+    }
     if (rules.images != m_package_images) {
         // Other pictures: the zoom levels are made again with them.
         m_package_images = std::move(rules.images);
@@ -2875,6 +2945,9 @@ void MapViewer::apply_menu() {
         apply_multiplayer_menu();
         return;
     }
+    if (const auto display = m_hud->take_display_change()) {
+        apply_display(*display);  // the window "Anzeige" from the History Edition's "Options"
+    }
     // Only when they changed: a copy of thousands of names each frame costs (FB-15).
     if (menu != m_slots_menu || m_slots_shown != m_slots_revision) {
         menu->set_slots(m_slots);
@@ -2936,6 +3009,9 @@ void MapViewer::apply_menu() {
             case MenuEvent::Kind::ContinueLast:
                 started = load_game(slot_file(save_folder(), kLastGameSlot));
                 break;
+            case MenuEvent::Kind::Display:
+                m_hud->open_display(display_model());
+                continue;
             case MenuEvent::Kind::Mods:
                 menu->set_mods(mods_model());
                 continue;

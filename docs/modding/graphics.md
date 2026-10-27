@@ -6,9 +6,11 @@ A content package may bring its own pictures as PNG images
 ([own-buildings.md](own-buildings.md)).
 
 **Status:** Done are the file `graphics.toml`, PNG images for the buildings of a package at all three
-zoom levels, and the field `gfx` of such a building that names an image. Still open, with the next
-parts of item 4: icons (build menu, goods, messages), figures and ships of a package's own, and
-sounds and music (OGG, WAV, FLAC).
+zoom levels, the field `gfx` of such a building that names an image, the file `icons.toml` with
+icons for the build menu, the goods and the messages, and the file `figure_images.toml`, which
+draws the original's figures and ships with a package's images. Figures and ships of a package's
+own (new figure numbers) come with the content registry's figures. Sounds and music are in
+[sounds.md](sounds.md).
 
 ## The file
 
@@ -76,10 +78,90 @@ an animated one, the same for each further frame (`AnimAdd` sprites further each
 image has fewer sprites than it draws is passed over with a warning. A sprite at the largest zoom
 level is 64 pixels wide, as the original's tiles are.
 
+## Figures and ships
+
+```
+<user data folder>/mods/<package>/figure_images.toml
+```
+
+A figure of the original, walking or sailing, is drawn with an image of `graphics.toml`. Each
+table names the figure as `figures.toml` does ([values.md](values.md#names)): `["anno1602:<name>"]`
+for a unit in all four colours, `["anno1602:<number>"]` for one `FIGUR` of `figuren.cod`.
+
+```toml
+# mods/knights/figure_images.toml
+["anno1602:swordsman"]
+image = "knights:knight"
+shadow = false
+
+["anno1602:small_merchant_ship"]
+image = "knights:cog"
+```
+
+| Field | Limits | Meaning |
+|---|---|---|
+| `image` | an image of a package, `<package>:<name>` ([graphics.toml](#the-file)) | the sprites the figure draws instead of its own (required) |
+| `shadow` | `true` or `false` | whether it keeps its shadow of `SCHATTEN.BSH`, which has the shape of the original's picture; `true` if not given |
+
+The image holds the sprites in the order the original's sheet has them from the figure's `Gfx`:
+for each animation (`ANIM` of `figuren.cod`) its frames `AnimAdd` apart and its eight directions
+`Rotate` apart, from `AnimOffs` on; for a ship its eight directions `Rotate` apart. An image with
+fewer sprites than the figure draws is passed over with a warning that names how many it needs. A
+figure's sprite is centred on it and stands on its bottom row, as the original's do. A unit drawn
+with a package's image is not recoloured for the players after the fourth: draw its colours into
+the image of each of the four figures (`anno1602:<number>`) or keep one look for all.
+
+Only the picture changes: the figure keeps its values, animations and sounds, and a game keeps
+nothing of it, so a game looks as the packages of the computer it runs on say. The smoke and the
+bow wave of a ship and the effects of combat stay the original's.
+
+## Icons
+
+```
+<user data folder>/mods/<package>/icons.toml
+```
+
+Each table names one icon of the interface, a PNG of its own. Its string id is
+`<package>:<name>`, as an image's.
+
+```toml
+# mods/spice/icons.toml
+[pepper]
+image = "icons/pepper.png"
+```
+
+| Field | Limits | Meaning |
+|---|---|---|
+| `image` | a path in the package, folders split by `/`; at most 256 x 256 pixels | the icon (required) |
+
+An icon is drawn as large as its PNG is, for the interface of screens 1024 pixels wide; the
+interface's smaller art (640 and 800 pixels) takes it smaller. Unlike the sprites of the islands it
+keeps its alpha: its edges may be soft. An icon larger than the place it is drawn in is made
+smaller to fit it; so make it the size of the original's icon it stands beside. A table that is
+wrong or an image that cannot be read is passed over with a warning that names the file and the
+line. The packages have at most 4096 icons in all.
+
+Three files name an icon by its id:
+
+| File | Field | Shows the icon |
+|---|---|---|
+| [`build_menu.toml`](build-menu.md) | `icon = "spice:mill"` (or the number of a sprite of the original) | in the pop-up of the build menu and in the building's window |
+| [`goods.toml`](goods.md) | `picture = "spice:pepper"` | wherever the good's icon is: Kontor, ships, production chains, goods window |
+| [`messages.toml`](messages.md) | `icon = "spice:harvest"` (or one of the original's kinds) | in the status bar |
+
+The icons get sprite numbers from 100000 in the packages' load order; a game keeps only their ids.
+A good of a game played without the package of its icon shows the original's icon its `icon` names.
+
 ## In the code
 
 `engine/core/include/o1602/core/png_reader.hpp`: the PNG reader.
 `engine/assets/include/o1602/assets/package_graphics.hpp`: `apply_graphics_file` and
 `PackageImage`. `engine/render/include/o1602/render/package_sprites.hpp`: the sprites of an image
 at a zoom level (`PackageImageSource`), which `render::load_world_graphics` places at their numbers
-among the terrain's (`GraphicsOptions::package_images`).
+among the terrain's (`GraphicsOptions::package_images`). Figures and ships: `engine/assets/include/o1602/assets/figure_looks.hpp`,
+`apply_figure_images_file` and `apply_figure_looks`, which the viewer applies to its figure table;
+`render::land_figure_sprites` and the ships' hull draw such a figure from the terrain sheet. Icons:
+`apply_icons_file` and `PackageIcon`;
+`engine/ui/include/o1602/ui/package_icons.hpp` holds the game's icons for the interface
+(`ui::set_package_icons`, `ui::ware_sprite`), and `render::SdlUiRenderer` draws an icon's sprite
+number in any sheet (`render::package_icon_pixels`).

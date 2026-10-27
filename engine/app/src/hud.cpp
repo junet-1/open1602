@@ -20,6 +20,7 @@
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -519,7 +520,7 @@ bool Hud::back() {
         m_chat->close();
         return true;
     }
-    if (m_display_open && !m_menu_active) {
+    if (m_display_open) {
         m_display_open = false;
         return true;
     }
@@ -741,7 +742,8 @@ ui::Rect Hud::display_rect() const {
     const double s = m_display ? m_display->scale() : m_regions.scale;
     const auto w = static_cast<std::int32_t>(DisplayMenu::kWidth * s);
     const auto h = static_cast<std::int32_t>(DisplayMenu::kHeight * s);
-    const ui::Rect& v = m_regions.game_view;
+    // Over the main menu in the middle of the window, else over the map.
+    const ui::Rect& v = m_menu_active ? m_regions.full : m_regions.game_view;
     return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
 }
 
@@ -796,6 +798,10 @@ void Hud::draw_menu() {
         m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_menu_scale);
     } else if (m_menu) {
         m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_menu_scale);
+        if (m_display_open && m_display) {
+            const ui::Rect r = display_rect();
+            m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+        }
     }
     draw_question();
     draw_help();
@@ -1094,7 +1100,9 @@ void Hud::draw_help() {
 
 std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button) {
     std::optional<Action> action;
-    if (m_display_open && !m_menu_active && !m_question && !m_help) {
+    // Over the main menu too: open_menu() closes the game's, so one open there came from its
+    // "Options".
+    if (m_display_open && !m_end_active && !multiplayer_open() && !m_question && !m_help) {
         const ui::Rect r = display_rect();
         switch (m_display->mouse(x - r.x, y - r.y, down, m_display_model, button)) {
             case DisplayMenu::Result::Changed:
@@ -1478,7 +1486,11 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         const Event& e = m_events[i];
         const MessageDefinition* def = m_messages->get(e.id);
         const auto type = static_cast<std::uint8_t>(def != nullptr ? def->icon : MessageIcon::Notice);
-        if (type < 4) {
+        const auto picture =
+            def != nullptr && !def->picture.empty() ? ui::package_icon_sprite(def->picture) : std::nullopt;
+        if (picture) {
+            m_leist.set_graphic(id, *picture, 0);  // a package's icon, as it is drawn
+        } else if (type < 4) {
             set_banner_graphic(m_leist, id, message_icon_art(type), banners.get(e.banner), 6);
         } else {
             m_leist.set_graphic(id, kGfxLeiste + 1 + 0x28 + type * 2, 1);
@@ -1513,8 +1525,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     const BuildPanel::Available available =
         m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
     if (m_mode == kModeBuild && m_build) {
-        m_build->refresh(buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
-                         [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); });
+        m_build->refresh(
+            buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
+            [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); },
+            m_simulation != nullptr ? m_simulation->world().goods() : assets::Goods{});
         m_renderer->draw(m_build->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
         if (const ui::Panel* popup = m_build->popup()) {
             m_renderer->draw(popup->draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);

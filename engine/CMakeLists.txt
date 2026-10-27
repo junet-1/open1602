@@ -5,8 +5,9 @@
 #   assets -> core              sim -> assets               net -> sim (+ ENet)
 #   render -> sim, assets       audio -> sim, assets        video -> audio
 #   ui -> sim, assets           platform -> core (+ SDL3)   render_sdl -> render, platform, ui
+#   script -> sim, assets (+ Lua)
 #   menus -> sim, assets, audio, render, ui, net
-#   app (open1602) -> sim, render_sdl, platform, audio, video, ui, net, menus
+#   app (open1602) -> sim, render_sdl, platform, audio, video, ui, net, menus, script
 #
 # Only the game build (O1602_BUILD_GAME) adds platform, render_sdl and app; everything else builds
 # and is tested without SDL.
@@ -23,6 +24,7 @@ add_subdirectory(render)
 add_subdirectory(audio)
 add_subdirectory(video)
 add_subdirectory(ui)
+add_subdirectory(script)
 add_subdirectory(app/menus)
 
 if(O1602_BUILD_GAME)
@@ -30,6 +32,3 @@ if(O1602_BUILD_GAME)
     add_subdirectory(render/sdl)
     add_subdirectory(app)
 endif()
-
-# Modules below are planned (see docs/00-plan.md) and get added as they are implemented:
-#   script

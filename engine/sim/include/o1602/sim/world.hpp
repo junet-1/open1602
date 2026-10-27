@@ -31,6 +31,7 @@
 #include "o1602/sim/production.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/rules.hpp"
+#include "o1602/sim/script_state.hpp"
 #include "o1602/sim/ship.hpp"
 #include "o1602/sim/soldier.hpp"
 #include "o1602/sim/world_generator.hpp"
@@ -175,7 +176,8 @@ struct City {
     /// Game time of the next check for plague, robbers and fire (city + 0x1E0, every 60-67 s).
     std::uint64_t next_event_ms = 0;
     /// The growth of the house the growth pass looked at last (city + 0x1F8, > 0 grows) and the
-    /// game time it last turned positive or the people last wanted a monument (city + 0x1E4).
+    /// game time it last turned positive or the people last wanted a monument (city + 0x1E4). The
+    /// original does not save either: after loading its savegames both are 0, here too.
     std::int32_t house_growth = 0;
     std::uint64_t growing_since_ms = 0;
     /// What the Kontor offers to other players' ships and the free trader, per ware (city ware
@@ -633,9 +635,19 @@ public:
     [[nodiscard]] const std::vector<std::uint8_t>& simulation_state() const noexcept { return m_simulation_state; }
     void set_simulation_state(std::vector<std::uint8_t> state) noexcept { m_simulation_state = std::move(state); }
     [[nodiscard]] std::vector<std::uint8_t> take_simulation_state() noexcept { return std::move(m_simulation_state); }
+    /// The state of the packages' scripts the savegame kept (section SCRP), which the scripts take up
+    /// when the game goes on (scripting.hpp). A package without an entry has not started its scripts
+    /// in this game yet.
+    [[nodiscard]] const std::vector<ScriptState>& script_states() const noexcept { return m_script_states; }
+    void set_script_states(std::vector<ScriptState> states) noexcept { m_script_states = std::move(states); }
     /// Game settings saved with the game, which a Simulation of it uses (ADR 0008).
     [[nodiscard]] const std::optional<Rules>& saved_rules() const noexcept { return m_saved_rules; }
     void set_saved_rules(std::optional<Rules> rules) noexcept { m_saved_rules = rules; }
+    /// The bugs of the original the running game plays with (Rules::bugs), for what sees only the
+    /// world: construction and its preview in the interface, the windows. The Simulation sets them
+    /// from its rules; they are not saved, the rules are.
+    [[nodiscard]] const OriginalBugs& original_bugs() const noexcept { return m_original_bugs; }
+    void set_original_bugs(const OriginalBugs& bugs) noexcept { m_original_bugs = bugs; }
 
     /// Eruptions, lava in flight and the time of the next eruption (volcanoes.hpp).
     [[nodiscard]] const VolcanoState& volcanoes() const noexcept { return m_volcanoes; }
@@ -744,7 +756,9 @@ private:
     VolcanoState m_volcanoes;
     std::shared_ptr<const assets::ChunkFile> m_source;
     std::vector<std::uint8_t> m_simulation_state;
+    std::vector<ScriptState> m_script_states;
     std::optional<Rules> m_saved_rules;
+    OriginalBugs m_original_bugs;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x

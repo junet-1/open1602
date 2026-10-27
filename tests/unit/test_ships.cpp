@@ -1177,3 +1177,72 @@ TEST_CASE("ships: a Kontor can be founded only from within an island's rectangle
     CHECK(site->x == 21);
     CHECK(site->y == 5);
 }
+
+TEST_CASE("ships: original settings for the shipyard: warships at the small yard (S-005), repair at sea (S-013)") {
+    for (const bool original : {false, true}) {
+        Sea sea(true);
+        sim::OriginalBugs bugs;
+        bugs.small_yard_warships = original;
+        bugs.remote_repair = original;
+        sea.world.set_original_bugs(bugs);
+        sim::WorldIsland& isl = sea.world.island(0);
+        REQUIRE(isl.map.place(*sea.buildings.by_id(20104), 3, 0, 0, 0, 0, 0).ok());
+        sea.world.add_cost_building(sim::CostBuilding{sim::CostBuilding::Kind::Shipyard, 0, 3, 0, false});
+        sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+        using Op = sim::ShipyardOrder::Op;
+        CHECK(fleet.shipyard(sim::ShipyardOrder{0, 0, 3, 0, Op::Build, 1}) == original);
+
+        // A ship whose repair began at the yard and which then sails off.
+        sea.world.cost_buildings()[0].order = sim::CostBuilding::kNoOrder;
+        std::int32_t near_x = 0;
+        std::int32_t near_y = 0;
+        for (std::int32_t y = 0; y < 60 && near_x == 0; ++y) {
+            for (std::int32_t x = 1; x < 60 && near_x == 0; ++x) {
+                if (fleet.sea().sailable(x, y) && sim::building_in_reach(sea.world, sea.buildings, 0, 3, 0, x, y)) {
+                    near_x = x;
+                    near_y = y;
+                }
+            }
+        }
+        REQUIRE(near_x != 0);
+        sim::Ship& ship = sea.add(static_cast<std::uint32_t>(near_x), static_cast<std::uint32_t>(near_y));
+        const std::uint32_t id = ship.id;
+        ship.health = 20 * kTon;
+        REQUIRE(fleet.shipyard(sim::ShipyardOrder{0, 0, 3, 0, Op::Repair, 0, true, id}));
+        sea.world.ship(id)->place(38, 25);
+        REQUIRE(!sim::building_in_reach(sea.world, sea.buildings, 0, 3, 0, 38, 25));
+        for (int second = 0; second < 30; ++second) {
+            run(fleet, sea.world, 1000);
+            for (const auto& r : fleet.take_fetch_requests()) {
+                fleet.yard_delivery(r.island, r.x, r.y, r.ware, 6 * kTon);
+            }
+        }
+        if (original) {
+            CHECK(sea.world.ship(id)->health > 20 * kTon);
+        } else {
+            CHECK(sea.world.ship(id)->health == 20 * kTon);
+            CHECK(!sea.world.ship(id)->repairing);
+        }
+    }
+}
+
+TEST_CASE("ships: with S-012 brought back the Kontor's window trades with a ship that has sailed away") {
+    for (const bool original : {false, true}) {
+        Sea sea(true);
+        sim::OriginalBugs bugs;
+        bugs.remote_trade = original;
+        sea.world.set_original_bugs(bugs);
+        sim::Ship& ship = sea.add(33, 25);
+        const std::uint32_t id = ship.id;
+        sim::City& city = *sea.world.city(0, 0);
+        city.goods[kWood] = 20 * kTon;
+        sim::Fleet fleet(sea.world, sea.buildings, sea.figures, sea.rules);
+        REQUIRE(!sim::building_in_reach(sea.world, sea.buildings, 0, 0, 4, 33, 25));
+        sim::CargoTransfer load{0, id, kWood, true, 10 * kTon};
+        load.kontor_island = 0;
+        load.kontor_city = 0;
+        CHECK(fleet.transfer(load) == (original ? 10U * kTon : 0U));
+        // Without the Kontor's window behind it nothing changes.
+        CHECK(fleet.transfer(sim::CargoTransfer{0, id, kWood, true, 10 * kTon}) == 0);
+    }
+}

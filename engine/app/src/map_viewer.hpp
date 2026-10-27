@@ -30,6 +30,7 @@
 #include "zoom_graphics.hpp"
 
 #include "o1602/assets/building_table.hpp"
+#include "o1602/assets/figure_looks.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_content.hpp"
 #include "o1602/assets/game_directory.hpp"
@@ -303,11 +304,14 @@ private:
     [[nodiscard]] Hud::Resources resources() const;
     /// Shots, hits, victory and defeat: sounds, messages and lines in the terminal.
     void apply_game_events();
+    /// What the game's scripts posted and printed since the last frame: messages for this computer's
+    /// player, script errors in the status line, everything in the log.
+    void apply_script_output();
     /// Plays what the EventPresenter made of the events: messages with their voices (a message that
     /// asks for it slows the game to normal speed, flag 0x02) and videos, high score lists.
     void show_notices(const std::vector<Notice>& notices);
     /// Posts a message by its id ("mymod:lighthouse") with its placeholders filled, as the scripts
-    /// will (M8); false if there is no such message.
+    /// do (game.message); false if there is no such message.
     bool announce(std::string_view id, const MessageArgs& args = {},
                   std::optional<std::pair<double, double>> tile = std::nullopt);
     void zoom_by(double steps, double sx, double sy) override;
@@ -387,6 +391,8 @@ private:
     std::vector<assets::InfraLevel> m_levels;
     /// The images of the packages installed, with their sprite numbers (docs/modding/graphics.md).
     std::vector<assets::PackageImage> m_package_images;
+    /// The figures the packages draw with their images (figure_images.toml), applied to m_figures.
+    std::vector<assets::FigureLook> m_figure_looks;
     /// The content packages installed in <data folder>/mods, in their load order (docs/modding/packages.md).
     std::vector<assets::ModPackage> m_packages;
     /// Packages received from hosts, in <data folder>/mods-cache: used only by games that name them.

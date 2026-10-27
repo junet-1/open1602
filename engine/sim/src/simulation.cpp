@@ -27,6 +27,16 @@ constexpr std::uint64_t kArchInhabitants = 200;      // more than 199, in the la
 constexpr std::uint16_t kMissionMessage = 0x54;      // "Ihr konntet den Euch gestellten Auftrag erfüllen!"
 constexpr std::uint16_t kColourWinMessage = 0x6B;    // "Der rote Spieler konnte seinen Auftrag erfüllen!" + colour
 
+/// What does not fit into the city's warehouse is lost.
+void fit_into_storage(City& c) {
+    for (std::size_t w = 0; w < c.goods.size(); ++w) {
+        if (c.goods[w] > c.capacity) {
+            c.book(static_cast<std::uint8_t>(w), GoodsFlow::Lost, c.goods[w] - c.capacity);
+            c.goods[w] = c.capacity;
+        }
+    }
+}
+
 }  // namespace
 
 Simulation::Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
@@ -52,12 +62,20 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     if (world.saved_rules()) {
         m_rules = *world.saved_rules();  // the settings the game was started with
     }
+    world.set_original_bugs(m_rules.bugs);
 }
 
 Simulation::Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
                        Rules rules)
     : Simulation(world, buildings, figures, rules, Parts{}) {
     recount_disasters(world);
+    // As the original after loading: a city holds no more of a good than its warehouse takes. A city
+    // without a warehouse (capacity 0) keeps what it has.
+    for (const City& c : world.cities()) {
+        if (City* city = world.city(c.island, c.index); city != nullptr && city->capacity != 0) {
+            fit_into_storage(*city);
+        }
+    }
     // The towns the settings show from the start; a saved game has them discovered already.
     world.reveal_islands(m_rules.reveal);
     if (const std::vector<std::uint8_t> state = world.take_simulation_state(); !state.empty()) {
@@ -795,12 +813,7 @@ void Simulation::handle(const std::vector<ConstructionEvent>& events, std::size_
                 continue;
             }
             if (City* c = m_world->city(events[i].island, events[i].city)) {
-                for (std::size_t w = 0; w < c->goods.size(); ++w) {
-                    if (c->goods[w] > c->capacity) {
-                        c->book(static_cast<std::uint8_t>(w), GoodsFlow::Lost, c->goods[w] - c->capacity);
-                        c->goods[w] = c->capacity;
-                    }
-                }
+                fit_into_storage(*c);
             }
         }
     }
@@ -845,6 +858,9 @@ void Simulation::tick() {
 }
 
 void Simulation::tick_timed(std::span<std::uint64_t> step_ns) {
+    const std::uint64_t construction_before = m_construction_events.total();
+    const std::uint64_t houses_before = m_house_events.total();
+    const std::uint64_t game_before = m_game_events.total();
     apply_commands();
     if (m_paused) {
         return;  // paused by a command of this tick: the game time stands still
@@ -861,6 +877,11 @@ void Simulation::tick_timed(std::span<std::uint64_t> step_ns) {
         } else {
             (this->*steps[i].run)();
         }
+    }
+    if (m_scripts != nullptr) {
+        const TickEvents events{m_construction_events.since(construction_before), m_house_events.since(houses_before),
+                                m_game_events.since(game_before)};
+        m_scripts->after_tick(*this, events);
     }
     trim_events();
     if (m_tick_observer) {
@@ -930,7 +951,7 @@ void Simulation::cities_step() {
 
 void Simulation::city_events_step() {
     // Every 60-67 s a city may catch the plague, send out a robber or catch fire (0x0047F8A0).
-    advance_city_events(*m_world, *m_buildings, m_disaster_events.sink(), &m_robbers);
+    advance_city_events(*m_world, *m_buildings, m_rules, m_disaster_events.sink(), &m_robbers);
     for (const RobberSpawn& r : m_robbers) {
         m_logistics.spawn_robber(r);
     }
@@ -961,7 +982,7 @@ void Simulation::disasters_step() {
         return;
     }
     const std::size_t first = m_construction_events.size();
-    advance_disasters(*m_world, *m_buildings, m_disaster_events.sink(), m_construction_events.sink());
+    advance_disasters(*m_world, *m_buildings, m_rules, m_disaster_events.sink(), m_construction_events.sink());
     handle(m_construction_events.events(), first);
 }
 

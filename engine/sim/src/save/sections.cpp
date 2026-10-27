@@ -98,6 +98,9 @@ constexpr std::uint32_t kOwnBuildings = tag("OWNB");
 /// The goods the packages added (World::goods(), goods.hpp), only written when there are any.
 /// Required: stocks, holds and buildings name their ware numbers.
 constexpr std::uint32_t kGoods = tag("GOOD");
+/// The icons of packages the packages' goods show (OwnGood::picture), only written when one does.
+/// Optional: without them the goods show the original's icons they name.
+constexpr std::uint32_t kGoodPictures = tag("GPIC");
 /// The classes of inhabitants as packages changed and added them (World::resident_classes(),
 /// resident_classes.hpp), only written when they differ from haeuser.cod's. Required: houses name
 /// the classes, and their needs drive the economy.
@@ -108,6 +111,9 @@ constexpr std::uint32_t kLevels = tag("LEVL");
 /// The levels after the original's 32 the players unlocked (Player::infra_more), only written when
 /// one did. Required: without them the players lose what they may build.
 constexpr std::uint32_t kUnlocked = tag("UNLK");
+/// The state of the packages' scripts (World::script_states(), scripting.hpp), only written when
+/// there is any. Optional: without it the scripts start anew.
+constexpr std::uint32_t kScripts = tag("SCRP");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -116,7 +122,7 @@ constexpr std::array kKnownSections = {
     kFleet,           kEpochs,       kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
     kMissions,        kPlayerState,  kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
     kPopulationMarks, kTutorial,     kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
-    kFigureValues,    kOwnBuildings, kGoods,     kClasses,   kLevels,   kUnlocked};
+    kFigureValues,    kOwnBuildings, kGoods,     kClasses,   kLevels,   kUnlocked,  kGoodPictures,   kScripts};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -324,6 +330,23 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
             });
         });
     }
+    std::vector<const assets::OwnGood*> pictured;
+    for (const assets::OwnGood& g : world.goods().own_goods()) {
+        if (!g.picture.empty()) {
+            pictured.push_back(&g);
+        }
+    }
+    if (!pictured.empty()) {
+        section(
+            out, kGoodPictures,
+            [&](Writer& o) {
+                o.list(pictured, 3, [&](const assets::OwnGood* g) {
+                    o.u8(g->number);
+                    o.string(g->picture);
+                });
+            },
+            Need::Optional);
+    }
     if (!world.resident_classes().empty()) {
         section(out, kClasses, [&](Writer& o) {
             o.list(world.resident_classes(), 29, [&](const assets::ResidentClass& c) {
@@ -445,6 +468,25 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                 o.out().bytes(chunks.bytes());
             },
             Need::Optional);  // only for the export as .GAM
+    }
+    std::vector<ScriptState> running;
+    const std::vector<ScriptState>* scripts = &world.script_states();
+    if (simulation != nullptr && simulation->scripts() != nullptr) {
+        running = simulation->scripts()->save_states();
+        scripts = &running;
+    }
+    if (!scripts->empty()) {
+        section(
+            out, kScripts,
+            [&](Writer& o) {
+                o.list(*scripts, 24, [&](const ScriptState& s) {
+                    o.string(s.package);
+                    o.u64(s.random.state());
+                    o.u64(s.random.increment());
+                    o.u8s(s.data);
+                });
+            },
+            Need::Optional);
     }
     if (simulation != nullptr) {
         section(
@@ -630,6 +672,20 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                 d.goods = std::move(goods);
                 break;
             }
+            case kGoodPictures: {
+                std::vector<std::pair<std::uint8_t, std::string>> pictures;
+                in.list(pictures, 3, [&](std::pair<std::uint8_t, std::string>& p) {
+                    in.u8(p.first);
+                    in.string(p.second);
+                    // "<package>:<name>" (icons.toml).
+                    if (p.second.size() < 3 || p.second.size() > 2 * assets::kMaxPackageIdLength + 1 ||
+                        p.second.find(':') == std::string::npos) {
+                        in.fail();
+                    }
+                });
+                d.good_pictures = std::move(pictures);
+                break;
+            }
             case kClasses: {
                 std::vector<assets::ResidentClass> classes;
                 in.list(classes, 29, [&](assets::ResidentClass& c) {
@@ -702,6 +758,23 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     }
                 });
                 d.own_buildings = std::move(own);
+                break;
+            }
+            case kScripts: {
+                std::vector<ScriptState> states;
+                in.list(states, 24, [&](ScriptState& s) {
+                    std::uint64_t random = 0;
+                    std::uint64_t increment = 0;
+                    in.string(s.package);
+                    in.u64(random);
+                    in.u64(increment);
+                    in.u8s(s.data);
+                    s.random = Random::from_state(random, increment);
+                    if (s.package.empty() || s.package.size() > assets::kMaxPackageIdLength) {
+                        in.fail();
+                    }
+                });
+                d.script_states = std::move(states);
                 break;
             }
             case kPackages: {

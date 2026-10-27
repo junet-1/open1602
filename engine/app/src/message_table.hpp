@@ -46,6 +46,8 @@ enum class MessageIcon : std::uint8_t {
 struct MessageDefinition {
     std::string id;  ///< "anno1602:42", "mymod:lighthouse"
     MessageIcon icon = MessageIcon::Notice;
+    /// A package's icon it shows instead ("<package>:<name>", icons.toml), or empty.
+    std::string picture;
     /// Without a text of its own: the original's text of this MELDUNG number (`like`).
     std::optional<std::uint16_t> meldung;
     /// The status bar's text by language code ("" for every language), Windows-1252, with {name}

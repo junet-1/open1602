@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/package_graphics.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/render/text_cache.hpp"
@@ -41,7 +42,8 @@ public:
     [[nodiscard]] ui::ArtSize art_size() const noexcept { return m_size; }
     /// The three font slots, for panels that wrap text.
     [[nodiscard]] std::array<const ui::Font*, ui::kFontSlots> fonts() const noexcept;
-    /// Size of a sprite of a sheet at the art's own scale, nothing if there is none.
+    /// Size of a sprite of a sheet at the art's own scale, nothing if there is none. A sprite number
+    /// of a package's icon (ui::package_icons()) is that icon in any sheet.
     [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> sprite_size(std::int32_t block,
                                                                                    std::int32_t gfx) const;
 
@@ -68,6 +70,8 @@ public:
     /// The render device was reset and the textures lost their contents: all go and are made
     /// again when next drawn (an image from the pixels given then).
     void release_textures();
+    /// The packages' icons changed (ui::set_package_icons()): their pictures are read again.
+    void forget_package_icons();
     /// The renderer was made again (the device was lost): textures come from `renderer` from now
     /// on. release_textures() goes before the old renderer does.
     void set_renderer(SDL_Renderer* renderer) noexcept { m_renderer = renderer; }
@@ -83,6 +87,8 @@ private:
     /// Sprite `gfx` of a sheet recoloured (ui::ColourTint, render/variant_tint.hpp, render/shape_tint.hpp).
     [[nodiscard]] std::vector<std::uint8_t> tinted(const assets::SpriteSheet& sheet, std::int32_t gfx,
                                                    const ui::ColourTint& tint) const;
+    /// The picture of a package's icon at the art's scale, or its shape in `colour` (mask, raster).
+    Texture package_icon(const assets::PackageIcon& icon, int mode, std::int32_t colour);
     Texture text(const std::string& s, std::int32_t font, std::int32_t colour);
     Texture make(const std::vector<std::uint8_t>& rgba, std::int32_t w, std::int32_t h);
     [[nodiscard]] double art_scale() const noexcept;

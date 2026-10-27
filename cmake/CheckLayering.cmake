@@ -26,6 +26,7 @@ set(rules
     "audio=core assets sim audio"
     "video=core assets sim audio video"
     "ui=core assets sim ui"
+    "script=core assets sim script"
     "platform=core platform SDL3"
     "render/sdl=core assets sim render ui platform SDL3"
 )

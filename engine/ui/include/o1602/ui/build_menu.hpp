@@ -31,6 +31,10 @@ struct BuildButton {
     std::int32_t icon = 0;   ///< TOOLS sprite of its icon, as an offset from GFXBAUHAUS
     std::int32_t text = -1;  ///< its line of the category's Text.cod section; -1: `name`
     std::string name;        ///< Windows-1252: the name a package gave it, when `text` is -1
+    std::string picture;     ///< a package's icon it shows instead of `icon` ("<package>:<name>"), or empty
+
+    /// The sprite of its icon: its package's icon if a package has it, else GFXBAUHAUS + `icon`.
+    [[nodiscard]] std::int32_t sprite(std::int32_t gfx_bauhaus) const;
 };
 
 /// One category: its button in BAU.GAD, the Text.cod section that names the original's buildings

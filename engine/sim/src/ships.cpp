@@ -1492,6 +1492,17 @@ std::uint32_t Fleet::transfer(const CargoTransfer& t) {
             found = i;
         }
     }
+    // S-012 brought back (OriginalBugs::remote_trade): the Kontor of the window, wherever the ship is.
+    if (!found && t.kontor_island && m_world->original_bugs().remote_trade) {
+        for (std::size_t i = 0; i < m_world->cities().size(); ++i) {
+            const City& c = m_world->cities()[i];
+            if (c.island == *t.kontor_island && c.index == t.kontor_city && c.warehouse_x && c.warehouse_y &&
+                (c.owner == ship->owner || may_trade(ship->owner, c.owner))) {
+                found = i;
+                break;
+            }
+        }
+    }
     if (!found) {
         return 0;
     }

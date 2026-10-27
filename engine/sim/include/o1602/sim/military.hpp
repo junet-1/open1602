@@ -210,6 +210,9 @@ private:
     [[nodiscard]] PlayerId owner_of(const Target& t) const;
     /// The target is a doctor of the soldier's owner: it walks right up to it and goes in to be healed.
     [[nodiscard]] bool heals_at(const Soldier& s, const Target& t) const;
+    /// How near (in cells) the soldier walks to a friendly target: onto a free place itself, next
+    /// to an own doctor, within a few cells of anything else.
+    [[nodiscard]] std::int32_t friendly_goal(const Soldier& s, const Target& t) const;
     [[nodiscard]] bool attackable(const Soldier& s, const Target& t) const;
     [[nodiscard]] std::optional<std::uint8_t> fire_direction(const Soldier& s, const assets::FigureType& type,
                                                              const Target& t) const;

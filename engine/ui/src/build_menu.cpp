@@ -11,6 +11,7 @@
 #include "o1602/core/data_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/panel.hpp"
 
 namespace o1602::ui {
@@ -26,6 +27,15 @@ std::size_t BuildCategory::size() const noexcept {
 std::optional<std::uint32_t> BuildCategory::at(std::size_t index) const noexcept {
     const BuildButton* b = button_at(index);
     return b != nullptr ? std::optional<std::uint32_t>(b->id) : std::nullopt;
+}
+
+std::int32_t BuildButton::sprite(std::int32_t gfx_bauhaus) const {
+    if (!picture.empty()) {
+        if (const auto own = package_icon_sprite(picture)) {
+            return *own;
+        }
+    }
+    return gfx_bauhaus + icon;
 }
 
 const BuildButton* BuildCategory::button_at(std::size_t index) const noexcept {
@@ -102,7 +112,7 @@ BuildCategory from_original(const OriginalCategory& o) {
     for (const auto& ids : o.rows) {
         std::vector<BuildButton>& row = c.rows.emplace_back();
         for (const std::uint32_t id : ids) {
-            row.push_back(BuildButton{id, o.icon_offset + position, position, {}});
+            row.push_back(BuildButton{id, o.icon_offset + position, position, {}, {}});
             ++position;
         }
     }
@@ -186,12 +196,19 @@ std::string apply_table(BuildMenuDefinition& menu, const core::DataTable& table,
     std::optional<std::int64_t> row;
     std::optional<std::int64_t> position;
     std::optional<std::int64_t> icon;
+    std::optional<std::string> picture;
     std::optional<std::string> name;
     bool remove = false;
     for (const core::DataEntry& e : table.entries) {
         const std::string field = line_of(at, e.value.line) + "'" + e.key + "' ";
         const std::int64_t* n = e.value.integer();
-        if (e.key == "id" || e.key == "category" || e.key == "row" || e.key == "position" || e.key == "icon") {
+        if (const std::string* icon_id = e.value.string(); e.key == "icon" && icon_id != nullptr) {
+            // A package's icon (icons.toml).
+            if (!package_icon_sprite(*icon_id)) {
+                return field + "names no icon of a package (icons.toml, <package>:<name>)";
+            }
+            picture = *icon_id;
+        } else if (e.key == "id" || e.key == "category" || e.key == "row" || e.key == "position" || e.key == "icon") {
             if (n == nullptr || *n < 0 || *n > std::numeric_limits<std::int32_t>::max()) {
                 return field + "is a number from 0";
             }
@@ -244,7 +261,7 @@ std::string apply_table(BuildMenuDefinition& menu, const core::DataTable& table,
     }
     BuildMenuDefinition changed = menu;
     // A building listed already keeps its icon and name unless the table gives others.
-    BuildButton button{building, 0, -1, {}};
+    BuildButton button{building, 0, -1, {}, {}};
     bool listed = false;
     if (const BuildCategory* from = menu.category_of(building)) {
         if (const BuildButton* b = from->button_at(from->index_of(building).value_or(0)); b != nullptr) {
@@ -264,6 +281,9 @@ std::string apply_table(BuildMenuDefinition& menu, const core::DataTable& table,
     }
     if (icon) {
         button.icon = static_cast<std::int32_t>(*icon);
+        button.picture.clear();
+    } else if (picture) {
+        button.picture = *picture;
     } else if (!listed) {
         return here + "a building new to the menu needs an 'icon'";
     }
@@ -427,7 +447,7 @@ assets::GadgetLayout build_popup(const BuildCategory& category, const std::vecto
             const auto ii = static_cast<std::int32_t>(i);
             const std::int32_t x = kX + 8 + kPopupIconStep * static_cast<std::int32_t>(j);
             const std::int32_t y = row_y(k) + 5;
-            const std::int32_t icon = gfx_bauhaus + (ok ? b->icon : locked_icon_offset);
+            const std::int32_t icon = ok ? b->sprite(gfx_bauhaus) : gfx_bauhaus + locked_icon_offset;
             g.push_back(piece(kPopupIcon + ii, GadgetKind::Graphic, icon, x, y, 53, 50));
             assets::Gadget slot = piece(kPopupSlot + ii, GadgetKind::Graphic, gfx_bauhaus + 3, x, y, 53, 50);
             slot.press_offset = 1;

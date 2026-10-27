@@ -19,6 +19,7 @@ enum class ErrorCode {
     LimitExceeded,  ///< More than the game or a file format holds; the message names the limit.
     Unsupported,    ///< Valid data, but a variant we do not handle (yet).
     PlatformError,  ///< Operating system or SDL call failed (window, renderer, ...).
+    ScriptError,    ///< A mod script failed; the message names the script, the line and the cause.
 };
 
 // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign): the analyser loses the field in std::variant

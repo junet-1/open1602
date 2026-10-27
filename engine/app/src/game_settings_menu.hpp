@@ -3,8 +3,9 @@
 // The start dialog of a new game (ADR 0008): Open1602's own screen, the original has none. The
 // settings in groups (economy, limits, disasters, world, opponents), each a button with its value;
 // a left click chooses the next value, a right click the previous one. Presets for the original's
-// rules and Open1602's defaults. The victory conditions of an endless game have a page of their
-// own, which a button of the first opens.
+// rules and Open1602's defaults. The victory conditions of an endless game and the bugs of the
+// original a game can bring back ("Original settings") have a page of their own each, which a
+// button of the first opens.
 //
 // One dialog for every kind of game: the endless game after the name and the banner, a scenario
 // after its mission screen, and the multiplayer menu, where the host chooses and the others look
@@ -56,8 +57,10 @@ public:
     [[nodiscard]] Mode mode() const noexcept { return m_mode; }
     /// Whether the page of the victory conditions is open.
     [[nodiscard]] bool victory_page() const noexcept { return m_page == Page::Victory; }
-    /// Escape or a right click: from the victory conditions back to the settings; true if it went
-    /// there, false if the dialog itself is to close.
+    /// Whether the page of the original's bugs ("Original settings") is open.
+    [[nodiscard]] bool bugs_page() const noexcept { return m_page == Page::Bugs; }
+    /// Escape or a right click: from the victory conditions or the original's bugs back to the
+    /// settings; true if it went there, false if the dialog itself is to close.
     bool back() noexcept;
 
     /// Everything to draw, relative to the 1024 x 768 design's top left.
@@ -65,7 +68,7 @@ public:
     Result mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button = ui::MouseButton::Left);
 
 private:
-    enum class Page : std::uint8_t { Settings, Victory };
+    enum class Page : std::uint8_t { Settings, Victory, Bugs };
     void layout();
     /// A preset with what the dialog does not decide (the players of a multiplayer game) kept.
     [[nodiscard]] EndlessSetup keep_decided(EndlessSetup preset) const;

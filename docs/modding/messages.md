@@ -7,10 +7,10 @@ original's, with its own text in every language, an icon, a sound and a video
 
 **Status:** Done are the file `messages.toml`, new messages, changes to the original's messages,
 texts per language with placeholders, own sounds (WAV, Ogg Vorbis, FLAC) and the original's videos. The status bar,
-the voices and the videos take everything from the message table (`app::MessageTable`). Still
-open, all with milestone M8: posting a mod's message from a script (Lua; until then `--message`
-shows one at the start), own icons and videos (PNG and a modern video format come with the import
-of content), OGG sounds, and a manifest with version, dependencies and load order.
+the voices and the videos take everything from the message table (`app::MessageTable`). A
+package's script posts its messages with `game.message` ([scripts.md](scripts.md)), and `--message`
+shows one at the start. Still open, with milestone M8: videos of a mod's own (a modern video format). A message shows an icon
+of a package's own with `icon = "<package>:<name>"` ([graphics.md](graphics.md#icons)).
 
 ## Where a mod's messages are
 
@@ -67,7 +67,7 @@ with their number in `Text.cod`'s `[MELDUNG]` section, in decimal or hex (`anno1
 | `text` | string | The text in the status bar, for every language without its own |
 | `text.<code>` | string | The text in one language (`text.de`, `text.en`, ...; the codes of [languages.md](languages.md)) |
 | `like` | number or id | Start from this message: its icon, text, voice, video, kind and flags (applied first, wherever it stands) |
-| `icon` | `"notice"`, `"scroll"`, `"combat"`, `"player"`, `"plague"`, `"fire"`, `"drought"`, `"volcano"` | The icon in the status bar; the first four in the colour of the player the message is about |
+| `icon` | `"notice"`, `"scroll"`, `"combat"`, `"player"`, `"plague"`, `"fire"`, `"drought"`, `"volcano"`, or an icon of a package `"<package>:<name>"` ([icons.toml](graphics.md#icons)) | The icon in the status bar; the first four in the colour of the player the message is about, a package's as it is drawn |
 | `kind` | `"general"`, `"events"`, `"island"`, `"players"`, `"trade"`, `"combat"`, `"orders"`, `"diplomacy"`, `"routes"` | Which switch of the voice and video options mutes it (`general`: only the master switch; `routes`: Open1602's switch of „Überprüft Eure Handelsrouten!“) |
 | `sound` | file name, number or `false` | A WAV, Ogg Vorbis or FLAC file of the package (relative to its folder, never outside it), a file of the original's `Speech8` (`sound = 530`), or none (`false`: only the short message sound) |
 | `video` | number or `false` | A video of the original's `VideoSmk` (`video = 23` plays `VideoSmk/23.smk`), or none |

@@ -24,6 +24,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/pathfinding.hpp"
+#include "o1602/sim/rules.hpp"
 #include "o1602/sim/world.hpp"
 
 namespace o1602::sim {
@@ -81,11 +82,13 @@ void recount_disasters(World& world);
 
 /// One epoch of all disasters (0x0047A020): each lasts one epoch longer and may spread; at its end
 /// a plague is over and a fire burns the building down (`construction` gets what that removed).
-void advance_disasters(World& world, const assets::BuildingTable& buildings, std::vector<DisasterEvent>* events,
-                       std::vector<ConstructionEvent>* construction);
+/// `rules` say whether wood or brick catches fire more easily (OriginalBugs::fire_risk).
+void advance_disasters(World& world, const assets::BuildingTable& buildings, const Rules& rules,
+                       std::vector<DisasterEvent>* events, std::vector<ConstructionEvent>* construction);
 
-/// The event check of the cities whose time has come (0x0047F8A0): plague, robbers, fire.
-void advance_city_events(World& world, const assets::BuildingTable& buildings, std::vector<DisasterEvent>* events,
-                         std::vector<RobberSpawn>* robbers);
+/// The event check of the cities whose time has come (0x0047F8A0): plague, robbers, fire. `rules`
+/// say how the gallows and the fire table work (OriginalBugs).
+void advance_city_events(World& world, const assets::BuildingTable& buildings, const Rules& rules,
+                         std::vector<DisasterEvent>* events, std::vector<RobberSpawn>* robbers);
 
 }  // namespace o1602::sim

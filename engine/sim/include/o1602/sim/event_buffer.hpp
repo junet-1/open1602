@@ -5,8 +5,11 @@
 // interface (a server, a test, a tool) never takes them, so every buffer has a bound.
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -37,18 +40,32 @@ public:
     /// Drops the older half once more than kMaxPending wait.
     void trim() {
         if (m_events.size() > kMaxPending) {
-            m_events.erase(m_events.begin(), m_events.end() - static_cast<std::ptrdiff_t>(kMaxPending / 2));
+            const std::size_t dropped = m_events.size() - kMaxPending / 2;
+            m_events.erase(m_events.begin(), m_events.begin() + static_cast<std::ptrdiff_t>(dropped));
+            m_removed += dropped;
         }
     }
     /// The events since the last call, oldest first.
     [[nodiscard]] std::vector<T> take() noexcept {
         std::vector<T> events;
         events.swap(m_events);
+        m_removed += events.size();
         return events;
+    }
+
+    /// How many events were ever added: before and after a tick, the difference is its events.
+    [[nodiscard]] std::uint64_t total() const noexcept { return m_removed + m_events.size(); }
+    /// The events added since total() was `before`, at most the latest kMaxPending / 2 of them:
+    /// that many are always kept, so the result does not depend on when take() and trim() ran.
+    [[nodiscard]] std::span<const T> since(std::uint64_t before) const noexcept {
+        const std::uint64_t added = total() - before;
+        const std::size_t count = static_cast<std::size_t>(std::min<std::uint64_t>(added, kMaxPending / 2));
+        return std::span<const T>(m_events).subspan(m_events.size() - std::min(count, m_events.size()));
     }
 
 private:
     std::vector<T> m_events;
+    std::uint64_t m_removed = 0;  ///< taken or trimmed
 };
 
 }  // namespace o1602::sim

@@ -16,7 +16,7 @@ std::string line_of(const std::string& where, std::size_t line) {
     return where + " line " + std::to_string(line) + ": ";
 }
 
-/// A name a package may give its image: lower case letters, digits and '_'.
+/// A name a package may give its image or icon: lower case letters, digits and '_'.
 bool is_name(std::string_view name) noexcept {
     return !name.empty() && name.size() <= 64 && std::all_of(name.begin(), name.end(), [](const char c) {
         return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
@@ -163,6 +163,95 @@ void apply_graphics_file(std::vector<PackageImage>& images, std::string_view pac
             continue;
         }
         images.push_back(std::move(image));
+    }
+}
+
+const PackageIcon* find_package_icon(std::span<const PackageIcon> icons, std::string_view id) noexcept {
+    const auto it = std::find_if(icons.begin(), icons.end(), [&](const PackageIcon& i) { return i.id == id; });
+    return it == icons.end() ? nullptr : &*it;
+}
+
+const PackageIcon* package_icon_at(std::span<const PackageIcon> icons, std::int32_t sprite) noexcept {
+    // Numbered one after the other from kFirstPackageIcon.
+    if (sprite < kFirstPackageIcon || static_cast<std::size_t>(sprite - kFirstPackageIcon) >= icons.size()) {
+        return nullptr;
+    }
+    const PackageIcon& icon = icons[static_cast<std::size_t>(sprite - kFirstPackageIcon)];
+    return icon.sprite == sprite ? &icon : nullptr;
+}
+
+void apply_icons_file(std::vector<PackageIcon>& icons, std::string_view package, const std::filesystem::path& folder,
+                      std::string_view utf8, std::vector<std::string>& warnings) {
+    const std::string where = std::string(package) + "/" + std::string(kIconsFile);
+    auto tables = core::parse_data_file(utf8);
+    if (!tables) {
+        warnings.push_back(where + " " + tables.error().message);
+        return;
+    }
+    for (const core::DataTable& t : *tables) {
+        const std::string at = line_of(where, t.line);
+        if (!is_name(t.name)) {
+            warnings.push_back(at + "[" + t.name + "]: an icon's name holds only lower case letters, digits and '_'");
+            continue;
+        }
+        PackageIcon icon;
+        icon.id = std::string(package) + ":" + t.name;
+        if (find_package_icon(icons, icon.id) != nullptr) {
+            warnings.push_back(at + icon.id + " is declared twice; the second is passed over");
+            continue;
+        }
+        bool ok = true;
+        for (const core::DataEntry& e : t.entries) {
+            const std::string field = line_of(where, e.value.line) + "'" + e.key + "' ";
+            if (e.key == "image") {
+                const std::string* s = e.value.string();
+                if (s == nullptr || !safe_package_path(*s)) {
+                    warnings.push_back(field + "is the path of a PNG file in the package, folders split by '/'");
+                    ok = false;
+                } else {
+                    icon.file = folder / core::path_from_utf8(*s);
+                }
+            } else {
+                warnings.push_back(field + "is no field of an icon and is passed over");
+            }
+        }
+        if (!ok) {
+            continue;
+        }
+        if (icon.file.empty()) {
+            warnings.push_back(at + icon.id + " needs an 'image'");
+            continue;
+        }
+        std::string file = at;  // "<where> line <n>: <id>: <file>: ..."
+        file += icon.id;
+        file += ": ";
+        file += core::path_to_utf8(icon.file.lexically_relative(folder));
+        file += ": ";
+        const auto size = png_header(icon.file);
+        if (!size) {
+            file += size.error().message;
+            warnings.push_back(std::move(file));
+            continue;
+        }
+        if (size->width > kMaxPackageIconSide || size->height > kMaxPackageIconSide) {
+            file += std::to_string(size->width);
+            file += " x ";
+            file += std::to_string(size->height);
+            file += " pixels, an icon has at most ";
+            file += std::to_string(kMaxPackageIconSide);
+            file += " a side";
+            warnings.push_back(std::move(file));
+            continue;
+        }
+        if (icons.size() >= kMaxPackageIcons) {
+            warnings.push_back(at + icon.id + ": the packages have at most " + std::to_string(kMaxPackageIcons) +
+                               " icons in all; it is passed over");
+            continue;
+        }
+        icon.width = size->width;
+        icon.height = size->height;
+        icon.sprite = kFirstPackageIcon + static_cast<std::int32_t>(icons.size());
+        icons.push_back(std::move(icon));
     }
 }
 
