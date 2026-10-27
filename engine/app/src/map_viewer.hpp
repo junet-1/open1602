@@ -306,11 +306,14 @@ private:
     [[nodiscard]] Hud::Resources resources() const;
     /// Shots, hits, victory and defeat: sounds, messages and lines in the terminal.
     void apply_game_events();
+    /// What the game's scripts posted and printed since the last frame: messages for this computer's
+    /// player, script errors in the status line, everything in the log.
+    void apply_script_output();
     /// Plays what the EventPresenter made of the events: messages with their voices (a message that
     /// asks for it slows the game to normal speed, flag 0x02) and videos, high score lists.
     void show_notices(const std::vector<Notice>& notices);
     /// Posts a message by its id ("mymod:lighthouse") with its placeholders filled, as the scripts
-    /// will (M8); false if there is no such message.
+    /// do (game.message); false if there is no such message.
     bool announce(std::string_view id, const MessageArgs& args = {},
                   std::optional<std::pair<double, double>> tile = std::nullopt);
     void zoom_by(double steps, double sx, double sy) override;

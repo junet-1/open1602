@@ -76,6 +76,8 @@ struct Decoded {
     std::optional<Balance> balance;
     /// The content packages the game uses (PACK).
     std::optional<std::vector<assets::ContentPackage>> packages;
+    /// The state of the packages' scripts (SCRP).
+    std::optional<std::vector<ScriptState>> script_states;
     /// The goods the packages added (GOOD).
     std::optional<assets::Goods> goods;
     /// The icons of packages the goods show, by ware number (GPIC).

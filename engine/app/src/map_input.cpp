@@ -308,8 +308,9 @@ ui::KeyContext MapInput::key_context() const {
 
 void MapInput::handle_key(int key, int scancode, std::uint16_t mod) {
     const ui::KeyPress press = key_press(key, scancode, mod);
-    if (m_hud && m_hud->menu_active() && !m_hud->modal()) {
-        // The menu knows Escape (a screen back) and the program's keys, nothing of the game.
+    if (m_hud && m_hud->menu_active() && !m_hud->asking() && !m_hud->helping()) {
+        // The menu knows Escape (the window "Anzeige" closed, or a screen back) and the program's
+        // keys, nothing of the game.
         if (key == SDLK_ESCAPE) {
             (void)m_hud->back();
             return;
@@ -812,6 +813,9 @@ void MapInput::handle_event(const SDL_Event& event) {
                         m_commands.submit(std::move(*order));
                         if (founded) {
                             m_tool.set_mode(BuildTool::Mode::Off);
+                            if (m_hud && m_hud->founding_ship()) {
+                                set_mode(Hud::kModeInfo);  // back to the ship's window
+                            }
                         }
                     } else if (auto demolish = m_tool.demolish_order(local(), *spot)) {
                         submit({*demolish}, false, m_confirm);  // asks before land is lost (S-035)
@@ -968,6 +972,9 @@ bool MapInput::cancel_build_step() {
     }
     if (m_tool.active()) {
         m_tool.set_mode(BuildTool::Mode::Off);
+        if (m_hud && m_hud->founding_ship()) {
+            set_mode(Hud::kModeInfo);  // the Kontor from the ship: back to its window
+        }
         return true;
     }
     return false;

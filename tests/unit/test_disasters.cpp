@@ -11,6 +11,8 @@
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/production_cycle.hpp"
+#include "o1602/sim/save_game.hpp"
+#include "o1602/sim/simulation.hpp"
 
 using namespace o1602;
 
@@ -146,7 +148,7 @@ struct Town {
     }
     /// One disaster epoch.
     void epoch(std::vector<sim::ConstructionEvent>* construction = nullptr) {
-        sim::advance_disasters(world, buildings, &events, construction);
+        sim::advance_disasters(world, buildings, sim::Rules::open1602(), &events, construction);
     }
 };
 
@@ -376,12 +378,13 @@ TEST_CASE("disasters: cities of many pioneers catch fire, the doctor and the bri
     for (std::uint16_t i = 0; i < 10; ++i) {
         town.add_house(static_cast<std::uint16_t>(2 + 3 * i), 4, 0, 10);  // 100 pioneers
     }
-    sim::advance_city_events(town.world, town.buildings, &town.events, nullptr);  // first check in a minute
+    sim::advance_city_events(town.world, town.buildings, sim::Rules::open1602(), &town.events,
+                             nullptr);  // first check in a minute
     CHECK(town.city().next_event_ms == 60'000);
     bool fire = false;
     for (int i = 0; i < 200 && !fire; ++i) {
         town.world.set_time_ms(town.city().next_event_ms);
-        sim::advance_city_events(town.world, town.buildings, &town.events, nullptr);
+        sim::advance_city_events(town.world, town.buildings, sim::Rules::open1602(), &town.events, nullptr);
         CHECK(town.city().next_event_ms >= town.world.time_ms() + 60'000);
         CHECK(town.city().next_event_ms <= town.world.time_ms() + 67'000);
         fire = count(town.events, sim::DisasterEvent::Kind::Started, false) != 0;
@@ -401,7 +404,7 @@ TEST_CASE("disasters: cities of many pioneers catch fire, the doctor and the bri
 
 TEST_CASE("disasters: wooden houses catch fire more easily than brick ones (S-049)") {
     // The same city twice, once of wooden and once of brick houses, with the same random numbers.
-    const auto fires = [](std::uint32_t house) {
+    const auto fires = [](std::uint32_t house, const sim::Rules& rules) {
         Town town;
         for (std::uint16_t i = 0; i < 10; ++i) {
             town.place(house, 2 + 3 * i, 4);
@@ -411,11 +414,11 @@ TEST_CASE("disasters: wooden houses catch fire more easily than brick ones (S-04
             town.add_house(static_cast<std::uint16_t>(2 + 3 * i), 4, 0, 10);
         }
         std::size_t n = 0;
-        sim::advance_city_events(town.world, town.buildings, nullptr, nullptr);
+        sim::advance_city_events(town.world, town.buildings, rules, nullptr, nullptr);
         for (int i = 0; i < 2000; ++i) {
             town.world.set_time_ms(town.city().next_event_ms);
             std::vector<sim::DisasterEvent> events;
-            sim::advance_city_events(town.world, town.buildings, &events, nullptr);
+            sim::advance_city_events(town.world, town.buildings, rules, &events, nullptr);
             n += count(events, sim::DisasterEvent::Kind::Started, false);
             town.world.disasters().clear();  // put out at once
             sim::recount_disasters(town.world);
@@ -425,8 +428,9 @@ TEST_CASE("disasters: wooden houses catch fire more easily than brick ones (S-04
         }
         return n;
     };
-    const std::size_t wood = fires(kPioneerHouse);
-    const std::size_t brick = fires(kBrickPioneerHouse);
+    const sim::Rules open1602 = sim::Rules::open1602();
+    const std::size_t wood = fires(kPioneerHouse, open1602);
+    const std::size_t brick = fires(kBrickPioneerHouse, open1602);
     // Per check 15.5 % pass the roll; then three tries of 7/8 (wood, 99.8 %) or 3/8 (brick,
     // 75.6 %): about 310 and 234 of 2000 checks.
     CHECK(wood > brick + brick / 8);
@@ -434,6 +438,17 @@ TEST_CASE("disasters: wooden houses catch fire more easily than brick ones (S-04
     CHECK(wood < 360);
     CHECK(brick > 190);
     CHECK(brick < 280);
+
+    // The bug brought back: the other way round, as in the original.
+    sim::Rules original = open1602;
+    original.bugs.fire_risk = true;
+    const std::size_t original_wood = fires(kPioneerHouse, original);
+    const std::size_t original_brick = fires(kBrickPioneerHouse, original);
+    CHECK(original_brick > original_wood + original_wood / 8);
+    CHECK(original_brick > 260);
+    CHECK(original_brick < 360);
+    CHECK(original_wood > 190);
+    CHECK(original_wood < 280);
 }
 
 TEST_CASE("disasters: a burning house does not catch fire again (S-050)") {
@@ -461,7 +476,7 @@ TEST_CASE("disasters: a burning house does not catch fire again (S-050)") {
 }
 
 TEST_CASE("disasters: a gallows keeps three of four robbers away (S-055)") {
-    const auto robbers = [](bool gallows) {
+    const auto robbers = [](bool gallows, const sim::Rules& rules) {
         Town town;
         for (std::uint16_t i = 0; i < 10; ++i) {
             town.place(kCitizenHouse, 2 + 3 * i, 4);
@@ -478,11 +493,11 @@ TEST_CASE("disasters: a gallows keeps three of four robbers away (S-055)") {
             }
         }
         std::size_t n = 0;
-        sim::advance_city_events(town.world, town.buildings, nullptr, nullptr);
+        sim::advance_city_events(town.world, town.buildings, rules, nullptr, nullptr);
         for (int i = 0; i < 2000; ++i) {
             town.world.set_time_ms(town.city().next_event_ms);
             std::vector<sim::RobberSpawn> spawns;
-            sim::advance_city_events(town.world, town.buildings, nullptr, &spawns);
+            sim::advance_city_events(town.world, town.buildings, rules, nullptr, &spawns);
             n += spawns.size();
             for (const sim::Disaster& d : std::vector<sim::Disaster>(town.world.disasters())) {
                 sim::end_disaster(town.world, d.island, {d.x, d.y}, d.kind, nullptr);
@@ -490,13 +505,45 @@ TEST_CASE("disasters: a gallows keeps three of four robbers away (S-055)") {
         }
         return n;
     };
-    const std::size_t without = robbers(false);
-    const std::size_t with = robbers(true);
+    const sim::Rules open1602 = sim::Rules::open1602();
+    const std::size_t without = robbers(false, open1602);
+    const std::size_t with = robbers(true, open1602);
     // 37.75 % of the checks (300..499 citizens): about 755 of 2000; with gallows a quarter of it.
     CHECK(without > 650);
     CHECK(without < 860);
     CHECK(with > without / 6);
     CHECK(with < without / 3);
+
+    // The bug brought back: three tries, so 1 - (3/4)^3 = 58 % of the robbers come all the same.
+    sim::Rules original = open1602;
+    original.bugs.gallows = true;
+    CHECK(robbers(false, original) == without);  // without gallows nothing changes
+    const std::size_t original_with = robbers(true, original);
+    CHECK(original_with > without / 2);
+    CHECK(original_with < without * 2 / 3);
+}
+
+TEST_CASE("disasters: the original's bugs a game brings back stay with its savegame") {
+    Town town;
+    town.place(kCitizenHouse, 2, 4);
+    town.finish({});
+    CHECK(sim::Rules::open1602().bugs == sim::OriginalBugs{});  // Open1602's fixes by default
+    CHECK(sim::Rules::original().bugs == sim::OriginalBugs::all());
+    for (const sim::OriginalBugs bugs : {sim::OriginalBugs{true, false}, sim::OriginalBugs{false, true},
+                                         sim::OriginalBugs::all(), sim::OriginalBugs{}}) {
+        sim::Rules rules;
+        rules.bugs = bugs;
+        town.world.set_saved_rules(rules);
+        const auto bytes = sim::write_game(town.world, town.buildings);
+        REQUIRE(bytes.ok());
+        auto back = sim::read_game(*bytes, town.buildings);
+        REQUIRE(back.ok());
+        REQUIRE(back->saved_rules().has_value());
+        CHECK(back->saved_rules()->bugs == bugs);
+        // The simulation of the loaded game plays by them, whatever it is started with.
+        const sim::Simulation sim(*back, town.buildings, town.figures, sim::Rules::open1602());
+        CHECK(sim.rules().bugs == bugs);
+    }
 }
 
 TEST_CASE("disasters: fire and plague in a city develop the same on every platform (golden hash)") {

@@ -322,8 +322,10 @@ struct Planner {
             return BuildRefusal::NoDeposit;
         }
         // A market claims its own circle, which covers its footprint: like the original it needs only
-        // one full edge in the city, the rest may be free land (never another city's).
-        const bool edge_rule = b.prod_kind == prod::kMarket;
+        // one full edge in the city, the rest may be free land (never another city's). With S-008
+        // brought back (OriginalBugs::building_radius) every building does, and the free land
+        // under it joins the city.
+        const bool edge_rule = b.prod_kind == prod::kMarket || world.original_bugs().building_radius;
         if (edge_rule && !full_edge_in_city(f, city_of_tiles)) {
             return BuildRefusal::Territory;
         }
@@ -946,7 +948,13 @@ void plan_build(const World& world, const assets::BuildingTable& buildings, cons
                 const assets::BuildingType* withered = ripe != nullptr ? withered_record(buildings, *ripe) : nullptr;
                 if (crop != 0 && withered != nullptr) {
                     if (!tile_fertile_at(world, buildings, order.island, crop, out.x, out.y, 0)) {
-                        refusal = BuildRefusal::Infertile;
+                        // OriginalBugs::infertile_fields: planted withered and paid for, as the
+                        // original does.
+                        if (world.original_bugs().infertile_fields) {
+                            out.type = withered;
+                        } else {
+                            refusal = BuildRefusal::Infertile;
+                        }
                     } else if (!tile_fertile(world, buildings, order.island, crop, out.x, out.y)) {
                         out.type = withered;
                     }

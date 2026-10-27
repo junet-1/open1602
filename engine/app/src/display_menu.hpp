@@ -2,8 +2,8 @@
 //
 // The window "Anzeige" (display) over the map, Open1602's own: window or full screen, the window's
 // size, the interface's size, the zoom and how it draws, vertical sync. Opened from the settings of
-// the side panel; each row is a button with its value, a left click chooses the next one, a right
-// click the previous one. The window
+// the side panel, and in the main menu by the History Edition's "Options"; each row is a button
+// with its value, a left click chooses the next one, a right click the previous one. The window
 // only edits a DisplayModel; the viewer applies what changed.
 #pragma once
 

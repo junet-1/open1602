@@ -22,6 +22,7 @@ constexpr std::uint32_t kRoad = 20401;
 constexpr std::uint32_t kGround = 20101;
 constexpr std::uint32_t kForest = 20201;
 constexpr std::uint32_t kBakery = 20503;
+constexpr std::uint32_t kDoorBakery = 20504;  // a bakery with its door on the edge
 constexpr std::uint32_t kMill = 20505;
 constexpr std::uint32_t kWeaver = 20507;
 constexpr std::uint32_t kKontor = 22101;
@@ -43,6 +44,10 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: +1\n  Id: 20101\n  Kind: 11\n  Gfx: 1\n  Size: 1, 1\n  Wegspeed: 145, 120, 170, 100\n"
         "  @Nummer: +1\n  Id: 20201\n  Kind: 10\n  Gfx: 2\n  Size: 1, 1\n  Wegspeed: 145, 120, 170, 100\n"
         "  @Nummer: +1\n  Id: 20503\n  Kind: 14\n  Gfx: 10\n  Size: 2, 2\n  Wegspeed: 120, 120, 120, 100\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Maxlager: 4\n    Ware: 10\n    Rohstoff: 5\n    Rohmenge: 1\n"
+        "    Prodmenge: 1\n    Interval: 20\n    Figurnr: 80\n    Radius: 8\n  EndObj\n"
+        "  @Nummer: +1\n  Id: 20504\n  Kind: 14\n  Gfx: 80\n  Size: 2, 2\n  Tuerflg: 1\n"
+        "  Wegspeed: 120, 120, 120, 100\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Maxlager: 4\n    Ware: 10\n    Rohstoff: 5\n    Rohmenge: 1\n"
         "    Prodmenge: 1\n    Interval: 20\n    Figurnr: 80\n    Radius: 8\n  EndObj\n"
         "  @Nummer: +1\n  Id: 20505\n  Kind: 14\n  Gfx: 20\n  Size: 2, 2\n  Wegspeed: 120, 120, 120, 100\n"
@@ -555,4 +560,87 @@ TEST_CASE("logistics: a robber without a victim gives up after half a minute") {
     const std::uint32_t ticks = run_until_idle(logistics);
     CHECK(ticks == 30 * 20);
     CHECK(logistics.stats().robberies == 0);
+}
+
+TEST_CASE("logistics: with S-056 brought back a robber takes only figures going to the middle of their building") {
+    for (const bool original : {false, true}) {
+        Town town;
+        town.place(kMill, 9, 3);
+        town.place(kDoorBakery, 16, 6);  // its carrier comes home to the door, not the middle
+        town.place(kHouse, 9, 6);
+        town.finish({{9, 3}, {16, 6}});
+        sim::OriginalBugs bugs;
+        bugs.robber_victims = original;
+        town.world.set_original_bugs(bugs);
+        town.production(9, 3).stock = 3 * 32;
+        sim::Logistics logistics(town.world, town.buildings, town.figures);
+        logistics.spawn_robber(sim::RobberSpawn{0, {9, 6}, 0});
+        logistics.handle(needs(town.index(16, 6), kFlour));
+        REQUIRE(logistics.walkers().size() == 2);
+        run_until_idle(logistics);
+        CHECK(logistics.stats().robberies == (original ? 0U : 1U));
+    }
+}
+
+TEST_CASE("logistics: with S-058 brought back a fleeing robber plans 12 tiles and is gone there") {
+    for (const bool original : {false, true}) {
+        Town town;
+        town.place(kKontor, 2, 3);
+        town.place(kWeaver, 14, 4);
+        town.place(kHouse, 26, 7);  // the only house: far from where he catches the cart
+        town.finish({{2, 3}, {14, 4}});
+        sim::OriginalBugs bugs;
+        bugs.robber_flight = original;
+        town.world.set_original_bugs(bugs);
+        town.city().ensure_ware(kCloth);
+        sim::Logistics logistics(town.world, town.buildings, town.figures);
+        logistics.spawn_robber(sim::RobberSpawn{0, {8, 6}, 0});
+        town.production(14, 4).stock = 4 * 32;
+        logistics.handle(needs(town.index(2, 3), sim::kAllWares));
+        std::size_t flight = 0;
+        for (std::uint32_t n = 0; n < 20'000 && logistics.walkers().size() != 0; ++n) {
+            logistics.tick();
+            const sim::Walker* w = first_walker(logistics);
+            if (logistics.stats().robberies == 1 && w != nullptr && w->kind == sim::WalkerKind::Robber &&
+                w->returning) {
+                flight = w->path.size();
+                break;
+            }
+        }
+        REQUIRE(logistics.stats().robberies == 1);
+        if (original) {
+            CHECK(flight == 12);
+        } else {
+            CHECK(flight > 12);
+        }
+    }
+}
+
+TEST_CASE("logistics: with S-002 brought back a carrier walks on and delivers to what stands in his place") {
+    for (const bool original : {false, true}) {
+        Town town;
+        town.place(kMill, 10, 3);
+        town.place(kBakery, 16, 6);
+        town.finish({{10, 3}, {16, 6}});
+        sim::OriginalBugs bugs;
+        bugs.goldsheep = original;
+        town.world.set_original_bugs(bugs);
+        town.production(10, 3).stock = 3 * 32;
+        sim::Logistics logistics(town.world, town.buildings, town.figures);
+        logistics.handle(needs(town.index(16, 6), kFlour));
+        REQUIRE(logistics.walkers().size() == 1);
+        // The bakery is demolished while its carrier is on the way and built again on the same place.
+        const auto removed = town.world.remove_production(0, 16, 6);
+        REQUIRE(removed.has_value());
+        const std::uint32_t gone[] = {*removed};
+        logistics.buildings_removed(gone);
+        CHECK(logistics.walkers().size() == (original ? 1U : 0U));
+        sim::Production again;
+        again.island = 0;
+        again.x = 16;
+        again.y = 6;
+        town.world.set_production(again);
+        run_until_idle(logistics);
+        CHECK(town.production(16, 6).raw == (original ? 3U * 32U : 0U));
+    }
 }

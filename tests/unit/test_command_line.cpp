@@ -55,7 +55,7 @@ TEST_CASE("command line: options and their values") {
     CHECK(c->options.rules.demolish_refund == sim::Refund::Partial);
     CHECK(c->options.rules.refund_percent == 25);
     CHECK(c->options.rules.droughts == sim::Droughts::Rare);
-    CHECK(c->options.rules.classic_ai);
+    CHECK(c->options.rules.bugs.classic_ai);
     CHECK(!c->options.effects);
     const std::array<std::uint16_t, 3> tile{3, 10, 20};
     CHECK(c->options.select == tile);

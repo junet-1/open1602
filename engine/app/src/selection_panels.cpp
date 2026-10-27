@@ -1110,7 +1110,9 @@ public:
                 m_bauship.set_visible(kType + k, !(small && big));
                 m_bauship.set_offset(kType + k, m_type_x[static_cast<std::size_t>(k)] + (small && !big ? 40 : 0), 0);
             }
-            if (small && (m_type == 1 || m_type == 3)) {
+            // The original keeps a large type chosen at a large yard; its order then builds it in the
+            // small one too (S-005, brought back by OriginalBugs::small_yard_warships).
+            if (small && (m_type == 1 || m_type == 3) && !c.world().original_bugs().small_yard_warships) {
                 m_type = static_cast<std::uint8_t>(m_type - 1);
             }
             for (std::int32_t k = 0; k < 4; ++k) {

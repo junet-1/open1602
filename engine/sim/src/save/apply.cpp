@@ -219,6 +219,9 @@ core::Status apply_decoded(World& world, Decoded& d) {
     balance.buildings = d.building_values.value_or(std::vector<BuildingValue>{});
     balance.figures = d.figure_values.value_or(std::vector<FigureValue>{});
     world.set_balance(balance);
+    if (d.script_states) {
+        world.set_script_states(std::move(*d.script_states));
+    }
     if (d.packages) {
         world.set_packages(std::move(*d.packages));
     }

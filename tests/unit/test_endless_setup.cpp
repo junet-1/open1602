@@ -95,9 +95,9 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(s.rules.trader_prices == sim::TraderPrices::Market);
     app::choose(s, SetupItem::Resources, 1);
     CHECK(!s.rules.guarantee_resources);
-    CHECK(!s.rules.classic_ai);  // Open1602's computer players by default
+    CHECK(!s.rules.bugs.classic_ai);  // Open1602's computer players by default
     app::choose(s, SetupItem::ClassicAi, 1);
-    CHECK(s.rules.classic_ai);
+    CHECK(s.rules.bugs.classic_ai);
     CHECK(s.rules.pirates == sim::Pirates::Game);  // as the level by default: none on the two easy ones
     CHECK(value_of(s, SetupItem::Pirates) == ui::tr("setup.pirates.game"));
     app::choose(s, SetupItem::Pirates, 2);
@@ -396,8 +396,11 @@ TEST_CASE("game setup: the dialog of a scenario shows the rules only") {
     CHECK(!find_text(menu, ui::tr("setup.group.world")).has_value());
     CHECK(!find_text(menu, ui::tr("setup.map")).has_value());
     CHECK(!find_text(menu, ui::tr("setup.resources")).has_value());
-    (void)click(menu, ui::tr("setup.ai.open1602"));
-    CHECK(menu.setup().rules.classic_ai);
+    // The computer players are on the page of the original's bugs.
+    (void)click(menu, ui::tr("setup.bugs.open", {ui::tr("setup.bugs.none")}));
+    (void)click(menu, ui::tr("setup.bug.classic_ai.fixed"));
+    CHECK(menu.setup().rules.bugs.classic_ai);
+    (void)click(menu, ui::tr("setup.back"));
     (void)click(menu, ui::tr("setup.original"));
     CHECK(menu.setup().rules == sim::Rules::original());
     CHECK(click(menu, ui::tr("setup.start")) == app::GameSettingsMenu::Result::Start);
@@ -559,7 +562,7 @@ TEST_CASE("endless setup: the victory conditions, all off by default") {
     const std::string text = app::victory_text(back.rules.victory);
     CHECK(text.find("Siegbedingungen") == 0);
     CHECK(text.find("7.500") != std::string::npos);
-    CHECK(text.find("2 Std.") != std::string::npos);
+    CHECK(text.find("2\xA0Std.") != std::string::npos);  // a no-break space: never wrapped apart
     ui::set_language(ui::kFallbackLanguage);
     CHECK(app::victory_text(back.rules.victory).find("7,500") != std::string::npos);
 }
@@ -604,7 +607,7 @@ TEST_CASE("game setup: the page of the victory conditions") {
     CHECK(find_text(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.many", {"2"})})).has_value());
     // The presets change the rules, the conditions stay.
     (void)click(menu, ui::tr("setup.original"));
-    CHECK(menu.setup().rules.classic_ai);
+    CHECK(menu.setup().rules.bugs.classic_ai);
     CHECK(menu.setup().rules.victory.inhabitants == 1000);
     // Escape goes back to the settings first, then out.
     (void)click(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.many", {"2"})}));
@@ -661,6 +664,120 @@ TEST_CASE("game setup: the victory page's groups end above its hint, in English 
     ui::set_language(ui::kFallbackLanguage);
 }
 
+TEST_CASE("game setup: the page of the original's bugs, fixed by default") {
+    EndlessSetup s;
+    CHECK(s.rules.bugs == sim::OriginalBugs{});
+    CHECK(app::bugs_summary(s.rules.bugs) == ui::tr("setup.bugs.none"));
+    CHECK(EndlessSetup::original().rules.bugs == sim::OriginalBugs::all());
+    // Every kind of game offers them, a scenario too; a savegame shows them.
+    for (const auto scope : {app::SetupScope::Endless, app::SetupScope::MultiplayerEndless, app::SetupScope::Scenario,
+                             app::SetupScope::Savegame}) {
+        CHECK(app::setup_item_offered(scope, SetupItem::BugGallows));
+        CHECK(app::setup_item_offered(scope, SetupItem::BugFireRisk));
+        CHECK(app::setup_item_open(s, scope, SetupItem::BugGallows) == (scope != app::SetupScope::Savegame));
+    }
+
+    // The values reach the rules, and settings.cfg (and with it the lobby) keeps them.
+    app::choose(s, SetupItem::BugGallows, 1);
+    CHECK(s.rules.bugs.gallows);
+    CHECK(!s.rules.bugs.fire_risk);
+    CHECK(app::bugs_summary(s.rules.bugs) == ui::tr("setup.bugs.one"));
+    const std::string text = app::write_setup(s, "multiplayer.");
+    CHECK(text.find("multiplayer.bug.gallows = original\n") != std::string::npos);
+    CHECK(text.find("multiplayer.bug.fire_risk = fixed\n") != std::string::npos);
+    EndlessSetup back;
+    app::read_setup(back, text, "multiplayer.");
+    CHECK(back == s);
+    CHECK(app::read_setup_line(back, "bug.fire_risk", "original"));
+    CHECK(back.rules.bugs.fire_risk);
+    CHECK(back.rules.bugs.count() == 2);
+    // Every bug has its line, the computer players their old one too.
+    const std::string all = app::write_setup(EndlessSetup::original());
+    CHECK(all.find("endless.ai = classic\n") != std::string::npos);
+    CHECK(all.find("endless.bug.goldsheep = original\n") != std::string::npos);
+    EndlessSetup all_back;
+    app::read_setup(all_back, all);
+    CHECK(all_back.rules.bugs == sim::OriginalBugs::all());
+    CHECK(app::read_setup_line(back, "bug.gallows", "sometimes"));  // unknown: kept
+    CHECK(back.rules.bugs.gallows);
+
+    // The dialog: a button below the disasters opens the page, which has its own presets.
+    for (const auto scope : {app::SetupScope::Endless, app::SetupScope::Scenario}) {
+        app::GameSettingsMenu menu;
+        menu.open(EndlessSetup{}, scope);
+        CHECK(!find_text(menu, app::setup_label(SetupItem::BugGallows)).has_value());
+        CHECK(find_text(menu, ui::tr("setup.bugs")).has_value());
+        CHECK(click(menu, ui::tr("setup.bugs.open", {ui::tr("setup.bugs.none")})) ==
+              app::GameSettingsMenu::Result::None);
+        CHECK(menu.bugs_page());
+        CHECK(!menu.victory_page());
+        CHECK(find_text(menu, ui::tr("setup.title.bugs")).has_value());
+        CHECK(!find_text(menu, ui::tr("setup.original")).has_value());  // the presets are the rules'
+        (void)click(menu, value_of(menu.setup(), SetupItem::BugFireRisk));
+        CHECK(menu.setup().rules.bugs.fire_risk);
+        (void)click(menu, ui::tr("setup.bugs.all_original"));
+        CHECK(menu.setup().rules.bugs == sim::OriginalBugs::all());
+        CHECK(menu.setup().rules.victory == sim::VictoryConditions{});  // nothing else changes
+        CHECK(menu.setup().rules.max_army == sim::Rules{}.max_army);
+        (void)click(menu, ui::tr("setup.bugs.all_fixed"));
+        CHECK(menu.setup().rules.bugs == sim::OriginalBugs{});
+        (void)click(menu, value_of(menu.setup(), SetupItem::BugGallows));
+        // Escape goes back to the settings first, where the button counts them.
+        CHECK(menu.back());
+        CHECK(!menu.bugs_page());
+        CHECK(find_text(menu, ui::tr("setup.bugs.open", {ui::tr("setup.bugs.one")})).has_value());
+        // The presets of the rules take the bugs with them.
+        (void)click(menu, ui::tr("setup.defaults"));
+        CHECK(menu.setup().rules.bugs == sim::OriginalBugs{});
+        (void)click(menu, ui::tr("setup.original"));
+        CHECK(menu.setup().rules.bugs == sim::OriginalBugs::all());
+        CHECK(!menu.back());
+    }
+
+    // A savegame's can be looked at, not changed.
+    EndlessSetup saved;
+    saved.rules.bugs.gallows = true;
+    app::GameSettingsMenu menu;
+    menu.open(saved, app::SetupScope::Savegame);
+    (void)click(menu, ui::tr("setup.bugs.open", {ui::tr("setup.bugs.one")}));
+    CHECK(menu.bugs_page());
+    CHECK(find_text(menu, value_of(saved, SetupItem::BugGallows)).has_value());
+    CHECK(!find_text(menu, ui::tr("setup.bugs.all_fixed")).has_value());
+}
+
+TEST_CASE("game setup: the original's bugs' page ends above its hint, in English and German") {
+    for (const std::string_view code : {"de", "en"}) {
+        ui::set_language(code);
+        app::GameSettingsMenu menu;
+        menu.open(EndlessSetup{});
+        (void)click(menu, ui::tr("setup.bugs.open", {ui::tr("setup.bugs.none")}));
+        REQUIRE(menu.bugs_page());
+        std::int32_t lowest = 0;
+        std::int32_t hint_y = INT32_MAX;
+        const std::string hint = ui::tr("setup.hint.bugs");
+        for (const ui::DrawItem& d : menu.draw(kNoFonts)) {
+            if (d.kind != ui::DrawItem::Kind::Text || d.text.empty()) {
+                continue;
+            }
+            if (d.text.size() > 20 && hint.compare(0, 20, d.text, 0, 20) == 0) {
+                hint_y = std::min(hint_y, d.y);
+            }
+            for (std::size_t i = 0; i < app::kSetupItems; ++i) {
+                const auto item = static_cast<SetupItem>(i);
+                if (app::bug_item(item) && d.text == app::setup_label(item)) {
+                    lowest = std::max(lowest, d.y);
+                }
+            }
+        }
+        REQUIRE(hint_y != INT32_MAX);
+        CHECK(lowest > 0);
+        CHECK(lowest + 27 <= hint_y);
+        CHECK(ui::tr("setup.hint.bugs") != "setup.hint.bugs");
+        CHECK(ui::tr("setup.title.bugs") != "setup.title.bugs");
+    }
+    ui::set_language(ui::kFallbackLanguage);
+}
+
 TEST_CASE("endless setup: a value none of the choices is shows as it is and steps to the nearest (LC-7)") {
     ui::set_language("en");
     EndlessSetup s;
@@ -707,4 +824,22 @@ TEST_CASE("endless setup: a multiplayer game runs at most the dialog's speed, pi
     CHECK(app::multiplayer_setup(s, 6).rules.max_game_speed == 8);
     app::read_setup(s, "endless.victory.class = 1\n");
     CHECK(s.rules.victory.resident_class == 1);
+}
+
+TEST_CASE("game setup: a savegame's values take the room their labels leave, in English and German") {
+    for (const std::string_view code : {"de", "en"}) {
+        ui::set_language(code);
+        app::GameSettingsMenu menu;
+        menu.open(EndlessSetup{}, app::SetupScope::Savegame);
+        for (auto i = 0; i < static_cast<int>(SetupItem::Count); ++i) {
+            const auto item = static_cast<SetupItem>(i);
+            if (!app::setup_item_offered(app::SetupScope::Savegame, item) || app::victory_item(item) ||
+                app::bug_item(item)) {
+                continue;
+            }
+            // Without fonts every byte is 9 units: wider than a button's room for the longest values.
+            CHECK(find_text(menu, value_of(menu.setup(), item)).has_value());
+        }
+    }
+    ui::set_language(ui::kFallbackLanguage);
 }

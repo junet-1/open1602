@@ -2062,6 +2062,9 @@ void MapViewer::apply_hud(const Hud::Action& action) {
         case Hud::Action::Kind::FoundKontor:
             if (m_tool.select_kontor(action.ship)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
+                if (const assets::BuildingType* kontor = m_tool.selected()) {
+                    m_hud->found_kontor(action.ship, kontor->id);
+                }
             }
             break;
     }
@@ -2074,6 +2077,36 @@ void MapViewer::apply_game_events() {
     show_notices(m_events.diplomacy_notices(m_local_player, m_state->simulation.take_diplomacy_notices()));
     show_notices(m_events.game_events(m_state->world, m_local_player, m_state->simulation.take_game_events(),
                                       platform::ticks_ms()));
+    apply_script_output();
+}
+
+void MapViewer::apply_script_output() {
+    if (!m_state->scripts) {
+        return;
+    }
+    for (const script::ScriptNote& note : m_state->scripts->take_notes()) {
+        std::fprintf(stderr, "script %s: %s\n", note.package.c_str(), note.text.c_str());
+        if (note.error) {
+            const std::string text = core::utf8_to_cp1252(note.package + ": " + note.text);
+            m_events.notify(ui::tr("error.script", {text}), "error.script " + note.package, platform::ticks_ms());
+        }
+    }
+    for (const script::ScriptMessage& message : m_state->scripts->take_messages()) {
+        if (message.player != sim::kNoPlayer && message.player != m_local_player) {
+            continue;
+        }
+        std::vector<std::pair<std::string, std::string>> values;
+        for (const auto& [name, value] : message.args) {
+            values.emplace_back(name, core::utf8_to_cp1252(value));
+        }
+        MessageArgs args;
+        for (const auto& [name, value] : values) {
+            args.emplace_back(name, value);
+        }
+        if (!announce(message.id, args)) {
+            std::fprintf(stderr, "script: no message \"%s\" (messages.toml)\n", message.id.c_str());
+        }
+    }
 }
 
 render::TilePos MapViewer::home_tile() const {
@@ -2576,6 +2609,11 @@ void MapViewer::use_game_packages() {
     m_messages.load_mods(used, problems);
     ui::set_build_menu(
         ui::load_build_menu_mods(ui::original_build_menu(), used, m_buildings, problems, m_own_buildings));
+    try {
+        m_state->use_scripts(script::read_package_scripts(used, problems));
+    } catch (const std::bad_alloc&) {
+        problems.emplace_back("not enough memory for the scripts");
+    }
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }
@@ -2906,6 +2944,9 @@ void MapViewer::apply_menu() {
         apply_multiplayer_menu();
         return;
     }
+    if (const auto display = m_hud->take_display_change()) {
+        apply_display(*display);  // the window "Anzeige" from the History Edition's "Options"
+    }
     // Only when they changed: a copy of thousands of names each frame costs (FB-15).
     if (menu != m_slots_menu || m_slots_shown != m_slots_revision) {
         menu->set_slots(m_slots);
@@ -2967,6 +3008,9 @@ void MapViewer::apply_menu() {
             case MenuEvent::Kind::ContinueLast:
                 started = load_game(slot_file(save_folder(), kLastGameSlot));
                 break;
+            case MenuEvent::Kind::Display:
+                m_hud->open_display(display_model());
+                continue;
             case MenuEvent::Kind::Mods:
                 menu->set_mods(mods_model());
                 continue;

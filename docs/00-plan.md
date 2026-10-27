@@ -99,7 +99,7 @@ in `re/scripts/ghidra/` the fallback.
 | Rendering | SDL3 GPU API (Vulkan/Metal/D3D12) with 2D sprite batching; software fallback | high resolutions, zoom, scaling |
 | Audio | SDL3 audio + own software mixer, own Smacker decoder for videos | |
 | Network | Deterministic **lockstep** over UDP (**ENet** or GameNetworkingSockets) | replaces DirectPlay; low bandwidth |
-| Modding (later) | Lua 5.4 (sol2) + own data format (TOML/JSON) as an overlay to the `.cod` files | Extensibility without recompiling |
+| Modding (later) | Lua 5.4 + own data format (TOML/JSON) as an overlay to the `.cod` files | Extensibility without recompiling |
 | Debug UI | Dear ImGui | Inspectors for the sim state |
 | Tests | Catch2 / doctest, golden-file and parity tests | |
 | RE/asset tools | **Python 3** | fast prototyping of format parsers, Ghidra scripts |
@@ -109,7 +109,7 @@ This table is the proposal from the start of the project. Where the project went
 tests use a small framework of their own (`tests/test_framework.hpp`) with unit tests and tests
 against the original data instead of Catch2 or doctest; there is no Dear ImGui; the game draws with
 the SDL renderer (`engine/render/sdl`) and the tools with a software rasteriser; the network is ENet.
-Lua is not started yet.
+Lua 5.4 is used through its C API without sol2 (`engine/script`, [scripts.md](modding/scripts.md)).
 
 Alternative **Rust**: stronger memory safety, but a weaker mapping of the original C++ structures and
 a smaller game-development ecosystem. The recommendation remains C++20 with strict rules (RAII, no raw

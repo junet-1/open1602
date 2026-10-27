@@ -137,5 +137,6 @@ int cmd_render_world(const Args& args);
 
 // video.cpp
 int cmd_smk(const Args& args);
+int cmd_bk2(const Args& args);
 
 }  // namespace o1602::tool

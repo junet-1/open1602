@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// o1602-tool: Smacker videos (header, frames as PNG, a sound track as WAVE).
+// o1602-tool: Smacker and Bink 2 videos (header, frames as PNG, a sound track as WAVE).
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -12,6 +13,7 @@
 
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
+#include "o1602/video/bink.hpp"
 #include "o1602/video/smacker.hpp"
 
 namespace o1602::tool {
@@ -101,6 +103,70 @@ int cmd_smk(const Args& args) {
             return usage();
         }
         auto pcm = video->audio(*args.number("--wav"));  // main() checked that it is a number
+        if (!pcm) {
+            return fail(pcm.error());
+        }
+        std::printf("track: %zu frames, %.2f s\n", pcm->frames(), static_cast<double>(pcm->duration_ms()) / 1000.0);
+        if (auto st = core::write_file(fs::path(args.positional[1]), wave_bytes(*pcm)); !st) {
+            return fail(st.error());
+        }
+    }
+    return 0;
+}
+
+int cmd_bk2(const Args& args) {
+    if (args.positional.empty()) {
+        return usage();
+    }
+    auto video = video::Bink::open_file(fs::path(args.positional[0]));
+    if (!video) {
+        return fail(video.error());
+    }
+    const auto& info = video->info();
+    std::printf("KB2%c %ux%u, %u frames, %.3f fps, video flags 0x%X\n", info.revision, info.width, info.height,
+                info.frames, static_cast<double>(info.fps_num) / static_cast<double>(info.fps_den), info.video_flags);
+    for (std::size_t t = 0; t < info.tracks.size(); ++t) {
+        const auto& track = info.tracks[t];
+        std::printf("track %zu: %u Hz, %s, %s, id %u\n", t, track.rate, track.stereo ? "stereo" : "mono",
+                    track.dct ? "DCT" : "RDFT", track.id);
+    }
+    // A track the video does not have fails before the frames are decoded.
+    const auto wav_track = args.number("--wav");  // main() checked that it is a number
+    if (wav_track && *wav_track >= info.tracks.size()) {
+        std::fprintf(stderr, "error: the video has %zu audio track%s\n", info.tracks.size(),
+                     info.tracks.size() == 1 ? "" : "s");
+        return 1;
+    }
+    const auto png_dir = args.options.find("--png");
+    const std::size_t every = std::max<std::size_t>(args.number("--every").value_or(1), 1);
+    std::vector<std::uint8_t> rgba;
+    double slowest_ms = 0;
+    const auto start = std::chrono::steady_clock::now();
+    while (!video->finished()) {
+        const std::uint32_t frame = video->position();
+        const auto before = std::chrono::steady_clock::now();
+        if (auto st = video->next(); !st) {
+            return fail(st.error());
+        }
+        slowest_ms = std::max(
+            slowest_ms, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - before).count());
+        if (png_dir != args.options.end() && frame % every == 0) {
+            video->to_rgba(rgba);
+            char name[32];
+            std::snprintf(name, sizeof name, "frame%04u.png", frame);
+            if (auto st = core::write_png_rgba(fs::path(png_dir->second) / name, info.width, info.height, rgba); !st) {
+                return fail(st.error());
+            }
+        }
+    }
+    const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    std::printf("decoded %u frames in %.0f ms (%.2f ms a frame, slowest %.2f ms)\n", info.frames, total_ms,
+                total_ms / info.frames, slowest_ms);
+    if (const auto it = args.options.find("--wav"); it != args.options.end()) {
+        if (args.positional.size() < 2) {
+            return usage();
+        }
+        auto pcm = video->audio(*wav_track);
         if (!pcm) {
             return fail(pcm.error());
         }

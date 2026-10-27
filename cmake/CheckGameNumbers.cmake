@@ -22,6 +22,7 @@ set(skipped
     "assets/src/cod_predefined.cpp"
     "assets/src/original_names.cpp"
     "ui/src/build_menu.cpp"
+    "video/src/bink2_video_g.cpp"  # the Bink 2 codec's tables, no game data
 )
 # <file below engine/>=<numbers of that file that are not records>.
 set(allowed
@@ -29,6 +30,7 @@ set(allowed
     "assets/include/o1602/assets/building_table.hpp=23500"  # the same, BuildingTable::kMaxId
     "audio/src/wav.cpp=20350 22385"               # IMA ADPCM step table
     "audio/include/o1602/audio/wav.hpp=22050"     # sample rate
+    "video/src/bink_audio.cpp=22050"              # sample rate
     "sim/src/volcanoes.cpp=21000"                 # eruption times
     "sim/src/ai/ai_planner.cpp=20001"             # gold
 )

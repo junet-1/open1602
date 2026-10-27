@@ -205,31 +205,20 @@ TEST_CASE("main menu: the buttons of the main menu answer with their events") {
     CHECK(!menu.back());  // Escape in the main menu: nothing to go back to
 }
 
-TEST_CASE("main menu: the History Edition's Options button is left out and the buttons below move up") {
+TEST_CASE("main menu: the History Edition's Options button opens the window Anzeige, the others count one further") {
     Game g("o1602-test-menu-history-base", {}, history_base_layout());
     MainMenu menu(*g.dir, &g.texts);
     REQUIRE(menu.usable());
-    const Layout layout = history_base_layout();
-    const auto at = [&](std::int32_t place) {
-        const auto [x, y] = layout.centre(place);
-        auto events = menu.mouse(x, y, true);
-        for (MenuEvent& e : menu.mouse(x, y, false)) {
-            events.push_back(std::move(e));
-        }
-        return events;
+    const auto one = [&](std::int32_t id) {
+        const auto events = click(menu, history_base_layout(), id);
+        REQUIRE(events.size() == 1);
+        return events[0].kind;
     };
-    CHECK(at(30003).size() == 1);
-    // Credits, Intro and Quit moved up one step (all steps are alike here); Quit's place is empty.
-    const auto credits = at(30004);
-    REQUIRE(credits.size() == 1);
-    CHECK(credits[0].kind == MenuEvent::Kind::Credits);
-    const auto intro = at(30005);
-    REQUIRE(intro.size() == 1);
-    CHECK(intro[0].kind == MenuEvent::Kind::Intro);
-    const auto quit = at(30006);
-    REQUIRE(quit.size() == 1);
-    CHECK(quit[0].kind == MenuEvent::Kind::Quit);
-    CHECK(at(30007).empty());
+    CHECK(one(30003) == MenuEvent::Kind::Multiplayer);
+    CHECK(one(30004) == MenuEvent::Kind::Display);
+    CHECK(one(30005) == MenuEvent::Kind::Credits);
+    CHECK(one(30006) == MenuEvent::Kind::Intro);
+    CHECK(one(30007) == MenuEvent::Kind::Quit);
     CHECK(menu.screen() == MainMenu::Screen::Base);
 }
 
@@ -432,4 +421,34 @@ TEST_CASE("main menu: the screen \"Mods\" turns packages on and off and takes in
 
     CHECK(menu.back());
     CHECK(menu.screen() == MainMenu::Screen::Base);
+}
+
+TEST_CASE("main menu: campaigns by stars then number, each by the header of its last file (0x0048E710)") {
+    const std::filesystem::path folder = test::temp_path("o1602-test-menu-order");
+    std::filesystem::remove_all(folder);
+    const auto scenario = [&](const std::string& file, std::uint32_t campaign, std::uint32_t ranking) {
+        assets::ChunkWriter w;
+        const auto word = [](std::uint32_t v) {
+            return std::array<std::uint8_t, 4>{static_cast<std::uint8_t>(v), 0, 0, 0};
+        };
+        if (campaign != assets::ScenarioHeader::kNone) {
+            w.add("SZENE_KAMPAGNE", word(campaign));
+        }
+        w.add("SZENE_RANKING", word(ranking));
+        const core::Bytes& b = w.bytes();
+        write(folder / file, std::string(b.begin(), b.end()));
+    };
+    scenario("Alpha0.szs", 1, 1);
+    scenario("Alpha1.szs", 1, 1);
+    scenario("Zeta0.szs", assets::ScenarioHeader::kNone, 3);  // only the last file counts
+    scenario("Zeta1.szs", 2, 0);
+    scenario("Beta0.szs", 3, 0);
+    const std::array<std::string, 4> headings = {"Original", "Kampagnen", "Abenteuer", "Eigene"};
+    const auto list = app::scenario_list(folder, headings, nullptr);
+    std::vector<std::string> names;
+    for (const app::MenuScenario& s : list) {
+        names.push_back(s.name);
+    }
+    CHECK((names == std::vector<std::string>{"Kampagnen", "Zeta", "Beta", "Alpha"}));
+    std::filesystem::remove_all(folder);
 }

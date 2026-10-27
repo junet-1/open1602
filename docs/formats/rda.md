@@ -7,14 +7,14 @@ new renderer. Most files are the same byte for byte; what Open1602 has to know:
 |---|---|---|
 | Files of a language | `Loca/<language>/` (`de-DE`: Text.cod, Editor.cod, ToolGfx/START.BSH, TOOLS.BSH, Editor.bsh, Samples, Speech8, VideoSmk); the English ones in the installation's own folders | `GameDirectory::resolve()` looks there first ([languages.md](../modding/languages.md#the-history-edition)) |
 | Menu art in true colour | START.BSH, five buttons of TOOLS.BSH: record type 13 | [bsh.md](bsh.md#type-13-the-history-editions-true-colour-sprites) |
-| A sixth main menu button (Options), two START.BSH sprites more, five TOOLS.BSH sprites more | `GADDATA/*.GAD`, `TOOLS.INC` (the numbers follow) | the menu counts its buttons by BASE.GAD |
+| A sixth main menu button (Options), two START.BSH sprites more, five TOOLS.BSH sprites more | `GADDATA/*.GAD`, `TOOLS.INC` (the numbers follow) | the menu counts its buttons by BASE.GAD; Options opens Open1602's window "Anzeige" |
 | Colours with a mark: `COL_RED = 249c` | `TOOLS.INC`, `MARKT.GAD` | [cod.md](cod.md#4-syntax-of-a-line-cod_parseline) |
 | Scenarios named by numbers: `Szenes/[[7]].szs` is "Das Atoll", `[[48]]12.szs` "Endlosspiel12" | `Szenes/` | the names come from texts.xml (below) |
 | Placeholders `[[N]]` in texts | Text.cod, the missions of the scenarios (`AUFTRAG4`: `[[8]]`) | replaced by `GameDirectory::expand()` |
 | Two help lines inserted into Text.cod's `[LEISTE]`: `[[676]]` after "Auftrag ansehen", `[[807]]` after "Einheit auflösen" (the later lines count one or two further) | Text.cod | left out, so the lines keep the original's numbers |
 | Buttons for its own settings screen (OPTION.GAD 47016) and for a new savegame (DISK.GAD 48014) | `GADDATA/` | left out (`kUnusedHistoryButtons`) |
 | Ten savegame rows instead of twelve, with arrows of their own (DISK.GAD 48016, 48017) | `GADDATA/DISK.GAD` | the list counts its rows and scrolls with these arrows |
-| Videos in Bink 2 (`VideoSmk/*.bk2`) | `VideoSmk/`, `Loca/<language>/VideoSmk/` | not played (no free decoder) |
+| Videos in Bink 2 (`VideoSmk/*.bk2`) | `VideoSmk/`, `Loca/<language>/VideoSmk/` | played (Bink 2 decoder, [bk2.md](bk2.md)) |
 | `Game.dat` (sound and video settings, no savegame names), `Savegame/*.gam`, `Highscore/` in the user's `Documents/Anno 1602 History Edition/` (below Wine in the prefix: `drive_c/users/<user>/Documents/...`) | – | `GameDirectory::resolve()` looks there after the installation: `--savegame neue` loads `Savegame/neue.gam` |
 | Names as placeholders in savegames: `NAME` "[[48]]" (Endlosspiel), the mission text "[[353]]" | `*.gam` | filled in with the History Edition's texts; with the Königsedition they stay as they are |
 | No `Language.dll` | – | the system's mouse cursors |

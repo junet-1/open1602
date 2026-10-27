@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string_view>
 
 #include "banner_graphic.hpp"
@@ -317,6 +318,16 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         }
         if (const assets::Gadget* text = m_tutor->layout().find(kTutorText)) {
             m_tutor_text_size = text->size;
+            m_tutor_text_x = text->pos[0];
+        }
+        // Where the scroll arrows begin: a text longer than the window ends left of them.
+        m_tutor_arrows_x = std::numeric_limits<std::int32_t>::max();
+        for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
+            for (const std::int32_t id : {kTutorBack + i, kTutorNext + i}) {
+                if (const assets::Gadget* g = m_tutor->layout().find(id)) {
+                    m_tutor_arrows_x = std::min(m_tutor_arrows_x, g->pos[0]);
+                }
+            }
         }
     }
     if (auto bubbles = assets::load_gad(game, "BUBBLE.GAD")) {
@@ -437,6 +448,14 @@ bool Hud::picking() {
 }
 
 bool Hud::panel_wheel(std::int32_t x, std::int32_t y, std::int32_t notches) {
+    if (!m_menu_active && m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y)) {
+        // The mission's text scrolls a line per notch, as its arrows (Open1602); the tutorial's
+        // pages do not, and the map does not zoom under the window either.
+        if (!m_tutorial) {
+            m_tutor_line = std::max(0, m_tutor_line - notches);
+        }
+        return true;
+    }
     if (m_menu_active || !m_regions.side_panel.contains(x, y)) {
         return false;
     }
@@ -501,7 +520,7 @@ bool Hud::back() {
         m_chat->close();
         return true;
     }
-    if (m_display_open && !m_menu_active) {
+    if (m_display_open) {
         m_display_open = false;
         return true;
     }
@@ -563,10 +582,22 @@ std::optional<Hud::Action> Hud::build_tool_action() {
     return Action{Action::Kind::ToolOff};
 }
 
+void Hud::found_kontor(std::uint32_t ship, std::uint32_t kontor) {
+    m_ctrl.set_selected(m_mode, false);
+    m_mode = kModeBuild;
+    m_ctrl.set_selected(m_mode, true);
+    if (m_build) {
+        m_build->close_popup();
+        m_build->show(kontor);
+    }
+    m_founding_ship = ship;
+}
+
 std::optional<Hud::Action> Hud::set_mode(std::int32_t mode) {
     if (mode < kModeBuild || mode > kModeOptions) {
         return std::nullopt;
     }
+    m_founding_ship.reset();
     m_ctrl.set_selected(m_mode, false);
     if (mode == kModeOptions && m_mode != kModeOptions && m_options) {
         m_options->opened();
@@ -711,7 +742,8 @@ ui::Rect Hud::display_rect() const {
     const double s = m_display ? m_display->scale() : m_regions.scale;
     const auto w = static_cast<std::int32_t>(DisplayMenu::kWidth * s);
     const auto h = static_cast<std::int32_t>(DisplayMenu::kHeight * s);
-    const ui::Rect& v = m_regions.game_view;
+    // Over the main menu in the middle of the window, else over the map.
+    const ui::Rect& v = m_menu_active ? m_regions.full : m_regions.game_view;
     return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
 }
 
@@ -766,6 +798,10 @@ void Hud::draw_menu() {
         m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_menu_scale);
     } else if (m_menu) {
         m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_menu_scale);
+        if (m_display_open && m_display) {
+            const ui::Rect r = display_rect();
+            m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+        }
     }
     draw_question();
     draw_help();
@@ -827,12 +863,7 @@ void Hud::draw_mission(const sim::World& world) {
         m_renderer->draw(m_tutor->draw(m_renderer->fonts()), m_regions.tutor.x, m_regions.tutor.y, m_regions.scale);
         return;
     }
-    // The scroll arrows: one picture (the back arrow's) and both arrows' parts.
     m_tutor->set_visible(kTutorText, true);
-    for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
-        m_tutor->set_visible(kTutorBack + i, true);
-        m_tutor->set_visible(kTutorNext + i, i != 0);
-    }
     // The victory conditions of an endless game after its text.
     std::string text = mission != nullptr && !mission->text.empty() ? m_game.expand(mission->text) : std::string();
     if (const std::string victory = victory_text(m_simulation->rules().victory); !victory.empty()) {
@@ -841,6 +872,18 @@ void Hud::draw_mission(const sim::World& world) {
     m_tutor->set_text(110002, text.empty() ? std::string("-") : text);
     for (std::int32_t id = 110011; id <= 110016; ++id) {
         m_tutor->set_visible(id, false);
+    }
+    // The scroll arrows (one picture, the back arrow's, and both arrows' parts) only for a text
+    // longer than the window, as in the original; the text then ends left of them.
+    bool scrolls = m_tutor->max_scroll(110002, m_renderer->fonts()) > 0;
+    if (scrolls && m_tutor_arrows_x != std::numeric_limits<std::int32_t>::max()) {
+        const std::int32_t room = m_tutor_arrows_x + extra - m_tutor_text_x - 4;
+        m_tutor->set_size(kTutorText, std::clamp(room, 1, m_tutor_text_size[0] + extra), m_tutor_text_size[1]);
+        scrolls = m_tutor->max_scroll(110002, m_renderer->fonts()) > 0;
+    }
+    for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
+        m_tutor->set_visible(kTutorBack + i, scrolls);
+        m_tutor->set_visible(kTutorNext + i, scrolls && i != 0);
     }
     // Clamped here, where the text and the window's width are known: "down" past the end would
     // blank the window and take as many clicks back up.
@@ -933,6 +976,14 @@ TutorialView Hud::tutorial_view(const BuildPanel::Available& available) {
             p->describe(v);
             v.picking_patrol = m_mode == kModeMilitary && p->picking();
         }
+    }
+    if (m_founding_ship) {
+        // The original places the Kontor from a page of the ship's window: „Bitte rechte
+        // Maustaste klicken!“ instead of the build mode's bubbles.
+        v.mode = TutorialView::Mode::Info;
+        v.window = TutorialView::Window::Ship;
+        v.ship = *m_founding_ship;
+        v.ship_page = TutorialView::ShipPage::Other;
     }
     if (m_units != nullptr) {
         v.units = m_units->units();
@@ -1049,7 +1100,9 @@ void Hud::draw_help() {
 
 std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button) {
     std::optional<Action> action;
-    if (m_display_open && !m_menu_active && !m_question && !m_help) {
+    // Over the main menu too: open_menu() closes the game's, so one open there came from its
+    // "Options".
+    if (m_display_open && !m_end_active && !multiplayer_open() && !m_question && !m_help) {
         const ui::Rect r = display_rect();
         switch (m_display->mouse(x - r.x, y - r.y, down, m_display_model, button)) {
             case DisplayMenu::Result::Changed:
@@ -1183,6 +1236,7 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
         if (const auto a = m_build->mouse(x - panel.x, y - panel.y, down, available, consumed)) {
             switch (a->kind) {
                 case BuildPanel::Action::Kind::Pick:
+                    m_founding_ship.reset();  // another building: the ship no longer pays
                     action = Action{Action::Kind::Build};
                     action->building = a->building;
                     break;
@@ -1339,9 +1393,12 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
     const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
     namespace bk = sim::building_kind;
     const bool water = kind == bk::kSea || kind == bk::kSurf || kind == bk::kSurfCorner;
-    rgb = water                 ? std::array<std::uint8_t, 3>{38, 70, 128}
-          : kind == bk::kForest ? std::array<std::uint8_t, 3>{60, 96, 40}
-                                : std::array<std::uint8_t, 3>{112, 132, 66};
+    // Land of nobody in the original's brown (0x0042D5E0: 0x96, 0x64, 0x30), forest too; the sea
+    // stays blue (the original leaves its parchment there), so that the islands of a large world
+    // stand out on the small map.
+    if (!water) {
+        rgb = {0x96, 0x64, 0x30};
+    }
     const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
     if (!scenery && !hidden && top.owner != sim::kNoPlayer) {
         const sim::Player* p = world.player(top.owner);
@@ -1548,17 +1605,32 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         m_renderer->image(1, m_minimap, static_cast<std::int32_t>(m_world_w), static_cast<std::int32_t>(m_world_h), at,
                           m_minimap_upload);
         m_minimap_upload = false;
-        // The visible part of the map as a white outline.
-        std::array<SDL_FPoint, 5> points{};
+        // The visible part of the map as a dotted outline, white and blue as in the original.
+        std::array<SDL_FPoint, 4> corners{};
         for (std::size_t i = 0; i < 4; ++i) {
-            points[i] = SDL_FPoint{static_cast<float>(at.x + view[i].first * fit),
-                                   static_cast<float>(at.y + view[i].second * fit)};
+            corners[i] = SDL_FPoint{static_cast<float>(at.x + view[i].first * fit),
+                                    static_cast<float>(at.y + view[i].second * fit)};
         }
-        points[4] = points[0];
+        std::array<std::vector<SDL_FPoint>, 2> dots;
+        const float dash = std::max(1.0F, static_cast<float>(2.0 * s));
+        std::size_t n = 0;
+        for (std::size_t i = 0; i < 4; ++i) {
+            const SDL_FPoint a = corners[i];
+            const SDL_FPoint b = corners[(i + 1) % 4];
+            const float length = std::hypot(b.x - a.x, b.y - a.y);
+            const auto steps = static_cast<std::size_t>(std::ceil(length));
+            for (std::size_t k = 0; k < steps; ++k, ++n) {
+                const float t = static_cast<float>(k) / static_cast<float>(steps);
+                dots[static_cast<std::size_t>(std::fmod(static_cast<float>(n), 2.0F * dash) >= dash)].push_back(
+                    SDL_FPoint{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t});
+            }
+        }
         const SDL_Rect clip{at.x, at.y, at.w, at.h};
         SDL_SetRenderClipRect(m_sdl, &clip);
         SDL_SetRenderDrawColor(m_sdl, 255, 255, 255, 255);
-        SDL_RenderLines(m_sdl, points.data(), static_cast<int>(points.size()));
+        SDL_RenderPoints(m_sdl, dots[0].data(), static_cast<int>(dots[0].size()));
+        SDL_SetRenderDrawColor(m_sdl, 0x11, 0x88, 0xDC, 255);
+        SDL_RenderPoints(m_sdl, dots[1].data(), static_cast<int>(dots[1].size()));
         SDL_SetRenderClipRect(m_sdl, nullptr);
     }
     // A status bar wider than its art (wide windows): the art widened, the line at its right end.

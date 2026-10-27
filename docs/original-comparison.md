@@ -30,7 +30,7 @@ Status 2026-10-22. What is still open is also listed in [status.md](status.md), 
 |---|---|
 | 1 Pirates | fixed in #58: the surrender events go out loot or not |
 | 2 Tutorial | fixed in #58: the computers of the tutorial stay idle (`TIMERS` +0xA5, savegame section `TUTR`); the tutorial windows, bubbles and speech followed ([tutorial.md](re/tutorial.md)) |
-| 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships; a six-hour run from `game00.gam` on 2026-10-23 gave each computer a warship within 30 minutes and six warships between them after six hours, and three new endless games (average) had their first warships between 60 and 120 minutes, as the original; the original's computer players are a setting (`Rules::classic_ai`), Open1602's stay the default |
+| 3 Computers | warships: #58 plans a shipyard whenever a computer wants ships; a six-hour run from `game00.gam` on 2026-10-23 gave each computer a warship within 30 minutes and six warships between them after six hours, and three new endless games (average) had their first warships between 60 and 120 minutes, as the original; the original's computer players are a setting (`Rules::bugs.classic_ai`), Open1602's stay the default |
 | 4 Rendering | not a difference: Open1602 was in build mode in that screenshot, which dims everything outside the own territory; the top bar shows the goods of the town under the mouse in both |
 | 7 Disasters | not a bug: the long fires of the original come from S-050 (a burning house catches fire again) and S-053 (the fire brigade also goes out for the plague), which Open1602 fixes on purpose |
 | 8, 9 | the notes are updated (#56, #12 and #13 of `open1602-re`) |
