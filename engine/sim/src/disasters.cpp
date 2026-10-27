@@ -23,10 +23,11 @@ constexpr std::array<std::array<std::uint8_t, 16>, 3> kPlagueTakes = {{
     {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},  // both: 3 of 16
 }};
 // The original gives the 7-of-8 row to buildings with more bricks than wood and the 3-of-8 row
-// to wooden ones (0x0049AF08); Open1602 swaps them, so wood burns more easily (S-049).
+// to wooden ones (0x0049AF08); Open1602 swaps them, so wood burns more easily (S-049), unless the
+// game brings the bug back (OriginalBugs::fire_risk).
 constexpr std::array<std::array<std::uint8_t, 8>, 2> kFireTakes = {{
-    {0, 0, 1, 0, 1, 0, 0, 1},  // more bricks than wood: 3 of 8
-    {1, 1, 1, 1, 0, 1, 1, 1},  // wood: 7 of 8
+    {0, 0, 1, 0, 1, 0, 0, 1},  // 3 of 8: more bricks than wood (the original: wood)
+    {1, 1, 1, 1, 0, 1, 1, 1},  // 7 of 8: wood (the original: more bricks than wood)
 }};
 constexpr std::array<std::uint8_t, 8> kRobberPastGallows = {0, 0, 1, 0, 0, 0, 0, 1};
 
@@ -78,8 +79,14 @@ bool working_kind(std::int32_t p) noexcept {
 }
 
 /// Wooden buildings (Holz >= Ziegel) and the others take fire differently.
-std::size_t wooden(const assets::BuildingType& b) noexcept {
-    return b.build_cost.wood >= b.build_cost.bricks ? 1U : 0U;
+bool wooden(const assets::BuildingType& b) noexcept {
+    return b.build_cost.wood >= b.build_cost.bricks;
+}
+
+/// Whether the building catches fire on the roll `r` (0..7).
+bool takes_fire(const assets::BuildingType& b, std::uint32_t r, const Rules& rules) noexcept {
+    const bool easily = wooden(b) != rules.bugs.fire_risk;
+    return kFireTakes[easily ? 1U : 0U][r] != 0;
 }
 
 std::size_t protection(const House& h) noexcept {
@@ -234,7 +241,7 @@ bool conducts_fire(const assets::BuildingType& b) noexcept {
     }
 }
 
-void spread_fire(World& world, const assets::BuildingTable& buildings, const Disaster& d,
+void spread_fire(World& world, const assets::BuildingTable& buildings, const Rules& rules, const Disaster& d,
                  std::vector<DisasterEvent>* events) {
     Random& random = world.random(RandomStream::Events);
     if (random.below(128) >= world.balance().fire_spread) {  // of 128 per epoch
@@ -257,7 +264,7 @@ void spread_fire(World& world, const assets::BuildingTable& buildings, const Dis
     if (!target || (target->origin.x == d.x && target->origin.y == d.y)) {
         return;
     }
-    if (kFireTakes[wooden(*target->type)][random.below(8)] == 0) {
+    if (!takes_fire(*target->type, random.below(8), rules)) {
         return;
     }
     const auto tx = static_cast<std::uint16_t>(target->origin.x);
@@ -318,7 +325,7 @@ void break_out_plague(World& world, const assets::BuildingTable& buildings, cons
 }
 
 /// 0x0047B540: up to three tries on houses of pioneers and settlers.
-void break_out_fire(World& world, const assets::BuildingTable& buildings, const City& city,
+void break_out_fire(World& world, const assets::BuildingTable& buildings, const Rules& rules, const City& city,
                     std::vector<DisasterEvent>* events) {
     const std::vector<House*> candidates = houses_of(world, city, false);
     if (candidates.empty()) {
@@ -329,7 +336,7 @@ void break_out_fire(World& world, const assets::BuildingTable& buildings, const 
         const House* h = candidates[random.below(static_cast<std::uint32_t>(candidates.size()))];
         const std::uint32_t r = random.below(8);
         const assets::BuildingType* b = type_at(world, buildings, h->island, h->x, h->y);
-        if (b != nullptr && kFireTakes[wooden(*b)][r] != 0) {
+        if (b != nullptr && takes_fire(*b, r, rules)) {
             start_disaster(world, buildings, h->island, {h->x, h->y}, Disaster::Kind::Fire, kFireDuration, events);
             return;
         }
@@ -337,7 +344,7 @@ void break_out_fire(World& world, const assets::BuildingTable& buildings, const 
 }
 
 /// 0x0047B710: a house of citizens and better; a gallows nearby lets only two of eight through.
-void send_robber(World& world, const City& city, std::vector<RobberSpawn>* robbers) {
+void send_robber(World& world, const Rules& rules, const City& city, std::vector<RobberSpawn>* robbers) {
     const std::vector<House*> candidates = houses_of(world, city, true);
     if (candidates.empty()) {
         return;
@@ -345,12 +352,18 @@ void send_robber(World& world, const City& city, std::vector<RobberSpawn>* robbe
     // The original tries up to three houses, each turned away by a gallows nearby with 6 of 8; the
     // retries undo most of the gallows (a city covered everywhere still gets 58 % of the robbers,
     // S-055). In Open1602 a robber a gallows turned away does not try another house: a covered
-    // house lets 2 of 8 through.
+    // house lets 2 of 8 through. OriginalBugs::gallows brings the retries back.
     Random& random = world.random(RandomStream::Events);
-    const House* h = candidates[random.below(static_cast<std::uint32_t>(candidates.size()))];
-    const std::uint32_t r = random.below(8);
-    if (((h->services & hs::kGalgen) == 0 || kRobberPastGallows[r] != 0) && robbers != nullptr) {
-        robbers->push_back(RobberSpawn{h->island, {h->x, h->y}, h->city});
+    const int attempts = rules.bugs.gallows ? 3 : 1;
+    for (int attempt = 0; attempt < attempts; ++attempt) {
+        const House* h = candidates[random.below(static_cast<std::uint32_t>(candidates.size()))];
+        const std::uint32_t r = random.below(8);
+        if ((h->services & hs::kGalgen) == 0 || kRobberPastGallows[r] != 0) {
+            if (robbers != nullptr) {
+                robbers->push_back(RobberSpawn{h->island, {h->x, h->y}, h->city});
+            }
+            return;
+        }
     }
 }
 
@@ -437,8 +450,8 @@ void recount_disasters(World& world) {
     }
 }
 
-void advance_disasters(World& world, const assets::BuildingTable& buildings, std::vector<DisasterEvent>* events,
-                       std::vector<ConstructionEvent>* construction) {
+void advance_disasters(World& world, const assets::BuildingTable& buildings, const Rules& rules,
+                       std::vector<DisasterEvent>* events, std::vector<ConstructionEvent>* construction) {
     // The disasters of this epoch, oldest first; those that start now wait for the next one.
     std::vector<std::uint32_t> ids;
     ids.reserve(world.disasters().size());
@@ -467,7 +480,7 @@ void advance_disasters(World& world, const assets::BuildingTable& buildings, std
             if (d.kind == Disaster::Kind::Plague) {
                 spread_plague(world, buildings, d, events);
             } else {
-                spread_fire(world, buildings, d, events);
+                spread_fire(world, buildings, rules, d, events);
             }
             continue;
         }
@@ -482,8 +495,8 @@ void advance_disasters(World& world, const assets::BuildingTable& buildings, std
     }
 }
 
-void advance_city_events(World& world, const assets::BuildingTable& buildings, std::vector<DisasterEvent>* events,
-                         std::vector<RobberSpawn>* robbers) {
+void advance_city_events(World& world, const assets::BuildingTable& buildings, const Rules& rules,
+                         std::vector<DisasterEvent>* events, std::vector<RobberSpawn>* robbers) {
     const std::uint64_t now = world.time_ms();
     for (std::size_t i = 0; i < world.cities().size(); ++i) {
         const City& c = world.cities()[i];
@@ -521,7 +534,7 @@ void advance_city_events(World& world, const assets::BuildingTable& buildings, s
         if (cum2 >= 300) {
             const std::uint32_t n = cum2 < 500 ? 400 : cum2 < 700 ? 250 : 180;
             if (random.below(n) <= 150) {
-                send_robber(world, *city, robbers);
+                send_robber(world, rules, *city, robbers);
             }
         }
         // Fire: many pioneers, or many pioneers and settlers together.
@@ -535,7 +548,7 @@ void advance_city_events(World& world, const assets::BuildingTable& buildings, s
             fire = random.below(256) <= 7;
         }
         if (fire) {
-            break_out_fire(world, buildings, *city, events);
+            break_out_fire(world, buildings, rules, *city, events);
         }
         city->next_event_ms = now + kCityEventMinMs + std::uint64_t{random.below(8)} * 1000U;
     }

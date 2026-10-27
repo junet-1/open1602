@@ -253,7 +253,7 @@ private:
     [[nodiscard]] std::uint8_t difficulty() const { return m_world.game_settings().difficulty; }
     [[nodiscard]] std::uint64_t now_ms() const { return m_world.time_ms(); }
     [[nodiscard]] Random& rng() { return m_world.random(RandomStream::Ai); }
-    /// Rules::classic_ai: the original's computer players with their bugs S-097 to S-099.
+    /// Rules::bugs.classic_ai: the original's computer players with their bugs S-097 to S-099.
     [[nodiscard]] bool classic() const;
     [[nodiscard]] bool is_settler(PlayerId owner) const;
     [[nodiscard]] std::uint32_t island_size(std::uint16_t island) const;

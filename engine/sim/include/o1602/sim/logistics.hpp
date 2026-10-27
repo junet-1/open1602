@@ -190,7 +190,8 @@ public:
     void tick();
 
     /// Buildings with these production entries are gone: their figures end their trip (their load
-    /// is lost, their reservations are released) - S-002. One pass over the figures for all of
+    /// is lost, their reservations are released) - S-002, unless the game brings the bug back
+    /// (OriginalBugs::goldsheep): then they walk on. One pass over the figures for all of
     /// them (TB-22); the figures end in the order of the buildings, as one call each would.
     void buildings_removed(std::span<const std::uint32_t> productions);
 
@@ -301,6 +302,9 @@ private:
     void pick_up(Walker& walker);
     void deliver(Walker& walker);
     bool plan_home(Walker& walker);
+    /// S-002 brought back (OriginalBugs::goldsheep): a figure whose building is gone belongs to the
+    /// building that stands on its door or middle tile now, if any.
+    void rehome(Walker& walker) const;
     /// Removes the walker and gives back what it reserved.
     void finish(Handle handle, Walker& walker);
     void begin_step(Walker& walker);

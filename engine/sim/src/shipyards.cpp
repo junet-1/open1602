@@ -110,9 +110,10 @@ bool Fleet::shipyard(const ShipyardOrder& o) {
                 return false;
             }
             // The small yard builds only the small ships; the original checks this only in its
-            // window (S-005).
+            // window (S-005), which OriginalBugs::small_yard_warships brings back.
             const assets::BuildingType* b = cell.empty() ? nullptr : m_buildings->by_sprite(cell.sprite);
-            if (b != nullptr && b->size_x <= kSmallYardSize && (o.ship_type & 1U) != 0) {
+            if (b != nullptr && b->size_x <= kSmallYardSize && (o.ship_type & 1U) != 0 &&
+                !m_world->original_bugs().small_yard_warships) {
                 return false;
             }
             const std::uint32_t limit = m_rules->max_ships_per_player;
@@ -209,9 +210,9 @@ void Fleet::yard_cycle(CostBuilding& yard) {
         }
         const std::uint32_t points = scaled(b->produce_amount, yard.rate);
         Ship* ship = yard.repair_ship != 0 ? m_world->ship(yard.repair_ship) : nullptr;
-        if (ship != nullptr && ship->repairing &&
+        if (ship != nullptr && ship->repairing && !m_world->original_bugs().remote_repair &&
             !building_in_reach(*m_world, *m_buildings, yard.island, yard.x, yard.y, ship->x, ship->y)) {
-            ship->repairing = false;  // only at the yard (S-013)
+            ship->repairing = false;  // only at the yard (S-013; OriginalBugs::remote_repair: anywhere)
         }
         if (ship != nullptr && ship->repairing) {
             const assets::FigureType* t = type_of(*ship);

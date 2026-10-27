@@ -637,6 +637,11 @@ public:
     /// Game settings saved with the game, which a Simulation of it uses (ADR 0008).
     [[nodiscard]] const std::optional<Rules>& saved_rules() const noexcept { return m_saved_rules; }
     void set_saved_rules(std::optional<Rules> rules) noexcept { m_saved_rules = rules; }
+    /// The bugs of the original the running game plays with (Rules::bugs), for what sees only the
+    /// world: construction and its preview in the interface, the windows. The Simulation sets them
+    /// from its rules; they are not saved, the rules are.
+    [[nodiscard]] const OriginalBugs& original_bugs() const noexcept { return m_original_bugs; }
+    void set_original_bugs(const OriginalBugs& bugs) noexcept { m_original_bugs = bugs; }
 
     /// Eruptions, lava in flight and the time of the next eruption (volcanoes.hpp).
     [[nodiscard]] const VolcanoState& volcanoes() const noexcept { return m_volcanoes; }
@@ -746,6 +751,7 @@ private:
     std::shared_ptr<const assets::ChunkFile> m_source;
     std::vector<std::uint8_t> m_simulation_state;
     std::optional<Rules> m_saved_rules;
+    OriginalBugs m_original_bugs;
     std::vector<CostBuilding> m_cost_buildings;
     std::unordered_map<std::uint64_t, std::uint32_t> m_house_index;       ///< key: island, y, x
     std::unordered_map<std::uint64_t, std::uint32_t> m_production_index;  ///< key: island, y, x

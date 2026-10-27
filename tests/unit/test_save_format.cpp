@@ -672,7 +672,7 @@ sim::World make_world(const assets::BuildingTable& buildings, bool wide) {
     rules.volcanoes = sim::Volcanoes::On;
     rules.trader_prices = sim::TraderPrices::Market;
     v(rules.max_army);
-    rules.classic_ai = true;
+    rules.bugs.classic_ai = true;
     world.set_saved_rules(rules);
 
     // The original's file the game came from (ORIG keeps every chunk but the island tiles).

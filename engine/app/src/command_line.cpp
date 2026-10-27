@@ -345,7 +345,7 @@ core::Result<CommandLine> parse_command_line(int argc, const char* const* argv) 
             // Game setting: the computer players of Open1602 or the original's (S-097 to S-099).
             const std::string_view mode = argv[++i];
             if (mode == "open1602" || mode == "classic") {
-                options.rules.classic_ai = mode == "classic";
+                options.rules.bugs.classic_ai = mode == "classic";
             } else {
                 return bad(i);
             }

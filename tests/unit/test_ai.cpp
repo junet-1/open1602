@@ -315,10 +315,10 @@ TEST_CASE("ai: a ship whose goods do not fit into the full home warehouse does n
     CHECK(g.world.ship(id)->load(ware) == 10 * 32);  // nothing thrown away
 }
 
-TEST_CASE("ai: the original's computer players (Rules::classic_ai) found their city too") {
+TEST_CASE("ai: the original's computer players (Rules::bugs.classic_ai) found their city too") {
     Game g;
     sim::Rules rules;
-    rules.classic_ai = true;
+    rules.bugs.classic_ai = true;
     sim::Simulation s(g.world, g.buildings, g.figures, rules);
     CHECK(run_until(s, 600'000, [&] { return g.cities_of(kComputer) != 0; }));
 }
