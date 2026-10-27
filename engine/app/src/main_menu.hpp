@@ -201,6 +201,7 @@ private:
     std::vector<assets::HighScore> m_scores;  ///< of the chosen scenario
     std::size_t m_scores_first = 0;
     std::int32_t m_briefing_line = 0;
+    std::int32_t m_briefing_last = 0;  ///< the briefing's last first line, 0 while it fits
     SaveSlots m_slots;
     std::filesystem::path m_score_folder;
     std::filesystem::path m_progress_file;
