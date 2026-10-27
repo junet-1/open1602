@@ -10,10 +10,11 @@ namespace o1602::ui {
 
 namespace {
 
-constexpr std::int32_t kBorder = 2;   ///< frame width, design units
-constexpr std::int32_t kPadding = 8;  ///< text from the left or right edge of its box
-constexpr std::int32_t kBox = 18;     ///< the box of a check box
-constexpr double kFallbackText = 18;  ///< text height without a font
+constexpr std::int32_t kBorder = 2;     ///< frame width, design units
+constexpr std::int32_t kPadding = 8;    ///< text from the left or right edge of its box
+constexpr std::int32_t kBox = 18;       ///< the box of a check box
+constexpr double kFallbackText = 18;    ///< text height without a font
+constexpr std::int32_t kEntryGap = 12;  ///< between an entry's label and its value
 
 /// Width and height of text in design units.
 double text_width(const Font* font, std::string_view s) {
@@ -96,6 +97,14 @@ void Form::label(Rect r, std::string text, Align align, Tone tone) {
     Widget w = make(Widget::Kind::Label, -1, r, std::move(text));
     w.align = align;
     w.tone = tone;
+    m_widgets.push_back(std::move(w));
+}
+
+void Form::entry(Rect r, std::string label, std::string value, Tone label_tone, Tone value_tone) {
+    Widget w = make(Widget::Kind::Entry, -1, r, std::move(label));
+    w.value = std::move(value);
+    w.tone = label_tone;
+    w.value_tone = value_tone;
     m_widgets.push_back(std::move(w));
 }
 
@@ -258,6 +267,15 @@ std::vector<DrawItem> Form::draw(const std::array<const Font*, kFontSlots>& font
             case Widget::Kind::Label:
                 text(w.rect, w.text, w.align, colour_of(w.tone));
                 break;
+            case Widget::Kind::Entry: {
+                // The value first, on the right; the label in what is left beside it.
+                const std::string value = fit_text(font, w.value, std::max(w.rect.w - 2.0 * kPadding, 0.0), false);
+                const auto used = static_cast<std::int32_t>(std::ceil(text_width(font, value))) + kEntryGap;
+                text(w.rect, value, Align::Right, colour_of(w.value_tone));
+                text(Rect{w.rect.x, w.rect.y, std::max(w.rect.w - used, 0), w.rect.h}, w.text, Align::Left,
+                     colour_of(w.tone));
+                break;
+            }
             case Widget::Kind::Paragraph: {
                 std::vector<std::string> lines;
                 if (font != nullptr) {

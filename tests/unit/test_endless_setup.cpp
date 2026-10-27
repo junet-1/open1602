@@ -825,3 +825,21 @@ TEST_CASE("endless setup: a multiplayer game runs at most the dialog's speed, pi
     app::read_setup(s, "endless.victory.class = 1\n");
     CHECK(s.rules.victory.resident_class == 1);
 }
+
+TEST_CASE("game setup: a savegame's values take the room their labels leave, in English and German") {
+    for (const std::string_view code : {"de", "en"}) {
+        ui::set_language(code);
+        app::GameSettingsMenu menu;
+        menu.open(EndlessSetup{}, app::SetupScope::Savegame);
+        for (auto i = 0; i < static_cast<int>(SetupItem::Count); ++i) {
+            const auto item = static_cast<SetupItem>(i);
+            if (!app::setup_item_offered(app::SetupScope::Savegame, item) || app::victory_item(item) ||
+                app::bug_item(item)) {
+                continue;
+            }
+            // Without fonts every byte is 9 units: wider than a button's room for the longest values.
+            CHECK(find_text(menu, value_of(menu.setup(), item)).has_value());
+        }
+    }
+    ui::set_language(ui::kFallbackLanguage);
+}
