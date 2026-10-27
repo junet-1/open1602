@@ -459,6 +459,60 @@ TEST_CASE("world renderer: a catchment circle lights the land, its border is das
     }
 }
 
+TEST_CASE("world renderer: another player's land gets a dotted border while building (History Edition)") {
+    const auto table = make_table();
+    sim::World world;
+    auto island = make_island(10, 20, 6, 4);
+    for (std::int32_t y = 0; y < 4; ++y) {
+        for (std::int32_t x = 0; x < 6; ++x) {
+            // The local player's city in column 0, another player's city on 3 x 2 tiles, free land around.
+            const bool foreign = x >= 1 && x <= 3 && y >= 1 && y <= 2;
+            const sim::PlayerId owner = x == 0 ? 0 : foreign ? 1 : sim::kNoPlayer;
+            const std::uint8_t city = x == 0 ? 0 : foreign ? 1 : sim::MapCell::kNoCity;
+            REQUIRE(island.map.place(*table.by_id(21201), x, y, 0, 0, owner, city).ok());
+        }
+    }
+    REQUIRE(world.add_island(std::move(island)).ok());
+    const render::AnimationClock clock(table);
+    render::TileLighting plain = render::TileLighting::territory(0);
+    render::TileLighting bordered = render::TileLighting::territory(0);
+    bordered.foreign_borders();
+    CHECK(!plain.foreign_borders_shown());
+    CHECK(bordered.foreign_borders_shown());
+    sim::MapCell cell;
+    cell.owner = 1;
+    CHECK(bordered.foreign(&cell));
+    cell.owner = 0;
+    CHECK(!bordered.foreign(&cell));
+    cell.owner = sim::kNoPlayer;
+    CHECK(!bordered.foreign(&cell));
+    CHECK(!bordered.foreign(nullptr));
+
+    for (std::uint8_t rotation = 0; rotation < 4; ++rotation) {
+        render::WorldView view;
+        view.zoom = render::Zoom::Small;
+        view.rotation = rotation;
+        render::Viewport all;
+        render::world_pixel_size(view, all.width, all.height);
+        render::WorldLayers layers;
+        layers.extent = render::SpriteExtent{16, 8};
+        const auto edges = [&](const render::TileLighting& lighting) {
+            layers.lighting = &lighting;
+            std::vector<render::DrawCommand> commands;
+            render::build_world_draw_list(world, table, clock, view, all, layers, commands);
+            std::size_t n = 0;
+            for (const auto& c : commands) {
+                if (c.sprite == render::DrawCommand::kOverlayOutline) {
+                    n += static_cast<std::size_t>(std::popcount(static_cast<unsigned>(c.edges)));
+                }
+            }
+            return n;
+        };
+        CHECK(edges(plain) == 0);
+        CHECK(edges(bordered) == 10);  // around the 3 x 2 tiles, not around the player's own land
+    }
+}
+
 TEST_CASE("world renderer: a clicked building's circle stays lit while another one is placed") {
     const auto table = make_table();
     sim::World world;
