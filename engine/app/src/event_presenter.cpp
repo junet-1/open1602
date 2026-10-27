@@ -74,8 +74,8 @@ std::optional<std::uint16_t> shortage_message(std::uint8_t ware) {
 }  // namespace
 
 std::array<std::pair<std::uint8_t, std::uint32_t>, 3> island_crops(const sim::WorldIsland& island) {
-    static constexpr std::array<std::uint8_t, 3> kNorth = {48, 50, 46};
-    static constexpr std::array<std::uint8_t, 3> kSouth = {47, 49, 51};
+    static constexpr std::array<std::uint8_t, 3> kNorth = {46, 50, 48};  // 0x0040A4D9: tobacco, grapes, sugar cane
+    static constexpr std::array<std::uint8_t, 3> kSouth = {51, 49, 47};  // cocoa, cotton, spices
     std::array<std::pair<std::uint8_t, std::uint32_t>, 3> crops{};
     const std::array<std::uint8_t, 3>& wares = island.header.climate == sim::climate::kSouth ? kSouth : kNorth;
     for (std::size_t i = 0; i < crops.size(); ++i) {

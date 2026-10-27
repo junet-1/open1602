@@ -581,10 +581,22 @@ std::optional<Hud::Action> Hud::build_tool_action() {
     return Action{Action::Kind::ToolOff};
 }
 
+void Hud::found_kontor(std::uint32_t ship, std::uint32_t kontor) {
+    m_ctrl.set_selected(m_mode, false);
+    m_mode = kModeBuild;
+    m_ctrl.set_selected(m_mode, true);
+    if (m_build) {
+        m_build->close_popup();
+        m_build->show(kontor);
+    }
+    m_founding_ship = ship;
+}
+
 std::optional<Hud::Action> Hud::set_mode(std::int32_t mode) {
     if (mode < kModeBuild || mode > kModeOptions) {
         return std::nullopt;
     }
+    m_founding_ship.reset();
     m_ctrl.set_selected(m_mode, false);
     if (mode == kModeOptions && m_mode != kModeOptions && m_options) {
         m_options->opened();
@@ -959,6 +971,14 @@ TutorialView Hud::tutorial_view(const BuildPanel::Available& available) {
             v.picking_patrol = m_mode == kModeMilitary && p->picking();
         }
     }
+    if (m_founding_ship) {
+        // The original places the Kontor from a page of the ship's window: „Bitte rechte
+        // Maustaste klicken!“ instead of the build mode's bubbles.
+        v.mode = TutorialView::Mode::Info;
+        v.window = TutorialView::Window::Ship;
+        v.ship = *m_founding_ship;
+        v.ship_page = TutorialView::ShipPage::Other;
+    }
     if (m_units != nullptr) {
         v.units = m_units->units();
     }
@@ -1208,6 +1228,7 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
         if (const auto a = m_build->mouse(x - panel.x, y - panel.y, down, available, consumed)) {
             switch (a->kind) {
                 case BuildPanel::Action::Kind::Pick:
+                    m_founding_ship.reset();  // another building: the ship no longer pays
                     action = Action{Action::Kind::Build};
                     action->building = a->building;
                     break;
@@ -1364,9 +1385,12 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
     const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
     namespace bk = sim::building_kind;
     const bool water = kind == bk::kSea || kind == bk::kSurf || kind == bk::kSurfCorner;
-    rgb = water                 ? std::array<std::uint8_t, 3>{38, 70, 128}
-          : kind == bk::kForest ? std::array<std::uint8_t, 3>{60, 96, 40}
-                                : std::array<std::uint8_t, 3>{112, 132, 66};
+    // Land of nobody in the original's brown (0x0042D5E0: 0x96, 0x64, 0x30), forest too; the sea
+    // stays blue (the original leaves its parchment there), so that the islands of a large world
+    // stand out on the small map.
+    if (!water) {
+        rgb = {0x96, 0x64, 0x30};
+    }
     const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
     if (!scenery && !hidden && top.owner != sim::kNoPlayer) {
         const sim::Player* p = world.player(top.owner);
@@ -1567,17 +1591,32 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         m_renderer->image(1, m_minimap, static_cast<std::int32_t>(m_world_w), static_cast<std::int32_t>(m_world_h), at,
                           m_minimap_upload);
         m_minimap_upload = false;
-        // The visible part of the map as a white outline.
-        std::array<SDL_FPoint, 5> points{};
+        // The visible part of the map as a dotted outline, white and blue as in the original.
+        std::array<SDL_FPoint, 4> corners{};
         for (std::size_t i = 0; i < 4; ++i) {
-            points[i] = SDL_FPoint{static_cast<float>(at.x + view[i].first * fit),
-                                   static_cast<float>(at.y + view[i].second * fit)};
+            corners[i] = SDL_FPoint{static_cast<float>(at.x + view[i].first * fit),
+                                    static_cast<float>(at.y + view[i].second * fit)};
         }
-        points[4] = points[0];
+        std::array<std::vector<SDL_FPoint>, 2> dots;
+        const float dash = std::max(1.0F, static_cast<float>(2.0 * s));
+        std::size_t n = 0;
+        for (std::size_t i = 0; i < 4; ++i) {
+            const SDL_FPoint a = corners[i];
+            const SDL_FPoint b = corners[(i + 1) % 4];
+            const float length = std::hypot(b.x - a.x, b.y - a.y);
+            const auto steps = static_cast<std::size_t>(std::ceil(length));
+            for (std::size_t k = 0; k < steps; ++k, ++n) {
+                const float t = static_cast<float>(k) / static_cast<float>(steps);
+                dots[static_cast<std::size_t>(std::fmod(static_cast<float>(n), 2.0F * dash) >= dash)].push_back(
+                    SDL_FPoint{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t});
+            }
+        }
         const SDL_Rect clip{at.x, at.y, at.w, at.h};
         SDL_SetRenderClipRect(m_sdl, &clip);
         SDL_SetRenderDrawColor(m_sdl, 255, 255, 255, 255);
-        SDL_RenderLines(m_sdl, points.data(), static_cast<int>(points.size()));
+        SDL_RenderPoints(m_sdl, dots[0].data(), static_cast<int>(dots[0].size()));
+        SDL_SetRenderDrawColor(m_sdl, 0x11, 0x88, 0xDC, 255);
+        SDL_RenderPoints(m_sdl, dots[1].data(), static_cast<int>(dots[1].size()));
         SDL_SetRenderClipRect(m_sdl, nullptr);
     }
     // A status bar wider than its art (wide windows): the art widened, the line at its right end.

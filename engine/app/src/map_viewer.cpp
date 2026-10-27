@@ -2038,6 +2038,9 @@ void MapViewer::apply_hud(const Hud::Action& action) {
         case Hud::Action::Kind::FoundKontor:
             if (m_tool.select_kontor(action.ship)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
+                if (const assets::BuildingType* kontor = m_tool.selected()) {
+                    m_hud->found_kontor(action.ship, kontor->id);
+                }
             }
             break;
     }

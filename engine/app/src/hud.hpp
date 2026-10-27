@@ -144,6 +144,12 @@ public:
     /// Which buildings the local player may pick (the build menu).
     void set_available(BuildPanel::Available available) { m_available = std::move(available); }
     [[nodiscard]] std::int32_t mode() const noexcept { return m_mode; }
+    /// „Kontor errichten“ in the ship window: the side panel shows the first Kontor of the build
+    /// menu with its costs and turning arrows while the tool places it (as the original). Any
+    /// other mode ends it; the ship's window comes back with the info mode.
+    void found_kontor(std::uint32_t ship, std::uint32_t kontor);
+    /// The ship a Kontor is being founded from, nothing otherwise.
+    [[nodiscard]] std::optional<std::uint32_t> founding_ship() const noexcept { return m_founding_ship; }
     /// The game the windows of the selections read, and who plays here.
     void set_game(const sim::Simulation& simulation, const assets::BuildingTable& buildings,
                   const assets::FigureTable& figures, sim::PlayerId local) {
@@ -538,7 +544,8 @@ private:
     std::vector<std::uint8_t> m_bubbles;      ///< drawn this frame
     std::vector<std::string> m_tutor_lines;   ///< Text.cod [TUTOR]: six lines per page
     TutorialFacts m_tutorial_facts;
-    std::uint64_t m_tutorial_facts_ms = 0;  ///< when they were last read
+    std::uint64_t m_tutorial_facts_ms = 0;         ///< when they were last read
+    std::optional<std::uint32_t> m_founding_ship;  ///< found_kontor()
     bool m_tool_holding = false;
     bool m_tool_short_of_wood = false;
 };

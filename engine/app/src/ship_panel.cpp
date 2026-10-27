@@ -790,7 +790,7 @@ private:
         m_ship.set_slider(kHealth, 0, static_cast<std::int32_t>(std::uint64_t{health} * 1000 / max_health), 1000);
         m_ship.set_text(kCannons, std::to_string(ship.cannons));
         m_ship.set_disabled(kCannonsDown, ship.cannons == 0);
-        m_ship.set_visible(kRoute, own && !ship.for_sale && ship.route.has_stops());
+        m_ship.set_visible(kRoute, own && !ship.for_sale);  // also without stops (0x00436887)
         m_ship.set_visible(kRouteEditor, own && !ship.for_sale);
         m_ship.set_visible(kScuttle, own && !ship.for_sale);
         m_ship.set_visible(kPirates, idle && k.pirates);
