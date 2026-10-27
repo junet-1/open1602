@@ -65,9 +65,10 @@ public:
     [[nodiscard]] std::optional<std::string> help(const std::vector<std::string>& leiste) const;
 
     /// Title, costs, preview and production chain of the current building. `rotation`: view plus
-    /// building rotation (the preview turns with both); `size` centres the preview in its box.
+    /// building rotation (the preview turns with both); `size` centres the preview in its box;
+    /// `goods`: the game's, whose icons the production chain shows.
     void refresh(const assets::BuildingTable& buildings, const Available& available, std::uint8_t rotation,
-                 const SpriteSize& size);
+                 const SpriteSize& size, const assets::Goods& goods);
     /// The panel, and the pop-up over it if one is open: drawn in this order.
     [[nodiscard]] const ui::Panel& panel() const noexcept { return m_bau; }
     [[nodiscard]] const ui::Panel* popup() const noexcept { return m_popup ? &*m_popup : nullptr; }

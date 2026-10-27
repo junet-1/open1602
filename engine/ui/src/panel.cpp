@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "o1602/ui/package_icons.hpp"
+
 namespace o1602::ui {
 
 namespace {
@@ -308,6 +310,13 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
             item.tint = s.graphic ? s.tint : std::nullopt;
             item.first_row = s.first_row;
             item.rows = s.rows;
+            if (const assets::PackageIcon* icon = assets::package_icon_at(package_icons(), gfx);
+                icon != nullptr && (icon->width > static_cast<std::uint32_t>(std::max(g.size[0], 1)) ||
+                                    icon->height > static_cast<std::uint32_t>(std::max(g.size[1], 1)))) {
+                // A package's icon larger than its place: made smaller to fit it.
+                item.w = trunc_scaled(g.size[0] * k);
+                item.h = trunc_scaled(g.size[1] * k);
+            }
             out.push_back(item);
             break;
         case GadgetKind::GraphicRaster:

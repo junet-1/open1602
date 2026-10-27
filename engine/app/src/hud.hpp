@@ -271,6 +271,8 @@ public:
     void reset_game();
     /// The render device was reset: the frame's textures are made again when next drawn.
     void release_textures() { m_renderer->release_textures(); }
+    /// The packages' icons changed (ui::set_package_icons()): their pictures are read again.
+    void forget_package_icons() { m_renderer->forget_package_icons(); }
     /// The render device was lost and the renderer made again: the frame draws with the new one
     /// (release_textures() went before the old one did).
     void set_renderer(SDL_Renderer* renderer) noexcept {

@@ -78,6 +78,8 @@ struct Decoded {
     std::optional<std::vector<assets::ContentPackage>> packages;
     /// The goods the packages added (GOOD).
     std::optional<assets::Goods> goods;
+    /// The icons of packages the goods show, by ware number (GPIC).
+    std::optional<std::vector<std::pair<std::uint8_t, std::string>>> good_pictures;
     /// The classes of inhabitants of the game (CLAS).
     std::optional<std::vector<assets::ResidentClass>> classes;
     /// The unlock levels of the game (LEVL).

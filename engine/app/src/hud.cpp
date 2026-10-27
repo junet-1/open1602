@@ -19,6 +19,7 @@
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -1427,7 +1428,11 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         const Event& e = m_events[i];
         const MessageDefinition* def = m_messages->get(e.id);
         const auto type = static_cast<std::uint8_t>(def != nullptr ? def->icon : MessageIcon::Notice);
-        if (type < 4) {
+        const auto picture =
+            def != nullptr && !def->picture.empty() ? ui::package_icon_sprite(def->picture) : std::nullopt;
+        if (picture) {
+            m_leist.set_graphic(id, *picture, 0);  // a package's icon, as it is drawn
+        } else if (type < 4) {
             set_banner_graphic(m_leist, id, message_icon_art(type), banners.get(e.banner), 6);
         } else {
             m_leist.set_graphic(id, kGfxLeiste + 1 + 0x28 + type * 2, 1);
@@ -1462,8 +1467,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
     const BuildPanel::Available available =
         m_available ? m_available : BuildPanel::Available([](std::uint32_t) { return true; });
     if (m_mode == kModeBuild && m_build) {
-        m_build->refresh(buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
-                         [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); });
+        m_build->refresh(
+            buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
+            [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); },
+            m_simulation != nullptr ? m_simulation->world().goods() : assets::Goods{});
         m_renderer->draw(m_build->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
         if (const ui::Panel* popup = m_build->popup()) {
             m_renderer->draw(popup->draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);

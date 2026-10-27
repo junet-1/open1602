@@ -27,6 +27,7 @@ with milestone M8: packages as archives and adding content of a package's own
     classes.toml       classes of inhabitants, changed and new (classes.md)
     levels.toml        unlock levels, changed and new (levels.md)
     graphics.toml      PNG images of the package's own (graphics.md)
+    icons.toml         PNG icons of the package's own (graphics.md)
     music.toml         music of the package's own (sounds.md)
 ```
 
