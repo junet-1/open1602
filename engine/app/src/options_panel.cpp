@@ -348,6 +348,15 @@ void OptionsPanel::refresh_disk(const OptionsModel& model) {
             name = ui::tr("options.slot.humans", {name, std::to_string(humans)});
         }
         m_disk.set_text(kSlotName + k, typing ? m_name + "_" : name);
+        // A long name ends in "..." instead of running past the row, or under the icon of the
+        // humans; the one being typed is whole.
+        std::optional<std::int32_t> room;
+        const auto name_at = m_disk.position(kSlotName + k);
+        const auto icon_at = m_disk.position(kSlotHumans + k);
+        if (humans >= 2 && name_at && icon_at && (*icon_at)[0] > (*name_at)[0]) {
+            room = (*icon_at)[0] - (*name_at)[0];
+        }
+        m_disk.set_fit(kSlotName + k, !typing, room);
         m_disk.set_visible(kSlotHumans + k, humans >= 2);
         if (humans >= 2) {
             m_disk.set_graphic(kSlotHumans + k, m_humans_icon - 1 + std::min<std::int32_t>(humans, 4), 0);

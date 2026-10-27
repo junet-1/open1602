@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "o1602/ui/form.hpp"
+
 namespace o1602::ui {
 
 namespace {
@@ -44,6 +46,13 @@ Panel::Panel(assets::GadgetLayout layout, double scale)
 void Panel::set_text(std::int32_t id, std::string text) {
     if (const auto i = m_layout.index_of(id)) {
         m_state[*i].text = std::move(text);
+    }
+}
+
+void Panel::set_fit(std::int32_t id, bool on, std::optional<std::int32_t> room) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_state[*i].fit = on;
+        m_state[*i].fit_room = room;
     }
 }
 
@@ -329,6 +338,15 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
                              : g.kind == GadgetKind::TextCentre ? Align::Centre
                                                                 : Align::Right;
                 item.text = s.text;
+                const Font* font = g.block >= 0 && g.block < static_cast<std::int32_t>(kFontSlots)
+                                       ? fonts[static_cast<std::size_t>(g.block)]
+                                       : nullptr;
+                // Without a font, or in a gadget without a width, there is nothing to measure against.
+                if (s.fit && font != nullptr && (s.fit_room || g.size[0] > 0)) {
+                    // The text starts Posoffs.x into the gadget.
+                    const std::int32_t room = s.fit_room.value_or(g.size[0]) - g.offset[0];
+                    item.text = fit_text(font, s.text, std::max(room, 0), false);
+                }
                 out.push_back(item);
             }
             break;

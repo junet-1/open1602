@@ -118,6 +118,9 @@ public:
 
     // State the game sets (0x00406EC0..0x004079B0); unknown Ids are ignored.
     void set_text(std::int32_t id, std::string text);
+    /// A text gadget's text cut so that it ends `room` design units right of the gadget's position
+    /// (by default its width), its end replaced by "..." (a long savegame name ran past the list).
+    void set_fit(std::int32_t id, bool on, std::optional<std::int32_t> room = std::nullopt);
     void set_selected(std::int32_t id, bool on);
     [[nodiscard]] bool selected(std::int32_t id) const;
     void set_hidden(std::int32_t id, bool on);
@@ -170,6 +173,8 @@ private:
         std::array<std::int32_t, 2> slider{};
         std::int32_t scroll = 0;
         std::string text;
+        bool fit = false;
+        std::optional<std::int32_t> fit_room;
         std::optional<std::pair<std::int32_t, std::int32_t>> graphic;  ///< gfx, press offset
         std::optional<ColourTint> tint;
         std::int32_t first_row = 0;

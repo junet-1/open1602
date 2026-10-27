@@ -256,10 +256,17 @@ cities too.
 | 0x18 | 7 × u32 | city + 0x206 … (natives: 49 per value, players: 0) |
 | 0x58 | u32 | city + 0x1D4 |
 | 0x5C | 5 × u32 | **inhabitants** per class (city + 0x220) |
-| 0x78 | 5 × u8 | **satisfaction** per class, 128 = satisfied (city + 0x248) |
-| 0x7F | 5 × u8 | **tax rate** per class, 128 = normal (city + 0x24D) |
-| 0x86 | u8 | **food supply level** (city + 0x255) ([consumption.md](../re/consumption.md)) |
+| 0x78 | 5 × u8 | **satisfaction** per class, 128 = satisfied (city + 0x248); the loader makes 128 of a 0 |
+| 0x7F | 5 × u8 | **tax rate** per class, 128 = normal (city + 0x24D); the loader makes 128 of a 0 |
+| 0x86 | u8 | **food supply level** (city + 0x255) ([consumption.md](../re/consumption.md)); the loader makes 128 of a 0 |
 | 0x87 | char[] | **name** of the city (e.g. "Lemonhall", "Nova Semlja") |
+
+Writer `0x00485020`, loader `0x00484910` (the city is the one the island header created, `0x00468E10`,
+which clears the whole entry first). +0x03, +0x06–0x07, +0x14–0x17, +0x34–0x57, +0x70–0x77 and
++0x84–0x85 are never written (0 in every file). The loader skips +0x10 and sets city + 0x234 (5 × u16)
+to 0. Not saved at all, so 0 after loading: among others the growth of the last house looked at
+(city + 0x1F8) and the game time it turned positive (city + 0x1E4), which time the monument allowances
+([missions.md](../re/missions.md)).
 
 ### KONTOR2 – a city's goods store (0x3EC bytes)
 
