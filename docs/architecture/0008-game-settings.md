@@ -45,8 +45,8 @@ if they change during a game, then only via a command
 | Victory conditions of the endless game (`victory`, `VictoryConditions`) | inhabitants, residents of a level or higher, treasury, balance per minute, share of settled islands, defeat all opponents, score, prestige buildings (castle, cathedral, both), time limit (then the most points win); all or any one; computers can win or not | none (the endless game never ends) | none |
 | Custom world (`WorldSettings`, new game) | size 200–2000 per side or automatic by the players (as multiplayer: 500 × 350 up to four, both sides growing with the square root of the players beyond), 2–12 players, number of islands, island sizes, villages, volcano islands, gold islands (automatic by level, islands and players, or a fixed 1–40 for very large maps; settings.cfg up to 250), starting areas separate/shared | the three fixed maps | off; on: automatic size (500 × 350 for 4 players), 4 players, normal, mixed, automatic gold, separate |
 
-What two of the choices mean for the player (shown in the start dialog as "Free trader's prices" and
-"Every raw material"; in German „Preise des freien Händlers“ and „Jeder Rohstoff“):
+What two of the choices mean for the player (shown in the start dialog as "Trader's prices" and
+"Every raw material"; in German „Preise des Händlers“ and „Jeder Rohstoff“):
 
 - **Free trader's prices** (`trader_prices`): what the free trader pays for the player's goods. "As usual" is about half
   the base price, as players know the original. The original means him to follow the market, but it

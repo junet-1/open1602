@@ -813,6 +813,9 @@ void MapInput::handle_event(const SDL_Event& event) {
                         m_commands.submit(std::move(*order));
                         if (founded) {
                             m_tool.set_mode(BuildTool::Mode::Off);
+                            if (m_hud && m_hud->founding_ship()) {
+                                set_mode(Hud::kModeInfo);  // back to the ship's window
+                            }
                         }
                     } else if (auto demolish = m_tool.demolish_order(local(), *spot)) {
                         submit({*demolish}, false, m_confirm);  // asks before land is lost (S-035)
@@ -969,6 +972,9 @@ bool MapInput::cancel_build_step() {
     }
     if (m_tool.active()) {
         m_tool.set_mode(BuildTool::Mode::Off);
+        if (m_hud && m_hud->founding_ship()) {
+            set_mode(Hud::kModeInfo);  // the Kontor from the ship: back to its window
+        }
         return true;
     }
     return false;

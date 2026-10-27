@@ -68,6 +68,21 @@ inline constexpr std::uint32_t kHoldCapacity = 50 * 32;
 [[nodiscard]] std::optional<std::size_t> kontor_in_reach(const World& world, const assets::BuildingTable& buildings,
                                                          std::int32_t wx, std::int32_t wy);
 
+/// Where a ship could found a Kontor: the island and the island tile the search reached.
+struct KontorSite {
+    std::uint16_t island = 0;
+    std::uint32_t x = 0;  ///< island tile
+    std::uint32_t y = 0;
+};
+
+/// The land a ship at (wx, wy) lies at for founding a Kontor (0x00448EF0, radius 4): only from
+/// within an island's rectangle, a search through the sea, surf and beach of the disc of radius 4
+/// round the ship to the first land tile outside the circles of every market and Kontor of that
+/// island. Ship_ContextActions (0x0044E630) offers „Kontor errichten“ when the owner has no city
+/// on that island yet.
+[[nodiscard]] std::optional<KontorSite> kontor_site_near(const World& world, const assets::BuildingTable& buildings,
+                                                         std::int32_t wx, std::int32_t wy);
+
 /// Whether ships can load, unload or trade at the city's Kontor (0x0044E747): a destroyed Kontor
 /// ("Kontor zerstört") only while its owner is a human or computer player still in the game, not
 /// one of the natives, pirates or a defeated player.

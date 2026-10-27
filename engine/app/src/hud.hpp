@@ -144,6 +144,12 @@ public:
     /// Which buildings the local player may pick (the build menu).
     void set_available(BuildPanel::Available available) { m_available = std::move(available); }
     [[nodiscard]] std::int32_t mode() const noexcept { return m_mode; }
+    /// „Kontor errichten“ in the ship window: the side panel shows the first Kontor of the build
+    /// menu with its costs and turning arrows while the tool places it (as the original). Any
+    /// other mode ends it; the ship's window comes back with the info mode.
+    void found_kontor(std::uint32_t ship, std::uint32_t kontor);
+    /// The ship a Kontor is being founded from, nothing otherwise.
+    [[nodiscard]] std::optional<std::uint32_t> founding_ship() const noexcept { return m_founding_ship; }
     /// The game the windows of the selections read, and who plays here.
     void set_game(const sim::Simulation& simulation, const assets::BuildingTable& buildings,
                   const assets::FigureTable& figures, sim::PlayerId local) {
@@ -230,7 +236,8 @@ public:
         }
     }
     /// The mouse wheel at (`x`, `y`): over the side panel the window there scrolls if it can (the
-    /// ship and city lists, the savegames and music titles of the settings); false if nothing took it.
+    /// ship and city lists, the savegames and music titles of the settings), over the mission
+    /// window its text; false if nothing took it.
     bool panel_wheel(std::int32_t x, std::int32_t y, std::int32_t notches);
     /// The mouse wheel over the map while the window "Warenbilanz" is open: its table scrolls.
     void goods_wheel(std::int32_t notches) noexcept {
@@ -516,7 +523,9 @@ private:
     /// Its gadgets at the right end with their places in the layout, and the text's size there.
     std::vector<std::pair<std::int32_t, std::array<std::int32_t, 2>>> m_tutor_right;
     std::array<std::int32_t, 2> m_tutor_text_size{};
-    std::int32_t m_tutor_line = 0;  ///< first line of its text shown
+    std::int32_t m_tutor_text_x = 0;    ///< TUTOR.GAD: the text's left edge
+    std::int32_t m_tutor_arrows_x = 0;  ///< TUTOR.GAD: the scroll arrows' left edge
+    std::int32_t m_tutor_line = 0;      ///< first line of its text shown
     std::optional<std::string> m_question;
     std::optional<std::vector<HelpLine>> m_help;
     ui::Rect m_yes;  ///< the buttons of the question as last drawn
@@ -540,7 +549,8 @@ private:
     std::vector<std::uint8_t> m_bubbles;      ///< drawn this frame
     std::vector<std::string> m_tutor_lines;   ///< Text.cod [TUTOR]: six lines per page
     TutorialFacts m_tutorial_facts;
-    std::uint64_t m_tutorial_facts_ms = 0;  ///< when they were last read
+    std::uint64_t m_tutorial_facts_ms = 0;         ///< when they were last read
+    std::optional<std::uint32_t> m_founding_ship;  ///< found_kontor()
     bool m_tool_holding = false;
     bool m_tool_short_of_wood = false;
 };
