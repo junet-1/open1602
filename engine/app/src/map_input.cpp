@@ -971,6 +971,9 @@ bool MapInput::cancel_build_step() {
     }
     if (m_tool.active()) {
         m_tool.set_mode(BuildTool::Mode::Off);
+        if (m_hud && m_hud->founding_ship()) {
+            set_mode(Hud::kModeInfo);  // the Kontor from the ship: back to its window
+        }
         return true;
     }
     return false;
