@@ -205,31 +205,20 @@ TEST_CASE("main menu: the buttons of the main menu answer with their events") {
     CHECK(!menu.back());  // Escape in the main menu: nothing to go back to
 }
 
-TEST_CASE("main menu: the History Edition's Options button is left out and the buttons below move up") {
+TEST_CASE("main menu: the History Edition's Options button opens the window Anzeige, the others count one further") {
     Game g("o1602-test-menu-history-base", {}, history_base_layout());
     MainMenu menu(*g.dir, &g.texts);
     REQUIRE(menu.usable());
-    const Layout layout = history_base_layout();
-    const auto at = [&](std::int32_t place) {
-        const auto [x, y] = layout.centre(place);
-        auto events = menu.mouse(x, y, true);
-        for (MenuEvent& e : menu.mouse(x, y, false)) {
-            events.push_back(std::move(e));
-        }
-        return events;
+    const auto one = [&](std::int32_t id) {
+        const auto events = click(menu, history_base_layout(), id);
+        REQUIRE(events.size() == 1);
+        return events[0].kind;
     };
-    CHECK(at(30003).size() == 1);
-    // Credits, Intro and Quit moved up one step (all steps are alike here); Quit's place is empty.
-    const auto credits = at(30004);
-    REQUIRE(credits.size() == 1);
-    CHECK(credits[0].kind == MenuEvent::Kind::Credits);
-    const auto intro = at(30005);
-    REQUIRE(intro.size() == 1);
-    CHECK(intro[0].kind == MenuEvent::Kind::Intro);
-    const auto quit = at(30006);
-    REQUIRE(quit.size() == 1);
-    CHECK(quit[0].kind == MenuEvent::Kind::Quit);
-    CHECK(at(30007).empty());
+    CHECK(one(30003) == MenuEvent::Kind::Multiplayer);
+    CHECK(one(30004) == MenuEvent::Kind::Display);
+    CHECK(one(30005) == MenuEvent::Kind::Credits);
+    CHECK(one(30006) == MenuEvent::Kind::Intro);
+    CHECK(one(30007) == MenuEvent::Kind::Quit);
     CHECK(menu.screen() == MainMenu::Screen::Base);
 }
 
@@ -270,6 +259,42 @@ TEST_CASE("main menu: the list of scenarios, a mission screen with its parts, th
     CHECK(menu.screen() == MainMenu::Screen::Mission);
     CHECK(!menu.open_mission("Nowhere"));
     CHECK(menu.screen() == MainMenu::Screen::Base);
+}
+
+TEST_CASE("main menu: a campaign takes the header of its last part, whatever order the files come in") {
+    // Pirata1 and Feindliche Nachbarn1 say campaign 0 where their other parts say 3 and 4 (D-015);
+    // the directory order of a file system must not let such a part decide the whole entry.
+    const std::filesystem::path folder = test::temp_path("o1602-test-menu-campaign");
+    std::filesystem::remove_all(folder);
+    std::filesystem::create_directories(folder);
+    const auto scenario = [&](const char* file, std::uint8_t campaign, std::uint8_t part) {
+        assets::ChunkWriter w;
+        const std::array<std::uint8_t, 4> c = {campaign, 0, 0, 0};
+        const std::array<std::uint8_t, 4> r = {part, 0, 0, 0};
+        w.add("SZENE_KAMPAGNE", c);
+        w.add("SZENE_RANKING", r);
+        const core::Bytes& b = w.bytes();
+        std::ofstream(folder / file, std::ios::binary)
+            .write(reinterpret_cast<const char*>(b.data()), static_cast<std::streamsize>(b.size()));
+    };
+    scenario("Pirata2.szs", 3, 2);
+    scenario("Pirata1.szs", 0, 2);  // written last, so a file system that lists by age gives it last
+    scenario("Pirata0.szs", 3, 4);
+    const std::array<std::string, 4> headings = {"m", "k", "a", "e"};
+    const std::vector<app::MenuScenario> list = app::scenario_list(folder, headings, nullptr);
+    const auto pirata =
+        std::find_if(list.begin(), list.end(), [](const app::MenuScenario& s) { return s.name == "Pirata"; });
+    REQUIRE(pirata != list.end());
+    CHECK(pirata->header.campaign == 3);
+    CHECK(pirata->header.ranking == 2);  // the stars of the last part, as the original shows them
+    CHECK(pirata->files.size() == 3);
+    // A won part counts for the entry's campaign and the digit of its name, not its own header.
+    const auto part = app::campaign_part_of(folder / "Pirata1.szs");
+    REQUIRE(part.has_value());
+    CHECK(part->campaign == 3);
+    CHECK(part->part == 1);
+    CHECK(!app::campaign_part_of(folder / "game11.gam").has_value());
+    std::filesystem::remove_all(folder);
 }
 
 TEST_CASE("main menu: the endless game lists what sets its chosen level apart") {

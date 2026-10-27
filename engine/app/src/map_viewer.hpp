@@ -198,6 +198,8 @@ private:
     void update_high_scores(sim::PlayerId defeated);
     /// A won single player game opens the next mission (GameDat_Write 0x00487FB0).
     void record_progress();
+    /// The game's identity, with the campaign and part of a scenario as the menu has them.
+    [[nodiscard]] sim::GameIdentity game_identity() const;
     /// Humans that take part: more than one is a multiplayer game.
     [[nodiscard]] std::size_t humans() const;
     /// How the game stands for the local player now.
@@ -304,11 +306,14 @@ private:
     [[nodiscard]] Hud::Resources resources() const;
     /// Shots, hits, victory and defeat: sounds, messages and lines in the terminal.
     void apply_game_events();
+    /// What the game's scripts posted and printed since the last frame: messages for this computer's
+    /// player, script errors in the status line, everything in the log.
+    void apply_script_output();
     /// Plays what the EventPresenter made of the events: messages with their voices (a message that
     /// asks for it slows the game to normal speed, flag 0x02) and videos, high score lists.
     void show_notices(const std::vector<Notice>& notices);
     /// Posts a message by its id ("mymod:lighthouse") with its placeholders filled, as the scripts
-    /// will (M8); false if there is no such message.
+    /// do (game.message); false if there is no such message.
     bool announce(std::string_view id, const MessageArgs& args = {},
                   std::optional<std::pair<double, double>> tile = std::nullopt);
     void zoom_by(double steps, double sx, double sy) override;
@@ -400,6 +405,7 @@ private:
     std::vector<std::string> m_city_names;  ///< Text.cod [STAEDTE], [SHIPS]: for every game loaded
     std::vector<std::string> m_ship_names;
     std::vector<std::string> m_campaign_labels;     ///< [KAMPAGNE]: the high score lists of campaign parts
+    std::optional<CampaignPart> m_campaign_part;    ///< of the scenario loaded, as the original records it
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters

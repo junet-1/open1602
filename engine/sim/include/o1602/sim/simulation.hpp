@@ -29,6 +29,7 @@
 #include "o1602/sim/military.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/rules.hpp"
+#include "o1602/sim/scripting.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/sim/volcanoes.hpp"
 #include "o1602/sim/world.hpp"
@@ -202,6 +203,11 @@ public:
     /// being part of it, such as the townsfolk of render::Ambient. It must not change the world.
     void set_tick_observer(std::function<void(const World&)> observer) { m_tick_observer = std::move(observer); }
 
+    /// The scripts of the game's packages (scripting.hpp): they run at the end of every tick and are
+    /// saved with the game. Null for none; the host must outlive the simulation or be unset first.
+    void set_scripts(ScriptHost* scripts) noexcept { m_scripts = scripts; }
+    [[nodiscard]] ScriptHost* scripts() const noexcept { return m_scripts; }
+
     /// Game speed factor (1 = normal, up to Rules::max_game_speed); 0 pauses. For tools and tests;
     /// a running game changes the speed with a GameSpeedOrder.
     void set_speed(std::uint32_t speed) noexcept;
@@ -373,6 +379,7 @@ private:
     std::vector<std::uint16_t> m_tower_islands;
     std::vector<std::string> m_city_names;
     std::function<void(const World&)> m_tick_observer;
+    ScriptHost* m_scripts = nullptr;
 };
 
 }  // namespace o1602::sim

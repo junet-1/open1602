@@ -24,8 +24,7 @@ for every pushed tag `vX.Y.Z` that matches the version in `CMakeLists.txt`.
 
 Open1602 contains **no** game files. You need your own copy of *Anno 1602*, for example the GOG
 "Königsedition" (*Anno 1602 – Creation of a New World*) or Ubisoft's *Anno 1602 History Edition*.
-The History Edition's videos are Bink 2 files, which Open1602 cannot play; everything else works
-with it. The game speaks the language of your
+Both work completely, the History Edition's Bink 2 videos included. The game speaks the language of your
 installation: a German Anno 1602 gives a German game, an English one an English game
 ([details](docs/modding/languages.md)).
 

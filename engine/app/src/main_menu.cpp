@@ -21,6 +21,7 @@ namespace {
 
 // BASE.GAD: the buttons from the top (IDHAUPT + 2 ...). The History Edition has a sixth one,
 // "Options" (its own graphics settings) after Multiplayer, so the ones below it count one further.
+// Open1602 shows its window "Anzeige" for it (display_menu.hpp).
 constexpr std::int32_t kSingle = 30002;
 constexpr std::int32_t kMulti = 30003;
 constexpr std::int32_t kCredits = 30004;
@@ -28,9 +29,6 @@ constexpr std::int32_t kIntro = 30005;
 constexpr std::int32_t kQuit = 30006;
 constexpr std::int32_t kHistoryOptions = 30004;
 constexpr std::int32_t kHistoryQuit = 30007;
-// Open1602 has no screen for the History Edition's options yet. While this is false the button is
-// left out and the ones below it move up; set it to true once there is such a screen.
-constexpr bool kHistoryOptionsShown = false;
 // Open1602's own button on BASE.GAD's screen, below the original's.
 constexpr std::int32_t kModsButton = 1;
 constexpr ui::Rect kModsButtonRect{24, 714, 160, 38};
@@ -166,23 +164,6 @@ std::optional<ui::Panel> load_colour_panel(const assets::GameDirectory& game) {
     return ui::Panel(with_more_arms(std::move(layout).value()), 1.0);
 }
 
-void hide_history_options(ui::Panel& base) {
-    base.set_visible(kHistoryOptions, false);
-    // The buttons below Options move up together by the step from Options to Credits, so no gap
-    // is left and their planks keep the overlapping shadows they were drawn with.
-    const std::optional<std::array<std::int32_t, 2>> options = base.position(kHistoryOptions);
-    const std::optional<std::array<std::int32_t, 2>> next = base.position(kHistoryOptions + 1);
-    if (!options || !next) {
-        return;
-    }
-    const std::int32_t step = (*next)[1] - (*options)[1];
-    for (std::int32_t id = kHistoryOptions + 1; id <= kHistoryQuit; ++id) {
-        if (const std::optional<std::array<std::int32_t, 2>> own = base.position(id)) {
-            base.set_position(id, (*own)[0], (*own)[1] - step);
-        }
-    }
-}
-
 }  // namespace
 
 std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, const std::array<std::string, 4>& headings,
@@ -207,7 +188,12 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, con
             continue;
         }
         MenuScenario& s = by_name[lower(name)];
-        if (s.files.empty()) {
+        // The entry takes the header of its last part: the original reads every file in alphabetical
+        // order (Windows lists them so) and keeps the last header, which shows in its stars. Other
+        // file systems list the files in any order, and a part whose header differs (Pirata1 and
+        // Feindliche Nachbarn1 say campaign 0, D-015) must not decide the whole entry.
+        const bool last = std::all_of(s.files.begin(), s.files.end(), [&](const auto& f) { return first > f.first; });
+        if (last) {
             s.name = game != nullptr ? game->expand(name) : name;
             const std::u8string u8name = entry.path().stem().u8string();
             std::size_t cut = u8name.size();
@@ -255,6 +241,21 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, con
     return out;
 }
 
+std::optional<CampaignPart> campaign_part_of(const std::filesystem::path& file) {
+    const std::array<std::string, 4> headings{};
+    for (const MenuScenario& s : scenario_list(file.parent_path(), headings, nullptr)) {
+        if (s.separator || s.header.campaign == assets::ScenarioHeader::kNone) {
+            continue;
+        }
+        for (const auto& [digit, path] : s.files) {
+            if (path.filename() == file.filename()) {
+                return CampaignPart{s.header.campaign, digit == 0xFF ? 0U : digit};
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 const std::string& MainMenu::default_name() {
     return ui::tr("menu.default_name");
 }
@@ -275,9 +276,6 @@ MainMenu::MainMenu(const assets::GameDirectory& game, const assets::TextTable* t
     }
     if (m_base && m_base->layout().find(kHistoryQuit) != nullptr) {
         m_history_buttons = true;
-        if constexpr (!kHistoryOptionsShown) {
-            hide_history_options(*m_base);
-        }
     }
     m_banners.add_more_players();
     if (m_colour) {
@@ -472,13 +470,6 @@ void MainMenu::select_scenario(std::size_t index) {
         std::any_of(s.files.begin(), s.files.end(), [&](const auto& f) { return f.first == m_tutorial_chapter; })) {
         m_variant = m_tutorial_chapter;
     }
-    // A campaign starts at its furthest open part.
-    if (s.header.campaign != assets::ScenarioHeader::kNone) {
-        const std::vector<std::uint8_t> digits = choice_digits(s);
-        if (!digits.empty()) {
-            m_variant = digits[std::min(campaign_parts_open(s), digits.size() - 1)];
-        }
-    }
     m_scores_first = 0;
     load_details();
 }
@@ -488,10 +479,8 @@ void MainMenu::load_details() {
     m_briefing_line = 0;
     // The briefing: the mission of the human in the file (AUFTRAG4 of the player record).
     m_briefing.clear();
-    std::uint32_t part = s.header.ranking;
     if (auto bytes = core::read_file(chosen_file())) {
         if (auto file = assets::ChunkFile::from_bytes(std::move(bytes).value())) {
-            part = assets::load_scenario_header(*file).ranking;
             const auto players = assets::load_players(*file);
             const auto missions = assets::load_missions(*file);
             if (missions && !missions->empty()) {
@@ -518,7 +507,7 @@ void MainMenu::load_details() {
             sim::GameIdentity part_of;
             part_of.name = s.name;
             part_of.campaign = s.header.campaign;
-            part_of.ranking = part;
+            part_of.ranking = m_variant == 0xFF ? 0 : m_variant;  // the part, not the file's stars
             if (auto label = high_score_file(part_of, m_texts->section("KAMPAGNE"), false); !label.empty()) {
                 name = std::move(label);
             }
@@ -585,6 +574,8 @@ void MainMenu::refresh_mission() {
             label = text("ENDLESSKIND", digits[i]);
         } else if (s.header.mission_number == kTutorial) {
             label = text("TUTORKIND", digits[i]);
+        } else if (s.header.campaign != assets::ScenarioHeader::kNone) {
+            label = text("KAMPAGNE", std::size_t{5} * s.header.campaign + digits[i]);  // "Der Retter"
         }
         if (label.empty()) {
             label = ui::tr("menu.part", {std::to_string(digits[i] + 1)});
@@ -794,6 +785,8 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     m_screen = Screen::Host;
                 } else if (e.id == kMulti) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Multiplayer});
+                } else if (m_history_buttons && e.id == kHistoryOptions) {
+                    out.push_back(MenuEvent{MenuEvent::Kind::Display});
                 } else if (e.id == kCredits + below) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Credits});
                 } else if (e.id == kIntro + below) {

@@ -18,7 +18,7 @@
 //   o1602-tool render-world <file.szs|.gam> <out.png> [--zoom 0|1|2] [--rotation 0-3] [--time MS]
 //                           [--tile X,Y] [--size WxH] [--owners]
 //                                                        render the world map or a part of it
-//   o1602-tool export, new-world, bench, smk, state      see usage()
+//   o1602-tool export, new-world, bench, smk, bk2, state see usage()
 //
 // The palette defaults to $ANNO1602_DIR/TOOLGFX/STADTFLD.COL.
 //
@@ -63,6 +63,9 @@ int usage() {
         "                        without --world as large as a multiplayer game of that many players)\n"
         "  o1602-tool smk        <file.smk> [--png DIR] [--every N] [--wav TRACK OUT.wav]\n"
         "                        (Smacker video: header, decode all frames; frames as PNG, a track as WAVE)\n"
+        "  o1602-tool bk2        <file.bk2> [--png DIR] [--every N] [--wav TRACK OUT.wav]\n"
+        "                        (Bink 2 video: header, decode all frames and their time; frames as PNG, a\n"
+        "                         track as WAVE)\n"
         "  o1602-tool state      <file.gam|.szs> [--wares] [--production]\n"
         "                        (players, cities, warehouses, production, ships, deer)\n"
         "  o1602-tool render-island <file.scp|.szs|.gam> <out.png> [--island N] [--zoom 0|1|2] [--rotation 0-3]\n"
@@ -140,6 +143,9 @@ int main(int argc, char** argv) {
     }
     if (command == "smk") {
         return cmd_smk(args);
+    }
+    if (command == "bk2") {
+        return cmd_bk2(args);
     }
     if (command == "state") {
         return cmd_state(args);

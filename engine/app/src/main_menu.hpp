@@ -52,6 +52,16 @@ struct MenuScenario {
                                                       const std::array<std::string, 4>& headings,
                                                       const assets::GameDirectory* game = nullptr);
 
+/// A campaign part as the original records its win: the campaign of the menu's entry for the file
+/// (scenario_list) and the part, the digit of its name. Not the file's own header: Pirata1 and
+/// Feindliche Nachbarn1 say campaign 0 (D-015), and SZENE_RANKING is a part's stars, not its number.
+struct CampaignPart {
+    std::uint32_t campaign = 0;
+    std::uint32_t part = 0;
+};
+/// Nothing for a file outside the campaigns or not in a scenario folder (a savegame).
+[[nodiscard]] std::optional<CampaignPart> campaign_part_of(const std::filesystem::path& file);
+
 struct MenuEvent {
     enum class Kind : std::uint8_t {
         Quit,          ///< leave the program (after a question)
@@ -63,6 +73,7 @@ struct MenuEvent {
         ContinueLast,  ///< lastgame
         NameEntered,   ///< the name is confirmed (Enter): "Wählt Euer Banner" and the like
         Multiplayer,   ///< the multiplayer menu (Open1602's own, multiplayer_menu.hpp)
+        Display,       ///< the History Edition's "Options": the window "Anzeige" (display_menu.hpp)
         Mods,          ///< the screen "Mods" opened: its model is due (set_mods)
         ToggleMod,     ///< turn the package `name` (its id, UTF-8) in the folder `path` on or off
         AdoptMod,      ///< copy the received package `name` in the folder `path` into the mods folder

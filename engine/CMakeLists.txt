@@ -5,9 +5,9 @@
 #   assets -> core              sim -> assets               net -> sim (+ ENet)
 #   render -> sim, assets       audio -> sim, assets        video -> audio
 #   ui -> sim, assets           platform -> core (+ SDL3)   render_sdl -> render, platform, ui
-#   script -> core (+ Lua)
+#   script -> sim, assets (+ Lua)
 #   menus -> sim, assets, audio, render, ui, net
-#   app (open1602) -> sim, render_sdl, platform, audio, video, ui, net, menus
+#   app (open1602) -> sim, render_sdl, platform, audio, video, ui, net, menus, script
 #
 # Only the game build (O1602_BUILD_GAME) adds platform, render_sdl and app; everything else builds
 # and is tested without SDL.

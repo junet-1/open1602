@@ -3,20 +3,94 @@
 
 #include <SDL3/SDL.h>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 
 namespace o1602::app {
 
 namespace {
 
-std::string video_path(std::uint16_t number) {
-    return "VideoSmk/" + std::to_string(number) + ".smk";
+std::string video_path(std::uint16_t number, const char* extension) {
+    return "VideoSmk/" + std::to_string(number) + extension;
+}
+
+/// The Königsedition's Smacker file, else the History Edition's Bink 2 file.
+std::optional<std::filesystem::path> find_video(const assets::GameDirectory& game, std::uint16_t number) {
+    if (auto smk = game.resolve(video_path(number, ".smk"))) {
+        return smk;
+    }
+    return game.resolve(video_path(number, ".bk2"));
+}
+
+template <typename V>
+constexpr bool kIsBink = std::is_same_v<V, video::Bink>;
+
+std::uint64_t frame_us(const VideoPlayer::Clip& clip) {
+    return std::visit(
+        []<typename V>(const V& v) -> std::uint64_t {
+            if constexpr (kIsBink<V>) {
+                return v.info().frame_us();
+            } else {
+                return v.info().frame_us;
+            }
+        },
+        clip);
+}
+
+std::uint32_t frames(const VideoPlayer::Clip& clip) {
+    return std::visit([](const auto& v) { return v.info().frames; }, clip);
+}
+
+std::uint32_t position(const VideoPlayer::Clip& clip) {
+    return std::visit([](const auto& v) { return v.position(); }, clip);
+}
+
+bool next(VideoPlayer::Clip& clip) {
+    return std::visit([](auto& v) { return static_cast<bool>(v.next()); }, clip);
+}
+
+/// Opens the file and decodes the sound of the chosen tracks (bit i = track i, 0 = all).
+core::Result<VideoPlayer::Clip> open_clip(const std::filesystem::path& file, std::uint8_t tracks,
+                                          std::vector<std::shared_ptr<const audio::Pcm>>& sound) {
+    const auto wanted = [tracks](std::size_t t) { return tracks == 0 || (t < 8 && (tracks & (1U << t)) != 0); };
+    const auto add = [&sound](core::Result<audio::Pcm> pcm) {
+        if (pcm && !pcm->samples.empty()) {
+            sound.push_back(std::make_shared<const audio::Pcm>(std::move(*pcm)));
+        }
+    };
+    std::string extension = file.extension().string();
+    std::ranges::transform(extension, extension.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (extension == ".bk2") {
+        auto video = video::Bink::open_file(file);
+        if (!video) {
+            return video.error();
+        }
+        for (std::size_t t = 0; t < video->info().tracks.size(); ++t) {
+            if (wanted(t)) {
+                add(video->audio(t));
+            }
+        }
+        return VideoPlayer::Clip{std::move(*video)};
+    }
+    auto video = video::Smacker::open_file(file);
+    if (!video) {
+        return video.error();
+    }
+    for (std::size_t t = 0; t < video::kSmackerTracks; ++t) {
+        if (video->info().tracks[t].present && wanted(t)) {
+            add(video->audio(t));
+        }
+    }
+    return VideoPlayer::Clip{std::move(*video)};
 }
 
 }  // namespace
@@ -24,7 +98,7 @@ std::string video_path(std::uint16_t number) {
 struct VideoPlayer::Loading {
     std::mutex mutex;
     bool done = false;
-    std::optional<video::Smacker> video;
+    std::optional<Clip> video;
     std::vector<std::shared_ptr<const audio::Pcm>> audio;
     std::string error;
 };
@@ -43,14 +117,14 @@ bool VideoPlayer::available(std::uint16_t number) const {
     if (it != m_available.end()) {
         return it->second;
     }
-    const bool found = m_game->resolve(video_path(number)).has_value();
+    const bool found = find_video(*m_game, number).has_value();
     m_available.emplace(number, found);
     return found;
 }
 
 bool VideoPlayer::start(std::uint16_t number, bool loop, std::uint8_t tracks) {
     stop();
-    const auto path = m_game->resolve(video_path(number));
+    const auto path = find_video(*m_game, number);
     if (!path) {
         m_available[number] = false;
         return false;
@@ -60,21 +134,13 @@ bool VideoPlayer::start(std::uint16_t number, bool loop, std::uint8_t tracks) {
     // thread has its own copies; a stopped load ends unseen. The frames are read from the file as
     // they are shown, only the sound is decoded whole.
     std::thread([state, file = *path, tracks] {
-        std::optional<video::Smacker> video;
+        std::optional<Clip> video;
         std::vector<std::shared_ptr<const audio::Pcm>> sound;
         std::string error;
-        if (auto opened = video::Smacker::open_file(file); !opened) {
+        if (auto opened = open_clip(file, tracks, sound); !opened) {
             error = opened.error().message;
         } else {
             video.emplace(std::move(*opened));
-            for (std::size_t t = 0; t < video::kSmackerTracks; ++t) {
-                if (!video->info().tracks[t].present || (tracks != 0 && (tracks & (1U << t)) == 0)) {
-                    continue;
-                }
-                if (auto pcm = video->audio(t); pcm && !pcm->samples.empty()) {
-                    sound.push_back(std::make_shared<const audio::Pcm>(std::move(*pcm)));
-                }
-            }
         }
         const std::lock_guard lock(state->mutex);
         state->video = std::move(video);
@@ -110,12 +176,23 @@ VideoPlayer::Load VideoPlayer::poll(std::uint64_t now_ms) {
         return Load::Failed;
     }
     m_start_ms = now_ms;
-    const auto w = static_cast<std::int32_t>(m_video->info().width);
-    const auto h = static_cast<std::int32_t>(m_video->info().display_height());
-    if (m_texture == nullptr || m_texture_w != w || m_texture_h != h) {
+    const auto [w, h, smooth] = std::visit(
+        []<typename V>(const V& v) {
+            if constexpr (kIsBink<V>) {
+                // The History Edition's are large already: scaled smoothly, as it does.
+                return std::tuple{static_cast<std::int32_t>(v.info().width), static_cast<std::int32_t>(v.info().height),
+                                  true};
+            } else {
+                return std::tuple{static_cast<std::int32_t>(v.info().width),
+                                  static_cast<std::int32_t>(v.info().display_height()), false};
+            }
+        },
+        *m_video);
+    if (m_texture == nullptr || m_texture_w != w || m_texture_h != h || m_smooth != smooth) {
+        m_smooth = smooth;
         make_texture(w, h);
     }
-    if (m_video->next()) {
+    if (next(*m_video)) {
         m_dirty = true;
     }
     return Load::Ready;
@@ -128,7 +205,7 @@ void VideoPlayer::make_texture(std::int32_t w, std::int32_t h) {
     m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, w, h);
     if (m_texture != nullptr) {
         // DirectDraw doubled the frames without smoothing.
-        SDL_SetTextureScaleMode(m_texture, SDL_SCALEMODE_NEAREST);
+        SDL_SetTextureScaleMode(m_texture, m_smooth ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST);
     }
     m_texture_w = w;
     m_texture_h = h;
@@ -175,27 +252,32 @@ VideoPlayer::Step VideoPlayer::update(std::uint64_t now_ms) {
     if (now_ms < m_start_ms) {
         return Step::Playing;  // held on the first frame
     }
-    const auto& info = m_video->info();
+    const std::uint32_t count = frames(*m_video);
+    const std::uint64_t per_frame = frame_us(*m_video);
+    if (per_frame == 0) {
+        stop();
+        return Step::Ended;
+    }
     const std::uint64_t elapsed_us = (now_ms - m_start_ms) * 1000;
-    const std::uint64_t length_us = std::uint64_t{info.frames} * info.frame_us;
+    const std::uint64_t length_us = std::uint64_t{count} * per_frame;
     if (elapsed_us >= length_us) {
         if (!m_loop) {
             stop();
             return Step::Ended;
         }
         // The pause video starts again from its first frame.
-        m_video->rewind();
+        std::visit([](auto& v) { v.rewind(); }, *m_video);
         m_start_ms = now_ms;
-        if (m_video->next()) {
+        if (next(*m_video)) {
             m_dirty = true;
         }
         return Step::Restarted;
     }
     // Late frames are decoded (each builds on the one before) but only the last is shown.
-    const auto due = static_cast<std::uint32_t>(std::min<std::uint64_t>(elapsed_us / info.frame_us + 1, info.frames));
-    while (m_video->position() < due) {
-        if (!m_video->next()) {
-            std::fprintf(stderr, "video %u: damaged frame %u\n", static_cast<unsigned>(m_number), m_video->position());
+    const auto due = static_cast<std::uint32_t>(std::min<std::uint64_t>(elapsed_us / per_frame + 1, count));
+    while (position(*m_video) < due) {
+        if (!next(*m_video)) {
+            std::fprintf(stderr, "video %u: damaged frame %u\n", static_cast<unsigned>(m_number), position(*m_video));
             stop();
             return Step::Ended;
         }
@@ -213,7 +295,7 @@ void VideoPlayer::draw_in(std::int32_t x, std::int32_t y, std::int32_t width, st
         return;
     }
     if (m_dirty) {
-        m_video->to_rgba(m_rgba);
+        std::visit([this](const auto& v) { v.to_rgba(m_rgba); }, *m_video);
         SDL_UpdateTexture(m_texture, nullptr, m_rgba.data(), m_texture_w * 4);
         m_dirty = false;
     }
@@ -233,7 +315,7 @@ void VideoPlayer::draw(std::int32_t width, std::int32_t height) {
         return;
     }
     if (m_dirty) {
-        m_video->to_rgba(m_rgba);
+        std::visit([this](const auto& v) { v.to_rgba(m_rgba); }, *m_video);
         SDL_UpdateTexture(m_texture, nullptr, m_rgba.data(), m_texture_w * 4);
         m_dirty = false;
     }
