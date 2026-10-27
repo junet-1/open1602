@@ -52,6 +52,7 @@ Simulation::Simulation(World& world, const assets::BuildingTable& buildings, con
     if (world.saved_rules()) {
         m_rules = *world.saved_rules();  // the settings the game was started with
     }
+    world.set_original_bugs(m_rules.bugs);
 }
 
 Simulation::Simulation(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,

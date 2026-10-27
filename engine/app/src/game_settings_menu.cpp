@@ -72,7 +72,10 @@ constexpr Group kVictoryGroups[] = {
 
 // The bugs of the original a game can bring back, by what they touch.
 constexpr Group kBugGroups[] = {
-    {"setup.group.disasters", SetupItem::BugFireRisk, SetupItem::BugGallows, kLeft},
+    {"setup.group.disasters", SetupItem::BugFireRisk, SetupItem::BugRobberFlight, kLeft},
+    {"setup.group.construction", SetupItem::BugGoldsheep, SetupItem::BugInfertileFields, kLeft},
+    {"setup.group.ships", SetupItem::BugRemoteTrade, SetupItem::BugSmallYardWarships, kRight},
+    {"setup.group.opponents", SetupItem::ClassicAi, SetupItem::ClassicAi, kRight},
 };
 
 std::string_view title_key(SetupScope scope) {

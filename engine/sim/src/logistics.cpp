@@ -50,6 +50,7 @@ constexpr std::uint8_t kRobberChase = 49;         // tiles of chase (with the se
 constexpr std::uint8_t kRobberRadius = 19;        // his square around the house
 constexpr std::int64_t kRobberSight = 13;         // tiles to a victim
 constexpr std::int64_t kRobberReach = 32'768;     // half a tile: caught
+constexpr std::size_t kRobberPlan = 12;           // the original's fleeing robber plans 12 tiles (S-058)
 
 std::uint64_t tile_key(std::uint16_t island, TilePos t) noexcept {
     return (std::uint64_t{island} << 32) | (std::uint64_t{static_cast<std::uint16_t>(t.y)} << 16) |
@@ -722,7 +723,22 @@ bool Logistics::send_yard_carrier(std::uint16_t island, TilePos origin, std::uin
     return true;
 }
 
+void Logistics::rehome(Walker& w) const {
+    if (!m_world->original_bugs().goldsheep || w.yard || w.home == kNoHome || building_of(w.home)) {
+        return;
+    }
+    const auto here = building_at(*m_world, *m_buildings, w.island, w.home_tile);
+    if (!here) {
+        return;
+    }
+    if (const auto index = m_world->production_index(w.island, static_cast<std::uint16_t>(here->origin.x),
+                                                     static_cast<std::uint16_t>(here->origin.y))) {
+        w.home = *index;
+    }
+}
+
 bool Logistics::plan_home(Walker& w) {
+    rehome(w);
     const auto hb = home_building(w);
     const assets::FigureType* fig = m_figures->get(w.figure);
     if (!hb || fig == nullptr) {
@@ -973,6 +989,7 @@ void Logistics::deliver(Walker& w) {
     if (responds(w.kind) || w.home == kNoHome) {
         return;  // doctors and firemen bring nothing
     }
+    rehome(w);
     const auto hb = building_of(w.home);
     if (!hb) {
         return;
@@ -1021,7 +1038,13 @@ void Logistics::buildings_removed(std::span<const std::uint32_t> productions) {
         place.emplace(productions[i], i);
     }
     std::vector<std::pair<std::size_t, Handle>> gone;
+    // The original lets them walk on and books their load into whatever stands on the place of
+    // their building when they come home (S-002, OriginalBugs::goldsheep; rehome()).
+    const bool walk_on = m_world->original_bugs().goldsheep;
     m_walkers.for_each([&](Handle h, const Walker& w) {
+        if (walk_on && w.kind != WalkerKind::Robber && !responds(w.kind)) {
+            return;
+        }
         std::size_t first = productions.size();
         if (const auto it = place.find(w.home); it != place.end()) {
             first = it->second;
@@ -1835,6 +1858,15 @@ bool Logistics::find_victim(Walker& r) {
         if (std::max(dx, dy) + std::min(dx, dy) / 4 > kRobberRadius) {
             return;
         }
+        // The original takes only figures walking to the middle of their building; carriers walk
+        // to the door, which lies elsewhere at a workshop with its door on the edge in two of the
+        // four rotations (S-056, OriginalBugs::robber_victims).
+        if (m_world->original_bugs().robber_victims) {
+            const auto home = building_at(*m_world, *m_buildings, v.island, v.home_tile);
+            if (!home || centre_tile(*home) != v.home_tile) {
+                return;
+            }
+        }
         found = h;
     });
     r.partner = found;
@@ -1957,6 +1989,12 @@ void Logistics::robber_flee(Handle h, Walker& r) {
     const auto hit = m_finder.search(r.tile, [](TilePos) { return PathFinder::Answer::Accept; });
     if (!hit || !m_finder.path_to(*hit, r.path) || r.path.empty()) {
         finish(h, r);
+        return;
+    }
+    // The original plans 12 tiles, plans again there, finds no path and is gone on the road
+    // (S-058, OriginalBugs::robber_flight): the end of the shortened path ends his walk.
+    if (m_world->original_bugs().robber_flight && r.path.size() > kRobberPlan) {
+        r.path.resize(kRobberPlan);
     }
 }
 

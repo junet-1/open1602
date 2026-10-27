@@ -35,8 +35,17 @@ enum RuleKey : std::uint16_t {
     kRevisedBread = 28,
     kOreVeins = 29,  // OreVeins::Finite (Endless keeps the old key, Game has none)
     kComputerPlayers = 30,
-    kBugGallows = 31,   // OriginalBugs::gallows (S-055)
-    kBugFireRisk = 32,  // OriginalBugs::fire_risk (S-049)
+    // The bugs of the original brought back (OriginalBugs; classic_ai has kClassicAi).
+    kBugGallows = 31,
+    kBugFireRisk = 32,
+    kBugRobberVictims = 33,
+    kBugRobberFlight = 34,
+    kBugGoldsheep = 35,
+    kBugBuildingRadius = 36,
+    kBugInfertileFields = 37,
+    kBugRemoteTrade = 38,
+    kBugRemoteRepair = 39,
+    kBugSmallYardWarships = 40,
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -51,6 +60,21 @@ enum RuleKey : std::uint16_t {
     kWinAll = 21,
     kWinComputers = 22,
 };
+
+/// The keys of the bugs, written only when one is brought back.
+constexpr std::pair<RuleKey, bool OriginalBugs::*> kBugKeys[] = {
+    {kBugGallows, &OriginalBugs::gallows},
+    {kBugFireRisk, &OriginalBugs::fire_risk},
+    {kBugRobberVictims, &OriginalBugs::robber_victims},
+    {kBugRobberFlight, &OriginalBugs::robber_flight},
+    {kBugGoldsheep, &OriginalBugs::goldsheep},
+    {kBugBuildingRadius, &OriginalBugs::building_radius},
+    {kBugInfertileFields, &OriginalBugs::infertile_fields},
+    {kBugRemoteTrade, &OriginalBugs::remote_trade},
+    {kBugRemoteRepair, &OriginalBugs::remote_repair},
+    {kBugSmallYardWarships, &OriginalBugs::small_yard_warships},
+};
+static_assert(std::size(kBugKeys) + 1 == std::size(OriginalBugs::kAll), "every bug but classic_ai has a key");
 
 template <class A, class R>
 void io_random(A& a, R& r) {
@@ -118,7 +142,7 @@ void write_rules(Writer& out, const Rules& r) {
     // Room for every key up front: the optional ones below then never reallocate (GCC 13 also
     // misreads that reallocation as an overflow).
     std::vector<std::pair<RuleKey, std::uint32_t>> values;
-    values.reserve(32);
+    values.reserve(48);
     const std::pair<RuleKey, std::uint32_t> always[] = {
         {kRefund, static_cast<std::uint32_t>(r.demolish_refund)},
         {kRefundPercent, r.refund_percent},
@@ -129,7 +153,7 @@ void write_rules(Writer& out, const Rules& r) {
         {kVolcanoRule, static_cast<std::uint32_t>(r.volcanoes)},
         {kTraderPrices, static_cast<std::uint32_t>(r.trader_prices)},
         {kMaxArmy, r.max_army},
-        {kClassicAi, r.classic_ai ? 1U : 0U},
+        {kClassicAi, r.bugs.classic_ai ? 1U : 0U},
     };
     values.assign(std::begin(always), std::end(always));
     // The pirates only when they differ from the game's setting: a game without the choice keeps
@@ -167,11 +191,10 @@ void write_rules(Writer& out, const Rules& r) {
     }
     // A bug of the original only when it is brought back: fixed is Open1602's way, which the
     // versions before them played.
-    if (r.bugs.gallows) {
-        values.emplace_back(kBugGallows, 1U);
-    }
-    if (r.bugs.fire_risk) {
-        values.emplace_back(kBugFireRisk, 1U);
+    for (const auto& [key, bug] : kBugKeys) {
+        if (r.bugs.*bug) {
+            values.emplace_back(key, 1U);
+        }
     }
     // The victory conditions only when there are any: a game without them keeps the bytes of the
     // versions before them.
@@ -254,13 +277,23 @@ Rules read_rules(Reader& in) {
                 r.revised_bread = v != 0;
                 break;
             case kClassicAi:
-                r.classic_ai = v != 0;
+                r.bugs.classic_ai = v != 0;
                 break;
             case kBugGallows:
-                r.bugs.gallows = v != 0;
-                break;
             case kBugFireRisk:
-                r.bugs.fire_risk = v != 0;
+            case kBugRobberVictims:
+            case kBugRobberFlight:
+            case kBugGoldsheep:
+            case kBugBuildingRadius:
+            case kBugInfertileFields:
+            case kBugRemoteTrade:
+            case kBugRemoteRepair:
+            case kBugSmallYardWarships:
+                for (const auto& [k, bug] : kBugKeys) {
+                    if (k == key) {
+                        r.bugs.*bug = v != 0;
+                    }
+                }
                 break;
             case kReveal:
                 r.reveal = static_cast<Reveal>(std::min<std::uint32_t>(v, 2));

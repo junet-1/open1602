@@ -41,8 +41,7 @@ if they change during a game, then only via a command
 | Computer opponents play (`computer_players`) | as the game file says (settings bit 1, which no shipped file sets); off (they keep what they have and do nothing; the pirates have their own setting); on | as the game file | as the game file |
 | Bread production (`revised_bread`) | as the original; revised: the grain farm makes 2 t of grain per field and the bakery 2 t of bread from 2 t of flour for 15 gold a minute instead of 5, so a bread chain makes about as much food as meat at the same running cost ([balance.md](../modding/balance.md#revised-bread-production)) | as the original | as the original |
 | Towns known from the start (`reveal`) | nothing (every island is discovered by a ship coming near, as the original); other players (every island with a town of a human or computer player is discovered for everyone from the start, also when the town is founded later; native villages and pirate nests are found by ship); all settlements (native villages and pirate nests too). An island counts as a whole, so a native village on an island with a player's town shows with it | nothing | nothing |
-| Bugs of the original (`bugs`, `OriginalBugs`): the gallows (S-055: a robber a gallows turned away tries up to two more houses, so a town covered by gallows still gets 58 % of the robbers instead of a quarter) and the fire risk (S-049: brick buildings catch fire with 7 in 8 and wooden ones with 3 in 8 instead of the other way round) | each fixed or as the original | as the original | fixed |
-| Computer players (`classic_ai`, S-097 to S-099) | improved, as the original (with its bugs in settling, counting and site search, so they stall after about two hours) | as the original | improved |
+| Bugs of the original (`bugs`, `OriginalBugs`), see "Original settings" below | each fixed or as the original | as the original | fixed |
 | Victory conditions of the endless game (`victory`, `VictoryConditions`) | inhabitants, residents of a level or higher, treasury, balance per minute, share of settled islands, defeat all opponents, score, prestige buildings (castle, cathedral, both), time limit (then the most points win); all or any one; computers can win or not | none (the endless game never ends) | none |
 | Custom world (`WorldSettings`, new game) | size 200–2000 per side or automatic by the players (as multiplayer: 500 × 350 up to four, both sides growing with the square root of the players beyond), 2–12 players, number of islands, island sizes, villages, volcano islands, gold islands (automatic by level, islands and players, or a fixed 1–40 for very large maps; settings.cfg up to 250), starting areas separate/shared | the three fixed maps | off; on: automatic size (500 × 350 for 4 players), 4 players, normal, mixed, automatic gold, separate |
 
@@ -65,9 +64,9 @@ What two of the choices mean for the player (shown in the start dialog as "Free 
 ## Consequences
 The Open1602 savegame has its own section for the settings (`RULE` in the chunk
 `O1602`, done). Savegames of the original get the original's values for the choice points; this
-is satisfied because the default of every free choice is the original. The exception is
-`classic_ai` (decided 2026-10-22): the original's computer players are a choice for those who want
-its difficulty, but their bugs stay fixed by default, also in savegames of the original. The endless game has a
+is satisfied because the default of every free choice is the original. The exception is the bugs
+of the original (`bugs`, below; the computer players since 2026-10-22): they are a choice for those
+who want the game as they know it, but stay fixed by default, also in savegames of the original. The endless game has a
 start dialog after name and banner (`engine/app/src/game_settings_menu.cpp`, since 2026-10-20): the
 settings in groups (economy, limits, disasters, world, opponents), as in later Anno titles, each a button that
 cycles its values, with presets for the original's rules and Open1602's defaults; the last choice is
@@ -77,21 +76,39 @@ still sets them for games started from it.
 ### Original settings
 Since 2026-10-27 bugs and exploits of the original whose fix changes how the game plays can be
 brought back one by one (`Rules::bugs`, `sim::OriginalBugs`). Real bugs stay fixed without a
-switch; a bug gets one when players may want the game as they know it, as decided on 2026-10-27 for the
-gallows (S-055) and the fire risk (S-049). Open1602's fixes are the default, also in savegames of
-the original; `Rules::original()` and the dialog's preset "Original rules" bring all of them back.
+switch; a bug gets one when players may want the game as they know it. Open1602's fixes are the
+default, also in savegames of the original; `Rules::original()` and the dialog's preset "Original
+rules" bring all of them back.
+
+| Group | Bug (`OriginalBugs::`) | The original | `RULE` key |
+|---|---|---|---|
+| Disasters | fire risk (`fire_risk`, S-049) | brick buildings catch fire with 7 in 8, wooden ones with 3 in 8 | 32 |
+| Disasters | gallows (`gallows`, S-055) | a robber a gallows turned away tries up to two more houses: a covered town still gets 58 % of the robbers | 31 |
+| Disasters | robbers' victims (`robber_victims`, S-056) | only figures walking to the middle of their building: carriers of a building with its door on the edge escape in two of four rotations | 33 |
+| Disasters | robbers' flight (`robber_flight`, S-058) | the robber plans 12 tiles and is gone there | 34 |
+| Construction | gold sheep (`goldsheep`, S-002) | figures of a demolished building walk on and deliver to what stands on its place when they come home | 35 |
+| Construction | building radius (`building_radius`, S-008) | every building, not only the market, needs one full edge in the city; the free land under it joins the city. In the original the land is lost again on loading, in Open1602 it is part of the savegame | 36 |
+| Construction | fields everywhere (`infertile_fields`, S-003) | a crop is planted on an island where it does not grow, withered and paid for; it never grows | 37 |
+| Ships and trade | trade from afar (`remote_trade`, S-012) | a Kontor's window open for a ship keeps trading with it after it sailed away (the command carries the Kontor, `CargoTransfer::kontor_island`) | 38 |
+| Ships and trade | repair on the way (`remote_repair`, S-013) | the repair of a ship that leaves the yard goes on wherever it sails, and it can be ordered for a ship sailing away from the yard | 39 |
+| Ships and trade | warships at the small yard (`small_yard_warships`, S-005) | the small shipyard builds the large ships too | 40 |
+| Opponents | computer players (`classic_ai`, S-097 to S-099) | settling, counting and site search with the original's bugs, so they stall after about two hours | 10 (always written) |
 
 The start dialog has a group "More" below the disasters whose second row ("Original settings",
-German „Originaleinstellungen") opens a page of its own, built as the victory conditions' page: the
-bugs grouped by what they touch, each a button with "fixed" or the original's way, and the
+German „Originaleinstellungen“) opens a page of its own, built as the victory conditions' page: the
+bugs in the four groups of the table, each a button with "fixed" or the original's way, and the
 buttons "All as the original" and "All fixed". It is offered for every kind of game, scenarios
-included, and shown for a savegame. settings.cfg keeps them as `<prefix>bug.<name> = fixed|original`,
-the lobby passes them on with the other lines, the savegame as `RULE` keys 31 (gallows) and 32
-(fire risk), written only when a bug is brought back, so games without them keep their bytes.
+included, and shown for a savegame. settings.cfg keeps them as `<prefix>bug.<name> = fixed|original`
+with the names of the table (the computer players also as the older `<prefix>ai = classic|open1602`),
+the lobby passes them on with the other lines, the savegame as the `RULE` keys of the table, written
+only when a bug is brought back, so games without them keep their bytes. The bugs that the
+interface reaches (S-005, S-012, S-013) read them from `World::original_bugs()`, which the
+simulation sets from its rules.
 
-A new bug of this kind is a bool in `OriginalBugs` (with `count()` and `all()`), the place in
-`engine/sim` that reads it, a `SetupItem` after `BugGallows` with its label and values in
-`data/locale/*.lang`, a line in settings.cfg and a `RULE` key.
+A new bug of this kind is a bool in `OriginalBugs` (and in `OriginalBugs::kAll`), the place in
+`engine/sim` that reads it, a `SetupItem` before `ClassicAi` with an entry in `kBugEntries`
+(`engine/app/src/endless_setup.cpp`), its group on the page, its label and values in
+`data/locale/*.lang` (`setup.bug.<name>`, `.fixed`, `.original`) and a `RULE` key in `kBugKeys`.
 
 ### Victory conditions
 Since 2026-10-22 an endless game can be won, as in Anno 1503, 1701 and 1404: the start dialog has a

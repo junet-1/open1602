@@ -101,6 +101,8 @@ void io(A& a, T& t)
     a(t.to_ship);
     a(t.amount);
     a(t.hold);
+    a(t.kontor_island);
+    a(t.kontor_city);
 }
 
 template <class A, class T>

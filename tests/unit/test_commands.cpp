@@ -43,6 +43,8 @@ std::vector<sim::Command> every_kind() {
     cargo.player = 1;
     cargo.ship = 5;
     cargo.amount = 320;
+    cargo.kontor_island = 3;
+    cargo.kontor_city = 2;
     all.emplace_back(cargo);
     sim::RouteEdit route;
     route.player = 1;

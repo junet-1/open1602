@@ -95,9 +95,9 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(s.rules.trader_prices == sim::TraderPrices::Market);
     app::choose(s, SetupItem::Resources, 1);
     CHECK(!s.rules.guarantee_resources);
-    CHECK(!s.rules.classic_ai);  // Open1602's computer players by default
+    CHECK(!s.rules.bugs.classic_ai);  // Open1602's computer players by default
     app::choose(s, SetupItem::ClassicAi, 1);
-    CHECK(s.rules.classic_ai);
+    CHECK(s.rules.bugs.classic_ai);
     CHECK(s.rules.pirates == sim::Pirates::Game);  // as the level by default: none on the two easy ones
     CHECK(value_of(s, SetupItem::Pirates) == ui::tr("setup.pirates.game"));
     app::choose(s, SetupItem::Pirates, 2);
@@ -396,8 +396,11 @@ TEST_CASE("game setup: the dialog of a scenario shows the rules only") {
     CHECK(!find_text(menu, ui::tr("setup.group.world")).has_value());
     CHECK(!find_text(menu, ui::tr("setup.map")).has_value());
     CHECK(!find_text(menu, ui::tr("setup.resources")).has_value());
-    (void)click(menu, ui::tr("setup.ai.open1602"));
-    CHECK(menu.setup().rules.classic_ai);
+    // The computer players are on the page of the original's bugs.
+    (void)click(menu, ui::tr("setup.bugs.open", {ui::tr("setup.bugs.none")}));
+    (void)click(menu, ui::tr("setup.bug.classic_ai.fixed"));
+    CHECK(menu.setup().rules.bugs.classic_ai);
+    (void)click(menu, ui::tr("setup.back"));
     (void)click(menu, ui::tr("setup.original"));
     CHECK(menu.setup().rules == sim::Rules::original());
     CHECK(click(menu, ui::tr("setup.start")) == app::GameSettingsMenu::Result::Start);
@@ -604,7 +607,7 @@ TEST_CASE("game setup: the page of the victory conditions") {
     CHECK(find_text(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.many", {"2"})})).has_value());
     // The presets change the rules, the conditions stay.
     (void)click(menu, ui::tr("setup.original"));
-    CHECK(menu.setup().rules.classic_ai);
+    CHECK(menu.setup().rules.bugs.classic_ai);
     CHECK(menu.setup().rules.victory.inhabitants == 1000);
     // Escape goes back to the settings first, then out.
     (void)click(menu, ui::tr("setup.victory.open", {ui::tr("setup.victory.many", {"2"})}));
@@ -686,7 +689,15 @@ TEST_CASE("game setup: the page of the original's bugs, fixed by default") {
     app::read_setup(back, text, "multiplayer.");
     CHECK(back == s);
     CHECK(app::read_setup_line(back, "bug.fire_risk", "original"));
-    CHECK(back.rules.bugs == sim::OriginalBugs::all());
+    CHECK(back.rules.bugs.fire_risk);
+    CHECK(back.rules.bugs.count() == 2);
+    // Every bug has its line, the computer players their old one too.
+    const std::string all = app::write_setup(EndlessSetup::original());
+    CHECK(all.find("endless.ai = classic\n") != std::string::npos);
+    CHECK(all.find("endless.bug.goldsheep = original\n") != std::string::npos);
+    EndlessSetup all_back;
+    app::read_setup(all_back, all);
+    CHECK(all_back.rules.bugs == sim::OriginalBugs::all());
     CHECK(app::read_setup_line(back, "bug.gallows", "sometimes"));  // unknown: kept
     CHECK(back.rules.bugs.gallows);
 
@@ -707,7 +718,7 @@ TEST_CASE("game setup: the page of the original's bugs, fixed by default") {
         (void)click(menu, ui::tr("setup.bugs.all_original"));
         CHECK(menu.setup().rules.bugs == sim::OriginalBugs::all());
         CHECK(menu.setup().rules.victory == sim::VictoryConditions{});  // nothing else changes
-        CHECK(!menu.setup().rules.classic_ai);
+        CHECK(menu.setup().rules.max_army == sim::Rules{}.max_army);
         (void)click(menu, ui::tr("setup.bugs.all_fixed"));
         CHECK(menu.setup().rules.bugs == sim::OriginalBugs{});
         (void)click(menu, value_of(menu.setup(), SetupItem::BugGallows));

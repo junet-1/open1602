@@ -31,7 +31,8 @@ savegames of the original and preserve the feel of the game.
    participants have the same rules.
    Since 2026-10-27 this also covers gameplay bugs whose fix changes how the game plays (point 2
    aside): they can be brought back one by one in `Rules::bugs` (ADR 0008, "Original settings";
-   so far S-049 and S-055). The fix stays the default.
+   S-002, S-003, S-005, S-008, S-012, S-013, S-049, S-055, S-056, S-058 and the computer players
+   of S-097 to S-099). The fix stays the default.
 5. **Data bugs (D):** The `.cod` interpreter stays faithful to the original. Corrections come as
    data patches that can be switched off and are applied after loading (`assets/data_fixes.hpp`,
    `ui::Font::fix_accents`; `data_fixes` in `settings.cfg`, `--original-data`). A patch replaces only

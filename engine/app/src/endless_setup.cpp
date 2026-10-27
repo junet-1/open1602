@@ -244,6 +244,62 @@ bool operator==(const EndlessSetup& a, const EndlessSetup& b) noexcept {
            x.starts == y.starts;
 }
 
+namespace {
+
+/// The items of the page "Original settings": the bug each switches and its name in settings.cfg
+/// ("bug.<name>") and in the texts ("setup.bug.<name>" with ".fixed" and ".original"). The computer
+/// players also keep their line ("ai") from before the page.
+struct BugEntry {
+    SetupItem item;
+    bool sim::OriginalBugs::*bug;
+    std::string_view name;
+};
+constexpr BugEntry kBugEntries[] = {
+    {SetupItem::BugFireRisk, &sim::OriginalBugs::fire_risk, "fire_risk"},
+    {SetupItem::BugGallows, &sim::OriginalBugs::gallows, "gallows"},
+    {SetupItem::BugRobberVictims, &sim::OriginalBugs::robber_victims, "robber_victims"},
+    {SetupItem::BugRobberFlight, &sim::OriginalBugs::robber_flight, "robber_flight"},
+    {SetupItem::BugGoldsheep, &sim::OriginalBugs::goldsheep, "goldsheep"},
+    {SetupItem::BugBuildingRadius, &sim::OriginalBugs::building_radius, "building_radius"},
+    {SetupItem::BugInfertileFields, &sim::OriginalBugs::infertile_fields, "infertile_fields"},
+    {SetupItem::BugRemoteTrade, &sim::OriginalBugs::remote_trade, "remote_trade"},
+    {SetupItem::BugRemoteRepair, &sim::OriginalBugs::remote_repair, "remote_repair"},
+    {SetupItem::BugSmallYardWarships, &sim::OriginalBugs::small_yard_warships, "small_yard_warships"},
+    {SetupItem::ClassicAi, &sim::OriginalBugs::classic_ai, "classic_ai"},
+};
+static_assert(std::size(kBugEntries) == std::size(sim::OriginalBugs::kAll), "every bug has its item");
+
+const BugEntry* bug_entry(SetupItem item) noexcept {
+    for (const BugEntry& e : kBugEntries) {
+        if (e.item == item) {
+            return &e;
+        }
+    }
+    return nullptr;
+}
+
+/// The text key of a bug's item: "setup.bug.<key>".
+std::string bug_key(SetupItem item) {
+    const BugEntry* e = bug_entry(item);
+    return e != nullptr ? "setup.bug." + std::string(e->name) : std::string{};
+}
+
+bool sim::OriginalBugs::*bug_named(std::string_view name) noexcept {
+    for (const BugEntry& e : kBugEntries) {
+        if (e.name == name) {
+            return e.bug;
+        }
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+bool sim::OriginalBugs::*bug_of(SetupItem item) noexcept {
+    const BugEntry* e = bug_entry(item);
+    return e != nullptr ? e->bug : nullptr;
+}
+
 std::size_t setup_choices(SetupItem item) noexcept {
     switch (item) {
         case SetupItem::Refund:
@@ -287,12 +343,20 @@ std::size_t setup_choices(SetupItem item) noexcept {
         case SetupItem::Map:
         case SetupItem::Starts:
         case SetupItem::Resources:
-        case SetupItem::ClassicAi:
         case SetupItem::WinEliminate:
         case SetupItem::WinAll:
         case SetupItem::WinComputers:
         case SetupItem::BugFireRisk:
         case SetupItem::BugGallows:
+        case SetupItem::BugRobberVictims:
+        case SetupItem::BugRobberFlight:
+        case SetupItem::BugGoldsheep:
+        case SetupItem::BugBuildingRadius:
+        case SetupItem::BugInfertileFields:
+        case SetupItem::BugRemoteTrade:
+        case SetupItem::BugRemoteRepair:
+        case SetupItem::BugSmallYardWarships:
+        case SetupItem::ClassicAi:
             return 2;
         case SetupItem::WinInhabitants:
             return kWinInhabitants.size();
@@ -387,12 +451,18 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return w.starts == Starts::Together ? 1 : 0;
         case SetupItem::Resources:
             return r.guarantee_resources ? 0 : 1;
-        case SetupItem::ClassicAi:
-            return r.classic_ai ? 1 : 0;
         case SetupItem::BugFireRisk:
-            return r.bugs.fire_risk ? 1 : 0;
         case SetupItem::BugGallows:
-            return r.bugs.gallows ? 1 : 0;
+        case SetupItem::BugRobberVictims:
+        case SetupItem::BugRobberFlight:
+        case SetupItem::BugGoldsheep:
+        case SetupItem::BugBuildingRadius:
+        case SetupItem::BugInfertileFields:
+        case SetupItem::BugRemoteTrade:
+        case SetupItem::BugRemoteRepair:
+        case SetupItem::BugSmallYardWarships:
+        case SetupItem::ClassicAi:
+            return r.bugs.*bug_of(item) ? 1 : 0;
         case SetupItem::ComputerPlayers:
             return std::min<std::size_t>(static_cast<std::size_t>(r.computer_players), kComputerNames.size() - 1);
         case SetupItem::Pirates:
@@ -511,14 +581,18 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
         case SetupItem::Resources:
             r.guarantee_resources = choice == 0;
             break;
-        case SetupItem::ClassicAi:
-            r.classic_ai = choice == 1;
-            break;
         case SetupItem::BugFireRisk:
-            r.bugs.fire_risk = choice == 1;
-            break;
         case SetupItem::BugGallows:
-            r.bugs.gallows = choice == 1;
+        case SetupItem::BugRobberVictims:
+        case SetupItem::BugRobberFlight:
+        case SetupItem::BugGoldsheep:
+        case SetupItem::BugBuildingRadius:
+        case SetupItem::BugInfertileFields:
+        case SetupItem::BugRemoteTrade:
+        case SetupItem::BugRemoteRepair:
+        case SetupItem::BugSmallYardWarships:
+        case SetupItem::ClassicAi:
+            r.bugs.*bug_of(item) = choice == 1;
             break;
         case SetupItem::ComputerPlayers:
             r.computer_players = static_cast<sim::Computers>(choice);
@@ -713,12 +787,20 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
         case SetupItem::Droughts:
         case SetupItem::Volcanoes:
         case SetupItem::ComputerPlayers:
-        case SetupItem::ClassicAi:
         case SetupItem::Pirates:
         case SetupItem::PirateNests:
         case SetupItem::Reveal:
         case SetupItem::BugFireRisk:
         case SetupItem::BugGallows:
+        case SetupItem::BugRobberVictims:
+        case SetupItem::BugRobberFlight:
+        case SetupItem::BugGoldsheep:
+        case SetupItem::BugBuildingRadius:
+        case SetupItem::BugInfertileFields:
+        case SetupItem::BugRemoteTrade:
+        case SetupItem::BugRemoteRepair:
+        case SetupItem::BugSmallYardWarships:
+        case SetupItem::ClassicAi:
             return true;
         default:
             return false;
@@ -786,7 +868,6 @@ std::string setup_label(SetupItem item) {
         "setup.starts",
         "setup.resources",
         "setup.computers",
-        "setup.ai",
         "setup.pirates",
         "setup.pirate_nests",
         "setup.reveal",
@@ -804,7 +885,17 @@ std::string setup_label(SetupItem item) {
         "setup.win.computers",
         "setup.bug.fire_risk",
         "setup.bug.gallows",
+        "setup.bug.robber_victims",
+        "setup.bug.robber_flight",
+        "setup.bug.goldsheep",
+        "setup.bug.building_radius",
+        "setup.bug.infertile_fields",
+        "setup.bug.remote_trade",
+        "setup.bug.remote_repair",
+        "setup.bug.small_yard_warships",
+        "setup.bug.classic_ai",
     };
+    static_assert(kKeys.size() == kSetupItems);
     const auto i = static_cast<std::size_t>(item);
     return i < kKeys.size() ? ui::tr(kKeys[i]) : std::string{};
 }
@@ -875,12 +966,18 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 1 ? "setup.starts.together" : "setup.starts.spread");
         case SetupItem::Resources:
             return ui::tr(choice == 0 ? "setup.on" : "setup.off");
-        case SetupItem::ClassicAi:
-            return ui::tr(choice == 1 ? "setup.ai.classic" : "setup.ai.open1602");
         case SetupItem::BugFireRisk:
-            return ui::tr(choice == 1 ? "setup.bug.fire_risk.original" : "setup.bug.fire_risk.fixed");
         case SetupItem::BugGallows:
-            return ui::tr(choice == 1 ? "setup.bug.gallows.original" : "setup.bug.gallows.fixed");
+        case SetupItem::BugRobberVictims:
+        case SetupItem::BugRobberFlight:
+        case SetupItem::BugGoldsheep:
+        case SetupItem::BugBuildingRadius:
+        case SetupItem::BugInfertileFields:
+        case SetupItem::BugRemoteTrade:
+        case SetupItem::BugRemoteRepair:
+        case SetupItem::BugSmallYardWarships:
+        case SetupItem::ClassicAi:
+            return ui::tr(std::string(bug_key(item)) + (choice == 1 ? ".original" : ".fixed"));
         case SetupItem::ComputerPlayers: {
             static constexpr std::array<std::string_view, 3> kKeys = {"setup.computers.game", "setup.off", "setup.on"};
             return ui::tr(kKeys[choice]);
@@ -1105,11 +1202,11 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         }
     } else if (key == "ai") {
         if (value == "classic" || value == "open1602") {
-            r.classic_ai = value == "classic";
+            r.bugs.classic_ai = value == "classic";
         }
-    } else if (key == "bug.fire_risk" || key == "bug.gallows") {
+    } else if (const auto bug = key.starts_with("bug.") ? bug_named(key.substr(4)) : nullptr) {
         if (value == "original" || value == "fixed") {
-            (key == "bug.gallows" ? r.bugs.gallows : r.bugs.fire_risk) = value == "original";
+            r.bugs.*bug = value == "original";
         }
     } else if (key == "own_world") {
         if (value == "on" || value == "off") {
@@ -1180,13 +1277,14 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("droughts", kDroughtNames[std::min<std::size_t>(static_cast<std::size_t>(r.droughts), 4)]);
     line("volcanoes", kVolcanoNames[std::min<std::size_t>(static_cast<std::size_t>(r.volcanoes), 2)]);
     line("resources", on_off(r.guarantee_resources));
-    line("ai", r.classic_ai ? "classic" : "open1602");
+    line("ai", r.bugs.classic_ai ? "classic" : "open1602");
     line("computers", kComputerNames[std::min<std::size_t>(static_cast<std::size_t>(r.computer_players), 2)]);
     line("pirates", kPirateNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirates), 2)]);
     line("pirate_nests", kPirateNestNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), 1)]);
     line("reveal", kRevealNames[std::min<std::size_t>(static_cast<std::size_t>(r.reveal), 2)]);
-    line("bug.fire_risk", r.bugs.fire_risk ? "original" : "fixed");
-    line("bug.gallows", r.bugs.gallows ? "original" : "fixed");
+    for (const BugEntry& e : kBugEntries) {
+        line("bug." + std::string(e.name), r.bugs.*e.bug ? "original" : "fixed");
+    }
     line("own_world", on_off(setup.own_world));
     line("world", setup.auto_size ? "auto" : std::to_string(w.width) + "x" + std::to_string(w.height));
     line("players", std::to_string(w.players));

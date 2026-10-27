@@ -92,6 +92,10 @@ struct CargoTransfer {
     bool to_ship = true;       ///< load / buy; otherwise unload / sell
     std::uint32_t amount = 0;  ///< 1/32 t; the original offers 1, 5, 10 and 50 t
     std::uint8_t hold = 0xFF;  ///< unloading from one hold, 0xFF = any
+    /// The Kontor (island, city) whose window sent it. Only with S-012 brought back
+    /// (OriginalBugs::remote_trade) does it count, when the ship lies at no Kontor any more.
+    std::optional<std::uint16_t> kontor_island = std::nullopt;
+    std::uint8_t kontor_city = 0;
 };
 
 /// Editing the trade route of a ship.

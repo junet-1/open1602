@@ -146,20 +146,82 @@ struct VictoryConditions {
 
 /// Bugs and exploits of the original that a game can bring back (ADR 0008, "Original settings"). Each
 /// is fixed in Open1602 by default; its original way is a choice for players who want the game as
-/// they know it. Only bugs whose fix changes how the game plays belong here (docs/re/bugs.md).
-/// A new one is a bool here, a SetupItem on the dialog's page and a key of the savegame's RULE.
+/// they know it. Only bugs whose fix changes how the game plays belong here (docs/re/bugs.md); bugs
+/// that only break the game (crashes, saving, griefing other players) stay fixed without a choice.
+/// A new one is a bool here and in kAll, the place in engine/sim that reads it, a SetupItem on the
+/// dialog's page, a line of settings.cfg and a key of the savegame's RULE.
 struct OriginalBugs {
-    /// S-055: a robber a gallows turned away tries up to two more houses, so a town covered by
-    /// gallows everywhere still gets 58 % of the robbers (fixed: a quarter).
-    bool gallows = false;
+    // Disasters
     /// S-049: buildings with more bricks than wood catch fire with 7 in 8, wooden ones with 3 in 8
     /// (fixed: the other way round).
     bool fire_risk = false;
+    /// S-055: a robber a gallows turned away tries up to two more houses, so a town covered by
+    /// gallows everywhere still gets 58 % of the robbers (fixed: a quarter).
+    bool gallows = false;
+    /// S-056: robbers only catch figures that walk to the middle of their building; carriers of a
+    /// workshop with its door on the edge are safe in two of the four rotations (fixed: every
+    /// carrier and cart on its way home).
+    bool robber_victims = false;
+    /// S-058: a fleeing robber plans 12 tiles and is gone on the road there, loot and all (fixed: he
+    /// walks into the house).
+    bool robber_flight = false;
+
+    // Construction and economy
+    /// S-002: the figures of a demolished building walk on and deliver what they carry to whatever
+    /// stands on its place now; demolish a sheep farm, build a goldsmith there, and the wool comes in
+    /// as gold (fixed: their walk ends, the load is lost).
+    bool goldsheep = false;
+    /// S-008: a building needs only one full edge in the territory, the rest of it (on free land)
+    /// joins the city; built and demolished at the edge it widens the territory (fixed: the whole
+    /// building within the territory).
+    bool building_radius = false;
+    /// S-003: a field on ground where its crop does not grow is planted withered and paid for
+    /// (fixed: refused).
+    bool infertile_fields = false;
+
+    // Ships and trade
+    /// S-012: the trade window stays open while the ship sails off, and trading goes on with the
+    /// Kontor it was opened at (fixed: only within reach of the Kontor).
+    bool remote_trade = false;
+    /// S-013: a ship being repaired keeps being repaired when it sails off (fixed: only at the yard).
+    bool remote_repair = false;
+    /// S-005: the small shipyard builds the large ships too when the window still has one chosen
+    /// (fixed: the order checks the yard).
+    bool small_yard_warships = false;
+
+    // Opponents
+    /// S-097 to S-099, the original's computer players (docs/re/ai.md): while a settlement ship
+    /// sails no city develops, a city whose colony search failed waits for it for ever, an
+    /// unreachable site is searched afresh (and found again), the fisher looks in two directions
+    /// only, mines and quarries only within seven tiles of the road runs, castles never count and
+    /// bakeries are asked for without a mill. They stall after about two hours where Open1602's
+    /// grow on (docs/original-comparison.md, section 3).
+    bool classic_ai = false;
+
+    /// Every bug, for counting and switching them all.
+    static constexpr bool OriginalBugs::*kAll[] = {
+        &OriginalBugs::fire_risk,           &OriginalBugs::gallows,      &OriginalBugs::robber_victims,
+        &OriginalBugs::robber_flight,       &OriginalBugs::goldsheep,    &OriginalBugs::building_radius,
+        &OriginalBugs::infertile_fields,    &OriginalBugs::remote_trade, &OriginalBugs::remote_repair,
+        &OriginalBugs::small_yard_warships, &OriginalBugs::classic_ai,
+    };
 
     /// How many of them are as in the original.
-    [[nodiscard]] constexpr std::uint32_t count() const noexcept { return (gallows ? 1U : 0U) + (fire_risk ? 1U : 0U); }
+    [[nodiscard]] constexpr std::uint32_t count() const noexcept {
+        std::uint32_t n = 0;
+        for (const auto bug : kAll) {
+            n += this->*bug ? 1U : 0U;
+        }
+        return n;
+    }
     /// Every one as in the original.
-    [[nodiscard]] static constexpr OriginalBugs all() noexcept { return OriginalBugs{true, true}; }
+    [[nodiscard]] static constexpr OriginalBugs all() noexcept {
+        OriginalBugs b;
+        for (const auto bug : kAll) {
+            b.*bug = true;
+        }
+        return b;
+    }
 
     friend constexpr bool operator==(const OriginalBugs&, const OriginalBugs&) = default;
 };
@@ -214,14 +276,6 @@ struct Rules {
     /// Off by default, as the original.
     bool revised_bread = false;
 
-    /// The original's computer players with their bugs S-097 to S-099 (docs/re/ai.md): while a
-    /// settlement ship sails no city develops, a city whose colony search failed waits for it for
-    /// ever, an unreachable site is searched afresh (and found again), the fisher looks in two
-    /// directions only, mines and quarries only within seven tiles of the road runs, castles never
-    /// count and bakeries are asked for without a mill. Their computers stall after about two hours
-    /// where Open1602's grow on (docs/original-comparison.md, section 3).
-    bool classic_ai = false;
-
     /// Which towns are discovered from the start (players, natives, pirates) or only by ship.
     Reveal reveal = Reveal::None;
 
@@ -252,7 +306,6 @@ struct Rules {
         r.ore_veins = OreVeins::Game;
         r.computer_players = Computers::Game;
         r.revised_bread = false;
-        r.classic_ai = true;
         r.reveal = Reveal::None;
         r.bugs = OriginalBugs::all();
         return r;
