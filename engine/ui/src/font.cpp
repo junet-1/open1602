@@ -174,10 +174,21 @@ std::size_t Font::fix_accents() {
     return changed;
 }
 
+namespace {
+
+/// The byte whose glyph shows a character: the no-break space (0xA0, which wrap_text() does not
+/// break at: „33 %“) looks like a space.
+unsigned char glyph_code(char ch) noexcept {
+    const auto c = static_cast<unsigned char>(ch);
+    return c == 0xA0 ? static_cast<unsigned char>(' ') : c;
+}
+
+}  // namespace
+
 std::uint32_t Font::width(std::string_view text) const noexcept {
     std::uint32_t w = 0;
     for (const char ch : text) {
-        const auto c = static_cast<unsigned char>(ch);
+        const unsigned char c = glyph_code(ch);
         if (c < 0x20) {
             break;
         }
@@ -192,7 +203,7 @@ std::uint32_t Font::draw(assets::IndexedImage& canvas, std::string_view text, st
                          const Recolour& colour) const {
     const std::int32_t start = x;
     for (const char ch : text) {
-        const auto c = static_cast<unsigned char>(ch);
+        const unsigned char c = glyph_code(ch);
         if (c < 0x20) {
             break;
         }

@@ -559,7 +559,7 @@ TEST_CASE("endless setup: the victory conditions, all off by default") {
     const std::string text = app::victory_text(back.rules.victory);
     CHECK(text.find("Siegbedingungen") == 0);
     CHECK(text.find("7.500") != std::string::npos);
-    CHECK(text.find("2 Std.") != std::string::npos);
+    CHECK(text.find("2\xA0Std.") != std::string::npos);  // a no-break space: never wrapped apart
     ui::set_language(ui::kFallbackLanguage);
     CHECK(app::victory_text(back.rules.victory).find("7,500") != std::string::npos);
 }

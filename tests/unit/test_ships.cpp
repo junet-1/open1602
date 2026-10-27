@@ -1151,3 +1151,28 @@ TEST_CASE("ships: at most a fixed number of course searches per tick, the others
     const auto events = run(fleet, sea.world, 60000);
     CHECK(count(events, sim::ShipEvent::Kind::Arrived) == ids.size());
 }
+
+TEST_CASE("ships: a Kontor can be founded only from within an island's rectangle, at land no city claims") {
+    // An island of 24 x 12 tiles at (40, 20): two tiles of sea round land.
+    Sea sea;
+    sim::IslandMap map(24, 12);
+    for (std::int32_t y = 0; y < 12; ++y) {
+        for (std::int32_t x = 0; x < 24; ++x) {
+            const bool land = x >= 2 && x < 22 && y >= 2 && y < 10;
+            REQUIRE(map.place(*sea.buildings.by_id(land ? 20101 : 20102), x, y, 0, 0).ok());
+        }
+    }
+    REQUIRE(map.place(*sea.buildings.by_id(20103), 2, 4, 0, 0, 0, 0).ok());  // a Kontor on the west coast
+    REQUIRE(sea.world.add_island(sim::WorldIsland{assets::IslandHeader{}, std::move(map), 40, 20}).ok());
+
+    // Outside the rectangle nothing is offered, though land lies three tiles away (0x00448EF0).
+    CHECK(!sim::kontor_site_near(sea.world, sea.buildings, 39, 25));
+    // Inside it, the west coast is the Kontor's land (radius 8 at least): nothing either.
+    CHECK(!sim::kontor_site_near(sea.world, sea.buildings, 40, 25));
+    // The east coast is free; the search stops at its first land tile.
+    const auto site = sim::kontor_site_near(sea.world, sea.buildings, 63, 25);
+    REQUIRE(site);
+    CHECK(site->island == 0);
+    CHECK(site->x == 21);
+    CHECK(site->y == 5);
+}

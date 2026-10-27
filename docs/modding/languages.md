@@ -47,6 +47,8 @@ dialog.break_peace = Friedensvertrag mit {1} brechen?\nDas bedeutet Krieg.
 ```
 
 - `\n` is a line break; questions show up to two lines.
+- A no-break space (U+00A0) joins a number and its unit: a wrapped text does not break there
+  („33 %“ stays on one line); it is drawn as a space.
 - `{1}`, `{2}`, ... are filled in by the game (a name, a number); the translation decides where they
   stand. What each key gets is noted in `en.lang`.
 - The game's fonts know the letters of Windows-1252 (Western European languages); other letters are

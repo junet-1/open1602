@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string_view>
 
 #include "banner_graphic.hpp"
@@ -316,6 +317,16 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
         }
         if (const assets::Gadget* text = m_tutor->layout().find(kTutorText)) {
             m_tutor_text_size = text->size;
+            m_tutor_text_x = text->pos[0];
+        }
+        // Where the scroll arrows begin: a text longer than the window ends left of them.
+        m_tutor_arrows_x = std::numeric_limits<std::int32_t>::max();
+        for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
+            for (const std::int32_t id : {kTutorBack + i, kTutorNext + i}) {
+                if (const assets::Gadget* g = m_tutor->layout().find(id)) {
+                    m_tutor_arrows_x = std::min(m_tutor_arrows_x, g->pos[0]);
+                }
+            }
         }
     }
     if (auto bubbles = assets::load_gad(game, "BUBBLE.GAD")) {
@@ -436,6 +447,14 @@ bool Hud::picking() {
 }
 
 bool Hud::panel_wheel(std::int32_t x, std::int32_t y, std::int32_t notches) {
+    if (!m_menu_active && m_options_model.mission_window && m_tutor && m_regions.tutor.contains(x, y)) {
+        // The mission's text scrolls a line per notch, as its arrows (Open1602); the tutorial's
+        // pages do not, and the map does not zoom under the window either.
+        if (!m_tutorial) {
+            m_tutor_line = std::max(0, m_tutor_line - notches);
+        }
+        return true;
+    }
     if (m_menu_active || !m_regions.side_panel.contains(x, y)) {
         return false;
     }
@@ -826,12 +845,7 @@ void Hud::draw_mission(const sim::World& world) {
         m_renderer->draw(m_tutor->draw(m_renderer->fonts()), m_regions.tutor.x, m_regions.tutor.y, m_regions.scale);
         return;
     }
-    // The scroll arrows: one picture (the back arrow's) and both arrows' parts.
     m_tutor->set_visible(kTutorText, true);
-    for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
-        m_tutor->set_visible(kTutorBack + i, true);
-        m_tutor->set_visible(kTutorNext + i, i != 0);
-    }
     // The victory conditions of an endless game after its text.
     std::string text = mission != nullptr && !mission->text.empty() ? m_game.expand(mission->text) : std::string();
     if (const std::string victory = victory_text(m_simulation->rules().victory); !victory.empty()) {
@@ -840,6 +854,18 @@ void Hud::draw_mission(const sim::World& world) {
     m_tutor->set_text(110002, text.empty() ? std::string("-") : text);
     for (std::int32_t id = 110011; id <= 110016; ++id) {
         m_tutor->set_visible(id, false);
+    }
+    // The scroll arrows (one picture, the back arrow's, and both arrows' parts) only for a text
+    // longer than the window, as in the original; the text then ends left of them.
+    bool scrolls = m_tutor->max_scroll(110002, m_renderer->fonts()) > 0;
+    if (scrolls && m_tutor_arrows_x != std::numeric_limits<std::int32_t>::max()) {
+        const std::int32_t room = m_tutor_arrows_x + extra - m_tutor_text_x - 4;
+        m_tutor->set_size(kTutorText, std::clamp(room, 1, m_tutor_text_size[0] + extra), m_tutor_text_size[1]);
+        scrolls = m_tutor->max_scroll(110002, m_renderer->fonts()) > 0;
+    }
+    for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
+        m_tutor->set_visible(kTutorBack + i, scrolls);
+        m_tutor->set_visible(kTutorNext + i, scrolls && i != 0);
     }
     // Clamped here, where the text and the window's width are known: "down" past the end would
     // blank the window and take as many clicks back up.

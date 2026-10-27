@@ -230,7 +230,8 @@ public:
         }
     }
     /// The mouse wheel at (`x`, `y`): over the side panel the window there scrolls if it can (the
-    /// ship and city lists, the savegames and music titles of the settings); false if nothing took it.
+    /// ship and city lists, the savegames and music titles of the settings), over the mission
+    /// window its text; false if nothing took it.
     bool panel_wheel(std::int32_t x, std::int32_t y, std::int32_t notches);
     /// The mouse wheel over the map while the window "Warenbilanz" is open: its table scrolls.
     void goods_wheel(std::int32_t notches) noexcept {
@@ -511,7 +512,9 @@ private:
     /// Its gadgets at the right end with their places in the layout, and the text's size there.
     std::vector<std::pair<std::int32_t, std::array<std::int32_t, 2>>> m_tutor_right;
     std::array<std::int32_t, 2> m_tutor_text_size{};
-    std::int32_t m_tutor_line = 0;  ///< first line of its text shown
+    std::int32_t m_tutor_text_x = 0;    ///< TUTOR.GAD: the text's left edge
+    std::int32_t m_tutor_arrows_x = 0;  ///< TUTOR.GAD: the scroll arrows' left edge
+    std::int32_t m_tutor_line = 0;      ///< first line of its text shown
     std::optional<std::string> m_question;
     std::optional<std::vector<HelpLine>> m_help;
     ui::Rect m_yes;  ///< the buttons of the question as last drawn

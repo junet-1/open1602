@@ -33,9 +33,12 @@ public:
         View,   ///< the settings can only be looked at: no presets, no button but "Back"
     };
 
-    explicit GameSettingsMenu(ui::FormStyle style = {}) : m_form(style) {}
+    explicit GameSettingsMenu(ui::FormStyle style = {}) : m_form(style), m_font(style.font) {}
 
-    void set_style(const ui::FormStyle& style) { m_form.set_style(style); }
+    void set_style(const ui::FormStyle& style) {
+        m_form.set_style(style);
+        m_font = style.font;
+    }
     void set_scale(double scale) { m_form.set_scale(scale); }
     void open(const EndlessSetup& setup, SetupScope scope = SetupScope::Endless, Mode mode = Mode::Start) {
         m_setup = setup;
@@ -68,6 +71,8 @@ private:
     [[nodiscard]] EndlessSetup keep_decided(EndlessSetup preset) const;
 
     ui::Form m_form;
+    std::int32_t m_font = 0;                 ///< the form's font slot
+    const ui::Font* m_label_font = nullptr;  ///< of the last draw: the labels' column fits the longest
     EndlessSetup m_setup;
     SetupScope m_scope = SetupScope::Endless;
     Mode m_mode = Mode::Start;
