@@ -683,12 +683,16 @@ void load_cities(World& world, const assets::GameState& state, const WarningSink
         city.owner = player_from_original(c.owner);
         city.name = c.name;
         city.inhabitants.assign(c.inhabitants.begin(), c.inhabitants.end());
-        city.satisfaction.assign(c.satisfaction.begin(), c.satisfaction.end());
-        // A tax rate of 0 is not possible (the original loads it as 128).
-        for (const std::uint8_t t : c.tax) {
-            city.tax_rate.push_back(t == 0 ? std::uint8_t{128} : t);
+        // The loader of the original (0x00484C6C, 0x00484C13) turns a stored 0 into 128 in the
+        // satisfaction, the tax rate and the food supply.
+        const auto loaded = [](std::uint8_t v) { return v == 0 ? std::uint8_t{128} : v; };
+        for (const std::uint8_t v : c.satisfaction) {
+            city.satisfaction.push_back(loaded(v));
         }
-        city.food_ratio = c.food_ratio;
+        for (const std::uint8_t t : c.tax) {
+            city.tax_rate.push_back(loaded(t));
+        }
+        city.food_ratio = loaded(c.food_ratio);
         city.material_lock = c.material_lock;
         city.population_message = c.population_message;
         city.purchases = c.purchases;

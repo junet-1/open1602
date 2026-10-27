@@ -559,6 +559,28 @@ TEST_CASE("save game: the original's chunks of a .GAM alone hold the synthetic w
     CHECK(original_chunks_only(loaded, buildings) == bytes);
 }
 
+TEST_CASE("save game: a satisfaction, tax rate or food supply of 0 loads as 128, as in the original") {
+    const auto buildings = make_buildings();
+    sim::World world = make_world(buildings);
+    std::vector<sim::City> cities = world.cities();
+    REQUIRE(!cities.empty());
+    cities[0].satisfaction = {0, 0, 0, 0, 0};
+    cities[0].tax_rate = {0, 0, 0, 0, 0};
+    cities[0].food_ratio = 0;
+    world.set_cities(std::move(cities));
+    // The original's loader (0x00484C6C, 0x00484C13) makes 128 of each stored 0.
+    const core::Bytes bytes = original_chunks_only(world, buildings);
+    const sim::World loaded = load(bytes, buildings);
+    const sim::City& c = loaded.cities().at(0);
+    CHECK(c.food_ratio == 128);
+    for (std::size_t k = 0; k < 5; ++k) {
+        CHECK(c.satisfaction.at(k) == 128);
+        CHECK(c.tax_rate.at(k) == 128);
+    }
+    // Written again, the zeros of the file stay.
+    CHECK(original_chunks_only(loaded, buildings) == bytes);
+}
+
 TEST_CASE("save game: a route beyond the original's four stops and three wares keeps them in Open1602's chunk only") {
     const auto buildings = make_buildings();
     sim::World world = make_world(buildings);

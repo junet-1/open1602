@@ -351,6 +351,8 @@ void MainMenu::refresh_host() {
             const std::size_t i = m_first + r;
             const bool shown = i < count;
             p.set_visible(kRowText + k, shown);
+            // A long name (with the time played after it) ends in "..." instead of running past the list.
+            p.set_fit(kRowText + k, true);
             p.set_visible(kRowStars + k, false);
             p.set_visible(kRowPlug + k, false);
             if (!shown) {
@@ -373,6 +375,7 @@ void MainMenu::refresh_host() {
         const std::size_t i = m_first + r;
         const bool shown = i < m_scenarios.size();
         p.set_visible(kRowText + k, shown);
+        p.set_fit(kRowText + k, true);
         p.set_visible(kRowPlug + k, false);  // the players of a network game
         const bool stars =
             shown && !m_scenarios[i].separator && m_scenarios[i].header.ranking != assets::ScenarioHeader::kNone;

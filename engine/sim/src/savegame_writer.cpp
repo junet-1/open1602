@@ -796,17 +796,19 @@ private:
             r[5] = c.population_message;
             put32(r, 0x08, static_cast<std::uint32_t>(std::clamp<std::int64_t>(c.purchases, 0, 0xFFFFFFFFLL)));
             put32(r, 0x0C, static_cast<std::uint32_t>(std::clamp<std::int64_t>(c.sales, 0, 0xFFFFFFFFLL)));
+            // The loader turns a 0 in the satisfaction, the tax rate and the food supply into 128
+            // (0x00484C6C): a stored 0 that loaded as 128 stays 0.
+            const auto keep = [](std::uint8_t& stored, std::uint8_t v) {
+                if (!(stored == 0 && v == 128)) {
+                    stored = v;
+                }
+            };
             for (std::size_t k = 0; k < 5; ++k) {
                 put32(r, 0x5C + 4 * k, k < c.inhabitants.size() ? c.inhabitants[k] : 0);
-                // The satisfaction and the food supply (below) load as stored, a 0 too.
-                r[0x78 + k] = k < c.satisfaction.size() ? c.satisfaction[k] : std::uint8_t{128};
-                // The loader turns a tax rate of 0 into 128.
-                const std::uint8_t tax = k < c.tax_rate.size() ? c.tax_rate[k] : 128;
-                if (!(r[0x7F + k] == 0 && tax == 128)) {
-                    r[0x7F + k] = tax;
-                }
+                keep(r[0x78 + k], k < c.satisfaction.size() ? c.satisfaction[k] : std::uint8_t{128});
+                keep(r[0x7F + k], k < c.tax_rate.size() ? c.tax_rate[k] : std::uint8_t{128});
             }
-            r[0x86] = c.food_ratio;
+            keep(r[0x86], c.food_ratio);
             for (std::size_t k = 0; k < assets::kOriginalPlayerSlots && k < c.goodwill.size(); ++k) {
                 put32(r, 0x18 + 4 * k, c.goodwill[k]);
             }
