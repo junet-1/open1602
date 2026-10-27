@@ -29,6 +29,9 @@ constexpr const char* kTreeRecord =
     "  @Nummer: 2\n  Id: 20106\n  Kind: 10\n  Gfx: 11\n  Size: 1, 1\n  Maxenergy: 3\n  NoShotFlg: 1\n"
     "  Ruinenr: 255\n";
 
+/// A road of 4 HP, only in the tables that ask for it.
+constexpr const char* kRoadRecord = "  @Nummer: 4\n  Id: 20108\n  Kind: 1\n  Gfx: 20\n  Size: 1, 1\n  Maxenergy: 4\n";
+
 /// A Kontor of 20 HP, only in the tables that ask for it.
 constexpr const char* kKontorRecord =
     "  @Nummer: 3\n  Id: 20107\n  Kind: 35\n  Gfx: 12\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
@@ -42,7 +45,7 @@ assets::BuildingTable make_buildings(bool tree = false, bool kontor = false) {
             "  @Nummer: 0\n  Id: 20101\n  Kind: 11\n  Gfx: 0\n  Size: 1, 1\n"
             "  @Nummer: 1\n  Id: 20105\n  Kind: 6\n  Gfx: 10\n  Size: 1, 1\n  Maxenergy: 55\n  NoShotFlg: 1\n"
             "  Objekt: HAUS_PRODTYP\n    Kind: 16\n    Figurnr: 38\n  EndObj\n") +
-        (tree ? kTreeRecord : "") + (kontor ? kKontorRecord : "") + "EndObj\n";
+        (tree ? kTreeRecord : "") + (kontor ? kKontorRecord : "") + (kontor ? kRoadRecord : "") + "EndObj\n";
     const auto doc = assets::cod::parse(text, types);
     auto table = assets::BuildingTable::from_cod(doc);
     REQUIRE(table.ok());
@@ -317,6 +320,21 @@ TEST_CASE("naval: a ship stops shooting once its target building is gone; terrai
     CHECK(s.count(sim::ShipEvent::Kind::Fired) == fired);
 }
 
+TEST_CASE("naval: a warship sent against another player's road (Ctrl or F) shoots it") {
+    Sea s(false, true);
+    REQUIRE(s.world.island(0).map.build(*s.buildings.by_id(20108), 0, 4, 0, 0, 1, 0).ok());
+    s.start();
+    s.world.diplomacy().set_peace(s.world, 0, 1, sim::Treaty::None, 0);
+    const std::uint32_t warship = s.add(34, 24, kWarship, 0, 8);
+    sim::ShipOrder o{0, warship, sim::Target::building(0, 0, 4)};
+    o.attack = true;
+    REQUIRE(s.fleet->order(o));
+    s.run(15'000);
+    CHECK(s.count(sim::ShipEvent::Kind::Fired) >= 1);
+    CHECK(std::any_of(s.events.begin(), s.events.end(),
+                      [](const auto& e) { return e.kind == sim::MilitaryEvent::Kind::BuildingDestroyed; }));
+}
+
 TEST_CASE("naval: what units can shoot at (Haus_IsDestroyable)") {
     assets::BuildingType b;
     b.kind = assets::kind::kBuilding;
@@ -326,9 +344,12 @@ TEST_CASE("naval: what units can shoot at (Haus_IsDestroyable)") {
     b.destroyed = true;  // "Kontor zerstört"
     CHECK(!sim::destroyable(b, true));
     b.destroyed = false;
-    b.kind = assets::kind::kForest;
-    CHECK(!sim::destroyable(b, false));
-    CHECK(sim::destroyable(b, true));
+    for (const std::int32_t ctrl :
+         {assets::kind::kForest, assets::kind::kRoad, assets::kind::kBridge, assets::kind::kPier}) {
+        b.kind = ctrl;
+        CHECK(!sim::destroyable(b, false));
+        CHECK(sim::destroyable(b, true));
+    }
     for (const std::int32_t terrain : {assets::kind::kBeach, assets::kind::kGround, assets::kind::kRock,
                                        assets::kind::kRuin, assets::kind::kRiver, assets::kind::kSlope}) {
         b.kind = terrain;
