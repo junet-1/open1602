@@ -2,8 +2,12 @@
 // Soldiers, towers and building damage (docs/re/military.md).
 
 #include <algorithm>
+#include <cstdlib>
 #include <memory>
+#include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../test_framework.hpp"
 #include "golden.hpp"
@@ -915,4 +919,27 @@ TEST_CASE("military: a soldier walks onto a place however near; a taken place is
     f.run(5'000);
     CHECK(f.world.soldier(id)->cell_x() == 24);
     CHECK(f.world.soldier(id)->target.empty());
+}
+
+TEST_CASE("military: units sent to one place never stand on one cell (History Edition)") {
+    Field f;
+    f.start();
+    std::vector<std::uint32_t> ids;
+    for (std::int32_t i = 0; i < 6; ++i) {
+        ids.push_back(f.add(kSword, 0, 24 + 2 * i, 24).id);
+    }
+    // Two orders to the same place, the second while the first group stands there.
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {ids[0], ids[1], ids[2]}, sim::Target::spot(40, 34)}));
+    f.run(20'000);
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {ids[3], ids[4], ids[5]}, sim::Target::spot(40, 34)}));
+    f.run(20'000);
+    std::set<std::pair<std::int32_t, std::int32_t>> cells;
+    for (const std::uint32_t id : ids) {
+        const sim::Soldier* s = f.world.soldier(id);
+        CHECK(s->target.empty());
+        CHECK(std::abs(s->cell_x() - 40) <= 8);
+        CHECK(std::abs(s->cell_y() - 34) <= 8);
+        cells.emplace(s->cell_x(), s->cell_y());
+    }
+    CHECK(cells.size() == ids.size());
 }
