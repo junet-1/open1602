@@ -152,6 +152,8 @@ AppSettings parse_settings(std::string_view text, const AppSettings& defaults) {
             s.sea_creatures_every = std::clamp(number(value, s.sea_creatures_every), 0, 3600);
         } else if (key == "data_fixes") {
             s.data_fixes = flag(value, s.data_fixes);
+        } else if (key == "multi_placement") {
+            s.multi_placement = flag(value, s.multi_placement);
         } else if (key.starts_with("display.")) {
             (void)read_display_line(s.display, key.substr(8), value);
         } else if (key.starts_with("endless.")) {
@@ -192,6 +194,8 @@ std::string write_settings(const AppSettings& s) {
     out += "sea_creatures_every = " + std::to_string(s.sea_creatures_every) + "\n";
     out += "# Corrections of the original's data (D-001, D-002, D-012, D-014); off: the data as it is\n";
     out += std::string("data_fixes = ") + (s.data_fixes ? "on" : "off") + "\n";
+    out += "# History Edition: houses and piers are dragged out in rows and blocks\n";
+    out += std::string("multi_placement = ") + (s.multi_placement ? "on" : "off") + "\n";
     if (const std::string name = to_file(s.player_name); !name.empty()) {
         out += "player_name = " + name + "\n";
     }

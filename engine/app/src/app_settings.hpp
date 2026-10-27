@@ -41,6 +41,9 @@ struct AppSettings {
     /// The corrections of the original's data (assets/data_fixes.hpp, ui::Font::fix_accents): the
     /// bakery's sound, the pirate Kontor's flag, the block formation, the accents of capitals.
     bool data_fixes = true;
+    /// The History Edition's „Mehrfachplatzierung“: houses and piers are dragged out in rows and
+    /// blocks, as many as fit and can be paid for (BuildTool).
+    bool multi_placement = true;
     /// Multiplayer hosts joined by address, the latest first ("name[:port]"); at most kMaxHosts.
     std::vector<std::string> remembered_hosts;
     static constexpr std::size_t kMaxHosts = 8;

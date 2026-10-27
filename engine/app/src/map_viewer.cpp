@@ -1317,7 +1317,19 @@ void MapViewer::render() {
                             }
                         }
                     }
+                    const bool multi = m_tool.multi_drag();
                     for (const sim::PlannedBuild& item : plan.items) {
+                        // What only lacks gold or goods is shown on its red ground; anything else that
+                        // cannot be built only as red ground (it might stand over a building or the sea).
+                        const bool short_of_means =
+                            item.refusal == sim::BuildRefusal::Money || item.refusal == sim::BuildRefusal::Tools ||
+                            item.refusal == sim::BuildRefusal::Wood || item.refusal == sim::BuildRefusal::Bricks ||
+                            item.refusal == sim::BuildRefusal::Cannons;
+                        // Houses and piers dragged out: what does not fit there is left out, not
+                        // shown (History Edition), and the gaps say nothing in the status line.
+                        if (multi && !item.ok() && !short_of_means) {
+                            continue;
+                        }
                         if (!item.ok() && m_tool_status.empty()) {
                             m_tool_status = refusal_text(item.refusal);
                         }
@@ -1345,12 +1357,6 @@ void MapViewer::render() {
                                 }
                             }
                         }
-                        // What only lacks gold or goods is shown on its red ground; anything else that
-                        // cannot be built only as red ground (it might stand over a building or the sea).
-                        const bool short_of_means =
-                            item.refusal == sim::BuildRefusal::Money || item.refusal == sim::BuildRefusal::Tools ||
-                            item.refusal == sim::BuildRefusal::Wood || item.refusal == sim::BuildRefusal::Bricks ||
-                            item.refusal == sim::BuildRefusal::Cannons;
                         if (!inside || (!item.ok() && !short_of_means)) {
                             continue;
                         }
@@ -2406,6 +2412,7 @@ void MapViewer::load_options() {
         }
     }
     apply_language();
+    m_tool.set_multi_placement(m_app_settings.multi_placement);
     m_ambient.set_config(ambient_config());
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));

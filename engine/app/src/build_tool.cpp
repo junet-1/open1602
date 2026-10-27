@@ -25,6 +25,11 @@ std::optional<sim::DragLine> line_kind(const assets::BuildingType& b) noexcept {
 bool area_kind(const assets::BuildingType& b) noexcept {
     return b.prod_kind == sim::prod::kGrowing || b.kind == sim::kind::kGround || b.kind == sim::kind::kSquare;
 }
+/// What the History Edition's „Mehrfachplatzierung“ lays side by side (decided for Open1602:
+/// houses and piers).
+bool multi_kind(const assets::BuildingType& b) noexcept {
+    return b.prod_kind == sim::prod::kHouse || b.kind == sim::kind::kPier;
+}
 
 /// A well mixed number for a tile (splitmix64 finaliser): the same tile and seed always give the
 /// same number, so a tree keeps its look while the drag is shown.
@@ -113,6 +118,11 @@ const assets::BuildingType* BuildTool::selected() const noexcept {
     return m_list.empty() ? nullptr : m_list[m_selected];
 }
 
+bool BuildTool::multi_drag() const noexcept {
+    const assets::BuildingType* b = selected();
+    return m_mode == Mode::Build && m_multi_placement && m_drag_start && b != nullptr && multi_kind(*b);
+}
+
 bool BuildTool::hatched_drag() const noexcept {
     const assets::BuildingType* b = selected();
     return m_mode == Mode::Build && m_drag_start && b != nullptr && b->prod_kind == sim::prod::kGrowing;
@@ -156,6 +166,21 @@ std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, s
         for (std::int32_t y = std::min(start.y, spot.y); y <= std::max(start.y, spot.y); ++y) {
             for (std::int32_t x = std::min(start.x, spot.x); x <= std::max(start.x, spot.x); ++x) {
                 add(x, y);
+            }
+        }
+    } else if (multi_drag() && m_drag_start->island == spot.island) {
+        // Side by side in steps of the footprint, row by row from the start towards the mouse,
+        // as far as the mouse reaches (History Edition: rows and blocks).
+        std::uint32_t w = 1;
+        std::uint32_t h = 1;
+        sim::rotated_size(*b, m_rotation, w, h);
+        const std::int32_t sx = spot.x >= start.x ? 1 : -1;
+        const std::int32_t sy = spot.y >= start.y ? 1 : -1;
+        const std::int32_t columns = std::abs(spot.x - start.x) / static_cast<std::int32_t>(w) + 1;
+        const std::int32_t rows = std::abs(spot.y - start.y) / static_cast<std::int32_t>(h) + 1;
+        for (std::int32_t j = 0; j < rows; ++j) {
+            for (std::int32_t i = 0; i < columns; ++i) {
+                add(start.x + sx * i * static_cast<std::int32_t>(w), start.y + sy * j * static_cast<std::int32_t>(h));
             }
         }
     } else {
