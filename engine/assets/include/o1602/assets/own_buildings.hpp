@@ -15,6 +15,7 @@
 
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/goods.hpp"
+#include "o1602/assets/package_graphics.hpp"
 
 namespace o1602::assets {
 
@@ -37,9 +38,11 @@ struct OwnBuilding {
 /// A table that cannot be read is passed over with a warning; a file that is no data file at all
 /// adds nothing. `goods`: what `ware`, `raw` and `raw2` may name besides the original's goods;
 /// `classes`: what `class` may name (resident_classes.hpp), by default the classes of `table`;
-/// `levels`: what `level` may name (unlock_levels.hpp), by default the levels of `table`.
+/// `levels`: what `level` may name (unlock_levels.hpp), by default the levels of `table`; `images`:
+/// what `gfx` may name besides the original's sprite numbers (package_graphics.hpp).
 void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& own, std::string_view package,
                               std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods = {},
-                              std::span<const ResidentClass> classes = {}, std::span<const InfraLevel> levels = {});
+                              std::span<const ResidentClass> classes = {}, std::span<const InfraLevel> levels = {},
+                              std::span<const PackageImage> images = {});
 
 }  // namespace o1602::assets

@@ -33,6 +33,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_content.hpp"
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/package_graphics.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/result.hpp"
@@ -384,6 +385,8 @@ private:
     /// The unlock levels of a new game as the packages change and add them, empty when none does
     /// (docs/modding/levels.md).
     std::vector<assets::InfraLevel> m_levels;
+    /// The images of the packages installed, with their sprite numbers (docs/modding/graphics.md).
+    std::vector<assets::PackageImage> m_package_images;
     /// The content packages installed in <data folder>/mods, in their load order (docs/modding/packages.md).
     std::vector<assets::ModPackage> m_packages;
     /// Packages received from hosts, in <data folder>/mods-cache: used only by games that name them.

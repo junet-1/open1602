@@ -14,7 +14,9 @@
 
 #include "../test_framework.hpp"
 
+#include "o1602/core/compress.hpp"
 #include "o1602/core/file.hpp"
+#include "o1602/core/png_writer.hpp"
 #include "o1602/render/graphics_preloader.hpp"
 
 using namespace o1602;
@@ -326,5 +328,54 @@ TEST_CASE("graphics preloader: a level is made from the sheets of a folder, with
     CHECK(!render::prepare_world_graphics(*game, palette, Zoom::Large, sheets,
                                           render::GraphicsOptions{.page_size = 64, .cancel = &cancel})
                .ok());
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("graphics preloader: the packages' images join the terrain at their sprite numbers") {
+    if (!core::has_zlib()) {
+        SKIP("this build has no zlib");
+    }
+    const auto root = test::temp_path("o1602-preload-images");
+    std::filesystem::remove_all(root);
+    const auto bsh = bsh_file();
+    for (const char* name : {"gfx/stadtfld.bsh", "gfx/ship.bsh"}) {
+        std::filesystem::create_directories((root / name).parent_path());
+        REQUIRE(core::write_file(root / name, bsh).ok());
+    }
+    for (const char* name : {"haeuser.cod", "figuren.cod", "toolgfx/stadtfld.col"}) {
+        std::filesystem::create_directories((root / name).parent_path());
+        REQUIRE(core::write_file(root / name, std::vector<std::uint8_t>{0}).ok());
+    }
+    // Two sprites of 4 x 4, the second without any opaque pixel.
+    std::vector<std::uint8_t> rgba(8 * 4 * 4, 0);
+    for (std::size_t y = 0; y < 4; ++y) {
+        for (std::size_t x = 0; x < 4; ++x) {
+            rgba[(y * 8 + x) * 4 + 3] = 255;
+        }
+    }
+    REQUIRE(core::write_file(root / "tower.png", core::encode_png_rgba(8, 4, rgba)).ok());
+    auto game = assets::GameDirectory::open(root);
+    REQUIRE(game.ok());
+    assets::PackageImage image;
+    image.id = "lights:tower";
+    image.first = assets::kFirstPackageSprite;
+    image.count = 2;
+    image.width = 4;
+    image.height = 4;
+    image.files[0] = root / "tower.png";
+    render::GraphicsOptions options{.page_size = 64};
+    options.package_images = {image};
+    const std::vector<assets::FigureSheet> sheets{assets::FigureSheet::Ship};
+    auto large = render::prepare_world_graphics(*game, assets::Palette{}, Zoom::Large, sheets, options);
+    REQUIRE(large.ok());
+    const render::SpriteAtlas& atlas = large->graphics.atlas;
+    CHECK(atlas.sprite_count() == assets::kFirstPackageSprite + 2 + 1);
+    CHECK(large->graphics.sheet_base(assets::FigureSheet::Ship) ==
+          std::optional<std::uint32_t>(assets::kFirstPackageSprite + 2));
+    CHECK(!atlas.rect(0).empty());  // the terrain's sprite
+    CHECK(atlas.rect(1).empty());   // nothing between the terrain and the images
+    CHECK(atlas.rect(assets::kFirstPackageSprite).width == 4);
+    CHECK(atlas.rect(assets::kFirstPackageSprite + 1).empty());
+    CHECK(large->hit_mask.visible(assets::kFirstPackageSprite, 0, 0));
     std::filesystem::remove_all(root);
 }

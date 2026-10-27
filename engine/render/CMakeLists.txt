@@ -20,6 +20,7 @@ add_library(o1602_render
     src/ship_trail.cpp
     src/tick_trail.cpp
     src/shape_tint.cpp
+    src/package_sprites.cpp
     src/sprite_source.cpp
     src/unit_tint.cpp
     src/variant_tint.cpp

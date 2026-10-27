@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "o1602/assets/original_names.hpp"
+#include "o1602/assets/package_graphics.hpp"
 #include "o1602/assets/resident_classes.hpp"
 #include "o1602/assets/unlock_levels.hpp"
 #include "o1602/core/data_file.hpp"
@@ -41,7 +42,8 @@ const OwnBuilding* find_own_building(std::span<const OwnBuilding> own, std::stri
 
 void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& own, std::string_view package,
                               std::string_view utf8, std::vector<std::string>& warnings, const Goods& goods,
-                              std::span<const ResidentClass> classes, std::span<const InfraLevel> levels) {
+                              std::span<const ResidentClass> classes, std::span<const InfraLevel> levels,
+                              std::span<const PackageImage> images) {
     const std::string where = std::string(package) + "/" + std::string(kOwnBuildingsFile);
     auto tables = core::parse_data_file(utf8);
     if (!tables) {
@@ -76,6 +78,7 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
         std::optional<std::uint8_t> raw2;
         std::optional<std::uint8_t> resident_class;
         std::optional<std::uint8_t> level;
+        const PackageImage* image = nullptr;
         bool ok = true;
         for (const core::DataEntry& e : t.entries) {
             const std::string field = line_of(where, e.value.line) + "'" + e.key + "' ";
@@ -86,6 +89,15 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
                 } else if (like = building_of(table, *e.value.string()); like == nullptr) {
                     warnings.push_back(field + "names no building of the original (anno1602:<number or name>)");
                     ok = false;
+                }
+            } else if (e.key == "gfx" && e.value.string() != nullptr) {
+                // The first sprite of an image of a package (package_graphics.hpp).
+                image = find_package_image(images, *e.value.string());
+                if (image == nullptr) {
+                    warnings.push_back(field + "names no image of a package (<package>:<name>, graphics.toml)");
+                    ok = false;
+                } else {
+                    gfx = image->first;
                 }
             } else if (e.key == "gfx" || e.key == "size_x" || e.key == "size_y") {
                 const std::int64_t* n = e.value.integer();
@@ -173,6 +185,17 @@ void apply_own_buildings_file(BuildingTable& table, std::vector<OwnBuilding>& ow
         }
         if (raw2) {
             b.raw2_ware = *raw2;
+        }
+        // The image holds every sprite the building draws: its tiles, turned four ways, in every
+        // frame of its animation (render::building_sprite).
+        if (image != nullptr) {
+            const std::uint64_t needed = std::uint64_t{b.tile_count()} + std::uint64_t{b.rotate} * 3 +
+                                         (b.anim_count > 1 ? std::uint64_t{b.anim_add} * (b.anim_count - 1) : 0);
+            if (needed > image->count) {
+                warnings.push_back(at + id + ": its image " + image->id + " holds " + std::to_string(image->count) +
+                                   " sprites, the building draws " + std::to_string(needed));
+                continue;
+            }
         }
         const auto number = table.add(b);
         if (!number) {

@@ -10,9 +10,11 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
+#include "o1602/assets/package_graphics.hpp"
 #include "o1602/assets/palette.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/render/banner.hpp"
@@ -39,6 +41,9 @@ struct GraphicsOptions {
     /// Also the dithered copies of SCHATTEN.BSH and EFFEKTE.BSH (WorldGraphics::dither), for the
     /// classic graphics: a few hundred sprites more, an atlas page more at the larger zoom levels.
     bool dither = false;
+    /// The images of the content packages (assets/package_graphics.hpp): their sprites join the
+    /// terrain's at their sprite numbers. An image that cannot be read stays empty, with a warning.
+    std::vector<assets::PackageImage> package_images{};
 };
 
 struct WorldGraphics {

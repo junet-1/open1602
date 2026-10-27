@@ -6,10 +6,9 @@ A content package may add buildings the original's `haeuser.cod` does not have
 needs: its own id, its own values, its own place in the build menu.
 
 **Status:** Done are the file `own_buildings.toml`, the values of such a building
-([values.md](values.md)), its place in the build menu and its id in savegames. Still open, with the
-next steps: pictures of a package's own (`gfx` picks sprites of the original's `STADTFLD` until the
-import of PNG), figures of a package's own, resident classes and unlock levels. What such a building
-makes and uses may be a good of a package ([goods.md](goods.md)).
+([values.md](values.md)), its place in the build menu, its id in savegames, its class and unlock
+level, and pictures of the package's own ([graphics.md](graphics.md)). Still open: figures of a
+package's own. What such a building makes and uses may be a good of a package ([goods.md](goods.md)).
 
 ## The file
 
@@ -25,7 +24,7 @@ everything else names it by. A name holds lower case letters, digits and `_`.
 # mods/lights/own_buildings.toml
 [lighthouse]
 like = "anno1602:watchtower"   # the building of the original it copies (required)
-gfx = 2100                     # its first sprite in STADTFLD.BSH, one per tile
+gfx = 2100                     # its first sprite in STADTFLD.BSH, one per tile (or "lights:<image>")
 size_x = 2                     # its footprint in tiles
 size_y = 2
 ```
@@ -33,7 +32,7 @@ size_y = 2
 | Field | Limits | Meaning |
 |---|---|---|
 | `like` | a building of the original, `anno1602:<name or number>` ([names](values.md#names)) | every value of that building, as the copy's starting point |
-| `gfx` | 0 to 65534 | the first sprite; the building uses `size_x * size_y` sprites from it |
+| `gfx` | 0 to 65534, or an image of a package, `<package>:<name>` ([graphics.md](graphics.md)) | the first sprite; the building uses `size_x * size_y` sprites from it, per direction and frame |
 | `size_x`, `size_y` | 1 to 255 | the footprint in tiles |
 | `level` | an unlock level, `anno1602:<name or number>` or `<package>:<name>` ([levels.md](levels.md)), `""` for always | what the player must have reached to build it |
 | `class` | a class of inhabitants, `anno1602:<name or number>` or `<package>:<name>` ([classes.md](classes.md)), for a house only | whose house it is |
