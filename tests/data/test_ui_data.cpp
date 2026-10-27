@@ -5,8 +5,10 @@
 #include <cstdio>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "../test_framework.hpp"
+#include "selection.hpp"
 
 #include "o1602/assets/gad.hpp"
 #include "o1602/assets/game_directory.hpp"
@@ -94,6 +96,33 @@ TEST_CASE("data: the layouts of GADDATA load; the panel's minimap area and butto
         CHECK(g->menu);
         CHECK(g->radio);
     }
+}
+
+TEST_CASE("data: the military button switches the mode once its duplicate is hidden (CTRL.GAD 30015)") {
+    const auto game = game_or_skip("GADDATA/CTRL.GAD");
+    auto ctrl = assets::load_gad(game, "CTRL.GAD");
+    REQUIRE(ctrl.ok());
+    const assets::Gadget* military = ctrl->find(app::side_mode::kMilitary);
+    const assets::Gadget* duplicate = ctrl->find(app::side_mode::kMilitaryDuplicate);
+    REQUIRE(military != nullptr);
+    REQUIRE(duplicate != nullptr);
+    // The duplicate lies on the military button and comes after it, so it is on top.
+    CHECK(duplicate->pos == military->pos);
+    CHECK(duplicate->size == military->size);
+    const std::int32_t x = military->pos[0] + military->size[0] / 2;
+    const std::int32_t y = military->pos[1] + military->size[1] / 2;
+    const auto click = [&](ui::Panel& panel) {
+        panel.mouse(x, y, true);
+        const std::vector<ui::PanelEvent> events = panel.mouse(x, y, false);
+        return events.empty() ? 0 : events.back().id;
+    };
+    ui::Panel as_loaded(*ctrl, 1.0);
+    CHECK(click(as_loaded) == app::side_mode::kMilitaryDuplicate);
+    // As the Hud sets it up, as the original does at the start of a game (0x0042BF22).
+    ui::Panel panel(std::move(ctrl).value(), 1.0);
+    panel.set_visible(app::side_mode::kMilitaryDuplicate, false);
+    CHECK(click(panel) == app::side_mode::kMilitary);
+    CHECK(panel.selected(app::side_mode::kMilitary));
 }
 
 TEST_CASE("data: the fonts of the three screen sizes, umlauts and the text colours") {

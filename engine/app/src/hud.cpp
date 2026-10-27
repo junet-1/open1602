@@ -335,6 +335,7 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
             }
         }
     }
+    m_ctrl.set_visible(side_mode::kMilitaryDuplicate, false);
     m_ctrl.set_selected(m_mode, true);
     m_gfx_baumat = m_ctrl.layout().constant("GFXBAUMAT").value_or(m_gfx_baumat);
 }
