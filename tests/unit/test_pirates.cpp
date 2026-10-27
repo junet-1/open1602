@@ -2,6 +2,7 @@
 // Pirates and natives (docs/re/pirates.md).
 
 #include <algorithm>
+#include <cstdlib>
 #include <initializer_list>
 #include <memory>
 #include <utility>
@@ -711,4 +712,29 @@ TEST_CASE("factions: blocked slots of a multiplayer game still count for the pir
     REQUIRE(back.ok());
     CHECK(back->players()[5].status == sim::PlayerStatus::Absent);
     CHECK(sim::pirate_nests(*back, w.rules) == 2);
+}
+
+TEST_CASE("natives: warriors roam around the place they went to, on road and ground (0x00456D00)") {
+    // A wander target is a tile of road or ground, which is no building: as a building target it had
+    // no cells, every way failed and the warriors stood in a heap on their road (Windows feedback).
+    World w(false);
+    add_village(w, {{8, 5, 3}});
+    for (int i = 0; i < 3; ++i) {
+        w.military->natives_tick();
+    }
+    REQUIRE(w.world.soldiers().size() == 3);
+    std::vector<std::pair<std::int32_t, std::int32_t>> seen;
+    for (int step = 0; step < 60; ++step) {
+        w.run(1000);
+        for (const sim::Soldier& s : w.world.soldiers()) {
+            const std::pair<std::int32_t, std::int32_t> c{s.cell_x(), s.cell_y()};
+            if (std::find(seen.begin(), seen.end(), c) == seen.end()) {
+                seen.push_back(c);
+            }
+            // Within the wander range of the road (world tile 68, 25 = cells 136, 50).
+            CHECK(std::abs(c.first - 136) <= 2 * 9 + 1);
+            CHECK(std::abs(c.second - 50) <= 2 * 9 + 1);
+        }
+    }
+    CHECK(seen.size() > 20);
 }
