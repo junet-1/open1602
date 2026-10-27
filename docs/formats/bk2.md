@@ -61,6 +61,11 @@ predicted from the neighbours, the AC coefficients come as runs and levels; moti
 half-pel for luma and quarter-pel for chroma. The edges between the blocks are smoothed after
 decoding, unless the frame flags turn that off.
 
+Sizes that are not a multiple of 32: the column block flags count the width rounded up to 32
+(432: 55 flags), the row flags the height rounded up to 16 (240: 29); motion compensation clamps at
+the rounded width and the real height. Librempeg counts the columns from the real width and
+fails on the German credits from frame 48.
+
 The frames are turned into RGBA with the BT.601 matrix in video range.
 
 ### Audio
@@ -74,6 +79,10 @@ Bink Audio 2 with other coefficient scaling.
 
 - `tests/unit/test_bink.cpp`: built files (a flat key frame, a skipped frame, a silent audio track,
   damaged files) and the transforms against their definitions.
+- Against Librempeg on all 94 videos of the History Edition: 93 bit for bit in every frame (Y, U,
+  V); the English credits (436 × 356) differ by at most 3 levels at the right edge, the German
+  credits (432 × 352) match the Königsedition's frames where Librempeg fails. The sound matches to
+  1 LSB.
 - `o1602-tool bk2 <file> [--png DIR] [--every N] [--wav TRACK OUT.wav]` decodes a whole file,
   says how long each frame takes and writes frames as PNG and a track as WAV, to compare with the
   Königsedition's Smacker files.
