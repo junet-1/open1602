@@ -93,6 +93,8 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     CHECK(announcement(people[1])->message == 0x3C);  // "Euer Volk wünscht ein Wirtshaus"
     CHECK(announcement(people[2])->message == 0x12);  // 200 inhabitants
     CHECK(announcement(people[3])->message == 0x21);  // a rival's city passed 1000
+    CHECK(announcement(people[3])->about == kRival);  // in the rival's colour
+    CHECK(!announcement(people[2])->about);           // the own city in the own colour
     CHECK(g.presenter.city_events(g.world, sim::kNoPlayer, {rival_big}).empty());
     // Another city of the same rival at the same size says nothing more, a larger size does (FB-30).
     sim::CityEvent rival_other = rival_big;

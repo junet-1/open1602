@@ -173,8 +173,10 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
             const std::uint32_t key = std::uint32_t{e.owner} << 8 | e.message;
             if (std::find(m_rival_sizes.begin(), m_rival_sizes.end(), key) == m_rival_sizes.end()) {
                 m_rival_sizes.push_back(key);
+                // The icon in the rival's colour, like the rival's new ship (it showed the local
+                // player's colour while pointing at the rival's city).
                 out.emplace_back(announce(static_cast<std::uint16_t>(e.message + 0x0C),
-                                          city_spot(world, world.city(e.island, e.city))));
+                                          city_spot(world, world.city(e.island, e.city)), e.owner));
             }
             continue;
         }
