@@ -161,7 +161,7 @@ double correlation(const std::vector<float>& a, const std::vector<double>& b) {
     double aa = 0;
     double bb = 0;
     for (std::size_t i = 0; i < a.size(); ++i) {
-        const double ai = a[i];
+        const auto ai = static_cast<double>(a[i]);
         ab += ai * b[i];
         aa += ai * ai;
         bb += b[i] * b[i];
