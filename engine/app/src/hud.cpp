@@ -381,7 +381,8 @@ void Hud::draw_resources() {
     }
     if (r.inhabitants) {
         if (r.shield >= 0) {
-            // The owner's banner: drawn for the original four, recoloured for the others (LC-5).
+            // The coat of arms of a human or computer owner: drawn for the original four, recoloured for
+            // the others (LC-5).
             const render::Banner* banner =
                 m_banners != nullptr ? m_banners->get(static_cast<sim::BannerId>(r.shield)) : nullptr;
             const render::BannerArt art = render::BannerArt::at(m_gfx_baumat + 17);
