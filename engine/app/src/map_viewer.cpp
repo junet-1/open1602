@@ -1458,6 +1458,7 @@ void MapViewer::render() {
                                       layers, m_commands, m_draw_scratch);
         preview.restore();
         draw_map(*graphics);
+        draw_unit_arms();
         draw_stock_notes();
         draw_corner_info();
         m_input->draw_overlay();
@@ -1743,6 +1744,47 @@ void MapViewer::draw_stock_notes() {
         items.push_back(std::move(d));
     }
     m_hud->draw_over_map(items);
+}
+
+void MapViewer::draw_unit_arms() {
+    const sim::Player* local = m_state->world.player(m_local_player);
+    if (m_hud == nullptr || !m_show_unit_arms || local == nullptr) {
+        return;
+    }
+    // As the History Edition shows them: a small coat of arms on a thin pole over each of the
+    // player's own units on land, none over ships or other players' units. Heights in half tile
+    // widths over the figure's feet, so the mark grows and shrinks with the zoom.
+    constexpr double kPoleFoot = 1.4;
+    constexpr double kPoleTop = 2.0;
+    constexpr double kArmsTop = 2.9;
+    const render::WorldView view = render::fit_view(m_camera.view(), m_state->world);
+    const ui::Rect& v = m_hud->game_view();
+    const auto screen = [&](const render::FigureInstance& f, double z) {
+        const auto [px, py] = render::text_figure_point(view, f.x, f.y, f.z + z);
+        double sx = 0.0;
+        double sy = 0.0;
+        m_camera.world_to_screen(px, py, sx, sy);
+        return std::pair{static_cast<std::int32_t>(std::floor(sx)), static_cast<std::int32_t>(std::floor(sy))};
+    };
+    std::vector<Hud::UnitArms> marks;
+    for (const sim::Soldier& s : m_state->world.soldiers()) {
+        if (s.owner != m_local_player || s.away()) {
+            continue;
+        }
+        const render::FigureInstance* f = m_soldiers.find(s.id);
+        if (f == nullptr) {
+            continue;
+        }
+        const auto [x, foot] = screen(*f, kPoleFoot);
+        const auto top = screen(*f, kPoleTop).second;
+        const auto arms = screen(*f, kArmsTop).second;
+        const std::int32_t h = std::max(4, top - arms);
+        if (x < v.x - h || x > v.x + v.w + h || foot < v.y || arms > v.y + v.h) {
+            continue;
+        }
+        marks.push_back(Hud::UnitArms{ui::Rect{x - h / 2, top - h, h, h}, x, top, foot});
+    }
+    m_hud->draw_unit_arms(marks, local->banner);
 }
 
 void MapViewer::draw_corner_info() {

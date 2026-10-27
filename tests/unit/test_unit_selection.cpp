@@ -225,3 +225,22 @@ TEST_CASE("unit selection: Tab narrows to one type after the other, then back to
     CHECK(!sel.cycle_types(f.world));
     CHECK(sel.size() == 1);
 }
+
+TEST_CASE("unit selection: all own units of one kind on screen (History Edition, Alt+1 .. Alt+4)") {
+    Field f;
+    const UnitRef a = f.soldier(10, 10);        // infantry
+    const UnitRef b = f.soldier(10, 14, 9);     // musketeer
+    const UnitRef c = f.soldier(10, 18);        // infantry
+    const UnitRef d = f.soldier(12, 18, 1, 1);  // another player's infantry
+    const UnitRef ship = f.ship(30, 30);
+    const std::vector<ui::UnitCandidate> screen = {{a, 1}, {b, 1}, {c, 1}, {d, 1}, {ship, 1}};
+    ui::UnitSelection sel;
+    sel.select(f.world, b);
+    CHECK(sel.select_kind(f.world, f.figures, screen, 0, 1));
+    CHECK((sel.units() == std::vector<UnitRef>{a, c}));
+    CHECK(sel.select_kind(f.world, f.figures, screen, 0, 3));
+    CHECK(sel.units() == std::vector<UnitRef>{b});
+    // No cannoneer on screen: the selection stays.
+    CHECK(!sel.select_kind(f.world, f.figures, screen, 0, 4));
+    CHECK(sel.units() == std::vector<UnitRef>{b});
+}

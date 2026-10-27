@@ -119,6 +119,7 @@ private:
     void toggle_owners() override { m_show_owners = !m_show_owners; }
     void toggle_fps() override { m_show_fps = !m_show_fps; }
     void toggle_coordinates() override { m_show_coordinates = !m_show_coordinates; }
+    void toggle_unit_arms() override { m_show_unit_arms = !m_show_unit_arms; }
     void toggle_fullscreen() override;
     void toggle_pause_video() override;
 
@@ -129,6 +130,8 @@ private:
     void update_title(double fps);
     /// The frame rate and the tile under the mouse in the map's top right corner, as switched on.
     void draw_corner_info();
+    /// The unit identification (M, History Edition): the coat of arms over every own land unit.
+    void draw_unit_arms();
     /// The English developer readout under O1602_DEBUG_TITLE: the map under the mouse, the selection, fps.
     [[nodiscard]] std::string debug_title(double fps);
     /// Where the camera starts and Home goes: the local player's Kontor, else his first ship,
@@ -481,6 +484,7 @@ private:
     bool m_show_owners = false;              ///< ownership overlay (key O)
     bool m_show_fps = false;                 ///< the frame rate in the map's corner (Ctrl+F)
     bool m_show_coordinates = false;         ///< the tile under the mouse in the map's corner (Ctrl+K)
+    bool m_show_unit_arms = false;           ///< coats of arms over the own land units (M)
     double m_fps = 0.0;                      ///< frames a second, measured for the title
     bool m_quit_pending = false;             ///< "Ende" waits for the answer to its question
     AppSettings m_app_settings;              ///< settings.cfg in the user's data folder

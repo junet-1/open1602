@@ -53,6 +53,10 @@ constexpr std::pair<KeyAction, std::string_view> kNames[] = {
     {KeyAction::NextIdleShip, "next_idle_ship"},
     {KeyAction::NextIdleUnit, "next_idle_unit"},
     {KeyAction::NextKindInSelection, "next_kind_in_selection"},
+    {KeyAction::SelectInfantry, "select_infantry"},
+    {KeyAction::SelectMusketeers, "select_musketeers"},
+    {KeyAction::SelectCavalry, "select_cavalry"},
+    {KeyAction::SelectCannoneers, "select_cannoneers"},
     {KeyAction::AttackMove, "attack_move"},
     {KeyAction::Stop, "stop"},
     {KeyAction::HoldPosition, "hold_position"},
@@ -69,6 +73,7 @@ constexpr std::pair<KeyAction, std::string_view> kNames[] = {
     {KeyAction::ShowOwners, "show_owners"},
     {KeyAction::ShowFps, "show_fps"},
     {KeyAction::ShowCoordinates, "show_coordinates"},
+    {KeyAction::ShowUnitArms, "show_unit_arms"},
     {KeyAction::Fullscreen, "fullscreen"},
     {KeyAction::Quit, "quit"},
 };
