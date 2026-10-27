@@ -601,9 +601,6 @@ void MainMenu::refresh_mission() {
     for (const std::int32_t id : {kScoresHeading, kScoresFrame, kScoresUp, kScoresDown}) {
         p.set_visible(id, scores);
     }
-    // Faded at the ends of the list, like the original's scroll arrows in MISSION.GAD.
-    p.set_faded(kScoresUp, m_scores_first == 0);
-    p.set_faded(kScoresDown, m_scores_first + kScoreRows >= 12);
     for (std::size_t r = 0; r < kScoreRows; ++r) {
         const auto k = static_cast<std::int32_t>(r);
         const std::size_t i = m_scores_first + r;
@@ -695,8 +692,13 @@ std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, ui::k
     } else if (m_screen == Screen::Mission && m_chosen < m_scenarios.size()) {
         refresh_mission();
         // The briefing's end is known only with the fonts: "down" past it would blank the text.
-        m_briefing_line = std::min(m_briefing_line, p->max_scroll(kBriefing, fonts));
+        const std::int32_t last = p->max_scroll(kBriefing, fonts);
+        m_briefing_line = std::min(m_briefing_line, last);
         p->set_scroll(kBriefing, m_briefing_line);
+        // Its arrows are faded while the whole briefing fits (0x0048B195); then they scroll nothing.
+        for (const std::int32_t id : {kBriefingUp, kBriefingDown}) {
+            p->set_faded(id, last == 0);
+        }
     } else if (m_screen == Screen::Colour) {
         refresh_colour();
     } else if (m_screen == Screen::Settings) {
