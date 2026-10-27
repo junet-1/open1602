@@ -155,7 +155,7 @@ TEST_CASE("build tool: a field is dragged over a rectangle, a click places one")
     CHECK(!tool.dragging());
 }
 
-TEST_CASE("build tool: houses and piers are dragged out side by side, as in the History Edition") {
+TEST_CASE("build tool: houses are dragged out side by side, piers along a line, as in the History Edition") {
     const Map m;
     app::BuildTool tool(m.buildings);
     tool.set_mode(app::BuildTool::Mode::Build);
@@ -180,6 +180,15 @@ TEST_CASE("build tool: houses and piers are dragged out side by side, as in the 
     const auto row = tool.build_order(m.world, 0, {0, 5, 7});
     REQUIRE(row.has_value());
     CHECK(row->items.size() == 4);
+    // Piers go along the straight line to the mouse, not over a rectangle (History Edition).
+    const auto slant = tool.build_order(m.world, 0, {0, 6, 9});
+    REQUIRE(slant.has_value());
+    at.clear();
+    for (const sim::BuildItem& item : slant->items) {
+        at.emplace_back(item.x, item.y);
+    }
+    const std::vector<std::pair<std::int32_t, std::int32_t>> line{{2, 7}, {3, 8}, {4, 8}, {5, 9}, {6, 9}};
+    CHECK(at == line);
 }
 
 TEST_CASE("build tool: trees keep their variants during a drag") {

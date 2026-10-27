@@ -172,6 +172,31 @@ std::optional<sim::BuildOrder> BuildTool::build_order(const sim::World& world, s
                 add(x, y);
             }
         }
+    } else if (multi_drag() && m_drag_start->island == spot.island && b->kind == sim::kind::kPier) {
+        // Piers on every tile of the straight line from the start to the mouse (History Edition):
+        // along a coast a row of them, the tiles off the coast left out.
+        const std::int32_t dx = std::abs(spot.x - start.x);
+        const std::int32_t dy = -std::abs(spot.y - start.y);
+        const std::int32_t sx = spot.x >= start.x ? 1 : -1;
+        const std::int32_t sy = spot.y >= start.y ? 1 : -1;
+        std::int32_t x = start.x;
+        std::int32_t y = start.y;
+        std::int32_t err = dx + dy;
+        while (true) {
+            add(x, y);
+            if (x == spot.x && y == spot.y) {
+                break;
+            }
+            const std::int32_t e2 = 2 * err;
+            if (e2 >= dy) {
+                err += dy;
+                x += sx;
+            }
+            if (e2 <= dx) {
+                err += dx;
+                y += sy;
+            }
+        }
     } else if (multi_drag() && m_drag_start->island == spot.island) {
         // Side by side in steps of the footprint, row by row from the start towards the mouse,
         // as far as the mouse reaches (History Edition: rows and blocks).
