@@ -41,7 +41,10 @@ TEST_CASE("map gestures: the right button drags the map, almost in place it is a
     CHECK(drag.move(3.0, 0.0));
     CHECK(drag.move(0.0, -1.0));
     CHECK(!drag.release());  // 4 px: a drag
-    // Pressed on the panel, released on the map: judged by the last drag.
+    // Pressed on the panel (a right click on the minimap), released anywhere: no click on the map.
+    CHECK(!drag.release());
+    drag.press();
+    CHECK(drag.release());
     CHECK(!drag.release());
 }
 

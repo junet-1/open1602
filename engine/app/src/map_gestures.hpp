@@ -51,10 +51,12 @@ public:
     /// The mouse moved by (dx, dy); true while the map follows it.
     bool move(double dx, double dy);
     /// The button went up: true if that was a click. A release without a press on the map (it went
-    /// down on the panel) is judged by the last drag, as it always was.
+    /// down on the panel, where the minimap already gave its order) is none, so that it does not
+    /// send the selection to the tile under the mouse as well.
     bool release() {
+        const bool click = m_dragging && m_distance < 4.0;
         m_dragging = false;
-        return m_distance < 4.0;
+        return click;
     }
     [[nodiscard]] bool dragging() const noexcept { return m_dragging; }
 
