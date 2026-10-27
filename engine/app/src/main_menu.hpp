@@ -82,6 +82,9 @@ struct MenuEvent {
     /// Scenario: the campaign of the menu's entry (the header of its first part), which the
     /// original records the win under, whatever the started part's own header says (D-015).
     std::optional<std::uint32_t> campaign{};
+    /// Scenario in a campaign: the part chosen (the digit of its file); the file's SZENE_RANKING
+    /// is its stars, not its part.
+    std::uint32_t part = 0;
 };
 
 class MainMenu {

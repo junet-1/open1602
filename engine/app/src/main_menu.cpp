@@ -207,12 +207,12 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, con
             continue;
         }
         MenuScenario& s = by_name[lower(name)];
-        // The entry takes the header of its lowest part, as the original does on Windows, where the
-        // files come in alphabetical order; other file systems list them in any order, and a part
-        // whose header differs (Pirata1 and Feindliche Nachbarn1 say campaign 0, D-015) must not
-        // decide which campaign the whole entry belongs to.
-        const bool lowest = std::all_of(s.files.begin(), s.files.end(), [&](const auto& f) { return first < f.first; });
-        if (lowest) {
+        // The entry takes the header of its last part: the original reads every file in alphabetical
+        // order (Windows lists them so) and keeps the last header, which shows in its stars. Other
+        // file systems list the files in any order, and a part whose header differs (Pirata1 and
+        // Feindliche Nachbarn1 say campaign 0, D-015) must not decide the whole entry.
+        const bool last = std::all_of(s.files.begin(), s.files.end(), [&](const auto& f) { return first > f.first; });
+        if (last) {
             s.name = game != nullptr ? game->expand(name) : name;
             const std::u8string u8name = entry.path().stem().u8string();
             std::size_t cut = u8name.size();
@@ -477,13 +477,6 @@ void MainMenu::select_scenario(std::size_t index) {
         std::any_of(s.files.begin(), s.files.end(), [&](const auto& f) { return f.first == m_tutorial_chapter; })) {
         m_variant = m_tutorial_chapter;
     }
-    // A campaign starts at its furthest open part.
-    if (s.header.campaign != assets::ScenarioHeader::kNone) {
-        const std::vector<std::uint8_t> digits = choice_digits(s);
-        if (!digits.empty()) {
-            m_variant = digits[std::min(campaign_parts_open(s), digits.size() - 1)];
-        }
-    }
     m_scores_first = 0;
     load_details();
 }
@@ -493,10 +486,8 @@ void MainMenu::load_details() {
     m_briefing_line = 0;
     // The briefing: the mission of the human in the file (AUFTRAG4 of the player record).
     m_briefing.clear();
-    std::uint32_t part = s.header.ranking;
     if (auto bytes = core::read_file(chosen_file())) {
         if (auto file = assets::ChunkFile::from_bytes(std::move(bytes).value())) {
-            part = assets::load_scenario_header(*file).ranking;
             const auto players = assets::load_players(*file);
             const auto missions = assets::load_missions(*file);
             if (missions && !missions->empty()) {
@@ -523,7 +514,7 @@ void MainMenu::load_details() {
             sim::GameIdentity part_of;
             part_of.name = s.name;
             part_of.campaign = s.header.campaign;
-            part_of.ranking = part;
+            part_of.ranking = m_variant == 0xFF ? 0 : m_variant;  // the part, not the file's stars
             if (auto label = high_score_file(part_of, m_texts->section("KAMPAGNE"), false); !label.empty()) {
                 name = std::move(label);
             }
@@ -597,6 +588,8 @@ void MainMenu::refresh_mission() {
             label = text("ENDLESSKIND", digits[i]);
         } else if (s.header.mission_number == kTutorial) {
             label = text("TUTORKIND", digits[i]);
+        } else if (s.header.campaign != assets::ScenarioHeader::kNone) {
+            label = text("KAMPAGNE", std::size_t{5} * s.header.campaign + digits[i]);  // "Der Retter"
         }
         if (label.empty()) {
             label = ui::tr("menu.part", {std::to_string(digits[i] + 1)});
@@ -740,6 +733,9 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     ev.name = m_name;
                     ev.setup = m_scenario;
                     ev.campaign = chosen_campaign();
+                    if (ev.campaign) {
+                        ev.part = m_variant == 0xFF ? 0 : m_variant;
+                    }
                     out.push_back(std::move(ev));
                     break;
                 }

@@ -403,6 +403,7 @@ private:
     std::vector<std::string> m_ship_names;
     std::vector<std::string> m_campaign_labels;     ///< [KAMPAGNE]: the high score lists of campaign parts
     std::optional<std::uint32_t> m_menu_campaign;   ///< the campaign the menu started the game as (D-015)
+    std::uint32_t m_menu_part = 0;                  ///< and its part
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters

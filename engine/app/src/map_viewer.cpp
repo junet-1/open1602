@@ -2954,6 +2954,7 @@ void MapViewer::apply_menu() {
                 started = load_game(e.path, e.setup ? &e.setup->rules : nullptr);
                 if (started) {
                     m_menu_campaign = e.campaign;
+                    m_menu_part = e.part;
                 }
                 if (started && e.setup && !(e.setup->rules == m_app_settings.scenario.rules)) {
                     m_app_settings.scenario = *e.setup;
@@ -3193,10 +3194,12 @@ void MapViewer::show_end_screen(sim::GameOutcome outcome, bool view_only) {
 
 sim::GameIdentity MapViewer::game_identity() const {
     sim::GameIdentity game = sim::game_identity(m_state->world);
-    // The original records a campaign part under the campaign of the menu, not the part's own
-    // header: Pirata1 and Feindliche Nachbarn1 say campaign 0 (D-015).
+    // The original records a campaign part under the campaign and part chosen in the menu, not the
+    // file's own header: Pirata1 and Feindliche Nachbarn1 say campaign 0 (D-015), and SZENE_RANKING
+    // is the stars of a part (Der Magnat 2, 3, 2), not its number.
     if (m_menu_campaign && game.campaign != sim::GameIdentity::kNone) {
         game.campaign = *m_menu_campaign;
+        game.ranking = m_menu_part;
     }
     return game;
 }
