@@ -447,7 +447,7 @@ bool Military::plan_to(Soldier& s, const Target& target, std::int32_t radius, bo
     } else {
         // The object itself or a cell next to it, as near to it as can be. An own doctor only takes the
         // soldier in from the next cell, so the way must end there: the original plans anew until then.
-        const std::int32_t goal = heals_at(s, target) ? kDoctorGoal : kFriendlyGoal;
+        const std::int32_t goal = friendly_goal(s, target);
         r.goal = [rect, goal](std::int32_t x, std::int32_t y) { return rect.distance(x, y) <= goal; };
     }
     const LandCourse course = m_planner.plan(land, r);
@@ -468,6 +468,25 @@ bool Military::heals_at(const Soldier& s, const Target& t) const {
     const auto b =
         building_at(*m_world, *m_buildings, t.island, {static_cast<std::int32_t>(t.x), static_cast<std::int32_t>(t.y)});
     return b && b->type->prod_kind == prod::kKlinik;
+}
+
+std::int32_t Military::friendly_goal(const Soldier& s, const Target& t) const {
+    if (heals_at(s, t)) {
+        return kDoctorGoal;
+    }
+    if (t.kind == Target::Kind::Spot) {
+        // A place the soldier can stand on is walked onto, however near it is; one that is built
+        // over or where another unit stands is near enough from a few cells away.
+        const auto x = static_cast<std::int32_t>(t.x);
+        const auto y = static_cast<std::int32_t>(t.y);
+        bool taken = m_combat->land().cell(x, y, 0) != LandMap::Cell::Walk;
+        near_units(x, y, 0, [&](const Soldier& o) {
+            taken = taken || (o.id != s.id && !o.away() && o.cell_x() == x && o.cell_y() == y);
+            return taken;
+        });
+        return taken ? kFriendlyGoal : 0;
+    }
+    return kFriendlyGoal;
 }
 
 bool Military::arrived(Soldier& s) {
@@ -501,7 +520,7 @@ bool Military::arrived(Soldier& s) {
             }
         }
     }
-    if (d > kFriendlyGoal) {
+    if (d > friendly_goal(s, s.target)) {
         return false;
     }
     if (s.patrol.active && s.target == s.patrol.points[s.patrol.index]) {
