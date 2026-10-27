@@ -68,6 +68,11 @@ inline constexpr std::uint32_t kHoldCapacity = 50 * 32;
 [[nodiscard]] std::optional<std::size_t> kontor_in_reach(const World& world, const assets::BuildingTable& buildings,
                                                          std::int32_t wx, std::int32_t wy);
 
+/// Whether ships can load, unload or trade at the city's Kontor (0x0044E747): a destroyed Kontor
+/// ("Kontor zerstört") only while its owner is a human or computer player still in the game, not
+/// one of the natives, pirates or a defeated player.
+[[nodiscard]] bool kontor_open(const World& world, const assets::BuildingTable& buildings, const City& city);
+
 /// Moving a ship.
 struct ShipOrder {
     PlayerId player = kNoPlayer;

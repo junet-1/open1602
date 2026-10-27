@@ -27,13 +27,14 @@ constexpr std::uint32_t kWeaver = 20507;
 constexpr std::uint32_t kKontor = 22101;
 constexpr std::uint32_t kMarket = 20809;
 constexpr std::uint32_t kHouse = 20640;
+constexpr std::uint32_t kDestroyedKontor = 22121;
 
 constexpr std::uint8_t kFlour = 5;
 constexpr std::uint8_t kBread = 10;
 constexpr std::uint8_t kCloth = 14;
 
 /// Road, ground and forest; a bakery (flour -> bread), a mill (makes flour), a weaver (makes
-/// cloth, a finished good), a warehouse and a market.
+/// cloth, a finished good), a warehouse, a market and a destroyed warehouse.
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
     const auto doc = assets::cod::parse(
@@ -59,6 +60,10 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: +1\n  Id: 20809\n  Kind: 14\n  Gfx: 50\n  Size: 3, 3\n  Wegspeed: 120, 120, 120, 100\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 7\n    Ware: 1\n    Rohstoff: 1\n    Rohmenge: 1\n    Maxlager: 30\n"
         "    Figurnr: 82\n    Figuranz: 2\n    Radius: 12\n  EndObj\n"
+        "  @Nummer: +1\n  Id: 22121\n  Kind: 14\n  Gfx: 70\n  Size: 2, 2\n  Tuerflg: 1\n  Destroyflg: 1\n"
+        "  Wegspeed: 120, 120, 120, 100\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Ware: 1\n    Rohstoff: 1\n    Rohmenge: 1\n    Maxlager: 20\n"
+        "    Figurnr: 82\n    Figuranz: 1\n    Radius: 12\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -426,6 +431,16 @@ TEST_CASE("logistics: carts respect reservations and warehouse room (S-023, S-02
     town.production(13, 6).stock = 0;
     logistics.handle(needs(town.index(2, 2), sim::kAllWares));
     CHECK(logistics.walkers().size() == 0);
+}
+
+TEST_CASE("logistics: a destroyed Kontor gives its own room and no market bonus (0x0047AB00)") {
+    Town town;
+    town.place(kMarket, 2, 2);
+    town.place(kDestroyedKontor, 24, 3);
+    town.finish({{2, 2}, {24, 3}});
+    sim::Logistics logistics(town.world, town.buildings, town.figures);
+    // Base 20 t of the destroyed Kontor; only the standing market counts, as the first storehouse.
+    CHECK(town.city().capacity == 20 * 32);
 }
 
 TEST_CASE("logistics: carts are not drawn on the tiles of buildings (0x00451590)") {
