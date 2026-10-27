@@ -28,6 +28,7 @@ with milestone M8: packages as archives and adding content of a package's own
     levels.toml        unlock levels, changed and new (levels.md)
     graphics.toml      PNG images of the package's own (graphics.md)
     icons.toml         PNG icons of the package's own (graphics.md)
+    figure_images.toml figures and ships drawn with the package's images (graphics.md)
     music.toml         music of the package's own (sounds.md)
 ```
 
