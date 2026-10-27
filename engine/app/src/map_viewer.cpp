@@ -2542,7 +2542,6 @@ core::Status MapViewer::load_game(const std::filesystem::path& path, const sim::
     }
     std::size_t warnings = 0;
     auto world = read_world(path, &warnings);
-    m_menu_campaign.reset();
     if (!world) {
         return world.error();
     }
@@ -2783,6 +2782,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     // the one shown behind the lobby, whose people the computer plays in the new game.
     m_session_roles.clear();
     m_state = std::move(next);
+    m_campaign_part = source.empty() ? std::nullopt : campaign_part_of(source);
     use_game_packages();
     m_command_sink.set_simulation(&m_state->simulation);
     m_options.scenario = source;
@@ -2952,10 +2952,6 @@ void MapViewer::apply_menu() {
                     menu->set_tutorial_chapter(*e.tutorial_chapter);
                 }
                 started = load_game(e.path, e.setup ? &e.setup->rules : nullptr);
-                if (started) {
-                    m_menu_campaign = e.campaign;
-                    m_menu_part = e.part;
-                }
                 if (started && e.setup && !(e.setup->rules == m_app_settings.scenario.rules)) {
                     m_app_settings.scenario = *e.setup;
                     save_settings();
@@ -3194,12 +3190,10 @@ void MapViewer::show_end_screen(sim::GameOutcome outcome, bool view_only) {
 
 sim::GameIdentity MapViewer::game_identity() const {
     sim::GameIdentity game = sim::game_identity(m_state->world);
-    // The original records a campaign part under the campaign and part chosen in the menu, not the
-    // file's own header: Pirata1 and Feindliche Nachbarn1 say campaign 0 (D-015), and SZENE_RANKING
-    // is the stars of a part (Der Magnat 2, 3, 2), not its number.
-    if (m_menu_campaign && game.campaign != sim::GameIdentity::kNone) {
-        game.campaign = *m_menu_campaign;
-        game.ranking = m_menu_part;
+    // The campaign and part as the menu has them, not the file's header (campaign_part_of).
+    if (m_campaign_part && game.campaign != sim::GameIdentity::kNone) {
+        game.campaign = m_campaign_part->campaign;
+        game.ranking = m_campaign_part->part;
     }
     return game;
 }

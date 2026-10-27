@@ -299,6 +299,12 @@ TEST_CASE("main menu: a campaign takes the header of its last part, whatever ord
     CHECK(pirata->header.campaign == 3);
     CHECK(pirata->header.ranking == 2);  // the stars of the last part, as the original shows them
     CHECK(pirata->files.size() == 3);
+    // A won part counts for the entry's campaign and the digit of its name, not its own header.
+    const auto part = app::campaign_part_of(folder / "Pirata1.szs");
+    REQUIRE(part.has_value());
+    CHECK(part->campaign == 3);
+    CHECK(part->part == 1);
+    CHECK(!app::campaign_part_of(folder / "game11.gam").has_value());
     std::filesystem::remove_all(folder);
 }
 

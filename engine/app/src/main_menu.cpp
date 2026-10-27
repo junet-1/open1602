@@ -260,6 +260,21 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, con
     return out;
 }
 
+std::optional<CampaignPart> campaign_part_of(const std::filesystem::path& file) {
+    const std::array<std::string, 4> headings{};
+    for (const MenuScenario& s : scenario_list(file.parent_path(), headings, nullptr)) {
+        if (s.separator || s.header.campaign == assets::ScenarioHeader::kNone) {
+            continue;
+        }
+        for (const auto& [digit, path] : s.files) {
+            if (path.filename() == file.filename()) {
+                return CampaignPart{s.header.campaign, digit == 0xFF ? 0U : digit};
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 const std::string& MainMenu::default_name() {
     return ui::tr("menu.default_name");
 }
@@ -550,13 +565,6 @@ void MainMenu::append_level_notes() {
     m_briefing += notes;
 }
 
-std::optional<std::uint32_t> MainMenu::chosen_campaign() const {
-    if (m_chosen >= m_scenarios.size() || m_scenarios[m_chosen].header.campaign == assets::ScenarioHeader::kNone) {
-        return std::nullopt;
-    }
-    return m_scenarios[m_chosen].header.campaign;
-}
-
 std::filesystem::path MainMenu::chosen_file() const {
     if (m_chosen >= m_scenarios.size()) {
         return {};
@@ -732,10 +740,6 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     ev.path = chosen_file();
                     ev.name = m_name;
                     ev.setup = m_scenario;
-                    ev.campaign = chosen_campaign();
-                    if (ev.campaign) {
-                        ev.part = m_variant == 0xFF ? 0 : m_variant;
-                    }
                     out.push_back(std::move(ev));
                     break;
                 }

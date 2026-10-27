@@ -52,6 +52,16 @@ struct MenuScenario {
                                                       const std::array<std::string, 4>& headings,
                                                       const assets::GameDirectory* game = nullptr);
 
+/// A campaign part as the original records its win: the campaign of the menu's entry for the file
+/// (scenario_list) and the part, the digit of its name. Not the file's own header: Pirata1 and
+/// Feindliche Nachbarn1 say campaign 0 (D-015), and SZENE_RANKING is a part's stars, not its number.
+struct CampaignPart {
+    std::uint32_t campaign = 0;
+    std::uint32_t part = 0;
+};
+/// Nothing for a file outside the campaigns or not in a scenario folder (a savegame).
+[[nodiscard]] std::optional<CampaignPart> campaign_part_of(const std::filesystem::path& file);
+
 struct MenuEvent {
     enum class Kind : std::uint8_t {
         Quit,          ///< leave the program (after a question)
@@ -79,12 +89,6 @@ struct MenuEvent {
     std::optional<EndlessSetup> setup{};
     /// Scenario: the chapter of the tutorial, nothing for another scenario.
     std::optional<std::uint8_t> tutorial_chapter{};
-    /// Scenario: the campaign of the menu's entry (the header of its first part), which the
-    /// original records the win under, whatever the started part's own header says (D-015).
-    std::optional<std::uint32_t> campaign{};
-    /// Scenario in a campaign: the part chosen (the digit of its file); the file's SZENE_RANKING
-    /// is its stars, not its part.
-    std::uint32_t part = 0;
 };
 
 class MainMenu {
@@ -174,8 +178,6 @@ private:
     /// The endless game: the lines on the chosen level below the briefing.
     void append_level_notes();
     [[nodiscard]] std::filesystem::path chosen_file() const;
-    /// The campaign of the chosen entry, nothing for a scenario outside the campaigns.
-    [[nodiscard]] std::optional<std::uint32_t> chosen_campaign() const;
 
     const assets::GameDirectory* m_game;
     const assets::TextTable* m_texts;
