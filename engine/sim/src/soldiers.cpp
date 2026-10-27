@@ -144,6 +144,15 @@ void Military::start_wait(Soldier& s, std::uint32_t ms) {
     m.duration_us = std::max<std::uint32_t>(1, ms * 1000U);
 }
 
+void Military::rest(Soldier& s) {
+    // A unit that neither walks nor fires stands: the walk or the attack it ended with does not go
+    // on playing while it waits.
+    if (s.anim == kAnimWalk || s.anim == kAnimAttack) {
+        s.anim = kAnimStand;
+    }
+    start_wait(s, idle_ms(s));
+}
+
 void Military::advance(Soldier& s, std::uint32_t budget_us) {
     for (std::size_t step = 0; step < kMaxSteps; ++step) {
         SoldierMotion& m = s.motion;
@@ -732,7 +741,7 @@ void Military::decide(Soldier& s) {
         }
         // Out of range or sight: walk into range (step 6); holding its position it waits.
         if (s.hold) {
-            start_wait(s, idle_ms(s));
+            rest(s);
             return;
         }
         if (!plan_to(s, enemy, kPlanRadius, true)) {
@@ -741,7 +750,7 @@ void Military::decide(Soldier& s) {
                 next_queued(s);
                 s.failures = 0;
             }
-            start_wait(s, idle_ms(s));
+            rest(s);
             return;
         }
     } else if (chase) {
@@ -767,7 +776,7 @@ void Military::decide(Soldier& s) {
                     next_queued(s);
                     s.failures = 0;
                 }
-                start_wait(s, idle_ms(s));
+                rest(s);
                 return;
             }
         }
@@ -780,10 +789,7 @@ void Military::decide(Soldier& s) {
         }
     }
     if (!start_next_run(s)) {
-        if (s.anim == kAnimWalk) {
-            s.anim = kAnimStand;
-        }
-        start_wait(s, idle_ms(s));
+        rest(s);
     }
 }
 

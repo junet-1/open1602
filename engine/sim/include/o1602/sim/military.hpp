@@ -202,6 +202,8 @@ private:
     void decide(Soldier& s);
     [[nodiscard]] static std::uint32_t idle_ms(const Soldier& s) noexcept;
     void start_wait(Soldier& s, std::uint32_t ms);
+    /// Waits standing (idle_ms), the walking or attack animation ended.
+    void rest(Soldier& s);
     bool start_next_run(Soldier& s);
     bool plan(Soldier& s, std::int32_t radius, bool hostile_goal);
     bool plan_to(Soldier& s, const Target& target, std::int32_t radius, bool hostile_goal);

@@ -68,6 +68,8 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     REQUIRE(city.size() == 2);
     CHECK(announcement(city[0])->message == 0x33);
     CHECK(announcement(city[1])->message == 0x48);  // "Das Volk bekommt kein Baumaterial"
+    // Every message points somewhere (Space jumps there): a city without a Kontor at its island's middle.
+    CHECK((announcement(city[0])->tile == std::make_pair(110.0, 55.0)));
 
     // Shortages, wishes and population marks (MELDUNG 0x11-0x44).
     sim::CityEvent spices = shortage;
@@ -127,6 +129,7 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     const auto islands = g.presenter.island_events(g.world, kMe, {drought});
     REQUIRE(islands.size() == 1);
     CHECK(announcement(islands[0])->message == 0x03);
+    CHECK(announcement(islands[0])->tile.has_value());
 
     sim::DiplomacyNotice offer;
     offer.kind = sim::DiplomacyNotice::Kind::TradeOffered;
@@ -135,11 +138,17 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     sim::DiplomacyNotice other = offer;
     other.to = kRival;
     other.from = kMe;
-    const auto diplomacy = g.presenter.diplomacy_notices(kMe, {offer, other});
+    const auto diplomacy = g.presenter.diplomacy_notices(g.world, kMe, {offer, other});
     REQUIRE(diplomacy.size() == 1);
     CHECK(announcement(diplomacy[0])->message == 0x51);
     // The icon in the colour of who made the offer.
     CHECK(announcement(diplomacy[0])->about == std::optional<sim::PlayerId>(kRival));
+    // It points at the rival's city, at its Kontor once it has one.
+    g.world.city(0, kRival)->warehouse_x = 4;
+    g.world.city(0, kRival)->warehouse_y = 6;
+    const auto at_kontor = g.presenter.diplomacy_notices(g.world, kMe, {offer});
+    REQUIRE(at_kontor.size() == 1);
+    CHECK((announcement(at_kontor[0])->tile == std::make_pair(104.0, 56.0)));
 }
 
 TEST_CASE("event presenter: a rival's new city shows in the rival's colour, an own one says nothing") {

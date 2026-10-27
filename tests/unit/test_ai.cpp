@@ -315,6 +315,42 @@ TEST_CASE("ai: a ship whose goods do not fit into the full home warehouse does n
     CHECK(g.world.ship(id)->load(ware) == 10 * 32);  // nothing thrown away
 }
 
+TEST_CASE("ai: a computer's ship under the white flag gets its next job, which strikes the flag (0x00423BC0)") {
+    // A ship a pirate plundered keeps its white flag; the original's pickers do not look at the flag
+    // (only at bit 5 of ship + 0x1A8, the flag is bit 3), so the next job sails it on.
+    Game g;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    found_city(g, s, 30'000);
+    sim::City* home = nullptr;
+    for (const sim::City& c : g.world.cities()) {
+        if (c.owner == kComputer) {
+            home = g.world.city(c.island, c.index);
+        }
+    }
+    REQUIRE(home != nullptr);
+    sim::Ship& ship = g.world.ships().front();
+    REQUIRE(ship.owner == kComputer);
+    const sim::WorldIsland& isl = g.world.islands()[home->island];
+    ship.place(isl.x + 48, isl.y + *home->warehouse_y);
+    const std::uint8_t ware = g.buildings.materials().tools;
+    home->ensure_ware(ware);
+    home->goods[ware] = home->capacity;
+    ship.route = sim::TradeRoute{};
+    ship.target = sim::Target{};
+    for (sim::CargoSlot& slot : ship.cargo) {
+        slot = sim::CargoSlot{};
+    }
+    ship.cargo[0] = sim::CargoSlot{ware, 10 * 32, 0};
+    ship.held = true;
+    const std::uint32_t id = ship.id;
+    const bool sails = run_until(s, 60'000, [&] {
+        const sim::Ship* now = g.world.ship(id);
+        return now != nullptr && (now->route.active || !now->target.empty());
+    });
+    CHECK(sails);
+    CHECK(!g.world.ship(id)->held);
+}
+
 TEST_CASE("ai: the original's computer players (Rules::bugs.classic_ai) found their city too") {
     Game g;
     sim::Rules rules;

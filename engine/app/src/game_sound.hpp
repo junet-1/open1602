@@ -150,7 +150,7 @@ private:
     audio::SceneryReach m_reach;
     std::uint32_t m_variant = 0;  ///< own counter for the variants: no game random numbers (S-112)
     std::vector<std::int16_t> m_buffer;
-    std::uint32_t m_queue_ms = 120;  ///< what the device holds now (kQueueMs, more after a slow frame)
+    std::uint32_t m_queue_ms = 50;  ///< what the device holds now (kQueueMs, more after a slow frame)
     std::vector<audio::Mixer::VoiceId> m_video_voices;
     bool m_video = false;
     std::map<std::pair<std::uint16_t, std::uint8_t>, std::uint64_t> m_cycles;  ///< figure, anim -> last cycle heard

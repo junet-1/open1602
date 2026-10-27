@@ -248,6 +248,24 @@ TEST_CASE("military: hostile swordsmen fight until one falls; at peace nobody fi
     CHECK(f.world.diplomacy().relation(0, 1).damage + f.world.diplomacy().relation(1, 0).damage > 0);
 }
 
+TEST_CASE("military: after the fight and after the way the unit stands, its attack or walk does not play on") {
+    constexpr std::uint8_t kStand = 1;  // ANIM 1 of the soldiers; 0 walks, 2 attacks
+    Field f;
+    f.start();
+    const std::uint32_t a = f.add(kSword, 0, 40, 30).id;
+    f.add(kSword, 1, 43, 30).health = 100;
+    f.war(0, 1);
+    f.run(30'000);
+    REQUIRE(f.count(sim::MilitaryEvent::Kind::SoldierKilled) == 1);
+    f.run(5'000);
+    REQUIRE(f.world.soldier(a) != nullptr);
+    CHECK(f.world.soldier(a)->anim == kStand);
+    // At the end of a way it stands too.
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {a}, sim::Target::spot(56, 30)}));
+    f.run(20'000);
+    CHECK(f.world.soldier(a)->anim == kStand);
+}
+
 TEST_CASE("military: a musketeer shoots from afar, a computer's swordsman closes in") {
     Field f;
     f.start();
@@ -783,7 +801,7 @@ TEST_CASE("military: a battle of two armies develops the same on every platform 
     }
     f.run(45'000);
     CHECK(f.count(sim::MilitaryEvent::Kind::SoldierKilled) > 0);
-    test::check_golden("battle after 45 s", test::world_hash(f.world, f.buildings), 0xa7553b4617753756ULL);
+    test::check_golden("battle after 45 s", test::world_hash(f.world, f.buildings), 0xe7930b594ea8cc19ULL);
 }
 
 namespace {

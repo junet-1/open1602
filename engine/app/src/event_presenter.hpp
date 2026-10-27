@@ -112,7 +112,7 @@ public:
     [[nodiscard]] std::vector<Notice> construction_events(const sim::World& world, sim::PlayerId local,
                                                           const std::vector<sim::ConstructionEvent>& events) const;
     /// Offers, treaties and broken peace (MELDUNG 0x4D..0x52).
-    [[nodiscard]] std::vector<Notice> diplomacy_notices(sim::PlayerId local,
+    [[nodiscard]] std::vector<Notice> diplomacy_notices(const sim::World& world, sim::PlayerId local,
                                                         const std::vector<sim::DiplomacyNotice>& notices) const;
     /// Victory, defeat and the end of the game: messages, videos, high scores, and the end screen
     /// that follows (`now_ms`: real time).

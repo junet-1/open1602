@@ -85,8 +85,10 @@ bool Engine::ship_at_city(const Ship& s, const City& c) const {
 }
 
 bool Engine::ship_idle(AiPlayer& p, const Ship& s) {
+    // The white flag does not count (0x00423BC0, 0x00423E80 test bit 5 of ship + 0x1A8, the flag is
+    // bit 3): a plundered ship gets its next job, and the job strikes the flag.
     const ShipNote& n = note(p, s.id);
-    return !ship_moving(s) && !s.route.active && n.mission == 0 && !s.repairing && s.id != p.settle.ship && !s.held;
+    return !ship_moving(s) && !s.route.active && n.mission == 0 && !s.repairing && s.id != p.settle.ship;
 }
 
 void Engine::send_to_city(AiPlayer& p, Ship& s, const City& c) {
