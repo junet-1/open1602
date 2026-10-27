@@ -86,6 +86,25 @@ std::int32_t kind_at(const IslandMap& map, const assets::BuildingTable& building
     return b != nullptr ? b->kind : -1;
 }
 
+/// Whether `old` is a piece of the wall `b` (its land, beach or river mouth pieces): the families
+/// are told apart by KreuzBase.
+bool same_wall_family(const assets::BuildingTable& buildings, const assets::BuildingType& b,
+                      const assets::BuildingType& old) {
+    if (old.kreuz_base == b.kreuz_base) {
+        return true;
+    }
+    const assets::BuildingType* beach = b.beach_offset != 0 ? buildings.by_record(b.record + b.beach_offset) : nullptr;
+    if (beach == nullptr) {
+        return false;
+    }
+    if (old.kreuz_base == beach->kreuz_base) {
+        return true;
+    }
+    const assets::BuildingType* mouth =
+        beach->mouth_offset != 0 ? buildings.by_record(beach->record + beach->mouth_offset) : nullptr;
+    return mouth != nullptr && old.kreuz_base == mouth->kreuz_base;
+}
+
 /// Whether a tile carrying `old` takes the new building (0x00464660).
 bool tile_accepts(const assets::BuildingTable& buildings, const assets::BuildingType& b,
                   const assets::BuildingType& old) {
@@ -100,7 +119,9 @@ bool tile_accepts(const assets::BuildingTable& buildings, const assets::Building
             return o == kind::kRoad || o == kind::kWall || o == kind::kTower || open;
         case kind::kWall:
         case kind::kWallBeach:
-            if (o == kind::kWall && old.kreuz_base != b.kreuz_base) {
+            // Walls of another kind, on land or on the beach: a stone wall over a palisade, a
+            // palisade over a stone wall (the original replaces it; seen 2026-10-27).
+            if ((o == kind::kWall || o == kind::kWallBeach) && !same_wall_family(buildings, b, old)) {
                 return true;
             }
             if ((o == kind::kWallBeach || o == kind::kTower || o == kind::kTowerBeach) &&

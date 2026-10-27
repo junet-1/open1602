@@ -3,7 +3,8 @@
 // Building and demolishing with the mouse: holds the building the build menu (or the keys) picked
 // and its rotation, and turns a click or a drag into a build or demolish order of the local
 // player (docs/re/construction.md). Roads and walls are dragged along a line, fields and squares
-// over a rectangle, everything else is placed where the mouse is let go.
+// over a rectangle, houses and piers in rows and blocks (the History Edition's
+// „Mehrfachplatzierung“), everything else is placed where the mouse is let go.
 #pragma once
 
 #include <cstdint>
@@ -38,6 +39,10 @@ public:
     /// Buildings with a door turn towards the nearest road (the build menu's switch 31023; off at
     /// the start of a game as in the original).
     void set_orient_to_road(bool on) noexcept { m_orient_to_road = on; }
+    /// The History Edition's „Mehrfachplatzierung“, always on: a drag with a house or a pier lays
+    /// them side by side over the dragged rectangle, from where the drag started. What does not fit
+    /// is left out, and what cannot be paid for any more stays unbuilt (sim::plan_build).
+    [[nodiscard]] bool multi_drag() const noexcept;
     /// Picks the first Kontor to found from a ship (the ship window's button 38017): its cargo
     /// pays instead of the nearest ship's. False if there is no Kontor to place.
     bool select_kontor(std::uint32_t ship) noexcept;

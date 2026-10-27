@@ -1535,6 +1535,77 @@ TEST_CASE("data: the human player builds and demolishes a house in a savegame") 
     CHECK(after.city == index);
 }
 
+TEST_CASE("data: a stone wall is built over a palisade in a savegame (0x00464660)") {
+    const auto game = require_game();
+    auto buildings = assets::BuildingTable::load(game);
+    REQUIRE(buildings.ok());
+    auto saves = load_savegames(game, *buildings);
+    if (saves.empty()) {
+        SKIP("no savegame");
+    }
+    sim::World& world = saves.front().world;
+    const sim::PlayerId human = sim::first_human_player(world);
+    const sim::City* city = nullptr;
+    for (const sim::City& c : world.cities()) {
+        if (c.owner == human && c.warehouse_x) {
+            city = &c;
+            break;
+        }
+    }
+    if (city == nullptr) {
+        SKIP("the human player has no city");
+    }
+    const std::uint16_t island = city->island;
+    const std::uint8_t index = city->index;
+    // Three free tiles of open ground in a row in the city.
+    const sim::IslandMap& map = world.islands()[island].map;
+    std::optional<sim::TilePos> spot;
+    for (std::uint32_t y = 0; y < map.height() && !spot; ++y) {
+        for (std::uint32_t x = 0; x + 2 < map.width() && !spot; ++x) {
+            bool free = true;
+            for (std::uint32_t i = 0; i < 3; ++i) {
+                const sim::MapCell& c = map.top(x + i, y);
+                const assets::BuildingType* b = c.empty() ? nullptr : buildings->by_sprite(c.sprite);
+                free = free && b != nullptr && b->kind == 11 && c.city == index;
+            }
+            if (free) {
+                spot = sim::TilePos{static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)};
+            }
+        }
+    }
+    REQUIRE(spot.has_value());
+    {
+        sim::City* c = world.city(island, index);
+        for (const std::uint8_t ware : {buildings->materials().wood, buildings->materials().bricks}) {
+            c->ensure_ware(ware);
+            c->goods[ware] = std::max<std::uint32_t>(c->goods[ware], 20 * 32);
+        }
+        world.player(human)->money = std::max(world.players()[human].money, 1000);
+        world.player(human)->infra_mask = 0xFFFFFFFFU;
+    }
+    const auto row = [&](std::uint32_t id) {
+        sim::BuildOrder order;
+        order.player = human;
+        order.island = island;
+        for (std::int32_t i = 0; i < 3; ++i) {
+            order.items.push_back({id, spot->x + i, spot->y, 0, 0});
+        }
+        const sim::BuildPlan plan = sim::execute_build(world, *buildings, order, {"Neustadt"}, nullptr);
+        for (const sim::PlannedBuild& item : plan.items) {
+            if (!item.ok()) {
+                std::printf("%u refused: %s\n", id, sim::refusal_name(item.refusal));
+            }
+        }
+        return plan.placed;
+    };
+    REQUIRE(row(22521) == 3);  // the palisade
+    CHECK(row(22501) == 3);    // the stone wall over it
+    const auto* b = buildings->by_sprite(
+        map.top(static_cast<std::uint32_t>(spot->x) + 1, static_cast<std::uint32_t>(spot->y)).sprite);
+    REQUIRE(b != nullptr);
+    CHECK(b->kreuz_base == buildings->by_id(22501)->kreuz_base);
+}
+
 TEST_CASE("data: a dragged road follows the tiles of its city (0x0040AB20)") {
     const auto game = require_game();
     auto buildings = assets::BuildingTable::load(game);

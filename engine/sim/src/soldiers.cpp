@@ -587,9 +587,9 @@ bool Military::wander(Soldier& s) {
         if (b == nullptr || (b->kind != building_kind::kRoad && b->kind != building_kind::kGround)) {
             continue;
         }
-        const WorldIsland& isl = m_world->islands()[island];
-        s.target =
-            Target::building(island, static_cast<std::uint32_t>(x) - isl.x, static_cast<std::uint32_t>(y) - isl.y);
+        // The tile as a place, like the one the warrior first went to: a road or ground tile is no
+        // building, so as a building target it had no cells, the way failed and the warrior stood.
+        s.target = Target::tile_spot(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
         return true;
     }
     return false;

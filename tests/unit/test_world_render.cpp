@@ -162,6 +162,18 @@ TEST_CASE("animation clock: steps once AnimTime is reached, at most one frame pe
     CHECK(clock.frame(house) == 0);  // AnimTime 0: never animates
 }
 
+TEST_CASE("animation clock: flags and other figures run with the game speed, at most one flag image per update") {
+    const auto table = make_table();
+    render::AnimationClock clock(table);
+    clock.advance(20);
+    CHECK(clock.figure_ms() == 20);
+    clock.advance(20, 4);  // 4x: four times as fast, as in the original and the History Edition
+    CHECK(clock.figure_ms() == 100);
+    CHECK(clock.elapsed_ms() == 40);  // real time stays real time
+    clock.advance(20, 8);             // 160 ms of game time, held at one flag image (90 ms)
+    CHECK(clock.figure_ms() == 100 + render::AnimationClock::kMaxFigureStepMs);
+}
+
 TEST_CASE("world renderer: open sea ripple pattern") {
     const auto table = make_table();
     const auto& sea = *table.open_sea();

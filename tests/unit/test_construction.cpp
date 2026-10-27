@@ -107,6 +107,18 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 29\n  Id: 21502\n  Kind: 14\n  Gfx: 110\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 3\n    Bauinfra: 13\n  EndObj\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 30\n  EndObj\n"
+        // The palisade (straight, curve, T) and its beach variants, a family of its own.
+        "  @Nummer: 30\n  Id: 22521\n  Kind: 4\n  Gfx: 120\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 30\n  Strandoff: "
+        "3\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 10\n  EndObj\n"
+        "  @Nummer: 31\n  Id: 22522\n  Kind: 4\n  Gfx: 124\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 30\n  Strandoff: "
+        "3\n"
+        "  @Nummer: 32\n  Id: 22523\n  Kind: 4\n  Gfx: 128\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 30\n  Strandoff: "
+        "3\n"
+        "  @Nummer: 33\n  Id: 22561\n  Kind: 5\n  Gfx: 132\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 33\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 12\n  EndObj\n"
+        "  @Nummer: 34\n  Id: 22562\n  Kind: 5\n  Gfx: 136\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 33\n"
+        "  @Nummer: 35\n  Id: 22563\n  Kind: 5\n  Gfx: 140\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 33\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -696,6 +708,23 @@ TEST_CASE("construction: walls and towers on the beach, piers in front of a new 
     // Demolished, the beach comes back.
     CHECK(island.demolish({4, 18}, {4, 18}) == 1);
     CHECK(island.at(4, 18)->id == kBeach);
+}
+
+TEST_CASE("construction: a stone wall replaces a palisade, on land and on the beach (0x00464660)") {
+    Island island;
+    island.found();
+    // A palisade of three pieces, the first on the beach.
+    REQUIRE(island.build({{22521, 4, 15, 0, 0}, {22521, 5, 15, 0, 0}, {22521, 6, 15, 0, 0}}).placed == 3);
+    CHECK(island.at(4, 15)->kreuz_base == 33);
+    CHECK(island.at(5, 15)->kreuz_base == 30);
+    // The stone wall is built over it, piece by piece, and joins as the palisade did.
+    REQUIRE(island.build({{kWall, 4, 15, 0, 0}, {kWall, 5, 15, 0, 0}, {kWall, 6, 15, 0, 0}}).placed == 3);
+    CHECK(island.at(4, 15)->kreuz_base == 20);
+    CHECK(island.at(5, 15)->kreuz_base == 17);
+    CHECK(island.at(6, 15)->kreuz_base == 17);
+    // And back: a palisade over the stone wall (the original allows it too).
+    CHECK(island.build({{22521, 6, 15, 0, 0}}).placed == 1);
+    CHECK(island.at(6, 15)->kreuz_base == 30);
 }
 
 TEST_CASE("construction: what the build menu offers (Haus_IsAvailableForPlayer 0x0042D530)") {

@@ -1033,7 +1033,7 @@ void MapViewer::update(std::uint32_t delta_ms) {
         place_listener();
         apply_production_events();
         apply_game_events();
-        m_clock.advance(delta_ms);
+        m_clock.advance(delta_ms, m_state->simulation.speed());
         update_ambient();  // also what is on screen (m_drawn_tiles)
         m_soldiers.sync(m_state->world, m_buildings, m_figures, m_tick_fraction, m_drawn_tiles);
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
@@ -1206,7 +1206,7 @@ std::optional<render::FigureSprites> MapViewer::unit_sprites(const ui::UnitRef& 
         const sim::Ship* ship = m_state->world.ship(ref.id);
         render::ShipSprites s;
         if (ship == nullptr ||
-            !render::ship_sprites(*ship, m_state->world, m_camera.view(), layers, m_clock.elapsed_ms(), s)) {
+            !render::ship_sprites(*ship, m_state->world, m_camera.view(), layers, m_clock.figure_ms(), s)) {
             return std::nullopt;
         }
         out.row = s.row;
@@ -1317,7 +1317,19 @@ void MapViewer::render() {
                             }
                         }
                     }
+                    const bool multi = m_tool.multi_drag();
                     for (const sim::PlannedBuild& item : plan.items) {
+                        // What only lacks gold or goods is shown on its red ground; anything else that
+                        // cannot be built only as red ground (it might stand over a building or the sea).
+                        const bool short_of_means =
+                            item.refusal == sim::BuildRefusal::Money || item.refusal == sim::BuildRefusal::Tools ||
+                            item.refusal == sim::BuildRefusal::Wood || item.refusal == sim::BuildRefusal::Bricks ||
+                            item.refusal == sim::BuildRefusal::Cannons;
+                        // Houses and piers dragged out: what does not fit there is left out, not
+                        // shown (History Edition), and the gaps say nothing in the status line.
+                        if (multi && !item.ok() && !short_of_means) {
+                            continue;
+                        }
                         if (!item.ok() && m_tool_status.empty()) {
                             m_tool_status = refusal_text(item.refusal);
                         }
@@ -1345,12 +1357,6 @@ void MapViewer::render() {
                                 }
                             }
                         }
-                        // What only lacks gold or goods is shown on its red ground; anything else that
-                        // cannot be built only as red ground (it might stand over a building or the sea).
-                        const bool short_of_means =
-                            item.refusal == sim::BuildRefusal::Money || item.refusal == sim::BuildRefusal::Tools ||
-                            item.refusal == sim::BuildRefusal::Wood || item.refusal == sim::BuildRefusal::Bricks ||
-                            item.refusal == sim::BuildRefusal::Cannons;
                         if (!inside || (!item.ok() && !short_of_means)) {
                             continue;
                         }
@@ -1980,6 +1986,8 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             if (m_tool.select(action.building)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
                 m_input->drop_units();
+            } else {
+                m_tool.set_mode(BuildTool::Mode::Off);  // not the building picked before
             }
             break;
         case Hud::Action::Kind::Demolish:

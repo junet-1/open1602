@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "o1602/render/animation_clock.hpp"
 
+#include <algorithm>
+
 namespace o1602::render {
 
 AnimationClock::AnimationClock(const assets::BuildingTable& buildings)
@@ -10,8 +12,9 @@ AnimationClock::AnimationClock(const assets::BuildingTable& buildings)
     }
 }
 
-void AnimationClock::advance(std::uint32_t delta_ms) {
+void AnimationClock::advance(std::uint32_t delta_ms, std::uint32_t speed) {
     m_elapsed += delta_ms;
+    m_figure += std::min<std::uint64_t>(static_cast<std::uint64_t>(delta_ms) * speed, kMaxFigureStepMs);
     const auto& types = m_buildings->types();
     for (std::size_t i = 0; i < types.size(); ++i) {
         if (types[i].anim_time <= 0) {

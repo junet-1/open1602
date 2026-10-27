@@ -19,7 +19,10 @@ constexpr std::uint32_t kTree = 20202;
 constexpr std::uint32_t kField = 21301;
 constexpr std::uint32_t kKontor = 22001;
 constexpr std::uint32_t kKontor2 = 22002;
-constexpr std::uint32_t kHouse = 20801;
+constexpr std::uint32_t kHouse = 20899;
+constexpr std::uint32_t kDwelling = 20605;
+constexpr std::uint32_t kPier = 21073;
+constexpr std::uint32_t kStoneWall = 22501;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -45,8 +48,17 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 7\n  Id: 22001\n  Kind: 35\n  Gfx: 20\n  Baugfx: 40\n  Size: 2, 3\n"
         "  Objekt: HAUS_BAUKOST\n    Werkzeug: 3\n    Holz: 4\n    Money: 100\n  EndObj\n"
         // A house without a menu icon: not in the list.
-        "  @Nummer: 8\n  Id: 20801\n  Kind: 14\n  Gfx: 36\n  Size: 2, 2\n"
+        "  @Nummer: 8\n  Id: 20899\n  Kind: 14\n  Gfx: 36\n  Size: 2, 2\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 10\n  EndObj\n"
+        // A dwelling (WOHNUNG) and a pier: the History Edition's „Mehrfachplatzierung“.
+        "  @Nummer: 9\n  Id: 20605\n  Kind: 14\n  Gfx: 50\n  Baugfx: 50\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 13\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Holz: 3\n    Money: 20\n  EndObj\n"
+        "  @Nummer: 10\n  Id: 21073\n  Kind: 30\n  Gfx: 54\n  Baugfx: 51\n  Size: 1, 1\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 15\n  EndObj\n"
+        // The stone wall: Baugfx 0 is the first icon of its set, not none.
+        "  @Nummer: 11\n  Id: 22501\n  Kind: 4\n  Gfx: 56\n  Baugfx: 0\n  Size: 1, 1\n  KreuzBase: 11\n"
+        "  Objekt: HAUS_BAUKOST\n    Ziegel: 2\n    Money: 18\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -83,16 +95,16 @@ TEST_CASE("build tool: the list holds what the build menu offers, in its order")
     app::BuildTool tool(buildings);
     CHECK(tool.mode() == app::BuildTool::Mode::Off);
     std::vector<std::uint32_t> order;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 8; ++i) {
         order.push_back(tool.selected()->id);
         tool.cycle(1);
     }
     // By menu icon; ground, tree variants and the house without an icon are left out.
-    const std::vector<std::uint32_t> expected{kField, kTree, kRoad, kKontor, kKontor2};
+    const std::vector<std::uint32_t> expected{kStoneWall, kField, kTree, kRoad, kKontor, kKontor2, kDwelling, kPier};
     CHECK(order == expected);
-    CHECK(tool.selected()->id == kField);  // wrapped around
+    CHECK(tool.selected()->id == kStoneWall);  // wrapped around
     tool.cycle(-1);
-    CHECK(tool.selected()->id == kKontor2);
+    CHECK(tool.selected()->id == kPier);
     CHECK(tool.select(kRoad));
     CHECK(tool.selected()->id == kRoad);
     CHECK(!tool.select(kHouse));
@@ -141,6 +153,33 @@ TEST_CASE("build tool: a field is dragged over a rectangle, a click places one")
     CHECK(!drag->ship.has_value());
     tool.release();
     CHECK(!tool.dragging());
+}
+
+TEST_CASE("build tool: houses and piers are dragged out side by side, as in the History Edition") {
+    const Map m;
+    app::BuildTool tool(m.buildings);
+    tool.set_mode(app::BuildTool::Mode::Build);
+    REQUIRE(tool.select(kDwelling));
+    tool.press({0, 6, 3});
+    CHECK(tool.multi_drag());
+    CHECK(!tool.hatched_drag());
+    // From (6, 3) up and left to (1, 0): 2 x 2 houses in steps of their size, row by row from the start.
+    const auto block = tool.build_order(m.world, 0, {0, 1, 0});
+    REQUIRE(block.has_value());
+    std::vector<std::pair<std::int32_t, std::int32_t>> at;
+    for (const sim::BuildItem& item : block->items) {
+        CHECK(item.building == kDwelling);
+        at.emplace_back(item.x, item.y);
+    }
+    const std::vector<std::pair<std::int32_t, std::int32_t>> expected{{6, 3}, {4, 3}, {2, 3}, {6, 1}, {4, 1}, {2, 1}};
+    CHECK(at == expected);
+    // A row of piers, one per tile.
+    tool.release();
+    REQUIRE(tool.select(kPier));
+    tool.press({0, 2, 7});
+    const auto row = tool.build_order(m.world, 0, {0, 5, 7});
+    REQUIRE(row.has_value());
+    CHECK(row->items.size() == 4);
 }
 
 TEST_CASE("build tool: trees keep their variants during a drag") {
