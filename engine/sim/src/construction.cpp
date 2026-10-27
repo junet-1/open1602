@@ -105,6 +105,18 @@ bool same_wall_family(const assets::BuildingTable& buildings, const assets::Buil
     return mouth != nullptr && old.kreuz_base == mouth->kreuz_base;
 }
 
+/// The gold a wall family costs, read from its first land piece (beach and river mouth pieces
+/// stand for the land piece they were ordered as).
+std::int32_t wall_family_cost(const assets::BuildingTable& buildings, const assets::BuildingType& t) {
+    const assets::BuildingType* land =
+        t.land_record != assets::BuildingType::kNoRecord ? buildings.by_record(t.land_record) : &t;
+    if (land == nullptr) {
+        return 0;
+    }
+    const assets::BuildingType* head = buildings.by_record(static_cast<std::uint32_t>(land->kreuz_base));
+    return (head != nullptr ? head : land)->build_cost.money;
+}
+
 /// Whether a tile carrying `old` takes the new building (0x00464660).
 bool tile_accepts(const assets::BuildingTable& buildings, const assets::BuildingType& b,
                   const assets::BuildingType& old) {
@@ -121,8 +133,10 @@ bool tile_accepts(const assets::BuildingTable& buildings, const assets::Building
         case kind::kWallBeach:
             // Walls of another kind, on land or on the beach: a stone wall over a palisade, a
             // palisade over a stone wall (the original replaces it; seen 2026-10-27).
+            // A dearer wall replaces a cheaper one (a stone wall a palisade), never the other way
+            // round. The original also builds a palisade over a stone wall; open1602 does not.
             if ((o == kind::kWall || o == kind::kWallBeach) && !same_wall_family(buildings, b, old)) {
-                return true;
+                return wall_family_cost(buildings, b) > wall_family_cost(buildings, old);
             }
             if ((o == kind::kWallBeach || o == kind::kTower || o == kind::kTowerBeach) &&
                 old.kreuz_base == b.kreuz_base) {
