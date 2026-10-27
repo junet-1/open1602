@@ -694,14 +694,17 @@ std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, ui::k
         m_briefing_line = std::min(m_briefing_line, last);
         p->set_scroll(kBriefing, m_briefing_line);
         m_briefing_last = last;
+        m_briefing_rows = p->flow_rows(kBriefing);
         // Its arrows and slider are faded while the whole briefing fits (0x0048B195); then they
         // scroll nothing and the knob rests in the middle (0x00407600 with 50 of 100).
         for (const std::int32_t id : {kBriefingUp, kBriefingDown, kBriefingSlider}) {
             p->set_faded(id, last == 0);
         }
-        // The slider counts from the bottom: the first line is at the top.
+        // 0x0048B195: the knob at (first line + rows / 2) of (lines + rows - 1), counted from the
+        // bottom.
         if (last > 0) {
-            p->set_slider(kBriefingSlider, 1, last - m_briefing_line, last);
+            p->set_slider(kBriefingSlider, 1, briefing_slider_range() - m_briefing_rows / 2 - m_briefing_line,
+                          briefing_slider_range());
         } else {
             p->set_slider(kBriefingSlider, 1, 50, 100);
         }
@@ -795,7 +798,9 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
     for (const ui::PanelEvent& e : p->mouse(x, y, down)) {
         if (e.kind == ui::PanelEvent::Kind::Slid && m_screen == Screen::Mission && e.id == kBriefingSlider &&
             m_briefing_last > 0) {
-            m_briefing_line = m_briefing_last - p->slider(kBriefingSlider, 1, m_briefing_last);
+            const std::int32_t range = briefing_slider_range();
+            m_briefing_line =
+                std::clamp(range - m_briefing_rows / 2 - p->slider(kBriefingSlider, 1, range), 0, m_briefing_last);
             continue;
         }
         if (e.kind != ui::PanelEvent::Kind::Clicked) {

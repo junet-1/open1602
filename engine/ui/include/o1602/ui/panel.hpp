@@ -145,6 +145,8 @@ public:
     /// Last first line that still fills the flowing text's box (0 if the text fits); callers clamp
     /// their scroll to it so "down" past the end does not blank the window (UI-12).
     [[nodiscard]] std::int32_t max_scroll(std::int32_t id, const std::array<const Font*, kFontSlots>& fonts) const;
+    /// Lines a flowing text's box shows (0x00407010: Size.y / Posoffs.y), 0 for other gadgets.
+    [[nodiscard]] std::int32_t flow_rows(std::int32_t id) const;
     /// Another sprite and pressed step for a gadget (0x004077C0, 0x00407840): message icons. With
     /// `tint` the sprite is recoloured (a player colour the art was not drawn in).
     void set_graphic(std::int32_t id, std::int32_t gfx, std::int32_t press_offset,
