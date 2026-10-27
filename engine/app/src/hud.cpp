@@ -1404,15 +1404,16 @@ std::array<std::uint8_t, 4> minimap_colour(const sim::World& world, const assets
     }
     // Land of nobody in the original's brown (0x966430, which its palette makes 0x896340).
     rgb = {0x89, 0x63, 0x40, 255};
-    const sim::PlayerId owner = top.owner != sim::kNoPlayer ? top.owner : ground.owner;
-    if (!hidden && owner != sim::kNoPlayer) {
-        // The whole territory of a city, forest and meadow too, in the four colours of the original;
-        // other banners in their colour. Unlike the original's minimap, which never shows native
-        // villages, Open1602 shows the natives and the pirates once the island is discovered.
+    // The territory is the ground's owner: a native village in a city's land shows the city.
+    const sim::PlayerId owner = ground.owner != sim::kNoPlayer ? ground.owner : top.owner;
+    const sim::Player* p = hidden || owner == sim::kNoPlayer ? nullptr : world.player(owner);
+    if (p != nullptr && p->role != sim::PlayerRole::Neutral) {
+        // The whole territory of a city, forest and meadow too, in the four colours of the original
+        // (red, blue, yellow, grey); a fifth player and those after it in their banner's colour.
+        // The natives and the pirates stay brown, as the original has colours only for the four.
         constexpr std::array<std::array<std::uint8_t, 3>, 4> kOriginal{
             {{0xAC, 0x27, 0x05}, {0x11, 0x88, 0xDC}, {0xF8, 0xC2, 0x30}, {0xC0, 0xC0, 0xC0}}};
-        const sim::Player* p = world.player(owner);
-        const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
+        const render::Banner* banner = banners.get(p->banner);
         if (banner != nullptr && banner->unit_variant && *banner->unit_variant < kOriginal.size()) {
             const auto& o = kOriginal[*banner->unit_variant];
             rgb = {o[0], o[1], o[2], 255};
