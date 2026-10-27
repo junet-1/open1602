@@ -14,7 +14,7 @@ new renderer. Most files are the same byte for byte; what Open1602 has to know:
 | Two help lines inserted into Text.cod's `[LEISTE]`: `[[676]]` after "Auftrag ansehen", `[[807]]` after "Einheit auflösen" (the later lines count one or two further) | Text.cod | left out, so the lines keep the original's numbers |
 | Buttons for its own settings screen (OPTION.GAD 47016) and for a new savegame (DISK.GAD 48014) | `GADDATA/` | left out (`kUnusedHistoryButtons`) |
 | Ten savegame rows instead of twelve, with arrows of their own (DISK.GAD 48016, 48017) | `GADDATA/DISK.GAD` | the list counts its rows and scrolls with these arrows |
-| Videos in Bink 2 (`VideoSmk/*.bk2`) | `VideoSmk/`, `Loca/<language>/VideoSmk/` | not played (no free decoder) |
+| Videos in Bink 2 (`VideoSmk/*.bk2`) | `VideoSmk/`, `Loca/<language>/VideoSmk/` | played (Bink 2 decoder, [bk2.md](bk2.md)) |
 | `Game.dat` (sound and video settings, no savegame names), `Savegame/*.gam`, `Highscore/` in the user's `Documents/Anno 1602 History Edition/` (below Wine in the prefix: `drive_c/users/<user>/Documents/...`) | – | `GameDirectory::resolve()` looks there after the installation: `--savegame neue` loads `Savegame/neue.gam` |
 | Names as placeholders in savegames: `NAME` "[[48]]" (Endlosspiel), the mission text "[[353]]" | `*.gam` | filled in with the History Edition's texts; with the Königsedition they stay as they are |
 | No `Language.dll` | – | the system's mouse cursors |

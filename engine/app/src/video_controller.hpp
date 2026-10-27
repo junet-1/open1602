@@ -30,7 +30,7 @@ public:
     VideoController& operator=(const VideoController&) = delete;
 
     [[nodiscard]] bool enabled() const noexcept { return m_player != nullptr; }
-    /// Whether the installation has `VideoSmk/<number>.smk`.
+    /// Whether the installation has `VideoSmk/<number>.smk` (or the History Edition's `.bk2`).
     [[nodiscard]] bool available(std::uint16_t number) const;
 
     /// A new request replaces the running video and the waiting ones, `intro` ones only queue after
