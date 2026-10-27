@@ -858,6 +858,9 @@ void Simulation::tick() {
 }
 
 void Simulation::tick_timed(std::span<std::uint64_t> step_ns) {
+    const std::uint64_t construction_before = m_construction_events.total();
+    const std::uint64_t houses_before = m_house_events.total();
+    const std::uint64_t game_before = m_game_events.total();
     apply_commands();
     if (m_paused) {
         return;  // paused by a command of this tick: the game time stands still
@@ -874,6 +877,11 @@ void Simulation::tick_timed(std::span<std::uint64_t> step_ns) {
         } else {
             (this->*steps[i].run)();
         }
+    }
+    if (m_scripts != nullptr) {
+        const TickEvents events{m_construction_events.since(construction_before), m_house_events.since(houses_before),
+                                m_game_events.since(game_before)};
+        m_scripts->after_tick(*this, events);
     }
     trim_events();
     if (m_tick_observer) {
