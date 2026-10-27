@@ -48,15 +48,13 @@ constexpr std::int32_t kGfxTafel = 0;  // GFXTAFEL: the side panel's art
 constexpr std::int32_t kGfxParchment = 17;
 constexpr std::int32_t kGfxCompass = 18;
 constexpr std::int32_t kGfxLeiste = 253;
-constexpr std::int32_t kLeistArt = 101001;      // the status bar's art (drawn widened instead)
-constexpr std::int32_t kLeistTextX = 750;       // its line ends here, 18 before the art's right edge
-constexpr std::int32_t kTutorArt = 111001;      // the mission window's art (drawn widened instead)
-constexpr std::int32_t kTutorText = 110002;     // its flowing text
-constexpr std::int32_t kDesignViewW = 768;      // game view, status bar and mission window at 1024 x 768
-constexpr std::uint64_t kEventMs = 45'000;      // an icon stays this long (449 time units of 0x00430F20)
-constexpr double kMinimapStretch = 1.5;         // the most the minimap stretches a world (sides' ratio)
-constexpr std::uint8_t kMinimapSeaAlpha = 176;  // the parchment and its north arrow shine through the sea
-constexpr std::uint64_t kMinimapMs = 500;       // the minimap texture is uploaded at most this often
+constexpr std::int32_t kLeistArt = 101001;   // the status bar's art (drawn widened instead)
+constexpr std::int32_t kLeistTextX = 750;    // its line ends here, 18 before the art's right edge
+constexpr std::int32_t kTutorArt = 111001;   // the mission window's art (drawn widened instead)
+constexpr std::int32_t kTutorText = 110002;  // its flowing text
+constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
+constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
+constexpr std::uint64_t kMinimapMs = 500;    // the minimap texture is uploaded at most this often
 // TUTOR.GAD in the tutorial: six lines of text, the arrows back and forward, each a picture and
 // five parts to click.
 constexpr std::int32_t kTutorClose = 110001;
@@ -673,22 +671,9 @@ ui::Rect Hud::minimap_rect() const {
 }
 
 ui::Rect Hud::minimap_image() const {
-    const ui::Rect map = minimap_rect();
-    if (map.w <= 0 || map.h <= 0 || m_world_w == 0 || m_world_h == 0) {
-        return {};
-    }
-    // Like the original, the world fills the whole parchment, a little stretched (500 x 350 on
-    // 186 x 160). A world whose sides differ much more from the parchment's keeps its proportions
-    // and sits in the middle, so that a non-standard world is not distorted.
-    const double world = static_cast<double>(m_world_w) / m_world_h;
-    const double area = static_cast<double>(map.w) / map.h;
-    if (std::max(world, area) / std::min(world, area) <= kMinimapStretch) {
-        return map;
-    }
-    const double fit = std::min(static_cast<double>(map.w) / m_world_w, static_cast<double>(map.h) / m_world_h);
-    const auto w = static_cast<std::int32_t>(m_world_w * fit);
-    const auto h = static_cast<std::int32_t>(m_world_h * fit);
-    return {map.x + (map.w - w) / 2, map.y + (map.h - h) / 2, w, h};
+    // As in the original (0x0042D5E0, 0x0043B0E0) the world always fills the whole parchment,
+    // stretched as it comes (500 x 350 on 186 x 160).
+    return m_world_w == 0 || m_world_h == 0 ? ui::Rect{} : minimap_rect();
 }
 
 std::optional<std::pair<double, double>> Hud::minimap_tile(std::int32_t x, std::int32_t y) const {
@@ -1395,11 +1380,12 @@ void Hud::message(MessageId id, sim::BannerId banner, std::optional<std::pair<do
 namespace {
 
 /// The colour of a world tile on the minimap. An island `local` has not discovered shows its ground
-/// without owners, like the map (0x00489C90). The sea lets the parchment shine through.
+/// without owners, like the map (0x00489C90). The sea is left out (alpha 0): the parchment shows
+/// there, as in the original.
 std::array<std::uint8_t, 4> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
                                            const render::BannerTable& banners, const sim::World::Cell& c,
                                            sim::PlayerId local) {
-    std::array<std::uint8_t, 4> rgb{38, 70, 128, kMinimapSeaAlpha};  // sea
+    std::array<std::uint8_t, 4> rgb{0, 0, 0, 0};  // sea
     if (c.island == sim::World::kSea) {
         return rgb;
     }
@@ -1411,9 +1397,7 @@ std::array<std::uint8_t, 4> minimap_colour(const sim::World& world, const assets
     const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
     namespace bk = sim::building_kind;
     const bool water = kind == bk::kSea || kind == bk::kSurf || kind == bk::kSurfCorner;
-    // Land of nobody in the original's brown (0x0042D5E0: 0x96, 0x64, 0x30), forest too; the sea
-    // stays blue (the original leaves its parchment there), so that the islands of a large world
-    // stand out on the small map.
+    // Land of nobody in the original's brown (0x0042D5E0: 0x96, 0x64, 0x30), forest too.
     if (!water) {
         rgb = {0x96, 0x64, 0x30, 255};
     }
@@ -1478,6 +1462,47 @@ bool Hud::refresh_minimap_island(const sim::World& world, const assets::Building
         }
     }
     return changed;
+}
+
+void Hud::shrink_minimap(std::int32_t w, std::int32_t h) {
+    m_minimap_w = w;
+    m_minimap_h = h;
+    m_minimap_small.assign(static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4, 0);
+    for (std::int32_t py = 0; py < h; ++py) {
+        const auto y0 = static_cast<std::uint32_t>(std::int64_t{py} * m_world_h / h);
+        const auto y1 = std::max(y0 + 1, static_cast<std::uint32_t>(std::int64_t{py + 1} * m_world_h / h));
+        for (std::int32_t px = 0; px < w; ++px) {
+            const auto x0 = static_cast<std::uint32_t>(std::int64_t{px} * m_world_w / w);
+            const auto x1 = std::max(x0 + 1, static_cast<std::uint32_t>(std::int64_t{px + 1} * m_world_w / w));
+            // More land than sea: the land tile nearest the pixel's middle gives the colour.
+            std::int32_t land = 0;
+            std::int32_t sea = 0;
+            std::size_t best = 0;
+            std::uint32_t best_d = std::numeric_limits<std::uint32_t>::max();
+            for (std::uint32_t y = y0; y < y1 && y < m_world_h; ++y) {
+                for (std::uint32_t x = x0; x < x1 && x < m_world_w; ++x) {
+                    const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
+                    if (m_minimap[i + 3] == 0) {
+                        ++sea;
+                        continue;
+                    }
+                    ++land;
+                    const std::uint32_t dx = 2 * x + 1 > x0 + x1 ? 2 * x + 1 - x0 - x1 : x0 + x1 - 2 * x - 1;
+                    const std::uint32_t dy = 2 * y + 1 > y0 + y1 ? 2 * y + 1 - y0 - y1 : y0 + y1 - 2 * y - 1;
+                    if (dx + dy < best_d) {
+                        best_d = dx + dy;
+                        best = i;
+                    }
+                }
+            }
+            if (land > sea) {
+                const std::size_t o =
+                    (static_cast<std::size_t>(py) * static_cast<std::size_t>(w) + static_cast<std::size_t>(px)) * 4;
+                std::copy_n(m_minimap.begin() + static_cast<std::ptrdiff_t>(best), 4,
+                            m_minimap_small.begin() + static_cast<std::ptrdiff_t>(o));
+            }
+        }
+    }
 }
 
 void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, const render::BannerTable& banners,
@@ -1618,57 +1643,69 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         m_renderer->draw({parchment}, map.x, map.y, s);
     }
     if (const ui::Rect at = minimap_image(); at.w > 0) {
+        // Each pixel of the parchment shows land when more of its tiles are land than sea, the sea
+        // not at all (0x0042D5E0).
+        if (m_minimap_upload || at.w != m_minimap_w || at.h != m_minimap_h) {
+            shrink_minimap(at.w, at.h);
+            m_minimap_upload = true;
+        }
+        m_renderer->image(1, m_minimap_small, at.w, at.h, at, m_minimap_upload);
+        m_minimap_upload = false;
         const double fx = static_cast<double>(at.w) / m_world_w;
         const double fy = static_cast<double>(at.h) / m_world_h;
-        m_renderer->image(1, m_minimap, static_cast<std::int32_t>(m_world_w), static_cast<std::int32_t>(m_world_h), at,
-                          m_minimap_upload);
-        m_minimap_upload = false;
-        // The visible part of the map as a dotted outline, white and blue as in the original.
+        const float unit = std::max(1.0F, std::round(static_cast<float>(s)));
+        const SDL_Rect clip{at.x, at.y, at.w, at.h};
+        SDL_SetRenderClipRect(m_sdl, &clip);
+        // The visible part of the map as in the original (0x0043B0E0): each edge dashed, two pixels
+        // on and two off (0x00498010), white over a blue shadow one pixel lower.
         std::array<SDL_FPoint, 4> corners{};
         for (std::size_t i = 0; i < 4; ++i) {
             corners[i] = SDL_FPoint{static_cast<float>(at.x + view[i].first * fx),
                                     static_cast<float>(at.y + view[i].second * fy)};
         }
-        std::array<std::vector<SDL_FPoint>, 2> dots;
-        const float dash = std::max(1.0F, static_cast<float>(2.0 * s));
-        std::size_t n = 0;
+        std::vector<SDL_FPoint> dashes;
         for (std::size_t i = 0; i < 4; ++i) {
             const SDL_FPoint a = corners[i];
             const SDL_FPoint b = corners[(i + 1) % 4];
             const float length = std::hypot(b.x - a.x, b.y - a.y);
             const auto steps = static_cast<std::size_t>(std::ceil(length));
-            for (std::size_t k = 0; k < steps; ++k, ++n) {
-                const float t = static_cast<float>(k) / static_cast<float>(steps);
-                dots[static_cast<std::size_t>(std::fmod(static_cast<float>(n), 2.0F * dash) >= dash)].push_back(
-                    SDL_FPoint{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t});
+            for (std::size_t k = 0; k < steps; ++k) {
+                if (std::fmod(static_cast<float>(k), 4.0F * unit) < 2.0F * unit) {
+                    const float t = static_cast<float>(k) / static_cast<float>(steps);
+                    dashes.push_back(SDL_FPoint{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t});
+                }
             }
         }
-        const SDL_Rect clip{at.x, at.y, at.w, at.h};
-        SDL_SetRenderClipRect(m_sdl, &clip);
+        std::vector<SDL_FPoint> shadow = dashes;
+        for (SDL_FPoint& p : shadow) {
+            p.y += unit;
+        }
+        SDL_SetRenderDrawColor(m_sdl, 0, 0, 255, 255);
+        SDL_RenderPoints(m_sdl, shadow.data(), static_cast<int>(shadow.size()));
         SDL_SetRenderDrawColor(m_sdl, 255, 255, 255, 255);
-        SDL_RenderPoints(m_sdl, dots[0].data(), static_cast<int>(dots[0].size()));
-        SDL_SetRenderDrawColor(m_sdl, 0x11, 0x88, 0xDC, 255);
-        SDL_RenderPoints(m_sdl, dots[1].data(), static_cast<int>(dots[1].size()));
-        // The own ships as dots over the outline, as in the original; in the player's colour with a
-        // dark rim, so that they stand out on the blue sea as on land.
-        const render::Banner* own = banners.get(colour);
-        const float dot = std::max(2.0F, std::round(static_cast<float>(2.0 * s)));
-        for (const sim::Ship& ship : world.ships()) {
-            if (ship.owner != m_local || m_local == sim::kNoPlayer || ship.sinking) {
-                continue;
+        SDL_RenderPoints(m_sdl, dashes.data(), static_cast<int>(dashes.size()));
+        // The own ships, and in military mode the own land units, as blue squares of 2 x 2 pixels
+        // (0x0045D1E0, 0x0045D2B0); nothing of the other players.
+        SDL_SetRenderDrawColor(m_sdl, 0, 0, 255, 255);
+        const auto unit_square = [&](double tx, double ty) {
+            const SDL_FRect r{static_cast<float>(at.x + std::floor(tx * fx)),
+                              static_cast<float>(at.y + std::floor(ty * fy)), 2.0F * unit, 2.0F * unit};
+            SDL_RenderFillRect(m_sdl, &r);
+        };
+        if (m_local != sim::kNoPlayer) {
+            for (const sim::Ship& ship : world.ships()) {
+                if (ship.owner == m_local && !ship.sinking) {
+                    unit_square(ship.pos_x / static_cast<double>(sim::kShipUnit),
+                                ship.pos_y / static_cast<double>(sim::kShipUnit));
+                }
             }
-            const float cx = static_cast<float>(at.x + (ship.x + 0.5) * fx);
-            const float cy = static_cast<float>(at.y + (ship.y + 0.5) * fy);
-            const SDL_FRect rim{cx - dot / 2.0F - 1.0F, cy - dot / 2.0F - 1.0F, dot + 2.0F, dot + 2.0F};
-            const SDL_FRect body{cx - dot / 2.0F, cy - dot / 2.0F, dot, dot};
-            SDL_SetRenderDrawColor(m_sdl, 0x10, 0x10, 0x30, 255);
-            SDL_RenderFillRect(m_sdl, &rim);
-            if (own != nullptr) {
-                SDL_SetRenderDrawColor(m_sdl, own->colour.r, own->colour.g, own->colour.b, 255);
-            } else {
-                SDL_SetRenderDrawColor(m_sdl, 255, 255, 255, 255);
+            if (m_mode == kModeMilitary) {
+                for (const sim::Soldier& soldier : world.soldiers()) {
+                    if (soldier.owner == m_local) {
+                        unit_square(soldier.x(), soldier.y());
+                    }
+                }
             }
-            SDL_RenderFillRect(m_sdl, &body);
         }
         SDL_SetRenderClipRect(m_sdl, nullptr);
     }

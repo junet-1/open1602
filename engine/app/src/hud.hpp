@@ -427,9 +427,10 @@ private:
     bool refresh_minimap_island(const sim::World& world, const assets::BuildingTable& buildings,
                                 const render::BannerTable& banners, std::size_t island);
     [[nodiscard]] ui::Rect minimap_rect() const;
-    /// Where the world's picture lies in minimap_rect(): all of it, or the middle for a world of
-    /// very different proportions.
+    /// Where the world's picture lies: all of minimap_rect() once there is a world.
     [[nodiscard]] ui::Rect minimap_image() const;
+    /// m_minimap (a pixel per tile) shrunk to the minimap's w x h pixels into m_minimap_small.
+    void shrink_minimap(std::int32_t w, std::int32_t h);
 
     struct Event {
         MessageId id = 0;
@@ -480,6 +481,9 @@ private:
     std::deque<Event> m_events;              ///< newest first, at most three
     std::vector<diplomacy::Offer> m_offers;  ///< the offers the status bar shows, as last drawn
     std::vector<std::uint8_t> m_minimap;
+    std::vector<std::uint8_t> m_minimap_small;  ///< as drawn: a pixel per pixel of the minimap
+    std::int32_t m_minimap_w = 0;               ///< size of m_minimap_small
+    std::int32_t m_minimap_h = 0;
     std::uint64_t m_minimap_ms = 0;
     bool m_minimap_rebuild = true;   ///< the whole picture must be made again (a new game)
     bool m_minimap_upload = true;    ///< the texture must be uploaded again
