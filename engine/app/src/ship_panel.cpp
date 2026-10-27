@@ -685,7 +685,9 @@ private:
             const sim::City& city = w.cities()[*index];
             k.city = std::make_pair(city.island, city.index);
             const sim::Player* owner = w.player(city.owner);
-            if (city.owner == ship.owner) {
+            if (!sim::kontor_open(w, c.buildings, city)) {
+                // A destroyed Kontor of the natives, pirates or a defeated player: no buttons.
+            } else if (city.owner == ship.owner) {
                 k.own_kontor = true;
             } else if (owner != nullptr && w.behaviour(*owner) == sim::FactionBehaviour::Pirates) {
                 k.pirates = true;

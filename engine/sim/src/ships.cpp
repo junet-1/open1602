@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 
+#include "o1602/sim/logistics.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/state_io.hpp"
 
@@ -115,6 +116,19 @@ std::optional<std::size_t> kontor_in_reach(const World& world, const assets::Bui
         }
     }
     return std::nullopt;
+}
+
+bool kontor_open(const World& world, const assets::BuildingTable& buildings, const City& city) {
+    if (!city.warehouse_x || !city.warehouse_y) {
+        return false;
+    }
+    const auto b = building_at(world, buildings, city.island, {*city.warehouse_x, *city.warehouse_y});
+    if (!b || !b->type->destroyed) {
+        return true;
+    }
+    const Player* owner = world.player(city.owner);
+    return owner != nullptr && owner->active() &&
+           (owner->role == PlayerRole::Human || owner->role == PlayerRole::Computer);
 }
 
 Fleet::Fleet(World& world, const assets::BuildingTable& buildings, const assets::FigureTable& figures,
@@ -1337,7 +1351,8 @@ std::uint32_t Fleet::transfer(const CargoTransfer& t) {
     for (std::size_t i = 0; i < m_world->cities().size(); ++i) {
         const City& c = m_world->cities()[i];
         if (!c.warehouse_x || !c.warehouse_y ||
-            !building_in_reach(*m_world, *m_buildings, c.island, *c.warehouse_x, *c.warehouse_y, ship->x, ship->y)) {
+            !building_in_reach(*m_world, *m_buildings, c.island, *c.warehouse_x, *c.warehouse_y, ship->x, ship->y) ||
+            !kontor_open(*m_world, *m_buildings, c)) {
             continue;
         }
         if (c.owner == ship->owner) {

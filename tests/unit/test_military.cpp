@@ -860,6 +860,15 @@ TEST_CASE("military: a destroyed Kontor becomes the destroyed Kontor; the city k
     CHECK(sim::city_defenceless(world, buildings, 0, 0));
     // The destroyed Kontor is no target any more.
     CHECK(!combat.fighter(sim::Target::building(0, 10, 5)).has_value());
+    // Ships still trade at the destroyed Kontor of a computer player in the game, but not of a
+    // defeated or neutral owner (0x0044E747).
+    CHECK(sim::kontor_open(world, buildings, *world.city(0, 0)));
+    world.player(1)->status = sim::PlayerStatus::Defeated;
+    CHECK(!sim::kontor_open(world, buildings, *world.city(0, 0)));
+    world.player(1)->status = sim::PlayerStatus::Playing;
+    world.player(1)->role = sim::PlayerRole::Neutral;
+    CHECK(!sim::kontor_open(world, buildings, *world.city(0, 0)));
+    world.player(1)->role = sim::PlayerRole::Computer;
 
     // A pier on beach falls to the beach ruin, drawn at the height of the sand; on land to the land ruin.
     military.damage_building(0, 5, 6, 10 * 32, true, 0, &construction);
