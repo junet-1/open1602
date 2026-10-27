@@ -313,7 +313,8 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
     item.y = y;
     item.block = g.block;
     item.colour = colour;
-    item.half = g.half || s.faded;
+    item.half = g.half;
+    item.faded = s.faded;
     switch (g.kind) {
         case GadgetKind::Unused:
         case GadgetKind::Area:

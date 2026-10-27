@@ -686,9 +686,9 @@ private:
         for (const std::int32_t id : {city_ids::kKName, city_ids::kKPrice}) {
             m_kontor.set_visible(id, chosen);
         }
-        for (const std::int32_t id : {city_ids::kKPriceDown, city_ids::kKPriceUp, city_ids::kKPriceSlider,
-                                      city_ids::kKLimit, city_ids::kKStop}) {
-            m_kontor.set_faded(id, !chosen);  // 0x004073C0 while no ware is chosen
+        // The original fades all of 0x84D5 .. 0x84E8 while no ware is chosen (0x004073C0).
+        for (std::int32_t id = city_ids::kKLimit; id <= city_ids::kKPriceSlider; ++id) {
+            m_kontor.set_faded(id, !chosen);
         }
         m_kontor.set_text(city_ids::kKStockLabel, c.text("GAME", 0));
         if (!chosen) {

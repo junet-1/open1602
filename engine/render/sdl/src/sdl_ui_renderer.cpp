@@ -22,6 +22,8 @@ constexpr int kModeSprite = 0;
 constexpr int kModeMask = 1;
 constexpr int kModeRaster = 2;          ///< the shape where (x + y) of the sprite is even
 constexpr int kModeRasterOdd = 3;       ///< where it is odd: a sprite at an odd place stays on the screen's even pixels
+constexpr int kModeFaded = 4;           ///< the sprite in its own colours where (x + y) of the sprite is even
+constexpr int kModeFadedOdd = 5;        ///< the same where it is odd
 constexpr std::size_t kMaxTexts = 512;  // cached text textures before the least recently used go
 constexpr std::int32_t kCheckerSize = 64;
 // RGBA bytes of interface sprites kept: far more than the interface draws at a time, so that only
@@ -29,14 +31,18 @@ constexpr std::int32_t kCheckerSize = 64;
 constexpr std::size_t kMaxSpriteBytes = std::size_t{96} << 20U;
 constexpr std::uint8_t kMaskAlpha = 110;  // opacity of a GraphicFill shadow
 
-/// A checkerboard (black, every second pixel) for disabled gadgets and 50 % fills; one column wider
-/// than the tiles taken from it, so a tile can start on either parity.
+/// A checkerboard (white, every second pixel, coloured when drawn) for greyed and faded gadgets; one
+/// column wider than the tiles taken from it, so a tile can start on either parity.
 constexpr std::int32_t kCheckerWidth = kCheckerSize + 1;
 std::vector<std::uint8_t> checker_pixels() {
     std::vector<std::uint8_t> rgba(static_cast<std::size_t>(kCheckerWidth * kCheckerSize * 4), 0);
     for (std::int32_t y = 0; y < kCheckerSize; ++y) {
         for (std::int32_t x = 0; x < kCheckerWidth; ++x) {
-            rgba[static_cast<std::size_t>((y * kCheckerWidth + x) * 4 + 3)] = ((x + y) & 1) == 0 ? 255 : 0;
+            const auto i = static_cast<std::size_t>((y * kCheckerWidth + x) * 4);
+            rgba[i] = 255;
+            rgba[i + 1] = 255;
+            rgba[i + 2] = 255;
+            rgba[i + 3] = ((x + y) & 1) == 0 ? 255 : 0;
         }
     }
     return rgba;
@@ -45,7 +51,26 @@ std::vector<std::uint8_t> checker_pixels() {
 /// Whether a raster pixel at (x, y) of a sprite is drawn in `mode`.
 constexpr bool raster_pixel(int mode, std::uint32_t x, std::uint32_t y) noexcept {
     const std::uint32_t odd = (x + y) & 1U;
-    return mode == kModeRaster ? odd == 0 : mode == kModeRasterOdd ? odd == 1 : true;
+    return mode == kModeRaster || mode == kModeFaded         ? odd == 0
+           : mode == kModeRasterOdd || mode == kModeFadedOdd ? odd == 1
+                                                             : true;
+}
+
+/// Whether `mode` keeps the sprite's own colours.
+constexpr bool own_colours(int mode) noexcept {
+    return mode == kModeSprite || mode == kModeFaded || mode == kModeFadedOdd;
+}
+
+/// Makes the pixels of RGBA `rgba` that `mode` leaves out transparent.
+void clear_raster(std::vector<std::uint8_t>& rgba, std::uint32_t width, std::uint32_t height, int mode) {
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            const std::size_t i = (std::size_t{y} * width + x) * 4;
+            if (i + 3 < rgba.size() && !raster_pixel(mode, x, y)) {
+                rgba[i + 3] = 0;
+            }
+        }
+    }
 }
 
 }  // namespace
@@ -239,12 +264,12 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
     if (icon != nullptr) {
         block = -1;  // the same picture in every sheet
     }
-    const bool tinting = mode == kModeSprite && tint && (tint->shape || tint->base < tint->variants);
+    const bool tinting = own_colours(mode) && tint && (tint->shape || tint->base < tint->variants);
     const SpriteKey key{
         block,
         gfx,
         mode,
-        mode == kModeSprite ? 0 : colour,
+        own_colours(mode) ? 0 : colour,
         tinting ? 0x01000000U | (std::uint32_t{tint->colour.r} << 16U) | (std::uint32_t{tint->colour.g} << 8U) |
                       tint->colour.b
                 : 0U,
@@ -263,10 +288,12 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
                static_cast<std::size_t>(gfx) < m_sheets[static_cast<std::size_t>(block)]->size()) {
         if (auto image = m_sheets[static_cast<std::size_t>(block)]->decode(static_cast<std::size_t>(gfx))) {
             std::vector<std::uint8_t> rgba;
-            if (tinting) {
-                rgba = tinted(*m_sheets[static_cast<std::size_t>(block)], gfx, *tint);
-            } else if (mode == kModeSprite) {
-                rgba = image->to_rgba(m_palette);
+            if (own_colours(mode)) {
+                rgba = tinting ? tinted(*m_sheets[static_cast<std::size_t>(block)], gfx, *tint)
+                               : image->to_rgba(m_palette);
+                if (mode != kModeSprite) {
+                    clear_raster(rgba, image->width, image->height, mode);
+                }
             } else {
                 // The shape in one palette colour, solid or as a checkerboard.
                 const assets::Rgba c = m_palette[static_cast<std::uint8_t>(std::clamp(colour, 0, 255))];
@@ -298,7 +325,11 @@ SdlUiRenderer::Texture SdlUiRenderer::package_icon(const assets::PackageIcon& ic
         std::fprintf(stderr, "mods: icon %s: %s\n", icon.id.c_str(), picture.error.c_str());
         return Texture{};
     }
-    if (mode != kModeSprite) {
+    if (own_colours(mode)) {
+        if (mode != kModeSprite) {
+            clear_raster(picture.rgba, picture.width, picture.height, mode);
+        }
+    } else {
         // Its shape in one palette colour, as the sheets' sprites: the pixels of at least half alpha.
         const assets::Rgba c = m_palette[static_cast<std::uint8_t>(std::clamp(colour, 0, 255))];
         for (std::uint32_t y = 0; y < picture.height; ++y) {
@@ -475,10 +506,39 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
                             static_cast<float>(std::round(t.h * stretch))};
         SDL_RenderTexture(m_renderer, t.texture, nullptr, &dst);
     };
+    // Whether a sprite drawn at (x, y) starts on an even pixel of the 1024 layout's screen.
+    const auto even_place = [&](std::int32_t x, std::int32_t y) {
+        return ((std::lround((ox + x) / scale) + std::lround((oy + y) / scale)) & 1) == 0;
+    };
+    // 0x00404CD0: every second pixel of (x, y, w, h) in `c`; row r starts at (h - r) & 1, so the
+    // pixels where x + r + h is even.
+    const auto checkerboard = [&](const ui::DrawItem& d, const assets::Rgba& c) {
+        if (m_checker.texture == nullptr) {
+            m_checker = make(checker_pixels(), kCheckerWidth, kCheckerSize);
+        }
+        if (m_checker.texture == nullptr || d.w <= 0 || d.h <= 0) {
+            return;
+        }
+        SDL_SetTextureAlphaMod(m_checker.texture, 255);
+        SDL_SetTextureColorMod(m_checker.texture, c.r, c.g, c.b);
+        const auto shift = static_cast<float>(d.h & 1);
+        // Tiled, not stretched: a wider rect keeps the pattern's pixels (FB-21).
+        for (std::int32_t ty = 0; ty < d.h; ty += kCheckerSize) {
+            for (std::int32_t tx = 0; tx < d.w; tx += kCheckerSize) {
+                const auto tw = static_cast<float>(std::min(d.w - tx, kCheckerSize));
+                const auto th = static_cast<float>(std::min(d.h - ty, kCheckerSize));
+                const SDL_FRect src{shift, 0.0F, tw, th};
+                const SDL_FRect dst{static_cast<float>(ox + d.x + tx), static_cast<float>(oy + d.y + ty), tw, th};
+                SDL_RenderTexture(m_renderer, m_checker.texture, &src, &dst);
+            }
+        }
+    };
     for (const ui::DrawItem& d : items) {
         switch (d.kind) {
             case ui::DrawItem::Kind::Sprite: {
-                const Texture t = sprite(d.block, d.gfx, kModeSprite, 0, d.tint);
+                // Faded (0x004048E0): only its pixels on the screen's even x + y.
+                const int mode = !d.faded ? kModeSprite : even_place(d.x, d.y) ? kModeFaded : kModeFadedOdd;
+                const Texture t = sprite(d.block, d.gfx, mode, 0, d.tint);
                 if (d.w > 0 && d.h > 0 && t.texture != nullptr && t.w > 0 && t.h > 0) {
                     // Fitted into the box, its proportions kept and centred (icons in Open1602's windows).
                     const double fit = std::min(static_cast<double>(d.w) / t.w, static_cast<double>(d.h) / t.h);
@@ -508,13 +568,17 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
             case ui::DrawItem::Kind::SpriteMask:
                 // The shadow of the build menu's building: the original fills it solid black, which
                 // looks harsh today; translucent like the figures' shadows (as the History Edition).
-                blit(sprite(d.block, d.gfx, kModeMask, d.colour), d.x, d.y, d.half, kMaskAlpha);
+                blit(sprite(d.block, d.gfx,
+                            !d.faded               ? kModeMask
+                            : even_place(d.x, d.y) ? kModeRaster
+                                                   : kModeRasterOdd,
+                            d.colour),
+                     d.x, d.y, d.half, kMaskAlpha);
                 break;
             case ui::DrawItem::Kind::SpriteRaster: {
                 // 0x00404740: on the pixels where x + y of the screen is even (the 1024 layout's).
-                const auto place = std::lround((ox + d.x) / scale) + std::lround((oy + d.y) / scale);
-                const int mode = (place & 1) == 0 ? kModeRaster : kModeRasterOdd;
-                blit(sprite(d.block, d.gfx, mode, d.colour), d.x, d.y, false);
+                blit(sprite(d.block, d.gfx, even_place(d.x, d.y) ? kModeRaster : kModeRasterOdd, d.colour), d.x, d.y,
+                     false);
                 break;
             }
             case ui::DrawItem::Kind::Text: {
@@ -528,6 +592,10 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
             }
             case ui::DrawItem::Kind::Fill: {
                 const assets::Rgba c = m_palette[static_cast<std::uint8_t>(std::clamp(d.colour, 0, 255))];
+                if (d.faded) {
+                    checkerboard(d, c);  // a faded fill or bar: its own colour on every second pixel
+                    break;
+                }
                 SDL_SetRenderDrawBlendMode(m_renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(m_renderer, c.r, c.g, c.b, d.half ? 128 : 255);
                 const SDL_FRect r{static_cast<float>(ox + d.x), static_cast<float>(oy + d.y), static_cast<float>(d.w),
@@ -536,26 +604,7 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
                 break;
             }
             case ui::DrawItem::Kind::Raster:
-                if (m_checker.texture == nullptr) {
-                    m_checker = make(checker_pixels(), kCheckerWidth, kCheckerSize);
-                }
-                if (m_checker.texture != nullptr && d.w > 0 && d.h > 0) {
-                    SDL_SetTextureAlphaMod(m_checker.texture, 255);
-                    // 0x00404CD0: row r of the rectangle starts at (h - r) & 1, so black lies where
-                    // x + r + h is even.
-                    const auto shift = static_cast<float>(d.h & 1);
-                    // Tiled, not stretched: a wider rect keeps the pattern's pixels (FB-21).
-                    for (std::int32_t ty = 0; ty < d.h; ty += kCheckerSize) {
-                        for (std::int32_t tx = 0; tx < d.w; tx += kCheckerSize) {
-                            const auto tw = static_cast<float>(std::min(d.w - tx, kCheckerSize));
-                            const auto th = static_cast<float>(std::min(d.h - ty, kCheckerSize));
-                            const SDL_FRect src{shift, 0.0F, tw, th};
-                            const SDL_FRect dst{static_cast<float>(ox + d.x + tx), static_cast<float>(oy + d.y + ty),
-                                                tw, th};
-                            SDL_RenderTexture(m_renderer, m_checker.texture, &src, &dst);
-                        }
-                    }
-                }
+                checkerboard(d, assets::Rgba{0, 0, 0, 255});
                 break;
         }
     }
