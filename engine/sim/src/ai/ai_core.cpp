@@ -563,6 +563,48 @@ void Engine::city_founded(std::uint16_t island, std::uint8_t index) {
     }
 }
 
+void Engine::founding_query(PlayerId asker, std::uint16_t island) {
+    // 0x004294C0 with order 0x4C: the computer of the first city on the island (0x00429470: its city
+    // slots in order, player kind 0x0C) answers, at peace with the asker and on any but a large
+    // island. Its home city there: a protest under threat of war (0x49); elsewhere it tolerates a
+    // young colony (fewer than 10 inhabitants) once its cities reached the merchants' stages
+    // (+0x10640 > 0x28, 0x4B), otherwise not (0x4A).
+    if (island >= m_world.islands().size() || m_world.islands()[island].header.template_size > 3) {
+        return;
+    }
+    const City* first = nullptr;
+    for (const City& c : m_world.cities()) {
+        const Player* owner = m_world.player(c.owner);
+        if (c.island == island && owner != nullptr && owner->role == PlayerRole::Computer &&
+            (first == nullptr || c.index < first->index)) {
+            first = &c;
+        }
+    }
+    if (first == nullptr || first->owner == asker ||
+        m_world.diplomacy().relation(first->owner, asker).peace != Treaty::Signed) {
+        return;
+    }
+    const auto it = std::find_if(m_state.players.begin(), m_state.players.end(),
+                                 [&](const AiPlayer& p) { return p.player == first->owner; });
+    if (it == m_state.players.end()) {
+        return;
+    }
+    DiplomacyNotice answer;
+    answer.to = asker;
+    answer.from = first->owner;
+    answer.island = island;
+    answer.city = first->index;
+    if (!it->home_valid || it->home_island == island) {
+        answer.kind = DiplomacyNotice::Kind::FoundingProtest;
+    } else if (it->max_stage > 0x28 && population(*first) < 10) {
+        answer.kind = DiplomacyNotice::Kind::FoundingTolerated;
+    } else {
+        answer.kind = DiplomacyNotice::Kind::FoundingRefused;
+    }
+    log(*it, "%u asks to found a city on island %u: answer %u", asker, island, static_cast<unsigned>(answer.kind));
+    m_world.diplomacy().notify(answer);
+}
+
 void Engine::take_original_jobs(AiPlayer& p) {
     // An original savegame keeps the jobs on its ships (SHIP4 +0x24 mission, +0x3E parameter,
     // +0x40 counter). Taken over: missions with a city (1 fetch troops, 2 go home, 5 and 6 attack,
@@ -678,6 +720,10 @@ bool ComputerPlayers::directs(std::uint32_t ship) const {
 
 void ComputerPlayers::city_founded(std::uint16_t island, std::uint8_t city) {
     m_engine->city_founded(island, city);
+}
+
+void ComputerPlayers::founding_query(PlayerId asker, std::uint16_t island) {
+    m_engine->founding_query(asker, island);
 }
 
 std::vector<ComputerPlayers::View> ComputerPlayers::view() const {

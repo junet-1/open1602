@@ -77,10 +77,16 @@ struct DiplomacyNotice {
         TradeEnded,    ///< 0x50
         TradeOffered,  ///< 0x51
         TradeSigned,   ///< 0x52
+        // A computer's answer to a ship that is about to found a city on its island (0x004294C0):
+        FoundingProtest,    ///< 0x49 „Euer Gegner protestiert gegen Bauvorhaben unter Kriegsandrohung!“
+        FoundingRefused,    ///< 0x4A „Euer Gegner toleriert Stadtgründung zu diesem Zeitpunkt nicht!“
+        FoundingTolerated,  ///< 0x4B „Euer Gegner würde die Stadtgründung tolerieren.“
     };
     Kind kind = Kind::PeaceOffered;
     PlayerId to = kNoPlayer;    ///< the player who gets the message
     PlayerId from = kNoPlayer;  ///< the player who acted
+    std::uint16_t island = 0;   ///< the founding answers: the computer's city on the island
+    std::uint8_t city = 0;
 };
 
 class Diplomacy {
@@ -136,6 +142,8 @@ public:
     void decay(PlayerId a) noexcept;
 
     [[nodiscard]] std::vector<DiplomacyNotice> take_notices() { return m_notices.take(); }
+    /// A message from outside the treaties (a computer's answer to a founding, ComputerPlayers).
+    void notify(const DiplomacyNotice& notice) { m_notices.push(notice); }
 
     friend bool operator==(const Diplomacy& a, const Diplomacy& b) noexcept;
 
@@ -158,6 +166,9 @@ struct DiplomacyOrder {
         Tribute,   ///< `gold` (at most kMaxTribute) goes to the partner and makes him friendlier
         BuyPeace,  ///< with `ship` at a pirate Kontor: pay the pirates for peace (B.6)
         Bribe,     ///< with `ship` at a pirate Kontor: pay the pirates to fight `target`
+        /// „Kontor gründen“ with `ship` by an island (island order 0x4C): a computer with a city there
+        /// answers whether it tolerates the founding (Simulation, ComputerPlayers::founding_query).
+        AskFounding,
     };
     PlayerId player = kNoPlayer;
     PlayerId partner = kNoPlayer;
@@ -165,7 +176,7 @@ struct DiplomacyOrder {
     Treaty value = Treaty::Offered;
     bool friendly = true;
     std::uint32_t gold = 0;
-    std::uint32_t ship = 0;       ///< BuyPeace, Bribe: Ship::id lying at the pirates' Kontor
+    std::uint32_t ship = 0;       ///< BuyPeace, Bribe: Ship::id lying at the pirates' Kontor; AskFounding
     PlayerId target = kNoPlayer;  ///< Bribe: whom the pirates go after
 };
 

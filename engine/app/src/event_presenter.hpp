@@ -111,7 +111,7 @@ public:
     /// A rival founded a city (MELDUNG 0x0E, its icon in the rival's colour).
     [[nodiscard]] std::vector<Notice> construction_events(const sim::World& world, sim::PlayerId local,
                                                           const std::vector<sim::ConstructionEvent>& events) const;
-    /// Offers, treaties and broken peace (MELDUNG 0x4D..0x52).
+    /// Offers, treaties and broken peace (MELDUNG 0x4D..0x52), a computer's answer to a founding (0x49..0x4B).
     [[nodiscard]] std::vector<Notice> diplomacy_notices(const sim::World& world, sim::PlayerId local,
                                                         const std::vector<sim::DiplomacyNotice>& notices) const;
     /// Victory, defeat and the end of the game: messages, videos, high scores, and the end screen

@@ -921,9 +921,16 @@ private:
                     m_offer = 0;
                 }
                 break;
-            case kFound:
+            case kFound: {
                 m_request = Request{Request::Kind::FoundKontor, ship.id};
+                // The island is asked at the same time: a computer with a city there answers (0x0043CE00).
+                sim::DiplomacyOrder ask;
+                ask.player = c.local;
+                ask.kind = sim::DiplomacyOrder::Kind::AskFounding;
+                ask.ship = ship.id;
+                out.emplace_back(ask);
                 break;
+            }
             case kScuttle:
                 out.emplace_back(ship_command(ship, c, sim::ShipCommand::Op::Scuttle));
                 break;

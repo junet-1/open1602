@@ -1144,6 +1144,13 @@ TEST_CASE("selection panels: the ship window gives the orders of a ship at sea a
     REQUIRE(request.has_value());
     CHECK(request->kind == SelectionPanel::Request::Kind::FoundKontor);
     CHECK(request->ship == coaster.ship);
+    // ... and asks the island whether a computer there tolerates it (0x0043CE00).
+    REQUIRE(out.size() == 1);
+    const auto* ask = std::get_if<sim::DiplomacyOrder>(&out[0]);
+    REQUIRE(ask != nullptr);
+    CHECK(ask->kind == sim::DiplomacyOrder::Kind::AskFounding);
+    CHECK(ask->ship == coaster.ship);
+    out.clear();
 
     // Another player's ship: bought if it is offered, otherwise nothing.
     const Selection bargain = ship(2);
