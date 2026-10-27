@@ -443,6 +443,19 @@ TEST_CASE("logistics: a destroyed Kontor gives its own room and no market bonus 
     CHECK(town.city().capacity == 20 * 32);
 }
 
+TEST_CASE("logistics: after loading a city holds no more than its warehouse takes") {
+    Town town;
+    town.place(kKontor, 24, 3);
+    town.finish({{24, 3}});
+    town.city().goods.assign(16, 0);
+    town.city().goods[kCloth] = 50 * 32;  // more than the Kontor's 30 t, as in an edited game
+    town.city().goods[kFlour] = 10 * 32;
+    const sim::Simulation simulation(town.world, town.buildings, town.figures);
+    CHECK(town.city().capacity == 30 * 32);
+    CHECK(town.city().goods[kCloth] == 30 * 32);
+    CHECK(town.city().goods[kFlour] == 10 * 32);
+}
+
 TEST_CASE("logistics: carts are not drawn on the tiles of buildings (0x00451590)") {
     // Ticks a cart of the market to the weaver and back; returns how many ticks it was drawn.
     const auto drawn_ticks = [](std::int32_t weaver_x, std::int32_t weaver_y) {
