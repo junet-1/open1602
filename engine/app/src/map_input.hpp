@@ -67,6 +67,7 @@ public:
         /// Ctrl+F, Ctrl+K: the frame rate, the tile under the mouse in the corner of the map.
         virtual void toggle_fps() = 0;
         virtual void toggle_coordinates() = 0;
+        virtual void toggle_unit_arms() = 0;
         /// F11, Alt+Enter: window or full screen.
         virtual void toggle_fullscreen() = 0;
         /// The Pause key: the original's pause with its video (without videos the game still stops).

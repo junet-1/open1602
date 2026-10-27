@@ -129,6 +129,7 @@ keys.action.pixel_scale_down = Kleinere Pixel
 keys.action.show_owners = Besitz zeigen
 keys.action.show_fps = Bilder pro Sekunde zeigen
 keys.action.show_coordinates = Koordinaten zeigen
+keys.action.show_unit_arms = Einheiten-Identifikation (Wappen über den eigenen Einheiten)
 keys.action.fullscreen = Fenster oder Vollbild
 keys.action.quit = Beenden
 

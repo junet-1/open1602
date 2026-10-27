@@ -152,6 +152,7 @@ keys.action.pixel_scale_down = Smaller pixels
 keys.action.show_owners = Show ownership
 keys.action.show_fps = Show frame rate
 keys.action.show_coordinates = Show coordinates
+keys.action.show_unit_arms = Unit identification (coat of arms over own units)
 keys.action.fullscreen = Window or full screen
 keys.action.quit = Quit
 

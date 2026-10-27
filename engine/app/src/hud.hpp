@@ -420,6 +420,16 @@ public:
     /// Texts over the map (the stock of production buildings), before the frame: `items` in screen
     /// pixels of the map, drawn at the interface's scale like the original's fonts.
     void draw_over_map(const std::vector<ui::DrawItem>& items) { m_renderer->draw(items, 0, 0, m_regions.scale); }
+    /// A mark of the unit identification (M, History Edition): the coat of arms fitted into `arms`
+    /// on a pole at x `pole_x` from `pole_top` down to `pole_foot`, in screen pixels.
+    struct UnitArms {
+        ui::Rect arms;
+        std::int32_t pole_x = 0;
+        std::int32_t pole_top = 0;
+        std::int32_t pole_foot = 0;
+    };
+    /// The marks with the coat of arms of `banner` (the top bar's, recoloured for further colours).
+    void draw_unit_arms(const std::vector<UnitArms>& marks, sim::BannerId banner);
     /// After the frame is shown (the text cache keeps what the frame drew).
     void next_frame() { m_renderer->next_frame(); }
 

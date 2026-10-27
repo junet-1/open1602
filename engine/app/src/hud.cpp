@@ -416,6 +416,42 @@ void Hud::draw_resources() {
     m_renderer->draw(items, x0, v.y, s);
 }
 
+void Hud::draw_unit_arms(const std::vector<UnitArms>& marks, sim::BannerId banner) {
+    if (marks.empty()) {
+        return;
+    }
+    const render::Banner* b = m_banners != nullptr ? m_banners->get(banner) : nullptr;
+    const render::BannerArt art = render::BannerArt::at(m_gfx_baumat + 17);
+    const render::BannerArtSprite sprite =
+        b != nullptr ? render::banner_art(art, b)
+                     : render::BannerArtSprite{art.first + std::min<std::int32_t>(banner, 3), std::nullopt};
+    constexpr std::uint8_t kPole = 28;  // dark brown, as the frames of the key overview
+    std::vector<ui::DrawItem> items;
+    items.reserve(2 * marks.size());
+    for (const UnitArms& m : marks) {
+        ui::DrawItem pole;
+        pole.kind = ui::DrawItem::Kind::Fill;
+        pole.colour = kPole;
+        pole.w = std::max(1, m.arms.w / 8);
+        pole.x = m.pole_x - pole.w / 2;
+        pole.y = m.pole_top;
+        pole.h = std::max(1, m.pole_foot - m.pole_top);
+        items.push_back(pole);
+        ui::DrawItem arms;
+        arms.kind = ui::DrawItem::Kind::Sprite;
+        arms.gfx = sprite.gfx;
+        arms.x = m.arms.x;
+        arms.y = m.arms.y;
+        arms.w = m.arms.w;
+        arms.h = m.arms.h;
+        if (sprite.tint) {
+            arms.tint = ui::ColourTint{*sprite.tint, art.stride, art.variants, art.base, sprite.pattern};
+        }
+        items.push_back(std::move(arms));
+    }
+    m_renderer->draw(items, 0, 0, m_regions.scale);
+}
+
 SelectionPanel* Hud::selection_panel(std::optional<PanelContext>& context) {
     if (m_simulation == nullptr || m_buildings == nullptr || m_figure_table == nullptr || !m_selection_panels) {
         return nullptr;
