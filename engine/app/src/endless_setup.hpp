@@ -90,13 +90,22 @@ enum class SetupItem : std::uint8_t {
     WinTimeLimit,
     WinAll,
     WinComputers,
+    // Bugs of the original brought back (a page of their own, "Original settings"; sim::OriginalBugs)
+    BugFireRisk,
+    BugGallows,
     Count,
 };
 
 /// Whether an item is one of the victory conditions (their page of the dialog).
 [[nodiscard]] constexpr bool victory_item(SetupItem item) noexcept {
-    return item >= SetupItem::WinInhabitants && item < SetupItem::Count;
+    return item >= SetupItem::WinInhabitants && item <= SetupItem::WinComputers;
 }
+/// Whether an item is a bug of the original (the page "Original settings").
+[[nodiscard]] constexpr bool bug_item(SetupItem item) noexcept {
+    return item >= SetupItem::BugFireRisk && item < SetupItem::Count;
+}
+/// The bugs of the original in a few words: Open1602's fixes, or how many are as in the original.
+[[nodiscard]] std::string bugs_summary(const sim::OriginalBugs& bugs);
 /// Whether what is played offers victory conditions: endless games (a saved one to look at).
 [[nodiscard]] bool victory_offered(SetupScope scope) noexcept;
 /// How many victory conditions are on (the time limit counts as one).

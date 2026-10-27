@@ -291,6 +291,8 @@ std::size_t setup_choices(SetupItem item) noexcept {
         case SetupItem::WinEliminate:
         case SetupItem::WinAll:
         case SetupItem::WinComputers:
+        case SetupItem::BugFireRisk:
+        case SetupItem::BugGallows:
             return 2;
         case SetupItem::WinInhabitants:
             return kWinInhabitants.size();
@@ -387,6 +389,10 @@ std::size_t setup_choice(const EndlessSetup& setup, SetupItem item) noexcept {
             return r.guarantee_resources ? 0 : 1;
         case SetupItem::ClassicAi:
             return r.classic_ai ? 1 : 0;
+        case SetupItem::BugFireRisk:
+            return r.bugs.fire_risk ? 1 : 0;
+        case SetupItem::BugGallows:
+            return r.bugs.gallows ? 1 : 0;
         case SetupItem::ComputerPlayers:
             return std::min<std::size_t>(static_cast<std::size_t>(r.computer_players), kComputerNames.size() - 1);
         case SetupItem::Pirates:
@@ -508,6 +514,12 @@ void choose(EndlessSetup& setup, SetupItem item, std::size_t choice) {
         case SetupItem::ClassicAi:
             r.classic_ai = choice == 1;
             break;
+        case SetupItem::BugFireRisk:
+            r.bugs.fire_risk = choice == 1;
+            break;
+        case SetupItem::BugGallows:
+            r.bugs.gallows = choice == 1;
+            break;
         case SetupItem::ComputerPlayers:
             r.computer_players = static_cast<sim::Computers>(choice);
             break;
@@ -616,6 +628,14 @@ std::string victory_summary(const sim::VictoryConditions& v) {
     return ui::tr(n == 1 ? "setup.victory.one" : "setup.victory.many", {std::to_string(n)});
 }
 
+std::string bugs_summary(const sim::OriginalBugs& bugs) {
+    const std::uint32_t n = bugs.count();
+    if (n == 0) {
+        return ui::tr("setup.bugs.none");
+    }
+    return ui::tr(n == 1 ? "setup.bugs.one" : "setup.bugs.many", {std::to_string(n)});
+}
+
 std::string victory_text(const sim::VictoryConditions& v) {
     if (!v.active()) {
         return {};
@@ -697,6 +717,8 @@ bool setup_item_offered(SetupScope scope, SetupItem item) noexcept {
         case SetupItem::Pirates:
         case SetupItem::PirateNests:
         case SetupItem::Reveal:
+        case SetupItem::BugFireRisk:
+        case SetupItem::BugGallows:
             return true;
         default:
             return false;
@@ -780,6 +802,8 @@ std::string setup_label(SetupItem item) {
         "setup.win.time",
         "setup.win.all",
         "setup.win.computers",
+        "setup.bug.fire_risk",
+        "setup.bug.gallows",
     };
     const auto i = static_cast<std::size_t>(item);
     return i < kKeys.size() ? ui::tr(kKeys[i]) : std::string{};
@@ -853,6 +877,10 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(choice == 0 ? "setup.on" : "setup.off");
         case SetupItem::ClassicAi:
             return ui::tr(choice == 1 ? "setup.ai.classic" : "setup.ai.open1602");
+        case SetupItem::BugFireRisk:
+            return ui::tr(choice == 1 ? "setup.bug.fire_risk.original" : "setup.bug.fire_risk.fixed");
+        case SetupItem::BugGallows:
+            return ui::tr(choice == 1 ? "setup.bug.gallows.original" : "setup.bug.gallows.fixed");
         case SetupItem::ComputerPlayers: {
             static constexpr std::array<std::string_view, 3> kKeys = {"setup.computers.game", "setup.off", "setup.on"};
             return ui::tr(kKeys[choice]);
@@ -1079,6 +1107,10 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
         if (value == "classic" || value == "open1602") {
             r.classic_ai = value == "classic";
         }
+    } else if (key == "bug.fire_risk" || key == "bug.gallows") {
+        if (value == "original" || value == "fixed") {
+            (key == "bug.gallows" ? r.bugs.gallows : r.bugs.fire_risk) = value == "original";
+        }
     } else if (key == "own_world") {
         if (value == "on" || value == "off") {
             setup.own_world = value == "on";
@@ -1153,6 +1185,8 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("pirates", kPirateNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirates), 2)]);
     line("pirate_nests", kPirateNestNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), 1)]);
     line("reveal", kRevealNames[std::min<std::size_t>(static_cast<std::size_t>(r.reveal), 2)]);
+    line("bug.fire_risk", r.bugs.fire_risk ? "original" : "fixed");
+    line("bug.gallows", r.bugs.gallows ? "original" : "fixed");
     line("own_world", on_off(setup.own_world));
     line("world", setup.auto_size ? "auto" : std::to_string(w.width) + "x" + std::to_string(w.height));
     line("players", std::to_string(w.players));

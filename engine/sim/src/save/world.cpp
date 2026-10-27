@@ -35,6 +35,8 @@ enum RuleKey : std::uint16_t {
     kRevisedBread = 28,
     kOreVeins = 29,  // OreVeins::Finite (Endless keeps the old key, Game has none)
     kComputerPlayers = 30,
+    kBugGallows = 31,   // OriginalBugs::gallows (S-055)
+    kBugFireRisk = 32,  // OriginalBugs::fire_risk (S-049)
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -163,6 +165,14 @@ void write_rules(Writer& out, const Rules& r) {
     if (r.reveal != Reveal::None) {
         values.emplace_back(kReveal, static_cast<std::uint32_t>(r.reveal));
     }
+    // A bug of the original only when it is brought back: fixed is Open1602's way, which the
+    // versions before them played.
+    if (r.bugs.gallows) {
+        values.emplace_back(kBugGallows, 1U);
+    }
+    if (r.bugs.fire_risk) {
+        values.emplace_back(kBugFireRisk, 1U);
+    }
     // The victory conditions only when there are any: a game without them keeps the bytes of the
     // versions before them.
     if (const VictoryConditions& v = r.victory; v != VictoryConditions{}) {
@@ -245,6 +255,12 @@ Rules read_rules(Reader& in) {
                 break;
             case kClassicAi:
                 r.classic_ai = v != 0;
+                break;
+            case kBugGallows:
+                r.bugs.gallows = v != 0;
+                break;
+            case kBugFireRisk:
+                r.bugs.fire_risk = v != 0;
                 break;
             case kReveal:
                 r.reveal = static_cast<Reveal>(std::min<std::uint32_t>(v, 2));

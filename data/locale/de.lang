@@ -438,7 +438,7 @@ setup.change = Spieleinstellungen ...
 setup.view = Spieleinstellungen ansehen
 
 # Siegbedingungen des Endlosspiels (eine Seite des Startdialogs)
-setup.group.victory = Sieg
+setup.group.more = Weiteres
 setup.victory = Siegbedingungen
 setup.victory.open = {1} ...
 setup.victory.none = Keine (endlos)
@@ -481,6 +481,23 @@ setup.win.class.text = {1} {2} oder höher
 setup.win.minutes = {1} Min.
 setup.victory.text = Siegbedingungen: {1}.
 setup.thousands = .
+
+# Bugs of the original a game can bring back (a page of the start dialog, "Original settings")
+setup.bugs = Originaleinstellungen
+setup.bugs.open = {1} ...
+setup.bugs.none = Open1602-Fixes
+setup.bugs.one = 1 wie Original
+setup.bugs.many = {1} wie Original
+setup.bugs.all_original = Alle wie im Original
+setup.bugs.all_fixed = Alle behoben
+setup.title.bugs = Originaleinstellungen
+setup.hint.bugs = Hier lassen sich Fehler und Exploits des Originals zurückholen, die Open1602 behebt; standardmäßig gelten die Fixes. Brandgefahr: Im Original fangen Gebäude aus Ziegeln mit 7 von 8 Feuer, hölzerne nur mit 3 von 8; Open1602 dreht das um. Galgen: Im Original versucht ein Räuber, den der Galgen abweist, bis zu zwei weitere Häuser, sodass eine ganz vom Galgen abgedeckte Stadt noch 58 % der Räuber bekommt; in Open1602 ein Viertel.
+setup.bug.fire_risk = Brandgefahr
+setup.bug.fire_risk.fixed = Holz brennt eher
+setup.bug.fire_risk.original = Ziegel brennen eher
+setup.bug.gallows = Galgen
+setup.bug.gallows.fixed = Hält 3 von 4 ab
+setup.bug.gallows.original = Hält 2 von 5 ab
 
 # Die Anzeige-Zeilen der Einstellungen und das Fenster „Anzeige“ (display_menu.cpp)
 options.window = Fenster

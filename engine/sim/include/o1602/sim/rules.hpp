@@ -4,9 +4,10 @@
 // configurable endless games of later Anno titles, and points that differ between Open1602 and the
 // original (ADR 0006, docs/re/bugs.md).
 //
-// Only points that change balance or feel are switchable. Real bugs and exploits are always fixed
-// and have no switch here. Rules are part of the game state and of a multiplayer session, so all
-// peers simulate with the same values.
+// Only points that change balance or feel are switchable. Bugs and exploits of the original are
+// fixed; those whose fix changes how the game plays can be brought back one by one (OriginalBugs,
+// the dialog's page "Original settings"). Rules are part of the game state and of a multiplayer
+// session, so all peers simulate with the same values.
 #pragma once
 
 #include <cstdint>
@@ -143,6 +144,26 @@ struct VictoryConditions {
     friend constexpr bool operator==(const VictoryConditions&, const VictoryConditions&) = default;
 };
 
+/// Bugs and exploits of the original that a game can bring back (ADR 0008, "Original settings"). Each
+/// is fixed in Open1602 by default; its original way is a choice for players who want the game as
+/// they know it. Only bugs whose fix changes how the game plays belong here (docs/re/bugs.md).
+/// A new one is a bool here, a SetupItem on the dialog's page and a key of the savegame's RULE.
+struct OriginalBugs {
+    /// S-055: a robber a gallows turned away tries up to two more houses, so a town covered by
+    /// gallows everywhere still gets 58 % of the robbers (fixed: a quarter).
+    bool gallows = false;
+    /// S-049: buildings with more bricks than wood catch fire with 7 in 8, wooden ones with 3 in 8
+    /// (fixed: the other way round).
+    bool fire_risk = false;
+
+    /// How many of them are as in the original.
+    [[nodiscard]] constexpr std::uint32_t count() const noexcept { return (gallows ? 1U : 0U) + (fire_risk ? 1U : 0U); }
+    /// Every one as in the original.
+    [[nodiscard]] static constexpr OriginalBugs all() noexcept { return OriginalBugs{true, true}; }
+
+    friend constexpr bool operator==(const OriginalBugs&, const OriginalBugs&) = default;
+};
+
 struct Rules {
     /// Refund of the build costs (gold and goods) when the player demolishes a building. The goods
     /// go back into the warehouse of the building's city as far as there is room.
@@ -204,6 +225,9 @@ struct Rules {
     /// Which towns are discovered from the start (players, natives, pirates) or only by ship.
     Reveal reveal = Reveal::None;
 
+    /// Bugs of the original brought back; none by default, also in savegames of the original.
+    OriginalBugs bugs{};
+
     /// Victory conditions of an endless game (victory.hpp); all off by default, as the original's
     /// endless game, which no one wins.
     VictoryConditions victory{};
@@ -230,6 +254,7 @@ struct Rules {
         r.revised_bread = false;
         r.classic_ai = true;
         r.reveal = Reveal::None;
+        r.bugs = OriginalBugs::all();
         return r;
     }
 

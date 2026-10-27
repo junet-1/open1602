@@ -930,7 +930,7 @@ void Simulation::cities_step() {
 
 void Simulation::city_events_step() {
     // Every 60-67 s a city may catch the plague, send out a robber or catch fire (0x0047F8A0).
-    advance_city_events(*m_world, *m_buildings, m_disaster_events.sink(), &m_robbers);
+    advance_city_events(*m_world, *m_buildings, m_rules, m_disaster_events.sink(), &m_robbers);
     for (const RobberSpawn& r : m_robbers) {
         m_logistics.spawn_robber(r);
     }
@@ -961,7 +961,7 @@ void Simulation::disasters_step() {
         return;
     }
     const std::size_t first = m_construction_events.size();
-    advance_disasters(*m_world, *m_buildings, m_disaster_events.sink(), m_construction_events.sink());
+    advance_disasters(*m_world, *m_buildings, m_rules, m_disaster_events.sink(), m_construction_events.sink());
     handle(m_construction_events.events(), first);
 }
 
