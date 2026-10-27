@@ -656,7 +656,7 @@ private:
         bool moving = false;
         bool own_kontor = false;                ///< at an own Kontor: transfer
         bool foreign_kontor = false;            ///< at another's Kontor with a trade treaty: trade
-        bool found = false;                     ///< an island within 4 tiles without an own city
+        bool found = false;                     ///< land within 4 tiles on an island without an own city
         std::optional<sim::CostBuilding> yard;  ///< an own shipyard in reach
         sim::ExploreState explore = sim::ExploreState::NotAllowed;
         bool pirates = false;                                        ///< at the pirates' Kontor
@@ -695,26 +695,12 @@ private:
             } else if (w.diplomacy().may_trade(ship.owner, city.owner)) {  // natives too: by treaty
                 k.foreign_kontor = true;
             }
-        } else {
-            // An island within 4 tiles where the player has no city yet.
-            for (int dy = -4; dy <= 4 && !k.found; ++dy) {
-                for (int dx = -4; dx <= 4 && !k.found; ++dx) {
-                    const std::int32_t x = ship.x + dx;
-                    const std::int32_t y = ship.y + dy;
-                    if (x < 0 || y < 0 || x >= static_cast<std::int32_t>(w.width()) ||
-                        y >= static_cast<std::int32_t>(w.height())) {
-                        continue;
-                    }
-                    const sim::World::Cell& cell = w.cell(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
-                    if (cell.island == sim::World::kSea) {
-                        continue;
-                    }
-                    const bool own_city = std::any_of(w.cities().begin(), w.cities().end(), [&](const sim::City& ct) {
-                        return ct.island == cell.island && ct.owner == ship.owner;
-                    });
-                    k.found = !own_city;
-                }
-            }
+        } else if (const auto site = sim::kontor_site_near(w, c.buildings, ship.x, ship.y)) {
+            // Land within 4 tiles of a ship in an island's rectangle where the player has no city
+            // yet (0x00448EF0).
+            k.found = std::none_of(w.cities().begin(), w.cities().end(), [&](const sim::City& ct) {
+                return ct.island == site->island && ct.owner == ship.owner;
+            });
         }
         for (const sim::CostBuilding& b : w.cost_buildings()) {
             if (b.kind != sim::CostBuilding::Kind::Shipyard || b.island >= w.islands().size()) {
@@ -817,7 +803,7 @@ private:
         m_ship.set_slider(kHealth, 0, static_cast<std::int32_t>(std::uint64_t{health} * 1000 / max_health), 1000);
         m_ship.set_text(kCannons, std::to_string(ship.cannons));
         m_ship.set_disabled(kCannonsDown, ship.cannons == 0);
-        m_ship.set_visible(kRoute, own && !ship.for_sale && ship.route.has_stops());
+        m_ship.set_visible(kRoute, own && !ship.for_sale);  // also without stops (0x00436887)
         m_ship.set_visible(kRouteEditor, own && !ship.for_sale);
         m_ship.set_visible(kScuttle, own && !ship.for_sale);
         m_ship.set_visible(kPirates, idle && k.pirates);

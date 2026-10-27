@@ -45,7 +45,8 @@ struct MenuScenario {
 };
 
 /// The scenarios of the game folder in the menu's order: originals (tutorial, endless game,
-/// numbered missions by number), campaigns, the other adventures by stars, each group under its
+/// numbered missions by number), campaigns by stars and number, the other adventures by stars,
+/// equal ones in name order, each group under its
 /// heading (`headings`: [GAME] 85..88). With `game` the History Edition's names ([[7]]) become its
 /// texts ("Das Atoll").
 [[nodiscard]] std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder,

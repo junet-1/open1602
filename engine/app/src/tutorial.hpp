@@ -85,7 +85,8 @@ inline constexpr std::uint8_t kShipyard = 0x01;  ///< an own shipyard in reach
 inline constexpr std::uint8_t kTrade = 0x02;     ///< trade or transfer at the Kontor in reach
 inline constexpr std::uint8_t kPirates = 0x04;   ///< at the pirates' Kontor
 inline constexpr std::uint8_t kOwnCity = 0x08;   ///< the Kontor or the coast in reach is the owner's
-inline constexpr std::uint8_t kFound = 0x10;     ///< an island within 4 tiles without a city of the owner
+inline constexpr std::uint8_t kFound =
+    0x10;  ///< land within 4 tiles (sim::kontor_site_near) on an island without a city of the owner
 inline constexpr std::uint8_t kIsland = 0x20;    ///< inside an island's rectangle
 inline constexpr std::uint8_t kExplored = 0x40;  ///< ... which the owner has explored
 }  // namespace ship_action

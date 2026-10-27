@@ -92,32 +92,13 @@ std::uint8_t ship_actions(const sim::Simulation& simulation, const assets::Build
                 m |= ship_action::kOwnCity;
             }
         }
-    } else {
-        // The nearest island tile within 4 tiles (0x00448EF0): an island without a city of the
-        // owner can take a Kontor; otherwise the coast may be the owner's own.
-        std::optional<sim::World::Cell> nearest;
-        std::int32_t best = 0;
-        for (std::int32_t dy = -4; dy <= 4; ++dy) {
-            for (std::int32_t dx = -4; dx <= 4; ++dx) {
-                const std::int32_t x = ship.x + dx;
-                const std::int32_t y = ship.y + dy;
-                if (!w.contains(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y)) || x < 0 || y < 0) {
-                    continue;
-                }
-                const sim::World::Cell& cell = w.cell(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
-                const std::int32_t d = dx * dx + dy * dy;
-                if (cell.island != sim::World::kSea && (!nearest || d < best)) {
-                    nearest = cell;
-                    best = d;
-                }
-            }
-        }
-        if (nearest) {
-            if (!has_city_on(w, nearest->island, ship.owner)) {
-                m |= ship_action::kFound;
-            } else if (w.islands()[nearest->island].map.top(nearest->local_x, nearest->local_y).owner == ship.owner) {
-                m |= ship_action::kOwnCity;
-            }
+    } else if (const auto site = sim::kontor_site_near(w, buildings, ship.x, ship.y)) {
+        // Land within 4 tiles of a ship in an island's rectangle (0x00448EF0): an island without a
+        // city of the owner can take a Kontor; otherwise the coast may be the owner's own.
+        if (!has_city_on(w, site->island, ship.owner)) {
+            m |= ship_action::kFound;
+        } else if (w.islands()[site->island].map.top(site->x, site->y).owner == ship.owner) {
+            m |= ship_action::kOwnCity;
         }
     }
     for (const sim::CostBuilding& b : w.cost_buildings()) {

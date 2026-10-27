@@ -422,3 +422,33 @@ TEST_CASE("main menu: the screen \"Mods\" turns packages on and off and takes in
     CHECK(menu.back());
     CHECK(menu.screen() == MainMenu::Screen::Base);
 }
+
+TEST_CASE("main menu: campaigns by stars then number, each by the header of its last file (0x0048E710)") {
+    const std::filesystem::path folder = test::temp_path("o1602-test-menu-order");
+    std::filesystem::remove_all(folder);
+    const auto scenario = [&](const std::string& file, std::uint32_t campaign, std::uint32_t ranking) {
+        assets::ChunkWriter w;
+        const auto word = [](std::uint32_t v) {
+            return std::array<std::uint8_t, 4>{static_cast<std::uint8_t>(v), 0, 0, 0};
+        };
+        if (campaign != assets::ScenarioHeader::kNone) {
+            w.add("SZENE_KAMPAGNE", word(campaign));
+        }
+        w.add("SZENE_RANKING", word(ranking));
+        const core::Bytes& b = w.bytes();
+        write(folder / file, std::string(b.begin(), b.end()));
+    };
+    scenario("Alpha0.szs", 1, 1);
+    scenario("Alpha1.szs", 1, 1);
+    scenario("Zeta0.szs", assets::ScenarioHeader::kNone, 3);  // only the last file counts
+    scenario("Zeta1.szs", 2, 0);
+    scenario("Beta0.szs", 3, 0);
+    const std::array<std::string, 4> headings = {"Original", "Kampagnen", "Abenteuer", "Eigene"};
+    const auto list = app::scenario_list(folder, headings, nullptr);
+    std::vector<std::string> names;
+    for (const app::MenuScenario& s : list) {
+        names.push_back(s.name);
+    }
+    CHECK((names == std::vector<std::string>{"Kampagnen", "Zeta", "Beta", "Alpha"}));
+    std::filesystem::remove_all(folder);
+}

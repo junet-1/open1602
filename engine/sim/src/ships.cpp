@@ -3,6 +3,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
+#include <utility>
+#include <vector>
 
 #include "o1602/sim/logistics.hpp"
 #include "o1602/sim/pathfinding.hpp"
@@ -113,6 +116,116 @@ std::optional<std::size_t> kontor_in_reach(const World& world, const assets::Bui
         if (c.warehouse_x && c.warehouse_y &&
             building_in_reach(world, buildings, c.island, *c.warehouse_x, *c.warehouse_y, wx, wy)) {
             return i;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<KontorSite> kontor_site_near(const World& world, const assets::BuildingTable& buildings, std::int32_t wx,
+                                           std::int32_t wy) {
+    constexpr std::int32_t kRadius = 4;
+    constexpr std::int32_t kSide = 2 * kRadius + 1;
+    if (wx < 0 || wy < 0 || !world.contains(static_cast<std::uint32_t>(wx), static_cast<std::uint32_t>(wy))) {
+        return std::nullopt;
+    }
+    // The ship's tile must lie in an island's rectangle (0x0046AAA0), water inside it included.
+    const std::uint16_t index = world.cell(static_cast<std::uint32_t>(wx), static_cast<std::uint32_t>(wy)).island;
+    if (index == World::kSea || index >= world.islands().size()) {
+        return std::nullopt;
+    }
+    const WorldIsland& isl = world.islands()[index];
+    const IslandMap& map = isl.map;
+    // The circles of the island's markets and Kontors (0x00483080), at least 8 tiles.
+    std::vector<std::pair<Catchment, std::uint8_t>> circles;
+    for (std::uint32_t y = 0; y < map.height(); ++y) {
+        for (std::uint32_t x = 0; x < map.width(); ++x) {
+            const MapCell& c = map.top(x, y);
+            const assets::BuildingType* b = c.empty() ? nullptr : buildings.by_sprite(c.sprite);
+            if (b == nullptr || (b->prod_kind != prod::kMarket && b->prod_kind != prod::kKontor)) {
+                continue;
+            }
+            const SubTile sub = map.sub_tile(buildings, x, y);
+            if (sub.origin_x == static_cast<std::int32_t>(x) && sub.origin_y == static_cast<std::int32_t>(y)) {
+                circles.emplace_back(catchment_of(*b, c.rotation, {sub.origin_x, sub.origin_y}),
+                                     std::max<std::uint8_t>(b->radius, 8));
+            }
+        }
+    }
+    const auto claimed = [&](std::int32_t x, std::int32_t y) {
+        return std::any_of(circles.begin(), circles.end(), [&](const auto& circle) {
+            const Catchment& a = circle.first;
+            std::int32_t dx = x - a.centre.x;
+            std::int32_t dy = y - a.centre.y;
+            if (dx > 0) {
+                dx -= a.parity_x;
+            }
+            if (dy > 0) {
+                dy -= a.parity_y;
+            }
+            return in_circle(dx, dy, circle.second);
+        });
+    };
+    // The window round the ship cut to the disc (0x004700B0, 0x00471280): sea, surf and beach
+    // can be passed, land claimed by a city cannot, unclaimed land is the goal. Beyond the
+    // island's rectangle there is only open sea.
+    enum class Cell : std::uint8_t { Blocked, Water, Goal };
+    std::array<Cell, kSide * kSide> grid{};
+    const std::vector<std::uint8_t>& half = circle_table(kRadius);
+    for (std::int32_t dy = -kRadius; dy <= kRadius; ++dy) {
+        for (std::int32_t dx = -kRadius; dx <= kRadius; ++dx) {
+            Cell& cell = grid[static_cast<std::size_t>((dy + kRadius) * kSide + dx + kRadius)];
+            const std::int32_t x = wx + dx;
+            const std::int32_t y = wy + dy;
+            if (std::abs(dx) > half[static_cast<std::size_t>(std::abs(dy))] || x < 0 || y < 0 ||
+                !world.contains(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y))) {
+                cell = Cell::Blocked;
+                continue;
+            }
+            const std::int32_t lx = x - static_cast<std::int32_t>(isl.x);
+            const std::int32_t ly = y - static_cast<std::int32_t>(isl.y);
+            if (!map.contains(lx, ly)) {
+                cell = Cell::Water;
+                continue;
+            }
+            const MapCell& c = map.top(static_cast<std::uint32_t>(lx), static_cast<std::uint32_t>(ly));
+            const assets::BuildingType* b = c.empty() ? nullptr : buildings.by_sprite(c.sprite);
+            const std::int32_t k = b != nullptr ? b->kind : kind::kSea;
+            if ((k >= kind::kSea && k <= kind::kBeachVariant) || k == kind::kBeachRuin) {
+                cell = Cell::Water;
+            } else {
+                cell = claimed(lx, ly) ? Cell::Blocked : Cell::Goal;
+            }
+        }
+    }
+    // A search from the ship's tile (0x00471C50): eight neighbours, a diagonal step only between
+    // two open sides; the first goal reached is the site.
+    const auto open = [&](std::int32_t x, std::int32_t y) {
+        return x >= 0 && y >= 0 && x < kSide && y < kSide &&
+               grid[static_cast<std::size_t>(y * kSide + x)] != Cell::Blocked;
+    };
+    std::array<bool, kSide * kSide> seen{};
+    std::array<std::pair<std::int32_t, std::int32_t>, kSide * kSide> queue{};
+    std::size_t head = 0;
+    std::size_t tail = 0;
+    queue[tail++] = {kRadius, kRadius};
+    seen[static_cast<std::size_t>(kRadius * kSide + kRadius)] = true;
+    constexpr std::array<std::array<std::int32_t, 2>, 8> kSteps{
+        {{0, -1}, {1, 0}, {0, 1}, {-1, 0}, {1, -1}, {1, 1}, {-1, 1}, {-1, -1}}};
+    while (head < tail) {
+        const auto [x, y] = queue[head++];
+        if (grid[static_cast<std::size_t>(y * kSide + x)] == Cell::Goal) {
+            return KontorSite{index, static_cast<std::uint32_t>(wx + x - kRadius - static_cast<std::int32_t>(isl.x)),
+                              static_cast<std::uint32_t>(wy + y - kRadius - static_cast<std::int32_t>(isl.y))};
+        }
+        for (const auto& [sx, sy] : kSteps) {
+            const std::int32_t nx = x + sx;
+            const std::int32_t ny = y + sy;
+            if (!open(nx, ny) || seen[static_cast<std::size_t>(ny * kSide + nx)] ||
+                (sx != 0 && sy != 0 && (!open(x + sx, y) || !open(x, y + sy)))) {
+                continue;
+            }
+            seen[static_cast<std::size_t>(ny * kSide + nx)] = true;
+            queue[tail++] = {nx, ny};
         }
     }
     return std::nullopt;
@@ -358,8 +471,10 @@ std::optional<std::pair<std::int32_t, std::int32_t>> Fleet::target_point(const T
 namespace {
 
 /// Whether a ship on tile (x, y) has reached the target. The planner aims at the same tiles, so a
-/// course ends where this holds. Positions on land count as reached within the Kontor reach: the
-/// original aims at the water there but then never arrives and gives the order up (S-071).
+/// course ends where this holds. A position on land is reached at the water nearest to it within
+/// the Kontor reach, where the original's ship stops too, up to the beach; the original then never
+/// arrives (exactly the tile) and gives the order up (S-071). Without water there, anywhere in
+/// the reach.
 bool reached(const World& world, const assets::BuildingTable& buildings, const SeaMap& sea, const Target& t,
              std::int32_t x, std::int32_t y) {
     switch (t.kind) {
@@ -369,7 +484,21 @@ bool reached(const World& world, const assets::BuildingTable& buildings, const S
             if (sea.sailable(tx, ty)) {
                 return x == tx && y == ty;
             }
-            return in_circle(x - tx, y - ty, kReach);
+            if (!in_circle(x - tx, y - ty, kReach)) {
+                return false;
+            }
+            std::int32_t nearest = -1;
+            constexpr auto r = static_cast<std::int32_t>(kReach);
+            for (std::int32_t dy = -r; dy <= r; ++dy) {
+                for (std::int32_t dx = -r; dx <= r; ++dx) {
+                    const std::int32_t d = dx * dx + dy * dy;
+                    if ((nearest < 0 || d < nearest) && in_circle(dx, dy, kReach) && sea.sailable(tx + dx, ty + dy)) {
+                        nearest = d;
+                    }
+                }
+            }
+            const std::int32_t d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
+            return nearest < 0 || d <= nearest;
         }
         case Target::Kind::City: {
             const City* c = world.city(t.island, t.city);

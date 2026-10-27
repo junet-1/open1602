@@ -88,7 +88,8 @@ struct DrawItem {
     std::int32_t gfx = 0;
     std::int32_t colour = 0;
     Align align = Align::Left;
-    bool half = false;  ///< drawn as a 50 % checkerboard (Alphaflg)
+    bool half = false;   ///< drawn as a 50 % checkerboard (Alphaflg)
+    bool faded = false;  ///< sprite, mask or fill on the screen's even pixels only (0x004073C0)
     std::string text;
     std::optional<ColourTint> tint;  ///< Sprite: recoloured
     /// Sprite: only the art's rows first_row .. first_row + rows - 1 (in the layout's pixels), each
@@ -129,7 +130,13 @@ public:
     /// Hidden and not clickable, or both undone: what the original's windows do with gadgets that
     /// do not apply (hidden ones would still answer the mouse).
     void set_visible(std::int32_t id, bool on);
+    /// Greyed (0x00407370, gadget +0x19 bit 3): drawn as usual with black over every second pixel,
+    /// of the picture's shape for a graphic, of the rectangle for the others. Still clickable.
     void set_disabled(std::int32_t id, bool on);
+    /// Faded (0x004073C0, +0x19 bit 4): a graphic, fill or bar drawn in its own colours on every
+    /// second pixel only, the background showing through the others; texts unchanged. Still clickable. The original
+    /// fades the locked parts of a campaign and the Kontor's trade buttons without a ware.
+    void set_faded(std::int32_t id, bool on);
     /// Slider value scaled to `range` (0x004074F0: (value * range + size / 2) / size) and back.
     [[nodiscard]] std::int32_t slider(std::int32_t id, std::size_t axis, std::int32_t range) const;
     void set_slider(std::int32_t id, std::size_t axis, std::int32_t value, std::int32_t range);
@@ -169,6 +176,7 @@ private:
         bool selected = false;
         bool hidden = false;
         bool disabled = false;
+        bool faded = false;
         bool no_select = false;
         std::array<std::int32_t, 2> slider{};
         std::int32_t scroll = 0;

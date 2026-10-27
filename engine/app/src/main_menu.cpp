@@ -201,16 +201,22 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, con
                 --cut;
             }
             s.base = std::filesystem::path(u8name.substr(0, cut));
-            if (auto bytes = core::read_file(entry.path())) {
-                if (auto file = assets::ChunkFile::from_bytes(std::move(bytes).value())) {
-                    s.header = assets::load_scenario_header(*file);
-                }
-            }
         }
         s.files.emplace_back(first, entry.path());
     }
     std::array<std::vector<MenuScenario>, 3> groups;
     for (auto& [key, s] : by_name) {
+        // Every file of a name writes its header over the one before (0x0048E8F3), in the order
+        // FindFirstFile gives them (alphabetical): the last file's header counts. Pirata1 has no
+        // campaign of its own, Pirata3 has it.
+        const auto last = std::max_element(s.files.begin(), s.files.end(), [](const auto& a, const auto& b) {
+            return lower(core::path_to_utf8(a.second.filename())) < lower(core::path_to_utf8(b.second.filename()));
+        });
+        if (auto bytes = core::read_file(last->second)) {
+            if (auto file = assets::ChunkFile::from_bytes(std::move(bytes).value())) {
+                s.header = assets::load_scenario_header(*file);
+            }
+        }
         std::sort(s.files.begin(), s.files.end());
         const std::size_t g = s.header.mission_number != assets::ScenarioHeader::kNone ? 0
                               : s.header.campaign != assets::ScenarioHeader::kNone     ? 1
@@ -220,8 +226,9 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, con
     std::stable_sort(groups[0].begin(), groups[0].end(), [](const MenuScenario& a, const MenuScenario& b) {
         return a.header.mission_number < b.header.mission_number;
     });
+    // Campaigns by their stars, then their number (0x0048EAF9); equal ones stay in name order.
     std::stable_sort(groups[1].begin(), groups[1].end(), [](const MenuScenario& a, const MenuScenario& b) {
-        return a.header.campaign < b.header.campaign;
+        return std::pair{a.header.ranking, a.header.campaign} < std::pair{b.header.ranking, b.header.campaign};
     });
     std::stable_sort(groups[2].begin(), groups[2].end(),
                      [](const MenuScenario& a, const MenuScenario& b) { return a.header.ranking < b.header.ranking; });
@@ -582,7 +589,8 @@ void MainMenu::refresh_mission() {
         }
         p.set_text(kChoiceLabel + k, label);
         p.set_selected(kChoice + k, digits[i] == m_variant);
-        p.set_disabled(kChoice + k, i > campaign_parts_open(s));
+        // Locked parts are faded (gadget +0x19 bit 4), not greyed; clicks on them are ignored below.
+        p.set_faded(kChoice + k, i > campaign_parts_open(s));
     }
     p.set_text(kBriefing, m_briefing);
     p.set_visible(kBriefing2, false);
@@ -684,8 +692,13 @@ std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, ui::k
     } else if (m_screen == Screen::Mission && m_chosen < m_scenarios.size()) {
         refresh_mission();
         // The briefing's end is known only with the fonts: "down" past it would blank the text.
-        m_briefing_line = std::min(m_briefing_line, p->max_scroll(kBriefing, fonts));
+        const std::int32_t last = p->max_scroll(kBriefing, fonts);
+        m_briefing_line = std::min(m_briefing_line, last);
         p->set_scroll(kBriefing, m_briefing_line);
+        // Its arrows are faded while the whole briefing fits (0x0048B195); then they scroll nothing.
+        for (const std::int32_t id : {kBriefingUp, kBriefingDown}) {
+            p->set_faded(id, last == 0);
+        }
     } else if (m_screen == Screen::Colour) {
         refresh_colour();
     } else if (m_screen == Screen::Settings) {

@@ -109,7 +109,8 @@ TEST_CASE("tile status: the crops of grass and trees only once the island is exp
     Island i;
     CHECK(i.at(3).empty());
     i.island.explore(kMe);
-    CHECK(i.at(3) == "Geeignet für: Zuckerrohr: 100% - Weintrauben: 50% - Tabak: 50%");
+    // The original names tobacco, grapes and sugar cane in this order (0x0040A4D9).
+    CHECK(i.at(3) == "Geeignet für: Tabak: 50% - Weintrauben: 50% - Zuckerrohr: 100%");
 }
 
 TEST_CASE("tile status: an undiscovered island shows its terrain, not its buildings") {
