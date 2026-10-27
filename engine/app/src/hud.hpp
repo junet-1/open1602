@@ -427,6 +427,9 @@ private:
     bool refresh_minimap_island(const sim::World& world, const assets::BuildingTable& buildings,
                                 const render::BannerTable& banners, std::size_t island);
     [[nodiscard]] ui::Rect minimap_rect() const;
+    /// Where the world's picture lies in minimap_rect(): all of it, or the middle for a world of
+    /// very different proportions.
+    [[nodiscard]] ui::Rect minimap_image() const;
 
     struct Event {
         MessageId id = 0;

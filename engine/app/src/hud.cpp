@@ -48,13 +48,15 @@ constexpr std::int32_t kGfxTafel = 0;  // GFXTAFEL: the side panel's art
 constexpr std::int32_t kGfxParchment = 17;
 constexpr std::int32_t kGfxCompass = 18;
 constexpr std::int32_t kGfxLeiste = 253;
-constexpr std::int32_t kLeistArt = 101001;   // the status bar's art (drawn widened instead)
-constexpr std::int32_t kLeistTextX = 750;    // its line ends here, 18 before the art's right edge
-constexpr std::int32_t kTutorArt = 111001;   // the mission window's art (drawn widened instead)
-constexpr std::int32_t kTutorText = 110002;  // its flowing text
-constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
-constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
-constexpr std::uint64_t kMinimapMs = 500;    // the minimap texture is uploaded at most this often
+constexpr std::int32_t kLeistArt = 101001;      // the status bar's art (drawn widened instead)
+constexpr std::int32_t kLeistTextX = 750;       // its line ends here, 18 before the art's right edge
+constexpr std::int32_t kTutorArt = 111001;      // the mission window's art (drawn widened instead)
+constexpr std::int32_t kTutorText = 110002;     // its flowing text
+constexpr std::int32_t kDesignViewW = 768;      // game view, status bar and mission window at 1024 x 768
+constexpr std::uint64_t kEventMs = 45'000;      // an icon stays this long (449 time units of 0x00430F20)
+constexpr double kMinimapStretch = 1.5;         // the most the minimap stretches a world (sides' ratio)
+constexpr std::uint8_t kMinimapSeaAlpha = 176;  // the parchment and its north arrow shine through the sea
+constexpr std::uint64_t kMinimapMs = 500;       // the minimap texture is uploaded at most this often
 // TUTOR.GAD in the tutorial: six lines of text, the arrows back and forward, each a picture and
 // five parts to click.
 constexpr std::int32_t kTutorClose = 110001;
@@ -670,16 +672,32 @@ ui::Rect Hud::minimap_rect() const {
             static_cast<std::int32_t>(g->size[0] * s), static_cast<std::int32_t>(g->size[1] * s)};
 }
 
-std::optional<std::pair<double, double>> Hud::minimap_tile(std::int32_t x, std::int32_t y) const {
+ui::Rect Hud::minimap_image() const {
     const ui::Rect map = minimap_rect();
-    if (!map.contains(x, y) || m_world_w == 0 || m_world_h == 0) {
-        return std::nullopt;
+    if (map.w <= 0 || map.h <= 0 || m_world_w == 0 || m_world_h == 0) {
+        return {};
+    }
+    // Like the original, the world fills the whole parchment, a little stretched (500 x 350 on
+    // 186 x 160). A world whose sides differ much more from the parchment's keeps its proportions
+    // and sits in the middle, so that a non-standard world is not distorted.
+    const double world = static_cast<double>(m_world_w) / m_world_h;
+    const double area = static_cast<double>(map.w) / map.h;
+    if (std::max(world, area) / std::min(world, area) <= kMinimapStretch) {
+        return map;
     }
     const double fit = std::min(static_cast<double>(map.w) / m_world_w, static_cast<double>(map.h) / m_world_h);
-    const double ox = map.x + (map.w - m_world_w * fit) / 2.0;
-    const double oy = map.y + (map.h - m_world_h * fit) / 2.0;
-    const double tx = (x - ox) / fit;
-    const double ty = (y - oy) / fit;
+    const auto w = static_cast<std::int32_t>(m_world_w * fit);
+    const auto h = static_cast<std::int32_t>(m_world_h * fit);
+    return {map.x + (map.w - w) / 2, map.y + (map.h - h) / 2, w, h};
+}
+
+std::optional<std::pair<double, double>> Hud::minimap_tile(std::int32_t x, std::int32_t y) const {
+    const ui::Rect at = minimap_image();
+    if (at.w <= 0 || !at.contains(x, y)) {
+        return std::nullopt;
+    }
+    const double tx = (x - at.x) * static_cast<double>(m_world_w) / at.w;
+    const double ty = (y - at.y) * static_cast<double>(m_world_h) / at.h;
     if (tx < 0.0 || ty < 0.0 || tx >= m_world_w || ty >= m_world_h) {
         return std::nullopt;
     }
@@ -1377,11 +1395,11 @@ void Hud::message(MessageId id, sim::BannerId banner, std::optional<std::pair<do
 namespace {
 
 /// The colour of a world tile on the minimap. An island `local` has not discovered shows its ground
-/// without owners, like the map (0x00489C90).
-std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
+/// without owners, like the map (0x00489C90). The sea lets the parchment shine through.
+std::array<std::uint8_t, 4> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
                                            const render::BannerTable& banners, const sim::World::Cell& c,
                                            sim::PlayerId local) {
-    std::array<std::uint8_t, 3> rgb{38, 70, 128};  // sea
+    std::array<std::uint8_t, 4> rgb{38, 70, 128, kMinimapSeaAlpha};  // sea
     if (c.island == sim::World::kSea) {
         return rgb;
     }
@@ -1397,7 +1415,7 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
     // stays blue (the original leaves its parchment there), so that the islands of a large world
     // stand out on the small map.
     if (!water) {
-        rgb = {0x96, 0x64, 0x30};
+        rgb = {0x96, 0x64, 0x30, 255};
     }
     const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
     if (!scenery && !hidden && top.owner != sim::kNoPlayer) {
@@ -1406,7 +1424,7 @@ std::array<std::uint8_t, 3> minimap_colour(const sim::World& world, const assets
         // and the pirates in their colour once the island is discovered.
         const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
         if (banner != nullptr) {
-            rgb = {banner->colour.r, banner->colour.g, banner->colour.b};
+            rgb = {banner->colour.r, banner->colour.g, banner->colour.b, 255};
         }
     }
     return rgb;
@@ -1423,13 +1441,13 @@ void Hud::build_minimap(const sim::World& world, const assets::BuildingTable& bu
     m_minimap.assign(std::size_t{m_world_w} * m_world_h * 4, 0);
     for (std::uint32_t y = 0; y < m_world_h; ++y) {
         for (std::uint32_t x = 0; x < m_world_w; ++x) {
-            const std::array<std::uint8_t, 3> rgb =
+            const std::array<std::uint8_t, 4> rgb =
                 minimap_colour(world, buildings, banners, world.cell(x, y), m_local);
             const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
             m_minimap[i] = rgb[0];
             m_minimap[i + 1] = rgb[1];
             m_minimap[i + 2] = rgb[2];
-            m_minimap[i + 3] = 255;
+            m_minimap[i + 3] = rgb[3];
         }
     }
 }
@@ -1447,12 +1465,14 @@ bool Hud::refresh_minimap_island(const sim::World& world, const assets::Building
             if (c.island != island) {
                 continue;
             }
-            const std::array<std::uint8_t, 3> rgb = minimap_colour(world, buildings, banners, c, m_local);
+            const std::array<std::uint8_t, 4> rgb = minimap_colour(world, buildings, banners, c, m_local);
             const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
-            if (m_minimap[i] != rgb[0] || m_minimap[i + 1] != rgb[1] || m_minimap[i + 2] != rgb[2]) {
+            if (m_minimap[i] != rgb[0] || m_minimap[i + 1] != rgb[1] || m_minimap[i + 2] != rgb[2] ||
+                m_minimap[i + 3] != rgb[3]) {
                 m_minimap[i] = rgb[0];
                 m_minimap[i + 1] = rgb[1];
                 m_minimap[i + 2] = rgb[2];
+                m_minimap[i + 3] = rgb[3];
                 changed = true;
             }
         }
@@ -1597,19 +1617,17 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         parchment.gfx = kGfxParchment;
         m_renderer->draw({parchment}, map.x, map.y, s);
     }
-    if (map.w > 0 && m_world_w > 0) {
-        const double fit = std::min(static_cast<double>(map.w) / m_world_w, static_cast<double>(map.h) / m_world_h);
-        const ui::Rect at{map.x + static_cast<std::int32_t>((map.w - m_world_w * fit) / 2.0),
-                          map.y + static_cast<std::int32_t>((map.h - m_world_h * fit) / 2.0),
-                          static_cast<std::int32_t>(m_world_w * fit), static_cast<std::int32_t>(m_world_h * fit)};
+    if (const ui::Rect at = minimap_image(); at.w > 0) {
+        const double fx = static_cast<double>(at.w) / m_world_w;
+        const double fy = static_cast<double>(at.h) / m_world_h;
         m_renderer->image(1, m_minimap, static_cast<std::int32_t>(m_world_w), static_cast<std::int32_t>(m_world_h), at,
                           m_minimap_upload);
         m_minimap_upload = false;
         // The visible part of the map as a dotted outline, white and blue as in the original.
         std::array<SDL_FPoint, 4> corners{};
         for (std::size_t i = 0; i < 4; ++i) {
-            corners[i] = SDL_FPoint{static_cast<float>(at.x + view[i].first * fit),
-                                    static_cast<float>(at.y + view[i].second * fit)};
+            corners[i] = SDL_FPoint{static_cast<float>(at.x + view[i].first * fx),
+                                    static_cast<float>(at.y + view[i].second * fy)};
         }
         std::array<std::vector<SDL_FPoint>, 2> dots;
         const float dash = std::max(1.0F, static_cast<float>(2.0 * s));
@@ -1631,6 +1649,27 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         SDL_RenderPoints(m_sdl, dots[0].data(), static_cast<int>(dots[0].size()));
         SDL_SetRenderDrawColor(m_sdl, 0x11, 0x88, 0xDC, 255);
         SDL_RenderPoints(m_sdl, dots[1].data(), static_cast<int>(dots[1].size()));
+        // The own ships as dots over the outline, as in the original; in the player's colour with a
+        // dark rim, so that they stand out on the blue sea as on land.
+        const render::Banner* own = banners.get(colour);
+        const float dot = std::max(2.0F, std::round(static_cast<float>(2.0 * s)));
+        for (const sim::Ship& ship : world.ships()) {
+            if (ship.owner != m_local || m_local == sim::kNoPlayer || ship.sinking) {
+                continue;
+            }
+            const float cx = static_cast<float>(at.x + (ship.x + 0.5) * fx);
+            const float cy = static_cast<float>(at.y + (ship.y + 0.5) * fy);
+            const SDL_FRect rim{cx - dot / 2.0F - 1.0F, cy - dot / 2.0F - 1.0F, dot + 2.0F, dot + 2.0F};
+            const SDL_FRect body{cx - dot / 2.0F, cy - dot / 2.0F, dot, dot};
+            SDL_SetRenderDrawColor(m_sdl, 0x10, 0x10, 0x30, 255);
+            SDL_RenderFillRect(m_sdl, &rim);
+            if (own != nullptr) {
+                SDL_SetRenderDrawColor(m_sdl, own->colour.r, own->colour.g, own->colour.b, 255);
+            } else {
+                SDL_SetRenderDrawColor(m_sdl, 255, 255, 255, 255);
+            }
+            SDL_RenderFillRect(m_sdl, &body);
+        }
         SDL_SetRenderClipRect(m_sdl, nullptr);
     }
     // A status bar wider than its art (wide windows): the art widened, the line at its right end.
