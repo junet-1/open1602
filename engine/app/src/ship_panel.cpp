@@ -583,6 +583,17 @@ public:
         }
     }
     std::optional<Request> take_request() override { return std::exchange(m_request, std::nullopt); }
+    /// The mouse wheel over the trade route's list of stops: a page (four stops) per notch, as its
+    /// arrows (Open1602).
+    bool wheel(std::int32_t notches) override {
+        if (m_page != Page::Route || m_stop_page || !m_route_row || notches == 0) {
+            return false;
+        }
+        const auto page = static_cast<std::int64_t>(m_route_page) - notches;
+        m_route_page =
+            static_cast<std::size_t>(std::clamp<std::int64_t>(page, 0, static_cast<std::int64_t>(route_pages()) - 1));
+        return true;
+    }
 
 private:
     enum class Page : std::uint8_t { Root, Transfer, Trade, Route, PickOwn, PickForeign, Pirates, PirateOrder };

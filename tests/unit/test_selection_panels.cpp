@@ -1125,9 +1125,11 @@ TEST_CASE("selection panels: the ship window gives the orders of a ship at sea a
 
     // The route editor is a page of its own; Escape comes back.
     const ui::Panel* root = &p->panel();
+    CHECK(!p->wheel(-1));  // the ship's page has no list
     p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 38021}, pioneer, c, out);
     CHECK(&p->panel() != root);
     p->refresh(pioneer, c);
+    CHECK(!p->wheel(-1));  // four stops without Open1602's row (ROUTE.GAD lacks the stops' arrows here)
     CHECK(p->back());
     CHECK(&p->panel() == root);
     CHECK(!p->back());
