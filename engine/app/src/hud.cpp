@@ -49,7 +49,6 @@ constexpr std::int32_t kGfxLeiste = 253;
 constexpr std::int32_t kLeistArt = 101001;   // the status bar's art (drawn widened instead)
 constexpr std::int32_t kLeistTextX = 750;    // its line ends here, 18 before the art's right edge
 constexpr std::int32_t kTutorArt = 111001;   // the mission window's art (drawn widened instead)
-constexpr std::int32_t kGfxTutor = 645;      // GFXTUTOR of TOOLS.INC
 constexpr std::int32_t kTutorText = 110002;  // its flowing text
 constexpr std::int32_t kDesignViewW = 768;   // game view, status bar and mission window at 1024 x 768
 constexpr std::uint64_t kEventMs = 45'000;   // an icon stays this long (449 time units of 0x00430F20)
@@ -307,6 +306,8 @@ Hud::Hud(SDL_Renderer* renderer, const assets::GameDirectory& game, const assets
     if (auto tutor = assets::load_gad(game, "TUTOR.GAD")) {
         m_tutor.emplace(std::move(tutor).value(), 1.0);
         m_tutor->set_hidden(kTutorArt, true);
+        // The History Edition's TOOLS.INC puts five sprites more before it (GFXKAMPF).
+        m_gfx_tutor = m_tutor->layout().constant("GFXTUTOR").value_or(m_gfx_tutor);
         // The gadgets at the window's right end (the scroll arrows) move with it on wide screens.
         for (const assets::Gadget& g : m_tutor->layout().gadgets) {
             if (g.kind != assets::GadgetKind::Unused && g.id != kTutorArt && g.pos[0] >= kDesignViewW / 2) {
@@ -805,7 +806,7 @@ void Hud::draw_mission(const sim::World& world) {
         m_tutor->set_position(id, pos[0] + extra, pos[1]);
     }
     m_tutor->set_size(kTutorText, m_tutor_text_size[0] + extra, m_tutor_text_size[1]);
-    m_renderer->draw_widened(0, kGfxTutor, window, m_regions.scale);
+    m_renderer->draw_widened(0, m_gfx_tutor, window, m_regions.scale);
     if (m_tutorial) {
         // The tutorial (0x00430FF0): six lines of its page instead of the mission's text, „weiter“
         // only where the chapter pages forward by hand, never "back".

@@ -461,6 +461,7 @@ private:
     /// The window of the current selection, nothing without one or without the game.
     [[nodiscard]] SelectionPanel* selection_panel(std::optional<PanelContext>& context);
     std::int32_t m_gfx_baumat = 46;          ///< TOOLS.INC GFXBAUMAT
+    std::int32_t m_gfx_tutor = 645;          ///< TOOLS.INC GFXTUTOR: the mission window's art
     std::deque<Event> m_events;              ///< newest first, at most three
     std::vector<diplomacy::Offer> m_offers;  ///< the offers the status bar shows, as last drawn
     std::vector<std::uint8_t> m_minimap;
