@@ -688,7 +688,7 @@ private:
         }
         for (const std::int32_t id : {city_ids::kKPriceDown, city_ids::kKPriceUp, city_ids::kKPriceSlider,
                                       city_ids::kKLimit, city_ids::kKStop}) {
-            m_kontor.set_disabled(id, !chosen);
+            m_kontor.set_faded(id, !chosen);  // 0x004073C0 while no ware is chosen
         }
         m_kontor.set_text(city_ids::kKStockLabel, c.text("GAME", 0));
         if (!chosen) {

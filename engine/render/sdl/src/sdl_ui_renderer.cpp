@@ -20,7 +20,8 @@ namespace {
 
 constexpr int kModeSprite = 0;
 constexpr int kModeMask = 1;
-constexpr int kModeRaster = 2;
+constexpr int kModeRaster = 2;          ///< the shape where (x + y) of the sprite is even
+constexpr int kModeRasterOdd = 3;       ///< where it is odd: a sprite at an odd place stays on the screen's even pixels
 constexpr std::size_t kMaxTexts = 512;  // cached text textures before the least recently used go
 constexpr std::int32_t kCheckerSize = 64;
 // RGBA bytes of interface sprites kept: far more than the interface draws at a time, so that only
@@ -28,15 +29,23 @@ constexpr std::int32_t kCheckerSize = 64;
 constexpr std::size_t kMaxSpriteBytes = std::size_t{96} << 20U;
 constexpr std::uint8_t kMaskAlpha = 110;  // opacity of a GraphicFill shadow
 
-/// A checkerboard (black, every second pixel) for disabled gadgets and 50 % fills.
+/// A checkerboard (black, every second pixel) for disabled gadgets and 50 % fills; one column wider
+/// than the tiles taken from it, so a tile can start on either parity.
+constexpr std::int32_t kCheckerWidth = kCheckerSize + 1;
 std::vector<std::uint8_t> checker_pixels() {
-    std::vector<std::uint8_t> rgba(static_cast<std::size_t>(kCheckerSize * kCheckerSize * 4), 0);
+    std::vector<std::uint8_t> rgba(static_cast<std::size_t>(kCheckerWidth * kCheckerSize * 4), 0);
     for (std::int32_t y = 0; y < kCheckerSize; ++y) {
-        for (std::int32_t x = 0; x < kCheckerSize; ++x) {
-            rgba[static_cast<std::size_t>((y * kCheckerSize + x) * 4 + 3)] = ((x + y) & 1) == 0 ? 255 : 0;
+        for (std::int32_t x = 0; x < kCheckerWidth; ++x) {
+            rgba[static_cast<std::size_t>((y * kCheckerWidth + x) * 4 + 3)] = ((x + y) & 1) == 0 ? 255 : 0;
         }
     }
     return rgba;
+}
+
+/// Whether a raster pixel at (x, y) of a sprite is drawn in `mode`.
+constexpr bool raster_pixel(int mode, std::uint32_t x, std::uint32_t y) noexcept {
+    const std::uint32_t odd = (x + y) & 1U;
+    return mode == kModeRaster ? odd == 0 : mode == kModeRasterOdd ? odd == 1 : true;
 }
 
 }  // namespace
@@ -265,7 +274,7 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
                 for (std::uint32_t y = 0; y < image->height; ++y) {
                     for (std::uint32_t x = 0; x < image->width; ++x) {
                         const std::size_t i = std::size_t{y} * image->width + x;
-                        if (image->opaque[i] == 0 || (mode == kModeRaster && ((x + y) & 1U) != 0)) {
+                        if (image->opaque[i] == 0 || !raster_pixel(mode, x, y)) {
                             continue;
                         }
                         rgba[4 * i] = c.r;
@@ -295,7 +304,7 @@ SdlUiRenderer::Texture SdlUiRenderer::package_icon(const assets::PackageIcon& ic
         for (std::uint32_t y = 0; y < picture.height; ++y) {
             for (std::uint32_t x = 0; x < picture.width; ++x) {
                 std::uint8_t* p = &picture.rgba[(std::size_t{y} * picture.width + x) * 4];
-                const bool shown = p[3] >= 128 && (mode != kModeRaster || ((x + y) & 1U) == 0);
+                const bool shown = p[3] >= 128 && raster_pixel(mode, x, y);
                 p[0] = c.r;
                 p[1] = c.g;
                 p[2] = c.b;
@@ -501,9 +510,13 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
                 // looks harsh today; translucent like the figures' shadows (as the History Edition).
                 blit(sprite(d.block, d.gfx, kModeMask, d.colour), d.x, d.y, d.half, kMaskAlpha);
                 break;
-            case ui::DrawItem::Kind::SpriteRaster:
-                blit(sprite(d.block, d.gfx, kModeRaster, d.colour), d.x, d.y, false);
+            case ui::DrawItem::Kind::SpriteRaster: {
+                // 0x00404740: on the pixels where x + y of the screen is even (the 1024 layout's).
+                const auto place = std::lround((ox + d.x) / scale) + std::lround((oy + d.y) / scale);
+                const int mode = (place & 1) == 0 ? kModeRaster : kModeRasterOdd;
+                blit(sprite(d.block, d.gfx, mode, d.colour), d.x, d.y, false);
                 break;
+            }
             case ui::DrawItem::Kind::Text: {
                 const Texture t = text(d.text, d.block, d.colour);
                 const double w = t.w * stretch;
@@ -524,16 +537,19 @@ void SdlUiRenderer::draw(const std::vector<ui::DrawItem>& items, std::int32_t ox
             }
             case ui::DrawItem::Kind::Raster:
                 if (m_checker.texture == nullptr) {
-                    m_checker = make(checker_pixels(), kCheckerSize, kCheckerSize);
+                    m_checker = make(checker_pixels(), kCheckerWidth, kCheckerSize);
                 }
                 if (m_checker.texture != nullptr && d.w > 0 && d.h > 0) {
                     SDL_SetTextureAlphaMod(m_checker.texture, 255);
+                    // 0x00404CD0: row r of the rectangle starts at (h - r) & 1, so black lies where
+                    // x + r + h is even.
+                    const auto shift = static_cast<float>(d.h & 1);
                     // Tiled, not stretched: a wider rect keeps the pattern's pixels (FB-21).
                     for (std::int32_t ty = 0; ty < d.h; ty += kCheckerSize) {
                         for (std::int32_t tx = 0; tx < d.w; tx += kCheckerSize) {
                             const auto tw = static_cast<float>(std::min(d.w - tx, kCheckerSize));
                             const auto th = static_cast<float>(std::min(d.h - ty, kCheckerSize));
-                            const SDL_FRect src{0.0F, 0.0F, tw, th};
+                            const SDL_FRect src{shift, 0.0F, tw, th};
                             const SDL_FRect dst{static_cast<float>(ox + d.x + tx), static_cast<float>(oy + d.y + ty),
                                                 tw, th};
                             SDL_RenderTexture(m_renderer, m_checker.texture, &src, &dst);

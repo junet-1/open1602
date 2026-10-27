@@ -100,6 +100,12 @@ void Panel::set_disabled(std::int32_t id, bool on) {
     }
 }
 
+void Panel::set_faded(std::int32_t id, bool on) {
+    if (const auto i = m_layout.index_of(id)) {
+        m_state[*i].faded = on;
+    }
+}
+
 std::int32_t Panel::slider(std::int32_t id, std::size_t axis, std::int32_t range) const {
     const auto i = m_layout.index_of(id);
     if (!i || axis > 1) {
@@ -307,7 +313,7 @@ void Panel::draw_gadget(std::vector<DrawItem>& out, std::size_t index, std::uint
     item.y = y;
     item.block = g.block;
     item.colour = colour;
-    item.half = g.half;
+    item.half = g.half || s.faded;
     switch (g.kind) {
         case GadgetKind::Unused:
         case GadgetKind::Area:

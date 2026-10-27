@@ -589,7 +589,8 @@ void MainMenu::refresh_mission() {
         }
         p.set_text(kChoiceLabel + k, label);
         p.set_selected(kChoice + k, digits[i] == m_variant);
-        p.set_disabled(kChoice + k, i > campaign_parts_open(s));
+        // Locked parts are faded (gadget +0x19 bit 4), not greyed; clicks on them are ignored below.
+        p.set_faded(kChoice + k, i > campaign_parts_open(s));
     }
     p.set_text(kBriefing, m_briefing);
     p.set_visible(kBriefing2, false);
@@ -600,6 +601,9 @@ void MainMenu::refresh_mission() {
     for (const std::int32_t id : {kScoresHeading, kScoresFrame, kScoresUp, kScoresDown}) {
         p.set_visible(id, scores);
     }
+    // Faded at the ends of the list, like the original's scroll arrows in MISSION.GAD.
+    p.set_faded(kScoresUp, m_scores_first == 0);
+    p.set_faded(kScoresDown, m_scores_first + kScoreRows >= 12);
     for (std::size_t r = 0; r < kScoreRows; ++r) {
         const auto k = static_cast<std::int32_t>(r);
         const std::size_t i = m_scores_first + r;
