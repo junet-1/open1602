@@ -246,7 +246,7 @@ void GameSettingsMenu::layout() {
         f.paragraph(Rect{40, hint_y, 944, kBottomY - 4 - hint_y}, m_error, Tone::Warning);
     } else {
         f.paragraph(Rect{40, hint_y, 944, kBottomY - 4 - hint_y},
-                    ui::tr(victory ? "setup.hint.victory"
+                    ui::tr(victory ? (editable ? "setup.hint.victory" : "setup.hint.victory.view")
                            : bugs  ? (editable ? "setup.hint.bugs" : "setup.hint.bugs.view")
                                    : hint_key(m_scope)),
                     Tone::Dim);
