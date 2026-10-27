@@ -471,8 +471,10 @@ std::optional<std::pair<std::int32_t, std::int32_t>> Fleet::target_point(const T
 namespace {
 
 /// Whether a ship on tile (x, y) has reached the target. The planner aims at the same tiles, so a
-/// course ends where this holds. Positions on land count as reached within the Kontor reach: the
-/// original aims at the water there but then never arrives and gives the order up (S-071).
+/// course ends where this holds. A position on land is reached at the water nearest to it within
+/// the Kontor reach, where the original's ship stops too, up to the beach; the original then never
+/// arrives (exactly the tile) and gives the order up (S-071). Without water there, anywhere in
+/// the reach.
 bool reached(const World& world, const assets::BuildingTable& buildings, const SeaMap& sea, const Target& t,
              std::int32_t x, std::int32_t y) {
     switch (t.kind) {
@@ -482,7 +484,21 @@ bool reached(const World& world, const assets::BuildingTable& buildings, const S
             if (sea.sailable(tx, ty)) {
                 return x == tx && y == ty;
             }
-            return in_circle(x - tx, y - ty, kReach);
+            if (!in_circle(x - tx, y - ty, kReach)) {
+                return false;
+            }
+            std::int32_t nearest = -1;
+            constexpr auto r = static_cast<std::int32_t>(kReach);
+            for (std::int32_t dy = -r; dy <= r; ++dy) {
+                for (std::int32_t dx = -r; dx <= r; ++dx) {
+                    const std::int32_t d = dx * dx + dy * dy;
+                    if ((nearest < 0 || d < nearest) && in_circle(dx, dy, kReach) && sea.sailable(tx + dx, ty + dy)) {
+                        nearest = d;
+                    }
+                }
+            }
+            const std::int32_t d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
+            return nearest < 0 || d <= nearest;
         }
         case Target::Kind::City: {
             const City* c = world.city(t.island, t.city);

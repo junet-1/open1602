@@ -287,9 +287,10 @@ TEST_CASE("ships: an order onto land ends at the coast instead of being given up
     const auto events = run(fleet, sea.world, 20000);
     CHECK(count(events, sim::ShipEvent::Kind::GaveUp) == 0);
     CHECK(count(events, sim::ShipEvent::Kind::Arrived) == 1);
+    // At the water nearest to the click, right at the coast as in the original.
     const sim::Ship* s = sea.world.ship(id);
-    CHECK(s->x >= 37);
-    CHECK(s->x < 40);
+    CHECK(s->x == 39);
+    CHECK(s->y == 25);
     CHECK(s->target.empty());
 }
 
