@@ -77,7 +77,7 @@ menu in `engine/app` (`multiplayer_menu.hpp`, `multiplayer.cpp`).
    60 s (time to come back after a broken connection) and no newcomer gets it in that time, nor while
    a host migration may still bring its player back (MS-5, MS-14); then the computer plays it on under
    the player's name (`PlayerControl` from the host, announced in the chat), until the player or
-   someone new takes it. The host chooses this on the create screen ("Computer replaces leavers",
+   someone new takes it. The host chooses this on the create screen ("Computer takes over",
    on by default, shown in the lobby and passed to a successor host); without it, a slot that was
    left gives no commands until someone comes back. The player's name is set as a `PlayerRename`
    of that player.

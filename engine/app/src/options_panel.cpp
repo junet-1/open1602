@@ -347,6 +347,9 @@ void OptionsPanel::refresh_disk(const OptionsModel& model) {
         if (humans > 4 && !typing) {
             name = ui::tr("options.slot.humans", {name, std::to_string(humans)});
         }
+        if (name.empty()) {
+            name = ui::tr("options.slot.empty");  // a free slot shows as one, not as a blank row
+        }
         m_disk.set_text(kSlotName + k, typing ? m_name + "_" : name);
         // A long name ends in "..." instead of running past the row, or under the icon of the
         // humans; the one being typed is whole.

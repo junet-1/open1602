@@ -663,8 +663,7 @@ void MultiplayerMenu::layout_lobby(const MultiplayerModel& model) {
     f.panel(Rect{676, 84, 308, 586});
     f.paragraph(Rect{684, 96, 292, 70}, lobby.game, Tone::Heading, 26);
     const auto setting = [&](std::int32_t y, MpText name, bool on) {
-        f.label(Rect{684, y, 200, 30}, tr(name), Align::Left, Tone::Dim);
-        f.label(Rect{876, y, 100, 30}, tr(on ? MpText::Yes : MpText::No), Align::Right);
+        f.entry(Rect{684, y, 292, 30}, tr(name), tr(on ? MpText::Yes : MpText::No), Tone::Dim);
     };
     setting(176, MpText::Password, lobby.password);
     setting(208, MpText::AllowJoinRunning, lobby.join_running);
