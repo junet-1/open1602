@@ -103,6 +103,24 @@ std::string refusal_text(sim::BuildRefusal refusal) {
     return ui::tr(key);
 }
 
+/// Whether any tile of `item` lies in a city of `player` (the original's edge rule could take it).
+bool touches_own_land(const sim::IslandMap& map, const sim::PlannedBuild& item, sim::PlayerId player) {
+    std::uint32_t w = 1;
+    std::uint32_t h = 1;
+    sim::rotated_size(*item.type, item.rotation, w, h);
+    for (std::uint32_t j = 0; j < h; ++j) {
+        for (std::uint32_t i = 0; i < w; ++i) {
+            const std::int32_t x = item.x + static_cast<std::int32_t>(i);
+            const std::int32_t y = item.y + static_cast<std::int32_t>(j);
+            if (map.contains(x, y) &&
+                map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y)).owner == player) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /// Ground under a building that cannot be built there: red in the original, a yellow checkered
 /// field in the History Edition (Open1602's look, render::kDragHatch).
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
@@ -1337,6 +1355,15 @@ void MapViewer::render() {
                         }
                         if (!item.ok() && m_tool_status.empty()) {
                             m_tool_status = refusal_text(item.refusal);
+                            // Where only Open1602's fix refuses, the text names the original setting
+                            // that allows it (S-008 at the edge of the own land, S-003 on poor ground).
+                            const sim::OriginalBugs& bugs = m_state->world.original_bugs();
+                            if (item.refusal == sim::BuildRefusal::Infertile && !bugs.infertile_fields) {
+                                m_tool_status = ui::tr("build.refusal.infertile.original");
+                            } else if (item.refusal == sim::BuildRefusal::Territory && !bugs.building_radius &&
+                                       item.type != nullptr && touches_own_land(map, item, m_local_player)) {
+                                m_tool_status = ui::tr("build.refusal.territory.original");
+                            }
                         }
                         m_tool_short_of_wood |= item.refusal == sim::BuildRefusal::Wood;
                         if (item.type == nullptr || hatched) {
