@@ -199,6 +199,16 @@ TEST_CASE("ui: a panel draws by state and answers the mouse") {
     panel.set_disabled(500, true);
     items = panel.draw(fonts);
     CHECK(items[1].kind == ui::DrawItem::Kind::SpriteRaster);
+    // Faded: the gadget itself on every second pixel, no black checkerboard (0x004073C0).
+    panel.set_disabled(500, false);
+    const std::size_t plain = panel.draw(fonts).size();
+    panel.set_faded(500, true);
+    items = panel.draw(fonts);
+    CHECK(items.size() == plain);
+    CHECK(items[0].faded);
+    CHECK(items[0].kind == ui::DrawItem::Kind::Sprite);
+    panel.set_faded(500, false);
+    CHECK(!panel.draw(fonts)[0].faded);
 }
 
 TEST_CASE("ui: a graphic set by the code also replaces the layout's in its shadow") {

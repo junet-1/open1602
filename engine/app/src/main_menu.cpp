@@ -589,7 +589,8 @@ void MainMenu::refresh_mission() {
         }
         p.set_text(kChoiceLabel + k, label);
         p.set_selected(kChoice + k, digits[i] == m_variant);
-        p.set_disabled(kChoice + k, i > campaign_parts_open(s));
+        // Locked parts are faded (gadget +0x19 bit 4), not greyed; clicks on them are ignored below.
+        p.set_faded(kChoice + k, i > campaign_parts_open(s));
     }
     p.set_text(kBriefing, m_briefing);
     p.set_visible(kBriefing2, false);
@@ -691,8 +692,13 @@ std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, ui::k
     } else if (m_screen == Screen::Mission && m_chosen < m_scenarios.size()) {
         refresh_mission();
         // The briefing's end is known only with the fonts: "down" past it would blank the text.
-        m_briefing_line = std::min(m_briefing_line, p->max_scroll(kBriefing, fonts));
+        const std::int32_t last = p->max_scroll(kBriefing, fonts);
+        m_briefing_line = std::min(m_briefing_line, last);
         p->set_scroll(kBriefing, m_briefing_line);
+        // Its arrows are faded while the whole briefing fits (0x0048B195); then they scroll nothing.
+        for (const std::int32_t id : {kBriefingUp, kBriefingDown}) {
+            p->set_faded(id, last == 0);
+        }
     } else if (m_screen == Screen::Colour) {
         refresh_colour();
     } else if (m_screen == Screen::Settings) {
