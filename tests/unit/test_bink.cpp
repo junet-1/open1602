@@ -50,11 +50,9 @@ void append32(std::vector<std::uint8_t>& v, std::uint32_t x) {
     put32(v, v.size() - 4, x);
 }
 
-/// The picture of a 32 x 32 key frame of revision j: one intra macroblock without AC coefficients,
-/// its luma DCs `luma_dc` above the middle grey (in steps of 16, the quantiser 16 gives), chroma
-/// grey. Two slices: the first holds the macroblock, the second (from the table) is empty.
-std::vector<std::uint8_t> flat_key_frame(std::uint32_t luma_dc) {
-    Bits b;
+/// The bits of an intra macroblock without AC coefficients: its luma DCs `luma_dc` above the one
+/// predicted (in steps of 16, the quantiser 16 gives), chroma as predicted.
+void flat_macroblock(Bits& b, std::uint32_t luma_dc) {
     b.bit(1);  // dq 0
     b.bit(1);  // luma cbp: none
     b.bit(0);  // ... not repeated
@@ -76,12 +74,24 @@ std::vector<std::uint8_t> flat_key_frame(std::uint32_t luma_dc) {
         b.bit(1);  // chroma cbp kept: none
         b.bit(0);  // no DC differences
     }
+}
+
+/// A key frame of revision j from its frame flags and bits; two slices, the first holds all.
+std::vector<std::uint8_t> key_frame(std::uint32_t flags, const Bits& b) {
     std::vector<std::uint8_t> frame;
-    append32(frame, 0);  // frame flags
+    append32(frame, flags);
     append32(frame, 0);  // where the second slice starts, filled in below
     frame.insert(frame.end(), b.bytes().begin(), b.bytes().end());
     put32(frame, 4, static_cast<std::uint32_t>(frame.size()));
     return frame;
+}
+
+/// The picture of a 32 x 32 key frame: one flat macroblock, its luma `luma_dc` above the middle
+/// grey. The second slice (from the table) is empty.
+std::vector<std::uint8_t> flat_key_frame(std::uint32_t luma_dc) {
+    Bits b;
+    flat_macroblock(b, luma_dc);
+    return key_frame(0, b);
 }
 
 /// A frame of revision j whose only macroblock is skipped (a copy of the frame before).
@@ -196,6 +206,25 @@ TEST_CASE("bink: header, tracks and a flat key frame") {
         all = all && rgba[i * 4] == 133 && rgba[i * 4 + 1] == 133 && rgba[i * 4 + 2] == 133 && rgba[i * 4 + 3] == 255;
     }
     CHECK(all);
+}
+
+TEST_CASE("bink: the block flags count whole macroblocks") {
+    // 40 x 32: the frame is decoded as 64 x 32, so 7 column flags follow the 3 row flags, not 5.
+    Bits b;
+    b.bit(0);  // row flags stored as they are
+    b.bits(0, 3);
+    b.bit(0);  // column flags stored as they are
+    b.bits(0x7F, 7);
+    flat_macroblock(b, 1);
+    flat_macroblock(b, 0);  // the DCs of the one to the left
+    auto video = video::Bink::open(bink_file(40, 32, {key_frame(0x10000, b)}, false));
+    REQUIRE(video);
+    REQUIRE(video->next());
+    std::vector<std::uint8_t> rgba;
+    video->to_rgba(rgba);
+    REQUIRE(rgba.size() == 40 * 32 * 4);
+    CHECK(rgba[0] == 133);
+    CHECK(rgba[(31 * 40 + 39) * 4] == 133);
 }
 
 TEST_CASE("bink: a skipped macroblock keeps the frame before, rewind starts again") {

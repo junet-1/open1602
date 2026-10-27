@@ -159,7 +159,12 @@ int cmd_bk2(const Args& args) {
         if (args.positional.size() < 2) {
             return usage();
         }
-        auto pcm = video->audio(*args.number("--wav"));  // main() checked that it is a number
+        const std::size_t track = *args.number("--wav");  // main() checked that it is a number
+        if (track >= info.tracks.size()) {
+            std::fprintf(stderr, "error: the video has %zu audio tracks\n", info.tracks.size());
+            return 1;
+        }
+        auto pcm = video->audio(track);
         if (!pcm) {
             return fail(pcm.error());
         }
