@@ -1986,6 +1986,8 @@ void MapViewer::apply_hud(const Hud::Action& action) {
             if (m_tool.select(action.building)) {
                 m_tool.set_mode(BuildTool::Mode::Build);
                 m_input->drop_units();
+            } else {
+                m_tool.set_mode(BuildTool::Mode::Off);  // not the building picked before
             }
             break;
         case Hud::Action::Kind::Demolish:

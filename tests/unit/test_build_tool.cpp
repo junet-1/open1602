@@ -19,9 +19,10 @@ constexpr std::uint32_t kTree = 20202;
 constexpr std::uint32_t kField = 21301;
 constexpr std::uint32_t kKontor = 22001;
 constexpr std::uint32_t kKontor2 = 22002;
-constexpr std::uint32_t kHouse = 20801;
+constexpr std::uint32_t kHouse = 20899;
 constexpr std::uint32_t kDwelling = 20605;
 constexpr std::uint32_t kPier = 21073;
+constexpr std::uint32_t kStoneWall = 22501;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -47,7 +48,7 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 7\n  Id: 22001\n  Kind: 35\n  Gfx: 20\n  Baugfx: 40\n  Size: 2, 3\n"
         "  Objekt: HAUS_BAUKOST\n    Werkzeug: 3\n    Holz: 4\n    Money: 100\n  EndObj\n"
         // A house without a menu icon: not in the list.
-        "  @Nummer: 8\n  Id: 20801\n  Kind: 14\n  Gfx: 36\n  Size: 2, 2\n"
+        "  @Nummer: 8\n  Id: 20899\n  Kind: 14\n  Gfx: 36\n  Size: 2, 2\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 10\n  EndObj\n"
         // A dwelling (WOHNUNG) and a pier: the History Edition's „Mehrfachplatzierung“.
         "  @Nummer: 9\n  Id: 20605\n  Kind: 14\n  Gfx: 50\n  Baugfx: 50\n  Size: 2, 2\n"
@@ -55,6 +56,9 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_BAUKOST\n    Holz: 3\n    Money: 20\n  EndObj\n"
         "  @Nummer: 10\n  Id: 21073\n  Kind: 30\n  Gfx: 54\n  Baugfx: 51\n  Size: 1, 1\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 15\n  EndObj\n"
+        // The stone wall: Baugfx 0 is the first icon of its set, not none.
+        "  @Nummer: 11\n  Id: 22501\n  Kind: 4\n  Gfx: 56\n  Baugfx: 0\n  Size: 1, 1\n  KreuzBase: 11\n"
+        "  Objekt: HAUS_BAUKOST\n    Ziegel: 2\n    Money: 18\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -91,14 +95,14 @@ TEST_CASE("build tool: the list holds what the build menu offers, in its order")
     app::BuildTool tool(buildings);
     CHECK(tool.mode() == app::BuildTool::Mode::Off);
     std::vector<std::uint32_t> order;
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < 8; ++i) {
         order.push_back(tool.selected()->id);
         tool.cycle(1);
     }
     // By menu icon; ground, tree variants and the house without an icon are left out.
-    const std::vector<std::uint32_t> expected{kField, kTree, kRoad, kKontor, kKontor2, kDwelling, kPier};
+    const std::vector<std::uint32_t> expected{kStoneWall, kField, kTree, kRoad, kKontor, kKontor2, kDwelling, kPier};
     CHECK(order == expected);
-    CHECK(tool.selected()->id == kField);  // wrapped around
+    CHECK(tool.selected()->id == kStoneWall);  // wrapped around
     tool.cycle(-1);
     CHECK(tool.selected()->id == kPier);
     CHECK(tool.select(kRoad));

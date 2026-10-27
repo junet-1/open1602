@@ -6,6 +6,7 @@
 
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/logistics.hpp"
+#include "o1602/ui/build_menu.hpp"
 
 namespace o1602::app {
 
@@ -54,8 +55,11 @@ BuildTool::BuildTool(const assets::BuildingTable& buildings) : m_buildings(&buil
         if (b.land_record != assets::BuildingType::kNoRecord || buildings.by_id(b.id) != &b) {
             continue;  // beach variants come from building the land record on the beach
         }
-        if (b.build_gfx == 0) {
-            continue;  // no icon in the build menu: ground and other things of the editor
+        if (b.build_gfx == 0 && ui::build_menu().category_of(b.id) == nullptr &&
+            ui::original_build_menu().category_of(b.id) == nullptr) {
+            // No icon: ground and other things of the editor. Icon 0 is a real one, though: the
+            // stone wall's (Baugfx 0), which the build menu lists.
+            continue;
         }
         m_list.push_back(&b);
     }
