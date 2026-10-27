@@ -212,7 +212,8 @@ BinkAudio::BinkAudio(std::uint32_t rate, std::uint8_t channels, bool use_dct, ch
     m_frame_len = 1 << bits;
     m_overlap_len = m_frame_len / 16;
     m_block_size = (m_frame_len - m_overlap_len) * static_cast<int>(std::min(kMaxChannels, m_channels));
-    const auto rate_half = static_cast<unsigned>((coded_rate + 1) / 2);
+    // Bink::open refuses a rate of 0; at least 1 keeps the band edges defined anyway.
+    const auto rate_half = std::max(static_cast<unsigned>((coded_rate + 1) / 2), 1U);
     if (!use_dct) {
         m_root = static_cast<float>(2.0 / (std::sqrt(m_frame_len) * 32768.0));
     } else {

@@ -105,7 +105,7 @@ private:
     int m_comp = 0;
     int m_mb_pos = 0;
 
-    alignas(16) std::array<std::array<std::int16_t, 64>, 4> m_iblock{};
+    std::array<std::array<std::int16_t, 64>, 4> m_iblock{};
 
     std::vector<QuantPredict> m_q[2];  ///< current row, row above (swapped per row)
     std::vector<DciPredict> m_idc[2];

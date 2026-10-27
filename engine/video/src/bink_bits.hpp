@@ -73,7 +73,7 @@ public:
 
     /// Symbol s has the code `codes[s]` of `lengths[s]` bits (1..9).
     template <typename Code, std::size_t N>
-    constexpr Vlc(const Code (&codes)[N], const std::uint8_t (&lengths)[N]) {
+    constexpr Vlc(const Code (&codes)[N], const std::uint8_t (&lengths)[N]) noexcept {
         for (std::size_t s = 0; s < N; ++s) {
             const int len = lengths[s];
             for (std::uint32_t rest = 0; rest < (1U << (kBits - len)); ++rest) {

@@ -1029,8 +1029,10 @@ void Bink2Video::g_mcompensate_luma(int x, int y, std::uint8_t* dst, int stride,
 int Bink2Video::g_decode_slice(Planes& p, bool key_frame, int start, int end) {
     Bits& gb = *m_gb;
     const bool has_alpha = m_has_alpha && (m_frame_flags & 0x80000) == 0;
-    const int w = m_width;
-    const int h = m_height;
+    // Motion compensation reaches up to the edge of whole macroblocks, not of the picture: with
+    // the real width, the German credits of the History Edition (432 pixels) smear at the right.
+    const int w = (m_width + 31) & ~31;
+    const int h = (m_height + 31) & ~31;
     const auto mbs = static_cast<std::size_t>((w + 31) / 32);
     auto& dst = p.dst;
     const auto& stride = p.stride;
