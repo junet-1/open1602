@@ -84,4 +84,9 @@ private:
 [[nodiscard]] std::optional<std::size_t> next_idle(const std::vector<ui::UnitRef>& idle,
                                                    std::optional<ui::UnitRef> selected);
 
+/// The entry of `items` after `current` (round), the first if `current` is not among them;
+/// nothing if `items` is empty. The position in `items` (the next city: indices of World::cities()).
+[[nodiscard]] std::optional<std::size_t> next_in_cycle(const std::vector<std::size_t>& items,
+                                                       std::optional<std::size_t> current);
+
 }  // namespace o1602::app

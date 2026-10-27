@@ -64,6 +64,9 @@ public:
         virtual void quit() = 0;
         /// Ctrl+O: the ownership overlay.
         virtual void toggle_owners() = 0;
+        /// Ctrl+F, Ctrl+K: the frame rate, the tile under the mouse in the corner of the map.
+        virtual void toggle_fps() = 0;
+        virtual void toggle_coordinates() = 0;
         /// F11, Alt+Enter: window or full screen.
         virtual void toggle_fullscreen() = 0;
         /// The Pause key: the original's pause with its video (without videos the game still stops).
@@ -241,6 +244,7 @@ private:
     LeftPress m_press;  ///< the left button pressed on the map
     MapDrag m_drag;     ///< the map dragged with the right or middle button
     GroupKey m_group_key;
+    std::optional<std::size_t> m_last_city;            ///< the city the key N went to last (World::cities())
     std::size_t m_formation = 0;                       ///< the next formation of the F key
     std::vector<sim::Command> m_pending_orders;        ///< waiting for the answer to a question
     mutable std::vector<render::TileHit> m_tile_hits;  ///< working memory of picks

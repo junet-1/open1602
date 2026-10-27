@@ -88,6 +88,8 @@ public:
     /// rectangle left for the map.
     ui::Rect layout(std::int32_t width, std::int32_t height, double ui_scale);
     [[nodiscard]] const ui::Rect& game_view() const noexcept { return m_regions.game_view; }
+    /// The frame's scale (screen pixels per pixel of the original's 1024 x 768).
+    [[nodiscard]] double scale() const noexcept { return m_regions.scale; }
     /// Whether a point belongs to the frame (the map does not see the mouse there).
     [[nodiscard]] bool covers(std::int32_t x, std::int32_t y) const noexcept;
 

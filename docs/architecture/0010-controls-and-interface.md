@@ -49,6 +49,7 @@ information fit in and the controls follow today's real-time strategy games (202
 | F11, Alt+Enter | window or full screen |
 | Space | jump to the last message |
 | Home | centre view on the selection |
+| N | jump to the next own city (History Edition) |
 | F3 | pause |
 | Pause | pause with the original's pause video (U-018) |
 | Num+ / Num− | game speed |
@@ -56,6 +57,7 @@ information fit in and the controls follow today's real-time strategy games (202
 | F10, Escape (when there is nothing to cancel) | game menu |
 | F12, Print Screen | screenshot |
 | F1 | help for the window under the mouse |
+| Ctrl+F / Ctrl+K | frame rate / coordinates of the tile under the mouse in the map's corner (History Edition) |
 
 **Windows**
 
@@ -74,6 +76,7 @@ information fit in and the controls follow today's real-time strategy games (202
 | Key | Function |
 |---|---|
 | R | rotate building |
+| Shift+R | rotate building the other way (History Edition) |
 | hold Shift | keep building after placing |
 | C | pipette: the building under the mouse as the building order |
 | Delete | demolish tool |
