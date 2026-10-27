@@ -44,6 +44,8 @@ public:
     /// = track i, 0 = all); a running one stops. False if the file is missing. Until poll() says
     /// Ready the window is black.
     bool start(std::uint16_t number, bool loop, std::uint8_t tracks);
+    /// The installation is the History Edition, which lacks the start's logos 8 and 9.
+    [[nodiscard]] bool history_edition() const noexcept { return !m_game->localized_root().empty(); }
     enum class Load : std::uint8_t {
         None,     ///< nothing is loading
         Waiting,  ///< still being read
