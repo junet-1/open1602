@@ -120,7 +120,7 @@ const assets::BuildingType* BuildTool::selected() const noexcept {
 
 bool BuildTool::multi_drag() const noexcept {
     const assets::BuildingType* b = selected();
-    return m_mode == Mode::Build && m_multi_placement && m_drag_start && b != nullptr && multi_kind(*b);
+    return m_mode == Mode::Build && m_drag_start && b != nullptr && multi_kind(*b);
 }
 
 bool BuildTool::hatched_drag() const noexcept {

@@ -39,11 +39,9 @@ public:
     /// Buildings with a door turn towards the nearest road (the build menu's switch 31023; off at
     /// the start of a game as in the original).
     void set_orient_to_road(bool on) noexcept { m_orient_to_road = on; }
-    /// The History Edition's „Mehrfachplatzierung“ (on by default): a drag with a house or a pier
-    /// lays them side by side over the dragged rectangle, from where the drag started. What does not
-    /// fit is left out, and what cannot be paid for any more stays unbuilt (sim::plan_build).
-    void set_multi_placement(bool on) noexcept { m_multi_placement = on; }
-    /// Whether a drag places several of the selected building (houses and piers, when on).
+    /// The History Edition's „Mehrfachplatzierung“, always on: a drag with a house or a pier lays
+    /// them side by side over the dragged rectangle, from where the drag started. What does not fit
+    /// is left out, and what cannot be paid for any more stays unbuilt (sim::plan_build).
     [[nodiscard]] bool multi_drag() const noexcept;
     /// Picks the first Kontor to found from a ship (the ship window's button 38017): its cargo
     /// pays instead of the nearest ship's. False if there is no Kontor to place.
@@ -89,7 +87,6 @@ private:
     std::uint8_t m_rotation = 0;
     Mode m_mode = Mode::Off;
     bool m_orient_to_road = false;
-    bool m_multi_placement = true;
     std::optional<std::uint32_t> m_ship;  ///< the ship that founds, chosen in its window
     std::optional<Spot> m_drag_start;
     std::uint32_t m_variant_seed = 0;  ///< picks the trees' variants, the same for every frame of a drag

@@ -60,14 +60,6 @@ TEST_CASE("app settings: the trade routes' voice switch is kept; older files lea
     CHECK(old.audio.speech[audio::kSpeechRoutes]);
 }
 
-TEST_CASE("app settings: the History Edition's multi placement is on unless turned off") {
-    CHECK(app::AppSettings{}.multi_placement);
-    CHECK(app::parse_settings("", app::AppSettings{}).multi_placement);
-    app::AppSettings s;
-    s.multi_placement = false;
-    CHECK(!app::parse_settings(app::write_settings(s), app::AppSettings{}).multi_placement);
-}
-
 TEST_CASE("app settings: savegame names are written as UTF-8 and read back") {
     app::SaveSlots slots;
     slots.set(0, "Fu\xdf", 1);  // sharp s

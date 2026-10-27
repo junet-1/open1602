@@ -2412,7 +2412,6 @@ void MapViewer::load_options() {
         }
     }
     apply_language();
-    m_tool.set_multi_placement(m_app_settings.multi_placement);
     m_ambient.set_config(ambient_config());
     if (auto bytes = core::read_file(save_folder() / "slots.cfg")) {
         m_slots = parse_slots(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));

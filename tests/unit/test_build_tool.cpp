@@ -176,13 +176,6 @@ TEST_CASE("build tool: houses and piers are dragged out side by side, as in the 
     const auto row = tool.build_order(m.world, 0, {0, 5, 7});
     REQUIRE(row.has_value());
     CHECK(row->items.size() == 4);
-    // Turned off, a drag places one where the mouse is, as before.
-    tool.set_multi_placement(false);
-    CHECK(!tool.multi_drag());
-    const auto one = tool.build_order(m.world, 0, {0, 5, 7});
-    REQUIRE(one.has_value());
-    REQUIRE(one->items.size() == 1);
-    CHECK(one->items[0].x == 5);
 }
 
 TEST_CASE("build tool: trees keep their variants during a drag") {
