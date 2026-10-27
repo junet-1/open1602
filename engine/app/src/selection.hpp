@@ -15,6 +15,10 @@ inline constexpr std::int32_t kBuild = 30011;
 inline constexpr std::int32_t kMilitary = 30012;
 inline constexpr std::int32_t kInfo = 30013;
 inline constexpr std::int32_t kOptions = 30014;
+/// A second military button in the place of the first and drawn over it. The original hides it and
+/// makes it unclickable at the start of a game (0x0042BF22); left in, it takes the clicks meant for
+/// the military mode and covers the military button's selected picture.
+inline constexpr std::int32_t kMilitaryDuplicate = 30015;
 }  // namespace side_mode
 
 /// The mode after a left click on the map in `mode` (`selected`: it selected a building or a
