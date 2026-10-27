@@ -306,14 +306,16 @@ TEST_CASE("bink: damaged files fail instead of crashing") {
 TEST_CASE("bink: the file is read frame by frame") {
     const auto path = std::filesystem::temp_directory_path() / "o1602-test-bink.bk2";
     REQUIRE(core::write_file(path, bink_file(32, 32, {flat_key_frame(1), skip_frame()}, true)));
-    auto video = video::Bink::open_file(path);
-    REQUIRE(video);
-    CHECK(video->info().frames == 2);
-    CHECK(video->next());
-    CHECK(video->next());
-    auto pcm = video->audio(0);
-    REQUIRE(pcm);
-    CHECK(pcm->samples.size() == 2 * 960);
+    {
+        auto video = video::Bink::open_file(path);
+        REQUIRE(video);
+        CHECK(video->info().frames == 2);
+        CHECK(video->next());
+        CHECK(video->next());
+        auto pcm = video->audio(0);
+        REQUIRE(pcm);
+        CHECK(pcm->samples.size() == 2 * 960);
+    }  // closes the file: Windows removes no open file
     std::error_code ec;
     std::filesystem::remove(path, ec);
     CHECK(!video::Bink::open_file(path));
