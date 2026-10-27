@@ -128,7 +128,8 @@ Bink2Video::Bink2Video(std::int32_t width, std::int32_t height, char revision, s
         const std::int32_t h = chroma ? ah / 2 : ah;
         for (Plane* p : {&m_current[i], &m_last[i]}) {
             p->stride = w + 32;
-            p->data.assign(static_cast<std::size_t>(p->stride) * static_cast<std::size_t>(h + 32), i == 3 ? 255 : 0);
+            p->data.assign(static_cast<std::size_t>(p->stride) * static_cast<std::size_t>(h + 32),
+                           static_cast<std::uint8_t>(i == 3 ? 255 : 0));
         }
     }
     const auto mbs = static_cast<std::size_t>((width + 31) / 32);
@@ -191,8 +192,8 @@ core::Status Bink2Video::decode(std::span<const std::uint8_t> packet, bool key_f
 
     gb.skip(32 + 32 * (num_slices - 1));
 
-    std::fill(m_row_cbp.begin(), m_row_cbp.end(), 0);
-    std::fill(m_col_cbp.begin(), m_col_cbp.end(), 0);
+    std::fill(m_row_cbp.begin(), m_row_cbp.end(), std::uint8_t{0});
+    std::fill(m_col_cbp.begin(), m_col_cbp.end(), std::uint8_t{0});
     if ((m_frame_flags & 0x10000) != 0) {
         if ((m_frame_flags & 0x8000) == 0) {
             get_block_flags(gb, 1, (((m_height + 15) & ~15) >> 3) - 1, m_row_cbp.data());
