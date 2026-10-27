@@ -1887,8 +1887,11 @@ Hud::Resources MapViewer::resources() const {
     // residents plus the workers of the city's buildings, the same figure as the player status,
     // the city window and the population messages.
     r.inhabitants = sim::city_einwohner(*city, sim::city_workers(m_state->world, m_buildings, *city));
+    // The owner's coat of arms for humans and computer opponents alike: 0x0040D22F tests the
+    // player kind (0x005B7680 + 0x280 * owner) for 0 or 0x0C and draws the plain shield only
+    // for the other factions.
     const sim::Player* owner = m_state->world.player(city->owner);
-    if (owner != nullptr && owner->role == sim::PlayerRole::Human) {
+    if (owner != nullptr && (owner->role == sim::PlayerRole::Human || owner->role == sim::PlayerRole::Computer)) {
         r.shield = owner->banner;
     }
     return r;
