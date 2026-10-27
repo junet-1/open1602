@@ -215,12 +215,15 @@ void GameSettingsMenu::layout() {
         for (std::size_t i = 0; i < items.size(); ++i) {
             const SetupItem item = items[i];
             const bool used = setup_item_used(m_setup, item);
-            const Rect value = row(g.x, top + static_cast<std::int32_t>(i) * kRowH, setup_label(item), used);
+            const std::int32_t y = top + static_cast<std::int32_t>(i) * kRowH;
             if (editable) {
-                f.cycle_button(kItem + static_cast<Id>(item), value, setup_value(m_setup, item),
-                               setup_item_open(m_setup, m_scope, item));
+                f.cycle_button(kItem + static_cast<Id>(item), row(g.x, y, setup_label(item), used),
+                               setup_value(m_setup, item), setup_item_open(m_setup, m_scope, item));
             } else {
-                f.label(value, setup_value(m_setup, item), Align::Left, used ? Tone::Normal : Tone::Dim);
+                // Only shown: the value may take the room the label leaves, not just a button's.
+                const Tone tone = used ? Tone::Normal : Tone::Dim;
+                f.entry(Rect{g.x + 12, y, kLabelW + kValueW + 4, kRowH - 4}, setup_label(item),
+                        setup_value(m_setup, item), tone, tone);
             }
         }
     }
