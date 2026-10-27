@@ -1385,7 +1385,7 @@ namespace {
 std::array<std::uint8_t, 4> minimap_colour(const sim::World& world, const assets::BuildingTable& buildings,
                                            const render::BannerTable& banners, const sim::World::Cell& c,
                                            sim::PlayerId local) {
-    std::array<std::uint8_t, 4> rgb{0, 0, 0, 0};  // sea
+    std::array<std::uint8_t, 4> rgb{0, 0, 0, 0};  // the open sea
     if (c.island == sim::World::kSea) {
         return rgb;
     }
@@ -1396,18 +1396,27 @@ std::array<std::uint8_t, 4> minimap_colour(const sim::World& world, const assets
     const assets::BuildingType* b = top.empty() ? nullptr : buildings.by_sprite(top.sprite);
     const std::int32_t kind = b != nullptr ? b->kind : sim::building_kind::kSea;
     namespace bk = sim::building_kind;
-    const bool water = kind == bk::kSea || kind == bk::kSurf || kind == bk::kSurfCorner;
-    // Land of nobody in the original's brown (0x0042D5E0: 0x96, 0x64, 0x30), forest too.
-    if (!water) {
-        rgb = {0x96, 0x64, 0x30, 255};
+    // Ground kinds 19 to 22 are water to the original's minimap (0x0042D5E0), the river mouth too:
+    // alpha 1 marks an island's water, which counts against its land when the picture is shrunk.
+    if (kind == bk::kSea || kind == bk::kSurf || kind == bk::kSurfCorner || kind == bk::kRiverMouth) {
+        rgb[3] = 1;
+        return rgb;
     }
-    const bool scenery = water || kind == bk::kForest || kind == bk::kGround || kind == bk::kRiverMouth;
-    if (!scenery && !hidden && top.owner != sim::kNoPlayer) {
-        const sim::Player* p = world.player(top.owner);
-        // Unlike the original's minimap, which never shows native villages, Open1602 shows the natives
-        // and the pirates in their colour once the island is discovered.
+    // Land of nobody in the original's brown (0x966430, which its palette makes 0x896340).
+    rgb = {0x89, 0x63, 0x40, 255};
+    const sim::PlayerId owner = top.owner != sim::kNoPlayer ? top.owner : ground.owner;
+    if (!hidden && owner != sim::kNoPlayer) {
+        // The whole territory of a city, forest and meadow too, in the four colours of the original;
+        // other banners in their colour. Unlike the original's minimap, which never shows native
+        // villages, Open1602 shows the natives and the pirates once the island is discovered.
+        constexpr std::array<std::array<std::uint8_t, 3>, 4> kOriginal{
+            {{0xAC, 0x27, 0x05}, {0x11, 0x88, 0xDC}, {0xF8, 0xC2, 0x30}, {0xC0, 0xC0, 0xC0}}};
+        const sim::Player* p = world.player(owner);
         const render::Banner* banner = p != nullptr ? banners.get(p->banner) : nullptr;
-        if (banner != nullptr) {
+        if (banner != nullptr && banner->unit_variant && *banner->unit_variant < kOriginal.size()) {
+            const auto& o = kOriginal[*banner->unit_variant];
+            rgb = {o[0], o[1], o[2], 255};
+        } else if (banner != nullptr) {
             rgb = {banner->colour.r, banner->colour.g, banner->colour.b, 255};
         }
     }
@@ -1467,40 +1476,44 @@ bool Hud::refresh_minimap_island(const sim::World& world, const assets::Building
 void Hud::shrink_minimap(std::int32_t w, std::int32_t h) {
     m_minimap_w = w;
     m_minimap_h = h;
-    m_minimap_small.assign(static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4, 0);
-    for (std::int32_t py = 0; py < h; ++py) {
-        const auto y0 = static_cast<std::uint32_t>(std::int64_t{py} * m_world_h / h);
-        const auto y1 = std::max(y0 + 1, static_cast<std::uint32_t>(std::int64_t{py + 1} * m_world_h / h));
-        for (std::int32_t px = 0; px < w; ++px) {
-            const auto x0 = static_cast<std::uint32_t>(std::int64_t{px} * m_world_w / w);
-            const auto x1 = std::max(x0 + 1, static_cast<std::uint32_t>(std::int64_t{px + 1} * m_world_w / w));
-            // More land than sea: the land tile nearest the pixel's middle gives the colour.
-            std::int32_t land = 0;
-            std::int32_t sea = 0;
-            std::size_t best = 0;
-            std::uint32_t best_d = std::numeric_limits<std::uint32_t>::max();
-            for (std::uint32_t y = y0; y < y1 && y < m_world_h; ++y) {
-                for (std::uint32_t x = x0; x < x1 && x < m_world_w; ++x) {
-                    const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
-                    if (m_minimap[i + 3] == 0) {
-                        ++sea;
-                        continue;
-                    }
-                    ++land;
-                    const std::uint32_t dx = 2 * x + 1 > x0 + x1 ? 2 * x + 1 - x0 - x1 : x0 + x1 - 2 * x - 1;
-                    const std::uint32_t dy = 2 * y + 1 > y0 + y1 ? 2 * y + 1 - y0 - y1 : y0 + y1 - 2 * y - 1;
-                    if (dx + dy < best_d) {
-                        best_d = dx + dy;
-                        best = i;
+    const auto pixels = static_cast<std::size_t>(w) * static_cast<std::size_t>(h);
+    m_minimap_small.assign(pixels * 4, 0);
+    // As the original (0x0042D5E0): a tile lands on pixel (x * step) >> 8 with the step in 8.8
+    // fixed point, cut off; a pixel shows land when more of its island tiles are land than water
+    // (the open sea does not count), in the colour of its last land tile. A world smaller than the
+    // parchment spreads each tile over the pixels up to the next one's.
+    const std::uint64_t step_x = (std::uint64_t{static_cast<std::uint32_t>(w)} << 8U) / m_world_w;
+    const std::uint64_t step_y = (std::uint64_t{static_cast<std::uint32_t>(h)} << 8U) / m_world_h;
+    std::vector<std::int32_t> balance(pixels, 0);  // land tiles minus water tiles
+    std::vector<std::size_t> colour(pixels, 0);    // the land tile that gives the colour
+    for (std::uint32_t y = 0; y < m_world_h; ++y) {
+        const std::uint64_t y0 = (y * step_y) >> 8U;
+        const std::uint64_t y1 = std::max(y0 + 1, ((y + 1) * step_y) >> 8U);
+        for (std::uint32_t x = 0; x < m_world_w; ++x) {
+            const std::size_t i = (std::size_t{y} * m_world_w + x) * 4;
+            const std::uint8_t alpha = m_minimap[i + 3];
+            if (alpha == 0) {
+                continue;  // the open sea
+            }
+            const std::uint64_t x0 = (x * step_x) >> 8U;
+            const std::uint64_t x1 = std::max(x0 + 1, ((x + 1) * step_x) >> 8U);
+            for (std::uint64_t py = y0; py < y1 && py < static_cast<std::uint64_t>(h); ++py) {
+                for (std::uint64_t px = x0; px < x1 && px < static_cast<std::uint64_t>(w); ++px) {
+                    const std::size_t o = static_cast<std::size_t>(py * static_cast<std::uint64_t>(w) + px);
+                    if (alpha == 255) {
+                        ++balance[o];
+                        colour[o] = i;
+                    } else {
+                        --balance[o];
                     }
                 }
             }
-            if (land > sea) {
-                const std::size_t o =
-                    (static_cast<std::size_t>(py) * static_cast<std::size_t>(w) + static_cast<std::size_t>(px)) * 4;
-                std::copy_n(m_minimap.begin() + static_cast<std::ptrdiff_t>(best), 4,
-                            m_minimap_small.begin() + static_cast<std::ptrdiff_t>(o));
-            }
+        }
+    }
+    for (std::size_t o = 0; o < pixels; ++o) {
+        if (balance[o] > 0) {
+            std::copy_n(m_minimap.begin() + static_cast<std::ptrdiff_t>(colour[o]), 4,
+                        m_minimap_small.begin() + static_cast<std::ptrdiff_t>(o * 4));
         }
     }
 }
