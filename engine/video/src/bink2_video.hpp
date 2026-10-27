@@ -92,11 +92,6 @@ private:
 
     std::int32_t m_width;
     std::int32_t m_height;
-    // The decoder works on the size rounded up to whole macroblocks, as RAD's does (Librempeg sets
-    // it as the codec's size): the block flags, the slices and the edge of motion compensation
-    // depend on it. 432 x 352 has 55 column flags, not 53.
-    std::int32_t m_coded_width;
-    std::int32_t m_coded_height;
     char m_revision;
     std::uint32_t m_flags;
     bool m_has_alpha;

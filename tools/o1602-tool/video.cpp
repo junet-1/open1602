@@ -130,6 +130,13 @@ int cmd_bk2(const Args& args) {
         std::printf("track %zu: %u Hz, %s, %s, id %u\n", t, track.rate, track.stereo ? "stereo" : "mono",
                     track.dct ? "DCT" : "RDFT", track.id);
     }
+    // A track the video does not have fails before the frames are decoded.
+    const auto wav_track = args.number("--wav");  // main() checked that it is a number
+    if (wav_track && *wav_track >= info.tracks.size()) {
+        std::fprintf(stderr, "error: the video has %zu audio track%s\n", info.tracks.size(),
+                     info.tracks.size() == 1 ? "" : "s");
+        return 1;
+    }
     const auto png_dir = args.options.find("--png");
     const std::size_t every = std::max<std::size_t>(args.number("--every").value_or(1), 1);
     std::vector<std::uint8_t> rgba;
@@ -159,12 +166,7 @@ int cmd_bk2(const Args& args) {
         if (args.positional.size() < 2) {
             return usage();
         }
-        const std::size_t track = *args.number("--wav");  // main() checked that it is a number
-        if (track >= info.tracks.size()) {
-            std::fprintf(stderr, "error: the video has %zu audio tracks\n", info.tracks.size());
-            return 1;
-        }
-        auto pcm = video->audio(track);
+        auto pcm = video->audio(*wav_track);
         if (!pcm) {
             return fail(pcm.error());
         }

@@ -76,13 +76,14 @@ void flat_macroblock(Bits& b, std::uint32_t luma_dc) {
     }
 }
 
-/// A key frame of revision j from its frame flags and bits; two slices, the first holds all.
-std::vector<std::uint8_t> key_frame(std::uint32_t flags, const Bits& b) {
+/// A key frame of revision j from its frame flags and the bits of its two slices.
+std::vector<std::uint8_t> key_frame(std::uint32_t flags, const Bits& first, const Bits& second = {}) {
     std::vector<std::uint8_t> frame;
     append32(frame, flags);
     append32(frame, 0);  // where the second slice starts, filled in below
-    frame.insert(frame.end(), b.bytes().begin(), b.bytes().end());
+    frame.insert(frame.end(), first.bytes().begin(), first.bytes().end());
     put32(frame, 4, static_cast<std::uint32_t>(frame.size()));
+    frame.insert(frame.end(), second.bytes().begin(), second.bytes().end());
     return frame;
 }
 
@@ -208,23 +209,30 @@ TEST_CASE("bink: header, tracks and a flat key frame") {
     CHECK(all);
 }
 
-TEST_CASE("bink: the block flags count whole macroblocks") {
-    // 40 x 32: the frame is decoded as 64 x 32, so 7 column flags follow the 3 row flags, not 5.
+TEST_CASE("bink: the block flags count columns of whole macroblocks, rows of 16 pixels") {
+    // 40 x 40: 7 column flags (64 pixels), 5 row flags (48 pixels). Two slices of one macroblock
+    // row each.
     Bits b;
     b.bit(0);  // row flags stored as they are
-    b.bits(0, 3);
+    b.bits(0, 5);
     b.bit(0);  // column flags stored as they are
     b.bits(0x7F, 7);
     flat_macroblock(b, 1);
     flat_macroblock(b, 0);  // the DCs of the one to the left
-    auto video = video::Bink::open(bink_file(40, 32, {key_frame(0x10000, b)}, false));
+    Bits second;
+    flat_macroblock(second, 1);
+    flat_macroblock(second, 0);
+    auto video = video::Bink::open(bink_file(40, 40, {key_frame(0x10000, b, second)}, false));
     REQUIRE(video);
     REQUIRE(video->next());
     std::vector<std::uint8_t> rgba;
     video->to_rgba(rgba);
-    REQUIRE(rgba.size() == 40 * 32 * 4);
-    CHECK(rgba[0] == 133);
-    CHECK(rgba[(31 * 40 + 39) * 4] == 133);
+    REQUIRE(rgba.size() == 40 * 40 * 4);
+    bool all = true;
+    for (std::size_t i = 0; i < 40 * 40; ++i) {
+        all = all && rgba[i * 4] == 133;
+    }
+    CHECK(all);
 }
 
 TEST_CASE("bink: a skipped macroblock keeps the frame before, rewind starts again") {

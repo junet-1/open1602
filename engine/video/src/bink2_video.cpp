@@ -114,13 +114,7 @@ std::uint32_t load_u32(std::span<const std::uint8_t> b, std::size_t at) noexcept
 }  // namespace
 
 Bink2Video::Bink2Video(std::int32_t width, std::int32_t height, char revision, std::uint32_t flags)
-    : m_width(width),
-      m_height(height),
-      m_coded_width((width + 31) & ~31),
-      m_coded_height((height + 31) & ~31),
-      m_revision(revision),
-      m_flags(flags),
-      m_has_alpha((flags & kFlagAlpha) != 0) {
+    : m_width(width), m_height(height), m_revision(revision), m_flags(flags), m_has_alpha((flags & kFlagAlpha) != 0) {
     // The planes go to whole blocks of 32 pixels (chroma 16), one block more to the right and
     // below so that a block written at the edge never leaves them.
     const std::int32_t aw = (width + 31) & ~31;
@@ -169,7 +163,7 @@ core::Status Bink2Video::decode(std::span<const std::uint8_t> packet, bool key_f
     m_gb = &gb;
     m_frame_flags = load_u32(packet, 0);
 
-    const int height_a = m_coded_height;
+    const int height_a = (m_height + 31) & ~31;
     int num_slices = 0;
     std::array<int, 8> slice_height{};
     if (m_revision == 'g') {
@@ -177,7 +171,7 @@ core::Status Bink2Video::decode(std::span<const std::uint8_t> packet, bool key_f
             num_slices = 1;
         } else {
             num_slices = 2;
-            slice_height[0] = (m_coded_height / 2 + 16) & ~31;
+            slice_height[0] = (m_height / 2 + 16) & ~31;
         }
     } else {
         num_slices = kKb2hNumSlices[m_flags & 3];
@@ -201,10 +195,14 @@ core::Status Bink2Video::decode(std::span<const std::uint8_t> packet, bool key_f
     std::fill(m_col_cbp.begin(), m_col_cbp.end(), 0);
     if ((m_frame_flags & 0x10000) != 0) {
         if ((m_frame_flags & 0x8000) == 0) {
-            get_block_flags(gb, 1, (((m_coded_height + 15) & ~15) >> 3) - 1, m_row_cbp.data());
+            get_block_flags(gb, 1, (((m_height + 15) & ~15) >> 3) - 1, m_row_cbp.data());
         }
         if ((m_frame_flags & 0x4000) == 0) {
-            get_block_flags(gb, 1, (((m_coded_width + 15) & ~15) >> 3) - 1, m_col_cbp.data());
+            // The columns of the width rounded up to whole macroblocks, the rows of the height to 16
+            // pixels: the History Edition's German credits (432 x 352) have 55 column flags, its
+            // 352 x 240 videos 29 row flags. Librempeg counts the columns as the rows and breaks on
+            // the credits at their first frame with block flags.
+            get_block_flags(gb, 1, (((m_width + 31) & ~31) >> 3) - 1, m_col_cbp.data());
         }
     }
 
