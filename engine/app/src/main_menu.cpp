@@ -60,7 +60,7 @@ constexpr std::int32_t kScoreRank = 32071;
 constexpr std::int32_t kScoreStars = 32081;
 constexpr std::int32_t kBriefingUp = 32091;
 constexpr std::int32_t kBriefingDown = 32092;
-constexpr std::int32_t kBriefingTrack = 32093;
+[[maybe_unused]] constexpr std::int32_t kBriefingTrack = 32093;
 constexpr std::int32_t kBriefingSlider = 32094;
 constexpr std::size_t kChoices = 5;
 constexpr std::size_t kScoreRows = 4;
@@ -594,8 +594,6 @@ void MainMenu::refresh_mission() {
     }
     p.set_text(kBriefing, m_briefing);
     p.set_visible(kBriefing2, false);
-    p.set_visible(kBriefingTrack, false);
-    p.set_visible(kBriefingSlider, false);
     // The high scores, four at a time; not for the tutorial (0x0048B0E0).
     const bool scores = s.header.mission_number != kTutorial;
     for (const std::int32_t id : {kScoresHeading, kScoresFrame, kScoresUp, kScoresDown}) {
@@ -695,9 +693,20 @@ std::vector<ui::DrawItem> MainMenu::draw(const std::array<const ui::Font*, ui::k
         const std::int32_t last = p->max_scroll(kBriefing, fonts);
         m_briefing_line = std::min(m_briefing_line, last);
         p->set_scroll(kBriefing, m_briefing_line);
-        // Its arrows are faded while the whole briefing fits (0x0048B195); then they scroll nothing.
-        for (const std::int32_t id : {kBriefingUp, kBriefingDown}) {
+        m_briefing_last = last;
+        m_briefing_rows = p->flow_rows(kBriefing);
+        // Its arrows and slider are faded while the whole briefing fits (0x0048B195); then they
+        // scroll nothing and the knob rests in the middle (0x00407600 with 50 of 100).
+        for (const std::int32_t id : {kBriefingUp, kBriefingDown, kBriefingSlider}) {
             p->set_faded(id, last == 0);
+        }
+        // 0x0048B195: the knob at (first line + rows / 2) of (lines + rows - 1), counted from the
+        // bottom.
+        if (last > 0) {
+            p->set_slider(kBriefingSlider, 1, briefing_slider_range() - m_briefing_rows / 2 - m_briefing_line,
+                          briefing_slider_range());
+        } else {
+            p->set_slider(kBriefingSlider, 1, 50, 100);
         }
     } else if (m_screen == Screen::Colour) {
         refresh_colour();
@@ -787,6 +796,13 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
         return out;
     }
     for (const ui::PanelEvent& e : p->mouse(x, y, down)) {
+        if (e.kind == ui::PanelEvent::Kind::Slid && m_screen == Screen::Mission && e.id == kBriefingSlider &&
+            m_briefing_last > 0) {
+            const std::int32_t range = briefing_slider_range();
+            m_briefing_line =
+                std::clamp(range - m_briefing_rows / 2 - p->slider(kBriefingSlider, 1, range), 0, m_briefing_last);
+            continue;
+        }
         if (e.kind != ui::PanelEvent::Kind::Clicked) {
             continue;
         }

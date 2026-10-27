@@ -201,6 +201,12 @@ private:
     std::vector<assets::HighScore> m_scores;  ///< of the chosen scenario
     std::size_t m_scores_first = 0;
     std::int32_t m_briefing_line = 0;
+    std::int32_t m_briefing_last = 0;  ///< the briefing's last first line, 0 while it fits
+    std::int32_t m_briefing_rows = 0;  ///< lines its box shows
+    /// The briefing slider's range while it scrolls: lines + rows - 1 (0x0048B195).
+    [[nodiscard]] std::int32_t briefing_slider_range() const noexcept {
+        return m_briefing_last + 2 * m_briefing_rows - 1;
+    }
     SaveSlots m_slots;
     std::filesystem::path m_score_folder;
     std::filesystem::path m_progress_file;

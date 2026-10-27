@@ -171,6 +171,15 @@ std::int32_t Panel::max_scroll(std::int32_t id, const std::array<const Font*, kF
     return std::max(0, static_cast<std::int32_t>(flow->first.size()) - flow->second);
 }
 
+std::int32_t Panel::flow_rows(std::int32_t id) const {
+    const auto i = m_layout.index_of(id);
+    if (!i) {
+        return 0;
+    }
+    const assets::Gadget& g = m_layout.gadgets[*i];
+    return g.kind == GadgetKind::TextFlow && g.offset[1] > 0 ? g.size[1] / g.offset[1] : 0;
+}
+
 std::optional<std::pair<std::vector<std::string>, std::int32_t>> Panel::flow_lines(
     std::size_t index, const std::array<const Font*, kFontSlots>& fonts) const {
     // 0x00407D7D: width Size.x, line height Posoffs.y, lines Size.y / Posoffs.y.
