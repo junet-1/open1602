@@ -198,6 +198,8 @@ private:
     void update_high_scores(sim::PlayerId defeated);
     /// A won single player game opens the next mission (GameDat_Write 0x00487FB0).
     void record_progress();
+    /// The game's identity, with the campaign and part of a scenario as the menu has them.
+    [[nodiscard]] sim::GameIdentity game_identity() const;
     /// Humans that take part: more than one is a multiplayer game.
     [[nodiscard]] std::size_t humans() const;
     /// How the game stands for the local player now.
@@ -403,6 +405,7 @@ private:
     std::vector<std::string> m_city_names;  ///< Text.cod [STAEDTE], [SHIPS]: for every game loaded
     std::vector<std::string> m_ship_names;
     std::vector<std::string> m_campaign_labels;     ///< [KAMPAGNE]: the high score lists of campaign parts
+    std::optional<CampaignPart> m_campaign_part;    ///< of the scenario loaded, as the original records it
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters

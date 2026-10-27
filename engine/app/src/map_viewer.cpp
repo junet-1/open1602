@@ -105,8 +105,6 @@ std::string refusal_text(sim::BuildRefusal refusal) {
 
 /// Ground under a building that cannot be built there.
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
-/// What a demolish order would remove: hatched over the buildings.
-constexpr assets::Rgba kDemolishHatch{220, 40, 30, 255};
 /// Real time a frame may spend on ticks; the rest of the frame draws.
 constexpr int kTickBudgetMs = 25;
 /// The status line under a still mouse is worked out again this often (FB-1).
@@ -1401,11 +1399,11 @@ void MapViewer::render() {
         }
         if (m_tool.mode() == BuildTool::Mode::Demolish) {
             // Only what the click or drag would really remove is hatched, over the buildings, so the
-            // player sees what changes before letting go.
+            // player sees what changes before letting go; in the original's yellow checkerboard.
             if (const auto spot = m_input->spot_at_mouse()) {
                 for (const sim::TilePos& t : m_tool.demolish_preview(m_state->world, m_local_player, *spot)) {
                     render::TileMark mark{spot->island, static_cast<std::uint16_t>(t.x),
-                                          static_cast<std::uint16_t>(t.y), kDemolishHatch};
+                                          static_cast<std::uint16_t>(t.y), render::kDragHatch};
                     mark.hatched = true;
                     mark.on_top = true;
                     m_tile_marks.push_back(mark);
@@ -2819,6 +2817,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     // the one shown behind the lobby, whose people the computer plays in the new game.
     m_session_roles.clear();
     m_state = std::move(next);
+    m_campaign_part = source.empty() ? std::nullopt : campaign_part_of(source);
     use_game_packages();
     m_command_sink.set_simulation(&m_state->simulation);
     m_options.scenario = source;
@@ -3230,8 +3229,18 @@ void MapViewer::show_end_screen(sim::GameOutcome outcome, bool view_only) {
     m_hud->open_end_screen(sim::end_screen_summary(m_state->world, m_buildings, m_local_player, outcome), view_only);
 }
 
+sim::GameIdentity MapViewer::game_identity() const {
+    sim::GameIdentity game = sim::game_identity(m_state->world);
+    // The campaign and part as the menu has them, not the file's header (campaign_part_of).
+    if (m_campaign_part && game.campaign != sim::GameIdentity::kNone) {
+        game.campaign = m_campaign_part->campaign;
+        game.ranking = m_campaign_part->part;
+    }
+    return game;
+}
+
 void MapViewer::update_high_scores(sim::PlayerId defeated) {
-    const sim::GameIdentity game = sim::game_identity(m_state->world);
+    const sim::GameIdentity game = game_identity();
     const std::filesystem::path name = high_score_file(game, m_campaign_labels, humans() > 1);
     if (name.empty()) {
         return;
@@ -3288,7 +3297,7 @@ void MapViewer::record_progress() {
         progress =
             assets::parse_progress(std::string_view(reinterpret_cast<const char*>(bytes->data()), bytes->size()));
     }
-    const sim::GameIdentity game = sim::game_identity(m_state->world);
+    const sim::GameIdentity game = game_identity();
     if (progress.ends_campaigns(game.campaign, game.ranking, game.mission_number)) {
         m_video->follow(assets::kCampaignsEndVideo);  // after the success video, whatever the switches
     }

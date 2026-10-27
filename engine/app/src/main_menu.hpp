@@ -52,6 +52,16 @@ struct MenuScenario {
                                                       const std::array<std::string, 4>& headings,
                                                       const assets::GameDirectory* game = nullptr);
 
+/// A campaign part as the original records its win: the campaign of the menu's entry for the file
+/// (scenario_list) and the part, the digit of its name. Not the file's own header: Pirata1 and
+/// Feindliche Nachbarn1 say campaign 0 (D-015), and SZENE_RANKING is a part's stars, not its number.
+struct CampaignPart {
+    std::uint32_t campaign = 0;
+    std::uint32_t part = 0;
+};
+/// Nothing for a file outside the campaigns or not in a scenario folder (a savegame).
+[[nodiscard]] std::optional<CampaignPart> campaign_part_of(const std::filesystem::path& file);
+
 struct MenuEvent {
     enum class Kind : std::uint8_t {
         Quit,          ///< leave the program (after a question)
