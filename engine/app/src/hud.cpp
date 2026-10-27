@@ -499,7 +499,7 @@ bool Hud::back() {
         m_chat->close();
         return true;
     }
-    if (m_display_open && !m_menu_active) {
+    if (m_display_open) {
         m_display_open = false;
         return true;
     }
@@ -709,7 +709,8 @@ ui::Rect Hud::display_rect() const {
     const double s = m_display ? m_display->scale() : m_regions.scale;
     const auto w = static_cast<std::int32_t>(DisplayMenu::kWidth * s);
     const auto h = static_cast<std::int32_t>(DisplayMenu::kHeight * s);
-    const ui::Rect& v = m_regions.game_view;
+    // Over the main menu in the middle of the window, else over the map.
+    const ui::Rect& v = m_menu_active ? m_regions.full : m_regions.game_view;
     return {v.x + std::max(0, (v.w - w) / 2), v.y + std::max(0, (v.h - h) / 2), w, h};
 }
 
@@ -764,6 +765,10 @@ void Hud::draw_menu() {
         m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_menu_scale);
     } else if (m_menu) {
         m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_menu_scale);
+        if (m_display_open && m_display) {
+            const ui::Rect r = display_rect();
+            m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+        }
     }
     draw_question();
     draw_help();
@@ -1047,7 +1052,9 @@ void Hud::draw_help() {
 
 std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down, ui::MouseButton button) {
     std::optional<Action> action;
-    if (m_display_open && !m_menu_active && !m_question && !m_help) {
+    // Over the main menu too: open_menu() closes the game's, so one open there came from its
+    // "Options".
+    if (m_display_open && !m_end_active && !multiplayer_open() && !m_question && !m_help) {
         const ui::Rect r = display_rect();
         switch (m_display->mouse(x - r.x, y - r.y, down, m_display_model, button)) {
             case DisplayMenu::Result::Changed:
