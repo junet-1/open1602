@@ -98,6 +98,9 @@ constexpr std::uint32_t kOwnBuildings = tag("OWNB");
 /// The goods the packages added (World::goods(), goods.hpp), only written when there are any.
 /// Required: stocks, holds and buildings name their ware numbers.
 constexpr std::uint32_t kGoods = tag("GOOD");
+/// The icons of packages the packages' goods show (OwnGood::picture), only written when one does.
+/// Optional: without them the goods show the original's icons they name.
+constexpr std::uint32_t kGoodPictures = tag("GPIC");
 /// The classes of inhabitants as packages changed and added them (World::resident_classes(),
 /// resident_classes.hpp), only written when they differ from haeuser.cod's. Required: houses name
 /// the classes, and their needs drive the economy.
@@ -116,7 +119,7 @@ constexpr std::array kKnownSections = {
     kFleet,           kEpochs,       kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
     kMissions,        kPlayerState,  kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
     kPopulationMarks, kTutorial,     kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
-    kFigureValues,    kOwnBuildings, kGoods,     kClasses,   kLevels,   kUnlocked};
+    kFigureValues,    kOwnBuildings, kGoods,     kClasses,   kLevels,   kUnlocked,  kGoodPictures};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -323,6 +326,23 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
                 });
             });
         });
+    }
+    std::vector<const assets::OwnGood*> pictured;
+    for (const assets::OwnGood& g : world.goods().own_goods()) {
+        if (!g.picture.empty()) {
+            pictured.push_back(&g);
+        }
+    }
+    if (!pictured.empty()) {
+        section(
+            out, kGoodPictures,
+            [&](Writer& o) {
+                o.list(pictured, 3, [&](const assets::OwnGood* g) {
+                    o.u8(g->number);
+                    o.string(g->picture);
+                });
+            },
+            Need::Optional);
     }
     if (!world.resident_classes().empty()) {
         section(out, kClasses, [&](Writer& o) {
@@ -628,6 +648,20 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     }
                 }
                 d.goods = std::move(goods);
+                break;
+            }
+            case kGoodPictures: {
+                std::vector<std::pair<std::uint8_t, std::string>> pictures;
+                in.list(pictures, 3, [&](std::pair<std::uint8_t, std::string>& p) {
+                    in.u8(p.first);
+                    in.string(p.second);
+                    // "<package>:<name>" (icons.toml).
+                    if (p.second.size() < 3 || p.second.size() > 2 * assets::kMaxPackageIdLength + 1 ||
+                        p.second.find(':') == std::string::npos) {
+                        in.fail();
+                    }
+                });
+                d.good_pictures = std::move(pictures);
                 break;
             }
             case kClasses: {

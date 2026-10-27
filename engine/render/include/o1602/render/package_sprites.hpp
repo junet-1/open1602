@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // The sprites of content packages' images (assets/package_graphics.hpp, docs/modding/graphics.md)
-// as sources of an atlas, and the terrain sheet with them at their sprite numbers.
+// as sources of an atlas, and the terrain sheet with them at their sprite numbers; the pictures of
+// their icons for the interface.
 #pragma once
 
 #include <cstddef>
@@ -59,5 +60,17 @@ private:
     std::vector<Placed> m_placed;  ///< sorted by `at`
     std::uint32_t m_count = 0;
 };
+
+/// The picture of a package's icon, RGBA with its alpha as the PNG has it.
+struct IconPixels {
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<std::uint8_t> rgba;
+    std::string error;  ///< why the PNG could not be read; then the picture is empty
+};
+
+/// The picture of `icon` at `scale` (1: as the PNG is; the interface's smaller art takes less, at
+/// most 1), each pixel the average of those it covers.
+[[nodiscard]] IconPixels package_icon_pixels(const assets::PackageIcon& icon, double scale);
 
 }  // namespace o1602::render

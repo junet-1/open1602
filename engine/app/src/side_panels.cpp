@@ -9,6 +9,7 @@
 
 #include "o1602/sim/game_data.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 
 namespace o1602::app {
 
@@ -215,7 +216,7 @@ std::optional<std::string> BuildPanel::help(const std::vector<std::string>& leis
 }
 
 void BuildPanel::refresh(const assets::BuildingTable& buildings, const Available& available, std::uint8_t rotation,
-                         const SpriteSize& size_of) {
+                         const SpriteSize& size_of, const assets::Goods& goods) {
     const ui::BuildCategory* category = m_menu->category(m_category);
     const auto id = current(available);
     const assets::BuildingType* b = id ? buildings.by_id(*id) : nullptr;
@@ -258,7 +259,7 @@ void BuildPanel::refresh(const assets::BuildingTable& buildings, const Available
             m_bau.set_offset(g, ox, oy);
         }
         // The production chain: workshops show their inputs, raw material producers their product.
-        // Ware icons are GFXWARE + ware number (the first two are the empty backgrounds).
+        // Ware icons are GFXWARE + ware number (the first two are the empty backgrounds), or a package's.
         const auto ware_icon = [&](std::int32_t gadget, std::uint8_t ware, std::int32_t shift) {
             for (std::int32_t g = gadget; g < gadget + 3 && g <= kChainLast; ++g) {
                 const assets::Gadget* original = m_layout.find(g);
@@ -268,7 +269,7 @@ void BuildPanel::refresh(const assets::BuildingTable& buildings, const Available
                 m_bau.set_offset(g, original->offset[0] - shift, original->offset[1]);
                 m_bau.set_visible(g, true);
             }
-            m_bau.set_graphic(gadget, m_gfx_ware + ware, 0);
+            m_bau.set_graphic(gadget, ui::ware_sprite(m_gfx_ware, goods, ware), 0);
         };
         if (b->prod_kind == sim::prod::kWorkshop && b->ware != 0) {
             const std::int32_t shift = b->raw2_ware != 0 ? 0 : 36;

@@ -17,6 +17,7 @@
 #include "o1602/sim/ships.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -160,7 +161,7 @@ public:
             }
         };
         const auto ware = [&](std::int32_t icon, std::int32_t amount, std::uint8_t w, std::int64_t stock) {
-            m_panel.set_graphic(icon, m_gfx_ware + c.world().goods().icon(w), 0);
+            m_panel.set_graphic(icon, ui::ware_sprite(m_gfx_ware, c.world().goods(), w), 0);
             m_panel.set_text(amount, ui::format_text(tons, {stock >> 5}));
         };
         const bool two = b->raw2_ware != 0 && b->raw2_amount != 0 && m_ids.raw2_b[0] != 0;
@@ -273,7 +274,7 @@ public:
         const ui::BuildCategory* cat = ui::build_menu().category_of(b->id);
         if (const ui::BuildButton* button =
                 cat != nullptr ? cat->button_at(cat->index_of(b->id).value_or(0)) : nullptr) {
-            m_panel.set_graphic(62021, m_gfx_bauhaus + button->icon, 0);
+            m_panel.set_graphic(62021, button->sprite(m_gfx_bauhaus), 0);
             m_panel.set_visible(62021, true);
         } else {
             m_panel.set_visible(62021, false);
@@ -675,7 +676,7 @@ private:
             m_kontor.set_selected(city_ids::kKFrame + k, k == m_slot);
             if (ware) {
                 const std::uint8_t w = list[static_cast<std::size_t>(k)];
-                m_kontor.set_graphic(city_ids::kKIcon + k, m_gfx_ware + c.world().goods().icon(w), 0);
+                m_kontor.set_graphic(city_ids::kKIcon + k, ui::ware_sprite(m_gfx_ware, c.world().goods(), w), 0);
                 m_kontor.set_slider(city_ids::kKBar + k, 1, static_cast<std::int32_t>(city.stock(w)), cap);
             } else if (slot) {
                 m_kontor.set_graphic(city_ids::kKIcon + k, m_gfx_empty, 0);
@@ -823,7 +824,8 @@ public:
             m_panel.set_visible(kDemandBar + id, on);
             m_panel.set_visible(kDemandFrame + id, on);
             if (on) {
-                m_panel.set_graphic(kDemandIcon + id, m_gfx_ware + c.world().goods().icon(m_demand[k].first), 0);
+                m_panel.set_graphic(kDemandIcon + id, ui::ware_sprite(m_gfx_ware, c.world().goods(), m_demand[k].first),
+                                    0);
                 m_panel.set_slider(kDemandBar + id, 1, m_demand[k].second, 128);
             }
         }
@@ -1096,7 +1098,7 @@ public:
         const std::string tons = c.text("GAME", kGameTons);
         const auto ware_row = [&](ui::Panel& p, std::int32_t icon, std::int32_t amount, std::uint8_t w,
                                   std::uint32_t stock) {
-            p.set_graphic(icon, m_gfx_ware + c.world().goods().icon(w), 0);
+            p.set_graphic(icon, ui::ware_sprite(m_gfx_ware, c.world().goods(), w), 0);
             p.set_text(amount, ui::format_text(tons, {std::int64_t{stock >> 5U}}));
         };
         if (m_choose) {

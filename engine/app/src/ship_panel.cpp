@@ -16,6 +16,7 @@
 #include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/ships.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -753,7 +754,8 @@ private:
                 continue;
             }
             const sim::CargoSlot& slot = ship.cargo[h];
-            p.set_graphic(icon + k, filled ? m_gfx_ware + c.world().goods().icon(slot.ware) : m_gfx_empty, 0);
+            p.set_graphic(icon + k, filled ? ui::ware_sprite(m_gfx_ware, c.world().goods(), slot.ware) : m_gfx_empty,
+                          0);
             if (filled) {
                 p.set_slider(bar + k, 1, static_cast<std::int32_t>(std::min(slot.amount, sim::kHoldCapacity)),
                              static_cast<std::int32_t>(sim::kHoldCapacity));
@@ -1054,7 +1056,7 @@ private:
             if (w == 0) {
                 continue;
             }
-            m_transfer.set_graphic(45011 + k, m_gfx_ware + c.world().goods().icon(w), 0);
+            m_transfer.set_graphic(45011 + k, ui::ware_sprite(m_gfx_ware, c.world().goods(), w), 0);
             m_transfer.set_disabled(45011 + k, city->stock(w) == 0);
             m_transfer.set_slider(
                 45131 + k, 1, static_cast<std::int32_t>(std::min<std::uint32_t>(city->stock(w), city->capacity)), cap);
@@ -1161,7 +1163,7 @@ private:
             m_trade.set_selected(33031 + k, k == m_offer);
             if (ware) {
                 const std::uint8_t w = m_offers[static_cast<std::size_t>(k)];
-                m_trade.set_graphic(33011 + k, m_gfx_ware + c.world().goods().icon(w), 0);
+                m_trade.set_graphic(33011 + k, ui::ware_sprite(m_gfx_ware, c.world().goods(), w), 0);
                 m_trade.set_slider(
                     33131 + k, 1,
                     static_cast<std::int32_t>(std::min<std::uint32_t>(sellable(*city, w), city->capacity)), cap);
@@ -1449,9 +1451,11 @@ private:
             for (const std::int32_t id : {w.icon, w.back, w.frame, w.slider, w.arrow}) {
                 m_route.set_visible(id, true);
             }
-            m_route.set_graphic(
-                w.icon,
-                city != nullptr && entry.ware != 0 ? m_gfx_ware + c.world().goods().icon(entry.ware) : m_gfx_empty, 0);
+            m_route.set_graphic(w.icon,
+                                city != nullptr && entry.ware != 0
+                                    ? ui::ware_sprite(m_gfx_ware, c.world().goods(), entry.ware)
+                                    : m_gfx_empty,
+                                0);
             m_route.set_disabled(w.icon, no_hold);
             m_route.set_visible(w.bar, !off);
             m_route.set_disabled(w.slider, off);

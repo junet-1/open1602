@@ -10,6 +10,7 @@
 #include "o1602/audio/sound_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
+#include "o1602/ui/package_icons.hpp"
 
 namespace o1602::app {
 
@@ -163,6 +164,7 @@ void MessageTable::apply(const core::DataTable& table, MessageDefinition& m, con
         }
         if (const MessageDefinition* source = from ? get(*from) : nullptr) {
             m.icon = source->icon;
+            m.picture = source->picture;
             m.meldung = source->meldung;
             m.playback = source->playback;
             m.texts = source->texts;
@@ -189,12 +191,15 @@ void MessageTable::apply(const core::DataTable& table, MessageDefinition& m, con
             const auto it =
                 s == nullptr ? kIcons.end()
                              : std::find_if(kIcons.begin(), kIcons.end(), [&](const auto& i) { return i.first == *s; });
-            if (it == kIcons.end()) {
+            if (it != kIcons.end()) {
+                m.icon = it->second;
+                m.picture.clear();
+            } else if (s != nullptr && ui::package_icon_sprite(*s)) {
+                m.picture = *s;
+            } else {
                 warnings.push_back(at +
                                    "'icon' must be one of notice, scroll, combat, player, plague, fire, "
-                                   "drought, volcano");
-            } else {
-                m.icon = it->second;
+                                   "drought, volcano, or an icon of a package (icons.toml, <package>:<name>)");
             }
         } else if (e.key == "kind") {
             const auto it = s == nullptr ? kKinds.end() : std::find(kKinds.begin(), kKinds.end(), *s);

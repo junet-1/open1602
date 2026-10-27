@@ -33,6 +33,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `classes.toml` | classes of inhabitants: the original's changed, new ones after them, needs of any good | [classes.md](classes.md) |
 | `music.toml` | music tracks of the package's own (WAV, Ogg Vorbis, FLAC), normal or battle music | [sounds.md](sounds.md) |
 | `graphics.toml` | PNG images of the package's own, drawn by its buildings at all three zoom levels | [graphics.md](graphics.md) |
+| `icons.toml` | PNG icons of the package's own for the build menu, goods and messages | [graphics.md](graphics.md#icons) |
 | `levels.toml` | unlock levels: the original's changed, new ones after the 32nd, also of a new class | [levels.md](levels.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
@@ -109,7 +110,11 @@ larger.
 
 Part 2 done on 2026-10-27 ([sounds.md](sounds.md)): the game reads Ogg Vorbis and FLAC besides WAV
 (stb_vorbis and dr_flac in `third_party`); `music.toml` adds a package's tracks to the music, as
-normal or battle music, and a message's sound may be any of the three. Still open: icons, figures
+normal or battle music, and a message's sound may be any of the three.
+
+Part 3 done on 2026-10-27 ([graphics.md](graphics.md#icons)): `icons.toml` names PNG icons with
+sprite numbers from 100000, which every sheet of the interface draws; the build menu, the goods
+(`picture`, kept in the savegame section `GPIC`) and the messages name them. Still open: figures
 and ships, and sounds of a package's buildings and figures.
 
 ### 5. Computer players from data (section 3; MD-4)

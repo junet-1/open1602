@@ -5,11 +5,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <utility>
 #include <vector>
 
+#include "o1602/render/package_sprites.hpp"
 #include "o1602/render/shape_tint.hpp"
 #include "o1602/render/variant_tint.hpp"
+#include "o1602/ui/package_icons.hpp"
 
 namespace o1602::render {
 
@@ -146,6 +149,12 @@ double SdlUiRenderer::art_scale() const noexcept {
 
 std::optional<std::pair<std::int32_t, std::int32_t>> SdlUiRenderer::sprite_size(std::int32_t block,
                                                                                 std::int32_t gfx) const {
+    if (const assets::PackageIcon* icon = assets::package_icon_at(ui::package_icons(), gfx)) {
+        // As package_icon_pixels() makes it at the art's scale.
+        const double scale = std::min(1.0, art_scale());
+        return std::make_pair(std::max(1, static_cast<std::int32_t>(std::lround(icon->width * scale))),
+                              std::max(1, static_cast<std::int32_t>(std::lround(icon->height * scale))));
+    }
     if (block < 0 || block >= static_cast<std::int32_t>(m_sheets.size()) ||
         !m_sheets[static_cast<std::size_t>(block)]) {
         return std::nullopt;
@@ -217,6 +226,10 @@ std::vector<std::uint8_t> SdlUiRenderer::tinted(const assets::SpriteSheet& sheet
 
 SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gfx, int mode, std::int32_t colour,
                                              const std::optional<ui::ColourTint>& tint) {
+    const assets::PackageIcon* icon = assets::package_icon_at(ui::package_icons(), gfx);
+    if (icon != nullptr) {
+        block = -1;  // the same picture in every sheet
+    }
     const bool tinting = mode == kModeSprite && tint && (tint->shape || tint->base < tint->variants);
     const SpriteKey key{
         block,
@@ -234,8 +247,11 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
         return it->second.texture;
     }
     Texture t;
-    if (block >= 0 && block < static_cast<std::int32_t>(m_sheets.size()) && m_sheets[static_cast<std::size_t>(block)] &&
-        gfx >= 0 && static_cast<std::size_t>(gfx) < m_sheets[static_cast<std::size_t>(block)]->size()) {
+    if (icon != nullptr) {
+        t = package_icon(*icon, mode, colour);
+    } else if (block >= 0 && block < static_cast<std::int32_t>(m_sheets.size()) &&
+               m_sheets[static_cast<std::size_t>(block)] && gfx >= 0 &&
+               static_cast<std::size_t>(gfx) < m_sheets[static_cast<std::size_t>(block)]->size()) {
         if (auto image = m_sheets[static_cast<std::size_t>(block)]->decode(static_cast<std::size_t>(gfx))) {
             std::vector<std::uint8_t> rgba;
             if (tinting) {
@@ -265,6 +281,43 @@ SdlUiRenderer::Texture SdlUiRenderer::sprite(std::int32_t block, std::int32_t gf
     m_sprites.emplace(key, CachedSprite{t, m_frame});
     m_sprite_bytes += std::size_t{static_cast<std::uint32_t>(t.w)} * static_cast<std::uint32_t>(t.h) * 4;
     return t;
+}
+
+SdlUiRenderer::Texture SdlUiRenderer::package_icon(const assets::PackageIcon& icon, int mode, std::int32_t colour) {
+    IconPixels picture = package_icon_pixels(icon, art_scale());
+    if (!picture.error.empty()) {
+        std::fprintf(stderr, "mods: icon %s: %s\n", icon.id.c_str(), picture.error.c_str());
+        return Texture{};
+    }
+    if (mode != kModeSprite) {
+        // Its shape in one palette colour, as the sheets' sprites: the pixels of at least half alpha.
+        const assets::Rgba c = m_palette[static_cast<std::uint8_t>(std::clamp(colour, 0, 255))];
+        for (std::uint32_t y = 0; y < picture.height; ++y) {
+            for (std::uint32_t x = 0; x < picture.width; ++x) {
+                std::uint8_t* p = &picture.rgba[(std::size_t{y} * picture.width + x) * 4];
+                const bool shown = p[3] >= 128 && (mode != kModeRaster || ((x + y) & 1U) == 0);
+                p[0] = c.r;
+                p[1] = c.g;
+                p[2] = c.b;
+                p[3] = shown ? 255 : 0;
+            }
+        }
+    }
+    return make(picture.rgba, static_cast<std::int32_t>(picture.width), static_cast<std::int32_t>(picture.height));
+}
+
+void SdlUiRenderer::forget_package_icons() {
+    for (auto it = m_sprites.begin(); it != m_sprites.end();) {
+        if (std::get<1>(it->first) >= assets::kFirstPackageIcon) {
+            const Texture& t = it->second.texture;
+            m_sprite_bytes -= std::min(
+                m_sprite_bytes, std::size_t{static_cast<std::uint32_t>(t.w)} * static_cast<std::uint32_t>(t.h) * 4);
+            SDL_DestroyTexture(t.texture);
+            it = m_sprites.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 SdlUiRenderer::Texture SdlUiRenderer::text(const std::string& s, std::int32_t font, std::int32_t colour) {

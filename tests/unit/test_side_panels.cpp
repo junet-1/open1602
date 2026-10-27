@@ -81,7 +81,7 @@ ui::BuildMenuDefinition menu() {
     ui::BuildCategory workshops;
     workshops.button = kWorkshops;
     workshops.names = "WERK";
-    workshops.rows = {{ui::BuildButton{kBakery, 5, 0, {}}, ui::BuildButton{kSmith, 6, 1, {}}}};
+    workshops.rows = {{ui::BuildButton{kBakery, 5, 0, {}, {}}, ui::BuildButton{kSmith, 6, 1, {}, {}}}};
     m.categories = {demolish, workshops};
     m.default_category = kWorkshops;
     return m;
@@ -147,9 +147,10 @@ struct Build {
     };
 
     void refresh(std::uint8_t rotation = 0) {
-        panel.refresh(table, available, rotation, [](std::int32_t, std::int32_t) {
-            return std::optional<std::pair<std::int32_t, std::int32_t>>{{60, 50}};
-        });
+        panel.refresh(
+            table, available, rotation,
+            [](std::int32_t, std::int32_t) { return std::optional<std::pair<std::int32_t, std::int32_t>>{{60, 50}}; },
+            assets::Goods{});
     }
     std::optional<BuildPanel::Action> press(std::int32_t id) {
         const auto [x, y] = centre(panel.panel(), id);

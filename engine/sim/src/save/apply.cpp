@@ -223,6 +223,11 @@ core::Status apply_decoded(World& world, Decoded& d) {
         world.set_packages(std::move(*d.packages));
     }
     if (d.goods) {
+        if (d.good_pictures) {
+            for (auto& [ware, picture] : *d.good_pictures) {
+                (void)d.goods->set_picture(ware, std::move(picture));  // one GOOD has not: passed over
+            }
+        }
         world.set_goods(std::move(*d.goods));
     }
     if (d.classes) {
