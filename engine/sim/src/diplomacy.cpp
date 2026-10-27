@@ -646,6 +646,8 @@ bool apply_diplomacy(World& world, const DiplomacyOrder& order) {
         case DiplomacyOrder::Kind::BuyPeace:
         case DiplomacyOrder::Kind::Bribe:
             return false;  // handled above
+        case DiplomacyOrder::Kind::AskFounding:
+            return false;  // the computers answer (Simulation::execute)
         case DiplomacyOrder::Kind::Tribute: {
             if (order.gold == 0 || order.gold > DiplomacyOrder::kMaxTribute ||
                 self->money < static_cast<std::int64_t>(order.gold)) {

@@ -433,6 +433,7 @@ private:
 public:
     [[nodiscard]] bool directs(std::uint32_t ship) const;
     void city_founded(std::uint16_t island, std::uint8_t city);
+    void founding_query(PlayerId asker, std::uint16_t island);
 
 private:
     // ---- ai_build.cpp ----

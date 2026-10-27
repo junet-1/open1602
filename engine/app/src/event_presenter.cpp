@@ -382,14 +382,20 @@ std::vector<Notice> EventPresenter::construction_events(const sim::World& world,
 
 std::vector<Notice> EventPresenter::diplomacy_notices(const sim::World& world, sim::PlayerId local,
                                                       const std::vector<sim::DiplomacyNotice>& notices) const {
-    static constexpr std::array<std::uint16_t, 6> kMessages = {0x4D, 0x4E, 0x4F, 0x50, 0x51, 0x52};
+    static constexpr std::array<std::uint16_t, 9> kMessages = {0x4D, 0x4E, 0x4F, 0x50, 0x51, 0x52, 0x49, 0x4A, 0x4B};
     std::vector<Notice> out;
     for (const sim::DiplomacyNotice& n : notices) {
         if (n.to == local) {
+            // An answer to a founding points at the computer's city on that island (0x004294C0).
+            const bool founding = n.kind == sim::DiplomacyNotice::Kind::FoundingProtest ||
+                                  n.kind == sim::DiplomacyNotice::Kind::FoundingRefused ||
+                                  n.kind == sim::DiplomacyNotice::Kind::FoundingTolerated;
             // The icon in the colour of the partner who acted (Open1602: with up to eleven partners the
             // message alone does not tell who).
-            out.emplace_back(announce(kMessages[static_cast<std::size_t>(n.kind)], player_spot(world, n.from),
-                                      n.from != sim::kNoPlayer ? std::optional<sim::PlayerId>(n.from) : std::nullopt));
+            out.emplace_back(
+                announce(kMessages[static_cast<std::size_t>(n.kind)],
+                         founding ? city_spot(world, world.city(n.island, n.city)) : player_spot(world, n.from),
+                         n.from != sim::kNoPlayer ? std::optional<sim::PlayerId>(n.from) : std::nullopt));
         }
     }
     return out;

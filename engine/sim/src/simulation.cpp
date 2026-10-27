@@ -570,7 +570,8 @@ CommandResult Simulation::execute(const Command& command) {
     } else if (const auto* explore = std::get_if<ExploreOrder>(&command)) {
         result.accepted = m_fleet.explore(*explore);
     } else if (const auto* dipl = std::get_if<DiplomacyOrder>(&command)) {
-        result.accepted = apply_diplomacy(*m_world, *dipl);
+        result.accepted =
+            dipl->kind == DiplomacyOrder::Kind::AskFounding ? ask_founding(*dipl) : apply_diplomacy(*m_world, *dipl);
     } else if (const auto* soldiers = std::get_if<SoldierOrder>(&command)) {
         result.accepted = m_military.order(*soldiers);
     } else if (const auto* soldier = std::get_if<SoldierCommand>(&command)) {
@@ -594,6 +595,20 @@ CommandResult Simulation::execute(const Command& command) {
     }
     handle(m_construction_events.events(), first);
     return result;
+}
+
+bool Simulation::ask_founding(const DiplomacyOrder& order) {
+    const Ship* ship = m_world->ship(order.ship);
+    if (ship == nullptr || ship->owner != order.player) {
+        return false;
+    }
+    // The island by the ship (0x0046AAA0), where the ship panel offers the founding.
+    const auto site = kontor_site_near(*m_world, *m_buildings, ship->x, ship->y);
+    if (!site) {
+        return false;
+    }
+    m_ai.founding_query(order.player, site->island);
+    return true;
 }
 
 bool Simulation::switch_production(const ProductionSwitch& s) {

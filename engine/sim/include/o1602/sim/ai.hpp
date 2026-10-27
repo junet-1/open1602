@@ -49,6 +49,10 @@ public:
     /// a young colony (fewer than 10 inhabitants) on that island, its home city elsewhere, remembers
     /// it against him (diplomacy event 5).
     void city_founded(std::uint16_t island, std::uint8_t city);
+    /// `asker` is about to found a city on `island` (0x004294C0 with island order 0x4C): the first
+    /// computer with a city there answers if it is at peace with him and the island is not a large
+    /// one (DiplomacyNotice::Kind::FoundingProtest, FoundingRefused, FoundingTolerated).
+    void founding_query(PlayerId asker, std::uint16_t island);
 
     /// The version save() writes, the section AIST of the running game's state (DS-3); load()
     /// reads every version from the first.

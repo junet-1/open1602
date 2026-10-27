@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -884,6 +885,89 @@ TEST_CASE("ai: a city founded next to a young colony is remembered against the f
     CHECK(!remembered(with([](Case& k) { k.island = 1; })));           // on the island of the home city
     CHECK(!remembered(with([](Case& k) { k.founder = kComputer; })));  // its own second city there
     CHECK(!remembered(with([](Case& k) { k.colony = false; })));       // no colony of the computer there
+}
+
+TEST_CASE("ai: a computer answers a ship that is about to found a city on its island (0x004294C0)") {
+    using Kind = sim::DiplomacyNotice::Kind;
+    struct Case {
+        sim::PlayerId asker = kHuman;
+        std::uint16_t island = 0;  ///< where the ship wants to found
+        std::uint32_t people = 9;  ///< inhabitants of the computer's colony on the islet
+        std::uint8_t max_stage = 0x29;
+        bool home = true;  ///< the computer's home city is known (on the big island)
+        bool war = false;
+        std::uint16_t size = 0;  ///< template size of the islet
+    };
+    // The computer's home city on the big island (island 1), a colony on the islet (island 0).
+    const auto answer = [](const Case& k) -> std::optional<sim::DiplomacyNotice> {
+        Game g(false);
+        const auto add_city = [&](std::uint16_t island, sim::PlayerId owner, std::uint32_t people) {
+            sim::City c;
+            c.island = island;
+            c.owner = owner;
+            c.inhabitants = {people - people / 2, people / 2};
+            g.world.add_city(c);
+        };
+        add_city(1, kComputer, 400);
+        add_city(0, kComputer, k.people);
+        g.world.island(0).header.template_size = k.size;
+        if (k.war) {
+            g.world.diplomacy().relation(kComputer, kHuman).peace = sim::Treaty::None;
+        }
+        sim::Simulation s(g.world, g.buildings, g.figures);
+        sim::ComputerPlayers ai(s);
+        ai.reset();
+        sim::ai::State state;
+        {
+            const std::vector<std::uint8_t> now = saved(ai);
+            core::ByteReader in(now);
+            sim::StateIn reader(in);
+            sim::ai::Loader loader(reader);
+            loader(state);
+            REQUIRE(reader.ok());
+        }
+        for (sim::ai::AiPlayer& p : state.players) {
+            p.max_stage = k.max_stage;
+            p.home_valid = k.home;
+            p.home_island = 1;
+        }
+        core::ByteWriter out;
+        sim::ai::Saver saver(out, sim::ComputerPlayers::state_version());
+        saver(state);
+        const std::vector<std::uint8_t> bytes = out.take();
+        core::ByteReader in(bytes);
+        REQUIRE(ai.load(in, sim::ComputerPlayers::state_version()));
+        (void)g.world.diplomacy().take_notices();
+        ai.founding_query(k.asker, k.island);
+        const auto notices = g.world.diplomacy().take_notices();
+        if (notices.empty()) {
+            return std::nullopt;
+        }
+        REQUIRE(notices.size() == 1);
+        CHECK(notices[0].to == k.asker);
+        CHECK(notices[0].from == kComputer);
+        CHECK(notices[0].island == k.island);  // its city there
+        return notices[0];
+    };
+    const auto kind = [&](const Case& k) { return answer(k).value().kind; };
+    const auto with = [](auto&& change) {
+        Case k;
+        change(k);
+        return k;
+    };
+    // A young colony of a computer that has reached the merchants: it would tolerate it.
+    CHECK(kind(Case{}) == Kind::FoundingTolerated);
+    CHECK(kind(with([](Case& k) { k.people = 10; })) == Kind::FoundingRefused);       // a colony of ten is not young
+    CHECK(kind(with([](Case& k) { k.max_stage = 0x28; })) == Kind::FoundingRefused);  // not that far yet
+    // On the island of its home city, or with no home city known: a protest under threat of war.
+    CHECK(kind(with([](Case& k) { k.island = 1; })) == Kind::FoundingProtest);
+    CHECK(kind(with([](Case& k) { k.home = false; })) == Kind::FoundingProtest);
+    // No answer at war, on a large island, to itself, or where it has no city.
+    CHECK(!answer(with([](Case& k) { k.war = true; })));
+    CHECK(!answer(with([](Case& k) { k.size = 4; })));
+    CHECK(answer(with([](Case& k) { k.size = 3; })));
+    CHECK(!answer(with([](Case& k) { k.asker = kComputer; })));
+    CHECK(!answer(with([](Case& k) { k.island = 7; })));
 }
 
 TEST_CASE("ai: a founding the computers do not know of is ignored") {

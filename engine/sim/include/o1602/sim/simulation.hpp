@@ -286,6 +286,8 @@ private:
     [[nodiscard]] std::uint64_t upper_inhabitants_of_largest_city(PlayerId player) const;
     bool switch_production(const ProductionSwitch& s);
     bool city_order(const CityOrder& order);
+    /// „Kontor gründen“ (0x0043CE00 button 0x9481): the island by the ship is asked (island order 0x4C).
+    bool ask_founding(const DiplomacyOrder& order);
     bool game_speed(const GameSpeedOrder& order);
     bool rename_player(const PlayerRename& order);
     bool control_player(const PlayerControl& order);

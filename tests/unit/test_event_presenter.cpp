@@ -151,6 +151,21 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     const auto at_kontor = g.presenter.diplomacy_notices(g.world, kMe, {offer});
     REQUIRE(at_kontor.size() == 1);
     CHECK((announcement(at_kontor[0])->tile == std::make_pair(104.0, 56.0)));
+
+    // A computer's answer to a founding points at its city on that island.
+    sim::DiplomacyNotice tolerated;
+    tolerated.kind = sim::DiplomacyNotice::Kind::FoundingTolerated;
+    tolerated.to = kMe;
+    tolerated.from = kRival;
+    tolerated.island = 0;
+    tolerated.city = kRival;
+    sim::DiplomacyNotice protest = tolerated;
+    protest.kind = sim::DiplomacyNotice::Kind::FoundingProtest;
+    const auto answers = g.presenter.diplomacy_notices(g.world, kMe, {tolerated, protest});
+    REQUIRE(answers.size() == 2);
+    CHECK(announcement(answers[0])->message == 0x4B);
+    CHECK(announcement(answers[1])->message == 0x49);
+    CHECK((announcement(answers[0])->tile == std::make_pair(104.0, 56.0)));
 }
 
 TEST_CASE("event presenter: a rival's new city shows in the rival's colour, an own one says nothing") {
