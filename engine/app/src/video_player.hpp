@@ -1,21 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Shows the original's Smacker videos (docs/re/videos.md): the logos and the intro at the start,
+// Shows the original's videos (docs/re/videos.md): the logos and the intro at the start,
 // the videos of messages, victory and defeat, and the pause video. The picture fills the window
 // in black with the video in the middle, twice as large as the original at 1024 pixels width and
 // grown with the window, never larger than it; the sound goes to GameSound. One video at a time.
 // The file is read, opened and its sound decoded on a thread of its own (FB-14): until then the
 // window stays black, and the frames go on.
+//
+// The Königsedition has them as Smacker files (VideoSmk/<number>.smk), the History Edition as
+// Bink 2 files of the same names (VideoSmk/<number>.bk2, docs/formats/bk2.md); a Smacker file
+// comes first.
 #pragma once
 
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/audio/wav.hpp"
+#include "o1602/video/bink.hpp"
 #include "o1602/video/smacker.hpp"
 
 struct SDL_Renderer;
@@ -30,14 +36,16 @@ public:
     VideoPlayer(const VideoPlayer&) = delete;
     VideoPlayer& operator=(const VideoPlayer&) = delete;
 
-    /// Whether `VideoSmk/<number>.smk` exists (the installation may miss some, the original names
-    /// two that GOG does not have).
+    /// Whether `VideoSmk/<number>.smk` or `.bk2` exists (the installation may miss some, the
+    /// original names two that GOG does not have).
     [[nodiscard]] bool available(std::uint16_t number) const;
 
     /// Begins to load a video in the background, with the sound of its tracks (bit i of `tracks`
     /// = track i, 0 = all); a running one stops. False if the file is missing. Until poll() says
     /// Ready the window is black.
     bool start(std::uint16_t number, bool loop, std::uint8_t tracks);
+    /// The installation is the History Edition, which lacks the start's logos 8 and 9.
+    [[nodiscard]] bool history_edition() const noexcept { return !m_game->localized_root().empty(); }
     enum class Load : std::uint8_t {
         None,     ///< nothing is loading
         Waiting,  ///< still being read
@@ -55,7 +63,6 @@ public:
     /// A video plays or is being loaded.
     [[nodiscard]] bool playing() const noexcept { return m_video.has_value() || m_loading != nullptr; }
     [[nodiscard]] std::uint16_t number() const noexcept { return m_number; }
-    [[nodiscard]] const video::Smacker* video() const noexcept { return m_video ? &*m_video : nullptr; }
 
     enum class Step : std::uint8_t { Playing, Restarted, Ended };
     /// Decodes up to the frame of `now_ms`. The last frame stays for its whole time (the original
@@ -74,6 +81,9 @@ public:
     /// ... and is made again with the new one, the current frame uploaded anew.
     void set_renderer(SDL_Renderer* renderer);
 
+    /// A decoded video of either edition.
+    using Clip = std::variant<video::Smacker, video::Bink>;
+
 private:
     struct Loading;
     /// A texture of the video's size; the one before goes.
@@ -81,7 +91,7 @@ private:
     SDL_Renderer* m_renderer;
     const assets::GameDirectory* m_game;
     mutable std::map<std::uint16_t, bool> m_available;
-    std::optional<video::Smacker> m_video;
+    std::optional<Clip> m_video;
     /// The load under way; shared with its thread, which may outlive a stop().
     std::shared_ptr<Loading> m_loading;
     std::vector<std::shared_ptr<const audio::Pcm>> m_audio;
@@ -91,6 +101,7 @@ private:
     SDL_Texture* m_texture = nullptr;
     std::int32_t m_texture_w = 0;
     std::int32_t m_texture_h = 0;
+    bool m_smooth = false;  ///< the texture is scaled linearly (Bink), else without smoothing
     std::vector<std::uint8_t> m_rgba;
     bool m_dirty = false;
 };

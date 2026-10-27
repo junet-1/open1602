@@ -21,6 +21,7 @@ namespace {
 
 // BASE.GAD: the buttons from the top (IDHAUPT + 2 ...). The History Edition has a sixth one,
 // "Options" (its own graphics settings) after Multiplayer, so the ones below it count one further.
+// Open1602 shows its window "Anzeige" for it (display_menu.hpp).
 constexpr std::int32_t kSingle = 30002;
 constexpr std::int32_t kMulti = 30003;
 constexpr std::int32_t kCredits = 30004;
@@ -28,9 +29,6 @@ constexpr std::int32_t kIntro = 30005;
 constexpr std::int32_t kQuit = 30006;
 constexpr std::int32_t kHistoryOptions = 30004;
 constexpr std::int32_t kHistoryQuit = 30007;
-// Open1602 has no screen for the History Edition's options yet. While this is false the button is
-// left out and the ones below it move up; set it to true once there is such a screen.
-constexpr bool kHistoryOptionsShown = false;
 // Open1602's own button on BASE.GAD's screen, below the original's.
 constexpr std::int32_t kModsButton = 1;
 constexpr ui::Rect kModsButtonRect{24, 714, 160, 38};
@@ -166,23 +164,6 @@ std::optional<ui::Panel> load_colour_panel(const assets::GameDirectory& game) {
     return ui::Panel(with_more_arms(std::move(layout).value()), 1.0);
 }
 
-void hide_history_options(ui::Panel& base) {
-    base.set_visible(kHistoryOptions, false);
-    // The buttons below Options move up together by the step from Options to Credits, so no gap
-    // is left and their planks keep the overlapping shadows they were drawn with.
-    const std::optional<std::array<std::int32_t, 2>> options = base.position(kHistoryOptions);
-    const std::optional<std::array<std::int32_t, 2>> next = base.position(kHistoryOptions + 1);
-    if (!options || !next) {
-        return;
-    }
-    const std::int32_t step = (*next)[1] - (*options)[1];
-    for (std::int32_t id = kHistoryOptions + 1; id <= kHistoryQuit; ++id) {
-        if (const std::optional<std::array<std::int32_t, 2>> own = base.position(id)) {
-            base.set_position(id, (*own)[0], (*own)[1] - step);
-        }
-    }
-}
-
 }  // namespace
 
 std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, const std::array<std::string, 4>& headings,
@@ -275,9 +256,6 @@ MainMenu::MainMenu(const assets::GameDirectory& game, const assets::TextTable* t
     }
     if (m_base && m_base->layout().find(kHistoryQuit) != nullptr) {
         m_history_buttons = true;
-        if constexpr (!kHistoryOptionsShown) {
-            hide_history_options(*m_base);
-        }
     }
     m_banners.add_more_players();
     if (m_colour) {
@@ -794,6 +772,8 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     m_screen = Screen::Host;
                 } else if (e.id == kMulti) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Multiplayer});
+                } else if (m_history_buttons && e.id == kHistoryOptions) {
+                    out.push_back(MenuEvent{MenuEvent::Kind::Display});
                 } else if (e.id == kCredits + below) {
                     out.push_back(MenuEvent{MenuEvent::Kind::Credits});
                 } else if (e.id == kIntro + below) {

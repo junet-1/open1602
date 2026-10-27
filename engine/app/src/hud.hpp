@@ -238,7 +238,8 @@ public:
             m_goods->wheel(notches);
         }
     }
-    /// The window "Anzeige" over the map (display_menu.hpp) showing `model`.
+    /// The window "Anzeige" (display_menu.hpp) showing `model`: over the map, or over the main menu
+    /// (the History Edition's "Options").
     void open_display(DisplayModel model) {
         m_display_model = std::move(model);
         m_display_open = m_display != nullptr;
@@ -356,6 +357,7 @@ public:
         if (m_menu) {
             m_menu_active = true;
             m_multiplayer_shown = false;
+            m_display_open = false;  // the game's window "Anzeige" stays behind
             m_menu->open();
         }
     }
@@ -371,6 +373,7 @@ public:
         if (m_menu) {
             m_menu_active = true;
             m_multiplayer_shown = true;
+            m_display_open = false;
             m_multiplayer->open(std::move(notice));
         }
     }

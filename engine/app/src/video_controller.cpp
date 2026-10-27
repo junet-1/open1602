@@ -97,7 +97,10 @@ bool VideoController::start_next(bool minimap_shown) {
             m_queue.started(*r, minimap_shown);
             return true;
         }
-        std::fprintf(stderr, "video %u is missing\n", static_cast<unsigned>(r->number));
+        // The History Edition has no logos (8, 9) before the intro: that is no fault to report.
+        if (!(r->intro && m_player->history_edition())) {
+            std::fprintf(stderr, "video %u is missing\n", static_cast<unsigned>(r->number));
+        }
     }
     return false;
 }

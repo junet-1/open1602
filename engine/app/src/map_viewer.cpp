@@ -2907,6 +2907,9 @@ void MapViewer::apply_menu() {
         apply_multiplayer_menu();
         return;
     }
+    if (const auto display = m_hud->take_display_change()) {
+        apply_display(*display);  // the window "Anzeige" from the History Edition's "Options"
+    }
     // Only when they changed: a copy of thousands of names each frame costs (FB-15).
     if (menu != m_slots_menu || m_slots_shown != m_slots_revision) {
         menu->set_slots(m_slots);
@@ -2968,6 +2971,9 @@ void MapViewer::apply_menu() {
             case MenuEvent::Kind::ContinueLast:
                 started = load_game(slot_file(save_folder(), kLastGameSlot));
                 break;
+            case MenuEvent::Kind::Display:
+                m_hud->open_display(display_model());
+                continue;
             case MenuEvent::Kind::Mods:
                 menu->set_mods(mods_model());
                 continue;

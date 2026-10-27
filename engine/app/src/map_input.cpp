@@ -308,8 +308,9 @@ ui::KeyContext MapInput::key_context() const {
 
 void MapInput::handle_key(int key, int scancode, std::uint16_t mod) {
     const ui::KeyPress press = key_press(key, scancode, mod);
-    if (m_hud && m_hud->menu_active() && !m_hud->modal()) {
-        // The menu knows Escape (a screen back) and the program's keys, nothing of the game.
+    if (m_hud && m_hud->menu_active() && !m_hud->asking() && !m_hud->helping()) {
+        // The menu knows Escape (the window "Anzeige" closed, or a screen back) and the program's
+        // keys, nothing of the game.
         if (key == SDLK_ESCAPE) {
             (void)m_hud->back();
             return;

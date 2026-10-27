@@ -1,8 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Videos: the Smacker decoder. No platform dependency (the frontend shows the frames and hands the
-# sound to the mixer), so tests run it headless.
+# Videos: the Smacker and Bink 2 decoders. No platform dependency (the frontend shows the frames
+# and hands the sound to the mixer), so tests run them headless.
 
 add_library(o1602_video
+    src/bink.cpp
+    src/bink2_video.cpp
+    src/bink2_video_g.cpp
+    src/bink_audio.cpp
     src/smacker.cpp
 )
 add_library(o1602::video ALIAS o1602_video)
