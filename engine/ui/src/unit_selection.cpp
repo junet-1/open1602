@@ -354,6 +354,22 @@ std::uint32_t UnitSelection::kind_mask(const sim::World& world, const assets::Fi
     return mask;
 }
 
+bool UnitSelection::select_kind(const sim::World& world, const assets::FigureTable& figures,
+                                const std::vector<UnitCandidate>& candidates, sim::PlayerId local, std::int32_t kind) {
+    std::vector<UnitRef> units;
+    for (const UnitCandidate& c : candidates) {
+        if (c.ref.kind == UnitRef::Kind::Soldier && unit_owner(world, c.ref) == local &&
+            figure_kind(world, figures, c.ref) == kind && std::find(units.begin(), units.end(), c.ref) == units.end()) {
+            units.push_back(c.ref);
+        }
+    }
+    if (units.empty()) {
+        return false;
+    }
+    set(world, std::move(units));
+    return true;
+}
+
 void UnitSelection::filter_kinds(const sim::World& world, const assets::FigureTable& figures, std::uint32_t mask,
                                  bool keep) {
     std::vector<UnitRef> units;

@@ -103,6 +103,7 @@ information fit in and the controls follow today's real-time strategy games (202
 | . (full stop) | next idle trading ship |
 | , (comma) | next idle combat unit |
 | Tab | cycle through the types in the selection (ships, infantry, cavalry …) |
+| Alt+1 / Alt+2 / Alt+3 / Alt+4 | all own swordsmen / musketeers / cavalry / cannons in view (History Edition) |
 
 **Unit commands**
 
@@ -139,7 +140,8 @@ brackets, `general scroll_up = [W]`; where a press matches both kinds, the one b
 
 Done (2026-10-18): table `ui::KeyBindings` with this default and the settings file
 `keys.cfg` in the user's data folder (to be edited by hand until the settings menu exists; F1 shows the
-bindings), box selection, pixel-exact like the original, groups with the original's number key,
+bindings in pages with tabs like the History Edition's shortcut list: map and game, windows, building,
+units and ships, view; Tab and the arrows or a click on a tab turn the page, `app::key_help_pages`), box selection, pixel-exact like the original, groups with the original's number key,
 formations, filtering and Tab (types of the selection one after another; `ui::UnitSelection`), right-click and
 minimap commands, command chains in the simulation, the confirmations, the military mode windows, the
 message videos in the minimap window, attack-move (ships and soldiers attack enemies in

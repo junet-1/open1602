@@ -53,10 +53,20 @@ save.details = {1}, played {2}, map {3} x {4}
 save.time = {1}:{2} h
 
 # Key overview (F1)
-keys.title = Keys (click or F1 closes)
-keys.heading.general = General
+keys.title = Keys
+keys.footer = Tab or left / right arrow: change page; click or F1 closes
+keys.page.map_game = Map & game
+keys.page.windows = Windows
+keys.page.building = Building
+keys.page.units = Units & ships
+keys.page.view = View
+keys.heading.map = Map
+keys.heading.game = Game
+keys.heading.windows = Windows and menus
 keys.heading.building = While building
+keys.heading.groups = Groups and selection
 keys.heading.units = Ships and units selected
+keys.heading.view = Display
 # Replaces the digit of a group key ("Ctrl+1" becomes "Ctrl+1 .. 0")
 keys.group_digits = 1 .. 0
 keys.modifier.ctrl = Ctrl+
@@ -122,6 +132,10 @@ keys.action.group_recall = Select group (twice: go there)
 keys.action.next_idle_ship = Next idle ship
 keys.action.next_idle_unit = Next idle unit
 keys.action.next_kind_in_selection = Next kind in the selection
+keys.action.select_infantry = Select all swordsmen
+keys.action.select_musketeers = Select all musketeers
+keys.action.select_cavalry = Select all cavalry
+keys.action.select_cannoneers = Select all cannons
 keys.action.attack_move = Attack (click a target)
 keys.action.stop = Stop
 keys.action.hold_position = Hold position

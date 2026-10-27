@@ -9,6 +9,7 @@
 #include <string_view>
 #include <tuple>
 
+#include "key_help.hpp"
 #include "order_questions.hpp"
 
 #include "o1602/core/file.hpp"
@@ -195,6 +196,11 @@ void MapInput::setup_keys() {
     }
     general(chord(SDLK_PERIOD), KeyAction::NextIdleShip);
     general(chord(SDLK_COMMA), KeyAction::NextIdleUnit);
+    // All own units of a kind on screen (History Edition): Alt with the first four digits.
+    general(ui::KeyChord{SDL_SCANCODE_1, false, false, true, true}, KeyAction::SelectInfantry);
+    general(ui::KeyChord{SDL_SCANCODE_2, false, false, true, true}, KeyAction::SelectMusketeers);
+    general(ui::KeyChord{SDL_SCANCODE_3, false, false, true, true}, KeyAction::SelectCavalry);
+    general(ui::KeyChord{SDL_SCANCODE_4, false, false, true, true}, KeyAction::SelectCannoneers);
     // Viewer
     general(chord(SDLK_PLUS, true), KeyAction::PixelScaleUp);
     general(chord(SDLK_EQUALS, true), KeyAction::PixelScaleUp);
@@ -261,43 +267,19 @@ void MapInput::show_key_help() {
         return;
     }
     using ui::KeyAction;
-    using ui::KeyContext;
-    std::vector<Hud::HelpLine> lines;
-    for (const auto& [context, heading] :
-         {std::pair<KeyContext, const char*>{KeyContext::General, "keys.heading.general"},
-          {KeyContext::Building, "keys.heading.building"},
-          {KeyContext::Units, "keys.heading.units"}}) {
-        if (!lines.empty()) {
-            lines.push_back(Hud::HelpLine{});  // a blank line before the next heading
-        }
-        lines.push_back(Hud::HelpLine{"", ui::tr(heading)});
-        std::vector<std::pair<KeyAction, std::string>> seen;  // one line per action, its keys joined
-        for (const ui::KeyBinding& b : m_keys.all()) {
-            if (b.context != context) {
+    std::vector<KeyHelpEntry> entries;
+    for (const ui::KeyBinding& b : m_keys.all()) {
+        std::string key = key_label(b.chord);
+        if (b.action == KeyAction::GroupStore || b.action == KeyAction::GroupAdd ||
+            b.action == KeyAction::GroupRecall) {
+            if (b.param != 0) {
                 continue;
             }
-            std::string key = key_label(b.chord);
-            const bool group = b.action == KeyAction::GroupStore || b.action == KeyAction::GroupAdd ||
-                               b.action == KeyAction::GroupRecall;
-            if (group) {
-                if (b.param != 0) {
-                    continue;
-                }
-                key = key.substr(0, key.size() - 1) + ui::tr("keys.group_digits");  // the digits, 1 for group 1
-            }
-            const auto it = std::find_if(seen.begin(), seen.end(), [&](const auto& s) { return s.first == b.action; });
-            if (it == seen.end()) {
-                seen.emplace_back(b.action, key);
-            } else if (it->second.find(key) == std::string::npos) {
-                it->second += ", " + key;
-            }
+            key = key.substr(0, key.size() - 1) + ui::tr("keys.group_digits");  // the digits, 1 for group 1
         }
-        std::stable_sort(seen.begin(), seen.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-        for (const auto& [action, keys] : seen) {
-            lines.push_back(Hud::HelpLine{keys, action_label(action)});
-        }
+        entries.push_back(KeyHelpEntry{b.action, std::move(key)});
     }
-    m_hud->show_help(std::move(lines));
+    m_hud->show_help(key_help_pages(entries, [](KeyAction a) { return action_label(a); }));
 }
 
 ui::KeyContext MapInput::key_context() const {
@@ -331,7 +313,16 @@ void MapInput::handle_key(int key, int scancode, std::uint16_t mod) {
         return;
     }
     if (m_hud && m_hud->helping()) {
-        m_hud->close_help();  // any key closes the key overview
+        // Tab and the arrows turn the pages of the key overview, any other key closes it.
+        const bool shift = (mod & SDL_KMOD_SHIFT) != 0;
+        if (key == SDLK_TAB || key == SDLK_RIGHT || key == SDLK_LEFT) {
+            m_hud->turn_help_page(key == SDLK_LEFT || (key == SDLK_TAB && shift) ? -1 : 1);
+            return;
+        }
+        if (key == SDLK_LSHIFT || key == SDLK_RSHIFT) {
+            return;  // Shift on its way to Shift+Tab
+        }
+        m_hud->close_help();
         return;
     }
     if (m_hud && m_hud->asking()) {
@@ -601,6 +592,23 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             m_units.select(world(), idle[*next]);
             selection_changed(false);
             run_action(ui::KeyBinding{ui::KeyContext::General, {}, KeyAction::CentreOnSelection, 0});
+            break;
+        }
+        case KeyAction::SelectInfantry:
+        case KeyAction::SelectMusketeers:
+        case KeyAction::SelectCavalry:
+        case KeyAction::SelectCannoneers: {
+            // FIGUR Kind: 1 infantry, 2 cavalry, 3 musketeers, 4 cannoneers.
+            const std::int32_t kind = b.action == KeyAction::SelectInfantry     ? 1
+                                      : b.action == KeyAction::SelectCavalry    ? 2
+                                      : b.action == KeyAction::SelectMusketeers ? 3
+                                                                                : 4;
+            if (m_hud) {
+                const ui::Rect& v = m_hud->game_view();
+                if (m_units.select_kind(world(), m_figures, units_in(v.x, v.y, v.x + v.w, v.y + v.h), local(), kind)) {
+                    selection_changed(false);
+                }
+            }
             break;
         }
         case KeyAction::NextKindInSelection:

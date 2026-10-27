@@ -8,6 +8,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -22,6 +23,7 @@
 #include "display_menu.hpp"
 #include "end_screen.hpp"
 #include "goods_window.hpp"
+#include "key_help.hpp"
 #include "main_menu.hpp"
 #include "message_table.hpp"
 #include "multiplayer_menu.hpp"
@@ -209,14 +211,18 @@ public:
         m_question.reset();
         m_modal_press = ModalPress::None;
     }
-    /// The key overview over the map (F1, ADR 0010): lines of keys and what they do; a heading has
-    /// no keys. Any click closes it.
-    struct HelpLine {
-        std::string keys;
-        std::string text;
-    };
-    void show_help(std::vector<HelpLine> lines) { m_help = std::move(lines); }
+    /// The key overview over the map (F1, ADR 0010) in pages with tabs, as in the History Edition.
+    /// A click on a tab turns to its page, any other click closes it.
+    void show_help(std::array<KeyHelpPage, kKeyHelpPages> pages) {
+        m_help = std::move(pages);
+        m_help_page = 0;
+    }
     [[nodiscard]] bool helping() const noexcept { return m_help.has_value(); }
+    /// Turns the key overview `delta` pages on, round at the ends.
+    void turn_help_page(std::int32_t delta) noexcept {
+        constexpr auto n = static_cast<std::int32_t>(kKeyHelpPages);
+        m_help_page = static_cast<std::size_t>(((static_cast<std::int32_t>(m_help_page) + delta) % n + n) % n);
+    }
     /// A question, the key overview or the window "Anzeige" or "Warenbilanz" is open: it takes every
     /// click.
     [[nodiscard]] bool modal() const noexcept {
@@ -536,7 +542,8 @@ private:
     std::int32_t m_tutor_arrows_x = 0;  ///< TUTOR.GAD: the scroll arrows' left edge
     std::int32_t m_tutor_line = 0;      ///< first line of its text shown
     std::optional<std::string> m_question;
-    std::optional<std::vector<HelpLine>> m_help;
+    std::optional<std::array<KeyHelpPage, kKeyHelpPages>> m_help;
+    std::size_t m_help_page = 0;
     ui::Rect m_yes;  ///< the buttons of the question as last drawn
     ui::Rect m_no;
     /// Where the left button went down while the question or the key overview was shown: they
@@ -547,6 +554,9 @@ private:
     /// "Auftrag ansehen": the mission's text in the window above the status bar (TUTOR.GAD).
     void draw_mission(const sim::World& world);
     void draw_help();
+    /// The key overview's window and the tab of page `page` in it, for drawing and clicks.
+    [[nodiscard]] ui::Rect help_box() const;
+    [[nodiscard]] ui::Rect help_tab(const ui::Rect& box, std::size_t page) const;
     /// The tutorial's step of this frame: the page of its window and the bubbles to draw.
     void step_tutorial(const BuildPanel::Available& available, std::uint64_t now_ms);
     [[nodiscard]] TutorialView tutorial_view(const BuildPanel::Available& available);

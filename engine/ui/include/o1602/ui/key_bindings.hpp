@@ -61,6 +61,10 @@ enum class KeyAction : std::uint16_t {
     NextIdleShip,
     NextIdleUnit,
     NextKindInSelection,
+    SelectInfantry,  ///< all own units of a kind on screen (History Edition)
+    SelectMusketeers,
+    SelectCavalry,
+    SelectCannoneers,
     // Orders
     AttackMove,
     Stop,

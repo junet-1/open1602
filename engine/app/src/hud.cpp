@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <limits>
 #include <string_view>
@@ -1053,22 +1054,50 @@ void Hud::draw_bubbles() {
     }
 }
 
+ui::Rect Hud::help_box() const {
+    const double s = m_menu_active ? m_menu_scale : m_regions.scale;
+    const ui::Rect& v = m_regions.game_view;
+    const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
+    // The window keeps its size from page to page: as high as the longest page.
+    std::size_t rows = 0;
+    if (m_help) {
+        for (const KeyHelpPage& p : *m_help) {
+            rows = std::max(rows, key_help_rows(p));
+        }
+    }
+    const std::int32_t w = std::min(v.w - px(16), px(760));
+    const std::int32_t h = std::min(v.h - px(16), px(112) + static_cast<std::int32_t>(rows) * px(14));
+    return ui::Rect{v.x + (v.w - w) / 2, v.y + (v.h - h) / 2, w, h};
+}
+
+ui::Rect Hud::help_tab(const ui::Rect& box, std::size_t page) const {
+    const double s = m_menu_active ? m_menu_scale : m_regions.scale;
+    const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
+    const std::int32_t w = (box.w - px(28)) / static_cast<std::int32_t>(kKeyHelpPages);
+    return ui::Rect{box.x + px(14) + static_cast<std::int32_t>(page) * w, box.y + px(40), w - px(4), px(20)};
+}
+
 void Hud::draw_help() {
     if (!m_help) {
         return;
     }
     const double s = m_menu_active ? m_menu_scale : m_regions.scale;
-    const ui::Rect& v = m_regions.game_view;
     const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
-    const std::size_t rows = (m_help->size() + 1) / 2;
-    const std::int32_t line = px(14);
-    const std::int32_t w = std::min(v.w - px(16), px(740));
-    const std::int32_t h = std::min(v.h - px(16), px(56) + static_cast<std::int32_t>(rows) * line);
-    const ui::Rect box{v.x + (v.w - w) / 2, v.y + (v.h - h) / 2, w, h};
+    const ui::Rect box = help_box();
     constexpr std::uint8_t kGold = 215;
     constexpr std::uint8_t kDark = 28;
     m_renderer->fill(ui::Rect{box.x - px(3), box.y - px(3), box.w + px(6), box.h + px(6)}, kGold);
     m_renderer->fill(box, kDark);
+    // The tabs: the page shown framed thick, the others thin; a gold line below them all.
+    const ui::Rect first = help_tab(box, 0);
+    m_renderer->fill(ui::Rect{box.x + px(14), first.y + first.h, box.w - px(28), px(1)}, kGold);
+    for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
+        const ui::Rect t = help_tab(box, p);
+        const std::int32_t edge = p == m_help_page ? px(2) : std::max(1, px(1));
+        m_renderer->fill(t, kGold);
+        m_renderer->fill(ui::Rect{t.x + edge, t.y + edge, t.w - 2 * edge, t.h - (p == m_help_page ? edge : 2 * edge)},
+                         kDark);
+    }
     std::vector<ui::DrawItem> items;
     const auto text = [&](const std::string& t, std::int32_t x, std::int32_t y, ui::Align align,
                           std::int32_t font = 1) {
@@ -1083,21 +1112,33 @@ void Hud::draw_help() {
         items.push_back(d);
     };
     text(ui::tr("keys.title"), box.w / 2, px(28), ui::Align::Centre, 0);
-    const std::int32_t column = box.w / 2;
-    for (std::size_t i = 0; i < m_help->size(); ++i) {
-        const HelpLine& l = (*m_help)[i];
-        const std::int32_t x = px(14) + static_cast<std::int32_t>(i / rows) * column;
-        const std::int32_t y = px(52) + static_cast<std::int32_t>(i % rows) * line;
-        if (y > box.h - px(4)) {
-            continue;  // a small window: what does not fit is left out
-        }
-        if (l.keys.empty()) {
-            text(l.text, x, y + px(1), ui::Align::Left, 0);  // a heading (or a blank line)
-            continue;
-        }
-        text(l.keys, x + px(8), y, ui::Align::Left);
-        text(l.text, x + px(160), y, ui::Align::Left);
+    for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
+        const ui::Rect t = help_tab(box, p);
+        text((*m_help)[p].title, t.x - box.x + t.w / 2, t.y - box.y + px(14), ui::Align::Centre,
+             p == m_help_page ? 0 : 1);
     }
+    const KeyHelpPage& page = (*m_help)[m_help_page];
+    const std::int32_t column = (box.w - px(28)) / 2;
+    const std::int32_t line = px(14);
+    const auto place = [&](std::size_t section, std::size_t l) {
+        const KeyHelpCell c = key_help_cell(page, section, l);
+        return std::pair{px(14) + static_cast<std::int32_t>(c.column) * column,
+                         px(84) + static_cast<std::int32_t>(c.row) * line};
+    };
+    for (std::size_t sec = 0; sec < page.sections.size(); ++sec) {
+        const KeyHelpSection& section = page.sections[sec];
+        const auto [hx, hy] = place(sec, SIZE_MAX);
+        text(section.heading, hx, hy + px(1), ui::Align::Left, 0);
+        for (std::size_t i = 0; i < section.lines.size(); ++i) {
+            const auto [x, y] = place(sec, i);
+            if (y > box.h - px(24)) {
+                continue;  // a small window: what does not fit is left out
+            }
+            text(section.lines[i].keys, x + px(8), y, ui::Align::Left);
+            text(section.lines[i].text, x + px(150), y, ui::Align::Left);
+        }
+    }
+    text(ui::tr("keys.footer"), box.w / 2, box.h - px(10), ui::Align::Centre);
     m_renderer->draw(items, box.x, box.y, s);
 }
 
@@ -1139,12 +1180,19 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
     }
     // Mouse motion also comes here with down == false: only a release after a press is a click.
     if (m_help) {
-        // The key overview takes the click that closes it.
+        // The key overview takes the click: on a tab it turns to that page, elsewhere it closes.
         if (down) {
             m_modal_press = ModalPress::Elsewhere;
         } else if (m_modal_press != ModalPress::None) {
-            m_help.reset();
             m_modal_press = ModalPress::None;
+            const ui::Rect box = help_box();
+            for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
+                if (help_tab(box, p).contains(x, y)) {
+                    m_help_page = p;
+                    return std::nullopt;
+                }
+            }
+            m_help.reset();
         }
         return std::nullopt;
     }
