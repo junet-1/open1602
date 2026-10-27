@@ -13,7 +13,8 @@ namespace o1602::app {
 namespace {
 
 constexpr std::uint32_t kRate = 44100;
-constexpr std::uint32_t kQueueMs = 120;  // what the device holds: little delay, no gaps at 8 fps
+constexpr std::uint32_t kMusicSeed = 1602;  // audio::Music's default seed
+constexpr std::uint32_t kQueueMs = 120;     // what the device holds: little delay, no gaps at 8 fps
 // After a slow frame the queue grows to twice its length (at most this) and shrinks back slowly,
 // so that a second hitch does not run the device dry; before a known pause it is filled up to it.
 constexpr std::uint32_t kMaxQueueMs = 500;
@@ -125,7 +126,7 @@ bool GameSound::open_device() {
     std::vector<std::string> tracks;
     std::vector<std::string> fights;
     audio::Music::scan(*m_game, tracks, fights);
-    m_music = std::make_unique<audio::Music>(m_mixer, m_bank, tracks, fights);
+    m_music = std::make_unique<audio::Music>(m_mixer, m_bank, tracks, fights, kMusicSeed, m_package_music);
     apply();
     if (tracks.empty() && audible().music) {
         std::fprintf(stderr, "no music: MUSIC8 is empty or missing\n");
@@ -142,6 +143,21 @@ void GameSound::set_settings(const audio::AudioSettings& settings) {
     apply();
 }
 
+void GameSound::set_package_music(std::vector<audio::MusicTrack> tracks) {
+    if (tracks == m_package_music) {
+        return;
+    }
+    m_package_music = std::move(tracks);
+    if (m_music) {
+        m_music->stop();
+        std::vector<std::string> titles;
+        std::vector<std::string> fights;
+        audio::Music::scan(*m_game, titles, fights);
+        m_music = std::make_unique<audio::Music>(m_mixer, m_bank, titles, fights, kMusicSeed, m_package_music);
+        apply();
+    }
+}
+
 std::vector<std::string> GameSound::tracks() const {
     if (m_music) {
         return m_music->tracks();
@@ -149,6 +165,11 @@ std::vector<std::string> GameSound::tracks() const {
     std::vector<std::string> tracks;
     std::vector<std::string> fights;
     audio::Music::scan(*m_game, tracks, fights);
+    for (const audio::MusicTrack& t : m_package_music) {
+        if (!t.battle && std::find(tracks.begin(), tracks.end(), t.title) == tracks.end()) {
+            tracks.push_back(t.title);
+        }
+    }
     return tracks;
 }
 

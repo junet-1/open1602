@@ -3,6 +3,7 @@
 
 #include <algorithm>
 
+#include "o1602/assets/game_content.hpp"
 #include "o1602/core/data_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_reader.hpp"
@@ -20,26 +21,6 @@ bool is_name(std::string_view name) noexcept {
     return !name.empty() && name.size() <= 64 && std::all_of(name.begin(), name.end(), [](const char c) {
         return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
     });
-}
-
-/// A file of the package: a relative path with '/' between folders, inside the package's folder.
-bool is_package_path(std::string_view path) noexcept {
-    if (path.empty() || path.size() > 255 || path.front() == '/' || path.back() == '/') {
-        return false;
-    }
-    std::size_t start = 0;
-    while (start <= path.size()) {
-        const std::size_t end = std::min(path.find('/', start), path.size());
-        const std::string_view part = path.substr(start, end - start);
-        if (part.empty() || part == "." || part == ".." || !std::all_of(part.begin(), part.end(), [](const char c) {
-                return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' ||
-                       c == '-' || c == '.';
-            })) {
-            return false;
-        }
-        start = end + 1;
-    }
-    return true;
 }
 
 /// The width and height of a PNG file from its header.
@@ -93,7 +74,7 @@ void apply_graphics_file(std::vector<PackageImage>& images, std::string_view pac
             const std::string field = line_of(where, e.value.line) + "'" + e.key + "' ";
             if (e.key == "image" || e.key == "image_medium" || e.key == "image_small") {
                 const std::string* s = e.value.string();
-                if (s == nullptr || !is_package_path(*s)) {
+                if (s == nullptr || !safe_package_path(*s)) {
                     warnings.push_back(field + "is the path of a PNG file in the package, folders split by '/'");
                     ok = false;
                     continue;

@@ -342,13 +342,21 @@ std::size_t Voices::waiting() const noexcept {
 // ---- Music ---------------------------------------------------------------------------------------
 
 Music::Music(Mixer& mixer, SoundBank& bank, std::vector<std::string> tracks, std::vector<std::string> fights,
-             std::uint32_t seed)
-    : m_mixer(&mixer),
-      m_bank(&bank),
-      m_tracks(std::move(tracks)),
-      m_fights(std::move(fights)),
-      m_enabled(m_tracks.size(), true),
-      m_random(seed) {}
+             std::uint32_t seed, std::vector<MusicTrack> own)
+    : m_mixer(&mixer), m_bank(&bank), m_tracks(std::move(tracks)), m_fights(std::move(fights)), m_random(seed) {
+    // A package's track with the title of one of MUSIC8 is left out: the title names one track.
+    for (MusicTrack& t : own) {
+        const bool taken = std::find(m_tracks.begin(), m_tracks.end(), t.title) != m_tracks.end() ||
+                           std::find(m_fights.begin(), m_fights.end(), t.title) != m_fights.end();
+        if (taken) {
+            std::fprintf(stderr, "music: a track of MUSIC8 is called \"%s\" already\n", t.title.c_str());
+            continue;
+        }
+        (t.battle ? m_fights : m_tracks).push_back(t.title);
+        m_own.push_back(std::move(t));
+    }
+    m_enabled.assign(m_tracks.size(), true);
+}
 
 void Music::scan(const assets::GameDirectory& game, std::vector<std::string>& tracks,
                  std::vector<std::string>& fights) {
@@ -489,7 +497,8 @@ void Music::start(const std::string& title) {
     if (m_history.size() > kHistory) {
         m_history.erase(m_history.begin());
     }
-    const auto path = m_bank->find("MUSIC8/" + title + ".wav");
+    const auto own = std::find_if(m_own.begin(), m_own.end(), [&](const MusicTrack& t) { return t.title == title; });
+    const auto path = own != m_own.end() ? std::optional(own->file) : m_bank->find("MUSIC8/" + title + ".wav");
     if (!path) {
         return;
     }

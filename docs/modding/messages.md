@@ -6,7 +6,7 @@ original's, with its own text in every language, an icon, a sound and a video
 ([ADR 0007](../architecture/0007-extensibility-and-modding.md), sections 2 and "Content types").
 
 **Status:** Done are the file `messages.toml`, new messages, changes to the original's messages,
-texts per language with placeholders, own sounds (WAV) and the original's videos. The status bar,
+texts per language with placeholders, own sounds (WAV, Ogg Vorbis, FLAC) and the original's videos. The status bar,
 the voices and the videos take everything from the message table (`app::MessageTable`). Still
 open, all with milestone M8: posting a mod's message from a script (Lua; until then `--message`
 shows one at the start), own icons and videos (PNG and a modern video format come with the import
@@ -69,7 +69,7 @@ with their number in `Text.cod`'s `[MELDUNG]` section, in decimal or hex (`anno1
 | `like` | number or id | Start from this message: its icon, text, voice, video, kind and flags (applied first, wherever it stands) |
 | `icon` | `"notice"`, `"scroll"`, `"combat"`, `"player"`, `"plague"`, `"fire"`, `"drought"`, `"volcano"` | The icon in the status bar; the first four in the colour of the player the message is about |
 | `kind` | `"general"`, `"events"`, `"island"`, `"players"`, `"trade"`, `"combat"`, `"orders"`, `"diplomacy"`, `"routes"` | Which switch of the voice and video options mutes it (`general`: only the master switch; `routes`: Open1602's switch of „Überprüft Eure Handelsrouten!“) |
-| `sound` | file name, number or `false` | A WAV file of the package (relative to its folder, never outside it), a file of the original's `Speech8` (`sound = 530`), or none (`false`: only the short message sound) |
+| `sound` | file name, number or `false` | A WAV, Ogg Vorbis or FLAC file of the package (relative to its folder, never outside it), a file of the original's `Speech8` (`sound = 530`), or none (`false`: only the short message sound) |
 | `video` | number or `false` | A video of the original's `VideoSmk` (`video = 23` plays `VideoSmk/23.smk`), or none |
 | `video_always` | `true`/`false` | Play the video also when the place of the message is on screen (else only when it is not) |
 | `normal_speed` | `true`/`false` | The game goes back to normal speed (as with fire, plague and attacks) |
@@ -94,8 +94,8 @@ screen (or always, with `video_always`); otherwise it speaks its sound; if it ha
 voices are waiting already, the short message sound plays. A sound of the package goes before the
 original's voices of a message it borrowed with `like`.
 
-Sounds must be WAV files (PCM, 8 or 16 bits, mono or stereo, any rate); they are read once when the
-game starts. OGG comes with the import of content (M8).
+Sounds may be WAV (PCM, 8 or 16 bits), Ogg Vorbis or FLAC files, mono or stereo, any rate
+([sounds.md](sounds.md)); they are read once when the game starts.
 
 ## Trying a message
 

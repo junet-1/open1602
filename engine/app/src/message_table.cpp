@@ -7,7 +7,7 @@
 #include <system_error>
 
 #include "o1602/assets/game_content.hpp"
-#include "o1602/audio/wav.hpp"
+#include "o1602/audio/sound_file.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/text.hpp"
 
@@ -228,14 +228,17 @@ void MessageTable::apply(const core::DataTable& table, MessageDefinition& m, con
                     warnings.push_back(at + *s + ": " + bytes.error().message);
                     continue;
                 }
-                auto pcm = audio::decode_wav(*bytes);
+                auto pcm = audio::decode_sound(*bytes);
                 if (!pcm) {
-                    warnings.push_back(at + *s + ": " + pcm.error().message + " (sounds must be WAV files)");
+                    warnings.push_back(at + *s + ": " + pcm.error().message);
                     continue;
                 }
                 m.playback.sound = std::make_shared<const audio::Pcm>(std::move(pcm).value());
             } else {
-                warnings.push_back(at + "'sound' must be a WAV file of the package, a Speech8 number or false");
+                warnings.push_back(
+                    at +
+                    "'sound' must be a sound file of the package (WAV, Ogg Vorbis, FLAC), a Speech8 number or "
+                    "false");
             }
         } else if (e.key == "video") {
             if (b != nullptr && !*b) {

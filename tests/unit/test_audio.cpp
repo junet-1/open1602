@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Sound files and the mixer (docs/formats/wav.md, docs/re/audio.md).
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -13,6 +15,8 @@
 
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/audio/mixer.hpp"
+#include "o1602/audio/package_music.hpp"
+#include "o1602/audio/sound_file.hpp"
 #include "o1602/audio/wav.hpp"
 #include "o1602/core/file.hpp"
 
@@ -465,4 +469,110 @@ TEST_CASE("audio: scenery is heard no farther than in the original's widest view
     const audio::SceneryReach wide = audio::scenery_reach(2 * audio::kWidestViewWidth, 1000.0);
     CHECK(std::fabs(wide.x - 0.5F) < 1e-6F);
     CHECK(wide.y == 1.0F);
+}
+
+namespace {
+
+std::vector<std::uint8_t> sound_fixture(const char* name) {
+    auto bytes = core::read_file(std::filesystem::path(O1602_TEST_SOUNDS) / name);
+    REQUIRE(bytes.ok());
+    return std::move(bytes).value();
+}
+
+}  // namespace
+
+TEST_CASE("audio: Ogg Vorbis and FLAC files of packages are decoded, others refused") {
+    // tone.flac: 0.05 s of 440 Hz at 8000 Hz, the right channel at half the left's level.
+    const auto flac = audio::decode_sound(sound_fixture("tone.flac"));
+    REQUIRE(flac.ok());
+    CHECK(flac->rate == 8000);
+    CHECK(flac->channels == 2);
+    CHECK(flac->frames() == 400);
+    std::int32_t loudest = 0;
+    for (std::size_t f = 0; f < flac->frames(); ++f) {
+        const std::int32_t left = flac->samples[f * 2];
+        const std::int32_t right = flac->samples[f * 2 + 1];
+        loudest = std::max(loudest, std::abs(left));
+        CHECK(std::abs(right - left / 2) <= 2);
+    }
+    CHECK(loudest > 1000);
+
+    // tone.ogg: the same tone, mono.
+    const auto ogg = audio::decode_sound(sound_fixture("tone.ogg"));
+    REQUIRE(ogg.ok());
+    CHECK(ogg->rate == 8000);
+    CHECK(ogg->channels == 1);
+    CHECK(ogg->frames() >= 400);
+    CHECK(ogg->frames() <= 512);
+    CHECK(*std::max_element(ogg->samples.begin(), ogg->samples.end()) > 1000);
+
+    // WAVE goes on through decode_wav; anything else, or a stream cut off at its start, is refused.
+    const auto wav = audio::decode_sound(wave(1, 1, 22050, 8, std::vector<std::uint8_t>(100, 200)));
+    REQUIRE(wav.ok());
+    CHECK(wav->frames() == 100);
+    CHECK(!audio::decode_sound(std::vector<std::uint8_t>{'I', 'D', '3', 4, 0, 0}).ok());
+    auto cut = sound_fixture("tone.ogg");
+    cut.resize(60);
+    CHECK(!audio::decode_sound(cut).ok());
+    auto cut_flac = sound_fixture("tone.flac");
+    cut_flac.resize(20);
+    CHECK(!audio::decode_sound(cut_flac).ok());
+}
+
+TEST_CASE("audio: music.toml adds a package's tracks after MUSIC8's") {
+    FakeGame fake;
+    std::filesystem::create_directories(fake.root / "mods" / "shanty" / "music");
+    fake.write("mods/shanty/music/sea.ogg", sound_fixture("tone.ogg"));
+    fake.write("mods/shanty/music/storm.flac", sound_fixture("tone.flac"));
+    fake.write("mods/shanty/readme.txt", {'h', 'i'});
+    const auto folder = fake.root / "mods" / "shanty";
+    std::vector<audio::MusicTrack> own;
+    std::vector<std::string> warnings;
+    audio::apply_music_file(own, "shanty", folder,
+                            "[sea]\n"
+                            "file = \"music/sea.ogg\"\n"
+                            "title = \"Sea Shanty\"\n"
+                            "[storm]\n"
+                            "file = \"music/storm.flac\"\n"
+                            "battle = true\n"
+                            "[text]\n"
+                            "file = \"readme.txt\"\n"  // line 7: no sound
+                            "[out]\n"
+                            "file = \"../x.ogg\"\n"  // line 10: outside the package
+                            "[none]\n"               // line 11: no file
+                            "[twice]\n"
+                            "file = \"music/sea.ogg\"\n"
+                            "title = \"Sea Shanty\"\n"
+                            "loop = true\n",  // line 15: no field
+                            warnings);
+    REQUIRE(own.size() == 2);
+    CHECK(own[0].title == "Sea Shanty");
+    CHECK(own[0].file == folder / "music" / "sea.ogg");
+    CHECK(!own[0].battle);
+    CHECK(own[1].title == "storm");
+    CHECK(own[1].battle);
+    REQUIRE(warnings.size() == 5);
+    CHECK(warnings[0] == "shanty/music.toml line 7: readme.txt is missing or no WAV, Ogg Vorbis or FLAC file");
+    CHECK(warnings[1] ==
+          "shanty/music.toml line 10: 'file' is the path of a sound file in the package, folders split by '/'");
+    CHECK(warnings[2] == "shanty/music.toml line 11: [none] needs a 'file'");
+    CHECK(warnings[3] == "shanty/music.toml line 15: 'loop' is no field of a track and is passed over");
+    CHECK(warnings[4] ==
+          "shanty/music.toml line 12: a track is called \"Sea Shanty\" already; this one is passed over");
+
+    // The tracks join MUSIC8's; one with a title MUSIC8 has is left out. The package's track plays
+    // from its own file.
+    own.push_back(audio::MusicTrack{"A Song", folder / "music" / "sea.ogg", false});
+    auto game = assets::GameDirectory::open(fake.root);
+    REQUIRE(game.ok());
+    std::vector<std::string> tracks;
+    std::vector<std::string> fights;
+    audio::Music::scan(*game, tracks, fights);
+    audio::SoundBank bank(*game);
+    audio::Mixer mixer(22050, 8);
+    audio::Music music(mixer, bank, tracks, fights, 1602, own);
+    CHECK((music.tracks() == std::vector<std::string>{"A Song", "b Song", "c song", "Sea Shanty"}));
+    music.play("Sea Shanty");
+    music.finish_loading();
+    CHECK(music.playing() == "Sea Shanty");
 }
