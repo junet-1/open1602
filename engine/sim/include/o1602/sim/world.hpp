@@ -31,6 +31,7 @@
 #include "o1602/sim/production.hpp"
 #include "o1602/sim/random.hpp"
 #include "o1602/sim/rules.hpp"
+#include "o1602/sim/script_state.hpp"
 #include "o1602/sim/ship.hpp"
 #include "o1602/sim/soldier.hpp"
 #include "o1602/sim/world_generator.hpp"
@@ -634,6 +635,11 @@ public:
     [[nodiscard]] const std::vector<std::uint8_t>& simulation_state() const noexcept { return m_simulation_state; }
     void set_simulation_state(std::vector<std::uint8_t> state) noexcept { m_simulation_state = std::move(state); }
     [[nodiscard]] std::vector<std::uint8_t> take_simulation_state() noexcept { return std::move(m_simulation_state); }
+    /// The state of the packages' scripts the savegame kept (section SCRP), which the scripts take up
+    /// when the game goes on (scripting.hpp). A package without an entry has not started its scripts
+    /// in this game yet.
+    [[nodiscard]] const std::vector<ScriptState>& script_states() const noexcept { return m_script_states; }
+    void set_script_states(std::vector<ScriptState> states) noexcept { m_script_states = std::move(states); }
     /// Game settings saved with the game, which a Simulation of it uses (ADR 0008).
     [[nodiscard]] const std::optional<Rules>& saved_rules() const noexcept { return m_saved_rules; }
     void set_saved_rules(std::optional<Rules> rules) noexcept { m_saved_rules = rules; }
@@ -750,6 +756,7 @@ private:
     VolcanoState m_volcanoes;
     std::shared_ptr<const assets::ChunkFile> m_source;
     std::vector<std::uint8_t> m_simulation_state;
+    std::vector<ScriptState> m_script_states;
     std::optional<Rules> m_saved_rules;
     OriginalBugs m_original_bugs;
     std::vector<CostBuilding> m_cost_buildings;

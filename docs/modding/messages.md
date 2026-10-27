@@ -7,9 +7,9 @@ original's, with its own text in every language, an icon, a sound and a video
 
 **Status:** Done are the file `messages.toml`, new messages, changes to the original's messages,
 texts per language with placeholders, own sounds (WAV, Ogg Vorbis, FLAC) and the original's videos. The status bar,
-the voices and the videos take everything from the message table (`app::MessageTable`). Still
-open, all with milestone M8: posting a mod's message from a script (Lua; until then `--message`
-shows one at the start) and videos of a mod's own (a modern video format). A message shows an icon
+the voices and the videos take everything from the message table (`app::MessageTable`). A
+package's script posts its messages with `game.message` ([scripts.md](scripts.md)), and `--message`
+shows one at the start. Still open, with milestone M8: videos of a mod's own (a modern video format). A message shows an icon
 of a package's own with `icon = "<package>:<name>"` ([graphics.md](graphics.md#icons)).
 
 ## Where a mod's messages are

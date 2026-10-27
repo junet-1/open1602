@@ -2076,6 +2076,36 @@ void MapViewer::apply_game_events() {
     show_notices(m_events.diplomacy_notices(m_local_player, m_state->simulation.take_diplomacy_notices()));
     show_notices(m_events.game_events(m_state->world, m_local_player, m_state->simulation.take_game_events(),
                                       platform::ticks_ms()));
+    apply_script_output();
+}
+
+void MapViewer::apply_script_output() {
+    if (!m_state->scripts) {
+        return;
+    }
+    for (const script::ScriptNote& note : m_state->scripts->take_notes()) {
+        std::fprintf(stderr, "script %s: %s\n", note.package.c_str(), note.text.c_str());
+        if (note.error) {
+            const std::string text = core::utf8_to_cp1252(note.package + ": " + note.text);
+            m_events.notify(ui::tr("error.script", {text}), "error.script " + note.package, platform::ticks_ms());
+        }
+    }
+    for (const script::ScriptMessage& message : m_state->scripts->take_messages()) {
+        if (message.player != sim::kNoPlayer && message.player != m_local_player) {
+            continue;
+        }
+        std::vector<std::pair<std::string, std::string>> values;
+        for (const auto& [name, value] : message.args) {
+            values.emplace_back(name, core::utf8_to_cp1252(value));
+        }
+        MessageArgs args;
+        for (const auto& [name, value] : values) {
+            args.emplace_back(name, value);
+        }
+        if (!announce(message.id, args)) {
+            std::fprintf(stderr, "script: no message \"%s\" (messages.toml)\n", message.id.c_str());
+        }
+    }
 }
 
 render::TilePos MapViewer::home_tile() const {
@@ -2578,6 +2608,11 @@ void MapViewer::use_game_packages() {
     m_messages.load_mods(used, problems);
     ui::set_build_menu(
         ui::load_build_menu_mods(ui::original_build_menu(), used, m_buildings, problems, m_own_buildings));
+    try {
+        m_state->use_scripts(script::read_package_scripts(used, problems));
+    } catch (const std::bad_alloc&) {
+        problems.emplace_back("not enough memory for the scripts");
+    }
     for (const std::string& p : problems) {
         std::fprintf(stderr, "mods: %s\n", p.c_str());
     }

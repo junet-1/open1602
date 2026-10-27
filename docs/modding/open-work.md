@@ -144,8 +144,13 @@ Part 1 done on 2026-10-27 ([scripts.md](scripts.md)): Lua 5.4.8 in `third_party/
 string hash seed, and `script::Sandbox` in `engine/script`: no io, os, package and debug libraries,
 no loading of files or binary chunks, no addresses in texts, no finalizers and weak tables,
 `math.random` from the game's generator, and limits on memory and on the instructions of each call.
-Still open: loading a package's scripts, events, commands, the script state in the savegame and
-messages posted by scripts.
+
+Part 2 done on 2026-10-27 ([scripts.md](scripts.md)): a package's `script.lua` runs in a sandbox of
+its own, called by the simulation at the end of every tick (`sim::ScriptHost`) with the tick's
+events (`on_start`, `on_second`, buildings placed, houses changed, players won and defeated); it
+reads the players (`game.player`) and posts the package's messages (`game.message`); its table
+`state` and its random generator are saved with the game (section `SCRP`) and are part of the
+game's fingerprint. Still open: changing the game through commands, more events and functions.
 
 ### 7. Scenarios and campaigns (section 6)
 
