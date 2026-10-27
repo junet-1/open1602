@@ -227,6 +227,7 @@ inline constexpr assets::Rgba kCircleOutline{255, 230, 0, 255};
 /// building with a catchment narrows that to the land inside its circle, a clicked Kontor adds
 /// the water its ships trade from. A building being placed shows its own circle as a dashed border,
 /// drawn whole, over land and water alike; the circle of a building still clicked stays lit beside it.
+/// The land of other players can get a dotted border too (History Edition).
 class TileLighting {
 public:
     /// The tiles a building covers, in world tiles.
@@ -247,6 +248,12 @@ public:
     /// Adds the border of the circle `area` (world tiles) without narrowing the lit land: a circle
     /// of its own, apart from the lit one.
     TileLighting& outline(const sim::Catchment& area);
+    /// Draws the border of every other player's land as a dotted line, as the History Edition does
+    /// while the player builds.
+    TileLighting& foreign_borders() noexcept {
+        m_foreign_borders = true;
+        return *this;
+    }
     /// Keeps the water lit that ships reach the building at tile (x, y) of `island` from.
     TileLighting& harbour(const sim::World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                           std::uint32_t x, std::uint32_t y);
@@ -259,6 +266,12 @@ public:
     /// Whether any tile of the `width` x `height` world tiles from (x, y) lies in the lit circle.
     [[nodiscard]] bool in_circle(std::int64_t x, std::int64_t y, std::uint32_t width,
                                  std::uint32_t height) const noexcept;
+    /// Whether the land of other players gets a dotted border.
+    [[nodiscard]] bool foreign_borders_shown() const noexcept { return m_foreign_borders; }
+    /// Whether `cell` (a tile's top island cell, nullptr for water) belongs to another player.
+    [[nodiscard]] bool foreign(const sim::MapCell* cell) const noexcept {
+        return cell != nullptr && cell->owner != sim::kNoPlayer && cell->owner != m_player;
+    }
     /// Whether world tile (x, y) lies in the circle with the dashed border.
     [[nodiscard]] bool in_outline(std::int64_t x, std::int64_t y) const noexcept { return m_outline.contains(x, y); }
     /// Whether world tile (x, y) is dimmed; `cell` is its top island cell, nullptr for water.
@@ -288,6 +301,7 @@ private:
     sim::PlayerId m_player = sim::kNoPlayer;
     Circle m_lit;      ///< the land of a clicked building (Kind::Circle)
     Circle m_outline;  ///< the building being placed
+    bool m_foreign_borders = false;
     // The building whose harbour water stays lit (world == nullptr: none).
     const sim::World* m_world = nullptr;
     const assets::BuildingTable* m_buildings = nullptr;

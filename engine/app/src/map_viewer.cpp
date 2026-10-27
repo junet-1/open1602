@@ -103,7 +103,26 @@ std::string refusal_text(sim::BuildRefusal refusal) {
     return ui::tr(key);
 }
 
-/// Ground under a building that cannot be built there.
+/// Whether any tile of `item` lies in a city of `player` (the original's edge rule could take it).
+bool touches_own_land(const sim::IslandMap& map, const sim::PlannedBuild& item, sim::PlayerId player) {
+    std::uint32_t w = 1;
+    std::uint32_t h = 1;
+    sim::rotated_size(*item.type, item.rotation, w, h);
+    for (std::uint32_t j = 0; j < h; ++j) {
+        for (std::uint32_t i = 0; i < w; ++i) {
+            const std::int32_t x = item.x + static_cast<std::int32_t>(i);
+            const std::int32_t y = item.y + static_cast<std::int32_t>(j);
+            if (map.contains(x, y) &&
+                map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y)).owner == player) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/// Ground under a building that cannot be built there: red in the original, a yellow checkered
+/// field in the History Edition (Open1602's look, render::kDragHatch).
 constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
 /// Real time a frame may spend on ticks; the rest of the frame draws.
 constexpr int kTickBudgetMs = 25;
@@ -1108,6 +1127,10 @@ render::TileLighting MapViewer::tile_lighting() const {
             lit = building_lighting(clicked->island, clicked->x, clicked->y);
         }
         render::TileLighting l = lit ? std::move(*lit) : render::TileLighting::territory(m_local_player);
+        // Other players' land with a dotted border, as in the History Edition (the original only dims it).
+        if (!m_app_settings.display.classic_graphics) {
+            l.foreign_borders();
+        }
         // A building with a catchment being placed: the border of its circle at the mouse.
         const assets::BuildingType* b = m_tool.mode() == BuildTool::Mode::Build ? m_tool.selected() : nullptr;
         const auto spot = m_input->spot_at_mouse();
@@ -1319,8 +1342,8 @@ void MapViewer::render() {
                     }
                     const bool multi = m_tool.multi_drag();
                     for (const sim::PlannedBuild& item : plan.items) {
-                        // What only lacks gold or goods is shown on its red ground; anything else that
-                        // cannot be built only as red ground (it might stand over a building or the sea).
+                        // What only lacks gold or goods is shown on its marked ground; anything else that
+                        // cannot be built only as marked ground (it might stand over a building or the sea).
                         const bool short_of_means =
                             item.refusal == sim::BuildRefusal::Money || item.refusal == sim::BuildRefusal::Tools ||
                             item.refusal == sim::BuildRefusal::Wood || item.refusal == sim::BuildRefusal::Bricks ||
@@ -1332,12 +1355,22 @@ void MapViewer::render() {
                         }
                         if (!item.ok() && m_tool_status.empty()) {
                             m_tool_status = refusal_text(item.refusal);
+                            // Where only Open1602's fix refuses, the text names the original setting
+                            // that allows it (S-008 at the edge of the own land, S-003 on poor ground).
+                            const sim::OriginalBugs& bugs = m_state->world.original_bugs();
+                            if (item.refusal == sim::BuildRefusal::Infertile && !bugs.infertile_fields) {
+                                m_tool_status = ui::tr("build.refusal.infertile.original");
+                            } else if (item.refusal == sim::BuildRefusal::Territory && !bugs.building_radius &&
+                                       item.type != nullptr && touches_own_land(map, item, m_local_player)) {
+                                m_tool_status = ui::tr("build.refusal.territory.original");
+                            }
                         }
                         m_tool_short_of_wood |= item.refusal == sim::BuildRefusal::Wood;
                         if (item.type == nullptr || hatched) {
                             continue;
                         }
-                        // What cannot be built is shown too, on red ground, as in the original.
+                        // What cannot be built is shown too, on marked ground: red as in the original,
+                        // yellow checkered as in the History Edition.
                         std::uint32_t w = 1;
                         std::uint32_t h = 1;
                         sim::rotated_size(*item.type, item.rotation, w, h);
@@ -1351,9 +1384,14 @@ void MapViewer::render() {
                                     continue;
                                 }
                                 if (!item.ok()) {
-                                    m_tile_marks.push_back(
-                                        render::TileMark{order->island, static_cast<std::uint16_t>(tx),
-                                                         static_cast<std::uint16_t>(ty), kRefusedTint});
+                                    render::TileMark mark{order->island, static_cast<std::uint16_t>(tx),
+                                                          static_cast<std::uint16_t>(ty), kRefusedTint};
+                                    if (!m_app_settings.display.classic_graphics) {
+                                        mark.colour = render::kDragHatch;
+                                        mark.hatched = true;
+                                        mark.on_top = true;
+                                    }
+                                    m_tile_marks.push_back(mark);
                                 }
                             }
                         }

@@ -1304,15 +1304,15 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
         }
     };
     // The border of a catchment circle: the edges of its tiles towards tiles outside, on top of
-    // everything, so neither buildings nor the island's edge cut it off.
+    // everything, so neither buildings nor the island's edge cut it off. The land of another player
+    // gets the same border while building (History Edition): the edges of its tiles towards tiles
+    // of another city, another island or the sea.
     const bool circle = layers.lighting != nullptr && layers.lighting->outlined();
+    const bool borders = layers.lighting != nullptr && layers.lighting->foreign_borders_shown();
     std::vector<DrawCommand>& outline = scratch.outline;
     outline.clear();
-    const auto add_outline = [&](std::int32_t vx, std::int32_t vy, std::uint32_t wx, std::uint32_t wy, std::int32_t sx,
-                                 std::int32_t row_bottom, const sim::MapCell* cell) {
-        if (!layers.lighting->in_outline(wx, wy)) {
-            return;
-        }
+    const auto add_edges = [&](std::int32_t vx, std::int32_t vy, std::int32_t sx, std::int32_t row_bottom,
+                               const sim::MapCell* cell, const auto& inside) {
         const auto outside = [&](std::int32_t nx, std::int32_t ny) {
             if (nx < 0 || ny < 0 || nx >= view_w || ny >= view_h) {
                 return true;
@@ -1320,7 +1320,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
             std::uint32_t ox = 0;
             std::uint32_t oy = 0;
             rw.to_world(static_cast<std::uint32_t>(nx), static_cast<std::uint32_t>(ny), ox, oy);
-            return !layers.lighting->in_outline(ox, oy);
+            return !inside(ox, oy);
         };
         std::uint32_t edges = 0;
         edges |= outside(vx - 1, vy) ? std::uint32_t{DrawCommand::kTopLeft} : 0U;
@@ -1336,6 +1336,24 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                       static_cast<std::uint8_t>(tw)};
         c.edges = static_cast<std::uint8_t>(edges);
         outline.push_back(c);
+    };
+    const auto add_outline = [&](std::int32_t vx, std::int32_t vy, std::uint32_t wx, std::uint32_t wy, std::int32_t sx,
+                                 std::int32_t row_bottom, const sim::MapCell* cell) {
+        if (layers.lighting->in_outline(wx, wy)) {
+            add_edges(vx, vy, sx, row_bottom, cell,
+                      [&](std::uint32_t ox, std::uint32_t oy) { return layers.lighting->in_outline(ox, oy); });
+        }
+    };
+    const auto add_border = [&](std::int32_t vx, std::int32_t vy, std::int32_t sx, std::int32_t row_bottom,
+                                const sim::World::Cell& wc, const sim::MapCell* cell) {
+        if (!layers.lighting->foreign(cell)) {
+            return;
+        }
+        add_edges(vx, vy, sx, row_bottom, cell, [&](std::uint32_t ox, std::uint32_t oy) {
+            const sim::World::Cell& other = world.cell(ox, oy);
+            const sim::MapCell* o = other.island == wc.island ? drawer.shown(other) : nullptr;
+            return o != nullptr && o->owner == cell->owner && o->city == cell->city;
+        });
     };
     for (std::int32_t d = d_begin; d <= d_end; ++d) {
         const std::int32_t row_bottom = d * half_h + th - 1;
@@ -1363,6 +1381,9 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 }
                 if (!high_pass && circle) {
                     add_outline(vx, vy, wx, wy, sx, row_bottom, cell);
+                }
+                if (!high_pass && borders && !hidden) {
+                    add_border(vx, vy, sx, row_bottom, wc, cell);
                 }
                 const std::size_t first = commands.size();
                 // A dimmed tile: everything drawn for it (ground and building) darker.
