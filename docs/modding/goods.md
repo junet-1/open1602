@@ -7,9 +7,9 @@ trader buys and sells them; a building of a package's own makes and uses them.
 
 **Status:** Done are the file `goods.toml`, the ware numbers a game gives the goods, their place in
 the Kontor and ship windows, the goods window and the savegame. Still open, with the next steps of
-item 3: residents who need such a good (resident classes as data), pictures of their own (the icon
-is one of the original's until the import of PNG), and the pirates' and natives' wishes, which keep
-to the original's goods so that games of the original play as they did.
+item 3: residents who need such a good (resident classes as data) and the pirates' and natives'
+wishes, which keep to the original's goods so that games of the original play as they did. A good
+shows an icon of a package's own with `picture` ([graphics.md](graphics.md#icons)).
 
 ## The file
 
@@ -24,7 +24,8 @@ Each table declares one good. Its name in the package and the package's id make 
 # mods/spice/goods.toml
 [pepper]
 price = 70                    # base price per ton, as the original's goods have
-icon = "anno1602:spices"      # the original's good whose icon it shows
+icon = "anno1602:spices"      # the original's good whose icon it shows without `picture`
+picture = "spice:pepper"      # optional: an icon of a package (icons.toml)
 name.en = "Pepper"
 name.de = "Pfeffer"
 ```
@@ -32,7 +33,8 @@ name.de = "Pfeffer"
 | Field | Limits | Meaning |
 |---|---|---|
 | `price` | 1 to 10000 | base price per ton; the trader and the trade lists take it as the original's base prices |
-| `icon` | a trade good of the original, `anno1602:<name or number>` (names below) | the icon the good shows |
+| `icon` | a trade good of the original, `anno1602:<name or number>` (names below) | the icon the good shows, or where no package has its `picture` |
+| `picture` | an icon of a package, `<package>:<name>` ([icons.toml](graphics.md#icons)) | the icon the good shows instead; none if not given |
 | `name.<language>` | a text | the name in that language (`en`, `de`, ...); a language without one shows the English name |
 
 A good needs a price, an icon and at least one name. A table without them, with a field that is no
@@ -67,7 +69,7 @@ The engine gives the packages' goods the numbers from 59 upwards, in the package
 the order of each file, so at most 197 in a game. The same packages give the same goods the same
 numbers on every computer.
 
-A game keeps its goods with their numbers, prices, icons and names (section `GOOD` of
+A game keeps its goods with their numbers, prices, icons and names (sections `GOOD` and `GPIC` of
 [o1602-save.md](../formats/o1602-save.md)), so a running game does not change when a package is
 changed or removed. Such a game cannot be saved as a savegame of the original (`.gam`): its records
 have no room for those goods.

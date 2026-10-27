@@ -876,3 +876,25 @@ TEST_CASE("military: a destroyed Kontor becomes the destroyed Kontor; the city k
     CHECK(m.top(5, 6).sprite == buildings.by_id(22620)->gfx);
     CHECK(m.top(6, 6).sprite == buildings.by_id(22611)->gfx);
 }
+
+TEST_CASE("military: a soldier walks onto a place however near; a taken place is near enough") {
+    for (const std::int32_t d : {1, 2, 4, 6}) {
+        Field f;
+        f.start();
+        const std::uint32_t id = f.add(kSword, 0, 24, 30).id;
+        REQUIRE(
+            f.military->order(sim::SoldierOrder{0, {id}, sim::Target::spot(static_cast<std::uint32_t>(24 + d), 30)}));
+        f.run(5'000);
+        CHECK(f.world.soldier(id)->cell_x() == 24 + d);
+        CHECK(f.world.soldier(id)->target.empty());
+    }
+    // Another unit stands on the place: the soldier stays where it is, near enough.
+    Field f;
+    f.start();
+    f.add(kSword, 0, 27, 30);
+    const std::uint32_t id = f.add(kSword, 0, 24, 30).id;
+    REQUIRE(f.military->order(sim::SoldierOrder{0, {id}, sim::Target::spot(27, 30)}));
+    f.run(5'000);
+    CHECK(f.world.soldier(id)->cell_x() == 24);
+    CHECK(f.world.soldier(id)->target.empty());
+}

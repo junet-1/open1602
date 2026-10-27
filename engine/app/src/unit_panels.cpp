@@ -10,6 +10,7 @@
 #include "panel_common.hpp"
 
 #include "o1602/sim/ships.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app {
@@ -72,7 +73,9 @@ public:
             const bool filled = hold && ship->cargo[h].ware != 0 && ship->cargo[h].amount != 0;
             m_panel.set_visible(kHoldBar + k, filled);
             if (hold) {
-                m_panel.set_graphic(kHoldIcon + k, filled ? m_gfx_ware + ship->cargo[h].ware : m_gfx_empty, 0);
+                m_panel.set_graphic(
+                    kHoldIcon + k,
+                    filled ? ui::ware_sprite(m_gfx_ware, c.world().goods(), ship->cargo[h].ware) : m_gfx_empty, 0);
             }
             if (filled) {
                 m_panel.set_slider(kHoldBar + k, 1,

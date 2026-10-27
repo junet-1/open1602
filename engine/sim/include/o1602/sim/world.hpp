@@ -175,7 +175,8 @@ struct City {
     /// Game time of the next check for plague, robbers and fire (city + 0x1E0, every 60-67 s).
     std::uint64_t next_event_ms = 0;
     /// The growth of the house the growth pass looked at last (city + 0x1F8, > 0 grows) and the
-    /// game time it last turned positive or the people last wanted a monument (city + 0x1E4).
+    /// game time it last turned positive or the people last wanted a monument (city + 0x1E4). The
+    /// original does not save either: after loading its savegames both are 0, here too.
     std::int32_t house_growth = 0;
     std::uint64_t growing_since_ms = 0;
     /// What the Kontor offers to other players' ships and the free trader, per ware (city ware

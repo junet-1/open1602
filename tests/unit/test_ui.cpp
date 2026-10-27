@@ -313,6 +313,33 @@ TEST_CASE("ui: a flowing text scrolls no further than its last full window (UI-1
     CHECK(panel.max_scroll(110002, fonts) == 0);
 }
 
+TEST_CASE("ui: a text gadget set to fit cuts its text to the gadget's width") {
+    // 20 pixels wide: 5 characters of the test font.
+    const auto row = assets::parse_gad(
+        "  Objekt: GADGET\n"
+        "    @Nummer:    0\n"
+        "    Id:         31021\n"
+        "    Kind:       GAD_TEXTL\n"
+        "    Blocknr:    0\n"
+        "    Size:       20, 12\n"
+        "  EndObj\n",
+        [](std::string_view) -> std::optional<std::string> { return std::nullopt; });
+    const ui::Font font = test_font();
+    const std::array<const ui::Font*, ui::kFontSlots> fonts{&font, nullptr, nullptr};
+    ui::Panel panel(row, 1.0);
+    panel.set_text(31021, "abcdefgh");
+    REQUIRE(panel.draw(fonts).size() == 1);
+    CHECK(panel.draw(fonts)[0].text == "abcdefgh");  // the original's texts are drawn whole
+    panel.set_fit(31021, true);
+    CHECK(panel.draw(fonts)[0].text == ui::fit_text(&font, "abcdefgh", 20, false));
+    CHECK(panel.draw(fonts)[0].text.ends_with("..."));
+    panel.set_text(31021, "abc");
+    CHECK(panel.draw(fonts)[0].text == "abc");  // what fits stays as it is
+    panel.set_fit(31021, true, 8);              // less room: something to the right of the text
+    CHECK(panel.draw(fonts)[0].text == ui::fit_text(&font, "abc", 8, false));
+    CHECK(panel.draw(fonts)[0].text != "abc");
+}
+
 TEST_CASE("ui: the build menu's categories and the pop-up of a category") {
     const ui::BuildMenuDefinition& menu = ui::original_build_menu();
     CHECK(menu.categories.size() == 8);

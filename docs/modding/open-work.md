@@ -33,6 +33,8 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `classes.toml` | classes of inhabitants: the original's changed, new ones after them, needs of any good | [classes.md](classes.md) |
 | `music.toml` | music tracks of the package's own (WAV, Ogg Vorbis, FLAC), normal or battle music | [sounds.md](sounds.md) |
 | `graphics.toml` | PNG images of the package's own, drawn by its buildings at all three zoom levels | [graphics.md](graphics.md) |
+| `icons.toml` | PNG icons of the package's own for the build menu, goods and messages | [graphics.md](graphics.md#icons) |
+| `figure_images.toml` | the original's figures and ships drawn with a package's images | [graphics.md](graphics.md#figures-and-ships) |
 | `levels.toml` | unlock levels: the original's changed, new ones after the 32nd, also of a new class | [levels.md](levels.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
@@ -109,8 +111,16 @@ larger.
 
 Part 2 done on 2026-10-27 ([sounds.md](sounds.md)): the game reads Ogg Vorbis and FLAC besides WAV
 (stb_vorbis and dr_flac in `third_party`); `music.toml` adds a package's tracks to the music, as
-normal or battle music, and a message's sound may be any of the three. Still open: icons, figures
-and ships, and sounds of a package's buildings and figures.
+normal or battle music, and a message's sound may be any of the three.
+
+Part 3 done on 2026-10-27 ([graphics.md](graphics.md#icons)): `icons.toml` names PNG icons with
+sprite numbers from 100000, which every sheet of the interface draws; the build menu, the goods
+(`picture`, kept in the savegame section `GPIC`) and the messages name them.
+
+Part 4 done on 2026-10-27 ([graphics.md](graphics.md#figures-and-ships)): `figure_images.toml`
+draws the original's figures and ships with a package's images (the image is checked to hold every
+sprite the figure draws). Still open: figures of a package's own (new figure numbers, with the
+content registry), sounds of a package's buildings and figures, and videos of a mod's own.
 
 ### 5. Computer players from data (section 3; MD-4)
 
@@ -129,6 +139,13 @@ defaults. Depends on items 2 and 3.
 (no files, no clock, random numbers only from the game's generator), triggered by events, changing
 the game only through commands, with its state in the savegame. Scripts also post the mods'
 messages.
+
+Part 1 done on 2026-10-27 ([scripts.md](scripts.md)): Lua 5.4.8 in `third_party/lua` with a fixed
+string hash seed, and `script::Sandbox` in `engine/script`: no io, os, package and debug libraries,
+no loading of files or binary chunks, no addresses in texts, no finalizers and weak tables,
+`math.random` from the game's generator, and limits on memory and on the instructions of each call.
+Still open: loading a package's scripts, events, commands, the script state in the savegame and
+messages posted by scripts.
 
 ### 7. Scenarios and campaigns (section 6)
 

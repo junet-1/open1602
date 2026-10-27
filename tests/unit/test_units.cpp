@@ -8,9 +8,11 @@
 #include "test_support.hpp"
 
 #include "o1602/assets/cod_parser.hpp"
+#include "o1602/assets/figure_looks.hpp"
 #include "o1602/assets/savegame.hpp"
 #include "o1602/render/banner.hpp"
 #include "o1602/render/flag_tint.hpp"
+#include "o1602/render/package_sprites.hpp"
 #include "o1602/render/sprite_atlas.hpp"
 #include "o1602/render/unit_tint.hpp"
 #include "o1602/render/world_renderer.hpp"
@@ -274,4 +276,65 @@ TEST_CASE("units: soldiers in the colour of their owner's banner") {
     soldier.owner = sim::kNoPlayer;  // nobody: the stored figure
     REQUIRE(render::land_figure_sprites(soldier, world, render::WorldView{}, layers, f));
     CHECK(f.parts[f.count - 1].sprite == atlas->sheet_base(1) + 3);
+}
+
+TEST_CASE("units: a soldier drawn with a package's image keeps it in every colour") {
+    const assets::CodPredefinedSymbol types[] = {{"FIGUR", 1}};
+    const auto doc = assets::cod::parse(
+        "Objekt: FIGUR\n"
+        "  Nummer: 1\n  Gfx: 0\n  Rotate: 1\n  Posoffs: 0, 3\n"
+        "  Nummer: 2\n  Gfx: 10\n  Rotate: 1\n  Posoffs: 0, 3\n"
+        "  Nummer: 3\n  Gfx: 20\n  Rotate: 1\n  Posoffs: 0, 3\n"
+        "  Nummer: 4\n  Gfx: 30\n  Rotate: 1\n  Posoffs: 0, 3\n"
+        "EndObj\n",
+        types);
+    auto original = assets::FigureTable::from_cod(doc);
+    REQUIRE(original.ok());
+    // The swordsman in all four colours from the package's image at 40000 (figure_images.toml).
+    assets::FigureTable figures = *original;
+    const std::vector<assets::FigureLook> looks = {
+        {1, 40000, true}, {2, 40000, true}, {3, 40000, true}, {4, 40000, true}};
+    assets::apply_figure_looks(figures, *original, looks);
+
+    // Atlas: terrain with the package's 8 sprites at 40000, then the soldier sheet.
+    const auto terrain = test::make_sheet({{4, 2}});
+    const auto package = test::make_sheet(std::vector<std::pair<std::uint32_t, std::uint32_t>>(8, {5, 7}));
+    const auto soldat = test::make_sheet(std::vector<std::pair<std::uint32_t, std::uint32_t>>(40, {4, 6}));
+    const auto palette = test::make_palette();
+    const render::SheetSource terrain_source(terrain, palette);
+    const render::SheetSource package_source(package, palette);
+    const render::SheetSource soldat_source(soldat, palette);
+    render::PlacedSources terrain_with_package;
+    terrain_with_package.place(0, terrain_source);
+    terrain_with_package.place(assets::kFirstPackageSprite, package_source);
+    const render::SpriteSource* sources[] = {&terrain_with_package, &soldat_source};
+    auto atlas = render::SpriteAtlas::build(sources, 256);
+    REQUIRE(atlas.ok());
+
+    auto banners = render::BannerTable::original();
+    const sim::BannerId green = banners.add_colour("test:green", render::BannerTable::kDefaultColours[4]);
+    render::UnitTint tint;  // no tinted templates: a package's unit is never tinted
+    sim::World world;
+    world.set_players(
+        {sim::Player{sim::PlayerRole::Human, 2, 0, ""}, sim::Player{sim::PlayerRole::Computer, green, 0, ""}});
+    render::WorldLayers layers;
+    layers.figures = &figures;
+    layers.atlas = &*atlas;
+    layers.banners = &banners;
+    layers.unit_tint = &tint;
+    layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Stadtfld)] = atlas->sheet_base(0);
+    layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Soldat)] = atlas->sheet_base(1);
+
+    render::FigureInstance soldier;
+    soldier.x = 10.0;
+    soldier.y = 20.0;
+    soldier.figure = 1;
+    soldier.direction = 3;
+    soldier.sheet = assets::FigureSheet::Soldat;  // the soldiers' draw kind: the package's image all the same
+    render::FigureSprites f;
+    for (const sim::PlayerId owner : {sim::PlayerId{0}, sim::PlayerId{1}, sim::kNoPlayer}) {
+        soldier.owner = owner;
+        REQUIRE(render::land_figure_sprites(soldier, world, render::WorldView{}, layers, f));
+        CHECK(f.parts[f.count - 1].sprite == atlas->sheet_base(0) + assets::kFirstPackageSprite + 3);
+    }
 }

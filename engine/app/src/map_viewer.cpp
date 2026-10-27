@@ -41,6 +41,7 @@
 #include "o1602/sim/growth.hpp"
 #include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
+#include "o1602/ui/package_icons.hpp"
 
 namespace o1602::app {
 
@@ -151,9 +152,24 @@ struct ModRules {
     std::vector<assets::InfraLevel> levels;
     /// The images of the packages with their sprite numbers (graphics.toml).
     std::vector<assets::PackageImage> images;
+    /// The figures the packages draw with their images (figure_images.toml).
+    std::vector<assets::FigureLook> looks;
     /// The music of the packages (music.toml).
     std::vector<audio::MusicTrack> music;
 };
+
+/// The icons of `packages` (icons.toml), numbered in their load order.
+std::vector<assets::PackageIcon> load_package_icons(std::span<const assets::ModPackage> packages,
+                                                    std::vector<std::string>& problems) {
+    std::vector<assets::PackageIcon> icons;
+    for (const assets::ModPackage& package : packages) {
+        if (const auto bytes = core::read_file(package.folder / assets::kIconsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_icons_file(icons, package.id, package.folder, text, problems);
+        }
+    }
+    return icons;
+}
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
 /// balance.toml), the packages in their load order; the buildings they add go into `buildings`
@@ -162,11 +178,15 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
                         const assets::FigureTable& figures) {
     ModRules rules;
     std::vector<std::string> problems;
-    // Goods first, then the classes and buildings that use them, then the values that may name both.
+    // Goods first (with the icons they may show), then the classes and buildings that use them,
+    // then the values that may name both. The icons' warnings come when the game takes them
+    // (MapViewer::use_game_packages).
+    std::vector<std::string> ignored;
+    const std::vector<assets::PackageIcon> icons = load_package_icons(packages, ignored);
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / assets::kGoodsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
-            assets::apply_goods_file(rules.goods, package.id, text, problems);
+            assets::apply_goods_file(rules.goods, package.id, text, problems, icons);
         }
     }
     // Then the classes that need them, then the buildings, among them houses of those classes.
@@ -198,6 +218,10 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
         if (const auto bytes = core::read_file(package.folder / assets::kGraphicsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             assets::apply_graphics_file(rules.images, package.id, package.folder, text, problems);
+        }
+        if (const auto bytes = core::read_file(package.folder / assets::kFigureImagesFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_figure_images_file(rules.looks, package.id, text, rules.images, figures, problems);
         }
         if (const auto bytes = core::read_file(package.folder / audio::kMusicFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
@@ -358,6 +382,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_classes = std::move(rules.classes);
     viewer->m_levels = std::move(rules.levels);
     viewer->m_package_images = std::move(rules.images);
+    viewer->m_figure_looks = std::move(rules.looks);
+    assets::apply_figure_looks(viewer->m_figures, viewer->m_original_figures, viewer->m_figure_looks);
     viewer->m_packages = std::move(packages);
     {
         std::vector<std::string> problems;
@@ -2543,6 +2569,11 @@ void MapViewer::use_game_packages() {
     const auto& wanted = m_state->world.packages();
     const std::vector<assets::ModPackage> known = known_packages();
     const std::vector<assets::ModPackage> used = wanted ? assets::packages_for(known, *wanted, problems) : m_packages;
+    // The icons first: the messages and the build menu may name them.
+    ui::set_package_icons(load_package_icons(used, problems));
+    if (m_hud) {
+        m_hud->forget_package_icons();
+    }
     m_messages = MessageTable();
     m_messages.load_mods(used, problems);
     ui::set_build_menu(
@@ -2626,6 +2657,10 @@ void MapViewer::reload_mods() {
     m_classes = std::move(rules.classes);
     m_levels = std::move(rules.levels);
     m_sound->set_package_music(std::move(rules.music));
+    if (rules.looks != m_figure_looks) {
+        m_figure_looks = std::move(rules.looks);
+        assets::apply_figure_looks(m_figures, m_original_figures, m_figure_looks);
+    }
     if (rules.images != m_package_images) {
         // Other pictures: the zoom levels are made again with them.
         m_package_images = std::move(rules.images);

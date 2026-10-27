@@ -1,5 +1,10 @@
 # engine/script
 
-Modding interface (Lua 5.4) and overlay data format for new content. **Milestone:** M8.
+Scripts of content packages (ADR 0007 section 6, [docs/modding/scripts.md](../../docs/modding/scripts.md)).
 
-Not created yet – see [docs/00-plan.md](../../docs/00-plan.md) and [ADR 0005](../../docs/architecture/0005-module-structure.md).
+- `sandbox.hpp`: `script::Sandbox`, a Lua 5.4 state (`third_party/lua`) that keeps scripts
+  deterministic and closed off: no files, no clock, no addresses, random numbers only from the
+  game, limits on memory and instructions.
+
+Still open (milestone M8): loading the scripts of a package, events, commands, the script state in
+the savegame and messages posted by scripts.

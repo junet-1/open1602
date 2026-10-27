@@ -16,6 +16,7 @@ add_library(o1602_assets
     src/own_buildings.cpp
     src/package_graphics.cpp
     src/resident_classes.cpp
+    src/figure_looks.cpp
     src/figure_table.cpp
     src/gad.cpp
     src/high_scores.cpp

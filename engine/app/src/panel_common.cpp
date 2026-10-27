@@ -8,6 +8,7 @@
 
 #include "o1602/sim/ships.hpp"
 #include "o1602/ui/font.hpp"
+#include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
 
 namespace o1602::app::panel_detail {
@@ -126,7 +127,7 @@ void StockList::refresh(const sim::City& city, const assets::Goods& goods, bool 
             continue;
         }
         const sim::City::Trade* t = city.trade_of(w);
-        m_panel.set_graphic(kLIcon + place, m_gfx_ware + goods.icon(w), 0);
+        m_panel.set_graphic(kLIcon + place, ui::ware_sprite(m_gfx_ware, goods, w), 0);
         m_panel.set_slider(kLBar + place, 1, static_cast<std::int32_t>(city.stock(w)), cap);
         const bool buy = t != nullptr && t->buy;
         const bool sell = t != nullptr && t->sell;
@@ -243,7 +244,7 @@ void TradeLists::fill(const sim::City& city, const assets::Goods& goods, bool bu
         m_panel.set_visible(bar + k, ware);
         if (ware) {
             const std::uint8_t w = list[static_cast<std::size_t>(k)];
-            m_panel.set_graphic(icon + k, m_gfx_ware + goods.icon(w), 0);
+            m_panel.set_graphic(icon + k, ui::ware_sprite(m_gfx_ware, goods, w), 0);
             m_panel.set_slider(bar + k, 1,
                                static_cast<std::int32_t>(std::min<std::uint32_t>(amount(city, w, buy), city.capacity)),
                                cap);
