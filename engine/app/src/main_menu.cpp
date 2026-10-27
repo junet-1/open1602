@@ -207,7 +207,12 @@ std::vector<MenuScenario> scenario_list(const std::filesystem::path& folder, con
             continue;
         }
         MenuScenario& s = by_name[lower(name)];
-        if (s.files.empty()) {
+        // The entry takes the header of its lowest part, as the original does on Windows, where the
+        // files come in alphabetical order; other file systems list them in any order, and a part
+        // whose header differs (Pirata1 and Feindliche Nachbarn1 say campaign 0, D-015) must not
+        // decide which campaign the whole entry belongs to.
+        const bool lowest = std::all_of(s.files.begin(), s.files.end(), [&](const auto& f) { return first < f.first; });
+        if (lowest) {
             s.name = game != nullptr ? game->expand(name) : name;
             const std::u8string u8name = entry.path().stem().u8string();
             std::size_t cut = u8name.size();
@@ -554,6 +559,13 @@ void MainMenu::append_level_notes() {
     m_briefing += notes;
 }
 
+std::optional<std::uint32_t> MainMenu::chosen_campaign() const {
+    if (m_chosen >= m_scenarios.size() || m_scenarios[m_chosen].header.campaign == assets::ScenarioHeader::kNone) {
+        return std::nullopt;
+    }
+    return m_scenarios[m_chosen].header.campaign;
+}
+
 std::filesystem::path MainMenu::chosen_file() const {
     if (m_chosen >= m_scenarios.size()) {
         return {};
@@ -727,6 +739,7 @@ std::vector<MenuEvent> MainMenu::mouse(std::int32_t x, std::int32_t y, bool down
                     ev.path = chosen_file();
                     ev.name = m_name;
                     ev.setup = m_scenario;
+                    ev.campaign = chosen_campaign();
                     out.push_back(std::move(ev));
                     break;
                 }

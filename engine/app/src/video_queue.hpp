@@ -14,15 +14,18 @@ namespace o1602::app {
 /// The pause video (VideoSmk/6.smk); it loops while the game stands still.
 inline constexpr std::uint16_t kPauseVideo = 6;
 
+/// The first video of a fulfilled mission (0x5F: 2000); every later number ends a game.
+inline constexpr std::uint16_t kFirstMissionVideo = 2000;
+
 /// Whether a video plays in the minimap's window. Messages play there; the logos and the intro,
 /// the credits (10), the pause (6, looping) and the ends of the game (defeat 998, 1010, 2020;
-/// missions fulfilled from 2500, the end of the campaigns 2990) fill the screen. Without a minimap
+/// missions fulfilled 2000–2120 and from 2500, the end of the campaigns 2990) fill the screen and
+/// halt the game, as in the original (seen with 2080 on 2026-10-27). Without a minimap
 /// on screen (the main menu, a game without the panel) a message's video fills the screen too:
 /// else its sound would play without a picture.
 [[nodiscard]] constexpr bool video_plays_in_minimap(std::uint16_t number, bool loop, bool intro,
                                                     bool minimap_shown) noexcept {
-    const bool full =
-        intro || loop || number == 10 || number == 998 || number == 1010 || number == 2020 || number >= 2500;
+    const bool full = intro || loop || number == 10 || number == 998 || number == 1010 || number >= kFirstMissionVideo;
     return !full && minimap_shown;
 }
 

@@ -272,6 +272,35 @@ TEST_CASE("main menu: the list of scenarios, a mission screen with its parts, th
     CHECK(menu.screen() == MainMenu::Screen::Base);
 }
 
+TEST_CASE("main menu: a campaign takes the header of its first part, whatever order the files come in") {
+    // Pirata1 and Feindliche Nachbarn1 say campaign 0 where their other parts say 3 and 4 (D-015);
+    // the directory order of a file system must not let such a part decide the whole entry.
+    const std::filesystem::path folder = test::temp_path("o1602-test-menu-campaign");
+    std::filesystem::remove_all(folder);
+    std::filesystem::create_directories(folder);
+    const auto scenario = [&](const char* file, std::uint8_t campaign, std::uint8_t part) {
+        assets::ChunkWriter w;
+        const std::array<std::uint8_t, 4> c = {campaign, 0, 0, 0};
+        const std::array<std::uint8_t, 4> r = {part, 0, 0, 0};
+        w.add("SZENE_KAMPAGNE", c);
+        w.add("SZENE_RANKING", r);
+        const core::Bytes& b = w.bytes();
+        std::ofstream(folder / file, std::ios::binary)
+            .write(reinterpret_cast<const char*>(b.data()), static_cast<std::streamsize>(b.size()));
+    };
+    scenario("Pirata1.szs", 0, 1);  // written first, so a file system that lists by age gives it first
+    scenario("Pirata2.szs", 3, 2);
+    scenario("Pirata0.szs", 3, 0);
+    const std::array<std::string, 4> headings = {"m", "k", "a", "e"};
+    const std::vector<app::MenuScenario> list = app::scenario_list(folder, headings, nullptr);
+    const auto pirata =
+        std::find_if(list.begin(), list.end(), [](const app::MenuScenario& s) { return s.name == "Pirata"; });
+    REQUIRE(pirata != list.end());
+    CHECK(pirata->header.campaign == 3);
+    CHECK(pirata->files.size() == 3);
+    std::filesystem::remove_all(folder);
+}
+
 TEST_CASE("main menu: the endless game lists what sets its chosen level apart") {
     Game g("o1602-test-menu-endless", {"Endlos0.szs", "Endlos1.szs", "Endlos2.szs", "Endlos3.szs"});
     MainMenu menu(*g.dir, &g.texts);

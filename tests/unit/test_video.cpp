@@ -513,14 +513,15 @@ TEST_CASE("smacker: from a file the frames are read one by one, with the same pi
 
 TEST_CASE("videos: messages in the minimap, the rest and messages without a minimap on the whole screen") {
     using app::video_plays_in_minimap;
-    for (const std::uint16_t message : {std::uint16_t{1}, std::uint16_t{63}, std::uint16_t{2499}}) {
+    for (const std::uint16_t message : {std::uint16_t{1}, std::uint16_t{63}, std::uint16_t{1999}}) {
         CHECK(video_plays_in_minimap(message, false, false, true));
         // The main menu (--video N from there) or no panel: no minimap, so not a sound without picture.
         CHECK(!video_plays_in_minimap(message, false, false, false));
     }
     // The credits, the defeats and the missions fulfilled.
-    for (const std::uint16_t full : {std::uint16_t{10}, std::uint16_t{998}, std::uint16_t{1010}, std::uint16_t{2020},
-                                     std::uint16_t{2500}, std::uint16_t{4000}}) {
+    for (const std::uint16_t full :
+         {std::uint16_t{10}, std::uint16_t{998}, std::uint16_t{1010}, std::uint16_t{2000}, std::uint16_t{2020},
+          std::uint16_t{2080}, std::uint16_t{2120}, std::uint16_t{2500}, std::uint16_t{4000}}) {
         CHECK(!video_plays_in_minimap(full, false, false, true));
     }
     CHECK(!video_plays_in_minimap(6, true, false, true));   // the pause loops

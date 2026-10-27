@@ -79,6 +79,9 @@ struct MenuEvent {
     std::optional<EndlessSetup> setup{};
     /// Scenario: the chapter of the tutorial, nothing for another scenario.
     std::optional<std::uint8_t> tutorial_chapter{};
+    /// Scenario: the campaign of the menu's entry (the header of its first part), which the
+    /// original records the win under, whatever the started part's own header says (D-015).
+    std::optional<std::uint32_t> campaign{};
 };
 
 class MainMenu {
@@ -168,6 +171,8 @@ private:
     /// The endless game: the lines on the chosen level below the briefing.
     void append_level_notes();
     [[nodiscard]] std::filesystem::path chosen_file() const;
+    /// The campaign of the chosen entry, nothing for a scenario outside the campaigns.
+    [[nodiscard]] std::optional<std::uint32_t> chosen_campaign() const;
 
     const assets::GameDirectory* m_game;
     const assets::TextTable* m_texts;
