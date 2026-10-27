@@ -152,6 +152,8 @@ struct ModRules {
     std::vector<assets::InfraLevel> levels;
     /// The images of the packages with their sprite numbers (graphics.toml).
     std::vector<assets::PackageImage> images;
+    /// The figures the packages draw with their images (figure_images.toml).
+    std::vector<assets::FigureLook> looks;
     /// The music of the packages (music.toml).
     std::vector<audio::MusicTrack> music;
 };
@@ -216,6 +218,10 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
         if (const auto bytes = core::read_file(package.folder / assets::kGraphicsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             assets::apply_graphics_file(rules.images, package.id, package.folder, text, problems);
+        }
+        if (const auto bytes = core::read_file(package.folder / assets::kFigureImagesFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_figure_images_file(rules.looks, package.id, text, rules.images, figures, problems);
         }
         if (const auto bytes = core::read_file(package.folder / audio::kMusicFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
@@ -376,6 +382,8 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_classes = std::move(rules.classes);
     viewer->m_levels = std::move(rules.levels);
     viewer->m_package_images = std::move(rules.images);
+    viewer->m_figure_looks = std::move(rules.looks);
+    assets::apply_figure_looks(viewer->m_figures, viewer->m_original_figures, viewer->m_figure_looks);
     viewer->m_packages = std::move(packages);
     {
         std::vector<std::string> problems;
@@ -2649,6 +2657,10 @@ void MapViewer::reload_mods() {
     m_classes = std::move(rules.classes);
     m_levels = std::move(rules.levels);
     m_sound->set_package_music(std::move(rules.music));
+    if (rules.looks != m_figure_looks) {
+        m_figure_looks = std::move(rules.looks);
+        assets::apply_figure_looks(m_figures, m_original_figures, m_figure_looks);
+    }
     if (rules.images != m_package_images) {
         // Other pictures: the zoom levels are made again with them.
         m_package_images = std::move(rules.images);

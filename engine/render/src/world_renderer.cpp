@@ -7,6 +7,7 @@
 #include <iterator>
 #include <numbers>
 
+#include "o1602/assets/figure_looks.hpp"
 #include "o1602/assets/game_data.hpp"
 #include "o1602/sim/disasters.hpp"
 #include "o1602/sim/houses.hpp"
@@ -357,7 +358,12 @@ bool ship_sprites(const sim::Ship& ship, const sim::World& world, const WorldVie
     // Hull: sprite = Gfx + ((direction + 2 * view rotation) & 7) * Rotate (0x0044FA60), centred,
     // bottom at Y + Posoffs[0] * w/64 (field +0x0C of the figure record).
     const std::uint32_t dir = (ship.direction + 2U * rw.rotation) & 7U;
-    out.hull.sprite = layers.ship_base + fig->gfx + dir * fig->rotate;
+    // From SHIP.BSH, or from the terrain sheet for a ship drawn with a package's image (figure_looks.hpp).
+    const std::uint32_t hull_base =
+        assets::draws_package_image(*fig)
+            ? layers.sheet_base[static_cast<std::size_t>(assets::FigureSheet::Stadtfld)].value_or(0)
+            : layers.ship_base;
+    out.hull.sprite = hull_base + fig->gfx + dir * fig->rotate;
     const AtlasRect& hull = layers.atlas->rect(out.hull.sprite);
     out.hull.x = static_cast<std::int32_t>(std::floor(screen_x)) - hull.width / 2;
     out.hull.y = depth + fig->posoffs[0] * itw / 64 - 1;
@@ -856,7 +862,10 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
     if (type == nullptr || undiscovered(world, layers.local_player, figure.island)) {
         return false;
     }
-    const auto base = layers.sheet_base[static_cast<std::size_t>(figure.sheet.value_or(type->sheet))];
+    // A package's image comes from the terrain sheet, whatever sheet the figure's kind draws from.
+    const assets::FigureSheet sheet =
+        assets::draws_package_image(*type) ? assets::FigureSheet::Stadtfld : figure.sheet.value_or(type->sheet);
+    const auto base = layers.sheet_base[static_cast<std::size_t>(sheet)];
     if (!base) {
         return false;  // no graphics for this figure at this zoom level
     }
@@ -868,10 +877,13 @@ bool land_figure_sprites(const FigureInstance& figure, const sim::World& world, 
         const Banner* banner =
             owner != nullptr && layers.banners != nullptr ? layers.banners->get(owner->banner) : nullptr;
         if (banner != nullptr && banner->unit_variant && *banner->unit_variant < variant->count) {
-            if (const assets::FigureType* v = layers.figures->get(variant->family + *banner->unit_variant)) {
+            // A variant drawn from another sheet than the figure (one colour given a package's image) is not used.
+            if (const assets::FigureType* v = layers.figures->get(variant->family + *banner->unit_variant);
+                v != nullptr && assets::draws_package_image(*v) == assets::draws_package_image(*type)) {
                 body_type = v;
             }
-        } else if (banner != nullptr && layers.unit_tint != nullptr) {
+        } else if (banner != nullptr && layers.unit_tint != nullptr && sheet == assets::FigureSheet::Soldat) {
+            // The tinted templates are of SOLDAT.BSH: a unit drawn with a package's image keeps its colours.
             tinted_body = layers.unit_tint->sprite(
                 owner->banner,
                 assets::figure_sprite(*type, figure.anim, figure.frame, figure.direction, view_in.rotation));
@@ -948,8 +960,12 @@ bool effect_figure_sprites(const EffectFigure& figure, const sim::World& world, 
         return false;
     }
     const assets::FigureType* fig = layers.figures->get(figure.figure);
-    const auto base = layers.sheet_base[static_cast<std::size_t>(figure.sheet)];
-    if (fig == nullptr || !base || undiscovered(world, layers.local_player, figure.island)) {
+    if (fig == nullptr) {
+        return false;
+    }
+    const auto base = layers.sheet_base[static_cast<std::size_t>(
+        assets::draws_package_image(*fig) ? assets::FigureSheet::Stadtfld : figure.sheet)];
+    if (!base || undiscovered(world, layers.local_player, figure.island)) {
         return false;
     }
     const WorldView view = fit_view(view_in, world);
