@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 
+#include "o1602/audio/sound_file.hpp"
 #include "o1602/core/file.hpp"
 
 namespace o1602::audio {
@@ -33,7 +34,7 @@ core::Result<Pcm> SoundBank::decode_file(const std::filesystem::path& path) {
     if (!bytes) {
         return bytes.error();
     }
-    auto pcm = decode_wav(*bytes);
+    auto pcm = decode_sound(*bytes);
     if (!pcm) {
         return core::make_error(pcm.error().code, core::path_to_utf8(path) + ": " + pcm.error().message);
     }

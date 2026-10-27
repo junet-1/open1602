@@ -22,7 +22,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 
 | File | Changes | Guide |
 |---|---|---|
-| `messages.toml` | messages of the status bar: new ones and the original's, text per language, icon, WAV sound or original voice, original video | [messages.md](messages.md) |
+| `messages.toml` | messages of the status bar: new ones and the original's, text per language, icon, own sound (WAV, Ogg Vorbis, FLAC) or original voice, original video | [messages.md](messages.md) |
 | `build_menu.toml` | the build menu: a package's buildings with icon and name, the original's moved or taken out | [build-menu.md](build-menu.md) |
 | `factions.toml` | how pirate nests, trader ships and the trader's reach grow with the players | [factions.md](factions.md) |
 | `balance.toml` | trader amounts and restocking, castle training and landing range, fire and plague spread | [balance.md](balance.md) |
@@ -31,6 +31,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `own_buildings.toml` | buildings of the package's own, each copying one of the original | [own-buildings.md](own-buildings.md) |
 | `goods.toml` | trade goods of the package's own: price, icon, names | [goods.md](goods.md) |
 | `classes.toml` | classes of inhabitants: the original's changed, new ones after them, needs of any good | [classes.md](classes.md) |
+| `music.toml` | music tracks of the package's own (WAV, Ogg Vorbis, FLAC), normal or battle music | [sounds.md](sounds.md) |
 | `graphics.toml` | PNG images of the package's own, drawn by its buildings at all three zoom levels | [graphics.md](graphics.md) |
 | `levels.toml` | unlock levels: the original's changed, new ones after the 32nd, also of a new class | [levels.md](levels.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
@@ -104,7 +105,12 @@ of their own (today they use the original's).
 Part 1 done on 2026-10-27 ([graphics.md](graphics.md)): `graphics.toml` names PNG images, grids of
 sprites that get numbers from 40000 in the packages' load order; a building of a package draws one
 (`gfx = "<package>:<name>"`) at all three zoom levels, the smaller ones given or halved from the
-larger. Still open: icons, figures and ships, sounds and music.
+larger.
+
+Part 2 done on 2026-10-27 ([sounds.md](sounds.md)): the game reads Ogg Vorbis and FLAC besides WAV
+(stb_vorbis and dr_flac in `third_party`); `music.toml` adds a package's tracks to the music, as
+normal or battle music, and a message's sound may be any of the three. Still open: icons, figures
+and ships, and sounds of a package's buildings and figures.
 
 ### 5. Computer players from data (section 3; MD-4)
 

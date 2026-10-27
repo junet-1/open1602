@@ -27,6 +27,7 @@ with milestone M8: packages as archives and adding content of a package's own
     classes.toml       classes of inhabitants, changed and new (classes.md)
     levels.toml        unlock levels, changed and new (levels.md)
     graphics.toml      PNG images of the package's own (graphics.md)
+    music.toml         music of the package's own (sounds.md)
 ```
 
 The folder's name is the package's id, for example `lighthouse`. The ids of a package's entries

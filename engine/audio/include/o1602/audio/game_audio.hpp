@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "o1602/audio/mixer.hpp"
+#include "o1602/audio/package_music.hpp"
 #include "o1602/audio/sound_bank.hpp"
 
 namespace o1602::audio {
@@ -223,11 +224,12 @@ private:
 /// The music (Music_Update 0x00489190): the tracks of MUSIC8 except Fight1..3, at random (not
 /// one of the last few) or in order; battle music while shots fall near the middle of the view, back
 /// 25 s after the last; a change fades out over 3 s. The order of the tracks is by name, not by
-/// the file system's (U-014).
+/// the file system's (U-014). The tracks of content packages come after the original's
+/// (package_music.hpp).
 class Music {
 public:
     Music(Mixer& mixer, SoundBank& bank, std::vector<std::string> tracks, std::vector<std::string> fights,
-          std::uint32_t seed = 1602);
+          std::uint32_t seed = 1602, std::vector<MusicTrack> own = {});
 
     /// Titles of the MUSIC8 files (without ".wav"), sorted: normal tracks and the Fight tracks.
     static void scan(const assets::GameDirectory& game, std::vector<std::string>& tracks,
@@ -262,6 +264,7 @@ private:
     SoundBank* m_bank;
     std::vector<std::string> m_tracks;
     std::vector<std::string> m_fights;
+    std::vector<MusicTrack> m_own;  ///< the packages' tracks, played from their files
     std::vector<bool> m_enabled;
     std::mt19937 m_random;
     AudioSettings m_settings;

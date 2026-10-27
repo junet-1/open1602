@@ -19,6 +19,7 @@
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/assets/game_directory.hpp"
 #include "o1602/audio/game_audio.hpp"
+#include "o1602/audio/package_music.hpp"
 #include "o1602/platform/audio_output.hpp"
 #include "o1602/render/ambient.hpp"
 #include "o1602/sim/simulation.hpp"
@@ -55,6 +56,9 @@ public:
     /// --no-sound and --no-music silence only this run and never show up here.
     [[nodiscard]] const audio::AudioSettings& settings() const noexcept { return m_settings; }
     void set_settings(const audio::AudioSettings& settings);
+    /// The music of the content packages, after MUSIC8's tracks (docs/modding/sounds.md); the music
+    /// starts anew with them.
+    void set_package_music(std::vector<audio::MusicTrack> tracks);
     /// Titles of the music (empty without device) and the one playing now.
     [[nodiscard]] std::vector<std::string> tracks() const;
     [[nodiscard]] std::string playing() const;
@@ -134,6 +138,7 @@ private:
     audio::Effects m_effects;
     audio::Voices m_voices;
     std::unique_ptr<audio::Music> m_music;
+    std::vector<audio::MusicTrack> m_package_music;
     audio::AudioSettings m_settings;
     bool m_allow_effects = true;  ///< false with --no-sound
     bool m_allow_music = true;    ///< false with --no-music

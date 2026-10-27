@@ -31,6 +31,7 @@
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
 #include "o1602/assets/unlock_levels.hpp"
+#include "o1602/audio/package_music.hpp"
 #include "o1602/core/file.hpp"
 #include "o1602/core/png_writer.hpp"
 #include "o1602/core/text.hpp"
@@ -150,6 +151,8 @@ struct ModRules {
     std::vector<assets::InfraLevel> levels;
     /// The images of the packages with their sprite numbers (graphics.toml).
     std::vector<assets::PackageImage> images;
+    /// The music of the packages (music.toml).
+    std::vector<audio::MusicTrack> music;
 };
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
@@ -195,6 +198,10 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
         if (const auto bytes = core::read_file(package.folder / assets::kGraphicsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             assets::apply_graphics_file(rules.images, package.id, package.folder, text, problems);
+        }
+        if (const auto bytes = core::read_file(package.folder / audio::kMusicFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            audio::apply_music_file(rules.music, package.id, package.folder, text, problems);
         }
     }
     for (const assets::ModPackage& package : packages) {
@@ -401,6 +408,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     // The messages and build menu of the game's packages, before the panels take the menu.
     viewer->use_game_packages();
     viewer->m_sound->set_messages(&viewer->m_messages);
+    viewer->m_sound->set_package_music(std::move(rules.music));
     viewer->m_video = std::make_unique<VideoController>(
         options.videos ? std::make_unique<VideoPlayer>(viewer->m_window->sdl_renderer(), viewer->m_game) : nullptr,
         *viewer->m_sound);
@@ -2614,6 +2622,7 @@ void MapViewer::reload_mods() {
     m_goods = std::move(rules.goods);
     m_classes = std::move(rules.classes);
     m_levels = std::move(rules.levels);
+    m_sound->set_package_music(std::move(rules.music));
     if (rules.images != m_package_images) {
         // Other pictures: the zoom levels are made again with them.
         m_package_images = std::move(rules.images);
