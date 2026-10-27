@@ -27,6 +27,41 @@ Announcement announce(std::uint16_t message, std::optional<std::pair<double, dou
     return a;
 }
 
+/// Where a city's message points (Space and a click on its icon go there): the Kontor, or the middle
+/// of the island while the city has none. The original posts every message with a target (Event_Post
+/// 0x00430D50).
+std::optional<std::pair<double, double>> city_spot(const sim::World& world, const sim::City* c) {
+    if (c == nullptr || c->island >= world.islands().size()) {
+        return std::nullopt;
+    }
+    const sim::WorldIsland& isl = world.islands()[c->island];
+    if (c->warehouse_x && c->warehouse_y) {
+        return std::make_pair(static_cast<double>(isl.x) + *c->warehouse_x,
+                              static_cast<double>(isl.y) + *c->warehouse_y);
+    }
+    return std::make_pair(isl.x + isl.map.width() / 2.0, isl.y + isl.map.height() / 2.0);
+}
+
+/// A player's largest city, for a message about the player as a whole (diplomacy).
+std::optional<std::pair<double, double>> player_spot(const sim::World& world, sim::PlayerId player) {
+    const sim::City* best = nullptr;
+    std::uint64_t most = 0;
+    for (const sim::City& c : world.cities()) {
+        if (c.owner != player) {
+            continue;
+        }
+        std::uint64_t n = 0;
+        for (const std::uint32_t i : c.inhabitants) {
+            n += i;
+        }
+        if (best == nullptr || n > most) {
+            best = &c;
+            most = n;
+        }
+    }
+    return city_spot(world, best);
+}
+
 /// A message whose video plays only some of its tracks: the messages 0x6B..0x6E speak to the
 /// winner on track 1 and to the others on track 2.
 Announcement announce_with_tracks(std::uint16_t message, std::uint8_t tracks) {
@@ -138,7 +173,8 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
             const std::uint32_t key = std::uint32_t{e.owner} << 8 | e.message;
             if (std::find(m_rival_sizes.begin(), m_rival_sizes.end(), key) == m_rival_sizes.end()) {
                 m_rival_sizes.push_back(key);
-                out.emplace_back(announce(static_cast<std::uint16_t>(e.message + 0x0C)));
+                out.emplace_back(announce(static_cast<std::uint16_t>(e.message + 0x0C),
+                                          city_spot(world, world.city(e.island, e.city))));
             }
             continue;
         }
@@ -147,25 +183,26 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
         }
         const sim::City* city = world.city(e.island, e.city);
         const std::string name = city != nullptr ? city->name : std::string("?");
+        const auto spot = city_spot(world, city);
         if (e.kind == sim::CityEvent::Kind::Hunger) {
             std::fprintf(stderr, "%s: the people are starving\n", name.c_str());
-            out.emplace_back(announce(0x33));
+            out.emplace_back(announce(0x33, spot));
         } else if (e.kind == sim::CityEvent::Kind::Monument) {
-            out.emplace_back(announce(0x31));
+            out.emplace_back(announce(0x31, spot));
         } else if (e.kind == sim::CityEvent::Kind::MaterialLocked) {
             std::fprintf(stderr, "%s: the people get no building material\n", name.c_str());
-            out.emplace_back(announce(0x48));
+            out.emplace_back(announce(0x48, spot));
         } else if (e.kind == sim::CityEvent::Kind::Unlocked) {
             std::fprintf(stderr, "%s: build level %u reached\n", name.c_str(), e.infra);
             if (const auto message = wish_message(e.infra)) {
-                out.emplace_back(announce(*message));
+                out.emplace_back(announce(*message, spot));
             }
         } else if (e.kind == sim::CityEvent::Kind::Population) {
-            out.emplace_back(announce(e.message));
+            out.emplace_back(announce(e.message, spot));
         } else if (e.kind == sim::CityEvent::Kind::RunningLow) {
             std::fprintf(stderr, "%s: ware %u lasts about %u more minutes\n", name.c_str(), e.ware, e.minutes);
             if (const auto message = shortage_message(e.ware)) {
-                Announcement a = announce(*message);
+                Announcement a = announce(*message, spot);
                 const assets::OwnGood* own = world.goods().own(e.ware);
                 const std::string ware = own != nullptr                 ? own->name(ui::current_language())
                                          : e.ware < m_ware_names.size() ? m_ware_names[e.ware]
@@ -178,7 +215,7 @@ std::vector<Notice> EventPresenter::city_events(const sim::World& world, sim::Pl
             std::fprintf(stderr, "%s: short of ware %u\n", name.c_str(), e.ware);
             // Told already, before the store ran empty (RunningLow).
             if (const auto message = shortage_message(e.ware); message && !e.warned) {
-                out.emplace_back(announce(*message));
+                out.emplace_back(announce(*message, spot));
             }
         }
     }
@@ -258,7 +295,7 @@ std::vector<Notice> EventPresenter::island_events(const sim::World& world, sim::
         switch (e.kind) {
             case sim::IslandEvent::Kind::DroughtStarted:
                 std::fprintf(stderr, "%s: the drought destroys your harvest!\n", own->name.c_str());
-                out.emplace_back(announce(0x03));
+                out.emplace_back(announce(0x03, city_spot(world, own)));
                 break;
             case sim::IslandEvent::Kind::Withered:
                 std::fprintf(stderr, "%s: %u fields withered\n", own->name.c_str(), e.count);
@@ -341,7 +378,7 @@ std::vector<Notice> EventPresenter::construction_events(const sim::World& world,
     return out;
 }
 
-std::vector<Notice> EventPresenter::diplomacy_notices(sim::PlayerId local,
+std::vector<Notice> EventPresenter::diplomacy_notices(const sim::World& world, sim::PlayerId local,
                                                       const std::vector<sim::DiplomacyNotice>& notices) const {
     static constexpr std::array<std::uint16_t, 6> kMessages = {0x4D, 0x4E, 0x4F, 0x50, 0x51, 0x52};
     std::vector<Notice> out;
@@ -349,7 +386,7 @@ std::vector<Notice> EventPresenter::diplomacy_notices(sim::PlayerId local,
         if (n.to == local) {
             // The icon in the colour of the partner who acted (Open1602: with up to eleven partners the
             // message alone does not tell who).
-            out.emplace_back(announce(kMessages[static_cast<std::size_t>(n.kind)], std::nullopt,
+            out.emplace_back(announce(kMessages[static_cast<std::size_t>(n.kind)], player_spot(world, n.from),
                                       n.from != sim::kNoPlayer ? std::optional<sim::PlayerId>(n.from) : std::nullopt));
         }
     }

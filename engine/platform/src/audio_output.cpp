@@ -8,6 +8,9 @@
 namespace o1602::platform {
 
 core::Result<std::unique_ptr<AudioOutput>> AudioOutput::open(std::uint32_t rate) {
+    // A small device buffer (about 12 ms at 44.1 kHz): the game keeps its own short queue ahead of
+    // it, and a large one would only delay every sound. Drivers may round it up.
+    SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "512");
     if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
         return sdl_error("SDL_InitSubSystem(audio)");
     }
