@@ -46,7 +46,7 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: +1\n  Id: 20503\n  Kind: 14\n  Gfx: 10\n  Size: 2, 2\n  Wegspeed: 120, 120, 120, 100\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Maxlager: 4\n    Ware: 10\n    Rohstoff: 5\n    Rohmenge: 1\n"
         "    Prodmenge: 1\n    Interval: 20\n    Figurnr: 80\n    Radius: 8\n  EndObj\n"
-        "  @Nummer: +1\n  Id: 20504\n  Kind: 14\n  Gfx: 70\n  Size: 2, 2\n  Tuerflg: 1\n"
+        "  @Nummer: +1\n  Id: 20504\n  Kind: 14\n  Gfx: 80\n  Size: 2, 2\n  Tuerflg: 1\n"
         "  Wegspeed: 120, 120, 120, 100\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Maxlager: 4\n    Ware: 10\n    Rohstoff: 5\n    Rohmenge: 1\n"
         "    Prodmenge: 1\n    Interval: 20\n    Figurnr: 80\n    Radius: 8\n  EndObj\n"
