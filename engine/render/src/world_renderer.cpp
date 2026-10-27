@@ -1199,7 +1199,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                 continue;
             }
             ShipSprites s;
-            if (ship_sprites(ship, world, view, layers, clock.elapsed_ms(), s)) {
+            if (ship_sprites(ship, world, view, layers, clock.figure_ms(), s)) {
                 FigureSprites f;
                 f.row = s.row;
                 f.depth = s.depth;
@@ -1228,7 +1228,7 @@ void build_world_draw_list(const sim::World& world, const assets::BuildingTable&
                     continue;
                 }
                 FigureSprites f;
-                if (building_figure_sprites(bf, world, buildings, view, layers, clock.elapsed_ms(), f)) {
+                if (building_figure_sprites(bf, world, buildings, view, layers, clock.figure_ms(), f)) {
                     add_figure(f);
                 }
             }
