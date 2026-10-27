@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <utility>
@@ -10,6 +11,7 @@
 
 #include "o1602/render/dither.hpp"
 #include "o1602/render/flag_tint.hpp"
+#include "o1602/render/package_sprites.hpp"
 #include "o1602/render/unit_tint.hpp"
 
 namespace o1602::render {
@@ -71,6 +73,20 @@ core::Result<WorldGraphics> load_world_graphics(const assets::GameDirectory& gam
             sources.push_back(std::make_unique<SheetSource>(l.sheet, palette));
         }
         pointers.push_back(sources.back().get());
+    }
+    // The packages' images join the terrain at their sprite numbers, after STADTFLD's.
+    std::vector<std::unique_ptr<PackageImageSource>> package_sources;
+    PlacedSources terrain_with_packages;
+    if (!options.package_images.empty() && pointers.front()->count() <= assets::kFirstPackageSprite) {
+        terrain_with_packages.place(0, *pointers.front());
+        for (const assets::PackageImage& image : options.package_images) {
+            package_sources.push_back(std::make_unique<PackageImageSource>(image, static_cast<std::size_t>(zoom)));
+            if (!package_sources.back()->error().empty()) {
+                std::fprintf(stderr, "mods: %s: %s\n", image.id.c_str(), package_sources.back()->error().c_str());
+            }
+            terrain_with_packages.place(image.first, *package_sources.back());
+        }
+        pointers.front() = &terrain_with_packages;
     }
     // Tinted player flags after all sheets: one block of frames per banner with a tinted flag.
     std::vector<std::optional<std::uint32_t>> flag_slot;  // block index per banner

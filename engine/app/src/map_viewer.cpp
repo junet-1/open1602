@@ -26,6 +26,7 @@
 #include "o1602/assets/data_fixes.hpp"
 #include "o1602/assets/game_content.hpp"
 #include "o1602/assets/high_scores.hpp"
+#include "o1602/assets/package_graphics.hpp"
 #include "o1602/assets/resident_classes.hpp"
 #include "o1602/assets/sprite_sheet.hpp"
 #include "o1602/assets/text_table.hpp"
@@ -147,6 +148,8 @@ struct ModRules {
     std::vector<assets::ResidentClass> classes;
     /// The unlock levels as the packages change and add them (levels.toml); empty when none does.
     std::vector<assets::InfraLevel> levels;
+    /// The images of the packages with their sprite numbers (graphics.toml).
+    std::vector<assets::PackageImage> images;
 };
 
 /// The base game's factions and numbers as the mods change them (<package folder>/factions.toml and
@@ -187,11 +190,18 @@ ModRules load_mod_rules(std::span<const assets::ModPackage> packages, assets::Bu
     if (levels_changed) {
         rules.levels = levels;
     }
+    // Then the images the buildings draw.
+    for (const assets::ModPackage& package : packages) {
+        if (const auto bytes = core::read_file(package.folder / assets::kGraphicsFile)) {
+            const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
+            assets::apply_graphics_file(rules.images, package.id, package.folder, text, problems);
+        }
+    }
     for (const assets::ModPackage& package : packages) {
         if (const auto bytes = core::read_file(package.folder / assets::kOwnBuildingsFile)) {
             const std::string_view text(reinterpret_cast<const char*>(bytes->data()), bytes->size());
             assets::apply_own_buildings_file(buildings, rules.own, package.id, text, problems, rules.goods, classes,
-                                             levels);
+                                             levels, rules.images);
         }
     }
     for (const assets::ModPackage& package : packages) {
@@ -340,6 +350,7 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
     viewer->m_goods = std::move(rules.goods);
     viewer->m_classes = std::move(rules.classes);
     viewer->m_levels = std::move(rules.levels);
+    viewer->m_package_images = std::move(rules.images);
     viewer->m_packages = std::move(packages);
     {
         std::vector<std::string> problems;
@@ -586,6 +597,7 @@ void MapViewer::start_preloading() {
     options.page_size = m_window->max_texture_size() >= 4096 ? 4096U : 2048U;
     options.derive_missing_sheets = m_options.derive_small_figures;
     options.dither = m_app_settings.display.classic_graphics;
+    options.package_images = m_package_images;
     // The thread works on its own copies: nothing it reads changes under it.
     m_preloader = std::make_unique<render::GraphicsPreloader>(
         [game = m_game, palette = m_palette, banners = m_banners, figures = m_figures, options](
@@ -2602,6 +2614,12 @@ void MapViewer::reload_mods() {
     m_goods = std::move(rules.goods);
     m_classes = std::move(rules.classes);
     m_levels = std::move(rules.levels);
+    if (rules.images != m_package_images) {
+        // Other pictures: the zoom levels are made again with them.
+        m_package_images = std::move(rules.images);
+        start_preloading();
+        reload_graphics();
+    }
     // Packages are turned on and off in the main menu, where no game is running: the game's table
     // takes the buildings the packages give now, with the values of the world behind the menu.
     m_buildings = m_original_buildings;

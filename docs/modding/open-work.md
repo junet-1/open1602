@@ -31,6 +31,7 @@ the game besides (sections `FACT` and `BALA`), so every computer plays the host'
 | `own_buildings.toml` | buildings of the package's own, each copying one of the original | [own-buildings.md](own-buildings.md) |
 | `goods.toml` | trade goods of the package's own: price, icon, names | [goods.md](goods.md) |
 | `classes.toml` | classes of inhabitants: the original's changed, new ones after them, needs of any good | [classes.md](classes.md) |
+| `graphics.toml` | PNG images of the package's own, drawn by its buildings at all three zoom levels | [graphics.md](graphics.md) |
 | `levels.toml` | unlock levels: the original's changed, new ones after the 32nd, also of a new class | [levels.md](levels.md) |
 | `mod.toml` | the package's name, version, dependencies and load order | [packages.md](packages.md) |
 
@@ -99,6 +100,11 @@ than five classes, messages of a package's own for its levels, and pictures of t
 Import of PNG atlases with a description file for buildings, figures and icons, and of OGG, WAV and
 FLAC for music and sounds. This is also what the mods' messages need for icons, sounds and videos
 of their own (today they use the original's).
+
+Part 1 done on 2026-10-27 ([graphics.md](graphics.md)): `graphics.toml` names PNG images, grids of
+sprites that get numbers from 40000 in the packages' load order; a building of a package draws one
+(`gfx = "<package>:<name>"`) at all three zoom levels, the smaller ones given or halved from the
+larger. Still open: icons, figures and ships, sounds and music.
 
 ### 5. Computer players from data (section 3; MD-4)
 
