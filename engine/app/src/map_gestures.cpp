@@ -40,4 +40,15 @@ std::optional<std::size_t> next_idle(const std::vector<ui::UnitRef>& idle, std::
     return it == idle.end() ? 0 : static_cast<std::size_t>(it - idle.begin() + 1) % idle.size();
 }
 
+std::optional<std::size_t> next_in_cycle(const std::vector<std::size_t>& items, std::optional<std::size_t> current) {
+    if (items.empty()) {
+        return std::nullopt;
+    }
+    if (!current) {
+        return 0;
+    }
+    const auto it = std::find(items.begin(), items.end(), *current);
+    return it == items.end() ? 0 : static_cast<std::size_t>(it - items.begin() + 1) % items.size();
+}
+
 }  // namespace o1602::app

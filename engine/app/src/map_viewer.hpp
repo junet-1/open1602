@@ -117,6 +117,8 @@ private:
     void request_screenshot() override;
     void quit() override { m_running = false; }
     void toggle_owners() override { m_show_owners = !m_show_owners; }
+    void toggle_fps() override { m_show_fps = !m_show_fps; }
+    void toggle_coordinates() override { m_show_coordinates = !m_show_coordinates; }
     void toggle_fullscreen() override;
     void toggle_pause_video() override;
 
@@ -125,6 +127,8 @@ private:
     void update(std::uint32_t delta_ms);
     void render();
     void update_title(double fps);
+    /// The frame rate and the tile under the mouse in the map's top right corner, as switched on.
+    void draw_corner_info();
     /// The English developer readout under O1602_DEBUG_TITLE: the map under the mouse, the selection, fps.
     [[nodiscard]] std::string debug_title(double fps);
     /// Where the camera starts and Home goes: the local player's Kontor, else his first ship,
@@ -475,6 +479,9 @@ private:
 
     bool m_running = true;
     bool m_show_owners = false;              ///< ownership overlay (key O)
+    bool m_show_fps = false;                 ///< the frame rate in the map's corner (Ctrl+F)
+    bool m_show_coordinates = false;         ///< the tile under the mouse in the map's corner (Ctrl+K)
+    double m_fps = 0.0;                      ///< frames a second, measured for the title
     bool m_quit_pending = false;             ///< "Ende" waits for the answer to its question
     AppSettings m_app_settings;              ///< settings.cfg in the user's data folder
     SaveSlots m_slots;                       ///< names of the savegames of the panel DISK

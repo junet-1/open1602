@@ -1459,6 +1459,7 @@ void MapViewer::render() {
         preview.restore();
         draw_map(*graphics);
         draw_stock_notes();
+        draw_corner_info();
         m_input->draw_overlay();
     }
     if (m_hud) {
@@ -1740,6 +1741,45 @@ void MapViewer::draw_stock_notes() {
         d.y = static_cast<std::int32_t>(std::floor(sy));
         d.text = n.text;
         items.push_back(std::move(d));
+    }
+    m_hud->draw_over_map(items);
+}
+
+void MapViewer::draw_corner_info() {
+    if (m_hud == nullptr || (!m_show_fps && !m_show_coordinates)) {
+        return;
+    }
+    std::vector<std::string> lines;
+    if (m_show_fps) {
+        lines.push_back(ui::tr("overlay.fps", {std::to_string(static_cast<long>(std::lround(m_fps)))}));
+    }
+    if (m_show_coordinates) {
+        if (const auto tile = m_input->tile_at_mouse()) {
+            const sim::World::Cell& cell = m_state->world.cell(tile->x, tile->y);
+            lines.push_back(
+                cell.island == sim::World::kSea
+                    ? ui::tr("overlay.coordinates", {std::to_string(tile->x), std::to_string(tile->y)})
+                    : ui::tr("overlay.coordinates_island",
+                             {std::to_string(tile->x), std::to_string(tile->y), std::to_string(cell.island + 1),
+                              std::to_string(cell.local_x), std::to_string(cell.local_y)}));
+        }
+    }
+    // Under the right end of the top bar, in the small font, white with a black shadow.
+    const ui::Rect& v = m_hud->game_view();
+    const double scale = m_hud->scale();
+    std::vector<ui::DrawItem> items;
+    std::int32_t y = v.y + ui::to_pixels(40, scale);
+    for (std::string& line : lines) {
+        ui::DrawItem d;
+        d.kind = ui::DrawItem::Kind::Text;
+        d.block = 1;
+        d.colour = 0;
+        d.align = ui::Align::Right;
+        d.x = v.x + v.w - ui::to_pixels(8, scale);
+        d.y = y;
+        d.text = std::move(line);
+        items.push_back(std::move(d));
+        y += ui::to_pixels(14, scale);
     }
     m_hud->draw_over_map(items);
 }
@@ -2275,6 +2315,7 @@ void MapViewer::update_title(double fps) {
     // The window title: the game, its time and speed, in the player's language. With
     // O1602_DEBUG_TITLE set it also shows what lies under the mouse, the selection and the frame rate.
     // In the menus no game is played (the world behind them is only a backdrop): the name alone.
+    m_fps = fps;
     const bool in_menu = m_hud && m_hud->menu_active() && !m_debug_title;
     if (in_menu) {
         m_title_real_ms = 0;  // the time in the menus does not count as a slow game

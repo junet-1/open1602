@@ -27,6 +27,7 @@ enum class KeyAction : std::uint16_t {
     ZoomOut,
     JumpToMessage,
     CentreOnSelection,
+    NextCity,  ///< the camera to the player's next city (History Edition)
     Pause,
     PauseVideo,  ///< the original's pause: the game stops, the pause video loops (U-018)
     SpeedUp,
@@ -49,6 +50,7 @@ enum class KeyAction : std::uint16_t {
     Chat,             ///< the chat of a multiplayer game (Open1602)
     // Building
     RotateBuilding,
+    RotateBuildingBack,  ///< the other way round (History Edition)
     PickBuilding,
     DemolishTool,
     NextBuilding,  ///< Open1602's list of all buildings (tests and modding)
@@ -75,7 +77,9 @@ enum class KeyAction : std::uint16_t {
     PixelScaleUp,
     PixelScaleDown,
     ShowOwners,
-    Fullscreen,  ///< window or full screen
+    ShowFps,          ///< the frame rate in the corner of the map (History Edition)
+    ShowCoordinates,  ///< the tile under the mouse in the corner of the map (History Edition)
+    Fullscreen,       ///< window or full screen
     Quit,
 };
 

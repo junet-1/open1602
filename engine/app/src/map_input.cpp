@@ -159,6 +159,7 @@ void MapInput::setup_keys() {
     general(chord(SDLK_PAGEDOWN), KeyAction::ZoomOut);
     general(chord(SDLK_SPACE), KeyAction::JumpToMessage);
     general(chord(SDLK_HOME), KeyAction::CentreOnSelection);
+    general(chord(SDLK_N), KeyAction::NextCity);
     general(chord(SDLK_F3), KeyAction::Pause);
     general(chord(SDLK_PAUSE), KeyAction::PauseVideo);
     general(chord(SDLK_KP_PLUS), KeyAction::SpeedUp);
@@ -199,11 +200,14 @@ void MapInput::setup_keys() {
     general(chord(SDLK_EQUALS, true), KeyAction::PixelScaleUp);
     general(chord(SDLK_MINUS, true), KeyAction::PixelScaleDown);
     general(chord(SDLK_O, true), KeyAction::ShowOwners);
+    general(chord(SDLK_F, true), KeyAction::ShowFps);
+    general(chord(SDLK_K, true), KeyAction::ShowCoordinates);
     general(chord(SDLK_F11), KeyAction::Fullscreen);
     general(ui::KeyChord{static_cast<std::int32_t>(SDLK_RETURN), false, false, true}, KeyAction::Fullscreen);
     general(chord(SDLK_Q, true), KeyAction::Quit);
     // Building
     building(chord(SDLK_R), KeyAction::RotateBuilding);
+    building(chord(SDLK_R, false, true), KeyAction::RotateBuildingBack);
     building(chord(SDLK_C), KeyAction::PickBuilding);
     building(chord(SDLK_DELETE), KeyAction::DemolishTool);
     building(chord(SDLK_TAB), KeyAction::NextBuilding);
@@ -429,6 +433,24 @@ void MapInput::run_action(const ui::KeyBinding& b) {
                 m_camera.center_on(m_host.home_tile());
             }
             break;
+        case KeyAction::NextCity: {
+            // The player's cities with a Kontor, one after the other (History Edition).
+            std::vector<std::size_t> own;
+            const std::vector<sim::City>& cities = world().cities();
+            for (std::size_t i = 0; i < cities.size(); ++i) {
+                const sim::City& c = cities[i];
+                if (c.owner == local() && c.warehouse_x && c.warehouse_y && c.island < world().islands().size()) {
+                    own.push_back(i);
+                }
+            }
+            if (const auto next = next_in_cycle(own, m_last_city)) {
+                m_last_city = own[*next];
+                const sim::City& c = cities[own[*next]];
+                const sim::WorldIsland& island = world().islands()[c.island];
+                m_camera.center_on(render::TilePos{island.x + *c.warehouse_x, island.y + *c.warehouse_y});
+            }
+            break;
+        }
         case KeyAction::Pause:
             m_commands.submit(sim::GameSpeedOrder{
                 local(), simulation().paused() ? sim::GameSpeedOrder::Op::Resume : sim::GameSpeedOrder::Op::Pause,
@@ -508,6 +530,9 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             break;
         case KeyAction::RotateBuilding:
             m_tool.rotate(1);
+            break;
+        case KeyAction::RotateBuildingBack:
+            m_tool.rotate(-1);
             break;
         case KeyAction::PickBuilding:
             // The pipette: the building under the mouse becomes the order.
@@ -662,6 +687,12 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             break;
         case KeyAction::ShowOwners:
             m_host.toggle_owners();
+            break;
+        case KeyAction::ShowFps:
+            m_host.toggle_fps();
+            break;
+        case KeyAction::ShowCoordinates:
+            m_host.toggle_coordinates();
             break;
         case KeyAction::Fullscreen:
             m_host.toggle_fullscreen();

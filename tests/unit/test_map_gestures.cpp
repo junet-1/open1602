@@ -67,3 +67,13 @@ TEST_CASE("map gestures: the next idle unit after the one selected") {
     CHECK(app::next_idle(idle, Ref{Ref::Kind::Ship, 9}) == std::optional<std::size_t>(0));  // round again
     CHECK(app::next_idle(idle, Ref{Ref::Kind::Ship, 5}) == std::optional<std::size_t>(0));  // a busy one
 }
+
+TEST_CASE("map gestures: the next city after the one the key went to last (History Edition)") {
+    const std::vector<std::size_t> cities = {1, 4, 6};  // the player's cities among World::cities()
+    CHECK(!app::next_in_cycle({}, std::nullopt).has_value());
+    CHECK(!app::next_in_cycle({}, std::size_t{4}).has_value());
+    CHECK(app::next_in_cycle(cities, std::nullopt) == std::optional<std::size_t>(0));
+    CHECK(app::next_in_cycle(cities, std::size_t{1}) == std::optional<std::size_t>(1));
+    CHECK(app::next_in_cycle(cities, std::size_t{6}) == std::optional<std::size_t>(0));  // round again
+    CHECK(app::next_in_cycle(cities, std::size_t{5}) == std::optional<std::size_t>(0));  // a city lost since
+}
