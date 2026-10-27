@@ -710,7 +710,7 @@ TEST_CASE("construction: walls and towers on the beach, piers in front of a new 
     CHECK(island.at(4, 18)->id == kBeach);
 }
 
-TEST_CASE("construction: a stone wall replaces a palisade, on land and on the beach (0x00464660)") {
+TEST_CASE("construction: a stone wall replaces a palisade, never the other way round (0x00464660)") {
     Island island;
     island.found();
     // A palisade of three pieces, the first on the beach.
@@ -722,9 +722,13 @@ TEST_CASE("construction: a stone wall replaces a palisade, on land and on the be
     CHECK(island.at(4, 15)->kreuz_base == 20);
     CHECK(island.at(5, 15)->kreuz_base == 17);
     CHECK(island.at(6, 15)->kreuz_base == 17);
-    // And back: a palisade over the stone wall (the original allows it too).
-    CHECK(island.build({{22521, 6, 15, 0, 0}}).placed == 1);
-    CHECK(island.at(6, 15)->kreuz_base == 30);
+    // Not back: a palisade does not replace a stone wall, on land or on the beach.
+    for (const std::int32_t x : {4, 6}) {
+        const sim::BuildPlan back = island.build({{22521, x, 15, 0, 0}});
+        CHECK(back.placed == 0);
+        CHECK(back.items[0].refusal == sim::BuildRefusal::Terrain);
+    }
+    CHECK(island.at(6, 15)->kreuz_base == 17);
 }
 
 TEST_CASE("construction: what the build menu offers (Haus_IsAvailableForPlayer 0x0042D530)") {
