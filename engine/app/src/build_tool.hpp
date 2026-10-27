@@ -41,7 +41,8 @@ public:
     void set_orient_to_road(bool on) noexcept { m_orient_to_road = on; }
     /// The History Edition's „Mehrfachplatzierung“, always on: a drag with a house lays them side
     /// by side over the dragged rectangle, from where the drag started; a drag with a pier lays one
-    /// on every tile of the straight line to the mouse. What does not fit is left out, and what cannot be paid for any more stays unbuilt (sim::plan_build).
+    /// on every tile of the straight line to the mouse. What does not fit is left out, and what
+    /// cannot be paid for any more stays unbuilt (sim::plan_build).
     [[nodiscard]] bool multi_drag() const noexcept;
     /// Picks the first Kontor to found from a ship (the ship window's button 38017): its cargo
     /// pays instead of the nearest ship's. False if there is no Kontor to place.
