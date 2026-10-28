@@ -77,6 +77,8 @@ public:
     void set_banners(const render::BannerTable* banners) noexcept { m_banners = banners; }
     /// The goods' names (Text.cod [WARE], by ware number, Windows-1252) for Open1602's messages.
     void set_ware_names(std::vector<std::string> names) { m_ware_names = std::move(names); }
+    /// Whether wars and peace between two other players are told (DisplaySettings::rival_wars).
+    void set_rival_wars(bool on) noexcept { m_rival_wars = on; }
 
     /// The end screen comes this long after the message of a decided game when it has no video,
     /// after an own defeat without one the shorter time (docs/re/missions.md "Sieg"; with a video
@@ -112,6 +114,8 @@ public:
     [[nodiscard]] std::vector<Notice> construction_events(const sim::World& world, sim::PlayerId local,
                                                           const std::vector<sim::ConstructionEvent>& events) const;
     /// Offers, treaties and broken peace (MELDUNG 0x4D..0x52), a computer's answer to a founding (0x49..0x4B).
+    /// Open1602 also tells, in the status bar only, when two other players go to war or make peace
+    /// (the original tells only the player concerned).
     [[nodiscard]] std::vector<Notice> diplomacy_notices(const sim::World& world, sim::PlayerId local,
                                                         const std::vector<sim::DiplomacyNotice>& notices) const;
     /// Victory, defeat and the end of the game: messages, videos, high scores, and the end screen
@@ -166,7 +170,8 @@ private:
     std::vector<std::uint32_t> m_rival_sizes;
     std::vector<std::string> m_ware_names;
     std::optional<EndPending> m_end_pending;
-    bool m_end_shown = false;            ///< once per game (a won game may go on)
+    bool m_end_shown = false;  ///< once per game (a won game may go on)
+    bool m_rival_wars = true;
     std::uint32_t m_defeat_variant = 0;  ///< own counter for 1010/2020 (no game random numbers)
     std::string m_notice;
     std::uint64_t m_notice_until_ms = 0;

@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include "names.hpp"
+
 #include "o1602/sim/diplomacy.hpp"
 #include "o1602/sim/world.hpp"
 #include "o1602/ui/localization.hpp"
@@ -54,6 +56,34 @@ std::vector<Offer> open_offers(const sim::World& world, sim::PlayerId local) {
         }
     }
     return out;
+}
+
+std::vector<sim::PlayerId> enemies(const sim::World& world, sim::PlayerId player) {
+    std::vector<sim::PlayerId> out;
+    const sim::Diplomacy& d = world.diplomacy();
+    if (player >= d.size()) {
+        return out;
+    }
+    for (const sim::PlayerId b : partners(world, player)) {
+        const sim::Player* p = world.player(b);
+        if (b < d.size() && p != nullptr && p->active() && d.relation(player, b).peace != sim::Treaty::Signed) {
+            out.push_back(b);
+        }
+    }
+    return out;
+}
+
+std::string wars_text(const sim::World& world, sim::PlayerId player) {
+    const sim::Player* p = world.player(player);
+    if (p == nullptr) {
+        return {};
+    }
+    std::string names;
+    for (const sim::PlayerId b : enemies(world, player)) {
+        names += (names.empty() ? "" : ", ") + player_name(*world.player(b));
+    }
+    return names.empty() ? ui::tr("diplomacy.no_wars", {player_name(*p)})
+                         : ui::tr("diplomacy.wars", {player_name(*p), names});
 }
 
 std::string offer_text(const Offer& offer, const std::string& name) {

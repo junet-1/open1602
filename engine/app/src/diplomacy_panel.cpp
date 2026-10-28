@@ -199,7 +199,10 @@ public:
             const std::int32_t k = id - kStripFrame;
             if (k >= 0 && static_cast<std::size_t>(k) < partners.size()) {
                 const sim::Player* p = c.world().player(partners[static_cast<std::size_t>(k)]);
-                return p != nullptr ? ui::tr("diplomacy.partner", {player_name(*p)}) : std::string();
+                // Open1602: with whom the partner is at war, which the original's window does not show.
+                return p != nullptr ? ui::tr("diplomacy.partner", {player_name(*p)}) + " - " +
+                                          diplomacy::wars_text(c.world(), partners[static_cast<std::size_t>(k)])
+                                    : std::string();
             }
         }
         if (m_tribute || m_strip_shown) {
@@ -218,11 +221,13 @@ public:
                     return panel_detail::help_line(c, 212);
                 case kTributeHand:
                     return panel_detail::help_line(c, 213);
+                case kTributeShield:
+                    return diplomacy::wars_text(c.world(), m_partner);
                 default:
                     return std::nullopt;
             }
         }
-        for (const std::int32_t base : {kTrade, kPeace, kHand}) {
+        for (const std::int32_t base : {kTrade, kPeace, kHand, kShield}) {
             const std::int32_t r = id - base;
             if (r < 0 || static_cast<std::size_t>(r) >= std::min(partners.size(), m_rows)) {
                 continue;
@@ -230,6 +235,9 @@ public:
             const sim::PlayerId b = partners[static_cast<std::size_t>(r)];
             if (base == kHand) {
                 return panel_detail::help_line(c, 207);
+            }
+            if (base == kShield) {
+                return diplomacy::wars_text(c.world(), b);  // Open1602: the partner's wars
             }
             return treaty_line(b, base == kTrade);
         }

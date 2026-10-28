@@ -154,6 +154,9 @@ bool read_display_line(DisplaySettings& s, std::string_view key, std::string_vie
     if (key == "goods_trend") {
         return read_flag(value, s.goods_trend);
     }
+    if (key == "rival_wars") {
+        return read_flag(value, s.rival_wars);
+    }
     if (key == "graphics") {
         if (value == "classic" || value == "modern") {
             s.classic_graphics = value == "classic";
@@ -177,6 +180,8 @@ std::string write_display(const DisplaySettings& s) {
     out += std::string("display.vsync = ") + on_off(s.vsync) + "\n";
     out += "# Under each good of a Kontor's stock how much more comes in or goes out per minute\n";
     out += std::string("display.goods_trend = ") + on_off(s.goods_trend) + "\n";
+    out += "# Tell when two other players go to war or make peace\n";
+    out += std::string("display.rival_wars = ") + on_off(s.rival_wars) + "\n";
     out += "# classic: shadows and smoke as the original draws them (every second pixel); modern: blended\n";
     out += std::string("display.graphics = ") + (s.classic_graphics ? "classic" : "modern") + "\n";
     return out;
