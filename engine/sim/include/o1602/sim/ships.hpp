@@ -48,6 +48,11 @@ namespace o1602::sim {
 [[nodiscard]] std::uint32_t pirate_region(const World& world, std::uint32_t x, std::uint32_t y,
                                           std::uint32_t nests) noexcept;
 
+/// The pirate nest's offer (0x0041DD80): its N most valuable wares (N = Maxware of its Kontor) for
+/// sale at 40 % of the base price, everything else off. The pirates' task 5 runs it every 42 s,
+/// and the pirate step again whenever the nest eats 10 t of its food.
+void pirate_nest_offer(World& world, const assets::BuildingTable& buildings, City& nest);
+
 /// The human and computer players when Rules::trader_reach scales the free trader to them (more
 /// than the trader's Faction::reach_players), else 0.
 [[nodiscard]] std::size_t trader_reach_players(const World& world, const Rules& rules) noexcept;
@@ -459,7 +464,6 @@ private:
     [[nodiscard]] std::vector<std::size_t> pirate_bases() const;
     void pirates_tick(std::uint32_t dt_ms);
     void pirates_step();
-    void pirate_nest_sales(City& nest);
     void pirate_choose(Ship& ship);
     /// The base a pirate ship sails to: one of `bases` (not empty).
     std::size_t pirate_base_for(const Ship& ship, const std::vector<std::size_t>& bases);

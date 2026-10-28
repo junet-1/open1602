@@ -17,6 +17,7 @@
 #include "o1602/assets/building_table.hpp"
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/figure_table.hpp"
+#include "o1602/assets/game_data.hpp"
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
 #include "o1602/sim/ai.hpp"
@@ -1234,6 +1235,44 @@ TEST_CASE("ai: a computer that finds no island for its city gives its ship to th
     CHECK(g.cities_of(kComputer) == 0);
     run(s, 6'000);  // the players' check every 5 s
     CHECK(!g.world.players()[kComputer].active());
+}
+
+TEST_CASE("ai: the pirates' nest offers its goods every 42 s without any food (task 5, 0x00429DF0)") {
+    // A nest with a pirate Kontor of 6 wares, loot but no food, and a pirate ship at sea.
+    Game g(false);
+    g.buildings = make_buildings(
+        "  @Nummer: 13\n  Id: 22990\n  Kind: 35\n  Gfx: 120\n  Size: 2, 3\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 8\n    Maxware: 6\n    Maxlager: 30\n  EndObj\n");
+    add_pirates(g);
+    constexpr sim::PlayerId kPirates = 4;
+    g.world.player(kHuman)->infra_mask |= 1U << 24;  // citizens: the pirates may sail
+    REQUIRE(g.world.island(1).map.build(*g.buildings.by_id(22990), 44, 10, 0, 0, kPirates, 0).ok());
+    sim::City nest;
+    nest.island = 1;
+    nest.index = 0;
+    nest.owner = kPirates;
+    nest.warehouse_x = 44;
+    nest.warehouse_y = 10;
+    nest.capacity = 30 * 32;
+    nest.ensure_ware(24);
+    nest.trade.resize(25);
+    nest.goods[assets::ware::kJewellery] = 5 * 32;
+    nest.goods[assets::ware::kTools] = 10 * 32;
+    g.world.add_city(nest);
+    g.add_ship(kPirates, 86, 45);
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    const auto offered = [&] {
+        const sim::City* c = g.world.city(1, 0);
+        return c->trade[assets::ware::kJewellery].sell && c->trade[assets::ware::kTools].sell;
+    };
+    run(s, 30'000);
+    CHECK(!offered());  // not before 42 s
+    REQUIRE(run_until(s, 60'000, offered));
+    CHECK(g.world.city(1, 0)->trade[assets::ware::kJewellery].sell_price == 358);
+    // Sold out, the next offer drops the ware.
+    g.world.city(1, 0)->goods[assets::ware::kJewellery] = 0;
+    REQUIRE(run_until(s, 60'000, [&] { return !g.world.city(1, 0)->trade[assets::ware::kJewellery].sell; }));
+    CHECK(g.world.city(1, 0)->trade[assets::ware::kTools].sell);
 }
 
 TEST_CASE("ships: only a computer's ship can be given to the pirates") {
