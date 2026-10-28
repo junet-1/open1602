@@ -11,6 +11,7 @@ add_library(o1602_sim
     src/ai/ai_sites.cpp
     src/ai/ai_world.cpp
     src/construction.cpp
+    src/carts.cpp
     src/castles.cpp
     src/combat.cpp
     src/command_io.cpp

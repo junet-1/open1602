@@ -82,6 +82,7 @@ std::vector<sim::Command> every_kind() {
     all.emplace_back(sim::PlayerRename{1, "Merlin"});
     all.emplace_back(sim::PlayerControl{1, true});
     all.emplace_back(sim::GateOrder{1, true});
+    all.emplace_back(sim::CartRequest{1, 2, 3, 40, 50});
     return all;
 }
 
@@ -126,7 +127,7 @@ TEST_CASE("commands: every kind of command goes to bytes and back") {
     REQUIRE(build.items.size() == 2);
     CHECK(build.items[0].y == -2);
     CHECK(build.orient_to_road);
-    const sim::Command& named = all[all.size() - 3];
+    const sim::Command& named = all[all.size() - 4];
     const auto rename = std::get<sim::PlayerRename>(*sim::decode_command(sim::encode_command(named)));
     CHECK(rename.name == "Merlin");
     sim::ShipCommand mount;
@@ -135,12 +136,17 @@ TEST_CASE("commands: every kind of command goes to bytes and back") {
     const auto mounted = std::get<sim::ShipCommand>(*sim::decode_command(sim::encode_command(mount)));
     CHECK(mounted.op == sim::ShipCommand::Op::MountCannon);
     CHECK(mounted.count == sim::ShipCommand::kAllCannons);
-    const auto gates = std::get<sim::GateOrder>(*sim::decode_command(sim::encode_command(all.back())));
+    const auto gates = std::get<sim::GateOrder>(*sim::decode_command(sim::encode_command(all[all.size() - 2])));
     CHECK(gates.player == 1);
     CHECK(gates.closed);
-    const auto control = std::get<sim::PlayerControl>(*sim::decode_command(sim::encode_command(all[all.size() - 2])));
+    const auto control = std::get<sim::PlayerControl>(*sim::decode_command(sim::encode_command(all[all.size() - 3])));
     CHECK(control.player == 1);
     CHECK(control.computer);
+    const auto cart = std::get<sim::CartRequest>(*sim::decode_command(sim::encode_command(all.back())));
+    CHECK(cart.island == 2);
+    CHECK(cart.city == 3);
+    CHECK(cart.x == 40);
+    CHECK(cart.y == 50);
 
     // With the tick, as the network carries them, one after another.
     core::ByteWriter out;

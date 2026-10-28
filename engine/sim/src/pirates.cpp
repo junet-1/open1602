@@ -109,7 +109,7 @@ void Fleet::pirates_step() {
     std::uint32_t ships = 0;
     std::vector<std::uint32_t> per_region(nests, 0);
     for (const Ship& s : m_world->ships()) {
-        if (s.owner == p && !s.sinking) {
+        if (s.owner == p && !s.sinking && !s.cart()) {
             ++ships;
             ++per_region[pirate_region(*m_world, s.x, s.y, nests)];
         }
@@ -283,7 +283,7 @@ void Fleet::pirate_choose(Ship& ship) {
             const auto pb = static_cast<PlayerId>(b);
             const std::int32_t mood = m_world->diplomacy().mood(*m_world, p, pb, 0, m_world->time_ms());
             const bool has_ship = std::any_of(m_world->ships().begin(), m_world->ships().end(),
-                                              [&](const Ship& s) { return s.owner == pb && !s.sinking; });
+                                              [&](const Ship& s) { return s.owner == pb && !s.sinking && !s.cart(); });
             if (mood >= 1 || !has_ship) {
                 continue;
             }
@@ -296,7 +296,7 @@ void Fleet::pirate_choose(Ship& ship) {
         if (prey_owner != kNoPlayer) {
             std::vector<const Ship*> fleet;
             for (const Ship& s : m_world->ships()) {
-                if (s.owner == prey_owner && !s.sinking) {
+                if (s.owner == prey_owner && !s.sinking && !s.cart()) {
                     fleet.push_back(&s);
                 }
             }

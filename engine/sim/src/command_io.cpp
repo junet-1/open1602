@@ -293,6 +293,17 @@ void io(A& a, T& t)
     a(t.closed);
 }
 
+template <class A, class T>
+void io(A& a, T& t)
+    requires std::is_same_v<std::remove_const_t<T>, CartRequest>
+{
+    a(t.player);
+    a(t.island);
+    a(t.city);
+    a(t.x);
+    a(t.y);
+}
+
 class Writer {
 public:
     explicit Writer(core::ByteWriter& out) noexcept : m_out(out) {}

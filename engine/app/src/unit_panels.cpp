@@ -78,9 +78,10 @@ public:
                     filled ? ui::ware_sprite(m_gfx_ware, c.world().goods(), ship->cargo[h].ware) : m_gfx_empty, 0);
             }
             if (filled) {
-                m_panel.set_slider(kHoldBar + k, 1,
-                                   static_cast<std::int32_t>(std::min(ship->cargo[h].amount, sim::kHoldCapacity)),
-                                   static_cast<std::int32_t>(sim::kHoldCapacity));
+                m_panel.set_slider(
+                    kHoldBar + k, 1,
+                    static_cast<std::int32_t>(std::min(ship->cargo[h].amount, sim::hold_capacity(*ship))),
+                    static_cast<std::int32_t>(sim::hold_capacity(*ship)));
             }
         }
     }

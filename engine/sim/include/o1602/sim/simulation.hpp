@@ -116,7 +116,7 @@ struct GateOrder {
 using Command =
     std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting, ShipyardOrder,
                  ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder, UnloadOrder, ProductionSwitch,
-                 CityOrder, ShipCommand, GameSpeedOrder, PlayerRename, PlayerControl, GateOrder>;
+                 CityOrder, ShipCommand, GameSpeedOrder, PlayerRename, PlayerControl, GateOrder, CartRequest>;
 
 /// What became of a command.
 struct CommandResult {
