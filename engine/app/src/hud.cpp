@@ -20,6 +20,7 @@
 #include "o1602/sim/game_data.hpp"
 #include "o1602/sim/pathfinding.hpp"
 #include "o1602/ui/build_menu.hpp"
+#include "o1602/ui/form.hpp"
 #include "o1602/ui/localization.hpp"
 #include "o1602/ui/package_icons.hpp"
 #include "o1602/ui/text_format.hpp"
@@ -1148,10 +1149,17 @@ void Hud::draw_help() {
         items.push_back(d);
     };
     text(ui::tr("keys.title"), box.w / 2, px(28), ui::Align::Centre, 0);
+    // The tab titles in the small font, centred in their tabs by the ink and cut to their width;
+    // the page shown in yellow (a larger font would not fit the tabs).
+    const ui::Font* tab_font = m_renderer->fonts()[1];
     for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
         const ui::Rect t = help_tab(box, p);
-        text((*m_help)[p].title, t.x - box.x + t.w / 2, t.y - box.y + px(14), ui::Align::Centre,
-             p == m_help_page ? 0 : 1);
+        const double inner = std::max(0.0, t.w / s - 8.0);
+        const std::int32_t top = static_cast<std::int32_t>(std::lround((t.y - box.y) / s));
+        const std::int32_t h = static_cast<std::int32_t>(std::lround(t.h / s));
+        text(ui::fit_text(tab_font, (*m_help)[p].title, inner, false), t.x - box.x + t.w / 2,
+             px(ui::text_bottom(tab_font, top, h)), ui::Align::Centre);
+        items.back().colour = p == m_help_page ? 3 : 1;
     }
     const KeyHelpPage& page = (*m_help)[m_help_page];
     const std::int32_t column = (box.w - px(28)) / 2;
