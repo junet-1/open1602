@@ -56,17 +56,22 @@ struct KeyHelpEntry {
 [[nodiscard]] std::array<KeyHelpPage, kKeyHelpPages> key_help_pages(
     const std::vector<KeyHelpEntry>& entries, const std::function<std::string(ui::KeyAction)>& label);
 
+/// The rows line `line` of section `section` takes: its text wrapped to the width of its column.
+/// Without one every line takes one row.
+using KeyHelpHeight = std::function<std::size_t(std::size_t section, std::size_t line)>;
+
 /// The rows a page takes: a heading row and the lines below it, of the longer section when there
 /// are two side by side, of the longer column when one section is split into two.
-[[nodiscard]] std::size_t key_help_rows(const KeyHelpPage& page) noexcept;
+[[nodiscard]] std::size_t key_help_rows(const KeyHelpPage& page, const KeyHelpHeight& height = {});
 
-/// Where a line of a page goes: its column (0 or 1) and row (0 the heading row). A heading is line
-/// SIZE_MAX of its section.
+/// Where a line of a page goes: its column (0 or 1) and first row (0 the heading row). A heading is
+/// line SIZE_MAX of its section. One section is split where the two columns come out the most even.
 struct KeyHelpCell {
     std::size_t column = 0;
     std::size_t row = 0;
     friend bool operator==(const KeyHelpCell&, const KeyHelpCell&) = default;
 };
-[[nodiscard]] KeyHelpCell key_help_cell(const KeyHelpPage& page, std::size_t section, std::size_t line) noexcept;
+[[nodiscard]] KeyHelpCell key_help_cell(const KeyHelpPage& page, std::size_t section, std::size_t line,
+                                        const KeyHelpHeight& height = {});
 
 }  // namespace o1602::app

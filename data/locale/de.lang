@@ -42,7 +42,7 @@ save.time = {1}:{2} Std.
 
 # Key overview (F1)
 keys.title = Tastenbelegung
-keys.footer = Tab oder Pfeil links / rechts: Seite wechseln; Klick oder F1 schließt
+keys.footer = Tab oder Pfeil links / rechts: Seite wechseln; Klick außerhalb oder F1 schließt
 keys.page.map_game = Karte & Spiel
 keys.page.windows = Fenster
 keys.page.building = Bauen
