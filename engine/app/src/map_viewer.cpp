@@ -2212,6 +2212,7 @@ void MapViewer::apply_game_events() {
     const std::vector<sim::MilitaryEvent> military = m_state->simulation.take_military_events();
     m_sound->combat(m_state->world, m_figures, military, m_local_player, m_state->world.time_ms());
     m_combat.military(m_state->world, m_buildings, m_figures, military);
+    m_events.set_rival_wars(m_app_settings.display.rival_wars);
     show_notices(
         m_events.diplomacy_notices(m_state->world, m_local_player, m_state->simulation.take_diplomacy_notices()));
     show_notices(m_events.game_events(m_state->world, m_local_player, m_state->simulation.take_game_events(),

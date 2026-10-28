@@ -4,6 +4,7 @@
 
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../test_framework.hpp"
@@ -95,6 +96,25 @@ TEST_CASE("diplomacy strip: partners are the other humans and computers, offers 
     CHECK(diplomacy::open_offers(world, 0).size() == 1);
     // Nobody to answer for a player who is not in the game.
     CHECK(diplomacy::open_offers(world, sim::kNoPlayer).empty());
+}
+
+TEST_CASE("diplomacy strip: a partner's wars") {
+    sim::World world(64, 64);
+    world.set_players(twelve_players());
+    sim::Diplomacy& d = world.diplomacy();
+    d.resize(world.players().size());
+    CHECK(diplomacy::enemies(world, 3).empty());
+    for (const auto& [a, b] : {std::pair<sim::PlayerId, sim::PlayerId>{3, 5}, {3, 0}, {3, 7}}) {
+        d.relation(a, b).peace = sim::Treaty::None;
+        d.relation(b, a).peace = sim::Treaty::None;
+    }
+    d.relation(3, 7).peace = sim::Treaty::Offered;  // an offer not answered yet: still war
+    world.player(5)->status = sim::PlayerStatus::Defeated;
+    CHECK((diplomacy::enemies(world, 3) == std::vector<sim::PlayerId>{0, 7}));
+    CHECK((diplomacy::enemies(world, 0) == std::vector<sim::PlayerId>{3}));
+    CHECK(diplomacy::wars_text(world, 1).find("at peace with everyone") != std::string::npos);
+    CHECK(diplomacy::wars_text(world, 3) == "P3 is at war with P0, P7");
+    CHECK(diplomacy::enemies(world, sim::kNoPlayer).empty());
 }
 
 TEST_CASE("diplomacy strip: the status bar names who offers what") {

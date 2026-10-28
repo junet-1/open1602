@@ -30,6 +30,9 @@ struct DisplaySettings {
     /// The goods trend at the Kontor: under each good of its stock what comes in more than goes
     /// out per minute, green, or the other way round, red (docs/architecture/0012-goods-statistics.md).
     bool goods_trend = true;
+    /// The status bar tells when two other players go to war or make peace (the original tells
+    /// only the player concerned).
+    bool rival_wars = true;
     /// The original's graphics instead of Open1602's: shadows and chimney smoke dithered (every
     /// second pixel) instead of blended (render::Dither), ground that cannot be built on red instead
     /// of yellow checkered, and no dotted border around other players' land while building. One

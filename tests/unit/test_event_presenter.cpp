@@ -168,6 +168,44 @@ TEST_CASE("event presenter: city, disaster, drought and diplomacy messages for t
     CHECK((announcement(answers[0])->tile == std::make_pair(104.0, 56.0)));
 }
 
+TEST_CASE("event presenter: war and peace between two others go to the status bar, if wanted") {
+    Game g;
+    std::vector<sim::Player> players = g.world.players();
+    players.push_back(players[kRival]);
+    players[2].banner = 2;
+    players.push_back(sim::Player{});
+    players[3].role = sim::PlayerRole::Neutral;  // the pirates
+    g.world.set_players(players);
+    sim::DiplomacyNotice war;
+    war.kind = sim::DiplomacyNotice::Kind::PeaceBroken;
+    war.from = kRival;
+    war.to = 2;
+    sim::DiplomacyNotice peace = war;
+    peace.kind = sim::DiplomacyNotice::Kind::PeaceSigned;
+    sim::DiplomacyNotice offer = war;
+    offer.kind = sim::DiplomacyNotice::Kind::PeaceOffered;
+    sim::DiplomacyNotice pirates = war;
+    pirates.to = 3;
+    const auto told = g.presenter.diplomacy_notices(g.world, kMe, {war, peace, offer, pirates});
+    REQUIRE(told.size() == 2);
+    const app::Announcement* a = announcement(told[0]);
+    CHECK(a->message == 0x4D);
+    CHECK(!a->voice);
+    CHECK(a->about == std::optional<sim::PlayerId>(kRival));
+    CHECK(a->tile.has_value());  // the rival's city
+    CHECK(a->text == "War: Blue player against Yellow player");
+    CHECK(announcement(told[1])->text == "Peace: Blue player and Yellow player");
+    // The war on the local player is the original's message.
+    war.to = kMe;
+    const auto mine = g.presenter.diplomacy_notices(g.world, kMe, {war});
+    REQUIRE(mine.size() == 1);
+    CHECK(announcement(mine[0])->voice);
+    CHECK(announcement(mine[0])->text.empty());
+    // Switched off.
+    g.presenter.set_rival_wars(false);
+    CHECK(g.presenter.diplomacy_notices(g.world, kMe, {peace}).empty());
+}
+
 TEST_CASE("event presenter: a rival's new city shows in the rival's colour, an own one says nothing") {
     Game g;
     sim::ConstructionEvent founded;

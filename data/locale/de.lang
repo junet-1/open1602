@@ -310,6 +310,8 @@ diplomacy.partner = {1}: Verträge und Tribut
 diplomacy.offer.trade = {1} bietet Euch einen Handelsvertrag an
 diplomacy.offer.peace = {1} bietet Euch einen Friedensvertrag an
 diplomacy.offer.both = {1} bietet Euch einen Handels- und einen Friedensvertrag an
+diplomacy.wars = {1} führt Krieg gegen {2}
+diplomacy.no_wars = {1} lebt mit allen in Frieden
 
 # Trade route editor: the row below the stops, and the stop the ship sails to now
 route.copy = Route kopieren
@@ -580,6 +582,7 @@ display.zoom_smooth = scharf und weich
 display.zoom_pixels = einfache Pixel
 display.vsync = V-Sync
 display.goods_trend = Warentrend im Kontor
+display.rival_wars = Kriege anderer Spieler
 display.graphics = Grafik
 display.graphics_classic = wie im Original
 display.graphics_modern = modern
@@ -712,6 +715,8 @@ message.won.magenta = Der magentafarbene Spieler konnte seinen Auftrag erfüllen
 message.won.grey = Der graue Spieler konnte seinen Auftrag erfüllen!
 message.won.purple = Der violette Spieler konnte seinen Auftrag erfüllen!
 message.won.brown = Der braune Spieler konnte seinen Auftrag erfüllen!
+message.rival_war = Krieg: {1} gegen {2}
+message.rival_peace = Frieden: {1} und {2}
 
 # The game's folder, asked for at the start when none is found (in the system's dialogs, which may
 # lack letters beyond Latin-1: no typographic quotes or ellipsis)

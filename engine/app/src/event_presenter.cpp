@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "names.hpp"
+
 #include "o1602/audio/game_audio.hpp"
 #include "o1602/core/text.hpp"
 #include "o1602/ui/localization.hpp"
@@ -396,6 +398,23 @@ std::vector<Notice> EventPresenter::diplomacy_notices(const sim::World& world, s
                 announce(kMessages[static_cast<std::size_t>(n.kind)],
                          founding ? city_spot(world, world.city(n.island, n.city)) : player_spot(world, n.from),
                          n.from != sim::kNoPlayer ? std::optional<sim::PlayerId>(n.from) : std::nullopt));
+        } else if (m_rival_wars && local != sim::kNoPlayer && n.from != local &&
+                   (n.kind == sim::DiplomacyNotice::Kind::PeaceBroken ||
+                    n.kind == sim::DiplomacyNotice::Kind::PeaceSigned)) {
+            // Open1602: war or peace between two others, without voice, under the icon of who acted.
+            const sim::Player* from = world.player(n.from);
+            const sim::Player* to = world.player(n.to);
+            if (from == nullptr || to == nullptr || from->role == sim::PlayerRole::Neutral ||
+                to->role == sim::PlayerRole::Neutral) {
+                continue;
+            }
+            const bool war = n.kind == sim::DiplomacyNotice::Kind::PeaceBroken;
+            Announcement a = announce(kMessages[static_cast<std::size_t>(n.kind)], player_spot(world, n.from), n.from);
+            a.text = ui::tr(war ? "message.rival_war" : "message.rival_peace", {player_name(*from), player_name(*to)});
+            a.voice = false;
+            out.emplace_back(std::move(a));
+            std::fprintf(stderr, "%s: %s and %s\n", war ? "war" : "peace", m_label(*from, n.from).c_str(),
+                         m_label(*to, n.to).c_str());
         }
     }
     return out;

@@ -66,6 +66,13 @@ struct Offer {
 /// The open offers of the partners, by player number.
 [[nodiscard]] std::vector<Offer> open_offers(const sim::World& world, sim::PlayerId local);
 
+/// The other humans and computers still playing that `player` has no signed peace with (war, or
+/// a peace offered and not yet answered), by player number.
+[[nodiscard]] std::vector<sim::PlayerId> enemies(const sim::World& world, sim::PlayerId player);
+/// The help line over a partner's coat of arms, in the current language: who `player` is at war
+/// with, or that it is at peace with everyone.
+[[nodiscard]] std::string wars_text(const sim::World& world, sim::PlayerId player);
+
 /// The line of the status bar for an offer, in the current language: "{name} offers you ...".
 [[nodiscard]] std::string offer_text(const Offer& offer, const std::string& name);
 
