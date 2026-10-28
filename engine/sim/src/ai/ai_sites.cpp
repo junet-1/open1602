@@ -886,14 +886,20 @@ bool Engine::farm_room(AiPlayer& p, const assets::BuildingType& b, std::int32_t 
                        std::int32_t y1) {
     // Room for the fields the maintenance sweep wants to see later (14, grain 7): the original
     // places farms where the sweep tears them down again, and builds them anew (see sweep()).
+    // Trees in reach of the city's own woodcutters are no room for other crops (S-122).
     std::int32_t n = 0;
     const std::uint8_t raw = b.raw_ware;
-    rings(p, RingFilter::Own, x0, y0, x1, y1, b.radius, [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t) {
-        if (t.ware == raw || (t.ware == 0 && t.kind == kind::kRuin) || t.ware == ware::kGrass ||
-            t.ware == ware::kTree) {
-            ++n;
-        }
-    });
+    std::vector<WoodReach> woods;
+    if (raw != ware::kTree) {
+        woods = woodcutters_near(p, x0, y0, x1, y1, b.radius);
+    }
+    rings(p, RingFilter::Own, x0, y0, x1, y1, b.radius,
+          [&](const Tile& t, std::int32_t x, std::int32_t y, std::int32_t) {
+              if (t.ware == raw || (t.ware == 0 && t.kind == kind::kRuin) || t.ware == ware::kGrass ||
+                  (t.ware == ware::kTree && !in_wood_reach(woods, x, y))) {
+                  ++n;
+              }
+          });
     return n >= (b.ware == ware::kGrain ? 7 : 14);
 }
 

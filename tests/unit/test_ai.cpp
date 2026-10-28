@@ -20,6 +20,8 @@
 #include "o1602/core/byte_reader.hpp"
 #include "o1602/core/byte_writer.hpp"
 #include "o1602/sim/ai.hpp"
+#include "o1602/sim/construction.hpp"
+#include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/simulation.hpp"
 
@@ -1164,4 +1166,51 @@ TEST_CASE("ai: the computer switches its workshops by their switch first, as the
     CHECK(smith_off);
     run(s, 20'000);
     CHECK(!g.world.productions()[smith].enabled);
+}
+
+TEST_CASE("ai: a farm leaves the trees of the city's woodcutter standing (S-122)") {
+    // A woodcutter in the wood west of the Kontor and a tobacco plantation next to it, both on the
+    // road the computer lays from its Kontor. The original plants the tobacco over the woodcutter's
+    // trees; the woodcutter then lacks trees and its fields go round. Pastures do the same with
+    // their grass.
+    const auto fields_in_reach = [] {
+        Game g;
+        g.buildings = make_buildings(
+            // Woodcutter, tobacco plantation, a tobacco field growing and ripe.
+            "  @Nummer: 13\n  Id: 20701\n  Kind: 14\n  Gfx: 30\n  Size: 2, 2\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Ware: 23\n    Rohstoff: 53\n    Rohmenge: 1\n"
+            "    Prodmenge: 1\n    Maxlager: 4\n    Interval: 20\n    Radius: 5\n  EndObj\n"
+            "  @Nummer: 14\n  Id: 20702\n  Kind: 14\n  Gfx: 40\n  Size: 2, 2\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Ware: 6\n    Rohstoff: 46\n    Rohmenge: 1\n"
+            "    Prodmenge: 1\n    Maxlager: 4\n    Interval: 20\n    Radius: 4\n  EndObj\n"
+            "  @Nummer: 15\n  Id: 20703\n  Kind: 10\n  Gfx: 50\n  Size: 1, 1\n  AnimAnz: 4\n  AnimAdd: 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 10\n    Interval: 160\n  EndObj\n"
+            "  @Nummer: 16\n  Id: 20704\n  Kind: 10\n  Gfx: 54\n  Size: 1, 1\n"
+            "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 46\n  EndObj\n");
+        sim::Simulation s(g.world, g.buildings, g.figures);
+        found_city(g, s, 5'000);  // the Kontor at 44,16, a road west along row 17
+        sim::BuildOrder order;
+        order.player = kComputer;
+        order.island = 1;
+        order.items = {{20701, 37, 18, 0, 0}, {20702, 40, 18, 0, 0}};
+        const sim::BuildPlan plan = sim::execute_build(g.world, g.buildings, order, {}, nullptr);
+        REQUIRE(plan.placed == 2);
+        run(s, 30'000);
+        const sim::IslandMap& map = g.world.islands()[1].map;
+        const std::vector<std::uint8_t>& circle = sim::circle_table(5);
+        std::size_t fields = 0;
+        for (std::int32_t y = 18 - 5; y <= 19 + 5; ++y) {
+            for (std::int32_t x = 37 - 5; x <= 38 + 5; ++x) {
+                const std::int32_t dx = std::max({37 - x, 0, x - 38});
+                const std::int32_t dy = std::max({18 - y, 0, y - 19});
+                const sim::MapCell& c = map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
+                const assets::BuildingType* b = c.empty() ? nullptr : g.buildings.by_sprite(c.sprite);
+                if (dx <= circle[static_cast<std::size_t>(dy)] && b != nullptr && (b->id == 20703 || b->id == 20704)) {
+                    ++fields;
+                }
+            }
+        }
+        return fields;
+    };
+    CHECK(fields_in_reach() == 0);  // the original plants 39 of them at once
 }

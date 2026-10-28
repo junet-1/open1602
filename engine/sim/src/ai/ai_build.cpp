@@ -231,29 +231,40 @@ void Engine::plaza_ring(AiPlayer& p) {
     build(p, std::move(items), false);
 }
 
-bool Engine::woodcutter_tree(AiPlayer& p, std::int32_t x, std::int32_t y) {
-    // Whether a tree lies in the reach of one of the city's own woodcutters.
-    bool reached = false;
-    rings(p, RingFilter::Own, x, y, x, y, kWoodcutterReach, [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t) {
-        if (reached || !t.origin || t.raw != ware::kTree || t.ware != ware::kWood || t.owner != p.player) {
-            return;
-        }
-        const IslandMap& map = island_of(p.island).map;
-        std::uint32_t w = 0;
-        std::uint32_t h = 0;
-        rotated_size(*t.type, map.top(static_cast<std::uint32_t>(t.ox), static_cast<std::uint32_t>(t.oy)).rotation, w, h);
-        const std::int32_t dx = std::max({t.ox - x, 0, x - (t.ox + static_cast<std::int32_t>(w) - 1)});
-        const std::int32_t dy = std::max({t.oy - y, 0, y - (t.oy + static_cast<std::int32_t>(h) - 1)});
-        const std::vector<std::uint8_t>& circle = circle_table(t.type->radius);
-        reached = dy <= t.type->radius && static_cast<std::size_t>(dy) < circle.size() &&
-                  dx <= circle[static_cast<std::size_t>(dy)];
+bool in_wood_reach(const std::vector<WoodReach>& reaches, std::int32_t x, std::int32_t y) {
+    return std::any_of(reaches.begin(), reaches.end(), [&](const WoodReach& w) {
+        const std::int32_t dx = std::max({w.x0 - x, 0, x - w.x1});
+        const std::int32_t dy = std::max({w.y0 - y, 0, y - w.y1});
+        const std::vector<std::uint8_t>& circle = circle_table(w.radius);
+        return dy <= w.radius && static_cast<std::size_t>(dy) < circle.size() &&
+               dx <= circle[static_cast<std::size_t>(dy)];
     });
-    return reached;
+}
+
+std::vector<WoodReach> Engine::woodcutters_near(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                                                std::int32_t y1, std::int32_t n) {
+    std::vector<WoodReach> reaches;
+    const IslandMap& map = island_of(p.island).map;
+    rings(p, RingFilter::Own, x0, y0, x1, y1, n + kWoodcutterReach,
+          [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t) {
+              if (!t.origin || t.raw != ware::kTree || t.ware != ware::kWood || t.owner != p.player) {
+                  return;
+              }
+              std::uint32_t w = 0;
+              std::uint32_t h = 0;
+              rotated_size(*t.type,
+                           map.top(static_cast<std::uint32_t>(t.ox), static_cast<std::uint32_t>(t.oy)).rotation, w, h);
+              reaches.push_back(WoodReach{t.ox, t.oy, t.ox + static_cast<std::int32_t>(w) - 1,
+                                          t.oy + static_cast<std::int32_t>(h) - 1, t.type->radius});
+          });
+    return reaches;
 }
 
 void Engine::fill_fields(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
                          std::int32_t rings_n, std::uint8_t field_ware, std::uint8_t radius) {
     // 0x00411B50: fields in rings around the farm, inside its reach, on ruins, meadows and trees.
+    // Fix S-122: other crops leave the trees in reach of the city's own woodcutters standing; the
+    // original plants over them, and the woodcutter replants and is torn down in turn.
     const assets::BuildingType* ripe = producer(field_ware, 0);
     if (ripe == nullptr) {
         return;
@@ -261,6 +272,10 @@ void Engine::fill_fields(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int
     const assets::BuildingType* growing = growing_record(m_buildings, *ripe);
     const assets::BuildingType* base = growing != nullptr ? growing : ripe;
     const std::vector<std::uint8_t> circle = circle_half_widths(radius);
+    std::vector<WoodReach> woods;
+    if (field_ware != ware::kTree) {
+        woods = woodcutters_near(p, x0, y0, x1, y1, rings_n);
+    }
     std::vector<BuildItem> items;
     for (std::int32_t r = 1; r <= rings_n; ++r) {
         const std::int32_t l = x0 - r;
@@ -291,8 +306,8 @@ void Engine::fill_fields(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int
             if (!((tl.ware == 0 && tl.kind == kind::kRuin) || tl.ware == ware::kGrass || tl.ware == ware::kTree)) {
                 continue;
             }
-            if (tl.ware == ware::kTree && field_ware != ware::kTree && woodcutter_tree(p, x, y)) {
-                log(p, "PROBE field %u over a woodcutter's tree at %d,%d", field_ware, x, y);
+            if (tl.ware == ware::kTree && in_wood_reach(woods, x, y)) {
+                continue;
             }
             const std::uint32_t variants = std::max<std::uint32_t>(base->rand_count, 1);
             const std::uint32_t pick = rng().below(variants);
