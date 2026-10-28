@@ -56,6 +56,12 @@ struct NewGameOptions {
 [[nodiscard]] std::uint32_t new_game_id(std::uint32_t year, std::uint32_t month, std::uint32_t day, std::uint32_t hour,
                                         std::uint32_t minute, std::uint32_t random) noexcept;
 
+/// The map layout a world number stands for: the same number, the same map, in single player
+/// (--seed) as in multiplayer.
+[[nodiscard]] constexpr std::uint8_t layout_for_seed(std::uint64_t seed) noexcept {
+    return static_cast<std::uint8_t>(seed % NewGameOptions::kLayouts);
+}
+
 /// File of a difficulty and layout, relative to the game directory: Szenes/Endlosspiel<D><V>.szs,
 /// or .szm for a multiplayer game.
 [[nodiscard]] std::string endless_file(std::uint8_t difficulty, std::uint8_t layout, bool multiplayer = false);
