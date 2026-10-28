@@ -88,6 +88,8 @@ assets::FigureTable make_figures() {
         "  Maxenergy: 24\n  Hitpoint: 4.0\n"
         // A small ship with two holds.
         "  Nummer: 21\n  Gfx: 0\n  Blocknr: 1\n  Maxware: 2\n"
+        // A trade cart (TRADER1).
+        "  Nummer: 37\n  Gfx: 0\n  Blocknr: 3\n  Maxware: 3\n  Speed: 300\n  Speedtyp: 2\n  Maxenergy: 14\n"
         "EndObj\n",
         types);
     auto table = assets::FigureTable::from_cod(doc);
@@ -942,4 +944,55 @@ TEST_CASE("military: units sent to one place never stand on one cell (History Ed
         cells.emplace(s->cell_x(), s->cell_y());
     }
     CHECK(cells.size() == ids.size());
+}
+
+TEST_CASE("military: soldiers destroy an enemy trade cart; it does not fight back, ships leave it alone") {
+    Field f;
+    f.start();
+    sim::Fleet fleet(f.world, f.buildings, f.figures, f.rules);
+    f.military->set_fleet(&fleet);
+    // Player 1's cart on the island at world tile (20, 15), player 0's armed ship just off the coast.
+    sim::Ship cart = sim::make_ship("Cart", 20, 15, assets::figure::kTradeCart, 1, 4);
+    cart.cargo.resize(3);
+    f.world.add_ship(cart);
+    const std::uint32_t cart_id = f.world.ships().back().id;
+    sim::Ship ship = sim::make_ship("Boat", 8, 15, 21, 0);
+    ship.cargo.resize(2);
+    ship.cannons = 4;
+    f.world.add_ship(ship);
+    const std::uint32_t ship_id = f.world.ships().back().id;
+    const std::uint32_t id = f.add(kMusket, 0, 2 * 24, 2 * 15).id;
+    f.war(0, 1);
+    f.combat->update();
+    const auto sees = [&](const sim::Target& who, std::uint32_t cart_ship) {
+        const auto list = f.combat->hostiles(who);
+        return std::any_of(list.begin(), list.end(), [&](const sim::Neighbour& n) {
+            return n.unit.kind == sim::Target::Kind::Ship && n.unit.ship == cart_ship;
+        });
+    };
+    CHECK(sees(sim::Target::soldier(id), cart_id));
+    CHECK(!sees(sim::Target::other_ship(ship_id), cart_id));
+    CHECK(f.combat->hostiles(sim::Target::other_ship(cart_id)).empty());  // a cart does not fight
+    const auto fighter = f.combat->fighter(sim::Target::other_ship(cart_id));
+    REQUIRE(fighter.has_value());
+    CHECK(fighter->damage == 0);
+    CHECK(!fighter->ship);
+    CHECK(fighter->island == 0);
+
+    const std::uint32_t sunk_before = f.world.player(0)->ships_sunk;
+    std::vector<sim::ShipEvent> ship_events;
+    for (std::uint32_t t = 0; t < 30'000; t += 50) {
+        f.world.set_time_ms(f.world.time_ms() + 50);
+        f.combat->update();
+        fleet.tick(50);
+        f.military->tick(50, &f.construction);
+        for (const auto& e : fleet.take_events()) {
+            ship_events.push_back(e);
+        }
+    }
+    CHECK(f.world.ship(cart_id) == nullptr);  // destroyed and gone
+    CHECK(std::count_if(ship_events.begin(), ship_events.end(), [&](const sim::ShipEvent& e) {
+              return e.kind == sim::ShipEvent::Kind::Sunk && e.ship == cart_id;
+          }) == 1);
+    CHECK(f.world.player(0)->ships_sunk == sunk_before);  // no ship of the score
 }

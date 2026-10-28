@@ -17,6 +17,15 @@ namespace {
 
 constexpr std::int32_t kEighth = kPosUnit / 8;  // 1/8 tile in position units
 
+/// The island a trade cart drives on.
+std::uint16_t cart_island(const World& world, const Ship& cart) {
+    if (!world.contains(cart.x, cart.y)) {
+        return 0xFFFF;
+    }
+    const std::uint16_t island = world.cell(cart.x, cart.y).island;
+    return island == World::kSea ? std::uint16_t{0xFFFF} : island;
+}
+
 struct Knot {
     std::int32_t x;
     std::int32_t v;
@@ -142,12 +151,15 @@ std::optional<Fighter> Combat::fighter(const Target& unit) const {
                 return std::nullopt;
             }
             f.owner = s->owner;
-            f.island = s->near_island;
+            f.island = s->cart() ? cart_island(*m_world, *s) : s->near_island;
             f.x8 = s->pos_x / kEighth;
             f.y8 = s->pos_y / kEighth;
             f.cells = {2 * s->x, 2 * s->y, 2 * s->x + 1, 2 * s->y + 1};
             f.max_health = std::max<std::uint32_t>(1, type->combat.max_health);
             f.health = s->health != 0 ? std::min(s->health, f.max_health) : f.max_health;
+            if (s->cart()) {
+                return f;  // unarmed, and a figure on land
+            }
             f.range8 = static_cast<std::int32_t>(type->combat.range8);
             f.damage = type->combat.hit * cannon_factor(s->cannons);
             f.threat = f.damage;  // per shot; soldiers and towers count per second (original)
@@ -260,7 +272,14 @@ std::span<const Neighbour> Combat::hostiles(const Target& unit) const {
 void Combat::update() {
     m_entries.clear();
     for (const Ship& s : m_world->ships()) {
-        if (!s.sinking && s.owner != kNoPlayer && !s.cart()) {  // trade carts are not fought yet
+        if (s.sinking || s.owner == kNoPlayer) {
+            continue;
+        }
+        if (s.cart()) {
+            // A trade cart is a land figure of its island that soldiers and towers attack.
+            m_entries.push_back({Target::other_ship(s.id), s.owner, cart_island(*m_world, s), s.pos_x / kEighth,
+                                 s.pos_y / kEighth, false, true});
+        } else {
             m_entries.push_back(
                 {Target::other_ship(s.id), s.owner, s.near_island, s.pos_x / kEighth, s.pos_y / kEighth, true});
         }
@@ -399,8 +418,8 @@ void Combat::update() {
     for (std::size_t i = 0; i < n; ++i) {
         m_first[i] = static_cast<std::uint32_t>(m_neighbours.size());
         const Entry& a = m_entries[i];
-        if (a.owner >= players || m_enemies[a.owner] == 0) {
-            continue;
+        if (a.owner >= players || m_enemies[a.owner] == 0 || a.cart) {
+            continue;  // a cart does not fight
         }
         m_seen.clear();
         const std::int32_t abx = bucket_of(a.x8);
@@ -423,8 +442,8 @@ void Combat::update() {
                         }
                         // A ship sees land figures only near their island (rectangle + 5 tiles).
                         const Entry& e = m_entries[b.entry];
-                        if (a.ship != e.ship && a.island != e.island) {
-                            continue;
+                        if ((a.ship != e.ship && a.island != e.island) || (a.ship && e.cart)) {
+                            continue;  // ships leave trade carts alone
                         }
                         m_seen.push_back({sea_distance(a.x8 - b.x8, a.y8 - b.y8), b.entry});
                     }

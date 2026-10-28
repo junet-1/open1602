@@ -98,13 +98,17 @@ std::vector<std::size_t> cities_near_cart(const World& world, const assets::Buil
     return out;
 }
 
-const Ship* Fleet::cart_of(PlayerId player, std::uint16_t island) const {
-    for (const Ship& s : m_world->ships()) {
-        if (s.cart() && s.owner == player && !s.sinking && island_of(*m_world, s.x, s.y) == island) {
+const Ship* trade_cart_of(const World& world, PlayerId player, std::uint16_t island) {
+    for (const Ship& s : world.ships()) {
+        if (s.cart() && s.owner == player && !s.sinking && island_of(world, s.x, s.y) == island) {
             return &s;
         }
     }
     return nullptr;
+}
+
+const Ship* Fleet::cart_of(PlayerId player, std::uint16_t island) const {
+    return trade_cart_of(*m_world, player, island);
 }
 
 std::uint32_t Fleet::request_cart(const CartRequest& r) {

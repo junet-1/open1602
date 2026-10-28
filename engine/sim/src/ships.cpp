@@ -687,6 +687,11 @@ void Fleet::sink(Ship& ship, PlayerId attacker) {
     for (const CargoSlot& c : ship.cargo) {
         soldiers += is_soldier_ware(c.ware) ? 1U : 0U;
     }
+    if (ship.cart()) {
+        // A destroyed trade cart is no lost or sunk ship of the score.
+        m_events.push_back(ShipEvent{ShipEvent::Kind::Sunk, ship.id, ship.owner, 0, attacker});
+        return;
+    }
     if (Player* owner = m_world->player(ship.owner)) {
         add_count(owner->ships_lost, 1);
         add_count(owner->soldiers_lost, soldiers);

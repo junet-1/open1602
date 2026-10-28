@@ -75,6 +75,9 @@ inline constexpr std::int32_t kCartReach = 2;
 [[nodiscard]] std::vector<std::size_t> cities_near_cart(const World& world, const assets::BuildingTable& buildings,
                                                         std::int32_t wx, std::int32_t wy);
 
+/// The trade cart of `player` on `island` (one per player and island), nullptr if it has none.
+[[nodiscard]] const Ship* trade_cart_of(const World& world, PlayerId player, std::uint16_t island);
+
 /// Whether a world tile lies within reach of a building (0x004670D0): the integer circle of radius
 /// 5 around its centre. Ships trade with a Kontor, are repaired by a shipyard from there.
 [[nodiscard]] bool building_in_reach(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
