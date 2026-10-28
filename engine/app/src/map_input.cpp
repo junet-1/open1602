@@ -209,6 +209,7 @@ void MapInput::setup_keys() {
     general(chord(SDLK_EQUALS, true), KeyAction::PixelScaleUp);
     general(chord(SDLK_MINUS, true), KeyAction::PixelScaleDown);
     general(chord(SDLK_O, true), KeyAction::ShowOwners);
+    general(chord(SDLK_B, true), KeyAction::ShowFertility);  // "Boden"
     general(chord(SDLK_F, true), KeyAction::ShowFps);
     general(chord(SDLK_K, true), KeyAction::ShowCoordinates);
     general(chord(SDLK_M), KeyAction::ShowUnitArms);
@@ -706,6 +707,9 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             break;
         case KeyAction::ShowOwners:
             m_host.toggle_owners();
+            break;
+        case KeyAction::ShowFertility:
+            m_host.toggle_fertility();
             break;
         case KeyAction::ShowFps:
             m_host.toggle_fps();

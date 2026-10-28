@@ -65,6 +65,8 @@ public:
         virtual void quit() = 0;
         /// Ctrl+O: the ownership overlay.
         virtual void toggle_owners() = 0;
+        /// Ctrl+B: the fertility view for the crop of the selected farm (fertility_view.hpp).
+        virtual void toggle_fertility() = 0;
         /// Ctrl+F, Ctrl+K: the frame rate, the tile under the mouse in the corner of the map.
         virtual void toggle_fps() = 0;
         virtual void toggle_coordinates() = 0;

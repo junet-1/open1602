@@ -33,6 +33,9 @@ struct DisplaySettings {
     /// The status bar tells when two other players go to war or make peace (the original tells
     /// only the player concerned).
     bool rival_wars = true;
+    /// While a field or plantation is in the build tool, the tiles of the island are tinted by
+    /// whether its crop bears there (fertility_view.hpp).
+    bool fertility = true;
     /// The original's graphics instead of Open1602's: shadows and chimney smoke dithered (every
     /// second pixel) instead of blended (render::Dither), ground that cannot be built on red instead
     /// of yellow checkered, and no dotted border around other players' land while building. One

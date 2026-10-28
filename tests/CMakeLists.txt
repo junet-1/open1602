@@ -45,6 +45,7 @@ add_executable(o1602_tests
     unit/test_display_settings.cpp
     unit/test_command_sink.cpp
     unit/test_event_presenter.cpp
+    unit/test_fertility_view.cpp
     unit/test_messages.cpp
     unit/test_map_gestures.cpp
     unit/test_key_help.cpp

@@ -83,6 +83,7 @@ enum class KeyAction : std::uint16_t {
     PixelScaleUp,
     PixelScaleDown,
     ShowOwners,
+    ShowFertility,    ///< whether the selected farm's crop bears on each tile (Open1602)
     ShowFps,          ///< the frame rate in the corner of the map (History Edition)
     ShowCoordinates,  ///< the tile under the mouse in the corner of the map (History Edition)
     ShowUnitArms,     ///< the owner's coat of arms over the own land units (History Edition)

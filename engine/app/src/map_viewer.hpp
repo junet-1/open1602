@@ -121,6 +121,7 @@ private:
     void toggle_fps() override { m_show_fps = !m_show_fps; }
     void toggle_coordinates() override { m_show_coordinates = !m_show_coordinates; }
     void toggle_unit_arms() override { m_show_unit_arms = !m_show_unit_arms; }
+    void toggle_fertility() override;
     void toggle_fullscreen() override;
     void toggle_pause_video() override;
     void notify(std::string text, std::string_view log) override;
@@ -134,6 +135,11 @@ private:
     void draw_corner_info();
     /// The unit identification (M, History Edition): the coat of arms over every own land unit.
     void draw_unit_arms();
+    /// The crop the fertility view shows now (0: none), and the island of the selected farm it
+    /// comes from.
+    [[nodiscard]] std::pair<std::uint8_t, std::optional<std::uint16_t>> fertility_view_crop() const;
+    /// The fertility view's marks for this frame (fertility_view.hpp).
+    void add_fertility_marks();
     /// The English developer readout under O1602_DEBUG_TITLE: the map under the mouse, the selection, fps.
     [[nodiscard]] std::string debug_title(double fps);
     /// Where the camera starts and Home goes: the local player's Kontor, else his first ship,
@@ -488,6 +494,7 @@ private:
     bool m_show_fps = false;                 ///< the frame rate in the map's corner (Ctrl+F)
     bool m_show_coordinates = false;         ///< the tile under the mouse in the map's corner (Ctrl+K)
     bool m_show_unit_arms = false;           ///< coats of arms over the own land units (M)
+    bool m_show_fertility = false;           ///< the fertility view for the selected farm's crop (Ctrl+B)
     double m_fps = 0.0;                      ///< frames a second, measured for the title
     bool m_quit_pending = false;             ///< "Ende" waits for the answer to its question
     AppSettings m_app_settings;              ///< settings.cfg in the user's data folder
