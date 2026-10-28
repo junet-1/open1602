@@ -177,6 +177,8 @@ private:
     void set_mode(std::int32_t mode);
     /// Tells the panel which building is under the mouse for its window (none: the player status).
     void select_building_at_mouse(const Selection& before);
+    /// The key "Plant all farm fields": the selected farm's field on the open ground it reaches.
+    void plant_fields();
     /// Closes the open pop-up of a build category, else lays the building in hand away (the
     /// original's right click). False if there was neither.
     bool cancel_build_step();

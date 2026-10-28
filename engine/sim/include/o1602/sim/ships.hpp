@@ -244,7 +244,7 @@ struct ShipEvent {
         ShipLaunched,      ///< 6 / 11: a shipyard finished a ship
         ShipRepaired,      ///< 7
         FleetFull,         ///< 0x47: the player has too many ships for another order
-        Attacked,          ///< 8, or 5 when `amount` is 1 (pirates)
+        Attacked,          ///< 8, or 5 when `amount` is 1 (pirates); `city` holds the attacker
         Sunk,              ///< 9: `player` lost the ship; `city` holds the attacker
         WhiteFlag,         ///< a computer's ship surrendered to the pirates
         Fired,             ///< a broadside; `ware` holds the bearing

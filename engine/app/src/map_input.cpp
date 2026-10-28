@@ -17,6 +17,7 @@
 #include "o1602/sim/combat.hpp"
 #include "o1602/sim/construction.hpp"
 #include "o1602/sim/growth.hpp"
+#include "o1602/ui/build_menu.hpp"
 #include "o1602/ui/localization.hpp"
 
 namespace o1602::app {
@@ -184,6 +185,7 @@ void MapInput::setup_keys() {
     general(chord(SDLK_RETURN), KeyAction::Chat);
     general(chord(SDLK_KP_ENTER), KeyAction::Chat);
     general(chord(SDLK_DELETE), KeyAction::DemolishTool);
+    general(chord(SDLK_F), KeyAction::PlantFields);  // "Felder"
     // Groups: keys 1 .. 9, 0 are groups 0 .. 9.
     const std::array<SDL_Scancode, 10> digits{SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
                                               SDL_SCANCODE_5, SDL_SCANCODE_6, SDL_SCANCODE_7, SDL_SCANCODE_8,
@@ -219,6 +221,7 @@ void MapInput::setup_keys() {
     building(chord(SDLK_DELETE), KeyAction::DemolishTool);
     building(chord(SDLK_TAB), KeyAction::NextBuilding);
     building(chord(SDLK_TAB, false, true), KeyAction::NextBuilding, 1);
+    building(chord(SDLK_F), KeyAction::PlantFields);
     // Orders to the selected units
     // None of these means anything in general (no clash with W A S D).
     units(chord(SDLK_F), KeyAction::AttackMove);  // "Feuer"
@@ -550,6 +553,9 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             break;
         case KeyAction::NextBuilding:
             m_tool.cycle(b.param != 0 ? -1 : 1);
+            break;
+        case KeyAction::PlantFields:
+            plant_fields();
             break;
         case KeyAction::GroupStore:
             m_units.store_group(b.param);
@@ -999,6 +1005,36 @@ void MapInput::select_building_at_mouse(const Selection& before) {
                 }
             }
         }
+    }
+}
+
+void MapInput::plant_fields() {
+    // The selected farm's field (the one its window picks in the build menu, 0x004331B0) on all
+    // open ground in its catchment; with nothing selected or another building nothing happens.
+    if (!m_hud || m_hud->selection().kind != Selection::Kind::Building) {
+        return;
+    }
+    const Selection& sel = m_hud->selection();
+    const sim::World& w = world();
+    if (sel.island >= w.islands().size()) {
+        return;
+    }
+    const sim::SubTile t = w.islands()[sel.island].map.sub_tile(m_buildings, sel.x, sel.y);
+    if (t.building == nullptr || t.building->raw_ware == 0) {
+        return;
+    }
+    for (const assets::BuildingType& field : m_buildings.types()) {
+        const assets::BuildingType* ripe =
+            field.prod_kind == sim::prod::kGrowing ? sim::ripe_record(m_buildings, field) : nullptr;
+        if (ripe == nullptr || ripe->ware != t.building->raw_ware ||
+            ui::build_menu().category_of(field.id) == nullptr) {
+            continue;
+        }
+        if (auto order = sim::plant_fields_order(w, m_buildings, local(), sel.island, {sel.x, sel.y}, field.id);
+            order && !order->items.empty()) {
+            submit({std::move(*order)}, false, false);
+        }
+        return;
     }
 }
 

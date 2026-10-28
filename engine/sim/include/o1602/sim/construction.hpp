@@ -231,6 +231,15 @@ bool destroy_building(World& world, const assets::BuildingTable& buildings, std:
 [[nodiscard]] bool tile_fertile_at(const World& world, const assets::BuildingTable& buildings, std::uint16_t island,
                                    std::uint8_t ware, std::int32_t x, std::int32_t y, std::uint8_t drought);
 
+/// The order of the key "Plant all farm fields" (Open1602, after the History Edition's text 757,
+/// which has no key and whose code is not known): the building at `origin` is a farm, plantation,
+/// pasture or woodcutter of `player`, and `field` is the field it harvests; the order puts that
+/// field on every tile of open ground in its catchment, the nearest first. Building it places what
+/// fits and what the player can pay. Nothing if the building is not the player's or no farm.
+[[nodiscard]] std::optional<BuildOrder> plant_fields_order(const World& world, const assets::BuildingTable& buildings,
+                                                           PlayerId player, std::uint16_t island, TilePos origin,
+                                                           std::uint32_t field);
+
 /// How fertile an island is for a ware (0x0046AFF0): crops and resources 45..58 from the
 /// fertility mask (128) or the climate's own crops (64); ore by its deposits (big 128, small 64).
 [[nodiscard]] std::uint32_t island_fertility(const WorldIsland& island, std::uint8_t ware) noexcept;

@@ -34,6 +34,7 @@ constexpr std::uint32_t kArch = 21502;
 constexpr std::uint32_t kWall = 22501;
 constexpr std::uint32_t kTower = 20305;
 constexpr std::uint32_t kGate = 20304;
+constexpr std::uint32_t kPlantation = 20599;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -119,6 +120,10 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_BAUKOST\n    Money: 12\n  EndObj\n"
         "  @Nummer: 34\n  Id: 22562\n  Kind: 5\n  Gfx: 136\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 33\n"
         "  @Nummer: 35\n  Id: 22563\n  Kind: 5\n  Gfx: 140\n  Size: 1, 1\n  Rotate: 1\n  KreuzBase: 33\n"
+        // A plantation that harvests the crop above (ware 46) within 3 tiles.
+        "  @Nummer: 36\n  Id: 20599\n  Kind: 14\n  Gfx: 144\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Ware: 6\n    Rohstoff: 46\n    Radius: 3\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 20\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -849,4 +854,39 @@ TEST_CASE("construction: a soldier on the footprint stops a building, one beside
     CHECK(plan.items[0].refusal == sim::BuildRefusal::UnitInTheWay);
     CHECK(plan.items[1].refusal == sim::BuildRefusal::None);
     CHECK(plan.placed == 1);
+}
+
+TEST_CASE("construction: the key \"plant all farm fields\" plants the farm's open ground, the nearest first") {
+    Island island(1U << (46 - 45));  // fertile for the crop
+    island.found();
+    REQUIRE(island.build({{kPlantation, 9, 12, 0, 0}}).placed == 1);
+    REQUIRE(island.build({{kField, 11, 14, 0, 0}}).placed == 1);  // a field it has already
+    island.world.island(0).map.set_sprite(8, 11, static_cast<std::uint16_t>(island.buildings.by_id(kTree)->gfx));
+    const auto order = sim::plant_fields_order(island.world, island.buildings, 0, 0, {9, 12}, kField);
+    REQUIRE(order);
+    REQUIRE(!order->items.empty());
+    CHECK(order->player == 0);
+    for (const sim::BuildItem& item : order->items) {
+        CHECK(item.building == kField);
+        // Not on the plantation, the field, the tree or the Kontor (x 5..6, y 10..12).
+        CHECK(!(item.x >= 9 && item.x <= 10 && item.y >= 12 && item.y <= 13));
+        CHECK(!(item.x == 11 && item.y == 14));
+        CHECK(!(item.x == 8 && item.y == 11));
+        CHECK(!(item.x >= 5 && item.x <= 6 && item.y >= 10 && item.y <= 12));
+    }
+    // The nearest first: a tile next to the plantation.
+    const sim::BuildItem& first = order->items.front();
+    CHECK(first.x >= 8);
+    CHECK(first.x <= 11);
+    CHECK(first.y >= 11);
+    CHECK(first.y <= 14);
+    // As much as the money pays for: 12 gold, two fields of 5.
+    island.world.player(0)->money = 12;
+    sim::BuildOrder o = *order;
+    CHECK(sim::execute_build(island.world, island.buildings, o, island.names, nullptr).placed == 2);
+    CHECK(island.at(first.x, first.y)->id == kField);
+    // Nothing for another building, another player's farm or a field that is not its own.
+    CHECK(!sim::plant_fields_order(island.world, island.buildings, 0, 0, {5, 10}, kField));
+    CHECK(!sim::plant_fields_order(island.world, island.buildings, 1, 0, {9, 12}, kField));
+    CHECK(!sim::plant_fields_order(island.world, island.buildings, 0, 0, {9, 12}, 20211));
 }

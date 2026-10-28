@@ -67,6 +67,7 @@ KeyHelpPlace key_help_place(KeyAction action) noexcept {
         case KeyAction::PickBuilding:
         case KeyAction::DemolishTool:
         case KeyAction::NextBuilding:
+        case KeyAction::PlantFields:
             return {2, 0};
         case KeyAction::GroupStore:
         case KeyAction::GroupAdd:
