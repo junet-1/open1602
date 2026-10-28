@@ -1167,8 +1167,12 @@ ui::Rect Hud::help_box() const {
 ui::Rect Hud::help_tab(const ui::Rect& box, std::size_t page) const {
     const double s = m_menu_active ? m_menu_scale : m_regions.scale;
     const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
-    const std::int32_t w = (box.w - px(28)) / static_cast<std::int32_t>(kKeyHelpPages);
-    return ui::Rect{box.x + px(14) + static_cast<std::int32_t>(page) * w, box.y + px(40), w - px(4), px(20)};
+    // The tabs side by side, a gap between them, the row centred in the window.
+    const auto n = static_cast<std::int32_t>(kKeyHelpPages);
+    const std::int32_t gap = px(4);
+    const std::int32_t w = (box.w - 2 * px(kHelpMargin) + gap) / n;
+    const std::int32_t left = box.x + (box.w - (n * w - gap)) / 2;
+    return ui::Rect{left + static_cast<std::int32_t>(page) * w, box.y + px(40), w - gap, px(20)};
 }
 
 void Hud::draw_help() {
@@ -1185,7 +1189,7 @@ void Hud::draw_help() {
     // The tabs: the page shown framed thick, the others thin; a gold line below them all.
     const ui::Rect first = help_tab(box, 0);
     const ui::Rect last = help_tab(box, kKeyHelpPages - 1);
-    m_renderer->fill(ui::Rect{first.x, first.y + first.h, last.x + last.w - first.x, px(1)}, kGold);
+    m_renderer->fill(ui::Rect{first.x, first.y + first.h, last.x + last.w - first.x, std::max(1, px(1))}, kGold);
     for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
         const ui::Rect t = help_tab(box, p);
         const std::int32_t edge = p == m_help_page ? px(2) : std::max(1, px(1));
