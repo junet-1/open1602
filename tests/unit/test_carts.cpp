@@ -7,7 +7,9 @@
 #include "o1602/assets/cod.hpp"
 #include "o1602/assets/figure_table.hpp"
 #include "o1602/sim/diplomacy.hpp"
+#include "o1602/sim/save_game.hpp"
 #include "o1602/sim/ships.hpp"
+#include "o1602/sim/simulation.hpp"
 #include "o1602/sim/world.hpp"
 
 using namespace o1602;
@@ -302,4 +304,65 @@ TEST_CASE("carts: the closed gates of another player stop a cart") {
     events = run(fleet, land.world, 60000);
     CHECK(count(events, sim::ShipEvent::Kind::Arrived) == 1);
     CHECK(land.world.ship(id)->x == 34);
+}
+
+TEST_CASE("carts: a game saved while a cart drives and gates are closed runs on the same after loading") {
+    // What a computer joining a multiplayer game gets (ADR 0011 point 6): the game must go on there
+    // exactly as on the host, so everything of a cart and of the gates has to be in the savegame.
+    Land land;
+    land.wall();
+    for (std::uint16_t i = 0; i < land.world.islands().size(); ++i) {
+        sim::WorldIsland& isl = land.world.island(i);
+        isl.header.number = i;  // a savegame needs them as a real map has them
+        isl.header.width = static_cast<std::uint16_t>(isl.map.width());
+        isl.header.height = static_cast<std::uint16_t>(isl.map.height());
+        isl.header.pos_x = static_cast<std::uint16_t>(isl.x);
+        isl.header.pos_y = static_cast<std::uint16_t>(isl.y);
+    }
+    sim::City& west = *land.world.city(0, 0);
+    sim::City& east = *land.world.city(0, 1);
+    west.goods[kWood] = 60 * kTon;
+    east.trade[kWood].buy = true;
+    east.trade[kWood].buy_price = 10;
+    east.trade[kWood].limit = 60 * kTon;
+    land.world.diplomacy().relation(0, 1).trade = sim::Treaty::Signed;
+    land.world.diplomacy().relation(1, 0).trade = sim::Treaty::Signed;
+    sim::Simulation host(land.world, land.buildings, land.figures);
+    host.submit(sim::CartRequest{0, 0, 0, 20, 15});
+    host.submit(sim::CartRequest{1, 0, 1, 25, 18});
+    host.tick();
+    const sim::Ship* cart = land.world.ships().empty() ? nullptr : &land.world.ships().front();
+    REQUIRE(cart != nullptr);
+    REQUIRE(cart->cart());
+    const std::uint32_t id = cart->id;
+    using Op = sim::RouteEdit::Op;
+    host.submit(sim::RouteEdit{0, id, Op::SetStop, 0, 0, sim::Target::city_of(0, 0)});
+    host.submit(sim::RouteEdit{0, id, Op::SetEntry, 0, 0, {}, sim::RouteEntry{kWood, false, 30 * kTon}});
+    host.submit(sim::RouteEdit{0, id, Op::SetStop, 1, 0, sim::Target::city_of(0, 1)});
+    host.submit(sim::RouteEdit{0, id, Op::SetEntry, 1, 0, {}, sim::RouteEntry{kWood, true, 30 * kTon}});
+    host.submit(sim::RouteEdit{0, id, Op::Start});
+    host.submit(sim::GateOrder{1, true});
+    host.tick();  // the commands are applied: queued ones are not part of a savegame
+    bool crossed = false;
+    for (int step = 0; step < 12; ++step) {
+        if (step == 6) {
+            host.submit(sim::GateOrder{1, false});
+            host.tick();
+        }
+        auto bytes = sim::write_game(land.world, land.buildings, &host, sim::SaveOptions{false});
+        REQUIRE(bytes.ok());
+        auto loaded = sim::read_game(*bytes, land.buildings, nullptr, &land.figures);
+        REQUIRE(loaded.ok());
+        sim::World world = std::move(loaded).value();
+        sim::Simulation joined(world, land.buildings, land.figures);
+        CHECK(!joined.state_damaged());
+        CHECK(joined.state_hash() == host.state_hash());
+        for (int t = 0; t < 211; ++t) {
+            host.tick();
+            joined.tick();
+        }
+        CHECK(joined.state_hash() == host.state_hash());
+        crossed = crossed || land.world.ship(id)->x > 29;  // east of the wall, through the opened gate
+    }
+    CHECK(crossed);
 }
