@@ -2329,7 +2329,7 @@ std::optional<BuildOrder> plant_fields_order(const World& world, const assets::B
         return std::nullopt;
     }
     const IslandMap& map = world.islands()[island].map;
-    if (!map.contains(static_cast<std::uint32_t>(origin.x), static_cast<std::uint32_t>(origin.y))) {
+    if (!map.contains(origin.x, origin.y)) {
         return std::nullopt;
     }
     const MapCell& cell = map.top(static_cast<std::uint32_t>(origin.x), static_cast<std::uint32_t>(origin.y));
@@ -2355,7 +2355,7 @@ std::optional<BuildOrder> plant_fields_order(const World& world, const assets::B
             dx = dx > 0 ? dx - area.parity_x : -dx;
             dy = dy > 0 ? dy - area.parity_y : -dy;
             if (dy > area.radius || (area.radius > 1 && dx > half[static_cast<std::size_t>(dy)]) ||
-                !map.contains(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y))) {
+                !map.contains(x, y)) {
                 continue;
             }
             // Open ground only: trees, meadows and the fields of other farms stay as they are.
