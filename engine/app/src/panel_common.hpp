@@ -157,6 +157,8 @@ struct ShipLayouts {
     assets::GadgetLayout piratord;
     /// MUSIK.GAD for its list arrows (the pages of the route editor); without it, four stops.
     std::optional<assets::GadgetLayout> musik;
+    /// TRADER.GAD, the trade cart's window; without it a cart shows the ship's.
+    std::optional<assets::GadgetLayout> trader;
 };
 /// The ship's window with its pages (ship_panel.cpp).
 /// SHIPLIST (`ships`) or STADTLST: the lists of the player status (list_panels.cpp).

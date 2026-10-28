@@ -584,7 +584,7 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             std::vector<ui::UnitRef> idle;
             if (ships) {
                 for (const sim::Ship& s : world().ships()) {
-                    if (s.owner == local() && !s.sinking && s.target.empty() && !s.route.active) {
+                    if (s.owner == local() && !s.sinking && !s.cart() && s.target.empty() && !s.route.active) {
                         idle.push_back({ui::UnitRef::Kind::Ship, s.id});
                     }
                 }
@@ -1171,6 +1171,15 @@ std::optional<std::array<double, 4>> MapInput::unit_box(const ui::UnitRef& ref) 
     return std::array<double, 4>{sx - w / 2, sy - h * 0.9, w, h};
 }
 
+std::vector<ui::UnitCandidate> MapInput::without_carts(std::vector<ui::UnitCandidate> units) const {
+    // A trade cart is picked by a click on it alone: it does not go with ships or soldiers.
+    std::erase_if(units, [&](const ui::UnitCandidate& c) {
+        const sim::Ship* s = c.ref.kind == ui::UnitRef::Kind::Ship ? world().ship(c.ref.id) : nullptr;
+        return s != nullptr && s->cart();
+    });
+    return units;
+}
+
 std::vector<ui::UnitCandidate> MapInput::units_in(double x0, double y0, double x1, double y1) const {
     const double left = std::min(x0, x1);
     const double right = std::max(x0, x1);
@@ -1330,7 +1339,7 @@ void MapInput::map_left_up(double x, double y, std::uint16_t mod, int clicks) {
         return;
     }
     if (m_press.rubber_band() && m_press.at()) {
-        m_units.box(world(), units_in(m_press.at()->first, m_press.at()->second, x, y), local(), shift);
+        m_units.box(world(), without_carts(units_in(m_press.at()->first, m_press.at()->second, x, y)), local(), shift);
         selection_changed(true);
         return;
     }
@@ -1338,7 +1347,7 @@ void MapInput::map_left_up(double x, double y, std::uint16_t mod, int clicks) {
         if (ctrl || clicks >= 2) {
             // All of this kind on screen.
             const ui::Rect v = m_hud ? m_hud->game_view() : ui::Rect{0, 0, 1 << 15, 1 << 15};
-            m_units.select_alike(world(), units_in(v.x, v.y, v.x + v.w, v.y + v.h), *unit);
+            m_units.select_alike(world(), without_carts(units_in(v.x, v.y, v.x + v.w, v.y + v.h)), *unit);
         } else if (shift) {
             m_units.toggle(world(), *unit);
         } else {

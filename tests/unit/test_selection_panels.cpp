@@ -65,7 +65,7 @@ void write(const std::filesystem::path& file, const std::string& text) {
 /// STADT (43002..43030), KONTOR (34002..34081), LAGER (44002..44400), SKSHIP (51002..51100),
 /// MKSHIP (50002..50040), SKSOLDAT (65002..65030), MKSOLDAT (52002..52040), VERTRAG (56001..56070),
 /// TRIBUT (64001..64030), INFRA (62002..62021), HANDEL (53002..53100) and the ship window's (SHIP,
-/// TRANSFER, TRADE, ROUTE, PIRAT, PIRATORD) layouts and the GAME and
+/// TRANSFER, TRADE, ROUTE, PIRAT, PIRATORD, TRADER) layouts and the GAME and
 /// DIVERS texts the windows show.
 struct Game {
     std::filesystem::path root;
@@ -172,6 +172,7 @@ struct Game {
         range("ROUTE.GAD", 58001, 58100);
         range("PIRAT.GAD", 54002, 54010);
         range("PIRATORD.GAD", 55002, 55045);
+        range("TRADER.GAD", 59001, 59094);
         ids.clear();
         for (std::int32_t id = 62002; id <= 62021; ++id) {
             ids.push_back(id);
@@ -824,6 +825,105 @@ TEST_CASE("selection panels: the own Kontor shows the city, edits its trade list
     CHECK(request->ware == kSold);
     CHECK(request->island == 0);
     CHECK(out.empty());
+}
+
+TEST_CASE("selection panels: the trade cart button asks where a cart goes, then jumps to it; its window") {
+    Game g("o1602-test-selection-cart");
+    Town t;
+    sim::City haven;
+    haven.island = 0;
+    haven.index = 3;
+    haven.owner = kLocal;
+    haven.name = "Haven";
+    haven.warehouse_x = 4;
+    haven.warehouse_y = 0;
+    haven.capacity = 30 * 32;
+    haven.trade.resize(sim::ware::kLastTrade + 1);
+    t.world.add_city(haven);
+    sim::Simulation simulation(t.world, t.buildings, t.figures);
+    SelectionPanels panels(*g.dir);
+    const PanelContext c{simulation, t.buildings, t.figures, &g.texts, kLocal};
+    Selection kontor = building(4, 0);
+    kontor.serial = 1;
+    SelectionPanel* p = panels.panel_for(kontor, c);
+    REQUIRE(p != nullptr);
+    p->refresh(kontor, c);
+    // No cart yet: the button waits for a click on the map, which sends one out there.
+    std::vector<sim::Command> out;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 43026}, kontor, c, out);
+    CHECK(out.empty());
+    CHECK(p->picking());
+    p->picked(12, 7, kontor, c, out);
+    CHECK(!p->picking());
+    REQUIRE(out.size() == 1);
+    const auto* request = std::get_if<sim::CartRequest>(&out[0]);
+    REQUIRE(request != nullptr);
+    CHECK(request->player == kLocal);
+    CHECK(request->island == 0);
+    CHECK(request->city == 3);
+    CHECK(request->x == 12);
+    CHECK(request->y == 7);
+    out.clear();
+    // With a cart on the island it selects the cart and looks at it.
+    sim::Ship cart = sim::make_ship("Altair", 9, 7, sim::figure::kTradeCart, kLocal);
+    cart.cargo.resize(3);
+    t.world.add_ship(cart);
+    const std::uint32_t id = t.world.ships().back().id;
+    p->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 43026}, kontor, c, out);
+    CHECK(out.empty());
+    CHECK(!p->picking());
+    const auto jump = p->take_request();
+    REQUIRE(jump.has_value());
+    CHECK(jump->kind == SelectionPanel::Request::Kind::SelectShip);
+    CHECK(jump->ship == id);
+
+    // The cart's window (TRADER.GAD): standing next to the own Kontor, the exchange opens the
+    // ship's transfer page; the route button switches the route like the ship's.
+    Selection selected;
+    selected.kind = Selection::Kind::Ship;
+    selected.ship = id;
+    selected.serial = 2;
+    SelectionPanel* w = panels.panel_for(selected, c);
+    REQUIRE(w != nullptr);
+    w->refresh(selected, c);
+    const ui::Panel* root = &w->panel();
+    CHECK(root->layout().find(59004) != nullptr);
+    w->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 59006}, selected, c, out);
+    REQUIRE(out.size() == 1);
+    const auto* route = std::get_if<sim::RouteEdit>(&out[0]);
+    REQUIRE(route != nullptr);
+    CHECK(route->op == sim::RouteEdit::Op::Start);
+    out.clear();
+    w->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 59004}, selected, c, out);
+    w->refresh(selected, c);
+    CHECK(&w->panel() != root);
+    CHECK(w->panel().layout().find(45002) != nullptr);
+
+    // "Set route": the stops are clicked on the map one after another, from the first free one;
+    // a click beside a city or Escape ends it.
+    selected.serial = 3;
+    w->refresh(selected, c);
+    out.clear();
+    w->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 59005}, selected, c, out);
+    CHECK(w->picking());
+    out.clear();                         // the editor drops stops that are no city (none here)
+    w->picked(8, 4, selected, c, out);   // Haven's Kontor
+    w->picked(13, 9, selected, c, out);  // a house of Haven
+    CHECK(w->picking());
+    REQUIRE(out.size() == 2);
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        const auto* stop = std::get_if<sim::RouteEdit>(&out[i]);
+        REQUIRE(stop != nullptr);
+        CHECK(stop->op == sim::RouteEdit::Op::SetStop);
+        CHECK(stop->ship == id);
+        CHECK(stop->stop == i);
+        CHECK(stop->target == sim::Target::city_of(0, 3));
+    }
+    CHECK(w->back());
+    CHECK(!w->picking());
+    w->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 59005}, selected, c, out);
+    w->picked(0, 0, selected, c, out);  // the sea: no stop, the end
+    CHECK(!w->picking());
 }
 
 TEST_CASE("selection panels: the military windows of one ship and of a fleet give their orders") {

@@ -1058,6 +1058,8 @@ void MapViewer::update(std::uint32_t delta_ms) {
         m_soldiers.advance(static_cast<std::uint32_t>(delta_ms), m_figures);
         m_walkers.update(m_state->simulation.logistics(), m_state->world, m_buildings, m_figures,
                          static_cast<std::uint32_t>(delta_ms) * m_state->simulation.speed(), m_tick_fraction);
+        m_carts.update(m_state->world, m_buildings, m_figures, m_ship_trail,
+                       static_cast<std::uint32_t>(delta_ms) * m_state->simulation.speed());
         m_combat.frame(m_state->world, m_figures, m_tick_fraction);
         m_sound->figures({&m_walkers.instances(), &m_soldiers.instances(), &m_ambient.walkers()}, m_effects, m_figures,
                          m_state->world.time_ms(), m_state->simulation.speed(), m_drawn_tiles);
@@ -1205,7 +1207,7 @@ render::WorldLayers MapViewer::world_layers(const ZoomGraphics& graphics) const 
     layers.ship_trail = &m_ship_trail;
     layers.sheet_base = graphics.graphics.base;
     // The deer walk as figures of the simulation (m_walkers).
-    layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances(), &m_ambient.walkers()};
+    layers.land_figures = {&m_soldiers.instances(), &m_walkers.instances(), &m_carts.instances(), &m_ambient.walkers()};
     layers.unit_tint = &graphics.graphics.unit_tint;
     layers.banners = &m_banners;
     layers.banner_flags = &graphics.graphics.banner_flags;
@@ -1225,7 +1227,8 @@ std::optional<render::FigureSprites> MapViewer::unit_sprites(const ui::UnitRef& 
     }
     const render::WorldLayers layers = world_layers(*graphics);
     render::FigureSprites out;
-    if (ref.kind == ui::UnitRef::Kind::Ship) {
+    const sim::Ship* cart = ref.kind == ui::UnitRef::Kind::Ship ? m_state->world.ship(ref.id) : nullptr;
+    if (ref.kind == ui::UnitRef::Kind::Ship && (cart == nullptr || !cart->cart())) {
         const sim::Ship* ship = m_state->world.ship(ref.id);
         render::ShipSprites s;
         if (ship == nullptr ||
@@ -1240,7 +1243,7 @@ std::optional<render::FigureSprites> MapViewer::unit_sprites(const ui::UnitRef& 
         }
         return out;
     }
-    const render::FigureInstance* figure = m_soldiers.find(ref.id);
+    const render::FigureInstance* figure = cart != nullptr ? m_carts.find(ref.id) : m_soldiers.find(ref.id);
     if (figure == nullptr || !render::land_figure_sprites(*figure, m_state->world, m_camera.view(), layers, out)) {
         return std::nullopt;
     }
@@ -2970,6 +2973,7 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
     m_stock_notes.clear();
     m_soldiers.reset(m_state->world, m_buildings, m_figures);
     m_walkers = render::WalkerFigures{};
+    m_carts = render::CartFigures{};
     m_ambient = render::Ambient{1602, ambient_config()};
     m_ambient.tick(m_state->world, m_buildings, m_figures);
     m_combat.reset();

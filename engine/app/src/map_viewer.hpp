@@ -46,6 +46,7 @@
 #include "o1602/render/ambient.hpp"
 #include "o1602/render/animation_clock.hpp"
 #include "o1602/render/camera.hpp"
+#include "o1602/render/cart_figures.hpp"
 #include "o1602/render/combat_effects.hpp"
 #include "o1602/render/graphics_preloader.hpp"
 #include "o1602/render/land_figures.hpp"
@@ -417,6 +418,7 @@ private:
     sim::PlayerId m_local_player = sim::kNoPlayer;  ///< whose buildings show status icons
     render::SoldierFigures m_soldiers;              ///< land units in their owners' colours
     render::WalkerFigures m_walkers;                ///< carriers, carts, workers, deer and hunters
+    render::CartFigures m_carts;                    ///< the players' trade carts
     render::ShipTrail m_ship_trail;                 ///< ships drawn between two ticks
     double m_tick_fraction = 1.0;                   ///< share of the next tick that has passed
     std::uint64_t m_title_real_ms = 0;              ///< real and game time of the last title (the speed reached)

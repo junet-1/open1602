@@ -687,6 +687,11 @@ void Fleet::sink(Ship& ship, PlayerId attacker) {
     for (const CargoSlot& c : ship.cargo) {
         soldiers += is_soldier_ware(c.ware) ? 1U : 0U;
     }
+    if (ship.cart()) {
+        // A destroyed trade cart is no lost or sunk ship of the score.
+        m_events.push_back(ShipEvent{ShipEvent::Kind::Sunk, ship.id, ship.owner, 0, attacker});
+        return;
+    }
     if (Player* owner = m_world->player(ship.owner)) {
         add_count(owner->ships_lost, 1);
         add_count(owner->soldiers_lost, soldiers);
@@ -1249,9 +1254,10 @@ bool Fleet::edit_route(const RouteEdit& e) {
             if (e.stop >= TradeRoute::kStops || (!e.target.empty() && !target_valid(e.target))) {
                 return false;
             }
-            if (ship->cart() && !e.target.empty() &&
-                (e.target.kind != Target::Kind::City || !cart_target_allowed(*ship, e.target))) {
-                return false;  // a cart's stops are the cities of its island (0x36 references)
+            if (ship->cart() &&
+                (e.stop >= kCartStops || (!e.target.empty() && (e.target.kind != Target::Kind::City ||
+                                                                !cart_target_allowed(*ship, e.target))))) {
+                return false;  // a cart's four stops are the cities of its island (0x36 references)
             }
             if (e.player != kNoPlayer && e.target.kind == Target::Kind::Ship) {
                 // Goods between two ships move without payment: a player's route reaches only

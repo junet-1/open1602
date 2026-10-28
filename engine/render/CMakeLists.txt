@@ -9,6 +9,7 @@ add_library(o1602_render
     src/animation_clock.cpp
     src/banner.cpp
     src/camera.cpp
+    src/cart_figures.cpp
     src/combat_effects.cpp
     src/figure_animation.cpp
     src/flag_tint.cpp

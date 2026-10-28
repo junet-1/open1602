@@ -112,6 +112,7 @@ private:
         std::int32_t x8;
         std::int32_t y8;
         bool ship;
+        bool cart = false;  ///< a trade cart: a land figure that never fights back, out of the ships' sight
     };
     /// An entry and the bucket of kSight tiles it is in.
     struct Bucketed {

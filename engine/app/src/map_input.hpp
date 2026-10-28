@@ -211,6 +211,7 @@ private:
     [[nodiscard]] std::optional<std::array<double, 4>> unit_box(const ui::UnitRef& ref) const;
     /// Ships and land units whose picture lies in the rectangle (screen), with the part inside.
     [[nodiscard]] std::vector<ui::UnitCandidate> units_in(double x0, double y0, double x1, double y1) const;
+    [[nodiscard]] std::vector<ui::UnitCandidate> without_carts(std::vector<ui::UnitCandidate> units) const;
     /// The unit under a screen point: the one whose visible pixel is there, unless a map tile is
     /// drawn over it; zoomed out, else a small one near it, the local player's first.
     [[nodiscard]] std::optional<ui::UnitRef> unit_at(double sx, double sy) const;

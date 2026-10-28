@@ -1792,7 +1792,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         };
         if (m_local != sim::kNoPlayer) {
             for (const sim::Ship& ship : world.ships()) {
-                if (ship.owner == m_local && !ship.sinking) {
+                if (ship.owner == m_local && !ship.sinking && !ship.cart()) {
                     unit_square(ship.pos_x / static_cast<double>(sim::kShipUnit),
                                 ship.pos_y / static_cast<double>(sim::kShipUnit));
                 }

@@ -338,9 +338,11 @@ public:
         if (const assets::Gadget* g = m_stadt.layout().find(city_ids::kBalanceIcon)) {
             m_balance_icon = g->gfx;
         }
-        // No handler in the original: the Kontor picture. The free trader can not be called yet.
+        if (const assets::Gadget* g = m_stadt.layout().find(city_ids::kTrader)) {
+            m_cart_icon = g->gfx;
+        }
+        // No handler in the original: the Kontor picture.
         m_stadt.set_disabled(city_ids::kKontorPicture, true);
-        m_stadt.set_visible(city_ids::kTrader, false);
     }
 
     void set_scale(double scale) override {
@@ -416,6 +418,14 @@ public:
                 m_slot = 0;
             } else if (e.id == city_ids::kStock) {
                 m_page = Page::Stock;
+            } else if (e.id == city_ids::kTrader) {
+                // 0x0043CE00: with a cart on the island the view jumps to it and selects it, else
+                // the next click on the map sends one out from the Kontor (0x004894E0 with 4).
+                if (const sim::Ship* cart = sim::trade_cart_of(c.world(), c.local, city->island)) {
+                    m_request = Request{Request::Kind::SelectShip, cart->id};
+                } else {
+                    m_cart_pick = true;
+                }
             } else if (e.id == city_ids::kMaterialLock) {
                 sim::CityOrder o;
                 o.player = c.local;
@@ -549,6 +559,9 @@ public:
                     return line(153);
                 case city_ids::kMaterialLock:
                     return line(154 + (city->material_lock ? 1 : 0));
+                case city_ids::kTrader:
+                    // "Fahrenden Händler anfordern" / "Zum fahrenden Händler springen".
+                    return line(sim::trade_cart_of(c.world(), c.local, city->island) != nullptr ? 157 : 156);
                 default:
                     return std::nullopt;
             }
@@ -597,6 +610,18 @@ public:
     }
 
     std::optional<Request> take_request() override { return std::exchange(m_request, std::nullopt); }
+
+    /// After "Fahrenden Händler anfordern": where the new trade cart drives.
+    [[nodiscard]] bool picking() const override { return m_cart_pick; }
+    void picked(std::uint32_t x, std::uint32_t y, const Selection& s, const PanelContext& c,
+                std::vector<sim::Command>& out) override {
+        m_cart_pick = false;
+        if (const sim::City* city = city_at(s, c)) {
+            out.emplace_back(sim::CartRequest{c.local, city->island, city->index, static_cast<std::uint16_t>(x),
+                                              static_cast<std::uint16_t>(y)});
+        }
+    }
+    bool back() override { return std::exchange(m_cart_pick, false); }
 
 private:
     enum class Page : std::uint8_t { City, Kontor, Stock };
@@ -655,6 +680,10 @@ private:
         }
         m_stadt.set_graphic(city_ids::kBalanceIcon, m_balance_icon + (balance < 0 ? 1 : 0), 0);
         m_stadt.set_selected(city_ids::kMaterialLock, city.material_lock);
+        // The trade cart: requested or jumped to (two pictures, 0x00448B70 finds the cart).
+        const bool cart = sim::trade_cart_of(c.world(), c.local, city.island) != nullptr;
+        m_stadt.set_graphic(city_ids::kTrader, m_cart_icon + (cart ? kCartIconJump : 0), 0);
+        m_stadt.set_selected(city_ids::kTrader, m_cart_pick);
     }
 
     void refresh_kontor(const sim::City& city, const PanelContext& c) {
@@ -729,6 +758,10 @@ private:
     std::int32_t m_gfx_ware = 192;
     std::int32_t m_gfx_empty = 192;
     std::int32_t m_balance_icon = 0;
+    std::int32_t m_cart_icon = 0;
+    /// The picture of the trade cart button while the city has one, after "anfordern"'s.
+    static constexpr std::int32_t kCartIconJump = 2;
+    bool m_cart_pick = false;
     Page m_page = Page::City;
     bool m_sell = true;
     bool m_picker = false;
@@ -1544,9 +1577,9 @@ SelectionPanels::SelectionPanels(const assets::GameDirectory& game) {
         auto pirat = load("PIRAT.GAD");
         auto piratord = load("PIRATORD.GAD");
         if (ship && transfer && trade && route && lager && handel && pirat && piratord) {
-            m_panels["SHIP"] = make_ship_panel(ShipLayouts{std::move(*ship), std::move(*transfer), std::move(*trade),
-                                                           std::move(*route), std::move(*lager), std::move(*handel),
-                                                           std::move(*pirat), std::move(*piratord), load("MUSIK.GAD")});
+            m_panels["SHIP"] = make_ship_panel(ShipLayouts{
+                std::move(*ship), std::move(*transfer), std::move(*trade), std::move(*route), std::move(*lager),
+                std::move(*handel), std::move(*pirat), std::move(*piratord), load("MUSIK.GAD"), load("TRADER.GAD")});
         }
     }
     if (auto werft = load("WERFT.GAD")) {

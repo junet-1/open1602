@@ -209,6 +209,9 @@ public:
           m_piratord(with_pirate_arrows(std::move(l.piratord), m_transfer.layout()), 1.0),
           m_stock(std::move(l.lager)),
           m_lists(std::move(l.handel)) {
+        if (l.trader) {
+            m_cart.emplace(std::move(*l.trader), 1.0);
+        }
         const assets::GadgetLayout& sl = m_ship.layout();
         m_gfx_ware = sl.constant("GFXWARE").value_or(192);
         m_gfx_empty = sl.constant("GFXWARELEER").value_or(188) + kEmptyHold;
@@ -244,6 +247,9 @@ public:
         }
         m_stock.panel().set_scale(scale);
         m_lists.panel().set_scale(scale);
+        if (m_cart) {
+            m_cart->set_scale(scale);
+        }
     }
     ui::Panel& panel() override {
         switch (m_page) {
@@ -262,7 +268,7 @@ public:
             case Page::PirateOrder:
                 return m_piratord;
             default:
-                return m_ship;
+                return m_is_cart && m_cart ? *m_cart : m_ship;
         }
     }
     [[nodiscard]] bool picking() const override { return m_pick_stop.has_value() || m_pick_copy; }
@@ -312,7 +318,12 @@ public:
         const sim::City* city = w.city(cell.island, top.city);
         if (city != nullptr && city->warehouse_x) {
             out.emplace_back(route_stop(*ship, c, *stop, sim::Target::city_of(city->island, city->index)));
+            if (m_cart_chain && ship->cart() && *stop + 1 < sim::kCartStops) {
+                m_pick_stop = static_cast<std::uint8_t>(*stop + 1);  // a cart's stops one after another
+                return;
+            }
         }
+        m_cart_chain = false;
     }
 
     void refresh(const Selection& s, const PanelContext& c) override {
@@ -323,11 +334,13 @@ public:
             m_offer = 0;
             m_route_page = 0;
             m_stop_page.reset();
+            m_cart_chain = false;
         }
         const sim::Ship* ship = c.world().ship(s.ship);
         if (ship == nullptr) {
             return;
         }
+        m_is_cart = ship->cart();
         const Context k = context(*ship, c);
         // Transfer, trade and the pirates end when the ship sails off (0x0043AA00); the route
         // editor stays. With S-012 brought back (OriginalBugs::remote_trade) transfer and trade
@@ -344,7 +357,11 @@ public:
         }
         switch (m_page) {
             case Page::Root:
-                refresh_root(*ship, k, c);
+                if (m_is_cart && m_cart) {
+                    refresh_cart(*ship, k, c);
+                } else {
+                    refresh_root(*ship, k, c);
+                }
                 break;
             case Page::Transfer:
                 refresh_transfer(*ship, k, c);
@@ -395,7 +412,11 @@ public:
                 clicked_pirates(e, *ship, c, out);
                 break;
             default:
-                clicked_root(e, *ship, c, out);
+                if (ship->cart() && m_cart) {
+                    clicked_cart(e, *ship, c, out);
+                } else {
+                    clicked_root(e, *ship, c, out);
+                }
                 break;
         }
     }
@@ -414,6 +435,29 @@ public:
             }
             return hold_help(*ship, h, c, m_page == Page::Root);
         };
+        if (m_page == Page::Root && ship->cart() && m_cart) {
+            // TRADER.GAD (LEISTE 166 to 169; the route switch as the ship's).
+            switch (id) {
+                case kCartName:
+                    return line(10);
+                case kCartTrade:
+                    return line(167);
+                case kCartTransfer:
+                    return line(166);
+                case kCartRouteEditor:
+                    return line(168);
+                case kCartRoute:
+                    return line(ship->route.active ? 110 : 111);
+                case kCartStop:
+                    return line(169);
+                default:
+                    break;
+            }
+            if (id >= kCartHoldButton && id < kCartHoldButton + 8) {
+                return hold_text(static_cast<std::size_t>(id - kCartHoldButton));
+            }
+            return std::nullopt;
+        }
         if (m_page == Page::Root) {
             switch (id) {
                 case kName:
@@ -560,6 +604,7 @@ public:
         if (m_pick_stop || m_pick_copy) {
             m_pick_stop.reset();
             m_pick_copy = false;
+            m_cart_chain = false;
             return true;
         }
         switch (m_page) {
@@ -677,6 +722,26 @@ private:
         // With S-013 brought back (OriginalBugs::remote_repair) a ship can be put to repair as it
         // sails off from the yard, and is repaired on the way.
         const bool remote_repair = c.world().original_bugs().remote_repair;
+        if (ship.cart()) {
+            // A trade cart within 2 tiles of a market or Kontor: its own city's first, else one it
+            // may trade with (TRADER.GAD 59004, 59003).
+            if (!k.moving) {
+                for (const std::size_t index : sim::cities_near_cart(w, c.buildings, ship.x, ship.y)) {
+                    const sim::City& city = w.cities()[index];
+                    if (city.owner == ship.owner) {
+                        k.city = std::make_pair(city.island, city.index);
+                        k.own_kontor = true;
+                        k.foreign_kontor = false;
+                        break;
+                    }
+                    if (!k.city && w.diplomacy().may_trade(ship.owner, city.owner)) {
+                        k.city = std::make_pair(city.island, city.index);
+                        k.foreign_kontor = true;
+                    }
+                }
+            }
+            return k;
+        }
         if (k.moving && !remote_repair) {
             return k;
         }
@@ -811,6 +876,54 @@ private:
                        idle && k.yard.has_value() && health < max_health, idle && k.pirates);
         m_ship.set_selected(kRoute, !ship.route.active);
         holds(m_ship, ship, c, kHoldIcon, kHoldBar, kHoldButton, own || ship.for_sale);
+    }
+
+    /// TRADER.GAD, the trade cart's window: its name and holds; stop while it drives, the exchange
+    /// with its own city's market or Kontor or trade with a foreign one where it stands (one place
+    /// for the three); the route.
+    void refresh_cart(const sim::Ship& ship, const Context& k, const PanelContext& c) {
+        ui::Panel& p = *m_cart;
+        p.set_text(kCartName, c.shown_name(NameTarget::of(ship), ship_name(ship)));
+        p.set_no_select(kCartName, !can_rename(c.world(), c.local, NameTarget::of(ship)));
+        const bool own = !k.foreign;
+        const bool idle = own && !k.moving;
+        p.set_visible(kCartStop, own && k.moving);
+        p.set_visible(kCartTransfer, idle && k.own_kontor);
+        p.set_visible(kCartTrade, idle && k.foreign_kontor);
+        p.set_visible(kCartRoute, own);
+        p.set_visible(kCartRouteEditor, own);
+        p.set_selected(kCartRoute, !ship.route.active);
+        holds(p, ship, c, kCartHoldIcon, kCartHoldBar, kCartHoldButton, own);
+    }
+
+    void clicked_cart(const ui::PanelEvent& e, const sim::Ship& ship, const PanelContext& c,
+                      std::vector<sim::Command>& out) {
+        if (e.kind != ui::PanelEvent::Kind::Clicked) {
+            return;
+        }
+        // The same orders as the ship's buttons.
+        const std::int32_t as_ship = e.id == kCartName          ? kName
+                                     : e.id == kCartStop        ? kStop
+                                     : e.id == kCartTransfer    ? kTransfer
+                                     : e.id == kCartTrade       ? kTrade
+                                     : e.id == kCartRoute       ? kRoute
+                                     : e.id == kCartRouteEditor ? kRouteEditor
+                                                                : 0;
+        if (as_ship != 0) {
+            clicked_root(ui::PanelEvent{e.kind, as_ship}, ship, c, out);
+        }
+        if (e.id == kCartRouteEditor) {
+            // "Automatische Handelsroute festlegen": the stops are clicked on the map one after
+            // another, from the first free one (LEISTE 170); a click beside a city or Escape ends
+            // it. Open1602 shows the route editor meanwhile, with the wares of each stop.
+            std::uint8_t first = 0;
+            while (first + 1 < sim::kCartStops && !ship.route.stops[first].target.empty()) {
+                ++first;
+            }
+            m_pick_stop = first;
+            m_pick_copy = false;
+            m_cart_chain = true;
+        }
     }
 
     /// U-013: in the original, "repair" and "pirates" take the place of "explore" (one button
@@ -1378,7 +1491,9 @@ private:
         return std::nullopt;
     }
     /// Pages of the editor: two with Open1602's row, the original's one without it.
-    [[nodiscard]] std::size_t route_pages() const { return m_route_row ? sim::TradeRoute::kStops / kStopsShown : 1; }
+    [[nodiscard]] std::size_t route_pages() const {
+        return m_route_row && !m_is_cart ? sim::TradeRoute::kStops / kStopsShown : 1;  // a cart has four stops
+    }
     /// Another own ship with a route of cities by the tile clicked (ships stand out of their tile).
     [[nodiscard]] static const sim::Ship* route_source_near(const sim::Ship& ship, const PanelContext& c,
                                                             std::uint32_t x, std::uint32_t y) {
@@ -1884,6 +1999,19 @@ private:
     std::int32_t m_gfx_empty = 192;
     std::int32_t m_gfx_ship = 363;
     static constexpr std::int32_t kNameFrame = 38001;
+    // TRADER.GAD
+    static constexpr std::int32_t kCartName = 59002;
+    static constexpr std::int32_t kCartTrade = 59003;
+    static constexpr std::int32_t kCartTransfer = 59004;
+    static constexpr std::int32_t kCartRouteEditor = 59005;
+    static constexpr std::int32_t kCartRoute = 59006;
+    static constexpr std::int32_t kCartStop = 59007;
+    static constexpr std::int32_t kCartHoldIcon = 59051;
+    static constexpr std::int32_t kCartHoldBar = 59071;
+    static constexpr std::int32_t kCartHoldButton = 59091;
+    std::optional<ui::Panel> m_cart;  ///< TRADER.GAD, the trade cart's window
+    bool m_is_cart = false;           ///< the selected ship is a trade cart
+    bool m_cart_chain = false;        ///< picking a cart's stops one after another on the map
     /// The left column: repair, pirates, explore and its ring (arrange_column).
     static constexpr std::array<std::int32_t, 4> kColumn = {38003, 38019, 38023, 38024};
     std::array<std::array<std::int32_t, 2>, 4> m_column{};

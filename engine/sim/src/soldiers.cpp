@@ -258,7 +258,7 @@ bool Military::target_valid(const Target& t) const {
         }
         case Target::Kind::Ship: {
             const Ship* s = m_world->ship(t.ship);
-            return s != nullptr && !s->sinking && !s->cart();  // no boarding or attacking a trade cart
+            return s != nullptr && !s->sinking;
         }
         case Target::Kind::Building:
             return t.island < m_world->islands().size() &&
@@ -575,7 +575,7 @@ bool Military::arrived(Soldier& s) {
     }
     if (s.target.kind == Target::Kind::Ship) {
         Ship* ship = m_world->ship(s.target.ship);
-        if (ship != nullptr && ship->owner == s.owner) {
+        if (ship != nullptr && ship->owner == s.owner && !ship->cart()) {  // nobody boards a trade cart
             if (d > kBoardRange) {
                 return false;
             }
