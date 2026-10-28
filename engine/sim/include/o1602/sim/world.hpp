@@ -527,7 +527,8 @@ public:
     [[nodiscard]] const City* city(std::uint16_t island, std::uint8_t index) const noexcept;
     void add_city(City city);
     /// Rules::reveal: discovers for every player each island with a city that `reveal` shows from
-    /// the start, or only `island` with one (World::kSea: every island). No ship event: nobody
+    /// the start, or only `island` with one (World::kSea: every island, which Reveal::Original
+    /// leaves alone; it shows an island only when a city is founded there). No ship event: nobody
     /// sailed there.
     void reveal_islands(Reveal reveal, std::uint16_t island = kSea);
     /// Removes a city (it was dissolved); pointers to cities become invalid.

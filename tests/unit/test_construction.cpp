@@ -214,9 +214,10 @@ TEST_CASE("construction: the first Kontor at the coast founds a city, paid from 
     CHECK(!island.world.islands()[0].discovered_by(1));
     const sim::BuildPlan plan = island.build({{kKontor, 5, 10, 0, 0}}, 0);
     REQUIRE(plan.placed == 1);
-    // The city of a human or a computer shows its island to every player (0x00468DD2).
+    // The city of a human or a computer shows its island to its founder (0x00468DD2); to the other
+    // players as the game setting says, which the simulation applies.
     CHECK(island.world.islands()[0].discovered_by(0));
-    CHECK(island.world.islands()[0].discovered_by(1));
+    CHECK(!island.world.islands()[0].discovered_by(1));
     // The long side faces the beach on the left (0x00467AF0).
     CHECK(plan.items[0].rotation == 2);
     REQUIRE(island.world.cities().size() == 1);
@@ -585,6 +586,32 @@ TEST_CASE("construction: building and demolishing are commands of the simulation
     simulation.submit(sim::DemolishOrder{0, 0, {5, 10}, {5, 10}});
     simulation.advance(100);
     CHECK(island.world.cities().empty());
+}
+
+TEST_CASE("construction: a new city shows its island to the other players as the game setting says") {
+    const auto founded_seen_by_other = [](sim::Reveal reveal) {
+        Island island;
+        assets::FigureTable figures;
+        sim::Rules rules;
+        rules.reveal = reveal;
+        sim::Simulation simulation(island.world, island.buildings, figures, rules);
+        simulation.set_city_names(island.names);
+        sim::BuildOrder order;
+        order.player = 0;
+        order.island = 0;
+        order.items = {{kKontor, 5, 10, 0, 0}};
+        order.ship = island.world.ships()[0].id;
+        simulation.submit(order);
+        simulation.tick();
+        REQUIRE(island.world.cities().size() == 1);
+        CHECK(island.world.islands()[0].discovered_by(0));  // the founder always
+        return island.world.islands()[0].discovered_by(1);
+    };
+    // As the original (0x00468DD2) and with all settlements shown: at once.
+    CHECK(founded_seen_by_other(sim::Reveal::Original));
+    CHECK(founded_seen_by_other(sim::Reveal::All));
+    // Nothing: the others find the island by ship.
+    CHECK(!founded_seen_by_other(sim::Reveal::None));
 }
 
 TEST_CASE("construction: the game setting decides what a demolition gives back") {

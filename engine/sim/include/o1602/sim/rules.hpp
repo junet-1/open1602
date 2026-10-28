@@ -70,13 +70,15 @@ enum class PirateNests : std::uint8_t {
     Scaled,  ///< as the pirates' faction grows them (one for every four players begun), spread over the map
 };
 
-/// Which towns players see from the start of a game, without a ship having come near their island
-/// (docs/re/ships.md#sailing). An island counts as discovered for every player as soon as it
-/// holds a city the setting names, also one founded later; what else is on it shows with it.
+/// Which towns players see without a ship having come near their island (docs/re/ships.md#sailing).
+/// An island counts as discovered for every player as soon as it holds a city the setting names,
+/// also one founded later; what else is on it shows with it.
 enum class Reveal : std::uint8_t {
-    None,     ///< nothing: every island is discovered by ship, as in the original
-    Players,  ///< the cities of human and computer players; native villages and pirate nests by ship
-    All,      ///< the cities of human and computer players, native villages and pirate nests
+    None,      ///< nothing: every island is discovered by ship, also those with the towns of others
+    Original,  ///< by ship, but a city a human or a computer founds shows its island to every player
+               ///< at once, as the original does (0x00468DD2); native villages and pirate nests by ship
+    All,       ///< the cities of human and computer players, native villages and pirate nests, also
+               ///< those there from the start
 };
 
 /// What the free trader pays for goods (docs/re/ships.md, "Free trader").
@@ -277,7 +279,7 @@ struct Rules {
     bool revised_bread = false;
 
     /// Which towns are discovered from the start (players, natives, pirates) or only by ship.
-    Reveal reveal = Reveal::None;
+    Reveal reveal = Reveal::Original;
 
     /// Bugs of the original brought back; none by default, also in savegames of the original.
     OriginalBugs bugs{};
@@ -306,7 +308,7 @@ struct Rules {
         r.ore_veins = OreVeins::Game;
         r.computer_players = Computers::Game;
         r.revised_bread = false;
-        r.reveal = Reveal::None;
+        r.reveal = Reveal::Original;
         r.bugs = OriginalBugs::all();
         return r;
     }
