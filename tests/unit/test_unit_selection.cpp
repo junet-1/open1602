@@ -194,11 +194,21 @@ TEST_CASE("unit selection: formation, filters and groups") {
     CHECK(sel.recall_group(f.world, 1));
     CHECK(sel.size() == 4);
     CHECK(!sel.recall_group(f.world, 5));
+    // Saved with the game: the same groups with their shape after loading.
+    const sim::UnitGroups saved = sel.saved_groups();
+    CHECK(saved[1].size() == 4);
+    CHECK(saved[0].empty());
     // Another game loaded: the groups go with the old one.
     sel.reset();
     CHECK(sel.size() == 0);
     CHECK(!sel.recall_group(f.world, 1));
     CHECK(!sel.group_of(c));
+    // This game loaded again: they come back from the savegame.
+    sel.restore_groups(saved);
+    CHECK(sel.group_of(c) == 1U);
+    CHECK(sel.recall_group(f.world, 1));
+    CHECK(sel.size() == 4);
+    CHECK(sel.saved_groups() == saved);
 }
 
 TEST_CASE("unit selection: Tab narrows to one type after the other, then back to all") {

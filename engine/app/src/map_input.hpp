@@ -147,6 +147,9 @@ public:
     void drop_units();
     /// Another game: no selection, pick, order or press of the old one is left.
     void reset_game();
+    /// The groups the player stored, for the savegame, and back from a loaded one.
+    [[nodiscard]] sim::UnitGroups saved_groups() const { return m_units.saved_groups(); }
+    void restore_groups(const sim::UnitGroups& groups) { m_units.restore_groups(groups); }
 
     /// Health bars over the selected units and the selection rectangle.
     void draw_overlay();

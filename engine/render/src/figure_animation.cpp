@@ -62,4 +62,11 @@ void advance_animation(AnimState& state, const assets::FigureType& type, std::ui
     }
 }
 
+std::uint32_t walking_pace(std::uint32_t& rest, std::uint32_t dt_ms, std::uint32_t walk_speed) noexcept {
+    const std::uint32_t speed = walk_speed != 0 ? walk_speed : 1;
+    const std::uint64_t scaled = std::uint64_t{dt_ms} * 32U + rest;
+    rest = static_cast<std::uint32_t>(scaled % speed);
+    return static_cast<std::uint32_t>(scaled / speed);
+}
+
 }  // namespace o1602::render

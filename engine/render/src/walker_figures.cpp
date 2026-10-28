@@ -88,7 +88,8 @@ void WalkerFigures::update(const sim::Logistics& logistics, const sim::World& wo
             }
         } else if (w.moving()) {
             // A frame lasts AnimSpeed * Wegspeed / 32 ms while walking.
-            advance_animation(slot.state, *type, dt_ms * 32U / std::max<std::uint32_t>(w.walk_speed, 1));
+            advance_animation(slot.state, *type,
+                              walking_pace(slot.pace_rest, dt_ms, std::max<std::uint32_t>(w.walk_speed, 1)));
         } else if (w.working()) {
             advance_animation(slot.state, *type, dt_ms);
         }

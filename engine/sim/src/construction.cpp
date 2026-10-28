@@ -185,10 +185,13 @@ bool tile_accepts(const assets::BuildingTable& buildings, const assets::Building
 
 /// Coast or river rotation of a building whose long side lies along a line of tiles.
 /// `outside`: the line next to the footprint (Kontor, 0x00467AF0), else its own edge line
-/// (shipyard 0x00467E60, water mill 0x004680F0). Order: left (2), right (0), top (3), bottom (1).
+/// (shipyard 0x00467E60, water mill 0x004680F0). Order: left (2), right (0), top (3), bottom (1);
+/// `turn` is added to the rotation: the water mill's wheel faces the other way (0x004680F0 returns
+/// left 0, right 2, top 1, bottom 3).
 template <class Test, class Accept>
 std::uint8_t edge_rotation(const IslandMap& map, const assets::BuildingTable& buildings, const assets::BuildingType& b,
-                           std::int32_t x, std::int32_t y, bool outside, Test&& test, Accept&& accept) {
+                           std::int32_t x, std::int32_t y, bool outside, Test&& test, Accept&& accept,
+                           std::uint8_t turn = 0) {
     const auto lng = static_cast<std::int32_t>(std::max(b.size_x, b.size_y));
     const auto shrt = static_cast<std::int32_t>(std::min(b.size_x, b.size_y));
     const auto line = [&](std::int32_t x0, std::int32_t y0, std::int32_t dx, std::int32_t dy) {
@@ -213,8 +216,9 @@ std::uint8_t edge_rotation(const IslandMap& map, const assets::BuildingTable& bu
         {x, y + shrt - 1 + o, 1, 0, 1},
     }};
     for (const Side& s : sides) {
-        if (line(s.x0, s.y0, s.dx, s.dy) && accept(s.rotation, TilePos{s.x0, s.y0})) {
-            return s.rotation;
+        const auto rotation = static_cast<std::uint8_t>((s.rotation + turn) & 3U);
+        if (line(s.x0, s.y0, s.dx, s.dy) && accept(rotation, TilePos{s.x0, s.y0})) {
+            return rotation;
         }
     }
     return 0xF;
@@ -440,7 +444,7 @@ struct Planner {
         if (b.kind == kind::kMill) {
             return edge_rotation(
                 map, buildings, b, x, y, false, [](std::int32_t k) { return k == kind::kRiver; },
-                [](std::uint8_t, TilePos) { return true; });
+                [](std::uint8_t, TilePos) { return true; }, 2);
         }
         return static_cast<std::uint8_t>(rotation & 3U);
     }

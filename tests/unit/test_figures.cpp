@@ -693,3 +693,19 @@ TEST_CASE("figures: the draw list keeps every figure that reaches into the viewp
         }
     }
 }
+
+TEST_CASE("figures: a walking figure's legs move at any frame rate (cart sliding at the slowest speed)") {
+    // Off the road (Wegspeed 170) at 240 frames per second and game speed 1: 4 ms a frame. Each
+    // frame alone is less than one millisecond of animation; together they make the full time.
+    std::uint32_t rest = 0;
+    std::uint64_t total = 0;
+    for (int frame = 0; frame < 240; ++frame) {
+        total += render::walking_pace(rest, 4, 170);
+    }
+    CHECK(total == 960U * 32U / 170U);
+    CHECK(rest == 960U * 32U % 170U);
+    // On the road (Wegspeed 32) the time passes unchanged.
+    rest = 0;
+    CHECK(render::walking_pace(rest, 7, 32) == 7);
+    CHECK(rest == 0);
+}

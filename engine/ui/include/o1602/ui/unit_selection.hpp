@@ -104,6 +104,9 @@ public:
     bool recall_group(const sim::World& world, std::size_t g);
     /// The group a unit belongs to, for the number over it.
     [[nodiscard]] std::optional<std::size_t> group_of(const UnitRef& ref) const;
+    /// The groups as the savegame keeps them (sim::World::unit_groups()), and back after loading.
+    [[nodiscard]] sim::UnitGroups saved_groups() const;
+    void restore_groups(const sim::UnitGroups& groups);
 
     /// Orders of the player's selected units: to world tile (`x`, `y`) keeping the shape of the group,
     /// onto an object (everyone to it), or to stop. `queue`: behind their current orders. `attack`:

@@ -406,6 +406,17 @@ class World;
 /// 0x37 a world position). Unknown types give no target.
 [[nodiscard]] Target target_from_ref(const World& world, std::uint32_t ref);
 
+/// A unit of a group the player stored (Ctrl + 1 .. 0), with its place in the group's shape.
+struct GroupMember {
+    bool ship = false;     ///< a ship, else a land unit
+    std::uint32_t id = 0;  ///< Ship::id or Soldier::id
+    std::int16_t dx = 0;   ///< from the centre of the group, 1/8 tile
+    std::int16_t dy = 0;
+    friend bool operator==(const GroupMember&, const GroupMember&) = default;
+};
+/// A player's stored groups, keys 1 .. 9 and 0.
+using UnitGroups = std::array<std::vector<GroupMember>, 10>;
+
 /// The world map: open sea with islands placed on it (the original keeps one 4-byte cell per
 /// world tile: island number, local x, local y, colour table - see rendering.md). The size is a
 /// property of the map; the original always uses 500 x 350 tiles and at most 255 islands
@@ -641,6 +652,17 @@ public:
     /// in this game yet.
     [[nodiscard]] const std::vector<ScriptState>& script_states() const noexcept { return m_script_states; }
     void set_script_states(std::vector<ScriptState> states) noexcept { m_script_states = std::move(states); }
+    /// The groups each player stored (by PlayerId), kept with the savegame (section UGRP) so that a
+    /// loaded game has them again; the original forgets them. Only the interface reads them, and the
+    /// game's fingerprint leaves them out: in a multiplayer game every computer knows only its own.
+    [[nodiscard]] const std::vector<UnitGroups>& unit_groups() const noexcept { return m_unit_groups; }
+    void set_unit_groups(std::vector<UnitGroups> groups) noexcept { m_unit_groups = std::move(groups); }
+    void set_unit_groups(PlayerId player, UnitGroups groups) {
+        if (player >= m_unit_groups.size()) {
+            m_unit_groups.resize(std::size_t{player} + 1);
+        }
+        m_unit_groups[player] = std::move(groups);
+    }
     /// Game settings saved with the game, which a Simulation of it uses (ADR 0008).
     [[nodiscard]] const std::optional<Rules>& saved_rules() const noexcept { return m_saved_rules; }
     void set_saved_rules(std::optional<Rules> rules) noexcept { m_saved_rules = rules; }
@@ -758,6 +780,7 @@ private:
     std::shared_ptr<const assets::ChunkFile> m_source;
     std::vector<std::uint8_t> m_simulation_state;
     std::vector<ScriptState> m_script_states;
+    std::vector<UnitGroups> m_unit_groups;
     std::optional<Rules> m_saved_rules;
     OriginalBugs m_original_bugs;
     std::vector<CostBuilding> m_cost_buildings;

@@ -37,6 +37,8 @@ constexpr std::uint32_t kGate = 20304;
 constexpr std::uint32_t kPlantation = 20599;
 constexpr std::uint32_t kForester = 20598;
 constexpr std::uint32_t kSapling2 = 20213;
+constexpr std::uint32_t kRiver = 21401;
+constexpr std::uint32_t kWaterMill = 20509;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -138,6 +140,10 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_BAUKOST\n    Money: 5\n  EndObj\n"
         "  @Nummer: 39\n  Id: 20214\n  Kind: 10\n  Gfx: 157\n  Size: 1, 1\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"
+        // A river and the water mill that stands on it.
+        "  @Nummer: 40\n  Id: 21401\n  Kind: 16\n  Gfx: 162\n  Size: 1, 1\n"
+        "  @Nummer: 41\n  Id: 20509\n  Kind: 37\n  Gfx: 163\n  Size: 2, 2\n  Rotate: 4\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 100\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -145,13 +151,14 @@ assets::BuildingTable make_buildings() {
     return std::move(table).value();
 }
 
-/// An island of 30 x 30 tiles: sea x 0..3, beach x 4, ground beyond, a wood at x 20..24, y 5..9.
+/// An island of 30 x 30 tiles: sea x 0..3, beach x 4, ground beyond, a wood at x 20..24, y 5..9;
+/// with `river_x` a river runs north-south along that column.
 struct Island {
     assets::BuildingTable buildings = make_buildings();
     sim::World world{100, 100};
     std::vector<std::string> names{"Abemsberg", "Abmont"};
 
-    explicit Island(std::uint32_t fertility = 0x2U, std::uint8_t climate = 0) {
+    explicit Island(std::uint32_t fertility = 0x2U, std::uint8_t climate = 0, std::int32_t river_x = -1) {
         sim::IslandMap map(30, 30);
         for (std::int32_t y = 0; y < 30; ++y) {
             for (std::int32_t x = 0; x < 30; ++x) {
@@ -160,6 +167,8 @@ struct Island {
                     id = kSea;
                 } else if (x == 4) {
                     id = kBeach;
+                } else if (x == river_x) {
+                    id = kRiver;
                 } else if (x >= 20 && x <= 24 && y >= 5 && y <= 9) {
                     id = kTree;
                 }
@@ -754,6 +763,24 @@ TEST_CASE("construction: walls and towers on the beach, piers in front of a new 
     // Demolished, the beach comes back.
     CHECK(island.demolish({4, 18}, {4, 18}) == 1);
     CHECK(island.at(4, 18)->id == kBeach);
+}
+
+TEST_CASE("construction: the water mill turns its wheel to the river (0x004680F0)") {
+    // The river west of the mill: rotation 0; east of it: 2 (the shipyard's sides the other way round).
+    for (const auto& [x, rotation] : {std::pair<std::int32_t, std::uint8_t>{9, 0}, {8, 2}}) {
+        Island island(0x2U, 0, 9);
+        island.found();
+        const sim::BuildPlan plan = island.build({{kWaterMill, x, 9, 1, 0}});
+        REQUIRE(plan.placed == 1);
+        CHECK(plan.items[0].rotation == rotation);
+        CHECK(island.world.islands()[0].map.top(static_cast<std::uint32_t>(x), 9).rotation == rotation);
+    }
+    // Away from the river it does not stand.
+    Island island(0x2U, 0, 9);
+    island.found();
+    const sim::BuildPlan plan = island.build({{kWaterMill, 6, 14, 0, 0}});
+    CHECK(plan.placed == 0);
+    CHECK(plan.items[0].refusal == sim::BuildRefusal::NoRiver);
 }
 
 TEST_CASE("construction: a stone wall replaces a palisade, never the other way round (0x00464660)") {

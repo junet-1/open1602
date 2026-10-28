@@ -590,6 +590,11 @@ void Logistics::arrive(Handle h, Walker& w) {
     }
     if (responds(w.kind) && !w.returning) {
         // At the building: works for Worktime, the fireman facing it (0x004599D0, 0x0045A040).
+        if (w.kind == WalkerKind::Firefighter && w.target) {
+            if (const auto at = building_at(*m_world, *m_buildings, w.island, *w.target)) {
+                w.direction = direction_between(w.tile, centre_tile(*at));
+            }
+        }
         const assets::FigureType* fig = m_figures->get(w.figure);
         w.work_ms = std::max<std::uint32_t>(fig != nullptr ? fig->work_time_ms : 0, 1);
         w.animation = 2;
@@ -1749,6 +1754,11 @@ bool Logistics::find_disaster(Walker& w, const BuildingAt& hb, const assets::Fig
     const auto at = building_at(*m_world, *m_buildings, w.island, *hit);
     if (!at) {
         return false;
+    }
+    if (w.kind == WalkerKind::Firefighter && !w.path.empty()) {
+        // The fireman stops on the road in front of the fire and puts it out from there (0x0045A490
+        // walks to the tile it reached the building from, 0x00473650); the doctor goes in.
+        w.path.pop_back();
     }
     w.target = at->origin;
     w.step = 0;

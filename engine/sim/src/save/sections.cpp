@@ -114,6 +114,9 @@ constexpr std::uint32_t kUnlocked = tag("UNLK");
 /// The state of the packages' scripts (World::script_states(), scripting.hpp), only written when
 /// there is any. Optional: without it the scripts start anew.
 constexpr std::uint32_t kScripts = tag("SCRP");
+/// The groups the players stored (World::unit_groups()), only written when there are any and not
+/// for the game's fingerprint. Optional: without them the groups are empty.
+constexpr std::uint32_t kUnitGroups = tag("UGRP");
 
 /// Every section this version reads; others are of a later version.
 constexpr std::array kKnownSections = {
@@ -122,7 +125,8 @@ constexpr std::array kKnownSections = {
     kFleet,           kEpochs,       kArmy,      kDiplomacy, kExplored, kMap,       kWorld2,         kMeta,
     kMissions,        kPlayerState,  kCityState, kOrigin,    kQueues,   kStances,   kScores,         kMaterialClocks,
     kPopulationMarks, kTutorial,     kGiveUps,   kFactions,  kLedgers,  kBalance,   kBuildingValues, kPackages,
-    kFigureValues,    kOwnBuildings, kGoods,     kClasses,   kLevels,   kUnlocked,  kGoodPictures,   kScripts};
+    kFigureValues,    kOwnBuildings, kGoods,     kClasses,   kLevels,   kUnlocked,  kGoodPictures,   kScripts,
+    kUnitGroups};
 
 /// Section flag (the u16 after the version): the section holds state the game cannot do without, so
 /// a reader that cannot read it (unknown identifier or later version) must not load the file. Other
@@ -488,6 +492,26 @@ void encode_sections(core::ByteWriter& out, const World& world, const assets::Bu
             },
             Need::Optional);
     }
+    const auto has_groups = [](const UnitGroups& g) {
+        return std::any_of(g.begin(), g.end(), [](const auto& members) { return !members.empty(); });
+    };
+    if (origin == Origin::Keep && std::any_of(world.unit_groups().begin(), world.unit_groups().end(), has_groups)) {
+        section(
+            out, kUnitGroups,
+            [&](Writer& o) {
+                o.list(world.unit_groups(), 10 * 4, [&](const UnitGroups& player) {
+                    for (const std::vector<GroupMember>& members : player) {
+                        o.list(members, 9, [&](const GroupMember& m) {
+                            o.boolean(m.ship);
+                            o.u32(m.id);
+                            o.u16(m.dx);
+                            o.u16(m.dy);
+                        });
+                    }
+                });
+            },
+            Need::Optional);
+    }
     if (simulation != nullptr) {
         section(
             out, kSimulation, [&](Writer& o) { simulation->save_state(o.out()); }, Need::Required,
@@ -775,6 +799,21 @@ core::Status apply_sections(World& world, const assets::BuildingTable& buildings
                     }
                 });
                 d.script_states = std::move(states);
+                break;
+            }
+            case kUnitGroups: {
+                std::vector<UnitGroups> groups;
+                in.list(groups, 10 * 4, [&](UnitGroups& player) {
+                    for (std::vector<GroupMember>& members : player) {
+                        in.list(members, 9, [&](GroupMember& m) {
+                            in.boolean(m.ship);
+                            in.u32(m.id);
+                            in.u16(m.dx);
+                            in.u16(m.dy);
+                        });
+                    }
+                });
+                d.unit_groups = std::move(groups);
                 break;
             }
             case kPackages: {

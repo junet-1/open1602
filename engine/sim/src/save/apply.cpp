@@ -222,6 +222,9 @@ core::Status apply_decoded(World& world, Decoded& d) {
     if (d.script_states) {
         world.set_script_states(std::move(*d.script_states));
     }
+    if (d.unit_groups) {
+        world.set_unit_groups(std::move(*d.unit_groups));
+    }
     if (d.packages) {
         world.set_packages(std::move(*d.packages));
     }
