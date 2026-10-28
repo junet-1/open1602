@@ -464,6 +464,7 @@ setup.resources = Every raw material
 setup.group.opponents = Opponents
 setup.computers = Computers active
 setup.computers.game = As in the game file
+setup.ship_purchases = Computers buy ships
 setup.pirates = Pirates
 setup.pirates.game = As the level
 setup.pirate_nests = Pirate nests

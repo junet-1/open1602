@@ -409,6 +409,10 @@ private:
     bool home_supply_route(AiPlayer& p, Ship& s, City& home);
     void update_fleet_target(AiPlayer& p);
     void order_ship(AiPlayer& p);
+    /// The original's: the cheapest offered ship, for a computer without ships or yard.
+    void buy_first_ship(AiPlayer& p);
+    /// Open1602: a ship another player offers, bought when it is worth it (Rules::computers_buy_ships).
+    bool buy_ship(AiPlayer& p);
 
     // ---- ai_military.cpp ----
     [[nodiscard]] std::array<std::uint32_t, 4> army_counts(PlayerId owner) const;

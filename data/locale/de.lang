@@ -436,6 +436,7 @@ setup.resources = Jeder Rohstoff
 setup.group.opponents = Gegner
 setup.computers = Computergegner aktiv
 setup.computers.game = Laut Spieldatei
+setup.ship_purchases = Computer kaufen Schiffe
 setup.pirates = Piraten
 setup.pirates.game = Nach Schwierigkeit
 setup.pirate_nests = Piratennester

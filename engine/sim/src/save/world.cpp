@@ -46,7 +46,8 @@ enum RuleKey : std::uint16_t {
     kBugRemoteTrade = 38,
     kBugRemoteRepair = 39,
     kBugSmallYardWarships = 40,
-    kRevealNone = 41,  // 1: Reveal::None, under its own key so older versions read the original's way
+    kRevealNone = 41,       // 1: Reveal::None, under its own key so older versions read the original's way
+    kNoShipPurchases = 42,  // 1: the computers buy no ships (Rules::computers_buy_ships off)
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -186,6 +187,10 @@ void write_rules(Writer& out, const Rules& r) {
     if (r.revised_bread) {
         values.emplace_back(kRevisedBread, 1U);
     }
+    // The computers' purchases of ships only when off: on is Open1602's way.
+    if (!r.computers_buy_ships) {
+        values.emplace_back(kNoShipPurchases, 1U);
+    }
     // The towns shown from the start only when there are any: the original's way keeps the bytes.
     if (r.reveal == Reveal::All) {
         values.emplace_back(kReveal, 2U);
@@ -305,6 +310,9 @@ Rules read_rules(Reader& in) {
                 if (v != 0) {
                     r.reveal = Reveal::None;
                 }
+                break;
+            case kNoShipPurchases:
+                r.computers_buy_ships = v == 0;
                 break;
             case kWinInhabitants:
                 r.victory.inhabitants = v;

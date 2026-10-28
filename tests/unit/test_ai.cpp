@@ -1294,3 +1294,41 @@ TEST_CASE("ships: only a computer's ship can be given to the pirates") {
     CHECK(give(kComputer, computer_ship));
     CHECK(g.world.ship(computer_ship)->owner == 4);
 }
+
+TEST_CASE("ai: a computer short of ships buys one a player at peace offers (Rules::computers_buy_ships)") {
+    // Open1602 (the History Edition's computers buy ships too): a ship at no more than its yard
+    // price, if half the money is left. Not with the rule off (the original's), not from an enemy,
+    // not at a price above the yard's.
+    struct Case {
+        bool rule = true;
+        bool war = false;
+        std::uint16_t factor = 96;
+        bool bought = true;
+    };
+    for (const Case c :
+         {Case{}, Case{false, false, 96, false}, Case{true, true, 96, false}, Case{true, false, 200, false}}) {
+        Game g;
+        sim::Rules rules;
+        rules.computers_buy_ships = c.rule;
+        sim::Simulation s(g.world, g.buildings, g.figures, rules);
+        found_city(g, s);
+        // The computer's only ship goes (to the human): with its city it wants one again.
+        g.world.ships().front().owner = kHuman;
+        sim::Ship& offered = g.add_ship(kHuman, 10, 80);
+        offered.for_sale = true;
+        offered.sale_factor = c.factor;
+        const std::uint32_t id = offered.id;
+        if (c.war) {
+            g.world.diplomacy().relation(kHuman, kComputer).peace = sim::Treaty::None;
+            g.world.diplomacy().relation(kComputer, kHuman).peace = sim::Treaty::None;
+        }
+        const std::int32_t human_money = g.world.player(kHuman)->money;
+        const bool bought = run_until(s, 120'000, [&] { return g.world.ship(id)->owner == kComputer; });
+        CHECK(bought == c.bought);
+        if (bought) {
+            CHECK(g.world.player(kHuman)->money == human_money + 1000 * c.factor / 128);
+            CHECK(!g.world.ship(id)->for_sale);
+        }
+    }
+    CHECK(!sim::Rules::original().computers_buy_ships);
+}

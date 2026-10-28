@@ -73,6 +73,7 @@ enum class SetupItem : std::uint8_t {
     Resources,
     // Opponents
     ComputerPlayers,
+    ShipPurchases,
     Pirates,
     PirateNests,
     Reveal,
