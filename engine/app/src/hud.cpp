@@ -834,14 +834,16 @@ void Hud::draw_menu() {
     std::int32_t oy = 0;
     menu_origin(ox, oy);
     if (m_end_active) {
-        m_renderer->draw(m_end.draw(m_renderer->fonts()), ox, oy, m_end.scale());
+        m_renderer->draw(m_end.draw(m_renderer->fonts(m_end.scale())), ox, oy, m_end.scale());
     } else if (multiplayer_open()) {
-        m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts()), ox, oy, m_menu_scale);
+        m_renderer->draw(m_multiplayer->draw(m_multiplayer_model, m_renderer->fonts(m_menu_scale)), ox, oy,
+                         m_menu_scale);
     } else if (m_menu) {
-        m_renderer->draw(m_menu->draw(m_renderer->fonts()), ox, oy, m_menu_scale);
+        m_renderer->draw(m_menu->draw(m_renderer->fonts(m_menu_scale)), ox, oy, m_menu_scale);
         if (m_display_open && m_display) {
             const ui::Rect r = display_rect();
-            m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+            m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts(m_display->scale())), r.x, r.y,
+                             m_display->scale());
         }
     }
     draw_question();
@@ -901,7 +903,8 @@ void Hud::draw_mission(const sim::World& world) {
             m_tutor->set_visible(kTutorBack + i, false);
             m_tutor->set_visible(kTutorNext + i, next);
         }
-        m_renderer->draw(m_tutor->draw(m_renderer->fonts()), m_regions.tutor.x, m_regions.tutor.y, m_regions.scale);
+        m_renderer->draw(m_tutor->draw(m_renderer->fonts(m_regions.scale)), m_regions.tutor.x, m_regions.tutor.y,
+                         m_regions.scale);
         return;
     }
     m_tutor->set_visible(kTutorText, true);
@@ -916,11 +919,11 @@ void Hud::draw_mission(const sim::World& world) {
     }
     // The scroll arrows (one picture, the back arrow's, and both arrows' parts) only for a text
     // longer than the window, as in the original; the text then ends left of them.
-    bool scrolls = m_tutor->max_scroll(110002, m_renderer->fonts()) > 0;
+    bool scrolls = m_tutor->max_scroll(110002, m_renderer->fonts(m_regions.scale)) > 0;
     if (scrolls && m_tutor_arrows_x != std::numeric_limits<std::int32_t>::max()) {
         const std::int32_t room = m_tutor_arrows_x + extra - m_tutor_text_x - 4;
         m_tutor->set_size(kTutorText, std::clamp(room, 1, m_tutor_text_size[0] + extra), m_tutor_text_size[1]);
-        scrolls = m_tutor->max_scroll(110002, m_renderer->fonts()) > 0;
+        scrolls = m_tutor->max_scroll(110002, m_renderer->fonts(m_regions.scale)) > 0;
     }
     for (std::int32_t i = 0; i < kTutorArrowParts; ++i) {
         m_tutor->set_visible(kTutorBack + i, scrolls);
@@ -928,9 +931,10 @@ void Hud::draw_mission(const sim::World& world) {
     }
     // Clamped here, where the text and the window's width are known: "down" past the end would
     // blank the window and take as many clicks back up.
-    m_tutor_line = std::min(m_tutor_line, m_tutor->max_scroll(110002, m_renderer->fonts()));
+    m_tutor_line = std::min(m_tutor_line, m_tutor->max_scroll(110002, m_renderer->fonts(m_regions.scale)));
     m_tutor->set_scroll(110002, m_tutor_line);
-    m_renderer->draw(m_tutor->draw(m_renderer->fonts()), m_regions.tutor.x, m_regions.tutor.y, m_regions.scale);
+    m_renderer->draw(m_tutor->draw(m_renderer->fonts(m_regions.scale)), m_regions.tutor.x, m_regions.tutor.y,
+                     m_regions.scale);
 }
 
 void Hud::reset_game() {
@@ -1084,7 +1088,7 @@ void Hud::draw_bubbles() {
         for (std::int32_t i = 0; i < kBubbleParts; ++i) {
             m_bubble_panel->set_visible(id + i, true);
         }
-        m_renderer->draw(m_bubble_panel->draw(m_renderer->fonts()), x, y, s);
+        m_renderer->draw(m_bubble_panel->draw(m_renderer->fonts(s)), x, y, s);
         for (std::int32_t i = 0; i < kBubbleParts; ++i) {
             m_bubble_panel->set_visible(id + i, false);
         }
@@ -1152,7 +1156,7 @@ void Hud::draw_help() {
     // The tab titles in the small font, cut to their tab's width and centred on its upper part, so
     // that descenders ("g", "p") keep clear of the bottom edge; the page shown in yellow (a larger
     // font would not fit the tabs).
-    const ui::Font* tab_font = m_renderer->fonts()[1];
+    const ui::Font* tab_font = m_renderer->fonts(s)[1];
     for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
         const ui::Rect t = help_tab(box, p);
         const double inner = std::max(0.0, t.w / s - 8.0);
@@ -1669,7 +1673,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         }
     }
     m_ctrl.set_graphic(kCompass, kGfxCompass + m_rotation, 0);
-    m_renderer->draw(m_ctrl.draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+    m_renderer->draw(m_ctrl.draw(m_renderer->fonts(s)), m_regions.side_panel.x, m_regions.side_panel.y, s);
     // A window taller than the panel's art (narrower than 4:3, or a smaller interface): the
     // parchment goes on to the bottom, where the art's lower edge (5 rows) closes it.
     m_renderer->draw_lengthened(0, kGfxTafel, m_regions.side_panel, s, 5);
@@ -1681,9 +1685,10 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
             buildings, available, static_cast<std::uint8_t>((m_rotation + m_building_rotation) & 3U),
             [this](std::int32_t block, std::int32_t gfx) { return m_renderer->sprite_size(block, gfx); },
             m_simulation != nullptr ? m_simulation->world().goods() : assets::Goods{});
-        m_renderer->draw(m_build->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+        m_renderer->draw(m_build->panel().draw(m_renderer->fonts(s)), m_regions.side_panel.x, m_regions.side_panel.y,
+                         s);
         if (const ui::Panel* popup = m_build->popup()) {
-            m_renderer->draw(popup->draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+            m_renderer->draw(popup->draw(m_renderer->fonts(s)), m_regions.side_panel.x, m_regions.side_panel.y, s);
         }
         if (const auto text = m_build->help(m_leiste)) {
             status = *text;
@@ -1692,7 +1697,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         std::optional<PanelContext> context;
         if (SelectionPanel* p = selection_panel(context)) {
             p->refresh(m_selection, *context);
-            m_renderer->draw(p->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y, s);
+            m_renderer->draw(p->panel().draw(m_renderer->fonts(s)), m_regions.side_panel.x, m_regions.side_panel.y, s);
             if (const auto id = p->panel().hovered()) {
                 if (const auto text = p->help(*id, m_selection, *context)) {
                     status = *text;
@@ -1700,7 +1705,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
             }
         } else if (m_info && m_mode == kModeInfo) {
             m_info->refresh(figures, banners.get(colour));
-            m_renderer->draw(m_info->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y,
+            m_renderer->draw(m_info->panel().draw(m_renderer->fonts(s)), m_regions.side_panel.x, m_regions.side_panel.y,
                              s);
             if (const auto text = m_info->help(m_leiste)) {
                 status = *text;
@@ -1708,7 +1713,7 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         }
     } else if (m_mode == kModeOptions && m_options) {
         m_options->refresh(m_options_model);
-        m_renderer->draw(m_options->panel().draw(m_renderer->fonts()), m_regions.side_panel.x, m_regions.side_panel.y,
+        m_renderer->draw(m_options->panel().draw(m_renderer->fonts(s)), m_regions.side_panel.x, m_regions.side_panel.y,
                          s);
         if (const auto text = m_options->help(m_leiste, m_options_model)) {
             status = *text;
@@ -1823,24 +1828,25 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         m_leist.set_offset(kStatusLine, kLeistTextX + extra, line->offset[1]);
     }
     m_leist.set_text(kStatusLine, status);
-    m_renderer->draw(m_leist.draw(m_renderer->fonts()), m_regions.status_bar.x, m_regions.status_bar.y, s);
+    m_renderer->draw(m_leist.draw(m_renderer->fonts(s)), m_regions.status_bar.x, m_regions.status_bar.y, s);
     draw_bubbles();
     if (m_chat && m_chat_model.available) {
         if (m_chat->is_open()) {
             const ui::Rect r = chat_rect();
-            m_renderer->draw(m_chat->draw(m_chat_model, m_multiplayer_model.chat, m_renderer->fonts()), r.x, r.y,
-                             m_chat->scale());
+            m_renderer->draw(m_chat->draw(m_chat_model, m_multiplayer_model.chat, m_renderer->fonts(m_chat->scale())),
+                             r.x, r.y, m_chat->scale());
         } else {
             // New lines for a while over the lower left of the map.
             const ui::Rect& v = m_regions.game_view;
             const auto gap = static_cast<std::int32_t>(8 * m_chat->scale());
-            m_renderer->draw(m_chat->draw_recent(m_multiplayer_model.chat, now_ms, m_renderer->fonts()), v.x + gap,
-                             v.y + v.h - gap, m_chat->scale());
+            m_renderer->draw(m_chat->draw_recent(m_multiplayer_model.chat, now_ms, m_renderer->fonts(m_chat->scale())),
+                             v.x + gap, v.y + v.h - gap, m_chat->scale());
         }
     }
     if (m_display_open && m_display) {
         const ui::Rect r = display_rect();
-        m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts()), r.x, r.y, m_display->scale());
+        m_renderer->draw(m_display->draw(m_display_model, m_renderer->fonts(m_display->scale())), r.x, r.y,
+                         m_display->scale());
     }
     if (m_goods_open && m_goods && m_figure_table != nullptr) {
         const ui::Rect r = goods_rect();
@@ -1855,8 +1861,8 @@ void Hud::draw(const sim::World& world, const assets::BuildingTable& buildings, 
         shadow.half = true;
         m_renderer->draw({shadow}, 0, 0, 1.0);
         m_renderer->image(2, m_goods_parchment, GoodsWindow::kWidth, GoodsWindow::kHeight, r, false);
-        m_renderer->draw(m_goods->draw(world, buildings, *m_figure_table, m_local, m_renderer->fonts()), r.x, r.y,
-                         m_goods->scale());
+        m_renderer->draw(m_goods->draw(world, buildings, *m_figure_table, m_local, m_renderer->fonts(m_goods->scale())),
+                         r.x, r.y, m_goods->scale());
     }
     draw_question();
     draw_help();
