@@ -258,8 +258,8 @@ net.colour.orange = Orange
 net.colour.green = Grün
 net.colour.teal = Türkis
 net.colour.pink = Rosa
-net.colour.light_blue = Hellblau
-net.colour.lime = Hellgrün
+net.colour.magenta = Magenta
+net.colour.grey = Grau
 net.colour.purple = Violett
 net.colour.brown = Braun
 net.refused.version = Der Gastgeber hat eine andere Version von Open1602.
@@ -291,9 +291,9 @@ player.colour.orange = Oranger Spieler
 player.colour.purple = Violetter Spieler
 player.colour.teal = Türkiser Spieler
 player.colour.pink = Rosa Spieler
-player.colour.light_blue = Hellblauer Spieler
+player.colour.magenta = Magentafarbener Spieler
 player.colour.green = Grüner Spieler
-player.colour.lime = Hellgrüner Spieler
+player.colour.grey = Grauer Spieler
 player.colour.brown = Brauner Spieler
 
 # End screen
@@ -708,8 +708,8 @@ message.won.orange = Der orange Spieler konnte seinen Auftrag erfüllen!
 message.won.green = Der grüne Spieler konnte seinen Auftrag erfüllen!
 message.won.teal = Der türkise Spieler konnte seinen Auftrag erfüllen!
 message.won.pink = Der rosa Spieler konnte seinen Auftrag erfüllen!
-message.won.light_blue = Der hellblaue Spieler konnte seinen Auftrag erfüllen!
-message.won.lime = Der hellgrüne Spieler konnte seinen Auftrag erfüllen!
+message.won.magenta = Der magentafarbene Spieler konnte seinen Auftrag erfüllen!
+message.won.grey = Der graue Spieler konnte seinen Auftrag erfüllen!
 message.won.purple = Der violette Spieler konnte seinen Auftrag erfüllen!
 message.won.brown = Der braune Spieler konnte seinen Auftrag erfüllen!
 

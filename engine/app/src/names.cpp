@@ -14,8 +14,8 @@ constexpr std::array<const char*, sim::kOriginalPlayers> kColourNames = {"player
                                                                          "player.colour.yellow", "player.colour.white"};
 // In the order of render::BannerTable::add_more_players.
 constexpr std::array<const char*, sim::kMaxPlayers - sim::kOriginalPlayers> kMoreColourNames = {
-    "player.colour.orange",     "player.colour.green", "player.colour.teal",   "player.colour.pink",
-    "player.colour.light_blue", "player.colour.lime",  "player.colour.purple", "player.colour.brown"};
+    "player.colour.orange",  "player.colour.green", "player.colour.teal",   "player.colour.pink",
+    "player.colour.magenta", "player.colour.grey",  "player.colour.purple", "player.colour.brown"};
 
 }  // namespace
 

@@ -118,6 +118,6 @@ images; the mean deviation is about 15 of 255 per colour channel, because the or
 ## Choosing colours
 
 The twelve presets are easy to tell apart on land, on water and on the minimap: red, blue, yellow,
-white (as in the original), green, orange, purple, turquoise, pink, light blue, brown, light green. Black is missing
+white (as in the original), green, orange, purple, turquoise, pink, magenta, brown, dark grey. Black is missing
 because the pirates fly black and very dark flags are hard to see on the roofs. Later, the
 menu is meant to warn about free RGB colours that are too similar or too dark.

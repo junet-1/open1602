@@ -17,9 +17,9 @@ const std::array<assets::Rgba, 12> BannerTable::kDefaultColours = {{
     {130, 40, 190, 255},   // purple
     {0, 190, 190, 255},    // teal
     {255, 110, 180, 255},  // pink
-    {90, 170, 255, 255},   // light blue
+    {220, 0, 220, 255},    // magenta
     {120, 70, 30, 255},    // brown
-    {170, 230, 60, 255},   // lime (no black: the pirates fly a black flag)
+    {90, 90, 100, 255},    // dark grey (no black: the pirates fly a black flag)
 }};
 
 BannerTable BannerTable::original(const assets::FigureTable* figures, const BannerOptions& options) {
@@ -66,8 +66,8 @@ void BannerTable::add_more_players() {
         {"open1602:green", 4},
         {"open1602:teal", 7},
         {"open1602:pink", 8},
-        {"open1602:light_blue", 9},
-        {"open1602:lime", 11},
+        {"open1602:magenta", 9},
+        {"open1602:grey", 11},
         {"open1602:purple", 6},
         {"open1602:brown", 10},
     }};
