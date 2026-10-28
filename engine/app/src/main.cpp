@@ -56,8 +56,9 @@ int usage() {
         "                [--screenshot out.png] [--no-sound] [--no-music] [--no-panel] [--no-videos] [--intro]\n"
         "                [--video N] [--message ID] [--input EVENTS] [--select ISLAND,X,Y|ship:N]\n"
         "                [--host [--port N] | --join HOST[:PORT]] [--name NAME]\n"
-        "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: random map of the three\n"
-        "  --seed N           where the islands of an endless game are drawn from (default: random)\n"
+        "  --new-game D       new endless game, difficulty 0 (easy) .. 3 (hard); layout: one of the three maps,\n"
+        "                     chosen by the seed\n"
+        "  --seed N           the world of an endless game: its map and islands (default: random)\n"
         "  --islands MODE     original: as the original (512 worlds per file), seed: from the whole seed\n"
         "  --world WxH ...    an own world for the new game (any of these options): size in tiles (200-2000),\n"
         "                     players with a start, island count, villages and volcano islands none|few|normal|\n"
@@ -210,8 +211,7 @@ int run_program(int argc, char** argv) {
     options.world.guarantee_resources = options.rules.guarantee_resources;
     if (command.new_game) {
         sim::NewGameOptions& new_game_options = *command.new_game;
-        new_game_options.layout =
-            command.layout.value_or(static_cast<std::uint8_t>(device() % sim::NewGameOptions::kLayouts));
+        new_game_options.layout = command.layout.value_or(sim::layout_for_seed(options.world.seed));
         const std::time_t now = std::time(nullptr);
         const std::tm* local = std::localtime(&now);
         new_game_options.game_id = local != nullptr

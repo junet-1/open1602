@@ -693,7 +693,7 @@ core::Status MapViewer::start_hosted_game() {
         // The world of the number the host chose: the same number, the same islands.
         sim::NewGameOptions o;
         o.difficulty = std::min<std::uint8_t>(setup.level, sim::NewGameOptions::kDifficulties - 1);
-        o.layout = static_cast<std::uint8_t>(setup.seed % sim::NewGameOptions::kLayouts);
+        o.layout = sim::layout_for_seed(setup.seed);
         o.colour = own < sim::kOriginalPlayers ? own : 0;
         o.name = own < lobby.seats.size() ? lobby.seats[own].name : std::string{};
         o.world = m_options.world;

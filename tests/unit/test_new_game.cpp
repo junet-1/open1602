@@ -614,6 +614,24 @@ TEST_CASE("new game: an endless game: its islands from the plan, the same seed t
     CHECK(!same_world(*world, *other));
 }
 
+TEST_CASE("new game: the seed picks the map, so the same seed is the same map") {
+    for (std::uint64_t seed = 0; seed < 100; ++seed) {
+        const std::uint8_t layout = sim::layout_for_seed(seed);
+        CHECK(layout < sim::NewGameOptions::kLayouts);
+        CHECK(sim::layout_for_seed(seed) == layout);
+    }
+    // Every map can come from some seed, and a large seed (the random default) is fine too.
+    std::array<bool, sim::NewGameOptions::kLayouts> seen{};
+    for (std::uint64_t seed = 0; seed < sim::NewGameOptions::kLayouts; ++seed) {
+        seen[sim::layout_for_seed(seed)] = true;
+    }
+    CHECK(std::ranges::all_of(seen, [](bool s) { return s; }));
+    CHECK(sim::layout_for_seed(0xFFFF'FFFF'FFFF'FFFFULL) < sim::NewGameOptions::kLayouts);
+    // Fixed values: a seed written down in a test or a bug report keeps its map.
+    CHECK(sim::layout_for_seed(1) == 1);
+    CHECK(sim::layout_for_seed(3) == 0);
+}
+
 TEST_CASE("new game: an own world with six players: the plan's size and starts, computers alike on two runs") {
     const auto& fake = installation();
     sim::NewGameOptions o = options(11);

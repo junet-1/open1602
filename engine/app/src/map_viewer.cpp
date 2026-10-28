@@ -3073,13 +3073,13 @@ core::Status MapViewer::start_endless(std::uint8_t level, sim::BannerId banner, 
     std::random_device device;
     sim::NewGameOptions o;
     o.difficulty = std::min<std::uint8_t>(level, sim::NewGameOptions::kDifficulties - 1);
-    o.layout = static_cast<std::uint8_t>(device() % sim::NewGameOptions::kLayouts);
     // The level's file knows the original's four colours: a further one comes after the start.
     const bool further = banner >= sim::kOriginalPlayers;
     o.colour = further ? 0 : static_cast<std::uint8_t>(banner);
     o.name = name;
     o.world = m_options.world;
     o.world.seed = (std::uint64_t{device()} << 32U) | device();
+    o.layout = sim::layout_for_seed(o.world.seed);
     o.world.guarantee_resources = setup.rules.guarantee_resources;
     if (setup.own_world) {
         sim::WorldSettings custom = setup.world_settings();
