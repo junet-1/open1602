@@ -258,7 +258,7 @@ bool Military::target_valid(const Target& t) const {
         }
         case Target::Kind::Ship: {
             const Ship* s = m_world->ship(t.ship);
-            return s != nullptr && !s->sinking;
+            return s != nullptr && !s->sinking && !s->cart();  // no boarding or attacking a trade cart
         }
         case Target::Kind::Building:
             return t.island < m_world->islands().size() &&

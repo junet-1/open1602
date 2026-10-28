@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "o1602/assets/game_data.hpp"
 #include "o1602/sim/player.hpp"
 #include "o1602/sim/target.hpp"
 
@@ -188,6 +189,9 @@ struct Ship {
     /// the fields Open1602 does not model; 0xFFFF for new ships.
     std::uint16_t source_slot = 0xFFFF;
 
+    /// A player's trade cart ("fahrender Händler", TRADER1): a ship record that drives on land, on
+    /// the island of its city (docs/re/ships.md#the-trade-cart). Nothing at sea sees it.
+    [[nodiscard]] bool cart() const noexcept { return figure == assets::figure::kTradeCart; }
     /// Goods of a ware on board.
     [[nodiscard]] std::uint32_t load(std::uint8_t ware) const noexcept {
         std::uint32_t n = 0;

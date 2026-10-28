@@ -594,6 +594,8 @@ CommandResult Simulation::execute(const Command& command) {
         result.accepted = control_player(*control);
     } else if (const auto* gates = std::get_if<GateOrder>(&command)) {
         result.accepted = gate_order(*gates);
+    } else if (const auto* cart = std::get_if<CartRequest>(&command)) {
+        result.accepted = m_fleet.request_cart(*cart) != 0;
     }
     handle(m_construction_events.events(), first);
     return result;

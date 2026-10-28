@@ -24,6 +24,7 @@
 #include "o1602/core/byte_writer.hpp"
 #include "o1602/core/result.hpp"
 #include "o1602/sim/game_data.hpp"
+#include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/rules.hpp"
 #include "o1602/sim/sea_paths.hpp"
 #include "o1602/sim/world.hpp"
@@ -58,6 +59,21 @@ namespace o1602::sim {
 
 /// Room of one hold of a ship (0x00446A60).
 inline constexpr std::uint32_t kHoldCapacity = 50 * 32;
+/// Room of one of the trade cart's three holds (History Edition: "10t Holz" in each).
+inline constexpr std::uint32_t kCartHoldCapacity = 10 * 32;
+/// Room of one hold of this ship or trade cart.
+[[nodiscard]] inline std::uint32_t hold_capacity(const Ship& ship) noexcept {
+    return ship.cart() ? kCartHoldCapacity : kHoldCapacity;
+}
+
+/// How near a trade cart must be to a market or Kontor to trade there (0x00456870): 2 tiles from
+/// any tile of it.
+inline constexpr std::int32_t kCartReach = 2;
+
+/// The cities whose market or Kontor a trade cart on the world tile (wx, wy) reaches, as indices
+/// into World::cities(), in the order of that list.
+[[nodiscard]] std::vector<std::size_t> cities_near_cart(const World& world, const assets::BuildingTable& buildings,
+                                                        std::int32_t wx, std::int32_t wy);
 
 /// Whether a world tile lies within reach of a building (0x004670D0): the integer circle of radius
 /// 5 around its centre. Ships trade with a Kontor, are repaired by a shipyard from there.
@@ -201,6 +217,17 @@ struct ShipCommand {
     std::uint8_t count = 1;  ///< MountCannon: cannons at most, kAllCannons = as many as fit
 };
 
+/// "Fahrenden Händler anfordern" (city panel button 43026, 0x00449300): a city's owner without a
+/// trade cart on its island gets one at the city's Kontor, which drives to the world tile `x`, `y`
+/// at once. It costs nothing; one per player and island.
+struct CartRequest {
+    PlayerId player = kNoPlayer;
+    std::uint16_t island = 0;
+    std::uint8_t city = 0;
+    std::uint16_t x = 0;  ///< world tile
+    std::uint16_t y = 0;
+};
+
 /// Whether and why a ship can explore an island now (the button of the ship panel).
 enum class ExploreState : std::uint8_t {
     Possible,    ///< standing in an island's rectangle with something left to find
@@ -301,6 +328,10 @@ public:
     bool shipyard(const ShipyardOrder& order);
     /// Starts exploring the island the ship stands in (ExploreState::Possible only).
     bool explore(const ExploreOrder& order);
+    /// A new trade cart (carts.cpp); its id, or 0 when the request is refused.
+    std::uint32_t request_cart(const CartRequest& request);
+    /// The trade cart of `player` on `island`, if it has one.
+    [[nodiscard]] const Ship* cart_of(PlayerId player, std::uint16_t island) const;
     /// Cannons, cargo overboard, name, sale (ship_orders.cpp).
     bool command(const ShipCommand& command);
     /// What buying the ship costs (Preis * sale factor / 128).
@@ -407,6 +438,13 @@ private:
     void add_cargo(Ship& ship, std::uint8_t ware, std::uint32_t amount, std::uint16_t price);
     std::uint32_t remove_cargo(Ship& ship, std::uint8_t ware, std::uint32_t amount, std::uint8_t hold);
 
+    // Trade carts (carts.cpp)
+    void decide_cart(Ship& ship);
+    bool plan_cart(Ship& ship);
+    [[nodiscard]] bool cart_at(const Ship& ship, const Target& target) const;
+    [[nodiscard]] std::uint32_t cart_run_us(const Ship& ship, std::uint8_t direction) const;
+    [[nodiscard]] bool cart_target_allowed(const Ship& ship, const Target& target) const;
+
     // Naval combat (naval.cpp)
     bool naval_combat(Ship& ship);
     [[nodiscard]] std::optional<std::uint8_t> bearing_to(const Ship& ship, const Target& target) const;
@@ -449,6 +487,7 @@ private:
     const Rules* m_rules;
     SeaMap m_sea;
     SeaPlanner m_planner;
+    PathFinder m_cart_paths;
     // Ships by squares of kSquareTiles tiles, built at the start of a tick (TB-4): index into
     // World::ships(). Ships move less than kSquareSlack tiles in a tick; ships added since are
     // looked at one by one.

@@ -12,6 +12,7 @@ add_executable(o1602_tests
     unit/test_banner_art.cpp
     unit/test_graphics_preloader.cpp
     unit/test_players_ships.cpp
+    unit/test_carts.cpp
     unit/test_ships.cpp
     unit/test_diplomacy.cpp
     unit/test_balance.cpp

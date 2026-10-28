@@ -125,7 +125,7 @@ bool foreign(PlayerId owner, PlayerId target, PlayerId self) {
 
 bool has_ship(const World& world, PlayerId p) {
     return std::any_of(world.ships().begin(), world.ships().end(),
-                       [&](const Ship& s) { return s.owner == p && !s.sinking; });
+                       [&](const Ship& s) { return s.owner == p && !s.sinking && !s.cart(); });
 }
 
 bool has_city(const World& world, PlayerId p) {

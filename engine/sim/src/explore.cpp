@@ -35,7 +35,7 @@ std::optional<std::uint16_t> Fleet::island_at_ship(const Ship& ship) const {
 }
 
 ExploreState Fleet::explore_state(const Ship& ship, PlayerId player) const {
-    if (ship.sinking || (player != kNoPlayer && ship.owner != player)) {
+    if (ship.sinking || ship.cart() || (player != kNoPlayer && ship.owner != player)) {
         return ExploreState::NotAllowed;
     }
     if (ship.explore_steps != 0) {

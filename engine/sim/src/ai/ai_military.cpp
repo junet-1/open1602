@@ -79,7 +79,7 @@ const Engine::Census* Engine::census() const {
         }
         if (!s.sinking) {
             c.cannons[s.owner] += s.cannons;
-            if (!s.trader) {
+            if (!s.trader && !s.cart()) {
                 c.own_ships[s.owner].push_back(static_cast<std::uint32_t>(i));
             }
         }
@@ -98,7 +98,7 @@ std::vector<Ship*> Engine::own_ships(const AiPlayer& p) {
         return out;
     }
     for (Ship& s : m_world.ships()) {
-        if (s.owner == p.player && !s.sinking && !s.trader) {
+        if (s.owner == p.player && !s.sinking && !s.trader && !s.cart()) {
             out.push_back(&s);
         }
     }
@@ -804,7 +804,7 @@ void Engine::plan_landing(AiPlayer& p, Ship& s, ShipNote& n) {
     const auto ix1 = ix0 + static_cast<std::int32_t>(map.width()) - 1;
     const auto iy1 = iy0 + static_cast<std::int32_t>(map.height()) - 1;
     for (const Ship& o : m_world.ships()) {
-        if (o.x >= ix0 - 16 && o.x <= ix1 + 16 && o.y >= iy0 - 16 && o.y <= iy1 + 16 &&
+        if (!o.cart() && o.x >= ix0 - 16 && o.x <= ix1 + 16 && o.y >= iy0 - 16 && o.y <= iy1 + 16 &&
             m_world.diplomacy().hostile(p.player, o.owner)) {
             ships.emplace_back(o.x, o.y);
         }

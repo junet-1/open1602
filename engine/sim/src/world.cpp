@@ -246,6 +246,7 @@ Target decode_ref(const World& world, std::uint32_t ref) {
         case 1:
         case 2:
         case 3:
+        case 5:
             return Target::other_ship(ship_id_of_slot(ref >> 16));
         case 0x32:
         case 0x33:
@@ -307,6 +308,7 @@ void load_ships(World& world, const assets::ChunkFile& file, const assets::Build
         warn("HANDLER: " + traders.error().message);
     }
     constexpr std::uint8_t kKindTrader = 2;
+    constexpr std::uint8_t kKindCart = 5;
     constexpr std::uint8_t kFlagRoute = 1U << 1;
     constexpr std::uint8_t kFlagOneWay = 1U << 3;
     constexpr std::uint8_t kFlagForSale = 1U << 2;
@@ -316,9 +318,6 @@ void load_ships(World& world, const assets::ChunkFile& file, const assets::Build
             warn("ship '" + s.name + "' outside the world map");
             continue;
         }
-        if (s.kind == 5) {
-            continue;  // a land trader cart borrowing the ship table, not a ship
-        }
         Ship ship;
         ship.id = ship_id_of_slot(s.slot);
         if (world.ship(ship.id) != nullptr) {
@@ -327,7 +326,8 @@ void load_ships(World& world, const assets::ChunkFile& file, const assets::Build
         ship.source_slot = s.slot;
         ship.name = s.name;
         ship.place(s.x, s.y);
-        ship.figure = s.figure;
+        // Kind 5 is a player's trade cart on land (TRADER1), kept in the ship table.
+        ship.figure = s.kind == kKindCart ? figure::kTradeCart : s.figure;
         ship.owner = player_from_original(s.owner);
         ship.direction = static_cast<std::uint8_t>(s.direction & 7U);
         ship.health = s.health;

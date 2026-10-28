@@ -46,6 +46,9 @@ bool Fleet::command(const ShipCommand& c) {
     if (ship == nullptr || ship->sinking || ship->trader) {
         return false;
     }
+    if (ship->cart() && c.op != ShipCommand::Op::Dump && c.op != ShipCommand::Op::Rename) {
+        return false;  // a cart has no cannons, flag or price (TRADER.GAD)
+    }
     const bool own = c.player == kNoPlayer || ship->owner == c.player;
     const assets::FigureType* type = type_of(*ship);
     const std::uint8_t cannons = m_buildings->materials().cannons;

@@ -325,7 +325,7 @@ bool Fleet::launch(CostBuilding& yard) {
     r.aim_x = cx;
     r.aim_y = cy;
     for (const Ship& o : m_world->ships()) {
-        if (std::abs(o.x - cx) <= radius + 1 && std::abs(o.y - cy) <= radius + 1) {
+        if (!o.cart() && std::abs(o.x - cx) <= radius + 1 && std::abs(o.y - cy) <= radius + 1) {
             r.ships.push_back(SeaPlan::Obstacle{o.x, o.y, false});
         }
     }

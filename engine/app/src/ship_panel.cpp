@@ -753,8 +753,8 @@ private:
             p.set_graphic(icon + k, filled ? ui::ware_sprite(m_gfx_ware, c.world().goods(), slot.ware) : m_gfx_empty,
                           0);
             if (filled) {
-                p.set_slider(bar + k, 1, static_cast<std::int32_t>(std::min(slot.amount, sim::kHoldCapacity)),
-                             static_cast<std::int32_t>(sim::kHoldCapacity));
+                p.set_slider(bar + k, 1, static_cast<std::int32_t>(std::min(slot.amount, sim::hold_capacity(ship))),
+                             static_cast<std::int32_t>(sim::hold_capacity(ship)));
             }
         }
     }
@@ -1403,7 +1403,7 @@ private:
     }
 
     void refresh_route(const sim::Ship& ship, const PanelContext& c) {
-        const auto cap = static_cast<std::int32_t>(sim::kHoldCapacity);
+        const auto cap = static_cast<std::int32_t>(sim::hold_capacity(ship));
         m_route_page = std::min(m_route_page, route_pages() - 1);
         if (m_stop_page && (!m_route_row || stop_city(ship, c, *m_stop_page) == nullptr)) {
             m_stop_page.reset();  // the stop was cleared
@@ -1483,7 +1483,7 @@ private:
             // The direction is fixed at another's city by what it buys and sells.
             m_route.set_disabled(w.arrow, off || city->owner != c.local);
             m_route.set_graphic(w.arrow, m_gfx_arrow + (entry.unload ? 2 : 0), 0);
-            const auto amount = static_cast<std::int32_t>(std::min(entry.amount, sim::kHoldCapacity));
+            const auto amount = static_cast<std::int32_t>(std::min(entry.amount, sim::hold_capacity(ship)));
             m_route.set_slider(w.bar, 1, off ? 0 : amount, cap);
             if (m_route.held() != w.slider) {
                 m_route.set_slider(w.slider, 1, off ? 0 : amount, cap);
@@ -1555,8 +1555,8 @@ private:
             if (e.kind == ui::PanelEvent::Kind::Slid && e.id == w.slider && entry.ware != 0) {
                 // Whole 1/32 t like the original (no rounding to tons).
                 sim::RouteEntry v = entry;
-                v.amount =
-                    static_cast<std::uint32_t>(m_route.slider(e.id, 1, static_cast<std::int32_t>(sim::kHoldCapacity)));
+                v.amount = static_cast<std::uint32_t>(
+                    m_route.slider(e.id, 1, static_cast<std::int32_t>(sim::hold_capacity(ship))));
                 if (v.amount != entry.amount) {
                     out.emplace_back(route_entry(ship, c, w.stop, w.entry, v));
                 }
@@ -1703,7 +1703,7 @@ private:
             }
             // 50 t; delivered if the own Kontor buys the ware, taken if it sells it (0x0043C600).
             v.ware = *w;
-            v.amount = *w != 0 ? sim::kHoldCapacity : 0;
+            v.amount = *w != 0 ? sim::hold_capacity(ship) : 0;
             if (const sim::City::Trade* t = city->trade_of(*w); t != nullptr && *w != 0) {
                 v.unload = t->buy ? true : t->sell ? false : v.unload;
             }
@@ -1715,7 +1715,7 @@ private:
             // What the city buys is delivered (50 t), what it sells is taken (25 t).
             v.ware = w->first;
             v.unload = w->second;
-            v.amount = w->second ? sim::kHoldCapacity : sim::kHoldCapacity / 2;
+            v.amount = w->second ? sim::hold_capacity(ship) : sim::hold_capacity(ship) / 2;
         }
         out.emplace_back(route_entry(ship, c, m_pick_entry_stop, m_pick_entry, v));
         m_page = Page::Route;

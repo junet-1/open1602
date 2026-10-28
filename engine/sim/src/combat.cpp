@@ -260,7 +260,7 @@ std::span<const Neighbour> Combat::hostiles(const Target& unit) const {
 void Combat::update() {
     m_entries.clear();
     for (const Ship& s : m_world->ships()) {
-        if (!s.sinking && s.owner != kNoPlayer) {
+        if (!s.sinking && s.owner != kNoPlayer && !s.cart()) {  // trade carts are not fought yet
             m_entries.push_back(
                 {Target::other_ship(s.id), s.owner, s.near_island, s.pos_x / kEighth, s.pos_y / kEighth, true});
         }

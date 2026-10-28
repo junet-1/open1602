@@ -313,6 +313,9 @@ private:
         if (s.trader) {
             return 2;
         }
+        if (s.cart()) {
+            return 5;  // the trade cart (TRADER1)
+        }
         const Player* p = m_world.player(s.owner);
         return p != nullptr && m_world.behaviour(*p) == FactionBehaviour::Pirates ? 3 : 1;
     }
