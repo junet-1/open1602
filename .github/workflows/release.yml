@@ -311,14 +311,14 @@ jobs:
           TAG: ${{ needs.version.outputs.tag }}
           PRERELEASE: ${{ inputs.prerelease && '--prerelease' || '' }}
         run: |
-          # What changed, written by hand in docs/releases/<tag>.md; GitHub appends the list of
-          # merged pull requests since the previous release (--generate-notes).
+          # What changed, written by hand for players in docs/releases/<tag>.md. No generated list
+          # of pull requests: the notes say only what the hand-written file says.
           changes="docs/releases/$TAG.md"
           if [[ -f "$changes" ]]; then
             cp "$changes" notes.md
             echo >> notes.md
           else
-            echo "::warning::$changes is missing: the release notes only list the pull requests"
+            echo "::warning::$changes is missing: the release notes only hold the download table"
             : > notes.md
           fi
           cat >> notes.md <<EOF
@@ -339,4 +339,4 @@ jobs:
           SHA-256 checksums are in \`SHA256SUMS.txt\`.
           EOF
           gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Open1602 ${TAG#v}" \
-             --notes-file notes.md --generate-notes $PRERELEASE
+             --notes-file notes.md $PRERELEASE
