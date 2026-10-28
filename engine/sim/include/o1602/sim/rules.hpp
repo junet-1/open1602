@@ -278,6 +278,11 @@ struct Rules {
     /// Off by default, as the original.
     bool revised_bread = false;
 
+    /// Open1602: computer players buy ships other players offer for sale when they are short of
+    /// ships (the History Edition's do; the original's buy one only while they have neither ship
+    /// nor yard). Off with the original's settings.
+    bool computers_buy_ships = true;
+
     /// Which towns are discovered from the start (players, natives, pirates) or only by ship.
     Reveal reveal = Reveal::Original;
 
@@ -308,6 +313,7 @@ struct Rules {
         r.ore_veins = OreVeins::Game;
         r.computer_players = Computers::Game;
         r.revised_bread = false;
+        r.computers_buy_ships = false;
         r.reveal = Reveal::Original;
         r.bugs = OriginalBugs::all();
         return r;

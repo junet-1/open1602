@@ -439,3 +439,38 @@ TEST_CASE("ai arena: an hour of two computers develops the same on every platfor
         test::check_golden("arena after an hour", s.state_hash(), 0x6c4a9767b050d5e3ULL);
     }
 }
+
+TEST_CASE("ai arena: a computer without ships or yard buys the cheapest ship on offer") {
+    // The original's way out for a computer that lost its only ship and cannot plan a yard yet (no
+    // weaving hut): the cheapest ship another player offers, while its money covers the price; at
+    // war or not, and with the original's rules too.
+    Arena a;
+    a.world.player(kSecond)->role = sim::PlayerRole::Human;  // keeps its offers as they are
+    sim::Simulation s(a.world, a.buildings, a.figures, sim::Rules::original());
+    for (int minute = 0; minute < 10 && a.cities_of(kFirst) == 0; ++minute) {
+        run(s, 60'000);
+    }
+    REQUIRE(a.cities_of(kFirst) == 1);
+    a.world.erase_ships([](const sim::Ship& ship) { return ship.owner == kFirst; });
+    a.add_ship(kSecond, 140, 50);
+    a.add_ship(kSecond, 140, 60);
+    sim::Ship& dear = a.world.ships()[a.world.ships().size() - 2];
+    sim::Ship& cheap = a.world.ships().back();
+    dear.for_sale = true;
+    dear.sale_factor = 128;
+    cheap.for_sale = true;
+    cheap.sale_factor = 64;
+    const std::uint32_t dear_id = dear.id;
+    const std::uint32_t cheap_id = cheap.id;
+    a.world.diplomacy().relation(kFirst, kSecond).peace = sim::Treaty::None;
+    a.world.diplomacy().relation(kSecond, kFirst).peace = sim::Treaty::None;
+    const std::int32_t money = a.world.player(kSecond)->money;
+    bool bought = false;
+    for (int minute = 0; minute < 15 && !bought; ++minute) {
+        run(s, 60'000);
+        bought = a.world.ship(cheap_id)->owner == kFirst;
+    }
+    CHECK(bought);
+    CHECK(a.world.ship(dear_id)->owner == kSecond);
+    CHECK(a.world.player(kSecond)->money == money + 500);
+}

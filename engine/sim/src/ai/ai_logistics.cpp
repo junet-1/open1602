@@ -12,7 +12,10 @@ namespace o1602::sim::ai {
 
 namespace {
 
-constexpr std::uint32_t kHealthy = 0x5F;  // health * 128 / max above this: at least 75 %
+constexpr std::uint32_t kHealthy = 0x5F;               // health * 128 / max above this: at least 75 %
+constexpr std::uint16_t kSpareShipFactor = 0x40;       // a spare ship for half its price
+constexpr std::uint16_t kFullPriceFactor = 128;        // what the yard asks
+constexpr std::int32_t kFirstShipPriceLimit = 100000;  // offers from this price on are not looked at
 
 bool carries_goods(const Ship& s) {
     for (const CargoSlot& c : s.cargo) {
@@ -144,6 +147,15 @@ void Engine::logistics(AiPlayer& p) {
             healthy = yard_service(p);
         }
         if (Ship* s = pick_logistics_ship(p, healthy)) {
+            // As in the original, a ship the computer offered for sale is withdrawn when it gets
+            // this job (a patrol keeps the offer).
+            if (s->for_sale) {
+                ShipCommand withdraw;
+                withdraw.player = p.player;
+                withdraw.ship = s->id;
+                withdraw.op = ShipCommand::Op::WithdrawSale;
+                execute(withdraw);
+            }
             if (!carries_goods_for(*s, *home) || s->route.active) {
                 home_supply_route(p, *s, *home);
             } else if (ship_at_city(*s, *home)) {
@@ -154,7 +166,7 @@ void Engine::logistics(AiPlayer& p) {
             }
         }
         update_fleet_target(p);
-        if (static_cast<std::int32_t>(own_ships(p).size()) < p.fleet_target) {
+        if (static_cast<std::int32_t>(own_ships(p).size()) < p.fleet_target && !buy_ship(p)) {
             order_ship(p);
         }
     }
@@ -629,9 +641,16 @@ void Engine::order_ship(AiPlayer& p) {
         // request for the next develop step; the original's computers keep the quirk.
         if (top(p) > kSurvey) {
             if (classic()) {
-                need_shipyard(p);
+                if (need_shipyard(p)) {
+                    return;
+                }
             } else {
                 p.yard_wanted = true;
+            }
+            // Until the yard stands, a computer without any ship buys the cheapest one on offer, as
+            // in the original.
+            if (own_ships(p).empty()) {
+                buy_first_ship(p);
             }
         }
         return;
@@ -642,31 +661,140 @@ void Engine::order_ship(AiPlayer& p) {
             yard = &b;
         }
     }
-    if (yard == nullptr || yard->order != CostBuilding::kNoOrder) {
+    if (yard == nullptr) {
         return;
     }
-    for (Ship* s : own_ships(p)) {
+    const std::vector<Ship*> ships = own_ships(p);
+    Ship* at_yard = nullptr;
+    for (Ship* s : ships) {
         if (ship_idle(p, *s) &&
             building_in_reach(m_world, m_buildings, p.yard_island, p.yard_x, p.yard_y, s->x, s->y)) {
+            at_yard = s;
+            break;
+        }
+    }
+    if (yard->order == CostBuilding::kNoOrder && at_yard == nullptr) {
+        const Tile t = tile(p.yard_island, p.yard_x, p.yard_y);
+        const bool small = !t.valid() || t.type->size_x <= 3;
+        const auto type = static_cast<std::uint8_t>((rng().next() & 1U) * 2U + (small ? 0U : 1U));
+        const assets::FigureType* f = m_sim.m_figures->get(figure::ship_figure(type));
+        const std::int64_t price = f != nullptr ? f->ship.price : 0;
+        if (std::int64_t{player(p).money} > price / 2) {
+            ShipyardOrder order;
+            order.player = p.player;
+            order.island = p.yard_island;
+            order.x = p.yard_x;
+            order.y = p.yard_y;
+            order.op = ShipyardOrder::Op::Build;
+            order.ship_type = type;
+            execute(order);
             return;
         }
     }
-    const Tile t = tile(p.yard_island, p.yard_x, p.yard_y);
-    const bool small = !t.valid() || t.type->size_x <= 3;
-    const auto type = static_cast<std::uint8_t>((rng().next() & 1U) * 2U + (small ? 0U : 1U));
-    const assets::FigureType* f = m_sim.m_figures->get(figure::ship_figure(type));
-    const std::int64_t price = f != nullptr ? f->ship.price : 0;
-    if (std::int64_t{player(p).money} <= price / 2) {
+    // The yard is busy, a ship lies idle at it, or the money is short: with at least as many ships
+    // as cities and none on offer yet, the ship at the yard is offered for half its price if it has
+    // no cannons and nothing on board (the others are told), and gets no job for four looks.
+    if (ships.size() < p.cities || at_yard == nullptr || at_yard->cannons != 0 ||
+        std::any_of(ships.begin(), ships.end(), [](const Ship* s) { return s->for_sale; }) ||
+        std::any_of(at_yard->cargo.begin(), at_yard->cargo.end(),
+                    [](const CargoSlot& c) { return c.ware != 0 && c.amount != 0; })) {
         return;
     }
-    ShipyardOrder order;
-    order.player = p.player;
-    order.island = p.yard_island;
-    order.x = p.yard_x;
-    order.y = p.yard_y;
-    order.op = ShipyardOrder::Op::Build;
-    order.ship_type = type;
-    execute(order);
+    ShipCommand offer;
+    offer.player = p.player;
+    offer.ship = at_yard->id;
+    offer.op = ShipCommand::Op::OfferForSale;
+    offer.factor = kSpareShipFactor;
+    execute(offer);
+    note(p, at_yard->id).cooldown = 4;
+    log(p, "ship %u offered for sale", at_yard->id);
+}
+
+void Engine::buy_first_ship(AiPlayer& p) {
+    // The original's: the cheapest ship another player offers, if the price stays below the money.
+    // The original asks for no peace and buys from anyone; Open1602 leaves out the offers its Buy
+    // turns down (pirates, soldiers on board) so that they do not hide a ship it could buy.
+    const std::int64_t money = player(p).money;
+    const Ship* best = nullptr;
+    std::int32_t best_price = kFirstShipPriceLimit;
+    for (const Ship& s : m_world.ships()) {
+        const Player* seller = m_world.player(s.owner);
+        if (!s.for_sale || s.sinking || s.owner == p.player || seller == nullptr ||
+            (seller->role != PlayerRole::Human && seller->role != PlayerRole::Computer) ||
+            std::any_of(s.cargo.begin(), s.cargo.end(), [](const CargoSlot& c) { return is_soldier_ware(c.ware); })) {
+            continue;
+        }
+        const std::int32_t price = m_sim.fleet().sale_price(s);
+        if (price < best_price) {
+            best = &s;
+            best_price = price;
+        }
+    }
+    if (best == nullptr || std::int64_t{best_price} >= money) {
+        return;
+    }
+    ShipCommand buy;
+    buy.player = p.player;
+    buy.ship = best->id;
+    buy.op = ShipCommand::Op::Buy;
+    const std::uint32_t id = best->id;
+    if (execute(buy).accepted) {
+        log(p, "bought first ship %u for %d", id, best_price);
+    }
+}
+
+bool Engine::buy_ship(AiPlayer& p) {
+    // Open1602 (the History Edition's computers buy ships too; Rules::computers_buy_ships, off with
+    // the original's settings): a computer short of ships buys one a partner at peace offers at no
+    // more than its yard price, if it keeps half its money. Not while it offers one itself, so
+    // that two computers do not pass a ship back and forth; the cheapest offer first, then the
+    // larger ship.
+    if (!m_sim.rules().computers_buy_ships || p.pirates || tutorial()) {
+        return false;
+    }
+    const std::vector<Ship*> ships = own_ships(p);
+    if (std::any_of(ships.begin(), ships.end(), [](const Ship* s) { return s->for_sale; })) {
+        return false;
+    }
+    const std::int64_t money = player(p).money;
+    const Ship* best = nullptr;
+    std::int32_t best_price = 0;
+    std::uint32_t best_value = 0;
+    for (const Ship& s : m_world.ships()) {
+        const Player* seller = m_world.player(s.owner);
+        if (!s.for_sale || s.sinking || s.owner == p.player || seller == nullptr ||
+            (seller->role != PlayerRole::Human && seller->role != PlayerRole::Computer) ||
+            s.sale_factor > kFullPriceFactor ||
+            m_world.diplomacy().relation(p.player, s.owner).peace != Treaty::Signed ||
+            std::any_of(s.cargo.begin(), s.cargo.end(), [](const CargoSlot& c) { return is_soldier_ware(c.ware); })) {
+            continue;
+        }
+        const std::int32_t price = m_sim.fleet().sale_price(s);
+        const assets::FigureType* t = ship_type(s);
+        const std::uint32_t value = t != nullptr ? t->ship.price : 0;
+        if (value == 0 || std::int64_t{price} * 2 > money) {
+            continue;
+        }
+        if (best == nullptr || s.sale_factor < best->sale_factor ||
+            (s.sale_factor == best->sale_factor && value > best_value)) {
+            best = &s;
+            best_price = price;
+            best_value = value;
+        }
+    }
+    if (best == nullptr) {
+        return false;
+    }
+    ShipCommand buy;
+    buy.player = p.player;
+    buy.ship = best->id;
+    buy.op = ShipCommand::Op::Buy;
+    const std::uint32_t id = best->id;
+    if (!execute(buy).accepted) {
+        return false;
+    }
+    log(p, "bought ship %u for %d", id, best_price);
+    return true;
 }
 
 }  // namespace o1602::sim::ai
