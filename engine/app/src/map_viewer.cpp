@@ -1718,11 +1718,11 @@ std::pair<std::uint8_t, std::optional<std::uint16_t>> MapViewer::fertility_view_
         }
     }
     if (!m_show_fertility || !m_hud || m_hud->selection().kind != Selection::Kind::Building) {
-        return {0, std::nullopt};
+        return {std::uint8_t{0}, std::nullopt};
     }
     const Selection& sel = m_hud->selection();
     if (sel.island >= m_state->world.islands().size()) {
-        return {0, std::nullopt};
+        return {std::uint8_t{0}, std::nullopt};
     }
     const sim::SubTile t = m_state->world.islands()[sel.island].map.sub_tile(m_buildings, sel.x, sel.y);
     return {t.building != nullptr ? fertility_crop(m_buildings, *t.building) : std::uint8_t{0}, sel.island};
