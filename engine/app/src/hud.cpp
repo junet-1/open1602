@@ -1156,7 +1156,7 @@ ui::Rect Hud::help_box() const {
     const std::int32_t w = std::min(v.w - px(16), px(760));
     std::size_t rows = 0;
     if (m_help) {
-        const ui::Font* font = m_renderer->fonts()[1];
+        const ui::Font* font = m_renderer->fonts(s)[1];
         for (const KeyHelpPage& p : *m_help) {
             const HelpColumns c = help_columns(font, p, w / s);
             const auto wrapped = help_wrapped(font, p, c.text);
@@ -1230,7 +1230,7 @@ void Hud::draw_help() {
     }
     const KeyHelpPage& page = (*m_help)[m_help_page];
     // Two columns; a text too long for its column wraps onto the rows below it.
-    const ui::Font* font = m_renderer->fonts()[1];
+    const ui::Font* font = m_renderer->fonts(s)[1];
     const HelpColumns c = help_columns(font, page, box.w / s);
     const auto wrapped = help_wrapped(font, page, c.text);
     const KeyHelpHeight height = [&](std::size_t sec, std::size_t l) { return wrapped[sec][l].size(); };
