@@ -69,6 +69,8 @@ inline constexpr std::uint32_t kCartHoldCapacity = 10 * 32;
 /// How near a trade cart must be to a market or Kontor to trade there (0x00456870): 2 tiles from
 /// any tile of it.
 inline constexpr std::int32_t kCartReach = 2;
+/// Stops of a trade cart's route (SHIP4 +0x052 holds four for a cart, docs/re/ships.md#the-trade-cart).
+inline constexpr std::uint8_t kCartStops = 4;
 
 /// The cities whose market or Kontor a trade cart on the world tile (wx, wy) reaches, as indices
 /// into World::cities(), in the order of that list.

@@ -318,7 +318,12 @@ public:
         const sim::City* city = w.city(cell.island, top.city);
         if (city != nullptr && city->warehouse_x) {
             out.emplace_back(route_stop(*ship, c, *stop, sim::Target::city_of(city->island, city->index)));
+            if (m_cart_chain && ship->cart() && *stop + 1 < sim::kCartStops) {
+                m_pick_stop = static_cast<std::uint8_t>(*stop + 1);  // a cart's stops one after another
+                return;
+            }
         }
+        m_cart_chain = false;
     }
 
     void refresh(const Selection& s, const PanelContext& c) override {
@@ -329,6 +334,7 @@ public:
             m_offer = 0;
             m_route_page = 0;
             m_stop_page.reset();
+            m_cart_chain = false;
         }
         const sim::Ship* ship = c.world().ship(s.ship);
         if (ship == nullptr) {
@@ -598,6 +604,7 @@ public:
         if (m_pick_stop || m_pick_copy) {
             m_pick_stop.reset();
             m_pick_copy = false;
+            m_cart_chain = false;
             return true;
         }
         switch (m_page) {
@@ -903,9 +910,19 @@ private:
                                      : e.id == kCartRouteEditor ? kRouteEditor
                                                                 : 0;
         if (as_ship != 0) {
-            // Open1602: "Automatische Handelsroute festlegen" opens the ship's route editor, with
-            // the wares of each stop; the original only takes the stops from clicks on the map.
             clicked_root(ui::PanelEvent{e.kind, as_ship}, ship, c, out);
+        }
+        if (e.id == kCartRouteEditor) {
+            // "Automatische Handelsroute festlegen": the stops are clicked on the map one after
+            // another, from the first free one (LEISTE 170); a click beside a city or Escape ends
+            // it. Open1602 shows the route editor meanwhile, with the wares of each stop.
+            std::uint8_t first = 0;
+            while (first + 1 < sim::kCartStops && !ship.route.stops[first].target.empty()) {
+                ++first;
+            }
+            m_pick_stop = first;
+            m_pick_copy = false;
+            m_cart_chain = true;
         }
     }
 
@@ -1474,7 +1491,9 @@ private:
         return std::nullopt;
     }
     /// Pages of the editor: two with Open1602's row, the original's one without it.
-    [[nodiscard]] std::size_t route_pages() const { return m_route_row ? sim::TradeRoute::kStops / kStopsShown : 1; }
+    [[nodiscard]] std::size_t route_pages() const {
+        return m_route_row && !m_is_cart ? sim::TradeRoute::kStops / kStopsShown : 1;  // a cart has four stops
+    }
     /// Another own ship with a route of cities by the tile clicked (ships stand out of their tile).
     [[nodiscard]] static const sim::Ship* route_source_near(const sim::Ship& ship, const PanelContext& c,
                                                             std::uint32_t x, std::uint32_t y) {
@@ -1992,6 +2011,7 @@ private:
     static constexpr std::int32_t kCartHoldButton = 59091;
     std::optional<ui::Panel> m_cart;  ///< TRADER.GAD, the trade cart's window
     bool m_is_cart = false;           ///< the selected ship is a trade cart
+    bool m_cart_chain = false;        ///< picking a cart's stops one after another on the map
     /// The left column: repair, pirates, explore and its ring (arrange_column).
     static constexpr std::array<std::int32_t, 4> kColumn = {38003, 38019, 38023, 38024};
     std::array<std::array<std::int32_t, 2>, 4> m_column{};

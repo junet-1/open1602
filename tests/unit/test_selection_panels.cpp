@@ -898,6 +898,32 @@ TEST_CASE("selection panels: the trade cart button asks where a cart goes, then 
     w->refresh(selected, c);
     CHECK(&w->panel() != root);
     CHECK(w->panel().layout().find(45002) != nullptr);
+
+    // "Set route": the stops are clicked on the map one after another, from the first free one;
+    // a click beside a city or Escape ends it.
+    selected.serial = 3;
+    w->refresh(selected, c);
+    out.clear();
+    w->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 59005}, selected, c, out);
+    CHECK(w->picking());
+    out.clear();                         // the editor drops stops that are no city (none here)
+    w->picked(8, 4, selected, c, out);   // Haven's Kontor
+    w->picked(13, 9, selected, c, out);  // a house of Haven
+    CHECK(w->picking());
+    REQUIRE(out.size() == 2);
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        const auto* stop = std::get_if<sim::RouteEdit>(&out[i]);
+        REQUIRE(stop != nullptr);
+        CHECK(stop->op == sim::RouteEdit::Op::SetStop);
+        CHECK(stop->ship == id);
+        CHECK(stop->stop == i);
+        CHECK(stop->target == sim::Target::city_of(0, 3));
+    }
+    CHECK(w->back());
+    CHECK(!w->picking());
+    w->clicked(ui::PanelEvent{ui::PanelEvent::Kind::Clicked, 59005}, selected, c, out);
+    w->picked(0, 0, selected, c, out);  // the sea: no stop, the end
+    CHECK(!w->picking());
 }
 
 TEST_CASE("selection panels: the military windows of one ship and of a fleet give their orders") {

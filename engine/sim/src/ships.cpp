@@ -1254,9 +1254,10 @@ bool Fleet::edit_route(const RouteEdit& e) {
             if (e.stop >= TradeRoute::kStops || (!e.target.empty() && !target_valid(e.target))) {
                 return false;
             }
-            if (ship->cart() && !e.target.empty() &&
-                (e.target.kind != Target::Kind::City || !cart_target_allowed(*ship, e.target))) {
-                return false;  // a cart's stops are the cities of its island (0x36 references)
+            if (ship->cart() &&
+                (e.stop >= kCartStops || (!e.target.empty() && (e.target.kind != Target::Kind::City ||
+                                                                !cart_target_allowed(*ship, e.target))))) {
+                return false;  // a cart's four stops are the cities of its island (0x36 references)
             }
             if (e.player != kNoPlayer && e.target.kind == Target::Kind::Ship) {
                 // Goods between two ships move without payment: a player's route reaches only
