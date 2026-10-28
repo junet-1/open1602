@@ -122,9 +122,9 @@ bool touches_own_land(const sim::IslandMap& map, const sim::PlannedBuild& item, 
     return false;
 }
 
-/// Ground under a building that cannot be built there: red in the original, a yellow checkered
-/// field in the History Edition (Open1602's look, render::kDragHatch).
-constexpr assets::Rgba kRefusedTint{220, 30, 30, 140};
+/// A building in the build tool that only lacks gold or goods blinks: shown for this long, then
+/// hidden for as long, as in the original.
+constexpr std::uint64_t kShortOfMeansBlinkMs = 300;
 /// Real time a frame may spend on ticks; the rest of the frame draws.
 constexpr int kTickBudgetMs = 25;
 /// The status line under a still mouse is worked out again this often (FB-1).
@@ -1350,9 +1350,11 @@ void MapViewer::render() {
                         }
                     }
                     const bool multi = m_tool.multi_drag();
+                    const bool blink_off = (platform::ticks_ms() / kShortOfMeansBlinkMs) % 2 == 1;
                     for (const sim::PlannedBuild& item : plan.items) {
-                        // What only lacks gold or goods is shown on its marked ground; anything else that
-                        // cannot be built only as marked ground (it might stand over a building or the sea).
+                        // What only lacks gold or goods blinks, on unmarked ground; anything else that
+                        // cannot be built only shows its ground, marked (it might stand over a building
+                        // or the sea).
                         const bool short_of_means =
                             item.refusal == sim::BuildRefusal::Money || item.refusal == sim::BuildRefusal::Tools ||
                             item.refusal == sim::BuildRefusal::Wood || item.refusal == sim::BuildRefusal::Bricks ||
@@ -1378,8 +1380,8 @@ void MapViewer::render() {
                         if (item.type == nullptr || hatched) {
                             continue;
                         }
-                        // What cannot be built is shown too, on marked ground: red as in the original,
-                        // yellow checkered as in the History Edition.
+                        // Ground that cannot be built on is checkered yellow, as in the original and the
+                        // History Edition, and drawn over the buildings so that none hides it.
                         std::uint32_t w = 1;
                         std::uint32_t h = 1;
                         sim::rotated_size(*item.type, item.rotation, w, h);
@@ -1392,19 +1394,16 @@ void MapViewer::render() {
                                     inside = false;
                                     continue;
                                 }
-                                if (!item.ok()) {
+                                if (!item.ok() && !short_of_means) {
                                     render::TileMark mark{order->island, static_cast<std::uint16_t>(tx),
-                                                          static_cast<std::uint16_t>(ty), kRefusedTint};
-                                    if (!m_app_settings.display.classic_graphics) {
-                                        mark.colour = render::kDragHatch;
-                                        mark.hatched = true;
-                                        mark.on_top = true;
-                                    }
+                                                          static_cast<std::uint16_t>(ty), render::kDragHatch};
+                                    mark.hatched = true;
+                                    mark.on_top = true;
                                     m_tile_marks.push_back(mark);
                                 }
                             }
                         }
-                        if (!inside || (!item.ok() && !short_of_means)) {
+                        if (!inside || (!item.ok() && (!short_of_means || blink_off))) {
                             continue;
                         }
                         for (std::uint32_t j = 0; j < h; ++j) {

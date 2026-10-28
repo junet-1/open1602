@@ -34,9 +34,9 @@ struct DisplaySettings {
     /// only the player concerned).
     bool rival_wars = true;
     /// The original's graphics instead of Open1602's: shadows and chimney smoke dithered (every
-    /// second pixel) instead of blended (render::Dither), ground that cannot be built on red instead
-    /// of yellow checkered, and no dotted border around other players' land while building. One
-    /// switch for everything where the two differ in look, not in what is shown.
+    /// second pixel) instead of blended (render::Dither), and no dotted border around other players'
+    /// land while building. One switch for everything where the two differ in look, not in what is
+    /// shown.
     bool classic_graphics = false;
 
     friend bool operator==(const DisplaySettings&, const DisplaySettings&) = default;
