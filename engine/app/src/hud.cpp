@@ -1149,8 +1149,9 @@ void Hud::draw_help() {
         items.push_back(d);
     };
     text(ui::tr("keys.title"), box.w / 2, px(28), ui::Align::Centre, 0);
-    // The tab titles in the small font, centred in their tabs by the ink and cut to their width;
-    // the page shown in yellow (a larger font would not fit the tabs).
+    // The tab titles in the small font, cut to their tab's width and centred on its upper part, so
+    // that descenders ("g", "p") keep clear of the bottom edge; the page shown in yellow (a larger
+    // font would not fit the tabs).
     const ui::Font* tab_font = m_renderer->fonts()[1];
     for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
         const ui::Rect t = help_tab(box, p);
@@ -1158,7 +1159,7 @@ void Hud::draw_help() {
         const std::int32_t top = static_cast<std::int32_t>(std::lround((t.y - box.y) / s));
         const std::int32_t h = static_cast<std::int32_t>(std::lround(t.h / s));
         text(ui::fit_text(tab_font, (*m_help)[p].title, inner, false), t.x - box.x + t.w / 2,
-             px(ui::text_bottom(tab_font, top, h)), ui::Align::Centre);
+             px(ui::text_bottom(tab_font, top, h - 4)), ui::Align::Centre);
         items.back().colour = p == m_help_page ? 3 : 1;
     }
     const KeyHelpPage& page = (*m_help)[m_help_page];
