@@ -453,12 +453,11 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
     if (minds_territory) {
         std::int32_t settle_penalty = 0;
         std::int32_t troop_penalty = 0;
-        const auto small_own = [&](const City& c) {
-            return c.owner == a && c.island < world.islands().size() &&
-                   world.islands()[c.island].header.template_size <= 3;
+        const auto small = [&](const City& c) {
+            return c.island < world.islands().size() && world.islands()[c.island].header.template_size <= 3;
         };
-        // Who has cities and troops on the small islands of a, in one pass over the cities and
-        // one over the soldiers instead of one per city of a (TB-8).
+        // Who has cities and troops on the islands of a, in one pass over the cities and one over
+        // the soldiers instead of one per city of a (TB-8).
         constexpr std::uint8_t kWatched = 1;
         constexpr std::uint8_t kBCity = 2;
         constexpr std::uint8_t kATroops = 4;
@@ -466,7 +465,7 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
         std::vector<std::uint8_t> islands(world.islands().size(), 0);
         bool any = false;
         for (const City& c : world.cities()) {
-            if (small_own(c)) {
+            if (c.owner == a && c.island < islands.size()) {
                 islands[c.island] = kWatched;
                 any = true;
             }
@@ -485,7 +484,7 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
             }
         }
         for (const City& c : world.cities()) {
-            if (!small_own(c)) {
+            if (c.owner != a || c.island >= islands.size()) {
                 continue;
             }
             const std::uint8_t seen = islands[c.island];
@@ -494,7 +493,9 @@ std::int32_t Diplomacy::mood(const World& world, PlayerId a, PlayerId b, std::ui
             for (const std::uint32_t i : c.inhabitants) {
                 empty = empty && i == 0;
             }
-            if (b_city && (cities_a <= 2 || empty)) {
+            // A city of b only counts on a small island of a; troops of b on any island of a, as
+            // in the original and the History Edition (0x00475C60).
+            if (b_city && small(c) && (cities_a <= 2 || empty)) {
                 settle_penalty = 200;
             }
             const bool b_troops = (seen & kBTroops) != 0;

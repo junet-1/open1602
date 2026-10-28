@@ -272,6 +272,9 @@ void Fleet::pirate_choose(Ship& ship) {
     const PlayerId p = ship.owner;
     ship.held = false;
     ship.repairing = false;
+    // Prey are ships (no carts) that have not surrendered: a ship under the white flag is left
+    // alone, and so is a player who has no other (0x0044F000: kinds 1-3 without flag +0x11 bit 4).
+    const auto is_prey = [](const Ship& s) { return !s.sinking && !s.cart() && !s.held; };
     if ((random.next() & 3U) == 0) {
         // Pirate_FindPrey 0x004488D0: a player the pirates do not like, with a ship.
         PlayerId prey_owner = kNoPlayer;
@@ -284,7 +287,7 @@ void Fleet::pirate_choose(Ship& ship) {
             const auto pb = static_cast<PlayerId>(b);
             const std::int32_t mood = m_world->diplomacy().mood(*m_world, p, pb, 0, m_world->time_ms());
             const bool has_ship = std::any_of(m_world->ships().begin(), m_world->ships().end(),
-                                              [&](const Ship& s) { return s.owner == pb && !s.sinking && !s.cart(); });
+                                              [&](const Ship& s) { return s.owner == pb && is_prey(s); });
             if (mood >= 1 || !has_ship) {
                 continue;
             }
@@ -297,7 +300,7 @@ void Fleet::pirate_choose(Ship& ship) {
         if (prey_owner != kNoPlayer) {
             std::vector<const Ship*> fleet;
             for (const Ship& s : m_world->ships()) {
-                if (s.owner == prey_owner && !s.sinking && !s.cart()) {
+                if (s.owner == prey_owner && is_prey(s)) {
                     fleet.push_back(&s);
                 }
             }
