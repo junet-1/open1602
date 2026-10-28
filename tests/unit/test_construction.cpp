@@ -35,6 +35,8 @@ constexpr std::uint32_t kWall = 22501;
 constexpr std::uint32_t kTower = 20305;
 constexpr std::uint32_t kGate = 20304;
 constexpr std::uint32_t kPlantation = 20599;
+constexpr std::uint32_t kForester = 20598;
+constexpr std::uint32_t kSapling2 = 20213;
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -99,7 +101,9 @@ assets::BuildingTable make_buildings() {
         "  Objekt: HAUS_BAUKOST\n    Money: 15\n  EndObj\n"
         "  @Nummer: 26\n  Id: 21073\n  Kind: 30\n  Gfx: 96\n  Size: 1, 1\n  Rotate: 1\n"
         // A tree the player plants: growing, ripe; no withered record.
+        // A second variant (RandAnz 2) eleven records on.
         "  @Nummer: 27\n  Id: 20211\n  Kind: 10\n  Gfx: 100\n  Size: 1, 1\n  AnimAnz: 5\n  AnimAdd: 1\n"
+        "  RandAnz: 2\n  RandAdd: 11\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 10\n    Interval: 900\n  EndObj\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 5\n  EndObj\n"
         "  @Nummer: 28\n  Id: 20212\n  Kind: 10\n  Gfx: 105\n  Size: 1, 1\n"
@@ -124,6 +128,16 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 36\n  Id: 20599\n  Kind: 14\n  Gfx: 144\n  Size: 2, 2\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Ware: 6\n    Rohstoff: 46\n    Radius: 3\n  EndObj\n"
         "  Objekt: HAUS_BAUKOST\n    Money: 20\n  EndObj\n"
+        // A forester that harvests the trees (ware 53) within 3 tiles.
+        "  @Nummer: 37\n  Id: 20598\n  Kind: 14\n  Gfx: 148\n  Size: 2, 2\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 2\n    Ware: 23\n    Rohstoff: 53\n    Radius: 3\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 20\n  EndObj\n"
+        // The second variant of the planted tree: growing, ripe.
+        "  @Nummer: 38\n  Id: 20213\n  Kind: 10\n  Gfx: 152\n  Size: 1, 1\n  AnimAnz: 5\n  AnimAdd: 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 10\n    Interval: 900\n  EndObj\n"
+        "  Objekt: HAUS_BAUKOST\n    Money: 5\n  EndObj\n"
+        "  @Nummer: 39\n  Id: 20214\n  Kind: 10\n  Gfx: 157\n  Size: 1, 1\n"
+        "  Objekt: HAUS_PRODTYP\n    Kind: 9\n    Ware: 53\n  EndObj\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -864,6 +878,32 @@ TEST_CASE(
     REQUIRE(slow.ok());
     CHECK(slow->by_id(20101)->walk_speed[0] == 1);
     CHECK(slow->by_id(20101)->edge_growth == 0);
+}
+
+TEST_CASE("construction: \"plant all farm fields\" at a forester mixes the trees' variants like the build tool") {
+    Island island;
+    island.found();
+    REQUIRE(island.build({{kForester, 9, 12, 0, 0}}).placed == 1);
+    std::size_t first = 0;
+    std::size_t second = 0;
+    for (const std::uint32_t seed : {1U, 2U}) {
+        const auto order = sim::plant_fields_order(island.world, island.buildings, 0, 0, {9, 12}, kSapling, seed);
+        REQUIRE(order);
+        REQUIRE(order->items.size() > 8);
+        for (const sim::BuildItem& item : order->items) {
+            first += item.building == kSapling ? 1U : 0U;
+            second += item.building == kSapling2 ? 1U : 0U;
+        }
+        // The same seed gives the same trees, so the order is the same on every computer.
+        const auto again = sim::plant_fields_order(island.world, island.buildings, 0, 0, {9, 12}, kSapling, seed);
+        REQUIRE(again);
+        for (std::size_t i = 0; i < order->items.size(); ++i) {
+            CHECK(again->items[i].building == order->items[i].building);
+        }
+    }
+    CHECK(first > 0);
+    CHECK(second > 0);
+    CHECK(first + second > 16);
 }
 
 TEST_CASE("construction: a soldier on the footprint stops a building, one beside it does not (TB-7)") {

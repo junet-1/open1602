@@ -235,10 +235,11 @@ bool destroy_building(World& world, const assets::BuildingTable& buildings, std:
 /// which has no key and whose code is not known): the building at `origin` is a farm, plantation,
 /// pasture or woodcutter of `player`, and `field` is the field it harvests; the order puts that
 /// field on every tile of open ground in its catchment, the nearest first. Building it places what
-/// fits and what the player can pay. Nothing if the building is not the player's or no farm.
+/// fits and what the player can pay. Nothing if the building is not the player's or no farm. Trees
+/// take one of their variants per tile, drawn from `seed` and the tile, as the build tool's do.
 [[nodiscard]] std::optional<BuildOrder> plant_fields_order(const World& world, const assets::BuildingTable& buildings,
                                                            PlayerId player, std::uint16_t island, TilePos origin,
-                                                           std::uint32_t field);
+                                                           std::uint32_t field, std::uint32_t seed = 0);
 
 /// How fertile an island is for a ware (0x0046AFF0): crops and resources 45..58 from the
 /// fertility mask (128) or the climate's own crops (64); ore by its deposits (big 128, small 64).

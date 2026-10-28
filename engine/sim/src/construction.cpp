@@ -2322,8 +2322,8 @@ bool destroy_building(World& world, const assets::BuildingTable& buildings, std:
 }
 
 std::optional<BuildOrder> plant_fields_order(const World& world, const assets::BuildingTable& buildings,
-                                             PlayerId player, std::uint16_t island, TilePos origin,
-                                             std::uint32_t field) {
+                                             PlayerId player, std::uint16_t island, TilePos origin, std::uint32_t field,
+                                             std::uint32_t seed) {
     if (island >= world.islands().size()) {
         return std::nullopt;
     }
@@ -2371,8 +2371,24 @@ std::optional<BuildOrder> plant_fields_order(const World& world, const assets::B
     order.player = player;
     order.island = island;
     order.orient_to_road = false;
+    // Trees come in RandAnz variants RandAdd records apart; like the build tool, one per tile
+    // (a splitmix64 of seed, island and tile), so the order carries them for every computer.
+    const auto variant = [&](std::int32_t x, std::int32_t y) {
+        if (crop->kind != kind::kForest || crop->rand_count <= 1) {
+            return field;
+        }
+        std::uint64_t z = (std::uint64_t{seed} << 32U) ^ (std::uint64_t{island} << 24U) ^
+                          (static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) << 12U) ^
+                          static_cast<std::uint32_t>(y);
+        z += 0x9E3779B97F4A7C15ULL;
+        z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+        const auto pick = static_cast<std::uint32_t>(z ^ (z >> 31U)) % crop->rand_count;
+        const assets::BuildingType* v = buildings.by_record(crop->record + pick * crop->rand_add);
+        return v != nullptr ? v->id : field;
+    };
     for (const Spot& s : spots) {
-        order.items.push_back(BuildItem{field, s.x, s.y, 0, 0});
+        order.items.push_back(BuildItem{variant(s.x, s.y), s.x, s.y, 0, 0});
     }
     return order;
 }

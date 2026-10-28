@@ -1034,7 +1034,8 @@ void MapInput::plant_fields() {
             ui::build_menu().category_of(field.id) == nullptr) {
             continue;
         }
-        if (auto order = sim::plant_fields_order(w, m_buildings, local(), sel.island, {sel.x, sel.y}, field.id);
+        if (auto order = sim::plant_fields_order(w, m_buildings, local(), sel.island, {sel.x, sel.y}, field.id,
+                                                 static_cast<std::uint32_t>(w.time_ms()));
             order && !order->items.empty()) {
             submit({std::move(*order)}, false, false);
         }
