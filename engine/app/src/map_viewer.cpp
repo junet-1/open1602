@@ -1709,15 +1709,18 @@ bool MapViewer::announce(std::string_view id, const MessageArgs& args, std::opti
 }
 
 std::pair<std::uint8_t, std::optional<std::uint16_t>> MapViewer::fertility_view_crop() const {
-    // A field or plantation in the build tool shows its crop by itself; Ctrl+B the selected farm's.
-    if (m_tool.mode() == BuildTool::Mode::Build && m_app_settings.display.fertility) {
+    // Only after Ctrl+B: for the field, plantation or farm in the build tool, else the selected farm.
+    if (!m_show_fertility) {
+        return {std::uint8_t{0}, std::nullopt};
+    }
+    if (m_tool.mode() == BuildTool::Mode::Build) {
         if (const assets::BuildingType* t = m_tool.selected()) {
             if (const std::uint8_t crop = fertility_crop(m_buildings, *t); crop != 0) {
                 return {crop, std::nullopt};
             }
         }
     }
-    if (!m_show_fertility || !m_hud || m_hud->selection().kind != Selection::Kind::Building) {
+    if (!m_hud || m_hud->selection().kind != Selection::Kind::Building) {
         return {std::uint8_t{0}, std::nullopt};
     }
     const Selection& sel = m_hud->selection();
@@ -1746,6 +1749,8 @@ void MapViewer::add_fertility_marks() {
 void MapViewer::toggle_fertility() {
     m_show_fertility = !m_show_fertility;
     if (m_show_fertility && fertility_view_crop().first == 0) {
+        // Nothing to show: it stays off, so the next Ctrl+B with a farm or field turns it on.
+        m_show_fertility = false;
         notify(ui::tr("overlay.fertility_none"), "overlay.fertility_none");
     }
 }
