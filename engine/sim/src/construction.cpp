@@ -1678,14 +1678,13 @@ public:
         c.warehouse_x = static_cast<std::uint16_t>(x);
         c.warehouse_y = static_cast<std::uint16_t>(y);
         m_world.add_city(std::move(c));
-        // 0x00468DD2: the city of a human or a computer shows its island to every player (the
-        // original sets all eight discovery bits); natives and pirates leave it as it was.
+        // 0x00468DD2: the city of a human or a computer shows its island to its founder; that the
+        // original shows it to every player too (all eight discovery bits) is the game setting
+        // Rules::reveal, which the simulation applies (World::reveal_islands). Natives and pirates
+        // leave the island as it was.
         const Player* founder = m_world.player(owner);
         if (founder != nullptr && (founder->role == PlayerRole::Human || founder->role == PlayerRole::Computer)) {
-            WorldIsland& island = m_world.island(m_island);
-            for (std::size_t p = 0; p < m_world.players().size(); ++p) {
-                island.discover(static_cast<PlayerId>(p));
-            }
+            m_world.island(m_island).discover(owner);
         }
         ConstructionEvent e;
         e.kind = ConstructionEvent::Kind::CityFounded;

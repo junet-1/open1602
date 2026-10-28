@@ -31,7 +31,7 @@ enum RuleKey : std::uint16_t {
     kPirateNests = 24,
     kTraderReach = 25,
     kEndlessVeins = 26,  // 1: OreVeins::Endless
-    kReveal = 27,
+    kReveal = 27,        // 2: Reveal::All (Original has none; 1, the towns of players, is now Original)
     kRevisedBread = 28,
     kOreVeins = 29,  // OreVeins::Finite (Endless keeps the old key, Game has none)
     kComputerPlayers = 30,
@@ -46,6 +46,7 @@ enum RuleKey : std::uint16_t {
     kBugRemoteTrade = 38,
     kBugRemoteRepair = 39,
     kBugSmallYardWarships = 40,
+    kRevealNone = 41,  // 1: Reveal::None, under its own key so older versions read the original's way
     // The victory conditions (VictoryConditions).
     kWinInhabitants = 11,
     kWinResidentClass = 12,
@@ -186,8 +187,10 @@ void write_rules(Writer& out, const Rules& r) {
         values.emplace_back(kRevisedBread, 1U);
     }
     // The towns shown from the start only when there are any: the original's way keeps the bytes.
-    if (r.reveal != Reveal::None) {
-        values.emplace_back(kReveal, static_cast<std::uint32_t>(r.reveal));
+    if (r.reveal == Reveal::All) {
+        values.emplace_back(kReveal, 2U);
+    } else if (r.reveal == Reveal::None) {
+        values.emplace_back(kRevealNone, 1U);
     }
     // A bug of the original only when it is brought back: fixed is Open1602's way, which the
     // versions before them played.
@@ -296,7 +299,12 @@ Rules read_rules(Reader& in) {
                 }
                 break;
             case kReveal:
-                r.reveal = static_cast<Reveal>(std::min<std::uint32_t>(v, 2));
+                r.reveal = v >= 2 ? Reveal::All : Reveal::Original;
+                break;
+            case kRevealNone:
+                if (v != 0) {
+                    r.reveal = Reveal::None;
+                }
                 break;
             case kWinInhabitants:
                 r.victory.inhabitants = v;

@@ -301,8 +301,8 @@ core::Result<CommandLine> parse_command_line(int argc, const char* const* argv) 
             const std::string_view mode = argv[++i];
             if (mode == "none") {
                 options.rules.reveal = sim::Reveal::None;
-            } else if (mode == "players") {
-                options.rules.reveal = sim::Reveal::Players;
+            } else if (mode == "original") {
+                options.rules.reveal = sim::Reveal::Original;
             } else if (mode == "all") {
                 options.rules.reveal = sim::Reveal::All;
             } else {

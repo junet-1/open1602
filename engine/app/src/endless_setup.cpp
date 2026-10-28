@@ -140,7 +140,7 @@ constexpr std::array<std::string_view, 3> kComputerNames = {"game", "off", "on"}
 constexpr std::array<std::string_view, 3> kOreVeinNames = {"game", "finite", "endless"};
 constexpr std::array<std::string_view, 2> kPirateNestNames = {"one", "per4"};
 constexpr std::array<std::string_view, 2> kTraderReachNames = {"original", "per4"};
-constexpr std::array<std::string_view, 3> kRevealNames = {"none", "players", "all"};
+constexpr std::array<std::string_view, 3> kRevealNames = {"none", "original", "all"};
 constexpr std::array<std::string_view, 4> kAmountNames = {"none", "few", "normal", "many"};
 constexpr std::array<std::string_view, 3> kSizeNames = {"small", "mixed", "large"};
 constexpr std::array<std::string_view, 2> kStartNames = {"spread", "together"};
@@ -992,7 +992,7 @@ std::string setup_value(SetupItem item, std::size_t choice) {
             return ui::tr(kKeys[choice]);
         }
         case SetupItem::Reveal: {
-            static constexpr std::array<std::string_view, 3> kKeys = {"setup.reveal.none", "setup.reveal.players",
+            static constexpr std::array<std::string_view, 3> kKeys = {"setup.reveal.none", "setup.reveal.original",
                                                                       "setup.reveal.all"};
             return ui::tr(kKeys[choice]);
         }
@@ -1195,6 +1195,8 @@ bool read_setup_line(EndlessSetup& setup, std::string_view key, std::string_view
     } else if (key == "reveal") {
         if (const auto i = name_index(kRevealNames, value)) {
             r.reveal = static_cast<sim::Reveal>(*i);
+        } else if (value == "players") {
+            r.reveal = sim::Reveal::Original;  // the towns of players, which version 0.2 offered
         }
     } else if (key == "resources") {
         if (value == "on" || value == "off") {
@@ -1281,7 +1283,7 @@ std::string write_setup(const EndlessSetup& setup, std::string_view prefix) {
     line("computers", kComputerNames[std::min<std::size_t>(static_cast<std::size_t>(r.computer_players), 2)]);
     line("pirates", kPirateNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirates), 2)]);
     line("pirate_nests", kPirateNestNames[std::min<std::size_t>(static_cast<std::size_t>(r.pirate_nests), 1)]);
-    line("reveal", kRevealNames[std::min<std::size_t>(static_cast<std::size_t>(r.reveal), 2)]);
+    line("reveal", kRevealNames[std::min<std::size_t>(static_cast<std::size_t>(r.reveal), kRevealNames.size() - 1)]);
     for (const BugEntry& e : kBugEntries) {
         line("bug." + std::string(e.name), r.bugs.*e.bug ? "original" : "fixed");
     }

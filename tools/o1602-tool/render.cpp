@@ -208,11 +208,11 @@ int cmd_render_world(const Args& args) {
     // --reveal: the game setting of the towns known from the start, which the simulation applies.
     sim::Rules rules = sim::Rules::open1602();
     if (const auto it = args.options.find("--reveal"); it != args.options.end()) {
-        if (it->second == "players") {
-            rules.reveal = sim::Reveal::Players;
+        if (it->second == "none") {
+            rules.reveal = sim::Reveal::None;
         } else if (it->second == "all") {
             rules.reveal = sim::Reveal::All;
-        } else if (it->second != "none") {
+        } else if (it->second != "original") {
             return usage();
         }
         if (!args.number("--simulate")) {

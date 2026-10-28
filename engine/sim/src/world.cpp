@@ -83,7 +83,8 @@ void World::add_city(City city) {
 }
 
 void World::reveal_islands(Reveal reveal, std::uint16_t island) {
-    if (reveal == Reveal::None) {
+    // As the original, a city shows its island when it is founded, not the towns there at the start.
+    if (reveal == Reveal::None || (reveal == Reveal::Original && island == kSea)) {
         return;
     }
     for (const City& c : m_cities) {

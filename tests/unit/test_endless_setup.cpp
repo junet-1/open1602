@@ -120,19 +120,29 @@ TEST_CASE("endless setup: the values reach the rules and the world") {
     CHECK(read.rules.pirate_nests == sim::PirateNests::One);
     CHECK(app::read_setup_line(read, "pirate_nests", "per4"));
     CHECK(read.rules.pirate_nests == sim::PirateNests::Scaled);
-    // The towns known from the start: none by default, every island is discovered by ship.
+    // The towns known from the start: as the original by default, every island is discovered by
+    // ship, but a player's town shows its island once it is founded.
+    CHECK(s.rules.reveal == sim::Reveal::Original);
+    CHECK(value_of(s, SetupItem::Reveal) == ui::tr("setup.reveal.original"));
+    app::choose(s, SetupItem::Reveal, 0);
     CHECK(s.rules.reveal == sim::Reveal::None);
     CHECK(value_of(s, SetupItem::Reveal) == ui::tr("setup.reveal.none"));
+    CHECK(app::write_setup(s).find("endless.reveal = none\n") != std::string::npos);
+    app::read_setup(read, app::write_setup(s));
+    CHECK(read.rules.reveal == sim::Reveal::None);
     app::choose(s, SetupItem::Reveal, 2);
     CHECK(s.rules.reveal == sim::Reveal::All);
     CHECK(app::write_setup(s).find("endless.reveal = all\n") != std::string::npos);
     app::read_setup(read, app::write_setup(s));
     CHECK(read.rules.reveal == sim::Reveal::All);
-    CHECK(app::read_setup_line(read, "reveal", "players"));
-    CHECK(read.rules.reveal == sim::Reveal::Players);
+    CHECK(app::read_setup_line(read, "reveal", "original"));
+    CHECK(read.rules.reveal == sim::Reveal::Original);
+    CHECK(app::read_setup_line(read, "reveal", "all"));
+    CHECK(app::read_setup_line(read, "reveal", "players"));  // the towns of players of version 0.2
+    CHECK(read.rules.reveal == sim::Reveal::Original);
     CHECK(app::read_setup_line(read, "reveal", "some"));  // not a value: unchanged
-    CHECK(read.rules.reveal == sim::Reveal::Players);
-    CHECK(sim::Rules::original().reveal == sim::Reveal::None);
+    CHECK(read.rules.reveal == sim::Reveal::Original);
+    CHECK(sim::Rules::original().reveal == sim::Reveal::Original);
     // The free trader's reach: as in a four-player game by default (up to four players the original).
     CHECK(s.rules.trader_reach == sim::TraderReach::Scaled);
     CHECK(value_of(s, SetupItem::TraderReach) == ui::tr("setup.trader_reach.per4"));

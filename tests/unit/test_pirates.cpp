@@ -716,13 +716,19 @@ TEST_CASE("discovery: the setting shows the towns of players, or also natives an
         const sim::WorldIsland& isl = w.world.islands()[island];
         return isl.discovered_by(0) && isl.discovered_by(1);
     };
-    // As the original: every island by ship.
+    // Nothing, and the original at the start: every island by ship.
     w.world.reveal_islands(sim::Reveal::None);
+    w.world.reveal_islands(sim::Reveal::Original);
     CHECK(!seen(0));
     CHECK(!seen(1));
     CHECK(!seen(2));
-    // The other players' towns: the computer's island, not the natives' or the pirates'.
-    w.world.reveal_islands(sim::Reveal::Players);
+    // Nothing also when a town is founded.
+    w.world.reveal_islands(sim::Reveal::None, 2);
+    CHECK(!seen(2));
+    // As the original, a town founded by a player: its island, not the natives' or the pirates'.
+    w.world.reveal_islands(sim::Reveal::Original, 2);
+    w.world.reveal_islands(sim::Reveal::Original, 1);
+    w.world.reveal_islands(sim::Reveal::Original, 0);
     CHECK(!seen(0));
     CHECK(!seen(1));
     CHECK(seen(2));
@@ -738,7 +744,7 @@ TEST_CASE("discovery: the setting shows the towns of players, or also natives an
     CHECK(w.count(sim::ShipEvent::Kind::NativesFound) == 0);
 
     // The choice stays with the savegame.
-    for (const sim::Reveal choice : {sim::Reveal::None, sim::Reveal::Players, sim::Reveal::All}) {
+    for (const sim::Reveal choice : {sim::Reveal::None, sim::Reveal::Original, sim::Reveal::All}) {
         sim::Rules saved;
         saved.reveal = choice;
         w.world.set_saved_rules(saved);
