@@ -193,8 +193,8 @@ void Fleet::pirates_step() {
             }
         }
     }
-    // The nests: with enough food each sells its most valuable goods (0x0041DD80; the original has
-    // only one).
+    // The nests: with enough food each eats 10 t and offers its goods once more (0x0041DD80; the
+    // original has only one). The regular offer comes from the pirates' task 5 (pirate_develop).
     if (ships != 0) {
         for (const std::size_t b : bases) {
             const City& found = m_world->cities()[b];
@@ -202,7 +202,7 @@ void Fleet::pirates_step() {
             if (nest != nullptr && nest->stock(ware::kFood) > kNestFoodMin) {
                 nest->goods[ware::kFood] -= kNestFoodCost;
                 nest->book(ware::kFood, GoodsFlow::Residents, kNestFoodCost);
-                pirate_nest_sales(*nest);
+                pirate_nest_offer(*m_world, *m_buildings, *nest);
             }
         }
     }
@@ -235,32 +235,33 @@ std::size_t Fleet::pirate_base_for(const Ship& ship, const std::vector<std::size
     return best;
 }
 
-void Fleet::pirate_nest_sales(City& nest) {
-    // The N most valuable wares (N = Maxware of the nest's Kontor) at 40 % of the base price.
+void pirate_nest_offer(World& world, const assets::BuildingTable& buildings, City& nest) {
+    // The N most valuable wares (N = Maxware of the nest's Kontor) at 40 % of the base price; a ware
+    // the nest does not hold is never offered.
     std::size_t count = 6;
-    if (nest.warehouse_x && nest.warehouse_y && nest.island < m_world->islands().size()) {
-        const MapCell& c = m_world->islands()[nest.island].map.top(*nest.warehouse_x, *nest.warehouse_y);
-        if (const assets::BuildingType* b = c.empty() ? nullptr : m_buildings->by_sprite(c.sprite)) {
+    if (nest.warehouse_x && nest.warehouse_y && nest.island < world.islands().size()) {
+        const MapCell& c = world.islands()[nest.island].map.top(*nest.warehouse_x, *nest.warehouse_y);
+        if (const assets::BuildingType* b = c.empty() ? nullptr : buildings.by_sprite(c.sprite)) {
             count = b->max_wares;
         }
     }
     std::vector<std::pair<std::uint64_t, std::uint8_t>> values;
-    for (const std::uint8_t w : m_world->goods().trade_wares()) {
-        values.emplace_back(std::uint64_t{m_world->goods().price(w)} * nest.stock(w), w);
+    for (const std::uint8_t w : world.goods().trade_wares()) {
+        values.emplace_back(std::uint64_t{world.goods().price(w)} * nest.stock(w), w);
     }
     std::stable_sort(values.begin(), values.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
-    if (nest.trade.size() < m_world->goods().end()) {
-        nest.trade.resize(m_world->goods().end());
+    if (nest.trade.size() < world.goods().end()) {
+        nest.trade.resize(world.goods().end());
     }
     for (City::Trade& t : nest.trade) {
         t.sell = false;
         t.buy = false;
     }
-    for (std::size_t i = 0; i < values.size() && i < count; ++i) {
+    for (std::size_t i = 0; i < values.size() && i < count && values[i].first != 0; ++i) {
         City::Trade& t = nest.trade[values[i].second];
         t.sell = true;
         t.keep = 0;
-        t.sell_price = static_cast<std::uint16_t>(m_world->goods().price(values[i].second) * 51 / 128);
+        t.sell_price = static_cast<std::uint16_t>(world.goods().price(values[i].second) * 51 / 128);
     }
 }
 

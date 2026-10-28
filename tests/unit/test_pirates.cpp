@@ -361,6 +361,47 @@ TEST_CASE("pirates: a surrendered ship is plundered and the loot goes to the nes
     CHECK(!w.world.diplomacy().hostile(2, 1));
 }
 
+TEST_CASE("pirates: the nest offers its six most valuable goods it holds at 40 % of the base price") {
+    // 0x0041DD80: base price times stock, the highest first, as many as the Kontor's Maxware (6);
+    // a ware the nest does not hold is never offered and what is not picked is switched off.
+    World w;
+    sim::City& nest = *w.world.city(0, 0);
+    const std::pair<std::uint8_t, std::uint32_t> stock[] = {{assets::ware::kJewellery, 5}, {assets::ware::kTools, 10},
+                                                            {assets::ware::kWood, 40},     {assets::ware::kFood, 20},
+                                                            {assets::ware::kSwords, 2},    {assets::ware::kClothes, 1},
+                                                            {assets::ware::kBricks, 3},    {assets::ware::kSugar, 1}};
+    for (const auto& [ware, tons] : stock) {
+        nest.goods[ware] = tons * kTon;
+    }
+    nest.trade[assets::ware::kBricks].sell = true;
+    nest.trade[assets::ware::kGold].buy = true;
+    sim::pirate_nest_offer(w.world, w.buildings, nest);
+    for (const std::uint8_t ware : {assets::ware::kJewellery, assets::ware::kTools, assets::ware::kWood,
+                                    assets::ware::kFood, assets::ware::kSwords, assets::ware::kClothes}) {
+        CHECK(nest.trade[ware].sell);
+        CHECK(nest.trade[ware].keep == 0);
+    }
+    CHECK(nest.trade[assets::ware::kJewellery].sell_price == 358);
+    CHECK(nest.trade[assets::ware::kTools].sell_price == 55);
+    CHECK(!nest.trade[assets::ware::kBricks].sell);
+    CHECK(!nest.trade[assets::ware::kSugar].sell);
+    CHECK(!nest.trade[assets::ware::kGold].buy);
+    // With only two goods in store, only those two.
+    for (const auto& [ware, tons] : stock) {
+        nest.goods[ware] = 0;
+    }
+    nest.goods[assets::ware::kCloth] = 4 * kTon;
+    nest.goods[assets::ware::kOre] = 1 * kTon;
+    sim::pirate_nest_offer(w.world, w.buildings, nest);
+    std::size_t offered = 0;
+    for (const sim::City::Trade& t : nest.trade) {
+        offered += t.sell ? 1U : 0U;
+    }
+    CHECK(offered == 2);
+    CHECK(nest.trade[assets::ware::kCloth].sell);
+    CHECK(nest.trade[assets::ware::kOre].sell);
+}
+
 TEST_CASE("pirates: a surrender without loot pleases them too, so they stay at peace") {
     World w;
     w.start();
@@ -389,6 +430,31 @@ TEST_CASE("pirates: a surrender without loot pleases them too, so they stay at p
     w.run(60'000);
     CHECK(w.count(sim::ShipEvent::Kind::WhiteFlag) == 1);
     CHECK(w.world.ship(victim) != nullptr);
+}
+
+TEST_CASE("pirates: at war from the start, they go after a human's ship on their own") {
+    // Feedback #17: nobody did anything to the pirates, yet once a player has citizens they come and
+    // hunt a passive human's ship (mood 0, original and History Edition: no message, no event).
+    World w;
+    w.world.set_game_settings(sim::World::GameSettings{1, 0, 1500});
+    w.start();
+    sim::Ship ship = sim::make_ship("Bote", 20, 40, 21, 0);
+    ship.cargo.resize(4);
+    ship.health = 50 * 32;
+    w.world.add_ship(ship);
+    const std::uint32_t mine = w.world.ships().back().id;
+    w.world.player(0)->infra_mask |= 1U << 24;
+    CHECK(w.world.diplomacy().hostile(2, 0));
+    CHECK(w.world.diplomacy().mood(w.world, 2, 0, 0, w.world.time_ms()) == 0);
+    std::uint32_t minutes = 0;
+    for (; minutes < 60; ++minutes) {
+        w.run(60'000);
+        const sim::Ship* s = w.world.ship(mine);
+        if (s == nullptr || s->health < 50 * 32) {
+            break;
+        }
+    }
+    CHECK(minutes < 10);
 }
 
 TEST_CASE("pirates: their mood decides war and peace; buying peace at their Kontor") {

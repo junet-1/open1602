@@ -10,12 +10,17 @@
 
 #include "ai_engine.hpp"
 
+#include "o1602/sim/ships.hpp"
+
 namespace o1602::sim::ai {
 
 namespace {
 
 /// Guard posts kept per city (the original's list at R+0x188).
 constexpr std::size_t kMaxPosts = 64;
+
+/// The pirate nest's offer comes again after more than 42 s (0x1A4 tenths, task 5 at 0x00429DF0).
+constexpr std::uint64_t kNestOfferMs = 42'000;
 
 std::uint32_t family_index(std::uint32_t figure) {
     const auto v = assets::FigureTable::unit_variant(figure);
@@ -1505,14 +1510,20 @@ void Engine::pirate_step(AiPlayer& p) {
 }
 
 void Engine::pirate_develop(AiPlayer& p) {
-    // Pirate task 5: houses, a hunter, a fisher and four towers.
+    // Pirate task 5 (0x00429DF0): every 42 s the nest offers its most valuable goods, and only then
+    // the pirates build: houses, a hunter, a fisher and four towers.
     pop(p);
-    const CityPlan* r = current_plan(p);
-    if (r == nullptr || r->slots[kSlotPirateTower].count >= 4) {
+    if (now_ms() - p.refresh_ms <= kNestOfferMs) {
         return;
     }
     City* c = current_city(p);
     if (c == nullptr) {
+        return;
+    }
+    pirate_nest_offer(m_world, m_buildings, *c);
+    p.refresh_ms = now_ms();
+    const CityPlan* r = current_plan(p);
+    if (r == nullptr || r->slots[kSlotPirateTower].count >= 4) {
         return;
     }
     const auto house = [&](std::uint32_t building, std::uint32_t n) {
