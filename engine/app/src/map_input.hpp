@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -72,6 +73,8 @@ public:
         virtual void toggle_fullscreen() = 0;
         /// The Pause key: the original's pause with its video (without videos the game still stops).
         virtual void toggle_pause_video() = 0;
+        /// A short note in the status line (EventPresenter::notify).
+        virtual void notify(std::string text, std::string_view log) = 0;
         /// Where Home goes without a selection.
         [[nodiscard]] virtual render::TilePos home_tile() const = 0;
         /// The graphics of the zoom level shown; null while they are not there.
@@ -179,6 +182,8 @@ private:
     void select_building_at_mouse(const Selection& before);
     /// The key "Plant all farm fields": the selected farm's field on the open ground it reaches.
     void plant_fields();
+    /// G: closes the local player's gates to foreign soldiers, or opens them again.
+    void toggle_gates();
     /// Closes the open pop-up of a build category, else lays the building in hand away (the
     /// original's right click). False if there was neither.
     bool cancel_build_step();

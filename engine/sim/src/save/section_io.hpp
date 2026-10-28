@@ -256,6 +256,9 @@ inline constexpr std::uint16_t kWideCoordinates = 2;
 /// Version 2 of PSTA: each player also has the switches of its scenario (Player::scenario). The writer
 /// takes it only when a player has some, so other games write the bytes of version 1 as before.
 inline constexpr std::uint16_t kScenarioSwitches = 2;
+/// Version 3 of PSTA: each player also has whether his gates are closed (Player::gates_closed). The
+/// writer takes it only when a player closed them.
+inline constexpr std::uint16_t kClosedGates = 3;
 /// FLEE version 2: every ship's route with TradeRoute::kStops stops, not the original's four.
 inline constexpr std::uint16_t kLongRoutes = 2;
 /// FLEE version 3: every stop with RouteStop::kEntries wares, not the original's three.

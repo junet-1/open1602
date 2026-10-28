@@ -27,6 +27,8 @@ constexpr std::uint32_t kKontor = 20108;
 constexpr std::uint32_t kMarket = 20809;
 constexpr std::uint32_t kCastle = 22521;
 constexpr std::uint32_t kSwordsmith = 20511;
+constexpr std::uint32_t kWall = 20902;
+constexpr std::uint32_t kGate = 20904;
 constexpr std::uint16_t kSword = 1;
 
 constexpr sim::PlayerId kHuman = 0;
@@ -53,6 +55,10 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 5\n  Id: 20511\n  Kind: 14\n  Gfx: 70\n  Size: 2, 2\n  Maxenergy: 20\n  NoShotFlg: 1\n"
         "  Ruinenr: 255\n"
         "  Objekt: HAUS_PRODTYP\n    Kind: 1\n    Ware: 11\n    Rohstoff: 10\n    Radius: 4\n  EndObj\n"  // swords
+        "  @Nummer: 6\n  Id: 20902\n  Kind: 4\n  Gfx: 80\n  Size: 1, 1\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+        "  Ruinenr: 255\n"  // a stone wall
+        "  @Nummer: 7\n  Id: 20904\n  Kind: 3\n  Gfx: 81\n  Size: 1, 1\n  Maxenergy: 20\n  NoShotFlg: 1\n"
+        "  Ruinenr: 255\n"  // a gate
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -227,6 +233,46 @@ TEST_CASE("ai military: at war, soldiers go for the enemy's soldiers on the isla
     run(s, 5 * 60'000);
     CHECK(a.soldiers(kHuman).empty());
     CHECK(!a.soldiers(kComputer).empty());
+}
+
+TEST_CASE("ai military: soldiers kept out by a wall go for the wall, through an open gate for the Kontor") {
+    for (const bool closed : {true, false}) {
+        Island a;
+        a.build(kKontor, 4, 8, kComputer, 0);
+        a.build(kKontor, 70, 8, kHuman, 1);
+        // A ring of wall around the human city with a gate on its west side.
+        for (std::int32_t x = 62; x <= 78; ++x) {
+            a.build(kWall, x, 2, kHuman, 1);
+            a.build(kWall, x, 16, kHuman, 1);
+        }
+        for (std::int32_t y = 3; y <= 15; ++y) {
+            a.build(y == 9 ? kGate : kWall, 62, y, kHuman, 1);
+            a.build(kWall, 78, y, kHuman, 1);
+        }
+        a.world.player(kHuman)->gates_closed = closed;
+        for (std::int32_t k = 0; k < 6; ++k) {
+            a.add(kComputer, 100, 24 + 2 * k);
+        }
+        a.war();
+        sim::Simulation s(a.world, a.buildings, a.figures);
+        run(s, 20'000);
+        std::size_t at_kontor = 0;
+        std::size_t at_ring = 0;
+        for (const sim::Soldier* soldier : a.soldiers(kComputer)) {
+            if (soldier->target.kind == sim::Target::Kind::Building) {
+                const bool ring = soldier->target.x == 62 || soldier->target.x == 78 || soldier->target.y == 2 ||
+                                  soldier->target.y == 16;
+                ++(ring ? at_ring : at_kontor);
+            }
+        }
+        if (closed) {
+            CHECK(at_kontor == 0);
+            CHECK(at_ring == 6);  // a way in, not standing in front of the wall
+        } else {
+            CHECK(at_kontor == 6);  // through the gate, as in the original
+            CHECK(at_ring == 0);
+        }
+    }
 }
 
 TEST_CASE("ai military: at war, soldiers go for the Kontor and the houses of an enemy city") {

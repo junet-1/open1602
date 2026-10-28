@@ -1699,6 +1699,10 @@ bool MapViewer::announce(std::string_view id, const MessageArgs& args, std::opti
     return true;
 }
 
+void MapViewer::notify(std::string text, std::string_view log) {
+    m_events.notify(std::move(text), log, platform::ticks_ms());
+}
+
 void MapViewer::toggle_pause_video() {
     if (m_session && !m_session->may_pause()) {
         // Only the host pauses (MS-20): the order goes in to tell the player, the video stays off.

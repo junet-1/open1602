@@ -439,6 +439,16 @@ private:
     [[nodiscard]] std::vector<PlayerId> island_enemies(const AiPlayer& a, std::uint16_t island) const;
     void peacetime_orders(AiPlayer& a, std::uint16_t island);
     bool attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<PlayerId>& enemies);
+    /// Open1602: the island tiles the soldiers can walk to from where they stand (closed gates of
+    /// others count as walls), one flag per tile of the island map.
+    [[nodiscard]] std::vector<std::uint8_t> land_reach(PlayerId owner, std::uint16_t island,
+                                                       const std::vector<std::uint32_t>& soldiers) const;
+    /// Open1602: keeps the goals of an attack the soldiers can walk up to; with none of them, the
+    /// buildings of the city they can walk up to (its walls, gates and towers first), nearest to
+    /// the first goal first.
+    void reachable_goals(const AiPlayer& a, std::uint16_t island, const City& hostile,
+                         const std::vector<std::uint32_t>& soldiers,
+                         std::vector<std::pair<std::int32_t, std::int32_t>>& goals) const;
     void island_controller();
     void diplomacy(AiPlayer& p);
     void pirate_step(AiPlayer& p);

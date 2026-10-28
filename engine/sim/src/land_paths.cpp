@@ -78,8 +78,8 @@ LandMap::Cell LandMap::cell(std::int32_t x2, std::int32_t y2, std::uint8_t speed
     return tile(x2 / 2, y2 / 2, speed_type, cost);
 }
 
-LandMap::Cell LandMap::tile(std::int32_t x, std::int32_t y, std::uint8_t speed_type,
-                            std::uint8_t* cost) const noexcept {
+LandMap::Cell LandMap::tile(std::int32_t x, std::int32_t y, std::uint8_t speed_type, std::uint8_t* cost,
+                            PlayerId walker) const noexcept {
     // island_at() and building() in one look at the world cell.
     if (m_world == nullptr || x < 0 || y < 0 ||
         !m_world->contains(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y))) {
@@ -101,13 +101,21 @@ LandMap::Cell LandMap::tile(std::int32_t x, std::int32_t y, std::uint8_t speed_t
     if (b == nullptr) {
         return Cell::Open;
     }
-    if (soldiers_walk_on(*b)) {
+    if (soldiers_walk_on(*b) && !closed_to(*b, top, walker)) {
         if (cost != nullptr) {
             *cost = b->walk_speed[speed_type & 3U];
         }
         return Cell::Walk;
     }
     return b->blocks_shots ? Cell::Wall : Cell::Open;
+}
+
+bool LandMap::closed_to(const assets::BuildingType& b, const MapCell& top, PlayerId walker) const noexcept {
+    if (b.kind != building_kind::kGate || walker == kNoPlayer || top.owner == walker) {
+        return false;
+    }
+    const Player* owner = m_world->player(top.owner);
+    return owner != nullptr && owner->gates_closed;
 }
 
 std::int32_t CellRect::distance(std::int32_t x, std::int32_t y) const noexcept {
@@ -205,7 +213,7 @@ LandCourse LandPlanner::plan(const LandMap& map, const LandPlan& r) {
         const std::int32_t tx = (x >= 0 ? x : x - 1) / 2;
         const std::int32_t ty = (y >= 0 ? y : y - 1) / 2;
         std::uint8_t speed = 32;
-        const bool walk = ty >= 0 && tx >= 0 && map.tile(tx, ty, r.speed_type, &speed) == LandMap::Cell::Walk;
+        const bool walk = ty >= 0 && tx >= 0 && map.tile(tx, ty, r.speed_type, &speed, r.walker) == LandMap::Cell::Walk;
         const std::uint8_t state = walk ? kKnown : static_cast<std::uint8_t>(kKnown | kBlocked);
         for (std::int32_t cy = std::max(2 * ty, y0); cy < std::min(2 * ty + 2, y_end); ++cy) {
             for (std::int32_t cx = std::max(2 * tx, x0); cx < std::min(2 * tx + 2, x_end); ++cx) {

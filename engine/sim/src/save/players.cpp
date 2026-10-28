@@ -69,6 +69,9 @@ void io_player_state(A& a, P& p, std::uint16_t version) {
         a.u8(p.scenario.own_development);
         a.u8(p.scenario.rival_development);
     }
+    if (version >= kClosedGates) {
+        a.boolean(p.gates_closed);
+    }
 }
 
 template <class A, class S>
@@ -269,17 +272,30 @@ Decoded::FactionPart read_factions(Reader& in) {
 std::uint16_t player_state_version(const World& w) {
     const bool any = std::any_of(w.players().begin(), w.players().end(),
                                  [](const Player& p) { return p.scenario != ScenarioSwitches{}; });
+    if (std::any_of(w.players().begin(), w.players().end(), [](const Player& p) { return p.gates_closed; })) {
+        return kClosedGates;
+    }
     return any ? kScenarioSwitches : 1;
 }
 
+namespace {
+
+std::size_t player_state_size(std::uint16_t version) {
+    if (version >= kClosedGates) {
+        return 34;
+    }
+    return version >= kScenarioSwitches ? 33 : 23;
+}
+
+}  // namespace
+
 void write_player_state(Writer& out, const World& w, std::uint16_t version) {
-    out.list(w.players(), version >= kScenarioSwitches ? 33 : 23,
-             [&](const Player& p) { io_player_state(out, p, version); });
+    out.list(w.players(), player_state_size(version), [&](const Player& p) { io_player_state(out, p, version); });
 }
 
 std::vector<Player> read_player_state(Reader& in, std::uint16_t version) {
     std::vector<Player> list;
-    in.list(list, version >= kScenarioSwitches ? 33 : 23, [&](Player& p) { io_player_state(in, p, version); });
+    in.list(list, player_state_size(version), [&](Player& p) { io_player_state(in, p, version); });
     return list;
 }
 

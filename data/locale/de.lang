@@ -25,6 +25,8 @@ notice.load_failed = Laden fehlgeschlagen: {1}
 notice.load_problems = Mit {1} Problem(en) geladen: Teile des Spiels ließen sich nicht verwenden. Einzelheiten stehen im Protokoll.
 notice.packages = Dieses Spiel nutzt Mods, die hier fehlen oder anders sind: {1}. Einzelheiten stehen im Protokoll.
 notice.screenshot_failed = Bildschirmfoto fehlgeschlagen: {1}
+notice.gates_closed = Stadttore geschlossen: fremde Soldaten kommen nicht hindurch.
+notice.gates_opened = Stadttore geöffnet.
 
 # Menus and savegames
 menu.part = Teil {1}
@@ -104,6 +106,7 @@ keys.action.pick_building = Gebäude unter der Maus wählen
 keys.action.demolish_tool = Abreißen
 keys.action.next_building = Nächstes Gebäude
 keys.action.plant_fields = Alle Farmfelder bepflanzen
+keys.action.toggle_gates = Alle Stadttore öffnen/schließen
 keys.action.group_store = Gruppe festlegen
 keys.action.group_add = Zur Gruppe hinzufügen
 keys.action.group_recall = Gruppe wählen (zweimal: hin)

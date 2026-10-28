@@ -29,6 +29,7 @@ constexpr std::uint32_t kField = 20104;   // open: blocks walking, not shots
 constexpr std::uint32_t kSlow = 20105;    // walk, Wegspeed 200 %
 constexpr std::uint32_t kHouse = 20106;   // wall, 2 x 2
 constexpr std::uint32_t kWater = 20107;   // open: sea inside the island
+constexpr std::uint32_t kGate = 20108;    // walk, a city gate
 
 assets::BuildingTable make_buildings() {
     const assets::CodPredefinedSymbol types[] = {{"HAUS", 1}};
@@ -41,6 +42,7 @@ assets::BuildingTable make_buildings() {
         "  @Nummer: 4\n  Id: 20105\n  Kind: 11\n  Gfx: 4\n  Size: 1, 1\n  Wegspeed: 200, 200, 200, 200\n"
         "  @Nummer: 5\n  Id: 20106\n  Kind: 14\n  Gfx: 6\n  Size: 2, 2\n  NoShotFlg: 1\n"
         "  @Nummer: 6\n  Id: 20107\n  Kind: 19\n  Gfx: 10\n  Size: 1, 1\n"
+        "  @Nummer: 7\n  Id: 20108\n  Kind: 3\n  Gfx: 11\n  Size: 1, 1\n  NoShotFlg: 1\n"
         "EndObj\n",
         types);
     auto table = assets::BuildingTable::from_cod(doc);
@@ -297,6 +299,36 @@ TEST_CASE("land paths: the map tells walkable, open, wall and off cells, with th
     CHECK(none.tile(5, 5, 0) == Cell::Off);
     CHECK(none.building(5, 5) == nullptr);
     CHECK(none.island_at(5, 5) == sim::World::kSea);
+}
+
+TEST_CASE("land paths: a player's closed gates stop foreign soldiers, not his own") {
+    Field f;
+    f.world.set_players(std::vector<sim::Player>(3));
+    // A wall of forest across the island at island column 10 with a gate of player 1 in it.
+    for (std::int32_t y = 0; y < 16; ++y) {
+        if (y != 8) {
+            f.put(kForest, 10, y);
+        }
+    }
+    REQUIRE(f.world.island(0).map.place(*f.buildings.by_id(kGate), 10, 8, 0, 0, 1).ok());
+    using Cell = sim::LandMap::Cell;
+    const sim::LandMap& land = f.land;
+    // Open gates: every soldier walks through, whoever he belongs to (as in the original).
+    CHECK(land.tile(14, 12, 0, nullptr, 0) == Cell::Walk);
+    CHECK(land.tile(14, 12, 0, nullptr, 1) == Cell::Walk);
+    sim::LandPlanner planner;
+    sim::LandPlan r = request(20, 24, 40, 24);
+    r.walker = 2;
+    CHECK(planner.plan(land, r).reached_goal);
+
+    f.world.player(1)->gates_closed = true;
+    CHECK(land.tile(14, 12, 0, nullptr, 0) == Cell::Wall);
+    CHECK(land.tile(14, 12, 0, nullptr, 2) == Cell::Wall);
+    CHECK(land.tile(14, 12, 0, nullptr, 1) == Cell::Walk);
+    CHECK(land.tile(14, 12, 0) == Cell::Walk);  // no walker: the map as it is
+    CHECK(!planner.plan(land, r).reached_goal);
+    r.walker = 1;
+    CHECK(planner.plan(land, r).reached_goal);
 }
 
 TEST_CASE("land paths: a cell rectangle's distance and nearest cell") {

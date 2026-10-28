@@ -431,6 +431,7 @@ bool Military::plan_to(Soldier& s, const Target& target, std::int32_t radius, bo
     }
     r.speed_type = type->speed_type;
     r.max_run = type->combat.max_step;
+    r.walker = s.owner;
     // Only a set of cells to the planner: the order of the units does not matter.
     near_units(r.start_x, r.start_y, kOthersRange, [&](const Soldier& o) {
         if (o.id != s.id && !o.away() && sea_distance(o.cell_x() - r.start_x, o.cell_y() - r.start_y) <= kOthersRange) {

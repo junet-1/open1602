@@ -105,11 +105,18 @@ struct PlayerControl {
     bool computer = false;
 };
 
+/// Closes or opens all the gates of a player's cities (Player::gates_closed). Closed, they let only
+/// the player's own soldiers through; Open1602's own, the original's gates have no state.
+struct GateOrder {
+    PlayerId player = kNoPlayer;
+    bool closed = false;
+};
+
 /// A player's action (ADR 0004): applied at the start of a tick, the same on every computer.
 using Command =
     std::variant<BuildOrder, DemolishOrder, ShipOrder, CargoTransfer, RouteEdit, TradeSetting, ShipyardOrder,
                  ExploreOrder, DiplomacyOrder, SoldierOrder, SoldierCommand, CastleOrder, UnloadOrder, ProductionSwitch,
-                 CityOrder, ShipCommand, GameSpeedOrder, PlayerRename, PlayerControl>;
+                 CityOrder, ShipCommand, GameSpeedOrder, PlayerRename, PlayerControl, GateOrder>;
 
 /// What became of a command.
 struct CommandResult {
@@ -291,6 +298,7 @@ private:
     bool game_speed(const GameSpeedOrder& order);
     bool rename_player(const PlayerRename& order);
     bool control_player(const PlayerControl& order);
+    bool gate_order(const GateOrder& order);
     core::Status restore_state(const std::vector<std::uint8_t>& state);
     core::Status restore_legacy_state(core::ByteReader& reader, std::uint16_t version);
     void handle(const std::vector<ConstructionEvent>& events, std::size_t first);

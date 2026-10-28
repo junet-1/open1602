@@ -5,6 +5,7 @@
 // foreign city after every step, the soldiers on one island per tick, the treaties every 30 s.
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <span>
 
 #include "ai_engine.hpp"
@@ -1144,6 +1145,11 @@ bool Engine::attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<
                 goals.emplace_back(h.x, h.y);
             }
         }
+        if (!classic()) {
+            // The original sends them to the markets even behind a wall, where they give up and get
+            // the same order again: they stand in front of the wall for good.
+            reachable_goals(a, island, *hostile, mine, goals);
+        }
         std::size_t next = 0;
         for (std::size_t g = 0; g < goals.size() && next < mine.size(); ++g) {
             const std::size_t count = g == 0 ? 4 : 2;
@@ -1199,6 +1205,115 @@ bool Engine::attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<
         }
     }
     return ordered;
+}
+
+std::vector<std::uint8_t> Engine::land_reach(PlayerId owner, std::uint16_t island,
+                                             const std::vector<std::uint32_t>& soldiers) const {
+    const WorldIsland& isl = island_of(island);
+    const auto w = static_cast<std::int32_t>(isl.map.width());
+    const auto h = static_cast<std::int32_t>(isl.map.height());
+    std::vector<std::uint8_t> reach(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), 0);
+    const LandMap& land = m_sim.m_combat.land();
+    const auto at = [w](std::int32_t x, std::int32_t y) {
+        return static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x);
+    };
+    std::vector<std::pair<std::int32_t, std::int32_t>> open;
+    for (const std::uint32_t id : soldiers) {
+        const Soldier* s = m_world.soldier(id);
+        if (s == nullptr) {
+            continue;
+        }
+        const std::int32_t x = s->cell_x() / 2 - static_cast<std::int32_t>(isl.x);
+        const std::int32_t y = s->cell_y() / 2 - static_cast<std::int32_t>(isl.y);
+        if (x >= 0 && y >= 0 && x < w && y < h && reach[at(x, y)] == 0) {
+            reach[at(x, y)] = 1;  // where a soldier stands, whatever lies there
+            open.emplace_back(x, y);
+        }
+    }
+    constexpr std::array<std::pair<std::int32_t, std::int32_t>, 4> kSteps = {{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}};
+    while (!open.empty()) {
+        const auto [x, y] = open.back();
+        open.pop_back();
+        for (const auto& [dx, dy] : kSteps) {
+            const std::int32_t nx = x + dx;
+            const std::int32_t ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h || reach[at(nx, ny)] != 0 ||
+                land.tile(static_cast<std::int32_t>(isl.x) + nx, static_cast<std::int32_t>(isl.y) + ny, 0, nullptr,
+                          owner) != LandMap::Cell::Walk) {
+                continue;
+            }
+            reach[at(nx, ny)] = 1;
+            open.emplace_back(nx, ny);
+        }
+    }
+    return reach;
+}
+
+void Engine::reachable_goals(const AiPlayer& a, std::uint16_t island, const City& hostile,
+                             const std::vector<std::uint32_t>& soldiers,
+                             std::vector<std::pair<std::int32_t, std::int32_t>>& goals) const {
+    if (goals.empty()) {
+        return;
+    }
+    const std::vector<std::uint8_t> reach = land_reach(a.player, island, soldiers);
+    const IslandMap& map = island_of(island).map;
+    const auto w = static_cast<std::int32_t>(map.width());
+    const auto h = static_cast<std::int32_t>(map.height());
+    // The buildings with a tile next to one the soldiers reach, by their origin.
+    struct Near {
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+        bool defence = false;  ///< a wall, gate or tower
+    };
+    std::vector<Near> near;
+    const auto at = [w](std::int32_t x, std::int32_t y) {
+        return static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x);
+    };
+    std::vector<std::uint8_t> listed(reach.size(), 0);  // by the building's origin
+    const auto known = [&](std::int32_t x, std::int32_t y) {
+        return x >= 0 && y >= 0 && x < w && y < h && listed[at(x, y)] != 0;
+    };
+    const auto reached = [&](std::int32_t x, std::int32_t y) {
+        return x >= 0 && y >= 0 && x < w && y < h && reach[at(x, y)] != 0;
+    };
+    for (std::int32_t y = 0; y < h; ++y) {
+        for (std::int32_t x = 0; x < w; ++x) {
+            const Tile t = tile(island, x, y);
+            if (!t.valid() || t.city != hostile.index || t.owner != hostile.owner || !destroyable(*t.type, false) ||
+                known(t.ox, t.oy) ||
+                !(reached(x - 1, y) || reached(x + 1, y) || reached(x, y - 1) || reached(x, y + 1))) {
+                continue;
+            }
+            const bool defence = t.kind == kind::kWall || t.kind == kind::kWallBeach || t.kind == kind::kGate ||
+                                 t.kind == kind::kTower || t.kind == kind::kTowerBeach;
+            near.push_back({t.ox, t.oy, defence});
+            if (t.ox >= 0 && t.oy >= 0 && t.ox < w && t.oy < h) {
+                listed[at(t.ox, t.oy)] = 1;
+            }
+        }
+    }
+    const auto [fx, fy] = goals.front();
+    std::vector<std::pair<std::int32_t, std::int32_t>> kept;
+    for (const auto& g : goals) {
+        if (known(g.first, g.second)) {
+            kept.push_back(g);
+        }
+    }
+    if (kept.empty()) {
+        // A way in: what stands between them and the city, nearest to its first goal first.
+        std::stable_sort(near.begin(), near.end(), [fx, fy](const Near& l, const Near& r) {
+            if (l.defence != r.defence) {
+                return l.defence;
+            }
+            return std::abs(l.x - fx) + std::abs(l.y - fy) < std::abs(r.x - fx) + std::abs(r.y - fy);
+        });
+        for (std::size_t k = 0; k < near.size() && k < 4; ++k) {
+            kept.emplace_back(near[k].x, near[k].y);
+        }
+    }
+    if (!kept.empty()) {
+        goals = std::move(kept);
+    }
 }
 
 void Engine::island_controller() {
