@@ -268,7 +268,8 @@ bool Fleet::plan_cart(Ship& ship) {
         if (m.path.size() >= kMaxCartRuns) {
             break;  // planned on from there
         }
-        m.path.push_back(static_cast<std::uint8_t>((direction_between(from, to) << 4U) | 1U));
+        m.path.push_back(
+            static_cast<std::uint8_t>((static_cast<std::uint32_t>(direction_between(from, to)) << 4U) | 1U));
         from = to;
     }
     return true;
