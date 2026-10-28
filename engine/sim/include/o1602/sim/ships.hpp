@@ -181,6 +181,9 @@ struct ShipCommand {
         Patrol,
         /// Open1602: stop and stay; fire at what comes in range, chase nothing (until the next order).
         Hold,
+        /// A computer that finds no island for its city gives its ship to the pirates (the root
+        /// task 0x00429070: the ship stops, then ship op 5 with value 5). Only a computer's ship.
+        ToPirates,
     };
     static constexpr std::size_t kMaxNameLength = 40;
     static constexpr std::uint16_t kMaxSaleFactor = 384;
@@ -383,6 +386,8 @@ private:
     void explore_tick();
     void explore_step(Ship& ship);
     void stop_exploring(Ship& ship);
+    /// The ship goes to `owner` as it lies (bought, or given to the pirates).
+    void change_owner(Ship& ship, PlayerId owner);
     void finish_order(Ship& ship);
     /// A ship gave up its way to the Kontor of `target` (0x00454F50 with 1).
     void gave_up_city(const Target& target);

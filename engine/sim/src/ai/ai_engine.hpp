@@ -86,6 +86,8 @@ struct StageNeed {
 inline constexpr std::int32_t kStepMs = 50;
 /// Game ms between two steps of the pirates.
 inline constexpr std::int32_t kPirateStepMs = 10'000;
+/// Rings searched for a woodcutter whose reach covers a tile (no building reaches farther).
+inline constexpr std::int32_t kWoodcutterReach = 16;
 /// Pushes a city visit allows: with fewer than three cities, and with more.
 inline constexpr std::int32_t kBudgetFew = 16;
 inline constexpr std::int32_t kBudgetMany = 8;
@@ -94,6 +96,18 @@ inline constexpr auto kTon = static_cast<std::int32_t>(kStockUnitsPerTon);
 
 /// A tile as the AI reads it: the record of the top layer, growing crops taken as their ripe
 /// record (the original's normalisation of ROHSTWACHS tiles).
+/// The reach of a woodcutter: its footprint and its radius.
+struct WoodReach {
+    std::int32_t x0 = 0;
+    std::int32_t y0 = 0;
+    std::int32_t x1 = 0;
+    std::int32_t y1 = 0;
+    std::uint8_t radius = 0;
+};
+
+/// Whether x, y lies in one of the reaches.
+[[nodiscard]] bool in_wood_reach(const std::vector<WoodReach>& reaches, std::int32_t x, std::int32_t y);
+
 struct Tile {
     const assets::BuildingType* type = nullptr;
     std::int32_t kind = -1;
@@ -465,6 +479,9 @@ private:
     std::int32_t road_three(AiPlayer& p, std::int32_t x, std::int32_t y, std::uint8_t dir, std::int32_t right,
                             std::int32_t left, std::int32_t back, bool force);
     void plaza_ring(AiPlayer& p);
+    /// The city's own woodcutters whose reach may cover a tile within `n` rings of the rectangle.
+    [[nodiscard]] std::vector<WoodReach> woodcutters_near(AiPlayer& p, std::int32_t x0, std::int32_t y0,
+                                                          std::int32_t x1, std::int32_t y1, std::int32_t n);
     void fill_fields(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
                      std::int32_t rings_n, std::uint8_t field_ware, std::uint8_t radius);
     void slot_built(AiPlayer& p, std::uint8_t slot);

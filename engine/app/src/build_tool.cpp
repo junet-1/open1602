@@ -49,14 +49,17 @@ std::uint32_t tile_hash(std::uint32_t seed, std::uint16_t island, std::int32_t x
 BuildTool::BuildTool(const assets::BuildingTable& buildings) : m_buildings(&buildings) {
     for (const assets::BuildingType& b : buildings.types()) {
         const auto& c = b.build_cost;
-        if (b.destroyed || (c.money == 0 && c.tools == 0 && c.wood == 0 && c.bricks == 0)) {
+        const bool listed =
+            ui::build_menu().category_of(b.id) != nullptr || ui::original_build_menu().category_of(b.id) != nullptr;
+        // What the build menu lists may cost nothing: the monument and the triumphal arch come
+        // with an allowance, not with money.
+        if (b.destroyed || (!listed && c.money == 0 && c.tools == 0 && c.wood == 0 && c.bricks == 0)) {
             continue;  // terrain, ruins and other things nobody builds
         }
         if (b.land_record != assets::BuildingType::kNoRecord || buildings.by_id(b.id) != &b) {
             continue;  // beach variants come from building the land record on the beach
         }
-        if (b.build_gfx == 0 && ui::build_menu().category_of(b.id) == nullptr &&
-            ui::original_build_menu().category_of(b.id) == nullptr) {
+        if (b.build_gfx == 0 && !listed) {
             // No icon: ground and other things of the editor. Icon 0 is a real one, though: the
             // stone wall's (Baugfx 0), which the build menu lists.
             continue;

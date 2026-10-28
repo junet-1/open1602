@@ -23,6 +23,24 @@ std::int32_t Fleet::sale_price(const Ship& ship) const {
     return static_cast<std::int32_t>(std::uint64_t{t->ship.price} * ship.sale_factor / 128U);
 }
 
+void Fleet::change_owner(Ship& ship, PlayerId owner) {
+    // The old owner's orders, route and sale go with it; the new owner starts with a ship at rest.
+    ship.owner = owner;
+    ship.for_sale = false;
+    ship.sale_factor = 128;
+    ship.held = false;
+    ship.queue.clear();
+    ship.repairing = false;
+    ship.route = TradeRoute{};
+    ship.attack_move = false;
+    ship.hold = false;
+    stop_exploring(ship);
+    ship.target = Target{};
+    ship.order = Target{};
+    ship.motion.path.clear();
+    ship.motion.path_index = 0;
+}
+
 bool Fleet::command(const ShipCommand& c) {
     Ship* ship = m_world->ship(c.ship);
     if (ship == nullptr || ship->sinking || ship->trader) {
@@ -146,20 +164,7 @@ bool Fleet::command(const ShipCommand& c) {
             const PlayerId old_owner = ship->owner;
             buyer->money = money_plus(buyer->money, -std::int64_t{price});
             seller->money = money_plus(seller->money, std::int64_t{price});
-            ship->owner = c.player;
-            ship->for_sale = false;
-            ship->sale_factor = 128;
-            ship->held = false;
-            ship->queue.clear();
-            ship->repairing = false;
-            ship->route = TradeRoute{};  // the seller's route, stops and goods are not the buyer's
-            ship->attack_move = false;
-            ship->hold = false;
-            stop_exploring(*ship);
-            ship->target = Target{};
-            ship->order = Target{};
-            ship->motion.path.clear();
-            ship->motion.path_index = 0;
+            change_owner(*ship, c.player);
             m_events.push_back(ShipEvent{ShipEvent::Kind::Sold, ship->id, old_owner, 0, c.player, 0, 0, price});
             return true;
         }
@@ -185,6 +190,16 @@ bool Fleet::command(const ShipCommand& c) {
             order(ShipOrder{c.player, ship->id, Target{}});
             ship->hold = true;
             return true;
+        case ShipCommand::Op::ToPirates: {
+            const Player* owner = m_world->player(ship->owner);
+            const PlayerId pirates = m_world->first_of(FactionBehaviour::Pirates);
+            if (!own || owner == nullptr || owner->role != PlayerRole::Computer || pirates == kNoPlayer ||
+                ship->sinking) {
+                return false;
+            }
+            change_owner(*ship, pirates);
+            return true;
+        }
         case ShipCommand::Op::Scuttle:
             if (!own) {
                 return false;

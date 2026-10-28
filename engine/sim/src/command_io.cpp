@@ -250,7 +250,7 @@ void io(A& a, T& t)
 {
     a(t.player);
     a(t.ship);
-    a.enumeration(t.op, ShipCommand::Op::Hold);
+    a.enumeration(t.op, ShipCommand::Op::ToPirates);
     a(t.hold);
     a(t.factor);
     a(t.name);
