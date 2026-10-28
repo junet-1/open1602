@@ -432,6 +432,31 @@ TEST_CASE("pirates: a surrender without loot pleases them too, so they stay at p
     CHECK(w.world.ship(victim) != nullptr);
 }
 
+TEST_CASE("pirates: at war from the start, they go after a human's ship on their own") {
+    // Feedback #17: nobody did anything to the pirates, yet once a player has citizens they come and
+    // hunt a passive human's ship (mood 0, original and History Edition: no message, no event).
+    World w;
+    w.world.set_game_settings(sim::World::GameSettings{1, 0, 1500});
+    w.start();
+    sim::Ship ship = sim::make_ship("Bote", 20, 40, 21, 0);
+    ship.cargo.resize(4);
+    ship.health = 50 * 32;
+    w.world.add_ship(ship);
+    const std::uint32_t mine = w.world.ships().back().id;
+    w.world.player(0)->infra_mask |= 1U << 24;
+    CHECK(w.world.diplomacy().hostile(2, 0));
+    CHECK(w.world.diplomacy().mood(w.world, 2, 0, 0, w.world.time_ms()) == 0);
+    std::uint32_t minutes = 0;
+    for (; minutes < 60; ++minutes) {
+        w.run(60'000);
+        const sim::Ship* s = w.world.ship(mine);
+        if (s == nullptr || s->health < 50 * 32) {
+            break;
+        }
+    }
+    CHECK(minutes < 10);
+}
+
 TEST_CASE("pirates: their mood decides war and peace; buying peace at their Kontor") {
     World w;
     w.start();
