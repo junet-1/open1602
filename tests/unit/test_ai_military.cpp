@@ -360,3 +360,30 @@ TEST_CASE("ai military: a computer with a castle and a sword smith trains swords
         CHECK(std::abs(cy - 37) <= 4);
     }
 }
+
+TEST_CASE("ai military: soldiers pass over an enemy city with nothing left to attack for the next one") {
+    // The first city of the enemy on the island has nothing to attack any more (its Kontor was
+    // destroyed and kept the city, its houses are gone). The original takes it and its soldiers
+    // stand; Open1602 takes the next city of the enemy (Windows feedback #8).
+    Island a;
+    a.build(kKontor, 4, 8, kComputer, 0);
+    sim::City empty;
+    empty.island = 0;
+    empty.index = 1;
+    empty.owner = kHuman;
+    a.world.add_city(empty);
+    a.build(kKontor, 70, 8, kHuman, 2);
+    a.build(kHouse, 66, 4, kHuman, 2);
+    a.build(kHouse, 66, 12, kHuman, 2);
+    for (std::int32_t k = 0; k < 8; ++k) {
+        a.add(kComputer, 30, 22 + 2 * k);
+    }
+    a.war();
+    sim::Simulation s(a.world, a.buildings, a.figures);
+    run(s, 20'000);
+    std::size_t with_target = 0;
+    for (const sim::Soldier* soldier : a.soldiers(kComputer)) {
+        with_target += soldier->target.kind == sim::Target::Kind::Building ? 1U : 0U;
+    }
+    CHECK(with_target == 8);
+}

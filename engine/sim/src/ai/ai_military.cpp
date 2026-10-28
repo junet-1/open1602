@@ -1110,13 +1110,6 @@ bool Engine::attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<
     bool ordered = false;
     // A hostile city: the group with the most soldiers goes for its markets, its Kontor,
     // its houses. Without one: the soldiers meet the largest enemy group with a quarter more.
-    const City* hostile = nullptr;
-    for (const City& c : m_world.cities()) {
-        if (c.island == island && std::find(enemies.begin(), enemies.end(), c.owner) != enemies.end()) {
-            hostile = &c;
-            break;
-        }
-    }
     std::vector<std::uint32_t> mine;
     for (const Soldier& s : m_world.soldiers()) {
         if (s.owner == a.player && s.island == island && !s.away() &&
@@ -1127,29 +1120,44 @@ bool Engine::attack_orders(AiPlayer& a, std::uint16_t island, const std::vector<
     if (mine.empty()) {
         return false;
     }
-    if (hostile != nullptr) {
-        std::vector<std::pair<std::int32_t, std::int32_t>> goals;
+    const City* hostile = nullptr;
+    std::vector<std::pair<std::int32_t, std::int32_t>> goals;
+    for (const City& c : m_world.cities()) {
+        if (c.island != island || std::find(enemies.begin(), enemies.end(), c.owner) == enemies.end()) {
+            continue;
+        }
+        goals.clear();
         const IslandMap& map = island_of(island).map;
         for (const Production& pr : m_world.productions()) {
             if (!pr.used || pr.island != island || !map.contains(pr.x, pr.y)) {
                 continue;
             }
             const Tile t = tile(island, pr.x, pr.y);
-            if (t.valid() && t.city == hostile->index && (t.prod == prod::kMarket || t.prod == prod::kKontor) &&
+            if (t.valid() && t.city == c.index && (t.prod == prod::kMarket || t.prod == prod::kKontor) &&
                 !t.type->destroyed) {
                 goals.emplace_back(pr.x, pr.y);
             }
         }
         for (const House& h : m_world.houses()) {
-            if (h.island == island && h.city == hostile->index && goals.size() < 16) {
+            if (h.island == island && h.city == c.index && goals.size() < 16) {
                 goals.emplace_back(h.x, h.y);
             }
         }
-        if (!classic()) {
-            // The original sends them to the markets even behind a wall, where they give up and get
-            // the same order again: they stand in front of the wall for good.
-            reachable_goals(a, island, *hostile, mine, goals);
+        if (classic()) {
+            // The original takes the first hostile city on the island, even one with nothing left
+            // to attack (a destroyed Kontor), and its soldiers stand there for good.
+            hostile = &c;
+            break;
         }
+        // The original sends them to the markets even behind a wall, where they give up and get
+        // the same order again: they stand in front of the wall for good.
+        reachable_goals(a, island, c, mine, goals);
+        if (!goals.empty()) {
+            hostile = &c;  // Open1602: the first hostile city with something to attack
+            break;
+        }
+    }
+    if (hostile != nullptr) {
         std::size_t next = 0;
         for (std::size_t g = 0; g < goals.size() && next < mine.size(); ++g) {
             const std::size_t count = g == 0 ? 4 : 2;
