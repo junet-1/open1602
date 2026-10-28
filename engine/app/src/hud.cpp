@@ -176,6 +176,59 @@ EndScreen load_end_screen(const assets::GameDirectory& game) {
                      transfer ? &transfer.value() : nullptr);
 }
 
+/// The key overview's columns of a page, design units: two columns side by side, in each the keys
+/// as wide as the page's widest (at most two fifths of the column) and the texts beside them.
+struct HelpColumns {
+    double column = 0.0;  ///< width of a column
+    double keys = 0.0;    ///< width of the keys
+    double text = 0.0;    ///< width of the texts, wrapped to it
+};
+constexpr double kHelpMargin = 14.0;
+constexpr double kHelpIndent = 8.0;
+constexpr double kHelpKeyGap = 12.0;
+constexpr double kHelpColumnGap = 10.0;
+
+HelpColumns help_columns(const ui::Font* font, const KeyHelpPage& page, double width) {
+    HelpColumns c;
+    c.column = std::max(0.0, (width - 2 * kHelpMargin) / 2);
+    double widest = 0.0;
+    for (const KeyHelpSection& s : page.sections) {
+        for (const KeyHelpLine& l : s.lines) {
+            widest = std::max(widest, font != nullptr ? font->width(l.keys) / font->design_scale()
+                                                      : 9.0 * static_cast<double>(l.keys.size()));
+        }
+    }
+    c.keys = std::min(widest, c.column * 0.4);
+    c.text = std::max(0.0, c.column - kHelpIndent - c.keys - kHelpKeyGap - kHelpColumnGap);
+    return c;
+}
+
+/// The text of a line of the key overview wrapped to its column.
+std::vector<std::string> help_text_lines(const ui::Font* font, const std::string& text, double width) {
+    if (font == nullptr) {
+        return {text};
+    }
+    std::vector<std::string> lines =
+        ui::wrap_text(*font, text, static_cast<std::uint32_t>(std::max(1.0, width * font->design_scale())));
+    if (lines.empty()) {
+        lines.emplace_back();
+    }
+    return lines;
+}
+
+/// The texts of all lines of a page wrapped to their column, by section and line.
+std::vector<std::vector<std::vector<std::string>>> help_wrapped(const ui::Font* font, const KeyHelpPage& page,
+                                                                double width) {
+    std::vector<std::vector<std::vector<std::string>>> wrapped;
+    for (const KeyHelpSection& s : page.sections) {
+        auto& section = wrapped.emplace_back();
+        for (const KeyHelpLine& l : s.lines) {
+            section.push_back(help_text_lines(font, l.text, width));
+        }
+    }
+    return wrapped;
+}
+
 }  // namespace
 
 std::unique_ptr<Hud> Hud::create(SDL_Renderer* renderer, const assets::GameDirectory& game,
@@ -1096,13 +1149,17 @@ ui::Rect Hud::help_box() const {
     const ui::Rect& v = m_regions.game_view;
     const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
     // The window keeps its size from page to page: as high as the longest page.
+    const std::int32_t w = std::min(v.w - px(16), px(760));
     std::size_t rows = 0;
     if (m_help) {
+        const ui::Font* font = m_renderer->fonts()[1];
         for (const KeyHelpPage& p : *m_help) {
-            rows = std::max(rows, key_help_rows(p));
+            const HelpColumns c = help_columns(font, p, w / s);
+            const auto wrapped = help_wrapped(font, p, c.text);
+            rows = std::max(rows,
+                            key_help_rows(p, [&](std::size_t sec, std::size_t l) { return wrapped[sec][l].size(); }));
         }
     }
-    const std::int32_t w = std::min(v.w - px(16), px(760));
     const std::int32_t h = std::min(v.h - px(16), px(112) + static_cast<std::int32_t>(rows) * px(14));
     return ui::Rect{v.x + (v.w - w) / 2, v.y + (v.h - h) / 2, w, h};
 }
@@ -1110,8 +1167,12 @@ ui::Rect Hud::help_box() const {
 ui::Rect Hud::help_tab(const ui::Rect& box, std::size_t page) const {
     const double s = m_menu_active ? m_menu_scale : m_regions.scale;
     const auto px = [&](double d) { return static_cast<std::int32_t>(d * s); };
-    const std::int32_t w = (box.w - px(28)) / static_cast<std::int32_t>(kKeyHelpPages);
-    return ui::Rect{box.x + px(14) + static_cast<std::int32_t>(page) * w, box.y + px(40), w - px(4), px(20)};
+    // The tabs side by side, a gap between them, the row centred in the window.
+    const auto n = static_cast<std::int32_t>(kKeyHelpPages);
+    const std::int32_t gap = px(4);
+    const std::int32_t w = (box.w - 2 * px(kHelpMargin) + gap) / n;
+    const std::int32_t left = box.x + (box.w - (n * w - gap)) / 2;
+    return ui::Rect{left + static_cast<std::int32_t>(page) * w, box.y + px(40), w - gap, px(20)};
 }
 
 void Hud::draw_help() {
@@ -1127,7 +1188,8 @@ void Hud::draw_help() {
     m_renderer->fill(box, kDark);
     // The tabs: the page shown framed thick, the others thin; a gold line below them all.
     const ui::Rect first = help_tab(box, 0);
-    m_renderer->fill(ui::Rect{box.x + px(14), first.y + first.h, box.w - px(28), px(1)}, kGold);
+    const ui::Rect last = help_tab(box, kKeyHelpPages - 1);
+    m_renderer->fill(ui::Rect{first.x, first.y + first.h, last.x + last.w - first.x, std::max(1, px(1))}, kGold);
     for (std::size_t p = 0; p < kKeyHelpPages; ++p) {
         const ui::Rect t = help_tab(box, p);
         const std::int32_t edge = p == m_help_page ? px(2) : std::max(1, px(1));
@@ -1163,24 +1225,34 @@ void Hud::draw_help() {
         items.back().colour = p == m_help_page ? 3 : 1;
     }
     const KeyHelpPage& page = (*m_help)[m_help_page];
-    const std::int32_t column = (box.w - px(28)) / 2;
-    const std::int32_t line = px(14);
+    // Two columns; a text too long for its column wraps onto the rows below it.
+    const ui::Font* font = m_renderer->fonts()[1];
+    const HelpColumns c = help_columns(font, page, box.w / s);
+    const auto wrapped = help_wrapped(font, page, c.text);
+    const KeyHelpHeight height = [&](std::size_t sec, std::size_t l) { return wrapped[sec][l].size(); };
     const auto place = [&](std::size_t section, std::size_t l) {
-        const KeyHelpCell c = key_help_cell(page, section, l);
-        return std::pair{px(14) + static_cast<std::int32_t>(c.column) * column,
-                         px(84) + static_cast<std::int32_t>(c.row) * line};
+        const KeyHelpCell cell = key_help_cell(page, section, l, height);
+        return std::pair{kHelpMargin + static_cast<double>(cell.column) * c.column,
+                         84.0 + static_cast<double>(cell.row) * 14.0};
     };
     for (std::size_t sec = 0; sec < page.sections.size(); ++sec) {
         const KeyHelpSection& section = page.sections[sec];
         const auto [hx, hy] = place(sec, SIZE_MAX);
-        text(section.heading, hx, hy + px(1), ui::Align::Left, 0);
+        text(section.heading, px(hx), px(hy + 1), ui::Align::Left, 0);
         for (std::size_t i = 0; i < section.lines.size(); ++i) {
             const auto [x, y] = place(sec, i);
-            if (y > box.h - px(24)) {
-                continue;  // a small window: what does not fit is left out
+            const std::vector<std::string>& lines = wrapped[sec][i];
+            for (std::size_t k = 0; k < lines.size(); ++k) {
+                const double row = y + static_cast<double>(k) * 14.0;
+                if (px(row) > box.h - px(24)) {
+                    break;  // a small window: what does not fit is left out
+                }
+                if (k == 0) {
+                    text(ui::fit_text(font, section.lines[i].keys, c.keys, false), px(x + kHelpIndent), px(row),
+                         ui::Align::Left);
+                }
+                text(lines[k], px(x + kHelpIndent + c.keys + kHelpKeyGap), px(row), ui::Align::Left);
             }
-            text(section.lines[i].keys, x + px(8), y, ui::Align::Left);
-            text(section.lines[i].text, x + px(150), y, ui::Align::Left);
         }
     }
     text(ui::tr("keys.footer"), box.w / 2, box.h - px(10), ui::Align::Centre);
@@ -1225,7 +1297,8 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
     }
     // Mouse motion also comes here with down == false: only a release after a press is a click.
     if (m_help) {
-        // The key overview takes the click: on a tab it turns to that page, elsewhere it closes.
+        // The key overview takes the click: on a tab it turns to that page, outside the window it
+        // closes, elsewhere in it nothing happens (a click just beside a tab must not close it).
         if (down) {
             m_modal_press = ModalPress::Elsewhere;
         } else if (m_modal_press != ModalPress::None) {
@@ -1237,7 +1310,9 @@ std::optional<Hud::Action> Hud::mouse(std::int32_t x, std::int32_t y, bool down,
                     return std::nullopt;
                 }
             }
-            m_help.reset();
+            if (!box.contains(x, y)) {
+                m_help.reset();
+            }
         }
         return std::nullopt;
     }

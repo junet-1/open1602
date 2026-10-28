@@ -147,29 +147,71 @@ std::array<KeyHelpPage, kKeyHelpPages> key_help_pages(const std::vector<KeyHelpE
     return pages;
 }
 
-std::size_t key_help_rows(const KeyHelpPage& page) noexcept {
+namespace {
+
+std::size_t line_rows(const KeyHelpHeight& height, std::size_t section, std::size_t line) {
+    return height ? std::max<std::size_t>(1, height(section, line)) : 1;
+}
+
+/// The rows of the lines [first, last) of a section, one under the other.
+std::size_t rows_of(std::size_t section, std::size_t first, std::size_t last, const KeyHelpHeight& height) {
+    std::size_t rows = 0;
+    for (std::size_t i = first; i < last; ++i) {
+        rows += line_rows(height, section, i);
+    }
+    return rows;
+}
+
+/// How many lines of a page's single section go into the first column: the split with the lower longer
+/// column, the first column the longer one on a tie.
+std::size_t first_column_lines(const KeyHelpSection& section, const KeyHelpHeight& height) {
+    const std::size_t n = section.lines.size();
+    const std::size_t total = rows_of(0, 0, n, height);
+    std::size_t best = 0;
+    std::size_t best_rows = total;
+    std::size_t prefix = 0;
+    for (std::size_t k = 0; k <= n; ++k) {
+        const std::size_t longer = std::max(prefix, total - prefix);
+        if (longer <= best_rows) {  // on a tie the later split: the first column the longer one
+            best = k;
+            best_rows = longer;
+        }
+        if (k < n) {
+            prefix += line_rows(height, 0, k);
+        }
+    }
+    return best;
+}
+
+}  // namespace
+
+std::size_t key_help_rows(const KeyHelpPage& page, const KeyHelpHeight& height) {
     if (page.sections.empty()) {
         return 0;
     }
     if (page.sections.size() == 1) {
-        return 1 + (page.sections[0].lines.size() + 1) / 2;
+        const KeyHelpSection& s = page.sections[0];
+        const std::size_t split = first_column_lines(s, height);
+        return 1 + std::max(rows_of(0, 0, split, height), rows_of(0, split, s.lines.size(), height));
     }
     std::size_t longest = 0;
-    for (const KeyHelpSection& s : page.sections) {
-        longest = std::max(longest, s.lines.size());
+    for (std::size_t i = 0; i < page.sections.size(); ++i) {
+        longest = std::max(longest, rows_of(i, 0, page.sections[i].lines.size(), height));
     }
     return 1 + longest;
 }
 
-KeyHelpCell key_help_cell(const KeyHelpPage& page, std::size_t section, std::size_t line) noexcept {
+KeyHelpCell key_help_cell(const KeyHelpPage& page, std::size_t section, std::size_t line, const KeyHelpHeight& height) {
     if (line == SIZE_MAX) {
         return {section, 0};
     }
+    const KeyHelpSection& s = page.sections[section];
     if (page.sections.size() == 1) {
-        const std::size_t rows = (page.sections[0].lines.size() + 1) / 2;
-        return {line / rows, 1 + line % rows};
+        const std::size_t split = first_column_lines(s, height);
+        return line < split ? KeyHelpCell{0, 1 + rows_of(0, 0, line, height)}
+                            : KeyHelpCell{1, 1 + rows_of(0, split, line, height)};
     }
-    return {section, 1 + line};
+    return {section, 1 + rows_of(section, 0, line, height)};
 }
 
 }  // namespace o1602::app
