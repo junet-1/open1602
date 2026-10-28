@@ -281,8 +281,8 @@ net.colour.orange = Orange
 net.colour.green = Green
 net.colour.teal = Teal
 net.colour.pink = Pink
-net.colour.light_blue = Light blue
-net.colour.lime = Lime
+net.colour.magenta = Magenta
+net.colour.grey = Grey
 net.colour.purple = Purple
 net.colour.brown = Brown
 net.refused.version = The host has another version of Open1602.
@@ -310,9 +310,9 @@ player.colour.orange = Orange player
 player.colour.purple = Purple player
 player.colour.teal = Teal player
 player.colour.pink = Pink player
-player.colour.light_blue = Light blue player
+player.colour.magenta = Magenta player
 player.colour.green = Green player
-player.colour.lime = Lime player
+player.colour.grey = Grey player
 player.colour.brown = Brown player
 
 # End screen (ENDE.GAD shows the original's own texts; these are Open1602's additions)
@@ -767,8 +767,8 @@ message.won.orange = The orange player has fulfilled their task!
 message.won.green = The green player has fulfilled their task!
 message.won.teal = The teal player has fulfilled their task!
 message.won.pink = The pink player has fulfilled their task!
-message.won.light_blue = The light blue player has fulfilled their task!
-message.won.lime = The lime player has fulfilled their task!
+message.won.magenta = The magenta player has fulfilled their task!
+message.won.grey = The grey player has fulfilled their task!
 message.won.purple = The purple player has fulfilled their task!
 message.won.brown = The brown player has fulfilled their task!
 
