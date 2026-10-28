@@ -473,8 +473,18 @@ void Engine::root(AiPlayer& p) {
             p.settle.active = true;
             pick_island(p);
         }
-        // A computer whose search failed for good hands its ship to the pirates in the original
-        // (ship op 5 value 5); Open1602 keeps it (S-097).
+        // A computer whose search failed for good gives its ship to the pirates (ship op 5 value 5)
+        // and leaves the game with the players' next check. Open1602 kept it until 2026-10-28.
+        if (p.settle.failed && m_world.first_of(FactionBehaviour::Pirates) != kNoPlayer) {
+            for (const Ship* ship : ships) {
+                ShipCommand give;
+                give.player = p.player;
+                give.ship = ship->id;
+                give.op = ShipCommand::Op::ToPirates;
+                execute(give);
+                log(p, "no island for a city: ship %u goes to the pirates", ship->id);
+            }
+        }
         return;
     }
     if (push(p, kDevelop, false)) {

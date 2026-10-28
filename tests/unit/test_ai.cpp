@@ -1214,3 +1214,44 @@ TEST_CASE("ai: a farm leaves the trees of the city's woodcutter standing (S-122)
     };
     CHECK(fields_in_reach() == 0);  // the original plants 39 of them at once
 }
+
+TEST_CASE("ai: a computer that finds no island for its city gives its ship to the pirates and leaves") {
+    // The big island under water: only the rock is left, too small for a colony (root task
+    // 0x00429070: ship op 5 with value 5, then the players' check retires the computer).
+    Game g;
+    add_pirates(g);
+    constexpr sim::PlayerId kPirates = 4;
+    sim::IslandMap& map = g.world.island(1).map;
+    for (std::uint32_t y = 0; y < map.height(); ++y) {
+        for (std::uint32_t x = 0; x < map.width(); ++x) {
+            map.set_sprite(x, y, static_cast<std::uint16_t>(g.buildings.by_id(kSea)->gfx));
+        }
+    }
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    const std::uint32_t ship = g.world.ships().front().id;
+    REQUIRE(run_until(s, 3'600'000, [&] { return g.world.ship(ship)->owner != kComputer; }));
+    CHECK(g.world.ship(ship)->owner == kPirates);
+    CHECK(g.cities_of(kComputer) == 0);
+    run(s, 6'000);  // the players' check every 5 s
+    CHECK(!g.world.players()[kComputer].active());
+}
+
+TEST_CASE("ships: only a computer's ship can be given to the pirates") {
+    Game g(false);
+    add_pirates(g);
+    const sim::Ship& mine = g.add_ship(kHuman, 80, 40);
+    const std::uint32_t human_ship = mine.id;
+    const std::uint32_t computer_ship = g.add_ship(kComputer, 86, 45).id;
+    sim::Simulation s(g.world, g.buildings, g.figures);
+    const auto give = [&](sim::PlayerId player, std::uint32_t ship) {
+        sim::ShipCommand c;
+        c.player = player;
+        c.ship = ship;
+        c.op = sim::ShipCommand::Op::ToPirates;
+        return s.execute(c).accepted;
+    };
+    CHECK(!give(kHuman, human_ship));
+    CHECK(!give(kHuman, computer_ship));  // not his
+    CHECK(give(kComputer, computer_ship));
+    CHECK(g.world.ship(computer_ship)->owner == 4);
+}
