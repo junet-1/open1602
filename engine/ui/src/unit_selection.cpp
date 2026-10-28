@@ -553,6 +553,28 @@ std::optional<std::size_t> UnitSelection::group_of(const UnitRef& ref) const {
     return std::nullopt;
 }
 
+sim::UnitGroups UnitSelection::saved_groups() const {
+    static_assert(std::tuple_size_v<sim::UnitGroups> == kGroups);
+    sim::UnitGroups out;
+    for (std::size_t g = 0; g < kGroups; ++g) {
+        for (const Member& m : m_groups[g]) {
+            out[g].push_back(
+                sim::GroupMember{m.ref.kind == UnitRef::Kind::Ship, m.ref.id, m.offset.first, m.offset.second});
+        }
+    }
+    return out;
+}
+
+void UnitSelection::restore_groups(const sim::UnitGroups& groups) {
+    for (std::size_t g = 0; g < kGroups; ++g) {
+        m_groups[g].clear();
+        for (const sim::GroupMember& m : groups[g]) {
+            const UnitRef ref{m.ship ? UnitRef::Kind::Ship : UnitRef::Kind::Soldier, m.id};
+            m_groups[g].push_back(Member{ref, {m.dx, m.dy}});
+        }
+    }
+}
+
 std::vector<sim::Command> UnitSelection::move_orders(const sim::World& world, sim::PlayerId local, double x, double y,
                                                      bool queue, bool attack_move) const {
     std::vector<sim::Command> out;

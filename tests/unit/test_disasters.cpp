@@ -10,6 +10,7 @@
 #include "o1602/sim/disasters.hpp"
 #include "o1602/sim/houses.hpp"
 #include "o1602/sim/logistics.hpp"
+#include "o1602/sim/pathfinding.hpp"
 #include "o1602/sim/production_cycle.hpp"
 #include "o1602/sim/save_game.hpp"
 #include "o1602/sim/simulation.hpp"
@@ -342,9 +343,25 @@ TEST_CASE("disasters: doctors cure on foot, firemen put out fires along the road
     ask(klinik);  // one figure per building
     ask(brunnen);
     REQUIRE(logistics.walkers().size() == 2);
+    // The bakery covers x 20..21, y 8..9; the road runs along y 10.
+    const auto on_bakery = [](sim::TilePos t) { return t.x >= 20 && t.x <= 21 && t.y >= 8 && t.y <= 9; };
+    bool put_out_from_road = false;
+    bool fireman_inside = false;
     for (int t = 0; t < 20 * 60 && logistics.walkers().size() != 0; ++t) {
         logistics.tick();
+        logistics.walkers().for_each([&](sim::Handle, const sim::Walker& w) {
+            if (w.kind != sim::WalkerKind::Firefighter) {
+                return;
+            }
+            // The fireman stays on the road in front of the fire (0x00473650), turned to it.
+            fireman_inside = fireman_inside || on_bakery(w.tile);
+            if (w.working()) {
+                put_out_from_road = w.tile.y == 10 && w.direction == sim::direction_between(w.tile, {20, 8});
+            }
+        });
     }
+    CHECK(put_out_from_road);
+    CHECK(!fireman_inside);
     CHECK(logistics.walkers().size() == 0);  // both back home
     CHECK(town.at(6, 8) == nullptr);
     CHECK(town.at(20, 8) == nullptr);

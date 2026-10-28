@@ -28,4 +28,10 @@ struct AnimState {
 /// Advances by `dt_ms`. Figures without the animation keep their state.
 void advance_animation(AnimState& state, const assets::FigureType& type, std::uint32_t dt_ms) noexcept;
 
+/// Animation time of a walking figure: a frame lasts AnimSpeed * Wegspeed / 32 ms, so `dt_ms`
+/// counts 32 / `walk_speed` times. `rest` keeps what the division leaves over for the next frame:
+/// at a high frame rate and the slowest game speed a frame is shorter than one step of the
+/// animation clock, and without it a figure off the road slides without moving its legs.
+[[nodiscard]] std::uint32_t walking_pace(std::uint32_t& rest, std::uint32_t dt_ms, std::uint32_t walk_speed) noexcept;
+
 }  // namespace o1602::render

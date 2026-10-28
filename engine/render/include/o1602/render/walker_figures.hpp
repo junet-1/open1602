@@ -40,7 +40,8 @@ private:
         /// JUMPTO animations: grazing deer look up, a shot deer falls and lies).
         std::uint8_t requested = 0;
         AnimState state;
-        double z = 0.0;  ///< height, from the tile it was first seen on (render::spawn_height)
+        double z = 0.0;               ///< height, from the tile it was first seen on (render::spawn_height)
+        std::uint32_t pace_rest = 0;  ///< walking time not yet passed on, ms * 32 below one Wegspeed
     };
     std::vector<Slot> m_slots;  ///< by walker handle index
     std::vector<FigureInstance> m_instances;

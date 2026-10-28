@@ -230,6 +230,35 @@ TEST_CASE("save game: the fingerprint of the running game sees every tile, and o
     CHECK(other.state_hash() == built);
 }
 
+TEST_CASE("save game: the players' stored groups come back, outside the game's fingerprint (UGRP)") {
+    const auto buildings = make_buildings();
+    const assets::FigureTable figures;
+    sim::World world = make_world(buildings);
+    sim::UnitGroups groups;
+    groups[0] = {{true, 3, -8, 4}, {true, 5, 8, -4}};
+    groups[9] = {{false, 70000, 0, 0}};
+    {
+        sim::Simulation simulation(world, buildings, figures);
+        const std::uint64_t before = simulation.state_hash();
+        world.set_unit_groups(1, groups);
+        CHECK(simulation.state_hash() == before);  // every computer has its own
+    }
+    auto bytes = sim::write_game(world, buildings);
+    REQUIRE(bytes.ok());
+    auto loaded = sim::read_game(*bytes, buildings);
+    REQUIRE(loaded.ok());
+    REQUIRE(loaded->unit_groups().size() == 2);
+    CHECK(loaded->unit_groups()[1] == groups);
+    CHECK(loaded->unit_groups()[0] == sim::UnitGroups{});
+    // Without groups the section is not written.
+    world.set_unit_groups({});
+    auto none = sim::write_game(world, buildings);
+    REQUIRE(none.ok());
+    auto loaded_none = sim::read_game(*none, buildings);
+    REQUIRE(loaded_none.ok());
+    CHECK(loaded_none->unit_groups().empty());
+}
+
 TEST_CASE("save game: the content packages a game uses come back in their order (PACK)") {
     const auto buildings = make_buildings();
     sim::World world(60, 40);

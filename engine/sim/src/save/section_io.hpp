@@ -78,6 +78,8 @@ struct Decoded {
     std::optional<std::vector<assets::ContentPackage>> packages;
     /// The state of the packages' scripts (SCRP).
     std::optional<std::vector<ScriptState>> script_states;
+    /// The groups the players stored (UGRP).
+    std::optional<std::vector<UnitGroups>> unit_groups;
     /// The goods the packages added (GOOD).
     std::optional<assets::Goods> goods;
     /// The icons of packages the goods show, by ware number (GPIC).

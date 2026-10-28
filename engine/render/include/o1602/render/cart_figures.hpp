@@ -34,6 +34,7 @@ private:
         AnimState state;
         std::uint8_t requested = 0;  ///< animation the cart asked for (driving or standing)
         bool seen = false;
+        std::uint32_t pace_rest = 0;  ///< driving time not yet passed on, ms * 32 below one Wegspeed
     };
     std::map<std::uint32_t, Slot> m_slots;  ///< by Ship::id
     std::vector<FigureInstance> m_instances;

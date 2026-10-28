@@ -494,6 +494,9 @@ core::Result<std::unique_ptr<MapViewer>> MapViewer::create(const assets::GameDir
         MapInput::Parts{*viewer, viewer->m_buildings, viewer->m_figures, viewer->m_state, viewer->m_local_player,
                         viewer->m_camera, viewer->m_tool, viewer->m_command_sink, *viewer->m_sound, *viewer->m_window,
                         viewer->m_hud.get(), options.original_mouse, options.confirm, options.keys_file});
+    if (viewer->m_local_player < viewer->m_state->world.unit_groups().size()) {
+        viewer->m_input->restore_groups(viewer->m_state->world.unit_groups()[viewer->m_local_player]);
+    }
     if (viewer->m_hud) {
         viewer->m_hud->set_units(&viewer->m_input->units());
     }
@@ -2487,6 +2490,10 @@ core::Status MapViewer::save_game(const std::filesystem::path& path) {
     std::string ending = core::path_to_utf8(target.extension());
     std::transform(ending.begin(), ending.end(), ending.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    // The groups of this computer's player go with the game (the original forgets them).
+    if (m_local_player != sim::kNoPlayer && m_input) {
+        m_state->world.set_unit_groups(m_local_player, m_input->saved_groups());
+    }
     auto bytes = ending == ".gam" ? sim::write_savegame(m_state->world, m_buildings, &m_state->simulation)
                                   : sim::write_game(m_state->world, m_buildings, &m_state->simulation);
     if (!bytes) {
@@ -2968,6 +2975,9 @@ core::Status MapViewer::replace_world(sim::World world, const std::filesystem::p
         [this](const sim::World& now) { m_ambient.tick(now, m_buildings, m_figures); });
     // In a multiplayer game the slot the host gave this computer (kNoPlayer: watching).
     m_local_player = m_session ? m_session->local_seat() : sim::first_human_player(m_state->world);
+    if (m_local_player < m_state->world.unit_groups().size()) {
+        m_input->restore_groups(m_state->world.unit_groups()[m_local_player]);
+    }
     m_building_figures = render::collect_building_figures(m_state->world, m_buildings, m_figures);
     m_production_phases.clear();
     m_stock_notes.clear();

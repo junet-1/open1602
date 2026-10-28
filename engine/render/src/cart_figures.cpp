@@ -65,7 +65,8 @@ void CartFigures::update(const sim::World& world, const assets::BuildingTable& b
             advance_animation(slot.state, *type, dt_ms);
         } else if (driving) {
             // A frame lasts AnimSpeed * Wegspeed / 32 ms while driving, as the market carts'.
-            advance_animation(slot.state, *type, dt_ms * 32U / walk_speed_at(world, buildings, *type, x, y));
+            advance_animation(slot.state, *type,
+                              walking_pace(slot.pace_rest, dt_ms, walk_speed_at(world, buildings, *type, x, y)));
         }
         slot.seen = true;
         // Hidden on the tiles of a building (the Kontor it leaves, the market it stands at).
