@@ -122,6 +122,7 @@ private:
     void toggle_unit_arms() override { m_show_unit_arms = !m_show_unit_arms; }
     void toggle_fullscreen() override;
     void toggle_pause_video() override;
+    void notify(std::string text, std::string_view log) override;
 
     /// The window's events; the rest goes to the input.
     void handle_event(const SDL_Event& event);

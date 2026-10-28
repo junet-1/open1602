@@ -43,15 +43,19 @@ public:
     /// Cell kind at world half tile (x2, y2); `cost` gets the Wegspeed of the tile for `speed_type`.
     [[nodiscard]] Cell cell(std::int32_t x2, std::int32_t y2, std::uint8_t speed_type,
                             std::uint8_t* cost = nullptr) const noexcept;
-    /// The same for world tile (x, y): the kind of all four of its cells.
-    [[nodiscard]] Cell tile(std::int32_t x, std::int32_t y, std::uint8_t speed_type,
-                            std::uint8_t* cost = nullptr) const noexcept;
+    /// The same for world tile (x, y): the kind of all four of its cells. A gate of a player who
+    /// closed his gates (Player::gates_closed) is no way for the figures of `walker` when it is
+    /// another player.
+    [[nodiscard]] Cell tile(std::int32_t x, std::int32_t y, std::uint8_t speed_type, std::uint8_t* cost = nullptr,
+                            PlayerId walker = kNoPlayer) const noexcept;
     /// Building on top of world tile (x, y), nullptr for sea, empty tiles or outside.
     [[nodiscard]] const assets::BuildingType* building(std::int32_t x, std::int32_t y) const noexcept;
     /// Island index at world tile (x, y), World::kSea for none.
     [[nodiscard]] std::uint16_t island_at(std::int32_t x, std::int32_t y) const noexcept;
 
 private:
+    [[nodiscard]] bool closed_to(const assets::BuildingType& b, const MapCell& top, PlayerId walker) const noexcept;
+
     const World* m_world = nullptr;
     const assets::BuildingTable* m_buildings = nullptr;
 };
@@ -91,6 +95,7 @@ struct LandPlan {
     std::int32_t shift_y = 0;
     std::uint8_t speed_type = 0;
     std::uint8_t max_run = 1;                                    ///< cells per run (Maxstepcnt)
+    PlayerId walker = kNoPlayer;                                 ///< owner of the soldier (closed gates)
     std::vector<std::pair<std::int32_t, std::int32_t>> blocked;  ///< cells of other figures nearby
     /// Goal test; with `first_goal` the first goal reached wins (attacks), otherwise the reached goal
     /// closest to the aim point (moving to an object).

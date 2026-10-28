@@ -592,6 +592,8 @@ CommandResult Simulation::execute(const Command& command) {
         result.accepted = rename_player(*rename);
     } else if (const auto* control = std::get_if<PlayerControl>(&command)) {
         result.accepted = control_player(*control);
+    } else if (const auto* gates = std::get_if<GateOrder>(&command)) {
+        result.accepted = gate_order(*gates);
     }
     handle(m_construction_events.events(), first);
     return result;
@@ -731,6 +733,15 @@ bool Simulation::control_player(const PlayerControl& order) {
             }
         }
     }
+    return true;
+}
+
+bool Simulation::gate_order(const GateOrder& order) {
+    Player* p = m_world->player(order.player);
+    if (p == nullptr || !p->active() || (p->role != PlayerRole::Human && p->role != PlayerRole::Computer)) {
+        return false;
+    }
+    p->gates_closed = order.closed;
     return true;
 }
 

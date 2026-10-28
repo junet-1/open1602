@@ -81,6 +81,7 @@ std::vector<sim::Command> every_kind() {
     all.emplace_back(sim::GameSpeedOrder{1, sim::GameSpeedOrder::Op::SetSpeed, 4});
     all.emplace_back(sim::PlayerRename{1, "Merlin"});
     all.emplace_back(sim::PlayerControl{1, true});
+    all.emplace_back(sim::GateOrder{1, true});
     return all;
 }
 
@@ -125,7 +126,7 @@ TEST_CASE("commands: every kind of command goes to bytes and back") {
     REQUIRE(build.items.size() == 2);
     CHECK(build.items[0].y == -2);
     CHECK(build.orient_to_road);
-    const sim::Command& named = all[all.size() - 2];
+    const sim::Command& named = all[all.size() - 3];
     const auto rename = std::get<sim::PlayerRename>(*sim::decode_command(sim::encode_command(named)));
     CHECK(rename.name == "Merlin");
     sim::ShipCommand mount;
@@ -134,7 +135,10 @@ TEST_CASE("commands: every kind of command goes to bytes and back") {
     const auto mounted = std::get<sim::ShipCommand>(*sim::decode_command(sim::encode_command(mount)));
     CHECK(mounted.op == sim::ShipCommand::Op::MountCannon);
     CHECK(mounted.count == sim::ShipCommand::kAllCannons);
-    const auto control = std::get<sim::PlayerControl>(*sim::decode_command(sim::encode_command(all.back())));
+    const auto gates = std::get<sim::GateOrder>(*sim::decode_command(sim::encode_command(all.back())));
+    CHECK(gates.player == 1);
+    CHECK(gates.closed);
+    const auto control = std::get<sim::PlayerControl>(*sim::decode_command(sim::encode_command(all[all.size() - 2])));
     CHECK(control.player == 1);
     CHECK(control.computer);
 
@@ -335,6 +339,27 @@ TEST_CASE("commands: a slot changes hands between the computer and a person") {
     g.simulation.schedule(2, sim::PlayerControl{0, true});
     g.simulation.tick();
     CHECK(g.world.players()[0].role == sim::PlayerRole::Human);
+    const auto results = g.simulation.take_command_results();
+    REQUIRE(results.size() == 1);
+    CHECK(!results[0].accepted);
+}
+
+TEST_CASE("commands: a player closes and opens his city gates") {
+    Game g;
+    g.simulation.schedule(0, sim::GateOrder{1, true});
+    g.simulation.tick();
+    CHECK(g.world.players()[1].gates_closed);
+    CHECK(!g.world.players()[0].gates_closed);
+    g.simulation.schedule(1, sim::GateOrder{1, false});
+    g.simulation.tick();
+    CHECK(!g.world.players()[1].gates_closed);
+    (void)g.simulation.take_command_results();
+
+    // Not for a player out of the game.
+    g.world.player(0)->status = sim::PlayerStatus::Absent;
+    g.simulation.schedule(2, sim::GateOrder{0, true});
+    g.simulation.tick();
+    CHECK(!g.world.players()[0].gates_closed);
     const auto results = g.simulation.take_command_results();
     REQUIRE(results.size() == 1);
     CHECK(!results[0].accepted);

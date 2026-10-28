@@ -129,6 +129,9 @@ struct Player {
     /// What the scenario asks of this player. Only humans and computers have it; of a human only
     /// kNoTrader counts.
     ScenarioSwitches scenario{};
+    /// The player closed the gates of his cities (GateOrder): foreign soldiers cannot pass them.
+    /// The original's gates have no state; any soldier walks through their middle.
+    bool gates_closed = false;
 
     [[nodiscard]] bool active() const noexcept { return status == PlayerStatus::Playing; }
 

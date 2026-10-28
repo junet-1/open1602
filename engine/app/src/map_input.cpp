@@ -186,6 +186,7 @@ void MapInput::setup_keys() {
     general(chord(SDLK_KP_ENTER), KeyAction::Chat);
     general(chord(SDLK_DELETE), KeyAction::DemolishTool);
     general(chord(SDLK_F), KeyAction::PlantFields);  // "Felder"
+    general(chord(SDLK_G), KeyAction::ToggleGates);  // "Gates"; with units selected G holds them
     // Groups: keys 1 .. 9, 0 are groups 0 .. 9.
     const std::array<SDL_Scancode, 10> digits{SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
                                               SDL_SCANCODE_5, SDL_SCANCODE_6, SDL_SCANCODE_7, SDL_SCANCODE_8,
@@ -556,6 +557,9 @@ void MapInput::run_action(const ui::KeyBinding& b) {
             break;
         case KeyAction::PlantFields:
             plant_fields();
+            break;
+        case KeyAction::ToggleGates:
+            toggle_gates();
             break;
         case KeyAction::GroupStore:
             m_units.store_group(b.param);
@@ -1036,6 +1040,17 @@ void MapInput::plant_fields() {
         }
         return;
     }
+}
+
+void MapInput::toggle_gates() {
+    const sim::Player* p = world().player(local());
+    if (p == nullptr) {
+        return;
+    }
+    const bool closed = !p->gates_closed;
+    submit({sim::GateOrder{local(), closed}}, false, false);
+    const char* key = closed ? "notice.gates_closed" : "notice.gates_opened";
+    m_host.notify(ui::tr(key), key);
 }
 
 void MapInput::drop_units() {
