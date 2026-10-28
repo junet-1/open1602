@@ -56,7 +56,7 @@ save.time = {1}:{2} h
 
 # Key overview (F1)
 keys.title = Keys
-keys.footer = Tab or left / right arrow: change page; click or F1 closes
+keys.footer = Tab or left / right arrow: change page; click outside or F1 closes
 keys.page.map_game = Map & game
 keys.page.windows = Windows
 keys.page.building = Building

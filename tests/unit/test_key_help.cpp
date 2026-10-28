@@ -3,6 +3,7 @@
 // (engine/app/src/key_help.hpp).
 
 #include <cstdint>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -88,4 +89,32 @@ TEST_CASE("key help: two sections side by side, one section split into two colum
     CHECK((app::key_help_cell(one, 0, 3) == app::KeyHelpCell{0, 4}));
     CHECK((app::key_help_cell(one, 0, 4) == app::KeyHelpCell{1, 1}));
     CHECK(app::key_help_rows(app::KeyHelpPage{}) == 0);
+}
+
+TEST_CASE("key help: wrapped texts take the rows below them") {
+    const auto lines = [](std::initializer_list<const char*> texts) {
+        std::vector<app::KeyHelpLine> v;
+        for (const char* t : texts) {
+            v.push_back(app::KeyHelpLine{"k", t});
+        }
+        return v;
+    };
+    app::KeyHelpPage two{"", {{"a", lines({"x", "xxx", "x"})}, {"b", lines({"xx", "x"})}}};
+    app::KeyHelpPage one{"", {{"a", lines({"x", "xxx", "x", "x", "x", "x"})}}};
+    // The length of a text stands for its rows.
+    const app::KeyHelpPage* page = &two;
+    const app::KeyHelpHeight height = [&](std::size_t s, std::size_t l) {
+        return page->sections[s].lines[l].text.size();
+    };
+    CHECK(app::key_help_rows(two, height) == 6);
+    CHECK((app::key_help_cell(two, 0, 2, height) == app::KeyHelpCell{0, 5}));
+    CHECK((app::key_help_cell(two, 1, 1, height) == app::KeyHelpCell{1, 3}));
+    // One section splits where the columns come out the most even: 1 + 3 | 1 + 1 + 1 + 1.
+    page = &one;
+    CHECK(app::key_help_rows(one, height) == 5);
+    CHECK((app::key_help_cell(one, 0, 1, height) == app::KeyHelpCell{0, 2}));
+    CHECK((app::key_help_cell(one, 0, 2, height) == app::KeyHelpCell{1, 1}));
+    CHECK((app::key_help_cell(one, 0, 5, height) == app::KeyHelpCell{1, 4}));
+    // A height of 0 still takes a row.
+    CHECK(app::key_help_rows(one, [](std::size_t, std::size_t) { return std::size_t{0}; }) == 4);
 }
