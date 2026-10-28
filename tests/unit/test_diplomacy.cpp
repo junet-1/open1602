@@ -256,7 +256,7 @@ TEST_CASE("diplomacy: the attitude a scenario gives a computer (player +0x70)") 
     CHECK(world.diplomacy().mood(world, 1, 0, 0, 0) == -170);
 }
 
-TEST_CASE("diplomacy: a computer minds others' cities and troops on its small islands (TB-8)") {
+TEST_CASE("diplomacy: a computer minds others' cities on its small islands and troops on all of them (TB-8)") {
     sim::World world(200, 100);
     world.set_players(original_players());
     // Islands 0 and 2 are small (size class up to 3), island 1 is large.
@@ -283,19 +283,23 @@ TEST_CASE("diplomacy: a computer minds others' cities and troops on its small is
     };
     city(0, 0, 1, 100);
     city(2, 0, 1, 0);    // empty
-    city(1, 0, 1, 100);  // large island: not minded
+    city(1, 0, 1, 100);  // large island
     const auto mood = [&] { return world.diplomacy().mood(world, 1, 0, 0, 0); };
     CHECK(mood() == 0);
-    // The human's troops on a large island do not matter.
-    unit(1, 0);
+    // A human city on the large island does not matter ...
+    city(1, 1, 0, 50);
     CHECK(mood() == 0);
-    // ... on a small one they do: 200.
-    unit(2, 0);
-    CHECK(mood() == -200);
-    // The human settles on island 2 next to the empty city: 200 more; the computer's own troops
-    // there with a human city lower the troop penalty to 60.
+    // ... on a small one next to the empty city it does: 200.
     city(2, 1, 0, 50);
+    CHECK(mood() == -200);
+    // The human's troops there: 200 more; the computer's own troops with them lower the troop
+    // penalty to 60.
+    unit(2, 0);
     CHECK(mood() == -400);
     unit(2, 1);
     CHECK(mood() == -260);
+    // Troops count on every island of the computer, the large one too (0x00475C60, as the History
+    // Edition): there the computer has none, so 200.
+    unit(1, 0);
+    CHECK(mood() == -400);
 }

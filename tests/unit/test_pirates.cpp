@@ -457,6 +457,30 @@ TEST_CASE("pirates: at war from the start, they go after a human's ship on their
     CHECK(minutes < 10);
 }
 
+TEST_CASE("pirates: a ship under the white flag is no prey, and a player with no other is left alone") {
+    // 0x004488D0 counts only ships that have not surrendered (0x0044F000), as the History Edition.
+    for (const bool white_flag : {false, true}) {
+        World w;
+        w.world.set_game_settings(sim::World::GameSettings{1, 0, 1500});
+        w.start();
+        sim::Ship ship = sim::make_ship("Bote", 20, 40, 21, 0);
+        ship.cargo.resize(4);
+        ship.health = 50 * kTon;
+        ship.held = white_flag;
+        w.world.add_ship(ship);
+        w.world.player(0)->infra_mask |= 1U << 24;
+        const sim::Target prey = sim::Target::position(20, 40);
+        bool hunted = false;
+        for (std::uint32_t t = 0; t < 20 * 60'000 && !hunted; t += 50) {
+            w.run(50);
+            for (const sim::Ship& s : w.world.ships()) {
+                hunted = hunted || (s.owner == 2 && s.target == prey);
+            }
+        }
+        CHECK(hunted == !white_flag);
+    }
+}
+
 TEST_CASE("pirates: their mood decides war and peace; buying peace at their Kontor") {
     World w;
     w.start();
