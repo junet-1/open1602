@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # The game's parts that need no platform: the main menu's lists, the start dialog of the endless
 # game, the multiplayer menu and its texts, the end screen, the settings files, the build tool, the
-# command sink, the questions before orders, the input of ship and city names, the status line over
+# fertility view, the command sink, the questions before orders, the input of ship and city names, the status line over
 # the map, which video plays when, what the player is told of the game's events, the diplomacy
 # window's strip and open offers, the window "Warenbilanz", the gestures on the map, and the
 # windows of what the player selects (buildings, ships, units, lists, diplomacy, options), the build
@@ -19,6 +19,7 @@ add_library(o1602_menus
     ../src/display_menu.cpp
     ../src/display_settings.cpp
     ../src/end_screen.cpp
+    ../src/fertility_view.cpp
     ../src/endless_setup.cpp
     ../src/event_presenter.cpp
     ../src/game_folder.cpp

@@ -96,6 +96,7 @@ KeyHelpPlace key_help_place(KeyAction action) noexcept {
         case KeyAction::PixelScaleUp:
         case KeyAction::PixelScaleDown:
         case KeyAction::ShowOwners:
+        case KeyAction::ShowFertility:
         case KeyAction::ShowFps:
         case KeyAction::ShowCoordinates:
         case KeyAction::ShowUnitArms:

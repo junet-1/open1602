@@ -19,6 +19,7 @@
 #include <system_error>
 #include <utility>
 
+#include "fertility_view.hpp"
 #include "tile_status.hpp"
 
 #include "o1602/assets/chunk_file.hpp"
@@ -1324,6 +1325,8 @@ void MapViewer::render() {
         m_pending_bill.reset();
         m_tile_marks.clear();
         layers.tile_marks = &m_tile_marks;
+        // First, so that the build preview's marks lie over it.
+        add_fertility_marks();
         m_lighting = tile_lighting();
         layers.lighting = &m_lighting;
         if (m_tool.mode() == BuildTool::Mode::Build) {
@@ -1703,6 +1706,48 @@ bool MapViewer::announce(std::string_view id, const MessageArgs& args, std::opti
     a.text = m_messages.text(*message, ui::current_language(), args);
     show_notices({a});
     return true;
+}
+
+std::pair<std::uint8_t, std::optional<std::uint16_t>> MapViewer::fertility_view_crop() const {
+    // A field or plantation in the build tool shows its crop by itself; Ctrl+B the selected farm's.
+    if (m_tool.mode() == BuildTool::Mode::Build && m_app_settings.display.fertility) {
+        if (const assets::BuildingType* t = m_tool.selected()) {
+            if (const std::uint8_t crop = fertility_crop(m_buildings, *t); crop != 0) {
+                return {crop, std::nullopt};
+            }
+        }
+    }
+    if (!m_show_fertility || !m_hud || m_hud->selection().kind != Selection::Kind::Building) {
+        return {0, std::nullopt};
+    }
+    const Selection& sel = m_hud->selection();
+    if (sel.island >= m_state->world.islands().size()) {
+        return {0, std::nullopt};
+    }
+    const sim::SubTile t = m_state->world.islands()[sel.island].map.sub_tile(m_buildings, sel.x, sel.y);
+    return {t.building != nullptr ? fertility_crop(m_buildings, *t.building) : std::uint8_t{0}, sel.island};
+}
+
+void MapViewer::add_fertility_marks() {
+    const auto [crop, selected_island] = fertility_view_crop();
+    if (crop == 0) {
+        return;
+    }
+    // The island under the mouse, else the selected farm's.
+    std::optional<std::uint16_t> island = selected_island;
+    if (const auto spot = m_input->spot_at_mouse()) {
+        island = spot->island;
+    }
+    if (island) {
+        fertility_marks(m_state->world, m_buildings, m_local_player, *island, crop, m_tile_marks);
+    }
+}
+
+void MapViewer::toggle_fertility() {
+    m_show_fertility = !m_show_fertility;
+    if (m_show_fertility && fertility_view_crop().first == 0) {
+        notify(ui::tr("overlay.fertility_none"), "overlay.fertility_none");
+    }
 }
 
 void MapViewer::notify(std::string text, std::string_view log) {
