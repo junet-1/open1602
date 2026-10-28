@@ -48,6 +48,11 @@ constexpr std::uint16_t kMsgArmyFull = 0x45;
 constexpr std::uint16_t kMsgFleetFull = 0x47;
 constexpr std::uint16_t kMsgRoutes = 0x5D;
 
+/// The player a message is about, nothing for none (the icon then takes the local player's colour).
+std::optional<sim::PlayerId> attacker(sim::PlayerId p) {
+    return p != sim::kNoPlayer ? std::optional<sim::PlayerId>(p) : std::nullopt;
+}
+
 std::optional<std::pair<double, double>> unit_tile(const sim::World& world, const sim::Target& t) {
     if (t.kind == sim::Target::Kind::Soldier) {
         if (const sim::Soldier* s = world.soldier(t.ship)) {
@@ -300,12 +305,12 @@ void GameSound::combat(const sim::World& world, const assets::FigureTable& figur
                 break;
             case sim::MilitaryEvent::Kind::SettlementShelled:
                 if (e.owner == local) {
-                    message(kMsgShelled, unit_tile(world, e.target));
+                    message(kMsgShelled, unit_tile(world, e.target), e.player);  // the attacker's colour
                 }
                 break;
             case sim::MilitaryEvent::Kind::TroopsLanded:
                 if (e.owner == local) {
-                    message(kMsgLanded, unit_tile(world, e.unit));
+                    message(kMsgLanded, unit_tile(world, e.unit), e.player);  // the colour of who landed
                 }
                 break;
             case sim::MilitaryEvent::Kind::UnitTrained:
@@ -379,7 +384,8 @@ void GameSound::ships(const sim::World& world, const assets::FigureTable& figure
                 break;
             case sim::ShipEvent::Kind::Attacked:
                 if (e.player == local) {
-                    message(e.amount == 1 ? kMsgPiratesAttack : kMsgShipAttacked, ship_tile);
+                    // The icon in the attacker's colour, the pirates' for pirates (0x00445CB6).
+                    message(e.amount == 1 ? kMsgPiratesAttack : kMsgShipAttacked, ship_tile, attacker(e.city));
                 }
                 break;
             case sim::ShipEvent::Kind::Sunk:
@@ -394,7 +400,7 @@ void GameSound::ships(const sim::World& world, const assets::FigureTable& figure
                 break;
             case sim::ShipEvent::Kind::OfferedForSale:
                 if (e.player != local) {
-                    message(kMsgShipForSale, ship_tile);
+                    message(kMsgShipForSale, ship_tile, e.player);  // the seller's colour (0x0045EAEB)
                 }
                 break;
             case sim::ShipEvent::Kind::CropsExplored:

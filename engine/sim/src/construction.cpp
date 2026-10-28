@@ -2322,4 +2322,60 @@ bool destroy_building(World& world, const assets::BuildingTable& buildings, std:
     return true;
 }
 
+std::optional<BuildOrder> plant_fields_order(const World& world, const assets::BuildingTable& buildings,
+                                             PlayerId player, std::uint16_t island, TilePos origin,
+                                             std::uint32_t field) {
+    if (island >= world.islands().size()) {
+        return std::nullopt;
+    }
+    const IslandMap& map = world.islands()[island].map;
+    if (!map.contains(static_cast<std::uint32_t>(origin.x), static_cast<std::uint32_t>(origin.y))) {
+        return std::nullopt;
+    }
+    const MapCell& cell = map.top(static_cast<std::uint32_t>(origin.x), static_cast<std::uint32_t>(origin.y));
+    const assets::BuildingType* farm = cell.empty() ? nullptr : buildings.by_sprite(cell.sprite);
+    const assets::BuildingType* crop = buildings.by_id(field);
+    if (farm == nullptr || crop == nullptr || cell.owner != player || farm->radius == 0 ||
+        farm->raw_ware < ware::kFirstField || farm->raw_ware > ware::kTree || farm->prod_kind == prod::kRipe ||
+        farm->prod_kind == prod::kGrowing || crop_ware(buildings, *crop) != farm->raw_ware) {
+        return std::nullopt;
+    }
+    const Catchment area = catchment_of(*farm, cell.rotation, origin);
+    const std::vector<std::uint8_t>& half = circle_table(area.radius);
+    struct Spot {
+        std::int32_t d = 0;
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+    };
+    std::vector<Spot> spots;
+    for (std::int32_t y = area.min().y; y < area.min().y + static_cast<std::int32_t>(area.height()); ++y) {
+        for (std::int32_t x = area.min().x; x < area.min().x + static_cast<std::int32_t>(area.width()); ++x) {
+            std::int32_t dx = x - area.centre.x;
+            std::int32_t dy = y - area.centre.y;
+            dx = dx > 0 ? dx - area.parity_x : -dx;
+            dy = dy > 0 ? dy - area.parity_y : -dy;
+            if (dy > area.radius || (area.radius > 1 && dx > half[static_cast<std::size_t>(dy)]) ||
+                !map.contains(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y))) {
+                continue;
+            }
+            // Open ground only: trees, meadows and the fields of other farms stay as they are.
+            const MapCell& c = map.top(static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y));
+            const assets::BuildingType* b = c.empty() ? nullptr : buildings.by_sprite(c.sprite);
+            if (b == nullptr || b->kind != kind::kGround) {
+                continue;
+            }
+            spots.push_back(Spot{dx * dx + dy * dy, x, y});
+        }
+    }
+    std::stable_sort(spots.begin(), spots.end(), [](const Spot& a, const Spot& b) { return a.d < b.d; });
+    BuildOrder order;
+    order.player = player;
+    order.island = island;
+    order.orient_to_road = false;
+    for (const Spot& s : spots) {
+        order.items.push_back(BuildItem{field, s.x, s.y, 0, 0});
+    }
+    return order;
+}
+
 }  // namespace o1602::sim

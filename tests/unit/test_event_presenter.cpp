@@ -205,6 +205,7 @@ TEST_CASE("event presenter: an own defeat plays its video directly, the defeat v
     const auto rival = g.presenter.game_events(g.world, kMe, {defeated}, 1000);
     REQUIRE(rival.size() == 2);
     CHECK(announcement(rival[1])->message == 0x59);
+    CHECK(announcement(rival[1])->about == kRival);  // the icon in the leaving player's colour
 }
 
 TEST_CASE("event presenter: a rival's defeat announces the culprit's triumphal arch instead (op 3 sub 9)") {
@@ -220,6 +221,7 @@ TEST_CASE("event presenter: a rival's defeat announces the culprit's triumphal a
     const auto plain = g.presenter.game_events(g.world, kMe, {defeated}, 1000);
     REQUIRE(plain.size() == 2);
     CHECK(announcement(plain[1])->message == 0x5A);
+    CHECK(announcement(plain[1])->about == kRival);  // in the colour of the defeated (0x0047684B)
     // With the arch: only its message.
     sim::GameEvent arch;
     arch.kind = sim::GameEvent::Kind::ArchAllowed;

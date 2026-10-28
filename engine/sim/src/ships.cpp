@@ -629,7 +629,7 @@ void Fleet::hit(std::uint32_t id, std::uint32_t damage, PlayerId attacker, bool 
         return;
     }
     ship->health = health - damage;
-    m_events.push_back(ShipEvent{ShipEvent::Kind::Attacked, ship->id, ship->owner, 0, 0, 0, by_pirates ? 1 : 0});
+    m_events.push_back(ShipEvent{ShipEvent::Kind::Attacked, ship->id, ship->owner, 0, attacker, 0, by_pirates ? 1 : 0});
     const Player* owner = m_world->player(ship->owner);
     if (by_pirates && !ship->held && owner != nullptr && owner->role != PlayerRole::Human &&
         m_world->behaviour(*owner) != FactionBehaviour::Pirates) {

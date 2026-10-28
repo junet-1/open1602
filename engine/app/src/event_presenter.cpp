@@ -473,11 +473,12 @@ std::vector<Notice> EventPresenter::game_events(const sim::World& world, sim::Pl
                                                  : (m_defeat_variant++ & 1U) == 0             ? std::uint16_t{1010}
                                                                                               : std::uint16_t{2020}});
                 } else if (e.reason == sim::GameEvent::Reason::Bankrupt) {
-                    out.emplace_back(announce(0x59));
+                    out.emplace_back(announce(0x59, std::nullopt, e.player));  // the leaving player's colour
                 } else if (e.by != sim::kNoPlayer && !arch_for(local, e.player)) {
                     // Op 3 sub 9: "Ein Konkurrent wurde besiegt!", unless nobody is credited, or
-                    // to the credited player who hears of his triumphal arch instead.
-                    out.emplace_back(announce(0x5A));
+                    // to the credited player who hears of his triumphal arch instead; the icon in
+                    // the colour of the defeated (0x0047684B).
+                    out.emplace_back(announce(0x5A, std::nullopt, e.player));
                 }
                 break;
             case sim::GameEvent::Kind::ArchAllowed:
