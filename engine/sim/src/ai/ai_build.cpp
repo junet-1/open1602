@@ -231,6 +231,26 @@ void Engine::plaza_ring(AiPlayer& p) {
     build(p, std::move(items), false);
 }
 
+bool Engine::woodcutter_tree(AiPlayer& p, std::int32_t x, std::int32_t y) {
+    // Whether a tree lies in the reach of one of the city's own woodcutters.
+    bool reached = false;
+    rings(p, RingFilter::Own, x, y, x, y, kWoodcutterReach, [&](const Tile& t, std::int32_t, std::int32_t, std::int32_t) {
+        if (reached || !t.origin || t.raw != ware::kTree || t.ware != ware::kWood || t.owner != p.player) {
+            return;
+        }
+        const IslandMap& map = island_of(p.island).map;
+        std::uint32_t w = 0;
+        std::uint32_t h = 0;
+        rotated_size(*t.type, map.top(static_cast<std::uint32_t>(t.ox), static_cast<std::uint32_t>(t.oy)).rotation, w, h);
+        const std::int32_t dx = std::max({t.ox - x, 0, x - (t.ox + static_cast<std::int32_t>(w) - 1)});
+        const std::int32_t dy = std::max({t.oy - y, 0, y - (t.oy + static_cast<std::int32_t>(h) - 1)});
+        const std::vector<std::uint8_t>& circle = circle_table(t.type->radius);
+        reached = dy <= t.type->radius && static_cast<std::size_t>(dy) < circle.size() &&
+                  dx <= circle[static_cast<std::size_t>(dy)];
+    });
+    return reached;
+}
+
 void Engine::fill_fields(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
                          std::int32_t rings_n, std::uint8_t field_ware, std::uint8_t radius) {
     // 0x00411B50: fields in rings around the farm, inside its reach, on ruins, meadows and trees.
@@ -270,6 +290,9 @@ void Engine::fill_fields(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int
             }
             if (!((tl.ware == 0 && tl.kind == kind::kRuin) || tl.ware == ware::kGrass || tl.ware == ware::kTree)) {
                 continue;
+            }
+            if (tl.ware == ware::kTree && field_ware != ware::kTree && woodcutter_tree(p, x, y)) {
+                log(p, "PROBE field %u over a woodcutter's tree at %d,%d", field_ware, x, y);
             }
             const std::uint32_t variants = std::max<std::uint32_t>(base->rand_count, 1);
             const std::uint32_t pick = rng().below(variants);

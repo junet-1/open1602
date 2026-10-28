@@ -87,6 +87,8 @@ inline constexpr std::int32_t kStepMs = 50;
 /// Game ms between two steps of the pirates.
 inline constexpr std::int32_t kPirateStepMs = 10'000;
 /// Pushes a city visit allows: with fewer than three cities, and with more.
+/// Rings searched for a woodcutter whose reach covers a tree (larger than any building's reach).
+inline constexpr std::int32_t kWoodcutterReach = 16;
 inline constexpr std::int32_t kBudgetFew = 16;
 inline constexpr std::int32_t kBudgetMany = 8;
 inline constexpr std::size_t kMaxStack = 256;
@@ -465,6 +467,8 @@ private:
     std::int32_t road_three(AiPlayer& p, std::int32_t x, std::int32_t y, std::uint8_t dir, std::int32_t right,
                             std::int32_t left, std::int32_t back, bool force);
     void plaza_ring(AiPlayer& p);
+    /// Whether the tree at x, y lies in the reach of one of the city's own woodcutters.
+    [[nodiscard]] bool woodcutter_tree(AiPlayer& p, std::int32_t x, std::int32_t y);
     void fill_fields(AiPlayer& p, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
                      std::int32_t rings_n, std::uint8_t field_ware, std::uint8_t radius);
     void slot_built(AiPlayer& p, std::uint8_t slot);
